@@ -555,7 +555,52 @@ class _ToolbarMixin:
             self.viewport._wheel_steer = angle
             self.viewport.update()
 
-    def _cycle_carcol(self): #vers 1
+    def _cycle_carcol(self): #vers 2
+        """Cycle through carcols.dat pairs for the current vehicle. Asks for file if not found."""
+        stem = os.path.splitext(os.path.basename(
+            getattr(self, '_current_dff_path', '')))[0].lower()
+        if not stem: return
+        game_root = self._get_game_root()
+        # Try cached carcols path first
+        mw = getattr(self, 'main_window', None)
+        carcols_path = getattr(mw, 'vehicle_data_paths', {}).get('carcols', '')
+        if not carcols_path:
+            # Try standard locations
+            for sub in ('data/carcols.dat','DATA/CARCOLS.DAT','data/CARCOLS.DAT'):
+                p = os.path.join(game_root, sub) if game_root else ''
+                if p and os.path.isfile(p):
+                    carcols_path = p; break
+        if not carcols_path:
+            # Ask user
+            carcols_path, _ = QFileDialog.getOpenFileName(
+                self, "Open carcols.dat", game_root or '',
+                "Carcols (carcols.dat CARCOLS.DAT);;All Files (*)")
+            if not carcols_path: return
+            # Cache it
+            if mw:
+                if not hasattr(mw, 'vehicle_data_paths'):
+                    mw.vehicle_data_paths = {}
+                mw.vehicle_data_paths['carcols'] = carcols_path
+        try:
+            from apps.methods.carcols_parser import parse_carcols
+            data = parse_carcols(carcols_path)
+            pairs = data.get_colours(stem)
+            if not pairs:
+                self._set_status(f"No carcols entry for '{stem}'")
+                return
+            idx = getattr(self, '_carcol_idx', -1) + 1
+            if idx >= len(pairs): idx = 0
+            self._carcol_idx = idx
+            p1, p2 = pairs[idx]
+            self._set_paint_pair(p1, p2)
+            if hasattr(self, '_carcol_btn'):
+                self._carcol_btn.setToolTip(
+                    f"Pair {idx+1}/{len(pairs)} — "
+                    f"Pri: rgb({int(p1[0]*255)},{int(p1[1]*255)},{int(p1[2]*255)}) "
+                    f"Sec: rgb({int(p2[0]*255)},{int(p2[1]*255)},{int(p2[2]*255)})")
+            self._set_status(f"Carcol {idx+1}/{len(pairs)} for {stem}")
+        except Exception as e:
+            self._set_status(f'Carcol error: {e}')
         """Cycle through carcols.dat pairs for the current vehicle."""
         stem = os.path.splitext(os.path.basename(
             getattr(self, '_current_dff_path', '')))[0].lower()
@@ -2281,9 +2326,9 @@ class _LayoutMixin:
                 b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
                 b.setToolTip(f'{text} — {tip}')
             else:
-                b.setText(text[:6])
+                b.setText(text)
                 b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
-            b.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            b.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
             if checkable:
                 b.setCheckable(True); b.setChecked(checked)
                 b.toggled.connect(cb)
@@ -2303,7 +2348,7 @@ class _LayoutMixin:
             else:
                 b.setText(text)
                 b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
-            b.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            b.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
             if checkable:
                 b.setCheckable(True); b.setChecked(checked)
                 b.toggled.connect(cb)
@@ -2317,7 +2362,7 @@ class _LayoutMixin:
             for ww in widgets:
                 if isinstance(ww, int): h.addSpacing(ww)
                 elif ww == 'stretch':  h.addStretch()
-                else: h.addWidget(ww, 1)
+                else: h.addWidget(ww)  # no stretch factor — use natural size
             return w
 
         def _sep():

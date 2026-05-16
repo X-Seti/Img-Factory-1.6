@@ -403,23 +403,30 @@ def _parse_native_texture(data: bytes, base: int, _debug: bool = False) -> Optio
             elif mip_size == dxt5_size:
                 fmt = 'DXT5'; rgba = _decode_dxt5(mip_data[:mip_size], w, h)
             elif rf_pal == RASTER_PAL8:
-                # GTA3/VC/SA PC PAL8: 256*4 BGRA palette, 4-byte pixel size field, then w*h indices
+                # GTA3/VC PAL8: palette is RGBA (no swap)
+                # SA PAL8: palette is BGRA (swap B<->R)
+                # Detected by RW version: SA >= 0x1803FFFF
                 fmt = 'PAL8'
-                pal_size = 256 * 4  # 1024 bytes
-                pix_hdr  = 4        # 4-byte pixel data size prefix
-                idx_size = w * h
-                needed   = pal_size + pix_hdr + idx_size
-                if len(mip_data) >= needed:
+                pal_size  = 256 * 4
+                pix_hdr   = 4
+                idx_size  = w * h
+                is_sa_pal = (rw_version >= 0x1803FFFF)
+                if len(mip_data) >= pal_size + pix_hdr + idx_size:
                     palette = mip_data[:pal_size]
                     indices = mip_data[pal_size+pix_hdr:pal_size+pix_hdr+idx_size]
                     out = bytearray(w * h * 4)
                     for i, idx in enumerate(indices):
                         p = idx * 4
-                        # BGRA -> RGBA
-                        out[i*4]   = palette[p+2]
-                        out[i*4+1] = palette[p+1]
-                        out[i*4+2] = palette[p]
-                        out[i*4+3] = palette[p+3]
+                        if is_sa_pal:
+                            out[i*4]   = palette[p+2]
+                            out[i*4+1] = palette[p+1]
+                            out[i*4+2] = palette[p]
+                            out[i*4+3] = palette[p+3]
+                        else:
+                            out[i*4]   = palette[p]
+                            out[i*4+1] = palette[p+1]
+                            out[i*4+2] = palette[p+2]
+                            out[i*4+3] = palette[p+3]
                     rgba = bytes(out)
             elif rf_base == RASTER_8888 and mip_size == w*h*4:
                 fmt = 'RGBA32'; rgba = _decode_rgba8888(mip_data, w, h)
