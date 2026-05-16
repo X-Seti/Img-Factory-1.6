@@ -555,6 +555,30 @@ class _ToolbarMixin:
             self.viewport._wheel_steer = angle
             self.viewport.update()
 
+    def _cycle_carcol(self): #vers 1
+        """Cycle through carcols.dat pairs for the current vehicle."""
+        stem = os.path.splitext(os.path.basename(
+            getattr(self, '_current_dff_path', '')))[0].lower()
+        if not stem: return
+        game_root = self._get_game_root()
+        if not game_root: return
+        try:
+            from apps.methods.carcols_parser import get_vehicle_colours
+            pairs = get_vehicle_colours(game_root, stem)
+            if not pairs: return
+            idx = getattr(self, '_carcol_idx', -1) + 1
+            if idx >= len(pairs): idx = 0
+            self._carcol_idx = idx
+            p1, p2 = pairs[idx]
+            self._set_paint_pair(p1, p2)
+            if hasattr(self, '_carcol_btn'):
+                self._carcol_btn.setToolTip(
+                f"Pair {idx+1}/{len(pairs)} — "
+                f"Pri: rgb({int(p1[0]*255)},{int(p1[1]*255)},{int(p1[2]*255)}) "
+                f"Sec: rgb({int(p2[0]*255)},{int(p2[1]*255)},{int(p2[2]*255)})")
+        except Exception as e:
+            self._set_status(f'Carcol: {e}')
+
     def _toggle_com_indicator(self): #vers 1
         """Toggle Centre of Mass indicator in viewport."""
         show = not getattr(self, '_show_com', False)
@@ -2340,13 +2364,16 @@ class _LayoutMixin:
 
         # ── Paint ────────────────────────────────────────
         lay.addWidget(_lbl("Paint"))
-        self._paint1_btn = QPushButton("Primary")
-        self._paint2_btn = QPushButton("Secondary")
-        for b in (self._paint1_btn, self._paint2_btn):
+        self._paint1_btn = QPushButton("Pri")
+        self._paint2_btn = QPushButton("Sec")
+        self._carcol_btn = QPushButton("Carcol")
+        for b in (self._paint1_btn, self._paint2_btn, self._carcol_btn):
             b.setFixedHeight(24); b.setFont(self.infobar_font)
         self._paint1_btn.clicked.connect(self._pick_paint1)
         self._paint2_btn.clicked.connect(self._pick_paint2)
-        lay.addWidget(_row(self._paint1_btn, self._paint2_btn))
+        self._carcol_btn.clicked.connect(self._cycle_carcol)
+        self._carcol_btn.setToolTip("Cycle through carcols.dat colour pairs")
+        lay.addWidget(_row(self._paint1_btn, self._paint2_btn, self._carcol_btn))
         self._update_paint_btns()
 
         self._carcols_widget = QWidget()
@@ -2555,8 +2582,8 @@ class _LayoutMixin:
 
         # ── Paint ────────────────────────────────────────
         lay.addWidget(_lbl("Paint"))
-        self._paint1_btn = QPushButton("Primary")
-        self._paint2_btn = QPushButton("Secondary")
+        self._paint1_btn = QPushButton("Pri")
+        self._paint2_btn = QPushButton("Sec")
         for b in (self._paint1_btn, self._paint2_btn):
             b.setFixedHeight(26); b.setFont(self.infobar_font)
         self._paint1_btn.clicked.connect(self._pick_paint1)
@@ -2782,8 +2809,8 @@ class _LayoutMixin:
         swatch_lay = QHBoxLayout(swatch_row)
         swatch_lay.setContentsMargins(0,0,0,0); swatch_lay.setSpacing(4)
 
-        self._paint1_btn = QPushButton("Primary")
-        self._paint2_btn = QPushButton("Secondary")
+        self._paint1_btn = QPushButton("Pri")
+        self._paint2_btn = QPushButton("Sec")
         for btn in (self._paint1_btn, self._paint2_btn):
             btn.setFixedHeight(28)
             btn.setFont(self.infobar_font)
