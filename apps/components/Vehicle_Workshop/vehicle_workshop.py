@@ -3634,44 +3634,44 @@ class CarColsParser: #vers 1
                     return "SA"
         return "VC"
 
-    def load(self, path: str) -> bool: #vers 1
+    def load(self, path: str) -> bool: #vers 2
         try:
             self.colours.clear(); self.vehicles.clear(); self.header_lines.clear()
             with open(path, "r", encoding="latin-1") as f:
                 lines = f.readlines()
             self.game = self._detect_game(lines)
-            in_col = False
+            section = None
             for ln in lines:
                 s = ln.strip()
-                if not s or s.startswith(";"):
-                    if not in_col: self.header_lines.append(ln)
-                    continue
-                parts = s.split()
-                if not parts: continue
-                # Colour palette row: "R,G,B"
-                if not parts[0].lower().startswith("col") and not in_col:
+                if '#' in s: s = s[:s.index('#')].strip()
+                if ';' in s: s = s[:s.index(';')].strip()
+                if not s: continue
+                sl = s.lower()
+                if sl == 'col':  section = 'col'; continue
+                if sl == 'car':  section = 'car'; continue
+                if sl == 'end':  section = None;  continue
+                if section == 'col':
                     try:
-                        rgb = parts[0].split(",")
+                        parts = s.replace('\t', ' ').split()
+                        rgb = parts[0].split(',')
                         if len(rgb) == 3:
-                            self.colours.append(CarColour(int(rgb[0]), int(rgb[1]), int(rgb[2])))
-                            continue
-                        elif len(parts) >= 3 and all(p.isdigit() for p in parts[:3]):
-                            self.colours.append(CarColour(int(parts[0]), int(parts[1]), int(parts[2])))
-                            continue
+                            self.colours.append(CarColour(int(rgb[0]),int(rgb[1]),int(rgb[2])))
+                        elif len(parts) >= 3:
+                            self.colours.append(CarColour(int(parts[0]),int(parts[1]),int(parts[2])))
                     except (ValueError, IndexError):
                         pass
-                if parts[0].lower() in ("col", "car2"):
-                    in_col = True
-                    if len(parts) < 2: continue
-                    entry = CarColEntry(name=parts[1])
-                    for pair_str in parts[2:]:
-                        try:
-                            pair = pair_str.split(",")
-                            if len(pair) == 2:
-                                entry.palettes.append((int(pair[0]), int(pair[1])))
-                        except ValueError:
-                            pass
-                    self.vehicles.append(entry)
+                elif section == 'car':
+                    parts = [p.strip() for p in s.split(',')]
+                    if not parts or not parts[0]: continue
+                    entry = CarColEntry(name=parts[0])
+                    nums = []
+                    for p in parts[1:]:
+                        try: nums.append(int(p.strip()))
+                        except ValueError: pass
+                    for i in range(0, len(nums)-1, 2):
+                        entry.palettes.append((nums[i], nums[i+1]))
+                    if entry.palettes:
+                        self.vehicles.append(entry)
             return True
         except Exception as ex:
             print(f"CarColsParser.load: {ex}"); return False

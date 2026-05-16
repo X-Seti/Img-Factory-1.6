@@ -147,9 +147,13 @@ class HandlingEntry: #vers 1
     raw_line: str = ""
 
     @staticmethod
-    def from_line(line: str) -> Optional['HandlingEntry']: #vers 1
+    def from_line(line: str) -> Optional['HandlingEntry']: #vers 2
         stripped = line.strip()
         if not stripped or stripped.startswith(';'):
+            return None
+        # SA special sections: % = boat, $ = plane/heli, ! = bike, & = animation
+        # These have different field layouts — skip them for car-only handling tab
+        if stripped[0] in ('%', '$', '!', '&'):
             return None
         comment = ""
         if ';' in stripped:
