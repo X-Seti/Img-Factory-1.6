@@ -518,23 +518,26 @@ class _ToolbarMixin:
         if getattr(self,'_assemble_btn',None) and self._assemble_btn.isChecked():
             self._toggle_assembly_mode(True)
 
-    def _toggle_animation(self, enabled: bool): #vers 1
+    def _toggle_animation(self, enabled: bool): #vers 2
         """Toggle door open/close animation cycle."""
         vp = self.viewport
         if enabled:
-            from PyQt6.QtCore import QTimer
-            self._anim_timer = QTimer()
+            if not hasattr(self, '_anim_timer') or not self._anim_timer:
+                self._anim_timer = QTimer(self)  # parent=self → auto-stopped on delete
             self._anim_angle = 0.0
             speed = getattr(self, '_anim_speed', 1.0)
             def _step():
-                self._anim_angle = (self._anim_angle + speed * 2.0) % 180.0
-                # Apply to all open doors — simple pivot rotation stored per door
-                vp._door_angles = getattr(vp, '_door_angles', {})
-                for dname in getattr(self, '_door_open', set()):
-                    vp._door_angles[dname] = self._anim_angle if self._anim_angle < 90 else 180 - self._anim_angle
-                vp.update()
+                try:
+                    self._anim_angle = (self._anim_angle + speed * 2.0) % 180.0
+                    vp._door_angles = getattr(vp, '_door_angles', {})
+                    for dname in getattr(self, '_door_open', set()):
+                        vp._door_angles[dname] = self._anim_angle if self._anim_angle < 90 else 180 - self._anim_angle
+                    vp.update()
+                except RuntimeError:
+                    if hasattr(self, '_anim_timer') and self._anim_timer:
+                        self._anim_timer.stop()
             self._anim_timer.timeout.connect(_step)
-            self._anim_timer.start(33)  # ~30fps
+            self._anim_timer.start(33)
         else:
             if hasattr(self, '_anim_timer') and self._anim_timer:
                 self._anim_timer.stop()
@@ -3761,7 +3764,16 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
         if hasattr(self,'size_grip'): self.size_grip.move(self.width()-16,self.height()-16)
         self._refresh_corner_overlay()
 
-    def closeEvent(self, event): #Vers 2
+    def closeEvent(self, event): #Vers 3
+        # Stop any running timers before widget is destroyed
+        try:
+            if hasattr(self, '_anim_timer') and self._anim_timer:
+                self._anim_timer.stop(); self._anim_timer = None
+        except Exception: pass
+        try:
+            if hasattr(self, '_shared_txd_worker') and self._shared_txd_worker:
+                self._shared_txd_worker.quit()
+        except Exception: pass
         # Save window geometry
         if self.standalone_mode:
             g = self.geometry()
