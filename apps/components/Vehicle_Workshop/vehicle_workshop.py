@@ -1314,11 +1314,10 @@ class _ToolbarMixin:
                 p = os.path.dirname(p)
         return ''
 
-    def _auto_load_shared_txds(self): #vers 4
-        """Find shared TXDs in a background thread — never blocks the UI."""
+    def _auto_load_shared_txds(self): #vers 5
+        """Find shared TXDs — uses preloaded cache first, worker for remainder."""
         if not self._dff_model: return
         needed  = self._collect_needed_textures()
-        # Add wheel mesh texture needs when wheels are shown
         if getattr(self.viewport, '_show_wheels', False):
             wheel_data = self.viewport._get_wheel_geom_data()
             if wheel_data:
@@ -1332,6 +1331,26 @@ class _ToolbarMixin:
         already = set(self.viewport._tex_ids.keys())
         missing = needed - already
         if not missing: return
+
+        # Step 0: Use preloaded shared cache from DAT Browser (instant, no worker)
+        mw = getattr(self, 'main_window', None)
+        preloaded = getattr(mw, 'shared_vehicle_textures', {})
+        if preloaded:
+            hits = []
+            for name in list(missing):
+                t = preloaded.get(name)
+                if not t:
+                    t = preloaded.get(self._strip_tex_suffix(name))
+                if t:
+                    hits.append(t); missing.discard(name)
+                    missing.discard(self._strip_tex_suffix(name))
+            if hits:
+                self.viewport._upload_textures(hits, additive=True)
+                self.viewport.update()
+                if hasattr(mw, 'log_message'):
+                    mw.log_message(f"+{len(hits)} shared textures loaded")
+            if not missing:
+                return  # everything satisfied from cache
 
         # Snapshot everything the worker needs — no shared mutable state
         game_root  = self._find_game_root()

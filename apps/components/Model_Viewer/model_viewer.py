@@ -1268,13 +1268,28 @@ class ModelViewer(ToolMenuMixin, QWidget):
                 p = os.path.dirname(p)
         return ''
 
-    def _auto_load_shared_txds(self): #vers 3
-        """Find shared TXDs in a background thread — never blocks the UI."""
+    def _auto_load_shared_txds(self): #vers 4
+        """Find shared TXDs — uses preloaded cache first, worker for remainder."""
         if not self._dff_model: return
         needed  = self._collect_needed_textures()
         already = set(self.viewport._tex_ids.keys())
         missing = needed - already
         if not missing: return
+
+        # Step 0: Use preloaded shared cache from DAT Browser (instant, no worker)
+        mw = getattr(self, 'main_window', None)
+        preloaded = getattr(mw, 'shared_vehicle_textures', {})
+        if preloaded:
+            hits = []
+            for name in list(missing):
+                t = preloaded.get(name)
+                if not t: t = preloaded.get(self._strip_tex_suffix(name))
+                if t: hits.append(t); missing.discard(name); missing.discard(self._strip_tex_suffix(name))
+            if hits:
+                self.viewport._upload_textures(hits, additive=True)
+                self.viewport.update()
+                self.log(f"+{len(hits)} shared textures loaded")
+            if not missing: return
 
         # Snapshot everything the worker needs — no shared mutable state
         game_root  = self._find_game_root()

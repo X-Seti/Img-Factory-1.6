@@ -1418,6 +1418,61 @@ class DATBrowserWidget(QWidget): #vers 3
         except Exception:
             pass
 
+    def _preload_shared_txds(self, game_root: str, game, mw): #vers 1
+        """Preload shared vehicle TXDs in background thread — stored in mw.shared_vehicle_textures."""
+        from PyQt6.QtCore import QThread, pyqtSignal
+
+        class _Loader(QThread):
+            done = pyqtSignal(dict)
+            def __init__(self, game_root, game):
+                super().__init__()
+                self.game_root = game_root
+                self.game = game
+            def run(self):
+                import os
+                from apps.methods.txd_parser import parse_txd
+                textures = {}
+                m = os.path.join(self.game_root, 'models')
+                is_sa = str(self.game).endswith('sa') or str(self.game) == 'sa'
+
+                if is_sa:
+                    paths = [
+                        os.path.join(m, 'generic', 'vehicle.txd'),
+                        os.path.join(m, 'generic', 'wheels.txd'),
+                        os.path.join(m, 'misc.txd'),
+                        os.path.join(m, 'MISC.TXD'),
+                    ]
+                else:  # GTA3 / VC / LC
+                    paths = [
+                        os.path.join(m, 'misc.txd'),
+                        os.path.join(m, 'MISC.TXD'),
+                        os.path.join(m, 'generic.txd'),
+                        os.path.join(m, 'wheels.txd'),
+                        os.path.join(m, 'wheels.TXD'),
+                        os.path.join(m, 'particle.txd'),
+                    ]
+                for p in paths:
+                    if not os.path.isfile(p): continue
+                    try:
+                        with open(p, 'rb') as f: data = f.read()
+                        for t in parse_txd(data):
+                            if t.get('rgba_data') and t['width'] > 0:
+                                textures[t['name'].lower()] = t
+                    except Exception:
+                        pass
+                self.done.emit(textures)
+
+        loader = _Loader(game_root, game)
+
+        def _on_done(textures):
+            mw.shared_vehicle_textures = textures
+            if hasattr(mw, 'log_message') and textures:
+                mw.log_message(f"Preloaded {len(textures)} shared vehicle textures")
+
+        loader.done.connect(_on_done)
+        loader.start()
+        self._shared_txd_loader = loader  # keep reference
+
     def _browse_game_root(self): #vers 2
         path = QFileDialog.getExistingDirectory(
             self, "Select GTA game root folder",
@@ -1553,6 +1608,8 @@ class DATBrowserWidget(QWidget): #vers 3
                             if hasattr(mw, 'log_message'):
                                 found = ', '.join(vdata.keys())
                                 mw.log_message(f"Vehicle data cached: {found}")
+                            # Preload shared vehicle TXDs in background
+                            self._preload_shared_txds(game_root, game, mw)
                     except Exception:
                         pass
                 self._ide_db = ide_db   # also keep on widget
