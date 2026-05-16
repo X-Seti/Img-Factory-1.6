@@ -652,3 +652,12 @@ When working on tasks:
 - [ ] VC: animFile field in default.ide cars section — currently parsed but not used
 - [ ] Wheel steer slider not wired to actual wheel rotation in viewport
 - [ ] CoM/Dummy/Suspension/Seats/Bounds edit buttons — overlay rendering not yet implemented
+
+## Vehicle Workshop — Wheel Editor (planned)
+- [ ] Wheel position offset (X/Y/Z per dummy) — edit dummy frame position in DFF
+- [ ] Wheel track width (left/right spacing) — scale X offset of wheel_lf/wheel_rf dummies
+- [ ] Wheel size override (front/rear scale sliders independent of IDE values)
+- [ ] Wheel type picker (dropdown showing all types from wheels.DFF with preview)
+- [ ] Live preview — sliders update viewport in real time
+- [ ] Write back to vehicles.ide / default.ide on save
+- [ ] Write back to DFF frame positions for dummy offsets
