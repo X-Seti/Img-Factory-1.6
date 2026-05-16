@@ -1533,7 +1533,9 @@ class _ToolbarMixin:
             # Only show if known vehicle, or no filter available (show all)
             if vehicle_names and stem not in vehicle_names:
                 continue
-            item = QListWidgetItem(entry.name)
+            stem, ext = os.path.splitext(entry.name)
+            display = re.sub(r'_[a-z0-9]{6,12}$', '', stem, flags=re.IGNORECASE) + ext
+            item = QListWidgetItem(display)
             item.setData(Qt.ItemDataRole.UserRole, entry)
             self._img_list.addItem(item)
         count = self._img_list.count()
@@ -1549,12 +1551,14 @@ class _ToolbarMixin:
         from PyQt6.QtWidgets import QApplication
         from PyQt6.QtCore import Qt as _Qt
         name = entry.name
+        stem0, ext0 = os.path.splitext(name)
+        display_name = re.sub(r'_[a-z0-9]{6,12}$', '', stem0, flags=re.IGNORECASE) + ext0
         try:
             import tempfile
             # Show busy cursor + progress bar immediately
             QApplication.setOverrideCursor(_Qt.CursorShape.WaitCursor)
             self._show_progress(True)
-            self._set_status(f"Loading {name}…")
+            self._set_status(f"Loading {display_name}…")
             QApplication.processEvents()
 
             # Step 1: Extract DFF
@@ -2904,12 +2908,14 @@ class _LayoutMixin:
         from PyQt6.QtWidgets import QApplication
         from PyQt6.QtCore import Qt as _Qt
         name = entry.name
+        stem0, ext0 = os.path.splitext(name)
+        display_name = re.sub(r'_[a-z0-9]{6,12}$', '', stem0, flags=re.IGNORECASE) + ext0
         try:
             import tempfile
             # Show busy cursor + progress bar immediately
             QApplication.setOverrideCursor(_Qt.CursorShape.WaitCursor)
             self._show_progress(True)
-            self._set_status(f"Loading {name}…")
+            self._set_status(f"Loading {display_name}…")
             QApplication.processEvents()
 
             # Step 1: Extract DFF

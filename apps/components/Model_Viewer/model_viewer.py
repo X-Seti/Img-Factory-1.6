@@ -1542,9 +1542,14 @@ class ModelViewer(ToolMenuMixin, QWidget):
         self._img_list.clear()
         if not img or not hasattr(img, 'entries'):
             return
+        import re as _re
+        def _clean(name):
+            stem, ext = os.path.splitext(name)
+            stem = _re.sub(r'_[a-z0-9]{6,12}$', '', stem, flags=_re.IGNORECASE)
+            return stem + ext
         for entry in img.entries:
             if entry.name.lower().endswith('.dff'):
-                item = QListWidgetItem(entry.name)
+                item = QListWidgetItem(_clean(entry.name))
                 item.setData(Qt.ItemDataRole.UserRole, entry)
                 self._img_list.addItem(item)
         count = self._img_list.count()
