@@ -1542,6 +1542,7 @@ class DATBrowserWidget(QWidget): #vers 3
                             ('carmods.dat',   'carmods'),
                             ('cargrp.dat',    'cargrp'),
                             ('vehicles.ide',  'vehicles_ide'),
+                            ('default.ide',   'vehicles_ide'),  # GTA3 uses default.ide
                         ]:
                             for variant in (fname, fname.upper(), fname.lower()):
                                 p = os.path.join(data_dir, variant)
