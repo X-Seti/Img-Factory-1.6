@@ -661,3 +661,13 @@ When working on tasks:
 - [ ] Live preview — sliders update viewport in real time
 - [ ] Write back to vehicles.ide / default.ide on save
 - [ ] Write back to DFF frame positions for dummy offsets
+
+## Vehicle Workshop — resolved May 17 2026
+- [x] SA vehicles.ide wheel scale not read — vehicles.ide overwritten by default.ide
+- [x] Frame tree checkboxes unresponsive — missing ItemIsEnabled flag
+- [x] Camera resets on frame visibility toggle
+- [x] Handling % $ ! entries showing in list (SA boats/planes/bikes)
+- [x] carcols.dat SA format not parsed
+- [x] Wheel size slider range too small (±10%)
+- [x] sentinel.txd loading 4x per vehicle switch
+- [x] Streaming suffix in DFF list display names

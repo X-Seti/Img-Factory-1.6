@@ -3496,3 +3496,35 @@ smart_file_router updated: train*.dat, flight*.dat, spath0.dat → Path Workshop
 - Edit buttons truncated text (Dummies→Dummie)
 - generic.txd loading irrelevant non-vehicle textures
 - First model load occasionally shows no textures (GL context timing)
+
+## May 17 2026 - Vehicle Workshop fixes continued
+
+**SA vehicles.ide wheel scale (dat_browser.py):**
+- Root cause: vehicles.ide found first, then default.ide overwrote it — break only exited variant loop not fname loop
+- Fix: `if key in vdata: continue` prevents overwrite — SA uses vehicles.ide, GTA3/VC use default.ide fallback
+
+**Frame tree checkboxes (vehicle_workshop.py):**
+- Missing ItemIsEnabled flag — checkboxes appeared but clicks did nothing
+- Fix: explicit flags `ItemIsUserCheckable | ItemIsEnabled | ItemIsSelectable`
+- Camera no longer resets on visibility toggle — save/restore yaw/pitch/dist/pan around rebuild
+- _hidden_frames filter applied in load_all_geometries (dff_viewport.py)
+
+**Handling.cfg SA boat/plane/bike entries (handling_editor.py):**
+- Lines starting with % (boat), $ (plane/heli), ! (bike), & (animation) skipped
+- HandlingEntry.from_line v2 — these have different field layouts from cars
+
+**carcols.dat SA format (vehicle_workshop.py):**
+- SA uses col/car/end section headers, R,G,B tab-formatted palette
+- CarColsParser.load v2 — section state machine, strips # comments, handles SA format
+
+**Wheel size slider:**
+- Range expanded to ±30% (was ±10%)
+- _wheel_scale_mult applied in load_all_geometries before wheel transform
+
+**Streaming suffix display (model_viewer.py, vehicle_workshop.py):**
+- _hli9ksta, _dfheih3 etc. stripped from DFF list display names
+- Raw entry.name preserved in UserRole for all file operations
+
+**sentinel.txd reload reduced:**
+- Removed duplicate singleShot(500, _auto_load_shared_txds) in _meta_then_wheels
+- _toggle_show_wheels already calls _auto_load_shared_txds — was loading 4x per vehicle switch
