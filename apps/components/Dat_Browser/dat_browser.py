@@ -1597,8 +1597,9 @@ class DATBrowserWidget(QWidget): #vers 3
                             ('carmods.dat',   'carmods'),
                             ('cargrp.dat',    'cargrp'),
                             ('vehicles.ide',  'vehicles_ide'),
-                            ('default.ide',   'vehicles_ide'),  # GTA3 uses default.ide
+                            ('default.ide',   'vehicles_ide'),  # GTA3/VC fallback
                         ]:
+                            if key in vdata: continue  # don't overwrite vehicles.ide with default.ide
                             for variant in (fname, fname.upper(), fname.lower()):
                                 p = os.path.join(data_dir, variant)
                                 if os.path.isfile(p):

@@ -988,14 +988,13 @@ class _ToolbarMixin:
             from PyQt6.QtCore import QTimer
             def _meta_then_wheels(s=stem):
                 self._load_vehicle_meta(s)
-                # Reset carcol index for new vehicle
                 self._carcol_idx = -1
-                # Rebuild wheels if they were showing
                 if getattr(self.viewport, '_show_wheels', False):
                     self._toggle_show_wheels(True)
+                else:
+                    # No wheels — still need shared TXDs for vehicle body
+                    QTimer.singleShot(200, self._auto_load_shared_txds)
             QTimer.singleShot(100, _meta_then_wheels)
-            # Auto-load shared TXDs after primary TXD is loaded
-            QTimer.singleShot(500, self._auto_load_shared_txds)
         except Exception as e:
             import traceback; traceback.print_exc()
             self._set_status(f"Error: {e}")
