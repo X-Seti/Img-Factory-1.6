@@ -2316,7 +2316,7 @@ class _LayoutMixin:
         scale_lbl = QLabel('Size'); scale_lbl.setFont(self.infobar_font)
         scale_lbl.setFixedWidth(28)
         wheel_scale_slider = QSlider(Qt.Orientation.Horizontal)
-        wheel_scale_slider.setRange(-10, 10); wheel_scale_slider.setValue(0)
+        wheel_scale_slider.setRange(-30, 30); wheel_scale_slider.setValue(0)
         wheel_scale_slider.setToolTip('Wheel size offset ±10% (does not save)')
         self._wheel_scale_slider = wheel_scale_slider
         self._wheel_scale_lbl = QLabel('0%'); self._wheel_scale_lbl.setFont(self.infobar_font)
