@@ -669,6 +669,7 @@ class _ToolbarMixin:
                 game_ver = 'sa'
             elif fname_lower == 'default.ide' and game_ver == 'sa':
                 game_ver = 'vc'  # SA doesn't use default.ide
+            print(f'[IDE] parse: {fname_lower} game_ver={game_ver} raw={raw}')
 
             # GTA3 wheelModelId -> wheel name (IDs 160-166)
             GTA3_WHEEL_ID = {
