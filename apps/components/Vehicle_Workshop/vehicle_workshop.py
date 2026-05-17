@@ -3106,7 +3106,9 @@ class _LayoutMixin:
         for i,f in enumerate(frames):
             name = f.name or f'frame_{i}'
             item = QTreeWidgetItem([name])
-            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setFlags(Qt.ItemFlag.ItemIsUserCheckable |
+                          Qt.ItemFlag.ItemIsEnabled |
+                          Qt.ItemFlag.ItemIsSelectable)
             item.setCheckState(0, Qt.CheckState.Checked)
             item.setData(0, Qt.ItemDataRole.UserRole, name.lower())
             items[i] = item
@@ -3133,10 +3135,14 @@ class _LayoutMixin:
         # Always rebuild — hidden_frames filter is applied in load_all_geometries
         m = getattr(self, '_dff_model', None)
         if m and m.frames and m.atomics:
-            self.viewport.load_all_geometries(
+            vp = self.viewport
+            # Save camera state — don't reset view on visibility toggle
+            cam = (vp._yaw, vp._pitch, vp._dist, vp._pan_x, vp._pan_y)
+            vp.load_all_geometries(
                 m.geometries, [g.materials for g in m.geometries],
                 m.frames, m.atomics,
                 damaged=getattr(self, '_damage_mode', False))
+            vp._yaw, vp._pitch, vp._dist, vp._pan_x, vp._pan_y = cam
         self.viewport.update()
 
     def _populate_geom_list(self): #vers 1
