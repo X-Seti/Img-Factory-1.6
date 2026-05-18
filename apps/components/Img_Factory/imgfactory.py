@@ -6581,19 +6581,23 @@ class IMGFactory(QMainWindow):
             'HandlingEditor', None,
             'Handling', file_path)
 
-    def open_timecyc_editor(self, file_path=None): #vers 1
+    def open_timecyc_editor(self, file_path=None): #vers 2
         """Open Timecyc Editor docked in a tab."""
+        if file_path is None:
+            file_path = getattr(self, 'vehicle_data_paths', {}).get('timecyc', '')
         self._open_workshop_tab(
             'apps.components.Timecyc_Editor.timecyc_editor',
             'TimecycEditor', None,
-            'Timecyc', file_path)
+            'Timecyc', file_path or None)
 
-    def open_breakable_editor(self, file_path=None): #vers 1
+    def open_breakable_editor(self, file_path=None): #vers 2
         """Open Breakable Editor docked in a tab."""
+        if file_path is None:
+            file_path = getattr(self, 'vehicle_data_paths', {}).get('object', '')
         self._open_workshop_tab(
             'apps.components.Breakable_Editor.breakable_editor',
             'BreakableEditor', None,
-            'Breakable', file_path)
+            'Breakable', file_path or None)
 
     def _open_workshop_tab(self, module_path, class_name, open_fn, tab_label, file_path=None): #vers 1
         """Generic: import module, instantiate class, dock in tab. Reuses existing tab if open."""

@@ -1604,6 +1604,8 @@ class DATBrowserWidget(QWidget): #vers 3
                             ('cargrp.dat',    'cargrp'),
                             ('vehicles.ide',  'vehicles_ide'),
                             ('default.ide',   'vehicles_ide'),  # GTA3/VC fallback
+                            ('object.dat',    'object'),         # breakable objects
+                            ('timecyc.dat',   'timecyc'),        # time-of-day colours
                         ]:
                             if key in vdata: continue  # don't overwrite vehicles.ide with default.ide
                             for variant in (fname, fname.upper(), fname.lower()):

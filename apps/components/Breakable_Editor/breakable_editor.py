@@ -155,32 +155,36 @@ class BreakableParser: #vers 1
                 return 'SA'
         return 'VC'
 
-    def load(self, path: str) -> bool: #vers 1
+    def load(self, path: str) -> bool: #vers 2
         try:
             self.entries.clear()
             self.header_lines.clear()
-            current_section = "OBJECT"
+            current_section = "OBJECT"   # default — VC has no section headers
             with open(path, 'r', encoding='latin-1') as f:
-                for ln in f:
-                    s = ln.strip()
-                    if not s:
-                        self.header_lines.append(ln)
-                        continue
-                    upper = s.upper()
-                    if upper in SECTIONS:
-                        current_section = upper
-                        self.header_lines.append(ln)
-                        continue
-                    if upper == 'END':
-                        self.header_lines.append(ln)
-                        continue
-                    if s.startswith('#') and not self.entries:
-                        self.header_lines.append(ln)
-                        continue
-                    e = ObjectEntry.from_line(ln, current_section)
-                    if e:
-                        self.entries.append(e)
+                lines = f.readlines()
+
+            for ln in lines:
+                s = ln.strip()
+                if not s:
+                    if not self.entries: self.header_lines.append(ln)
+                    continue
+                upper = s.upper().split()[0] if s.split() else ''
+                if upper in SECTIONS:
+                    current_section = upper
+                    self.header_lines.append(ln)
+                    continue
+                if upper == 'END':
+                    self.header_lines.append(ln)
+                    continue
+                if s.startswith('#'):
+                    if not self.entries: self.header_lines.append(ln)
+                    continue
+                e = ObjectEntry.from_line(ln, current_section)
+                if e:
+                    self.entries.append(e)
+
             self.game = self._detect_game(self.entries)
+            print(f"[BreakableParser] {len(self.entries)} entries loaded ({self.game})")
             return True
         except Exception as ex:
             print(f"BreakableParser.load: {ex}")
