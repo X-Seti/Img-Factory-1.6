@@ -522,6 +522,11 @@ def open_timecyc_editor(main_window=None, path: str = None): #vers 1
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     w = TimecycEditor()
-    w.resize(1200, 720)
-    w.show()
+    w.resize(1200, 720); w.show()
+    if len(sys.argv) > 1:
+        w._open_file(sys.argv[1])
+    else:
+        from PyQt6.QtWidgets import QFileDialog
+        p,_ = QFileDialog.getOpenFileName(w,'Open timecyc.dat','','DAT files (*.dat);;All (*)')
+        if p: w._open_file(p)
     sys.exit(app.exec())
