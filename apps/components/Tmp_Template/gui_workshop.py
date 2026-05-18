@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/Tmp_Template/gui_workshop.py - Version: 2
+# apps/components/Tmp_Template/gui_workshop.py - Version: 3
 # X-Seti - Apr 2026 - IMG Factory 1.6
 # GUIWorkshop — reusable base class for all workshop tools.
 #
@@ -16,6 +16,14 @@
 #       config_key = "water_workshop"
 #       def _open_file(self, path=None): ...
 #       def _build_menus_into_qmenu(self, pm): ...
+#
+# If your subclass needs to set up state BEFORE setup_ui() runs:
+#   class MyWorkshop(GUIWorkshop):
+#       def __init__(self, ...):
+#           self._defer_setup_ui = True   # prevent auto-call
+#           super().__init__(...)
+#           # set up your state here
+#           self.setup_ui()              # call manually when ready
 
 import sys, json
 from pathlib import Path
@@ -1016,7 +1024,8 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
         if parent:
             p = parent.pos(); self.move(p.x() + 50, p.y() + 80)
 
-        self.setup_ui()
+        if not getattr(self, '_defer_setup_ui', False):
+            self.setup_ui()
         self._setup_shortcuts()
         self._apply_theme()
 
