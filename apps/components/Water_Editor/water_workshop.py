@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/Water_Editor/water_workshop.py - Version: 10
+# apps/components/Water_Editor/water_workshop.py - Version: 11
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Water Workshop
 # Built on temp_workshop.py / GUIWorkshop base
 
