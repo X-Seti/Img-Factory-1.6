@@ -454,6 +454,7 @@ class IMGFactoryGUILayout:
             'edit_ipl_file': lambda: self._open_ipl_workshop(),
             'edit_handling': lambda: getattr(self.main_window, 'open_handling_editor', lambda: None)(),
             'edit_carcols':  lambda: getattr(self.main_window, 'open_carcols_editor', lambda: None)(),
+            'edit_timecyc':  lambda: getattr(self.main_window, 'open_timecyc_editor', lambda: None)(),
             'edit_dat_file': lambda: self._open_dat_browser(),
             'edit_zones_cull': lambda: self._log_missing_method('edit_zones_cull'),
             'edit_weap_file': lambda: self._log_missing_method('edit_weap_file'),
@@ -728,7 +729,7 @@ class IMGFactoryGUILayout:
             ("Textures",   "txd_edit",   "txd-edit",   colors['editor_txd'],     "edit_txd_file"),
 
             ("Radar",      "radar_map",  "radar-map",  colors['editor_map'],     "edit_radar_map"),
-            ("Waterpro",   "timecyc",    "timecyc",    colors['editor_data'],    "edit_waterpro"),
+            ("Waterpro",   "water_edit", "water-edit", colors['editor_data'],    "edit_waterpro"),
             ("Paint",      "paint_edit", "paint-edit", colors['editor_txd'],     "open_dp5_workshop_docked"),
 
             ("IDE Edit",   "ide_edit",   "ide-edit",   colors['editor_data'],    "edit_ide_file"),
@@ -745,7 +746,7 @@ class IMGFactoryGUILayout:
 
             ("Zons Cull",  "zones_cull", "zones-cull", colors['editor_data'],    "edit_zones_cull"),
             ("Weapons",    "weap_edit",  "weap-edit",  colors['editor_vehicle'], "edit_weap_file"),
-            ("Weather",    "weather",    "weather",    colors['editor_data'],    "edit_weather"),
+            ("Weather",    "timecyc",    "timecyc",    colors['editor_data'],    "edit_timecyc"),
 
             ("SCM code",   "scm_code",   "scm-code",   colors['editor_script'],  "editscm"),
             ("GXT font",   "gxt_font",   "gxt-font",   colors['editor_script'],  "editgxt"),

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Handling_Editor/handling_editor.py - Version: 2
+#this belongs in apps/components/Handling_Editor/handling_editor.py - Version: 3
 # X-Seti - May08 2026 - Img Factory 1.6 - Vehicle Handling Editor
 
 """
@@ -61,44 +61,46 @@ from apps.components.Handling_Editor.gui_workshop import GUIWorkshop
 # ─────────────────────────────────────────────────────────────────────────────
 
 # (name, type, min, max, tooltip)
+# GTA3/VC handling.cfg: 32 fields (A through AF in the file header)
+# [0]Name [1]Mass [2]TurnMass [3]Drag [4-6]CentreOfMass [7]PercSub
+# [8]TractionMult [9]TractionLoss [10]TractionBias [11]Gears [12]MaxVel
+# [13]EngineAccel [14]DriveType [15]EngineType [16]BrakeDecel [17]BrakeBias
+# [18]ABS [19]SteerLock [20]SuspForce [21]SuspDamping [22]SeatOffset
+# [23]CollisionDmg [24]MoneyValue [25]SuspUpper [26]SuspLower [27]SuspBias
+# [28]HandlingFlags(hex) [29]FrontLights [30]RearLights
+# SA adds [31+]: extra fields, 36 total
 VC_FIELDS = [
     ("HandlingName",              "str",   "",    "",     "Internal handling ID (matches vehicles.ide)"),
     ("Mass",                      "float", 1,     50000,  "Vehicle mass in kg"),
     ("TurnMass",                  "float", 1,     50000,  "Rotational inertia"),
     ("DragMult",                  "float", 0,     10,     "Aerodynamic drag multiplier"),
-    ("CentreOfMassX",             "float", -5,    5,      "Centre of mass offset X"),
-    ("CentreOfMassY",             "float", -5,    5,      "Centre of mass offset Y"),
-    ("CentreOfMassZ",             "float", -5,    5,      "Centre of mass offset Z"),
-    ("PercentSubmerged",          "int",   0,     100,    "% of vehicle height before sinking"),
-    ("TractionMultiplier",        "float", 0,     10,     "Overall grip multiplier"),
-    ("TractionLoss",              "float", 0,     1,      "Grip lost when sliding (0=no loss)"),
+    ("CentreOfMassX",             "float", -10,   10,     "Centre of mass offset X"),
+    ("CentreOfMassY",             "float", -10,   10,     "Centre of mass offset Y"),
+    ("CentreOfMassZ",             "float", -10,   10,     "Centre of mass offset Z"),
+    ("PercentSubmerged",          "int",   0,     120,    "% of vehicle height before sinking"),
+    ("TractionMultiplier",        "float", 0,     5,      "Overall grip multiplier"),
+    ("TractionLoss",              "float", 0,     1,      "Grip lost when sliding"),
     ("TractionBias",              "float", 0,     1,      "0=rear grip, 1=front grip"),
     ("NumberOfGears",             "int",   1,     6,      "Number of forward gears"),
-    ("MaxVelocity",               "float", 0,     300,    "Top speed in m/s (~3.6x for km/h)"),
-    ("EngineAcceleration",        "float", 0,     100,    "Engine force applied per gear"),
-    ("EngineInertia",             "float", 0,     100,    "Throttle response lag"),
-    ("DriveType",                 "char",  "",    "",     "F=front, R=rear, 4=4WD"),
-    ("EngineType",                "char",  "",    "",     "P=petrol, D=diesel, E=electric"),
+    ("MaxVelocity",               "float", 0,     300,    "Top speed km/h"),
+    ("EngineAcceleration",        "float", 0,     100,    "Engine force"),
+    ("DriveType",                 "char",  "",    "",     "F=front R=rear 4=4WD"),
+    ("EngineType",                "char",  "",    "",     "P=petrol D=diesel E=electric"),
     ("BrakeDeceleration",         "float", 0,     100,    "Braking force"),
-    ("BrakeBias",                 "float", 0,     1,      "0=rear brakes, 1=front brakes"),
-    ("ABS",                       "bool",  0,     1,      "Anti-lock braking system"),
-    ("SteeringLock",              "float", 0,     90,     "Max steering angle in degrees"),
+    ("BrakeBias",                 "float", 0,     1,      "0=rear 1=front brakes"),
+    ("ABS",                       "bool",  0,     1,      "Anti-lock braking"),
+    ("SteeringLock",              "float", 0,     90,     "Max steering angle degrees"),
     ("SuspensionForceLevel",      "float", 0,     10,     "Spring stiffness"),
     ("SuspensionDampingLevel",    "float", 0,     10,     "Damper strength"),
-    ("SeatOffsetDistance",        "float", 0,     5,      "Camera seat distance"),
-    ("CollisionDamageMultiplier", "float", 0,     10,     "Damage taken per collision"),
-    ("MoneyValue",                "int",   0,     999999, "Base dollar value of vehicle"),
-    ("SuspensionUpperLimit",      "float", -1,    1,      "Suspension travel upper bound"),
-    ("SuspensionLowerLimit",      "float", -1,    1,      "Suspension travel lower bound"),
-    ("SuspensionBias",            "float", 0,     1,      "0=rear suspension, 1=front"),
-    ("SuspensionAntidive",        "float", 0,     1,      "Anti-dive factor under braking"),
-    ("HHandlingFlags",            "hex",   "",    "",     "Handling flags (hex)"),
-    ("ModelFlags",                "hex",   "",    "",     "Model flags (hex)"),
-    ("HandlingFlags",             "hex",   "",    "",     "Behaviour flags (hex)"),
-    ("FrontTyre",                 "int",   0,     255,    "Front wheel model ID"),
-    ("FrontTyreScale",            "float", 0,     5,      "Front wheel scale"),
-    ("RearTyre",                  "int",   0,     255,    "Rear wheel model ID"),
-    ("RearTyreScale",             "float", 0,     5,      "Rear wheel scale"),
+    ("SeatOffsetDistance",        "float", 0,     5,      "Camera/seat distance"),
+    ("CollisionDamageMultiplier", "float", 0,     10,     "Damage per collision"),
+    ("MoneyValue",                "int",   0,     999999, "Vehicle dollar value"),
+    ("SuspensionUpperLimit",      "float", -1,    1,      "Suspension upper travel"),
+    ("SuspensionLowerLimit",      "float", -1,    1,      "Suspension lower travel"),
+    ("SuspensionBias",            "float", 0,     1,      "Suspension front/rear bias"),
+    ("HandlingFlags",             "hex",   "",    "",     "Behaviour flags (hex e.g. C00B)"),
+    ("FrontLights",               "int",   0,     3,      "Front light type (0=long 1=small 2=big 3=tall)"),
+    ("RearLights",                "int",   0,     3,      "Rear light type (0=long 1=small 2=big 3=tall)"),
 ]
 
 HANDLING_FLAGS = {
@@ -244,6 +246,9 @@ class HandlingEditor(GUIWorkshop): #vers 1
         self._field_widgets: Dict[str, QWidget] = {}
         self._blocking    = False
         self.setup_ui()
+        # Hide inner toolbar chrome when docked inside IMG Factory
+        if main_window and hasattr(self, 'toolbar'):
+            self.toolbar.hide()
         self._set_status("Open a handling.cfg file to begin")
 
     def _build_left_panel(self, parent: QWidget) -> QWidget: #vers 1
