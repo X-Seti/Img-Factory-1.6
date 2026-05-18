@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in components/col_viewer/col_viewer.py - Version: 1
+#this belongs in apps/core/col_viewer.py - Version: 1
 # X-Seti - October22 2025 - IMG Factory 1.5 - COL Viewer
 
 """
