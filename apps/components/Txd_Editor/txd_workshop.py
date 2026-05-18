@@ -7,6 +7,11 @@ Updated imports and method list for txd_workshop.py
 Replace the existing imports and ##Methods list section
 """
 
+import sys, os
+from pathlib import Path
+_root = Path(__file__).resolve().parents[3]
+if str(_root) not in sys.path: sys.path.insert(0, str(_root))
+
 import os
 import tempfile
 import subprocess

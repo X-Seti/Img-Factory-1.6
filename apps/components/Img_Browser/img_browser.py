@@ -2,6 +2,11 @@
 #this belongs in components.Img_Browser.img_browser.py - Version: #
 # X-Seti - August16 2025 - Simple Img Editor.
 
+import sys, os
+from pathlib import Path
+_root = Path(__file__).resolve().parents[3]
+if str(_root) not in sys.path: sys.path.insert(0, str(_root))
+
 import sys
 import os
 import struct

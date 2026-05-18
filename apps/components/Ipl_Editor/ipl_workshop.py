@@ -270,12 +270,14 @@ class IPLWorkshop(GUIWorkshop):
                    "Rot X", "Rot Y", "Rot Z", "Rot W", "LOD"]
 
     def __init__(self, parent=None, main_window=None):
+        self._defer_setup_ui = True
         self._ipl         = None      # IPLFile
         self._file_path   = ""
         self._undo_stack  = []
         self._redo_stack  = []
         self._active_section = "inst"
         super().__init__(parent, main_window)
+        self.setup_ui()
         try:
             from apps.methods.imgfactory_svg_icons import SVGIconFactory as _S
             self.setWindowIcon(_S.ipl_editor_icon(64) if hasattr(_S,'ipl_editor_icon')
