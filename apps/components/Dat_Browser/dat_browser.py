@@ -982,6 +982,10 @@ class DATBrowserWidget(QWidget): #vers 3
         self._log_text.setFont(QFont("Consolas", 9))
         self._tabs.addTab(self._log_text, "Load Log")
 
+        # Cached Data Files tab
+        self._cache_widget = self._build_cache_panel()
+        self._tabs.addTab(self._cache_widget, "Cached Files")
+
         # COL DB tab — populated from asset_db when built
         self._col_db_table = self._make_table(
             ["COL File (IMG Entry)", "Model Name", "Model ID",
@@ -990,6 +994,113 @@ class DATBrowserWidget(QWidget): #vers 3
         self._col_db_table.setToolTip(
             "COL models indexed from all IMG archives.\nDouble-click to open in COL Workshop.")
         self._tabs.addTab(self._col_db_table, "COL DB (0)")
+
+    def _build_cache_panel(self): #vers 1
+        """Build the Cached Files panel showing all cached data file paths."""
+        from PyQt6.QtWidgets import QScrollArea, QFormLayout, QGroupBox
+        w = QWidget()
+        outer = QVBoxLayout(w); outer.setContentsMargins(4,4,4,4); outer.setSpacing(4)
+
+        # Header
+        hdr = QLabel("Cached data files for current game profile")
+        hdr.setFont(QFont("Arial", 9))
+        outer.addWidget(hdr)
+
+        # Refresh button
+        refresh_btn = QPushButton("Refresh")
+        refresh_btn.setFixedHeight(24)
+        refresh_btn.clicked.connect(self._refresh_cache_panel)
+        outer.addWidget(refresh_btn)
+
+        # Scroll area with form
+        scroll = QScrollArea(); scroll.setWidgetResizable(True)
+        self._cache_form_widget = QWidget()
+        self._cache_form_layout = QFormLayout(self._cache_form_widget)
+        self._cache_form_layout.setSpacing(4)
+        scroll.setWidget(self._cache_form_widget)
+        outer.addWidget(scroll, 1)
+        return w
+
+    def _refresh_cache_panel(self): #vers 1
+        """Populate cache panel with current vehicle_data_paths."""
+        from PyQt6.QtWidgets import QFormLayout
+        # Clear existing rows
+        lay = self._cache_form_layout
+        while lay.rowCount():
+            lay.removeRow(0)
+
+        mw = self.main_window
+        vdata = getattr(mw, 'vehicle_data_paths', {})
+        game_root = getattr(mw, 'game_root', '') or ''
+
+        KEY_LABELS = {
+            'handling':    ('Handling',      'open_handling_editor'),
+            'carcols':     ('Car Colours',   None),
+            'carmods':     ('Car Mods',      None),
+            'cargrp':      ('Car Groups',    None),
+            'vehicles_ide':('Vehicles IDE',  None),
+            'object':      ('Breakable Obj', 'open_breakable_editor'),
+            'timecyc':     ('Timecyc',       'open_timecyc_editor'),
+        }
+
+        if not vdata:
+            lay.addRow(QLabel("No files cached yet — load a DAT profile first"))
+            return
+
+        for key, (label, open_method) in KEY_LABELS.items():
+            path = vdata.get(key, '')
+            row_widget = QWidget()
+            rh = QHBoxLayout(row_widget); rh.setContentsMargins(0,0,0,0); rh.setSpacing(4)
+
+            if path and os.path.isfile(path):
+                # Show relative path from game root
+                try:
+                    rel = os.path.relpath(path, game_root) if game_root else os.path.basename(path)
+                except ValueError:
+                    rel = os.path.basename(path)
+                path_lbl = QLabel(rel)
+                path_lbl.setToolTip(path)
+                path_lbl.setStyleSheet("color: #80c080;")  # green = found
+                rh.addWidget(path_lbl, 1)
+
+                # Open in editor button
+                if open_method and mw and hasattr(mw, open_method):
+                    btn = QPushButton("Open")
+                    btn.setFixedHeight(20)
+                    btn.setFixedWidth(50)
+                    btn.clicked.connect(lambda _, m=open_method, p=path: getattr(mw, m)(p))
+                    rh.addWidget(btn)
+
+                # Browse button to change path
+                browse_btn = QPushButton("…")
+                browse_btn.setFixedHeight(20); browse_btn.setFixedWidth(24)
+                browse_btn.setToolTip(f"Change {label} path")
+                browse_btn.clicked.connect(lambda _, k=key, lbl=label: self._browse_cache_path(k, lbl))
+                rh.addWidget(browse_btn)
+            else:
+                path_lbl = QLabel("Not found")
+                path_lbl.setStyleSheet("color: #c08080;")  # red = missing
+                rh.addWidget(path_lbl, 1)
+                find_btn = QPushButton("Find…")
+                find_btn.setFixedHeight(20); find_btn.setFixedWidth(50)
+                find_btn.clicked.connect(lambda _, k=key, lbl=label: self._browse_cache_path(k, lbl))
+                rh.addWidget(find_btn)
+
+            lay.addRow(QLabel(label), row_widget)
+
+    def _browse_cache_path(self, key: str, label: str): #vers 1
+        """Let user manually set a cached file path."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, f"Select {label}", "",
+            "DAT/IDE/CFG files (*.dat *.ide *.cfg);;All files (*)")
+        if not path: return
+        mw = self.main_window
+        if not hasattr(mw, 'vehicle_data_paths'):
+            mw.vehicle_data_paths = {}
+        mw.vehicle_data_paths[key] = path
+        self._refresh_cache_panel()
+        if hasattr(mw, 'log_message'):
+            mw.log_message(f"Cache updated: {key} = {os.path.basename(path)}")
 
     def _make_table(self, headers): #vers 5
         from apps.methods.populate_img_table import DragSelectTableWidget
@@ -1606,6 +1717,7 @@ class DATBrowserWidget(QWidget): #vers 3
                             ('default.ide',   'vehicles_ide'),  # GTA3/VC fallback
                             ('object.dat',    'object'),         # breakable objects
                             ('timecyc.dat',   'timecyc'),        # time-of-day colours
+                            ('timecycp.dat',  'timecycp'),       # SA PSP timecyc variant
                         ]:
                             if key in vdata: continue  # don't overwrite vehicles.ide with default.ide
                             for variant in (fname, fname.upper(), fname.lower()):
@@ -1632,6 +1744,9 @@ class DATBrowserWidget(QWidget): #vers 3
                             if hasattr(mw, 'log_message'):
                                 found = ', '.join(vdata.keys())
                                 mw.log_message(f"Vehicle data cached: {found}")
+                            # Refresh the cached files panel
+                            if hasattr(self, '_cache_form_layout'):
+                                self._refresh_cache_panel()
                             self._preload_shared_txds(game_root, game, mw)
                     except Exception:
                         pass
