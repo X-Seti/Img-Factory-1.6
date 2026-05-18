@@ -1,7 +1,29 @@
 #!/usr/bin/env python3
-# apps/components/Tmp_Template/gui_workshop.py - Version: 3
+# apps/components/Tmp_Template/gui_workshop.py - Version: 4
 # X-Seti - Apr 2026 - IMG Factory 1.6
-# GUIWorkshop — reusable base class for all workshop tools.
+# GUIWorkshop — TEMPLATE ONLY. Copy into your workshop, do not import.
+#
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ !! WARNING — DO NOT IMPORT THIS FILE INTO YOUR WORKSHOP !!      │
+# │                                                                 │
+# │ WRONG:  from apps.components.Tmp_Template.gui_workshop import   │
+# │         GUIWorkshop                                             │
+# │                                                                 │
+# │ RIGHT:  Copy this file into your workshop folder and rename it  │
+# │         e.g. apps/components/My_Workshop/my_workshop.py         │
+# │         Then edit your copy in place.                           │
+# │                                                                 │
+# │ Each workshop MUST be standalone and self-contained.            │
+# │ Importing this file creates a hard dependency that breaks       │
+# │ when the template changes, causes setup_ui() timing issues,     │
+# │ and makes workshops impossible to run independently.            │
+# └─────────────────────────────────────────────────────────────────┘
+#
+# HOW TO CREATE A NEW WORKSHOP:
+# 1. Copy Tmp_Template/ to apps/components/My_Workshop/
+# 2. Rename temp_workshop.py → my_workshop.py
+# 3. Edit the copy — change App_name, config_key, override stubs
+# 4. Never import from Tmp_Template again
 #
 # ┌                                                                 ┐
 # │ SECTION 1 │ GUI Core — imports, WorkshopSettings, _CornerOverlay│
@@ -10,19 +32,12 @@
 # │ SECTION 4 │ Logic   — stubs to override in your subclass        │
 # └                                                                 ┘
 #
-# Subclass example:
-#   class WaterWorkshop(GUIWorkshop):
-#       App_name   = "Water Workshop"
-#       config_key = "water_workshop"
-#       def _open_file(self, path=None): ...
-#       def _build_menus_into_qmenu(self, pm): ...
-#
-# If your subclass needs to set up state BEFORE setup_ui() runs:
-#   class MyWorkshop(GUIWorkshop):
-#       def __init__(self, ...):
-#           self._defer_setup_ui = True   # prevent auto-call
-#           super().__init__(...)
-#           # set up your state here
+# If your workshop needs state before setup_ui() runs, use this pattern:
+#   def __init__(self, ...):
+#       self._defer_setup_ui = True   # stops auto-call in __init__
+#       super().__init__(...)          # base state initialised
+#       # ... set up your own state here ...
+#       self.setup_ui()               # call manually when ready
 #           self.setup_ui()              # call manually when ready
 
 import sys, json

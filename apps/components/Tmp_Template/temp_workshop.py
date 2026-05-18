@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
-# apps/components/Tmp_Template/temp_workshop.py - Version: 1
+# apps/components/Tmp_Template/temp_workshop.py - Version: 2
 # X-Seti - Apr 2026 - IMG Factory 1.6
 #
-# TEMPLATE FILE — copy this, rename the class, fill in the stubs.
+# TEMPLATE FILE — DO NOT IMPORT. Copy this entire folder to your workshop.
+# Step 1: cp -r apps/components/Tmp_Template apps/components/My_Workshop
+# Step 2: rename temp_workshop.py -> my_workshop.py
+# Step 3: edit your copy — change App_name, config_key, fill in stubs
+# Step 4: edit the gui_workshop.py copy in your folder if needed
+#
+# Each workshop is standalone — no imports from Tmp_Template ever.
 #
 # What you get:
 #   - Frameless window with corner resize triangles
