@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/Tmp_Template/gui_workshop.py - Version: 4
+# bugs/Tmp_Template/gui_workshop.py - Version: 4
 # X-Seti - Apr 2026 - IMG Factory 1.6
 # GUIWorkshop — TEMPLATE ONLY. Copy into your workshop, do not import.
 #
@@ -20,10 +20,10 @@
 # └─────────────────────────────────────────────────────────────────┘
 #
 # HOW TO CREATE A NEW WORKSHOP:
-# 1. Copy Tmp_Template/ to apps/components/My_Workshop/
+# 1. Copy bugs/Tmp_Template/ to apps/components/My_Workshop/
 # 2. Rename temp_workshop.py → my_workshop.py
 # 3. Edit the copy — change App_name, config_key, override stubs
-# 4. Never import from Tmp_Template again
+# 4. Never import from bugs/Tmp_Template again
 #
 # ┌                                                                 ┐
 # │ SECTION 1 │ GUI Core — imports, WorkshopSettings, _CornerOverlay│
