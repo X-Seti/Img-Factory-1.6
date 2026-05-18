@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/Water_Editor/water_workshop.py - Version: 11
+# apps/components/Water_Editor/water_workshop.py - Version: 12
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Water Workshop
 # Built on temp_workshop.py / GUIWorkshop base
 
@@ -33,7 +33,7 @@ from pathlib import Path
 _root = Path(__file__).resolve().parents[3]  # apps/components/Water_Editor -> project root
 if str(_root) not in sys.path: sys.path.insert(0, str(_root))
 
-from depends.gui_workshop import GUIWorkshop
+from apps.components.Water_Editor.gui_workshop import GUIWorkshop
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
 
 App_name  = "Water Workshop"
