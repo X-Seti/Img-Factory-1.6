@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 #this belongs in components/Dat_Browser/dat_browser.py - Version: 4
 # X-Seti - March 2026 - IMG Factory 1.6 - GTA DAT/IDE/IPL Browser
 """
@@ -5,6 +6,11 @@ DAT Browser — viewer panel for the GTA world data load chain.
 Shows the parsed DAT → IDE → IPL hierarchy with object/instance tables.
 Integrates into IMG Factory as a docked panel or tab.
 """
+
+import sys, os
+from pathlib import Path
+_root = Path(__file__).resolve().parents[3]
+if str(_root) not in sys.path: sys.path.insert(0, str(_root))
 
 import os
 from typing import Optional

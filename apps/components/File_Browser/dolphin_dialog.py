@@ -11,6 +11,11 @@ Replaces native Qt dialogs with fully themed browser supporting:
 - SVG icons
 """
 
+import sys, os
+from pathlib import Path
+_root = Path(__file__).resolve().parents[3]
+if str(_root) not in sys.path: sys.path.insert(0, str(_root))
+
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QTreeWidget, QTreeWidgetItem,
     QLabel, QPushButton, QLineEdit, QComboBox, QSplitter, QMenu,

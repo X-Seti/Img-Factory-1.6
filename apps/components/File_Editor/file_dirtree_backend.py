@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 #this belongs in core/file_dirtree_backend.py - Version: 2
 # X-Seti - August14 2025 - IMG Factory 1.5 - File Browser Backend Classes
 
@@ -6,6 +7,11 @@ FILE BROWSER BACKEND CLASSES
 Contains dialog classes and helper functions for the file browser
 Separated from main file to keep under size limits
 """
+
+import sys, os
+from pathlib import Path
+_root = Path(__file__).resolve().parents[3]
+if str(_root) not in sys.path: sys.path.insert(0, str(_root))
 
 import os
 import datetime

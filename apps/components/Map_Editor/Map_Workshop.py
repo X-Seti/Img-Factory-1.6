@@ -8,6 +8,11 @@ Replace the existing imports and ##Methods list section
 """
 
 #TODO use this file as a base, and make whatever changes to suat the needs of the project.
+import sys, os
+from pathlib import Path
+_root = Path(__file__).resolve().parents[3]
+if str(_root) not in sys.path: sys.path.insert(0, str(_root))
+
 import os
 import tempfile
 import subprocess

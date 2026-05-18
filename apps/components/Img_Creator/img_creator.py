@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 #this belongs in apps/components/ img_creator.py - Version: 2
 # X-Seti - July16 2025 - Img Factory 1.5
 

@@ -7,6 +7,11 @@ PROJECT MANAGER
 Handles multiple projects with settings persistence and organization
 """
 
+import sys, os
+from pathlib import Path
+_root = Path(__file__).resolve().parents[3]
+if str(_root) not in sys.path: sys.path.insert(0, str(_root))
+
 import os
 import json
 from typing import Dict, List, Optional

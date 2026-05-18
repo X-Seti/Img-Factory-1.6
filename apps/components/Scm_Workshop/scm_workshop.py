@@ -1,6 +1,12 @@
+#!/usr/bin/env python3
 # apps/components/Scm_Workshop/scm_workshop.py — Version 1
 # X-Seti / Claudia — IMG Factory 1.6 — SCM Script Workshop
 # GTA III / VC / SA main.scm browser, coord searcher and patcher.
+
+import sys, os
+from pathlib import Path
+_root = Path(__file__).resolve().parents[3]
+if str(_root) not in sys.path: sys.path.insert(0, str(_root))
 
 import os, struct
 from typing import List, Optional
