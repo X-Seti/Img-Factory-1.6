@@ -29,8 +29,8 @@ except ImportError:
     OPENGL_AVAILABLE = False
 
 # Import COL parser and materials
-from apps.components.col_viewer.depends.COL_Parser import COLParser, COLModel
-from apps.components.col_viewer.depends.COL_Materials import get_material_name, get_material_info
+from apps.methods.COL_Parser import COLParser, COLModel
+from apps.methods.COL_Materials import get_material_name, get_material_info
 
 ##Methods list -
 # draw_bounding_box
