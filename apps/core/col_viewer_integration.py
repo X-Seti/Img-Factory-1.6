@@ -82,7 +82,7 @@ def open_col_viewer_dialog(main_window, row: int) -> bool: #vers 1
         
         try:
             # Import COL viewer
-            from apps.components.col_viewer.col_viewer import COLViewerWidget
+            from apps.components.Col_Viewer.col_viewer import COLViewerWidget
             
             # Create dialog
             dialog = QDialog(main_window)

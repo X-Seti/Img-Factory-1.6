@@ -626,3 +626,23 @@ class COLViewerWidget(QWidget): #vers 1
 
 # Export main classes
 __all__ = ['COLViewerWidget', 'COL3DViewport']
+
+
+if __name__ == "__main__":
+    import sys
+    from PyQt6.QtWidgets import QApplication, QMainWindow, QFileDialog
+    app = QApplication(sys.argv)
+    win = QMainWindow()
+    win.setWindowTitle("COL Viewer")
+    win.resize(900, 700)
+    widget = COLViewerWidget()
+    win.setCentralWidget(widget)
+    win.show()
+    # Open file if passed as argument
+    if len(sys.argv) > 1:
+        widget.load_col_file(sys.argv[1])
+    else:
+        path, _ = QFileDialog.getOpenFileName(win, "Open COL file", "", "COL files (*.col);;All files (*)")
+        if path:
+            widget.load_col_file(path)
+    sys.exit(app.exec())
