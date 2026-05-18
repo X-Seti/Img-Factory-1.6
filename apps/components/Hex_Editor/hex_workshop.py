@@ -269,9 +269,13 @@ class HexWorkshop(GUIWorkshop):  #vers 1
         self.setup_ui()
         self._set_status("Open a file to begin (File → Open…)")
 
-    def setup_ui(self):  #vers 1
+    def setup_ui(self):  #vers 2
         super().setup_ui()
-        # Goto offset bar — add above the hex view via centre_layout
+
+    def _create_centre_panel(self):  #vers 1
+        panel = QFrame(); panel.setFrameStyle(QFrame.Shape.StyledPanel)
+        cl = QVBoxLayout(panel); cl.setContentsMargins(0,0,0,0)
+        # Goto offset bar
         goto_widget = QWidget()
         gh = QHBoxLayout(goto_widget); gh.setContentsMargins(4,2,4,2)
         gh.addWidget(QLabel("Go to offset:"))
@@ -281,8 +285,10 @@ class HexWorkshop(GUIWorkshop):  #vers 1
         gh.addWidget(self._goto_input)
         gh.addStretch()
         self._file_size_lbl = QLabel(""); gh.addWidget(self._file_size_lbl)
-        if hasattr(self, 'centre_layout'):
-            self.centre_layout.insertWidget(0, goto_widget)
+        cl.addWidget(goto_widget)
+        self._hex_view = HexViewWidget()
+        cl.addWidget(self._hex_view, 1)
+        return panel
 
     def _build_left_panel(self, parent):  #vers 1
         """Left: file info + offset search"""

@@ -366,14 +366,16 @@ class TimecycEditor(GUIWorkshop): #vers 1
         lay.addStretch()
         return w
 
-    def setup_ui(self): #vers 1
+    def setup_ui(self): #vers 2
         super().setup_ui()
+
+    def _create_centre_panel(self): #vers 1
         sp = QSplitter(Qt.Orientation.Horizontal)
         sp.addWidget(self._build_left_panel(self))
         sp.addWidget(self._build_centre_panel(self))
         sp.addWidget(self._build_right_panel(self))
         sp.setSizes([400, 500, 200])
-        self.centre_layout.addWidget(sp)
+        return sp
 
     def _open_file(self, path=None): #vers 1
         if path is None:
