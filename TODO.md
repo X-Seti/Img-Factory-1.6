@@ -671,3 +671,34 @@ When working on tasks:
 - [x] Wheel size slider range too small (±10%)
 - [x] sentinel.txd loading 4x per vehicle switch
 - [x] Streaming suffix in DFF list display names
+
+## Next Session Options (choose one)
+
+**A: Vehicle Workshop editing**
+- Build vehicles from primitive mesh
+- Move single polygons to shape vehicle
+- Wheel position editor (move dummy frames)
+- Create/edit vehicle parts: doors, bonnet, boot
+- Tie into DFF frame export
+
+**B: Model Workshop editing functions**
+- Polygon/vertex editing in model_workshop.py
+- UV editing
+- Material/texture assignment
+
+**C: Paths Workshop**
+- Repo: https://github.com/X-Seti/Paths-Workshop
+- GTA path node editor (car/ped nodes)
+
+**D: Zon Workshop**
+- Repo: https://github.com/X-Seti/Zon-Workshop
+- Zone/cullzone editor
+- Files: Cullzone.dat, Cullzoneempty.dat, info.zon, map.zon, navig.zon
+
+**E: Peds Workshop**
+- LC data: fistfite.dat, ped.dat, pedgrp.dat, pedstats.dat, IPF animation editor
+- VC data: fistfite.dat, ped.dat, pedgrp.dat, pedstats.dat, IPF animation editor
+- SA data: animgrp.dat, clothes.dat, ped.dat, peds.ide, pedgrp.dat, pedstats.dat, IPF animation editor
+
+**F: Resident Evil Workshop (change of pace)**
+- Repo: https://github.com/X-Seti/OG-Res-Bio-Evil-Workshop
