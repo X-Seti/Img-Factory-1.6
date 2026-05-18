@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/Ipl_Editor/ipl_workshop.py - Version: 1
+# apps/components/Ipl_Editor/ipl_workshop.py - Version: 2
 # X-Seti - Apr 2026 - IMG Factory 1.6 - IPL Workshop
 # Item Placement List editor for GTA III / VC / SA / SOL
 # Built on GUIWorkshop base (temp_workshop pattern)
@@ -30,7 +30,7 @@ _root = Path(__file__).resolve().parents[2]  # apps/components/Ipl_Editor -> pro
 if str(_root) not in sys.path: sys.path.insert(0, str(_root))
 
 #    GUIWorkshop base                                                           
-from gui_workshop import GUIWorkshop  # local standalone copy
+from apps.components.Ipl_Editor.gui_workshop import GUIWorkshop
 
 try:
     from apps.methods.imgfactory_svg_icons import SVGIconFactory

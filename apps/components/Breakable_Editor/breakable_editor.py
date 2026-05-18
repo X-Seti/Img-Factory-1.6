@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Breakable_Editor/breakable_editor.py - Version: 1
+#this belongs in apps/components/Breakable_Editor/breakable_editor.py - Version: 2
 # X-Seti - May08 2026 - Img Factory 1.6 - Breakable Objects Editor
 
 """
@@ -53,7 +53,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QColor
 
-from gui_workshop import GUIWorkshop  # local standalone copy
+from apps.components.Breakable_Editor.gui_workshop import GUIWorkshop
 
 
 # ─────────────────────────────────────────────────────────────────────────────

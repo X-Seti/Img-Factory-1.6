@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Timecyc_Editor/timecyc_editor.py - Version: 1
+#this belongs in apps/components/Timecyc_Editor/timecyc_editor.py - Version: 2
 # X-Seti - May08 2026 - Img Factory 1.6 - Time Cycle Editor
 
 """
@@ -52,7 +52,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QRect
 from PyQt6.QtGui import QFont, QColor, QPainter, QBrush, QLinearGradient
 
-from gui_workshop import GUIWorkshop  # local standalone copy
+from apps.components.Timecyc_Editor.gui_workshop import GUIWorkshop
 
 
 # ─────────────────────────────────────────────────────────────────────────────

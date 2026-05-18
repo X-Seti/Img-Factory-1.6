@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Handling_Editor/handling_editor.py - Version: 1
+#this belongs in apps/components/Handling_Editor/handling_editor.py - Version: 2
 # X-Seti - May08 2026 - Img Factory 1.6 - Vehicle Handling Editor
 
 """
@@ -53,7 +53,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QFont
 
-from gui_workshop import GUIWorkshop  # local standalone copy
+from apps.components.Handling_Editor.gui_workshop import GUIWorkshop
 
 
 # ─────────────────────────────────────────────────────────────────────────────

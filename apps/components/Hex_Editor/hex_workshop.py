@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Hex_Editor/hex_workshop.py - Version: 1
+#this belongs in apps/components/Hex_Editor/hex_workshop.py - Version: 2
 # X-Seti - May18 2026 - IMG Factory 1.6 - Hex Workshop
 """
 Hex Workshop - Standalone hex editor with 3-panel display.
@@ -56,7 +56,7 @@ try:
 except ImportError:
     from PyQt6.QtWidgets import QAction
 
-from gui_workshop import GUIWorkshop
+from apps.components.Hex_Editor.gui_workshop import GUIWorkshop
 
 App_name   = "Hex Workshop"
 App_build  = "Build 1"
