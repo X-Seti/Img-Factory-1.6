@@ -29,7 +29,9 @@ from PyQt6.QtCore import Qt, QSize, QPoint, pyqtSignal
 
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent))
+# Add project root so apps.* imports resolve when run standalone
+_root = Path(__file__).resolve().parents[3]  # apps/components/Water_Editor -> project root
+if str(_root) not in sys.path: sys.path.insert(0, str(_root))
 from depends.gui_workshop import GUIWorkshop
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
 
