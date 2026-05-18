@@ -38,7 +38,7 @@ from typing import List, Optional, Dict, Tuple
 from dataclasses import dataclass, field
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = Path(current_dir).parents[3]
+project_root = Path(current_dir).parents[2]
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 

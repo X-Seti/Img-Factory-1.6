@@ -26,7 +26,7 @@ from PyQt6.QtCore import Qt, QSize, pyqtSignal, QSortFilterProxyModel
 
 import sys, os
 from pathlib import Path
-_root = Path(__file__).resolve().parents[2]  # apps/components/Ipl_Editor -> project root
+_root = Path(__file__).resolve().parents[3]  # apps/components/Ipl_Editor -> project root
 if str(_root) not in sys.path: sys.path.insert(0, str(_root))
 
 #    GUIWorkshop base                                                           
