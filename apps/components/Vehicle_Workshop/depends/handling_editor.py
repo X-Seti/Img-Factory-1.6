@@ -53,10 +53,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QFont
 
-try:
-    from apps.components.Tmp_Template.gui_workshop import GUIWorkshop
-except ImportError:
-    from apps.methods.gui_workshop import GUIWorkshop
+from gui_workshop import GUIWorkshop  # local standalone copy
 
 
 # ─────────────────────────────────────────────────────────────────────────────

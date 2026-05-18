@@ -25,11 +25,7 @@ from PyQt6.QtGui import (
 from PyQt6.QtCore import Qt, QSize, pyqtSignal, QSortFilterProxyModel
 
 #    GUIWorkshop base                                                           
-try:
-    from apps.methods.gui_workshop import GUIWorkshop
-except ImportError:
-    sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
-    from apps.methods.gui_workshop import GUIWorkshop
+from gui_workshop import GUIWorkshop  # local standalone copy
 
 try:
     from apps.methods.imgfactory_svg_icons import SVGIconFactory
