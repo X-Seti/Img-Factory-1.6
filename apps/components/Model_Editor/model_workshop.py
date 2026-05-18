@@ -37,7 +37,10 @@ from PyQt6.QtWidgets import (QApplication, QSlider, QCheckBox,
 
 from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPoint, QRect, QByteArray
 from PyQt6.QtGui import QFont, QIcon, QPixmap, QImage, QPainter, QPen, QBrush, QColor, QCursor
-# QAction location varies by PyQt6 version — try bothQStyledItemDelegate
+
+# Shared DFFViewport — import from methods/, fallback to local methods/
+from apps.methods.dff_viewport import DFFViewport
+
 try:
     from PyQt6.QtGui import QAction
 except ImportError:
@@ -58,11 +61,6 @@ except ImportError:
     except ImportError:
         _parse_txd_shared = None
 
-# DFFViewport — shared OpenGL renderer
-try:
-    from apps.methods.dff_viewport import DFFViewport
-except ImportError:
-    from apps.components.Model_Editor.methods.dff_viewport import DFFViewport
 
 # COL Workshop parser system
 from apps.components.Model_Editor.depends.col_workshop_classes import (
