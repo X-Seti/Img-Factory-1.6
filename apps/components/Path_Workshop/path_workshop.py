@@ -808,42 +808,55 @@ SpathTab   = _make_path_tab(SpathParser,  has_speed=False, has_flags=False)
 # Main workshop
 # ─────────────────────────────────────────────────────────────────────────────
 
-class PathWorkshop(GUIWorkshop):  #vers 1
+class PathWorkshop(QWidget):  #vers 2
     App_name   = "Path Workshop"
     App_build  = "Build 1"
     App_auth   = "X-Seti"
     config_key = "path_workshop"
 
-    # Routing: filename stem → tab index
     _FILE_ROUTES = {
-        "train":   0,
-        "train2":  0,
-        "flight":  1,
-        "flight2": 1,
-        "flight3": 1,
+        "tracks":  0, "tracks2": 0,
+        "train":   0, "train2":  0,
+        "flight":  1, "flight2": 1, "flight3": 1, "flight4": 1,
         "spath0":  2,
     }
 
     def __init__(self, main_window=None, parent=None):
         super().__init__(parent)
-        self.main_window = main_window
+        self.main_window   = main_window
         self._radar_image: Optional[QImage] = None
-        self.setup_ui()
-        self._set_status("Open a path file (train.dat, flight.dat, spath0.dat) to begin")
+        self._setup_ui()
 
-    def setup_ui(self):  #vers 1
-        super().setup_ui()
+    def _setup_ui(self):  #vers 1
+        root = QVBoxLayout(self)
+        root.setContentsMargins(4, 4, 4, 4); root.setSpacing(4)
+
+        # Toolbar
+        tb = QHBoxLayout()
+        open_btn = QPushButton("Open…");   open_btn.setFixedHeight(26)
+        save_btn = QPushButton("Save");    save_btn.setFixedHeight(26)
+        radar_btn = QPushButton("Radar…"); radar_btn.setFixedHeight(26)
+        open_btn.clicked.connect(self._open_file)
+        save_btn.clicked.connect(self._save_file)
+        radar_btn.clicked.connect(self._load_radar_background)
+        self._status_lbl = QLabel("Open a path file to begin")
+        self._status_lbl.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        for w in (open_btn, save_btn, radar_btn, self._status_lbl):
+            tb.addWidget(w)
+        root.addLayout(tb)
+
+        # Tabs
         self._tabs = QTabWidget()
-
         self._tab_train  = TrainTab()
         self._tab_flight = FlightTab()
         self._tab_spath  = SpathTab()
-
-        self._tabs.addTab(self._tab_train,  "Train Paths")
+        self._tabs.addTab(self._tab_train,  "Train / Tracks")
         self._tabs.addTab(self._tab_flight, "Flight Paths")
         self._tabs.addTab(self._tab_spath,  "Static Paths")
+        root.addWidget(self._tabs, 1)
 
-        self.centre_layout.addWidget(self._tabs)
+    def _set_status(self, msg: str):  #vers 1
+        self._status_lbl.setText(msg)
 
     def _open_file(self, path: str = None):  #vers 1
         if path is None:
@@ -855,14 +868,15 @@ class PathWorkshop(GUIWorkshop):  #vers 1
         stem = os.path.splitext(os.path.basename(path))[0].lower()
         tab_idx = self._FILE_ROUTES.get(stem, 0)
         tabs = [self._tab_train, self._tab_flight, self._tab_spath]
+        if tab_idx >= len(tabs): tab_idx = 0
         tab  = tabs[tab_idx]
         if tab.load_file(path):
-            if self._radar_image:
+            if self._radar_image and hasattr(tab, 'set_radar'):
                 tab.set_radar(self._radar_image)
             self._tabs.setCurrentIndex(tab_idx)
             self._set_status(f"Loaded: {os.path.basename(path)}")
         else:
-            QMessageBox.critical(self, "Error", f"Failed to load {path}")
+            QMessageBox.critical(self, "Error", f"Failed to load {os.path.basename(path)}")
 
     def _save_file(self):  #vers 1
         idx  = self._tabs.currentIndex()
@@ -923,13 +937,13 @@ class PathWorkshop(GUIWorkshop):  #vers 1
             self._open_file(path)
 
 
-def open_path_workshop(main_window=None, path: str = None):  #vers 1
+def open_path_workshop(main_window=None, path: str = None):  #vers 2
     app = QApplication.instance() or QApplication(sys.argv)
-    w = PathWorkshop(main_window)
+    w = PathWorkshop(main_window=main_window)
+    w.setWindowTitle(f"Path Workshop — {PathWorkshop.App_build}")
     w.resize(1200, 750)
     w.show()
-    if path:
-        w._open_file(path)
+    if path: w._open_file(path)
     return w
 
 
