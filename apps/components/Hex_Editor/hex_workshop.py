@@ -271,16 +271,18 @@ class HexWorkshop(GUIWorkshop):  #vers 1
 
     def setup_ui(self):  #vers 1
         super().setup_ui()
-        # Goto offset bar in toolbar area
-        if hasattr(self, '_status_widget'):
-            goto_widget = QWidget()
-            gh = QHBoxLayout(goto_widget); gh.setContentsMargins(4,0,4,0)
-            gh.addWidget(QLabel("Go to:"))
-            self._goto_input = QLineEdit(); self._goto_input.setPlaceholderText("0x0000")
-            self._goto_input.setMaximumWidth(100); self._goto_input.setFixedHeight(22)
-            self._goto_input.returnPressed.connect(self._goto_offset)
-            gh.addWidget(self._goto_input)
-            self._status_widget.layout().insertWidget(0, goto_widget)
+        # Goto offset bar — add above the hex view via centre_layout
+        goto_widget = QWidget()
+        gh = QHBoxLayout(goto_widget); gh.setContentsMargins(4,2,4,2)
+        gh.addWidget(QLabel("Go to offset:"))
+        self._goto_input = QLineEdit(); self._goto_input.setPlaceholderText("0x0000")
+        self._goto_input.setMaximumWidth(110); self._goto_input.setFixedHeight(22)
+        self._goto_input.returnPressed.connect(self._goto_offset)
+        gh.addWidget(self._goto_input)
+        gh.addStretch()
+        self._file_size_lbl = QLabel(""); gh.addWidget(self._file_size_lbl)
+        if hasattr(self, 'centre_layout'):
+            self.centre_layout.insertWidget(0, goto_widget)
 
     def _build_left_panel(self, parent):  #vers 1
         """Left: file info + offset search"""
@@ -327,6 +329,8 @@ class HexWorkshop(GUIWorkshop):  #vers 1
                 f"Path: {path}")
             self.setWindowTitle(f"Hex Workshop — {os.path.basename(path)}")
             self._set_status(f"Loaded: {os.path.basename(path)}  ({len(self._data):,} bytes)")
+            if hasattr(self, '_file_size_lbl'):
+                self._file_size_lbl.setText(f"{len(self._data):,} bytes")
             self._modified = False
         except Exception as ex:
             QMessageBox.critical(self, "Error", str(ex))
