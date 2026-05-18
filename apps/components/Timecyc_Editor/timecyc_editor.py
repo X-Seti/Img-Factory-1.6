@@ -262,6 +262,7 @@ class TimecycEditor(GUIWorkshop): #vers 1
     config_key = "timecyc_editor"
 
     def __init__(self, main_window=None, parent=None):
+        self._defer_setup_ui = True
         super().__init__(parent)
         self.main_window    = main_window
         self._parser        = TimecycParser()

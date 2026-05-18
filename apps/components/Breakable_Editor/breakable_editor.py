@@ -219,6 +219,7 @@ class BreakableEditor(GUIWorkshop): #vers 1
     config_key = "breakable_editor"
 
     def __init__(self, main_window=None, parent=None):
+        self._defer_setup_ui = True
         super().__init__(parent)
         self.main_window   = main_window
         self._parser       = BreakableParser()
@@ -228,6 +229,7 @@ class BreakableEditor(GUIWorkshop): #vers 1
         self._field_widgets: Dict[str, QWidget] = {}
         self._blocking      = False
         self._section_filter = ""
+        self.setup_ui()
         self.setup_ui()
         self._set_status("Open an object.dat file to begin")
 
