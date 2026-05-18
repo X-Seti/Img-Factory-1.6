@@ -1026,6 +1026,8 @@ class IPLWorkshop(GUIWorkshop):
         self._active_section = "inst"
         super().__init__(parent, main_window)
         self.setup_ui()
+        if main_window and hasattr(self, "toolbar"): self.toolbar.hide()
+        if main_window: self.setWindowFlags(Qt.WindowType.Widget)
         try:
             from apps.methods.imgfactory_svg_icons import SVGIconFactory as _S
             self.setWindowIcon(_S.ipl_editor_icon(64) if hasattr(_S,'ipl_editor_icon')

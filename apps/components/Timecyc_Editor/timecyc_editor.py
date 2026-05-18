@@ -277,6 +277,7 @@ class TimecycEditor(GUIWorkshop): #vers 1
         self._colour_swatches: Dict[str, QLabel] = {}
         self._blocking      = False
         self.setup_ui()
+        if main_window and hasattr(self, "toolbar"): self.toolbar.hide()
         self._set_status("Open a timecyc.dat file to begin")
 
     def _build_left_panel(self, parent: QWidget) -> QWidget: #vers 1

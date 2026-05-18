@@ -241,6 +241,7 @@ class BreakableEditor(GUIWorkshop): #vers 1
         self._section_filter = ""
         self.setup_ui()
         self.setup_ui()
+        if main_window and hasattr(self, "toolbar"): self.toolbar.hide()
         self._set_status("Open an object.dat file to begin")
 
     def _build_left_panel(self, parent: QWidget) -> QWidget: #vers 1
