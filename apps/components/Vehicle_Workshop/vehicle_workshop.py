@@ -34,7 +34,6 @@ from PyQt6.QtWidgets import (
 )
 
 from PyQt6.QtCore import Qt, QPoint, QSize, QThread, pyqtSignal, QTimer
-
 from PyQt6.QtGui import QAction, QBrush, QColor, QFont, QIcon, QImage, QKeySequence, QPainter, QPainterPath, QPen, QPixmap, QPolygon, QShortcut
 
 try:
@@ -95,6 +94,8 @@ except ImportError:
             rect_fill_icon = scissors_icon = paste_brush_icon = \
             rotate_cw_icon = rotate_ccw_icon = flip_horz_icon = \
             flip_vert_icon = folder_icon = staticmethod(_s)
+
+from apps.methods.dff_viewport import VehicleViewport, DFFViewport
 
 # ToolMenuMixin — depends/ tool-specific copy
 try:
@@ -277,14 +278,6 @@ class WorkshopSettings:
         return [p for p in self._data.get("recent_files", [])
                 if Path(p).exists()]
 
-
-# - OpenGL viewport
-# DFFViewport replaced by VehicleViewport from methods/dff_viewport
-try:
-    from apps.methods.dff_viewport import DFFViewport
-    from apps.components.Vehicle_Workshop.methods.dff_viewport import VehicleViewport
-except ImportError:
-    from apps.components.Vehicle_Workshop.methods.dff_viewport import VehicleViewport, DFFViewport
 
 class _CornerOverlay(QWidget):
     """Transparent overlay that draws accent-coloured resize triangles.
