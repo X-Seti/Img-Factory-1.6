@@ -609,12 +609,12 @@ class _WaypointPanel(QWidget):  #vers 1
         fl.addRow("X", self._wx)
         fl.addRow("Y", self._wy)
         fl.addRow("Z", self._wz)
-        if has_speed:
+        if self._has_speed:
             self._spd = QDoubleSpinBox(); self._spd.setRange(0, 300); self._spd.setDecimals(2)
             fl.addRow("Speed", self._spd)
         else:
             self._spd = None
-        if has_flags:
+        if self._has_flags:
             self._flags = QSpinBox(); self._flags.setRange(0, 255)
             fl.addRow("Flags", self._flags)
         else:
