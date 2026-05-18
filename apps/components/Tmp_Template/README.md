@@ -4,7 +4,22 @@
 
 Every workshop must be **standalone and self-contained**.
 
-## How to create a new workshop
+## Standard bootstrap (copy into every workshop)
+
+```python
+import sys
+from pathlib import Path
+# Find project root (the folder containing 'apps/') and add to sys.path
+# so all apps.* imports resolve when running the workshop standalone.
+_root = Path(__file__).resolve().parents[3]  # apps/components/X/file.py
+if str(_root) not in sys.path: sys.path.insert(0, str(_root))
+```
+
+`parents` index by depth:
+- `apps/components/X/workshop.py` → `parents[3]`
+- `apps/components/X/depends/file.py` → `parents[4]`
+
+
 
 ```bash
 cp -r apps/components/Tmp_Template apps/components/My_Workshop
