@@ -1088,6 +1088,28 @@ class DATBrowserWidget(QWidget): #vers 3
 
             lay.addRow(QLabel(label), row_widget)
 
+    def _push_cached_to_open_editors(self, mw, vdata: dict): #vers 1
+        """If any editor tabs are already open, reload them with the new cached paths."""
+        if not mw or not hasattr(mw, 'main_tab_widget'): return
+        tw = mw.main_tab_widget
+        EDITOR_MAP = {
+            'HandlingEditor':  'handling',
+            'TimecycEditor':   'timecyc',
+            'BreakableEditor': 'object',
+        }
+        from PyQt6.QtWidgets import QWidget as _QW
+        for i in range(tw.count()):
+            container = tw.widget(i)
+            if not container: continue
+            for child in container.findChildren(_QW):
+                cls_name = type(child).__name__
+                if cls_name in EDITOR_MAP:
+                    path = vdata.get(EDITOR_MAP[cls_name], '')
+                    if path and os.path.isfile(path) and hasattr(child, '_open_file'):
+                        child._open_file(path)
+                        if hasattr(mw, 'log_message'):
+                            mw.log_message(f"{cls_name}: loaded {os.path.basename(path)}")
+
     def _browse_cache_path(self, key: str, label: str): #vers 1
         """Let user manually set a cached file path."""
         path, _ = QFileDialog.getOpenFileName(
@@ -1747,6 +1769,8 @@ class DATBrowserWidget(QWidget): #vers 3
                             # Refresh the cached files panel
                             if hasattr(self, '_cache_form_layout'):
                                 self._refresh_cache_panel()
+                            # Push data to any already-open editor tabs
+                            self._push_cached_to_open_editors(mw, vdata)
                             self._preload_shared_txds(game_root, game, mw)
                     except Exception:
                         pass

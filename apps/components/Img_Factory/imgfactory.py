@@ -6574,12 +6574,14 @@ class IMGFactory(QMainWindow):
             'PathWorkshop', 'open_path_workshop',
             'Paths', file_path)
 
-    def open_handling_editor(self, file_path=None): #vers 1
+    def open_handling_editor(self, file_path=None): #vers 2
         """Open Handling Editor docked in a tab."""
+        if file_path is None:
+            file_path = getattr(self, 'vehicle_data_paths', {}).get('handling', '')
         self._open_workshop_tab(
             'apps.components.Handling_Editor.handling_editor',
             'HandlingEditor', None,
-            'Handling', file_path)
+            'Handling', file_path or None)
 
     def open_timecyc_editor(self, file_path=None): #vers 2
         """Open Timecyc Editor docked in a tab."""
