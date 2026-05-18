@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 #this belongs in components/File_Browser/dolphin_dialog.py - Version: 1
 # X-Seti - October22 2025 - IMG Factory 1.5 - Dolphin Style File Browser
 

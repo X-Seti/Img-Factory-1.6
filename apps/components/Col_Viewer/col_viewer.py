@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 #this belongs in components/col_viewer/col_viewer.py - Version: 1
 # X-Seti - October22 2025 - IMG Factory 1.5 - COL Viewer
 
@@ -6,6 +7,11 @@ COL Viewer - Clean 3D collision viewer from scratch
 OpenGL-based rendering with theme integration
 View-only, no editing features
 """
+
+import sys, os
+from pathlib import Path
+_root = Path(__file__).resolve().parents[3]
+if str(_root) not in sys.path: sys.path.insert(0, str(_root))
 
 import os
 import sys
