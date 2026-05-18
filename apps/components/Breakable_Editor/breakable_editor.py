@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Breakable_Editor/breakable_editor.py - Version: 2
+#this belongs in apps/components/Breakable_Editor/breakable_editor.py - Version: 3
 # X-Seti - May08 2026 - Img Factory 1.6 - Breakable Objects Editor
 
 """
@@ -60,29 +60,34 @@ from apps.components.Breakable_Editor.gui_workshop import GUIWorkshop
 # Field definitions per section
 # ─────────────────────────────────────────────────────────────────────────────
 
-# VC object.dat fields (name, type, min, max, tooltip)
+# GTA3/LC/VC object.dat: 11 fields (no section headers, tab+comma separated)
+# Name  Mass  TurnMass  AirRes  Elasticity  PercSub  UprootLim  ColDmg  FxType  FxOffset(x,y,z)... wait
+# Actual: Name  Mass  TurnMass  AirRes  Elasticity  PercSub  UprootLim  ColDmg  FxType  SmashAudio  CamAvoid
+# But file shows 11 fields: name + 10 numeric
+# From GTAMods: Name, Mass, TurnMass, AirResistance, Elasticity, PercSubmerged, UprootLimit, ColDamageEffect, FxType, SmashAudio, CamAvoidAngle
 VC_OBJECT_FIELDS = [
-    ("ModelName",           "str",   "",  "",    "Model name from IDE"),
-    ("Mass",                "float", 0,   9999,  "Object mass in kg"),
-    ("TurnMass",            "float", 0,   9999,  "Rotational inertia"),
-    ("AirResistance",       "float", 0,   10,    "Air resistance coefficient"),
-    ("ElasticityLimit",     "float", 0,   10,    "Bounce elasticity"),
-    ("PercSubmerged",       "int",   0,   100,   "Submerged % before sinking"),
-    ("UprootLimit",         "float", 0,   100,   "Force needed to uproot"),
-    ("ColDamageEffect",     "int",   0,   255,   "Collision damage type"),
-    ("FxType",              "int",   0,   255,   "Particle effect type"),
-    ("FxOffsetX",           "float", -10, 10,    "FX origin X offset"),
-    ("FxOffsetY",           "float", -10, 10,    "FX origin Y offset"),
-    ("FxOffsetZ",           "float", -10, 10,    "FX origin Z offset"),
-    ("SmashAudio",          "str",   "",  "",    "Sound effect name on smash"),
-    ("CamAvoidAngle",       "float", 0,   360,   "Camera avoidance angle"),
+    ("ModelName",           "str",   "",   "",    "Model name from IDE"),
+    ("Mass",                "float", 0,    99999, "Object mass in kg"),
+    ("TurnMass",            "float", 0,    99999, "Rotational inertia"),
+    ("AirResistance",       "float", 0,    10,    "Air resistance (0.99=low)"),
+    ("Elasticity",          "float", 0,    10,    "Bounce elasticity"),
+    ("PercSubmerged",       "float", 0,    100,   "% submerged before sinking"),
+    ("UprootLimit",         "float", 0,    99999, "Force to uproot"),
+    ("ColDamageEffect",     "int",   0,    255,   "Collision damage type"),
+    ("FxType",              "int",   0,    255,   "Particle effect type"),
+    ("SmashAudio",          "str",   "",   "",    "Sound on smash (0=none)"),
+    ("CamAvoidAngle",       "float", 0,    360,   "Camera avoidance angle"),
 ]
 
-# SA adds break velocity + intensity
+# SA object.dat: 17 fields — adds FxOffset(x,y,z), BreakVelocity, BreakIntensity, BreakMode, SmashAudioName
 SA_EXTRA_FIELDS = [
-    ("BreakVelocity",       "float", 0,   100,   "Velocity needed to break"),
-    ("BreakIntensity",      "float", 0,   100,   "Break force intensity"),
-    ("FunBreakMode",        "int",   0,   3,     "SA: break mode flag"),
+    ("FxOffsetX",           "float", -10,  10,    "FX origin X offset"),
+    ("FxOffsetY",           "float", -10,  10,    "FX origin Y offset"),
+    ("FxOffsetZ",           "float", -10,  10,    "FX origin Z offset"),
+    ("BreakVelocity",       "float", 0,    100,   "Velocity needed to break"),
+    ("BreakIntensity",      "float", 0,    100,   "Break force intensity"),
+    ("BreakMode",           "int",   0,    3,     "Break mode flag"),
+    ("SmashAudioName",      "str",   "",   "",    "SA: audio asset name"),
 ]
 
 COL_DAMAGE_EFFECTS = {
@@ -119,20 +124,21 @@ class ObjectEntry: #vers 1
     comment:  str  = ""
 
     @staticmethod
-    def from_line(line: str, section: str) -> Optional['ObjectEntry']: #vers 1
+    def from_line(line: str, section: str) -> Optional['ObjectEntry']: #vers 2
+        """Parse one object.dat line. Handles tab, comma or space separation."""
         s = line.strip()
-        if not s or s.startswith('#'):
+        if not s or s.startswith('#') or s.startswith(';'):
             return None
         comment = ""
         if '#' in s:
-            i = s.index('#')
-            comment = s[i:]
-            s = s[:i].strip()
-        parts = s.split()
+            i = s.index('#'); comment = s[i:]; s = s[:i].strip()
+        # Split on comma+whitespace or just whitespace
+        import re as _re
+        parts = [p.strip() for p in _re.split(r'[,\t]+', s) if p.strip()]
+        if not parts: parts = s.split()
         if len(parts) < 2:
             return None
-        e = ObjectEntry(section=section, values=parts, comment=comment)
-        return e
+        return ObjectEntry(section=section, values=parts, comment=comment)
 
     def to_line(self) -> str: #vers 1
         return '    ' + '    '.join(str(v) for v in self.values) + \
@@ -149,10 +155,10 @@ class BreakableParser: #vers 1
         self.header_lines: List[str]         = []
         self.game:         str               = 'VC'
 
-    def _detect_game(self, entries: List[ObjectEntry]) -> str: #vers 1
+    def _detect_game(self, entries: List[ObjectEntry]) -> str: #vers 2
+        """LC/VC=11 fields, SA=17 fields."""
         for e in entries:
-            if len(e.values) > len(VC_OBJECT_FIELDS):
-                return 'SA'
+            if len(e.values) >= 17: return 'SA'
         return 'VC'
 
     def load(self, path: str) -> bool: #vers 2

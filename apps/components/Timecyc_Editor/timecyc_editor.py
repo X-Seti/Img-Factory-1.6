@@ -118,7 +118,11 @@ class TimecycParser: #vers 1
         self.cols_per_row: int              = 33
 
     def _detect_game(self, num_values: int) -> str: #vers 1
-        return 'SA' if num_values >= 50 else 'VC'
+        # LC=40 fields, VC=52 fields, SA=51 fields
+        if num_values >= 52: return 'VC'
+        if num_values >= 51: return 'SA'
+        if num_values >= 40: return 'GTA3'
+        return 'GTA3' 
 
     def _parse_line(self, line: str, weather: int, time: int) -> Optional[TimecycRow]: #vers 1
         s = line.strip()
