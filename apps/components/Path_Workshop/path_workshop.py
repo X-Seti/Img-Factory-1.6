@@ -90,10 +90,7 @@ from PyQt6.QtGui import (
     QColor, QFont, QPainter, QPen, QBrush, QImage, QPolygonF, QKeySequence
 )
 
-try:
-    from apps.components.Tmp_Template.gui_workshop import GUIWorkshop
-except ImportError:
-    from apps.methods.gui_workshop import GUIWorkshop
+# GUIWorkshop no longer needed — PathWorkshop is standalone QWidget
 
 
 # ─────────────────────────────────────────────────────────────────────────────
