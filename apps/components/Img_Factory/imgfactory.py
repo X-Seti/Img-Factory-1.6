@@ -6567,9 +6567,71 @@ class IMGFactory(QMainWindow):
             self.log_message(f"Radar Workshop error: {e}")
             traceback.print_exc()
 
-    def open_paths_map(self): #vers 1
-        """Open paths map editor"""
-        self.log_message("Paths map functionality coming soon")
+    def open_paths_map(self, file_path=None): #vers 2
+        """Open Path Workshop docked in a tab."""
+        self._open_workshop_tab(
+            'apps.components.Path_Workshop.path_workshop',
+            'PathWorkshop', 'open_path_workshop',
+            'Paths', file_path)
+
+    def open_handling_editor(self, file_path=None): #vers 1
+        """Open Handling Editor docked in a tab."""
+        self._open_workshop_tab(
+            'apps.components.Handling_Editor.handling_editor',
+            'HandlingEditor', None,
+            'Handling', file_path)
+
+    def open_timecyc_editor(self, file_path=None): #vers 1
+        """Open Timecyc Editor docked in a tab."""
+        self._open_workshop_tab(
+            'apps.components.Timecyc_Editor.timecyc_editor',
+            'TimecycEditor', None,
+            'Timecyc', file_path)
+
+    def open_breakable_editor(self, file_path=None): #vers 1
+        """Open Breakable Editor docked in a tab."""
+        self._open_workshop_tab(
+            'apps.components.Breakable_Editor.breakable_editor',
+            'BreakableEditor', None,
+            'Breakable', file_path)
+
+    def _open_workshop_tab(self, module_path, class_name, open_fn, tab_label, file_path=None): #vers 1
+        """Generic: import module, instantiate class, dock in tab. Reuses existing tab if open."""
+        try:
+            import importlib
+            from PyQt6.QtWidgets import QVBoxLayout, QWidget
+            mod = importlib.import_module(module_path)
+            cls = getattr(mod, class_name)
+
+            # Reuse existing tab
+            if hasattr(self, 'main_tab_widget') and self.main_tab_widget:
+                for i in range(self.main_tab_widget.count()):
+                    w = self.main_tab_widget.widget(i)
+                    if w:
+                        found = w.findChildren(cls)
+                        if found:
+                            self.main_tab_widget.setCurrentIndex(i)
+                            if file_path and hasattr(found[0], '_open_file'):
+                                found[0]._open_file(file_path)
+                            return found[0]
+
+            tab_container = QWidget()
+            tab_container.file_type = 'WORKSHOP'
+            tl = QVBoxLayout(tab_container)
+            tl.setContentsMargins(0,0,0,0); tl.setSpacing(0)
+            workshop = cls(parent=tab_container, main_window=self)
+            workshop.setWindowFlags(Qt.WindowType.Widget)
+            tl.addWidget(workshop)
+            if file_path and hasattr(workshop, '_open_file'):
+                from PyQt6.QtCore import QTimer
+                QTimer.singleShot(100, lambda: workshop._open_file(file_path))
+            idx = self.main_tab_widget.addTab(tab_container, tab_label)
+            self.main_tab_widget.setCurrentIndex(idx)
+            self.log_message(f"{tab_label} opened")
+            return workshop
+        except Exception as e:
+            self.log_message(f"{tab_label} error: {e}")
+            import traceback; traceback.print_exc()
 
     def open_waterpro(self): #vers 1
         """Alias kept for menu compatibility — calls open_water_workshop."""
