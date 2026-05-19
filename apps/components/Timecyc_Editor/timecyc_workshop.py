@@ -48,10 +48,10 @@ from PyQt6.QtWidgets import (
     QFileDialog, QMessageBox, QApplication, QFormLayout, QFrame,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
     QSlider, QGridLayout, QSizePolicy, QMenu,
-    QDialog, QDialogButtonBox, QStyle, QHeaderView
+    QDialog, QDialogButtonBox, QStyle, QHeaderView, QStyleOptionHeader
 )
 from PyQt6.QtCore import Qt, QRect
-from PyQt6.QtGui import QFont, QColor, QPainter, QBrush, QLinearGradient, QStyleOptionHeader
+from PyQt6.QtGui import QFont, QColor, QPainter, QBrush, QLinearGradient
 
 from apps.components.Timecyc_Editor.gui_workshop import GUIWorkshop
 
