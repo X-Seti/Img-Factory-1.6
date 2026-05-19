@@ -46,9 +46,9 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QLabel, QLineEdit,
     QTextEdit, QTableWidget, QTableWidgetItem, QHeaderView, QScrollArea,
     QPushButton, QFileDialog, QMessageBox, QApplication, QFrame,
-    QMenu, QAbstractItemView, QToolBar, QSizePolicy
-)
-from PyQt6.QtCore import Qt, QMimeData, pyqtSignal, QSize, QPoint, QRect, QShortcut
+    QMenu, QAbstractItemView, QToolBar, QSizePolicy,
+    QShortcut)
+from PyQt6.QtCore import Qt, QMimeData, pyqtSignal, QSize, QPoint, QRect
 from PyQt6.QtGui import QFont, QColor, QClipboard, QKeySequence, QContextMenuEvent
 
 try:

@@ -18,6 +18,8 @@ from PyQt6.QtWidgets import (
     QDialog, QFormLayout, QDialogButtonBox, QDoubleSpinBox, QMenu,
     QSplitter, QTableWidget, QTableWidgetItem, QHeaderView,
     QLineEdit, QComboBox, QCheckBox, QAbstractItemView
+,
+    QShortcut
 )
 from PyQt6.QtGui import (
     QColor, QPainter, QFont, QIcon, QKeySequence, QShortcut
