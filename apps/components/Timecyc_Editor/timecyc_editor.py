@@ -137,7 +137,7 @@ class TimecycParser: #vers 1
         if len(parts) < 10:
             return None
         try:
-            values = [int(p) for p in parts]
+            values = [int(float(p)) for p in parts]
         except ValueError:
             return None
         row = TimecycRow(weather=weather, time=time, values=values, comment=comment)
@@ -382,22 +382,38 @@ class TimecycEditor(GUIWorkshop): #vers 1
         sp.setSizes([400, 500, 200])
         return sp
 
-    def _open_file(self, path=None): #vers 1
+    def _open_file(self, path=None): #vers 2
         if path is None:
             path, _ = QFileDialog.getOpenFileName(
                 self, "Open timecyc.dat", "",
                 "DAT files (timecyc.dat *.dat);;All files (*)")
-        if not path:
-            return
+        if not path: return
         if not self._parser.load(path):
-            QMessageBox.critical(self, "Error", f"Failed to load {path}")
-            return
+            QMessageBox.critical(self, "Error", f"Failed to load {path}"); return
         self._current_path = path
         self._modified = False
-        self._populate_grid()
-        weathers = WEATHER_NAMES_SA if self._parser.game == 'SA' else WEATHER_NAMES_VC
+        game = self._parser.game
+        # Resize grid to match actual game data
+        if game == 'SA':
+            n_weathers, n_times = 8, 23
+            weathers   = WEATHER_NAMES_SA
+            time_labels = [f"{h:02d}:00" for h in range(n_times)]
+        elif game == 'GTA3':
+            n_weathers, n_times = 8, 12
+            weathers   = WEATHER_NAMES_VC
+            time_labels = [f"{h*2:02d}:00" for h in range(n_times)]
+        else:  # VC: 7 weathers x 24 hours
+            n_weathers, n_times = 7, 24
+            weathers   = WEATHER_NAMES_VC[:7]
+            time_labels = TIME_LABELS
+        self._grid.setRowCount(n_times)
+        self._grid.setColumnCount(n_weathers)
         self._grid.setHorizontalHeaderLabels(weathers)
-        self._set_status(f"Loaded {os.path.basename(path)} — {len(self._parser.rows)} rows [{self._parser.game}]")
+        self._grid.setVerticalHeaderLabels(time_labels)
+        for c in range(n_weathers):
+            self._grid.setColumnWidth(c, 70)
+        self._populate_grid()
+        self._set_status(f"Loaded {os.path.basename(path)} — {len(self._parser.rows)} rows [{game}]")
 
     def _save_file(self): #vers 1
         if not self._current_path:
@@ -411,10 +427,12 @@ class TimecycEditor(GUIWorkshop): #vers 1
         else:
             QMessageBox.critical(self, "Error", "Save failed")
 
-    def _populate_grid(self): #vers 1
+    def _populate_grid(self): #vers 2
+        n_times    = self._grid.rowCount()
+        n_weathers = self._grid.columnCount()
         for row in self._parser.rows:
             t, w = row.time, row.weather
-            if t < 24 and w < 8:
+            if t < n_times and w < n_weathers:
                 r, g, b = 0, 0, 0
                 if len(row.values) >= 3:
                     r, g, b = row.values[0], row.values[1], row.values[2]
