@@ -51,7 +51,7 @@ from PyQt6.QtWidgets import (
     QTextEdit, QCheckBox, QMenu,
     QShortcut)
 from PyQt6.QtCore import Qt, QSize, QPoint, QRect, pyqtSignal
-from PyQt6.QtGui import QFont, QColor, QIcon, QKeySequence, QPolygon
+from PyQt6.QtGui import QFont, QColor, QIcon, QKeySequence, QShortcut, QPolygon
 
 try:
     from apps.gui.tool_menu_mixin import ToolMenuMixin

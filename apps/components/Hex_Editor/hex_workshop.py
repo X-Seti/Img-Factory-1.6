@@ -49,7 +49,7 @@ from PyQt6.QtWidgets import (
     QMenu, QAbstractItemView, QToolBar, QSizePolicy,
     QShortcut)
 from PyQt6.QtCore import Qt, QMimeData, pyqtSignal, QSize, QPoint, QRect
-from PyQt6.QtGui import QFont, QColor, QClipboard, QKeySequence, QContextMenuEvent
+from PyQt6.QtGui import QFont, QColor, QClipboard, QKeySequence, QShortcut, QContextMenuEvent
 
 try:
     from apps.gui.tool_menu_mixin import ToolMenuMixin
