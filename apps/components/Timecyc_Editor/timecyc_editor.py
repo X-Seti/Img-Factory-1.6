@@ -43,23 +43,19 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QLabel, QLineEdit,
-    QScrollArea, QGroupBox, QSpinBox, QComboBox, QPushButton,
-    QFileDialog, QMessageBox, QApplication, QFormLayout, QFrame,
-    QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
-    QSlider, QGridLayout, QSizePolicy, QMenu
+    QAbstractItemView, QApplication, QCheckBox, QComboBox, QDialog,
+    QDialogButtonBox, QDoubleSpinBox, QFileDialog, QFontComboBox,
+    QFormLayout, QFrame, QGroupBox, QHBoxLayout, QHeaderView, QLabel,
+    QLineEdit, QListWidget, QListWidgetItem, QMenu, QMessageBox, QPushButton,
+    QScrollArea, QSizePolicy, QSlider, QSpinBox, QSplitter, QStatusBar,
+    QTabWidget, QTableWidget, QTableWidgetItem, QTextEdit, QToolButton,
+    QVBoxLayout, QWidget
 )
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QLabel, QToolButton,
-    QPushButton, QFrame, QSizePolicy, QListWidget, QListWidgetItem,
-    QFileDialog, QMessageBox, QTabWidget, QDialog, QApplication,
-    QSpinBox, QGroupBox, QComboBox, QCheckBox, QFontComboBox,
-    QScrollArea, QMenu, QDialogButtonBox, QTextEdit
+from PyQt6.QtCore import pyqtSignal, Qt, QPoint, QRect, QSize, QSortFilterProxyModel, QTimer
+from PyQt6.QtGui import (
+    QAction, QBrush, QColor, QFont, QIcon, QImage,
+    QKeySequence, QPainter, QPainterPath, QPen, QPixmap, QShortcut, QPolygon
 )
-
-from PyQt6.QtCore import Qt, QSize, QPoint, QRect, pyqtSignal
-from PyQt6.QtGui import QFont, QColor, QPainter, QBrush, QLinearGradient, QIcon, QKeySequence, QShortcut, QPolygon
-
 
 # Imports, optional deps, WorkshopSettings, _CornerOverlay
 
@@ -1351,6 +1347,25 @@ def open_timecyc_editor(main_window=None, path: str = None): #vers 1
 
 
 # Standalone launcher
+
+if __name__ == "__main__":
+    import traceback
+    print(App_name + " — standalone demo")
+    app = QApplication(sys.argv)
+    w = TimecycEditor()
+    w.setWindowTitle(App_name + "Workshop")
+    w.resize(1300, 800)
+    w.show()
+    if len(sys.argv) > 1:
+        w._open_file(sys.argv[1])
+    else:
+        from PyQt6.QtWidgets import QFileDialog
+        p,_ = QFileDialog.getOpenFileName(w,'Open timecyc.dat','','DAT files (*.dat);;All (*)')
+        if p: w._open_file(p)
+        sys.exit(app.exec())
+
+
+
 
 if __name__ == "__main__":
     import traceback

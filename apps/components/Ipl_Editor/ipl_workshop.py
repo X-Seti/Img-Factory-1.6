@@ -1,13 +1,20 @@
 #!/usr/bin/env python3
-# apps/components/Ipl_Editor/ipl_workshop.py - Version: 2
-# X-Seti - Apr 2026 - IMG Factory 1.6 - IPL Workshop
-# Item Placement List editor for GTA III / VC / SA / SOL
-# Built on GUIWorkshop base (temp_workshop pattern)
-# Section 1: IPL parser / writer
-# Section 2: IPL Workshop UI (GUIWorkshop subclass)
-# Section 3: IPL logic - open/save/edit/search/filter
 
-import sys, os, re
+from PyQt6.QtWidgets import (
+    QAbstractItemView, QApplication, QCheckBox, QComboBox, QDialog,
+    QDialogButtonBox, QDoubleSpinBox, QFileDialog, QFontComboBox,
+    QFormLayout, QFrame, QGroupBox, QHBoxLayout, QHeaderView, QLabel,
+    QLineEdit, QListWidget, QListWidgetItem, QMenu, QMessageBox, QPushButton,
+    QScrollArea, QSizePolicy, QSlider, QSpinBox, QSplitter, QStatusBar,
+    QTabWidget, QTableWidget, QTableWidgetItem, QTextEdit, QToolButton,
+    QVBoxLayout, QWidget
+)
+from PyQt6.QtCore import pyqtSignal, Qt, QPoint, QRect, QSize, QSortFilterProxyModel, QTimer
+from PyQt6.QtGui import (
+    QAction, QBrush, QColor, QFont, QIcon, QImage,
+    QKeySequence, QPainter, QPainterPath, QPen, QPixmap, QShortcut, QPolygon
+)
+
 from pathlib import Path
 from typing import List, Optional
 

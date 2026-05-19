@@ -44,13 +44,18 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QLabel, QLineEdit,
-    QListWidget, QListWidgetItem, QScrollArea, QGroupBox,
-    QDoubleSpinBox, QSpinBox, QComboBox, QPushButton,
-    QFileDialog, QMessageBox, QApplication, QFormLayout, QFrame,
-    QTextEdit, QCheckBox, QMenu)
-from PyQt6.QtCore import Qt, QSize, QPoint, QRect, pyqtSignal
-from PyQt6.QtGui import QFont, QColor, QIcon, QKeySequence, QShortcut, QPolygon
+    QAbstractItemView, QApplication, QCheckBox, QComboBox, QDialog,
+    QDialogButtonBox, QDoubleSpinBox, QFileDialog, QFontComboBox,
+    QFormLayout, QFrame, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
+    QListWidget, QListWidgetItem, QMenu, QMessageBox, QPushButton,
+    QScrollArea, QSizePolicy, QSlider, QSpinBox, QSplitter, QStatusBar,
+    QTabWidget, QTextEdit, QToolButton, QVBoxLayout, QWidget
+)
+from PyQt6.QtCore import pyqtSignal, Qt, QPoint, QRect, QSize, QTimer
+from PyQt6.QtGui import (
+    QAction, QBrush, QColor, QFont, QIcon, QImage,
+    QKeySequence, QPainter, QPainterPath, QPen, QPixmap, QShortcut, QPolygon
+)
 
 try:
     from apps.gui.tool_menu_mixin import ToolMenuMixin
