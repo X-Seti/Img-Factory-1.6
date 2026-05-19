@@ -75,6 +75,36 @@ TIME_LABELS = [
     "18:00","19:00","20:00","21:00","22:00","23:00",
 ]
 
+# GTA3/LC timecyc.dat field layout (40 fields)
+# Header: Amb Dir SkyTop SkyBot SunCore SunCorona SunSz SprSz SprBght
+#         Shdw LightShd TreeShd FarClp FogSt LightOnGround
+#         LowCloudsRGB TopCloudRGB BottomCloudRGB BlurRGB WaterAlpha
+GTA3_COLOUR_GROUPS = [
+    ("Ambient",       0),   # [0-2]
+    ("Directional",   3),   # [3-5]
+    ("Sky Top",       6),   # [6-8]
+    ("Sky Bottom",    9),   # [9-11]
+    ("Sun Core",     12),   # [12-14]
+    ("Sun Corona",   15),   # [15-17]
+]
+GTA3_SCALAR_FIELDS = [
+    ("SunCoreSize",    18, 0, 10),
+    ("SunCoronaSize",  19, 0, 10),
+    ("SpriteBright",   20, 0, 10),
+    ("ShadowStrength", 21, 0, 255),
+    ("LightShading",   22, 0, 255),
+    ("TreeShading",    23, 0, 255),
+    ("FarClip",        24, 0, 3000),
+    ("FogStart",       25, 0, 3000),
+    ("LightOnGround",  26, 0, 10),
+]
+GTA3_COLOUR_GROUPS_2 = [
+    ("Lower Clouds",  27),   # [27-29]
+    ("Top Cloud",     30),   # [30-32]
+    ("Bottom Cloud",  33),   # [33-35]
+    ("Blur/Trail",    36),   # [36-38]
+]
+
 # VC/GTA3 timecyc.dat field layout (52 fields for VC, 40 for GTA3)
 # Indices confirmed from GTAMods wiki + real file analysis
 # [0-2]   Ambient Static RGB       [3-5]   Ambient Dynamic RGB
@@ -525,11 +555,13 @@ class TimecycWorkshop(GUIWorkshop): #vers 1
             left_w = sizes[0] if sizes else 400
             self._update_action_btns(left_w < 380)
 
-    def _get_field_groups(self): #vers 1
+    def _get_field_groups(self): #vers 2
         """Return (colour_groups, scalar_fields, colour_groups_2) for current game."""
         game = self._parser.game if hasattr(self._parser, 'game') else 'VC'
         if game == 'SA':
             return SA_COLOUR_GROUPS, SA_SCALAR_FIELDS, SA_COLOUR_GROUPS_2
+        if game == 'GTA3':
+            return GTA3_COLOUR_GROUPS, GTA3_SCALAR_FIELDS, GTA3_COLOUR_GROUPS_2
         return VC_COLOUR_GROUPS, VC_SCALAR_FIELDS, VC_COLOUR_GROUPS_2
 
     def _rebuild_field_widgets(self): #vers 2
@@ -601,7 +633,10 @@ class TimecycWorkshop(GUIWorkshop): #vers 1
     def _populate_grid(self): #vers 3
         n_times    = self._grid.rowCount()
         n_weathers = self._grid.columnCount()
-        sky_idx = 9 if self._parser.game == 'SA' else 15
+        game = self._parser.game
+        if game == 'SA':   sky_idx = 9
+        elif game == 'GTA3': sky_idx = 6
+        else:              sky_idx = 15  # VC
         for row in self._parser.rows:
             t, w = row.time, row.weather
             if t >= n_times or w >= n_weathers:
@@ -693,11 +728,16 @@ class TimecycWorkshop(GUIWorkshop): #vers 1
         self._modified = True
         if hasattr(self, 'save_btn'): self.save_btn.setEnabled(True)
         self._update_preview(self._current_row)
-        # Update grid cell colour
+        # Update grid cell colour using game-correct sky top index
         t, w2 = self._current_row.time, self._current_row.weather
-        if len(vals) >= 18:
+        _g = self._parser.game
+        _si = 9 if _g == 'SA' else (6 if _g == 'GTA3' else 15)
+        if len(vals) > _si + 2:
             item = self._grid.item(t, w2) or QTableWidgetItem()
-            item.setBackground(QColor(int(vals[15]), int(vals[16]), int(vals[17])))
+            item.setBackground(QColor(
+                max(0, min(255, int(vals[_si]))),
+                max(0, min(255, int(vals[_si+1]))),
+                max(0, min(255, int(vals[_si+2])))))
             self._grid.setItem(t, w2, item)
 
     def _update_preview(self, row: TimecycRow): #vers 3
@@ -712,9 +752,15 @@ class TimecycWorkshop(GUIWorkshop): #vers 1
             sky_top  = rgb(9)   # SA Sky Top  [9-11]
             sky_bot  = rgb(12)  # SA Sky Bot  [12-14]
             ambient  = rgb(0)   # SA Ambient  [0-2]
-            sun_core = rgb(15)  # SA Sun Core [15-17]
+            sun_core = rgb(12)  # SA Sun Core [15-17]
             fog      = sv(28)   # SA Fog Start[28]
-        else:  # VC/GTA3
+        elif game == 'GTA3':
+            sky_top  = rgb(6)   # GTA3 Sky Top  [6-8]
+            sky_bot  = rgb(9)   # GTA3 Sky Bot  [9-11]
+            ambient  = rgb(0)   # GTA3 Ambient  [0-2]
+            sun_core = rgb(12)  # GTA3 Sun Core [12-14]
+            fog      = sv(25)   # GTA3 Fog Start[25]
+        else:  # VC
             sky_top  = rgb(15)  # VC Sky Top  [15-17]
             sky_bot  = rgb(18)  # VC Sky Bot  [18-20]
             ambient  = rgb(0)   # VC Ambient  [0-2]
