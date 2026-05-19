@@ -59,8 +59,9 @@ from apps.components.Timecyc_Editor.gui_workshop import GUIWorkshop
 # Field definitions
 # ─────────────────────────────────────────────────────────────────────────────
 
-WEATHER_NAMES_VC = ["ExtraS", "ExtraS2", "Sunny", "Cloudy", "Rainy", "Foggy", "ExtraS3", "ExtraS4"]
-WEATHER_NAMES_SA = ["ExtraSunny", "Sunny", "Cloudy", "Rainy", "Foggy", "ExtraColors", "Hurricane", "ExtraColors2"]
+WEATHER_NAMES_VC  = ["Sunny", "Cloudy", "Rainy", "Foggy", "ExtraSunny", "Rainy2", "ExtraColours"]
+WEATHER_NAMES_GTA3 = ["ExtraS", "ExtraS2", "Sunny", "Cloudy", "Rainy", "Foggy", "ExtraS3", "ExtraS4"]
+WEATHER_NAMES_SA  = ["ExtraSunny", "Sunny", "Cloudy", "Rainy", "Foggy", "ExtraColors", "Hurricane", "ExtraColors2"]
 
 TIME_LABELS = [
     "00:00","01:00","02:00","03:00","04:00","05:00",
@@ -411,11 +412,11 @@ class TimecycEditor(GUIWorkshop): #vers 1
             time_labels = [f"{h:02d}:00" for h in range(n_times)]
         elif game == 'GTA3':
             n_weathers, n_times = 8, 12
-            weathers   = WEATHER_NAMES_VC
+            weathers   = WEATHER_NAMES_GTA3
             time_labels = [f"{h*2:02d}:00" for h in range(n_times)]
         else:  # VC: 7 weathers x 24 hours
             n_weathers, n_times = 7, 24
-            weathers   = WEATHER_NAMES_VC[:7]
+            weathers   = WEATHER_NAMES_VC
             time_labels = TIME_LABELS
         self._grid.setRowCount(n_times)
         self._grid.setColumnCount(n_weathers)
@@ -457,7 +458,9 @@ class TimecycEditor(GUIWorkshop): #vers 1
         self._current_row = r
         if r is None:
             return
-        self._cell_info.setText(f"Time: {TIME_LABELS[row]}  Weather: {col}")
+        time_lbl = self._grid.verticalHeaderItem(row)
+        time_str = time_lbl.text() if time_lbl else f"{row:02d}:00"
+        self._cell_info.setText(f"Time: {time_str}  Weather: {col}")
         self._populate_fields(r)
 
     def _populate_fields(self, row: TimecycRow): #vers 1
