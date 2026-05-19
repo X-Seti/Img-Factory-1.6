@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Timecyc_Editor/timecyc_editor.py - Version: 2
+#this belongs in apps/components/Timecyc_Editor/timecyc_workshop.py - Version: 2
 # X-Seti - May08 2026 - Img Factory 1.6 - Time Cycle Editor
 
 """
@@ -55,10 +55,7 @@ from PyQt6.QtGui import QFont, QColor, QPainter, QBrush, QLinearGradient
 from apps.components.Timecyc_Editor.gui_workshop import GUIWorkshop
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Field definitions
-# ─────────────────────────────────────────────────────────────────────────────
-
 WEATHER_NAMES_VC  = ["Sunny", "Cloudy", "Rainy", "Foggy", "ExtraSunny", "Rainy2", "ExtraColours"]
 WEATHER_NAMES_GTA3 = ["ExtraS", "ExtraS2", "Sunny", "Cloudy", "Rainy", "Foggy", "ExtraS3", "ExtraS4"]
 WEATHER_NAMES_SA  = ["ExtraSunny", "Sunny", "Cloudy", "Rainy", "Foggy", "ExtraColors", "Hurricane", "ExtraColors2"]
@@ -149,9 +146,7 @@ SA_COLOUR_GROUPS_2 = [
 ]
 SA_TIME_LABELS = ["Midnight","5AM","6AM","7AM","Noon","7PM","8PM","10PM"]
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Data
-# ─────────────────────────────────────────────────────────────────────────────
 
 @dataclass
 class TimecycRow: #vers 1
@@ -261,9 +256,7 @@ class TimecycParser: #vers 1
         return None
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Sky preview widget
-# ─────────────────────────────────────────────────────────────────────────────
 
 class SkyPreviewWidget(QWidget): #vers 1
     def __init__(self, parent=None):
@@ -314,13 +307,11 @@ class SkyPreviewWidget(QWidget): #vers 1
         p.drawText(48, h - 8, "Ambient")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Editor
-# ─────────────────────────────────────────────────────────────────────────────
 
 class TimecycEditor(GUIWorkshop): #vers 1
-    App_name   = "Time Cycle Editor"
-    App_build  = "Build 1"
+    App_name   = "Time Cycle Workshop"
+    App_build  = "Build 2"
     App_auth   = "X-Seti"
     config_key = "timecyc_editor"
 
