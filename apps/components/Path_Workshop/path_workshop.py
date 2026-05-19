@@ -1,952 +1,4837 @@
 #!/usr/bin/env python3
 #this belongs in apps/components/Path_Workshop/path_workshop.py - Version: 1
-# X-Seti - May08 2026 - Img Factory 1.6 - Path Workshop
+# X-Seti - May 2026 - IMG Factory 1.6 - Path Workshop
+# Based on radar_workshop.py - full radar UI with path editing tabs added
+# Inherits RadarWorkshop: radar tile viewer + path node/train/flight editors
 
-"""
-Path Workshop — tabbed editor for GTA III/VC/SA path files.
-Tabs: Train Paths | Flight Paths | Static Paths (spath0 VC text)
-
-Each tab shows:
-  Left  = waypoint list (index, x, y, z, speed, flags)
-  Right = 2D overhead map canvas with waypoints plotted, lines connecting them
-  Bottom = selected waypoint field editor
-
-Map canvas: uses radar tiles as background if available, otherwise plain grid.
-Supports: train.dat, train2.dat, flight.dat, flight2.dat, flight3.dat, spath0.dat (VC text)
-"""
-
-##Methods list -
-# Waypoint.__init__
-# PathRoute.__init__
-# TrainParser.__init__
-# TrainParser.load
-# TrainParser.save
-# TrainParser._detect_terminator
-# FlightParser.__init__
-# FlightParser.load
-# FlightParser.save
-# SpathParser.__init__
-# SpathParser.load
-# SpathParser.save
-# PathMapCanvas.__init__
-# PathMapCanvas.set_route
-# PathMapCanvas.set_radar_tiles
-# PathMapCanvas.paintEvent
-# PathMapCanvas.mousePressEvent
-# PathMapCanvas.mouseMoveEvent
-# PathMapCanvas.mouseReleaseEvent
-# PathMapCanvas.wheelEvent
-# PathMapCanvas._world_to_screen
-# PathMapCanvas._screen_to_world
-# PathMapCanvas._hit_test
-# TrainTab.__init__
-# TrainTab._build_ui
-# TrainTab.load_file
-# TrainTab.save_file
-# TrainTab._refresh_list
-# TrainTab._on_select
-# TrainTab._populate_fields
-# TrainTab._on_field_changed
-# TrainTab._add_waypoint
-# TrainTab._delete_waypoint
-# TrainTab._move_up
-# TrainTab._move_down
-# TrainTab._on_map_click
-# FlightTab.__init__
-# FlightTab._build_ui
-# FlightTab.load_file
-# FlightTab.save_file
-# SpathTab.__init__
-# SpathTab._build_ui
-# SpathTab.load_file
-# SpathTab.save_file
-# PathWorkshop.__init__
-# PathWorkshop.setup_ui
-# PathWorkshop._open_file
-# PathWorkshop._save_file
-# PathWorkshop._load_radar_background
-# PathWorkshop._build_menus_into_qmenu
-# open_path_workshop
-
-import sys, os, math
+import os, json, sys, requests, threading, struct, re, math, shutil
+from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Tuple
-from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Tuple
+
+os.environ['QT_QPA_PLATFORM'] = 'xcb'
+os.environ['QSG_RHI_BACKEND'] = 'opengl'
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = Path(current_dir).parents[2]
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QLabel, QLineEdit,
-    QListWidget, QListWidgetItem, QScrollArea, QTabWidget,
-    QDoubleSpinBox, QSpinBox, QPushButton, QFileDialog, QMessageBox,
-    QApplication, QFormLayout, QFrame, QSizePolicy, QMenu, QCheckBox,
-    QGroupBox, QAbstractItemView
-)
-from PyQt6.QtCore import Qt, QPointF, QRectF, pyqtSignal
-from PyQt6.QtGui import (
-    QColor, QFont, QPainter, QPen, QBrush, QImage, QPolygonF, QKeySequence
+    QAbstractItemView, QApplication, QCheckBox, QComboBox,
+    QDialog, QDoubleSpinBox, QFileDialog, QFontComboBox,
+    QFormLayout, QFrame, QGroupBox, QHBoxLayout, QLabel,
+    QLineEdit, QListWidget, QListWidgetItem, QMenu,
+    QMessageBox, QProgressDialog, QPushButton, QScrollArea,
+    QSizePolicy, QSlider, QSpinBox, QSplitter, QStatusBar,
+    QTabWidget, QTextEdit, QToolButton, QVBoxLayout, QWidget
 )
 
-# GUIWorkshop no longer needed — PathWorkshop is standalone QWidget
+from PyQt6.QtCore import pyqtSignal, Qt, QPoint, QSize, QThread, QTimer
+from PyQt6.QtGui import  QAction, QBrush, QColor, QFont, QIcon, QImage, QKeySequence, QPainter, QPainterPath, QPen, QPixmap, QShortcut
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Data classes
-# ─────────────────────────────────────────────────────────────────────────────
+# - Detect standalone vs docked
+def _is_standalone():
+    import inspect
+    frame = inspect.currentframe()
+    try:
+        for _ in range(10):
+            frame = frame.f_back
+            if frame is None: break
+            if 'imgfactory' in frame.f_code.co_filename.lower(): return False
+        return True
+    finally:
+        del frame
 
-@dataclass
-class Waypoint:  #vers 1
-    x:     float = 0.0
-    y:     float = 0.0
-    z:     float = 0.0
-    speed: float = 10.0
-    flags: int   = 0
+STANDALONE_MODE = _is_standalone()
+DEBUG_STANDALONE = False
+App_name  = "Path Workshop"
+App_build = "May 2026"
+App_auth  = "X-Seti"
+Build     = "Build 1"
 
 
-@dataclass
-class PathRoute:  #vers 1
-    name:      str            = ""
-    waypoints: List[Waypoint] = field(default_factory=list)
-    comment:   str            = ""
+#    Infrastructure imports
+try:
+    from apps.methods.imgfactory_svg_icons import SVGIconFactory
+    ICONS_AVAILABLE = True
+except ImportError:
+    ICONS_AVAILABLE = False
+    class SVGIconFactory:
+        @staticmethod
+        def settings_icon(s=20, c='#fff'): return QIcon()
+        @staticmethod
+        def properties_icon(s=20, c='#fff'): return QIcon()
+        @staticmethod
+        def info_icon(s=20, c='#fff'): return QIcon()
+        @staticmethod
+        def open_icon(s=20, c='#fff'): return QIcon()
+        @staticmethod
+        def save_icon(s=20, c='#fff'): return QIcon()
+        @staticmethod
+        def minimize_icon(s=20, c='#fff'): return QIcon()
+        @staticmethod
+        def maximize_icon(s=20, c='#fff'): return QIcon()
+        @staticmethod
+        def close_icon(s=20, c='#fff'): return QIcon()
+
+try:
+    from apps.utils.app_settings_system import AppSettings, SettingsDialog
+    APPSETTINGS_AVAILABLE = True
+except ImportError:
+    APPSETTINGS_AVAILABLE = False
+    AppSettings = None
+
+try:
+    from apps.gui.tool_menu_mixin import ToolMenuMixin
+except ImportError:
+    class ToolMenuMixin:
+        def get_menu_title(self): return App_name
+        def _build_menus_into_qmenu(self, m): pass
+        def _get_tool_menu_style(self): return 'dropdown'
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Parsers
-# ─────────────────────────────────────────────────────────────────────────────
+# - Game presets
+def _name_sa(idx):  return f"RADAR{idx:02d}" #vers 1
 
-class TrainParser:  #vers 1
-    """Parses train.dat / train2.dat  (VC + SA text format)."""
+def _name_sol(idx): return f"radar{idx:04d}" #vers 1
 
-    def __init__(self):  #vers 1
-        self.routes:       List[PathRoute] = []
-        self.header_lines: List[str]       = []
+# Grid constants (authoritative — do not change without verifying against game files)
+# SA: 144 tiles (12x12)  VC/III/LC/LCS/VCS: 64 tiles (8x8)  SOL: 1296 tiles (36x36)
+# img_source: 'img'=tiles in .img | 'txd'=single .txd | 'pvr'=.pvr img | 'toc'=toc/tmb/dat
+# Bitdepth lookup by img_source / platform
+_BITDEPTH = {
+    "img_pc":  "DXT1·4bpp",   "img_xbox": "DXT1·4bpp",
+    "img_ps2": "PAL8·8bpp",   "pvr":      "PVRTC·4bpp",
+    "toc":     "DAT·enc",     "chk":      "GIM·16bpp",
+    "xtx":     "XTX·16bpp",   "img":      "DXT1·4bpp",
+}
 
-    def load(self, path: str) -> bool:  #vers 1
+GAME_PRESETS = {
+    # PC versions — tiles in gta3.img / gta.img / RadarTex.img
+    "III PC":  {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
+                "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$",
+                "img_source":"img",  "label":"GTA III (PC/PS2/Xbox)",
+                "hint":"Load gta3.img — contains radar00.txd to radar63.txd"},
+    "VC PC":   {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
+                "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$",
+                "img_source":"img",  "label":"GTA Vice City (PC/PS2/Xbox)",
+                "hint":"Load gta3.img — contains radar00.txd to radar63.txd"},
+    "SA PC":   {"cols":12, "rows":12, "count":144,  "name_fn":_name_sa,
+                "img_pattern":r"^radar(\d{2}|1[0-3]\d|14[0-3])\.txd$",
+                "img_source":"img",  "label":"GTA San Andreas (PC/PS2/Xbox)",
+                "hint":"Load gta3.img — contains radar00.txd to radar143.txd (144 tiles, 12x12 grid)"},
+    "LCS PC":  {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
+                "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$",
+                "img_source":"img",  "label":"GTA Liberty City Stories (PC/PS2)",
+                "hint":"Load gta3.img — contains radar00.txd to radar63.txd"},
+    "VCS PC":  {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
+                "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$",
+                "img_source":"img",  "label":"GTA Vice City Stories (PC/PS2)",
+                "hint":"Load gta3.img — contains radar00.txd to radar63.txd"},
+    "SOL":     {"cols":36, "rows":36, "count":1296,  "name_fn":_name_sol,
+                "img_pattern":r"^radar\d{4}\.txd$",
+                "img_source":"img",  "label":"GTA State of Liberty (PC)",
+                "hint":"Load RadarTex.img — contains radar0000.txd to radar1295.txd"},
+    # Android versions
+    "III And": {"cols":1,  "rows":1,  "count":1,    "name_fn":_name_sa,
+                "img_pattern":r"^radar",
+                "img_source":"img",  "label":"GTA III Android",
+                "hint":"Load gta3_unc.img — single RADAR.TXD with 256x256 'radardisc' texture"},
+    "VC And":  {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
+                "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$",
+                "img_source":"img",  "label":"GTA Vice City Android",
+                "hint":"Load from root/texdb — see TXD Workshop for texdb format"},
+    "SA And":  {"cols":10, "rows":10, "count":100,  "name_fn":_name_sa,
+                "img_pattern":r"^radar",
+                "img_source":"toc",  "label":"GTA San Andreas Android",
+                "hint":"Load txd.dxt.toc — SA Android uses TOC/TMB/DAT format (not yet supported)"},
+    # iOS versions
+    "LCS iOS": {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
+                "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$",
+                "img_source":"pvr",  "label":"GTA LCS iOS",
+                "hint":"Load gta3.pvr — contains radar00.txd to radar63.txd (PVRTC format)"},
+    "SA iOS":  {"cols":10, "rows":10, "count":100,  "name_fn":_name_sa,
+                "img_pattern":r"^radar",
+                "img_source":"toc",  "label":"GTA SA iOS",
+                "hint":"Load txd.dxt.toc — iOS SA uses TOC/TMB/DAT format (not yet supported)"},
+    # PSP versions
+    "LCS PSP": {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
+                "img_pattern":r"^radar",
+                "img_source":"chk",  "label":"GTA LCS PSP",
+                "hint":"PSP .chk files use GIM/XTX format — load individual radar .chk files"},
+    "VCS PSP": {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
+                "img_pattern":r"^radar",
+                "img_source":"xtx",  "label":"GTA VCS PSP",
+                "hint":"PSP .xtx files use GIM/XTX format — load individual radar .xtx files"},
+    # Generic
+    "Custom":  {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
+                "img_pattern":r"^radar",
+                "img_source":"img",  "label":"Custom Grid",
+                "hint":"Load any .img archive and adjust W/H spinners"},
+}
+TILE_W = TILE_H = 128
+
+
+# - DXT1 codec
+def decode_dxt1(data, w, h): #vers 1
+    out = bytearray(w*h*4); bx=(w+3)//4; by=(h+3)//4; pos=0
+    for by2 in range(by):
+        for bx2 in range(bx):
+            if pos+8>len(data): break
+            c0=struct.unpack_from('<H',data,pos)[0]; c1=struct.unpack_from('<H',data,pos+2)[0]
+            lut=struct.unpack_from('<I',data,pos+4)[0]; pos+=8
+            def u5(v): return ((v>>11)&31)*255//31,((v>>5)&63)*255//63,(v&31)*255//31
+            r0,g0,b0=u5(c0); r1,g1,b1=u5(c1)
+            if c0>c1: pal=[(r0,g0,b0,255),(r1,g1,b1,255),((2*r0+r1)//3,(2*g0+g1)//3,(2*b0+b1)//3,255),((r0+2*r1)//3,(g0+2*g1)//3,(b0+2*b1)//3,255)]
+            else:     pal=[(r0,g0,b0,255),(r1,g1,b1,255),((r0+r1)//2,(g0+g1)//2,(b0+b1)//2,255),(0,0,0,0)]
+            for py in range(4):
+                for px in range(4):
+                    ix=bx2*4+px; iy=by2*4+py
+                    if ix<w and iy<h:
+                        ci=(lut>>((py*4+px)*2))&3; o=(iy*w+ix)*4; out[o:o+4]=pal[ci]
+    return bytes(out)
+
+def encode_dxt1(rgba, w, h): #vers 1
+    from PIL import Image
+    img=Image.frombytes('RGBA',(w,h),rgba).convert('RGB'); bx=(w+3)//4; by=(h+3)//4; out=bytearray(); px=img.load()
+    def p5(r,g,b): return ((r>>3)<<11)|((g>>2)<<5)|(b>>3)
+    for by2 in range(by):
+        for bx2 in range(bx):
+            pix=[px[bx2*4+pxx,by2*4+py] if bx2*4+pxx<w and by2*4+py<h else (0,0,0) for py in range(4) for pxx in range(4)]
+            c0=(max(p[0] for p in pix),max(p[1] for p in pix),max(p[2] for p in pix))
+            c1=(min(p[0] for p in pix),min(p[1] for p in pix),min(p[2] for p in pix))
+            v0=p5(*c0); v1=p5(*c1)
+            if v0<v1: v0,v1=v1,v0; c0,c1=c1,c0
+            pal=[c0,c1,tuple((2*a+b)//3 for a,b in zip(c0,c1)),tuple((a+2*b)//3 for a,b in zip(c0,c1))]
+            lut=0
+            for i,p in enumerate(pix): best=min(range(4),key=lambda k:sum((p[j]-pal[k][j])**2 for j in range(3))); lut|=best<<(i*2)
+            out+=struct.pack('<HHI',v0,v1,lut)
+    return bytes(out)
+
+
+# - TXD reader/writer
+
+class RadarTxdReader:
+    @staticmethod
+    def read(data): #vers 3
+        """Read first texture from a RW TXD.
+        Supports: PC D3D8/D3D9 (8/9), Xbox (5), PS2 (6), iOS/Android (8 ver 0x1005FFFF).
+        """
+        pos = 12  # skip outer 0x16 container header
+        while pos + 12 <= len(data):
+            st = struct.unpack_from('<I', data, pos)[0]
+            ss = struct.unpack_from('<I', data, pos+4)[0]
+            if st == 0x15:  # TextureNative
+                th = pos + 24   # skip 0x15 header(12) + inner 0x01 header(12)
+                platform = struct.unpack_from('<I', data, th)[0]
+
+                #    Xbox (platform 5)                                          
+                if platform == 5:
+                    nb_ = data[th+8:th+40]
+                    nb_ = nb_[:nb_.index(b'\x00')] if b'\x00' in nb_ else nb_
+                    name = re.sub(r'[^\x20-\x7E]', '', nb_.decode('latin1','replace')).strip()
+                    ww   = struct.unpack_from('<H', data, th+80)[0]
+                    hh   = struct.unpack_from('<H', data, th+82)[0]
+                    comp = struct.unpack_from('<B', data, th+87)[0]  # compressionFlags
+                    dsz  = struct.unpack_from('<I', data, th+88)[0]
+                    pd   = data[th+92:th+92+dsz]
+                    # Xbox DXT1: 0x0B (linear) or 0x0C (swizzled)
+                    # Xbox DXT3: 0x0E/0x0F, DXT5: 0x10/0x11
+                    if comp in (0x0B, 0x0C):
+                        rgba = decode_dxt1(pd, ww, hh)
+                    elif comp in (0x0E, 0x0F, 0x10, 0x11):
+                        rgba = decode_dxt1(pd, ww, hh)  # DXT3/5 — approximate
+                    else:
+                        rgba = RadarTxdReader._raw_to_rgba(pd, ww, hh,
+                            struct.unpack_from('<I', data, th+72)[0])
+                    return rgba, ww, hh, name
+
+                #    PS2 (platform 6 or FourCC "PS2\0")                       
+                # Header layout (body starts at th):
+                # +0   platformId  +4  filterMode  +8  uv_addr  +12 padding
+                # +16  name[32]    +48 maskName[32]
+                # +80  rasterFormat  +84 depth  +85 width_log2  +86 height_log2
+                # +87  numLevels  +88 rasterType  +89 paletteFormat
+                # +90  hasAlpha   +91 isCubeMap   +92 gpuDataSize
+                # +96  skyMipMapValue (SA only)    +100 pixel data
+                elif platform in (6, 0x00325350):
+                    nb_ = data[th+16:th+48]
+                    nb_ = nb_[:nb_.index(b'\x00')] if b'\x00' in nb_ else nb_
+                    name       = re.sub(r'[^\x20-\x7E]', '', nb_.decode('latin1','replace')).strip()
+                    raster_fmt = struct.unpack_from('<I', data, th+80)[0]
+                    wlog2      = data[th+85]
+                    hlog2      = data[th+86]
+                    pal_fmt    = data[th+89]
+                    gpu_sz     = struct.unpack_from('<I', data, th+92)[0]
+                    # Dimensions: log2 if value in 1-11, else raw (older format)
+                    ww = (1 << wlog2) if 1 <= wlog2 <= 11 else wlog2
+                    hh = (1 << hlog2) if 1 <= hlog2 <= 11 else hlog2
+                    # Pixel data at +100 (SA adds skyMipMapValue u32 at +96)
+                    # Always skip +96 u32 to handle both GTA III/VC and SA PS2
+                    pd = data[th+100:th+100+gpu_sz] if gpu_sz > 0 else data[th+100:]
+                    pix_bits = (raster_fmt >> 8) & 0xF
+                    if pal_fmt in (1, 2) or pix_bits == 0:   # PAL8 / PAL4
+                        rgba = RadarTxdReader._ps2_pal_to_rgba(pd, ww, hh, pal_fmt)
+                    elif pix_bits == 2:                        # RGB565
+                        rgba = RadarTxdReader._raw_to_rgba(pd, ww, hh, raster_fmt)
+                    elif pix_bits == 5:                        # ARGB8888
+                        rgba = RadarTxdReader._raw_to_rgba(pd, ww, hh, raster_fmt)
+                    else:
+                        rgba = RadarTxdReader._raw_to_rgba(pd, ww, hh, raster_fmt)
+                    return rgba, ww, hh, name
+
+                #    PC D3D8 (platform 8, older) / D3D9 (platform 9, SA PC)    
+                #    iOS/Android (platform 8, ver 0x1005FFFF)                  
+                else:
+                    nb_ = data[th+8:th+40]
+                    nb_ = nb_[:nb_.index(b'\x00')] if b'\x00' in nb_ else nb_
+                    name = re.sub(r'[^\x20-\x7E]', '', nb_.decode('latin1','replace')).strip()
+                    ww   = struct.unpack_from('<H', data, th+80)[0]
+                    hh   = struct.unpack_from('<H', data, th+82)[0]
+                    dsz  = struct.unpack_from('<I', data, th+88)[0]
+                    pd   = data[th+92:th+92+dsz]
+                    d3d_fmt   = data[th+76:th+80]
+                    comp_byte = struct.unpack_from('<B', data, th+87)[0]
+                    raster_fmt= struct.unpack_from('<I', data, th+72)[0]
+                    if d3d_fmt == b'DXT1' or (platform == 8 and comp_byte == 1):
+                        rgba = decode_dxt1(pd, ww, hh)
+                    elif d3d_fmt in (b'DXT3', b'DXT5') or (platform == 8 and comp_byte in (3,5)):
+                        rgba = decode_dxt1(pd, ww, hh)  # DXT3/5 approx
+                    else:
+                        rgba = RadarTxdReader._raw_to_rgba(pd, ww, hh, raster_fmt)
+                    return rgba, ww, hh, name
+
+            if ss == 0:
+                break
+            pos += 12 + ss
+        raise ValueError("No Texture Native section")
+
+    @staticmethod
+    def _raw_to_rgba(pd: bytes, w: int, h: int, raster_fmt: int) -> bytes: #vers 2
+        """Convert raw uncompressed pixel data to RGBA8888.
+        raster_fmt bits 8-11: 0=PAL, 1=ARGB1555, 2=RGB565, 3=ARGB4444,
+                               4=LUM8, 5=ARGB8888, 6=RGB888"""
+        pix_bits = (raster_fmt >> 8) & 0xF
+        n = w * h
+        out = bytearray(n * 4)
+        if (pix_bits == 5 or pix_bits == 0) and len(pd) >= n * 4:  # ARGB8888/RGBA8888
+            for i in range(min(n, len(pd)//4)):
+                b, g, r, a = pd[i*4], pd[i*4+1], pd[i*4+2], pd[i*4+3]
+                out[i*4:i*4+4] = [r, g, b, a if a > 0 else 255]
+        elif pix_bits == 2 and len(pd) >= n * 2:  # RGB565
+            for i in range(min(n, len(pd)//2)):
+                v = struct.unpack_from('<H', pd, i*2)[0]
+                r = ((v >> 11) & 0x1F) << 3; r |= r >> 5
+                g = ((v >> 5)  & 0x3F) << 2; g |= g >> 6
+                b = (v & 0x1F) << 3;          b |= b >> 5
+                out[i*4:i*4+4] = [r, g, b, 255]
+        elif pix_bits == 1 and len(pd) >= n * 2:  # ARGB1555
+            for i in range(min(n, len(pd)//2)):
+                v = struct.unpack_from('<H', pd, i*2)[0]
+                a = 255 if (v >> 15) else 0
+                r = ((v >> 10) & 0x1F) << 3; r |= r >> 5
+                g = ((v >> 5)  & 0x1F) << 3; g |= g >> 5
+                b = (v & 0x1F) << 3;          b |= b >> 5
+                out[i*4:i*4+4] = [r, g, b, a]
+        elif pix_bits == 3 and len(pd) >= n * 2:  # ARGB4444
+            for i in range(min(n, len(pd)//2)):
+                v = struct.unpack_from('<H', pd, i*2)[0]
+                a = ((v >> 12) & 0xF) * 17
+                r = ((v >> 8)  & 0xF) * 17
+                g = ((v >> 4)  & 0xF) * 17
+                b = (v & 0xF) * 17
+                out[i*4:i*4+4] = [r, g, b, a]
+        elif pix_bits == 6 and len(pd) >= n * 3:  # RGB888
+            for i in range(min(n, len(pd)//3)):
+                out[i*4:i*4+3] = pd[i*3+2], pd[i*3+1], pd[i*3]
+                out[i*4+3] = 255
+        elif len(pd) >= n * 4:  # fallback: treat as RGBA8888
+            out[:n*4] = pd[:n*4]
+        elif len(pd) >= n * 2:  # fallback: treat as RGB565
+            for i in range(min(n, len(pd)//2)):
+                v = struct.unpack_from('<H', pd, i*2)[0]
+                r = ((v >> 11) & 0x1F) << 3
+                g = ((v >> 5)  & 0x3F) << 2
+                b = (v & 0x1F) << 3
+                out[i*4:i*4+4] = [r, g, b, 255]
+        return bytes(out)
+
+    @staticmethod
+    def _ps2_pal_to_rgba(pd: bytes, w: int, h: int, pal_fmt: int) -> bytes: #vers 1
+        """Decode PS2 paletted texture (PAL8/PAL4) to RGBA8888.
+        PS2 palette entries are RGBA (not BGRA). Alpha is 0-128 scale (halved from PC).
+        Note: PS2 GS swizzle is NOT undone here — output may appear scrambled for
+        swizzled textures. Full unswizzle requires GS block layout tables."""
+        if pal_fmt == 1:  # PAL8: 256 * 4 bytes palette, then indices
+            pal_size = 256 * 4
+            pal = pd[:pal_size]
+            idx = pd[pal_size:pal_size + w * h]
+        else:  # PAL4: 16 * 4 bytes palette, then 4bpp indices
+            pal_size = 16 * 4
+            pal = pd[:pal_size]
+            # Unpack 4bpp: each byte = two pixels
+            raw = pd[pal_size:]
+            idx = bytearray()
+            for b in raw[:((w * h + 1) // 2)]:
+                idx.append(b & 0x0F)
+                idx.append((b >> 4) & 0x0F)
+            idx = bytes(idx[:w*h])
+
+        out = bytearray(w * h * 4)
+        for i, pi in enumerate(idx[:w*h]):
+            po = pi * 4
+            if po + 3 < len(pal):
+                r, g, b, a = pal[po], pal[po+1], pal[po+2], pal[po+3]
+                # PS2 alpha is 0-128; scale to 0-255
+                a = min(255, a * 2)
+                out[i*4:i*4+4] = [r, g, b, a]
+        return bytes(out)
+
+    @staticmethod
+    def write(rgba,w,h,tex_name,rw_ver=0x1003FFFF): #vers 1
+        dxt=encode_dxt1(rgba,w,h)
+        nb=tex_name.encode('latin1')[:31].ljust(32,b'\x00'); ab=b'\x00'*32
+        nat=bytearray()
+        nat+=struct.pack('<I',8)+struct.pack('<I',0)+nb+ab+struct.pack('<I',0x200)+b'DXT1'
+        nat+=struct.pack('<HH',w,h)+struct.pack('<BBBB',16,1,4,1)+struct.pack('<I',len(dxt))+dxt
+        def rws(t,b): return struct.pack('<III',t,len(b),rw_ver)+b
+        cb=rws(0x01,struct.pack('<HH',1,0))+rws(0x15,rws(0x01,bytes(nat))+rws(0x03,b''))+rws(0x03,b'')
+        c=rws(0x16,cb); return c+b'\x00'*((-len(c))%2048)
+
+# - IMG reader
+
+class ImgReader:
+    def __init__(self,img_path): #vers 1
+        self.img_path=img_path; self.entries=[]; self._img_data=b''; self._load()
+    def _load(self): #vers 3
+        p=Path(self.img_path); raw=p.read_bytes()
+        if raw[:4]==b'VER2':
+            # VER2 (GTA SA PC / Android): 8-byte header + 32-byte entries
+            # Entry: offset_sectors(4) + streaming_size(2) + size(2) + name(24)
+            n=struct.unpack_from('<I',raw,4)[0]
+            for i in range(n):
+                os2,ss,sz2,nb=struct.unpack_from('<IHH24s',raw,8+i*32)
+                # Strip null bytes AND any non-printable trailing chars
+                # Strip at first null, then remove any non-printable chars
+                nb2 = nb[:nb.index(b'\x00')] if b'\x00' in nb else nb
+                name = re.sub(r'[^\x20-\x7E]', '', nb2.decode('latin1','replace')).strip()
+                self.entries.append({'name':name,'offset':os2*2048,'size':(sz2 or ss)*2048})
+            self._img_data=raw
+        elif raw[:4] in (b'VER1', b'ver1'):
+            # VER1 explicitly tagged (rare) — treat as V1+dir
+            self._load_v1_dir(p, raw)
+        else:
+            # V1 (GTA III/VC/SOL): separate .dir file, 32-byte entries
+            # Entry: offset_sectors(4) + size_sectors(4) + name(24)
+            self._load_v1_dir(p, raw)
+
+    def _load_v1_dir(self, p, raw): #vers 1
+        """Load V1 IMG from companion .dir file. Also handles embedded-dir V1.5."""
+        # Look for .dir companion
+        dp = p.with_suffix('.dir')
+        if not dp.exists():
+            # Try same name but different case
+            for candidate in p.parent.iterdir():
+                if candidate.stem.lower() == p.stem.lower() and candidate.suffix.lower() == '.dir':
+                    dp = candidate; break
+        if not dp.exists():
+            raise FileNotFoundError(
+                f"No .dir file found for {p.name}\n"
+                f"V1/SOL IMG archives require a companion .dir file.\n"
+                f"Expected: {dp.name}")
+        dr = dp.read_bytes()
+        for i in range(len(dr)//32):
+            os2,sz2,nb=struct.unpack_from('<II24s',dr,i*32)
+            nb2 = nb[:nb.index(b'\x00')] if b'\x00' in nb else nb
+            name = re.sub(r'[^\x20-\x7E]', '', nb2.decode('latin1','replace')).strip()
+            if name:
+                self.entries.append({'name':name,'offset':os2*2048,'size':sz2*2048})
+        self._img_data=raw
+
+    def get_entry_data(self,e): #vers 1
+        return self._img_data[e['offset']:e['offset']+e['size']]
+
+    def find_radar_entries(self, pat): #vers 2
+        """Find entries matching radar pattern. Strips names before matching."""
+        p = re.compile(pat, re.IGNORECASE)
+        results = []
+        for e in self.entries:
+            # Strip whitespace and null chars that might survive name parsing
+            clean = e['name'].strip().rstrip('\x00').strip()
+            if p.match(clean):
+                results.append(e)
+        return results
+
+    def list_radar_like(self, prefix='radar'): #vers 1
+        """Debug helper — list all entries whose name starts with prefix."""
+        return [e['name'] for e in self.entries
+                if e['name'].lower().startswith(prefix.lower())]
+
+
+# - Radar grid widget
+class RadarGridWidget(QWidget):
+
+    def _get_ui_color(self, key): #vers 1
+        """Get a theme-aware QColor from app_settings. No hardcoded colors."""
+        from PyQt6.QtGui import QColor
         try:
-            self.routes.clear(); self.header_lines.clear()
-            route = PathRoute(name=os.path.basename(path))
-            with open(path, 'r', encoding='latin-1') as f:
-                for ln in f:
-                    s = ln.strip()
-                    if not s or s.startswith(';') or s.startswith('#'):
-                        if not route.waypoints:
-                            self.header_lines.append(ln)
-                        continue
-                    parts = s.replace(',', ' ').split()
-                    if len(parts) < 3:
-                        continue
-                    try:
-                        x, y, z = float(parts[0]), float(parts[1]), float(parts[2])
-                        speed = float(parts[3]) if len(parts) > 3 else 10.0
-                        flags = int(parts[4])   if len(parts) > 4 else 0
-                        if speed < 0:
-                            # Terminator node — still add it with speed=0 for display
-                            route.waypoints.append(Waypoint(x, y, z, 0.0, flags))
-                            break
-                        route.waypoints.append(Waypoint(x, y, z, speed, flags))
-                    except ValueError:
-                        continue
-            if route.waypoints:
-                self.routes.append(route)
-            return True
-        except Exception as ex:
-            print(f"TrainParser.load: {ex}"); return False
+            app_settings = getattr(self, 'app_settings', None) or \
+                getattr(getattr(self, 'main_window', None), 'app_settings', None)
+            if app_settings and hasattr(app_settings, 'get_ui_color'):
+                return app_settings.get_ui_color(key)
+        except Exception:
+            pass
+        pal = self.palette()
+        if key == 'viewport_bg':
+            return pal.color(pal.ColorRole.Base)
+        if key == 'viewport_text':
+            return pal.color(pal.ColorRole.PlaceholderText)
+        return pal.color(pal.ColorRole.WindowText)
+    """Full radar grid — no gaps, 1px grid lines, hover=tile name tooltip."""
+    tile_clicked        = pyqtSignal(int)
+    grid_right_clicked  = pyqtSignal(int, QPoint)   # idx, global pos
+    color_picked        = pyqtSignal(QColor, bool)  # color, is_left_button
 
-    def save(self, path: str) -> bool:  #vers 1
-        try:
-            with open(path, 'w', encoding='latin-1') as f:
-                for ln in self.header_lines:
-                    f.write(ln)
-                if self.routes:
-                    for wp in self.routes[0].waypoints[:-1]:
-                        f.write(f"{wp.x:.3f}  {wp.y:.3f}  {wp.z:.3f}  {wp.speed:.2f}  {wp.flags}\n")
-                    # Terminator
-                    f.write(f"0, 0, 0, -1\n")
-            return True
-        except Exception as ex:
-            print(f"TrainParser.save: {ex}"); return False
-
-
-class FlightParser:  #vers 1
-    """Parses flight.dat / flight2.dat / flight3.dat  (VC text format)."""
-
-    def __init__(self):  #vers 1
-        self.routes:       List[PathRoute] = []
-        self.header_lines: List[str]       = []
-
-    def load(self, path: str) -> bool:  #vers 1
-        try:
-            self.routes.clear(); self.header_lines.clear()
-            route = PathRoute(name=os.path.basename(path))
-            with open(path, 'r', encoding='latin-1') as f:
-                for ln in f:
-                    s = ln.strip()
-                    if not s or s.startswith(';') or s.startswith('#'):
-                        if not route.waypoints:
-                            self.header_lines.append(ln)
-                        continue
-                    parts = s.replace(',', ' ').split()
-                    if len(parts) < 3:
-                        continue
-                    try:
-                        x, y, z = float(parts[0]), float(parts[1]), float(parts[2])
-                        speed = float(parts[3]) if len(parts) > 3 else 30.0
-                        if speed < 0:
-                            break
-                        route.waypoints.append(Waypoint(x, y, z, speed))
-                    except ValueError:
-                        continue
-            if route.waypoints:
-                self.routes.append(route)
-            return True
-        except Exception as ex:
-            print(f"FlightParser.load: {ex}"); return False
-
-    def save(self, path: str) -> bool:  #vers 1
-        try:
-            with open(path, 'w', encoding='latin-1') as f:
-                for ln in self.header_lines:
-                    f.write(ln)
-                if self.routes:
-                    for wp in self.routes[0].waypoints:
-                        f.write(f"{wp.x:.3f}  {wp.y:.3f}  {wp.z:.3f}  {wp.speed:.2f}\n")
-                    f.write(f"0  0  0  -1\n")
-            return True
-        except Exception as ex:
-            print(f"FlightParser.save: {ex}"); return False
-
-
-class SpathParser:  #vers 1
-    """Parses spath0.dat (VC text format: x y z per line, terminated by END)."""
-
-    def __init__(self):  #vers 1
-        self.routes:       List[PathRoute] = []
-        self.header_lines: List[str]       = []
-
-    def load(self, path: str) -> bool:  #vers 1
-        try:
-            self.routes.clear(); self.header_lines.clear()
-            route = PathRoute(name=os.path.basename(path))
-            with open(path, 'r', encoding='latin-1') as f:
-                for ln in f:
-                    s = ln.strip()
-                    if not s or s.startswith(';'):
-                        if not route.waypoints:
-                            self.header_lines.append(ln)
-                        continue
-                    if s.upper() == 'END':
-                        break
-                    parts = s.split()
-                    if len(parts) < 3:
-                        continue
-                    try:
-                        x, y, z = float(parts[0]), float(parts[1]), float(parts[2])
-                        route.waypoints.append(Waypoint(x, y, z))
-                    except ValueError:
-                        continue
-            if route.waypoints:
-                self.routes.append(route)
-            return True
-        except Exception as ex:
-            print(f"SpathParser.load: {ex}"); return False
-
-    def save(self, path: str) -> bool:  #vers 1
-        try:
-            with open(path, 'w', encoding='latin-1') as f:
-                for ln in self.header_lines:
-                    f.write(ln)
-                if self.routes:
-                    for wp in self.routes[0].waypoints:
-                        f.write(f"{wp.x:.3f}  {wp.y:.3f}  {wp.z:.3f}\n")
-                    f.write("END\n")
-            return True
-        except Exception as ex:
-            print(f"SpathParser.save: {ex}"); return False
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Map canvas
-# ─────────────────────────────────────────────────────────────────────────────
-
-class PathMapCanvas(QWidget):  #vers 1
-    """2D overhead map canvas. Draws radar tiles as background + path overlay.
-
-    Coordinate conventions:
-      GTA world: X=east, Y=north, Z=up  (Y increases going north)
-      Screen:    x=right, y=down
-    Map bounds VC:  X=-3000..3000, Y=-3000..3000
-    Map bounds SA:  X=-3000..3000, Y=-3000..3000
-    """
-
-    node_clicked    = pyqtSignal(int)       # waypoint index clicked
-    node_moved      = pyqtSignal(int, float, float, float)  # idx, x, y, z
-
-    # Map world bounds (VC/SA share similar extents for the radar)
-    WORLD_MIN_X = -3000.0
-    WORLD_MAX_X =  3000.0
-    WORLD_MIN_Y = -3000.0
-    WORLD_MAX_Y =  3000.0
-
-    # Visual settings
-    NODE_RADIUS   = 6
-    SEL_RADIUS    = 9
-    LINE_WIDTH    = 2.0
-    NODE_COLOR    = QColor(80, 220, 120)       # green nodes
-    LINE_COLOR    = QColor(80, 180, 255, 200)  # blue path lines
-    SEL_COLOR     = QColor(255, 220, 50)       # yellow selected
-    TERM_COLOR    = QColor(255, 80, 80)        # red terminator
-    ARROW_SIZE    = 10
-
-    def __init__(self, parent=None):  #vers 1
+    def __init__(self,parent=None): #vers 2
         super().__init__(parent)
-        self._routes:   List[PathRoute] = []
-        self._radar:    Optional[QImage] = None   # composited radar background
-        self._sel_idx:  int   = -1
-        self._drag_idx: int   = -1
-        self._drag_offset = QPointF(0, 0)
-        self._pan_x:    float = 0.0
-        self._pan_y:    float = 0.0
-        self._zoom:     float = 1.0
-        self._last_pan  = None
-        self._show_arrows   = True
-        self._show_labels   = True
-        self._active_route  = 0
-        self.setMinimumSize(400, 400)
+        self._cols=8; self._count=0; self._tiles={}; self._dirty=set()
+        self._sel=-1; self._hover=-1; self._names=[]
+        self._zoom_factor = 1.0      # manual zoom (1.0 = fit)
+        self._pan_x = 0; self._pan_y = 0
+        self._drawing    = False
+        self._last_px    = None
+        self._line_start = None
+        self._preview_buf = None
+        self._workshop   = None      # set by RadarWorkshop after creation
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.WheelFocus)
-        # Initial fit
-        self._zoom = 1.0
-        self._pan_x = 0.0
-        self._pan_y = 0.0
+        self.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Expanding)
 
-    def set_route(self, route_idx: int, routes: List[PathRoute]):  #vers 1
-        self._routes    = routes
-        self._active_route = route_idx
-        self._sel_idx   = -1
-        self.fit_all()
+    def setup(self,cols,count,names=None): #vers 1
+        self._cols=max(1,cols); self._count=count; self._tiles={}; self._dirty=set()
+        self._sel=-1; self._hover=-1
+        self._names=names or [f"Tile {i}" for i in range(count)]; self.update()
+
+    def _ts(self): #vers 2
+        """Tile size in pixels, accounting for zoom factor."""
+        if not self._count or not self._cols: return 32
+        rows = (self._count + self._cols - 1) // self._cols
+        base = min(max(4, self.width()//self._cols), max(4, self.height()//rows))
+        return max(4, int(base * self._zoom_factor))
+
+    def _idx_at(self,pos): #vers 2
+        ts=self._ts()
+        ax = pos.x() - self._pan_x
+        ay = pos.y() - self._pan_y
+        idx = (ay//ts)*self._cols + (ax//ts)
+        return idx if 0<=idx<self._count and ax>=0 and ay>=0 else -1
+
+    def _pixel_at(self, pos, tile_w: int = 128, tile_h: int = 128) -> tuple:
+        """Return (tile_idx, px, py) for a screen position, or (-1,0,0)."""
+        ts  = self._ts()
+        idx = self._idx_at(pos)
+        if idx < 0: return -1, 0, 0
+        col = idx % self._cols
+        row = idx // self._cols
+        local_x = pos.x() - col * ts
+        local_y = pos.y() - row * ts
+        px = int(local_x * tile_w / ts)
+        py = int(local_y * tile_h / ts)
+        return idx, max(0, min(tile_w-1, px)), max(0, min(tile_h-1, py))
+
+    def sample_color(self, pos, tile_w: int = 0, tile_h: int = 0) -> 'QColor | None':
+        """Sample pixel colour from the rendered tile at screen pos."""
+        ws2 = getattr(self, '_workshop', None)
+        if tile_w == 0: tile_w = ws2._tw if ws2 else TILE_W
+        if tile_h == 0: tile_h = ws2._th if ws2 else TILE_H
+        idx, px, py = self._pixel_at(pos, tile_w, tile_h)
+        if idx < 0 or idx not in self._tiles: return None
+        img = self._tiles[idx]
+        # Sample from scaled image
+        ts = self._ts()
+        scaled = img.scaled(ts, ts, Qt.AspectRatioMode.IgnoreAspectRatio,
+                             Qt.TransformationMode.SmoothTransformation)
+        col = idx % self._cols
+        row = idx // self._cols
+        local_x = pos.x() - col * ts
+        local_y = pos.y() - row * ts
+        lx = max(0, min(ts-1, int(local_x)))
+        ly = max(0, min(ts-1, int(local_y)))
+        pixel = scaled.pixel(lx, ly)
+        from PyQt6.QtGui import QColor as _QC
+        return _QC(pixel)
+
+    def set_tile(self,idx,rgba,w,h): #vers 2
+        """Store tile as RGBA8888 QImage (preserves alpha for checkerboard display)."""
+        img = QImage(rgba,w,h,w*4,QImage.Format.Format_RGBA8888).copy()
+        self._tiles[idx] = img
         self.update()
 
-    def set_radar_tiles(self, image: QImage):  #vers 1
-        self._radar = image
+    def set_dirty(self,idx,d): #vers 1
+        if d: self._dirty.add(idx)
+        else: self._dirty.discard(idx)
         self.update()
 
-    def fit_all(self):  #vers 1
-        """Auto-fit zoom/pan so all waypoints are visible."""
-        if not self._routes:
-            return
-        all_wps = [wp for r in self._routes for wp in r.waypoints]
-        if not all_wps:
-            return
-        xs = [wp.x for wp in all_wps]
-        ys = [wp.y for wp in all_wps]
-        min_x, max_x = min(xs), max(xs)
-        min_y, max_y = min(ys), max(ys)
-        # Add 10% padding
-        pad_x = max((max_x - min_x) * 0.1, 100.0)
-        pad_y = max((max_y - min_y) * 0.1, 100.0)
-        min_x -= pad_x; max_x += pad_x
-        min_y -= pad_y; max_y += pad_y
-        W, H = max(self.width(), 400), max(self.height(), 400)
-        span_x = max_x - min_x; span_y = max_y - min_y
-        if span_x <= 0 or span_y <= 0:
-            return
-        self._zoom = min(W / span_x, H / span_y)
-        # Centre
-        cx = (min_x + max_x) / 2.0
-        cy = (min_y + max_y) / 2.0
-        sx, sy = self._world_to_screen_raw(cx, cy)
-        self._pan_x = W / 2 - sx
-        self._pan_y = H / 2 - sy
-        self.update()
+    def set_selected(self,idx): #vers 1
+        self._sel=idx; self.update()
 
-    def _world_to_screen_raw(self, wx: float, wy: float) -> Tuple[float, float]:
-        """World → screen WITHOUT pan (used during fit_all)."""
-        # Flip Y: GTA Y increases northward, screen Y increases downward
-        sx = wx * self._zoom
-        sy = -wy * self._zoom
-        return sx, sy
-
-    def _world_to_screen(self, wx: float, wy: float) -> QPointF:  #vers 1
-        sx, sy = self._world_to_screen_raw(wx, wy)
-        return QPointF(sx + self._pan_x, sy + self._pan_y)
-
-    def _screen_to_world(self, sx: float, sy: float) -> Tuple[float, float]:  #vers 1
-        wx = (sx - self._pan_x) / self._zoom
-        wy = -(sy - self._pan_y) / self._zoom
-        return wx, wy
-
-    def _hit_test(self, sx: float, sy: float) -> int:  #vers 1
-        """Return waypoint index under screen point, or -1."""
-        r = self.NODE_RADIUS + 4
-        route = self._routes[self._active_route] if self._routes else None
-        if not route:
-            return -1
-        for i, wp in enumerate(route.waypoints):
-            pt = self._world_to_screen(wp.x, wp.y)
-            if abs(pt.x() - sx) < r and abs(pt.y() - sy) < r:
-                return i
-        return -1
-
-    def paintEvent(self, event):  #vers 1
-        p = QPainter(self)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        W, H = self.width(), self.height()
-
-        # Background: radar or plain dark grid
-        if self._radar:
-            # Scale radar image to cover world bounds in screen space
-            tl = self._world_to_screen(self.WORLD_MIN_X, self.WORLD_MAX_Y)
-            br = self._world_to_screen(self.WORLD_MAX_X, self.WORLD_MIN_Y)
-            p.drawImage(
-                QRectF(tl, br),
-                self._radar,
-                QRectF(0, 0, self._radar.width(), self._radar.height()))
-        else:
-            p.fillRect(self.rect(), QColor(25, 30, 40))
-            # Grid lines every 500 world units
-            p.setPen(QPen(QColor(50, 60, 80), 1))
-            step = 500.0
-            x = math.ceil(self.WORLD_MIN_X / step) * step
-            while x <= self.WORLD_MAX_X:
-                pt1 = self._world_to_screen(x, self.WORLD_MIN_Y)
-                pt2 = self._world_to_screen(x, self.WORLD_MAX_Y)
-                p.drawLine(pt1, pt2)
-                x += step
-            y = math.ceil(self.WORLD_MIN_Y / step) * step
-            while y <= self.WORLD_MAX_Y:
-                pt1 = self._world_to_screen(self.WORLD_MIN_X, y)
-                pt2 = self._world_to_screen(self.WORLD_MAX_X, y)
-                p.drawLine(pt1, pt2)
-                y += step
-            # Axis
-            p.setPen(QPen(QColor(80, 80, 120), 1, Qt.PenStyle.DashLine))
-            ox = self._world_to_screen(0, self.WORLD_MIN_Y)
-            ox2 = self._world_to_screen(0, self.WORLD_MAX_Y)
-            p.drawLine(ox, ox2)
-            oy = self._world_to_screen(self.WORLD_MIN_X, 0)
-            oy2 = self._world_to_screen(self.WORLD_MAX_X, 0)
-            p.drawLine(oy, oy2)
-
-        if not self._routes:
-            p.setPen(QColor(150, 150, 180))
-            p.setFont(QFont("Arial", 12))
-            p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "No path loaded")
-            return
-
-        # Draw each route with distinct colour
-        route_colors = [
-            self.LINE_COLOR,
-            QColor(255, 140, 60, 200),   # orange — train 2
-            QColor(220, 80, 220, 200),   # purple — flight 3
-        ]
-
-        for ri, route in enumerate(self._routes):
-            wps = route.waypoints
-            if not wps:
-                continue
-            col = route_colors[ri % len(route_colors)]
-            node_col = self.NODE_COLOR if ri == 0 else QColor(255, 180, 60)
-
-            # Path lines
-            p.setPen(QPen(col, self.LINE_WIDTH))
-            for i in range(len(wps) - 1):
-                pt1 = self._world_to_screen(wps[i].x, wps[i].y)
-                pt2 = self._world_to_screen(wps[i+1].x, wps[i+1].y)
-                p.drawLine(pt1, pt2)
-                # Direction arrow
-                if self._show_arrows:
-                    mx = (pt1.x() + pt2.x()) / 2
-                    my = (pt1.y() + pt2.y()) / 2
-                    dx = pt2.x() - pt1.x(); dy = pt2.y() - pt1.y()
-                    length = math.sqrt(dx*dx + dy*dy)
-                    if length > 20:
-                        dx /= length; dy /= length
-                        asz = self.ARROW_SIZE
-                        ax = mx - dx * asz; ay = my - dy * asz
-                        lx = ax + dy * asz * 0.4; ly = ay - dx * asz * 0.4
-                        rx = ax - dy * asz * 0.4; ry = ay + dx * asz * 0.4
-                        p.setBrush(QBrush(col))
-                        p.drawPolygon(QPolygonF([
-                            QPointF(mx, my), QPointF(lx, ly), QPointF(rx, ry)]))
-                        p.setBrush(Qt.BrushStyle.NoBrush)
-
-            # Closing line for train (loops back)
-            if len(wps) > 1 and 'train' in route.name.lower():
-                pt1 = self._world_to_screen(wps[-1].x, wps[-1].y)
-                pt2 = self._world_to_screen(wps[0].x, wps[0].y)
-                p.setPen(QPen(col, self.LINE_WIDTH, Qt.PenStyle.DashLine))
-                p.drawLine(pt1, pt2)
-
-            # Nodes
-            for i, wp in enumerate(wps):
-                pt = self._world_to_screen(wp.x, wp.y)
-                r = self.SEL_RADIUS if i == self._sel_idx else self.NODE_RADIUS
-                if i == self._sel_idx:
-                    p.setBrush(QBrush(self.SEL_COLOR))
-                    p.setPen(QPen(QColor(255, 255, 255), 1))
-                elif i == len(wps) - 1 and 'train' in route.name.lower():
-                    p.setBrush(QBrush(self.TERM_COLOR))
-                    p.setPen(QPen(QColor(255, 200, 200), 1))
-                else:
-                    p.setBrush(QBrush(node_col))
-                    p.setPen(QPen(QColor(0, 0, 0, 120), 1))
-                p.drawEllipse(pt, r, r)
-                if self._show_labels:
-                    p.setPen(QColor(220, 220, 255))
-                    p.setFont(QFont("Arial", 7))
-                    p.drawText(int(pt.x()) + r + 2, int(pt.y()) + 4, str(i))
-
-        # HUD
-        p.setPen(QColor(180, 180, 200))
-        p.setFont(QFont("Arial", 8))
-        if self._routes:
-            active = self._routes[self._active_route]
-            p.drawText(6, 16, f"{active.name}  —  {len(active.waypoints)} waypoints   zoom:{self._zoom:.2f}x")
-        if self._sel_idx >= 0 and self._routes:
-            wp = self._routes[self._active_route].waypoints[self._sel_idx]
-            p.drawText(6, H - 6, f"[{self._sel_idx}]  X:{wp.x:.2f}  Y:{wp.y:.2f}  Z:{wp.z:.2f}  spd:{wp.speed:.1f}")
-
-    def mousePressEvent(self, event):  #vers 1
-        pos = event.position()
-        if event.button() == Qt.MouseButton.LeftButton:
-            idx = self._hit_test(pos.x(), pos.y())
-            if idx >= 0:
-                self._sel_idx = idx
-                self._drag_idx = idx
-                self.node_clicked.emit(idx)
+    def paintEvent(self,ev): #vers 3
+        if not self._count: return
+        ts=self._ts(); cols=self._cols; p=QPainter(self)
+        px0, py0 = self._pan_x, self._pan_y
+        cb = max(4, ts // 8)   # checkerboard cell size relative to tile size
+        for idx in range(self._count):
+            col=idx%cols; row=idx//cols; x=px0+col*ts; y=py0+row*ts
+            if idx in self._tiles:
+                img = self._tiles[idx]
+                scaled = img.scaled(ts, ts, Qt.AspectRatioMode.IgnoreAspectRatio,
+                                    Qt.TransformationMode.FastTransformation)
+                # If tile has any transparency, paint checkerboard underneath
+                if img.hasAlphaChannel():
+                    for ty in range(0, ts, cb):
+                        for tx in range(0, ts, cb):
+                            light = ((tx//cb + ty//cb) % 2 == 0)
+                            p.fillRect(x+tx, y+ty, min(cb,ts-tx), min(cb,ts-ty),
+                                       self._get_ui_color('border') if light else self._get_ui_color('viewport_text'))
+                p.drawImage(x, y, scaled)
             else:
-                self._sel_idx = -1
-                self._drag_idx = -1
-            self.update()
-        elif event.button() == Qt.MouseButton.MiddleButton:
-            self._last_pan = pos
+                p.fillRect(x, y, ts, ts, self._get_ui_color('viewport_bg'))
+            if idx in self._dirty: p.fillRect(x+ts-6,y,6,6,QColor(255,60,60))
+            if idx==self._hover: p.fillRect(x,y,ts,ts,QColor(255,255,255,30))
+            if idx==self._sel:
+                p.setPen(QPen(QColor(80,180,255),2)); p.drawRect(x+1,y+1,ts-2,ts-2)
+        p.setPen(QPen(self._get_ui_color('bg_secondary'),1))
+        rows=(self._count+cols-1)//cols
+        for c in range(cols+1): p.drawLine(px0+c*ts,py0,px0+c*ts,py0+rows*ts)
+        for r in range(rows+1): p.drawLine(px0,py0+r*ts,px0+cols*ts,py0+r*ts)
+        p.end()
 
-    def mouseMoveEvent(self, event):  #vers 1
-        pos = event.position()
-        if event.buttons() & Qt.MouseButton.MiddleButton and self._last_pan:
-            dx = pos.x() - self._last_pan.x()
-            dy = pos.y() - self._last_pan.y()
-            self._pan_x += dx; self._pan_y += dy
-            self._last_pan = pos
-            self.update()
-        elif event.buttons() & Qt.MouseButton.LeftButton and self._drag_idx >= 0:
-            wx, wy = self._screen_to_world(pos.x(), pos.y())
-            wp = self._routes[self._active_route].waypoints[self._drag_idx]
-            wp.x = wx; wp.y = wy
-            self.node_moved.emit(self._drag_idx, wx, wy, wp.z)
-            self.update()
-        # Right-drag = pan
-        elif event.buttons() & Qt.MouseButton.RightButton:
-            if self._last_pan:
-                dx = pos.x() - self._last_pan.x()
-                dy = pos.y() - self._last_pan.y()
-                self._pan_x += dx; self._pan_y += dy
-            self._last_pan = pos
+    def _pixel_pos_at(self, pos) -> tuple:
+        """(tile_idx, pixel_x, pixel_y) from screen QPoint."""
+        ts = self._ts()
+        ax = pos.x() - self._pan_x
+        ay = pos.y() - self._pan_y
+        if ax < 0 or ay < 0: return -1, 0, 0
+        col_i = ax // ts; row_i = ay // ts
+        idx = row_i * self._cols + col_i
+        if not (0 <= idx < self._count): return -1, 0, 0
+        local_x = ax - col_i * ts
+        local_y = ay - row_i * ts
+        ws2 = getattr(self, '_workshop', None)
+        tw2 = ws2._tw if ws2 else TILE_W
+        th2 = ws2._th if ws2 else TILE_H
+        px = max(0, min(tw2-1, int(local_x * tw2 / ts)))
+        py = max(0, min(th2-1, int(local_y * th2 / ts)))
+        return idx, px, py
+
+    def mouseMoveEvent(self,ev): #vers 2
+        idx = self._idx_at(ev.pos())
+        if idx != self._hover:
+            self._hover = idx
+            self.setToolTip(f"[{idx}] {self._names[idx]}" if 0<=idx<len(self._names) else "")
             self.update()
 
-    def mouseReleaseEvent(self, event):  #vers 1
-        self._drag_idx = -1
-        self._last_pan = None
+        ws = self._workshop
+        if not ws or not self._drawing: return
 
-    def wheelEvent(self, event):  #vers 1
-        factor = 1.15 if event.angleDelta().y() > 0 else 1.0 / 1.15
-        pos = event.position()
-        # Zoom toward cursor
-        wx, wy = self._screen_to_world(pos.x(), pos.y())
-        self._zoom *= factor
-        self._zoom = max(0.02, min(self._zoom, 50.0))
-        sx, sy = self._world_to_screen_raw(wx, wy)
-        self._pan_x = pos.x() - sx
-        self._pan_y = pos.y() - sy
+        tool = ws._draw_tool
+        if tool == 'zoom': return
+
+        idx2, px, py = self._pixel_pos_at(ev.pos())
+        if idx2 < 0: return
+        is_left = bool(ev.buttons() & Qt.MouseButton.LeftButton)
+
+        if tool == 'pencil' and self._last_px and idx2 == getattr(self, '_draw_tile_idx', -1):
+            buf = bytearray(ws._tile_rgba.get(idx2, bytes(ws._tw*ws._th*4)))
+            ws.ws_bresenham(buf, self._last_px, (px,py),
+                            ws._fg_color if is_left else ws._bg_color)
+            ws.ws_commit_draw(idx2, bytes(buf))
+            self._last_px = (px, py)
+        elif tool in ('line','rect','rect_fill') and self._line_start and self._preview_buf:
+            preview = ws.ws_mouse_drag(
+                self._draw_tile_idx, px, py, is_left,
+                self._last_px, self._line_start, bytearray(self._preview_buf))
+            if preview is not None:
+                ws._radar.set_tile(self._draw_tile_idx, bytes(preview), TILE_W, TILE_H)
+                self.update()
+
+    def leaveEvent(self,ev): #vers 1
+        self._hover=-1; self.update()
+
+    def wheelEvent(self, ev): #vers 1
+        """Scroll wheel: zoom in/out around cursor."""
+        delta = ev.angleDelta().y()
+        if delta == 0: return
+        factor = 1.12 if delta > 0 else (1/1.12)
+        cx, cy = ev.position().x(), ev.position().y()
+        old_ts = self._ts()
+        self._zoom_factor = max(0.1, min(10.0, self._zoom_factor * factor))
+        new_ts = self._ts()
+        self._pan_x = int(cx - (cx - self._pan_x) * new_ts / max(1, old_ts))
+        self._pan_y = int(cy - (cy - self._pan_y) * new_ts / max(1, old_ts))
         self.update()
 
-    def keyPressEvent(self, event):  #vers 1
-        if event.key() == Qt.Key.Key_F:
-            self.fit_all()
-        elif event.key() == Qt.Key.Key_A and self._show_arrows:
-            self._show_arrows = not self._show_arrows
+    def mousePressEvent(self,ev): #vers 4
+        idx = self._idx_at(ev.pos())
+        is_left  = ev.button() == Qt.MouseButton.LeftButton
+        is_right = ev.button() == Qt.MouseButton.RightButton
+        is_mid   = ev.button() == Qt.MouseButton.MiddleButton
+
+        ws = self._workshop
+        tool = ws._draw_tool if ws else 'none'
+
+        # Middle mouse = pan
+        if is_mid:
+            self._pan_start = ev.pos()
+            self._pan_start_xy = (self._pan_x, self._pan_y)
+            return
+
+        # Zoom tool: left=zoom in, right=zoom out around click pos
+        if tool == 'zoom' and ws:
+            factor = 1.3 if is_left else (1/1.3)
+            cx, cy = ev.pos().x(), ev.pos().y()
+            old_ts = self._ts()
+            self._zoom_factor = max(0.1, min(10.0, self._zoom_factor * factor))
+            new_ts = self._ts()
+            # Zoom toward click point
+            self._pan_x = cx - int((cx - self._pan_x) * new_ts / max(1, old_ts))
+            self._pan_y = cy - int((cy - self._pan_y) * new_ts / max(1, old_ts))
+            self.update()
+            return
+
+        if idx < 0: return
+        self._sel = idx; self.update()
+
+        if is_left or is_right:
+            c = self.sample_color(ev.pos())
+            if c: self.color_picked.emit(c, is_left)
+
+            if is_right:
+                self.tile_clicked.emit(idx)
+                self.grid_right_clicked.emit(idx, ev.globalPosition().toPoint())
+                return
+
+            # Left click — select tile + potentially draw
+            self.tile_clicked.emit(idx)
+
+            if ws and tool not in ('zoom',):
+                _, px, py = self._pixel_pos_at(ev.pos())
+                result = ws.ws_mouse_press(idx, px, py, is_left)
+                if result == 'begin_drag':
+                    self._drawing = True
+                    self._draw_tile_idx = idx
+                    self._last_px     = (px, py)
+                    self._line_start  = (px, py)
+                    self._preview_buf = bytearray(ws._tile_rgba.get(idx, bytes(ws._tw*ws._th*4)))
+
+    def mouseReleaseEvent(self, ev): #vers 1
+        is_left = ev.button() == Qt.MouseButton.LeftButton
+        ws = self._workshop
+        if self._drawing and ws:
+            _, px, py = self._pixel_pos_at(ev.pos())
+            if px >= 0:
+                ws.ws_mouse_release(
+                    self._draw_tile_idx, px, py, is_left,
+                    self._line_start,
+                    bytearray(self._preview_buf) if self._preview_buf else bytearray())
+        self._drawing    = False
+        self._last_px    = None
+        self._line_start = None
+        self._preview_buf = None
+        self._draw_tile_idx = -1
+
+# - Tile list item
+
+THUMB = 64   # thumbnail size — doubled from 32
+
+class TileListItem(QListWidgetItem):
+    """Tile list entry: 64px thumbnail + name + game badge + tile size."""
+    def __init__(self, idx, name, game_label="", tile_w=128, tile_h=128): #vers 2
+        super().__init__()
+        self.idx       = idx
+        self.tile_name = name
+        self.game_label= game_label
+        self.tile_w    = tile_w
+        self.tile_h    = tile_h
+        self._update_text()
+        self.setSizeHint(QSize(0, THUMB + 8))
+
+    def _game_badge(self) -> str: #vers 1
+        """Short badge from game label, e.g. 'GTA San Andreas (PC)' -> '[SA]'."""
+        g = self.game_label
+        if not g: return ""
+        badges = {
+            "San Andreas": "[SA]", "Vice City Stories": "[VCS]",
+            "Vice City":   "[VC]", "Liberty City Stories": "[LCS]",
+            "Liberty City": "[LC]", "State of Liberty": "[SOL]",
+            "GTA III":     "[III]", "Android": "[And]",
+            "iOS":         "[iOS]", "PSP":     "[PSP]",
+        }
+        for key, badge in badges.items():
+            if key in g:
+                return badge
+        return ""
+
+    def _bitdepth_str(self) -> str: #vers 3
+        """Derive bitdepth string from game_label."""
+        g = self.game_label.lower()
+        if "ios" in g:                    return "PVRTC·4bpp"
+        if "psp" in g:                    return "GIM·16bpp"
+        if "android" in g:                return "DXT1·4bpp"
+        # "(ps2)" or "ps2" alone — not "(pc/ps2/xbox)" which also has "pc"
+        if "ps2" in g and "pc" not in g:  return "PAL8·8bpp"
+        return "DXT1·4bpp"   # PC/Xbox/mixed default
+
+    def _update_text(self): #vers 2
+        badge = self._game_badge()
+        bpp   = self._bitdepth_str()
+        lines = [f"  {self.tile_name}"]
+        info_parts = []
+        if badge: info_parts.append(badge)
+        info_parts.append(f"{self.tile_w}×{self.tile_h}")
+        info_parts.append(bpp)
+        lines.append(f"  {' '.join(info_parts)}")
+        self.setText("\n".join(lines))
+
+    def set_thumb(self, rgba, w, h): #vers 2
+        self.tile_w = w; self.tile_h = h
+        img = QImage(rgba, w, h, w*4, QImage.Format.Format_RGBA8888)
+        self.setIcon(QIcon(QPixmap.fromImage(img).scaled(
+            THUMB, THUMB,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation)))
+        self._update_text()
+
+# - Main Class
+
+
+
+#    Per-tool settings                                                          
+class RADSettings:
+    """Lightweight JSON settings for Radar Workshop.
+    Stored at ~/.config/imgfactory/radar_workshop.json
+    Completely separate from the global AppSettings/theme system.
+    """
+    MAX_RECENT = 10
+
+    DEFAULTS = {
+        'show_menubar':            False,
+        'menu_style':              'dropdown',
+        'menu_bar_font_size':      9,
+        'menu_bar_height':         22,
+        'menu_dropdown_font_size': 9,
+        'show_statusbar':          True,
+        'default_game':            'SA PC',
+        'recent_files':            [],        # list of recently opened IMG paths
+        'window_x':                -1,
+        'window_y':                -1,
+        'window_w':                1400,
+        'window_h':                800,
+    }
+
+    def __init__(self): #vers 1
+        cfg_dir = Path.home() / '.config' / 'imgfactory'
+        cfg_dir.mkdir(parents=True, exist_ok=True)
+        self._path = cfg_dir / 'radar_workshop.json'
+        self._data = dict(self.DEFAULTS)
+        self._load()
+
+    def _load(self): #vers 1
+        try:
+            if self._path.exists():
+                loaded = json.loads(self._path.read_text())
+                self._data.update({k: v for k, v in loaded.items()
+                                   if k in self.DEFAULTS})
+        except Exception:
+            pass
+
+    def save(self): #vers 1
+        try:
+            self._path.write_text(json.dumps(self._data, indent=2))
+        except Exception:
+            pass
+
+    def get(self, key, default=None): #vers 1
+        return self._data.get(key, default if default is not None
+                              else self.DEFAULTS.get(key))
+
+    def set(self, key, value): #vers 1
+        if key in self.DEFAULTS:
+            self._data[key] = value
+
+    def add_recent(self, path: str): #vers 1
+        """Add path to recent files list (max MAX_RECENT entries)."""
+        recents = [p for p in self._data.get('recent_files', []) if p != path]
+        recents.insert(0, path)
+        self._data['recent_files'] = recents[:self.MAX_RECENT]
+        self.save()
+
+    def get_recent(self): #vers 1
+        """Return list of recent file paths that still exist."""
+        import os
+        return [p for p in self._data.get('recent_files', []) if os.path.isfile(p)]
+
+
+#    Radar Palette Widget                                                        
+class RadarPaletteWidget(QWidget):
+    """Simple colour palette strip — shows colours extracted from the current tile.
+    Click a cell to pick that colour. Right-click to set background colour."""
+
+    color_picked   = pyqtSignal(QColor)   # left-click  → foreground
+    color_picked_bg = pyqtSignal(QColor)  # right-click → background
+
+    CELL = 14   # cell size px — slightly smaller to fit more colors
+
+    def __init__(self, parent=None): #vers 1
+        super().__init__(parent)
+        self._colors: List[QColor] = []
+        self._hover = -1
+        self.setMouseTracking(True)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+
+    def set_colors(self, colors: List[QColor]): #vers 3
+        self._colors = colors[:64]  # cap at 64 cells
+        self.update()
+        self.updateGeometry()  # tell layout to re-check sizeHint
+
+    def sizeHint(self): #vers 1
+        from PyQt6.QtCore import QSize
+        w = max(self.width(), 80)
+        cols = max(1, w // self.CELL)
+        rows = max(2, (len(self._colors) + cols - 1) // cols)
+        return QSize(w, rows * self.CELL + 2)
+
+    def minimumSizeHint(self): #vers 1
+        from PyQt6.QtCore import QSize
+        return QSize(self.CELL * 2, self.CELL * 2)
+
+    def set_colors_from_rgba(self, rgba: bytes, w: int, h: int, max_colors: int = 48): #vers 2
+        """Extract palette from RGBA tile data by sampling unique colours."""
+        seen: dict = {}
+        step = max(1, (w * h) // 512)   # sample at most 512 pixels
+        for i in range(0, len(rgba) - 3, step * 4):
+            r, g, b, a = rgba[i], rgba[i+1], rgba[i+2], rgba[i+3]
+            if a < 16: continue
+            key = (r >> 4, g >> 4, b >> 4)  # 4-bit quantise — captures more distinct colours
+            if key not in seen:
+                seen[key] = QColor(r, g, b)
+                if len(seen) >= max_colors:
+                    break
+        self.set_colors(list(seen.values()))
+
+    def _cols(self) -> int:
+        return max(1, self.width() // self.CELL)
+
+    def _idx_at(self, pos: QPoint) -> int:
+        col = pos.x() // self.CELL
+        row = pos.y() // self.CELL
+        idx = row * self._cols() + col
+        return idx if 0 <= idx < len(self._colors) else -1
+
+    def paintEvent(self, ev): #vers 1
+        p = QPainter(self)
+        cols = self._cols()
+        for i, c in enumerate(self._colors):
+            col = i % cols
+            row = i // cols
+            x = col * self.CELL
+            y = row * self.CELL
+            p.fillRect(x, y, self.CELL, self.CELL, c)
+            if i == self._hover:
+                p.setPen(QPen(QColor(255, 255, 255, 180), 1))
+                p.drawRect(x, y, self.CELL - 1, self.CELL - 1)
+        # Fill remaining space grey
+        total_cols = self._cols()
+        total_rows = max(1, (len(self._colors) + total_cols - 1) // total_cols)
+        used_h = total_rows * self.CELL
+
+        # this crashes the app.
+        #if used_h < self.height():
+            #p.fillRect(0, used_h, self.width(), self.height() - used_h, self._get_ui_color('viewport_bg'))
+            #p.fillRect(0, used_h, self.width(), self.height() - used_h)
+        #p.end()
+
+    def mouseMoveEvent(self, ev): #vers 1
+        idx = self._idx_at(ev.pos())
+        if idx != self._hover:
+            self._hover = idx
+            if idx >= 0:
+                self.setToolTip(self._colors[idx].name())
             self.update()
 
+    def leaveEvent(self, ev): #vers 1
+        self._hover = -1
+        self.update()
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Shared waypoint editor panel (reused by all tabs)
-# ─────────────────────────────────────────────────────────────────────────────
+    def mousePressEvent(self, ev): #vers 2
+        idx = self._idx_at(ev.pos())
+        if idx < 0: return
+        if ev.button() == Qt.MouseButton.LeftButton:
+            self.color_picked.emit(self._colors[idx])
+        elif ev.button() == Qt.MouseButton.RightButton:
+            self._show_palette_context(idx, ev.globalPosition().toPoint())
 
-class _WaypointPanel(QWidget):  #vers 1
-    """Left panel: waypoint list + field editor + buttons."""
-    changed = pyqtSignal()
+    def _show_palette_context(self, idx: int, gpos): #vers 1
+        """Right-click context menu on a palette colour cell."""
+        from PyQt6.QtWidgets import QMenu, QApplication, QColorDialog
+        from PyQt6.QtGui import QClipboard
+        if idx < 0 or idx >= len(self._colors): return
+        c = self._colors[idx]
 
-    def __init__(self, has_speed: bool = True, has_flags: bool = False, parent=None):
+        menu = QMenu(self)
+        act_fg   = menu.addAction(f"Set as FG  {c.name()}")
+        act_bg   = menu.addAction(f"Set as BG  {c.name()}")
+        menu.addSeparator()
+        act_copy = menu.addAction(f"Copy hex  {c.name()}")
+        act_rgb  = menu.addAction(f"Copy RGB  {c.red()},{c.green()},{c.blue()}")
+        menu.addSeparator()
+        act_edit = menu.addAction("Change colour…")
+
+        chosen = menu.exec(gpos)
+        if chosen == act_fg:
+            self.color_picked.emit(c)
+        elif chosen == act_bg:
+            self.color_picked_bg.emit(c)
+        elif chosen == act_copy:
+            QApplication.clipboard().setText(c.name())
+        elif chosen == act_rgb:
+            QApplication.clipboard().setText(f"{c.red()},{c.green()},{c.blue()}")
+        elif chosen == act_edit:
+            new_c = QColorDialog.getColor(c, self, "Change Palette Colour",
+                                          QColorDialog.ColorDialogOption.ShowAlphaChannel)
+            if new_c.isValid():
+                self._colors[idx] = new_c
+                self.update()
+                # Emit so the main workshop can use it immediately
+                self.color_picked.emit(new_c)
+
+
+class _BoredomPuzzle(QDialog):
+    """🧩 Sliding tile puzzle using the loaded radar map tiles."""
+
+    def __init__(self, tile_rgba: dict, cols: int, rows: int,
+                 tile_w: int, tile_h: int, parent=None): #vers 1
         super().__init__(parent)
-        self._parser    = None
-        self._cur_idx   = -1
-        self._blocking  = False
-        self._has_speed = has_speed
-        self._has_flags = has_flags
-        self._build_ui()
+        self.setWindowTitle("🧩 Boredom! — Sliding Puzzle")
+        self.setModal(True)
+        self._cols   = cols
+        self._rows   = rows
+        self._tile_w = tile_w
+        self._tile_h = tile_h
+        self._moves  = 0
+        self._solved = False
+        try:
+            from apps.core.theme_utils import apply_dialog_theme
+            apply_dialog_theme(self, parent)
+        except Exception: pass
 
-    def _build_ui(self):  #vers 1
-        root = QVBoxLayout(self)
-        root.setContentsMargins(2, 2, 2, 2); root.setSpacing(4)
+        # Build pixmaps for each tile
+        self._pixmaps: dict = {}
+        for idx in range(cols * rows):
+            rgba = tile_rgba.get(idx)
+            if rgba:
+                img = QImage(rgba, tile_w, tile_h, tile_w*4, QImage.Format.Format_RGBA8888)
+                self._pixmaps[idx] = QPixmap.fromImage(img)
+            else:
+                pm = QPixmap(tile_w, tile_h); pm.fill(QColor(30, 30, 30))
+                self._pixmaps[idx] = pm
 
-        root.addWidget(QLabel("Waypoints"))
-        self._list = QListWidget()
-        self._list.currentRowChanged.connect(self._on_select)
-        root.addWidget(self._list)
+        # Puzzle state: list of tile indices, last slot = blank
+        n = cols * rows
+        self._state = list(range(n))
+        self._blank = n - 1     # blank tile position
+        self._goal  = list(range(n))
+        self._shuffle()
 
-        # Field editor
-        grp = QGroupBox("Selected Waypoint")
-        fl = QFormLayout(grp); fl.setSpacing(3)
-        self._wx = QDoubleSpinBox(); self._wx.setRange(-10000, 10000); self._wx.setDecimals(3)
-        self._wy = QDoubleSpinBox(); self._wy.setRange(-10000, 10000); self._wy.setDecimals(3)
-        self._wz = QDoubleSpinBox(); self._wz.setRange(-1000,  1000);  self._wz.setDecimals(3)
-        fl.addRow("X", self._wx)
-        fl.addRow("Y", self._wy)
-        fl.addRow("Z", self._wz)
-        if self._has_speed:
-            self._spd = QDoubleSpinBox(); self._spd.setRange(0, 300); self._spd.setDecimals(2)
-            fl.addRow("Speed", self._spd)
+        # Cell size for display (cap at 80px per tile)
+        self._cell = min(80, max(32, 640 // max(cols, rows)))
+        self.setFixedSize(cols * self._cell + 20,
+                          rows * self._cell + 60)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(6, 6, 6, 6)
+
+        self._canvas = QLabel()
+        self._canvas.setFixedSize(cols * self._cell, rows * self._cell)
+        self._canvas.mousePressEvent = self._on_click
+        layout.addWidget(self._canvas)
+
+        btn_row = QHBoxLayout()
+        self._info_lbl = QLabel(f"Moves: 0")
+        btn_row.addWidget(self._info_lbl, 1)
+        shuffle_btn = QPushButton("Shuffle")
+        shuffle_btn.clicked.connect(self._shuffle_and_redraw)
+        btn_row.addWidget(shuffle_btn)
+        close_btn = QPushButton("Give Up")
+        close_btn.clicked.connect(self.reject)
+        btn_row.addWidget(close_btn)
+        layout.addLayout(btn_row)
+
+        self._draw()
+
+    def _shuffle(self): #vers 1
+        """Shuffle with 200 random valid moves from solved state."""
+        import random
+        for _ in range(200):
+            neighbours = self._blank_neighbours()
+            if neighbours:
+                swap = random.choice(neighbours)
+                self._state[self._blank], self._state[swap] =                     self._state[swap], self._state[self._blank]
+                self._blank = swap
+
+    def _shuffle_and_redraw(self): #vers 1
+        n = self._cols * self._rows
+        self._state = list(range(n))
+        self._blank = n - 1
+        self._moves = 0
+        self._solved = False
+        self._shuffle()
+        self._draw()
+
+    def _blank_neighbours(self): #vers 1
+        c, r = self._blank % self._cols, self._blank // self._cols
+        nb = []
+        if c > 0: nb.append(self._blank - 1)
+        if c < self._cols-1: nb.append(self._blank + 1)
+        if r > 0: nb.append(self._blank - self._cols)
+        if r < self._rows-1: nb.append(self._blank + self._cols)
+        return nb
+
+    def _on_click(self, ev): #vers 1
+        if self._solved: return
+        x, y = int(ev.position().x()), int(ev.position().y())
+        col, row = x // self._cell, y // self._cell
+        clicked = row * self._cols + col
+        if 0 <= clicked < len(self._state) and clicked in self._blank_neighbours():
+            self._state[self._blank], self._state[clicked] =                 self._state[clicked], self._state[self._blank]
+            self._blank = clicked
+            self._moves += 1
+            self._draw()
+            if self._state == self._goal:
+                self._solved = True
+                self._info_lbl.setText(f"🎉 Solved in {self._moves} moves!")
+                QMessageBox.information(self, "Puzzle Solved!",
+                    f"You solved it in {self._moves} moves!\n\nThe map is restored.")
+
+    def _draw(self): #vers 1
+        cell = self._cell
+        pm = QPixmap(self._cols * cell, self._rows * cell)
+        pm.fill(QColor(20, 20, 20))
+        p = QPainter(pm)
+        for pos, tile_idx in enumerate(self._state):
+            col = pos % self._cols
+            row = pos // self._cols
+            x, y = col * cell, row * cell
+            if pos == self._blank:
+                p.fillRect(x, y, cell, cell, self._get_ui_color('viewport_bg'))
+                continue
+            src = self._pixmaps.get(tile_idx)
+            if src:
+                p.drawPixmap(x, y, src.scaled(
+                    cell, cell,
+                    Qt.AspectRatioMode.IgnoreAspectRatio,
+                    Qt.TransformationMode.FastTransformation))
+            # Grid line
+            p.setPen(QPen(QColor(0, 0, 0, 120), 1))
+            p.drawRect(x, y, cell-1, cell-1)
+        p.end()
+        self._canvas.setPixmap(pm)
+        if not self._solved:
+            self._info_lbl.setText(f"Moves: {self._moves}")
+
+
+
+class _TileZoomView(QWidget):
+    """Tile zoom canvas — live drawing with all sidebar tools.
+    Pixel coordinates mapped from screen coords via scale/offset."""
+
+    def __init__(self, tile_idx: int, tile_name: str, rgba: bytes, workshop): #vers 2
+        super().__init__()
+        self._tile_idx  = tile_idx
+        self._tile_name = tile_name
+        self._workshop  = workshop
+        self._rgba      = bytearray(rgba)
+        self._pixmap    = None
+        self._drawing   = False
+        self._last_px   = None          # last pixel drawn (for line smoothing)
+        self._line_start = None         # for line tool: start pixel
+        self._brush_size = 1
+        self.setMinimumSize(256, 256)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.setMouseTracking(True)
+        self.setCursor(Qt.CursorShape.CrossCursor)
+        self._rebuild_pixmap()
+
+    def _rebuild_pixmap(self): #vers 2
+        ws = self._workshop
+        tw = ws._tw if ws else TILE_W
+        th = ws._th if ws else TILE_H
+        img = QImage(bytes(self._rgba), tw, th, tw*4,
+                     QImage.Format.Format_RGBA8888)
+        self._pixmap = QPixmap.fromImage(img)
+        self.update()
+
+    def _draw_rect(self): #vers 1
+        """Return (x, y, w, h) of the scaled pixmap inside this widget."""
+        if not self._pixmap: return 0, 0, self.width(), self.height()
+        sz = self._pixmap.size().scaled(self.width(), self.height(),
+                                        Qt.AspectRatioMode.KeepAspectRatio)
+        x = (self.width()  - sz.width())  // 2
+        y = (self.height() - sz.height()) // 2
+        return x, y, sz.width(), sz.height()
+
+    def _screen_to_pixel(self, screen_pos) -> tuple:
+        """Convert screen QPoint to (px, py) pixel coordinates, or (-1,-1)."""
+        ws = self._workshop
+        tw = ws._tw if ws else TILE_W
+        th = ws._th if ws else TILE_H
+        x, y, w, h = self._draw_rect()
+        sx, sy = screen_pos.x() - x, screen_pos.y() - y
+        if sx < 0 or sy < 0 or sx >= w or sy >= h:
+            return -1, -1
+        px = int(sx * tw / w)
+        py = int(sy * th / h)
+        return max(0, min(tw-1, px)), max(0, min(th-1, py))
+
+    def refresh(self, rgba: bytes): #vers 2
+        self._rgba = bytearray(rgba)
+        self._rebuild_pixmap()
+
+    def _commit_draw(self): #vers 3
+        """Sync internal _rgba back to workshop after drawing."""
+        self._workshop.ws_commit_draw(self._tile_idx, bytes(self._rgba))
+        self._rebuild_pixmap()
+
+    def mousePressEvent(self, ev): #vers 2
+        px, py = self._screen_to_pixel(ev.pos())
+        if px < 0: return
+        is_left = ev.button() == Qt.MouseButton.LeftButton
+        result = self._workshop.ws_mouse_press(
+            self._tile_idx, px, py, is_left,
+            get_pixel_fn=lambda x,y: self._get_rgba_pixel(x,y))
+        if result == 'begin_drag':
+            self._drawing     = True
+            self._last_px     = (px, py)
+            self._line_start  = (px, py)
+            self._preview_rgba = bytearray(self._rgba)
+        elif result == 'commit':
+            self._rgba = bytearray(self._workshop._tile_rgba.get(self._tile_idx, self._rgba))
+            self._rebuild_pixmap()
+        elif result == 'picker':
+            pass  # workshop handled FG/BG update
+
+    def _get_rgba_pixel(self, px: int, py: int) -> QColor:
+        ws = self._workshop
+        tw = ws._tw if ws else TILE_W
+        i = (py * tw + px) * 4
+        return QColor(self._rgba[i], self._rgba[i+1], self._rgba[i+2], self._rgba[i+3])
+
+    def mouseMoveEvent(self, ev): #vers 2
+        if not self._drawing: return
+        px, py = self._screen_to_pixel(ev.pos())
+        if px < 0: return
+        is_left = bool(ev.buttons() & Qt.MouseButton.LeftButton)
+        preview = self._workshop.ws_mouse_drag(
+            self._tile_idx, px, py, is_left,
+            self._last_px, self._line_start, bytearray(self._preview_rgba))
+        if preview is not None:
+            self._rgba = preview
+            self._rebuild_pixmap()
         else:
-            self._spd = None
-        if self._has_flags:
-            self._flags = QSpinBox(); self._flags.setRange(0, 255)
-            fl.addRow("Flags", self._flags)
+            self._last_px = (px, py)
+            self._rgba = bytearray(self._workshop._tile_rgba.get(self._tile_idx, self._rgba))
+            self._rebuild_pixmap()
+
+    def mouseReleaseEvent(self, ev): #vers 2
+        if not self._drawing: return
+        px, py = self._screen_to_pixel(ev.pos())
+        is_left = ev.button() == Qt.MouseButton.LeftButton
+        self._workshop.ws_mouse_release(
+            self._tile_idx, px, py, is_left,
+            self._line_start, bytearray(self._preview_rgba))
+        self._rgba = bytearray(self._workshop._tile_rgba.get(self._tile_idx, self._rgba))
+        self._rebuild_pixmap()
+        self._drawing     = False
+        self._last_px     = None
+        self._line_start  = None
+        self._preview_rgba = None
+
+    def paintEvent(self, ev): #vers 2
+        if not self._pixmap: return
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)  # crisp pixels
+        x, y, w, h = self._draw_rect()
+        # Checkerboard for transparency
+        ws = self._workshop
+        tw = ws._tw if ws else TILE_W
+        cb_size = max(4, w // tw * 2)
+        for ty in range(0, h, cb_size):
+            for tx in range(0, w, cb_size):
+                light = ((tx // cb_size + ty // cb_size) % 2 == 0)
+                p.fillRect(x+tx, y+ty, min(cb_size, w-tx), min(cb_size, h-ty),
+                           self._get_ui_color('border') if light else self._get_ui_color('viewport_text'))
+        p.drawPixmap(x, y, self._pixmap.scaled(
+            w, h, Qt.AspectRatioMode.IgnoreAspectRatio,
+            Qt.TransformationMode.FastTransformation))
+        # Info overlay
+        p.setPen(QColor(255,255,255,200))
+        p.setFont(QFont("monospace", 8))
+        p.drawText(x+3, y+h-4,
+                   f"{self._tile_idx}: {self._tile_name}  "
+                   f"{ws._tw if ws else TILE_W}×{ws._th if ws else TILE_H}"
+                   f"  [{self._workshop._draw_tool}]")
+        p.end()
+
+    def resizeEvent(self, ev): #vers 2
+        super().resizeEvent(ev)
+        self.update()
+
+
+
+class _CornerOverlay(QWidget):
+    """Transparent overlay that draws corner resize triangles on top of all children.
+    Uses setMask() so only the triangle pixels exist — fully transparent elsewhere.
+    WA_AlwaysStackOnTop keeps it above all sibling widgets on Wayland/KDE."""
+
+    SIZE = 20   # triangle leg size in pixels
+
+    def __init__(self, parent): #vers 3
+        super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_AlwaysStackOnTop, True)
+        self.setWindowFlags(Qt.WindowType.Widget)
+        self._hover_corner = None
+        self._app_settings = None
+        self.setGeometry(0, 0, parent.width(), parent.height())
+        self._update_mask()
+
+    def _update_mask(self): #vers 1
+        """Create a mask covering only the four corner triangles."""
+        from PyQt6.QtGui import QRegion, QPolygon
+        from PyQt6.QtCore import QPoint
+        s = self.SIZE
+        w, h = self.width(), self.height()
+        region = QRegion()
+        for pts in [
+            [QPoint(0,0),    QPoint(s,0),    QPoint(0,s)],     # top-left
+            [QPoint(w,0),    QPoint(w-s,0),  QPoint(w,s)],     # top-right
+            [QPoint(0,h),    QPoint(s,h),    QPoint(0,h-s)],   # bottom-left
+            [QPoint(w,h),    QPoint(w-s,h),  QPoint(w,h-s)],   # bottom-right
+        ]:
+            region = region.united(QRegion(QPolygon(pts)))
+        self.setMask(region)
+
+    def update_state(self, hover_corner, app_settings): #vers 1
+        self._hover_corner = hover_corner
+        self._app_settings = app_settings
+        self.update()
+
+    def setGeometry(self, *args): #vers 1
+        super().setGeometry(*args)
+        self._update_mask()
+
+    def resizeEvent(self, event): #vers 1
+        super().resizeEvent(event)
+        self._update_mask()
+
+    def paintEvent(self, event): #vers 2
+        s = self.SIZE
+        if self._app_settings:
+            try:
+                colors = self._app_settings.get_theme_colors()
+                accent = QColor(colors.get('accent_primary', '#4682FF'))
+            except Exception:
+                accent = QColor(70, 130, 255)
         else:
-            self._flags = None
-        for w in [self._wx, self._wy, self._wz]:
-            w.valueChanged.connect(self._on_edit)
-        if self._spd:   self._spd.valueChanged.connect(self._on_edit)
-        if self._flags: self._flags.valueChanged.connect(self._on_edit)
-        root.addWidget(grp)
+            accent = QColor(70, 130, 255)
+        accent.setAlpha(200)
+        hover_c = QColor(accent); hover_c.setAlpha(255)
+        w, h = self.width(), self.height()
+        corners = {
+            'top-left':     [(0,0),  (s,0),   (0,s)],
+            'top-right':    [(w,0),  (w-s,0), (w,s)],
+            'bottom-left':  [(0,h),  (s,h),   (0,h-s)],
+            'bottom-right': [(w,h),  (w-s,h), (w,h-s)],
+        }
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        for name, pts in corners.items():
+            path = QPainterPath()
+            path.moveTo(*pts[0]); path.lineTo(*pts[1]); path.lineTo(*pts[2])
+            path.closeSubpath()
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(hover_c if self._hover_corner == name else accent))
+            painter.drawPath(path)
+        painter.end()
 
-        # Buttons
-        br = QHBoxLayout()
-        for lbl, fn in [("Add", self._add), ("Del", self._delete),
-                         ("↑", self._move_up), ("↓", self._move_down)]:
-            b = QPushButton(lbl); b.setFixedHeight(24)
-            b.clicked.connect(fn); br.addWidget(b)
-        root.addLayout(br)
 
-    def set_parser(self, parser, route_idx: int = 0):  #vers 1
-        self._parser = parser
-        self._cur_idx = -1
-        self._refresh()
+#    World bounds per game (GTA world units covered by the full radar map)      
+# Format: (world_min_x, world_max_x, world_min_y, world_max_y)
+# Tile grid origin is top-left = (world_min_x, world_max_y) — Y flips screen↔world
+_GAME_WORLD_BOUNDS = {
+    "III PC":   (-2000.0, 2000.0, -2000.0, 2000.0),
+    "VC PC":    (-2000.0, 2000.0, -2000.0, 2000.0),
+    "SA PC":    (-3000.0, 3000.0, -3000.0, 3000.0),
+    "LCS PC":   (-2000.0, 2000.0, -2000.0, 2000.0),
+    "VCS PC":   (-2000.0, 2000.0, -2000.0, 2000.0),
+    "SOL":      (-6000.0, 6000.0, -6000.0, 6000.0),
+    "III And":  (-2000.0, 2000.0, -2000.0, 2000.0),
+    "VC And":   (-2000.0, 2000.0, -2000.0, 2000.0),
+    "SA And":   (-3000.0, 3000.0, -3000.0, 3000.0),
+    "LCS iOS":  (-2000.0, 2000.0, -2000.0, 2000.0),
+    "SA iOS":   (-3000.0, 3000.0, -3000.0, 3000.0),
+    "LCS PSP":  (-2000.0, 2000.0, -2000.0, 2000.0),
+    "VCS PSP":  (-2000.0, 2000.0, -2000.0, 2000.0),
+    "Custom":   (-3000.0, 3000.0, -3000.0, 3000.0),
+}
 
-    def _route(self):  #vers 1
-        if self._parser and self._parser.routes:
-            return self._parser.routes[0]
+
+class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
+    """Radar Workshop – skeleton class"""
+
+    workshop_closed = pyqtSignal()
+    window_closed   = pyqtSignal()
+
+    def _build_menus_into_qmenu(self, pm): #vers 2
+        fm = pm.addMenu("File")
+        fm.addAction("Load IMG…",          self._open_file)
+        fm.addAction("Save IMG…",          self._save_file)
+        fm.addSeparator()
+        fm.addAction("Export Full Map…",   self._export_sheet)
+        fm.addAction("Import Full Map…",   self._import_sheet)
+        fm.addSeparator()
+        # Recent files
+        if hasattr(self, 'RAD_settings'):
+            recent = self.RAD_settings.get_recent()
+            if recent:
+                rm = fm.addMenu("Recent Files")
+                for rpath in recent:
+                    act = rm.addAction(Path(rpath).name)
+                    act.setToolTip(rpath)
+                    act.triggered.connect(lambda checked=False, p=rpath: self._open_recent(p))
+                rm.addSeparator()
+                rm.addAction("Clear Recent", self._clear_recent)
+        em = pm.addMenu("Edit")
+        em.addAction("Undo  Ctrl+Z",   self._undo)
+        em.addAction("Redo  Ctrl+Y",   self._redo)
+        em.addSeparator()
+        em.addAction("Map Statistics…", self._show_stats)
+        vm = pm.addMenu("View")
+        vm.addAction("Zoom In (+)",    lambda: self._zoom(1.25))
+        vm.addAction("Zoom Out (-)",   lambda: self._zoom(0.8))
+        vm.addAction("Fit Grid",       self._fit)
+        vm.addSeparator()
+        vm.addAction("🧩 Boredom!",   self._start_boredom)
+        vm.addSeparator()
+        vm.addAction("About Radar Workshop", self._show_about)
+
+    def __init__(self, parent=None, main_window=None): #Vers 1
+        super().__init__(parent)
+
+        self.main_window        = main_window
+        self.standalone_mode    = (main_window is None)
+        self.is_docked          = not self.standalone_mode
+        self.button_display_mode = 'both'
+        self.dock_display_mode   = None
+
+        # Fonts (mirrors COL Workshop)
+        self.title_font   = QFont("Arial", 14)
+        self.panel_font   = QFont("Arial", 10)
+        self.button_font  = QFont("Arial", 10)
+        self.chat_font    = QFont("Courier New", 10)
+        self.button_display_mode = 'both'
+        self.infobar_font = QFont("Courier New", 9)
+
+        # Window chrome
+        self.use_system_titlebar  = False
+        self.window_always_on_top = False
+        self.dragging             = False
+        self.drag_position        = None
+        self.resizing             = False
+        self.resize_corner        = None
+        self.corner_size          = 20
+        self.hover_corner         = None
+
+        # AppSettings
+        if main_window and hasattr(main_window, 'app_settings'):
+            self.app_settings = main_window.app_settings
+        elif APPSETTINGS_AVAILABLE:
+            try:
+                self.app_settings = AppSettings()
+            except Exception:
+                self.app_settings = None
+        else:
+            self.app_settings = None
+
+        if self.app_settings and hasattr(self.app_settings, 'theme_changed'):
+            self.app_settings.theme_changed.connect(self._refresh_icons)
+
+        # Per-tool settings (separate from global theme system)
+        self.RAD_settings = RADSettings()
+        # Restore window geometry
+        if self.standalone_mode:
+            wx = self.RAD_settings.get('window_x', -1)
+            wy = self.RAD_settings.get('window_y', -1)
+            ww = self.RAD_settings.get('window_w', 1400)
+            wh = self.RAD_settings.get('window_h', 800)
+            self.resize(max(800, ww), max(500, wh))
+            if wx >= 0 and wy >= 0:
+                self.move(wx, wy)
+
+        # Spacing/margins (template pattern)
+        self.contmergina=1; self.contmerginb=1; self.contmerginc=1; self.contmergind=1; self.setspacing=2
+        self.panelmergina=5; self.panelmerginb=5; self.panelmerginc=5; self.panelmergind=5; self.panelspacing=5
+        self.titlebarheight=45; self.toolbarheight=50
+        self.tabmerginsa=5; self.tabmerginsb=0; self.tabmerginsc=5; self.tabmerginsd=0; self.statusheight=22
+        self.buticonsizex=20; self.buticonsizey=20
+        self.gadiconsizex=20; self.gadiconsizey=20
+        self.iconsizex=64; self.iconsizey=64
+
+        # Icon factory
+        self.icon_factory = SVGIconFactory()
+
+        self.setWindowTitle(App_name)
+        try:
+            self.setWindowIcon(SVGIconFactory.radar_workshop_icon(64))
+        except Exception:
+            pass
+        self.resize(1400, 800)
+        self.setMinimumSize(800, 500)
+
+        # Radar state
+        self._img_reader:   Optional[ImgReader] = None
+        self._img_path:     str = ""
+        self._game_preset:  dict = GAME_PRESETS["SA PC"]
+        self._current_idx:  int  = -1
+        self._render_mode: str   = 'color'
+        self._alpha_pending: bool = False
+        self._alpha_key_color     = None
+        self._tw: int = TILE_W   # current tile width  — updated by upscale
+        self._th: int = TILE_H   # current tile height — updated by upscale
+        self._clipboard_tile: bytes = None   # copy/paste buffer
+        self._undo_stack: list = []          # list of (idx, rgba) snapshots
+        self._redo_stack: list = []
+        self._tile_rgba:    Dict[int, bytes] = {}
+        self._world_offset: tuple = (0.0, 0.0)  # (dx, dy) world repositioning
+        self._tile_entries: List[dict] = []
+        self._dirty_tiles:  set = set()
+        self._list_items:   List[TileListItem] = []
+
+        # Frameless in standalone (custom titlebar), widget when docked
+        if self.standalone_mode:
+            self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        else:
+            self.setWindowFlags(Qt.WindowType.Widget)
+
+        if parent:
+            p = parent.pos()
+            self.move(p.x() + 50, p.y() + 80)
+
+        self.setup_ui()
+        #self._setup_hotkeys()
+        self._apply_theme()
+        self._apply_preset("SA PC")
+
+    def get_content_margins(self): #vers 1
+        return (self.contmergina,self.contmerginb,self.contmerginc,self.contmergind)
+
+    def get_panel_margins(self): #vers 1
+        return (self.panelmergina,self.panelmerginb,self.panelmerginc,self.panelmergind)
+
+    def get_tab_margins(self): #vers 1
+        return (self.tabmerginsa,self.tabmerginsb,self.tabmerginsc,self.tabmerginsd)
+
+    #    setup_ui
+
+    def setup_ui(self): #vers 1
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(*self.get_content_margins())
+        main_layout.setSpacing(self.setspacing)
+
+        toolbar = self._create_toolbar()
+        main_layout.addWidget(toolbar)
+
+        main_splitter = QSplitter(Qt.Orientation.Horizontal)
+
+        # Left panel — hidden (same pattern as template: None in standalone)
+        left = self._create_left_panel()
+        centre = self._create_centre_panel()
+        right  = self._create_right_panel()
+
+        if left is not None:
+            main_splitter.addWidget(left)
+            main_splitter.addWidget(centre)
+            main_splitter.addWidget(right)
+            main_splitter.setStretchFactor(0,1)
+            main_splitter.setStretchFactor(1,2)
+            main_splitter.setStretchFactor(2,5)
+        else:
+            main_splitter.addWidget(centre)
+            main_splitter.addWidget(right)
+            main_splitter.setStretchFactor(0,1)
+            main_splitter.setStretchFactor(1,4)
+
+        main_layout.addWidget(main_splitter)
+
+        self._status_bar = self._create_status_bar()
+        main_layout.addWidget(self._status_bar)
+        # Corner resize overlay set up in showEvent
+
+
+    # - Toolbar
+
+    def _create_toolbar(self): #Vers 1
+        self.titlebar = QFrame()
+        self.titlebar.setFrameStyle(QFrame.Shape.StyledPanel)
+        self.titlebar.setFixedHeight(self.titlebarheight)
+        self.titlebar.setObjectName("titlebar")
+        self.titlebar.installEventFilter(self)
+        self.titlebar.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
+        self.titlebar.setMouseTracking(True)
+
+        self.toolbar = QFrame()
+        self.toolbar.setFrameStyle(QFrame.Shape.StyledPanel)
+        self.toolbar.setMaximumHeight(self.toolbarheight)
+        self.titlebar = self.toolbar  # alias for drag detection
+
+        # - Theme-aware icon colour
+        icon_color = self._get_icon_color()
+
+        layout = QHBoxLayout(self.toolbar)
+        layout.setContentsMargins(*self.get_panel_margins())
+        layout.setSpacing(self.panelspacing)
+
+
+        self.menu_toggle_btn = QPushButton("Menu")
+        self.menu_toggle_btn.setFont(self.button_font)
+        self.menu_toggle_btn.setToolTip("Show menu (topbar or dropdown — set in Settings)")
+        self.menu_toggle_btn.setMinimumHeight(28)
+        self.menu_toggle_btn.setMaximumHeight(28)
+        self.menu_toggle_btn.clicked.connect(self._on_menu_btn_clicked)
+        self.menu_toggle_btn.setVisible(True)  # show in both standalone and docked
+        layout.addWidget(self.menu_toggle_btn)
+
+        # - Settings button (standalone only — docked uses right-panel button)
+        self.settings_btn = QPushButton()
+        self.settings_btn.setFont(self.button_font)
+        self.settings_btn.setIcon(SVGIconFactory.settings_icon(20, icon_color))
+        self.settings_btn.setText("Settings")
+        self.settings_btn.setIconSize(QSize(20, 20))
+        self.settings_btn.clicked.connect(self._show_workshop_settings)
+        self.settings_btn.setToolTip(App_name + "Workshop Settings")
+        self.settings_btn.setVisible(True)  # show in both standalone and docked
+        layout.addWidget(self.settings_btn)
+
+        layout.addSpacing(8)
+        layout.addStretch()
+
+        # - App name + version label (centre-left of toolbar)
+        self._title_lbl = QLabel(f"{App_name} - {Build}")
+        self._title_lbl.setStyleSheet("")
+        self._title_lbl.setVisible(self.standalone_mode)
+        layout.addWidget(self._title_lbl)
+
+        layout.addStretch()
+
+        # - Game selector
+        layout.addSpacing(8)
+        layout.addWidget(QLabel("Game:"))
+        self._game_combo = QComboBox()
+        self._game_combo.addItems(list(GAME_PRESETS))
+        self._game_combo.setCurrentText("SA PC")
+        self._game_combo.currentTextChanged.connect(self._on_game_changed)
+        layout.addWidget(self._game_combo)
+
+        self._cols_spin = QSpinBox()
+        self._cols_spin.setRange(1,100); self._cols_spin.setValue(8)
+        self._cols_spin.setPrefix("W "); self._cols_spin.setEnabled(False)
+        self._cols_spin.valueChanged.connect(self._on_custom_changed)
+        layout.addWidget(self._cols_spin)
+
+        self._rows_spin = QSpinBox()
+        self._rows_spin.setRange(1,100); self._rows_spin.setValue(8)
+        self._rows_spin.setPrefix("H "); self._rows_spin.setEnabled(False)
+        self._rows_spin.valueChanged.connect(self._on_custom_changed)
+        layout.addWidget(self._rows_spin)
+
+        layout.addStretch()
+
+        # - Undo button (left of info button)
+        self.toolbar_undo_btn = QPushButton()
+        self.toolbar_undo_btn.setIcon(SVGIconFactory.undo_icon(20, icon_color))
+        self.toolbar_undo_btn.setIconSize(QSize(20, 20))
+        self.toolbar_undo_btn.setFixedSize(35, 35)
+        self.toolbar_undo_btn.setToolTip("Undo last tile edit (Ctrl+Z)")
+        self.toolbar_undo_btn.clicked.connect(self._undo)
+        layout.addWidget(self.toolbar_undo_btn)
+
+        # - Info button (before Theme)
+        self.info_radar_btn = QPushButton()
+        self.info_radar_btn.setIcon(SVGIconFactory.info_icon(20, icon_color))
+        self.info_radar_btn.setIconSize(QSize(20, 20))
+        self.info_radar_btn.setFixedSize(35, 35)
+        self.info_radar_btn.setToolTip("About Radar Workshop")
+        self.info_radar_btn.clicked.connect(self._show_about)
+        layout.addWidget(self.info_radar_btn)
+
+        # - Theme / Properties
+        self.properties_btn = QPushButton()
+        self.properties_btn.setIcon(SVGIconFactory.properties_icon(20, icon_color))
+        self.properties_btn.setIconSize(QSize(20, 20))
+        self.properties_btn.setFixedSize(35, 35)
+        self.properties_btn.setToolTip("Theme Settings")
+        self.properties_btn.clicked.connect(self._launch_theme_settings)
+        layout.addWidget(self.properties_btn)
+
+        # - Dock button — hidden in standalone (nothing to dock to)
+        self.dock_btn = QPushButton()
+        try:
+            self.dock_btn.setIcon(SVGIconFactory.import_icon(20, icon_color))
+            self.dock_btn.setIconSize(QSize(20, 20))
+        except Exception:
+            self.dock_btn.setText("⊞")
+        self.dock_btn.setFixedSize(35, 35)
+        self.dock_btn.setToolTip("Dock into IMG Factory")
+        self.dock_btn.clicked.connect(self.toggle_dock_mode)
+        self.dock_btn.setVisible(not self.standalone_mode)
+        layout.addWidget(self.dock_btn)
+
+        # - Tear-off button — only when docked, use icon not bare "T"
+        if not self.standalone_mode:
+            self.tearoff_btn = QPushButton()
+            try:
+                self.tearoff_btn.setIcon(SVGIconFactory.export_icon(20, icon_color))
+                self.tearoff_btn.setIconSize(QSize(20, 20))
+            except Exception:
+                self.tearoff_btn.setText("↗")
+            self.tearoff_btn.setFixedSize(35, 35)
+            self.tearoff_btn.clicked.connect(self._toggle_tearoff)
+            self.tearoff_btn.setToolTip("Tear off — open as standalone window")
+            layout.addWidget(self.tearoff_btn)
+
+        # - Window controls (standalone only)
+        if self.standalone_mode:
+            for attr, icon_method, slot, tip in [
+                ('minimize_btn', 'minimize_icon', self.showMinimized,    "Minimize"),
+                ('maximize_btn', 'maximize_icon', self._toggle_maximize, "Maximize"),
+                ('close_btn',    'close_icon',    self.close,            "Close"),
+            ]:
+                btn = QPushButton()
+                btn.setIcon(getattr(SVGIconFactory, icon_method)(20, icon_color))
+                btn.setIconSize(QSize(20, 20))
+                btn.setMinimumWidth(40); btn.setMaximumWidth(40); btn.setMinimumHeight(30)
+                btn.clicked.connect(slot)
+                btn.setToolTip(tip)
+                setattr(self, attr, btn)
+                layout.addWidget(btn)
+
+        return self.toolbar
+
+
+    # - Left panel: session list
+    def get_world_bounds(self): #vers 2
+        """Return (min_x, max_x, min_y, max_y) world-unit coverage for the
+        current game preset, adjusted by any world offset set via set_world_offset().
+        Used by IPLMapView for radar image overlay."""
+        base = (-3000.0, 3000.0, -3000.0, 3000.0)
+        for key, preset in GAME_PRESETS.items():
+            if preset is self._game_preset:
+                base = _GAME_WORLD_BOUNDS.get(key, base)
+                break
+        ox, oy = getattr(self, '_world_offset', (0.0, 0.0))
+        return (base[0]+ox, base[1]+ox, base[2]+oy, base[3]+oy)
+
+    def set_world_offset(self, dx: float, dy: float): #vers 1
+        """Shift the world-space origin of the radar map by (dx, dy).
+        This repositions where the radar tiles are placed in world coordinates.
+        Used for SOL or custom map offsets. Does NOT modify tile pixel data."""
+        self._world_offset = (float(dx), float(dy))
+        if self.main_window and hasattr(self.main_window, 'log_message'):
+            self.main_window.log_message(
+                f"Radar world offset set: dX={dx:+.1f}  dY={dy:+.1f}")
+
+    def get_composite_image(self, max_size: int = 2048): #vers 1
+        """Stitch all loaded tile RGBA buffers into a single QImage.
+        Tiles are arranged in row-major order (row 0 = north/top of map).
+        Returns QImage or None if no tiles are loaded.
+        max_size: output image is capped at max_size × max_size pixels."""
+        from PyQt6.QtGui import QImage
+        if not self._tile_rgba:
+            return None
+
+        preset = self._game_preset
+        cols   = preset.get("cols", 8)
+        rows   = preset.get("rows", 8)
+        tw     = self._tw
+        th     = self._th
+
+        out_w = cols * tw
+        out_h = rows * th
+
+        # Build output buffer (RGBA)
+        out = bytearray(out_w * out_h * 4)
+
+        for idx, rgba in self._tile_rgba.items():
+            col = idx % cols
+            row = idx // cols
+            if row >= rows or col >= cols:
+                continue
+            ox = col * tw
+            oy = row * th
+            for ty in range(th):
+                src_row  = ty * tw * 4
+                dst_row  = (oy + ty) * out_w * 4 + ox * 4
+                out[dst_row:dst_row + tw * 4] = rgba[src_row:src_row + tw * 4]
+
+        img = QImage(bytes(out), out_w, out_h, out_w * 4,
+                     QImage.Format.Format_RGBA8888)
+
+        # Scale down if too large
+        if out_w > max_size or out_h > max_size:
+            from PyQt6.QtCore import Qt as _Qt
+            img = img.scaled(max_size, max_size,
+                             _Qt.AspectRatioMode.KeepAspectRatio,
+                             _Qt.TransformationMode.SmoothTransformation)
+        return img.copy()   # detach from temp buffer
+
+    def _create_left_panel(self): #vers 1
+        # Hidden — template returns None in standalone
         return None
 
-    def _refresh(self):  #vers 1
-        self._list.clear()
-        r = self._route()
-        if not r: return
-        for i, wp in enumerate(r.waypoints):
-            self._list.addItem(f"[{i:3d}]  {wp.x:9.2f}  {wp.y:9.2f}  {wp.z:6.2f}"
-                               + (f"  {wp.speed:.0f}" if self._has_speed else ""))
 
-    def _on_select(self, row: int):  #vers 1
-        r = self._route()
-        if not r or row < 0 or row >= len(r.waypoints): return
-        self._cur_idx = row
-        self._blocking = True
-        wp = r.waypoints[row]
-        self._wx.setValue(wp.x); self._wy.setValue(wp.y); self._wz.setValue(wp.z)
-        if self._spd:   self._spd.setValue(wp.speed)
-        if self._flags: self._flags.setValue(wp.flags)
-        self._blocking = False
+    # - Centre panel:
+    def _create_centre_panel(self): #vers 6
+        """Tile list with icon button row: Open/Save/Export/Import/Info."""
+        panel = QFrame()
+        panel.setFrameStyle(QFrame.Shape.StyledPanel)
+        vl = QVBoxLayout(panel)
+        vl.setContentsMargins(*self.get_panel_margins())
+        vl.setSpacing(self.panelspacing)
 
-    def _on_edit(self):  #vers 1
-        if self._blocking or self._cur_idx < 0: return
-        r = self._route()
-        if not r: return
-        wp = r.waypoints[self._cur_idx]
-        wp.x = self._wx.value(); wp.y = self._wy.value(); wp.z = self._wz.value()
-        if self._spd:   wp.speed = self._spd.value()
-        if self._flags: wp.flags = self._flags.value()
-        # Update list item text
-        item = self._list.item(self._cur_idx)
-        if item:
-            item.setText(f"[{self._cur_idx:3d}]  {wp.x:9.2f}  {wp.y:9.2f}  {wp.z:6.2f}"
-                         + (f"  {wp.speed:.0f}" if self._has_speed else ""))
-        self.changed.emit()
+        #    Button row                                                         
+        icon_color = self._get_icon_color()
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(2)
 
-    def select_waypoint(self, idx: int):  #vers 1
-        if 0 <= idx < self._list.count():
-            self._list.setCurrentRow(idx)
+        def _cb(icon_fn, tip, slot, enabled=True):
+            b = QToolButton()
+            b.setFixedSize(28, 28)
+            b.setIcon(getattr(SVGIconFactory, icon_fn)(20, icon_color))
+            b.setIconSize(QSize(20, 20))
+            b.setToolTip(tip)
+            b.setEnabled(enabled)
+            b.clicked.connect(slot)
+            btn_row.addWidget(b)
+            return b
 
-    def update_waypoint_pos(self, idx: int, x: float, y: float, z: float):  #vers 1
-        r = self._route()
-        if not r or idx >= len(r.waypoints): return
-        r.waypoints[idx].x = x; r.waypoints[idx].y = y
-        item = self._list.item(idx)
-        if item:
-            wp = r.waypoints[idx]
-            item.setText(f"[{idx:3d}]  {wp.x:9.2f}  {wp.y:9.2f}  {wp.z:6.2f}"
-                         + (f"  {wp.speed:.0f}" if self._has_speed else ""))
-        if idx == self._cur_idx:
-            self._blocking = True
-            self._wx.setValue(x); self._wy.setValue(y)
-            self._blocking = False
+        self.open_btn   = _cb('open_icon',   "Load radar IMG (Ctrl+O)",      self._open_file)
+        self.save_btn   = _cb('save_icon',   "Save modified tiles (Ctrl+S)", self._save_file, enabled=False)
+        self.export_btn = _cb('export_icon', "Export all tiles as PNG sheet", self._export_sheet)
+        self.import_btn = _cb('import_icon', "Import PNG sheet of tiles",    self._import_sheet)
+        btn_row.addStretch()
+        vl.addLayout(btn_row)
 
-    def _add(self):  #vers 1
-        r = self._route()
-        if not r: return
-        wp = Waypoint()
-        if r.waypoints: wp = Waypoint(r.waypoints[-1].x, r.waypoints[-1].y, r.waypoints[-1].z)
-        r.waypoints.append(wp)
-        self._refresh()
-        self._list.setCurrentRow(len(r.waypoints)-1)
-        self.changed.emit()
+        #    World position / offset                                            
+        from PyQt6.QtWidgets import QGroupBox, QFormLayout, QDoubleSpinBox
+        offset_box = QGroupBox("World position offset")
+        ofl        = QFormLayout(offset_box); ofl.setSpacing(3)
+        self._off_x = QDoubleSpinBox(); self._off_x.setRange(-9999,9999)
+        self._off_x.setDecimals(1); self._off_x.setFixedHeight(22); self._off_x.setValue(0)
+        self._off_y = QDoubleSpinBox(); self._off_y.setRange(-9999,9999)
+        self._off_y.setDecimals(1); self._off_y.setFixedHeight(22); self._off_y.setValue(0)
+        ofl.addRow("dX:", self._off_x)
+        ofl.addRow("dY:", self._off_y)
+        from PyQt6.QtWidgets import QPushButton as _RPB
+        apply_off = _RPB("Apply Offset"); apply_off.setFixedHeight(22)
+        apply_off.setToolTip(
+            "Shift world-space origin by dX/dY for IPL World Map overlay.")
+        apply_off.clicked.connect(
+            lambda: self.set_world_offset(self._off_x.value(), self._off_y.value()))
+        ofl.addRow("", apply_off)
+        vl.addWidget(offset_box)
 
-    def _delete(self):  #vers 1
-        r = self._route()
-        if not r or self._cur_idx < 0: return
-        r.waypoints.pop(self._cur_idx)
-        self._cur_idx = -1
-        self._refresh()
-        self.changed.emit()
+        #    Tile search bar                                                     
+        search_row = QHBoxLayout()
+        self._tile_search = QLineEdit()
+        self._tile_search.setPlaceholderText("Search tiles…  e.g. 64-95 or radar")
+        self._tile_search.setClearButtonEnabled(True)
+        self._tile_search.textChanged.connect(self._filter_tile_list)
+        search_row.addWidget(self._tile_search)
+        vl.addLayout(search_row)
 
-    def _move_up(self):  #vers 1
-        r = self._route()
-        if not r or self._cur_idx <= 0: return
-        i = self._cur_idx
-        r.waypoints[i], r.waypoints[i-1] = r.waypoints[i-1], r.waypoints[i]
-        self._cur_idx = i - 1
-        self._refresh()
-        self._list.setCurrentRow(self._cur_idx)
-        self.changed.emit()
+        #    Tile list                                                          
+        self._tile_list = QListWidget()
+        self._tile_list.setIconSize(QSize(THUMB, THUMB))
+        self._tile_list.setUniformItemSizes(False)   # items have 2 text lines
+        self._tile_list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self._tile_list.currentRowChanged.connect(self._on_list_row)
+        self._tile_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._tile_list.customContextMenuRequested.connect(self._on_tile_list_context)
+        self._tile_list.itemDoubleClicked.connect(lambda item: self._edit_tile_popup(item.idx))
+        vl.addWidget(self._tile_list, 1)
+        # STUB: add bitdepth column after tile size
+        self._dirty_lbl = QLabel("Modified: 0")
+        self._dirty_lbl.setFont(self.infobar_font)
+        vl.addWidget(self._dirty_lbl)
 
-    def _move_down(self):  #vers 1
-        r = self._route()
-        if not r or self._cur_idx < 0 or self._cur_idx >= len(r.waypoints)-1: return
-        i = self._cur_idx
-        r.waypoints[i], r.waypoints[i+1] = r.waypoints[i+1], r.waypoints[i]
-        self._cur_idx = i + 1
-        self._refresh()
-        self._list.setCurrentRow(self._cur_idx)
-        self.changed.emit()
+        return panel
+
+    def _copy_current_tile(self): #vers 1
+        """Ctrl+C — copy current tile to clipboard."""
+        idx = self._current_idx
+        if idx < 0 or idx not in self._tile_rgba:
+            self._set_status("Select a tile first"); return
+        self._clipboard_tile = self._tile_rgba[idx]
+        name = self._tile_entries[idx]["name"] if idx < len(self._tile_entries) else f"tile_{idx}"
+        self._set_status(f"Copied tile {idx}: {name}")
+
+    def _paste_current_tile(self): #vers 1
+        """Ctrl+V — paste clipboard tile to current tile."""
+        idx = self._current_idx
+        if idx < 0:
+            self._set_status("Select a tile first"); return
+        if not getattr(self, '_clipboard_tile', None):
+            self._set_status("Nothing in clipboard — use Ctrl+C first"); return
+        self._apply_tile_data(idx, self._clipboard_tile)
+        self._set_status(f"Pasted to tile {idx}")
+
+    def _upscale_dialog(self): #vers 1
+        """Show upscale dialog — choose target size, apply, save as .new."""
+        if not self._tile_rgba:
+            QMessageBox.information(self, "No Tiles", "Load an IMG file first."); return
+
+        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
+                                     QLabel, QComboBox, QPushButton, QRadioButton,
+                                     QButtonGroup, QGroupBox, QCheckBox)
+
+        current_size = f"{TILE_W}×{TILE_H}"
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Upscale Radar Tiles")
+        dlg.setMinimumWidth(380)
+        try:
+            from apps.core.theme_utils import apply_dialog_theme
+            apply_dialog_theme(dlg, self.main_window)
+        except Exception: pass
+
+        layout = QVBoxLayout(dlg)
+
+        # Info
+        info = QLabel(
+            f"Current tile size: <b>{current_size}</b>  "
+            f"({len(self._tile_rgba)} tiles loaded)<br>"
+            f"Output saved alongside the original (default: <b>gta3.img.new</b>).<br>"
+            f"A save dialog lets you choose the exact location.<br>"
+            f"The original IMG is never modified.")
+        info.setWordWrap(True)
+        layout.addWidget(info)
+
+        # Target size
+        grp = QGroupBox("Target size")
+        grp_layout = QVBoxLayout(grp)
+        sizes = []
+        if TILE_W == 64:
+            sizes = [("128×128 (2× upscale)", 128), ("256×256 (4× upscale)", 256)]
+        elif TILE_W == 128:
+            sizes = [("256×256 (2× upscale)", 256)]
+        else:
+            sizes = [("Already at maximum (256×256)", None)]
+
+        btn_group = QButtonGroup(dlg)
+        radios = []
+        for label, size in sizes:
+            rb = QRadioButton(label)
+            if size is None: rb.setEnabled(False)
+            grp_layout.addWidget(rb)
+            btn_group.addButton(rb)
+            radios.append((rb, size))
+        if radios:
+            radios[0][0].setChecked(True)
+        layout.addWidget(grp)
+
+        # Filter
+        filt_grp = QGroupBox("Upscale filter")
+        filt_layout = QVBoxLayout(filt_grp)
+        rb_lanczos = QRadioButton("Lanczos (smooth — recommended for photo-like tiles)")
+        rb_nearest = QRadioButton("Nearest neighbour (crisp pixels — good for pixel art)")
+        rb_lanczos.setChecked(True)
+        filt_layout.addWidget(rb_lanczos)
+        filt_layout.addWidget(rb_nearest)
+        layout.addWidget(filt_grp)
+
+        # Buttons
+        btn_row = QHBoxLayout()
+        ok_btn  = QPushButton("Upscale and Save as .new")
+        ok_btn.setDefault(True)
+        can_btn = QPushButton("Cancel")
+        ok_btn.clicked.connect(dlg.accept)
+        can_btn.clicked.connect(dlg.reject)
+        btn_row.addWidget(ok_btn); btn_row.addWidget(can_btn)
+        layout.addLayout(btn_row)
+
+        if dlg.exec() != QDialog.DialogCode.Accepted: return
+
+        # Get chosen size
+        target = None
+        for rb, size in radios:
+            if rb.isChecked(): target = size; break
+        if target is None:
+            QMessageBox.information(self, "Upscale", "Tiles are already at maximum size.")
+            return
+
+        filt = "LANCZOS" if rb_lanczos.isChecked() else "NEAREST"
+        self._do_upscale(target, filt)
+
+    def _do_upscale(self, target_size: int, filter_name: str): #vers 2
+        """Perform upscale: resize all tiles, rebuild IMG, save as .new."""
+        from PIL import Image
+
+        filt = Image.LANCZOS if filter_name == "LANCZOS" else Image.NEAREST
+
+        if not self._img_path or not self._img_reader:
+            QMessageBox.warning(self, "No IMG", "Load an IMG file first."); return
+
+        # Default output path alongside original, let user confirm/change
+        p = Path(self._img_path)
+        default_out = str(p.parent / (p.stem + f"_upscaled{p.suffix}"))
+        out_path, _ = QFileDialog.getSaveFileName(
+            self, "Save Upscaled IMG as…", default_out,
+            "IMG Archives (*.img);;All Files (*)")
+        if not out_path: return
+
+        # Progress
+        total = len(self._tile_entries)
+        prog = QProgressDialog(
+            f"Upscaling {total} tiles to {target_size}×{target_size}…",
+            "Cancel", 0, total + 1, self)
+        prog.setWindowModality(Qt.WindowModality.WindowModal)
+        prog.show()
+        QApplication.processEvents()
+
+        try:
+            #    Upscale all tile rgba data                                     
+            new_rgba = {}
+            for idx in range(total):
+                prog.setValue(idx)
+                QApplication.processEvents()
+                if prog.wasCanceled(): return
+                rgba = self._tile_rgba.get(idx)
+                if rgba is None: continue
+                img = Image.frombytes("RGBA", (TILE_W, TILE_H), rgba)
+                img = img.resize((target_size, target_size), filt)
+                new_rgba[idx] = img.tobytes()
+
+            #    Build new TXD data for each radar entry                        
+            new_txd_data = {}
+            for idx, rgba in new_rgba.items():
+                if idx >= len(self._tile_entries): continue
+                e = self._tile_entries[idx]
+                name = Path(e["name"]).stem
+                new_txd_data[idx] = RadarTxdReader.write(rgba, target_size, target_size, name)
+
+            #    Rebuild IMG: read all entries, replace radar TXDs              
+            prog.setLabelText("Rebuilding IMG archive…")
+            prog.setValue(total)
+            QApplication.processEvents()
+
+            # Build new VER2 IMG from scratch
+            # Directory: 8-byte header + 32-byte entry per file
+            all_entries = self._img_reader.entries   # all entries in original
+            radar_by_name = {
+                self._tile_entries[idx]["name"].lower(): new_txd_data[idx]
+                for idx in new_txd_data
+            }
+
+            # VER2 format: header "VER2" + u32 count, then 32-byte entries,
+            # then data sectors
+            SECTOR = 2048
+            new_dir = []
+            new_data_blocks = []
+            current_sector = 0
+
+            # Calculate directory offset: always at sector 0 conceptually for VER2
+            # Data starts right after directory
+            n_entries = len(all_entries)
+            dir_size_bytes = 8 + n_entries * 32
+            dir_sectors = (dir_size_bytes + SECTOR - 1) // SECTOR
+            current_sector = dir_sectors
+
+            for entry in all_entries:
+                name_lower = entry["name"].lower()
+                if name_lower in radar_by_name:
+                    raw = radar_by_name[name_lower]
+                else:
+                    # Read original entry data
+                    raw = self._img_reader.get_entry_data(entry)
+
+                # Pad to sector boundary
+                padded = raw + b'\x00' * ((-len(raw)) % SECTOR)
+                n_sectors = len(padded) // SECTOR
+
+                new_dir.append({
+                    "name":   entry["name"],
+                    "offset": current_sector,
+                    "size":   n_sectors
+                })
+                new_data_blocks.append(padded)
+                current_sector += n_sectors
+
+            # Write VER2 IMG
+            import struct
+            header = b"VER2" + struct.pack("<I", n_entries)
+            dir_data = bytearray()
+            for e in new_dir:
+                nb = e["name"].encode("latin1")[:23].ljust(24, b"\x00")
+                sz = e["size"]
+                # VER2: offset(4) streaming_size(2) size(2) name(24)
+                dir_data += struct.pack("<IHH24s", e["offset"], sz, sz, nb)
+
+            # Pad directory to sector boundary
+            dir_block = header + bytes(dir_data)
+            dir_block += b"\x00" * ((-len(dir_block)) % SECTOR)
+
+            with open(out_path, "wb") as f:
+                f.write(dir_block)
+                for block in new_data_blocks:
+                    f.write(block)
+
+            # Copy .dir for V1 (won't exist for VER2 but be safe)
+            sd = Path(self._img_path).with_suffix(".dir")
+            if sd.exists():
+                import shutil
+                shutil.copy2(sd, str(Path(out_path).with_suffix(".dir")))
+
+            prog.setValue(total + 1)
+
+            # Update session to use upscaled data (use module-level vars)
+            # Update workshop tile size — single source of truth
+            import apps.components.Radar_Editor.radar_workshop as _rw_mod
+            _rw_mod.TILE_W = target_size
+            _rw_mod.TILE_H = target_size
+            self._tw = target_size
+            self._th = target_size
+
+            # Flush all old QImage tiles from grid, reload at new size
+            self._radar._tiles.clear()
+            for idx, rgba in new_rgba.items():
+                self._tile_rgba[idx] = rgba
+                self._radar.set_tile(idx, self._apply_render_mode(rgba),
+                                     target_size, target_size)
+                if idx < len(self._list_items):
+                    self._list_items[idx].set_thumb(rgba, target_size, target_size)
+
+            # Close any open tile zoom tabs — they hold stale _rgba/TILE_W refs
+            if hasattr(self, '_view_tabs'):
+                self._view_tabs.blockSignals(True)
+                while self._view_tabs.count() > 1:
+                    self._view_tabs.removeTab(self._view_tabs.count() - 1)
+                self._view_tabs.blockSignals(False)
+                self._view_tabs.setCurrentIndex(0)
+
+            # Force grid repaint
+            self._radar.update()
+
+            self._set_status(
+                f"Upscaled {len(new_rgba)} tiles to {target_size}×{target_size} "
+                f"and saved as {Path(out_path).name}")
+            QMessageBox.information(self, "Upscale Complete",
+                f"Saved {len(new_rgba)} upscaled tiles to:\n{out_path}\n\n"
+                f"Original IMG unchanged. To use the new file, rename it.")
+
+        except Exception as e:
+            import traceback
+            QMessageBox.critical(self, "Upscale Error",
+                f"Failed:\n{e}\n\n{traceback.format_exc()[-400:]}")
+        finally:
+            prog.close()
+
+    def _filter_tile_list(self, text: str): #vers 1
+        """Filter tile list by name or index range (e.g. '64-95' or 'radar0')."""
+        import re as _re
+        text = text.strip()
+        range_m = _re.match(r'^(\d+)\s*[-–]\s*(\d+)$', text)
+        for i in range(self._tile_list.count()):
+            item = self._tile_list.item(i)
+            if not text:
+                item.setHidden(False)
+            elif range_m:
+                lo, hi = int(range_m.group(1)), int(range_m.group(2))
+                item.setHidden(not (lo <= i <= hi))
+            else:
+                item.setHidden(text.lower() not in item.text().lower())
+
+    def _push_undo(self, idx: int): #vers 1
+        """Push current tile state onto undo stack before a change."""
+        if idx not in self._tile_rgba: return
+        self._undo_stack.append((idx, self._tile_rgba[idx]))
+        if len(self._undo_stack) > 20:
+            self._undo_stack.pop(0)
+        self._redo_stack.clear()
+
+    def _undo(self): #vers 2
+        if not self._undo_stack:
+            self._set_status("Nothing to undo (render mode is display-only, not undoable)"); return
+        idx, rgba = self._undo_stack.pop()
+        if idx in self._tile_rgba:
+            self._redo_stack.append((idx, self._tile_rgba[idx]))
+        self._tile_rgba[idx] = rgba
+        self._radar.set_tile(idx, self._apply_render_mode(rgba), TILE_W, TILE_H)
+        if idx < len(self._list_items):
+            self._list_items[idx].set_thumb(rgba, TILE_W, TILE_H)
+        self._refresh_tile_tab(idx)
+        self._set_status(f"Undo — tile {idx}")
+
+    def _redo(self): #vers 2
+        if not self._redo_stack:
+            self._set_status("Nothing to redo"); return
+        idx, rgba = self._redo_stack.pop()
+        self._undo_stack.append((idx, self._tile_rgba[idx]))
+        self._tile_rgba[idx] = rgba
+        self._radar.set_tile(idx, self._apply_render_mode(rgba), TILE_W, TILE_H)
+        if idx < len(self._list_items):
+            self._list_items[idx].set_thumb(rgba, TILE_W, TILE_H)
+        self._refresh_tile_tab(idx)
+        self._set_status(f"Redo — tile {idx}")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Per-file tabs
-# ─────────────────────────────────────────────────────────────────────────────
+    # --- Right panel: settings
+    def _create_right_panel(self): #vers 8
+        """Radar grid + bottom palette strip + right sidebar: zoom/tools/swatches."""
+        panel = QFrame()
+        panel.setFrameStyle(QFrame.Shape.StyledPanel)
+        hl = QHBoxLayout(panel)
+        hl.setContentsMargins(0, 0, 0, 0)
+        hl.setSpacing(0)
 
-def _make_path_tab(parser_cls, has_speed=True, has_flags=False):  #vers 1
-    """Factory: returns a QWidget tab for a given parser class."""
+        #    Centre: tab widget — Map tab + tile zoom tabs                     
+        self._view_tabs = QTabWidget()
+        self._view_tabs.setDocumentMode(True)
+        self._view_tabs.setTabsClosable(False)  # Map tab never closable
+        self._view_tabs.tabCloseRequested.connect(self._on_view_tab_close)
 
-    class _Tab(QWidget):
-        def __init__(self, parent=None):
-            super().__init__(parent)
-            self._parser = parser_cls()
-            self._path: Optional[str] = None
-            self._build_ui()
+        # Tab 0: Full radar map
+        map_container = QWidget()
+        map_layout = QVBoxLayout(map_container)
+        map_layout.setContentsMargins(0, 0, 0, 0)
+        map_layout.setSpacing(0)
 
-        def _build_ui(self):
-            root = QHBoxLayout(self); root.setContentsMargins(4,4,4,4)
-            sp = QSplitter(Qt.Orientation.Horizontal)
-            self._panel = _WaypointPanel(has_speed=has_speed, has_flags=has_flags)
-            self._map   = PathMapCanvas()
-            self._panel.changed.connect(self._map.update)
-            self._panel._list.currentRowChanged.connect(
-                lambda row: self._map.__setattr__('_sel_idx', row) or self._map.update())
-            self._map.node_clicked.connect(self._panel.select_waypoint)
-            self._map.node_moved.connect(
-                lambda i,x,y,z: self._panel.update_waypoint_pos(i,x,y,z))
-            # Toolbar above map
-            right = QWidget(); rl = QVBoxLayout(right); rl.setContentsMargins(0,0,0,0)
-            tb = QHBoxLayout()
-            fit_btn = QPushButton("Fit [F]"); fit_btn.setFixedHeight(24)
-            fit_btn.clicked.connect(self._map.fit_all)
-            arrows_cb = QCheckBox("Arrows")
-            arrows_cb.setChecked(True)
-            arrows_cb.stateChanged.connect(lambda v: setattr(self._map,'_show_arrows',bool(v)) or self._map.update())
-            labels_cb = QCheckBox("Labels")
-            labels_cb.setChecked(True)
-            labels_cb.stateChanged.connect(lambda v: setattr(self._map,'_show_labels',bool(v)) or self._map.update())
-            tb.addWidget(fit_btn); tb.addWidget(arrows_cb); tb.addWidget(labels_cb)
-            tb.addStretch()
-            self._status = QLabel("No file loaded"); tb.addWidget(self._status)
-            rl.addLayout(tb); rl.addWidget(self._map, 1)
-            sp.addWidget(self._panel); sp.addWidget(right)
-            sp.setSizes([260, 740]); root.addWidget(sp)
+        self._radar = RadarGridWidget()
+        self._radar._workshop = self   # drawing engine reference
+        self._radar.tile_clicked.connect(self._on_grid_click)
+        self._radar.grid_right_clicked.connect(self._on_grid_right_click)
+        self._radar.color_picked.connect(self._on_grid_color_picked)
+        sc = QScrollArea()
+        sc.setWidget(self._radar)
+        sc.setWidgetResizable(True)
+        sc.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._radar_scroll = sc
+        map_layout.addWidget(sc, 1)
 
-        def load_file(self, path: str) -> bool:
+        self._view_tabs.addTab(map_container, "🗺 Map")
+        self._view_tabs.setTabsClosable(True)
+        # Make the Map tab non-closable by removing its close button
+        self._view_tabs.tabBar().setTabButton(0, self._view_tabs.tabBar().ButtonPosition.RightSide, None)
+
+        self._view_tabs.currentChanged.connect(self._on_view_tab_changed)
+        hl.addWidget(self._view_tabs, 1)
+
+        #    Right sidebar — 2-column icon grid                                
+        sidebar = QFrame()
+        sidebar.setFrameStyle(QFrame.Shape.StyledPanel)
+        sidebar.setFixedWidth(80)
+        sl = QVBoxLayout(sidebar)
+        sl.setContentsMargins(2, 4, 2, 4)
+        sl.setSpacing(2)
+
+        icon_color = self._get_icon_color()
+        BTN = 36   # button size — two fit in 80px width with spacing
+
+        def _nb(icon_fn, tip, slot, checkable=False):
+            b = QToolButton()
+            b.setFixedSize(BTN, BTN)
+            if icon_fn:
+                try:
+                    b.setIcon(getattr(SVGIconFactory, icon_fn)(20, icon_color))
+                    b.setIconSize(QSize(20, 20))
+                except Exception: pass
+            b.setToolTip(tip)
+            b.setCheckable(checkable)
+            b.clicked.connect(slot)
+            return b
+
+        def _row(*btns):
+            row = QHBoxLayout()
+            row.setSpacing(2)
+            row.setContentsMargins(0,0,0,0)
+            for b in btns:
+                row.addWidget(b)
+            if len(btns) == 1:
+                row.addStretch()
+            sl.addLayout(row)
+
+        def _sep():
+            s = QFrame(); s.setFrameShape(QFrame.Shape.HLine)
+            sl.addSpacing(2); sl.addWidget(s); sl.addSpacing(2)
+
+        #    Map view tools                                                     
+        _row(_nb('zoom_in_icon',  "Zoom in (+)",            lambda: self._zoom(1.25)),
+             _nb('zoom_out_icon', "Zoom out (-)",           lambda: self._zoom(0.8)))
+        _row(_nb('fit_grid_icon', "Fit grid (Ctrl+0)",      self._fit),
+             _nb('locate_icon',   "Jump to selected tile",  self._jump))
+        # _draw_btns initialized here, used by zoom and draw tool rows
+        self._draw_tool = 'pencil'
+        self._draw_btns = {}
+
+        zoom_btn = _nb('zoom_in_icon', "Zoom tool (Z) — scroll wheel or +/- to zoom",
+                       lambda: self._set_draw_tool('zoom'), checkable=True)
+        self._draw_btns['zoom'] = zoom_btn
+        _row(_nb('search_icon', "Open tile editor (E)", self._edit_tile_popup),
+             zoom_btn)
+
+        _sep()
+
+        #    Draw tools (checkable)                                             
+
+        def _tool_btn(icon_fn, tip, tool_name):
+            b = _nb(icon_fn, tip, lambda checked=False, t=tool_name: self._set_draw_tool(t),
+                    checkable=True)
+            self._draw_btns[tool_name] = b
+            return b
+
+        _row(_tool_btn('paint_icon',       "Pencil (P)",            'pencil'),
+             _tool_btn('line_icon',        "Line (L)",              'line'))
+        _row(_tool_btn('fill_icon',        "Flood fill (F)",        'fill'),
+             _tool_btn('dropper_icon',     "Pick colour (K)",       'picker'))
+        _row(_tool_btn('rect_icon',        "Rect outline (R)",      'rect'),
+             _tool_btn('rect_fill_icon',   "Filled rect (Shift+R)", 'rect_fill'))
+        _row(_tool_btn('scissors_icon',    "Cut tile (X)",          'cut'),
+             _tool_btn('paste_brush_icon', "Paste (V)",             'paste'))
+        _row(_tool_btn('spray_icon',       "Spray / Airbrush",            'spray'),
+             _tool_btn('clone_stamp_icon', "Clone stamp (Alt+click=src)", 'clone'))
+        _row(_tool_btn('brighten_icon',    "Brighten brush",              'brighten'),
+             _tool_btn('darken_icon',      "Darken brush",                'darken'))
+        _row(_tool_btn('checker_fill_icon',"Checkerboard fill (FG/BG)",   'checker'),
+             _nb('upscale_icon', "Upscale tiles…", self._upscale_dialog))
+        self._draw_btns['pencil'].setChecked(True)
+
+        _sep()
+
+        #    Transforms                                                         
+        _row(_nb('rotate_cw_icon',  "Rotate +90°",     self._rotate_cw),
+             _nb('rotate_ccw_icon', "Rotate -90°",     self._rotate_ccw))
+        _row(_nb('flip_horz_icon',  "Flip horizontal", self._flip_horz),
+             _nb('flip_vert_icon',  "Flip vertical",   self._flip_vert))
+
+        _sep()
+
+        #    Map render / view options                                           
+        ren_lbl = QLabel("View")
+        ren_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        ren_lbl.setStyleSheet("font-size:9px;")
+        sl.addWidget(ren_lbl)
+
+        self._render_mode    = 'color'
+        self._alpha_key_color = None   # QColor used for colour-to-alpha mode
+
+        def _render_btn(label, tip, mode):
+            b = QToolButton()
+            b.setFixedSize(72, 22)
+            b.setText(label)
+            b.setToolTip(tip)
+            b.setCheckable(True)
+            b.clicked.connect(lambda checked=False, m=mode: self._set_render_mode(m))
+            sl.addWidget(b)
+            return b
+
+        self._render_btns = {}
+        self._render_btns['color'] = _render_btn(
+            "Colour",  "Full colour display", 'color')
+        self._render_btns['bw']    = _render_btn(
+            "B && W",    "Greyscale display",    'bw')
+        self._render_btns['alpha'] = _render_btn(
+            "Col→Alpha", "Colour to Alpha:\n"
+                         "Press, then pick colour with dropper\n"
+                         "That colour becomes transparent (checkerboard)", 'alpha')
+        self._render_btns['color'].setChecked(True)
+
+        _sep()
+
+        #    FG/BG colour swatches                                              
+        sw_lbl = QLabel("FG/BG")
+        sw_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        sw_lbl.setStyleSheet("font-size:9px;")
+        sl.addWidget(sw_lbl)
+
+        self._fg_color = QColor(255, 255, 255)
+        _win = self.palette().color(self.palette().ColorRole.Window)
+        self._bg_color = self._get_ui_color('viewport_bg') if _win.lightness() > 128 else QColor(0, 0, 0)
+
+        self._fg_btn = QPushButton()
+        self._fg_btn.setFixedSize(72, 18)
+        self._fg_btn.setToolTip("Foreground (left-click to pick)")
+        self._fg_btn.clicked.connect(self._pick_fg_color)
+        sl.addWidget(self._fg_btn)
+
+        self._bg_btn = QPushButton()
+        self._bg_btn.setFixedSize(72, 18)
+        self._bg_btn.setToolTip("Background (right-click palette for BG)")
+        self._bg_btn.clicked.connect(self._pick_bg_color)
+        sl.addWidget(self._bg_btn)
+        self._update_swatch_buttons()
+
+        sl.addSpacing(4)
+        sep3 = QFrame(); sep3.setFrameShape(QFrame.Shape.HLine)
+        sl.addWidget(sep3)
+        sl.addSpacing(2)
+
+        #    Palette — colours from current tile                                
+        pal_lbl = QLabel("Palette")
+        pal_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        pal_lbl.setStyleSheet("font-size:9px;")
+        sl.addWidget(pal_lbl)
+
+        self._palette_widget = RadarPaletteWidget()
+        self._palette_widget.color_picked.connect(self._on_palette_color)
+        self._palette_widget.color_picked_bg.connect(self._on_palette_color_bg)
+        # Height sized dynamically based on colour count — min 2 rows
+        self._palette_widget.setMinimumHeight(RadarPaletteWidget.CELL * 2)
+        sl.addWidget(self._palette_widget)
+
+        sl.addStretch(0)
+        hl.addWidget(sidebar)
+
+        return panel
+
+    def _set_render_mode(self, mode: str): #vers 4
+        """Switch map grid display mode — display only, no tile data modified."""
+        if mode == 'alpha':
+            # Activate dropper — user picks the key colour, then alpha applies
+            self._alpha_key_color = None          # clear until user picks
+            self._alpha_pending   = True          # flag: waiting for dropper pick
+            self._prev_draw_tool  = self._draw_tool
+            self._set_draw_tool('picker')
+            self._render_mode = 'alpha'
+            for m, b in self._render_btns.items():
+                b.setChecked(m == 'alpha')
+            self._set_status(
+                "Colour→Alpha: pick the colour to make transparent with the dropper. "
+                "Left-click any pixel on the map or tile editor.")
+            return   # don't apply yet — wait for dropper pick
+        else:
+            self._alpha_key_color = None
+            self._alpha_pending   = False
+            labels = {'color': 'Colour', 'bw': 'B&W — display only'}
+            self._set_status(f"View: {labels.get(mode, mode)}")
+
+        self._render_mode = mode
+        for m, b in self._render_btns.items():
+            b.setChecked(m == mode)
+        for idx, rgba in self._tile_rgba.items():
+            self._radar.set_tile(idx, self._apply_render_mode(rgba), TILE_W, TILE_H)
+        self._radar.update()
+
+    def _apply_alpha_key(self, color: QColor): #vers 1
+        """Called after user picks key colour with dropper in alpha mode.
+        Stores the colour and applies the transparency to all tiles."""
+        self._alpha_key_color = QColor(color)
+        self._alpha_pending   = False
+        # Restore previous draw tool
+        prev = getattr(self, '_prev_draw_tool', 'pencil')
+        self._set_draw_tool(prev)
+        # Apply to all tiles
+        for idx, rgba in self._tile_rgba.items():
+            self._radar.set_tile(idx, self._apply_render_mode(rgba), TILE_W, TILE_H)
+        self._radar.update()
+        self._set_status(
+            f"Colour→Alpha: {color.name()} ({color.red()},{color.green()},{color.blue()}) "
+            f"→ transparent. Click 'Colour' to restore.")
+
+    def _apply_render_mode(self, rgba: bytes) -> bytes: #vers 2
+        """Apply display-only transform to rgba bytes.
+
+        color   — pass through unchanged
+        bw      — luminance greyscale
+        alpha   — pixels matching _alpha_key_color set to alpha=0 (transparent),
+                  others alpha=255; RadarGridWidget paints checkerboard under tiles
+                  so transparent pixels show as checkerboard
+        """
+        mode = getattr(self, '_render_mode', 'color')
+        if mode == 'color': return rgba
+
+        out = bytearray(len(rgba))
+        if mode == 'bw':
+            for i in range(0, len(rgba)-3, 4):
+                r, g, b, a = rgba[i], rgba[i+1], rgba[i+2], rgba[i+3]
+                grey = int(0.299*r + 0.587*g + 0.114*b)
+                out[i:i+4] = [grey, grey, grey, a]
+        elif mode == 'alpha':
+            key = getattr(self, '_alpha_key_color', None)
+            if key is None:
+                return rgba  # no key colour set yet
+            kr, kg, kb = key.red(), key.green(), key.blue()
+            tol = 28  # tolerance — matches nearby shades of the key colour
+            for i in range(0, len(rgba)-3, 4):
+                r, g, b, a = rgba[i], rgba[i+1], rgba[i+2], rgba[i+3]
+                if (abs(r-kr) <= tol and abs(g-kg) <= tol and abs(b-kb) <= tol):
+                    out[i:i+4] = [0, 0, 0, 0]     # transparent
+                else:
+                    out[i:i+4] = [r, g, b, 255]   # fully opaque
+        return bytes(out)
+
+    #                                                                          
+    # Drawing engine — shared by RadarGridWidget, _TileZoomView, any surface
+    #                                                                          
+
+    def ws_set_pixel(self, buf: bytearray, px: int, py: int, color: QColor,
+                     brush: int = 1): #vers 2
+        tw, th = self._tw, self._th
+        half = brush // 2
+        for bx in range(-half, half + 1):
+            for by_ in range(-half, half + 1):
+                x, y = px + bx, py + by_
+                if 0 <= x < tw and 0 <= y < th:
+                    i = (y * tw + x) * 4
+                    buf[i:i+4] = [color.red(), color.green(), color.blue(), color.alpha()]
+
+    def ws_get_pixel(self, buf: bytearray, px: int, py: int) -> QColor: #vers 2
+        i = (py * self._tw + px) * 4
+        return QColor(buf[i], buf[i+1], buf[i+2], buf[i+3])
+
+    def ws_bresenham(self, buf: bytearray, p0: tuple, p1: tuple,
+                     color: QColor, brush: int = 1): #vers 1
+        """Bresenham line between two pixel coords, writing into buf."""
+        x0, y0 = p0; x1, y1 = p1
+        dx, dy = abs(x1-x0), abs(y1-y0)
+        sx, sy = (1 if x0<x1 else -1), (1 if y0<y1 else -1)
+        err = dx - dy
+        while True:
+            self.ws_set_pixel(buf, x0, y0, color, brush)
+            if x0 == x1 and y0 == y1: break
+            e2 = 2 * err
+            if e2 > -dy: err -= dy; x0 += sx
+            if e2 <  dx: err += dx; y0 += sy
+
+    def ws_flood_fill(self, buf: bytearray, px: int, py: int,
+                      fill_color: QColor): #vers 1
+        """Iterative 4-connected flood fill into buf."""
+        target = self.ws_get_pixel(buf, px, py)
+        if target.rgb() == fill_color.rgb(): return
+        tr, tg, tb = target.red(), target.green(), target.blue()
+        fr, fg_, fb_, fa = fill_color.red(), fill_color.green(), fill_color.blue(), fill_color.alpha()
+        tol = 24
+        tw, th = self._tw, self._th
+        stack = [(px, py)]; visited = set()
+        while stack:
+            cx, cy = stack.pop()
+            if (cx, cy) in visited: continue
+            if not (0 <= cx < tw and 0 <= cy < th): continue
+            ci = (cy * tw + cx) * 4
+            if (abs(buf[ci]-tr) > tol or abs(buf[ci+1]-tg) > tol
+                    or abs(buf[ci+2]-tb) > tol): continue
+            visited.add((cx, cy))
+            buf[ci:ci+4] = [fr, fg_, fb_, fa]
+            stack.extend([(cx+1,cy),(cx-1,cy),(cx,cy+1),(cx,cy-1)])
+
+    def ws_draw_rect(self, buf: bytearray, p0: tuple, p1: tuple,
+                     color: QColor, filled: bool = False): #vers 1
+        x0, y0 = min(p0[0],p1[0]), min(p0[1],p1[1])
+        x1, y1 = max(p0[0],p1[0]), max(p0[1],p1[1])
+        if filled:
+            for y in range(y0, y1+1):
+                for x in range(x0, x1+1):
+                    self.ws_set_pixel(buf, x, y, color)
+        else:
+            for x in range(x0, x1+1):
+                self.ws_set_pixel(buf, x, y0, color)
+                self.ws_set_pixel(buf, x, y1, color)
+            for y in range(y0+1, y1):
+                self.ws_set_pixel(buf, x0, y, color)
+                self.ws_set_pixel(buf, x1, y, color)
+
+    def ws_spray(self, buf: bytearray, cx: int, cy: int, color: QColor,
+                 radius: int = 8, density: int = 12): #vers 1
+        """Spray/airbrush — scatter random pixels within radius."""
+        import random
+        r, g, b, a = color.red(), color.green(), color.blue(), color.alpha()
+        for _ in range(density):
+            angle = random.uniform(0, 6.2832)
+            dist  = random.uniform(0, radius)
+            x = int(cx + dist * __import__('math').cos(angle))
+            y = int(cy + dist * __import__('math').sin(angle))
+            if 0 <= x < self._tw and 0 <= y < self._th:
+                i = (y * self._tw + x) * 4
+                buf[i:i+4] = [r, g, b, a]
+
+    def ws_brighten(self, buf: bytearray, px: int, py: int,
+                    amount: int = 20, darken: bool = False): #vers 1
+        """Brighten or darken a single pixel by amount (0-255)."""
+        if not (0 <= px < self._tw and 0 <= py < self._th): return
+        i = (py * self._tw + px) * 4
+        if darken:
+            buf[i:i+3] = [max(0,   buf[i]-amount),
+                          max(0,   buf[i+1]-amount),
+                          max(0,   buf[i+2]-amount)]
+        else:
+            buf[i:i+3] = [min(255, buf[i]+amount),
+                          min(255, buf[i+1]+amount),
+                          min(255, buf[i+2]+amount)]
+
+    def ws_clone_stamp(self, buf: bytearray, src_buf: bytearray,
+                       px: int, py: int, src_ox: int, src_oy: int,
+                       brush: int = 3): #vers 1
+        """Clone stamp — copy pixels from src_buf at offset (src_ox,src_oy)."""
+        half = brush // 2
+        for bx in range(-half, half+1):
+            for by_ in range(-half, half+1):
+                dx, dy = px+bx, py+by_
+                sx, sy = dx+src_ox, dy+src_oy
+                if (0 <= dx < self._tw and 0 <= dy < self._th and
+                        0 <= sx < self._tw and 0 <= sy < self._th):
+                    si = (sy*self._tw+sx)*4
+                    di = (dy*self._tw+dx)*4
+                    buf[di:di+4] = src_buf[si:si+4]
+
+    def ws_checkerboard_fill(self, buf: bytearray,
+                             px: int, py: int,
+                             fg: QColor, bg: QColor,
+                             cell: int = 4): #vers 1
+        """Flood-fill region with FG/BG checkerboard pattern."""
+        target = self.ws_get_pixel(buf, px, py)
+        if target.rgb() == fg.rgb() or target.rgb() == bg.rgb(): return
+        tr, tg, tb = target.red(), target.green(), target.blue()
+        fr, fg_, fb_, fa = fg.red(), fg.green(), fg.blue(), fg.alpha()
+        br, bg_, bb_, ba = bg.red(), bg.green(), bg.blue(), bg.alpha()
+        tol = 24
+        tw, th = self._tw, self._th
+        stack = [(px, py)]; visited = set()
+        while stack:
+            cx, cy = stack.pop()
+            if (cx, cy) in visited: continue
+            if not (0 <= cx < tw and 0 <= cy < th): continue
+            ci = (cy * tw + cx) * 4
+            if (abs(buf[ci]-tr) > tol or abs(buf[ci+1]-tg) > tol
+                    or abs(buf[ci+2]-tb) > tol): continue
+            visited.add((cx, cy))
+            # Alternating cells
+            if ((cx // cell) + (cy // cell)) % 2 == 0:
+                buf[ci:ci+4] = [fr, fg_, fb_, fa]
+            else:
+                buf[ci:ci+4] = [br, bg_, bb_, ba]
+            stack.extend([(cx+1,cy),(cx-1,cy),(cx,cy+1),(cx,cy-1)])
+
+    def ws_commit_draw(self, idx: int, rgba: bytes): #vers 2
+        """Commit drawn pixels: update _tile_rgba, grid, thumb, dirty state."""
+        tw, th = self._tw, self._th
+        self._tile_rgba[idx] = rgba
+        self._dirty_tiles.add(idx)
+        self._radar.set_tile(idx, self._apply_render_mode(rgba), tw, th)
+        self._radar.set_dirty(idx, True)
+        if idx < len(self._list_items):
+            self._list_items[idx].set_thumb(rgba, tw, th)
+        self._refresh_tile_tab(idx)
+        self.save_btn.setEnabled(True)
+        self._dirty_lbl.setText(f"Modified: {len(self._dirty_tiles)}")
+
+    def ws_mouse_press(self, idx: int, px: int, py: int, is_left: bool,
+                       get_pixel_fn=None) -> str: #vers 1
+        """Handle mouse press on any drawing surface for the given tile.
+        Returns: 'begin_drag' | 'commit' | 'picker' | 'none'"""
+        tool  = self._draw_tool
+        color = self._fg_color if is_left else self._bg_color
+        buf   = bytearray(self._tile_rgba.get(idx, bytes(self._tw*self._th*4)))
+
+        if tool == 'zoom':
+            return 'none'
+
+        if tool == 'picker':
+            if get_pixel_fn:
+                picked = get_pixel_fn(px, py)
+            else:
+                picked = self.ws_get_pixel(buf, px, py)
+            # If waiting for alpha key colour — apply it and return to previous tool
+            if getattr(self, '_alpha_pending', False) and is_left:
+                self._apply_alpha_key(picked)
+                return 'picker'
+            if is_left: self._fg_color = picked
+            else:       self._bg_color = picked
+            self._update_swatch_buttons()
+            w = "FG" if is_left else "BG"
+            self._set_status(f"Picked {w}: {picked.name()}  ({picked.red()},{picked.green()},{picked.blue()})")
+            return 'picker'
+
+        self._push_undo(idx)
+
+        if tool == 'pencil':
+            self.ws_bresenham(buf, (px,py), (px,py), color)
+            self.ws_commit_draw(idx, bytes(buf))
+            return 'begin_drag'
+        elif tool == 'fill':
+            self.ws_flood_fill(buf, px, py, color)
+            self.ws_commit_draw(idx, bytes(buf))
+            return 'commit'
+        elif tool in ('line', 'rect', 'rect_fill'):
+            return 'begin_drag'
+        elif tool == 'cut':
+            self._clipboard_tile = bytes(buf)
+            self.ws_commit_draw(idx, bytes(self._tw*self._th*4))
+            self._set_status(f"Cut tile {idx}")
+            return 'commit'
+        elif tool == 'spray':
+            self.ws_spray(buf, px, py, color)
+            self.ws_commit_draw(idx, bytes(buf))
+            return 'begin_drag'
+        elif tool in ('brighten', 'darken'):
+            self.ws_brighten(buf, px, py, 20, darken=(tool == 'darken'))
+            self.ws_commit_draw(idx, bytes(buf))
+            return 'begin_drag'
+        elif tool == 'clone':
+            src_pt = getattr(self, '_clone_src', None)
+            if src_pt is None:
+                self._set_status("Clone: Alt+click to set source point first")
+                return 'none'
+            self.ws_clone_stamp(buf, bytearray(buf), px, py, src_pt[0], src_pt[1])
+            self.ws_commit_draw(idx, bytes(buf))
+            return 'begin_drag'
+        elif tool == 'checker':
+            self.ws_checkerboard_fill(buf, px, py, self._fg_color, self._bg_color)
+            self.ws_commit_draw(idx, bytes(buf))
+            return 'commit'
+        return 'none'
+
+    def ws_mouse_drag(self, idx: int, px: int, py: int, is_left: bool,
+                      last_px, line_start, preview_buf: bytearray): #vers 1
+        """Handle mouse drag. Returns preview bytearray or None for pencil."""
+        tool  = self._draw_tool
+        color = self._fg_color if is_left else self._bg_color
+        buf   = bytearray(self._tile_rgba.get(idx, bytes(self._tw*self._th*4)))
+
+        if tool == 'pencil' and last_px:
+            self.ws_bresenham(buf, last_px, (px,py), color)
+            self.ws_commit_draw(idx, bytes(buf))
+            return None
+        elif tool == 'spray':
+            self.ws_spray(buf, px, py, color)
+            self.ws_commit_draw(idx, bytes(buf))
+            return None
+        elif tool in ('brighten', 'darken'):
+            self.ws_brighten(buf, px, py, 12, darken=(tool == 'darken'))
+            self.ws_commit_draw(idx, bytes(buf))
+            return None
+        elif tool == 'clone':
+            src_pt = getattr(self, '_clone_src', None)
+            if src_pt:
+                self.ws_clone_stamp(buf, bytearray(buf), px, py, src_pt[0], src_pt[1])
+                self.ws_commit_draw(idx, bytes(buf))
+            return None
+        elif tool in ('line', 'rect', 'rect_fill') and line_start:
+            # Preview: restore snapshot, draw temporary shape
+            preview = bytearray(preview_buf)
+            if tool == 'line':
+                self.ws_bresenham(preview, line_start, (px,py), color)
+            elif tool == 'rect':
+                self.ws_draw_rect(preview, line_start, (px,py), color, False)
+            elif tool == 'rect_fill':
+                self.ws_draw_rect(preview, line_start, (px,py), color, True)
+            return preview
+        return None
+
+    def ws_mouse_release(self, idx: int, px: int, py: int, is_left: bool,
+                         line_start, preview_buf: bytearray): #vers 1
+        """Handle mouse release — commit line/rect shapes."""
+        tool  = self._draw_tool
+        color = self._fg_color if is_left else self._bg_color
+        if tool in ('line', 'rect', 'rect_fill') and line_start and px >= 0:
+            buf = bytearray(preview_buf)
+            if tool == 'line':
+                self.ws_bresenham(buf, line_start, (px,py), color)
+            elif tool == 'rect':
+                self.ws_draw_rect(buf, line_start, (px,py), color, False)
+            elif tool == 'rect_fill':
+                self.ws_draw_rect(buf, line_start, (px,py), color, True)
+            self.ws_commit_draw(idx, bytes(buf))
+
+    def _set_draw_tool(self, tool: str): #vers 3
+        """Switch active draw tool. Paste executes immediately."""
+        if tool == 'paste':
+            idx = self._current_idx
+            if idx >= 0 and getattr(self, '_clipboard_tile', None):
+                self._apply_tile_data(idx, self._clipboard_tile)
+                self._set_status(f"Pasted to tile {idx}")
+            tool = 'pencil'
+        self._draw_tool = tool
+        for name, btn in self._draw_btns.items():
+            btn.setChecked(name == tool)
+        cursors = {
+            'pencil':    Qt.CursorShape.CrossCursor,
+            'line':      Qt.CursorShape.CrossCursor,
+            'fill':      Qt.CursorShape.PointingHandCursor,
+            'rect':      Qt.CursorShape.CrossCursor,
+            'rect_fill': Qt.CursorShape.CrossCursor,
+            'cut':       Qt.CursorShape.ForbiddenCursor,
+            'picker':    Qt.CursorShape.WhatsThisCursor,
+            'zoom':      Qt.CursorShape.SizeFDiagCursor,
+            'spray':     Qt.CursorShape.CrossCursor,
+            'brighten':  Qt.CursorShape.CrossCursor,
+            'darken':    Qt.CursorShape.CrossCursor,
+            'clone':     Qt.CursorShape.CrossCursor,
+            'checker':   Qt.CursorShape.PointingHandCursor,
+        }
+        if hasattr(self, '_radar'):
+            self._radar.setCursor(cursors.get(tool, Qt.CursorShape.ArrowCursor))
+
+    def _pick_fg_color(self): #vers 3
+        from PyQt6.QtWidgets import QColorDialog
+        c = QColorDialog.getColor(self._fg_color, self, "Foreground Colour")
+        if c.isValid():
+            self._fg_color = c
+            self._update_swatch_buttons()
+            # If alpha mode active and a key colour is already set, update it
+            if (getattr(self, '_render_mode', 'color') == 'alpha'
+                    and not getattr(self, '_alpha_pending', False)):
+                self._apply_alpha_key(c)
+
+    def _pick_bg_color(self): #vers 1
+        from PyQt6.QtWidgets import QColorDialog
+        c = QColorDialog.getColor(self._bg_color, self, "Background Colour")
+        if c.isValid():
+            self._bg_color = c
+            self._update_swatch_buttons()
+
+    def _update_swatch_buttons(self): #vers 1
+        if hasattr(self, '_fg_btn'):
+            self._fg_btn.setStyleSheet(
+                f"background-color: {self._fg_color.name()}; border: 1px solid #888;")
+        if hasattr(self, '_bg_btn'):
+            self._bg_btn.setStyleSheet(
+                f"background-color: {self._bg_color.name()}; border: 1px solid #888;")
+
+    def _on_palette_color(self, color: QColor): #vers 1
+        """Palette cell left-clicked — set as foreground colour."""
+        self._fg_color = color
+        self._update_swatch_buttons()
+
+    def _on_palette_color_bg(self, color: QColor): #vers 1
+        """Palette cell right-clicked — set as background colour."""
+        self._bg_color = color
+        self._update_swatch_buttons()
+
+    #    Tile transforms                                                        
+    def _get_current_rgba(self): #vers 1
+        """Return bytearray of current tile RGBA, or None."""
+        idx = self._current_idx
+        if idx < 0 or idx not in self._tile_rgba:
+            return None, -1
+        return bytearray(self._tile_rgba[idx]), idx
+
+    def _apply_tile_transform(self, transform_fn): #vers 1
+        """Apply a pixel transform to the current tile and refresh."""
+        from PIL import Image
+        rgba, idx = self._get_current_rgba()
+        if rgba is None:
+            self._set_status("No tile selected"); return
+        img = Image.frombytes("RGBA", (TILE_W, TILE_H), bytes(rgba))
+        img = transform_fn(img)
+        new_rgba = img.tobytes()
+        self._tile_rgba[idx] = new_rgba
+        self._dirty_tiles.add(idx)
+        self._radar.set_tile(idx, new_rgba, TILE_W, TILE_H)
+        self._radar.set_dirty(idx, True)
+        if idx < len(self._list_items):
+            self._list_items[idx].set_thumb(new_rgba, TILE_W, TILE_H)
+        if hasattr(self, '_palette_widget'):
+            self._palette_widget.set_colors_from_rgba(new_rgba, TILE_W, TILE_H)
+        self._dirty_lbl.setText(f"Modified: {len(self._dirty_tiles)}")
+        self._refresh_tile_tab(self._current_idx)
+        self._set_status(f"Tile {idx} transformed — {len(self._dirty_tiles)} modified")
+
+    def _rotate_cw(self): #vers 1
+        from PIL import Image
+        self._apply_tile_transform(lambda img: img.rotate(-90, expand=False))
+
+    def _rotate_ccw(self): #vers 1
+        from PIL import Image
+        self._apply_tile_transform(lambda img: img.rotate(90, expand=False))
+
+    def _flip_horz(self): #vers 1
+        from PIL import Image
+        self._apply_tile_transform(lambda img: img.transpose(Image.Transpose.FLIP_LEFT_RIGHT))
+
+    def _flip_vert(self): #vers 1
+        from PIL import Image
+        self._apply_tile_transform(lambda img: img.transpose(Image.Transpose.FLIP_TOP_BOTTOM))
+
+
+    def _create_right_panel_old(self): #Vers 1
+        panel = QFrame()
+        panel.setFrameStyle(QFrame.Shape.StyledPanel)
+        panel.setMinimumWidth(80)
+        panel.setMaximumWidth(180)
+
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(10)
+
+        header = QLabel("Paint Gadgets")
+        header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        layout.addWidget(header)
+
+        layout.addStretch()
+
+        # Settings button — only shown when docked (toolbar is hidden in docked mode)
+        self.docked_settings_btn = QPushButton()
+        self.docked_settings_btn.setFont(self.button_font)
+        self.docked_settings_btn.setIcon(self.icon_factory.settings_icon())
+        self.docked_settings_btn.setText("Settings / Options")
+        self.docked_settings_btn.setIconSize(QSize(18, 18))
+        self.docked_settings_btn.clicked.connect(self._show_workshop_settings)
+        self.docked_settings_btn.setToolTip(App_name + " Workshop Settings")
+        self.docked_settings_btn.setVisible(not self.standalone_mode)
+        layout.addWidget(self.docked_settings_btn)
+
+        return panel
+
+
+    def _create_status_bar(self): #vers 1
+        bar = QFrame()
+        bar.setFrameStyle(QFrame.Shape.StyledPanel | QFrame.Shadow.Sunken)
+        bar.setFixedHeight(self.statusheight)
+        hl = QHBoxLayout(bar)
+        hl.setContentsMargins(*self.get_tab_margins())
+        self.status_label = QLabel("Ready — no IMG loaded")
+        self.status_label.setFont(self.infobar_font)
+        hl.addWidget(self.status_label)
+        return bar
+
+
+    # Settings dialog
+    def _show_workshop_settings(self): #vers 4
+        """Workshop-local settings — Fonts, Display, Menu tabs."""
+        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
+                                     QTabWidget, QWidget, QGroupBox, QFormLayout,
+                                     QSpinBox, QComboBox, QLabel, QFontComboBox,
+                                     QCheckBox)
+        from PyQt6.QtGui import QFont
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"{App_name} Settings")
+        dlg.setMinimumWidth(520)
+        dlg.setMinimumHeight(420)
+        layout = QVBoxLayout(dlg)
+        tabs = QTabWidget()
+
+        #    Fonts tab                                                          
+        fonts_tab = QWidget()
+        fl = QVBoxLayout(fonts_tab)
+
+        def _font_row(label, current_font):
+            grp = QGroupBox(label)
+            hl  = QHBoxLayout(grp)
+            combo = QFontComboBox(); combo.setCurrentFont(current_font)
+            spin  = QSpinBox(); spin.setRange(7, 32); spin.setValue(current_font.pointSize())
+            spin.setSuffix(" pt"); spin.setFixedWidth(70)
+            hl.addWidget(combo); hl.addWidget(spin)
+            return grp, combo, spin
+
+        title_grp,  title_combo,  title_sz  = _font_row("Title Font",   self.title_font)
+        panel_grp,  panel_combo,  panel_sz  = _font_row("Panel Font",   self.panel_font)
+        button_grp, button_combo, button_sz = _font_row("Button Font",  self.button_font)
+        info_grp,   info_combo,   info_sz   = _font_row("Info Bar Font",self.infobar_font)
+        for g in [title_grp, panel_grp, button_grp, info_grp]: fl.addWidget(g)
+        fl.addStretch()
+        tabs.addTab(fonts_tab, "Fonts")
+
+        #    Display tab                                                        
+        disp_tab = QWidget()
+        dl = QVBoxLayout(disp_tab)
+
+        btn_grp = QGroupBox("Button Display Mode")
+        bl = QVBoxLayout(btn_grp)
+        mode_combo = QComboBox(); mode_combo.addItems(["Icons + Text", "Icons Only", "Text Only"])
+        mode_combo.setCurrentIndex({'both':0,'icons':1,'text':2}.get(self.button_display_mode, 0))
+        bl.addWidget(mode_combo)
+        dl.addWidget(btn_grp)
+        dl.addStretch()
+        tabs.addTab(disp_tab, "Display")
+
+        #    Menu tab                                                           
+        menu_tab = QWidget()
+        ml = QVBoxLayout(menu_tab)
+
+        game_grp = QGroupBox("Default Game Preset")
+        gl = QHBoxLayout(game_grp)
+        game_combo_s = QComboBox(); game_combo_s.addItems(list(GAME_PRESETS))
+        game_combo_s.setCurrentText(self._game_combo.currentText())
+        gl.addWidget(game_combo_s)
+        ml.addWidget(game_grp)
+
+        menu_grp = QGroupBox("Menu Style")
+        mgl = QVBoxLayout(menu_grp)
+        menu_style_combo = QComboBox()
+        menu_style_combo.addItems(["Dropdown (button)", "Topbar (embedded)"])
+        menu_style_combo.setCurrentIndex(0 if self.RAD_settings.get('menu_style') == 'dropdown' else 1)
+        mgl.addWidget(menu_style_combo)
+        ml.addWidget(menu_grp)
+        ml.addStretch()
+        tabs.addTab(menu_tab, "Menu")
+
+        layout.addWidget(tabs)
+
+        #    Buttons                                                            
+        btn_row = QHBoxLayout(); btn_row.addStretch()
+
+        def apply_all():
+            self.title_font   = QFont(title_combo.currentFont().family(),  title_sz.value())
+            self.panel_font   = QFont(panel_combo.currentFont().family(),  panel_sz.value())
+            self.button_font  = QFont(button_combo.currentFont().family(), button_sz.value())
+            self.infobar_font = QFont(info_combo.currentFont().family(),   info_sz.value())
+            self._apply_title_font()
+            self._apply_panel_font()
+            self._apply_button_font()
+            self._apply_infobar_font()
+            self.button_display_mode = {0:'both',1:'icons',2:'text'}[mode_combo.currentIndex()]
+            new_game = game_combo_s.currentText()
+            if new_game != self._game_combo.currentText():
+                self._on_game_changed(new_game)
+            style = 'dropdown' if menu_style_combo.currentIndex() == 0 else 'topbar'
+            self.RAD_settings.set('menu_style', style)
+            self.RAD_settings.set('show_menubar', style == 'topbar')
+            self.RAD_settings.save()
+            self.set_menu_orientation(style)
+
+        apply_btn = QPushButton("Apply"); apply_btn.clicked.connect(apply_all)
+        ok_btn = QPushButton("OK"); ok_btn.setDefault(True)
+        ok_btn.clicked.connect(lambda: (apply_all(), dlg.accept()))
+        cancel_btn = QPushButton("Cancel"); cancel_btn.clicked.connect(dlg.reject)
+        for b in [cancel_btn, apply_btn, ok_btn]: btn_row.addWidget(b)
+        layout.addLayout(btn_row)
+        dlg.exec()
+
+    # - Menu options
+    def _apply_menu_bar_style(self): #vers 3
+        """Apply font size, height and colours to the topbar menubar.
+        Uses explicit colours so it stays readable regardless of app theme.
+        """
+        mb = getattr(self, '_menu_bar', None)
+        if not mb:
+            return
+        bar_h  = self.RAD_settings.get('menu_bar_height', 22)
+        bar_fs = self.RAD_settings.get('menu_bar_font_size', 9)
+        dd_fs  = self.RAD_settings.get('menu_dropdown_font_size', 9)
+
+        # - Get theme colours if available, otherwise use sensible defaults
+        bg   = '#2b2b2b'
+        fg   = '#e0e0e0'
+        sel  = '#1976d2'
+        selfg = '#ffffff'
+        border = '#555555'
+        try:
+            app_settings = getattr(self, 'app_settings', None)
+            if not app_settings and self.main_window:
+                app_settings = getattr(self.main_window, 'app_settings', None)
+            if app_settings:
+                tc = app_settings.get_theme_colors() or {}
+                bg    = tc.get('bg_primary',   bg)
+                fg    = tc.get('text_primary',  fg)
+                sel   = tc.get('accent',        sel)
+                border = tc.get('border',       border)
+        except Exception:
+            pass
+
+        # - Height controlled by container — NOT by stylesheet min/max-height
+        # - (stylesheet height properties override Qt layout and prevent the bar showing)
+        mb.setStyleSheet(f"""
+            QMenuBar {{
+                background-color: {bg};
+                color: {fg};
+                border-bottom: 1px solid {border};
+                font-size: {bar_fs}pt;
+            }}
+            QMenuBar::item {{
+                background-color: transparent;
+                padding: 2px 6px;
+            }}
+            QMenuBar::item:selected {{
+                background-color: {sel};
+                color: {selfg};
+            }}
+            QMenu {{
+                background-color: {bg};
+                color: {fg};
+                border: 1px solid {border};
+                font-size: {dd_fs}pt;
+            }}
+            QMenu::item:selected {{
+                background-color: {sel};
+                color: {selfg};
+            }}
+        """)
+
+        # - Size the container based on settings, not isVisible()
+        # - (isVisible() is False during __init__ even if widget will be shown)
+        c = getattr(self, '_menu_bar_container', None)
+        if c:
+            show = (self.RAD_settings.get('show_menubar', False) and
+                    self.RAD_settings.get('menu_style', 'dropdown') == 'topbar')
+            if show:
+                c.setMinimumHeight(0)
+                c.setMaximumHeight(bar_h)
+            # Don't touch height here if hiding — setup_ui and set_menu_orientation handle that
+
+
+    def set_menu_orientation(self, style: str): #vers 4
+        """Switch DP5 menu between 'topbar' (internal) and 'dropdown' (host menubar).
+        Called from imgfactory Settings when the orientation radio changes.
+        """
+        self.RAD_settings.set('menu_style', style)
+        self.RAD_settings.set('show_menubar', style == 'topbar')
+
+        # Toggle the container (not the bare QMenuBar) so Qt doesn't promote it
+        container = getattr(self, '_menu_bar_container', None) or getattr(self, '_menu_bar', None)
+        if container:
+            if style == 'topbar':
+                container.setMinimumHeight(0)
+                container.setMaximumHeight(16777215)
+                container.setVisible(True)
+                container.updateGeometry()
+                # Re-apply style so height/font are correct
+                self._apply_menu_bar_style()
+            else:
+                container.setVisible(False)
+                container.setMinimumHeight(0)
+                container.setMaximumHeight(0)
+                container.setFixedHeight(0)
+
+    def get_menu_title(self) -> str: #vers 1
+        """Return menu label for imgfactory menu bar."""
+        return "DP5 Paint"
+
+    def _get_tool_menu_style(self) -> str: #vers 1
+        """Read menu_style from RAD_settings."""
+        return self.RAD_settings.get('menu_style', 'dropdown')
+
+    def _on_menu_btn_clicked(self): #vers 3
+        style = self.RAD_settings.get('menu_style')
+        if style == 'dropdown':
+            self._show_dropdown_menu()
+        else:
+            on = not self.RAD_settings.get('show_menubar')
+            self.RAD_settings.set('show_menubar', on)
+            self.RAD_settings.save()
+            c = getattr(self, '_menu_bar_container', self._menu_bar if hasattr(self, '_menu_bar') else None)
+            if c:
+                c.setMinimumHeight(0)
+                c.setMaximumHeight(16777215 if on else 0)
+                c.setVisible(on)
+
+    def _show_dropdown_menu(self): #vers 2
+        """Pop up the radar menus as a single QMenu dropdown."""
+        menu = QMenu(self)
+        self._build_menus_into_qmenu(menu)
+        btn = getattr(self, 'menu_toggle_btn', None)
+        if btn:
+            menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
+        else:
+            menu.exec(self.cursor().pos())
+
+
+    def _toggle_menubar(self, on: bool): #vers 3
+        self.RAD_settings.set('show_menubar', on)
+        self.RAD_settings.save()
+        c = getattr(self, '_menu_bar_container', self._menu_bar if hasattr(self, '_menu_bar') else None)
+        if c:
+            c.setMinimumHeight(0)
+            c.setMaximumHeight(16777215 if on else 0)
+            c.setVisible(on)
+
+
+    def _on_game_changed(self, game): #vers 3
+        if game not in GAME_PRESETS:
+            game = "Custom"
+        cust = (game == "Custom")
+        p = GAME_PRESETS[game]
+        for s in [self._cols_spin, self._rows_spin]:
+            s.setEnabled(cust)
+        # Always sync spinner values to preset (fixes VC staying at SA dimensions)
+        if hasattr(self, '_cols_spin'):
+            self._cols_spin.blockSignals(True)
+            self._cols_spin.setValue(p["cols"])
+            self._cols_spin.blockSignals(False)
+        if hasattr(self, '_rows_spin'):
+            self._rows_spin.blockSignals(True)
+            self._rows_spin.setValue(p["rows"])
+            self._rows_spin.blockSignals(False)
+        if hasattr(self, '_game_combo') and self._game_combo.currentText() != game:
+            self._game_combo.blockSignals(True)
+            self._game_combo.setCurrentText(game)
+            self._game_combo.blockSignals(False)
+        self._apply_preset(game)
+
+
+    def _on_custom_changed(self): #vers 1
+        if self._game_combo.currentText() == "Custom":
+            c=self._cols_spin.value(); r=self._rows_spin.value()
+            GAME_PRESETS["Custom"].update({"cols":c,"rows":r,"count":c*r})
+            self._apply_preset("Custom")
+
+
+    def _apply_preset(self, game): #vers 5
+        self._game_preset = GAME_PRESETS[game]
+        cols  = self._game_preset["cols"]
+        count = self._game_preset["count"]
+        label = self._game_preset["label"]
+        self._tile_rgba = {}; self._dirty_tiles = set(); self._current_idx = -1
+        self._tw = TILE_W; self._th = TILE_H   # reset to native on new file
+        names = [self._game_preset["name_fn"](i) for i in range(count)]
+        self._radar.setup(cols, count, names)
+
+        # Block tile_list signals entirely while rebuilding — prevents
+        # addItem() firing currentRowChanged(0) → _on_list_row(0) which
+        # would set _current_idx=0 (the RADAR00 bug)
+        self._tile_list.blockSignals(True)
+        self._tile_list.clear()
+        self._tile_list.setIconSize(QSize(THUMB, THUMB))
+        self._list_items = []
+        for i in range(count):
+            item = TileListItem(i, names[i], game_label=label)
+            self._tile_list.addItem(item)
+            self._list_items.append(item)
+        self._tile_list.blockSignals(False)
+        self._tile_list.setCurrentRow(-1)   # no selection after load
+
+        # Close any stale tile-zoom tabs from a previous file
+        if hasattr(self, '_view_tabs'):
+            self._view_tabs.blockSignals(True)
+            while self._view_tabs.count() > 1:
+                self._view_tabs.removeTab(self._view_tabs.count() - 1)
+            self._view_tabs.blockSignals(False)
+            self._view_tabs.setCurrentIndex(0)
+
+        hint = self._game_preset.get("hint", "")
+        self._set_status(f"{label} — {hint}" if hint else
+                         f"{label} — {count} tiles ({cols}×{self._game_preset['rows']})")
+
+
+    # - Font apply helpers (template pattern)
+    def _apply_title_font(self): #vers 1
+        if hasattr(self, 'title_label'): self.title_label.setFont(self.title_font)
+
+
+    def _apply_panel_font(self): #vers 1
+        for lbl in self.findChildren(QLabel):
+            if lbl.objectName() in ('panel_header',) or lbl.text() in ("Tiles","Modified: 0"):
+                lbl.setFont(self.panel_font)
+
+
+    def _apply_button_font(self): #vers 1
+        for btn in self.findChildren(QPushButton): btn.setFont(self.button_font)
+
+
+    def _apply_infobar_font(self): #vers 1
+        if hasattr(self,'status_label'): self.status_label.setFont(self.infobar_font)
+        if hasattr(self,'_dirty_lbl'):   self._dirty_lbl.setFont(self.infobar_font)
+
+
+    # - Docking (template pattern)
+    def _update_dock_button_visibility(self): #vers 1
+        if hasattr(self,'dock_btn'): self.dock_btn.setVisible(not self.is_docked)
+        if hasattr(self,'tearoff_btn'): self.tearoff_btn.setVisible(self.is_docked and not self.standalone_mode)
+
+    def _setup_hotkeys(self): #vers 1
+        self.hotkey_open  = QShortcut(QKeySequence.StandardKey.Open,  self); self.hotkey_open.activated.connect(self._open_file)
+        self.hotkey_save  = QShortcut(QKeySequence.StandardKey.Save,  self); self.hotkey_save.activated.connect(self._save_file)
+        self.hotkey_close = QShortcut(QKeySequence.StandardKey.Close, self); self.hotkey_close.activated.connect(self.close)
+        self.hotkey_find  = QShortcut(QKeySequence.StandardKey.Find,  self)
+        self.hotkey_help  = QShortcut(QKeySequence.StandardKey.HelpContents, self)
+        # Zoom keys
+        QShortcut(QKeySequence(Qt.Key.Key_Plus),  self).activated.connect(lambda: self._zoom(1.25))
+        QShortcut(QKeySequence(Qt.Key.Key_Equal), self).activated.connect(lambda: self._zoom(1.25))
+        QShortcut(QKeySequence(Qt.Key.Key_Minus), self).activated.connect(lambda: self._zoom(0.8))
+        QShortcut(QKeySequence("Ctrl++"),         self).activated.connect(lambda: self._zoom(1.25))
+        QShortcut(QKeySequence("Ctrl+-"),         self).activated.connect(lambda: self._zoom(0.8))
+        QShortcut(QKeySequence("Ctrl+0"),         self).activated.connect(self._fit)
+        # Tile edit popup
+        QShortcut(QKeySequence(Qt.Key.Key_E), self).activated.connect(self._edit_tile_popup)
+        QShortcut(QKeySequence("Ctrl+Z"), self).activated.connect(self._undo)
+        QShortcut(QKeySequence("Ctrl+Y"), self).activated.connect(self._redo)
+        QShortcut(QKeySequence("Ctrl+Shift+Z"), self).activated.connect(self._redo)
+        QShortcut(QKeySequence("Ctrl+C"), self).activated.connect(self._copy_current_tile)
+        QShortcut(QKeySequence("Ctrl+V"), self).activated.connect(self._paste_current_tile)
+        QShortcut(QKeySequence(Qt.Key.Key_Z), self).activated.connect(lambda: self._set_draw_tool('zoom'))
+        QShortcut(QKeySequence(Qt.Key.Key_R), self).activated.connect(lambda: self._set_draw_tool('rect'))
+        QShortcut(QKeySequence("Shift+R"),    self).activated.connect(lambda: self._set_draw_tool('rect_fill'))
+        QShortcut(QKeySequence(Qt.Key.Key_X), self).activated.connect(lambda: self._set_draw_tool('cut'))
+        QShortcut(QKeySequence(Qt.Key.Key_V), self).activated.connect(lambda: self._set_draw_tool('paste'))
+        # Draw tool keys
+        QShortcut(QKeySequence(Qt.Key.Key_P), self).activated.connect(lambda: self._set_draw_tool('pencil'))
+        QShortcut(QKeySequence(Qt.Key.Key_L), self).activated.connect(lambda: self._set_draw_tool('line'))
+        QShortcut(QKeySequence(Qt.Key.Key_F), self).activated.connect(lambda: self._set_draw_tool('fill'))
+        QShortcut(QKeySequence(Qt.Key.Key_K), self).activated.connect(lambda: self._set_draw_tool('picker'))
+        if self.main_window and hasattr(self.main_window,'log_message'):
+            self.main_window.log_message(f"{App_name} hotkeys ready")
+
+
+    def _refresh_icons(self): #Vers 1
+        SVGIconFactory.clear_cache()
+        # Re-apply theme-aware icon colour to toolbar buttons
+        color = self._get_icon_color()
+        icon_map = [
+            ('settings_btn',    'settings_icon'),
+            ('new_session_btn', 'add_icon'),
+            ('clear_btn',       'delete_icon'),
+            ('properties_btn',  'properties_icon'),
+            ('docked_settings_btn', 'settings_icon'),
+        ]
+        for attr, method in icon_map:
+            if hasattr(self, attr):
+                btn = getattr(self, attr)
+                btn.setIcon(getattr(SVGIconFactory, method)(20, color))
+        # Window control buttons
+        for attr, method in [('minimize_btn','minimize_icon'),
+                              ('maximize_btn','maximize_icon'),
+                              ('close_btn','close_icon')]:
+            if hasattr(self, attr):
+                getattr(self, attr).setIcon(getattr(SVGIconFactory, method)(20, color))
+
+
+   # - File ops
+
+    def _open_file(self, path: str = ""): #vers 4
+        """Open radar IMG/TXD/PVR file. Pass path to skip the file dialog."""
+        source = self._game_preset.get("img_source", "img")
+        hint   = self._game_preset.get("hint", "")
+
+        # Formats not yet supported — show info and return
+        if source in ("toc", "chk", "xtx"):
+            label = self._game_preset.get("label", "")
+            QMessageBox.information(self, "Format Not Yet Supported",
+                f"{label}\n\n{hint}\n\n"
+                f"This format ({source.upper()}) is not yet supported in Radar Workshop.\n"
+                f"Support is planned for a future build.")
+            return
+
+        if not path:
+            # Build file filter based on source
+            if source == "txd":
+                filt  = "TXD Files (*.txd);;All Files (*)"
+                title = "Open Radar TXD"
+            elif source == "pvr":
+                filt  = "PVR IMG Archives (*.pvr *.img);;All Files (*)"
+                title = "Open Radar PVR"
+            else:  # img
+                filt  = "IMG Archives (*.img);;All Files (*)"
+                title = "Open Radar IMG"
+            path,_ = QFileDialog.getOpenFileName(self, title, "", filt)
+            if not path: return
+
+        # Standalone .txd files
+        if path.lower().endswith('.txd'):
+            self._load_standalone_txd(path)
+            return
+
+        # IMG / PVR — both use ImgReader (VER2 or V1+dir)
+        try: self._img_reader = ImgReader(path); self._img_path = path
+        except Exception as e: QMessageBox.critical(self, "Load Error", str(e)); return
+
+        # Search using a broad pattern first — find ALL radar*.txd entries
+        # Then use tile COUNT to auto-detect the game (authoritative)
+        fname = Path(path).name.lower()
+
+        # Use broad search pattern to find everything
+        broad_pat = r'^radar(\d{2,4})\.txd$'
+        entries = self._img_reader.find_radar_entries(broad_pat)
+
+        if not entries:
+            # Nothing found — try current preset pattern as fallback
+            entries = self._img_reader.find_radar_entries(self._game_preset["img_pattern"])
+
+        if not entries:
+            radar_like = self._img_reader.list_radar_like('radar')
+            sample = ', '.join(radar_like[:6]) if radar_like else 'none'
+            QMessageBox.warning(self, "No Radar Tiles",
+                f"No radar TXDs found in {Path(path).name}\n\n"
+                f"Radar-like entries: {sample}\n"
+                f"Ensure you are loading the correct .img file for your game.")
+            return
+
+        def _tile_sort_key(e):
+            m = re.search(r'(\d+)', e["name"])
+            return int(m.group(1)) if m else 0
+        entries.sort(key=_tile_sort_key)
+
+        # Auto-detect game by tile count — most reliable signal
+        self._autodetect(len(entries))
+
+        # Cap to detected preset count (removes extra files like radarmap, radardisc etc)
+        p = self._game_preset
+        entries = entries[:p["count"]]
+
+        # For SOL, override with correct radartex pattern to avoid non-radar files
+        if fname == 'radartex.img':
+            self._on_game_changed('SOL')
+            p = self._game_preset
+            entries_sol = self._img_reader.find_radar_entries(r'^radar\d{4}\.txd$')
+            if entries_sol:
+                entries = entries_sol[:p["count"]]
+
+        self._tile_entries = entries
+        prog=QProgressDialog("Loading tiles…","Cancel",0,len(entries),self)
+        prog.setWindowModality(Qt.WindowModality.WindowModal); prog.show()
+        for i,entry in enumerate(entries):
+            prog.setValue(i); QApplication.processEvents()
+            if prog.wasCanceled(): break
+            try:
+                rgba,w,h,_=RadarTxdReader.read(self._img_reader.get_entry_data(entry))
+                self._tile_rgba[i]=rgba; self._radar.set_tile(i,rgba,w,h)
+                if i<len(self._list_items): self._list_items[i].set_thumb(rgba,w,h)
+            except Exception as e: print(f"WARN tile {i}: {e}",file=sys.stderr)
+        prog.setValue(len(entries)); self._dirty_tiles=set()
+        self.save_btn.setEnabled(True)
+        self.RAD_settings.add_recent(str(path))
+        self._set_status(f"Loaded {len(entries)} tiles from {Path(path).name}  — game: {self._game_preset['label']}  grid: {self._game_preset['cols']}×{self._game_preset['rows']}")
+
+    def _load_standalone_txd(self, path: str): #vers 1
+        """Load a standalone .txd file (GTA III / VC radar — single texture file)."""
+        try:
+            data = Path(path).read_bytes()
+            rgba, w, h, tex_name = RadarTxdReader.read(data)
+        except Exception as e:
+            QMessageBox.critical(self, "TXD Load Error", str(e))
+            return
+
+        # Single texture — show as 1x1 grid
+        self._img_reader   = None
+        self._img_path     = path
+        self._tile_entries = [{"name": tex_name, "offset": 0, "size": len(data)}]
+        GAME_PRESETS["Custom"].update({"cols": 1, "rows": 1, "count": 1})
+        self._on_game_changed("Custom")
+        self._cols_spin.setValue(1); self._rows_spin.setValue(1)
+
+        self._tile_rgba[0] = rgba
+        self._radar.set_tile(0, rgba, w, h)
+        if self._list_items:
+            self._list_items[0].set_thumb(rgba, w, h)
+        self._dirty_tiles = set()
+        self.save_btn.setEnabled(True)
+        self._set_status(
+            f"Loaded standalone TXD: {tex_name}  {w}×{h}px  from {Path(path).name}")
+
+
+    def _autodetect(self, count): #vers 4
+        """Detect preset by tile count — authoritative lookup table.
+        SA=144(12x12)  III/VC/LCS/VCS=64(8x8)  SOL=1296(36x36)
+        Prefers PC variants over mobile."""
+        # Exact count match — prefer PC variants
+        pc_order = ["SA PC","III PC","VC PC","LCS PC","VCS PC","SOL",
+                    "LCS iOS","III And","VC And","SA And","LCS PSP","VCS PSP"]
+        for game in pc_order:
+            p = GAME_PRESETS.get(game, {})
+            if p.get("count") == count:
+                self._on_game_changed(game)
+                return
+
+        # Near-match (within 12 tiles of a PC preset)
+        for game in pc_order:
+            p = GAME_PRESETS.get(game, {})
+            if game == "Custom": continue
+            if abs(p.get("count", 0) - count) <= 12:
+                self._on_game_changed(game)
+                self._set_status(
+                    f"Loaded {count} tiles (nearest preset: {p['label']} "
+                    f"{p['cols']}×{p['rows']}) — adjust W/H if wrong")
+                return
+
+        # Unknown — sqrt grid
+        cols = max(1, round(math.sqrt(count)))
+        rows = (count + cols - 1) // cols
+        GAME_PRESETS["Custom"].update({"cols": cols, "rows": rows, "count": count})
+        self._on_game_changed("Custom")
+        self._set_status(
+            f"Loaded {count} tiles — unknown layout, using {cols}×{rows} "
+            f"(adjust W/H spinners if wrong)")
+
+    def _save_file(self): #vers 2
+        """Save all modified tiles back to the IMG archive."""
+        if not self._img_reader:
+            QMessageBox.information(self, "Nothing to Save",
+                "No IMG file is loaded."); return
+        if not self._dirty_tiles:
+            QMessageBox.information(self, "Nothing to Save",
+                "No tiles have been modified."); return
+
+        # Default to same file (overwrite), or let user choose
+        default = str(self._img_path) if self._img_path else ""
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Save Radar IMG", default,
+            "IMG Archives (*.img);;All Files (*)")
+        if not path: return
+
+        try:
+            dirty = sorted(self._dirty_tiles)
+            oversized = []
+            data = bytearray(self._img_reader._img_data)
+
+            for idx in dirty:
+                if idx >= len(self._tile_entries): continue
+                e    = self._tile_entries[idx]
+                rgba = self._tile_rgba.get(idx)
+                if not rgba: continue
+
+                tex_name = Path(e["name"]).stem   # strip .txd extension
+                new_data = RadarTxdReader.write(rgba, TILE_W, TILE_H, tex_name)
+                off  = e["offset"]
+                slot = e["size"]
+
+                if len(new_data) > slot:
+                    # New tile is larger than original slot — warn but write anyway
+                    oversized.append(f"  tile {idx} ({tex_name}): "
+                                     f"{len(new_data)} > {slot} bytes")
+                    # Pad or truncate to fit original slot
+                    new_data = (new_data + b'\x00' * max(0, slot - len(new_data)))[:slot]
+
+                data[off:off + slot] = new_data + b'\x00' * max(0, slot - len(new_data))
+
+            Path(path).write_bytes(bytes(data))
+
+            # Copy .dir companion for V1 archives
+            if self._img_path:
+                sd = Path(self._img_path).with_suffix('.dir')
+                dd = Path(path).with_suffix('.dir')
+                if sd.exists() and str(sd) != str(dd):
+                    import shutil as _sh
+                    _sh.copy2(sd, dd)
+
+            # Clear dirty state
+            for i in range(len(self._tile_entries)):
+                self._radar.set_dirty(i, False)
+            self._dirty_tiles = set()
+            self._dirty_lbl.setText("Modified: 0")
+            self.save_btn.setEnabled(False)
+            self._img_path = path   # update path to saved file
+
+            msg = f"Saved {len(dirty)} tile(s) to {Path(path).name}"
+            if oversized:
+                msg += f"\nWarning — {len(oversized)} tile(s) were truncated to fit:"
+                msg += "\n" + "\n".join(oversized[:5])
+                QMessageBox.warning(self, "Save Complete with Warnings", msg)
+            else:
+                self._set_status(msg)
+                self.RAD_settings.add_recent(path)
+
+        except Exception as e:
+            import traceback
+            QMessageBox.critical(self, "Save Error",
+                f"Failed to save {Path(path).name}:\n{e}\n\n{traceback.format_exc()[-300:]}")
+
+    # - Tile selection
+
+    def _edit_tile_popup(self, idx: int = -1): #vers 3
+        """Open a tile as a zoom tab in the main view area.
+        Sidebar tools work directly — no separate window needed."""
+        if idx < 0:
+            idx = self._current_idx
+        if idx < 0:
+            self._set_status("Select a tile first"); return
+        if idx not in self._tile_rgba:
+            self._set_status(f"Tile {idx} not yet loaded — click it in the grid first"); return
+        name = (self._tile_entries[idx]["name"]
+                if idx < len(self._tile_entries) else f"tile_{idx}")
+        self._set_status(f"Opening tile {idx}: {name}")
+        self._open_tile_tab(idx)
+
+    def _open_tile_tab(self, idx: int): #vers 1
+        """Open tile idx as a zoom tab in the main view area.
+        Tab is named 'idx: TILENAM'. Switching tabs auto-selects the tile."""
+        if not hasattr(self, '_view_tabs'): return
+
+        # Check if already open
+        for i in range(1, self._view_tabs.count()):
+            w = self._view_tabs.widget(i)
+            if getattr(w, '_tile_idx', -1) == idx:
+                self._view_tabs.setCurrentIndex(i)
+                return
+
+        name = (self._tile_entries[idx]["name"]
+                if idx < len(self._tile_entries) else f"tile_{idx}")
+        rgba = self._tile_rgba[idx]
+
+        # Create a tile canvas widget that scales to fill the tab
+        tile_view = _TileZoomView(idx, name, rgba, self)
+        tab_label = f"{idx}: {name}"
+        self._view_tabs.addTab(tile_view, tab_label)
+        self._view_tabs.setCurrentWidget(tile_view)
+
+    def _on_view_tab_changed(self, tab_idx: int): #vers 2
+        """When user switches tabs — sync tile selection if it's a tile tab."""
+        if tab_idx == 0:
+            return  # Map tab — keep whatever tile is currently selected
+        w = self._view_tabs.widget(tab_idx)
+        tile_idx = getattr(w, '_tile_idx', -1)
+        if tile_idx >= 0:
+            # Update _current_idx without triggering another tab switch
+            self._current_idx = tile_idx
+            self._radar.set_selected(tile_idx)
+            # Block signals so setCurrentRow doesn't re-fire _on_list_row
+            self._tile_list.blockSignals(True)
+            self._tile_list.setCurrentRow(tile_idx)
+            self._tile_list.blockSignals(False)
+
+    def _on_view_tab_close(self, tab_idx: int): #vers 1
+        """Close a tile tab (Map tab at index 0 is never closable)."""
+        if tab_idx == 0: return
+        self._view_tabs.removeTab(tab_idx)
+
+    def _refresh_tile_tab(self, idx: int): #vers 1
+        """Refresh a tile tab's pixmap after a transform or import."""
+        if not hasattr(self, '_view_tabs'): return
+        if idx not in self._tile_rgba: return
+        rgba = self._tile_rgba[idx]
+        for i in range(1, self._view_tabs.count()):
+            w = self._view_tabs.widget(i)
+            if getattr(w, '_tile_idx', -1) == idx:
+                w.refresh(rgba)
+                break
+
+    def _editor_refresh(self, tabs=None): #vers 2
+        """Refresh the current tile tab — called after transforms."""
+        self._refresh_tile_tab(self._current_idx)
+
+    def _on_tile_list_context(self, pos): #vers 1
+        """Right-click context menu on tile list item."""
+        item = self._tile_list.itemAt(pos)
+        if item is None: return
+        idx = item.idx
+
+        from PyQt6.QtWidgets import QMenu
+        menu = QMenu(self)
+        icon_color = self._get_icon_color()
+
+        act_copy   = menu.addAction(
+            SVGIconFactory.open_icon(16, icon_color),   "Copy tile")
+        act_paste  = menu.addAction(
+            SVGIconFactory.save_icon(16, icon_color),   "Paste tile")
+        act_paste.setEnabled(hasattr(self, '_clipboard_tile') and self._clipboard_tile is not None)
+        menu.addSeparator()
+        act_export = menu.addAction(
+            SVGIconFactory.export_icon(16, icon_color), "Export tile as PNG…")
+        act_import = menu.addAction(
+            SVGIconFactory.import_icon(16, icon_color), "Import tile from PNG…")
+        menu.addSeparator()
+        act_delete = menu.addAction(
+            SVGIconFactory.delete_icon(16, icon_color), "Delete tile (reset to blank)")
+
+        chosen = menu.exec(self._tile_list.mapToGlobal(pos))
+        if chosen is None: return
+
+        if chosen == act_copy:
+            self._clipboard_tile = self._tile_rgba.get(idx)
+            self._set_status(f"Copied tile {idx}")
+        elif chosen == act_paste:
+            if hasattr(self, '_clipboard_tile') and self._clipboard_tile:
+                rgba = self._clipboard_tile
+                self._tile_rgba[idx] = rgba
+                self._dirty_tiles.add(idx)
+                self._radar.set_tile(idx, rgba, TILE_W, TILE_H)
+                self._radar.set_dirty(idx, True)
+                if idx < len(self._list_items):
+                    self._list_items[idx].set_thumb(rgba, TILE_W, TILE_H)
+                self._refresh_tile_tab(idx)
+                self.save_btn.setEnabled(True)
+                self._dirty_lbl.setText(f"Modified: {len(self._dirty_tiles)}")
+                self._set_status(f"Pasted to tile {idx}")
+        elif chosen == act_export:
+            self._export_single_tile(idx)
+        elif chosen == act_import:
+            self._import_single_tile(idx)
+        elif chosen == act_delete:
+            self._delete_single_tile(idx)
+
+    def _export_single_tile(self, idx: int): #vers 2
+        """Export a single tile as PNG/BMP — exports true colour data."""
+        if idx not in self._tile_rgba:
+            QMessageBox.information(self, "No Data",
+                "Tile not loaded — click it in the grid first."); return
+        name = self._tile_entries[idx]["name"] if idx < len(self._tile_entries) else f"tile_{idx}"
+        stem = Path(name).stem
+        path, _ = QFileDialog.getSaveFileName(
+            self, f"Export tile — {stem}", f"{stem}.png",
+            "PNG Image (*.png);;BMP Image (*.bmp);;All Files (*)")
+        if not path: return
+        try:
+            from PIL import Image
+            rgba = self._tile_rgba[idx]   # always export true colour
+            img  = Image.frombytes("RGBA", (TILE_W, TILE_H), rgba)
+            if path.lower().endswith('.bmp'):
+                img = img.convert("RGB")
+            img.save(path)
+            self._set_status(f"Exported tile {idx} ({name}) → {Path(path).name}  {TILE_W}×{TILE_H}")
+        except Exception as e:
+            QMessageBox.critical(self, "Export Error", str(e))
+
+    def _import_single_tile(self, idx: int): #vers 2
+        """Import a single tile from PNG/BMP/TGA — auto-resizes to 128×128."""
+        name = self._tile_entries[idx]["name"] if idx < len(self._tile_entries) else f"tile_{idx}"
+        path, _ = QFileDialog.getOpenFileName(
+            self, f"Import tile — {name}", "",
+            "Images (*.png *.bmp *.jpg *.jpeg *.tga *.tif *.webp);;All Files (*)")
+        if not path: return
+        try:
+            from PIL import Image
+            img = Image.open(path).convert("RGBA")
+            src_w, src_h = img.size
+            if img.size != (TILE_W, TILE_H):
+                img = img.resize((TILE_W, TILE_H), Image.LANCZOS)
+            rgba = img.tobytes()
+            self._push_undo(idx)
+            self.ws_commit_draw(idx, rgba)
+            if hasattr(self, '_palette_widget') and self._current_idx == idx:
+                self._palette_widget.set_colors_from_rgba(rgba, TILE_W, TILE_H)
+            self._set_status(
+                f"Imported tile {idx} ({name}) from {Path(path).name} "
+                f"({src_w}×{src_h} → {TILE_W}×{TILE_H})")
+        except Exception as e:
+            QMessageBox.critical(self, "Import Error", str(e))
+
+    def _delete_single_tile(self, idx: int): #vers 2
+        """Reset a tile to solid black (opaque) with undo support."""
+        name = self._tile_entries[idx]["name"] if idx < len(self._tile_entries) else f"tile_{idx}"
+        if QMessageBox.question(self, "Reset Tile",
+                f"Reset tile {idx} ({name}) to solid black?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                ) != QMessageBox.StandardButton.Yes:
+            return
+        self._push_undo(idx)
+        rgba = bytes([0, 0, 0, 255] * (TILE_W * TILE_H))   # opaque black
+        self.ws_commit_draw(idx, rgba)
+        self._set_status(f"Tile {idx} ({name}) reset to black")
+
+    def _on_list_row(self, row): #vers 3
+        if row < 0: return
+        self._current_idx = row
+        self._radar.set_selected(row)
+        name = (self._tile_entries[row]["name"] if row < len(self._tile_entries)
+                else self._game_preset["name_fn"](row))
+        # Determine format/bitdepth from current preset
+        lbl = self._game_preset.get("label", "")
+        if "PS2" in lbl:   fmt = "PAL8 · 8bpp"
+        elif "Xbox" in lbl: fmt = "DXT1 · 4bpp"
+        elif "iOS" in lbl or "PVR" in lbl: fmt = "PVRTC · 4bpp"
+        else:               fmt = "DXT1 · 4bpp"
+        mod = "  [modified]" if row in self._dirty_tiles else ""
+        self._set_status(f"Tile {row}  |  {name}  |  {TILE_W}×{TILE_H}  {fmt}{mod}")
+        # Update palette from tile colours
+        if hasattr(self, '_palette_widget') and row in self._tile_rgba:
+            self._palette_widget.set_colors_from_rgba(self._tile_rgba[row], TILE_W, TILE_H)
+
+    def _on_grid_color_picked(self, color: QColor, is_left: bool): #vers 2
+        """Grid emits this on every click — only act if dropper tool is active."""
+        if getattr(self, '_draw_tool', '') != 'picker':
+            return
+        # Alpha pending: this pick sets the key colour
+        if getattr(self, '_alpha_pending', False) and is_left:
+            self._apply_alpha_key(color)
+            return
+        if is_left:
+            self._fg_color = color
+        else:
+            self._bg_color = color
+        self._update_swatch_buttons()
+        which = "FG" if is_left else "BG"
+        self._set_status(f"Picked {which}: {color.name()}  ({color.red()},{color.green()},{color.blue()})")
+
+    def _on_grid_click(self, idx): #vers 3
+        """Grid tile clicked — set _current_idx directly then sync list."""
+        self._current_idx = idx          # set first, before any signal fires
+        self._radar.set_selected(idx)
+        self._tile_list.blockSignals(True)
+        self._tile_list.setCurrentRow(idx)
+        self._tile_list.blockSignals(False)
+        self._on_list_row(idx)           # update palette, status bar etc.
+
+    def _on_grid_right_click(self, idx: int, gpos): #vers 1
+        """Right-click on grid tile — context menu with edit/colour/export."""
+        from PyQt6.QtWidgets import QMenu
+        name = (self._tile_entries[idx]["name"]
+                if idx < len(self._tile_entries) else f"tile_{idx}")
+        icon_c = self._get_icon_color()
+
+        menu = QMenu(self)
+        menu.addSection(f"Tile {idx}: {name}")
+        act_edit   = menu.addAction(SVGIconFactory.search_icon(16, icon_c),  "Open in tile editor (E)")
+        menu.addSeparator()
+        act_copy   = menu.addAction(SVGIconFactory.open_icon(16, icon_c),    "Copy tile")
+        act_paste  = menu.addAction(SVGIconFactory.save_icon(16, icon_c),    "Paste tile")
+        act_paste.setEnabled(bool(getattr(self, '_clipboard_tile', None)))
+        menu.addSeparator()
+        act_swap   = menu.addAction("Replace dominant colour with FG")
+        act_fill   = menu.addAction("Fill tile solid with FG colour")
+        menu.addSeparator()
+        act_export = menu.addAction(SVGIconFactory.export_icon(16, icon_c),  "Export tile as PNG…")
+        act_import = menu.addAction(SVGIconFactory.import_icon(16, icon_c),  "Import tile from PNG…")
+        menu.addSeparator()
+        act_delete = menu.addAction(SVGIconFactory.delete_icon(16, icon_c),  "Reset tile to blank")
+
+        chosen = menu.exec(gpos)
+        if chosen is None: return
+        if chosen == act_edit:
+            self._current_idx = idx; self._edit_tile_popup(idx)
+        elif chosen == act_copy:
+            self._clipboard_tile = self._tile_rgba.get(idx)
+            self._set_status(f"Copied tile {idx}: {name}")
+        elif chosen == act_paste:
+            if getattr(self, '_clipboard_tile', None):
+                self._apply_tile_data(idx, self._clipboard_tile)
+                self._set_status(f"Pasted to tile {idx}: {name}")
+        elif chosen == act_swap:
+            self._grid_swap_color(idx, self._fg_color)
+        elif chosen == act_fill:
+            self._grid_fill_solid(idx, self._fg_color)
+        elif chosen == act_export:
+            self._export_single_tile(idx)
+        elif chosen == act_import:
+            self._import_single_tile(idx)
+        elif chosen == act_delete:
+            self._delete_single_tile(idx)
+
+    def _apply_tile_data(self, idx: int, rgba: bytes): #vers 2
+        """Apply rgba bytes to a tile slot — updates grid, list thumb, dirty."""
+        tw, th = self._tw, self._th
+        self._push_undo(idx)
+        self._tile_rgba[idx] = rgba
+        self._dirty_tiles.add(idx)
+        self._radar.set_tile(idx, rgba, tw, th)
+        self._radar.set_dirty(idx, True)
+        if idx < len(self._list_items):
+            self._list_items[idx].set_thumb(rgba, tw, th)
+        self._refresh_tile_tab(idx)
+        self.save_btn.setEnabled(True)
+        self._dirty_lbl.setText(f"Modified: {len(self._dirty_tiles)}")
+
+    def _grid_swap_color(self, idx: int, new_color: QColor): #vers 1
+        """Replace the most dominant colour in a tile with new_color."""
+        if idx not in self._tile_rgba: return
+        from collections import Counter
+        rgba = bytearray(self._tile_rgba[idx])
+        nr, ng, nb_v = new_color.red(), new_color.green(), new_color.blue()
+        buckets = Counter()
+        for i in range(0, len(rgba)-3, 4):
+            if rgba[i+3] > 16:
+                buckets[(rgba[i]>>4, rgba[i+1]>>4, rgba[i+2]>>4)] += 1
+        if not buckets: return
+        dom = buckets.most_common(1)[0][0]
+        dr, dg, db_v = dom[0]<<4, dom[1]<<4, dom[2]<<4
+        for i in range(0, len(rgba)-3, 4):
+            if (rgba[i+3] > 16 and abs(rgba[i]-dr) < 32
+                    and abs(rgba[i+1]-dg) < 32 and abs(rgba[i+2]-db_v) < 32):
+                rgba[i], rgba[i+1], rgba[i+2] = nr, ng, nb_v
+        self._apply_tile_data(idx, bytes(rgba))
+        self._set_status(f"Swapped dominant colour in tile {idx}")
+
+    def _grid_fill_solid(self, idx: int, color: QColor): #vers 1
+        """Fill entire tile with a solid colour."""
+        if idx not in self._tile_rgba: return
+        r, g, b = color.red(), color.green(), color.blue()
+        self._apply_tile_data(idx, bytes([r, g, b, 255] * (TILE_W * TILE_H)))
+        self._set_status(f"Filled tile {idx} with FG colour")
+
+    # - Export/Import sheet
+    def _export_sheet(self): #vers 2
+        """Export all loaded tiles as a single combined PNG or BMP map image."""
+        if not self._tile_rgba:
+            QMessageBox.information(self, "Nothing to Export", "Load a radar IMG first.")
+            return
+        preset = self._game_preset
+        cols   = preset["cols"]
+        rows   = preset.get("rows", (len(self._tile_rgba) + cols - 1) // cols)
+        default_name = f"radar_map_{preset['cols']}x{preset['rows']}.png"
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Full Radar Map", default_name,
+            "PNG Image (*.png);;BMP Image (*.bmp);;All Images (*)")
+        if not path: return
+        try:
+            from PIL import Image
+            sheet = Image.new("RGBA", (cols * TILE_W, rows * TILE_H), (0, 0, 0, 255))
+            exported = 0
+            for idx, rgba in self._tile_rgba.items():
+                if len(rgba) == TILE_W * TILE_H * 4:
+                    x = (idx % cols) * TILE_W
+                    y = (idx // cols) * TILE_H
+                    sheet.paste(Image.frombytes("RGBA", (TILE_W, TILE_H), rgba), (x, y))
+                    exported += 1
+            # BMP doesn't support alpha — convert to RGB
+            if path.lower().endswith('.bmp'):
+                sheet = sheet.convert("RGB")
+            sheet.save(path)
+            w_px, h_px = cols * TILE_W, rows * TILE_H
+            self._set_status(
+                f"Exported {exported} tiles → {Path(path).name}  ({w_px}×{h_px}px)")
+        except Exception as e:
+            QMessageBox.critical(self, "Export Error", str(e))
+
+    def _import_sheet(self): #vers 2
+        """Import a full map PNG/BMP and slice it into tiles using preset grid dimensions."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Import Full Radar Map", "",
+            "PNG Image (*.png);;BMP Image (*.bmp);;All Images (*)")
+        if not path: return
+        try:
+            from PIL import Image
+            sheet  = Image.open(path).convert("RGBA")
+            preset = self._game_preset
+            cols   = preset["cols"]
+            rows   = preset["rows"]
+            count  = preset["count"]
+            # Tile size from the image (may differ from TILE_W/H if different game)
+            tw = sheet.width  // cols
+            th = sheet.height // rows
+            if tw <= 0 or th <= 0:
+                QMessageBox.warning(self, "Import Error",
+                    f"Image size {sheet.width}×{sheet.height} is too small for "
+                    f"{cols}×{rows} grid.")
+                return
+            # Progress dialog for large maps (SOL = 1296 tiles)
+            prog = None
+            total = min(count, cols * rows)
+            if total > 64:
+                prog = QProgressDialog(f"Importing {total} tiles…", "Cancel", 0, total, self)
+                prog.setWindowModality(Qt.WindowModality.WindowModal)
+                prog.show()
+
+            imported = 0
+            for idx in range(total):
+                if prog:
+                    prog.setValue(idx)
+                    QApplication.processEvents()
+                    if prog.wasCanceled(): break
+                col_i = idx % cols
+                row_i = idx // cols
+                tile  = sheet.crop((col_i * tw, row_i * th,
+                                    (col_i+1) * tw, (row_i+1) * th))
+                if tw != TILE_W or th != TILE_H:
+                    tile = tile.resize((TILE_W, TILE_H), Image.LANCZOS)
+                rgba = tile.tobytes()
+                self._push_undo(idx)
+                self.ws_commit_draw(idx, rgba)
+                imported += 1
+
+            if prog:
+                prog.setValue(total)
+
+            if hasattr(self, '_palette_widget') and 0 in self._tile_rgba:
+                self._palette_widget.set_colors_from_rgba(
+                    self._tile_rgba[0], TILE_W, TILE_H)
+            self._set_status(
+                f"Imported {imported} tiles from {Path(path).name}  "
+                f"(sliced {cols}×{rows} from {sheet.width}×{sheet.height}px)")
+        except Exception as e:
+            QMessageBox.critical(self, "Import Error", str(e))
+
+    # - Grid nav
+    def _zoom(self, f): #vers 3
+        """Scale the radar grid — uses RadarGridWidget zoom factor."""
+        if hasattr(self, '_radar'):
+            self._radar._zoom_factor = max(0.1, min(10.0, self._radar._zoom_factor * f))
+            self._radar.update()
+
+    def _apply_grid_zoom(self): #vers 1
+        """Apply current zoom level to radar grid size."""
+        if not hasattr(self, '_grid_zoom'): self._grid_zoom = 1.0
+        sc = getattr(self, '_radar_scroll', None)
+        if sc is None:
+            # find scroll area parent
+            p = self._radar.parent()
+            while p:
+                from PyQt6.QtWidgets import QScrollArea
+                if isinstance(p, QScrollArea): sc = p; break
+                p = p.parent()
+        if sc is None: return
+        vp_w = sc.viewport().width()
+        vp_h = sc.viewport().height()
+        preset = self._game_preset
+        cols = preset["cols"]; rows = preset.get("rows", 8)
+        if self._grid_zoom <= 1.0:
+            # Fit mode — let scroll area control size
+            self._radar.setMinimumSize(0, 0)
+        else:
+            # Fixed size mode — set explicit size
+            cell = max(4, int(self._grid_zoom * min(vp_w // cols, vp_h // rows)))
+            self._radar.setMinimumSize(cell * cols, cell * rows)
+        self._radar.update()
+
+    def _fit(self): #vers 3
+        """Reset zoom/pan to fit all tiles."""
+        if hasattr(self, '_radar'):
+            self._radar._zoom_factor = 1.0
+            self._radar._pan_x = 0
+            self._radar._pan_y = 0
+            self._radar.update()
+        return
+
+    def _fit_old(self): #vers 2
+        """Reset to fit-in-window zoom."""
+        self._grid_zoom = 1.0
+        self._apply_grid_zoom()
+    def _jump(self): #vers 1
+        if self._current_idx>=0:
+            self._tile_list.scrollToItem(self._tile_list.item(self._current_idx),QAbstractItemView.ScrollHint.PositionAtCenter)
+
+    # - Status
+    def _set_status(self, msg): #vers 1
+        if hasattr(self,'status_label'): self.status_label.setText(msg)
+
+
+    # - Theme & icon helpers (template pattern)
+    def _apply_theme(self): #vers 1
+        try:
+            if self.app_settings:
+                self.setStyleSheet(self.app_settings.get_stylesheet())
+            else:
+                self.setStyleSheet("QWidget{background:palette(base);color:palette(mid);} QPushButton{background:palette(button);border:1px solid palette(mid);color:palette(mid);padding:2px 4px;} QPushButton:hover{background:#4a4d50;}")
+        except Exception as e:
+            print(f"[{App_name}] Theme error: {e}")
+
+
+    # - Info / Settings / Theme
+    def _open_recent(self, path: str): #vers 2
+        """Open a recently used IMG file — uses same logic as _open_file."""
+        import os
+        if not os.path.isfile(path):
+            QMessageBox.warning(self, "File Not Found",
+                f"Cannot find:\n{path}\n\nRemoving from recent files.")
+            self.RAD_settings._data['recent_files'] = [
+                p for p in self.RAD_settings.get_recent() if p != path]
+            self.RAD_settings.save()
+            return
+        # Delegate to _open_file which handles broad-pattern search + autodetect
+        self._open_file(path)
+
+    def _clear_recent(self): #vers 1
+        self.RAD_settings._data['recent_files'] = []
+        self.RAD_settings.save()
+        self._set_status("Recent files cleared")
+
+    def _show_stats(self): #vers 1
+        """Map statistics — unique colours, duplicate tiles, modified count."""
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QPushButton
+        if not self._tile_rgba:
+            QMessageBox.information(self, "No Data", "Load an IMG file first."); return
+
+        total = len(self._tile_entries)
+        loaded = len(self._tile_rgba)
+        modified = len(self._dirty_tiles)
+
+        # Unique colours across all tiles
+        seen_colors: set = set()
+        tile_hashes: dict = {}
+        for idx, rgba in self._tile_rgba.items():
+            import hashlib
+            h = hashlib.md5(rgba).hexdigest()
+            tile_hashes[idx] = h
+            step = 4
+            for i in range(0, len(rgba)-3, step*4):
+                r,g,b,a = rgba[i],rgba[i+1],rgba[i+2],rgba[i+3]
+                if a > 16:
+                    seen_colors.add((r>>3, g>>3, b>>3))
+
+        # Find duplicate tiles
+        from collections import defaultdict
+        hash_groups = defaultdict(list)
+        for idx, h in tile_hashes.items():
+            hash_groups[h].append(idx)
+        duplicates = {h:idxs for h,idxs in hash_groups.items() if len(idxs) > 1}
+
+        lines = [
+            f"<b>Tiles:</b> {loaded} loaded of {total} total",
+            f"<b>Modified:</b> {modified}",
+            f"<b>Unique colours:</b> ~{len(seen_colors)} (sampled)",
+            f"<b>Duplicate tile groups:</b> {len(duplicates)}",
+        ]
+        if duplicates:
+            lines.append("<br><b>Top duplicates:</b>")
+            for h, idxs in list(duplicates.items())[:8]:
+                names = [self._tile_entries[i]["name"] if i < len(self._tile_entries)
+                         else f"tile_{i}" for i in idxs[:4]]
+                lines.append(f"  {', '.join(names)}{'…' if len(idxs)>4 else ''}")
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Map Statistics")
+        dlg.resize(420, 320)
+        try:
+            from apps.core.theme_utils import apply_dialog_theme
+            apply_dialog_theme(dlg, self.main_window)
+        except Exception: pass
+        layout = QVBoxLayout(dlg)
+        t = QTextEdit(); t.setReadOnly(True)
+        t.setHtml("<br>".join(lines))
+        layout.addWidget(t)
+        ok = QPushButton("Close"); ok.clicked.connect(dlg.accept)
+        layout.addWidget(ok)
+        dlg.exec()
+
+    def _start_boredom(self): #vers 1
+        """🧩 Boredom! — sliding puzzle using radar tiles."""
+        if not self._tile_rgba:
+            QMessageBox.information(self, "Boredom!", "Load radar tiles first!"); return
+        cols = self._game_preset.get("cols", 8)
+        rows = self._game_preset.get("rows", 8)
+        if cols * rows > 256:
+            QMessageBox.information(self, "Boredom!",
+                f"SOL ({cols}x{rows}) is too large for a puzzle! "
+                "Load a VC/III (8x8) or SA (12x12) map instead."); return
+        dlg = _BoredomPuzzle(self._tile_rgba, cols, rows, TILE_W, TILE_H, self)
+        dlg.exec()
+
+    def _show_about(self): #vers 2
+        """Show Radar Workshop instructions and info dialog."""
+        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QTabWidget,
+                                     QWidget, QTextEdit, QPushButton, QHBoxLayout)
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Radar Workshop — Help & Information")
+        dlg.setMinimumSize(520, 560)
+        dlg.resize(560, 600)
+        layout = QVBoxLayout(dlg)
+        try:
+            from apps.core.theme_utils import apply_dialog_theme
+            apply_dialog_theme(dlg, self.main_window)
+        except Exception: pass
+
+        tabs = QTabWidget()
+
+        def _tab(html):
+            t = QTextEdit(); t.setReadOnly(True); t.setHtml(html); return t
+
+        #    Quick Start                                                         
+        # STUB: add App_name/App_build/App_auth above Quickstart section
+        quickstart = """<p style="font-size:11px; color:#888; margin-bottom:8px;">
+<b>{}</b> &nbsp;·&nbsp; {}&nbsp;·&nbsp; {}&nbsp;·&nbsp; {}
+</p>
+<hr>
+<h3>Quick Start</h3>""".format(App_name, Build, App_build, App_auth) + """
+<ol>
+<li>
+<li><b>Open an IMG file</b> — click the <b>Open</b> button or press <b>Ctrl+O</b>.<br>
+    Load <code>gta3.img</code> for GTA III / VC / SA / LCS / VCS, or <code>RadarTex.img</code> for SOL.</li>
+<li><b>Game auto-detected</b> by tile count — 64 tiles = 8×8 grid, 144 = 12×12, 1296 = 36×36.</li>
+<li><b>Click a tile</b> in the left list or the grid to select it.</li>
+<li><b>Double-click a tile</b> (or press <b>E</b>) to open a zoomed 512px edit popup — useful for SOL.</li>
+<li><b>Draw</b> on the selected tile using the tools on the right sidebar.</li>
+<li><b>Save</b> changes back to the IMG file with the Save button (Ctrl+S).</li>
+</ol>
+<h3>Keyboard Shortcuts</h3>
+<table border=0 cellpadding=3>
+<tr><td><b>Ctrl+O</b></td><td>Open IMG file</td></tr>
+<tr><td><b>Ctrl+S</b></td><td>Save modified tiles back to IMG</td></tr>
+<tr><td><b>+  /  -</b></td><td>Zoom in / Zoom out</td></tr>
+<tr><td><b>Ctrl+0</b></td><td>Fit grid to window</td></tr>
+<tr><td><b>E</b></td><td>Edit current tile in popup</td></tr>
+<tr><td><b>P</b></td><td>Pencil draw tool</td></tr>
+<tr><td><b>L</b></td><td>Line draw tool</td></tr>
+<tr><td><b>F</b></td><td>Fill (flood fill) tool</td></tr>
+<tr><td><b>K</b></td><td>Dropper (colour picker)</td></tr>
+</table>"""
+
+        #    Tile List                                                           
+        tilelist = """<h3>Tile List (Left Panel)</h3>
+<p>Shows all radar tiles with 64×64 thumbnail, name, game badge [SA] / [VC] etc., and tile size.</p>
+<ul>
+<li><b>Click</b> — select and view tile in the grid.</li>
+<li><b>Double-click</b> — open zoomed edit popup (512×512).</li>
+<li><b>Right-click</b> — context menu:
+  <ul>
+  <li><b>Export tile as PNG/BMP</b> — save single tile to file.</li>
+  <li><b>Import tile from PNG/BMP</b> — replace tile (auto-resizes to 128×128).</li>
+  <li><b>Delete tile</b> — reset to blank transparent black.</li>
+  </ul>
+</li>
+</ul>
+<h3>Right Sidebar</h3>
+<ul>
+<li><b>🔍+ / 🔍−</b> — Zoom in / Zoom out on the grid.</li>
+<li><b>Fit / Jump</b> — fit grid to window / scroll to selected tile.</li>
+<li><b>Pencil / Line / Fill / Dropper</b> — draw tools (also P/L/F/K keys).</li>
+<li><b>Edit tile</b> — open zoomed 512px popup for detailed editing.</li>
+<li><b>Rotate ±90° / Flip H/V</b> — transform the current tile (uses PIL).</li>
+<li><b>FG/BG swatches</b> — foreground / background colour; click to pick.</li>
+<li><b>Palette</b> — colours extracted from current tile. Left-click = FG, right-click = BG.</li>
+</ul>"""
+
+        #    Export/Import                                                       
+        exportinfo = """<h3>Export / Import Full Map</h3>
+<p>The <b>Export</b> button saves all loaded tiles assembled into one full-size PNG or BMP.</p>
+<ul>
+<li>SA export = 1536×1536px (12×12 tiles × 128px)</li>
+<li>VC/III/LCS/VCS = 1024×1024px (8×8 × 128px)</li>
+<li>SOL = 4608×4608px (36×36 × 128px)</li>
+</ul>
+<p>The <b>Import</b> button loads a PNG/BMP and slices it into tiles automatically using the current grid dimensions. Any size image is accepted — it's resampled to fit.</p>
+<h3>Recent Files</h3>
+<p>The <b>File &gt; Recent Files</b> menu remembers the last 10 opened IMG archives. Window size and position are also saved automatically.</p>"""
+
+        #    Formats                                                            
+        formats = """<h3>Supported Formats</h3>
+<table border=1 cellpadding=4 cellspacing=0>
+<tr><th>Game</th><th>File</th><th>Tiles</th><th>Grid</th><th>Format</th></tr>
+<tr><td>GTA III PC/PS2/Xbox</td><td>gta3.img</td><td>64</td><td>8×8</td><td>DXT1 TXD</td></tr>
+<tr><td>GTA VC PC/PS2/Xbox</td><td>gta3.img</td><td>64</td><td>8×8</td><td>DXT1 TXD</td></tr>
+<tr><td>GTA SA PC/PS2/Xbox</td><td>gta3.img</td><td>144</td><td>12×12</td><td>DXT1 TXD</td></tr>
+<tr><td>GTA LCS PC/PS2</td><td>gta3.img</td><td>64</td><td>8×8</td><td>DXT1 TXD</td></tr>
+<tr><td>GTA VCS PC/PS2</td><td>gta3.img</td><td>64</td><td>8×8</td><td>DXT1 TXD</td></tr>
+<tr><td>GTA SOL PC</td><td>RadarTex.img</td><td>1296</td><td>36×36</td><td>DXT1 TXD</td></tr>
+<tr><td>GTA III Android</td><td>gta3_unc.img</td><td>1</td><td>1×1</td><td>Single 256×256 TXD</td></tr>
+<tr><td>GTA LCS iOS</td><td>gta3.pvr</td><td>64</td><td>8×8</td><td>PVRTC TXD</td></tr>
+</table>
+<h3>Not Yet Supported</h3>
+<ul>
+<li>SA/LCS Android &amp; iOS — TOC/TMB/DAT encrypted format</li>
+<li>LCS/VCS PSP — GIM/XTX ('xet\0') format</li>
+<li>VC Android — texdb format</li>
+</ul>"""
+
+        tabs.addTab(_tab(quickstart), "Quick Start")
+        tabs.addTab(_tab(tilelist),   "Tile List & Tools")
+        tabs.addTab(_tab(exportinfo), "Export / Import")
+        tabs.addTab(_tab(formats),    "Formats")
+        layout.addWidget(tabs, 1)
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        ok = QPushButton("Close"); ok.clicked.connect(dlg.accept); ok.setFixedWidth(80)
+        btn_row.addWidget(ok)
+        layout.addLayout(btn_row)
+        dlg.exec()
+
+    def _show_info(self): #vers 1
+        lines = [
+            f"<b>{App_name}</b>  Build {Build}",
+            f"Author: {App_auth}  —  {App_build}",
+            "",
+            "GTA radar tile editor",
+            "Supports: SA · VC · VCS · LC · LCS · SOL · Custom",
+            "",
+            f"IMG loaded: {Path(self._img_path).name if self._img_path else 'None'}",
+            f"Tiles loaded: {len(self._tile_rgba)}",
+            f"Modified tiles: {len(self._dirty_tiles)}",
+        ]
+        QMessageBox.information(self, App_name + " — Info", "\n".join(lines))
+
+
+    def _show_settings_dialog(self): #vers 1  (theme button → launch global theme engine)
+        try:
+            from apps.utils.app_settings_system import AppSettings, SettingsDialog
+            if not hasattr(self, 'app_settings') or self.app_settings is None:
+                self.app_settings = AppSettings()
+            dlg = SettingsDialog(self.app_settings, self)
+            dlg.themeChanged.connect(lambda _: self._apply_theme())
+            if dlg.exec():
+                self._apply_theme()
+        except Exception as e:
+            QMessageBox.warning(self, "Theme Error", str(e))
+
+
+    def _show_settings_context_menu(self, pos): #vers 1
+        menu = QMenu(self)
+        menu.addAction("Move Window",      self._enable_move_mode)
+        menu.addAction("Maximize/Restore", self._toggle_maximize)
+        menu.addAction("Minimize",         self.showMinimized)
+        menu.exec(self.properties_btn.mapToGlobal(pos))
+
+
+
+    def _launch_theme_settings(self): #Vers 1
+        try:
+            if not APPSETTINGS_AVAILABLE:
+                return
+            dialog = SettingsDialog(self.app_settings, self)
+            dialog.themeChanged.connect(lambda _: self._apply_theme())
+            if dialog.exec():
+                self._apply_theme()
+        except Exception as e:
+            QMessageBox.warning(self, "Theme Error", str(e))
+
+
+    # Window management (mirrors COL Workshop)
+
+    def _get_icon_color(self): #Vers 1
+        if self.app_settings:
+            colors = self.app_settings.get_theme_colors()
+            return colors.get('text_primary', '#ffffff')
+        return '#ffffff'
+
+    def toggle_dock_mode(self): #Vers 1
+        if self.is_docked:
+            self._undock_from_main()
+        else:
+            self._dock_to_main()
+
+    def _dock_to_main(self): #Vers 1
+        self.is_docked = True
+        self.standalone_mode = False
+        if hasattr(self, '_workshop_toolbar'):
+            self._workshop_toolbar.setVisible(False)
+        if hasattr(self, 'docked_settings_btn'):
+            self.docked_settings_btn.setVisible(True)
+        if hasattr(self, 'dock_btn'):
+            self.dock_btn.setVisible(False)
+        self.show(); self.raise_()
+
+    def _undock_from_main(self): #Vers 1
+        self.standalone_mode = True
+        self.is_docked = False
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        if hasattr(self, '_workshop_toolbar'):
+            self._workshop_toolbar.setVisible(True)
+        if hasattr(self, 'docked_settings_btn'):
+            self.docked_settings_btn.setVisible(False)
+        if hasattr(self, 'settings_btn'):
+            self.settings_btn.setVisible(True)
+        if hasattr(self, 'dock_btn'):
+            self.dock_btn.setVisible(False)
+        self.resize(1300, 800)
+        self.show(); self.raise_()
+
+    def _toggle_tearoff(self): #Vers 1
+        if self.is_docked:
+            self._undock_from_main()
+        else:
+            self._dock_to_main()
+
+    def _toggle_maximize(self): #Vers 1
+        if self.isMaximized():
+            self.showNormal()
+        else:
+            self.showMaximized()
+
+    # Corner resize + dragging (identical pattern to COL Workshop)
+
+    def _update_transform_text_panel_visibility(self): #vers 2
+        """Toggle between text+icon panel (wide) and icon-only strip (narrow).
+        Reads threshold from IMG Factory settings. Also collapses bottom buttons."""
+        tp   = getattr(self, '_transform_text_panel_ref', None)
+        ip   = getattr(self, '_transform_icon_panel_ref', None)
+        mode = getattr(self, 'button_display_mode', 'both')
+
+        if mode == 'icons':
+            if tp: tp.setVisible(False)
+            if ip: ip.setVisible(True)
+            return
+        if mode == 'text':
+            if tp: tp.setVisible(True)
+            if ip: ip.setVisible(False)
+            return
+
+        # Measure right panel width directly
+        rp = getattr(self, '_right_panel_ref', None)
+        if rp:
+            ref_w = rp.width()
+        else:
+            splitter = getattr(self, '_main_splitter', None)
+            ref_w = self.width()
+            if splitter and tp:
+                w = tp
+                while w and w.parent() is not splitter:
+                    w = w.parent() if hasattr(w, 'parent') else None
+                if w:
+                    ref_w = w.width()
+
+        try:
+            from apps.methods.imgfactory_ui_settings import get_collapse_threshold
+            threshold = get_collapse_threshold(getattr(self, 'main_window', None))
+        except Exception:
+            threshold = 550
+        wide = ref_w >= threshold
+        if tp: tp.setVisible(wide)
+        if ip: ip.setVisible(not wide)
+
+        # Toggle bottom panel rows the same way
+        btr = getattr(self, '_bottom_text_row', None)
+        bir = getattr(self, '_bottom_icon_row', None)
+        if btr: btr.setVisible(wide)
+        if bir: bir.setVisible(not wide)
+
+
+    def _get_resize_corner(self, pos): #Vers 1
+        size = self.corner_size; w = self.width(); h = self.height()
+        if pos.x() < size and pos.y() < size:           return "top-left"
+        if pos.x() > w - size and pos.y() < size:       return "top-right"
+        if pos.x() < size and pos.y() > h - size:       return "bottom-left"
+        if pos.x() > w - size and pos.y() > h - size:   return "bottom-right"
+        return None
+
+
+    def _update_cursor(self, direction): #Vers 1
+        cursors = {
+            "top":          Qt.CursorShape.SizeVerCursor,
+            "bottom":       Qt.CursorShape.SizeVerCursor,
+            "left":         Qt.CursorShape.SizeHorCursor,
+            "right":        Qt.CursorShape.SizeHorCursor,
+            "top-left":     Qt.CursorShape.SizeFDiagCursor,
+            "bottom-right": Qt.CursorShape.SizeFDiagCursor,
+            "top-right":    Qt.CursorShape.SizeBDiagCursor,
+            "bottom-left":  Qt.CursorShape.SizeBDiagCursor,
+        }
+        self.setCursor(cursors.get(direction, Qt.CursorShape.ArrowCursor))
+
+
+    def _get_resize_direction(self, pos): #vers 1
+        """Determine resize direction based on mouse position"""
+        rect = self.rect()
+        margin = self.resize_margin
+
+        left = pos.x() < margin
+        right = pos.x() > rect.width() - margin
+        top = pos.y() < margin
+        bottom = pos.y() > rect.height() - margin
+
+        if left and top:
+            return "top-left"
+        elif right and top:
+            return "top-right"
+        elif left and bottom:
+            return "bottom-left"
+        elif right and bottom:
+            return "bottom-right"
+        elif left:
+            return "left"
+        elif right:
+            return "right"
+        elif top:
+            return "top"
+        elif bottom:
+            return "bottom"
+
+        return None
+
+
+    def _handle_resize(self, global_pos): #vers 1
+        """Handle window resizing"""
+        if not self.resize_direction or not self.drag_position:
+            return
+
+        delta = global_pos - self.drag_position
+        geometry = self.frameGeometry()
+
+        min_width = 800
+        min_height = 600
+
+        # Handle horizontal resizing
+        if "left" in self.resize_direction:
+            new_width = geometry.width() - delta.x()
+            if new_width >= min_width:
+                geometry.setLeft(geometry.left() + delta.x())
+        elif "right" in self.resize_direction:
+            new_width = geometry.width() + delta.x()
+            if new_width >= min_width:
+                geometry.setRight(geometry.right() + delta.x())
+
+        # Handle vertical resizing
+        if "top" in self.resize_direction:
+            new_height = geometry.height() - delta.y()
+            if new_height >= min_height:
+                geometry.setTop(geometry.top() + delta.y())
+        elif "bottom" in self.resize_direction:
+            new_height = geometry.height() + delta.y()
+            if new_height >= min_height:
+                geometry.setBottom(geometry.bottom() + delta.y())
+
+        self.setGeometry(geometry)
+        self.drag_position = global_pos
+
+
+    def _is_on_draggable_area(self, pos): #Vers 1
+        if not hasattr(self, 'titlebar'):
+            return False
+        if not self.titlebar.rect().contains(pos):
+            return False
+        for w in self.titlebar.findChildren(QPushButton):
+            if w.isVisible() and w.geometry().contains(pos):
+                return False
+        return True
+
+
+    def mousePressEvent(self, event): #Vers 1
+        if event.button() != Qt.MouseButton.LeftButton:
+            return super().mousePressEvent(event)
+        pos = event.pos()
+        self.resize_corner = self._get_resize_corner(pos)
+        if self.resize_corner:
+            self.resizing = True
+            self.drag_position = event.globalPosition().toPoint()
+            self.initial_geometry = self.geometry()
+            event.accept(); return
+        if hasattr(self, 'titlebar') and self.titlebar.geometry().contains(pos):
+            tb_pos = self.titlebar.mapFromParent(pos)
+            if self._is_on_draggable_area(tb_pos):
+                handle = self.windowHandle()
+                if handle:
+                    handle.startSystemMove()
+                event.accept(); return
+        super().mousePressEvent(event)
+
+
+    def mouseMoveEvent(self, event): #Vers 1
+        if event.buttons() == Qt.MouseButton.LeftButton:
+            if self.resizing and self.resize_corner:
+                self._handle_corner_resize(event.globalPosition().toPoint())
+                event.accept(); return
+        else:
+            corner = self._get_resize_corner(event.pos())
+            if corner != self.hover_corner:
+                self.hover_corner = corner
+                self.update()
+            self._refresh_corner_overlay()
+            self._update_cursor(corner)
+        super().mouseMoveEvent(event)
+
+
+    def mouseReleaseEvent(self, event): #Vers 2
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.dragging = self.resizing = False
+            self.resize_corner = None
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+            event.accept()
+
+
+    def _handle_corner_resize(self, global_pos): #Vers 1
+        if not self.resize_corner or not self.drag_position:
+            return
+        delta = global_pos - self.drag_position
+        geometry = self.initial_geometry
+        min_w, min_h = 800, 500
+        if self.resize_corner == "bottom-right":
+            nw = geometry.width() + delta.x()
+            nh = geometry.height() + delta.y()
+            if nw >= min_w and nh >= min_h:
+                self.resize(nw, nh)
+        elif self.resize_corner == "bottom-left":
+            nx = geometry.x() + delta.x()
+            nw = geometry.width() - delta.x()
+            nh = geometry.height() + delta.y()
+            if nw >= min_w and nh >= min_h:
+                self.setGeometry(nx, geometry.y(), nw, nh)
+        elif self.resize_corner == "top-right":
+            ny = geometry.y() + delta.y()
+            nw = geometry.width() + delta.x()
+            nh = geometry.height() - delta.y()
+            if nw >= min_w and nh >= min_h:
+                self.setGeometry(geometry.x(), ny, nw, nh)
+        elif self.resize_corner == "top-left":
+            nx = geometry.x() + delta.x()
+            ny = geometry.y() + delta.y()
+            nw = geometry.width() - delta.x()
+            nh = geometry.height() - delta.y()
+            if nw >= min_w and nh >= min_h:
+                self.setGeometry(nx, ny, nw, nh)
+
+
+    def paintEvent(self, event): #Vers 2
+        super().paintEvent(event)
+        # Corner handles drawn by _corner_overlay — see _setup_corner_overlay
+
+    def _setup_corner_overlay(self): #vers 4
+        """Create or refresh the corner resize overlay."""
+        if not self.standalone_mode:
+            return
+        # Destroy stale overlay if window was resized before it was created
+        existing = getattr(self, '_corner_overlay', None)
+        if existing is not None:
+            existing.setGeometry(0, 0, self.width(), self.height())
+            existing.raise_()
+            existing.update()
+            return
+        overlay = _CornerOverlay(self)
+        self._corner_overlay = overlay
+        overlay.setGeometry(0, 0, self.width(), self.height())
+        overlay.show()
+        overlay.raise_()
+
+    def _refresh_corner_overlay(self): #vers 1
+        if hasattr(self, '_corner_overlay'):
+            self._corner_overlay.setGeometry(0, 0, self.width(), self.height())
+            self._corner_overlay.update_state(
+                getattr(self, 'hover_corner', None),
+                self.app_settings)
+            self._corner_overlay.raise_()
+
+    def resizeEvent(self, event): #vers 2
+        super().resizeEvent(event)
+        self._refresh_corner_overlay()
+
+    def showEvent(self, event): #vers 2
+        super().showEvent(event)
+        if self.standalone_mode:
+            # Small delay ensures window geometry is finalised
+            QTimer.singleShot(150, self._setup_corner_overlay)
+
+    def resizeEvent(self, event): #vers 2
+        super().resizeEvent(event)
+        if hasattr(self,'size_grip'): self.size_grip.move(self.width()-16,self.height()-16)
+        self._refresh_corner_overlay()
+
+    def closeEvent(self, event): #Vers 2
+        # Save window geometry
+        if self.standalone_mode:
+            g = self.geometry()
+            self.RAD_settings.set('window_x', g.x())
+            self.RAD_settings.set('window_y', g.y())
+            self.RAD_settings.set('window_w', g.width())
+            self.RAD_settings.set('window_h', g.height())
+            self.RAD_settings.save()
+        self.window_closed.emit()
+        event.accept()
+
+    #End of Class
+
+
+def open_radar_workshop(main_window=None):
+    try:
+        w = RadarWorkshop(None, main_window); w.show(); return w
+    except Exception as e:
+        if main_window: QMessageBox.critical(main_window,App_name+" Error",str(e))
+        return None
+
+__all__ = ["RadarWorkshop", "open_radar_workshop"]
+
+# Standalone entry point
+
+if __name__ == "__main__": #Vers 1
+    import traceback
+
+    print(App_name + " starting…")
+    try:
+        app = QApplication(sys.argv)
+        w = RadarWorkshop()
+        w.setWindowTitle(App_name + " – Standalone")
+        w.resize(1300, 800); w.show(); sys.exit(app.exec())
+    except Exception as e:
+        print(f"ERROR: {e}")
+        traceback.print_exc();sys.exit(1)
+
+
+# =============================================================================
+# PATH WORKSHOP — node/train/flight/spath editors on top of RadarWorkshop UI
+# =============================================================================
+
+import re as _re, struct as _struct
+from dataclasses import dataclass as _dataclass, field as _field
+
+# ── File routing ──────────────────────────────────────────────────────────────
+_FILE_ROUTES = {
+    # SA binary nodes (from gta3.img)
+    "nodes":   (0,"gta3"),
+    **{f"nodes{i}": (0,"sa") for i in range(10)},
+    # SA text paths (DATA/paths*.ipl)
+    **{f"paths{s}": (0,"sa_ipl") for s in ["","2","3","4","5"]},
+    # Train paths
+    "tracks":  (1,None), "tracks2": (1,None),
+    "train":   (1,None), "train2":  (1,None),
+    # Flight paths
+    "flight":  (2,None), "flight2": (2,None),
+    "flight3": (2,None), "flight4": (2,None),
+    # VC static paths
+    "spath0":  (3,None),
+}
+
+# ── Waypoint data class ───────────────────────────────────────────────────────
+@_dataclass
+class _Waypoint: #vers 1
+    x: float = 0.0
+    y: float = 0.0
+    z: float = 0.0
+    speed: float = 0.0
+    flags: int = 0
+    comment: str = ""
+
+# ── Text path parser (train/flight/spath) ─────────────────────────────────────
+class _TextPathParser: #vers 1
+    def __init__(self):
+        self.waypoints = []
+        self.header_lines = []
+
+    def load(self, path: str) -> bool:
+        try:
+            self.waypoints.clear(); self.header_lines.clear()
+            lines = open(path,'r',errors='ignore').readlines()
+            data = [l for l in lines if l.strip() and not l.strip().startswith(';')]
+            if not data: return False
+            try: count = int(data[0].strip()); start = 1
+            except ValueError: count = None; start = 0
+            for ln in data[start:]:
+                parts = ln.split()
+                if len(parts) >= 3:
+                    try:
+                        w = _Waypoint(x=float(parts[0]), y=float(parts[1]), z=float(parts[2]),
+                                      speed=float(parts[3]) if len(parts)>3 else 0.0,
+                                      flags=int(parts[4]) if len(parts)>4 else 0)
+                        self.waypoints.append(w)
+                    except ValueError: pass
+            print(f"[PathParser] {len(self.waypoints)} waypoints from {os.path.basename(path)}")
+            return bool(self.waypoints)
+        except Exception as ex:
+            print(f"_TextPathParser.load: {ex}"); return False
+
+    def save(self, path: str) -> bool:
+        try:
+            with open(path,'w') as f:
+                f.write(f"{len(self.waypoints)}\n")
+                for w in self.waypoints:
+                    f.write(f"{w.x:.4f}\t{w.y:.4f}\t{w.z:.4f}\t{w.speed:.4f}\t{w.flags}\n")
+            return True
+        except Exception as ex:
+            print(f"_TextPathParser.save: {ex}"); return False
+
+# ── SA paths.ipl parser ───────────────────────────────────────────────────────
+class _IplPathParser: #vers 1
+    def __init__(self):
+        self.waypoints = []
+
+    def load(self, path: str) -> bool:
+        try:
+            self.waypoints.clear()
+            in_path = False
+            idx = 0
+            for ln in open(path,'r',errors='ignore'):
+                s = ln.strip()
+                if s == 'path':  in_path = True;  continue
+                if s == 'end':   in_path = False;  continue
+                if not in_path or not s or s.startswith('#'): continue
+                parts = [p.strip() for p in s.split(',')]
+                if len(parts) < 6: continue
+                try:
+                    ntype = int(parts[0])
+                    if ntype not in (2,3,4): continue
+                    w = _Waypoint(x=float(parts[3]), y=float(parts[4]), z=float(parts[5]),
+                                  flags=(1 if (len(parts)>7 and int(parts[7])) else 2))
+                    self.waypoints.append(w); idx += 1
+                except (ValueError,IndexError): pass
+            print(f"[PathParser] SA IPL: {len(self.waypoints)} nodes from {os.path.basename(path)}")
+            return bool(self.waypoints)
+        except Exception as ex:
+            print(f"_IplPathParser.load: {ex}"); return False
+
+# ── Waypoint list tab ─────────────────────────────────────────────────────────
+class _WaypointTab(QWidget): #vers 1
+    def __init__(self, has_speed=True, parent=None):
+        super().__init__(parent)
+        self._parser = _TextPathParser()
+        self._ipl    = _IplPathParser()
+        self._path   = None
+        self._has_speed = has_speed
+        self._build_ui()
+
+    def _build_ui(self): #vers 1
+        lay = QVBoxLayout(self); lay.setContentsMargins(4,4,4,4)
+        self._list = QListWidget()
+        self._list.setFont(QFont("Monospace",9))
+        lay.addWidget(self._list, 1)
+        br = QHBoxLayout()
+        self._status = QLabel("No file loaded")
+        self._status.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        br.addWidget(self._status)
+        lay.addLayout(br)
+
+    def load_file(self, path: str, game: str = None) -> bool: #vers 1
+        self._path = path
+        stem = os.path.splitext(os.path.basename(path).lower())[0]
+        if game == 'sa_ipl' or stem.startswith('paths'):
+            ok = self._ipl.load(path)
+            wps = self._ipl.waypoints
+        else:
             ok = self._parser.load(path)
-            if ok:
-                self._path = path
-                self._panel.set_parser(self._parser)
-                self._map.set_route(0, self._parser.routes)
-                n = len(self._parser.routes[0].waypoints) if self._parser.routes else 0
-                self._status.setText(f"{os.path.basename(path)}  —  {n} waypoints")
-            return ok
+            wps = self._parser.waypoints
+        if ok:
+            self._list.clear()
+            for i,w in enumerate(wps):
+                self._list.addItem(f"[{i:4d}] {w.x:9.2f} {w.y:9.2f} {w.z:7.2f}"
+                                   + (f"  spd:{w.speed:.1f}" if self._has_speed else ""))
+            self._status.setText(f"{os.path.basename(path)} — {len(wps)} waypoints")
+        return ok
 
-        def save_file(self, path: str) -> bool:
-            return self._parser.save(path)
-
-        @property
-        def current_path(self): return self._path
-
-        def set_radar(self, image):
-            self._map.set_radar_tiles(image)
-
-    return _Tab
+    @property
+    def current_path(self): return self._path
 
 
-TrainTab   = _make_path_tab(TrainParser,  has_speed=True,  has_flags=True)
-FlightTab  = _make_path_tab(FlightParser, has_speed=True,  has_flags=False)
-SpathTab   = _make_path_tab(SpathParser,  has_speed=False, has_flags=False)
+# ── PathWorkshop — RadarWorkshop + path tabs ──────────────────────────────────
+class PathWorkshop(RadarWorkshop): #vers 1
+    """Full RadarWorkshop UI with path editing tabs injected into _view_tabs."""
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Main workshop
-# ─────────────────────────────────────────────────────────────────────────────
-
-class PathWorkshop(QWidget):  #vers 2
     App_name   = "Path Workshop"
     App_build  = "Build 1"
     App_auth   = "X-Seti"
     config_key = "path_workshop"
 
-    _FILE_ROUTES = {
-        "tracks":  0, "tracks2": 0,
-        "train":   0, "train2":  0,
-        "flight":  1, "flight2": 1, "flight3": 1, "flight4": 1,
-        "spath0":  2,
-    }
+    def __init__(self, parent=None, main_window=None): #vers 1
+        self._defer_setup_ui = True
+        super().__init__(parent, main_window)
+        self.setup_ui()
 
-    def __init__(self, main_window=None, parent=None):
-        super().__init__(parent)
-        self.main_window   = main_window
-        self._radar_image: Optional[QImage] = None
-        self._setup_ui()
+    def setup_ui(self): #vers 1
+        super().setup_ui()
+        # Inject path tabs alongside the Map tab in _view_tabs
+        self._tab_nodes  = _WaypointTab(has_speed=False)
+        self._tab_train  = _WaypointTab(has_speed=True)
+        self._tab_flight = _WaypointTab(has_speed=True)
+        self._tab_spath  = _WaypointTab(has_speed=False)
+        self._view_tabs.addTab(self._tab_nodes,  "🗺 Nodes")
+        self._view_tabs.addTab(self._tab_train,  "🚂 Train")
+        self._view_tabs.addTab(self._tab_flight, "✈ Flight")
+        self._view_tabs.addTab(self._tab_spath,  "📍 Static")
+        if main_window := getattr(self, 'main_window', None):
+            if hasattr(self, 'toolbar'): self.toolbar.hide()
 
-    def _setup_ui(self):  #vers 1
-        root = QVBoxLayout(self)
-        root.setContentsMargins(4, 4, 4, 4); root.setSpacing(4)
-
-        # Toolbar
-        tb = QHBoxLayout()
-        open_btn = QPushButton("Open…");   open_btn.setFixedHeight(26)
-        save_btn = QPushButton("Save");    save_btn.setFixedHeight(26)
-        radar_btn = QPushButton("Radar…"); radar_btn.setFixedHeight(26)
-        open_btn.clicked.connect(self._open_file)
-        save_btn.clicked.connect(self._save_file)
-        radar_btn.clicked.connect(self._load_radar_background)
-        self._status_lbl = QLabel("Open a path file to begin")
-        self._status_lbl.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        for w in (open_btn, save_btn, radar_btn, self._status_lbl):
-            tb.addWidget(w)
-        root.addLayout(tb)
-
-        # Tabs
-        self._tabs = QTabWidget()
-        self._tab_train  = TrainTab()
-        self._tab_flight = FlightTab()
-        self._tab_spath  = SpathTab()
-        self._tabs.addTab(self._tab_train,  "Train / Tracks")
-        self._tabs.addTab(self._tab_flight, "Flight Paths")
-        self._tabs.addTab(self._tab_spath,  "Static Paths")
-        root.addWidget(self._tabs, 1)
-
-    def _set_status(self, msg: str):  #vers 1
-        self._status_lbl.setText(msg)
-
-    def _open_file(self, path: str = None):  #vers 1
+    def _open_file(self, path: str = None): #vers 1
         if path is None:
             path, _ = QFileDialog.getOpenFileName(
                 self, "Open Path File", "",
-                "Path files (train.dat train2.dat flight*.dat spath0.dat *.dat);;All files (*)")
-        if not path:
-            return
-        stem = os.path.splitext(os.path.basename(path))[0].lower()
-        tab_idx = self._FILE_ROUTES.get(stem, 0)
-        tabs = [self._tab_train, self._tab_flight, self._tab_spath]
-        if tab_idx >= len(tabs): tab_idx = 0
-        tab  = tabs[tab_idx]
-        if tab.load_file(path):
-            if self._radar_image and hasattr(tab, 'set_radar'):
-                tab.set_radar(self._radar_image)
-            self._tabs.setCurrentIndex(tab_idx)
+                "Path files (nodes*.dat tracks*.dat train*.dat flight*.dat spath0.dat paths*.ipl *.dat *.ipl);;"
+                "All files (*)")
+        if not path: return
+        stem  = os.path.splitext(os.path.basename(path).lower())[0]
+        tab_idx, game = _FILE_ROUTES.get(stem, (1, None))
+        tabs = [self._tab_nodes, self._tab_train, self._tab_flight, self._tab_spath]
+        tab  = tabs[min(tab_idx, len(tabs)-1)]
+        if tab.load_file(path, game):
+            self._view_tabs.setCurrentIndex(tab_idx + 1)  # +1: tab 0 = Map
             self._set_status(f"Loaded: {os.path.basename(path)}")
         else:
             QMessageBox.critical(self, "Error", f"Failed to load {os.path.basename(path)}")
 
-    def _save_file(self):  #vers 1
-        idx  = self._tabs.currentIndex()
-        tabs = [self._tab_train, self._tab_flight, self._tab_spath]
-        tab  = tabs[idx]
-        path = tab.current_path
-        if not path:
-            path, _ = QFileDialog.getSaveFileName(self, "Save As", "", "DAT files (*.dat)")
-        if path and tab.save_file(path):
-            self._set_status(f"Saved {os.path.basename(path)}")
+    def _build_menus_into_qmenu(self, pm): #vers 1
+        super()._build_menus_into_qmenu(pm)
+        pm.addSeparator()
+        paths_m = pm.addMenu("Paths")
+        paths_m.addAction("Open Path File…", self._open_file)
+        paths_m.addSeparator()
+        paths_m.addAction("Open nodes.dat (GTA3/VC)",
+                          lambda: self._open_specific("nodes.dat"))
+        paths_m.addAction("Open nodes0-8.dat (SA)",
+                          lambda: self._open_specific("nodes0.dat"))
+        paths_m.addAction("Open tracks.dat / train.dat",
+                          lambda: self._open_specific("tracks.dat"))
+        paths_m.addAction("Open flight.dat",
+                          lambda: self._open_specific("flight.dat"))
+        paths_m.addAction("Open paths.ipl (SA)",
+                          lambda: self._open_specific("paths.ipl"))
 
-    def _save_as(self):  #vers 1
-        idx  = self._tabs.currentIndex()
-        tabs = [self._tab_train, self._tab_flight, self._tab_spath]
-        tab  = tabs[idx]
-        path, _ = QFileDialog.getSaveFileName(self, "Save As", "", "DAT files (*.dat)")
-        if path and tab.save_file(path):
-            self._set_status(f"Saved {os.path.basename(path)}")
-
-    def _load_radar_background(self, img_path: str = None):  #vers 1
-        """Load a radar background image (PNG/TGA composite or from IMG/TXD)."""
-        if img_path is None:
-            img_path, _ = QFileDialog.getOpenFileName(
-                self, "Load Radar Background", "",
-                "Images (*.png *.jpg *.bmp *.tga);;All files (*)")
-        if not img_path:
-            return
-        img = QImage(img_path)
-        if img.isNull():
-            QMessageBox.warning(self, "Radar", f"Could not load {img_path}")
-            return
-        self._radar_image = img
-        for tab in [self._tab_train, self._tab_flight, self._tab_spath]:
-            tab.set_radar(img)
-        self._set_status(f"Radar background: {os.path.basename(img_path)}")
-
-    def _build_menus_into_qmenu(self, pm):  #vers 1
-        fm = pm.addMenu("File")
-        fm.addAction("Open…",            self._open_file)
-        fm.addAction("Save",             self._save_file)
-        fm.addAction("Save As…",         self._save_as)
-        fm.addSeparator()
-        fm.addAction("Load Radar Background…", self._load_radar_background)
-        fm.addSeparator()
-        fm.addAction("Open train.dat",   lambda: self._open_specific("train"))
-        fm.addAction("Open train2.dat",  lambda: self._open_specific("train2"))
-        fm.addAction("Open flight.dat",  lambda: self._open_specific("flight"))
-        fm.addAction("Open flight2.dat", lambda: self._open_specific("flight2"))
-        fm.addAction("Open flight3.dat", lambda: self._open_specific("flight3"))
-        fm.addAction("Open spath0.dat",  lambda: self._open_specific("spath0"))
-        fm.addSeparator()
-        fm.addAction("Close", self.close)
-
-    def _open_specific(self, stem: str):  #vers 1
+    def _open_specific(self, hint: str): #vers 1
+        ext = os.path.splitext(hint)[1]
         path, _ = QFileDialog.getOpenFileName(
-            self, f"Open {stem}.dat", "", f"DAT files ({stem}.dat *.dat)")
-        if path:
-            self._open_file(path)
+            self, f"Open {hint}", "", f"{hint} (*{ext});;All files (*)")
+        if path: self._open_file(path)
 
 
-def open_path_workshop(main_window=None, path: str = None):  #vers 2
+def open_path_workshop(main_window=None, path: str = None): #vers 1
     app = QApplication.instance() or QApplication(sys.argv)
     w = PathWorkshop(main_window=main_window)
-    w.setWindowTitle(f"Path Workshop — {PathWorkshop.App_build}")
-    w.resize(1200, 750)
-    w.show()
+    w.resize(1280, 860); w.show()
     if path: w._open_file(path)
     return w
 
 
 if __name__ == "__main__":
+    import sys
     app = QApplication(sys.argv)
     w = PathWorkshop()
-    w.resize(1200, 750)
-    w.show()
+    w.resize(1280, 860); w.show()
     sys.exit(app.exec())
