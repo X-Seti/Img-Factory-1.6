@@ -473,16 +473,25 @@ class TimecycWorkshop(GUIWorkshop): #vers 1
         lay.addStretch()
         return w
 
-    def _create_centre_panel(self): #vers 2
-        sp = QSplitter(Qt.Orientation.Horizontal)
-        sp.addWidget(self._build_left_panel(self))    # grid (now IS the centre)
+    def _create_centre_panel(self): #vers 3
+        self._tc_splitter = QSplitter(Qt.Orientation.Horizontal)
+        sp = self._tc_splitter
+        sp.addWidget(self._build_left_panel(self))    # grid + button bar
         right = QSplitter(Qt.Orientation.Vertical)
         right.addWidget(self._build_centre_panel(self))  # colour fields
         right.addWidget(self._build_right_panel(self))   # sky preview
         right.setSizes([600, 200])
         sp.addWidget(right)
         sp.setSizes([420, 730])
+        sp.splitterMoved.connect(self._on_splitter_moved)
         return sp
+
+    def _on_splitter_moved(self, pos: int, index: int): #vers 1
+        """Collapse/expand button labels as grid panel resizes."""
+        if hasattr(self, '_btn_load'):
+            sizes = self._tc_splitter.sizes()
+            left_w = sizes[0] if sizes else 400
+            self._update_action_btns(left_w < 380)
 
     def _get_field_groups(self): #vers 1
         """Return (colour_groups, scalar_fields, colour_groups_2) for current game."""
@@ -560,23 +569,32 @@ class TimecycWorkshop(GUIWorkshop): #vers 1
             QMessageBox.critical(self, "Save Error",
                 f"Could not save to:\n{self._current_path}")
 
-    def _populate_grid(self): #vers 2
+    def _populate_grid(self): #vers 3
         n_times    = self._grid.rowCount()
         n_weathers = self._grid.columnCount()
+        sky_idx = 9 if self._parser.game == 'SA' else 15
         for row in self._parser.rows:
             t, w = row.time, row.weather
-            if t < n_times and w < n_weathers:
-                r, g, b = 0, 0, 0
-                if len(row.values) >= 18:
-                    # Use sky top colour — SA=[9-11], VC=[15-17]
-                    sky_idx = 9 if self._parser.game == 'SA' else 15
-                    r, g, b = row.values[sky_idx], row.values[sky_idx+1], row.values[sky_idx+2]
-                elif len(row.values) >= 3:
-                    r, g, b = row.values[0], row.values[1], row.values[2]
-                item = QTableWidgetItem()
-                item.setBackground(QColor(r, g, b))
-                item.setText("")
-                self._grid.setItem(t, w, item)
+            if t >= n_times or w >= n_weathers:
+                continue
+            vals = row.values
+            if len(vals) > sky_idx + 2:
+                r = max(0, min(255, int(vals[sky_idx])))
+                g = max(0, min(255, int(vals[sky_idx+1])))
+                b = max(0, min(255, int(vals[sky_idx+2])))
+            elif len(vals) >= 3:
+                r = max(0, min(255, int(vals[0])))
+                g = max(0, min(255, int(vals[1])))
+                b = max(0, min(255, int(vals[2])))
+            else:
+                r = g = b = 0
+            item = self._grid.item(t, w) or QTableWidgetItem()
+            item.setBackground(QColor(r, g, b))
+            item.setText("")
+            self._grid.setItem(t, w, item)
+        # Set row heights
+        for t in range(n_times):
+            self._grid.setRowHeight(t, 24)
 
     def _on_cell_selected(self, row: int, col: int, *_): #vers 1
         r = self._parser.get_row(weather=col, time=row)
@@ -874,15 +892,12 @@ class TimecycWorkshop(GUIWorkshop): #vers 1
         for btn, (full, icon) in labels.items():
             btn.setText(icon if narrow else full)
 
-    def resizeEvent(self, ev): #vers 2
+    def resizeEvent(self, ev): #vers 3
         super().resizeEvent(ev)
-        if hasattr(self, '_btn_load') and hasattr(self, '_main_splitter'):
-            # Use left panel width from splitter
-            sizes = self._main_splitter.sizes()
+        if hasattr(self, '_btn_load') and hasattr(self, '_tc_splitter'):
+            sizes = self._tc_splitter.sizes()
             left_w = sizes[0] if sizes else self.width()
             self._update_action_btns(left_w < 380)
-        elif hasattr(self, '_btn_load'):
-            self._update_action_btns(self.width() < 500)
 
     def _build_menus_into_qmenu(self, pm): #vers 1
         fm = pm.addMenu("File")
