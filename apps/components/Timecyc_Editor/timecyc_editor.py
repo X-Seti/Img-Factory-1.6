@@ -405,8 +405,11 @@ class TimecycEditor(QWidget): #vers 2
         lay.addStretch()
         return w
 
-    def setup_ui(self): #vers 2
-        pass
+    def setup_ui(self): #vers 3
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0); root.setSpacing(0)
+        sp = self._create_centre_panel()
+        root.addWidget(sp, 1)
 
     def _create_centre_panel(self): #vers 1
         sp = QSplitter(Qt.Orientation.Horizontal)
