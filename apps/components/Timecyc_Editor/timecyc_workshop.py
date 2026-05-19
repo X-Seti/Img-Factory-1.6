@@ -48,10 +48,10 @@ from PyQt6.QtWidgets import (
     QFileDialog, QMessageBox, QApplication, QFormLayout, QFrame,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
     QSlider, QGridLayout, QSizePolicy, QMenu,
-    QDialog, QDialogButtonBox
+    QDialog, QDialogButtonBox, QStyle, QHeaderView
 )
 from PyQt6.QtCore import Qt, QRect
-from PyQt6.QtGui import QFont, QColor, QPainter, QBrush, QLinearGradient
+from PyQt6.QtGui import QFont, QColor, QPainter, QBrush, QLinearGradient, QStyleOptionHeader
 
 from apps.components.Timecyc_Editor.gui_workshop import GUIWorkshop
 
@@ -171,8 +171,10 @@ class TimecycParser: #vers 1
         self.game:         str              = 'VC'
         self.cols_per_row: int              = 33
 
-    def _detect_game(self, num_values: int) -> str: #vers 2
-        # LC/GTA3=40 fields, VC=52 fields, SA=51 fields
+    def _detect_game(self, num_values: int, filename: str = '') -> str: #vers 3
+        # LC/GTA3=40 fields, VC=52 fields, SA=51 fields, timecycp=52 fields (SA PSP)
+        import os as _os
+        if _os.path.basename(filename).lower() == 'timecycp.dat': return 'SA'
         if num_values >= 52: return 'VC'
         if num_values >= 51: return 'SA'
         if num_values >= 40: return 'GTA3'
@@ -221,7 +223,7 @@ class TimecycParser: #vers 1
                 if s and not s.startswith('/'):
                     parts = s.split()
                     if len(parts) >= 10:
-                        self.game = self._detect_game(len(parts))
+                        self.game = self._detect_game(len(parts), path)
                         self.cols_per_row = len(parts)
                         break
 
@@ -322,6 +324,35 @@ class SkyPreviewWidget(QWidget): #vers 1
 
 # Editor
 
+class _RotatedHeaderView(QHeaderView): #vers 1
+    """Horizontal header that draws section labels rotated 90° to save width."""
+    def __init__(self, parent=None):
+        super().__init__(Qt.Orientation.Horizontal, parent)
+        self.setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
+
+    def sizeHint(self):
+        s = super().sizeHint()
+        return QSize(s.width(), 80)  # tall enough for rotated text
+
+    def paintSection(self, painter, rect, logical_index): #vers 1
+        painter.save()
+        # Draw background using standard option
+        option = QStyleOptionHeader()
+        self.initStyleOption(option)
+        option.rect = rect
+        option.section = logical_index
+        option.text = ""
+        self.style().drawControl(
+            QStyle.ControlElement.CE_Header, option, painter, self)
+        # Draw rotated text
+        text = self.model().headerData(logical_index, Qt.Orientation.Horizontal)
+        if text:
+            painter.translate(rect.left() + rect.width() / 2, rect.bottom() - 4)
+            painter.rotate(-90)
+            painter.drawText(0, 0, str(text))
+        painter.restore()
+
+
 class TimecycWorkshop(GUIWorkshop): #vers 1
     App_name   = "Time Cycle Workshop"
     App_build  = "Build 2"
@@ -393,6 +424,7 @@ class TimecycWorkshop(GUIWorkshop): #vers 1
 
         # Grid: rows=time, cols=weather
         self._grid = QTableWidget(24, 8)
+        self._grid.setHorizontalHeader(_RotatedHeaderView(self._grid))
         self._grid.setHorizontalHeaderLabels(WEATHER_NAMES_VC)
         self._grid.setVerticalHeaderLabels(TIME_LABELS)
         self._grid.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
@@ -525,9 +557,6 @@ class TimecycWorkshop(GUIWorkshop): #vers 1
             QMessageBox.critical(self, "Error", f"Failed to load {path}"); return
         self._current_path = path
         self._modified = False
-        # timecycp.dat is always SA PSP/PAL variant
-        if os.path.basename(path).lower() == 'timecycp.dat':
-            self._parser.game = 'SA'
         game = self._parser.game
         # Resize grid to match actual game data
         n_weathers, n_times = self._parser._get_game_layout()
@@ -545,7 +574,7 @@ class TimecycWorkshop(GUIWorkshop): #vers 1
         self._grid.setHorizontalHeaderLabels(weathers)
         self._grid.setVerticalHeaderLabels(time_labels)
         for c in range(n_weathers):
-            self._grid.setColumnWidth(c, 70)
+            self._grid.setColumnWidth(c, 48)
         self._rebuild_field_widgets()
         self._populate_grid()
         self._set_status(f"Loaded {os.path.basename(path)} — {len(self._parser.rows)} rows [{game}]")
