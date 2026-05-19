@@ -19,17 +19,17 @@ right = live sky colour preview swatch.
 # SkyPreviewWidget.__init__
 # SkyPreviewWidget.set_colors
 # SkyPreviewWidget.paintEvent
-# TimecycEditor.__init__
-# TimecycEditor._build_left_panel
-# TimecycEditor._build_centre_panel
-# TimecycEditor._build_right_panel
-# TimecycEditor._open_file
-# TimecycEditor._save_file
-# TimecycEditor._on_cell_selected
-# TimecycEditor._populate_fields
-# TimecycEditor._on_field_changed
-# TimecycEditor._update_preview
-# TimecycEditor._build_menus_into_qmenu
+# TimecycWorkshop.__init__
+# TimecycWorkshop._build_left_panel
+# TimecycWorkshop._build_centre_panel
+# TimecycWorkshop._build_right_panel
+# TimecycWorkshop._open_file
+# TimecycWorkshop._save_file
+# TimecycWorkshop._on_cell_selected
+# TimecycWorkshop._populate_fields
+# TimecycWorkshop._on_field_changed
+# TimecycWorkshop._update_preview
+# TimecycWorkshop._build_menus_into_qmenu
 # open_timecyc_editor
 
 import sys, os
@@ -309,7 +309,7 @@ class SkyPreviewWidget(QWidget): #vers 1
 
 # Editor
 
-class TimecycEditor(GUIWorkshop): #vers 1
+class TimecycWorkshop(GUIWorkshop): #vers 1
     App_name   = "Time Cycle Workshop"
     App_build  = "Build 2"
     App_auth   = "X-Seti"
@@ -667,7 +667,7 @@ class TimecycEditor(GUIWorkshop): #vers 1
 
 def open_timecyc_editor(main_window=None, path: str = None): #vers 1
     app = QApplication.instance() or QApplication(sys.argv)
-    w = TimecycEditor(main_window)
+    w = TimecycWorkshop(main_window)
     w.resize(1200, 720)
     w.show()
     if path:
@@ -677,7 +677,7 @@ def open_timecyc_editor(main_window=None, path: str = None): #vers 1
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    w = TimecycEditor()
+    w = TimecycWorkshop()
     w.resize(1200, 720); w.show()
     if len(sys.argv) > 1:
         w._open_file(sys.argv[1])

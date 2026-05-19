@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in components/Img_Factory/imgfactory.py - Version: 80
+#this belongs in components/Img_Factory/imgfactory.py - Version: 81
 # X-Seti - Feb 24 2026 - IMG Factory 1.6 - Icon system, button layout
 
 """
@@ -6583,13 +6583,13 @@ class IMGFactory(QMainWindow):
             'HandlingEditor', None,
             'Handling', file_path or None)
 
-    def open_timecyc_editor(self, file_path=None): #vers 2
-        """Open Timecyc Editor docked in a tab."""
+    def open_timecyc_editor(self, file_path=None): #vers 3
+        """Open Timecyc Workshop docked in a tab."""
         if file_path is None:
             file_path = getattr(self, 'vehicle_data_paths', {}).get('timecyc', '')
         self._open_workshop_tab(
-            'apps.components.Timecyc_Editor.timecyc_editor',
-            'TimecycEditor', None,
+            'apps.components.Timecyc_Editor.timecyc_workshop',
+            'TimecycWorkshop', None,
             'Timecyc', file_path or None)
 
     def open_breakable_editor(self, file_path=None): #vers 2
