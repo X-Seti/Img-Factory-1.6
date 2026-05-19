@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Timecyc_Editor/timecyc_workshop.py - Version: 2
+#this belongs in apps/components/Timecyc_Editor/timecyc_workshop.py - Version: 3
 # X-Seti - May08 2026 - Img Factory 1.6 - Time Cycle Editor
 
 """
@@ -336,7 +336,47 @@ class TimecycWorkshop(GUIWorkshop): #vers 1
         lay.setContentsMargins(4, 4, 4, 4)
         lay.setSpacing(4)
 
-        lay.addWidget(QLabel("Weather / Time Grid"))
+        # Header row: title + action buttons (collapse to icons when narrow)
+        header = QHBoxLayout()
+        header.setSpacing(2)
+        title_lbl = QLabel("Weather / Time Grid")
+        title_lbl.setStyleSheet("font-weight: bold;")
+        header.addWidget(title_lbl)
+        header.addStretch()
+
+        def _make_btn(text, icon_text, tooltip, callback, enabled=True):
+            btn = QPushButton(text)
+            btn.setToolTip(tooltip)
+            btn.setEnabled(enabled)
+            btn.clicked.connect(callback)
+            btn.setFixedHeight(22)
+            btn.setMinimumWidth(44)
+            btn.setCheckable(False)
+            return btn
+
+        self._btn_convert = _make_btn("Convert", "Conv", "Convert between game formats", self._convert_dialog)
+        self._btn_load    = _make_btn("Load",    "Load", "Load timecyc.dat",             self._open_file)
+        self._btn_save    = _make_btn("Save",    "Save", "Save timecyc.dat",             self._save_file)
+        self._btn_import  = _make_btn("Import",  "Imp", "Import from another format",   self._import_file)
+        self._btn_export  = _make_btn("Export",  "Exp", "Export to another format",     self._export_file)
+
+        # Apply SVG icons
+        try:
+            from apps.methods.imgfactory_svg_icons import SVGIconFactory as _SVG
+            ic = '#cccccc'
+            self._btn_convert.setIcon(_SVG.convert_icon(16, ic))
+            self._btn_load.setIcon(_SVG.open_icon(16, ic))
+            self._btn_save.setIcon(_SVG.save_icon(16, ic))
+            self._btn_import.setIcon(_SVG.import_icon(16, ic))
+            self._btn_export.setIcon(_SVG.export_icon(16, ic))
+        except Exception:
+            pass
+
+        for btn in (self._btn_convert, self._btn_load, self._btn_save,
+                    self._btn_import, self._btn_export):
+            header.addWidget(btn)
+
+        lay.addLayout(header)
 
         # Grid: rows=time, cols=weather
         self._grid = QTableWidget(24, 8)
@@ -353,21 +393,25 @@ class TimecycWorkshop(GUIWorkshop): #vers 1
 
         return w
 
-    def _build_centre_panel(self, parent: QWidget) -> QWidget: #vers 1
+    def _build_centre_panel(self, parent: QWidget) -> QWidget: #vers 2
         scroll = QScrollArea(parent)
         scroll.setWidgetResizable(True)
-        container = QWidget()
-        scroll.setWidget(container)
-        lay = QVBoxLayout(container)
-        lay.setContentsMargins(8, 8, 8, 8)
-        lay.setSpacing(8)
+        self._form_container = QWidget()
+        scroll.setWidget(self._form_container)
+        self._form_layout = QVBoxLayout(self._form_container)
+        self._form_layout.setContentsMargins(8, 8, 8, 8)
+        self._form_layout.setSpacing(8)
         self._field_widgets.clear()
+        self._build_field_groups(VC_COLOUR_GROUPS, VC_SCALAR_FIELDS, VC_COLOUR_GROUPS_2)
+        return scroll
 
-        # Colour groups
-        for group_name, r_idx in VC_COLOUR_GROUPS + VC_COLOUR_GROUPS_2:
+    def _build_field_groups(self, cg, sf, cg2): #vers 1
+        """Populate _form_layout with colour group boxes and scalar fields."""
+        lay = self._form_layout
+
+        for group_name, r_idx in cg + cg2:
             grp = QGroupBox(group_name)
             grp_lay = QHBoxLayout(grp)
-
             for component, offset in [('R', 0), ('G', 1), ('B', 2)]:
                 key = f"{group_name}_{component}"
                 col_lay = QVBoxLayout()
@@ -381,8 +425,6 @@ class TimecycWorkshop(GUIWorkshop): #vers 1
                 col_lay.addWidget(lbl)
                 col_lay.addWidget(sp)
                 grp_lay.addLayout(col_lay)
-
-            # Colour swatch
             swatch = QLabel()
             swatch.setFixedSize(40, 40)
             swatch.setStyleSheet("background: rgb(0,0,0); border: 1px solid #555;")
@@ -390,18 +432,15 @@ class TimecycWorkshop(GUIWorkshop): #vers 1
             grp_lay.addWidget(swatch)
             lay.addWidget(grp)
 
-        # Scalar fields
         scalar_grp = QGroupBox("Atmosphere")
         scalar_form = QFormLayout(scalar_grp)
-        for fname, idx, fmin, fmax in VC_SCALAR_FIELDS:
+        for fname, idx, fmin, fmax in sf:
             sp = QSpinBox()
             sp.setRange(fmin, fmax)
             sp.valueChanged.connect(lambda v, n=fname: self._on_field_changed(n, v))
             self._field_widgets[fname] = sp
             scalar_form.addRow(QLabel(fname), sp)
         lay.addWidget(scalar_grp)
-
-        return scroll
 
     def _build_right_panel(self, parent: QWidget) -> QWidget: #vers 1
         w = QWidget(parent)
@@ -442,42 +481,19 @@ class TimecycWorkshop(GUIWorkshop): #vers 1
             return SA_COLOUR_GROUPS, SA_SCALAR_FIELDS, SA_COLOUR_GROUPS_2
         return VC_COLOUR_GROUPS, VC_SCALAR_FIELDS, VC_COLOUR_GROUPS_2
 
-    def _rebuild_field_widgets(self): #vers 1
+    def _rebuild_field_widgets(self): #vers 2
         """Rebuild centre panel field widgets for current game."""
         cg, sf, cg2 = self._get_field_groups()
         lay = self._form_layout
-        # Clear existing widgets
-        while lay.rowCount():
-            lay.removeRow(0)
+        # Clear all existing widgets from layout
         self._field_widgets.clear()
         self._colour_swatches.clear()
-        # Colour groups
-        for group_name, r_idx in cg + cg2:
-            grp = QGroupBox(group_name)
-            grp_lay = QHBoxLayout(grp)
-            for component, offset in [('R',0),('G',1),('B',2)]:
-                key = f"{group_name}_{component}"
-                col_lay = QVBoxLayout()
-                lbl = QLabel(component); lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                sp = QSpinBox(); sp.setRange(0, 255); sp.setFixedWidth(60)
-                sp.valueChanged.connect(lambda v, k=key: self._on_field_changed(k, v))
-                self._field_widgets[key] = sp
-                col_lay.addWidget(lbl); col_lay.addWidget(sp)
-                grp_lay.addLayout(col_lay)
-            swatch = QLabel(); swatch.setFixedSize(40,40)
-            swatch.setStyleSheet("background: rgb(0,0,0); border: 1px solid #555;")
-            self._colour_swatches[group_name] = swatch
-            grp_lay.addWidget(swatch)
-            lay.addWidget(grp)
-        # Scalar fields
-        scalar_grp = QGroupBox("Atmosphere")
-        scalar_form = QFormLayout(scalar_grp)
-        for fname, idx, fmin, fmax in sf:
-            sp = QSpinBox(); sp.setRange(fmin, fmax)
-            sp.valueChanged.connect(lambda v, n=fname: self._on_field_changed(n, v))
-            self._field_widgets[fname] = sp
-            scalar_form.addRow(QLabel(fname), sp)
-        lay.addWidget(scalar_grp)
+        while lay.count():
+            item = lay.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        # Rebuild for current game
+        self._build_field_groups(cg, sf, cg2)
 
     def _open_file(self, path=None): #vers 2
         if path is None:
@@ -643,19 +659,184 @@ class TimecycWorkshop(GUIWorkshop): #vers 1
             fog      = sv(34)   # VC Fog Start[34]
         self._sky_preview.set_colors(sky_top, sky_bot, ambient, sun_core, fog)
 
-    def _export_file(self): #vers 1
-        self._set_status("Export: not yet implemented")
-        if hasattr(self, 'export_btn'): self.export_btn.setEnabled(False)
+    def _export_file(self): #vers 2
+        """Export current timecyc to a different game format."""
+        if not self._parser.rows:
+            self._set_status("No file loaded — nothing to export"); return
+        self._convert_dialog(export_mode=True)
 
-    def _import_file(self): #vers 1
-        self._set_status("Import: not yet implemented")
-        if hasattr(self, 'import_btn'): self.import_btn.setEnabled(False)
+    def _import_file(self): #vers 2
+        """Import a timecyc from a different game format and convert."""
+        self._convert_dialog(import_mode=True)
+
+    def _convert_dialog(self, export_mode=False, import_mode=False): #vers 1
+        """Convert timecyc between GTA3 / VC / SA formats."""
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Convert Timecyc Format")
+        dlg.setMinimumWidth(380)
+        lay = QVBoxLayout(dlg)
+
+        src_game = self._parser.game if self._parser.rows else "VC"
+        games = ["GTA3", "VC", "SA"]
+
+        # Source
+        lay.addWidget(QLabel(f"Source format: <b>{src_game}</b>"))
+
+        # Target
+        tgt_row = QHBoxLayout()
+        tgt_row.addWidget(QLabel("Convert to:"))
+        tgt_combo = QComboBox()
+        for g in games:
+            if g != src_game: tgt_combo.addItem(g)
+        tgt_row.addWidget(tgt_combo)
+        lay.addLayout(tgt_row)
+
+        # Info label
+        info = QLabel("")
+        info.setWordWrap(True)
+        info.setStyleSheet("color: #aaa; font-size: 10px;")
+        lay.addWidget(info)
+
+        def _update_info():
+            tgt = tgt_combo.currentText()
+            notes = {
+                ("VC","SA"):  "VC→SA: field reorder, 24 times→8 slots, add color correction (zeroed).",
+                ("SA","VC"):  "SA→VC: field reorder, 8 slots→24 times (interpolated), drop color correction.",
+                ("GTA3","VC"):"GTA3→VC: same structure, expand from 4→7 weathers (extras zeroed).",
+                ("VC","GTA3"):"VC→GTA3: truncate to 4 weathers.",
+                ("GTA3","SA"):"GTA3→SA: field reorder + weather/time expansion.",
+                ("SA","GTA3"):"SA→GTA3: field reorder + truncate.",
+            }
+            info.setText(notes.get((src_game, tgt), ""))
+        tgt_combo.currentTextChanged.connect(_update_info)
+        _update_info()
+
+        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                QDialogButtonBox.StandardButton.Cancel)
+        btns.accepted.connect(dlg.accept)
+        btns.rejected.connect(dlg.reject)
+        lay.addWidget(btns)
+
+        if dlg.exec() != QDialog.DialogCode.Accepted: return
+
+        tgt_game = tgt_combo.currentText()
+        out_path, _ = QFileDialog.getSaveFileName(
+            self, f"Save as {tgt_game} timecyc", "timecyc.dat",
+            "DAT files (*.dat);;All files (*)")
+        if not out_path: return
+
+        ok, msg = self._do_convert(tgt_game, out_path)
+        if ok:
+            self._set_status(f"Converted {src_game}→{tgt_game}: {os.path.basename(out_path)}")
+        else:
+            QMessageBox.critical(self, "Convert Failed", msg)
+
+    def _do_convert(self, tgt_game: str, out_path: str): #vers 1
+        """Perform field-remapping conversion between game formats."""
+        src = self._parser.game
+        rows = self._parser.rows
+        if not rows: return False, "No data loaded"
+
+        try:
+            out_lines = []
+            for row in rows:
+                v = list(row.values)
+                nv = self._remap_fields(v, src, tgt_game)
+                out_lines.append(' '.join(str(x) for x in nv))
+
+            with open(out_path, 'w') as f:
+                f.write(f"// Converted from {src} to {tgt_game} by Timecyc Workshop\n")
+                for ln in out_lines:
+                    f.write(ln + '\n')
+            return True, ""
+        except Exception as ex:
+            return False, str(ex)
+
+    def _remap_fields(self, v: list, src: str, tgt: str) -> list: #vers 1
+        """Remap field values from src game layout to tgt game layout.
+        All games share: Ambient[0-2], then diverge.
+        VC layout: Amb[0-2] AmbDyn[3-5] AmbBlur[6-8] AmbBlurDyn[9-11] Dir[12-14]
+                   SkyTop[15-17] SkyBot[18-20] SunCore[21-23] SunCorona[24-26]
+                   SunSz[27] SpriteSz[28] SpriteBright[29] Shadow[30] Light[31]
+                   Pole[32] FarClip[33] FogStart[34] LightGnd[35]
+                   LowCloud[36-38] UpCloudTop[39-41] UpCloudBot[42-44]
+                   Blur[45-47] Water[48-50] WaterAlpha[51]
+        SA layout: Amb[0-2] AmbObj[3-5] Dir[6-8] SkyTop[9-11] SkyBot[12-14]
+                   SunCore[15-17] SunCorona[18-20] SunSz[21] SpriteSz[22]
+                   SpriteBright[23] Shadow[24] Light[25] Pole[26]
+                   FarClip[27] FogStart[28] LightGnd[29]
+                   LowCloud[30-32] BottomCloud[33-35] Water[36-38] WaterAlpha[39]
+                   CC1Alpha[40] CC1RGB[41-43] CC2Alpha[44] CC2RGB[45-47] CloudAlpha[48]
+        """
+        def g(lst, i, d=0):
+            return lst[i] if i < len(lst) else d
+        def rgb(lst, i):
+            return [g(lst,i), g(lst,i+1), g(lst,i+2)]
+
+        if src == 'VC' and tgt == 'SA':
+            return (rgb(v,0) + rgb(v,3) +          # Amb, AmbObj (from AmbDyn)
+                    rgb(v,12) +                      # Dir
+                    rgb(v,15) + rgb(v,18) +          # SkyTop, SkyBot
+                    rgb(v,21) + rgb(v,24) +          # SunCore, SunCorona
+                    [g(v,27), g(v,28), g(v,29),     # SunSz, SpriteSz, SpriteBright
+                     g(v,30), g(v,31), g(v,32),     # Shadow, Light, Pole
+                     g(v,33), g(v,34), g(v,35)] +   # FarClip, FogStart, LightGnd
+                    rgb(v,36) + rgb(v,39) +          # LowCloud, BottomCloud (UpCloudTop)
+                    rgb(v,48) + [g(v,51)] +          # Water RGBA
+                    [0, 0,0,0, 0, 0,0,0, 0])        # CC1, CC2, CloudAlpha (zeroed)
+
+        elif src == 'SA' and tgt == 'VC':
+            return (rgb(v,0) + rgb(v,3) +           # AmbStatic, AmbDyn
+                    rgb(v,0) + rgb(v,3) +            # AmbBlur, AmbBlurDyn (copy ambient)
+                    rgb(v,6) +                        # Dir
+                    rgb(v,9) + rgb(v,12) +           # SkyTop, SkyBot
+                    rgb(v,15) + rgb(v,18) +          # SunCore, SunCorona
+                    [g(v,21), g(v,22), g(v,23),     # SunSz, SpriteSz, SpriteBright
+                     g(v,24), g(v,25), g(v,26),     # Shadow, Light, Pole
+                     g(v,27), g(v,28), g(v,29)] +   # FarClip, FogStart, LightGnd
+                    rgb(v,30) + rgb(v,33) +          # LowCloud, UpCloudTop (BottomCloud)
+                    [0,0,0] +                         # UpCloudBot (zeroed)
+                    [0,0,0] +                         # Blur (zeroed)
+                    rgb(v,36) + [g(v,39)])           # Water RGB + Alpha
+
+        elif src == 'GTA3' and tgt == 'VC':
+            # GTA3 same layout as VC but 40 fields — pad missing fields with 0
+            return list(v) + [0] * (52 - len(v))
+
+        elif src == 'VC' and tgt == 'GTA3':
+            return list(v)[:40]
+
+        elif src == 'GTA3' and tgt == 'SA':
+            # GTA3→VC first, then VC→SA
+            vc = list(v) + [0] * (52 - len(v))
+            return self._remap_fields(vc, 'VC', 'SA')
+
+        elif src == 'SA' and tgt == 'GTA3':
+            vc = self._remap_fields(v, 'SA', 'VC')
+            return vc[:40]
+
+        return list(v)  # same game, no change
 
     def setup_ui(self): #vers 4
         super().setup_ui()
-        # Disable export/import buttons - not implemented
-        if hasattr(self, 'export_btn'): self.export_btn.setEnabled(False)
-        if hasattr(self, 'import_btn'): self.import_btn.setEnabled(False)
+        # GUIWorkshop toolbar hidden when docked; our button bar handles file ops
+
+    def _update_action_btns(self, narrow: bool): #vers 1
+        """Collapse action buttons to icons when panel is narrow (<500px)."""
+        labels = {
+            self._btn_convert: ("Convert", "Conv"),
+            self._btn_load:    ("Load",    "Load"),
+            self._btn_save:    ("Save",    "Save"),
+            self._btn_import:  ("Import",  "Imp"),
+            self._btn_export:  ("Export",  "Exp"),
+        }
+        for btn, (full, icon) in labels.items():
+            btn.setText(icon if narrow else full)
+
+    def resizeEvent(self, ev): #vers 1
+        super().resizeEvent(ev)
+        if hasattr(self, '_btn_load'):
+            self._update_action_btns(self.width() < 500)
 
     def _build_menus_into_qmenu(self, pm): #vers 1
         fm = pm.addMenu("File")
