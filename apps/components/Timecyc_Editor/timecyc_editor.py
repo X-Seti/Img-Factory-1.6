@@ -160,15 +160,23 @@ class TimecycParser: #vers 1
                         self.cols_per_row = len(parts)
                         break
 
-            # Parse: rows are ordered time0/weather0..7, time1/weather0..7, ...
+            # Parse rows — weather-major ordering:
+            # all times for weather0, then all times for weather1, etc.
+            # GTA3: 8 weathers x 12 times = 96  (2-hour steps)
+            # VC:   7 weathers x 24 times = 168
+            # SA:   8 weathers x 23 times = 184
+            if self.game == 'GTA3':   n_times = 12
+            elif self.game == 'SA':   n_times = 23
+            else:                     n_times = 24   # VC
+
             data_lines = [ln for ln in lines if ln.strip() and not ln.strip().startswith('/')]
             comment_lines = [ln for ln in lines if ln.strip().startswith('/')]
-            self.header_lines = comment_lines[:3]  # keep first 3 comment lines
+            self.header_lines = comment_lines[:3]
 
             row_idx = 0
             for ln in data_lines:
-                weather = row_idx % 8
-                time    = row_idx // 8
+                weather = row_idx // n_times
+                time    = row_idx % n_times
                 r = self._parse_line(ln, weather, time)
                 if r:
                     self.rows.append(r)
@@ -374,12 +382,15 @@ class TimecycEditor(GUIWorkshop): #vers 1
     def setup_ui(self): #vers 2
         super().setup_ui()
 
-    def _create_centre_panel(self): #vers 1
+    def _create_centre_panel(self): #vers 2
         sp = QSplitter(Qt.Orientation.Horizontal)
-        sp.addWidget(self._build_left_panel(self))
-        sp.addWidget(self._build_centre_panel(self))
-        sp.addWidget(self._build_right_panel(self))
-        sp.setSizes([400, 500, 200])
+        sp.addWidget(self._build_left_panel(self))    # grid (now IS the centre)
+        right = QSplitter(Qt.Orientation.Vertical)
+        right.addWidget(self._build_centre_panel(self))  # colour fields
+        right.addWidget(self._build_right_panel(self))   # sky preview
+        right.setSizes([600, 200])
+        sp.addWidget(right)
+        sp.setSizes([420, 730])
         return sp
 
     def _open_file(self, path=None): #vers 2

@@ -691,12 +691,12 @@ class _LayoutMixin:
         ml.addWidget(self._create_toolbar())
 
         sp = QSplitter(Qt.Orientation.Horizontal)
-        sp.addWidget(self._create_left_panel())
+        # sp.addWidget(self._create_left_panel())  # hidden for Timecyc — grid is centre view
         sp.addWidget(self._create_centre_panel())
         # sp.addWidget(self._create_right_panel())  # right button bar disabled
-        sp.setStretchFactor(0, 1)
-        sp.setStretchFactor(1, 5)
-        sp.setSizes([200, 950])
+        sp.setStretchFactor(0, 3)
+        sp.setStretchFactor(1, 2)
+        sp.setSizes([700, 450])
         self._main_splitter = sp
         ml.addWidget(sp)
 
