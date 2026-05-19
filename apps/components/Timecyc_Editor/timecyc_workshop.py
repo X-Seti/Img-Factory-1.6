@@ -529,6 +529,8 @@ class TimecycWorkshop(GUIWorkshop): #vers 1
         self._rebuild_field_widgets()
         self._populate_grid()
         self._set_status(f"Loaded {os.path.basename(path)} — {len(self._parser.rows)} rows [{game}]")
+        if hasattr(self, 'save_btn'):    self.save_btn.setEnabled(True)
+        if hasattr(self, 'convert_btn'): self.convert_btn.setEnabled(True)
 
     def _save_file(self): #vers 1
         if not self._current_path:
@@ -814,14 +816,16 @@ class TimecycWorkshop(GUIWorkshop): #vers 1
 
         return list(v)  # same game, no change
 
-    def setup_ui(self): #vers 5
+    def setup_ui(self): #vers 6
         super().setup_ui()
-        # Wire GUIWorkshop toolbar open/save buttons
+        # Wire GUIWorkshop toolbar buttons
         if hasattr(self, 'open_btn'):
             self.open_btn.clicked.connect(self._open_file)
         if hasattr(self, 'save_btn'):
             self.save_btn.clicked.connect(self._save_file)
-        # Disable export/import in toolbar (handled by our button bar)
+        if hasattr(self, 'convert_btn'):
+            self.convert_btn.clicked.connect(self._convert_dialog)
+        # Disable export/import in toolbar (handled by button bar when docked)
         if hasattr(self, 'export_btn'): self.export_btn.setEnabled(False)
         if hasattr(self, 'import_btn'): self.import_btn.setEnabled(False)
         # Hide left panel action buttons when standalone (show only when docked)

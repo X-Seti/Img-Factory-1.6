@@ -344,12 +344,14 @@ class _ToolbarMixin:
         lo.addSpacing(4)
 
         #    Right: action buttons                                          
-        self.open_btn   = _ibtn("open_icon",   "Open  Ctrl+O",  self._open_file)
-        self.save_btn   = _ibtn("save_icon",   "Save  Ctrl+S",  self._save_file)
-        self.export_btn = _ibtn("export_icon", "Export",        self._export_file)
-        self.import_btn = _ibtn("import_icon", "Import",        self._import_file)
+        self.open_btn    = _ibtn("open_icon",    "Open  Ctrl+O",  self._open_file)
+        self.save_btn    = _ibtn("save_icon",    "Save  Ctrl+S",  self._save_file)
+        self.convert_btn = _ibtn("convert_icon", "Convert format", self._convert_dialog)
+        self.export_btn  = _ibtn("export_icon",  "Export",        self._export_file)
+        self.import_btn  = _ibtn("import_icon",  "Import",        self._import_file)
         self.save_btn.setEnabled(False)
-        for b in (self.open_btn, self.save_btn,
+        self.convert_btn.setEnabled(False)  # enabled after file load
+        for b in (self.open_btn, self.save_btn, self.convert_btn,
                   self.export_btn, self.import_btn):
             lo.addWidget(b)
 
