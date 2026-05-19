@@ -239,7 +239,7 @@ class TimecycParser: #vers 1
                 for ln in self.header_lines:
                     f.write(ln if ln.endswith('\n') else ln + '\n')
                 # Sort: time-major order (time0/weather0..7, time1/weather0..7 ...)
-                ordered = sorted(self.rows, key=lambda r: (r.time, r.weather))
+                ordered = sorted(self.rows, key=lambda r: (r.weather, r.time))
                 for r in ordered:
                     line = ' '.join(str(v) for v in r.values)
                     if r.comment:
@@ -630,6 +630,7 @@ class TimecycWorkshop(GUIWorkshop): #vers 1
                 break
 
         self._modified = True
+        if hasattr(self, 'save_btn'): self.save_btn.setEnabled(True)
         self._update_preview(self._current_row)
         # Update grid cell colour
         t, w2 = self._current_row.time, self._current_row.weather
