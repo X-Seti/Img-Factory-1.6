@@ -534,17 +534,22 @@ class TimecycWorkshop(GUIWorkshop): #vers 1
         if hasattr(self, 'save_btn'):    self.save_btn.setEnabled(True)
         if hasattr(self, 'convert_btn'): self.convert_btn.setEnabled(True)
 
-    def _save_file(self, _checked=False): #vers 2
+    def _save_file(self, _checked=False): #vers 3
+        if not self._parser.rows:
+            self._set_status("Nothing to save"); return
         if not self._current_path:
             self._current_path, _ = QFileDialog.getSaveFileName(
-                self, "Save timecyc.dat", "", "DAT files (*.dat)")
+                self, "Save timecyc.dat", "timecyc.dat", "DAT files (*.dat);;All files (*)")
         if not self._current_path:
             return
+        print(f"[TimecycWorkshop] saving to {self._current_path}")
         if self._parser.save(self._current_path):
             self._modified = False
+            if hasattr(self, 'save_btn'): self.save_btn.setEnabled(False)
             self._set_status(f"Saved {os.path.basename(self._current_path)}")
         else:
-            QMessageBox.critical(self, "Error", "Save failed")
+            QMessageBox.critical(self, "Save Error",
+                f"Could not save to:\n{self._current_path}")
 
     def _populate_grid(self): #vers 2
         n_times    = self._grid.rowCount()
