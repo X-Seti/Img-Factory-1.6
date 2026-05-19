@@ -693,11 +693,10 @@ class _LayoutMixin:
         sp = QSplitter(Qt.Orientation.Horizontal)
         sp.addWidget(self._create_left_panel())
         sp.addWidget(self._create_centre_panel())
-        sp.addWidget(self._create_right_panel())
+        # sp.addWidget(self._create_right_panel())  # right button bar disabled
         sp.setStretchFactor(0, 1)
         sp.setStretchFactor(1, 5)
-        sp.setStretchFactor(2, 0)
-        sp.setSizes([200, 950, self.WS.get("sidebar_width", 82)])
+        sp.setSizes([200, 950])
         self._main_splitter = sp
         ml.addWidget(sp)
 
