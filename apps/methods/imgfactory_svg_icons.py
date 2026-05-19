@@ -4261,6 +4261,37 @@ def get_paths_map_icon(size: int = 24, color: str = None, bg_color: str = None) 
     </svg>''', size, color, bg_color)
 
 
+def get_timecyc_workshop_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
+    """Timecyc Workshop — sky gradient with sun and horizon line"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <!-- Sky gradient backdrop: top arc -->
+        <path d="M2 16 Q12 2 22 16 Z"
+              stroke="currentColor" stroke-width="1.4" fill="none"
+              stroke-linejoin="round" opacity="0.5"/>
+        <!-- Sun circle -->
+        <circle cx="12" cy="10" r="3"
+                stroke="currentColor" stroke-width="1.6" fill="none"/>
+        <!-- Sun rays -->
+        <line x1="12" y1="4"  x2="12" y2="6"  stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+        <line x1="17" y1="5.5" x2="16" y2="7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+        <line x1="19" y1="10" x2="17" y2="10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+        <line x1="7"  y1="5.5" x2="8"  y2="7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+        <line x1="5"  y1="10" x2="7"  y2="10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+        <!-- Horizon line -->
+        <line x1="1" y1="16" x2="23" y2="16"
+              stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        <!-- Time grid cells below horizon -->
+        <rect x="2"  y="17.5" width="4" height="3" rx="0.5"
+              stroke="currentColor" stroke-width="1" fill="none" opacity="0.7"/>
+        <rect x="7"  y="17.5" width="4" height="3" rx="0.5"
+              stroke="currentColor" stroke-width="1" fill="none" opacity="0.7"/>
+        <rect x="12" y="17.5" width="4" height="3" rx="0.5"
+              stroke="currentColor" stroke-width="1" fill="none" opacity="0.7"/>
+        <rect x="17" y="17.5" width="4" height="3" rx="0.5"
+              stroke="currentColor" stroke-width="1" fill="none" opacity="0.7"/>
+    </svg>''', size, color, bg_color)
+
+
 def get_weather_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
     """Weather / timecyc editor — cloud"""
     return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -4970,5 +5001,7 @@ def get_water_workshop_icon(size: int = 24, color: str = None, bg_color: str = N
 
 
 # Attach as static methods on SVGIconFactory
-SVGIconFactory.radar_workshop_icon = staticmethod(get_radar_workshop_icon)
-SVGIconFactory.water_workshop_icon = staticmethod(get_water_workshop_icon)
+SVGIconFactory.radar_workshop_icon    = staticmethod(get_radar_workshop_icon)
+SVGIconFactory.water_workshop_icon    = staticmethod(get_water_workshop_icon)
+SVGIconFactory.timecyc_workshop_icon  = staticmethod(get_timecyc_workshop_icon)
+SVGIconFactory.get_timecyc_workshop_icon = staticmethod(get_timecyc_workshop_icon)

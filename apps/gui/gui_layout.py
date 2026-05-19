@@ -33,7 +33,8 @@ from apps.methods.imgfactory_svg_icons import (
     get_dat_browser_icon, get_ide_editor_icon,
     get_radar_workshop_icon, get_water_workshop_icon,
     get_dp5_panel_icon, get_ipl_editor_icon, get_paths_map_icon,
-    get_weather_icon
+    get_weather_icon,
+    get_timecyc_workshop_icon
 )
 from apps.locals.localization import tr_button
 from typing import Optional, Dict, Any, List, Callable
@@ -1620,7 +1621,7 @@ class IMGFactoryGUILayout:
             "peds-edit": get_tba_icon,
             "radar-map": get_radar_workshop_icon,
             "paths-map": get_paths_map_icon,
-            "timecyc": get_water_workshop_icon,
+            "timecyc": get_timecyc_workshop_icon,
             "weather": get_weather_icon,
             "handling": get_tba_icon,
             "ojs-breakble": get_tba_icon,

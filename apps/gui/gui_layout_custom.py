@@ -212,6 +212,9 @@ def _show_intro_panel(mw): #vers 5
                     ws.open_radar_workshop.connect(
                         lambda: mw.open_radar_map()
                         if hasattr(mw, 'open_radar_map') else None)
+                    ws.open_timecyc_workshop.connect(
+                        lambda: mw.open_timecyc_editor()
+                        if hasattr(mw, 'open_timecyc_editor') else None)
                 except Exception:
                     pass
             from PyQt6.QtCore import QTimer

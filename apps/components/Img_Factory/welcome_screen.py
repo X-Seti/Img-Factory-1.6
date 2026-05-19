@@ -166,6 +166,7 @@ class WelcomeScreen(QWidget):
     open_dp5_workshop      = pyqtSignal()
     open_water_workshop    = pyqtSignal()
     open_radar_workshop    = pyqtSignal()
+    open_timecyc_workshop  = pyqtSignal()
     open_dir_tree          = pyqtSignal()
 
     def __init__(self, main_window=None, parent=None):
@@ -439,6 +440,10 @@ class WelcomeScreen(QWidget):
              "Browse, export and replace GTA radar tile textures. "
              "Supports SA 12×12 radar grid and VC/III formats.",
              self.open_radar_workshop),
+            (_SVG.get_timecyc_workshop_icon(36, _ic) if hasattr(_SVG, 'get_timecyc_workshop_icon') else _SVG.view_icon(36, _ic), "Timecyc Workshop",
+             "Edit GTA time-of-day colour cycles. Supports GTA III, VC and SA "
+             "timecyc.dat / timecycp.dat with sky preview and game conversion.",
+             self.open_timecyc_workshop),
         ]
         for i, (ico, ttl, dsc, sig) in enumerate(eds):
             c = WelcomeCard(ico, ttl, dsc); c.clicked.connect(sig.emit)
