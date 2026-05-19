@@ -291,267 +291,7 @@ class SkyPreviewWidget(QWidget): #vers 1
 
 
 # Editor
-class TimecycEditor(QWidget): #vers 2
 
-    def __init__(self, main_window=None, parent=None):
-        super().__init__(parent)
-        self.main_window    = main_window
-        self._parser        = TimecycParser()
-        self._current_path: Optional[str]  = None
-        self._current_row:  Optional[TimecycRow] = None
-        self._modified      = False
-        self._field_widgets: Dict[str, QWidget] = {}
-        self._colour_swatches: Dict[str, QLabel] = {}
-        self._blocking      = False
-        # Window chrome state
-        self.dragging         = False; self.drag_position    = None
-        self.resizing         = False; self.resize_corner    = None
-        self.initial_geometry = None;  self.corner_size      = 20
-        self.hover_corner     = None
-
-        self.setup_ui()
-
-        if main_window and hasattr(self, "toolbar"): self.toolbar.hide()
-        # self._set_status("Open a timecyc.dat file to begin") # TODO: when standalone use the load button, otherwise when docked use the cached version.
-
-    def _build_left_panel(self, parent: QWidget) -> QWidget: #vers 1
-        w = QWidget(parent)
-        lay = QVBoxLayout(w)
-        lay.setContentsMargins(4, 4, 4, 4)
-        lay.setSpacing(4)
-
-        lay.addWidget(QLabel("Weather / Time Grid"))
-
-        # Grid: rows=time, cols=weather
-        self._grid = QTableWidget(24, 8)
-        self._grid.setHorizontalHeaderLabels(WEATHER_NAMES_VC)
-        self._grid.setVerticalHeaderLabels(TIME_LABELS)
-        self._grid.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
-        for c in range(8):
-            self._grid.setColumnWidth(c, 70)
-        self._grid.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
-        self._grid.verticalHeader().setDefaultSectionSize(20)
-        self._grid.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        self._grid.currentCellChanged.connect(self._on_cell_selected)
-        lay.addWidget(self._grid)
-
-        return w
-
-    def _build_centre_panel(self, parent: QWidget) -> QWidget: #vers 1
-        scroll = QScrollArea(parent)
-        scroll.setWidgetResizable(True)
-        container = QWidget()
-        scroll.setWidget(container)
-        lay = QVBoxLayout(container)
-        lay.setContentsMargins(8, 8, 8, 8)
-        lay.setSpacing(8)
-        self._field_widgets.clear()
-
-        # Colour groups
-        for group_name, r_idx in VC_COLOUR_GROUPS + VC_COLOUR_GROUPS_2:
-            grp = QGroupBox(group_name)
-            grp_lay = QHBoxLayout(grp)
-
-            for component, offset in [('R', 0), ('G', 1), ('B', 2)]:
-                key = f"{group_name}_{component}"
-                col_lay = QVBoxLayout()
-                lbl = QLabel(component)
-                lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                sp = QSpinBox()
-                sp.setRange(0, 255)
-                sp.setFixedWidth(60)
-                sp.valueChanged.connect(lambda v, k=key: self._on_field_changed(k, v))
-                self._field_widgets[key] = sp
-                col_lay.addWidget(lbl)
-                col_lay.addWidget(sp)
-                grp_lay.addLayout(col_lay)
-
-            # Colour swatch
-            swatch = QLabel()
-            swatch.setFixedSize(40, 40)
-            swatch.setStyleSheet("background: rgb(0,0,0); border: 1px solid #555;")
-            self._colour_swatches[group_name] = swatch
-            grp_lay.addWidget(swatch)
-            lay.addWidget(grp)
-
-        # Scalar fields
-        scalar_grp = QGroupBox("Atmosphere")
-        scalar_form = QFormLayout(scalar_grp)
-        for fname, idx, fmin, fmax in VC_SCALAR_FIELDS:
-            sp = QSpinBox()
-            sp.setRange(fmin, fmax)
-            sp.valueChanged.connect(lambda v, n=fname: self._on_field_changed(n, v))
-            self._field_widgets[fname] = sp
-            scalar_form.addRow(QLabel(fname), sp)
-        lay.addWidget(scalar_grp)
-
-        return scroll
-
-    def _build_right_panel(self, parent: QWidget) -> QWidget: #vers 1
-        w = QWidget(parent)
-        lay = QVBoxLayout(w)
-        lay.setContentsMargins(4, 4, 4, 4)
-
-        lay.addWidget(QLabel("Sky Preview"))
-        self._sky_preview = SkyPreviewWidget()
-        self._sky_preview.setMinimumHeight(160)
-        lay.addWidget(self._sky_preview)
-
-        lay.addWidget(QLabel("Current Cell"))
-        self._cell_info = QLabel("—")
-        self._cell_info.setWordWrap(True)
-        self._cell_info.setFont(QFont("Monospace", 8))
-        lay.addWidget(self._cell_info)
-        lay.addStretch()
-        return w
-
-    def setup_ui(self): #vers 3
-        root = QVBoxLayout(self)
-        root.setContentsMargins(0, 0, 0, 0); root.setSpacing(0)
-        sp = self._create_centre_panel()
-        root.addWidget(sp, 1)
-
-    def _create_centre_panel(self): #vers 1
-        sp = QSplitter(Qt.Orientation.Horizontal)
-        sp.addWidget(self._build_left_panel(self))
-        sp.addWidget(self._build_centre_panel(self))
-        sp.addWidget(self._build_right_panel(self))
-        sp.setSizes([400, 500, 200])
-        return sp
-
-    def _open_file(self, path=None): #vers 1
-        if path is None:
-            path, _ = QFileDialog.getOpenFileName(
-                self, "Open timecyc.dat", "",
-                "DAT files (timecyc.dat *.dat);;All files (*)")
-        if not path:
-            return
-        if not self._parser.load(path):
-            QMessageBox.critical(self, "Error", f"Failed to load {path}")
-            return
-        self._current_path = path
-        self._modified = False
-        self._populate_grid()
-        weathers = WEATHER_NAMES_SA if self._parser.game == 'SA' else WEATHER_NAMES_VC
-        self._grid.setHorizontalHeaderLabels(weathers)
-        self._set_status(f"Loaded {os.path.basename(path)} — {len(self._parser.rows)} rows [{self._parser.game}]")
-
-    def _save_file(self): #vers 1
-        if not self._current_path:
-            self._current_path, _ = QFileDialog.getSaveFileName(
-                self, "Save timecyc.dat", "", "DAT files (*.dat)")
-        if not self._current_path:
-            return
-        if self._parser.save(self._current_path):
-            self._modified = False
-            self._set_status(f"Saved {os.path.basename(self._current_path)}")
-        else:
-            QMessageBox.critical(self, "Error", "Save failed")
-
-    def _populate_grid(self): #vers 1
-        for row in self._parser.rows:
-            t, w = row.time, row.weather
-            if t < 24 and w < 8:
-                r, g, b = 0, 0, 0
-                if len(row.values) >= 3:
-                    r, g, b = row.values[0], row.values[1], row.values[2]
-                item = QTableWidgetItem()
-                item.setBackground(QColor(r, g, b))
-                item.setText("")
-                self._grid.setItem(t, w, item)
-
-    def _on_cell_selected(self, row: int, col: int, *_): #vers 1
-        r = self._parser.get_row(weather=col, time=row)
-        self._current_row = r
-        if r is None:
-            return
-        self._cell_info.setText(f"Time: {TIME_LABELS[row]}  Weather: {col}")
-        self._populate_fields(r)
-
-    def _populate_fields(self, row: TimecycRow): #vers 1
-        self._blocking = True
-        vals = row.values
-
-        for group_name, r_idx in VC_COLOUR_GROUPS + VC_COLOUR_GROUPS_2:
-            for ci, comp in enumerate(['R', 'G', 'B']):
-                key = f"{group_name}_{comp}"
-                w = self._field_widgets.get(key)
-                if w and r_idx + ci < len(vals):
-                    w.setValue(int(vals[r_idx + ci]))
-            # Update swatch
-            swatch = self._colour_swatches.get(group_name)
-            if swatch and r_idx + 2 < len(vals):
-                r2, g2, b2 = int(vals[r_idx]), int(vals[r_idx+1]), int(vals[r_idx+2])
-                swatch.setStyleSheet(f"background: rgb({r2},{g2},{b2}); border: 1px solid #555;")
-
-        for fname, idx, *_ in VC_SCALAR_FIELDS:
-            w = self._field_widgets.get(fname)
-            if w and idx < len(vals):
-                w.setValue(int(vals[idx]))
-
-        self._blocking = False
-        self._update_preview(row)
-
-    def _on_field_changed(self, key: str, value: int): #vers 1
-        if self._blocking or self._current_row is None:
-            return
-
-        # Update values in current row
-        vals = self._current_row.values
-
-        # Colour group field
-        for group_name, r_idx in VC_COLOUR_GROUPS + VC_COLOUR_GROUPS_2:
-            for ci, comp in enumerate(['R', 'G', 'B']):
-                if key == f"{group_name}_{comp}":
-                    target = r_idx + ci
-                    if target < len(vals):
-                        vals[target] = value
-                    # Update swatch
-                    swatch = self._colour_swatches.get(group_name)
-                    if swatch:
-                        r2 = int(vals[r_idx]) if r_idx < len(vals) else 0
-                        g2 = int(vals[r_idx+1]) if r_idx+1 < len(vals) else 0
-                        b2 = int(vals[r_idx+2]) if r_idx+2 < len(vals) else 0
-                        swatch.setStyleSheet(f"background: rgb({r2},{g2},{b2}); border: 1px solid #555;")
-                    break
-
-        # Scalar field
-        for fname, idx, *_ in VC_SCALAR_FIELDS:
-            if key == fname and idx < len(vals):
-                vals[idx] = value
-                break
-
-        self._modified = True
-        self._update_preview(self._current_row)
-        # Update grid cell colour
-        t, w2 = self._current_row.time, self._current_row.weather
-        if len(vals) >= 3:
-            item = self._grid.item(t, w2) or QTableWidgetItem()
-            item.setBackground(QColor(int(vals[0]), int(vals[1]), int(vals[2])))
-            self._grid.setItem(t, w2, item)
-
-    def _update_preview(self, row: TimecycRow): #vers 1
-        vals = row.values
-        def rgb(idx): return QColor(
-            int(vals[idx]) if idx < len(vals) else 0,
-            int(vals[idx+1]) if idx+1 < len(vals) else 0,
-            int(vals[idx+2]) if idx+2 < len(vals) else 0)
-        sky_top  = rgb(6)   # Sky Top
-        sky_bot  = rgb(9)   # Sky Bottom
-        ambient  = rgb(0)   # Ambient
-        sun_core = rgb(12)  # Sun Core
-        fog      = int(vals[25]) if 25 < len(vals) else 0
-        self._sky_preview.set_colors(sky_top, sky_bot, ambient, sun_core, fog)
-
-    def _build_menus_into_qmenu(self, pm): #vers 1
-        fm = pm.addMenu("File")
-        fm.addAction("Open timecyc.dat", self._open_file)
-        fm.addAction("Save", self._save_file)
-        fm.addSeparator()
-        fm.addAction("Close", self.close)
-
-
-#    WorkshopSettings                                                          
 class WorkshopSettings:
     """Per-app JSON settings.  Stored at ~/.config/imgfactory/{config_key}.json
     Same pattern as RADSettings / WATSettings across all workshops.
@@ -1629,3 +1369,271 @@ if __name__ == "__main__":
         sys.exit(app.exec())
 
 
+
+class TimecycEditor(GUIWorkshop): #vers 3
+
+    def __init__(self, main_window=None, parent=None):
+        self._defer_setup_ui = True
+        super().__init__(parent)
+        self.main_window    = main_window
+        self._parser        = TimecycParser()
+        self._current_path: Optional[str]  = None
+        self._current_row:  Optional[TimecycRow] = None
+        self._modified      = False
+        self._field_widgets: Dict[str, QWidget] = {}
+        self._colour_swatches: Dict[str, QLabel] = {}
+        self._blocking      = False
+        # Window chrome state
+        self.dragging         = False; self.drag_position    = None
+        self.resizing         = False; self.resize_corner    = None
+        self.initial_geometry = None;  self.corner_size      = 20
+        self.hover_corner     = None
+
+        self.setup_ui()
+
+        if main_window and hasattr(self, "toolbar"): self.toolbar.hide()
+        # self._set_status("Open a timecyc.dat file to begin") # TODO: when standalone use the load button, otherwise when docked use the cached version.
+
+    def _build_left_panel(self, parent: QWidget) -> QWidget: #vers 1
+        w = QWidget(parent)
+        lay = QVBoxLayout(w)
+        lay.setContentsMargins(4, 4, 4, 4)
+        lay.setSpacing(4)
+
+        lay.addWidget(QLabel("Weather / Time Grid"))
+
+        # Grid: rows=time, cols=weather
+        self._grid = QTableWidget(24, 8)
+        self._grid.setHorizontalHeaderLabels(WEATHER_NAMES_VC)
+        self._grid.setVerticalHeaderLabels(TIME_LABELS)
+        self._grid.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
+        for c in range(8):
+            self._grid.setColumnWidth(c, 70)
+        self._grid.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
+        self._grid.verticalHeader().setDefaultSectionSize(20)
+        self._grid.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self._grid.currentCellChanged.connect(self._on_cell_selected)
+        lay.addWidget(self._grid)
+
+        return w
+
+    def _build_centre_panel(self, parent: QWidget) -> QWidget: #vers 1
+        scroll = QScrollArea(parent)
+        scroll.setWidgetResizable(True)
+        container = QWidget()
+        scroll.setWidget(container)
+        lay = QVBoxLayout(container)
+        lay.setContentsMargins(8, 8, 8, 8)
+        lay.setSpacing(8)
+        self._field_widgets.clear()
+
+        # Colour groups
+        for group_name, r_idx in VC_COLOUR_GROUPS + VC_COLOUR_GROUPS_2:
+            grp = QGroupBox(group_name)
+            grp_lay = QHBoxLayout(grp)
+
+            for component, offset in [('R', 0), ('G', 1), ('B', 2)]:
+                key = f"{group_name}_{component}"
+                col_lay = QVBoxLayout()
+                lbl = QLabel(component)
+                lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                sp = QSpinBox()
+                sp.setRange(0, 255)
+                sp.setFixedWidth(60)
+                sp.valueChanged.connect(lambda v, k=key: self._on_field_changed(k, v))
+                self._field_widgets[key] = sp
+                col_lay.addWidget(lbl)
+                col_lay.addWidget(sp)
+                grp_lay.addLayout(col_lay)
+
+            # Colour swatch
+            swatch = QLabel()
+            swatch.setFixedSize(40, 40)
+            swatch.setStyleSheet("background: rgb(0,0,0); border: 1px solid #555;")
+            self._colour_swatches[group_name] = swatch
+            grp_lay.addWidget(swatch)
+            lay.addWidget(grp)
+
+        # Scalar fields
+        scalar_grp = QGroupBox("Atmosphere")
+        scalar_form = QFormLayout(scalar_grp)
+        for fname, idx, fmin, fmax in VC_SCALAR_FIELDS:
+            sp = QSpinBox()
+            sp.setRange(fmin, fmax)
+            sp.valueChanged.connect(lambda v, n=fname: self._on_field_changed(n, v))
+            self._field_widgets[fname] = sp
+            scalar_form.addRow(QLabel(fname), sp)
+        lay.addWidget(scalar_grp)
+
+        return scroll
+
+    def _build_right_panel(self, parent: QWidget) -> QWidget: #vers 1
+        w = QWidget(parent)
+        lay = QVBoxLayout(w)
+        lay.setContentsMargins(4, 4, 4, 4)
+
+        lay.addWidget(QLabel("Sky Preview"))
+        self._sky_preview = SkyPreviewWidget()
+        self._sky_preview.setMinimumHeight(160)
+        lay.addWidget(self._sky_preview)
+
+        lay.addWidget(QLabel("Current Cell"))
+        self._cell_info = QLabel("—")
+        self._cell_info.setWordWrap(True)
+        self._cell_info.setFont(QFont("Monospace", 8))
+        lay.addWidget(self._cell_info)
+        lay.addStretch()
+        return w
+
+    def setup_ui(self): #vers 3
+        super().setup_ui()
+
+    def _create_centre_panel(self): #vers 1
+        sp = QSplitter(Qt.Orientation.Horizontal)
+        sp.addWidget(self._build_left_panel(self))
+        sp.addWidget(self._build_centre_panel(self))
+        sp.addWidget(self._build_right_panel(self))
+        sp.setSizes([400, 500, 200])
+        return sp
+
+    def _create_centre_panel(self): #vers 1
+        sp = QSplitter(Qt.Orientation.Horizontal)
+        sp.addWidget(self._build_left_panel(self))
+        sp.addWidget(self._build_centre_panel(self))
+        sp.addWidget(self._build_right_panel(self))
+        sp.setSizes([400, 500, 200])
+        return sp
+
+    def _open_file(self, path=None): #vers 1
+        if path is None:
+            path, _ = QFileDialog.getOpenFileName(
+                self, "Open timecyc.dat", "",
+                "DAT files (timecyc.dat *.dat);;All files (*)")
+        if not path:
+            return
+        if not self._parser.load(path):
+            QMessageBox.critical(self, "Error", f"Failed to load {path}")
+            return
+        self._current_path = path
+        self._modified = False
+        self._populate_grid()
+        weathers = WEATHER_NAMES_SA if self._parser.game == 'SA' else WEATHER_NAMES_VC
+        self._grid.setHorizontalHeaderLabels(weathers)
+        self._set_status(f"Loaded {os.path.basename(path)} — {len(self._parser.rows)} rows [{self._parser.game}]")
+
+    def _save_file(self): #vers 1
+        if not self._current_path:
+            self._current_path, _ = QFileDialog.getSaveFileName(
+                self, "Save timecyc.dat", "", "DAT files (*.dat)")
+        if not self._current_path:
+            return
+        if self._parser.save(self._current_path):
+            self._modified = False
+            self._set_status(f"Saved {os.path.basename(self._current_path)}")
+        else:
+            QMessageBox.critical(self, "Error", "Save failed")
+
+    def _populate_grid(self): #vers 1
+        for row in self._parser.rows:
+            t, w = row.time, row.weather
+            if t < 24 and w < 8:
+                r, g, b = 0, 0, 0
+                if len(row.values) >= 3:
+                    r, g, b = row.values[0], row.values[1], row.values[2]
+                item = QTableWidgetItem()
+                item.setBackground(QColor(r, g, b))
+                item.setText("")
+                self._grid.setItem(t, w, item)
+
+    def _on_cell_selected(self, row: int, col: int, *_): #vers 1
+        r = self._parser.get_row(weather=col, time=row)
+        self._current_row = r
+        if r is None:
+            return
+        self._cell_info.setText(f"Time: {TIME_LABELS[row]}  Weather: {col}")
+        self._populate_fields(r)
+
+    def _populate_fields(self, row: TimecycRow): #vers 1
+        self._blocking = True
+        vals = row.values
+
+        for group_name, r_idx in VC_COLOUR_GROUPS + VC_COLOUR_GROUPS_2:
+            for ci, comp in enumerate(['R', 'G', 'B']):
+                key = f"{group_name}_{comp}"
+                w = self._field_widgets.get(key)
+                if w and r_idx + ci < len(vals):
+                    w.setValue(int(vals[r_idx + ci]))
+            # Update swatch
+            swatch = self._colour_swatches.get(group_name)
+            if swatch and r_idx + 2 < len(vals):
+                r2, g2, b2 = int(vals[r_idx]), int(vals[r_idx+1]), int(vals[r_idx+2])
+                swatch.setStyleSheet(f"background: rgb({r2},{g2},{b2}); border: 1px solid #555;")
+
+        for fname, idx, *_ in VC_SCALAR_FIELDS:
+            w = self._field_widgets.get(fname)
+            if w and idx < len(vals):
+                w.setValue(int(vals[idx]))
+
+        self._blocking = False
+        self._update_preview(row)
+
+    def _on_field_changed(self, key: str, value: int): #vers 1
+        if self._blocking or self._current_row is None:
+            return
+
+        # Update values in current row
+        vals = self._current_row.values
+
+        # Colour group field
+        for group_name, r_idx in VC_COLOUR_GROUPS + VC_COLOUR_GROUPS_2:
+            for ci, comp in enumerate(['R', 'G', 'B']):
+                if key == f"{group_name}_{comp}":
+                    target = r_idx + ci
+                    if target < len(vals):
+                        vals[target] = value
+                    # Update swatch
+                    swatch = self._colour_swatches.get(group_name)
+                    if swatch:
+                        r2 = int(vals[r_idx]) if r_idx < len(vals) else 0
+                        g2 = int(vals[r_idx+1]) if r_idx+1 < len(vals) else 0
+                        b2 = int(vals[r_idx+2]) if r_idx+2 < len(vals) else 0
+                        swatch.setStyleSheet(f"background: rgb({r2},{g2},{b2}); border: 1px solid #555;")
+                    break
+
+        # Scalar field
+        for fname, idx, *_ in VC_SCALAR_FIELDS:
+            if key == fname and idx < len(vals):
+                vals[idx] = value
+                break
+
+        self._modified = True
+        self._update_preview(self._current_row)
+        # Update grid cell colour
+        t, w2 = self._current_row.time, self._current_row.weather
+        if len(vals) >= 3:
+            item = self._grid.item(t, w2) or QTableWidgetItem()
+            item.setBackground(QColor(int(vals[0]), int(vals[1]), int(vals[2])))
+            self._grid.setItem(t, w2, item)
+
+    def _update_preview(self, row: TimecycRow): #vers 1
+        vals = row.values
+        def rgb(idx): return QColor(
+            int(vals[idx]) if idx < len(vals) else 0,
+            int(vals[idx+1]) if idx+1 < len(vals) else 0,
+            int(vals[idx+2]) if idx+2 < len(vals) else 0)
+        sky_top  = rgb(6)   # Sky Top
+        sky_bot  = rgb(9)   # Sky Bottom
+        ambient  = rgb(0)   # Ambient
+        sun_core = rgb(12)  # Sun Core
+        fog      = int(vals[25]) if 25 < len(vals) else 0
+        self._sky_preview.set_colors(sky_top, sky_bot, ambient, sun_core, fog)
+
+    def _build_menus_into_qmenu(self, pm): #vers 1
+        fm = pm.addMenu("File")
+        fm.addAction("Open timecyc.dat", self._open_file)
+        fm.addAction("Save", self._save_file)
+        fm.addSeparator()
+        fm.addAction("Close", self.close)
+
+
+#    WorkshopSettings                                                          
