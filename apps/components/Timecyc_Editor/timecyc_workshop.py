@@ -59,7 +59,14 @@ from apps.components.Timecyc_Editor.gui_workshop import GUIWorkshop
 # Field definitions
 WEATHER_NAMES_VC  = ["Sunny", "Cloudy", "Rainy", "Foggy", "ExtraSunny", "Rainy2", "ExtraColours"]
 WEATHER_NAMES_GTA3 = ["ExtraS", "ExtraS2", "Sunny", "Cloudy", "Rainy", "Foggy", "ExtraS3", "ExtraS4"]
-WEATHER_NAMES_SA  = ["ExtraSunny", "Sunny", "Cloudy", "Rainy", "Foggy", "ExtraColors", "Hurricane", "ExtraColors2"]
+WEATHER_NAMES_SA = [
+    "ExtraSunny_LA", "Sunny_LA", "ExtraSunny_Smog_LA", "Sunny_Smog_LA",
+    "Cloudy_LA", "Sunny_SF", "ExtraSunny_SF", "Cloudy_SF",
+    "Rainy_SF", "Foggy_SF", "Sunny_Vegas", "ExtraSunny_Vegas",
+    "Cloudy_Vegas", "ExtraSunny_Country", "Sunny_Country", "Cloudy_Country",
+    "Rainy_Country", "ExtraSunny_Desert", "Sunny_Desert", "Sandstorm_Desert",
+    "Underwater", "ExtraColours1", "ExtraColours2"
+]
 
 TIME_LABELS = [
     "00:00","01:00","02:00","03:00","04:00","05:00",
@@ -164,12 +171,23 @@ class TimecycParser: #vers 1
         self.game:         str              = 'VC'
         self.cols_per_row: int              = 33
 
-    def _detect_game(self, num_values: int) -> str: #vers 1
-        # LC=40 fields, VC=52 fields, SA=51 fields
+    def _detect_game(self, num_values: int) -> str: #vers 2
+        # LC/GTA3=40 fields, VC=52 fields, SA=51 fields
         if num_values >= 52: return 'VC'
         if num_values >= 51: return 'SA'
         if num_values >= 40: return 'GTA3'
-        return 'GTA3' 
+        return 'GTA3'
+
+    def _get_game_layout(self) -> tuple: #vers 1
+        """Return (n_weathers, n_times) for current game.
+        File ordering is always weather-major (all times for weather0, then weather1 etc).
+        GTA3/LC: 4 weathers x 24 times = 96 rows (but we treat as 8x12 by convention)
+        VC:      7 weathers x 24 times = 168 rows
+        SA:      23 weathers x 8 times = 184 rows
+        """
+        if self.game == 'SA':   return 23, 8
+        if self.game == 'GTA3': return 8, 12   # 8 logical weathers, 12 time slots
+        return 7, 24  # VC
 
     def _parse_line(self, line: str, weather: int, time: int) -> Optional[TimecycRow]: #vers 1
         s = line.strip()
@@ -207,14 +225,8 @@ class TimecycParser: #vers 1
                         self.cols_per_row = len(parts)
                         break
 
-            # Parse rows — weather-major ordering:
-            # all times for weather0, then all times for weather1, etc.
-            # GTA3: 8 weathers x 12 times = 96  (2-hour steps)
-            # VC:   7 weathers x 24 times = 168
-            # SA:   8 weathers x 23 times = 184
-            if self.game == 'GTA3':   n_times = 12
-            elif self.game == 'SA':   n_times = 8    # SA: 8 time slots per weather
-            else:                     n_times = 24   # VC/GTA3
+            # Parse rows — weather-major ordering
+            n_weathers, n_times = self._get_game_layout()
 
             data_lines = [ln for ln in lines if ln.strip() and not ln.strip().startswith('/')]
             comment_lines = [ln for ln in lines if ln.strip().startswith('/')]
@@ -509,18 +521,15 @@ class TimecycWorkshop(GUIWorkshop): #vers 1
             self._parser.game = 'SA'
         game = self._parser.game
         # Resize grid to match actual game data
+        n_weathers, n_times = self._parser._get_game_layout()
         if game == 'SA':
-            # SA: 8 time slots per weather (midnight,5am,6am,7am,noon,7pm,8pm,10pm)
-            n_weathers, n_times = 8, 8
-            weathers   = WEATHER_NAMES_SA
+            weathers    = WEATHER_NAMES_SA
             time_labels = SA_TIME_LABELS
         elif game == 'GTA3':
-            n_weathers, n_times = 8, 12
-            weathers   = WEATHER_NAMES_GTA3
+            weathers    = WEATHER_NAMES_GTA3
             time_labels = [f"{h*2:02d}:00" for h in range(n_times)]
-        else:  # VC: 7 weathers x 24 hours
-            n_weathers, n_times = 7, 24
-            weathers   = WEATHER_NAMES_VC
+        else:
+            weathers    = WEATHER_NAMES_VC
             time_labels = TIME_LABELS
         self._grid.setRowCount(n_times)
         self._grid.setColumnCount(n_weathers)
@@ -825,8 +834,18 @@ class TimecycWorkshop(GUIWorkshop): #vers 1
 
         return list(v)  # same game, no change
 
-    def setup_ui(self): #vers 6
+    def setup_ui(self): #vers 7
         super().setup_ui()
+        # Explicitly rewire toolbar buttons to THIS class's methods
+        if hasattr(self, 'save_btn'):
+            self.save_btn.clicked.disconnect()
+            self.save_btn.clicked.connect(self._save_file)
+        if hasattr(self, 'convert_btn'):
+            self.convert_btn.clicked.disconnect()
+            self.convert_btn.clicked.connect(self._convert_dialog)
+        if hasattr(self, 'open_btn'):
+            self.open_btn.clicked.disconnect()
+            self.open_btn.clicked.connect(self._open_file)
         # Disable export/import in toolbar (handled by button bar when docked)
         if hasattr(self, 'export_btn'): self.export_btn.setEnabled(False)
         if hasattr(self, 'import_btn'): self.import_btn.setEnabled(False)
