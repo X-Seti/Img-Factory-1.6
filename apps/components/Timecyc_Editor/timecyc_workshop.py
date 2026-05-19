@@ -47,7 +47,8 @@ from PyQt6.QtWidgets import (
     QScrollArea, QGroupBox, QSpinBox, QComboBox, QPushButton,
     QFileDialog, QMessageBox, QApplication, QFormLayout, QFrame,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
-    QSlider, QGridLayout, QSizePolicy, QMenu
+    QSlider, QGridLayout, QSizePolicy, QMenu,
+    QDialog, QDialogButtonBox
 )
 from PyQt6.QtCore import Qt, QRect
 from PyQt6.QtGui import QFont, QColor, QPainter, QBrush, QLinearGradient
