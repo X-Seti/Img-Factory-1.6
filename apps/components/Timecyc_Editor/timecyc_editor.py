@@ -70,32 +70,49 @@ TIME_LABELS = [
     "18:00","19:00","20:00","21:00","22:00","23:00",
 ]
 
-# (group_name, [(field_name, r_idx)])
-# Each group occupies 3 consecutive values (R, G, B) starting at r_idx
+# VC/GTA3 timecyc.dat field layout (52 fields for VC, 40 for GTA3)
+# Indices confirmed from GTAMods wiki + real file analysis
+# [0-2]   Ambient Static RGB       [3-5]   Ambient Dynamic RGB
+# [6-8]   Amb Blur Static RGB      [9-11]  Amb Blur Dynamic RGB
+# [12-14] Directional RGB          [15-17] Sky Top RGB
+# [18-20] Sky Bottom RGB           [21-23] Sun Core RGB
+# [24-26] Sun Corona RGB           [27]    Sun Core Size (float)
+# [28]    Sun Corona Size (float)  [29]    Sprite Brightness (float)
+# [30]    Shadow Intensity         [31]    Light Shading
+# [32]    Pole Shading             [33]    Far Clip (float)
+# [34]    Fog Start (float)        [35]    Light on Ground (float)
+# [36-38] Lower Clouds RGB         [39-41] Upper Clouds Top RGB
+# [42-44] Upper Clouds Bottom RGB  [45-47] Blur/Trail RGB
+# [48-50] Water RGB                [51]    Water Alpha
+
 VC_COLOUR_GROUPS = [
-    ("Ambient",       0),   # R G B
-    ("Directional",   3),   # R G B
-    ("Sky Top",       6),   # R G B
-    ("Sky Bottom",    9),   # R G B
-    ("Sun Core",      12),  # R G B
-    ("Sun Corona",    15),  # R G B
+    ("Ambient",           0),   # [0-2]  static ambient
+    ("Ambient Dynamic",   3),   # [3-5]  dynamic ambient
+    ("Directional",      12),   # [12-14]
+    ("Sky Top",          15),   # [15-17]
+    ("Sky Bottom",       18),   # [18-20]
+    ("Sun Core",         21),   # [21-23]
+    ("Sun Corona",       24),   # [24-26]
 ]
 
 VC_SCALAR_FIELDS = [
-    ("SunCoreSize",         18, 0, 255),
-    ("SunCoronaSize",       19, 0, 255),
-    ("SunBrightness",       20, 0, 255),
-    ("ShadowStrength",      21, 0, 255),
-    ("LightShadStrength",   22, 0, 255),
-    ("PoleShadStrength",    23, 0, 255),
-    ("FarClip",             24, 0, 2500),
-    ("FogStart",            25, 0, 2500),
-    ("LightsOnGroundDist",  26, 0, 2500),
+    ("SunCoreSize",      27, 0, 10),
+    ("SunCoronaSize",    28, 0, 10),
+    ("SpriteBrightness", 29, 0, 10),
+    ("ShadowStrength",   30, 0, 255),
+    ("LightShading",     31, 0, 255),
+    ("PoleShading",      32, 0, 255),
+    ("FarClip",          33, 0, 3000),
+    ("FogStart",         34, 0, 3000),
+    ("LightOnGround",    35, 0, 10),
 ]
 
 VC_COLOUR_GROUPS_2 = [
-    ("Low Clouds",    27),  # R G B
-    ("Bottom Cloud",  30),  # R G B
+    ("Lower Clouds",     36),   # [36-38]
+    ("Upper Clouds Top", 39),   # [39-41]
+    ("Upper Clouds Bot", 42),   # [42-44]
+    ("Blur/Trail",       45),   # [45-47]
+    ("Water",            48),   # [48-50]
 ]
 
 
@@ -446,7 +463,10 @@ class TimecycEditor(GUIWorkshop): #vers 1
             t, w = row.time, row.weather
             if t < n_times and w < n_weathers:
                 r, g, b = 0, 0, 0
-                if len(row.values) >= 3:
+                if len(row.values) >= 18:
+                    # Use sky top colour [15-17] for grid - most visually meaningful
+                    r, g, b = row.values[15], row.values[16], row.values[17]
+                elif len(row.values) >= 3:
                     r, g, b = row.values[0], row.values[1], row.values[2]
                 item = QTableWidgetItem()
                 item.setBackground(QColor(r, g, b))
@@ -520,22 +540,22 @@ class TimecycEditor(GUIWorkshop): #vers 1
         self._update_preview(self._current_row)
         # Update grid cell colour
         t, w2 = self._current_row.time, self._current_row.weather
-        if len(vals) >= 3:
+        if len(vals) >= 18:
             item = self._grid.item(t, w2) or QTableWidgetItem()
-            item.setBackground(QColor(int(vals[0]), int(vals[1]), int(vals[2])))
+            item.setBackground(QColor(int(vals[15]), int(vals[16]), int(vals[17])))
             self._grid.setItem(t, w2, item)
 
-    def _update_preview(self, row: TimecycRow): #vers 1
+    def _update_preview(self, row: TimecycRow): #vers 2
         vals = row.values
         def rgb(idx): return QColor(
-            int(vals[idx]) if idx < len(vals) else 0,
-            int(vals[idx+1]) if idx+1 < len(vals) else 0,
-            int(vals[idx+2]) if idx+2 < len(vals) else 0)
-        sky_top  = rgb(6)   # Sky Top
-        sky_bot  = rgb(9)   # Sky Bottom
-        ambient  = rgb(0)   # Ambient
-        sun_core = rgb(12)  # Sun Core
-        fog      = int(vals[25]) if 25 < len(vals) else 0
+            max(0,min(255,int(vals[idx])))   if idx   < len(vals) else 0,
+            max(0,min(255,int(vals[idx+1]))) if idx+1 < len(vals) else 0,
+            max(0,min(255,int(vals[idx+2]))) if idx+2 < len(vals) else 0)
+        sky_top  = rgb(15)  # Sky Top RGB   [15-17]
+        sky_bot  = rgb(18)  # Sky Bottom RGB [18-20]
+        ambient  = rgb(0)   # Ambient Static [0-2]
+        sun_core = rgb(21)  # Sun Core RGB   [21-23]
+        fog      = int(vals[34]) if 34 < len(vals) else 0  # Fog Start
         self._sky_preview.set_colors(sky_top, sky_bot, ambient, sun_core, fog)
 
     def _build_menus_into_qmenu(self, pm): #vers 1
