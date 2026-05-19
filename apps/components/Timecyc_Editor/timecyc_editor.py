@@ -116,6 +116,39 @@ VC_COLOUR_GROUPS_2 = [
 ]
 
 
+# SA timecyc.dat field layout (51 fields, 8 times per weather, 23 weathers)
+# From header: Amb Amb_Obj Dir SkyTop SkyBot SunCore SunCorona SunSz SprSz SprBght
+#              Shdw LightShd PoleShd FarClp FogSt LightOnGround LowClouds BottomCloud
+#              WaterRGBA Alpha1 RGB1 Alpha2 RGB2 CloudAlpha
+SA_COLOUR_GROUPS = [
+    ("Ambient",           0),   # [0-2]
+    ("Ambient Obj",       3),   # [3-5]
+    ("Directional",       6),   # [6-8]
+    ("Sky Top",           9),   # [9-11]
+    ("Sky Bottom",       12),   # [12-14]
+    ("Sun Core",         15),   # [15-17]
+    ("Sun Corona",       18),   # [18-20]
+]
+SA_SCALAR_FIELDS = [
+    ("SunCoreSize",      21, 0, 10),
+    ("SunCoronaSize",    22, 0, 10),
+    ("SpriteBrightness", 23, 0, 10),
+    ("ShadowStrength",   24, 0, 255),
+    ("LightShading",     25, 0, 255),
+    ("PoleShading",      26, 0, 255),
+    ("FarClip",          27, 0, 3000),
+    ("FogStart",         28, 0, 3000),
+    ("LightOnGround",    29, 0, 10),
+]
+SA_COLOUR_GROUPS_2 = [
+    ("Lower Clouds",     30),   # [30-32]
+    ("Bottom Cloud",     33),   # [33-35]
+    ("Water",            36),   # [36-38] (39=alpha)
+    ("Color Corr 1",     41),   # [41-43] (40=alpha)
+    ("Color Corr 2",     45),   # [45-47] (44=alpha)
+]
+SA_TIME_LABELS = ["Midnight","5AM","6AM","7AM","Noon","7PM","8PM","10PM"]
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Data
 # ─────────────────────────────────────────────────────────────────────────────
@@ -184,8 +217,8 @@ class TimecycParser: #vers 1
             # VC:   7 weathers x 24 times = 168
             # SA:   8 weathers x 23 times = 184
             if self.game == 'GTA3':   n_times = 12
-            elif self.game == 'SA':   n_times = 23
-            else:                     n_times = 24   # VC
+            elif self.game == 'SA':   n_times = 8    # SA: 8 time slots per weather
+            else:                     n_times = 24   # VC/GTA3
 
             data_lines = [ln for ln in lines if ln.strip() and not ln.strip().startswith('/')]
             comment_lines = [ln for ln in lines if ln.strip().startswith('/')]
@@ -411,6 +444,50 @@ class TimecycEditor(GUIWorkshop): #vers 1
         sp.setSizes([420, 730])
         return sp
 
+    def _get_field_groups(self): #vers 1
+        """Return (colour_groups, scalar_fields, colour_groups_2) for current game."""
+        game = self._parser.game if hasattr(self._parser, 'game') else 'VC'
+        if game == 'SA':
+            return SA_COLOUR_GROUPS, SA_SCALAR_FIELDS, SA_COLOUR_GROUPS_2
+        return VC_COLOUR_GROUPS, VC_SCALAR_FIELDS, VC_COLOUR_GROUPS_2
+
+    def _rebuild_field_widgets(self): #vers 1
+        """Rebuild centre panel field widgets for current game."""
+        cg, sf, cg2 = self._get_field_groups()
+        lay = self._form_layout
+        # Clear existing widgets
+        while lay.rowCount():
+            lay.removeRow(0)
+        self._field_widgets.clear()
+        self._colour_swatches.clear()
+        # Colour groups
+        for group_name, r_idx in cg + cg2:
+            grp = QGroupBox(group_name)
+            grp_lay = QHBoxLayout(grp)
+            for component, offset in [('R',0),('G',1),('B',2)]:
+                key = f"{group_name}_{component}"
+                col_lay = QVBoxLayout()
+                lbl = QLabel(component); lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                sp = QSpinBox(); sp.setRange(0, 255); sp.setFixedWidth(60)
+                sp.valueChanged.connect(lambda v, k=key: self._on_field_changed(k, v))
+                self._field_widgets[key] = sp
+                col_lay.addWidget(lbl); col_lay.addWidget(sp)
+                grp_lay.addLayout(col_lay)
+            swatch = QLabel(); swatch.setFixedSize(40,40)
+            swatch.setStyleSheet("background: rgb(0,0,0); border: 1px solid #555;")
+            self._colour_swatches[group_name] = swatch
+            grp_lay.addWidget(swatch)
+            lay.addWidget(grp)
+        # Scalar fields
+        scalar_grp = QGroupBox("Atmosphere")
+        scalar_form = QFormLayout(scalar_grp)
+        for fname, idx, fmin, fmax in sf:
+            sp = QSpinBox(); sp.setRange(fmin, fmax)
+            sp.valueChanged.connect(lambda v, n=fname: self._on_field_changed(n, v))
+            self._field_widgets[fname] = sp
+            scalar_form.addRow(QLabel(fname), sp)
+        lay.addWidget(scalar_grp)
+
     def _open_file(self, path=None): #vers 2
         if path is None:
             path, _ = QFileDialog.getOpenFileName(
@@ -424,9 +501,10 @@ class TimecycEditor(GUIWorkshop): #vers 1
         game = self._parser.game
         # Resize grid to match actual game data
         if game == 'SA':
-            n_weathers, n_times = 8, 23
+            # SA: 8 time slots per weather (midnight,5am,6am,7am,noon,7pm,8pm,10pm)
+            n_weathers, n_times = 8, 8
             weathers   = WEATHER_NAMES_SA
-            time_labels = [f"{h:02d}:00" for h in range(n_times)]
+            time_labels = SA_TIME_LABELS
         elif game == 'GTA3':
             n_weathers, n_times = 8, 12
             weathers   = WEATHER_NAMES_GTA3
@@ -441,6 +519,7 @@ class TimecycEditor(GUIWorkshop): #vers 1
         self._grid.setVerticalHeaderLabels(time_labels)
         for c in range(n_weathers):
             self._grid.setColumnWidth(c, 70)
+        self._rebuild_field_widgets()
         self._populate_grid()
         self._set_status(f"Loaded {os.path.basename(path)} — {len(self._parser.rows)} rows [{game}]")
 
@@ -464,8 +543,9 @@ class TimecycEditor(GUIWorkshop): #vers 1
             if t < n_times and w < n_weathers:
                 r, g, b = 0, 0, 0
                 if len(row.values) >= 18:
-                    # Use sky top colour [15-17] for grid - most visually meaningful
-                    r, g, b = row.values[15], row.values[16], row.values[17]
+                    # Use sky top colour — SA=[9-11], VC=[15-17]
+                    sky_idx = 9 if self._parser.game == 'SA' else 15
+                    r, g, b = row.values[sky_idx], row.values[sky_idx+1], row.values[sky_idx+2]
                 elif len(row.values) >= 3:
                     r, g, b = row.values[0], row.values[1], row.values[2]
                 item = QTableWidgetItem()
@@ -483,11 +563,12 @@ class TimecycEditor(GUIWorkshop): #vers 1
         self._cell_info.setText(f"Time: {time_str}  Weather: {col}")
         self._populate_fields(r)
 
-    def _populate_fields(self, row: TimecycRow): #vers 1
+    def _populate_fields(self, row: TimecycRow): #vers 2
         self._blocking = True
         vals = row.values
+        cg, sf, cg2 = self._get_field_groups()
 
-        for group_name, r_idx in VC_COLOUR_GROUPS + VC_COLOUR_GROUPS_2:
+        for group_name, r_idx in cg + cg2:
             for ci, comp in enumerate(['R', 'G', 'B']):
                 key = f"{group_name}_{comp}"
                 w = self._field_widgets.get(key)
@@ -499,10 +580,10 @@ class TimecycEditor(GUIWorkshop): #vers 1
                 r2, g2, b2 = int(vals[r_idx]), int(vals[r_idx+1]), int(vals[r_idx+2])
                 swatch.setStyleSheet(f"background: rgb({r2},{g2},{b2}); border: 1px solid #555;")
 
-        for fname, idx, *_ in VC_SCALAR_FIELDS:
+        for fname, idx, *_ in sf:
             w = self._field_widgets.get(fname)
             if w and idx < len(vals):
-                w.setValue(int(vals[idx]))
+                w.setValue(int(float(vals[idx])))
 
         self._blocking = False
         self._update_preview(row)
@@ -515,7 +596,8 @@ class TimecycEditor(GUIWorkshop): #vers 1
         vals = self._current_row.values
 
         # Colour group field
-        for group_name, r_idx in VC_COLOUR_GROUPS + VC_COLOUR_GROUPS_2:
+        cg, sf, cg2 = self._get_field_groups()
+        for group_name, r_idx in cg + cg2:
             for ci, comp in enumerate(['R', 'G', 'B']):
                 if key == f"{group_name}_{comp}":
                     target = r_idx + ci
@@ -531,7 +613,7 @@ class TimecycEditor(GUIWorkshop): #vers 1
                     break
 
         # Scalar field
-        for fname, idx, *_ in VC_SCALAR_FIELDS:
+        for fname, idx, *_ in sf:
             if key == fname and idx < len(vals):
                 vals[idx] = value
                 break
@@ -545,18 +627,41 @@ class TimecycEditor(GUIWorkshop): #vers 1
             item.setBackground(QColor(int(vals[15]), int(vals[16]), int(vals[17])))
             self._grid.setItem(t, w2, item)
 
-    def _update_preview(self, row: TimecycRow): #vers 2
+    def _update_preview(self, row: TimecycRow): #vers 3
         vals = row.values
+        game = self._parser.game
         def rgb(idx): return QColor(
-            max(0,min(255,int(vals[idx])))   if idx   < len(vals) else 0,
-            max(0,min(255,int(vals[idx+1]))) if idx+1 < len(vals) else 0,
-            max(0,min(255,int(vals[idx+2]))) if idx+2 < len(vals) else 0)
-        sky_top  = rgb(15)  # Sky Top RGB   [15-17]
-        sky_bot  = rgb(18)  # Sky Bottom RGB [18-20]
-        ambient  = rgb(0)   # Ambient Static [0-2]
-        sun_core = rgb(21)  # Sun Core RGB   [21-23]
-        fog      = int(vals[34]) if 34 < len(vals) else 0  # Fog Start
+            max(0,min(255,int(float(vals[idx]))))   if idx   < len(vals) else 0,
+            max(0,min(255,int(float(vals[idx+1])))) if idx+1 < len(vals) else 0,
+            max(0,min(255,int(float(vals[idx+2])))) if idx+2 < len(vals) else 0)
+        def sv(idx): return int(float(vals[idx])) if idx < len(vals) else 0
+        if game == 'SA':
+            sky_top  = rgb(9)   # SA Sky Top  [9-11]
+            sky_bot  = rgb(12)  # SA Sky Bot  [12-14]
+            ambient  = rgb(0)   # SA Ambient  [0-2]
+            sun_core = rgb(15)  # SA Sun Core [15-17]
+            fog      = sv(28)   # SA Fog Start[28]
+        else:  # VC/GTA3
+            sky_top  = rgb(15)  # VC Sky Top  [15-17]
+            sky_bot  = rgb(18)  # VC Sky Bot  [18-20]
+            ambient  = rgb(0)   # VC Ambient  [0-2]
+            sun_core = rgb(21)  # VC Sun Core [21-23]
+            fog      = sv(34)   # VC Fog Start[34]
         self._sky_preview.set_colors(sky_top, sky_bot, ambient, sun_core, fog)
+
+    def _export_file(self): #vers 1
+        self._set_status("Export: not yet implemented")
+        if hasattr(self, 'export_btn'): self.export_btn.setEnabled(False)
+
+    def _import_file(self): #vers 1
+        self._set_status("Import: not yet implemented")
+        if hasattr(self, 'import_btn'): self.import_btn.setEnabled(False)
+
+    def setup_ui(self): #vers 4
+        super().setup_ui()
+        # Disable export/import buttons - not implemented
+        if hasattr(self, 'export_btn'): self.export_btn.setEnabled(False)
+        if hasattr(self, 'import_btn'): self.import_btn.setEnabled(False)
 
     def _build_menus_into_qmenu(self, pm): #vers 1
         fm = pm.addMenu("File")
