@@ -60,6 +60,29 @@ except ImportError:
 
 # GUIWorkshop inlined below
 
+APPSETTINGS_AVAILABLE = False
+try:
+    from apps.utils.app_settings_system import AppSettings, SettingsDialog
+    APPSETTINGS_AVAILABLE = True
+except ImportError:
+    AppSettings = SettingsDialog = None
+
+try:
+    from apps.methods.imgfactory_svg_icons import SVGIconFactory
+except ImportError:
+    class SVGIconFactory:
+        @staticmethod
+        def _s(sz=20, c=None): return QIcon()
+        open_icon = save_icon = export_icon = import_icon = delete_icon = \
+        undo_icon = info_icon = properties_icon = minimize_icon = \
+        maximize_icon = close_icon = settings_icon = search_icon = \
+        zoom_in_icon = zoom_out_icon = fit_grid_icon = locate_icon = \
+        paint_icon = fill_icon = dropper_icon = line_icon = rect_icon = \
+        rect_fill_icon = scissors_icon = paste_brush_icon = \
+        rotate_cw_icon = rotate_ccw_icon = flip_horz_icon = \
+        flip_vert_icon = folder_icon = staticmethod(_s)
+
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Field definitions per section
@@ -1656,29 +1679,7 @@ from PyQt6.QtCore import Qt, QSize, QPoint, pyqtSignal
 # Imports, optional deps, WorkshopSettings, _CornerOverlay
 #
 
-APPSETTINGS_AVAILABLE = False
-try:
-    from apps.utils.app_settings_system import AppSettings, SettingsDialog
-    APPSETTINGS_AVAILABLE = True
-except ImportError:
-    AppSettings = SettingsDialog = None
-
-
-
-try:
-    from apps.methods.imgfactory_svg_icons import SVGIconFactory
-except ImportError:
-    class SVGIconFactory:
-        @staticmethod
-        def _s(sz=20, c=None): return QIcon()
-        open_icon = save_icon = export_icon = import_icon = delete_icon = \
-        undo_icon = info_icon = properties_icon = minimize_icon = \
-        maximize_icon = close_icon = settings_icon = search_icon = \
-        zoom_in_icon = zoom_out_icon = fit_grid_icon = locate_icon = \
-        paint_icon = fill_icon = dropper_icon = line_icon = rect_icon = \
-        rect_fill_icon = scissors_icon = paste_brush_icon = \
-        rotate_cw_icon = rotate_ccw_icon = flip_horz_icon = \
-        flip_vert_icon = folder_icon = staticmethod(_s)
+# [Section 1 moved to top of file]
 
 
 
