@@ -339,9 +339,9 @@ class TimecycWorkshop(GUIWorkshop): #vers 1
         # Header row: title + action buttons (collapse to icons when narrow)
         header = QHBoxLayout()
         header.setSpacing(2)
-        title_lbl = QLabel("Weather / Time Grid")
-        title_lbl.setStyleSheet("font-weight: bold;")
-        header.addWidget(title_lbl)
+        self._grid_title_lbl = QLabel("Weather / Time Grid")
+        self._grid_title_lbl.setStyleSheet("font-weight: bold;")
+        header.addWidget(self._grid_title_lbl)
         header.addStretch()
 
         def _make_btn(text, icon_text, tooltip, callback, enabled=True):
@@ -349,7 +349,7 @@ class TimecycWorkshop(GUIWorkshop): #vers 1
             btn.setToolTip(tooltip)
             btn.setEnabled(enabled)
             btn.clicked.connect(callback)
-            btn.setFixedHeight(22)
+            btn.setFixedHeight(26)
             btn.setMinimumWidth(44)
             btn.setCheckable(False)
             return btn
@@ -459,9 +459,6 @@ class TimecycWorkshop(GUIWorkshop): #vers 1
         lay.addWidget(self._cell_info)
         lay.addStretch()
         return w
-
-    def setup_ui(self): #vers 2
-        super().setup_ui()
 
     def _create_centre_panel(self): #vers 2
         sp = QSplitter(Qt.Orientation.Horizontal)
@@ -817,9 +814,28 @@ class TimecycWorkshop(GUIWorkshop): #vers 1
 
         return list(v)  # same game, no change
 
-    def setup_ui(self): #vers 4
+    def setup_ui(self): #vers 5
         super().setup_ui()
-        # GUIWorkshop toolbar hidden when docked; our button bar handles file ops
+        # Wire GUIWorkshop toolbar open/save buttons
+        if hasattr(self, 'open_btn'):
+            self.open_btn.clicked.connect(self._open_file)
+        if hasattr(self, 'save_btn'):
+            self.save_btn.clicked.connect(self._save_file)
+        # Disable export/import in toolbar (handled by our button bar)
+        if hasattr(self, 'export_btn'): self.export_btn.setEnabled(False)
+        if hasattr(self, 'import_btn'): self.import_btn.setEnabled(False)
+        # Hide left panel action buttons when standalone (show only when docked)
+        self._set_action_btns_visible(bool(self.main_window))
+
+    def _set_action_btns_visible(self, visible: bool): #vers 1
+        """Show action button bar only when docked in IMG Factory.
+        In standalone the GUIWorkshop toolbar handles open/save."""
+        for btn in ('_btn_convert','_btn_load','_btn_save','_btn_import','_btn_export'):
+            b = getattr(self, btn, None)
+            if b: b.setVisible(visible)
+        # When docked, hide the plain title - buttons provide context
+        if hasattr(self, '_grid_title_lbl'):
+            self._grid_title_lbl.setVisible(not visible)
 
     def _update_action_btns(self, narrow: bool): #vers 1
         """Collapse action buttons to icons when panel is narrow (<500px)."""
@@ -833,9 +849,14 @@ class TimecycWorkshop(GUIWorkshop): #vers 1
         for btn, (full, icon) in labels.items():
             btn.setText(icon if narrow else full)
 
-    def resizeEvent(self, ev): #vers 1
+    def resizeEvent(self, ev): #vers 2
         super().resizeEvent(ev)
-        if hasattr(self, '_btn_load'):
+        if hasattr(self, '_btn_load') and hasattr(self, '_main_splitter'):
+            # Use left panel width from splitter
+            sizes = self._main_splitter.sizes()
+            left_w = sizes[0] if sizes else self.width()
+            self._update_action_btns(left_w < 380)
+        elif hasattr(self, '_btn_load'):
             self._update_action_btns(self.width() < 500)
 
     def _build_menus_into_qmenu(self, pm): #vers 1
