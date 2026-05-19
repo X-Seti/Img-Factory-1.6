@@ -48,8 +48,7 @@ from PyQt6.QtWidgets import (
     QListWidget, QListWidgetItem, QScrollArea, QFrame, QGroupBox,
     QDoubleSpinBox, QSpinBox, QComboBox, QCheckBox, QPushButton,
     QProgressBar, QFileDialog, QMessageBox, QApplication, QFormLayout,
-    QTabWidget, QMenu, QSizePolicy,
-    QShortcut)
+    QTabWidget, QMenu, QSizePolicy)
 from PyQt6.QtCore import Qt, QSize, QPoint, QRect, pyqtSignal
 from PyQt6.QtGui import QColor, QFont, QIcon, QKeySequence, QShortcut, QPolygon
 
