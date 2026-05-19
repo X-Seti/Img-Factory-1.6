@@ -3,7 +3,7 @@
 # X-Seti - May08 2026 - Img Factory 1.6 - Time Cycle Editor
 
 """
-Time Cycle Editor — reads/writes GTA VC/SA timecyc.dat.
+Time Cycle Editor — reads/writes GTA VC/SA timecyc.dat and timecycp.dat.
 Grid: 8 weather columns x 24 time rows. Each cell = one sky/lighting preset.
 Left = weather/time selector, centre = colour sliders + numeric fields,
 right = live sky colour preview swatch.
@@ -491,13 +491,16 @@ class TimecycEditor(GUIWorkshop): #vers 1
     def _open_file(self, path=None): #vers 2
         if path is None:
             path, _ = QFileDialog.getOpenFileName(
-                self, "Open timecyc.dat", "",
-                "DAT files (timecyc.dat *.dat);;All files (*)")
+                self, "Open timecyc.dat / timecycp.dat", "",
+                "DAT files (timecyc.dat timecycp.dat *.dat);;All files (*)")
         if not path: return
         if not self._parser.load(path):
             QMessageBox.critical(self, "Error", f"Failed to load {path}"); return
         self._current_path = path
         self._modified = False
+        # timecycp.dat is always SA PSP/PAL variant
+        if os.path.basename(path).lower() == 'timecycp.dat':
+            self._parser.game = 'SA'
         game = self._parser.game
         # Resize grid to match actual game data
         if game == 'SA':
@@ -689,6 +692,6 @@ if __name__ == '__main__':
         w._open_file(sys.argv[1])
     else:
         from PyQt6.QtWidgets import QFileDialog
-        p,_ = QFileDialog.getOpenFileName(w,'Open timecyc.dat','','DAT files (*.dat);;All (*)')
+        p,_ = QFileDialog.getOpenFileName(w,'Open timecyc.dat','','DAT files (timecyc.dat timecycp.dat *.dat);;All (*)')
         if p: w._open_file(p)
     sys.exit(app.exec())
