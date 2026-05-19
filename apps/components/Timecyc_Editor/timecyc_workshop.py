@@ -492,7 +492,8 @@ class TimecycWorkshop(GUIWorkshop): #vers 1
         # Rebuild for current game
         self._build_field_groups(cg, sf, cg2)
 
-    def _open_file(self, path=None): #vers 2
+    def _open_file(self, path=None): #vers 3
+        if path is False or path is True: path = None  # Qt passes checked=bool from button signal
         if path is None:
             path, _ = QFileDialog.getOpenFileName(
                 self, "Open timecyc.dat / timecycp.dat", "",
@@ -532,7 +533,7 @@ class TimecycWorkshop(GUIWorkshop): #vers 1
         if hasattr(self, 'save_btn'):    self.save_btn.setEnabled(True)
         if hasattr(self, 'convert_btn'): self.convert_btn.setEnabled(True)
 
-    def _save_file(self): #vers 1
+    def _save_file(self, _checked=False): #vers 2
         if not self._current_path:
             self._current_path, _ = QFileDialog.getSaveFileName(
                 self, "Save timecyc.dat", "", "DAT files (*.dat)")
@@ -668,7 +669,8 @@ class TimecycWorkshop(GUIWorkshop): #vers 1
         """Import a timecyc from a different game format and convert."""
         self._convert_dialog(import_mode=True)
 
-    def _convert_dialog(self, export_mode=False, import_mode=False): #vers 1
+    def _convert_dialog(self, export_mode=False, import_mode=False): #vers 2
+        if export_mode is True and import_mode is False: export_mode = False  # Qt checked signal
         """Convert timecyc between GTA3 / VC / SA formats."""
         dlg = QDialog(self)
         dlg.setWindowTitle("Convert Timecyc Format")
@@ -818,13 +820,6 @@ class TimecycWorkshop(GUIWorkshop): #vers 1
 
     def setup_ui(self): #vers 6
         super().setup_ui()
-        # Wire GUIWorkshop toolbar buttons
-        if hasattr(self, 'open_btn'):
-            self.open_btn.clicked.connect(self._open_file)
-        if hasattr(self, 'save_btn'):
-            self.save_btn.clicked.connect(self._save_file)
-        if hasattr(self, 'convert_btn'):
-            self.convert_btn.clicked.connect(self._convert_dialog)
         # Disable export/import in toolbar (handled by button bar when docked)
         if hasattr(self, 'export_btn'): self.export_btn.setEnabled(False)
         if hasattr(self, 'import_btn'): self.import_btn.setEnabled(False)
