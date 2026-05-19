@@ -229,446 +229,6 @@ class HandlingParser: #vers 1
 # Editor widget
 # ─────────────────────────────────────────────────────────────────────────────
 
-class HandlingEditor(GUIWorkshop): #vers 1
-    App_name   = "Handling Editor"
-    App_build  = "Build 1"
-    App_auth   = "X-Seti"
-    config_key = "handling_editor"
-
-    def __init__(self, main_window=None, parent=None):
-        self._defer_setup_ui = True
-        super().__init__(parent)
-        self.main_window  = main_window
-        self._parser      = HandlingParser()
-        self._current_path: Optional[str] = None
-        self._current_idx: int = -1
-        self._modified    = False
-        self._field_widgets: Dict[str, QWidget] = {}
-        self._blocking    = False
-        self.setup_ui()
-        # Hide inner toolbar chrome when docked inside IMG Factory
-        if main_window and hasattr(self, 'toolbar'):
-            self.toolbar.hide()
-        self._set_status("Open a handling.cfg file to begin")
-
-    def _build_left_panel(self, parent: QWidget) -> QWidget: #vers 1
-        w = QWidget(parent)
-        lay = QVBoxLayout(w)
-        lay.setContentsMargins(4, 4, 4, 4)
-        lay.setSpacing(4)
-
-        lbl = QLabel("Vehicles")
-        lbl.setFont(QFont("Arial", 9, QFont.Weight.Bold))
-        lay.addWidget(lbl)
-
-        self._search_box = QLineEdit()
-        self._search_box.setPlaceholderText("Search…")
-        self._search_box.textChanged.connect(self._search_vehicles)
-        lay.addWidget(self._search_box)
-
-        self._veh_list = QListWidget()
-        self._veh_list.currentRowChanged.connect(self._on_vehicle_selected)
-        lay.addWidget(self._veh_list)
-
-        btn_row = QHBoxLayout()
-        for label, slot in [("Add", self._add_entry), ("Del", self._delete_entry), ("Dup", self._duplicate_entry)]:
-            b = QPushButton(label)
-            b.setFixedHeight(24)
-            b.clicked.connect(slot)
-            btn_row.addWidget(b)
-        lay.addLayout(btn_row)
-        return w
-
-    def _build_centre_panel(self, parent: QWidget) -> QWidget: #vers 1
-        scroll = QScrollArea(parent)
-        scroll.setWidgetResizable(True)
-        container = QWidget()
-        scroll.setWidget(container)
-        self._form_layout = QFormLayout(container)
-        self._form_layout.setSpacing(4)
-        self._form_layout.setContentsMargins(8, 8, 8, 8)
-        self._field_widgets.clear()
-
-        for fname, ftype, fmin, fmax, tip in VC_FIELDS:
-            lbl = QLabel(fname)
-            lbl.setToolTip(tip)
-            lbl.setFixedWidth(200)
-
-            if ftype == 'float':
-                w = QDoubleSpinBox()
-                w.setRange(float(fmin), float(fmax))
-                w.setDecimals(4)
-                w.setSingleStep(0.01)
-                w.setToolTip(tip)
-                w.valueChanged.connect(lambda v, n=fname: self._on_field_changed(n, v))
-            elif ftype == 'int':
-                w = QSpinBox()
-                w.setRange(int(fmin), int(fmax))
-                w.setToolTip(tip)
-                w.valueChanged.connect(lambda v, n=fname: self._on_field_changed(n, v))
-            elif ftype == 'bool':
-                w = QCheckBox()
-                w.setToolTip(tip)
-                w.stateChanged.connect(lambda v, n=fname: self._on_field_changed(n, int(v > 0)))
-            elif ftype == 'char':
-                w = QComboBox()
-                if fname == 'DriveType':
-                    w.addItems(['F', 'R', '4'])
-                elif fname == 'EngineType':
-                    w.addItems(['P', 'D', 'E'])
-                w.setToolTip(tip)
-                w.currentTextChanged.connect(lambda v, n=fname: self._on_field_changed(n, v))
-            elif ftype == 'hex':
-                w = QLineEdit()
-                w.setPlaceholderText("0x00000000")
-                w.setToolTip(tip)
-                w.textChanged.connect(lambda v, n=fname: self._on_field_changed(n, v))
-            else:  # str
-                w = QLineEdit()
-                w.setMaxLength(14)
-                w.setToolTip(tip)
-                w.textChanged.connect(lambda v, n=fname: self._on_field_changed(n, v))
-
-            self._field_widgets[fname] = w
-            self._form_layout.addRow(lbl, w)
-
-        return scroll
-
-    def _build_right_panel(self, parent: QWidget) -> QWidget: #vers 1
-        w = QWidget(parent)
-        lay = QVBoxLayout(w)
-        lay.setContentsMargins(4, 4, 4, 4)
-        lay.setSpacing(6)
-
-        lay.addWidget(QLabel("Vehicle Stats"))
-
-        self._stat_bars: Dict[str, QProgressBar] = {}
-        stats = [
-            ("Top Speed",  "MaxVelocity",          200),
-            ("Mass",       "Mass",                  5000),
-            ("Braking",    "BrakeDeceleration",     30),
-            ("Traction",   "TractionMultiplier",    3),
-            ("Engine",     "EngineAcceleration",    20),
-            ("Suspension", "SuspensionForceLevel",  5),
-        ]
-        for label, field_name, max_val in stats:
-            row = QHBoxLayout()
-            l = QLabel(label)
-            l.setFixedWidth(80)
-            bar = QProgressBar()
-            bar.setRange(0, 100)
-            bar.setValue(0)
-            bar.setTextVisible(True)
-            bar.setFixedHeight(18)
-            self._stat_bars[field_name] = (bar, max_val)
-            row.addWidget(l)
-            row.addWidget(bar)
-            lay.addLayout(row)
-
-        lay.addStretch()
-
-        # Flags display
-        grp = QGroupBox("Handling Flags")
-        flag_lay = QVBoxLayout(grp)
-        self._flag_labels: Dict[int, QLabel] = {}
-        for bit, name in list(HANDLING_FLAGS.items())[:16]:
-            fl = QLabel(name)
-            fl.setStyleSheet("color: #888;")
-            fl.setFont(QFont("Monospace", 8))
-            self._flag_labels[bit] = fl
-            flag_lay.addWidget(fl)
-        lay.addWidget(grp)
-        return w
-
-    def setup_ui(self): #vers 2
-        super().setup_ui()
-
-    def _create_centre_panel(self): #vers 1
-        sp = QSplitter(Qt.Orientation.Horizontal)
-        sp.addWidget(self._build_left_panel(self))
-        sp.addWidget(self._build_centre_panel(self))
-        sp.addWidget(self._build_right_panel(self))
-        sp.setSizes([200, 600, 220])
-        return sp
-
-    def _open_file(self, path=None): #vers 1
-        if path is None:
-            path, _ = QFileDialog.getOpenFileName(
-                self, "Open handling.cfg", "",
-                "Handling files (handling.cfg *.cfg);;All files (*)")
-        if not path:
-            return
-        if not self._parser.load(path):
-            QMessageBox.critical(self, "Error", f"Failed to load {path}")
-            return
-        self._current_path = path
-        self._modified = False
-        self._refresh_list()
-        self._set_status(f"Loaded {os.path.basename(path)} — {len(self._parser.entries)} vehicles  [{self._parser.game}]")
-
-    def _save_file(self): #vers 1
-        if not self._current_path:
-            self._current_path, _ = QFileDialog.getSaveFileName(
-                self, "Save handling.cfg", "", "Handling files (handling.cfg *.cfg)")
-        if not self._current_path:
-            return
-        if self._parser.save(self._current_path):
-            self._modified = False
-            self._set_status(f"Saved {os.path.basename(self._current_path)}")
-        else:
-            QMessageBox.critical(self, "Error", "Save failed")
-
-    def _refresh_list(self, filter_text: str = ""): #vers 1
-        self._veh_list.clear()
-        ft = filter_text.lower()
-        for i, e in enumerate(self._parser.entries):
-            if ft and ft not in e.name.lower():
-                continue
-            item = QListWidgetItem(e.name)
-            item.setData(Qt.ItemDataRole.UserRole, i)
-            self._veh_list.addItem(item)
-
-    def _search_vehicles(self, text: str): #vers 1
-        self._refresh_list(text)
-
-    def _on_vehicle_selected(self, row: int): #vers 1
-        item = self._veh_list.item(row)
-        if item is None:
-            return
-        idx = item.data(Qt.ItemDataRole.UserRole)
-        if idx is None or idx >= len(self._parser.entries):
-            return
-        self._current_idx = idx
-        self._populate_fields(self._parser.entries[idx])
-
-    def _populate_fields(self, entry: HandlingEntry): #vers 1
-        self._blocking = True
-        vals = entry.values
-        for i, (fname, ftype, *_) in enumerate(VC_FIELDS):
-            if i >= len(vals):
-                break
-            w = self._field_widgets.get(fname)
-            if w is None:
-                continue
-            v = vals[i]
-            try:
-                if ftype == 'float':
-                    w.setValue(float(v))
-                elif ftype == 'int':
-                    w.setValue(int(v))
-                elif ftype == 'bool':
-                    w.setChecked(int(v) != 0)
-                elif ftype in ('char', 'str') and hasattr(w, 'setCurrentText'):
-                    w.setCurrentText(str(v))
-                elif hasattr(w, 'setText'):
-                    w.setText(str(v))
-            except Exception:
-                pass
-        self._blocking = False
-        self._update_stat_bars(entry)
-
-    def _on_field_changed(self, field_name: str, value): #vers 1
-        if self._blocking or self._current_idx < 0:
-            return
-        entry = self._parser.entries[self._current_idx]
-        for i, (fname, *_) in enumerate(VC_FIELDS):
-            if fname == field_name and i < len(entry.values):
-                entry.values[i] = str(value)
-                break
-        self._modified = True
-        self._update_stat_bars(entry)
-
-    def _update_stat_bars(self, entry: HandlingEntry): #vers 1
-        vals = entry.values
-        field_map = {f[0]: i for i, f in enumerate(VC_FIELDS)}
-        for field_name, (bar, max_val) in self._stat_bars.items():
-            idx = field_map.get(field_name)
-            if idx is not None and idx < len(vals):
-                try:
-                    v = float(vals[idx])
-                    pct = min(100, int(v / max_val * 100))
-                    bar.setValue(pct)
-                    bar.setFormat(f"{v:.1f}")
-                except Exception:
-                    bar.setValue(0)
-        # Update flag highlights
-        hf_idx = field_map.get('HandlingFlags')
-        if hf_idx and hf_idx < len(vals):
-            try:
-                flags = int(vals[hf_idx], 16)
-                for bit, lbl in self._flag_labels.items():
-                    if flags & bit:
-                        lbl.setStyleSheet("color: #50e090; font-weight: bold;")
-                    else:
-                        lbl.setStyleSheet("color: #888;")
-            except Exception:
-                pass
-
-    def _add_entry(self): #vers 1
-        template = self._parser.entries[0].values[:] if self._parser.entries else ['NEWVEHICLE'] + ['0.0'] * 36
-        template[0] = 'NEWVEHICLE'
-        e = HandlingEntry()
-        e.values = template
-        self._parser.entries.append(e)
-        self._refresh_list(self._search_box.text())
-        self._veh_list.setCurrentRow(self._veh_list.count() - 1)
-        self._modified = True
-
-    def _delete_entry(self): #vers 1
-        if self._current_idx < 0 or not self._parser.entries:
-            return
-        name = self._parser.entries[self._current_idx].name
-        r = QMessageBox.question(self, "Delete", f"Delete {name}?")
-        if r != QMessageBox.StandardButton.Yes:
-            return
-        self._parser.entries.pop(self._current_idx)
-        self._current_idx = -1
-        self._refresh_list(self._search_box.text())
-        self._modified = True
-
-    def _duplicate_entry(self): #vers 1
-        if self._current_idx < 0 or not self._parser.entries:
-            return
-        src = self._parser.entries[self._current_idx]
-        e = HandlingEntry()
-        e.values = src.values[:]
-        e.values[0] = src.values[0] + '_COPY'
-        self._parser.entries.insert(self._current_idx + 1, e)
-        self._refresh_list(self._search_box.text())
-        self._modified = True
-
-    def _build_menus_into_qmenu(self, pm): #vers 1
-        fm = pm.addMenu("File")
-        fm.addAction("Open handling.cfg", self._open_file)
-        fm.addAction("Save", self._save_file)
-        fm.addAction("Save As…", lambda: self._save_as())
-        fm.addSeparator()
-        fm.addAction("Close", self.close)
-
-    def _save_as(self): #vers 1
-        path, _ = QFileDialog.getSaveFileName(
-            self, "Save As", "", "Handling files (handling.cfg *.cfg)")
-        if path:
-            self._current_path = path
-            self._save_file()
-
-
-def open_handling_editor(main_window=None, path: str = None): #vers 1
-    app = QApplication.instance() or QApplication(sys.argv)
-    w = HandlingEditor(main_window)
-    w.resize(1100, 700)
-    w.show()
-    if path:
-        w._open_file(path)
-    return w
-
-
-if __name__ == '__main__':
-    app = QApplication(sys.argv)
-    w = HandlingEditor()
-    w.resize(1100, 700)
-    w.show()
-    sys.exit(app.exec())
-
-
-# ── GUIWorkshop (inlined) ────────────────────────────────────────────────────
-# bugs/Tmp_Template/gui_workshop.py - Version: 4
-# X-Seti - Apr 2026 - IMG Factory 1.6
-# GUIWorkshop — TEMPLATE ONLY. Copy into your workshop, do not import.
-#
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ !! WARNING — DO NOT IMPORT THIS FILE INTO YOUR WORKSHOP !!      │
-# │                                                                 │
-# │ WRONG:  from apps.components.Tmp_Template.gui_workshop import   │
-# │         GUIWorkshop                                             │
-# │                                                                 │
-# │ RIGHT:  Copy this file into your workshop folder and rename it  │
-# │         e.g. apps/components/My_Workshop/my_workshop.py         │
-# │         Then edit your copy in place.                           │
-# │                                                                 │
-# │ Each workshop MUST be standalone and self-contained.            │
-# │ Importing this file creates a hard dependency that breaks       │
-# │ when the template changes, causes setup_ui() timing issues,     │
-# │ and makes workshops impossible to run independently.            │
-# └─────────────────────────────────────────────────────────────────┘
-#
-# HOW TO CREATE A NEW WORKSHOP:
-# 1. Copy bugs/Tmp_Template/ to apps/components/My_Workshop/
-# 2. Rename temp_workshop.py → my_workshop.py
-# 3. Edit the copy — change App_name, config_key, override stubs
-# 4. Never import from bugs/Tmp_Template again
-#
-# ┌                                                                 ┐
-# │ SECTION 1 │ GUI Core — imports, WorkshopSettings, _CornerOverlay│
-# │ SECTION 2 │ Toolbar — Menu, Settings UI, Info [i], Cog [⚙]     │
-# │ SECTION 3 │ Layout  — setup_ui, left, centre, right, statusbar  │
-# │ SECTION 4 │ Logic   — stubs to override in your subclass        │
-# └                                                                 ┘
-#
-# If your workshop needs state before setup_ui() runs, use this pattern:
-#   def __init__(self, ...):
-#       self._defer_setup_ui = True   # stops auto-call in __init__
-#       super().__init__(...)          # base state initialised
-#       # ... set up your own state here ...
-#       self.setup_ui()               # call manually when ready
-#           self.setup_ui()              # call manually when ready
-
-import sys, json
-from pathlib import Path
-
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QLabel, QToolButton,
-    QPushButton, QFrame, QSizePolicy, QListWidget, QListWidgetItem,
-    QFileDialog, QMessageBox, QTabWidget, QDialog, QApplication,
-    QSpinBox, QGroupBox, QComboBox, QCheckBox, QFontComboBox,
-    QScrollArea, QMenu, QDialogButtonBox, QTextEdit
-)
-from PyQt6.QtGui import (
-    QColor, QPainter, QPen, QFont, QIcon, QKeySequence,
-    QShortcut, QPolygon
-)
-from PyQt6.QtCore import Qt, QSize, QPoint, pyqtSignal
-
-
-#
-# SECTION 1 — GUI Core
-# Imports, optional deps, WorkshopSettings, _CornerOverlay
-#
-
-APPSETTINGS_AVAILABLE = False
-try:
-    from apps.utils.app_settings_system import AppSettings, SettingsDialog
-    APPSETTINGS_AVAILABLE = True
-except ImportError:
-    AppSettings = SettingsDialog = None
-
-try:
-    from apps.methods.imgfactory_svg_icons import SVGIconFactory
-except ImportError:
-    class SVGIconFactory:
-        @staticmethod
-        def _s(sz=20, c=None): return QIcon()
-        open_icon = save_icon = export_icon = import_icon = delete_icon = \
-        undo_icon = info_icon = properties_icon = minimize_icon = \
-        maximize_icon = close_icon = settings_icon = search_icon = \
-        zoom_in_icon = zoom_out_icon = fit_grid_icon = locate_icon = \
-        paint_icon = fill_icon = dropper_icon = line_icon = rect_icon = \
-        rect_fill_icon = scissors_icon = paste_brush_icon = \
-        rotate_cw_icon = rotate_ccw_icon = flip_horz_icon = \
-        flip_vert_icon = folder_icon = staticmethod(_s)
-
-try:
-    from apps.gui.tool_menu_mixin import ToolMenuMixin
-except ImportError:
-    class ToolMenuMixin:
-        def _build_menus_into_qmenu(self, pm): pass
-
-# Module-level identity defaults (override via class attributes in subclass)
-__author__  = "X-Seti"
-__year__    = "2026"
-
-
-#    WorkshopSettings                                                          
 
 class WorkshopSettings:
     """Per-app JSON settings.  Stored at ~/.config/imgfactory/{config_key}.json
@@ -1266,11 +826,11 @@ class _LayoutMixin:
         sp = QSplitter(Qt.Orientation.Horizontal)
         sp.addWidget(self._create_left_panel())
         sp.addWidget(self._create_centre_panel())
-        sp.addWidget(self._create_right_panel())
+        # Right button bar disabled — not needed for all workshops
+        # sp.addWidget(self._create_right_panel())
         sp.setStretchFactor(0, 1)
         sp.setStretchFactor(1, 5)
-        sp.setStretchFactor(2, 0)
-        sp.setSizes([200, 950, self.WS.get("sidebar_width", 82)])
+        sp.setSizes([200, 950])
         self._main_splitter = sp
         ml.addWidget(sp)
 
@@ -1758,3 +1318,445 @@ if __name__ == "__main__":
         sys.exit(app.exec())
     except Exception as e:
         print(f"ERROR: {e}"); traceback.print_exc(); sys.exit(1)
+
+class HandlingEditor(GUIWorkshop): #vers 1
+    App_name   = "Handling Editor"
+    App_build  = "Build 1"
+    App_auth   = "X-Seti"
+    config_key = "handling_editor"
+
+    def __init__(self, main_window=None, parent=None):
+        self._defer_setup_ui = True
+        super().__init__(parent)
+        self.main_window  = main_window
+        self._parser      = HandlingParser()
+        self._current_path: Optional[str] = None
+        self._current_idx: int = -1
+        self._modified    = False
+        self._field_widgets: Dict[str, QWidget] = {}
+        self._blocking    = False
+        self.setup_ui()
+        # Hide inner toolbar chrome when docked inside IMG Factory
+        if main_window and hasattr(self, 'toolbar'):
+            self.toolbar.hide()
+        self._set_status("Open a handling.cfg file to begin")
+
+    def _build_left_panel(self, parent: QWidget) -> QWidget: #vers 1
+        w = QWidget(parent)
+        lay = QVBoxLayout(w)
+        lay.setContentsMargins(4, 4, 4, 4)
+        lay.setSpacing(4)
+
+        lbl = QLabel("Vehicles")
+        lbl.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        lay.addWidget(lbl)
+
+        self._search_box = QLineEdit()
+        self._search_box.setPlaceholderText("Search…")
+        self._search_box.textChanged.connect(self._search_vehicles)
+        lay.addWidget(self._search_box)
+
+        self._veh_list = QListWidget()
+        self._veh_list.currentRowChanged.connect(self._on_vehicle_selected)
+        lay.addWidget(self._veh_list)
+
+        btn_row = QHBoxLayout()
+        for label, slot in [("Add", self._add_entry), ("Del", self._delete_entry), ("Dup", self._duplicate_entry)]:
+            b = QPushButton(label)
+            b.setFixedHeight(24)
+            b.clicked.connect(slot)
+            btn_row.addWidget(b)
+        lay.addLayout(btn_row)
+        return w
+
+    def _build_centre_panel(self, parent: QWidget) -> QWidget: #vers 1
+        scroll = QScrollArea(parent)
+        scroll.setWidgetResizable(True)
+        container = QWidget()
+        scroll.setWidget(container)
+        self._form_layout = QFormLayout(container)
+        self._form_layout.setSpacing(4)
+        self._form_layout.setContentsMargins(8, 8, 8, 8)
+        self._field_widgets.clear()
+
+        for fname, ftype, fmin, fmax, tip in VC_FIELDS:
+            lbl = QLabel(fname)
+            lbl.setToolTip(tip)
+            lbl.setFixedWidth(200)
+
+            if ftype == 'float':
+                w = QDoubleSpinBox()
+                w.setRange(float(fmin), float(fmax))
+                w.setDecimals(4)
+                w.setSingleStep(0.01)
+                w.setToolTip(tip)
+                w.valueChanged.connect(lambda v, n=fname: self._on_field_changed(n, v))
+            elif ftype == 'int':
+                w = QSpinBox()
+                w.setRange(int(fmin), int(fmax))
+                w.setToolTip(tip)
+                w.valueChanged.connect(lambda v, n=fname: self._on_field_changed(n, v))
+            elif ftype == 'bool':
+                w = QCheckBox()
+                w.setToolTip(tip)
+                w.stateChanged.connect(lambda v, n=fname: self._on_field_changed(n, int(v > 0)))
+            elif ftype == 'char':
+                w = QComboBox()
+                if fname == 'DriveType':
+                    w.addItems(['F', 'R', '4'])
+                elif fname == 'EngineType':
+                    w.addItems(['P', 'D', 'E'])
+                w.setToolTip(tip)
+                w.currentTextChanged.connect(lambda v, n=fname: self._on_field_changed(n, v))
+            elif ftype == 'hex':
+                w = QLineEdit()
+                w.setPlaceholderText("0x00000000")
+                w.setToolTip(tip)
+                w.textChanged.connect(lambda v, n=fname: self._on_field_changed(n, v))
+            else:  # str
+                w = QLineEdit()
+                w.setMaxLength(14)
+                w.setToolTip(tip)
+                w.textChanged.connect(lambda v, n=fname: self._on_field_changed(n, v))
+
+            self._field_widgets[fname] = w
+            self._form_layout.addRow(lbl, w)
+
+        return scroll
+
+    def _build_right_panel(self, parent: QWidget) -> QWidget: #vers 1
+        w = QWidget(parent)
+        lay = QVBoxLayout(w)
+        lay.setContentsMargins(4, 4, 4, 4)
+        lay.setSpacing(6)
+
+        lay.addWidget(QLabel("Vehicle Stats"))
+
+        self._stat_bars: Dict[str, QProgressBar] = {}
+        stats = [
+            ("Top Speed",  "MaxVelocity",          200),
+            ("Mass",       "Mass",                  5000),
+            ("Braking",    "BrakeDeceleration",     30),
+            ("Traction",   "TractionMultiplier",    3),
+            ("Engine",     "EngineAcceleration",    20),
+            ("Suspension", "SuspensionForceLevel",  5),
+        ]
+        for label, field_name, max_val in stats:
+            row = QHBoxLayout()
+            l = QLabel(label)
+            l.setFixedWidth(80)
+            bar = QProgressBar()
+            bar.setRange(0, 100)
+            bar.setValue(0)
+            bar.setTextVisible(True)
+            bar.setFixedHeight(18)
+            self._stat_bars[field_name] = (bar, max_val)
+            row.addWidget(l)
+            row.addWidget(bar)
+            lay.addLayout(row)
+
+        lay.addStretch()
+
+        # Flags display
+        grp = QGroupBox("Handling Flags")
+        flag_lay = QVBoxLayout(grp)
+        self._flag_labels: Dict[int, QLabel] = {}
+        for bit, name in list(HANDLING_FLAGS.items())[:16]:
+            fl = QLabel(name)
+            fl.setStyleSheet("color: #888;")
+            fl.setFont(QFont("Monospace", 8))
+            self._flag_labels[bit] = fl
+            flag_lay.addWidget(fl)
+        lay.addWidget(grp)
+        return w
+
+    def setup_ui(self): #vers 2
+        super().setup_ui()
+
+    def _create_centre_panel(self): #vers 1
+        sp = QSplitter(Qt.Orientation.Horizontal)
+        sp.addWidget(self._build_left_panel(self))
+        sp.addWidget(self._build_centre_panel(self))
+        sp.addWidget(self._build_right_panel(self))
+        sp.setSizes([200, 600, 220])
+        return sp
+
+    def _open_file(self, path=None): #vers 1
+        if path is None:
+            path, _ = QFileDialog.getOpenFileName(
+                self, "Open handling.cfg", "",
+                "Handling files (handling.cfg *.cfg);;All files (*)")
+        if not path:
+            return
+        if not self._parser.load(path):
+            QMessageBox.critical(self, "Error", f"Failed to load {path}")
+            return
+        self._current_path = path
+        self._modified = False
+        self._refresh_list()
+        self._set_status(f"Loaded {os.path.basename(path)} — {len(self._parser.entries)} vehicles  [{self._parser.game}]")
+
+    def _save_file(self): #vers 1
+        if not self._current_path:
+            self._current_path, _ = QFileDialog.getSaveFileName(
+                self, "Save handling.cfg", "", "Handling files (handling.cfg *.cfg)")
+        if not self._current_path:
+            return
+        if self._parser.save(self._current_path):
+            self._modified = False
+            self._set_status(f"Saved {os.path.basename(self._current_path)}")
+        else:
+            QMessageBox.critical(self, "Error", "Save failed")
+
+    def _refresh_list(self, filter_text: str = ""): #vers 1
+        self._veh_list.clear()
+        ft = filter_text.lower()
+        for i, e in enumerate(self._parser.entries):
+            if ft and ft not in e.name.lower():
+                continue
+            item = QListWidgetItem(e.name)
+            item.setData(Qt.ItemDataRole.UserRole, i)
+            self._veh_list.addItem(item)
+
+    def _search_vehicles(self, text: str): #vers 1
+        self._refresh_list(text)
+
+    def _on_vehicle_selected(self, row: int): #vers 1
+        item = self._veh_list.item(row)
+        if item is None:
+            return
+        idx = item.data(Qt.ItemDataRole.UserRole)
+        if idx is None or idx >= len(self._parser.entries):
+            return
+        self._current_idx = idx
+        self._populate_fields(self._parser.entries[idx])
+
+    def _populate_fields(self, entry: HandlingEntry): #vers 1
+        self._blocking = True
+        vals = entry.values
+        for i, (fname, ftype, *_) in enumerate(VC_FIELDS):
+            if i >= len(vals):
+                break
+            w = self._field_widgets.get(fname)
+            if w is None:
+                continue
+            v = vals[i]
+            try:
+                if ftype == 'float':
+                    w.setValue(float(v))
+                elif ftype == 'int':
+                    w.setValue(int(v))
+                elif ftype == 'bool':
+                    w.setChecked(int(v) != 0)
+                elif ftype in ('char', 'str') and hasattr(w, 'setCurrentText'):
+                    w.setCurrentText(str(v))
+                elif hasattr(w, 'setText'):
+                    w.setText(str(v))
+            except Exception:
+                pass
+        self._blocking = False
+        self._update_stat_bars(entry)
+
+    def _on_field_changed(self, field_name: str, value): #vers 1
+        if self._blocking or self._current_idx < 0:
+            return
+        entry = self._parser.entries[self._current_idx]
+        for i, (fname, *_) in enumerate(VC_FIELDS):
+            if fname == field_name and i < len(entry.values):
+                entry.values[i] = str(value)
+                break
+        self._modified = True
+        self._update_stat_bars(entry)
+
+    def _update_stat_bars(self, entry: HandlingEntry): #vers 1
+        vals = entry.values
+        field_map = {f[0]: i for i, f in enumerate(VC_FIELDS)}
+        for field_name, (bar, max_val) in self._stat_bars.items():
+            idx = field_map.get(field_name)
+            if idx is not None and idx < len(vals):
+                try:
+                    v = float(vals[idx])
+                    pct = min(100, int(v / max_val * 100))
+                    bar.setValue(pct)
+                    bar.setFormat(f"{v:.1f}")
+                except Exception:
+                    bar.setValue(0)
+        # Update flag highlights
+        hf_idx = field_map.get('HandlingFlags')
+        if hf_idx and hf_idx < len(vals):
+            try:
+                flags = int(vals[hf_idx], 16)
+                for bit, lbl in self._flag_labels.items():
+                    if flags & bit:
+                        lbl.setStyleSheet("color: #50e090; font-weight: bold;")
+                    else:
+                        lbl.setStyleSheet("color: #888;")
+            except Exception:
+                pass
+
+    def _add_entry(self): #vers 1
+        template = self._parser.entries[0].values[:] if self._parser.entries else ['NEWVEHICLE'] + ['0.0'] * 36
+        template[0] = 'NEWVEHICLE'
+        e = HandlingEntry()
+        e.values = template
+        self._parser.entries.append(e)
+        self._refresh_list(self._search_box.text())
+        self._veh_list.setCurrentRow(self._veh_list.count() - 1)
+        self._modified = True
+
+    def _delete_entry(self): #vers 1
+        if self._current_idx < 0 or not self._parser.entries:
+            return
+        name = self._parser.entries[self._current_idx].name
+        r = QMessageBox.question(self, "Delete", f"Delete {name}?")
+        if r != QMessageBox.StandardButton.Yes:
+            return
+        self._parser.entries.pop(self._current_idx)
+        self._current_idx = -1
+        self._refresh_list(self._search_box.text())
+        self._modified = True
+
+    def _duplicate_entry(self): #vers 1
+        if self._current_idx < 0 or not self._parser.entries:
+            return
+        src = self._parser.entries[self._current_idx]
+        e = HandlingEntry()
+        e.values = src.values[:]
+        e.values[0] = src.values[0] + '_COPY'
+        self._parser.entries.insert(self._current_idx + 1, e)
+        self._refresh_list(self._search_box.text())
+        self._modified = True
+
+    def _build_menus_into_qmenu(self, pm): #vers 1
+        fm = pm.addMenu("File")
+        fm.addAction("Open handling.cfg", self._open_file)
+        fm.addAction("Save", self._save_file)
+        fm.addAction("Save As…", lambda: self._save_as())
+        fm.addSeparator()
+        fm.addAction("Close", self.close)
+
+    def _save_as(self): #vers 1
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Save As", "", "Handling files (handling.cfg *.cfg)")
+        if path:
+            self._current_path = path
+            self._save_file()
+
+
+def open_handling_editor(main_window=None, path: str = None): #vers 1
+    app = QApplication.instance() or QApplication(sys.argv)
+    w = HandlingEditor(main_window)
+    w.resize(1100, 700)
+    w.show()
+    if path:
+        w._open_file(path)
+    return w
+
+
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+    w = HandlingEditor()
+    w.resize(1100, 700)
+    w.show()
+    sys.exit(app.exec())
+
+
+# ── GUIWorkshop (inlined) ────────────────────────────────────────────────────
+# bugs/Tmp_Template/gui_workshop.py - Version: 4
+# X-Seti - Apr 2026 - IMG Factory 1.6
+# GUIWorkshop — TEMPLATE ONLY. Copy into your workshop, do not import.
+#
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ !! WARNING — DO NOT IMPORT THIS FILE INTO YOUR WORKSHOP !!      │
+# │                                                                 │
+# │ WRONG:  from apps.components.Tmp_Template.gui_workshop import   │
+# │         GUIWorkshop                                             │
+# │                                                                 │
+# │ RIGHT:  Copy this file into your workshop folder and rename it  │
+# │         e.g. apps/components/My_Workshop/my_workshop.py         │
+# │         Then edit your copy in place.                           │
+# │                                                                 │
+# │ Each workshop MUST be standalone and self-contained.            │
+# │ Importing this file creates a hard dependency that breaks       │
+# │ when the template changes, causes setup_ui() timing issues,     │
+# │ and makes workshops impossible to run independently.            │
+# └─────────────────────────────────────────────────────────────────┘
+#
+# HOW TO CREATE A NEW WORKSHOP:
+# 1. Copy bugs/Tmp_Template/ to apps/components/My_Workshop/
+# 2. Rename temp_workshop.py → my_workshop.py
+# 3. Edit the copy — change App_name, config_key, override stubs
+# 4. Never import from bugs/Tmp_Template again
+#
+# ┌                                                                 ┐
+# │ SECTION 1 │ GUI Core — imports, WorkshopSettings, _CornerOverlay│
+# │ SECTION 2 │ Toolbar — Menu, Settings UI, Info [i], Cog [⚙]     │
+# │ SECTION 3 │ Layout  — setup_ui, left, centre, right, statusbar  │
+# │ SECTION 4 │ Logic   — stubs to override in your subclass        │
+# └                                                                 ┘
+#
+# If your workshop needs state before setup_ui() runs, use this pattern:
+#   def __init__(self, ...):
+#       self._defer_setup_ui = True   # stops auto-call in __init__
+#       super().__init__(...)          # base state initialised
+#       # ... set up your own state here ...
+#       self.setup_ui()               # call manually when ready
+#           self.setup_ui()              # call manually when ready
+
+import sys, json
+from pathlib import Path
+
+from PyQt6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QLabel, QToolButton,
+    QPushButton, QFrame, QSizePolicy, QListWidget, QListWidgetItem,
+    QFileDialog, QMessageBox, QTabWidget, QDialog, QApplication,
+    QSpinBox, QGroupBox, QComboBox, QCheckBox, QFontComboBox,
+    QScrollArea, QMenu, QDialogButtonBox, QTextEdit
+)
+from PyQt6.QtGui import (
+    QColor, QPainter, QPen, QFont, QIcon, QKeySequence,
+    QShortcut, QPolygon
+)
+from PyQt6.QtCore import Qt, QSize, QPoint, pyqtSignal
+
+
+#
+# SECTION 1 — GUI Core
+# Imports, optional deps, WorkshopSettings, _CornerOverlay
+#
+
+APPSETTINGS_AVAILABLE = False
+try:
+    from apps.utils.app_settings_system import AppSettings, SettingsDialog
+    APPSETTINGS_AVAILABLE = True
+except ImportError:
+    AppSettings = SettingsDialog = None
+
+try:
+    from apps.methods.imgfactory_svg_icons import SVGIconFactory
+except ImportError:
+    class SVGIconFactory:
+        @staticmethod
+        def _s(sz=20, c=None): return QIcon()
+        open_icon = save_icon = export_icon = import_icon = delete_icon = \
+        undo_icon = info_icon = properties_icon = minimize_icon = \
+        maximize_icon = close_icon = settings_icon = search_icon = \
+        zoom_in_icon = zoom_out_icon = fit_grid_icon = locate_icon = \
+        paint_icon = fill_icon = dropper_icon = line_icon = rect_icon = \
+        rect_fill_icon = scissors_icon = paste_brush_icon = \
+        rotate_cw_icon = rotate_ccw_icon = flip_horz_icon = \
+        flip_vert_icon = folder_icon = staticmethod(_s)
+
+try:
+    from apps.gui.tool_menu_mixin import ToolMenuMixin
+except ImportError:
+    class ToolMenuMixin:
+        def _build_menus_into_qmenu(self, pm): pass
+
+# Module-level identity defaults (override via class attributes in subclass)
+__author__  = "X-Seti"
+__year__    = "2026"
+
+
+#    WorkshopSettings                                                          
+

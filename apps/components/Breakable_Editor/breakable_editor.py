@@ -222,379 +222,6 @@ class BreakableParser: #vers 1
 # Editor
 # ─────────────────────────────────────────────────────────────────────────────
 
-class BreakableEditor(GUIWorkshop): #vers 1
-    App_name   = "Breakable Objects Editor"
-    App_build  = "Build 1"
-    App_auth   = "X-Seti"
-    config_key = "breakable_editor"
-
-    def __init__(self, main_window=None, parent=None):
-        self._defer_setup_ui = True
-        super().__init__(parent)
-        self.main_window   = main_window
-        self._parser       = BreakableParser()
-        self._current_path: Optional[str]  = None
-        self._current_idx:  int            = -1
-        self._modified      = False
-        self._field_widgets: Dict[str, QWidget] = {}
-        self._blocking      = False
-        self._section_filter = ""
-        self.setup_ui()
-        self.setup_ui()
-        if main_window and hasattr(self, "toolbar"): self.toolbar.hide()
-        self._set_status("Open an object.dat file to begin")
-
-    def _build_left_panel(self, parent: QWidget) -> QWidget: #vers 1
-        w = QWidget(parent)
-        lay = QVBoxLayout(w)
-        lay.setContentsMargins(4, 4, 4, 4)
-        lay.setSpacing(4)
-
-        lay.addWidget(QLabel("Objects"))
-
-        self._search_box = QLineEdit()
-        self._search_box.setPlaceholderText("Search model name…")
-        self._search_box.textChanged.connect(self._search_objects)
-        lay.addWidget(self._search_box)
-
-        # Section filter
-        self._section_combo = QComboBox()
-        self._section_combo.addItem("All sections")
-        for s in SECTIONS:
-            self._section_combo.addItem(s)
-        self._section_combo.currentTextChanged.connect(self._filter_by_section)
-        lay.addWidget(self._section_combo)
-
-        self._obj_list = QListWidget()
-        self._obj_list.currentRowChanged.connect(self._on_object_selected)
-        lay.addWidget(self._obj_list)
-
-        btn_row = QHBoxLayout()
-        for label, slot in [("Add", self._add_entry), ("Del", self._delete_entry)]:
-            b = QPushButton(label)
-            b.setFixedHeight(24)
-            b.clicked.connect(slot)
-            btn_row.addWidget(b)
-        lay.addLayout(btn_row)
-        return w
-
-    def _build_centre_panel(self, parent: QWidget) -> QWidget: #vers 1
-        scroll = QScrollArea(parent)
-        scroll.setWidgetResizable(True)
-        container = QWidget()
-        scroll.setWidget(container)
-        self._form_layout = QFormLayout(container)
-        self._form_layout.setSpacing(4)
-        self._form_layout.setContentsMargins(8, 8, 8, 8)
-        self._field_widgets.clear()
-
-        all_fields = VC_OBJECT_FIELDS + SA_EXTRA_FIELDS
-        for fname, ftype, fmin, fmax, tip in all_fields:
-            lbl = QLabel(fname)
-            lbl.setToolTip(tip)
-            lbl.setFixedWidth(160)
-
-            if ftype == 'float':
-                w = QDoubleSpinBox()
-                w.setRange(float(fmin), float(fmax))
-                w.setDecimals(4)
-                w.setSingleStep(0.1)
-                w.setToolTip(tip)
-                w.valueChanged.connect(lambda v, n=fname: self._on_field_changed(n, v))
-            elif ftype == 'int':
-                w = QSpinBox()
-                w.setRange(int(fmin), int(fmax))
-                w.setToolTip(tip)
-                w.valueChanged.connect(lambda v, n=fname: self._on_field_changed(n, v))
-            else:
-                w = QLineEdit()
-                w.setToolTip(tip)
-                w.textChanged.connect(lambda v, n=fname: self._on_field_changed(n, v))
-
-            self._field_widgets[fname] = w
-            self._form_layout.addRow(lbl, w)
-
-        return scroll
-
-    def _build_right_panel(self, parent: QWidget) -> QWidget: #vers 1
-        w = QWidget(parent)
-        lay = QVBoxLayout(w)
-        lay.setContentsMargins(4, 4, 4, 4)
-
-        lay.addWidget(QLabel("Effect Reference"))
-
-        grp_dmg = QGroupBox("ColDamageEffect")
-        dmg_lay = QVBoxLayout(grp_dmg)
-        for k, v in COL_DAMAGE_EFFECTS.items():
-            dmg_lay.addWidget(QLabel(f"  {k} = {v}"))
-        lay.addWidget(grp_dmg)
-
-        grp_fx = QGroupBox("FxType")
-        fx_lay = QVBoxLayout(grp_fx)
-        for k, v in FX_TYPES.items():
-            fx_lay.addWidget(QLabel(f"  {k} = {v}"))
-        lay.addWidget(grp_fx)
-
-        lay.addStretch()
-
-        self._info_box = QTextEdit()
-        self._info_box.setReadOnly(True)
-        self._info_box.setMaximumHeight(100)
-        self._info_box.setPlaceholderText("Select an object for info")
-        lay.addWidget(self._info_box)
-        return w
-
-    def setup_ui(self): #vers 2
-        super().setup_ui()
-
-    def _create_centre_panel(self): #vers 1
-        sp = QSplitter(Qt.Orientation.Horizontal)
-        sp.addWidget(self._build_left_panel(self))
-        sp.addWidget(self._build_centre_panel(self))
-        sp.addWidget(self._build_right_panel(self))
-        sp.setSizes([200, 560, 200])
-        return sp
-
-    def _open_file(self, path=None): #vers 1
-        if path is None:
-            path, _ = QFileDialog.getOpenFileName(
-                self, "Open object.dat", "",
-                "DAT files (object.dat *.dat);;All files (*)")
-        if not path:
-            return
-        if not self._parser.load(path):
-            QMessageBox.critical(self, "Error", f"Failed to load {path}")
-            return
-        self._current_path = path
-        self._modified = False
-        self._refresh_list()
-        self._set_status(f"Loaded {os.path.basename(path)} — {len(self._parser.entries)} objects [{self._parser.game}]")
-
-    def _save_file(self): #vers 1
-        if not self._current_path:
-            self._current_path, _ = QFileDialog.getSaveFileName(
-                self, "Save object.dat", "", "DAT files (*.dat)")
-        if not self._current_path:
-            return
-        if self._parser.save(self._current_path):
-            self._modified = False
-            self._set_status(f"Saved {os.path.basename(self._current_path)}")
-        else:
-            QMessageBox.critical(self, "Error", "Save failed")
-
-    def _refresh_list(self, filter_text: str = "", section: str = ""): #vers 1
-        self._obj_list.clear()
-        ft = filter_text.lower()
-        for i, e in enumerate(self._parser.entries):
-            if ft and ft not in e.name.lower():
-                continue
-            if section and section != "All sections" and e.section != section:
-                continue
-            item = QListWidgetItem(f"[{e.section}] {e.name}")
-            item.setData(Qt.ItemDataRole.UserRole, i)
-            self._obj_list.addItem(item)
-
-    def _search_objects(self, text: str): #vers 1
-        self._refresh_list(text, self._section_combo.currentText())
-
-    def _filter_by_section(self, section: str): #vers 1
-        self._refresh_list(self._search_box.text(), section)
-
-    def _on_object_selected(self, row: int): #vers 1
-        item = self._obj_list.item(row)
-        if item is None:
-            return
-        idx = item.data(Qt.ItemDataRole.UserRole)
-        if idx is None or idx >= len(self._parser.entries):
-            return
-        self._current_idx = idx
-        entry = self._parser.entries[idx]
-        self._populate_fields(entry)
-        self._info_box.setPlainText(
-            f"Section: {entry.section}\nModel: {entry.name}\nFields: {len(entry.values)}")
-
-    def _populate_fields(self, entry: ObjectEntry): #vers 1
-        self._blocking = True
-        all_fields = VC_OBJECT_FIELDS + SA_EXTRA_FIELDS
-        for i, (fname, ftype, *_) in enumerate(all_fields):
-            if i >= len(entry.values):
-                break
-            w = self._field_widgets.get(fname)
-            if w is None:
-                continue
-            v = entry.values[i]
-            try:
-                if ftype == 'float':
-                    w.setValue(float(v))
-                elif ftype == 'int':
-                    w.setValue(int(v))
-                elif hasattr(w, 'setText'):
-                    w.setText(str(v))
-            except Exception:
-                pass
-        self._blocking = False
-
-    def _on_field_changed(self, field_name: str, value): #vers 1
-        if self._blocking or self._current_idx < 0:
-            return
-        entry = self._parser.entries[self._current_idx]
-        all_fields = VC_OBJECT_FIELDS + SA_EXTRA_FIELDS
-        for i, (fname, *_) in enumerate(all_fields):
-            if fname == field_name and i < len(entry.values):
-                entry.values[i] = str(value)
-                break
-        self._modified = True
-
-    def _add_entry(self): #vers 1
-        sec = self._section_combo.currentText()
-        if sec == "All sections":
-            sec = "OBJECT"
-        e = ObjectEntry(section=sec, values=['NEWOBJECT', '20.0', '10.0', '0.3', '0.3', '100', '0', '0', '0', '0', '0', '0', 'NULL', '0'])
-        self._parser.entries.append(e)
-        self._refresh_list(self._search_box.text(), self._section_combo.currentText())
-        self._modified = True
-
-    def _delete_entry(self): #vers 1
-        if self._current_idx < 0:
-            return
-        name = self._parser.entries[self._current_idx].name
-        r = QMessageBox.question(self, "Delete", f"Delete {name}?")
-        if r != QMessageBox.StandardButton.Yes:
-            return
-        self._parser.entries.pop(self._current_idx)
-        self._current_idx = -1
-        self._refresh_list(self._search_box.text(), self._section_combo.currentText())
-        self._modified = True
-
-    def _build_menus_into_qmenu(self, pm): #vers 1
-        fm = pm.addMenu("File")
-        fm.addAction("Open object.dat", self._open_file)
-        fm.addAction("Save", self._save_file)
-        fm.addSeparator()
-        fm.addAction("Close", self.close)
-
-
-def open_breakable_editor(main_window=None, path: str = None): #vers 1
-    app = QApplication.instance() or QApplication(sys.argv)
-    w = BreakableEditor(main_window)
-    w.resize(1000, 680)
-    w.show()
-    if path:
-        w._open_file(path)
-    return w
-
-
-if __name__ == '__main__':
-    app = QApplication(sys.argv)
-    w = BreakableEditor()
-    w.resize(1000, 680); w.show()
-    if len(sys.argv) > 1:
-        w._open_file(sys.argv[1])
-    else:
-        from PyQt6.QtWidgets import QFileDialog
-        p,_ = QFileDialog.getOpenFileName(w,'Open object.dat','','DAT files (*.dat);;All (*)')
-        if p: w._open_file(p)
-    sys.exit(app.exec())
-
-
-# ── GUIWorkshop (inlined) ────────────────────────────────────────────────────
-# bugs/Tmp_Template/gui_workshop.py - Version: 4
-# X-Seti - Apr 2026 - IMG Factory 1.6
-# GUIWorkshop — TEMPLATE ONLY. Copy into your workshop, do not import.
-#
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ !! WARNING — DO NOT IMPORT THIS FILE INTO YOUR WORKSHOP !!      │
-# │                                                                 │
-# │ WRONG:  from apps.components.Tmp_Template.gui_workshop import   │
-# │         GUIWorkshop                                             │
-# │                                                                 │
-# │ RIGHT:  Copy this file into your workshop folder and rename it  │
-# │         e.g. apps/components/My_Workshop/my_workshop.py         │
-# │         Then edit your copy in place.                           │
-# │                                                                 │
-# │ Each workshop MUST be standalone and self-contained.            │
-# │ Importing this file creates a hard dependency that breaks       │
-# │ when the template changes, causes setup_ui() timing issues,     │
-# │ and makes workshops impossible to run independently.            │
-# └─────────────────────────────────────────────────────────────────┘
-#
-# HOW TO CREATE A NEW WORKSHOP:
-# 1. Copy bugs/Tmp_Template/ to apps/components/My_Workshop/
-# 2. Rename temp_workshop.py → my_workshop.py
-# 3. Edit the copy — change App_name, config_key, override stubs
-# 4. Never import from bugs/Tmp_Template again
-#
-# ┌                                                                 ┐
-# │ SECTION 1 │ GUI Core — imports, WorkshopSettings, _CornerOverlay│
-# │ SECTION 2 │ Toolbar — Menu, Settings UI, Info [i], Cog [⚙]     │
-# │ SECTION 3 │ Layout  — setup_ui, left, centre, right, statusbar  │
-# │ SECTION 4 │ Logic   — stubs to override in your subclass        │
-# └                                                                 ┘
-#
-# If your workshop needs state before setup_ui() runs, use this pattern:
-#   def __init__(self, ...):
-#       self._defer_setup_ui = True   # stops auto-call in __init__
-#       super().__init__(...)          # base state initialised
-#       # ... set up your own state here ...
-#       self.setup_ui()               # call manually when ready
-#           self.setup_ui()              # call manually when ready
-
-import sys, json
-from pathlib import Path
-
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QLabel, QToolButton,
-    QPushButton, QFrame, QSizePolicy, QListWidget, QListWidgetItem,
-    QFileDialog, QMessageBox, QTabWidget, QDialog, QApplication,
-    QSpinBox, QGroupBox, QComboBox, QCheckBox, QFontComboBox,
-    QScrollArea, QMenu, QDialogButtonBox, QTextEdit
-)
-from PyQt6.QtGui import (
-    QColor, QPainter, QPen, QFont, QIcon, QKeySequence,
-    QShortcut, QPolygon
-)
-from PyQt6.QtCore import Qt, QSize, QPoint, pyqtSignal
-
-
-#
-# SECTION 1 — GUI Core
-# Imports, optional deps, WorkshopSettings, _CornerOverlay
-#
-
-APPSETTINGS_AVAILABLE = False
-try:
-    from apps.utils.app_settings_system import AppSettings, SettingsDialog
-    APPSETTINGS_AVAILABLE = True
-except ImportError:
-    AppSettings = SettingsDialog = None
-
-try:
-    from apps.methods.imgfactory_svg_icons import SVGIconFactory
-except ImportError:
-    class SVGIconFactory:
-        @staticmethod
-        def _s(sz=20, c=None): return QIcon()
-        open_icon = save_icon = export_icon = import_icon = delete_icon = \
-        undo_icon = info_icon = properties_icon = minimize_icon = \
-        maximize_icon = close_icon = settings_icon = search_icon = \
-        zoom_in_icon = zoom_out_icon = fit_grid_icon = locate_icon = \
-        paint_icon = fill_icon = dropper_icon = line_icon = rect_icon = \
-        rect_fill_icon = scissors_icon = paste_brush_icon = \
-        rotate_cw_icon = rotate_ccw_icon = flip_horz_icon = \
-        flip_vert_icon = folder_icon = staticmethod(_s)
-
-try:
-    from apps.gui.tool_menu_mixin import ToolMenuMixin
-except ImportError:
-    class ToolMenuMixin:
-        def _build_menus_into_qmenu(self, pm): pass
-
-# Module-level identity defaults (override via class attributes in subclass)
-__author__  = "X-Seti"
-__year__    = "2026"
-
-
-#    WorkshopSettings                                                          
 
 class WorkshopSettings:
     """Per-app JSON settings.  Stored at ~/.config/imgfactory/{config_key}.json
@@ -1192,11 +819,11 @@ class _LayoutMixin:
         sp = QSplitter(Qt.Orientation.Horizontal)
         sp.addWidget(self._create_left_panel())
         sp.addWidget(self._create_centre_panel())
-        sp.addWidget(self._create_right_panel())
+        # Right button bar disabled — not needed for all workshops
+        # sp.addWidget(self._create_right_panel())
         sp.setStretchFactor(0, 1)
         sp.setStretchFactor(1, 5)
-        sp.setStretchFactor(2, 0)
-        sp.setSizes([200, 950, self.WS.get("sidebar_width", 82)])
+        sp.setSizes([200, 950])
         self._main_splitter = sp
         ml.addWidget(sp)
 
@@ -1684,3 +1311,378 @@ if __name__ == "__main__":
         sys.exit(app.exec())
     except Exception as e:
         print(f"ERROR: {e}"); traceback.print_exc(); sys.exit(1)
+
+class BreakableEditor(GUIWorkshop): #vers 1
+    App_name   = "Breakable Objects Editor"
+    App_build  = "Build 1"
+    App_auth   = "X-Seti"
+    config_key = "breakable_editor"
+
+    def __init__(self, main_window=None, parent=None):
+        self._defer_setup_ui = True
+        super().__init__(parent)
+        self.main_window   = main_window
+        self._parser       = BreakableParser()
+        self._current_path: Optional[str]  = None
+        self._current_idx:  int            = -1
+        self._modified      = False
+        self._field_widgets: Dict[str, QWidget] = {}
+        self._blocking      = False
+        self._section_filter = ""
+        self.setup_ui()
+        self.setup_ui()
+        if main_window and hasattr(self, "toolbar"): self.toolbar.hide()
+        self._set_status("Open an object.dat file to begin")
+
+    def _build_left_panel(self, parent: QWidget) -> QWidget: #vers 1
+        w = QWidget(parent)
+        lay = QVBoxLayout(w)
+        lay.setContentsMargins(4, 4, 4, 4)
+        lay.setSpacing(4)
+
+        lay.addWidget(QLabel("Objects"))
+
+        self._search_box = QLineEdit()
+        self._search_box.setPlaceholderText("Search model name…")
+        self._search_box.textChanged.connect(self._search_objects)
+        lay.addWidget(self._search_box)
+
+        # Section filter
+        self._section_combo = QComboBox()
+        self._section_combo.addItem("All sections")
+        for s in SECTIONS:
+            self._section_combo.addItem(s)
+        self._section_combo.currentTextChanged.connect(self._filter_by_section)
+        lay.addWidget(self._section_combo)
+
+        self._obj_list = QListWidget()
+        self._obj_list.currentRowChanged.connect(self._on_object_selected)
+        lay.addWidget(self._obj_list)
+
+        btn_row = QHBoxLayout()
+        for label, slot in [("Add", self._add_entry), ("Del", self._delete_entry)]:
+            b = QPushButton(label)
+            b.setFixedHeight(24)
+            b.clicked.connect(slot)
+            btn_row.addWidget(b)
+        lay.addLayout(btn_row)
+        return w
+
+    def _build_centre_panel(self, parent: QWidget) -> QWidget: #vers 1
+        scroll = QScrollArea(parent)
+        scroll.setWidgetResizable(True)
+        container = QWidget()
+        scroll.setWidget(container)
+        self._form_layout = QFormLayout(container)
+        self._form_layout.setSpacing(4)
+        self._form_layout.setContentsMargins(8, 8, 8, 8)
+        self._field_widgets.clear()
+
+        all_fields = VC_OBJECT_FIELDS + SA_EXTRA_FIELDS
+        for fname, ftype, fmin, fmax, tip in all_fields:
+            lbl = QLabel(fname)
+            lbl.setToolTip(tip)
+            lbl.setFixedWidth(160)
+
+            if ftype == 'float':
+                w = QDoubleSpinBox()
+                w.setRange(float(fmin), float(fmax))
+                w.setDecimals(4)
+                w.setSingleStep(0.1)
+                w.setToolTip(tip)
+                w.valueChanged.connect(lambda v, n=fname: self._on_field_changed(n, v))
+            elif ftype == 'int':
+                w = QSpinBox()
+                w.setRange(int(fmin), int(fmax))
+                w.setToolTip(tip)
+                w.valueChanged.connect(lambda v, n=fname: self._on_field_changed(n, v))
+            else:
+                w = QLineEdit()
+                w.setToolTip(tip)
+                w.textChanged.connect(lambda v, n=fname: self._on_field_changed(n, v))
+
+            self._field_widgets[fname] = w
+            self._form_layout.addRow(lbl, w)
+
+        return scroll
+
+    def _build_right_panel(self, parent: QWidget) -> QWidget: #vers 1
+        w = QWidget(parent)
+        lay = QVBoxLayout(w)
+        lay.setContentsMargins(4, 4, 4, 4)
+
+        lay.addWidget(QLabel("Effect Reference"))
+
+        grp_dmg = QGroupBox("ColDamageEffect")
+        dmg_lay = QVBoxLayout(grp_dmg)
+        for k, v in COL_DAMAGE_EFFECTS.items():
+            dmg_lay.addWidget(QLabel(f"  {k} = {v}"))
+        lay.addWidget(grp_dmg)
+
+        grp_fx = QGroupBox("FxType")
+        fx_lay = QVBoxLayout(grp_fx)
+        for k, v in FX_TYPES.items():
+            fx_lay.addWidget(QLabel(f"  {k} = {v}"))
+        lay.addWidget(grp_fx)
+
+        lay.addStretch()
+
+        self._info_box = QTextEdit()
+        self._info_box.setReadOnly(True)
+        self._info_box.setMaximumHeight(100)
+        self._info_box.setPlaceholderText("Select an object for info")
+        lay.addWidget(self._info_box)
+        return w
+
+    def setup_ui(self): #vers 2
+        super().setup_ui()
+
+    def _create_centre_panel(self): #vers 1
+        sp = QSplitter(Qt.Orientation.Horizontal)
+        sp.addWidget(self._build_left_panel(self))
+        sp.addWidget(self._build_centre_panel(self))
+        sp.addWidget(self._build_right_panel(self))
+        sp.setSizes([200, 560, 200])
+        return sp
+
+    def _open_file(self, path=None): #vers 1
+        if path is None:
+            path, _ = QFileDialog.getOpenFileName(
+                self, "Open object.dat", "",
+                "DAT files (object.dat *.dat);;All files (*)")
+        if not path:
+            return
+        if not self._parser.load(path):
+            QMessageBox.critical(self, "Error", f"Failed to load {path}")
+            return
+        self._current_path = path
+        self._modified = False
+        self._refresh_list()
+        self._set_status(f"Loaded {os.path.basename(path)} — {len(self._parser.entries)} objects [{self._parser.game}]")
+
+    def _save_file(self): #vers 1
+        if not self._current_path:
+            self._current_path, _ = QFileDialog.getSaveFileName(
+                self, "Save object.dat", "", "DAT files (*.dat)")
+        if not self._current_path:
+            return
+        if self._parser.save(self._current_path):
+            self._modified = False
+            self._set_status(f"Saved {os.path.basename(self._current_path)}")
+        else:
+            QMessageBox.critical(self, "Error", "Save failed")
+
+    def _refresh_list(self, filter_text: str = "", section: str = ""): #vers 1
+        self._obj_list.clear()
+        ft = filter_text.lower()
+        for i, e in enumerate(self._parser.entries):
+            if ft and ft not in e.name.lower():
+                continue
+            if section and section != "All sections" and e.section != section:
+                continue
+            item = QListWidgetItem(f"[{e.section}] {e.name}")
+            item.setData(Qt.ItemDataRole.UserRole, i)
+            self._obj_list.addItem(item)
+
+    def _search_objects(self, text: str): #vers 1
+        self._refresh_list(text, self._section_combo.currentText())
+
+    def _filter_by_section(self, section: str): #vers 1
+        self._refresh_list(self._search_box.text(), section)
+
+    def _on_object_selected(self, row: int): #vers 1
+        item = self._obj_list.item(row)
+        if item is None:
+            return
+        idx = item.data(Qt.ItemDataRole.UserRole)
+        if idx is None or idx >= len(self._parser.entries):
+            return
+        self._current_idx = idx
+        entry = self._parser.entries[idx]
+        self._populate_fields(entry)
+        self._info_box.setPlainText(
+            f"Section: {entry.section}\nModel: {entry.name}\nFields: {len(entry.values)}")
+
+    def _populate_fields(self, entry: ObjectEntry): #vers 1
+        self._blocking = True
+        all_fields = VC_OBJECT_FIELDS + SA_EXTRA_FIELDS
+        for i, (fname, ftype, *_) in enumerate(all_fields):
+            if i >= len(entry.values):
+                break
+            w = self._field_widgets.get(fname)
+            if w is None:
+                continue
+            v = entry.values[i]
+            try:
+                if ftype == 'float':
+                    w.setValue(float(v))
+                elif ftype == 'int':
+                    w.setValue(int(v))
+                elif hasattr(w, 'setText'):
+                    w.setText(str(v))
+            except Exception:
+                pass
+        self._blocking = False
+
+    def _on_field_changed(self, field_name: str, value): #vers 1
+        if self._blocking or self._current_idx < 0:
+            return
+        entry = self._parser.entries[self._current_idx]
+        all_fields = VC_OBJECT_FIELDS + SA_EXTRA_FIELDS
+        for i, (fname, *_) in enumerate(all_fields):
+            if fname == field_name and i < len(entry.values):
+                entry.values[i] = str(value)
+                break
+        self._modified = True
+
+    def _add_entry(self): #vers 1
+        sec = self._section_combo.currentText()
+        if sec == "All sections":
+            sec = "OBJECT"
+        e = ObjectEntry(section=sec, values=['NEWOBJECT', '20.0', '10.0', '0.3', '0.3', '100', '0', '0', '0', '0', '0', '0', 'NULL', '0'])
+        self._parser.entries.append(e)
+        self._refresh_list(self._search_box.text(), self._section_combo.currentText())
+        self._modified = True
+
+    def _delete_entry(self): #vers 1
+        if self._current_idx < 0:
+            return
+        name = self._parser.entries[self._current_idx].name
+        r = QMessageBox.question(self, "Delete", f"Delete {name}?")
+        if r != QMessageBox.StandardButton.Yes:
+            return
+        self._parser.entries.pop(self._current_idx)
+        self._current_idx = -1
+        self._refresh_list(self._search_box.text(), self._section_combo.currentText())
+        self._modified = True
+
+    def _build_menus_into_qmenu(self, pm): #vers 1
+        fm = pm.addMenu("File")
+        fm.addAction("Open object.dat", self._open_file)
+        fm.addAction("Save", self._save_file)
+        fm.addSeparator()
+        fm.addAction("Close", self.close)
+
+
+def open_breakable_editor(main_window=None, path: str = None): #vers 1
+    app = QApplication.instance() or QApplication(sys.argv)
+    w = BreakableEditor(main_window)
+    w.resize(1000, 680)
+    w.show()
+    if path:
+        w._open_file(path)
+    return w
+
+
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+    w = BreakableEditor()
+    w.resize(1000, 680); w.show()
+    if len(sys.argv) > 1:
+        w._open_file(sys.argv[1])
+    else:
+        from PyQt6.QtWidgets import QFileDialog
+        p,_ = QFileDialog.getOpenFileName(w,'Open object.dat','','DAT files (*.dat);;All (*)')
+        if p: w._open_file(p)
+    sys.exit(app.exec())
+
+
+# ── GUIWorkshop (inlined) ────────────────────────────────────────────────────
+# bugs/Tmp_Template/gui_workshop.py - Version: 4
+# X-Seti - Apr 2026 - IMG Factory 1.6
+# GUIWorkshop — TEMPLATE ONLY. Copy into your workshop, do not import.
+#
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ !! WARNING — DO NOT IMPORT THIS FILE INTO YOUR WORKSHOP !!      │
+# │                                                                 │
+# │ WRONG:  from apps.components.Tmp_Template.gui_workshop import   │
+# │         GUIWorkshop                                             │
+# │                                                                 │
+# │ RIGHT:  Copy this file into your workshop folder and rename it  │
+# │         e.g. apps/components/My_Workshop/my_workshop.py         │
+# │         Then edit your copy in place.                           │
+# │                                                                 │
+# │ Each workshop MUST be standalone and self-contained.            │
+# │ Importing this file creates a hard dependency that breaks       │
+# │ when the template changes, causes setup_ui() timing issues,     │
+# │ and makes workshops impossible to run independently.            │
+# └─────────────────────────────────────────────────────────────────┘
+#
+# HOW TO CREATE A NEW WORKSHOP:
+# 1. Copy bugs/Tmp_Template/ to apps/components/My_Workshop/
+# 2. Rename temp_workshop.py → my_workshop.py
+# 3. Edit the copy — change App_name, config_key, override stubs
+# 4. Never import from bugs/Tmp_Template again
+#
+# ┌                                                                 ┐
+# │ SECTION 1 │ GUI Core — imports, WorkshopSettings, _CornerOverlay│
+# │ SECTION 2 │ Toolbar — Menu, Settings UI, Info [i], Cog [⚙]     │
+# │ SECTION 3 │ Layout  — setup_ui, left, centre, right, statusbar  │
+# │ SECTION 4 │ Logic   — stubs to override in your subclass        │
+# └                                                                 ┘
+#
+# If your workshop needs state before setup_ui() runs, use this pattern:
+#   def __init__(self, ...):
+#       self._defer_setup_ui = True   # stops auto-call in __init__
+#       super().__init__(...)          # base state initialised
+#       # ... set up your own state here ...
+#       self.setup_ui()               # call manually when ready
+#           self.setup_ui()              # call manually when ready
+
+import sys, json
+from pathlib import Path
+
+from PyQt6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QLabel, QToolButton,
+    QPushButton, QFrame, QSizePolicy, QListWidget, QListWidgetItem,
+    QFileDialog, QMessageBox, QTabWidget, QDialog, QApplication,
+    QSpinBox, QGroupBox, QComboBox, QCheckBox, QFontComboBox,
+    QScrollArea, QMenu, QDialogButtonBox, QTextEdit
+)
+from PyQt6.QtGui import (
+    QColor, QPainter, QPen, QFont, QIcon, QKeySequence,
+    QShortcut, QPolygon
+)
+from PyQt6.QtCore import Qt, QSize, QPoint, pyqtSignal
+
+
+#
+# SECTION 1 — GUI Core
+# Imports, optional deps, WorkshopSettings, _CornerOverlay
+#
+
+APPSETTINGS_AVAILABLE = False
+try:
+    from apps.utils.app_settings_system import AppSettings, SettingsDialog
+    APPSETTINGS_AVAILABLE = True
+except ImportError:
+    AppSettings = SettingsDialog = None
+
+try:
+    from apps.methods.imgfactory_svg_icons import SVGIconFactory
+except ImportError:
+    class SVGIconFactory:
+        @staticmethod
+        def _s(sz=20, c=None): return QIcon()
+        open_icon = save_icon = export_icon = import_icon = delete_icon = \
+        undo_icon = info_icon = properties_icon = minimize_icon = \
+        maximize_icon = close_icon = settings_icon = search_icon = \
+        zoom_in_icon = zoom_out_icon = fit_grid_icon = locate_icon = \
+        paint_icon = fill_icon = dropper_icon = line_icon = rect_icon = \
+        rect_fill_icon = scissors_icon = paste_brush_icon = \
+        rotate_cw_icon = rotate_ccw_icon = flip_horz_icon = \
+        flip_vert_icon = folder_icon = staticmethod(_s)
+
+try:
+    from apps.gui.tool_menu_mixin import ToolMenuMixin
+except ImportError:
+    class ToolMenuMixin:
+        def _build_menus_into_qmenu(self, pm): pass
+
+# Module-level identity defaults (override via class attributes in subclass)
+__author__  = "X-Seti"
+__year__    = "2026"
+
+
+#    WorkshopSettings                                                          
+

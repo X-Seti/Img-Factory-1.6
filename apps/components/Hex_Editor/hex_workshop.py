@@ -253,276 +253,6 @@ class StructureView(QTableWidget):  #vers 1
 # Main Workshop
 # ─────────────────────────────────────────────────────────────────────────────
 
-class HexWorkshop(GUIWorkshop):  #vers 1
-    App_name   = App_name
-    App_build  = App_build
-    App_auth   = "X-Seti"
-    config_key = config_key
-
-    def __init__(self, parent=None, main_window=None):  #vers 1
-        self._defer_setup_ui  = True
-        super().__init__(parent)
-        self.main_window      = main_window
-        self._file_path: Optional[str] = None
-        self._data:      bytes         = b''
-        self._modified   = False
-        self.setup_ui()
-        self._set_status("Open a file to begin (File → Open…)")
-
-    def setup_ui(self):  #vers 2
-        super().setup_ui()
-
-    def _create_centre_panel(self):  #vers 1
-        panel = QFrame(); panel.setFrameStyle(QFrame.Shape.StyledPanel)
-        cl = QVBoxLayout(panel); cl.setContentsMargins(0,0,0,0)
-        # Goto offset bar
-        goto_widget = QWidget()
-        gh = QHBoxLayout(goto_widget); gh.setContentsMargins(4,2,4,2)
-        gh.addWidget(QLabel("Go to offset:"))
-        self._goto_input = QLineEdit(); self._goto_input.setPlaceholderText("0x0000")
-        self._goto_input.setMaximumWidth(110); self._goto_input.setFixedHeight(22)
-        self._goto_input.returnPressed.connect(self._goto_offset)
-        gh.addWidget(self._goto_input)
-        gh.addStretch()
-        self._file_size_lbl = QLabel(""); gh.addWidget(self._file_size_lbl)
-        cl.addWidget(goto_widget)
-        self._hex_view = HexViewWidget()
-        cl.addWidget(self._hex_view, 1)
-        return panel
-
-    def _build_left_panel(self, parent):  #vers 1
-        """Left: file info + offset search"""
-        panel = QFrame(parent); panel.setFrameStyle(QFrame.Shape.StyledPanel)
-        ll = QVBoxLayout(panel); ll.setContentsMargins(4,4,4,4); ll.setSpacing(4)
-        ll.addWidget(QLabel("File Info"))
-        self._info_lbl = QLabel("No file loaded")
-        self._info_lbl.setFont(QFont("Courier New", 9))
-        self._info_lbl.setWordWrap(True)
-        ll.addWidget(self._info_lbl)
-        ll.addStretch()
-        return panel
-
-    def _build_centre_panel(self, parent):  #vers 1
-        """Centre: 3-panel hex view"""
-        panel = QFrame(parent); panel.setFrameStyle(QFrame.Shape.StyledPanel)
-        cl = QVBoxLayout(panel); cl.setContentsMargins(0,0,0,0)
-        self._hex_view = HexViewWidget()
-        cl.addWidget(self._hex_view, 1)
-        return panel
-
-    def _build_right_panel(self, parent=None):  #vers 1
-        """Right: structure / parse view"""
-        panel = QFrame(); panel.setFrameStyle(QFrame.Shape.StyledPanel)
-        rl = QVBoxLayout(panel); rl.setContentsMargins(0,0,0,0)
-        self._struct_view = StructureView()
-        self._struct_view.goto_requested.connect(self._hex_view.goto_offset)
-        rl.addWidget(self._struct_view, 1)
-        return panel
-
-    def load_file(self, path: str):  #vers 1
-        try:
-            with open(path, 'rb') as f:
-                self._data = f.read()
-            self._file_path = path
-            self._hex_view.load_data(self._data)
-            # Auto-parse DFF/TXD/COL structures
-            ext = os.path.splitext(path)[1].lower()
-            if ext in ('.dff', '.txd'):
-                self._struct_view.parse_dff(self._data)
-            self._info_lbl.setText(
-                f"File: {os.path.basename(path)}\n"
-                f"Size: {len(self._data):,} bytes\n"
-                f"Path: {path}")
-            self.setWindowTitle(f"Hex Workshop — {os.path.basename(path)}")
-            self._set_status(f"Loaded: {os.path.basename(path)}  ({len(self._data):,} bytes)")
-            if hasattr(self, '_file_size_lbl'):
-                self._file_size_lbl.setText(f"{len(self._data):,} bytes")
-            self._modified = False
-        except Exception as ex:
-            QMessageBox.critical(self, "Error", str(ex))
-
-    def _open_file(self, path: str = None):  #vers 1
-        if path is None:
-            path, _ = QFileDialog.getOpenFileName(
-                self, "Open File", "",
-                "All GTA files (*.dff *.txd *.col *.img *.dat *.ipl *.ide *.bin);;"
-                "All files (*)")
-        if path:
-            self.load_file(path)
-
-    def _save_file(self):  #vers 1
-        if not self._file_path:
-            path, _ = QFileDialog.getSaveFileName(self, "Save As", "", "All files (*)")
-            if not path: return
-            self._file_path = path
-        try:
-            with open(self._file_path, 'wb') as f:
-                f.write(self._hex_view._data)
-            self._set_status(f"Saved: {os.path.basename(self._file_path)}")
-            self._modified = False
-        except Exception as ex:
-            QMessageBox.critical(self, "Save Error", str(ex))
-
-    def _goto_offset(self):  #vers 1
-        text = self._goto_input.text().strip()
-        try:
-            offset = int(text, 16) if text.startswith('0x') else int(text)
-            self._hex_view.goto_offset(offset)
-            self._struct_view.goto_offset(offset)
-        except ValueError:
-            self._set_status(f"Invalid offset: {text}")
-
-    def _build_menus_into_qmenu(self, pm):  #vers 1
-        fm = pm.addMenu("File")
-        fm.addAction("Open…",    self._open_file)
-        fm.addAction("Save",     self._save_file)
-        fm.addSeparator()
-        fm.addAction("Close",    self.close)
-        vm = pm.addMenu("View")
-        vm.addAction("Go to offset…", lambda: self._goto_input.setFocus())
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Backward compat helpers (used by imgfactory + right_click_actions)
-# ─────────────────────────────────────────────────────────────────────────────
-
-def show_hex_editor_for_file(main_window, file_path, entry_info=None):  #vers 1
-    w = HexWorkshop(main_window=main_window)
-    w.resize(1200, 800); w.show()
-    w.load_file(file_path)
-    return w
-
-def show_hex_editor_for_entry(main_window, row, entry_info):  #vers 1
-    """Open hex editor for an IMG entry (extracts to temp file)."""
-    try:
-        img = getattr(main_window, 'current_img', None)
-        if not img: return None
-        entry = img.entries[row] if hasattr(img, 'entries') else None
-        if not entry: return None
-        data = img.read_entry(entry) if hasattr(img, 'read_entry') else b''
-        with tempfile.NamedTemporaryFile(
-                suffix=os.path.splitext(entry.name)[1],
-                prefix=os.path.splitext(entry.name)[0]+'_',
-                delete=False) as tf:
-            tf.write(data); tmp_path = tf.name
-        w = HexWorkshop(main_window=main_window)
-        w.resize(1200, 800); w.show()
-        w.load_file(tmp_path)
-        return w
-    except Exception as ex:
-        print(f"show_hex_editor_for_entry: {ex}"); return None
-
-def open_hex_workshop(main_window=None, file_path=None):  #vers 1
-    app = QApplication.instance() or QApplication(sys.argv)
-    w = HexWorkshop(main_window=main_window)
-    w.resize(1200, 800); w.show()
-    if file_path: w.load_file(file_path)
-    return w
-
-
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    path = sys.argv[1] if len(sys.argv) > 1 else None
-    w = open_hex_workshop(file_path=path)
-    sys.exit(app.exec())
-
-
-# ── GUIWorkshop (inlined) ────────────────────────────────────────────────────
-# GUIWorkshop — TEMPLATE ONLY. Copy into your workshop, do not import.
-#
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ !! WARNING — DO NOT IMPORT THIS FILE INTO YOUR WORKSHOP !!      │
-# │                                                                 │
-# │ WRONG:  from apps.components.Tmp_Template.gui_workshop import   │
-# │         GUIWorkshop                                             │
-# │                                                                 │
-# │ RIGHT:  Copy this file into your workshop folder and rename it  │
-# │         e.g. apps/components/My_Workshop/my_workshop.py         │
-# │         Then edit your copy in place.                           │
-# │                                                                 │
-# │ Each workshop MUST be standalone and self-contained.            │
-# │ Importing this file creates a hard dependency that breaks       │
-# │ when the template changes, causes setup_ui() timing issues,     │
-# │ and makes workshops impossible to run independently.            │
-# └─────────────────────────────────────────────────────────────────┘
-#
-# HOW TO CREATE A NEW WORKSHOP:
-# 1. Copy Tmp_Template/ to apps/components/My_Workshop/
-# 2. Rename temp_workshop.py → my_workshop.py
-# 3. Edit the copy — change App_name, config_key, override stubs
-# 4. Never import from Tmp_Template again
-#
-# ┌                                                                 ┐
-# │ SECTION 1 │ GUI Core — imports, WorkshopSettings, _CornerOverlay│
-# │ SECTION 2 │ Toolbar — Menu, Settings UI, Info [i], Cog [⚙]     │
-# │ SECTION 3 │ Layout  — setup_ui, left, centre, right, statusbar  │
-# │ SECTION 4 │ Logic   — stubs to override in your subclass        │
-# └                                                                 ┘
-#
-# If your workshop needs state before setup_ui() runs, use this pattern:
-#   def __init__(self, ...):
-#       self._defer_setup_ui = True   # stops auto-call in __init__
-#       super().__init__(...)          # base state initialised
-#       # ... set up your own state here ...
-#       self.setup_ui()               # call manually when ready
-#           self.setup_ui()              # call manually when ready
-
-import sys, json
-from pathlib import Path
-
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QLabel, QToolButton,
-    QPushButton, QFrame, QSizePolicy, QListWidget, QListWidgetItem,
-    QFileDialog, QMessageBox, QTabWidget, QDialog, QApplication,
-    QSpinBox, QGroupBox, QComboBox, QCheckBox, QFontComboBox,
-    QScrollArea, QMenu, QDialogButtonBox, QTextEdit
-)
-from PyQt6.QtGui import (
-    QColor, QPainter, QPen, QFont, QIcon, QKeySequence,
-    QShortcut, QPolygon
-)
-from PyQt6.QtCore import Qt, QSize, QPoint, pyqtSignal
-
-
-#
-# SECTION 1 — GUI Core
-# Imports, optional deps, WorkshopSettings, _CornerOverlay
-#
-
-APPSETTINGS_AVAILABLE = False
-try:
-    from apps.utils.app_settings_system import AppSettings, SettingsDialog
-    APPSETTINGS_AVAILABLE = True
-except ImportError:
-    AppSettings = SettingsDialog = None
-
-try:
-    from apps.methods.imgfactory_svg_icons import SVGIconFactory
-except ImportError:
-    class SVGIconFactory:
-        @staticmethod
-        def _s(sz=20, c=None): return QIcon()
-        open_icon = save_icon = export_icon = import_icon = delete_icon = \
-        undo_icon = info_icon = properties_icon = minimize_icon = \
-        maximize_icon = close_icon = settings_icon = search_icon = \
-        zoom_in_icon = zoom_out_icon = fit_grid_icon = locate_icon = \
-        paint_icon = fill_icon = dropper_icon = line_icon = rect_icon = \
-        rect_fill_icon = scissors_icon = paste_brush_icon = \
-        rotate_cw_icon = rotate_ccw_icon = flip_horz_icon = \
-        flip_vert_icon = folder_icon = staticmethod(_s)
-
-try:
-    from apps.gui.tool_menu_mixin import ToolMenuMixin
-except ImportError:
-    class ToolMenuMixin:
-        def _build_menus_into_qmenu(self, pm): pass
-
-# Module-level identity defaults (override via class attributes in subclass)
-__author__  = "X-Seti"
-__year__    = "2026"
-
-
-#    WorkshopSettings                                                          
 
 class WorkshopSettings:
     """Per-app JSON settings.  Stored at ~/.config/imgfactory/{config_key}.json
@@ -1120,11 +850,11 @@ class _LayoutMixin:
         sp = QSplitter(Qt.Orientation.Horizontal)
         sp.addWidget(self._create_left_panel())
         sp.addWidget(self._create_centre_panel())
-        sp.addWidget(self._create_right_panel())
+        # Right button bar disabled — not needed for all workshops
+        # sp.addWidget(self._create_right_panel())
         sp.setStretchFactor(0, 1)
         sp.setStretchFactor(1, 5)
-        sp.setStretchFactor(2, 0)
-        sp.setSizes([200, 950, self.WS.get("sidebar_width", 82)])
+        sp.setSizes([200, 950])
         self._main_splitter = sp
         ml.addWidget(sp)
 
@@ -1612,3 +1342,275 @@ if __name__ == "__main__":
         sys.exit(app.exec())
     except Exception as e:
         print(f"ERROR: {e}"); traceback.print_exc(); sys.exit(1)
+
+class HexWorkshop(GUIWorkshop):  #vers 1
+    App_name   = App_name
+    App_build  = App_build
+    App_auth   = "X-Seti"
+    config_key = config_key
+
+    def __init__(self, parent=None, main_window=None):  #vers 1
+        self._defer_setup_ui  = True
+        super().__init__(parent)
+        self.main_window      = main_window
+        self._file_path: Optional[str] = None
+        self._data:      bytes         = b''
+        self._modified   = False
+        self.setup_ui()
+        self._set_status("Open a file to begin (File → Open…)")
+
+    def setup_ui(self):  #vers 2
+        super().setup_ui()
+
+    def _create_centre_panel(self):  #vers 1
+        panel = QFrame(); panel.setFrameStyle(QFrame.Shape.StyledPanel)
+        cl = QVBoxLayout(panel); cl.setContentsMargins(0,0,0,0)
+        # Goto offset bar
+        goto_widget = QWidget()
+        gh = QHBoxLayout(goto_widget); gh.setContentsMargins(4,2,4,2)
+        gh.addWidget(QLabel("Go to offset:"))
+        self._goto_input = QLineEdit(); self._goto_input.setPlaceholderText("0x0000")
+        self._goto_input.setMaximumWidth(110); self._goto_input.setFixedHeight(22)
+        self._goto_input.returnPressed.connect(self._goto_offset)
+        gh.addWidget(self._goto_input)
+        gh.addStretch()
+        self._file_size_lbl = QLabel(""); gh.addWidget(self._file_size_lbl)
+        cl.addWidget(goto_widget)
+        self._hex_view = HexViewWidget()
+        cl.addWidget(self._hex_view, 1)
+        return panel
+
+    def _build_left_panel(self, parent):  #vers 1
+        """Left: file info + offset search"""
+        panel = QFrame(parent); panel.setFrameStyle(QFrame.Shape.StyledPanel)
+        ll = QVBoxLayout(panel); ll.setContentsMargins(4,4,4,4); ll.setSpacing(4)
+        ll.addWidget(QLabel("File Info"))
+        self._info_lbl = QLabel("No file loaded")
+        self._info_lbl.setFont(QFont("Courier New", 9))
+        self._info_lbl.setWordWrap(True)
+        ll.addWidget(self._info_lbl)
+        ll.addStretch()
+        return panel
+
+    def _build_centre_panel(self, parent):  #vers 1
+        """Centre: 3-panel hex view"""
+        panel = QFrame(parent); panel.setFrameStyle(QFrame.Shape.StyledPanel)
+        cl = QVBoxLayout(panel); cl.setContentsMargins(0,0,0,0)
+        self._hex_view = HexViewWidget()
+        cl.addWidget(self._hex_view, 1)
+        return panel
+
+    def _build_right_panel(self, parent=None):  #vers 1
+        """Right: structure / parse view"""
+        panel = QFrame(); panel.setFrameStyle(QFrame.Shape.StyledPanel)
+        rl = QVBoxLayout(panel); rl.setContentsMargins(0,0,0,0)
+        self._struct_view = StructureView()
+        self._struct_view.goto_requested.connect(self._hex_view.goto_offset)
+        rl.addWidget(self._struct_view, 1)
+        return panel
+
+    def load_file(self, path: str):  #vers 1
+        try:
+            with open(path, 'rb') as f:
+                self._data = f.read()
+            self._file_path = path
+            self._hex_view.load_data(self._data)
+            # Auto-parse DFF/TXD/COL structures
+            ext = os.path.splitext(path)[1].lower()
+            if ext in ('.dff', '.txd'):
+                self._struct_view.parse_dff(self._data)
+            self._info_lbl.setText(
+                f"File: {os.path.basename(path)}\n"
+                f"Size: {len(self._data):,} bytes\n"
+                f"Path: {path}")
+            self.setWindowTitle(f"Hex Workshop — {os.path.basename(path)}")
+            self._set_status(f"Loaded: {os.path.basename(path)}  ({len(self._data):,} bytes)")
+            if hasattr(self, '_file_size_lbl'):
+                self._file_size_lbl.setText(f"{len(self._data):,} bytes")
+            self._modified = False
+        except Exception as ex:
+            QMessageBox.critical(self, "Error", str(ex))
+
+    def _open_file(self, path: str = None):  #vers 1
+        if path is None:
+            path, _ = QFileDialog.getOpenFileName(
+                self, "Open File", "",
+                "All GTA files (*.dff *.txd *.col *.img *.dat *.ipl *.ide *.bin);;"
+                "All files (*)")
+        if path:
+            self.load_file(path)
+
+    def _save_file(self):  #vers 1
+        if not self._file_path:
+            path, _ = QFileDialog.getSaveFileName(self, "Save As", "", "All files (*)")
+            if not path: return
+            self._file_path = path
+        try:
+            with open(self._file_path, 'wb') as f:
+                f.write(self._hex_view._data)
+            self._set_status(f"Saved: {os.path.basename(self._file_path)}")
+            self._modified = False
+        except Exception as ex:
+            QMessageBox.critical(self, "Save Error", str(ex))
+
+    def _goto_offset(self):  #vers 1
+        text = self._goto_input.text().strip()
+        try:
+            offset = int(text, 16) if text.startswith('0x') else int(text)
+            self._hex_view.goto_offset(offset)
+            self._struct_view.goto_offset(offset)
+        except ValueError:
+            self._set_status(f"Invalid offset: {text}")
+
+    def _build_menus_into_qmenu(self, pm):  #vers 1
+        fm = pm.addMenu("File")
+        fm.addAction("Open…",    self._open_file)
+        fm.addAction("Save",     self._save_file)
+        fm.addSeparator()
+        fm.addAction("Close",    self.close)
+        vm = pm.addMenu("View")
+        vm.addAction("Go to offset…", lambda: self._goto_input.setFocus())
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Backward compat helpers (used by imgfactory + right_click_actions)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def show_hex_editor_for_file(main_window, file_path, entry_info=None):  #vers 1
+    w = HexWorkshop(main_window=main_window)
+    w.resize(1200, 800); w.show()
+    w.load_file(file_path)
+    return w
+
+def show_hex_editor_for_entry(main_window, row, entry_info):  #vers 1
+    """Open hex editor for an IMG entry (extracts to temp file)."""
+    try:
+        img = getattr(main_window, 'current_img', None)
+        if not img: return None
+        entry = img.entries[row] if hasattr(img, 'entries') else None
+        if not entry: return None
+        data = img.read_entry(entry) if hasattr(img, 'read_entry') else b''
+        with tempfile.NamedTemporaryFile(
+                suffix=os.path.splitext(entry.name)[1],
+                prefix=os.path.splitext(entry.name)[0]+'_',
+                delete=False) as tf:
+            tf.write(data); tmp_path = tf.name
+        w = HexWorkshop(main_window=main_window)
+        w.resize(1200, 800); w.show()
+        w.load_file(tmp_path)
+        return w
+    except Exception as ex:
+        print(f"show_hex_editor_for_entry: {ex}"); return None
+
+def open_hex_workshop(main_window=None, file_path=None):  #vers 1
+    app = QApplication.instance() or QApplication(sys.argv)
+    w = HexWorkshop(main_window=main_window)
+    w.resize(1200, 800); w.show()
+    if file_path: w.load_file(file_path)
+    return w
+
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    path = sys.argv[1] if len(sys.argv) > 1 else None
+    w = open_hex_workshop(file_path=path)
+    sys.exit(app.exec())
+
+
+# ── GUIWorkshop (inlined) ────────────────────────────────────────────────────
+# GUIWorkshop — TEMPLATE ONLY. Copy into your workshop, do not import.
+#
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ !! WARNING — DO NOT IMPORT THIS FILE INTO YOUR WORKSHOP !!      │
+# │                                                                 │
+# │ WRONG:  from apps.components.Tmp_Template.gui_workshop import   │
+# │         GUIWorkshop                                             │
+# │                                                                 │
+# │ RIGHT:  Copy this file into your workshop folder and rename it  │
+# │         e.g. apps/components/My_Workshop/my_workshop.py         │
+# │         Then edit your copy in place.                           │
+# │                                                                 │
+# │ Each workshop MUST be standalone and self-contained.            │
+# │ Importing this file creates a hard dependency that breaks       │
+# │ when the template changes, causes setup_ui() timing issues,     │
+# │ and makes workshops impossible to run independently.            │
+# └─────────────────────────────────────────────────────────────────┘
+#
+# HOW TO CREATE A NEW WORKSHOP:
+# 1. Copy Tmp_Template/ to apps/components/My_Workshop/
+# 2. Rename temp_workshop.py → my_workshop.py
+# 3. Edit the copy — change App_name, config_key, override stubs
+# 4. Never import from Tmp_Template again
+#
+# ┌                                                                 ┐
+# │ SECTION 1 │ GUI Core — imports, WorkshopSettings, _CornerOverlay│
+# │ SECTION 2 │ Toolbar — Menu, Settings UI, Info [i], Cog [⚙]     │
+# │ SECTION 3 │ Layout  — setup_ui, left, centre, right, statusbar  │
+# │ SECTION 4 │ Logic   — stubs to override in your subclass        │
+# └                                                                 ┘
+#
+# If your workshop needs state before setup_ui() runs, use this pattern:
+#   def __init__(self, ...):
+#       self._defer_setup_ui = True   # stops auto-call in __init__
+#       super().__init__(...)          # base state initialised
+#       # ... set up your own state here ...
+#       self.setup_ui()               # call manually when ready
+#           self.setup_ui()              # call manually when ready
+
+import sys, json
+from pathlib import Path
+
+from PyQt6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QLabel, QToolButton,
+    QPushButton, QFrame, QSizePolicy, QListWidget, QListWidgetItem,
+    QFileDialog, QMessageBox, QTabWidget, QDialog, QApplication,
+    QSpinBox, QGroupBox, QComboBox, QCheckBox, QFontComboBox,
+    QScrollArea, QMenu, QDialogButtonBox, QTextEdit
+)
+from PyQt6.QtGui import (
+    QColor, QPainter, QPen, QFont, QIcon, QKeySequence,
+    QShortcut, QPolygon
+)
+from PyQt6.QtCore import Qt, QSize, QPoint, pyqtSignal
+
+
+#
+# SECTION 1 — GUI Core
+# Imports, optional deps, WorkshopSettings, _CornerOverlay
+#
+
+APPSETTINGS_AVAILABLE = False
+try:
+    from apps.utils.app_settings_system import AppSettings, SettingsDialog
+    APPSETTINGS_AVAILABLE = True
+except ImportError:
+    AppSettings = SettingsDialog = None
+
+try:
+    from apps.methods.imgfactory_svg_icons import SVGIconFactory
+except ImportError:
+    class SVGIconFactory:
+        @staticmethod
+        def _s(sz=20, c=None): return QIcon()
+        open_icon = save_icon = export_icon = import_icon = delete_icon = \
+        undo_icon = info_icon = properties_icon = minimize_icon = \
+        maximize_icon = close_icon = settings_icon = search_icon = \
+        zoom_in_icon = zoom_out_icon = fit_grid_icon = locate_icon = \
+        paint_icon = fill_icon = dropper_icon = line_icon = rect_icon = \
+        rect_fill_icon = scissors_icon = paste_brush_icon = \
+        rotate_cw_icon = rotate_ccw_icon = flip_horz_icon = \
+        flip_vert_icon = folder_icon = staticmethod(_s)
+
+try:
+    from apps.gui.tool_menu_mixin import ToolMenuMixin
+except ImportError:
+    class ToolMenuMixin:
+        def _build_menus_into_qmenu(self, pm): pass
+
+# Module-level identity defaults (override via class attributes in subclass)
+__author__  = "X-Seti"
+__year__    = "2026"
+
+
+#    WorkshopSettings                                                          
+
