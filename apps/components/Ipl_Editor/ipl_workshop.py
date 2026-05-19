@@ -25,6 +25,12 @@ from PyQt6.QtGui import (
 from PyQt6.QtCore import Qt, QSize, pyqtSignal, QSortFilterProxyModel
 
 import sys, os
+
+try:
+    from apps.gui.tool_menu_mixin import ToolMenuMixin
+except ImportError:
+    class ToolMenuMixin:
+        def _build_menus_into_qmenu(self, pm): pass
 from pathlib import Path
 _root = Path(__file__).resolve().parents[3]  # apps/components/Ipl_Editor -> project root
 if str(_root) not in sys.path: sys.path.insert(0, str(_root))
@@ -3103,6 +3109,8 @@ try:
 except ImportError:
     AppSettings = SettingsDialog = None
 
+
+
 try:
     from apps.methods.imgfactory_svg_icons import SVGIconFactory
 except ImportError:
@@ -3118,11 +3126,7 @@ except ImportError:
         rotate_cw_icon = rotate_ccw_icon = flip_horz_icon = \
         flip_vert_icon = folder_icon = staticmethod(_s)
 
-try:
-    from apps.gui.tool_menu_mixin import ToolMenuMixin
-except ImportError:
-    class ToolMenuMixin:
-        def _build_menus_into_qmenu(self, pm): pass
+
 
 # Module-level identity defaults (override via class attributes in subclass)
 __author__  = "X-Seti"

@@ -52,6 +52,12 @@ from PyQt6.QtCore import Qt, QMimeData, pyqtSignal
 from PyQt6.QtGui import QFont, QColor, QClipboard, QKeySequence, QContextMenuEvent
 
 try:
+    from apps.gui.tool_menu_mixin import ToolMenuMixin
+except ImportError:
+    class ToolMenuMixin:
+        def _build_menus_into_qmenu(self, pm): pass
+
+try:
     from PyQt6.QtGui import QAction
 except ImportError:
     from PyQt6.QtWidgets import QAction
@@ -1586,6 +1592,8 @@ try:
 except ImportError:
     AppSettings = SettingsDialog = None
 
+
+
 try:
     from apps.methods.imgfactory_svg_icons import SVGIconFactory
 except ImportError:
@@ -1601,11 +1609,7 @@ except ImportError:
         rotate_cw_icon = rotate_ccw_icon = flip_horz_icon = \
         flip_vert_icon = folder_icon = staticmethod(_s)
 
-try:
-    from apps.gui.tool_menu_mixin import ToolMenuMixin
-except ImportError:
-    class ToolMenuMixin:
-        def _build_menus_into_qmenu(self, pm): pass
+
 
 # Module-level identity defaults (override via class attributes in subclass)
 __author__  = "X-Seti"
