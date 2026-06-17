@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/Water_Editor/water_workshop.py - Version: 12
+# apps/components/Water_Editor/water_workshop.py - Version: 13
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Water Workshop
 # Built on temp_workshop.py / GUIWorkshop base
 
@@ -296,18 +296,14 @@ class WaterGridWidget(QWidget):
         return ts
 
 
-    def _cell_at(self, pos): #vers 1
-        """Map screen position to data (col, row).
-        Inverse of Y-flip: img_x=col, img_y=gw-1-row
-        So: data_col = img_x = screen_x//ts
-            data_row = gw-1-img_y = gw-1-(screen_y//ts)
-        """
+    def _cell_at(self, pos): #vers 2
+        """Map screen position to data (col, row). No Y-flip."""
         ts     = self._ts()
         ax, ay = pos.x() - self._pan_x, pos.y() - self._pan_y
         if ax < 0 or ay < 0:
             return -1, -1
         cx = ax // ts
-        cy = self._grid_w - 1 - (ay // ts)
+        cy = ay // ts
         if 0 <= cx < self._grid_w and 0 <= cy < self._grid_w:
             return cx, cy
         return -1, -1
@@ -324,22 +320,14 @@ class WaterGridWidget(QWidget):
             self._grid[cy * self._grid_w + cx] = val
 
 
-    def _rebuild_cache(self): #vers 1
-        """Render grid data to QImage.
-
-        Correct transform (matches WaterproGen + PIL test - dominant lower-left):
-          img_x = col, img_y = gw-1-row  (Y-flip)
-
-        This means row 0 = bottom of image, row gw-1 = top.
-        Land at rows 133-226 appears at img_y = 157-250 (lower half).
-        """
+    def _rebuild_cache(self): #vers 2
+        """Render grid data to QImage. No Y-flip - row 0 = top of image."""
         from PyQt6.QtGui import QImage
         gw  = self._grid_w
         img = QImage(gw, gw, QImage.Format.Format_RGB32)
         for row in range(gw):
-            img_y = gw - 1 - row
             for col in range(gw):
-                img.setPixel(col, img_y, self._cell_col(self._grid[row*gw+col]).rgb())
+                img.setPixel(col, row, self._cell_col(self._grid[row*gw+col]).rgb())
         self._img_cache  = img
         self._cache_flip = self._colour_flipped
 
@@ -362,20 +350,20 @@ class WaterGridWidget(QWidget):
         p.drawImage(0, 0, self._img_cache)
         p.restore()
 
-        # Preview cells — Y-flip: screen_x=col*ts, screen_y=(gw-1-row)*ts
+        # Preview cells
         for (cx, cy) in self._preview_cells:
-            p.fillRect(px0 + cx*ts, py0 + (gw-1-cy)*ts, ts, ts, self.COL_PREV)
+            p.fillRect(px0 + cx*ts, py0 + cy*ts, ts, ts, self.COL_PREV)
 
-        # Hover overlay — Y-flip: screen_x=col*ts, screen_y=(gw-1-row)*ts
+        # Hover overlay
         if self._hover_cx >= 0:
             p.fillRect(px0 + self._hover_cx*ts,
-                       py0 + (gw-1-self._hover_cy)*ts,
+                       py0 + self._hover_cy*ts,
                        ts, ts, self.COL_HOVER)
 
         # Selection
         if self._sel_cx >= 0:
             x = px0 + self._sel_cx*ts
-            y = py0 + (gw-1-self._sel_cy)*ts
+            y = py0 + self._sel_cy*ts
             p.setPen(QPen(self.COL_SEL, 2))
             p.drawRect(x+1, y+1, ts-2, ts-2)
 
