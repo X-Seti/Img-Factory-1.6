@@ -1,4 +1,4 @@
-#this belongs in root /ChangeLog.md - Version: 66
+#this belongs in root /ChangeLog.md - Version: 67
 
 ## June 2026 - Path Workshop tabs + routing
 
@@ -14,6 +14,17 @@
 - Added _Waypoint, _TextPathParser, _IplPathParser, _WaypointTab classes
 - _make_text_tab now uses _WaypointTab directly - train/flight/spath tabs functional
 - Removed non-ASCII characters
+
+**ide_parser_functions.py v2:**
+- Added anim, hier section parsers (model/txd/anim fields)
+- Added txdp section parser (txd/parent relationship)
+- Added 2dfx section parser (effect id/type/raw)
+- Added hand section parser (model name/raw)
+- Section header detection now recognises txdp, 2dfx, hand
+
+**cc.py -> cc.sh (Img-Factory-1.6, Model-Workshop, Col-Workshop, Txd-Workshop):**
+- Renamed from .py to .sh (was a shell script with wrong extension)
+- Removed emoji from content (rule 18)
 
 ## May 2026 - DFFViewport refactor + texture/UV fixes
 
