@@ -1,4 +1,4 @@
-#this belongs in root /ChangeLog.md - Version: 67
+#this belongs in root /ChangeLog.md - Version: 68
 
 ## June 2026 - Path Workshop tabs + routing
 
@@ -15,7 +15,18 @@
 - _make_text_tab now uses _WaypointTab directly - train/flight/spath tabs functional
 - Removed non-ASCII characters
 
-**ide_parser_functions.py v2:**
+**smart_file_router.py v3:**
+- Added waterpro.dat and water.dat routing to Water Workshop
+- _launch_water_workshop: reuses existing open window or opens new one
+
+**waterpro.dat format confirmed (SOL - State of Liberty):**
+- Header: uint32 version (=4 for SOL)
+- [4:964] water_levels_count (byte) + 48 floats WaterLevelData + 768 bytes WaterUnk
+- [964:964+gw*gw] phys_grid: gw*gw bytes (gw=384 for SOL)
+- [964+gw*gw:] vis_grid: (2*gw)*(2*gw) bytes = 768*768 = 589824 bytes
+- Parser was correct, file was simply not routed to Water Workshop
+
+
 - Added anim, hier section parsers (model/txd/anim fields)
 - Added txdp section parser (txd/parent relationship)
 - Added 2dfx section parser (effect id/type/raw)
