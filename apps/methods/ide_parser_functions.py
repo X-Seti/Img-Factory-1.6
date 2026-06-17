@@ -1,4 +1,4 @@
-#this belongs in methods/ide_parser.py - Version: 1
+#this belongs in methods/ide_parser.py - Version: 2
 # X-Seti - July31 2025 - IMG Factory 1.5 - Universal IDE Parser
 
 """
@@ -86,7 +86,7 @@ class IDEParser:
                 
                 # Check for section headers
                 section_name = line.lower()
-                if section_name in ['objs', 'tobj', 'weap', 'hier', 'anim', 'cars', 'peds', 'path', 'ped', 'end']:
+                if section_name in ['objs', 'tobj', 'weap', 'hier', 'anim', 'cars', 'peds', 'path', 'ped', 'txdp', '2dfx', 'hand', 'end']:
                     if section_name == 'end':
                         current_section = None
                     else:
@@ -117,7 +117,7 @@ class IDEParser:
             print(f"[ERROR] {error_msg}")
             return False
     
-    def _parse_section_entry(self, section: str, line: str, line_num: int) -> bool: #vers 1
+    def _parse_section_entry(self, section: str, line: str, line_num: int) -> bool: #vers 2
         """Parse individual section entry
         
         Args:
@@ -209,7 +209,7 @@ class IDEParser:
                     model_id = int(parts[0])
                     model_name = parts[1].strip()
                     txd_name = parts[2].strip()
-                    
+
                     self.models[model_id] = {
                         'name': model_name,
                         'txd': txd_name,
@@ -218,11 +218,77 @@ class IDEParser:
                         'section': section,
                         'line': line_num
                     }
-                    
+
                     self.sections[section].append({
                         'id': model_id,
                         'model': model_name,
                         'txd': txd_name,
+                        'line': line_num
+                    })
+                    return True
+
+            elif section in ['anim', 'hier']:
+                # Animated objects / hierarchy: ID, ModelName, TxdName, AnimFile, ...
+                if len(parts) >= 3:
+                    model_id = int(parts[0])
+                    model_name = parts[1].strip()
+                    txd_name = parts[2].strip()
+                    anim_name = parts[3].strip() if len(parts) > 3 else ''
+
+                    self.models[model_id] = {
+                        'name': model_name,
+                        'txd': txd_name,
+                        'dff': f"{model_name}.dff",
+                        'anim': anim_name,
+                        'type': section,
+                        'section': section,
+                        'line': line_num
+                    }
+
+                    self.sections[section].append({
+                        'id': model_id,
+                        'model': model_name,
+                        'txd': txd_name,
+                        'anim': anim_name,
+                        'line': line_num
+                    })
+                    return True
+
+            elif section == 'txdp':
+                # TXD parent: TxdName, ParentTxdName
+                if len(parts) >= 2:
+                    txd_name = parts[0].strip()
+                    parent_txd = parts[1].strip()
+                    self.sections[section].append({
+                        'txd': txd_name,
+                        'parent': parent_txd,
+                        'line': line_num
+                    })
+                    return True
+
+            elif section == '2dfx':
+                # 2DFX effects: ID, X, Y, Z, R, G, B, A, EffectType, ...
+                if len(parts) >= 2:
+                    try:
+                        model_id = int(parts[0])
+                    except ValueError:
+                        return False
+                    effect_type = parts[8].strip() if len(parts) > 8 else ''
+                    self.sections[section].append({
+                        'id': model_id,
+                        'effect_type': effect_type,
+                        'raw': line,
+                        'line': line_num
+                    })
+                    return True
+
+            elif section == 'hand':
+                # Handling: ModelName, handling data fields
+                if len(parts) >= 1:
+                    model_name = parts[0].strip()
+                    self.sections[section].append({
+                        'model': model_name,
+                        'raw': line,
                         'line': line_num
                     })
                     return True
