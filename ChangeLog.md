@@ -1,4 +1,4 @@
-#this belongs in root /ChangeLog.md - Version: 68
+#this belongs in root /ChangeLog.md - Version: 69
 
 ## June 2026 - Path Workshop tabs + routing
 
@@ -15,7 +15,13 @@
 - _make_text_tab now uses _WaypointTab directly - train/flight/spath tabs functional
 - Removed non-ASCII characters
 
-**smart_file_router.py v3:**
+**water_workshop.py v13 (docked) / v14 (standalone):**
+- Fixed render error: removed Y-flip from _rebuild_cache (img_y = row, not gw-1-row)
+- Fixed _cell_at: cy = ay//ts, not gw-1-(ay//ts)
+- Fixed preview/hover/selection overlay coords: removed gw-1-cy Y-flip
+- Both repos updated (Img-Factory-1.6 v13, Water-workshop v14)
+
+
 - Added waterpro.dat and water.dat routing to Water Workshop
 - _launch_water_workshop: reuses existing open window or opens new one
 
