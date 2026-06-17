@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/Water_Editor/water_workshop.py - Version: 14
+# apps/components/Water_Editor/water_workshop.py - Version: 15
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Water Workshop
 # Built on temp_workshop.py / GUIWorkshop base
 
@@ -52,17 +52,22 @@ def _apply_dialog_theme(dlg, mw): #vers 1
 class WaterproParser:
     HEADER_SIZE  = 964
     WATER_LEVELS = 48
+    # SOL tile layout (from WaterHack.cpp)
+    WATER_GRID_WIDTH = 32   # cells per tile dimension
+    MAP_TILE_WIDTH   = 6    # 6x6 tiles
+    VIS_TILE_SIZE    = 4    # bytes per cell in visible grid  (4*32*32 = 4096 per tile)
+    PHYS_TILE_SIZE   = 16   # bytes per cell in physical grid (16*32*32 = 16384 per tile)
 
     def __init__(self):
         self.water_levels_count = 0
         self.water_level_data   = [0.0] * self.WATER_LEVELS
         self.unk_block          = bytes(768)
         self.grid_w             = 0
-        self.phys_grid          = bytearray()
         self.vis_grid           = bytearray()
+        self.phys_grid          = bytearray()
         self.path               = None
 
-    def load(self, path: str): #vers 1
+    def load(self, path: str): #vers 2
         data = Path(path).read_bytes()
         rem  = len(data) - self.HEADER_SIZE
         if rem <= 0 or rem % 5 != 0:
@@ -74,18 +79,20 @@ class WaterproParser:
         self.water_levels_count = data[0]
         self.water_level_data   = list(struct.unpack_from(f"<{self.WATER_LEVELS}f", data, 4))
         self.unk_block          = data[196:964]
-        self.phys_grid          = bytearray(data[964 : 964 + gw*gw])
-        self.vis_grid           = bytearray(data[964+gw*gw : 964+gw*gw+(2*gw)*(2*gw)])
+        # First block (gw*gw bytes) = visible grid (4*32*32 per tile)
+        self.vis_grid           = bytearray(data[964 : 964 + gw*gw])
+        # Second block (2*gw * 2*gw bytes) = physical grid (16*32*32 per tile)
+        self.phys_grid          = bytearray(data[964+gw*gw : 964+gw*gw+(2*gw)*(2*gw)])
         self.path               = path
 
-    def save(self, path: str): #vers 1
+    def save(self, path: str): #vers 2
         gw  = self.grid_w
         out = bytearray(self.HEADER_SIZE + gw*gw + (2*gw)*(2*gw))
         out[0] = self.water_levels_count & 0xFF
         struct.pack_into(f"<{self.WATER_LEVELS}f", out, 4, *self.water_level_data)
         out[196:964]       = self.unk_block
-        out[964:964+gw*gw] = self.phys_grid
-        out[964+gw*gw:]    = self.vis_grid
+        out[964:964+gw*gw] = self.vis_grid
+        out[964+gw*gw:]    = self.phys_grid
         Path(path).write_bytes(bytes(out))
 
 
@@ -303,25 +310,49 @@ class WaterGridWidget(QWidget):
         return -1, -1
 
 
-    def _cell_val(self, cx, cy): #vers 1
+    def _grid_idx(self, cx, cy): #vers 1
+        """Convert screen cell (cx,cy) to byte index in tiled grid storage."""
+        map_w   = 6
+        tile_w  = self._grid_w // map_w
+        tile_col = cx // tile_w
+        tile_row = cy // tile_w
+        tile_idx = tile_row * map_w + tile_col
+        local_c  = cx % tile_w
+        local_r  = cy % tile_w
+        return tile_idx * tile_w * tile_w + local_r * tile_w + local_c
+
+    def _cell_val(self, cx, cy): #vers 2
         if 0 <= cx < self._grid_w and 0 <= cy < self._grid_w:
-            return self._grid[cy * self._grid_w + cx]
+            return self._grid[self._grid_idx(cx, cy)]
         return 0
 
-
-    def _set_cell(self, cx, cy, val): #vers 1
+    def _set_cell(self, cx, cy, val): #vers 2
         if 0 <= cx < self._grid_w and 0 <= cy < self._grid_w:
-            self._grid[cy * self._grid_w + cx] = val
+            self._grid[self._grid_idx(cx, cy)] = val
 
 
-    def _rebuild_cache(self): #vers 2
-        """Render grid data to QImage. No Y-flip - row 0 = top of image."""
+    def _rebuild_cache(self): #vers 3
+        """Render grid data to QImage assembling 6x6 tiles.
+        SOL: 6x6 map tiles, each tile is TILE_W x TILE_W cells stored sequentially.
+        Visible grid:  tile_w=64  (4*32*32 bytes per tile)
+        Physical grid: tile_w=128 (16*32*32 bytes per tile)
+        """
         from PyQt6.QtGui import QImage
-        gw  = self._grid_w
+        gw       = self._grid_w
+        map_w    = 6
+        tile_w   = gw // map_w   # 64 for vis, 128 for phys
+        tile_sz  = tile_w * tile_w
         img = QImage(gw, gw, QImage.Format.Format_RGB32)
-        for row in range(gw):
-            for col in range(gw):
-                img.setPixel(col, row, self._cell_col(self._grid[row*gw+col]).rgb())
+        for tile_idx in range(map_w * map_w):
+            tile_col = tile_idx % map_w
+            tile_row = tile_idx // map_w
+            base = tile_idx * tile_sz
+            for r in range(tile_w):
+                for c in range(tile_w):
+                    v   = self._grid[base + r * tile_w + c]
+                    px  = tile_col * tile_w + c
+                    py  = tile_row * tile_w + r
+                    img.setPixel(px, py, self._cell_col(v).rgb())
         self._img_cache  = img
         self._cache_flip = self._colour_flipped
 
@@ -1101,26 +1132,27 @@ class WaterWorkshop(GUIWorkshop):
                 f"Failed to load {Path(path).name}:\n{e}\n\n{traceback.format_exc()[-400:]}")
 
 
-    def _load_waterpro(self, path, data): #vers 2
+    def _load_waterpro(self, path, data): #vers 3
         wp = WaterproParser()
         wp.load(path)
         self._waterpro  = wp
         self._waterdat  = self._sa_water = None
         self._file_type = "waterpro"
         gw = wp.grid_w
-        self._phys_canvas.setup(gw, wp.phys_grid)
-        self._vis_canvas.setup(gw*2, wp.vis_grid)
-        self._view_tabs.setTabText(0, f"Physical ({gw}x{gw})")
-        self._view_tabs.setTabText(1, f"Visible ({gw*2}x{gw*2})")
+        # vis_grid is the smaller block (gw*gw), phys_grid is the larger (2*gw * 2*gw)
+        self._phys_canvas.setup(gw,   wp.vis_grid)
+        self._vis_canvas.setup(gw*2,  wp.phys_grid)
+        self._view_tabs.setTabText(0, f"Visible ({gw}x{gw})")
+        self._view_tabs.setTabText(1, f"Physical ({gw*2}x{gw*2})")
         for i, e in enumerate([True, True, False]):
             self._view_tabs.setTabEnabled(i, e)
         self._view_tabs.setCurrentIndex(0)
         self._refresh_levels_list()
-        nw = sum(1 for b in wp.phys_grid if b == 128)
         nv = sum(1 for b in wp.vis_grid  if b == 128)
+        np_ = sum(1 for b in wp.phys_grid if b == 128)
         self._set_status(
-            f"Loaded {Path(path).name}  |  {gw}x{gw} physical ({nw} water cells)"
-            f"  |  {gw*2}x{gw*2} visible ({nv} water cells)"
+            f"Loaded {Path(path).name}  |  {gw}x{gw} visible ({nv} land cells)"
+            f"  |  {gw*2}x{gw*2} physical ({np_} land cells)"
             f"  |  {wp.water_levels_count} level(s)")
 
 
