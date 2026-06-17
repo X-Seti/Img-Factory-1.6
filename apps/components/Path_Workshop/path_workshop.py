@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Path_Workshop/path_workshop.py - Version: 1
+#this belongs in apps/components/Path_Workshop/path_workshop.py - Version: 21
 # X-Seti - May 2026 - IMG Factory 1.6 - Path Workshop
 # Based on radar_workshop.py - full radar UI with path editing tabs added
 # Inherits RadarWorkshop: radar tile viewer + path node/train/flight editors
@@ -97,74 +97,74 @@ def _name_sa(idx):  return f"RADAR{idx:02d}" #vers 1
 
 def _name_sol(idx): return f"radar{idx:04d}" #vers 1
 
-# Grid constants (authoritative — do not change without verifying against game files)
+# Grid constants (authoritative -- do not change without verifying against game files)
 # SA: 144 tiles (12x12)  VC/III/LC/LCS/VCS: 64 tiles (8x8)  SOL: 1296 tiles (36x36)
 # img_source: 'img'=tiles in .img | 'txd'=single .txd | 'pvr'=.pvr img | 'toc'=toc/tmb/dat
 # Bitdepth lookup by img_source / platform
 _BITDEPTH = {
-    "img_pc":  "DXT1·4bpp",   "img_xbox": "DXT1·4bpp",
-    "img_ps2": "PAL8·8bpp",   "pvr":      "PVRTC·4bpp",
-    "toc":     "DAT·enc",     "chk":      "GIM·16bpp",
-    "xtx":     "XTX·16bpp",   "img":      "DXT1·4bpp",
+    "img_pc":  "DXT1.4bpp",   "img_xbox": "DXT1.4bpp",
+    "img_ps2": "PAL8.8bpp",   "pvr":      "PVRTC.4bpp",
+    "toc":     "DAT.enc",     "chk":      "GIM.16bpp",
+    "xtx":     "XTX.16bpp",   "img":      "DXT1.4bpp",
 }
 
 GAME_PRESETS = {
-    # PC versions — tiles in gta3.img / gta.img / RadarTex.img
+    # PC versions -- tiles in gta3.img / gta.img / RadarTex.img
     "III PC":  {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
                 "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$",
                 "img_source":"img",  "label":"GTA III (PC/PS2/Xbox)",
-                "hint":"Load gta3.img — contains radar00.txd to radar63.txd"},
+                "hint":"Load gta3.img -- contains radar00.txd to radar63.txd"},
     "VC PC":   {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
                 "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$",
                 "img_source":"img",  "label":"GTA Vice City (PC/PS2/Xbox)",
-                "hint":"Load gta3.img — contains radar00.txd to radar63.txd"},
+                "hint":"Load gta3.img -- contains radar00.txd to radar63.txd"},
     "SA PC":   {"cols":12, "rows":12, "count":144,  "name_fn":_name_sa,
                 "img_pattern":r"^radar(\d{2}|1[0-3]\d|14[0-3])\.txd$",
                 "img_source":"img",  "label":"GTA San Andreas (PC/PS2/Xbox)",
-                "hint":"Load gta3.img — contains radar00.txd to radar143.txd (144 tiles, 12x12 grid)"},
+                "hint":"Load gta3.img -- contains radar00.txd to radar143.txd (144 tiles, 12x12 grid)"},
     "LCS PC":  {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
                 "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$",
                 "img_source":"img",  "label":"GTA Liberty City Stories (PC/PS2)",
-                "hint":"Load gta3.img — contains radar00.txd to radar63.txd"},
+                "hint":"Load gta3.img -- contains radar00.txd to radar63.txd"},
     "VCS PC":  {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
                 "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$",
                 "img_source":"img",  "label":"GTA Vice City Stories (PC/PS2)",
-                "hint":"Load gta3.img — contains radar00.txd to radar63.txd"},
+                "hint":"Load gta3.img -- contains radar00.txd to radar63.txd"},
     "SOL":     {"cols":36, "rows":36, "count":1296,  "name_fn":_name_sol,
                 "img_pattern":r"^radar\d{4}\.txd$",
                 "img_source":"img",  "label":"GTA State of Liberty (PC)",
-                "hint":"Load RadarTex.img — contains radar0000.txd to radar1295.txd"},
+                "hint":"Load RadarTex.img -- contains radar0000.txd to radar1295.txd"},
     # Android versions
     "III And": {"cols":1,  "rows":1,  "count":1,    "name_fn":_name_sa,
                 "img_pattern":r"^radar",
                 "img_source":"img",  "label":"GTA III Android",
-                "hint":"Load gta3_unc.img — single RADAR.TXD with 256x256 'radardisc' texture"},
+                "hint":"Load gta3_unc.img -- single RADAR.TXD with 256x256 'radardisc' texture"},
     "VC And":  {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
                 "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$",
                 "img_source":"img",  "label":"GTA Vice City Android",
-                "hint":"Load from root/texdb — see TXD Workshop for texdb format"},
+                "hint":"Load from root/texdb -- see TXD Workshop for texdb format"},
     "SA And":  {"cols":10, "rows":10, "count":100,  "name_fn":_name_sa,
                 "img_pattern":r"^radar",
                 "img_source":"toc",  "label":"GTA San Andreas Android",
-                "hint":"Load txd.dxt.toc — SA Android uses TOC/TMB/DAT format (not yet supported)"},
+                "hint":"Load txd.dxt.toc -- SA Android uses TOC/TMB/DAT format (not yet supported)"},
     # iOS versions
     "LCS iOS": {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
                 "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$",
                 "img_source":"pvr",  "label":"GTA LCS iOS",
-                "hint":"Load gta3.pvr — contains radar00.txd to radar63.txd (PVRTC format)"},
+                "hint":"Load gta3.pvr -- contains radar00.txd to radar63.txd (PVRTC format)"},
     "SA iOS":  {"cols":10, "rows":10, "count":100,  "name_fn":_name_sa,
                 "img_pattern":r"^radar",
                 "img_source":"toc",  "label":"GTA SA iOS",
-                "hint":"Load txd.dxt.toc — iOS SA uses TOC/TMB/DAT format (not yet supported)"},
+                "hint":"Load txd.dxt.toc -- iOS SA uses TOC/TMB/DAT format (not yet supported)"},
     # PSP versions
     "LCS PSP": {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
                 "img_pattern":r"^radar",
                 "img_source":"chk",  "label":"GTA LCS PSP",
-                "hint":"PSP .chk files use GIM/XTX format — load individual radar .chk files"},
+                "hint":"PSP .chk files use GIM/XTX format -- load individual radar .chk files"},
     "VCS PSP": {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
                 "img_pattern":r"^radar",
                 "img_source":"xtx",  "label":"GTA VCS PSP",
-                "hint":"PSP .xtx files use GIM/XTX format — load individual radar .xtx files"},
+                "hint":"PSP .xtx files use GIM/XTX format -- load individual radar .xtx files"},
     # Generic
     "Custom":  {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
                 "img_pattern":r"^radar",
@@ -242,7 +242,7 @@ class RadarTxdReader:
                     if comp in (0x0B, 0x0C):
                         rgba = decode_dxt1(pd, ww, hh)
                     elif comp in (0x0E, 0x0F, 0x10, 0x11):
-                        rgba = decode_dxt1(pd, ww, hh)  # DXT3/5 — approximate
+                        rgba = decode_dxt1(pd, ww, hh)  # DXT3/5 -- approximate
                     else:
                         rgba = RadarTxdReader._raw_to_rgba(pd, ww, hh,
                             struct.unpack_from('<I', data, th+72)[0])
@@ -362,7 +362,7 @@ class RadarTxdReader:
     def _ps2_pal_to_rgba(pd: bytes, w: int, h: int, pal_fmt: int) -> bytes: #vers 1
         """Decode PS2 paletted texture (PAL8/PAL4) to RGBA8888.
         PS2 palette entries are RGBA (not BGRA). Alpha is 0-128 scale (halved from PC).
-        Note: PS2 GS swizzle is NOT undone here — output may appear scrambled for
+        Note: PS2 GS swizzle is NOT undone here -- output may appear scrambled for
         swizzled textures. Full unswizzle requires GS block layout tables."""
         if pal_fmt == 1:  # PAL8: 256 * 4 bytes palette, then indices
             pal_size = 256 * 4
@@ -420,7 +420,7 @@ class ImgReader:
                 self.entries.append({'name':name,'offset':os2*2048,'size':(sz2 or ss)*2048})
             self._img_data=raw
         elif raw[:4] in (b'VER1', b'ver1'):
-            # VER1 explicitly tagged (rare) — treat as V1+dir
+            # VER1 explicitly tagged (rare) -- treat as V1+dir
             self._load_v1_dir(p, raw)
         else:
             # V1 (GTA III/VC/SOL): separate .dir file, 32-byte entries
@@ -465,7 +465,7 @@ class ImgReader:
         return results
 
     def list_radar_like(self, prefix='radar'): #vers 1
-        """Debug helper — list all entries whose name starts with prefix."""
+        """Debug helper -- list all entries whose name starts with prefix."""
         return [e['name'] for e in self.entries
                 if e['name'].lower().startswith(prefix.lower())]
 
@@ -489,7 +489,7 @@ class RadarGridWidget(QWidget):
         if key == 'viewport_text':
             return pal.color(pal.ColorRole.PlaceholderText)
         return pal.color(pal.ColorRole.WindowText)
-    """Full radar grid — no gaps, 1px grid lines, hover=tile name tooltip."""
+    """Full radar grid -- no gaps, 1px grid lines, hover=tile name tooltip."""
     tile_clicked        = pyqtSignal(int)
     grid_right_clicked  = pyqtSignal(int, QPoint)   # idx, global pos
     color_picked        = pyqtSignal(QColor, bool)  # color, is_left_button
@@ -713,7 +713,7 @@ class RadarGridWidget(QWidget):
                 self.grid_right_clicked.emit(idx, ev.globalPosition().toPoint())
                 return
 
-            # Left click — select tile + potentially draw
+            # Left click -- select tile + potentially draw
             self.tile_clicked.emit(idx)
 
             if ws and tool not in ('zoom',):
@@ -744,7 +744,7 @@ class RadarGridWidget(QWidget):
 
 # - Tile list item
 
-THUMB = 64   # thumbnail size — doubled from 32
+THUMB = 64   # thumbnail size -- doubled from 32
 
 class TileListItem(QListWidgetItem):
     """Tile list entry: 64px thumbnail + name + game badge + tile size."""
@@ -777,12 +777,12 @@ class TileListItem(QListWidgetItem):
     def _bitdepth_str(self) -> str: #vers 3
         """Derive bitdepth string from game_label."""
         g = self.game_label.lower()
-        if "ios" in g:                    return "PVRTC·4bpp"
-        if "psp" in g:                    return "GIM·16bpp"
-        if "android" in g:                return "DXT1·4bpp"
-        # "(ps2)" or "ps2" alone — not "(pc/ps2/xbox)" which also has "pc"
-        if "ps2" in g and "pc" not in g:  return "PAL8·8bpp"
-        return "DXT1·4bpp"   # PC/Xbox/mixed default
+        if "ios" in g:                    return "PVRTC.4bpp"
+        if "psp" in g:                    return "GIM.16bpp"
+        if "android" in g:                return "DXT1.4bpp"
+        # "(ps2)" or "ps2" alone -- not "(pc/ps2/xbox)" which also has "pc"
+        if "ps2" in g and "pc" not in g:  return "PAL8.8bpp"
+        return "DXT1.4bpp"   # PC/Xbox/mixed default
 
     def _update_text(self): #vers 2
         badge = self._game_badge()
@@ -790,7 +790,7 @@ class TileListItem(QListWidgetItem):
         lines = [f"  {self.tile_name}"]
         info_parts = []
         if badge: info_parts.append(badge)
-        info_parts.append(f"{self.tile_w}×{self.tile_h}")
+        info_parts.append(f"{self.tile_w}x{self.tile_h}")
         info_parts.append(bpp)
         lines.append(f"  {' '.join(info_parts)}")
         self.setText("\n".join(lines))
@@ -876,13 +876,13 @@ class RADSettings:
 
 #    Radar Palette Widget                                                        
 class RadarPaletteWidget(QWidget):
-    """Simple colour palette strip — shows colours extracted from the current tile.
+    """Simple colour palette strip -- shows colours extracted from the current tile.
     Click a cell to pick that colour. Right-click to set background colour."""
 
-    color_picked   = pyqtSignal(QColor)   # left-click  → foreground
-    color_picked_bg = pyqtSignal(QColor)  # right-click → background
+    color_picked   = pyqtSignal(QColor)   # left-click  -> foreground
+    color_picked_bg = pyqtSignal(QColor)  # right-click -> background
 
-    CELL = 14   # cell size px — slightly smaller to fit more colors
+    CELL = 14   # cell size px -- slightly smaller to fit more colors
 
     def __init__(self, parent=None): #vers 1
         super().__init__(parent)
@@ -914,7 +914,7 @@ class RadarPaletteWidget(QWidget):
         for i in range(0, len(rgba) - 3, step * 4):
             r, g, b, a = rgba[i], rgba[i+1], rgba[i+2], rgba[i+3]
             if a < 16: continue
-            key = (r >> 4, g >> 4, b >> 4)  # 4-bit quantise — captures more distinct colours
+            key = (r >> 4, g >> 4, b >> 4)  # 4-bit quantise -- captures more distinct colours
             if key not in seen:
                 seen[key] = QColor(r, g, b)
                 if len(seen) >= max_colors:
@@ -987,7 +987,7 @@ class RadarPaletteWidget(QWidget):
         act_copy = menu.addAction(f"Copy hex  {c.name()}")
         act_rgb  = menu.addAction(f"Copy RGB  {c.red()},{c.green()},{c.blue()}")
         menu.addSeparator()
-        act_edit = menu.addAction("Change colour…")
+        act_edit = menu.addAction("Change colour...")
 
         chosen = menu.exec(gpos)
         if chosen == act_fg:
@@ -1009,12 +1009,12 @@ class RadarPaletteWidget(QWidget):
 
 
 class _BoredomPuzzle(QDialog):
-    """🧩 Sliding tile puzzle using the loaded radar map tiles."""
+    """_ Sliding tile puzzle using the loaded radar map tiles."""
 
     def __init__(self, tile_rgba: dict, cols: int, rows: int,
                  tile_w: int, tile_h: int, parent=None): #vers 1
         super().__init__(parent)
-        self.setWindowTitle("🧩 Boredom! — Sliding Puzzle")
+        self.setWindowTitle("_ Boredom! -- Sliding Puzzle")
         self.setModal(True)
         self._cols   = cols
         self._rows   = rows
@@ -1111,7 +1111,7 @@ class _BoredomPuzzle(QDialog):
             self._draw()
             if self._state == self._goal:
                 self._solved = True
-                self._info_lbl.setText(f"🎉 Solved in {self._moves} moves!")
+                self._info_lbl.setText(f"_ Solved in {self._moves} moves!")
                 QMessageBox.information(self, "Puzzle Solved!",
                     f"You solved it in {self._moves} moves!\n\nThe map is restored.")
 
@@ -1144,7 +1144,7 @@ class _BoredomPuzzle(QDialog):
 
 
 class _TileZoomView(QWidget):
-    """Tile zoom canvas — live drawing with all sidebar tools.
+    """Tile zoom canvas -- live drawing with all sidebar tools.
     Pixel coordinates mapped from screen coords via scale/offset."""
 
     def __init__(self, tile_idx: int, tile_name: str, rgba: bytes, workshop): #vers 2
@@ -1280,7 +1280,7 @@ class _TileZoomView(QWidget):
         p.setFont(QFont("monospace", 8))
         p.drawText(x+3, y+h-4,
                    f"{self._tile_idx}: {self._tile_name}  "
-                   f"{ws._tw if ws else TILE_W}×{ws._th if ws else TILE_H}"
+                   f"{ws._tw if ws else TILE_W}x{ws._th if ws else TILE_H}"
                    f"  [{self._workshop._draw_tool}]")
         p.end()
 
@@ -1292,7 +1292,7 @@ class _TileZoomView(QWidget):
 
 class _CornerOverlay(QWidget):
     """Transparent overlay that draws corner resize triangles on top of all children.
-    Uses setMask() so only the triangle pixels exist — fully transparent elsewhere.
+    Uses setMask() so only the triangle pixels exist -- fully transparent elsewhere.
     WA_AlwaysStackOnTop keeps it above all sibling widgets on Wayland/KDE."""
 
     SIZE = 20   # triangle leg size in pixels
@@ -1371,7 +1371,7 @@ class _CornerOverlay(QWidget):
 
 #    World bounds per game (GTA world units covered by the full radar map)      
 # Format: (world_min_x, world_max_x, world_min_y, world_max_y)
-# Tile grid origin is top-left = (world_min_x, world_max_y) — Y flips screen↔world
+# Tile grid origin is top-left = (world_min_x, world_max_y) -- Y flips screen_world
 _GAME_WORLD_BOUNDS = {
     "III PC":   (-2000.0, 2000.0, -2000.0, 2000.0),
     "VC PC":    (-2000.0, 2000.0, -2000.0, 2000.0),
@@ -1391,18 +1391,18 @@ _GAME_WORLD_BOUNDS = {
 
 
 class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
-    """Radar Workshop – skeleton class"""
+    """Radar Workshop - skeleton class"""
 
     workshop_closed = pyqtSignal()
     window_closed   = pyqtSignal()
 
     def _build_menus_into_qmenu(self, pm): #vers 2
         fm = pm.addMenu("File")
-        fm.addAction("Load IMG…",          self._open_file)
-        fm.addAction("Save IMG…",          self._save_file)
+        fm.addAction("Load IMG...",          self._open_file)
+        fm.addAction("Save IMG...",          self._save_file)
         fm.addSeparator()
-        fm.addAction("Export Full Map…",   self._export_sheet)
-        fm.addAction("Import Full Map…",   self._import_sheet)
+        fm.addAction("Export Full Map...",   self._export_sheet)
+        fm.addAction("Import Full Map...",   self._import_sheet)
         fm.addSeparator()
         # Recent files
         if hasattr(self, 'RAD_settings'):
@@ -1419,13 +1419,13 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         em.addAction("Undo  Ctrl+Z",   self._undo)
         em.addAction("Redo  Ctrl+Y",   self._redo)
         em.addSeparator()
-        em.addAction("Map Statistics…", self._show_stats)
+        em.addAction("Map Statistics...", self._show_stats)
         vm = pm.addMenu("View")
         vm.addAction("Zoom In (+)",    lambda: self._zoom(1.25))
         vm.addAction("Zoom Out (-)",   lambda: self._zoom(0.8))
         vm.addAction("Fit Grid",       self._fit)
         vm.addSeparator()
-        vm.addAction("🧩 Boredom!",   self._start_boredom)
+        vm.addAction("_ Boredom!",   self._start_boredom)
         vm.addSeparator()
         vm.addAction("About Radar Workshop", self._show_about)
 
@@ -1510,8 +1510,8 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self._render_mode: str   = 'color'
         self._alpha_pending: bool = False
         self._alpha_key_color     = None
-        self._tw: int = TILE_W   # current tile width  — updated by upscale
-        self._th: int = TILE_H   # current tile height — updated by upscale
+        self._tw: int = TILE_W   # current tile width  -- updated by upscale
+        self._th: int = TILE_H   # current tile height -- updated by upscale
         self._clipboard_tile: bytes = None   # copy/paste buffer
         self._undo_stack: list = []          # list of (idx, rgba) snapshots
         self._redo_stack: list = []
@@ -1557,7 +1557,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
         main_splitter = QSplitter(Qt.Orientation.Horizontal)
 
-        # Left panel — hidden (same pattern as template: None in standalone)
+        # Left panel -- hidden (same pattern as template: None in standalone)
         left = self._create_left_panel()
         centre = self._create_centre_panel()
         right  = self._create_right_panel()
@@ -1608,14 +1608,14 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
         self.menu_toggle_btn = QPushButton("Menu")
         self.menu_toggle_btn.setFont(self.button_font)
-        self.menu_toggle_btn.setToolTip("Show menu (topbar or dropdown — set in Settings)")
+        self.menu_toggle_btn.setToolTip("Show menu (topbar or dropdown -- set in Settings)")
         self.menu_toggle_btn.setMinimumHeight(28)
         self.menu_toggle_btn.setMaximumHeight(28)
         self.menu_toggle_btn.clicked.connect(self._on_menu_btn_clicked)
         self.menu_toggle_btn.setVisible(True)  # show in both standalone and docked
         layout.addWidget(self.menu_toggle_btn)
 
-        # - Settings button (standalone only — docked uses right-panel button)
+        # - Settings button (standalone only -- docked uses right-panel button)
         self.settings_btn = QPushButton()
         self.settings_btn.setFont(self.button_font)
         self.settings_btn.setIcon(SVGIconFactory.settings_icon(20, icon_color))
@@ -1687,30 +1687,30 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self.properties_btn.clicked.connect(self._launch_theme_settings)
         layout.addWidget(self.properties_btn)
 
-        # - Dock button — hidden in standalone (nothing to dock to)
+        # - Dock button -- hidden in standalone (nothing to dock to)
         self.dock_btn = QPushButton()
         try:
             self.dock_btn.setIcon(SVGIconFactory.import_icon(20, icon_color))
             self.dock_btn.setIconSize(QSize(20, 20))
         except Exception:
-            self.dock_btn.setText("⊞")
+            self.dock_btn.setText("_")
         self.dock_btn.setFixedSize(35, 35)
         self.dock_btn.setToolTip("Dock into IMG Factory")
         self.dock_btn.clicked.connect(self.toggle_dock_mode)
         self.dock_btn.setVisible(not self.standalone_mode)
         layout.addWidget(self.dock_btn)
 
-        # - Tear-off button — only when docked, use icon not bare "T"
+        # - Tear-off button -- only when docked, use icon not bare "T"
         if not self.standalone_mode:
             self.tearoff_btn = QPushButton()
             try:
                 self.tearoff_btn.setIcon(SVGIconFactory.export_icon(20, icon_color))
                 self.tearoff_btn.setIconSize(QSize(20, 20))
             except Exception:
-                self.tearoff_btn.setText("↗")
+                self.tearoff_btn.setText("_")
             self.tearoff_btn.setFixedSize(35, 35)
             self.tearoff_btn.clicked.connect(self._toggle_tearoff)
-            self.tearoff_btn.setToolTip("Tear off — open as standalone window")
+            self.tearoff_btn.setToolTip("Tear off -- open as standalone window")
             layout.addWidget(self.tearoff_btn)
 
         # - Window controls (standalone only)
@@ -1758,7 +1758,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         """Stitch all loaded tile RGBA buffers into a single QImage.
         Tiles are arranged in row-major order (row 0 = north/top of map).
         Returns QImage or None if no tiles are loaded.
-        max_size: output image is capped at max_size × max_size pixels."""
+        max_size: output image is capped at max_size x max_size pixels."""
         from PyQt6.QtGui import QImage
         if not self._tile_rgba:
             return None
@@ -1799,7 +1799,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         return img.copy()   # detach from temp buffer
 
     def _create_left_panel(self): #vers 1
-        # Hidden — template returns None in standalone
+        # Hidden -- template returns None in standalone
         return None
 
 
@@ -1857,7 +1857,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         #    Tile search bar                                                     
         search_row = QHBoxLayout()
         self._tile_search = QLineEdit()
-        self._tile_search.setPlaceholderText("Search tiles…  e.g. 64-95 or radar")
+        self._tile_search.setPlaceholderText("Search tiles...  e.g. 64-95 or radar")
         self._tile_search.setClearButtonEnabled(True)
         self._tile_search.textChanged.connect(self._filter_tile_list)
         search_row.addWidget(self._tile_search)
@@ -1881,7 +1881,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         return panel
 
     def _copy_current_tile(self): #vers 1
-        """Ctrl+C — copy current tile to clipboard."""
+        """Ctrl+C -- copy current tile to clipboard."""
         idx = self._current_idx
         if idx < 0 or idx not in self._tile_rgba:
             self._set_status("Select a tile first"); return
@@ -1890,17 +1890,17 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self._set_status(f"Copied tile {idx}: {name}")
 
     def _paste_current_tile(self): #vers 1
-        """Ctrl+V — paste clipboard tile to current tile."""
+        """Ctrl+V -- paste clipboard tile to current tile."""
         idx = self._current_idx
         if idx < 0:
             self._set_status("Select a tile first"); return
         if not getattr(self, '_clipboard_tile', None):
-            self._set_status("Nothing in clipboard — use Ctrl+C first"); return
+            self._set_status("Nothing in clipboard -- use Ctrl+C first"); return
         self._apply_tile_data(idx, self._clipboard_tile)
         self._set_status(f"Pasted to tile {idx}")
 
     def _upscale_dialog(self): #vers 1
-        """Show upscale dialog — choose target size, apply, save as .new."""
+        """Show upscale dialog -- choose target size, apply, save as .new."""
         if not self._tile_rgba:
             QMessageBox.information(self, "No Tiles", "Load an IMG file first."); return
 
@@ -1908,7 +1908,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
                                      QLabel, QComboBox, QPushButton, QRadioButton,
                                      QButtonGroup, QGroupBox, QCheckBox)
 
-        current_size = f"{TILE_W}×{TILE_H}"
+        current_size = f"{TILE_W}x{TILE_H}"
         dlg = QDialog(self)
         dlg.setWindowTitle("Upscale Radar Tiles")
         dlg.setMinimumWidth(380)
@@ -1934,11 +1934,11 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         grp_layout = QVBoxLayout(grp)
         sizes = []
         if TILE_W == 64:
-            sizes = [("128×128 (2× upscale)", 128), ("256×256 (4× upscale)", 256)]
+            sizes = [("128x128 (2x upscale)", 128), ("256x256 (4x upscale)", 256)]
         elif TILE_W == 128:
-            sizes = [("256×256 (2× upscale)", 256)]
+            sizes = [("256x256 (2x upscale)", 256)]
         else:
-            sizes = [("Already at maximum (256×256)", None)]
+            sizes = [("Already at maximum (256x256)", None)]
 
         btn_group = QButtonGroup(dlg)
         radios = []
@@ -1955,8 +1955,8 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         # Filter
         filt_grp = QGroupBox("Upscale filter")
         filt_layout = QVBoxLayout(filt_grp)
-        rb_lanczos = QRadioButton("Lanczos (smooth — recommended for photo-like tiles)")
-        rb_nearest = QRadioButton("Nearest neighbour (crisp pixels — good for pixel art)")
+        rb_lanczos = QRadioButton("Lanczos (smooth -- recommended for photo-like tiles)")
+        rb_nearest = QRadioButton("Nearest neighbour (crisp pixels -- good for pixel art)")
         rb_lanczos.setChecked(True)
         filt_layout.addWidget(rb_lanczos)
         filt_layout.addWidget(rb_nearest)
@@ -1998,14 +1998,14 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         p = Path(self._img_path)
         default_out = str(p.parent / (p.stem + f"_upscaled{p.suffix}"))
         out_path, _ = QFileDialog.getSaveFileName(
-            self, "Save Upscaled IMG as…", default_out,
+            self, "Save Upscaled IMG as...", default_out,
             "IMG Archives (*.img);;All Files (*)")
         if not out_path: return
 
         # Progress
         total = len(self._tile_entries)
         prog = QProgressDialog(
-            f"Upscaling {total} tiles to {target_size}×{target_size}…",
+            f"Upscaling {total} tiles to {target_size}x{target_size}...",
             "Cancel", 0, total + 1, self)
         prog.setWindowModality(Qt.WindowModality.WindowModal)
         prog.show()
@@ -2033,7 +2033,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
                 new_txd_data[idx] = RadarTxdReader.write(rgba, target_size, target_size, name)
 
             #    Rebuild IMG: read all entries, replace radar TXDs              
-            prog.setLabelText("Rebuilding IMG archive…")
+            prog.setLabelText("Rebuilding IMG archive...")
             prog.setValue(total)
             QApplication.processEvents()
 
@@ -2107,7 +2107,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             prog.setValue(total + 1)
 
             # Update session to use upscaled data (use module-level vars)
-            # Update workshop tile size — single source of truth
+            # Update workshop tile size -- single source of truth
             import apps.components.Radar_Editor.radar_workshop as _rw_mod
             _rw_mod.TILE_W = target_size
             _rw_mod.TILE_H = target_size
@@ -2123,7 +2123,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
                 if idx < len(self._list_items):
                     self._list_items[idx].set_thumb(rgba, target_size, target_size)
 
-            # Close any open tile zoom tabs — they hold stale _rgba/TILE_W refs
+            # Close any open tile zoom tabs -- they hold stale _rgba/TILE_W refs
             if hasattr(self, '_view_tabs'):
                 self._view_tabs.blockSignals(True)
                 while self._view_tabs.count() > 1:
@@ -2135,7 +2135,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             self._radar.update()
 
             self._set_status(
-                f"Upscaled {len(new_rgba)} tiles to {target_size}×{target_size} "
+                f"Upscaled {len(new_rgba)} tiles to {target_size}x{target_size} "
                 f"and saved as {Path(out_path).name}")
             QMessageBox.information(self, "Upscale Complete",
                 f"Saved {len(new_rgba)} upscaled tiles to:\n{out_path}\n\n"
@@ -2152,7 +2152,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         """Filter tile list by name or index range (e.g. '64-95' or 'radar0')."""
         import re as _re
         text = text.strip()
-        range_m = _re.match(r'^(\d+)\s*[-–]\s*(\d+)$', text)
+        range_m = _re.match(r'^(\d+)\s*[--]\s*(\d+)$', text)
         for i in range(self._tile_list.count()):
             item = self._tile_list.item(i)
             if not text:
@@ -2182,7 +2182,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         if idx < len(self._list_items):
             self._list_items[idx].set_thumb(rgba, TILE_W, TILE_H)
         self._refresh_tile_tab(idx)
-        self._set_status(f"Undo — tile {idx}")
+        self._set_status(f"Undo -- tile {idx}")
 
     def _redo(self): #vers 2
         if not self._redo_stack:
@@ -2194,7 +2194,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         if idx < len(self._list_items):
             self._list_items[idx].set_thumb(rgba, TILE_W, TILE_H)
         self._refresh_tile_tab(idx)
-        self._set_status(f"Redo — tile {idx}")
+        self._set_status(f"Redo -- tile {idx}")
 
 
     # --- Right panel: settings
@@ -2206,7 +2206,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         hl.setContentsMargins(0, 0, 0, 0)
         hl.setSpacing(0)
 
-        #    Centre: tab widget — Map tab + tile zoom tabs                     
+        #    Centre: tab widget -- Map tab + tile zoom tabs                     
         self._view_tabs = QTabWidget()
         self._view_tabs.setDocumentMode(True)
         self._view_tabs.setTabsClosable(False)  # Map tab never closable
@@ -2230,7 +2230,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self._radar_scroll = sc
         map_layout.addWidget(sc, 1)
 
-        self._view_tabs.addTab(map_container, "🗺 Map")
+        self._view_tabs.addTab(map_container, "_ Map")
         self._view_tabs.setTabsClosable(True)
         # Make the Map tab non-closable by removing its close button
         self._view_tabs.tabBar().setTabButton(0, self._view_tabs.tabBar().ButtonPosition.RightSide, None)
@@ -2238,7 +2238,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self._view_tabs.currentChanged.connect(self._on_view_tab_changed)
         hl.addWidget(self._view_tabs, 1)
 
-        #    Right sidebar — 2-column icon grid                                
+        #    Right sidebar -- 2-column icon grid                                
         sidebar = QFrame()
         sidebar.setFrameStyle(QFrame.Shape.StyledPanel)
         sidebar.setFixedWidth(80)
@@ -2247,7 +2247,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         sl.setSpacing(2)
 
         icon_color = self._get_icon_color()
-        BTN = 36   # button size — two fit in 80px width with spacing
+        BTN = 36   # button size -- two fit in 80px width with spacing
 
         def _nb(icon_fn, tip, slot, checkable=False):
             b = QToolButton()
@@ -2285,7 +2285,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self._draw_tool = 'pencil'
         self._draw_btns = {}
 
-        zoom_btn = _nb('zoom_in_icon', "Zoom tool (Z) — scroll wheel or +/- to zoom",
+        zoom_btn = _nb('zoom_in_icon', "Zoom tool (Z) -- scroll wheel or +/- to zoom",
                        lambda: self._set_draw_tool('zoom'), checkable=True)
         self._draw_btns['zoom'] = zoom_btn
         _row(_nb('search_icon', "Open tile editor (E)", self._edit_tile_popup),
@@ -2314,14 +2314,14 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         _row(_tool_btn('brighten_icon',    "Brighten brush",              'brighten'),
              _tool_btn('darken_icon',      "Darken brush",                'darken'))
         _row(_tool_btn('checker_fill_icon',"Checkerboard fill (FG/BG)",   'checker'),
-             _nb('upscale_icon', "Upscale tiles…", self._upscale_dialog))
+             _nb('upscale_icon', "Upscale tiles...", self._upscale_dialog))
         self._draw_btns['pencil'].setChecked(True)
 
         _sep()
 
         #    Transforms                                                         
-        _row(_nb('rotate_cw_icon',  "Rotate +90°",     self._rotate_cw),
-             _nb('rotate_ccw_icon', "Rotate -90°",     self._rotate_ccw))
+        _row(_nb('rotate_cw_icon',  "Rotate +90_",     self._rotate_cw),
+             _nb('rotate_ccw_icon', "Rotate -90_",     self._rotate_ccw))
         _row(_nb('flip_horz_icon',  "Flip horizontal", self._flip_horz),
              _nb('flip_vert_icon',  "Flip vertical",   self._flip_vert))
 
@@ -2352,7 +2352,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self._render_btns['bw']    = _render_btn(
             "B && W",    "Greyscale display",    'bw')
         self._render_btns['alpha'] = _render_btn(
-            "Col→Alpha", "Colour to Alpha:\n"
+            "Col->Alpha", "Colour to Alpha:\n"
                          "Press, then pick colour with dropper\n"
                          "That colour becomes transparent (checkerboard)", 'alpha')
         self._render_btns['color'].setChecked(True)
@@ -2387,7 +2387,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         sl.addWidget(sep3)
         sl.addSpacing(2)
 
-        #    Palette — colours from current tile                                
+        #    Palette -- colours from current tile                                
         pal_lbl = QLabel("Palette")
         pal_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         pal_lbl.setStyleSheet("font-size:9px;")
@@ -2396,7 +2396,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self._palette_widget = RadarPaletteWidget()
         self._palette_widget.color_picked.connect(self._on_palette_color)
         self._palette_widget.color_picked_bg.connect(self._on_palette_color_bg)
-        # Height sized dynamically based on colour count — min 2 rows
+        # Height sized dynamically based on colour count -- min 2 rows
         self._palette_widget.setMinimumHeight(RadarPaletteWidget.CELL * 2)
         sl.addWidget(self._palette_widget)
 
@@ -2406,9 +2406,9 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         return panel
 
     def _set_render_mode(self, mode: str): #vers 4
-        """Switch map grid display mode — display only, no tile data modified."""
+        """Switch map grid display mode -- display only, no tile data modified."""
         if mode == 'alpha':
-            # Activate dropper — user picks the key colour, then alpha applies
+            # Activate dropper -- user picks the key colour, then alpha applies
             self._alpha_key_color = None          # clear until user picks
             self._alpha_pending   = True          # flag: waiting for dropper pick
             self._prev_draw_tool  = self._draw_tool
@@ -2417,13 +2417,13 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             for m, b in self._render_btns.items():
                 b.setChecked(m == 'alpha')
             self._set_status(
-                "Colour→Alpha: pick the colour to make transparent with the dropper. "
+                "Colour->Alpha: pick the colour to make transparent with the dropper. "
                 "Left-click any pixel on the map or tile editor.")
-            return   # don't apply yet — wait for dropper pick
+            return   # don't apply yet -- wait for dropper pick
         else:
             self._alpha_key_color = None
             self._alpha_pending   = False
-            labels = {'color': 'Colour', 'bw': 'B&W — display only'}
+            labels = {'color': 'Colour', 'bw': 'B&W -- display only'}
             self._set_status(f"View: {labels.get(mode, mode)}")
 
         self._render_mode = mode
@@ -2446,15 +2446,15 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             self._radar.set_tile(idx, self._apply_render_mode(rgba), TILE_W, TILE_H)
         self._radar.update()
         self._set_status(
-            f"Colour→Alpha: {color.name()} ({color.red()},{color.green()},{color.blue()}) "
-            f"→ transparent. Click 'Colour' to restore.")
+            f"Colour->Alpha: {color.name()} ({color.red()},{color.green()},{color.blue()}) "
+            f"-> transparent. Click 'Colour' to restore.")
 
     def _apply_render_mode(self, rgba: bytes) -> bytes: #vers 2
         """Apply display-only transform to rgba bytes.
 
-        color   — pass through unchanged
-        bw      — luminance greyscale
-        alpha   — pixels matching _alpha_key_color set to alpha=0 (transparent),
+        color   -- pass through unchanged
+        bw      -- luminance greyscale
+        alpha   -- pixels matching _alpha_key_color set to alpha=0 (transparent),
                   others alpha=255; RadarGridWidget paints checkerboard under tiles
                   so transparent pixels show as checkerboard
         """
@@ -2472,7 +2472,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             if key is None:
                 return rgba  # no key colour set yet
             kr, kg, kb = key.red(), key.green(), key.blue()
-            tol = 28  # tolerance — matches nearby shades of the key colour
+            tol = 28  # tolerance -- matches nearby shades of the key colour
             for i in range(0, len(rgba)-3, 4):
                 r, g, b, a = rgba[i], rgba[i+1], rgba[i+2], rgba[i+3]
                 if (abs(r-kr) <= tol and abs(g-kg) <= tol and abs(b-kb) <= tol):
@@ -2482,7 +2482,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         return bytes(out)
 
     #                                                                          
-    # Drawing engine — shared by RadarGridWidget, _TileZoomView, any surface
+    # Drawing engine -- shared by RadarGridWidget, _TileZoomView, any surface
     #                                                                          
 
     def ws_set_pixel(self, buf: bytearray, px: int, py: int, color: QColor,
@@ -2553,7 +2553,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
     def ws_spray(self, buf: bytearray, cx: int, cy: int, color: QColor,
                  radius: int = 8, density: int = 12): #vers 1
-        """Spray/airbrush — scatter random pixels within radius."""
+        """Spray/airbrush -- scatter random pixels within radius."""
         import random
         r, g, b, a = color.red(), color.green(), color.blue(), color.alpha()
         for _ in range(density):
@@ -2582,7 +2582,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
     def ws_clone_stamp(self, buf: bytearray, src_buf: bytearray,
                        px: int, py: int, src_ox: int, src_oy: int,
                        brush: int = 3): #vers 1
-        """Clone stamp — copy pixels from src_buf at offset (src_ox,src_oy)."""
+        """Clone stamp -- copy pixels from src_buf at offset (src_ox,src_oy)."""
         half = brush // 2
         for bx in range(-half, half+1):
             for by_ in range(-half, half+1):
@@ -2651,7 +2651,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
                 picked = get_pixel_fn(px, py)
             else:
                 picked = self.ws_get_pixel(buf, px, py)
-            # If waiting for alpha key colour — apply it and return to previous tool
+            # If waiting for alpha key colour -- apply it and return to previous tool
             if getattr(self, '_alpha_pending', False) and is_left:
                 self._apply_alpha_key(picked)
                 return 'picker'
@@ -2740,7 +2740,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
     def ws_mouse_release(self, idx: int, px: int, py: int, is_left: bool,
                          line_start, preview_buf: bytearray): #vers 1
-        """Handle mouse release — commit line/rect shapes."""
+        """Handle mouse release -- commit line/rect shapes."""
         tool  = self._draw_tool
         color = self._fg_color if is_left else self._bg_color
         if tool in ('line', 'rect', 'rect_fill') and line_start and px >= 0:
@@ -2809,12 +2809,12 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
                 f"background-color: {self._bg_color.name()}; border: 1px solid #888;")
 
     def _on_palette_color(self, color: QColor): #vers 1
-        """Palette cell left-clicked — set as foreground colour."""
+        """Palette cell left-clicked -- set as foreground colour."""
         self._fg_color = color
         self._update_swatch_buttons()
 
     def _on_palette_color_bg(self, color: QColor): #vers 1
-        """Palette cell right-clicked — set as background colour."""
+        """Palette cell right-clicked -- set as background colour."""
         self._bg_color = color
         self._update_swatch_buttons()
 
@@ -2845,7 +2845,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             self._palette_widget.set_colors_from_rgba(new_rgba, TILE_W, TILE_H)
         self._dirty_lbl.setText(f"Modified: {len(self._dirty_tiles)}")
         self._refresh_tile_tab(self._current_idx)
-        self._set_status(f"Tile {idx} transformed — {len(self._dirty_tiles)} modified")
+        self._set_status(f"Tile {idx} transformed -- {len(self._dirty_tiles)} modified")
 
     def _rotate_cw(self): #vers 1
         from PIL import Image
@@ -2880,7 +2880,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
         layout.addStretch()
 
-        # Settings button — only shown when docked (toolbar is hidden in docked mode)
+        # Settings button -- only shown when docked (toolbar is hidden in docked mode)
         self.docked_settings_btn = QPushButton()
         self.docked_settings_btn.setFont(self.button_font)
         self.docked_settings_btn.setIcon(self.icon_factory.settings_icon())
@@ -2900,7 +2900,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         bar.setFixedHeight(self.statusheight)
         hl = QHBoxLayout(bar)
         hl.setContentsMargins(*self.get_tab_margins())
-        self.status_label = QLabel("Ready — no IMG loaded")
+        self.status_label = QLabel("Ready -- no IMG loaded")
         self.status_label.setFont(self.infobar_font)
         hl.addWidget(self.status_label)
         return bar
@@ -2908,7 +2908,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
     # Settings dialog
     def _show_workshop_settings(self): #vers 4
-        """Workshop-local settings — Fonts, Display, Menu tabs."""
+        """Workshop-local settings -- Fonts, Display, Menu tabs."""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
                                      QTabWidget, QWidget, QGroupBox, QFormLayout,
                                      QSpinBox, QComboBox, QLabel, QFontComboBox,
@@ -3040,7 +3040,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         except Exception:
             pass
 
-        # - Height controlled by container — NOT by stylesheet min/max-height
+        # - Height controlled by container -- NOT by stylesheet min/max-height
         # - (stylesheet height properties override Qt layout and prevent the bar showing)
         mb.setStyleSheet(f"""
             QMenuBar {{
@@ -3078,7 +3078,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             if show:
                 c.setMinimumHeight(0)
                 c.setMaximumHeight(bar_h)
-            # Don't touch height here if hiding — setup_ui and set_menu_orientation handle that
+            # Don't touch height here if hiding -- setup_ui and set_menu_orientation handle that
 
 
     def set_menu_orientation(self, style: str): #vers 4
@@ -3187,8 +3187,8 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         names = [self._game_preset["name_fn"](i) for i in range(count)]
         self._radar.setup(cols, count, names)
 
-        # Block tile_list signals entirely while rebuilding — prevents
-        # addItem() firing currentRowChanged(0) → _on_list_row(0) which
+        # Block tile_list signals entirely while rebuilding -- prevents
+        # addItem() firing currentRowChanged(0) -> _on_list_row(0) which
         # would set _current_idx=0 (the RADAR00 bug)
         self._tile_list.blockSignals(True)
         self._tile_list.clear()
@@ -3210,8 +3210,8 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             self._view_tabs.setCurrentIndex(0)
 
         hint = self._game_preset.get("hint", "")
-        self._set_status(f"{label} — {hint}" if hint else
-                         f"{label} — {count} tiles ({cols}×{self._game_preset['rows']})")
+        self._set_status(f"{label} -- {hint}" if hint else
+                         f"{label} -- {count} tiles ({cols}x{self._game_preset['rows']})")
 
 
     # - Font apply helpers (template pattern)
@@ -3303,7 +3303,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         source = self._game_preset.get("img_source", "img")
         hint   = self._game_preset.get("hint", "")
 
-        # Formats not yet supported — show info and return
+        # Formats not yet supported -- show info and return
         if source in ("toc", "chk", "xtx"):
             label = self._game_preset.get("label", "")
             QMessageBox.information(self, "Format Not Yet Supported",
@@ -3331,11 +3331,11 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             self._load_standalone_txd(path)
             return
 
-        # IMG / PVR — both use ImgReader (VER2 or V1+dir)
+        # IMG / PVR -- both use ImgReader (VER2 or V1+dir)
         try: self._img_reader = ImgReader(path); self._img_path = path
         except Exception as e: QMessageBox.critical(self, "Load Error", str(e)); return
 
-        # Search using a broad pattern first — find ALL radar*.txd entries
+        # Search using a broad pattern first -- find ALL radar*.txd entries
         # Then use tile COUNT to auto-detect the game (authoritative)
         fname = Path(path).name.lower()
 
@@ -3344,7 +3344,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         entries = self._img_reader.find_radar_entries(broad_pat)
 
         if not entries:
-            # Nothing found — try current preset pattern as fallback
+            # Nothing found -- try current preset pattern as fallback
             entries = self._img_reader.find_radar_entries(self._game_preset["img_pattern"])
 
         if not entries:
@@ -3361,7 +3361,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             return int(m.group(1)) if m else 0
         entries.sort(key=_tile_sort_key)
 
-        # Auto-detect game by tile count — most reliable signal
+        # Auto-detect game by tile count -- most reliable signal
         self._autodetect(len(entries))
 
         # Cap to detected preset count (removes extra files like radarmap, radardisc etc)
@@ -3377,7 +3377,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
                 entries = entries_sol[:p["count"]]
 
         self._tile_entries = entries
-        prog=QProgressDialog("Loading tiles…","Cancel",0,len(entries),self)
+        prog=QProgressDialog("Loading tiles...","Cancel",0,len(entries),self)
         prog.setWindowModality(Qt.WindowModality.WindowModal); prog.show()
         for i,entry in enumerate(entries):
             prog.setValue(i); QApplication.processEvents()
@@ -3390,10 +3390,10 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         prog.setValue(len(entries)); self._dirty_tiles=set()
         self.save_btn.setEnabled(True)
         self.RAD_settings.add_recent(str(path))
-        self._set_status(f"Loaded {len(entries)} tiles from {Path(path).name}  — game: {self._game_preset['label']}  grid: {self._game_preset['cols']}×{self._game_preset['rows']}")
+        self._set_status(f"Loaded {len(entries)} tiles from {Path(path).name}  -- game: {self._game_preset['label']}  grid: {self._game_preset['cols']}x{self._game_preset['rows']}")
 
     def _load_standalone_txd(self, path: str): #vers 1
-        """Load a standalone .txd file (GTA III / VC radar — single texture file)."""
+        """Load a standalone .txd file (GTA III / VC radar -- single texture file)."""
         try:
             data = Path(path).read_bytes()
             rgba, w, h, tex_name = RadarTxdReader.read(data)
@@ -3401,7 +3401,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             QMessageBox.critical(self, "TXD Load Error", str(e))
             return
 
-        # Single texture — show as 1x1 grid
+        # Single texture -- show as 1x1 grid
         self._img_reader   = None
         self._img_path     = path
         self._tile_entries = [{"name": tex_name, "offset": 0, "size": len(data)}]
@@ -3416,14 +3416,14 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self._dirty_tiles = set()
         self.save_btn.setEnabled(True)
         self._set_status(
-            f"Loaded standalone TXD: {tex_name}  {w}×{h}px  from {Path(path).name}")
+            f"Loaded standalone TXD: {tex_name}  {w}x{h}px  from {Path(path).name}")
 
 
     def _autodetect(self, count): #vers 4
-        """Detect preset by tile count — authoritative lookup table.
+        """Detect preset by tile count -- authoritative lookup table.
         SA=144(12x12)  III/VC/LCS/VCS=64(8x8)  SOL=1296(36x36)
         Prefers PC variants over mobile."""
-        # Exact count match — prefer PC variants
+        # Exact count match -- prefer PC variants
         pc_order = ["SA PC","III PC","VC PC","LCS PC","VCS PC","SOL",
                     "LCS iOS","III And","VC And","SA And","LCS PSP","VCS PSP"]
         for game in pc_order:
@@ -3440,16 +3440,16 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
                 self._on_game_changed(game)
                 self._set_status(
                     f"Loaded {count} tiles (nearest preset: {p['label']} "
-                    f"{p['cols']}×{p['rows']}) — adjust W/H if wrong")
+                    f"{p['cols']}x{p['rows']}) -- adjust W/H if wrong")
                 return
 
-        # Unknown — sqrt grid
+        # Unknown -- sqrt grid
         cols = max(1, round(math.sqrt(count)))
         rows = (count + cols - 1) // cols
         GAME_PRESETS["Custom"].update({"cols": cols, "rows": rows, "count": count})
         self._on_game_changed("Custom")
         self._set_status(
-            f"Loaded {count} tiles — unknown layout, using {cols}×{rows} "
+            f"Loaded {count} tiles -- unknown layout, using {cols}x{rows} "
             f"(adjust W/H spinners if wrong)")
 
     def _save_file(self): #vers 2
@@ -3485,7 +3485,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
                 slot = e["size"]
 
                 if len(new_data) > slot:
-                    # New tile is larger than original slot — warn but write anyway
+                    # New tile is larger than original slot -- warn but write anyway
                     oversized.append(f"  tile {idx} ({tex_name}): "
                                      f"{len(new_data)} > {slot} bytes")
                     # Pad or truncate to fit original slot
@@ -3513,7 +3513,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
             msg = f"Saved {len(dirty)} tile(s) to {Path(path).name}"
             if oversized:
-                msg += f"\nWarning — {len(oversized)} tile(s) were truncated to fit:"
+                msg += f"\nWarning -- {len(oversized)} tile(s) were truncated to fit:"
                 msg += "\n" + "\n".join(oversized[:5])
                 QMessageBox.warning(self, "Save Complete with Warnings", msg)
             else:
@@ -3529,13 +3529,13 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
     def _edit_tile_popup(self, idx: int = -1): #vers 3
         """Open a tile as a zoom tab in the main view area.
-        Sidebar tools work directly — no separate window needed."""
+        Sidebar tools work directly -- no separate window needed."""
         if idx < 0:
             idx = self._current_idx
         if idx < 0:
             self._set_status("Select a tile first"); return
         if idx not in self._tile_rgba:
-            self._set_status(f"Tile {idx} not yet loaded — click it in the grid first"); return
+            self._set_status(f"Tile {idx} not yet loaded -- click it in the grid first"); return
         name = (self._tile_entries[idx]["name"]
                 if idx < len(self._tile_entries) else f"tile_{idx}")
         self._set_status(f"Opening tile {idx}: {name}")
@@ -3564,9 +3564,9 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self._view_tabs.setCurrentWidget(tile_view)
 
     def _on_view_tab_changed(self, tab_idx: int): #vers 2
-        """When user switches tabs — sync tile selection if it's a tile tab."""
+        """When user switches tabs -- sync tile selection if it's a tile tab."""
         if tab_idx == 0:
-            return  # Map tab — keep whatever tile is currently selected
+            return  # Map tab -- keep whatever tile is currently selected
         w = self._view_tabs.widget(tab_idx)
         tile_idx = getattr(w, '_tile_idx', -1)
         if tile_idx >= 0:
@@ -3595,7 +3595,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
                 break
 
     def _editor_refresh(self, tabs=None): #vers 2
-        """Refresh the current tile tab — called after transforms."""
+        """Refresh the current tile tab -- called after transforms."""
         self._refresh_tile_tab(self._current_idx)
 
     def _on_tile_list_context(self, pos): #vers 1
@@ -3615,9 +3615,9 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         act_paste.setEnabled(hasattr(self, '_clipboard_tile') and self._clipboard_tile is not None)
         menu.addSeparator()
         act_export = menu.addAction(
-            SVGIconFactory.export_icon(16, icon_color), "Export tile as PNG…")
+            SVGIconFactory.export_icon(16, icon_color), "Export tile as PNG...")
         act_import = menu.addAction(
-            SVGIconFactory.import_icon(16, icon_color), "Import tile from PNG…")
+            SVGIconFactory.import_icon(16, icon_color), "Import tile from PNG...")
         menu.addSeparator()
         act_delete = menu.addAction(
             SVGIconFactory.delete_icon(16, icon_color), "Delete tile (reset to blank)")
@@ -3649,14 +3649,14 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             self._delete_single_tile(idx)
 
     def _export_single_tile(self, idx: int): #vers 2
-        """Export a single tile as PNG/BMP — exports true colour data."""
+        """Export a single tile as PNG/BMP -- exports true colour data."""
         if idx not in self._tile_rgba:
             QMessageBox.information(self, "No Data",
-                "Tile not loaded — click it in the grid first."); return
+                "Tile not loaded -- click it in the grid first."); return
         name = self._tile_entries[idx]["name"] if idx < len(self._tile_entries) else f"tile_{idx}"
         stem = Path(name).stem
         path, _ = QFileDialog.getSaveFileName(
-            self, f"Export tile — {stem}", f"{stem}.png",
+            self, f"Export tile -- {stem}", f"{stem}.png",
             "PNG Image (*.png);;BMP Image (*.bmp);;All Files (*)")
         if not path: return
         try:
@@ -3666,15 +3666,15 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             if path.lower().endswith('.bmp'):
                 img = img.convert("RGB")
             img.save(path)
-            self._set_status(f"Exported tile {idx} ({name}) → {Path(path).name}  {TILE_W}×{TILE_H}")
+            self._set_status(f"Exported tile {idx} ({name}) -> {Path(path).name}  {TILE_W}x{TILE_H}")
         except Exception as e:
             QMessageBox.critical(self, "Export Error", str(e))
 
     def _import_single_tile(self, idx: int): #vers 2
-        """Import a single tile from PNG/BMP/TGA — auto-resizes to 128×128."""
+        """Import a single tile from PNG/BMP/TGA -- auto-resizes to 128x128."""
         name = self._tile_entries[idx]["name"] if idx < len(self._tile_entries) else f"tile_{idx}"
         path, _ = QFileDialog.getOpenFileName(
-            self, f"Import tile — {name}", "",
+            self, f"Import tile -- {name}", "",
             "Images (*.png *.bmp *.jpg *.jpeg *.tga *.tif *.webp);;All Files (*)")
         if not path: return
         try:
@@ -3690,7 +3690,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
                 self._palette_widget.set_colors_from_rgba(rgba, TILE_W, TILE_H)
             self._set_status(
                 f"Imported tile {idx} ({name}) from {Path(path).name} "
-                f"({src_w}×{src_h} → {TILE_W}×{TILE_H})")
+                f"({src_w}x{src_h} -> {TILE_W}x{TILE_H})")
         except Exception as e:
             QMessageBox.critical(self, "Import Error", str(e))
 
@@ -3715,18 +3715,18 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
                 else self._game_preset["name_fn"](row))
         # Determine format/bitdepth from current preset
         lbl = self._game_preset.get("label", "")
-        if "PS2" in lbl:   fmt = "PAL8 · 8bpp"
-        elif "Xbox" in lbl: fmt = "DXT1 · 4bpp"
-        elif "iOS" in lbl or "PVR" in lbl: fmt = "PVRTC · 4bpp"
-        else:               fmt = "DXT1 · 4bpp"
+        if "PS2" in lbl:   fmt = "PAL8 . 8bpp"
+        elif "Xbox" in lbl: fmt = "DXT1 . 4bpp"
+        elif "iOS" in lbl or "PVR" in lbl: fmt = "PVRTC . 4bpp"
+        else:               fmt = "DXT1 . 4bpp"
         mod = "  [modified]" if row in self._dirty_tiles else ""
-        self._set_status(f"Tile {row}  |  {name}  |  {TILE_W}×{TILE_H}  {fmt}{mod}")
+        self._set_status(f"Tile {row}  |  {name}  |  {TILE_W}x{TILE_H}  {fmt}{mod}")
         # Update palette from tile colours
         if hasattr(self, '_palette_widget') and row in self._tile_rgba:
             self._palette_widget.set_colors_from_rgba(self._tile_rgba[row], TILE_W, TILE_H)
 
     def _on_grid_color_picked(self, color: QColor, is_left: bool): #vers 2
-        """Grid emits this on every click — only act if dropper tool is active."""
+        """Grid emits this on every click -- only act if dropper tool is active."""
         if getattr(self, '_draw_tool', '') != 'picker':
             return
         # Alpha pending: this pick sets the key colour
@@ -3742,7 +3742,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self._set_status(f"Picked {which}: {color.name()}  ({color.red()},{color.green()},{color.blue()})")
 
     def _on_grid_click(self, idx): #vers 3
-        """Grid tile clicked — set _current_idx directly then sync list."""
+        """Grid tile clicked -- set _current_idx directly then sync list."""
         self._current_idx = idx          # set first, before any signal fires
         self._radar.set_selected(idx)
         self._tile_list.blockSignals(True)
@@ -3751,7 +3751,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self._on_list_row(idx)           # update palette, status bar etc.
 
     def _on_grid_right_click(self, idx: int, gpos): #vers 1
-        """Right-click on grid tile — context menu with edit/colour/export."""
+        """Right-click on grid tile -- context menu with edit/colour/export."""
         from PyQt6.QtWidgets import QMenu
         name = (self._tile_entries[idx]["name"]
                 if idx < len(self._tile_entries) else f"tile_{idx}")
@@ -3768,8 +3768,8 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         act_swap   = menu.addAction("Replace dominant colour with FG")
         act_fill   = menu.addAction("Fill tile solid with FG colour")
         menu.addSeparator()
-        act_export = menu.addAction(SVGIconFactory.export_icon(16, icon_c),  "Export tile as PNG…")
-        act_import = menu.addAction(SVGIconFactory.import_icon(16, icon_c),  "Import tile from PNG…")
+        act_export = menu.addAction(SVGIconFactory.export_icon(16, icon_c),  "Export tile as PNG...")
+        act_import = menu.addAction(SVGIconFactory.import_icon(16, icon_c),  "Import tile from PNG...")
         menu.addSeparator()
         act_delete = menu.addAction(SVGIconFactory.delete_icon(16, icon_c),  "Reset tile to blank")
 
@@ -3796,7 +3796,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             self._delete_single_tile(idx)
 
     def _apply_tile_data(self, idx: int, rgba: bytes): #vers 2
-        """Apply rgba bytes to a tile slot — updates grid, list thumb, dirty."""
+        """Apply rgba bytes to a tile slot -- updates grid, list thumb, dirty."""
         tw, th = self._tw, self._th
         self._push_undo(idx)
         self._tile_rgba[idx] = rgba
@@ -3860,13 +3860,13 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
                     y = (idx // cols) * TILE_H
                     sheet.paste(Image.frombytes("RGBA", (TILE_W, TILE_H), rgba), (x, y))
                     exported += 1
-            # BMP doesn't support alpha — convert to RGB
+            # BMP doesn't support alpha -- convert to RGB
             if path.lower().endswith('.bmp'):
                 sheet = sheet.convert("RGB")
             sheet.save(path)
             w_px, h_px = cols * TILE_W, rows * TILE_H
             self._set_status(
-                f"Exported {exported} tiles → {Path(path).name}  ({w_px}×{h_px}px)")
+                f"Exported {exported} tiles -> {Path(path).name}  ({w_px}x{h_px}px)")
         except Exception as e:
             QMessageBox.critical(self, "Export Error", str(e))
 
@@ -3888,14 +3888,14 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             th = sheet.height // rows
             if tw <= 0 or th <= 0:
                 QMessageBox.warning(self, "Import Error",
-                    f"Image size {sheet.width}×{sheet.height} is too small for "
-                    f"{cols}×{rows} grid.")
+                    f"Image size {sheet.width}x{sheet.height} is too small for "
+                    f"{cols}x{rows} grid.")
                 return
             # Progress dialog for large maps (SOL = 1296 tiles)
             prog = None
             total = min(count, cols * rows)
             if total > 64:
-                prog = QProgressDialog(f"Importing {total} tiles…", "Cancel", 0, total, self)
+                prog = QProgressDialog(f"Importing {total} tiles...", "Cancel", 0, total, self)
                 prog.setWindowModality(Qt.WindowModality.WindowModal)
                 prog.show()
 
@@ -3924,13 +3924,13 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
                     self._tile_rgba[0], TILE_W, TILE_H)
             self._set_status(
                 f"Imported {imported} tiles from {Path(path).name}  "
-                f"(sliced {cols}×{rows} from {sheet.width}×{sheet.height}px)")
+                f"(sliced {cols}x{rows} from {sheet.width}x{sheet.height}px)")
         except Exception as e:
             QMessageBox.critical(self, "Import Error", str(e))
 
     # - Grid nav
     def _zoom(self, f): #vers 3
-        """Scale the radar grid — uses RadarGridWidget zoom factor."""
+        """Scale the radar grid -- uses RadarGridWidget zoom factor."""
         if hasattr(self, '_radar'):
             self._radar._zoom_factor = max(0.1, min(10.0, self._radar._zoom_factor * f))
             self._radar.update()
@@ -3952,10 +3952,10 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         preset = self._game_preset
         cols = preset["cols"]; rows = preset.get("rows", 8)
         if self._grid_zoom <= 1.0:
-            # Fit mode — let scroll area control size
+            # Fit mode -- let scroll area control size
             self._radar.setMinimumSize(0, 0)
         else:
-            # Fixed size mode — set explicit size
+            # Fixed size mode -- set explicit size
             cell = max(4, int(self._grid_zoom * min(vp_w // cols, vp_h // rows)))
             self._radar.setMinimumSize(cell * cols, cell * rows)
         self._radar.update()
@@ -3995,7 +3995,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
     # - Info / Settings / Theme
     def _open_recent(self, path: str): #vers 2
-        """Open a recently used IMG file — uses same logic as _open_file."""
+        """Open a recently used IMG file -- uses same logic as _open_file."""
         import os
         if not os.path.isfile(path):
             QMessageBox.warning(self, "File Not Found",
@@ -4013,7 +4013,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self._set_status("Recent files cleared")
 
     def _show_stats(self): #vers 1
-        """Map statistics — unique colours, duplicate tiles, modified count."""
+        """Map statistics -- unique colours, duplicate tiles, modified count."""
         from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QPushButton
         if not self._tile_rgba:
             QMessageBox.information(self, "No Data", "Load an IMG file first."); return
@@ -4053,7 +4053,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             for h, idxs in list(duplicates.items())[:8]:
                 names = [self._tile_entries[i]["name"] if i < len(self._tile_entries)
                          else f"tile_{i}" for i in idxs[:4]]
-                lines.append(f"  {', '.join(names)}{'…' if len(idxs)>4 else ''}")
+                lines.append(f"  {', '.join(names)}{'...' if len(idxs)>4 else ''}")
 
         dlg = QDialog(self)
         dlg.setWindowTitle("Map Statistics")
@@ -4071,7 +4071,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         dlg.exec()
 
     def _start_boredom(self): #vers 1
-        """🧩 Boredom! — sliding puzzle using radar tiles."""
+        """_ Boredom! -- sliding puzzle using radar tiles."""
         if not self._tile_rgba:
             QMessageBox.information(self, "Boredom!", "Load radar tiles first!"); return
         cols = self._game_preset.get("cols", 8)
@@ -4088,7 +4088,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QTabWidget,
                                      QWidget, QTextEdit, QPushButton, QHBoxLayout)
         dlg = QDialog(self)
-        dlg.setWindowTitle(f"Radar Workshop — Help & Information")
+        dlg.setWindowTitle(f"Radar Workshop -- Help & Information")
         dlg.setMinimumSize(520, 560)
         dlg.resize(560, 600)
         layout = QVBoxLayout(dlg)
@@ -4105,17 +4105,17 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         #    Quick Start                                                         
         # STUB: add App_name/App_build/App_auth above Quickstart section
         quickstart = """<p style="font-size:11px; color:#888; margin-bottom:8px;">
-<b>{}</b> &nbsp;·&nbsp; {}&nbsp;·&nbsp; {}&nbsp;·&nbsp; {}
+<b>{}</b> &nbsp;.&nbsp; {}&nbsp;.&nbsp; {}&nbsp;.&nbsp; {}
 </p>
 <hr>
 <h3>Quick Start</h3>""".format(App_name, Build, App_build, App_auth) + """
 <ol>
 <li>
-<li><b>Open an IMG file</b> — click the <b>Open</b> button or press <b>Ctrl+O</b>.<br>
+<li><b>Open an IMG file</b> -- click the <b>Open</b> button or press <b>Ctrl+O</b>.<br>
     Load <code>gta3.img</code> for GTA III / VC / SA / LCS / VCS, or <code>RadarTex.img</code> for SOL.</li>
-<li><b>Game auto-detected</b> by tile count — 64 tiles = 8×8 grid, 144 = 12×12, 1296 = 36×36.</li>
+<li><b>Game auto-detected</b> by tile count -- 64 tiles = 8x8 grid, 144 = 12x12, 1296 = 36x36.</li>
 <li><b>Click a tile</b> in the left list or the grid to select it.</li>
-<li><b>Double-click a tile</b> (or press <b>E</b>) to open a zoomed 512px edit popup — useful for SOL.</li>
+<li><b>Double-click a tile</b> (or press <b>E</b>) to open a zoomed 512px edit popup -- useful for SOL.</li>
 <li><b>Draw</b> on the selected tile using the tools on the right sidebar.</li>
 <li><b>Save</b> changes back to the IMG file with the Save button (Ctrl+S).</li>
 </ol>
@@ -4134,38 +4134,38 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
         #    Tile List                                                           
         tilelist = """<h3>Tile List (Left Panel)</h3>
-<p>Shows all radar tiles with 64×64 thumbnail, name, game badge [SA] / [VC] etc., and tile size.</p>
+<p>Shows all radar tiles with 64x64 thumbnail, name, game badge [SA] / [VC] etc., and tile size.</p>
 <ul>
-<li><b>Click</b> — select and view tile in the grid.</li>
-<li><b>Double-click</b> — open zoomed edit popup (512×512).</li>
-<li><b>Right-click</b> — context menu:
+<li><b>Click</b> -- select and view tile in the grid.</li>
+<li><b>Double-click</b> -- open zoomed edit popup (512x512).</li>
+<li><b>Right-click</b> -- context menu:
   <ul>
-  <li><b>Export tile as PNG/BMP</b> — save single tile to file.</li>
-  <li><b>Import tile from PNG/BMP</b> — replace tile (auto-resizes to 128×128).</li>
-  <li><b>Delete tile</b> — reset to blank transparent black.</li>
+  <li><b>Export tile as PNG/BMP</b> -- save single tile to file.</li>
+  <li><b>Import tile from PNG/BMP</b> -- replace tile (auto-resizes to 128x128).</li>
+  <li><b>Delete tile</b> -- reset to blank transparent black.</li>
   </ul>
 </li>
 </ul>
 <h3>Right Sidebar</h3>
 <ul>
-<li><b>🔍+ / 🔍−</b> — Zoom in / Zoom out on the grid.</li>
-<li><b>Fit / Jump</b> — fit grid to window / scroll to selected tile.</li>
-<li><b>Pencil / Line / Fill / Dropper</b> — draw tools (also P/L/F/K keys).</li>
-<li><b>Edit tile</b> — open zoomed 512px popup for detailed editing.</li>
-<li><b>Rotate ±90° / Flip H/V</b> — transform the current tile (uses PIL).</li>
-<li><b>FG/BG swatches</b> — foreground / background colour; click to pick.</li>
-<li><b>Palette</b> — colours extracted from current tile. Left-click = FG, right-click = BG.</li>
+<li><b>_+ / __</b> -- Zoom in / Zoom out on the grid.</li>
+<li><b>Fit / Jump</b> -- fit grid to window / scroll to selected tile.</li>
+<li><b>Pencil / Line / Fill / Dropper</b> -- draw tools (also P/L/F/K keys).</li>
+<li><b>Edit tile</b> -- open zoomed 512px popup for detailed editing.</li>
+<li><b>Rotate _90_ / Flip H/V</b> -- transform the current tile (uses PIL).</li>
+<li><b>FG/BG swatches</b> -- foreground / background colour; click to pick.</li>
+<li><b>Palette</b> -- colours extracted from current tile. Left-click = FG, right-click = BG.</li>
 </ul>"""
 
         #    Export/Import                                                       
         exportinfo = """<h3>Export / Import Full Map</h3>
 <p>The <b>Export</b> button saves all loaded tiles assembled into one full-size PNG or BMP.</p>
 <ul>
-<li>SA export = 1536×1536px (12×12 tiles × 128px)</li>
-<li>VC/III/LCS/VCS = 1024×1024px (8×8 × 128px)</li>
-<li>SOL = 4608×4608px (36×36 × 128px)</li>
+<li>SA export = 1536x1536px (12x12 tiles x 128px)</li>
+<li>VC/III/LCS/VCS = 1024x1024px (8x8 x 128px)</li>
+<li>SOL = 4608x4608px (36x36 x 128px)</li>
 </ul>
-<p>The <b>Import</b> button loads a PNG/BMP and slices it into tiles automatically using the current grid dimensions. Any size image is accepted — it's resampled to fit.</p>
+<p>The <b>Import</b> button loads a PNG/BMP and slices it into tiles automatically using the current grid dimensions. Any size image is accepted -- it's resampled to fit.</p>
 <h3>Recent Files</h3>
 <p>The <b>File &gt; Recent Files</b> menu remembers the last 10 opened IMG archives. Window size and position are also saved automatically.</p>"""
 
@@ -4173,20 +4173,20 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         formats = """<h3>Supported Formats</h3>
 <table border=1 cellpadding=4 cellspacing=0>
 <tr><th>Game</th><th>File</th><th>Tiles</th><th>Grid</th><th>Format</th></tr>
-<tr><td>GTA III PC/PS2/Xbox</td><td>gta3.img</td><td>64</td><td>8×8</td><td>DXT1 TXD</td></tr>
-<tr><td>GTA VC PC/PS2/Xbox</td><td>gta3.img</td><td>64</td><td>8×8</td><td>DXT1 TXD</td></tr>
-<tr><td>GTA SA PC/PS2/Xbox</td><td>gta3.img</td><td>144</td><td>12×12</td><td>DXT1 TXD</td></tr>
-<tr><td>GTA LCS PC/PS2</td><td>gta3.img</td><td>64</td><td>8×8</td><td>DXT1 TXD</td></tr>
-<tr><td>GTA VCS PC/PS2</td><td>gta3.img</td><td>64</td><td>8×8</td><td>DXT1 TXD</td></tr>
-<tr><td>GTA SOL PC</td><td>RadarTex.img</td><td>1296</td><td>36×36</td><td>DXT1 TXD</td></tr>
-<tr><td>GTA III Android</td><td>gta3_unc.img</td><td>1</td><td>1×1</td><td>Single 256×256 TXD</td></tr>
-<tr><td>GTA LCS iOS</td><td>gta3.pvr</td><td>64</td><td>8×8</td><td>PVRTC TXD</td></tr>
+<tr><td>GTA III PC/PS2/Xbox</td><td>gta3.img</td><td>64</td><td>8x8</td><td>DXT1 TXD</td></tr>
+<tr><td>GTA VC PC/PS2/Xbox</td><td>gta3.img</td><td>64</td><td>8x8</td><td>DXT1 TXD</td></tr>
+<tr><td>GTA SA PC/PS2/Xbox</td><td>gta3.img</td><td>144</td><td>12x12</td><td>DXT1 TXD</td></tr>
+<tr><td>GTA LCS PC/PS2</td><td>gta3.img</td><td>64</td><td>8x8</td><td>DXT1 TXD</td></tr>
+<tr><td>GTA VCS PC/PS2</td><td>gta3.img</td><td>64</td><td>8x8</td><td>DXT1 TXD</td></tr>
+<tr><td>GTA SOL PC</td><td>RadarTex.img</td><td>1296</td><td>36x36</td><td>DXT1 TXD</td></tr>
+<tr><td>GTA III Android</td><td>gta3_unc.img</td><td>1</td><td>1x1</td><td>Single 256x256 TXD</td></tr>
+<tr><td>GTA LCS iOS</td><td>gta3.pvr</td><td>64</td><td>8x8</td><td>PVRTC TXD</td></tr>
 </table>
 <h3>Not Yet Supported</h3>
 <ul>
-<li>SA/LCS Android &amp; iOS — TOC/TMB/DAT encrypted format</li>
-<li>LCS/VCS PSP — GIM/XTX ('xet\0') format</li>
-<li>VC Android — texdb format</li>
+<li>SA/LCS Android &amp; iOS -- TOC/TMB/DAT encrypted format</li>
+<li>LCS/VCS PSP -- GIM/XTX ('xet\0') format</li>
+<li>VC Android -- texdb format</li>
 </ul>"""
 
         tabs.addTab(_tab(quickstart), "Quick Start")
@@ -4205,19 +4205,19 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
     def _show_info(self): #vers 1
         lines = [
             f"<b>{App_name}</b>  Build {Build}",
-            f"Author: {App_auth}  —  {App_build}",
+            f"Author: {App_auth}  --  {App_build}",
             "",
             "GTA radar tile editor",
-            "Supports: SA · VC · VCS · LC · LCS · SOL · Custom",
+            "Supports: SA . VC . VCS . LC . LCS . SOL . Custom",
             "",
             f"IMG loaded: {Path(self._img_path).name if self._img_path else 'None'}",
             f"Tiles loaded: {len(self._tile_rgba)}",
             f"Modified tiles: {len(self._dirty_tiles)}",
         ]
-        QMessageBox.information(self, App_name + " — Info", "\n".join(lines))
+        QMessageBox.information(self, App_name + " -- Info", "\n".join(lines))
 
 
-    def _show_settings_dialog(self): #vers 1  (theme button → launch global theme engine)
+    def _show_settings_dialog(self): #vers 1  (theme button -> launch global theme engine)
         try:
             from apps.utils.app_settings_system import AppSettings, SettingsDialog
             if not hasattr(self, 'app_settings') or self.app_settings is None:
@@ -4527,7 +4527,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
     def paintEvent(self, event): #Vers 2
         super().paintEvent(event)
-        # Corner handles drawn by _corner_overlay — see _setup_corner_overlay
+        # Corner handles drawn by _corner_overlay -- see _setup_corner_overlay
 
     def _setup_corner_overlay(self): #vers 4
         """Create or refresh the corner resize overlay."""
@@ -4598,11 +4598,11 @@ __all__ = ["RadarWorkshop", "open_radar_workshop"]
 if __name__ == "__main__": #Vers 1
     import traceback
 
-    print(App_name + " starting…")
+    print(App_name + " starting...")
     try:
         app = QApplication(sys.argv)
         w = RadarWorkshop()
-        w.setWindowTitle(App_name + " – Standalone")
+        w.setWindowTitle(App_name + " - Standalone")
         w.resize(1300, 800); w.show(); sys.exit(app.exec())
     except Exception as e:
         print(f"ERROR: {e}")
@@ -4610,13 +4610,13 @@ if __name__ == "__main__": #Vers 1
 
 
 # =============================================================================
-# PATH WORKSHOP — node/train/flight/spath editors on top of RadarWorkshop UI
+# PATH WORKSHOP -- node/train/flight/spath editors on top of RadarWorkshop UI
 # =============================================================================
 
 import re as _re, struct as _struct
 from dataclasses import dataclass as _dataclass, field as _field
 
-# ── File routing ──────────────────────────────────────────────────────────────
+# -- File routing --------------------------------------------------------------
 _FILE_ROUTES = {
     # SA binary nodes (from gta3.img)
     "nodes":   (0,"gta3"),
@@ -4633,7 +4633,7 @@ _FILE_ROUTES = {
     "spath0":  (3,None),
 }
 
-# ── Waypoint data class ───────────────────────────────────────────────────────
+# -- Waypoint data class -------------------------------------------------------
 @_dataclass
 class _Waypoint: #vers 1
     x: float = 0.0
@@ -4643,7 +4643,7 @@ class _Waypoint: #vers 1
     flags: int = 0
     comment: str = ""
 
-# ── Text path parser (train/flight/spath) ─────────────────────────────────────
+# -- Text path parser (train/flight/spath) -------------------------------------
 class _TextPathParser: #vers 1
     def __init__(self):
         self.waypoints = []
@@ -4681,7 +4681,7 @@ class _TextPathParser: #vers 1
         except Exception as ex:
             print(f"_TextPathParser.save: {ex}"); return False
 
-# ── SA paths.ipl parser ───────────────────────────────────────────────────────
+# -- SA paths.ipl parser -------------------------------------------------------
 class _IplPathParser: #vers 1
     def __init__(self):
         self.waypoints = []
@@ -4710,7 +4710,7 @@ class _IplPathParser: #vers 1
         except Exception as ex:
             print(f"_IplPathParser.load: {ex}"); return False
 
-# ── Waypoint list tab ─────────────────────────────────────────────────────────
+# -- Waypoint list tab ---------------------------------------------------------
 class _WaypointTab(QWidget): #vers 1
     def __init__(self, has_speed=True, parent=None):
         super().__init__(parent)
@@ -4745,14 +4745,14 @@ class _WaypointTab(QWidget): #vers 1
             for i,w in enumerate(wps):
                 self._list.addItem(f"[{i:4d}] {w.x:9.2f} {w.y:9.2f} {w.z:7.2f}"
                                    + (f"  spd:{w.speed:.1f}" if self._has_speed else ""))
-            self._status.setText(f"{os.path.basename(path)} — {len(wps)} waypoints")
+            self._status.setText(f"{os.path.basename(path)} -- {len(wps)} waypoints")
         return ok
 
     @property
     def current_path(self): return self._path
 
 
-# ── PathWorkshop — RadarWorkshop + path tabs ──────────────────────────────────
+# -- PathWorkshop -- RadarWorkshop + path tabs ----------------------------------
 class PathWorkshop(RadarWorkshop): #vers 1
     """Full RadarWorkshop UI with path editing tabs injected into _view_tabs."""
 
@@ -4801,7 +4801,7 @@ class PathWorkshop(RadarWorkshop): #vers 1
         super()._build_menus_into_qmenu(pm)
         pm.addSeparator()
         paths_m = pm.addMenu("Paths")
-        paths_m.addAction("Open Path File…", self._open_file)
+        paths_m.addAction("Open Path File...", self._open_file)
         paths_m.addSeparator()
         paths_m.addAction("Open nodes.dat (GTA3/VC)",
                           lambda: self._open_specific("nodes.dat"))
