@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/Water_Editor/water_workshop.py - Version: 13
+# apps/components/Water_Editor/water_workshop.py - Version: 14
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Water Workshop
 # Built on temp_workshop.py / GUIWorkshop base
 
@@ -275,17 +275,11 @@ class WaterGridWidget(QWidget):
         self.update()
 
 
-    def _cell_col(self, val: int) -> QColor: #vers 1
+    def _cell_col(self, val: int) -> QColor: #vers 2
         if val == 128:
             return self.COL_WATER if self._colour_flipped else self.COL_DRY
-        elif val == 0:
-            return self.COL_DRY if self._colour_flipped else self.COL_WATER
         else:
-            idx = min(val, len(self.COL_LEVELS) - 1)
-            col = self.COL_LEVELS[idx]
-            if self._colour_flipped:
-                return QColor(255-col.red(), 255-col.green(), 255-col.blue(), 255)
-            return col
+            return self.COL_DRY if self._colour_flipped else self.COL_WATER
 
 
     def _ts(self): #vers 1
