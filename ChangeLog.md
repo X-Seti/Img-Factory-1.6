@@ -1,4 +1,19 @@
-#this belongs in root /ChangeLog.md - Version: 65
+#this belongs in root /ChangeLog.md - Version: 66
+
+## June 2026 - Path Workshop tabs + routing
+
+**smart_file_router.py v2:**
+- Added nodes.dat, nodes0-8.dat, paths.ipl, paths2-5.ipl, tracks.dat, tracks2.dat routes to Path Workshop
+- All path file types now open directly in Path Workshop from dat_browser and directory_tree_browser
+
+**path_workshop.py v21:**
+- Removed emoji tab labels (Nodes/Train/Flight/Static) - rule 18
+- Removed all non-ASCII characters (em dash, middle dot, box drawing chars)
+
+**Paths-Workshop repo (paths_workshop.py v3):**
+- Added _Waypoint, _TextPathParser, _IplPathParser, _WaypointTab classes
+- _make_text_tab now uses _WaypointTab directly - train/flight/spath tabs functional
+- Removed non-ASCII characters
 
 ## May 2026 - DFFViewport refactor + texture/UV fixes
 
