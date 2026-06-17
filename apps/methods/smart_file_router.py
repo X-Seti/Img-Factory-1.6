@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/smart_file_router.py - Version: 2
+#this belongs in apps/methods/smart_file_router.py - Version: 3
 # X-Seti - May08 2026 - Img Factory 1.6 - Smart File Router
 
 """
@@ -41,7 +41,9 @@ _ROUTE_MAP = {
     "flight2.dat":   ("Path Workshop (Flight 2)",      "_launch_path_workshop"),
     "flight3.dat":   ("Path Workshop (Flight 3)",      "_launch_path_workshop"),
     "spath0.dat":    ("Path Workshop (Static)",        "_launch_path_workshop"),
-    # Vehicle Workshop tabs
+    # Water Workshop
+    "waterpro.dat":  ("Water Workshop",                "_launch_water_workshop"),
+    "water.dat":     ("Water Workshop",                "_launch_water_workshop"),
     "handling.cfg":  ("Vehicle Workshop (Handling)",   "_launch_vehicle_workshop"),
     "carcols.dat":   ("Vehicle Workshop (Car Colours)", "_launch_vehicle_workshop"),
     "carmods.dat":   ("Vehicle Workshop (Car Mods)",    "_launch_vehicle_workshop"),
@@ -84,7 +86,23 @@ def open_smart_editor(file_path: str, main_window=None) -> bool: #vers 1
     if entry and entry[1]:
         launcher = entry[1]
         try:
-            if launcher == "_launch_path_workshop":
+            if launcher == "_launch_water_workshop":
+                from apps.components.Water_Editor.water_workshop import WaterWorkshop
+                from PyQt6.QtWidgets import QApplication
+                for w in QApplication.topLevelWidgets():
+                    if isinstance(w, WaterWorkshop):
+                        w._load_file(file_path)
+                        w.raise_(); w.activateWindow()
+                        _log(main_window, f"Water Workshop: {os.path.basename(file_path)}")
+                        return True
+                ww = WaterWorkshop(main_window=main_window)
+                ww.resize(1300, 800)
+                ww.show()
+                ww._load_file(file_path)
+                _log(main_window, f"Water Workshop: {os.path.basename(file_path)}")
+                return True
+
+            elif launcher == "_launch_path_workshop":
                 from apps.components.Path_Workshop.path_workshop import open_path_workshop
                 open_path_workshop(main_window, path=file_path)
                 _log(main_window, f"Path Workshop: {os.path.basename(file_path)}")
