@@ -4773,10 +4773,10 @@ class PathWorkshop(RadarWorkshop): #vers 1
         self._tab_train  = _WaypointTab(has_speed=True)
         self._tab_flight = _WaypointTab(has_speed=True)
         self._tab_spath  = _WaypointTab(has_speed=False)
-        self._view_tabs.addTab(self._tab_nodes,  "🗺 Nodes")
-        self._view_tabs.addTab(self._tab_train,  "🚂 Train")
-        self._view_tabs.addTab(self._tab_flight, "✈ Flight")
-        self._view_tabs.addTab(self._tab_spath,  "📍 Static")
+        self._view_tabs.addTab(self._tab_nodes,  "Nodes")
+        self._view_tabs.addTab(self._tab_train,  "Train")
+        self._view_tabs.addTab(self._tab_flight, "Flight")
+        self._view_tabs.addTab(self._tab_spath,  "Static")
         if main_window := getattr(self, 'main_window', None):
             if hasattr(self, 'toolbar'): self.toolbar.hide()
 

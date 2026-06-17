@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/smart_file_router.py - Version: 1
+#this belongs in apps/methods/smart_file_router.py - Version: 2
 # X-Seti - May08 2026 - Img Factory 1.6 - Smart File Router
 
 """
@@ -18,12 +18,29 @@ import os
 # Map: lowercase filename → (editor_label, launcher_function_name)
 _ROUTE_MAP = {
     # Path Workshop
-    "train.dat":     ("Path Workshop (Train)",   "_launch_path_workshop"),
-    "train2.dat":    ("Path Workshop (Train 2)", "_launch_path_workshop"),
-    "flight.dat":    ("Path Workshop (Flight)",  "_launch_path_workshop"),
-    "flight2.dat":   ("Path Workshop (Flight 2)","_launch_path_workshop"),
-    "flight3.dat":   ("Path Workshop (Flight 3)","_launch_path_workshop"),
-    "spath0.dat":    ("Path Workshop (Static)",  "_launch_path_workshop"),
+    "nodes.dat":     ("Path Workshop (Nodes GTA3/VC)", "_launch_path_workshop"),
+    "nodes0.dat":    ("Path Workshop (Nodes SA)",      "_launch_path_workshop"),
+    "nodes1.dat":    ("Path Workshop (Nodes SA)",      "_launch_path_workshop"),
+    "nodes2.dat":    ("Path Workshop (Nodes SA)",      "_launch_path_workshop"),
+    "nodes3.dat":    ("Path Workshop (Nodes SA)",      "_launch_path_workshop"),
+    "nodes4.dat":    ("Path Workshop (Nodes SA)",      "_launch_path_workshop"),
+    "nodes5.dat":    ("Path Workshop (Nodes SA)",      "_launch_path_workshop"),
+    "nodes6.dat":    ("Path Workshop (Nodes SA)",      "_launch_path_workshop"),
+    "nodes7.dat":    ("Path Workshop (Nodes SA)",      "_launch_path_workshop"),
+    "nodes8.dat":    ("Path Workshop (Nodes SA)",      "_launch_path_workshop"),
+    "paths.ipl":     ("Path Workshop (SA Paths)",      "_launch_path_workshop"),
+    "paths2.ipl":    ("Path Workshop (SA Paths)",      "_launch_path_workshop"),
+    "paths3.ipl":    ("Path Workshop (SA Paths)",      "_launch_path_workshop"),
+    "paths4.ipl":    ("Path Workshop (SA Paths)",      "_launch_path_workshop"),
+    "paths5.ipl":    ("Path Workshop (SA Paths)",      "_launch_path_workshop"),
+    "train.dat":     ("Path Workshop (Train)",         "_launch_path_workshop"),
+    "train2.dat":    ("Path Workshop (Train 2)",       "_launch_path_workshop"),
+    "tracks.dat":    ("Path Workshop (Train)",         "_launch_path_workshop"),
+    "tracks2.dat":   ("Path Workshop (Train)",         "_launch_path_workshop"),
+    "flight.dat":    ("Path Workshop (Flight)",        "_launch_path_workshop"),
+    "flight2.dat":   ("Path Workshop (Flight 2)",      "_launch_path_workshop"),
+    "flight3.dat":   ("Path Workshop (Flight 3)",      "_launch_path_workshop"),
+    "spath0.dat":    ("Path Workshop (Static)",        "_launch_path_workshop"),
     # Vehicle Workshop tabs
     "handling.cfg":  ("Vehicle Workshop (Handling)",   "_launch_vehicle_workshop"),
     "carcols.dat":   ("Vehicle Workshop (Car Colours)", "_launch_vehicle_workshop"),
