@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 X-Seti - Apr 2026 - IMG Factory 1.6 - Root Launcher
-#this belongs in root /launch_imgfactory.py - version 2
+#this belongs in root /launch_imgfactory.py - version 3
 
 Usage:
     python3 launch_imgfactory.py
@@ -51,6 +51,12 @@ _configure_display()
 root_dir = Path(__file__).parent.resolve()
 if str(root_dir) not in sys.path:
     sys.path.insert(0, str(root_dir))
+
+#    Dependency check                                                            
+from apps.core.dependency_check import run_startup_check
+
+if not run_startup_check():
+    sys.exit(1)
 
 #    Launch                                                                      
 if __name__ == '__main__':

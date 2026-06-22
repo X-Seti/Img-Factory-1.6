@@ -122,15 +122,38 @@ All per-tool settings are stored as JSON in `~/.config/imgfactory/`:
 
 ## Requirements
 
+Python modules (installed via pip):
+
 ```
 PyQt6 >= 6.4
 PyQt6-Qt6
-pillow (optional — some TXD format support)
+Pillow
+numpy
+send2trash
 ```
 
 ```bash
-pip install PyQt6 pillow
+pip install -r requirements.txt
 ```
+
+### Linux / WSL system libraries
+
+PyQt6 also needs system-level Qt6/XCB libraries that pip does not install.
+Without these the app will fail to start, or on WSL specifically may hang
+with no error on launch.
+
+Run the setup script once after cloning — it detects your distro
+(Ubuntu/Debian, Arch, Fedora, openSUSE) and WSL, then installs the correct
+system packages and Python modules:
+
+```bash
+chmod +x setup_imgfactory.sh
+./setup_imgfactory.sh
+```
+
+WSL2 (Windows 11) needs WSLg, which ships by default. WSL2 (Windows 10)
+needs VcXsrv running separately with "Disable access control" checked.
+See `setup_imgfactory.sh` for details.
 
 ---
 

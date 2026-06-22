@@ -1,2 +1,4 @@
 send2trash
 PyQt6
+Pillow
+numpy
