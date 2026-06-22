@@ -75,7 +75,7 @@ check_project_structure() {
     echo -e "${BLUE}Checking project structure...${NC}"
     
     local required_files=("imgfactory.py")
-    local optional_files=("launch_imgfactory.py" "methods.img_core_classes.py" "gui/gui_layout.py")
+    local optional_files=("launch.py" "methods.img_core_classes.py" "gui/gui_layout.py")
     local directories=("components" "gui")
     
     local missing_required=()
@@ -174,9 +174,9 @@ launch_application() {
     echo ""
     
     # Try modern launcher first
-    if [[ -f "launch_imgfactory.py" ]]; then
+    if [[ -f "launch.py" ]]; then
         echo -e "${BLUE}Using modern launcher...${NC}"
-        $python_cmd launch_imgfactory.py
+        $python_cmd launch.py 1
         return $?
     else
         echo -e "${BLUE}Using direct launch...${NC}"

@@ -281,7 +281,7 @@ def configure_display(env: dict): #vers 1
         print("    Windows 11: WSLg provides display automatically — nothing needed.")
         print("    Windows 10: install VcXsrv, launch with 'Disable access control',")
         print("                then: export DISPLAY=:0.0")
-        print("    launch_imgfactory.py sets QT_QPA_PLATFORM=xcb automatically.")
+        print("    launch.py sets QT_QPA_PLATFORM=xcb automatically.")
 
     elif env['is_macos']:
         print("    macOS: XCB not available. Qt6 uses the Cocoa plugin.")
@@ -291,7 +291,7 @@ def configure_display(env: dict): #vers 1
         display = os.environ.get('DISPLAY', '')
         wayland = os.environ.get('WAYLAND_DISPLAY', '')
         if wayland and not display:
-            print("    Wayland session detected. launch_imgfactory.py sets xcb fallback.")
+            print("    Wayland session detected. launch.py sets xcb fallback.")
         elif display:
             print(f"    X11 display: {display} — OK")
         else:
@@ -405,11 +405,13 @@ def main(): #vers 1
     print("=== Setup complete ===")
     print()
     if env['is_termux']:
-        print("Launch:  python launch_imgfactory.py")
+        print("Launch:  python launch.py 1")
     elif env['is_macos']:
-        print("Launch:  source .venv/bin/activate && python3 launch_imgfactory.py")
+        print("Launch:  source .venv/bin/activate && python3 launch.py 1")
     else:
-        print("Launch:  source .venv/bin/activate && python3 launch_imgfactory.py")
+        print("Launch:  source .venv/bin/activate && python3 launch.py 1")
+    print()
+    print("Or pick any tool from the menu: python3 launch.py")
     print()
 
 

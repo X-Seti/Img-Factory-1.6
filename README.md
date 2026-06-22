@@ -28,12 +28,24 @@ the game world, edit textures, collision and models, then rebuild.
 ## Quick start
 
 ```bash
-# Launch
-python launch_imgfactory.py
+# Launch (menu - pick a tool)
+python3 launch.py
 
-# Or directly
+# Launch IMG Factory directly
+python3 launch.py 1
+
+# Or directly via module
 python -m apps.components.Img_Factory.imgfactory
 ```
+
+| # | Tool |
+|---|---|
+| 1 | IMG Factory 1.6 |
+| 2 | TXD Workshop |
+| 3 | COL Workshop |
+| 4 | Model Workshop |
+| 5 | DP5 Workshop |
+| 6 | AI Workshop |
 
 ---
 

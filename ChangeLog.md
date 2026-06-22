@@ -1,6 +1,37 @@
-#this belongs in root /ChangeLog.md - Version: 69
+#this belongs in root /ChangeLog.md - Version: 70
 
-## June 2026 - Path Workshop tabs + routing
+## June 2026 - Startup dependency check + unified launcher
+
+**apps/core/dependency_check.py (new, v1):**
+- Checks PyQt6, Pillow, numpy, send2trash importable before app starts
+- On WSL, checks DISPLAY is set and /tmp/.X11-unix socket exists
+- Prevents silent freeze on launch when WSLg/X server is not running
+- Called from launch.py before importing imgfactory
+
+**launch.py (new, v1) - replaces six separate launchers:**
+- Single entry point: menu (no args) or direct launch (python3 launch.py 1-6)
+- Replaces launch_imgfactory.py, launch_col_workshop.py, launch_txd_workshop.py,
+  launch_model_workshop.py, launch_dp5_workshop.py, launch_ai_workshop.py (all removed)
+- Fixed bug in old launch_dp5_workshop.py: called col_workshop.main() instead of
+  dp5_workshop.main()
+- WSL/Wayland display config and standalone QApplication fallback unchanged from
+  old launchers, consolidated into one file
+
+**requirements.txt:**
+- Added Pillow, numpy - both were real (non-optional) dependencies, missing from
+  the file despite being imported directly in Model/COL/TXD workshops and
+  indexed_color_import.py
+
+**README.md:**
+- Fixed Requirements section: numpy was missing entirely, Pillow was incorrectly
+  marked optional
+- Added Linux/WSL system library note pointing to setup_imgfactory.sh
+- Updated Quick start section for launch.py
+
+**setup_imgfactory.sh / tools/dev_setup.py / apps/support/unix_launcher.sh:**
+- Updated all references from launch_imgfactory.py to launch.py
+
+
 
 **smart_file_router.py v2:**
 - Added nodes.dat, nodes0-8.dat, paths.ipl, paths2-5.ipl, tracks.dat, tracks2.dat routes to Path Workshop

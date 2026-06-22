@@ -2,7 +2,7 @@
 # setup_imgfactory.sh — IMG Factory 1.6 universal Linux / WSL2 setup
 # Supports: Ubuntu/Debian/Mint, Arch/Manjaro, Fedora, openSUSE
 # Run once after cloning: chmod +x setup_imgfactory.sh && ./setup_imgfactory.sh
-# Then launch with: python3 launch_imgfactory.py
+# Then launch with: python3 launch.py
 
 set -e
 
@@ -110,8 +110,11 @@ echo "=== Setup complete ==="
 echo ""
 echo "To launch IMG Factory:"
 echo "    source .venv/bin/activate"
-echo "    python3 launch_imgfactory.py"
+echo "    python3 launch.py 1"
 echo ""
-echo "Or just run it now? (Ctrl+C to skip)"
+echo "Or pick any tool from the menu:"
+echo "    python3 launch.py"
+echo ""
+echo "Or just run IMG Factory now? (Ctrl+C to skip)"
 sleep 2
-python3 launch_imgfactory.py
+python3 launch.py 1
