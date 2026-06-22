@@ -273,6 +273,9 @@ class COL3DViewport(QWidget): #vers 2
         self._gizmo_start  = None
         # face selection / paint state
         self._selected_faces  = set()    # set of face indices currently selected
+        self._selected_verts  = set()    # set of vertex indices currently selected
+        self._selected_edges  = set()    # set of (vi, vj) tuples, vi < vj, currently selected
+        self._select_mode     = 'face'   # 'vertex' | 'edge' | 'face' | 'poly' | 'object'
         self._paint_mode      = False    # True = click face to paint material
         self._paint_material  = 0
         self._tool_mode       = 'select'  # 'select' | 'paint' | 'dropper' | 'select_all_mat'
@@ -578,6 +581,208 @@ class COL3DViewport(QWidget): #vers 2
             return best_i, faces[best_i]
         return None, None
 
+    def _face_material_id(self, face): #vers 1
+        """Normalise a face's material to a plain int id, matching the
+        hasattr(material_id)-or-int idiom used throughout this file."""
+        mat = getattr(face, 'material', None)
+        if mat is None:
+            return None
+        return mat.material_id if hasattr(mat, 'material_id') else int(mat)
+
+    def _build_face_adjacency(self, faces): #vers 1
+        """Build a face_index -> set(neighbour_face_index) map, where two
+        faces are neighbours if they share an edge (two vertex indices, in
+        either order). Built fresh each call — meshes are edited often
+        enough that a cached version would risk going stale silently."""
+        edge_to_faces = {}
+        for fi, face in enumerate(faces):
+            fa = getattr(face, 'a', None)
+            if fa is None:
+                continue
+            a, b, c = face.a, face.b, face.c
+            for i, j in ((a, b), (b, c), (c, a)):
+                key = (i, j) if i < j else (j, i)
+                edge_to_faces.setdefault(key, []).append(fi)
+
+        adjacency = {fi: set() for fi in range(len(faces))}
+        for key, owners in edge_to_faces.items():
+            if len(owners) < 2:
+                continue
+            for fi in owners:
+                for fj in owners:
+                    if fi != fj:
+                        adjacency[fi].add(fj)
+        return adjacency
+
+    def _pick_poly_group(self, mx, my): #vers 1
+        """Return (set(face_indices), seed_face) for the connected group of
+        faces reachable from the clicked face via shared edges, stopping at
+        material boundaries — equivalent to 3ds Max Element/Polygon select
+        on a model split into material-bound shells. Returns (None, None)
+        if nothing was clicked."""
+        seed_i, seed_face = self._pick_face(mx, my)
+        if seed_i is None:
+            return None, None
+
+        model = self._model
+        faces = getattr(model, 'faces', [])
+        seed_mat = self._face_material_id(seed_face)
+        adjacency = self._build_face_adjacency(faces)
+
+        group = {seed_i}
+        frontier = [seed_i]
+        while frontier:
+            fi = frontier.pop()
+            for fj in adjacency.get(fi, ()):
+                if fj in group:
+                    continue
+                if self._face_material_id(faces[fj]) != seed_mat:
+                    continue
+                group.add(fj)
+                frontier.append(fj)
+
+        return group, seed_face
+
+
+        """Return (vertex_index, vertex) of the closest vertex within 10px of
+        click, or (None, None). Tighter radius than face pick since vertex
+        points are small targets."""
+        import math
+        model = self._model
+        if not model: return None, None
+        verts = getattr(model, 'vertices', [])
+        if not verts: return None, None
+
+        scale, ox, oy = self._get_scale_origin()
+
+        def ts(x, y, z): #vers 1
+            px, py = self._proj(x, y, z)
+            return px * scale + ox, py * scale + oy
+
+        def g3(obj): #vers 1
+            if hasattr(obj, 'x'): return obj.x, obj.y, obj.z
+            return float(obj[0]), float(obj[1]), float(obj[2])
+
+        best_i, best_d = None, 10.0   # 10px pick radius — tighter than face
+        for i, v in enumerate(verts):
+            try:
+                vx, vy, vz = g3(v)
+            except (IndexError, TypeError):
+                continue
+            sx, sy = ts(vx, vy, vz)
+            d = math.hypot(mx - sx, my - sy)
+            if d < best_d:
+                best_d, best_i = d, i
+
+        if best_i is not None:
+            return best_i, verts[best_i]
+        return None, None
+
+    def _pick_edge(self, mx, my): #vers 1
+        """Return (edge_key, (vi, vj)) of the closest edge whose projected
+        midpoint is within 12px of click, or (None, None). edge_key is a
+        normalised (vi, vj) tuple with vi < vj. Edges are derived from face
+        triangle sides, deduplicated."""
+        import math
+        model = self._model
+        if not model: return None, None
+        verts = getattr(model, 'vertices', [])
+        faces = getattr(model, 'faces',   [])
+        if not verts or not faces: return None, None
+
+        scale, ox, oy = self._get_scale_origin()
+
+        def ts(x, y, z): #vers 1
+            px, py = self._proj(x, y, z)
+            return px * scale + ox, py * scale + oy
+
+        def g3(obj): #vers 1
+            if hasattr(obj, 'x'): return obj.x, obj.y, obj.z
+            return float(obj[0]), float(obj[1]), float(obj[2])
+
+        # Collect unique edges from triangle sides
+        edges = set()
+        for face in faces:
+            fa = getattr(face, 'a', None)
+            if fa is None: continue
+            a, b, c = face.a, face.b, face.c
+            for i, j in ((a,b), (b,c), (c,a)):
+                edges.add((i, j) if i < j else (j, i))
+
+        best_key, best_d = None, 12.0   # 12px pick radius
+        for (i, j) in edges:
+            try:
+                ax, ay, az = g3(verts[i])
+                bx, by, bz = g3(verts[j])
+            except IndexError:
+                continue
+            sx, sy = ts((ax+bx)/2, (ay+by)/2, (az+bz)/2)
+            d = math.hypot(mx - sx, my - sy)
+            if d < best_d:
+                best_d, best_key = d, (i, j)
+
+        if best_key is not None:
+            return best_key, best_key
+        return None, None
+
+    def _selected_set_for_mode(self, mode): #vers 1
+        """Return the live selection set for the given sub-object mode."""
+        if mode == 'vertex':
+            return self._selected_verts
+        if mode == 'edge':
+            return self._selected_edges
+        return self._selected_faces   # 'face' and 'poly' share one set for now
+
+    def _apply_selection_click(self, mode, key, modifiers): #vers 1
+        """Apply a single click selection for the given mode ('vertex'|'edge'|
+        'face'). Ctrl+click toggles the item in/out of the existing selection;
+        a plain click replaces the selection with just this item. Shift+click
+        adds without replacing (used by drag-select too)."""
+        sel = self._selected_set_for_mode(mode)
+        if modifiers & Qt.KeyboardModifier.ControlModifier:
+            if key in sel:
+                sel.discard(key)
+            else:
+                sel.add(key)
+        elif modifiers & Qt.KeyboardModifier.ShiftModifier:
+            sel.add(key)
+        else:
+            sel.clear()
+            sel.add(key)
+
+    def _selected_vertex_indices(self): #vers 1
+        """Resolve the active sub-object selection, whatever mode it's in,
+        down to a concrete set of vertex indices. Vertex mode returns its
+        set directly; edge mode expands each (vi, vj) pair; face/poly mode
+        expands each face's three corner vertices. Returns an empty set if
+        nothing is selected — callers should treat that as 'no scoped
+        selection, fall back to whole-model' rather than 'select nothing'."""
+        mode = getattr(self, '_select_mode', 'face')
+        model = self._model
+        faces = getattr(model, 'faces', []) if model else []
+
+        if mode == 'vertex':
+            return set(self._selected_verts)
+
+        if mode == 'edge':
+            verts = set()
+            for (vi, vj) in self._selected_edges:
+                verts.add(vi)
+                verts.add(vj)
+            return verts
+
+        # 'face' / 'poly'
+        verts = set()
+        for fi in self._selected_faces:
+            if 0 <= fi < len(faces):
+                face = faces[fi]
+                fa = getattr(face, 'a', None)
+                if fa is not None:
+                    verts.add(face.a)
+                    verts.add(face.b)
+                    verts.add(face.c)
+        return verts
+
 
     # - mouse
     def mousePressEvent(self, event): #vers 1
@@ -689,24 +894,58 @@ class COL3DViewport(QWidget): #vers 2
                     self.update()
                 return
 
-            # Normal mode — face select on click; start drag-select
-            fi, face = self._pick_face(mx, my)
-            if fi is not None:
-                mods = event.modifiers()
-                if mods & Qt.KeyboardModifier.ControlModifier:
-                    # Ctrl+click: toggle individual face
-                    if fi in self._selected_faces:
-                        self._selected_faces.discard(fi)
+            # Normal mode — select by current sub-object mode; start drag-select
+            mode = getattr(self, '_select_mode', 'face')
+
+            if mode == 'vertex':
+                vi, _ = self._pick_vertex(mx, my)
+                if vi is not None:
+                    self._apply_selection_click('vertex', vi, event.modifiers())
+                    self._drag_selecting = True
+                    self.setCursor(Qt.CursorShape.CrossCursor)
+                    self.update()
+                    return
+
+            elif mode == 'edge':
+                ek, _ = self._pick_edge(mx, my)
+                if ek is not None:
+                    self._apply_selection_click('edge', ek, event.modifiers())
+                    self._drag_selecting = True
+                    self.setCursor(Qt.CursorShape.CrossCursor)
+                    self.update()
+                    return
+
+            elif mode == 'poly':
+                group, seed_face = self._pick_poly_group(mx, my)
+                if group is not None:
+                    mods = event.modifiers()
+                    if mods & Qt.KeyboardModifier.ControlModifier:
+                        # Ctrl+click: toggle the whole group in/out together
+                        if group & self._selected_faces:
+                            self._selected_faces -= group
+                        else:
+                            self._selected_faces |= group
+                    elif mods & Qt.KeyboardModifier.ShiftModifier:
+                        self._selected_faces |= group
                     else:
-                        self._selected_faces.add(fi)
-                else:
-                    self._selected_faces = {fi}
-                self._drag_selecting = True   # enable brush drag
-                self.setCursor(Qt.CursorShape.CrossCursor)
-                if self.on_face_selected:
-                    self.on_face_selected(fi, face)
-                self.update()
-                return
+                        self._selected_faces = set(group)
+                    # No drag-select for poly — one click selects the whole
+                    # shell; dragging would just re-trigger the same group.
+                    if self.on_face_selected:
+                        self.on_face_selected(next(iter(group)), seed_face)
+                    self.update()
+                    return
+
+            else:  # 'face' or default
+                fi, face = self._pick_face(mx, my)
+                if fi is not None:
+                    self._apply_selection_click('face', fi, event.modifiers())
+                    self._drag_selecting = True
+                    self.setCursor(Qt.CursorShape.CrossCursor)
+                    if self.on_face_selected:
+                        self.on_face_selected(fi, face)
+                    self.update()
+                    return
 
             # Gizmo axis
             axis = self._hit_gizmo(mx, my)
@@ -765,8 +1004,16 @@ class COL3DViewport(QWidget): #vers 2
                 dot = (d.x()*px + d.y()*py) / screen_len
                 delta = dot / scale
                 if self._model:
-                    # Move vertices
-                    for v in getattr(self._model, 'vertices', []):
+                    sel_verts = self._selected_vertex_indices()
+                    # Move vertices — scoped to selection if one exists,
+                    # otherwise whole-model (preserves prior COL-editing
+                    # behaviour when nothing is sub-object selected)
+                    all_verts = getattr(self._model, 'vertices', [])
+                    if sel_verts:
+                        targets = (all_verts[i] for i in sel_verts if i < len(all_verts))
+                    else:
+                        targets = all_verts
+                    for v in targets:
                         if   axis=='X': v.x += delta
                         elif axis=='Y': v.y += delta
                         else:           v.z += delta
@@ -811,8 +1058,14 @@ class COL3DViewport(QWidget): #vers 2
                         else:
                             pt.x = x2*cos_r - y2*sin_r
                             pt.y = x2*sin_r + y2*cos_r
-                    # Rotate vertices
-                    for v in getattr(self._model, 'vertices', []):
+                    sel_verts = self._selected_vertex_indices()
+                    all_verts = getattr(self._model, 'vertices', [])
+                    if sel_verts:
+                        targets = (all_verts[i] for i in sel_verts if i < len(all_verts))
+                    else:
+                        targets = all_verts
+                    # Rotate vertices — scoped to selection if one exists
+                    for v in targets:
                         _rot_pt(v)
                     # Rotate box min/max
                     for box in getattr(self._model, 'boxes', []):
@@ -830,24 +1083,39 @@ class COL3DViewport(QWidget): #vers 2
             return
 
         # - Pan (left drag on background)
-        # - Drag-select (LMB held after face click — paint-brush selection)
+        # - Drag-select (LMB held after click — paint-brush selection)
         if self._drag_selecting and (event.buttons() & Qt.MouseButton.LeftButton):
             mx2, my2 = event.position().x(), event.position().y()
-            fi, face = self._pick_face(mx2, my2)
+            mode = getattr(self, '_select_mode', 'face')
             shift_held = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
-            if fi is not None and fi not in self._selected_faces:
-                if self._paint_mode and not shift_held:
-                    # Paint mode drag without shift: paint face
-                    if hasattr(face, 'material'):
-                        if hasattr(face.material, 'material_id'):
-                            face.material.material_id = self._paint_material
-                        else:
-                            face.material = self._paint_material
-                # Shift held OR not in paint mode: just add to selection
-                self._selected_faces.add(fi)
-                if self.on_face_selected and not shift_held:
-                    self.on_face_selected(fi, face)
-                self.update()
+
+            if mode == 'vertex':
+                vi, _ = self._pick_vertex(mx2, my2)
+                if vi is not None and vi not in self._selected_verts:
+                    self._selected_verts.add(vi)
+                    self.update()
+
+            elif mode == 'edge':
+                ek, _ = self._pick_edge(mx2, my2)
+                if ek is not None and ek not in self._selected_edges:
+                    self._selected_edges.add(ek)
+                    self.update()
+
+            else:  # 'face' / 'poly' — original paint-aware behaviour preserved
+                fi, face = self._pick_face(mx2, my2)
+                if fi is not None and fi not in self._selected_faces:
+                    if self._paint_mode and not shift_held:
+                        # Paint mode drag without shift: paint face
+                        if hasattr(face, 'material'):
+                            if hasattr(face.material, 'material_id'):
+                                face.material.material_id = self._paint_material
+                            else:
+                                face.material = self._paint_material
+                    # Shift held OR not in paint mode: just add to selection
+                    self._selected_faces.add(fi)
+                    if self.on_face_selected and not shift_held:
+                        self.on_face_selected(fi, face)
+                    self.update()
 
         elif self._left_drag and (event.buttons() & Qt.MouseButton.LeftButton):
             d = event.position() - self._left_drag
@@ -6468,11 +6736,19 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             vp.update()
         self._set_status(f"Geometry [{idx}] duplicated.")
 
-    def _set_select_mode(self, mode: str): #vers 1
-        """Set viewport selection mode: vertex / edge / face / poly / object."""
+    def _set_select_mode(self, mode: str): #vers 2
+        """Set viewport selection mode: vertex / edge / face / poly / object.
+        Switching modes clears the other modes' selection sets, so there is
+        no stale hidden selection left over when the user switches back."""
         vp = getattr(self, 'preview_widget', None)
         if vp:
             vp._select_mode = mode
+            if mode != 'vertex':
+                vp._selected_verts.clear()
+            if mode != 'edge':
+                vp._selected_edges.clear()
+            if mode not in ('face', 'poly'):
+                vp._selected_faces.clear()
             vp.update()
         self._set_status(f"Select mode: {mode}")
         mw = self.main_window
@@ -6970,6 +7246,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         _sel_btn('_sel_edge_btn',  'Edge select — click edges between vertices',  'edge',   'edge_select_icon')
         _sel_btn('_sel_face_btn',  'Face select — click individual triangles',    'face',   'face_select_icon')
         _sel_btn('_sel_poly_btn',  'Polygon select — click connected face groups','poly',   'poly_select_icon')
+
+        # Mutual exclusivity — only one sub-object select mode active at a time
+        from PyQt6.QtWidgets import QButtonGroup
+        self._select_mode_group = QButtonGroup(self)
+        self._select_mode_group.setExclusive(True)
+        for b in (self._sel_vert_btn, self._sel_edge_btn,
+                  self._sel_face_btn, self._sel_poly_btn):
+            self._select_mode_group.addButton(b)
+        self._sel_face_btn.setChecked(True)   # default mode matches self._select_mode = 'face'
 
         # Backface cull toggle
         self._backface_cull_btn = QPushButton()

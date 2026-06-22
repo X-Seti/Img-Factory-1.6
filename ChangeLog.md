@@ -1,4 +1,40 @@
-#this belongs in root /ChangeLog.md - Version: 70
+#this belongs in root /ChangeLog.md - Version: 72
+
+## June 2026 - Model Workshop: sub-object selection (vertex/edge/poly) + scoped gizmo
+
+**apps/components/Model_Editor/model_workshop.py:**
+- Added _selected_verts, _selected_edges sets alongside existing _selected_faces;
+  _select_mode now actually drives picking (previously set but unused)
+- Added _pick_vertex, _pick_edge (same screen-projection pattern as _pick_face)
+- Added _apply_selection_click: shared click/ctrl-toggle/shift-add logic for
+  vertex, edge, and face selection
+- Added _pick_poly_group: real connected-face flood fill that stops at material
+  boundaries (3ds Max Element/Polygon-style select) - builds face adjacency from
+  shared edges on demand, no caching (meshes mutate often enough that a stale
+  cache risks wrong results silently)
+- V/E/F/P select buttons now in a real QButtonGroup (previously independently
+  checkable, so multiple could show checked at once); Face mode default
+- Switching select mode clears the other modes' selections to avoid stale
+  hidden state
+- Added _selected_vertex_indices: resolves the active selection in any mode
+  down to concrete vertex indices (edge/face/poly expand to constituent verts)
+- Gizmo translate/rotate now move/rotate only the active selection's vertices
+  when one exists, falling back to whole-model when selection is empty -
+  preserves existing COL box/sphere/bounds editing behaviour untouched
+- Drag-select extended to vertex/edge modes (simple additive); face/poly
+  drag-select paint-mode behaviour unchanged
+
+
+
+## June 2026 - Removed stale unix_launcher.sh
+
+- Removed apps/support/unix_launcher.sh - referenced old 1.5-era root layout
+  (root imgfactory.py, components/, gui/) that no longer matches current
+  apps/components/, apps/gui/ structure
+- No other files referenced it
+- Use launch.py instead
+
+
 
 ## June 2026 - Startup dependency check + unified launcher
 
