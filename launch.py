@@ -53,7 +53,8 @@ TOOLS = {
     "3": ("COL Workshop", "launch_col_workshop"),
     "4": ("Model Workshop", "launch_model_workshop"),
     "5": ("DP5 Workshop", "launch_dp5_workshop"),
-    "6": ("AI Workshop", "launch_ai_workshop"),
+    "6": ("Vehicle Workshop", "launch_vehicle_workshop"),
+    "7": ("AI Workshop", "launch_ai_workshop"),
 }
 
 
@@ -127,6 +128,10 @@ def launch_dp5_workshop(): #vers 1
         "apps.components.DP5_Workshop.dp5_workshop", "DP5Workshop",
         "DP5 Workshop - Standalone")
 
+def launch_vehicle_workshop(): #vers 1
+    return run_standalone(
+        "apps.components.Vehicle_Workshop.vehicle_workshop", "VehicleWorkshop",
+        "Vehicle Workshop - Standalone")
 
 def launch_ai_workshop(): #vers 1
     return run_standalone(
@@ -140,6 +145,7 @@ LAUNCHERS = {
     "launch_col_workshop": launch_col_workshop,
     "launch_model_workshop": launch_model_workshop,
     "launch_dp5_workshop": launch_dp5_workshop,
+    "launch_vehicle_workshop": launch_vehicle_workshop,
     "launch_ai_workshop": launch_ai_workshop,
 }
 
