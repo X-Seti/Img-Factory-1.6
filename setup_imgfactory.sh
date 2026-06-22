@@ -65,8 +65,8 @@ install_opensuse() {
 }
 
 case "$DISTRO" in
-    ubuntu|debian|linuxmint|pop)  install_debian ;;
-    arch|manjaro|endeavouros)     install_arch ;;
+    armbian|ubuntu|debian|linuxmint|pop)  install_debian ;;
+    arch|garuda|garujaro|manjaro|endeavouros)     install_arch ;;
     fedora)                        install_fedora ;;
     opensuse*|suse)                install_opensuse ;;
     *)
