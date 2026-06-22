@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 118
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 119
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -96,9 +96,11 @@ except ImportError:
 
 ##Methods list - (key methods only; see MODEL_METHODS.md for full index)
 # _apply_prelighting        TODO: bake ambient+directional into DFF vertex colours
+# _apply_selection_click      shared click/ctrl-toggle/shift-add for vertex/edge/face select #vers 1
 # _auto_load_from_texlist     scan texlist/ folder for pre-exported textures
 # _auto_load_txd_from_imgs    search open IMG tabs for IDE-linked TXD
 # _browse_texlist_folder      open texlist/ browser dialog
+# _build_face_adjacency       face_index -> shared-edge neighbours map, built fresh each call #vers 1
 # _build_primitive            generate vertices+triangles for Box/Sphere/Cylinder/Plane
 # _compute_face_shade         Lambertian per-face shade factor (ambient + diffuse) #vers 2
 # _create_col_from_dff        generate COL1/2/3 binary from DFF geometry #vers 1
@@ -106,6 +108,9 @@ except ImportError:
 # _display_dff_model          populate model list + 3D viewport from parsed DFF #vers 3
 # _enable_dff_toolbar         show/hide DFF-only toolbar buttons #vers 2
 # _export_dff_obj             export DFF to Wavefront OBJ + MTL #vers 1
+# _extrude_dialog              prompt for distance, apply extrude to selected faces #vers 1
+# _extrude_selected_faces      duplicate+offset selected face verts, build side walls #vers 1
+# _face_material_id           normalise face.material to plain int id #vers 1
 # _find_in_ide                look up model in DAT Browser IDE entries
 # _hide_tex_hover             close texture hover popup #vers 1
 # _load_txd_file              load TXD file → texture panel + viewport cache
@@ -119,12 +124,19 @@ except ImportError:
 # _open_model_workshop        open from main window / IMG entry
 # _open_paint_editor          open paint mode for face surface editing #vers 5
 # _open_txd_combined          smart DFF+TXD load (DB→IMG→browse)
+# _pick_edge                  closest edge to click point, screen-projected #vers 1
+# _pick_face                  closest face centroid to click point, screen-projected #vers 1
+# _pick_poly_group            flood-fill connected faces sharing material (Element select) #vers 1
+# _pick_vertex                closest vertex to click point, screen-projected #vers 1
 # _populate_tex_thumbnails    64×64 thumbnail grid in texture panel #vers 1
 # _populate_texture_list      fill texture panel table from _mod_textures
 # _prelight_setup_dialog      light source setup for prelighting STUB #vers 1
 # _rebuild_grid               rebuild material editor slot grid on column change
 # _refresh_icons              refresh all SVG icons after theme change
 # _save_textures_as_txd       save current textures as new TXD file
+# _selected_set_for_mode      live selection set for given sub-object mode #vers 1
+# _selected_vertex_indices    resolve active selection (any mode) to vertex indices #vers 1
+# _set_select_mode             switch vertex/edge/face/poly/object select mode #vers 2
 # _set_texlist_folder         set texlist/ folder via dialog
 # _show_dff_geometry          push _DFFGeometryAdapter into COL3DViewport #vers 1
 # _show_tex_hover             hover texture preview popup #vers 1
@@ -782,6 +794,163 @@ class COL3DViewport(QWidget): #vers 2
                     verts.add(face.b)
                     verts.add(face.c)
         return verts
+
+    def _extrude_selected_faces(self, distance: float): #vers 1
+        """Extrude the currently selected faces along their averaged normal
+        by `distance` (positive = outward, negative = inward/push-in).
+
+        Mutates the real DFF Geometry behind this adapter directly (not just
+        the viewport's display copies), so the result persists on save:
+          1. Every vertex used by a selected face is duplicated (position,
+             normal, colour, all UV layers carried over) - shared vertices
+             between two selected faces are duplicated only once, so the
+             extruded cap stays welded together.
+          2. The selected faces' triangles are repointed to the new
+             duplicate vertices - this becomes the cap (the moved face).
+          3. Side-wall triangles are built along the boundary edges of the
+             selected island (edges used by exactly one selected face) to
+             connect the original ring to the new cap ring.
+          4. The duplicate vertices are immediately offset by `distance`
+             along the averaged face normal.
+          5. Selection is updated to the new cap faces, so a following
+             gizmo drag (translate/rotate) continues to act on the
+             extruded result rather than the original base.
+
+        Returns True on success, False if there is nothing to extrude
+        (no model, no selected faces, or not in face/poly select mode)."""
+        import math
+
+        model = self._model
+        if model is None:
+            return False
+        geom = getattr(model, '_geometry', None)
+        if geom is None:
+            return False   # not a real DFF adapter (e.g. COL box/sphere editing)
+
+        sel_faces = sorted(self._selected_faces)
+        if not sel_faces:
+            return False
+
+        faces = getattr(model, 'faces', [])
+        verts = getattr(model, 'vertices', [])
+
+        # - 1. Build duplicate-vertex map for every vert used by a selected face
+        used_verts = set()
+        for fi in sel_faces:
+            if 0 <= fi < len(faces):
+                f = faces[fi]
+                used_verts.add(f.a); used_verts.add(f.b); used_verts.add(f.c)
+
+        if not used_verts:
+            return False
+
+        # Ensure parallel arrays exist and are long enough before indexing
+        n_verts = len(geom.vertices)
+        from apps.components.Model_Editor.depends.dff_classes import Vector3, TexCoord
+        if len(geom.normals) < n_verts:
+            geom.normals.extend([Vector3() for _ in range(n_verts - len(geom.normals))])
+        for layer in geom.uv_layers:
+            if len(layer) < n_verts:
+                layer.extend([TexCoord() for _ in range(n_verts - len(layer))])
+
+        import copy
+        dup_of = {}   # original vert index -> new vert index
+        for vi in used_verts:
+            new_vec = copy.deepcopy(geom.vertices[vi])
+            geom.vertices.append(new_vec)
+            new_idx = len(geom.vertices) - 1
+
+            if vi < len(geom.normals):
+                geom.normals.append(copy.deepcopy(geom.normals[vi]))
+            else:
+                geom.normals.append(Vector3())
+
+            if vi < len(geom.colors):
+                geom.colors.append(copy.deepcopy(geom.colors[vi]))
+
+            for layer in geom.uv_layers:
+                if vi < len(layer):
+                    layer.append(copy.deepcopy(layer[vi]))
+
+            dup_of[vi] = new_idx
+
+        # - 2. Compute averaged face normal (for extrude direction) using
+        #      ORIGINAL (pre-duplicate) positions
+        def g3(v):
+            return (v.x, v.y, v.z) if hasattr(v, 'x') else (float(v[0]), float(v[1]), float(v[2]))
+
+        nx, ny, nz = 0.0, 0.0, 0.0
+        for fi in sel_faces:
+            f = faces[fi]
+            ax, ay, az = g3(verts[f.a])
+            bx, by, bz = g3(verts[f.b])
+            cx, cy, cz = g3(verts[f.c])
+            ux, uy, uz = bx-ax, by-ay, bz-az
+            vx, vy, vz = cx-ax, cy-ay, cz-az
+            fnx = uy*vz - uz*vy
+            fny = uz*vx - ux*vz
+            fnz = ux*vy - uy*vx
+            nx += fnx; ny += fny; nz += fnz
+        n_len = math.sqrt(nx*nx + ny*ny + nz*nz) or 1.0
+        nx, ny, nz = nx/n_len, ny/n_len, nz/n_len
+
+        # - 3. Boundary edges of the selected island (used by exactly one
+        #      selected face) need a side wall; interior shared edges don't
+        edge_count = {}
+        for fi in sel_faces:
+            f = faces[fi]
+            a, b, c = f.a, f.b, f.c
+            for i, j in ((a,b), (b,c), (c,a)):
+                key = (i, j) if i < j else (j, i)
+                edge_count[key] = edge_count.get(key, 0) + 1
+        boundary_edges = [e for e, n in edge_count.items() if n == 1]
+
+        # - 4. Repoint selected triangles to the duplicate vertices (cap)
+        new_face_indices = []
+        for fi in sel_faces:
+            f = faces[fi]
+            geom.triangles[fi].v1 = dup_of[f.a]
+            geom.triangles[fi].v2 = dup_of[f.b]
+            geom.triangles[fi].v3 = dup_of[f.c]
+            new_face_indices.append(fi)
+
+        # - 5. Build side-wall triangles along boundary edges, original
+        #      material carried over from whichever selected face owned it
+        from apps.components.Model_Editor.depends.dff_classes import Triangle
+        cap_material = geom.triangles[sel_faces[0]].material_id if geom.triangles else 0
+        for (i, j) in boundary_edges:
+            di, dj = dup_of[i], dup_of[j]
+            geom.triangles.append(Triangle(v1=i,  v2=j,  v3=dj, material_id=cap_material))
+            geom.triangles.append(Triangle(v1=i,  v2=dj, v3=di, material_id=cap_material))
+            new_face_indices.append(len(geom.triangles) - 2)
+            new_face_indices.append(len(geom.triangles) - 1)
+
+        # - 6. Offset the duplicate (cap) vertices along the averaged normal
+        for new_idx in dup_of.values():
+            v = geom.vertices[new_idx]
+            v.x += nx * distance
+            v.y += ny * distance
+            v.z += nz * distance
+
+        # Refresh the workshop's adapters/viewport from the mutated geometry,
+        # then re-resolve selection against the freshly rebuilt face list
+        # (adapter is rebuilt, so old `faces` list/objects are now stale)
+        ws = self._find_workshop()
+        if ws:
+            dff_model = getattr(ws, '_current_dff_model', None)
+            if dff_model is not None:
+                ws._display_dff_model(dff_model)
+                vp = getattr(ws, 'preview_widget', None)
+                if vp is self:
+                    # _display_dff_model rebuilds adapters; re-point to the
+                    # one matching this geometry and restore selection
+                    for adapter in getattr(ws, '_dff_adapters', []):
+                        if adapter._geometry is geom:
+                            self._model = adapter
+                            break
+                    self._selected_faces = set(new_face_indices)
+        self.update()
+        return True
 
 
     # - mouse
@@ -6852,6 +7021,44 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             from PyQt6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "Primitive Error", str(e))
 
+    def _extrude_dialog(self): #vers 1
+        """Prompt for extrude distance and apply to the current face/poly
+        selection in the viewport. Positive = outward, negative = inward
+        (push-in, e.g. a recessed door/window/vent)."""
+        from PyQt6.QtWidgets import QInputDialog, QMessageBox
+
+        vp = getattr(self, 'preview_widget', None)
+        if vp is None:
+            return
+
+        mode = getattr(vp, '_select_mode', 'face')
+        if mode not in ('face', 'poly'):
+            QMessageBox.information(self, "Extrude",
+                "Switch to Face or Polygon select mode and select one or "
+                "more faces first.")
+            return
+
+        if not getattr(vp, '_selected_faces', None):
+            QMessageBox.information(self, "Extrude",
+                "Select one or more faces first, then Extrude.")
+            return
+
+        distance, ok = QInputDialog.getDouble(
+            self, "Extrude", "Distance (negative = push in):",
+            0.5, -1000.0, 1000.0, 3)
+        if not ok or distance == 0.0:
+            return
+
+        try:
+            success = vp._extrude_selected_faces(distance)
+            if success:
+                self._set_status(f"Extruded {len(vp._selected_faces)} face(s) by {distance:.3f}")
+            else:
+                QMessageBox.warning(self, "Extrude",
+                    "Nothing to extrude — load a DFF and select faces first.")
+        except Exception as e:
+            QMessageBox.warning(self, "Extrude Error", str(e))
+
     def _build_primitive(self, shape: str,
                           w: float, h: float, d: float,
                           nx: int, ny: int, nz: int):  #vers 1
@@ -7307,6 +7514,21 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._prim_btn.setText("+□")
         self._prim_btn.clicked.connect(self._create_primitive_dialog)
         self._mod_icon_buttons.append(self._prim_btn)
+
+        # Extrude selected face(s) button
+        self._extrude_btn = QPushButton()
+        self._extrude_btn.setFixedSize(btn_width, btn_height)
+        self._extrude_btn.setToolTip(
+            "Extrude selected face(s) along their normal\n"
+            "Positive distance = outward, negative = push in (door/window/vent)\n"
+            "Select faces in Face or Polygon mode first")
+        self._extrude_btn.setIconSize(icon_size)
+        try:
+            self._extrude_btn.setIcon(self.icon_factory.add_icon(color=icon_color))
+        except Exception:
+            self._extrude_btn.setText("Ext")
+        self._extrude_btn.clicked.connect(self._extrude_dialog)
+        self._mod_icon_buttons.append(self._extrude_btn)
 
         # Store refs to DFF-only buttons for enable/disable
         # Shading on/off toggle

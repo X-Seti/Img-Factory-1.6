@@ -1,4 +1,29 @@
-#this belongs in root /ChangeLog.md - Version: 72
+#this belongs in root /ChangeLog.md - Version: 73
+
+## June 2026 - Model Workshop: Extrude selected faces (DFF v119)
+
+**apps/components/Model_Editor/model_workshop.py:**
+- Added _extrude_selected_faces (viewport) - duplicates every vertex used by
+  the selected faces (position, normal, colour, all UV layers carried over),
+  repoints the selected triangles to the duplicates (becomes the cap), builds
+  side-wall triangles along the boundary edges of the selected island (edges
+  used by exactly one selected face - interior shared edges between two
+  selected faces get no wall), then offsets the cap along the averaged face
+  normal by the given distance. Mutates the real DFF Geometry directly so it
+  persists on save, not just the viewport's display copy.
+- Added _extrude_dialog (workshop) - prompts for distance via QInputDialog,
+  validates Face/Polygon select mode and a non-empty selection first
+- Added Extrude toolbar button next to Create Primitive
+- Selection is updated to the new cap faces after extrude, so a following
+  gizmo drag continues to move the extruded result (uses the scoped-gizmo
+  work from v72)
+- Known gap (pre-existing, not introduced here): DFF editing has no undo -
+  delete/duplicate/transform/extrude are all currently irreversible without
+  reloading the file. Undo only exists for COL model editing
+  (_push_undo/_undo_last_action), keyed to current_col_file.models, which
+  does not apply to DFF geometries.
+
+
 
 ## June 2026 - Model Workshop: sub-object selection (vertex/edge/poly) + scoped gizmo
 
