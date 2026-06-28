@@ -1,4 +1,17 @@
-#this belongs in root /ChangeLog.md - Version: 81
+#this belongs in root /ChangeLog.md - Version: 82
+
+## June 2026 - Model Workshop toolbar: leftover COL Workshop labels
+
+**apps/components/Model_Editor/model_workshop.py:**
+- Flip Horizontal/Flip Vertical buttons already had short, correct
+  labels but their tooltips still said "Flip col vertically/
+  horizontally" - changed to "Flip model..."
+- Analyze/Copy/Paste buttons carried over from COL Workshop verbatim
+  ("Analyze collision data", "Copy/Paste col to/from clipboard") -
+  Keith is keeping these three in Model Workshop as-is, just renamed:
+  Analyse Model, Copy Model, Paste Model (labels + tooltips)
+- Confirmed Rotate Left/Right wording is fine, no change needed there
+
 
 ## June 2026 - Crash: Render Settings dialog used COL3DViewport API on DFFViewport
 
