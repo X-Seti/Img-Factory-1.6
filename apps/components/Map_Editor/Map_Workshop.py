@@ -828,6 +828,7 @@ class MainGUI(QWidget): #vers 3
         if hasattr(self, 'is_overlay') and self.is_overlay:
             self.show()
             self.raise_()
+            self.activateWindow()
 
     def _undock_from_main(self): #vers 3
         """Undock from overlay mode to standalone window"""
@@ -840,6 +841,8 @@ class MainGUI(QWidget): #vers 3
         self._update_dock_button_visibility()
 
         self.show()
+        self.raise_()
+        self.activateWindow()
 
         if hasattr(self.main_window, 'log_message'):
             self.main_window.log_message(App_name + " undocked to standalone")

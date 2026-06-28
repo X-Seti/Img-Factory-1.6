@@ -6169,6 +6169,7 @@ class IMGFactory(QMainWindow):
             workshop.resize(1300, 800)
             workshop.show()
             workshop.raise_()
+            workshop.activateWindow()
 
             if not hasattr(self, 'ai_workshops'):
                 self.ai_workshops = []
@@ -6469,6 +6470,7 @@ class IMGFactory(QMainWindow):
 
             editor.show()
             editor.raise_()
+            editor.activateWindow()
             self.log_message("IDE Editor opened (standalone)")
 
             try:

@@ -362,6 +362,7 @@ def open_scm_workshop(main_window, file_path=None):
             w.setWindowFlags(Qt.WindowType.Window)
             w.setWindowTitle("SCM Workshop — IMG Factory 1.6")
             w.resize(1000,700); w.show()
+            w.raise_(); w.activateWindow()
         if file_path and os.path.isfile(file_path): w._parser.load(file_path); w._scm_path=file_path
         return w
     except Exception as e:
