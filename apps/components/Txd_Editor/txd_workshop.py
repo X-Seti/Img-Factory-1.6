@@ -19302,6 +19302,8 @@ def open_txd_workshop(main_window, img_path=None): #vers 5
         except Exception:
             idx = main_window.main_tab_widget.addTab(tab_container, tab_label)
         main_window.main_tab_widget.setCurrentIndex(idx)
+        if hasattr(main_window, '_ensure_tab_area_visible'):
+            main_window._ensure_tab_area_visible()
 
         workshop.show()
         return workshop

@@ -1615,6 +1615,7 @@ class IMGFactory(QMainWindow):
             except Exception:
                 idx = self.main_tab_widget.addTab(tab_container, "Model Viewer")
             self.main_tab_widget.setCurrentIndex(idx)
+            self._ensure_tab_area_visible()
 
             # Create viewer with tab_container as parent — never shown as window
             viewer = ModelViewer(tab_container, self)
@@ -6633,6 +6634,7 @@ class IMGFactory(QMainWindow):
                 QTimer.singleShot(100, lambda: workshop._open_file(file_path))
             idx = self.main_tab_widget.addTab(tab_container, tab_label)
             self.main_tab_widget.setCurrentIndex(idx)
+            self._ensure_tab_area_visible()
             self.log_message(f"{tab_label} opened")
             return workshop
         except Exception as e:

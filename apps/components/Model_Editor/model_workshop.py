@@ -15533,6 +15533,8 @@ def open_model_workshop(main_window, dff_path=None,
             except Exception:
                 idx = main_window.main_tab_widget.addTab(container, tab_label)
             main_window.main_tab_widget.setCurrentIndex(idx)
+            if hasattr(main_window, '_ensure_tab_area_visible'):
+                main_window._ensure_tab_area_visible()
             workshop.show()
         else:
             # Standalone window
@@ -15627,6 +15629,8 @@ def open_col_workshop(main_window, img_path=None): #vers 2
         except Exception:
             idx = main_window.main_tab_widget.addTab(tab_container, tab_label)
         main_window.main_tab_widget.setCurrentIndex(idx)
+        if hasattr(main_window, '_ensure_tab_area_visible'):
+            main_window._ensure_tab_area_visible()
 
         workshop.show()
         return workshop
