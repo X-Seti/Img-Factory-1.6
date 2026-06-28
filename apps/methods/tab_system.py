@@ -1,4 +1,4 @@
-#this belongs in methods/tab_system.py - Version: 6
+#this belongs in methods/tab_system.py - Version: 7
 # X-Seti - November15 2025 - IMG Factory 1.5 - Complete Tab System
 
 """
@@ -211,15 +211,9 @@ def create_tab(main_window, file_path=None, file_type=None, file_object=None): #
         # Sync IMG taskbar buttons
         if hasattr(main_window, '_sync_img_taskbar_buttons'):
             main_window._sync_img_taskbar_buttons(new_index)
-        # If dir tree is showing full-width, switch to split so the new tab is visible
-        if (getattr(main_window, '_dirtree_state', 0) == 2
-                and hasattr(main_window, 'gui_layout')):
-            gl = main_window.gui_layout
-            splitter = getattr(gl, 'content_splitter', None)
-            if splitter and splitter.count() >= 2:
-                total = sum(splitter.sizes()) or 10000
-                splitter.setSizes([total // 2, total // 2])
-                main_window._dirtree_state = 1
+        # Make sure the left panel isn't covering the new tab
+        if hasattr(main_window, '_ensure_tab_area_visible'):
+            main_window._ensure_tab_area_visible()
 
         main_window.log_message(f"Tab {new_index} created: {tab_name}")
         return new_index

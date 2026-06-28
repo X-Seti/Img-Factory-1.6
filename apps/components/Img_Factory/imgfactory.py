@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in components/Img_Factory/imgfactory.py - Version: 82
+#this belongs in components/Img_Factory/imgfactory.py - Version: 83
 # X-Seti - Feb 24 2026 - IMG Factory 1.6 - Icon system, button layout
 
 """
@@ -5099,6 +5099,13 @@ class IMGFactory(QMainWindow):
             # Hide progress
             if hasattr(self.gui_layout, 'hide_progress'):
                 self.gui_layout.hide_progress()
+
+            # Now that file_object is set, register/refresh this tab's
+            # taskbar button and make sure the tab area isn't collapsed
+            if hasattr(self, '_sync_img_taskbar_buttons'):
+                self._sync_img_taskbar_buttons(tab_index)
+            if hasattr(self, '_ensure_tab_area_visible'):
+                self._ensure_tab_area_visible()
 
         except Exception as e:
             self.log_message(f"Error in _on_img_loaded: {str(e)}")
