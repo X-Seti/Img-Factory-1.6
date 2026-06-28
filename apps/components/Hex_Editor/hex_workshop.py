@@ -412,7 +412,24 @@ def show_hex_editor_for_entry(main_window, row, entry_info):  #vers 1
     except Exception as ex:
         print(f"show_hex_editor_for_entry: {ex}"); return None
 
-def open_hex_workshop(main_window=None, file_path=None):  #vers 1
+def open_hex_workshop(main_window=None, file_path=None):  #vers 2
+    """Open Hex Workshop - embedded in tab if main_window has tab widget, standalone otherwise"""
+    mw = main_window
+    if mw and hasattr(mw, 'main_tab_widget'):
+        c = QWidget()
+        l = QVBoxLayout(c)
+        l.setContentsMargins(0, 0, 0, 0)
+        w = HexWorkshop(parent=c, main_window=mw)
+        l.addWidget(w)
+        tw = mw.main_tab_widget
+        idx = tw.addTab(c, "Hex Workshop")
+        tw.setCurrentIndex(idx)
+        if hasattr(mw, '_ensure_tab_area_visible'):
+            mw._ensure_tab_area_visible()
+        if file_path:
+            w.load_file(file_path)
+        return w
+
     app = QApplication.instance() or QApplication(sys.argv)
     w = HexWorkshop(main_window=main_window)
     w.resize(1200, 800); w.show()

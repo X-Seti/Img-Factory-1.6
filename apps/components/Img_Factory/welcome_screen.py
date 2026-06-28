@@ -168,6 +168,13 @@ class WelcomeScreen(QWidget):
     open_radar_workshop    = pyqtSignal()
     open_timecyc_workshop  = pyqtSignal()
     open_dir_tree          = pyqtSignal()
+    open_ide_editor        = pyqtSignal()
+    open_ipl_editor        = pyqtSignal()
+    open_handling_editor   = pyqtSignal()
+    open_breakable_editor  = pyqtSignal()
+    open_vehicle_workshop  = pyqtSignal()
+    open_scm_workshop      = pyqtSignal()
+    open_hex_workshop      = pyqtSignal()
 
     def __init__(self, main_window=None, parent=None):
         super().__init__(parent)
@@ -449,6 +456,44 @@ class WelcomeScreen(QWidget):
             c = WelcomeCard(ico, ttl, dsc); c.clicked.connect(sig.emit)
             g2.addWidget(c, i // 3, i % 3)
         lay.addLayout(g2)
+
+        lay.addWidget(self._section("Editors & Tools"))
+        g3 = QGridLayout(); g3.setSpacing(12)
+        g3.setColumnStretch(0, 1); g3.setColumnStretch(1, 1); g3.setColumnStretch(2, 1)
+        tools = [
+            (_SVG.get_edit_icon(36, _ic), "IDE Editor",
+             "Edit object definitions — model names, collision flags, draw "
+             "distances and 2dfx data for GTA III, VC and SA.",
+             self.open_ide_editor),
+            (_SVG.manage_icon(36, _ic), "IPL Editor",
+             "Edit item placement — object positions, rotations and interior "
+             "links placed in the game world.",
+             self.open_ipl_editor),
+            (_SVG.get_settings_icon(36, _ic), "Handling Editor",
+             "Edit vehicle physics — handling.cfg mass, drag, suspension, "
+             "traction and gear ratios.",
+             self.open_handling_editor),
+            (_SVG.get_warning_icon(36, _ic), "Breakable Editor",
+             "Edit breakable object data — collision break models and "
+             "object.dat / objects.ide breakable flags.",
+             self.open_breakable_editor),
+            (_SVG.view_icon(36, _ic), "Vehicle Workshop",
+             "Preview vehicle DFFs with steering, wheels and door animation. "
+             "VC/SA dummy detection, frame hierarchy tree.",
+             self.open_vehicle_workshop),
+            (_SVG.get_edit_icon(36, _ic), "SCM Workshop",
+             "Edit compiled GTA mission scripts — decompile, browse opcodes "
+             "and patch main.scm / script.img.",
+             self.open_scm_workshop),
+            (_SVG.surface_hex_icon(36, _ic), "Hex Workshop",
+             "Raw hex/binary editor for any file — inspect and patch bytes "
+             "directly with offset and ASCII views.",
+             self.open_hex_workshop),
+        ]
+        for i, (ico, ttl, dsc, sig) in enumerate(tools):
+            c = WelcomeCard(ico, ttl, dsc); c.clicked.connect(sig.emit)
+            g3.addWidget(c, i // 3, i % 3)
+        lay.addLayout(g3)
 
         tip = QLabel(
             "Tip:  Right-click any entry in the IMG table for context menu options: "

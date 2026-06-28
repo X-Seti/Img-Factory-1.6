@@ -6497,9 +6497,27 @@ class IMGFactory(QMainWindow):
         """Open weapons editor"""
         self.log_message("Weapons editor functionality coming soon")
 
-    def open_vehi_editor(self): #vers 1
-        """Open vehicles editor"""
-        self.log_message("Vehicles editor functionality coming soon")
+    def open_vehi_editor(self): #vers 2
+        """Alias kept for menu compatibility — calls open_vehicle_workshop_docked."""
+        self.open_vehicle_workshop_docked()
+
+    def open_vehicle_workshop_docked(self, file_path=None): #vers 1
+        """Open Vehicle Workshop docked in a tab."""
+        from apps.components.Vehicle_Workshop.vehicle_workshop import VehicleWorkshop
+        self._open_workshop_tab(
+            'apps.components.Vehicle_Workshop.vehicle_workshop',
+            'VehicleWorkshop', None,
+            'Vehicle Workshop', file_path)
+
+    def open_scm_workshop_docked(self, file_path=None): #vers 1
+        """Open SCM Workshop docked in a tab."""
+        from apps.components.Scm_Workshop.scm_workshop import open_scm_workshop
+        return open_scm_workshop(self, file_path)
+
+    def open_hex_workshop_docked(self, file_path=None): #vers 1
+        """Open Hex Workshop docked in a tab."""
+        from apps.components.Hex_Editor.hex_workshop import open_hex_workshop
+        return open_hex_workshop(self, file_path)
 
     def open_radar_map(self): #vers 5
         """Open Radar Workshop docked in a tab (DP5 pattern), or standalone fallback."""

@@ -356,6 +356,8 @@ def open_scm_workshop(main_window, file_path=None):
             except: icon=None
             idx=tw.addTab(c,icon,"SCM Workshop") if icon else tw.addTab(c,"SCM Workshop")
             tw.setCurrentIndex(idx)
+            if hasattr(mw, '_ensure_tab_area_visible'):
+                mw._ensure_tab_area_visible()
         else:
             w=SCMWorkshop(main_window=mw)
             from PyQt6.QtCore import Qt

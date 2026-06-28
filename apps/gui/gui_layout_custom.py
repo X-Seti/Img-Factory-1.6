@@ -215,6 +215,27 @@ def _show_intro_panel(mw): #vers 5
                     ws.open_timecyc_workshop.connect(
                         lambda: mw.open_timecyc_editor()
                         if hasattr(mw, 'open_timecyc_editor') else None)
+                    ws.open_ide_editor.connect(
+                        lambda: mw.open_ide_editor_docked()
+                        if hasattr(mw, 'open_ide_editor_docked') else None)
+                    ws.open_ipl_editor.connect(
+                        lambda: mw.open_ipl_editor()
+                        if hasattr(mw, 'open_ipl_editor') else None)
+                    ws.open_handling_editor.connect(
+                        lambda: mw.open_handling_editor()
+                        if hasattr(mw, 'open_handling_editor') else None)
+                    ws.open_breakable_editor.connect(
+                        lambda: mw.open_breakable_editor()
+                        if hasattr(mw, 'open_breakable_editor') else None)
+                    ws.open_vehicle_workshop.connect(
+                        lambda: mw.open_vehicle_workshop_docked()
+                        if hasattr(mw, 'open_vehicle_workshop_docked') else None)
+                    ws.open_scm_workshop.connect(
+                        lambda: mw.open_scm_workshop_docked()
+                        if hasattr(mw, 'open_scm_workshop_docked') else None)
+                    ws.open_hex_workshop.connect(
+                        lambda: mw.open_hex_workshop_docked()
+                        if hasattr(mw, 'open_hex_workshop_docked') else None)
                 except Exception:
                     pass
             from PyQt6.QtCore import QTimer
