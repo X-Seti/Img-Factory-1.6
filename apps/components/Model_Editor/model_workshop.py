@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 123
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 124
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -6657,10 +6657,18 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         else:
             self._wire_col_buttons()
 
-        # DFF-only toolbar buttons (V/E/F/P select, backface, front-paint, primitive)
+        # DFF-only toolbar buttons (backface, front-paint, primitive, etc.)
+        # V/E/F/P select buttons are gated separately by
+        # _update_select_mode_availability (need an actual model, not just
+        # DFF-vs-COL mode) so they're excluded from this blanket pass.
+        _select_btn_attrs = {'_sel_vert_btn', '_sel_edge_btn',
+                              '_sel_face_btn', '_sel_poly_btn'}
         for btn in getattr(self, '_dff_only_toolbar_btns', []):
-            btn.setEnabled(dff_mode)
+            is_select_btn = any(btn is getattr(self, a, None) for a in _select_btn_attrs)
             btn.setVisible(dff_mode)
+            if not is_select_btn:
+                btn.setEnabled(dff_mode)
+        self._update_select_mode_availability()
 
         # Prelighting row — shown in DFF mode
         for attr in ('prelight_apply_btn', 'prelight_setup_btn'):
@@ -6934,6 +6942,38 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         mw = self.main_window
         if mw and hasattr(mw, 'log_message'):
             mw.log_message(f"Model Workshop: select mode → {mode}")
+
+    def _update_select_mode_availability(self): #vers 1
+        """Enable vertex/edge/face/poly select buttons only when there is
+        an actual model (DFF geometry or COL surfaces) to select from.
+        Called after load, after creating a primitive from scratch, and
+        whenever the active model is cleared."""
+        has_dff = bool(getattr(self, '_current_dff_model', None) and
+                       getattr(self._current_dff_model, 'geometries', None))
+        has_col = bool(getattr(self, 'current_col_file', None) and
+                       getattr(self.current_col_file, 'models', None))
+        has_model = has_dff or has_col
+        for attr in ('_sel_vert_btn', '_sel_edge_btn',
+                     '_sel_face_btn', '_sel_poly_btn'):
+            b = getattr(self, attr, None)
+            if b:
+                b.setEnabled(has_model)
+        if not has_model:
+            vp = getattr(self, 'preview_widget', None)
+            if vp:
+                vp._select_mode = 'object'
+                vp._selected_verts.clear()
+                vp._selected_edges.clear()
+                vp._selected_faces.clear()
+                vp.update()
+            grp = getattr(self, '_select_mode_group', None)
+            if grp:
+                grp.setExclusive(False)
+                for attr in ('_sel_vert_btn', '_sel_edge_btn',
+                             '_sel_face_btn', '_sel_poly_btn'):
+                    b = getattr(self, attr, None)
+                    if b: b.setChecked(False)
+                grp.setExclusive(True)
 
     def _toggle_backface_cull(self): #vers 1
         """Toggle backface culling — when ON only the front face is visible/selectable."""
@@ -7253,6 +7293,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         # Refresh viewport / mesh list
         self._display_dff_model(model)
+        self._update_select_mode_availability()
         mw = self.main_window
         if mw and hasattr(mw, 'log_message'):
             mw.log_message(
@@ -7476,6 +7517,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             except Exception:
                 b.setText(mode[0].upper())
             b.clicked.connect(lambda _=False, m=mode: self._set_select_mode(m))
+            b.setEnabled(False)   # re-enabled once a model exists — see _update_select_mode_availability
             setattr(self, attr, b)
             self._mod_icon_buttons.append(b)
             return b

@@ -1,5 +1,5 @@
 # X-Seti - May13 2026 - IMG Factory 1.6 - DFF OpenGL Viewport
-# this belongs in apps/methods/dff_viewport.py - Version: 2
+# this belongs in apps/methods/dff_viewport.py - Version: 3
 """
 DFFViewport - Shared OpenGL viewport for DFF model rendering.
 Used by Model Viewer, Model Workshop, Vehicle Workshop (docked).
@@ -123,6 +123,12 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         # Explicit background override (R,G,B 0-255) — None means use theme colour
         self._bg_color_override = None
 
+        # Sub-object selection state (vertex / edge / face / poly / object)
+        self._selected_verts = set()    # set of vertex indices
+        self._selected_edges = set()    # set of (vi, vj) tuples, vi < vj
+        self._selected_faces = set()    # set of triangle indices
+        self._select_mode    = 'object'  # 'vertex'|'edge'|'face'|'poly'|'object'
+
     def _get_ui_color(self, key): #vers 2
         """Get theme color — tries app_settings, falls back to defaults."""
         defaults = {
@@ -149,6 +155,188 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         if self._bg_color_override is not None:
             return QColor(*self._bg_color_override)
         return self._get_ui_color('bg_panel')
+
+    # - Sub-object picking (vertex / edge / face)
+    # Replicates paintGL's camera transform so a ray can be cast from a
+    # mouse click even though picking happens outside the paint cycle.
+
+    def _pick_ray(self, mx: float, my: float): #vers 1
+        """Return (origin, direction) as two (x,y,z) tuples for a world-space
+        ray through the given widget-space pixel, or None if GL/picking
+        isn't available right now (e.g. widget not yet shown)."""
+        if not OPENGL_AVAILABLE or not self.isValid():
+            return None
+        try:
+            self.makeCurrent()
+            glMatrixMode(GL_PROJECTION); glLoadIdentity()
+            w = max(1, self.width()); h = max(1, self.height())
+            gluPerspective(45.0, w / h, 0.01, 100000.0)
+            glMatrixMode(GL_MODELVIEW); glLoadIdentity()
+            gluLookAt(0, 0, self._dist, 0, 0, 0, 0, 1, 0)
+            glRotatef(-self._pitch, 1, 0, 0)
+            glRotatef(self._yaw, 0, 0, 1)
+            glTranslatef(self._pan_x, self._pan_y, 0)
+
+            model_mat = glGetDoublev(GL_MODELVIEW_MATRIX)
+            proj_mat  = glGetDoublev(GL_PROJECTION_MATRIX)
+            viewport  = glGetIntegerv(GL_VIEWPORT)
+            # Qt widget Y is top-down; GL viewport Y is bottom-up
+            wy = h - my
+
+            near = gluUnProject(mx, wy, 0.0, model_mat, proj_mat, viewport)
+            far  = gluUnProject(mx, wy, 1.0, model_mat, proj_mat, viewport)
+            self.doneCurrent()
+        except Exception:
+            try: self.doneCurrent()
+            except Exception: pass
+            return None
+
+        ox, oy, oz = near
+        dx, dy, dz = far[0]-near[0], far[1]-near[1], far[2]-near[2]
+        ln = math.sqrt(dx*dx + dy*dy + dz*dz) or 1.0
+        return (ox, oy, oz), (dx/ln, dy/ln, dz/ln)
+
+    @staticmethod
+    def _point_seg_dist2(p, a, b): #vers 1
+        """Squared distance from point p to segment a-b (3D)."""
+        abx, aby, abz = b[0]-a[0], b[1]-a[1], b[2]-a[2]
+        apx, apy, apz = p[0]-a[0], p[1]-a[1], p[2]-a[2]
+        ab2 = abx*abx + aby*aby + abz*abz
+        t = 0.0 if ab2 < 1e-12 else max(0.0, min(1.0, (apx*abx+apy*aby+apz*abz)/ab2))
+        cx, cy, cz = a[0]+abx*t, a[1]+aby*t, a[2]+abz*t
+        ddx, ddy, ddz = p[0]-cx, p[1]-cy, p[2]-cz
+        return ddx*ddx + ddy*ddy + ddz*ddz
+
+    def _closest_point_on_ray(self, origin, direction, point): #vers 1
+        """Param t (distance along ray) of the closest approach to `point`,
+        and the squared distance from the ray to that point at that t."""
+        ox, oy, oz = origin; dx, dy, dz = direction
+        px, py, pz = point[0]-ox, point[1]-oy, point[2]-oz
+        t = px*dx + py*dy + pz*dz
+        cx, cy, cz = ox+dx*t, oy+dy*t, oz+dz*t
+        ddx, ddy, ddz = point[0]-cx, point[1]-cy, point[2]-cz
+        return t, ddx*ddx + ddy*ddy + ddz*ddz
+
+    def _pick_vertex(self, mx: float, my: float): #vers 1
+        """Return index of the closest vertex to the ray through (mx,my)
+        within a small screen-space-equivalent tolerance, or None."""
+        ray = self._pick_ray(mx, my)
+        if ray is None or not self._vertices:
+            return None
+        origin, direction = ray
+        # Tolerance scales with camera distance so it stays roughly
+        # constant in screen pixels regardless of zoom.
+        tol2 = (self._dist * 0.02) ** 2
+        best_i, best_t, best_d2 = None, None, tol2
+        for i, v in enumerate(self._vertices):
+            t, d2 = self._closest_point_on_ray(origin, direction, v)
+            if t < 0:
+                continue
+            if d2 < best_d2 or (best_i is not None and d2 <= best_d2 and t < best_t):
+                best_i, best_t, best_d2 = i, t, d2
+        return best_i
+
+    def _pick_edge(self, mx: float, my: float): #vers 1
+        """Return (vi, vj) (vi<vj) of the closest triangle edge to the ray,
+        or None. Edges are derived from triangle sides, deduplicated."""
+        ray = self._pick_ray(mx, my)
+        if ray is None or not self._vertices or not self._triangles:
+            return None
+        origin, direction = ray
+        tol2 = (self._dist * 0.02) ** 2
+        edges = set()
+        for tri in self._triangles:
+            a, b, c = tri[0], tri[1], tri[2]
+            for i, j in ((a, b), (b, c), (c, a)):
+                edges.add((i, j) if i < j else (j, i))
+        best_key, best_t, best_d2 = None, None, tol2
+        verts = self._vertices
+        for (i, j) in edges:
+            try:
+                va, vb = verts[i], verts[j]
+            except IndexError:
+                continue
+            mid = ((va[0]+vb[0])/2, (va[1]+vb[1])/2, (va[2]+vb[2])/2)
+            t, d2 = self._closest_point_on_ray(origin, direction, mid)
+            if t < 0:
+                continue
+            if d2 < best_d2 or (best_key is not None and d2 <= best_d2 and t < best_t):
+                best_key, best_t, best_d2 = (i, j), t, d2
+        return best_key
+
+    def _ray_triangle_intersect(self, origin, direction, v0, v1, v2): #vers 1
+        """Möller–Trumbore ray/triangle test. Returns t (distance along the
+        ray) on hit, or None. Backface-tolerant (tests both winding orders)."""
+        eps = 1e-9
+        e1 = (v1[0]-v0[0], v1[1]-v0[1], v1[2]-v0[2])
+        e2 = (v2[0]-v0[0], v2[1]-v0[1], v2[2]-v0[2])
+        dx, dy, dz = direction
+        px = dy*e2[2] - dz*e2[1]
+        py = dz*e2[0] - dx*e2[2]
+        pz = dx*e2[1] - dy*e2[0]
+        det = e1[0]*px + e1[1]*py + e1[2]*pz
+        if -eps < det < eps:
+            return None
+        inv_det = 1.0 / det
+        tx, ty, tz = origin[0]-v0[0], origin[1]-v0[1], origin[2]-v0[2]
+        u = (tx*px + ty*py + tz*pz) * inv_det
+        if u < -1e-6 or u > 1 + 1e-6:
+            return None
+        qx = ty*e1[2] - tz*e1[1]
+        qy = tz*e1[0] - tx*e1[2]
+        qz = tx*e1[1] - ty*e1[0]
+        v = (dx*qx + dy*qy + dz*qz) * inv_det
+        if v < -1e-6 or u + v > 1 + 1e-6:
+            return None
+        t = (e1[0]*qx + e1[1]*qy + e1[2]*qz) * inv_det
+        if t < 1e-6:
+            return None
+        return t
+
+    def _pick_face(self, mx: float, my: float): #vers 1
+        """Return index of the closest triangle hit by the ray through
+        (mx,my), or None. Picks the nearest intersection along the ray
+        (i.e. respects depth — front-most triangle wins)."""
+        ray = self._pick_ray(mx, my)
+        if ray is None or not self._vertices or not self._triangles:
+            return None
+        origin, direction = ray
+        verts = self._vertices
+        best_i, best_t = None, None
+        for i, tri in enumerate(self._triangles):
+            a, b, c = tri[0], tri[1], tri[2]
+            try:
+                v0, v1, v2 = verts[a], verts[b], verts[c]
+            except IndexError:
+                continue
+            t = self._ray_triangle_intersect(origin, direction, v0, v1, v2)
+            if t is not None and (best_t is None or t < best_t):
+                best_i, best_t = i, t
+        return best_i
+
+    def _selected_set_for_mode(self, mode=None): #vers 1
+        """Return the live selection set for the given (or current) mode."""
+        mode = mode or getattr(self, '_select_mode', 'object')
+        if mode == 'vertex':
+            return self._selected_verts
+        if mode == 'edge':
+            return self._selected_edges
+        return self._selected_faces   # 'face' and 'poly' share one set
+
+    def _apply_selection_click(self, mode, key, modifiers): #vers 1
+        """Apply a single click selection. Ctrl+click toggles the item;
+        Shift+click adds without replacing; plain click replaces selection."""
+        sel = self._selected_set_for_mode(mode)
+        if modifiers & Qt.KeyboardModifier.ControlModifier:
+            if key in sel:
+                sel.discard(key)
+            else:
+                sel.add(key)
+        elif modifiers & Qt.KeyboardModifier.ShiftModifier:
+            sel.add(key)
+        else:
+            sel.clear()
+            sel.add(key)
 
     def initializeGL(self): #vers 2
         if not OPENGL_AVAILABLE: return
@@ -203,6 +391,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             if   self._mode == 'wireframe': self._draw_wireframe()
             elif self._mode == 'solid':     self._draw_solid()
             elif self._mode == 'textured':  self._draw_textured()
+            self._draw_selection_overlay()
         if self._show_grid: self._draw_grid()
         self._draw_axes()
 
@@ -276,6 +465,62 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._emit_verts(v1,v2,v3)
         glEnd()
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
+        glEnable(GL_LIGHTING)
+
+    def _draw_selection_overlay(self): #vers 1
+        """Highlight the active sub-object selection (vertex/edge/face/poly)
+        on top of the already-rendered mesh. No-op in 'object' mode."""
+        if not OPENGL_AVAILABLE: return
+        mode = getattr(self, '_select_mode', 'object')
+        if mode == 'object':
+            return
+        verts = self._vertices
+        if not verts:
+            return
+        glDisable(GL_LIGHTING)
+        glDisable(GL_DEPTH_TEST)
+
+        if mode == 'vertex' and self._selected_verts:
+            glColor3f(1.0, 0.8, 0.1)
+            glPointSize(max(4.0, min(10.0, self._dist * 0.03)))
+            glBegin(GL_POINTS)
+            for vi in self._selected_verts:
+                if 0 <= vi < len(verts):
+                    v = verts[vi]; glVertex3f(v[0], v[1], v[2])
+            glEnd()
+
+        elif mode == 'edge' and self._selected_edges:
+            glColor3f(1.0, 0.8, 0.1)
+            glLineWidth(3.0)
+            glBegin(GL_LINES)
+            for (vi, vj) in self._selected_edges:
+                if 0 <= vi < len(verts) and 0 <= vj < len(verts):
+                    a, b = verts[vi], verts[vj]
+                    glVertex3f(*a); glVertex3f(*b)
+            glEnd()
+
+        elif mode in ('face', 'poly') and self._selected_faces:
+            glColor4f(1.0, 0.8, 0.1, 0.45)
+            glEnable(GL_BLEND); glDepthMask(False)
+            glBegin(GL_TRIANGLES)
+            for fi in self._selected_faces:
+                if 0 <= fi < len(self._triangles):
+                    v1, v2, v3, _ = self._triangles[fi]
+                    self._emit_verts(v1, v2, v3)
+            glEnd()
+            glDepthMask(True)
+            # Outline on top so the selection reads clearly in solid mode
+            glColor3f(1.0, 0.9, 0.2); glLineWidth(2.0)
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
+            glBegin(GL_TRIANGLES)
+            for fi in self._selected_faces:
+                if 0 <= fi < len(self._triangles):
+                    v1, v2, v3, _ = self._triangles[fi]
+                    self._emit_verts(v1, v2, v3)
+            glEnd()
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
+
+        glEnable(GL_DEPTH_TEST)
         glEnable(GL_LIGHTING)
 
     def _draw_solid(self): #vers 3
@@ -698,8 +943,27 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._yaw=45.0; self._pitch=25.0; self._pan_x=0.0; self._pan_y=0.0
         self._auto_fit(); self.update()
 
-    def mousePressEvent(self, event): #vers 1
+    def mousePressEvent(self, event): #vers 2
         self._last_pos = event.pos()
+        if event.button() == Qt.MouseButton.LeftButton:
+            mode = getattr(self, '_select_mode', 'object')
+            if mode == 'object':
+                return
+            mx, my = event.pos().x(), event.pos().y()
+            if mode == 'vertex':
+                key = self._pick_vertex(mx, my)
+            elif mode == 'edge':
+                key = self._pick_edge(mx, my)
+            else:  # 'face' or 'poly'
+                key = self._pick_face(mx, my)
+            if key is not None:
+                self._apply_selection_click(mode, key, event.modifiers())
+                self.update()
+            elif not (event.modifiers() & (Qt.KeyboardModifier.ControlModifier |
+                                           Qt.KeyboardModifier.ShiftModifier)):
+                # Clicked empty space with no modifier — clear selection
+                self._selected_set_for_mode(mode).clear()
+                self.update()
 
     def mouseMoveEvent(self, event): #vers 1
         dx = event.pos().x() - self._last_pos.x()
