@@ -2299,8 +2299,6 @@ def open_ai_workshop(main_window=None) -> AIWorkshop:
         workshop.setWindowTitle(App_name)
         workshop.resize(1300, 800)
         workshop.show()
-        workshop.raise_()
-        workshop.activateWindow()
         return workshop
     except Exception as e:
         if main_window:

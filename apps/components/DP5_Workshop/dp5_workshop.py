@@ -11855,8 +11855,6 @@ def open_dp5_workshop(main_window=None) -> DP5Workshop: #vers 1
         except Exception:
             pass
         workshop.show()
-        workshop.raise_()
-        workshop.activateWindow()
         return workshop
     except Exception as e:
         if main_window:

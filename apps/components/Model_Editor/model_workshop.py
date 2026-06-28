@@ -5292,7 +5292,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
             self.show()
             self.raise_()
-            self.activateWindow()
 
             if hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"{App_name} undocked to standalone")
@@ -5302,8 +5301,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             # Fallback
             self.setWindowFlags(Qt.WindowType.Window)
             self.show()
-            self.raise_()
-            self.activateWindow()
 
 
     def _apply_button_mode(self, dialog): #vers 1
@@ -15544,8 +15541,6 @@ def open_model_workshop(main_window, dff_path=None,
             workshop.setWindowTitle(f"Model Workshop — {App_name}")
             workshop.resize(1200, 800)
             workshop.show()
-            workshop.raise_()
-            workshop.activateWindow()
 
         # Store source IMG path — DFFs extracted to /tmp lose game context
         if main_window:
@@ -15606,8 +15601,6 @@ def open_col_workshop(main_window, img_path=None): #vers 2
             workshop.setWindowTitle(f"Model Workshop - {App_name}")
             workshop.resize(1200, 800)
             workshop.show()
-            workshop.raise_()
-            workshop.activateWindow()
             return workshop
 
         # Embedded mode - add as tab

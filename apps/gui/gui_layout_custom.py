@@ -3167,7 +3167,6 @@ The <code>.dir</code> file must be in the same folder as the <code>.img</code> f
             if hasattr(self, 'is_overlay') and self.is_overlay:
                 self.show()
                 self.raise_()
-                self.activateWindow()
                 return
 
             # For proper docking, we need to be called from imgfactory
@@ -3179,7 +3178,6 @@ The <code>.dir</code> file must be in the same folder as the <code>.img</code> f
                 # Fallback: just show the window
                 self.show()
                 self.raise_()
-                self.activateWindow()
 
             # Update dock state
             self.is_docked = True
@@ -3192,8 +3190,6 @@ The <code>.dir</code> file must be in the same folder as the <code>.img</code> f
         except Exception as e:
             print(f"Error docking: {str(e)}")
             self.show()
-            self.raise_()
-            self.activateWindow()
 
 
     def _undock_from_main(self): #vers 4
@@ -3219,7 +3215,6 @@ The <code>.dir</code> file must be in the same folder as the <code>.img</code> f
 
             self.show()
             self.raise_()
-            self.activateWindow()
 
             if hasattr(self.main_window, 'log_message'):
                 self.window_context.log_message(f"{App_name} undocked to standalone")
@@ -3229,8 +3224,6 @@ The <code>.dir</code> file must be in the same folder as the <code>.img</code> f
             # Fallback
             self.setWindowFlags(Qt.WindowType.Window)
             self.show()
-            self.raise_()
-            self.activateWindow()
 
 
     def _apply_button_mode(self, dialog): #vers 1

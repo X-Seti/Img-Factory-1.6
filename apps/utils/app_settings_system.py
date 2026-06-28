@@ -560,8 +560,6 @@ class CustomWindow(QMainWindow): #vers 1
                 self.custom_titlebar.setVisible(False)
 
         self.show()
-        self.raise_()
-        self.activateWindow()
 
 
     def _create_custom_titlebar(self): #vers 5

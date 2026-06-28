@@ -1490,7 +1490,6 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
             self.show()
             self.raise_()
-            self.activateWindow()
 
             if hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"{App_name} undocked to standalone")
@@ -1500,8 +1499,6 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             # Fallback
             self.setWindowFlags(Qt.WindowType.Window)
             self.show()
-            self.raise_()
-            self.activateWindow()
 
 
     def _apply_button_mode(self, dialog): #vers 1
@@ -19276,8 +19273,6 @@ def open_txd_workshop(main_window, img_path=None): #vers 5
                     workshop.load_from_img_archive(img_path)
             workshop.resize(1200, 800)
             workshop.show()
-            workshop.raise_()
-            workshop.activateWindow()
             return workshop
 
         # Embedded mode - add as tab
