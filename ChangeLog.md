@@ -1,4 +1,13 @@
-#this belongs in root /ChangeLog.md - Version: 78
+#this belongs in root /ChangeLog.md - Version: 79
+
+## June 2026 - Stale build date on welcome screen
+
+**apps/app_info.py:**
+- App_build still said "May 19 2026" despite App_build_num/
+  App_imgfactory_version being bumped to 386.82 last entry - welcome
+  screen header showed "Img Factory 1.6 - Build May 19 2026", caught
+  by Keith. Updated to June 28 2026.
+
 
 ## June 2026 - Build 386.82 - Vehicle Workshop moved to Asset Editors
 
