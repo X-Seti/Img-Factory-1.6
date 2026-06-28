@@ -1,4 +1,20 @@
-#this belongs in root /ChangeLog.md - Version: 77
+#this belongs in root /ChangeLog.md - Version: 78
+
+## June 2026 - Build 386.82 - Vehicle Workshop moved to Asset Editors
+
+**apps/components/Img_Factory/welcome_screen.py:**
+- Vehicle Workshop tile moved from "Editors & Tools" into "Asset Editors"
+  on the Intro/Quick Start page, alongside Timecyc Workshop
+
+**apps/app_info.py:**
+- App_build_num 385 -> 386, App_imgfactory_version 80 -> 82 to mirror
+  imgfactory.py's actual header version
+
+File header versions bumped (overdue from earlier this session):
+imgfactory.py 81->82, welcome_screen.py 18->19, gui_layout_custom.py
+15->16, scm_workshop.py 1->2, hex_workshop.py 2->3, txd_workshop.py
+14->15, col_workshop.py 79->80, model_workshop.py 119->120.
+
 
 ## June 2026 - Intro page missing 7 existing editors/workshops
 
