@@ -1,4 +1,21 @@
-#this belongs in root /ChangeLog.md - Version: 73
+#this belongs in root /ChangeLog.md - Version: 74
+
+## June 2026 - Standalone workshop windows opening behind main window
+
+**apps/components/Ai_Workshop/ai_workshop.py, apps/components/Model_Editor/model_workshop.py,
+apps/components/Map_Editor/Map_Workshop.py, apps/components/Vehicle_Workshop/depends/app_settings_system.py,
+apps/components/Img_Factory/imgfactory.py, apps/components/Scm_Workshop/scm_workshop.py,
+apps/components/DP5_Workshop/dp5_workshop.py, apps/components/Col_Editor/col_workshop.py,
+apps/components/Txd_Editor/txd_workshop.py, apps/gui/gui_layout_custom.py, apps/utils/app_settings_system.py:**
+- New standalone windows (AI, Model, Map, Vehicle Settings, SCM, DP5, COL, TXD
+  Workshops, IDE Editor) called show() with no raise_()/activateWindow(),
+  so the window opened behind the main window and only showed up in the
+  taskbar - bug reported via screenshot, Intro tab stayed focused
+- Added raise_() + activateWindow() immediately after every standalone
+  show() call, including dock/undock and exception-fallback paths
+- Docked tabs (DAT Browser, Water Workshop, Model Viewer) were unaffected -
+  they already call setCurrentIndex() before show()
+
 
 ## June 2026 - Model Workshop: Extrude selected faces (DFF v119)
 
