@@ -15,6 +15,7 @@
   (not a percentage) to decide "is intro currently showing" - changed
   to percentage-based so a partial-width leftover state can't be
   misread as intro being open
+- Confirmed fixed by Keith
 
 
 ## June 2026 - Workshop tabs squeezed half-width by left panel
