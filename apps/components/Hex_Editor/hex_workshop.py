@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Hex_Editor/hex_workshop.py - Version: 2
+#this belongs in apps/components/Hex_Editor/hex_workshop.py - Version: 3
 # X-Seti - May18 2026 - IMG Factory 1.6 - Hex Workshop
 """
 Hex Workshop - Standalone hex editor with 3-panel display.

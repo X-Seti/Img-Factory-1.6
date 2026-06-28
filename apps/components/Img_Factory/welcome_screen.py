@@ -1,4 +1,4 @@
-# apps/components/Img_Factory/welcome_screen.py — Version 18
+# apps/components/Img_Factory/welcome_screen.py — Version 19
 # X-Seti - 25Apr2026 - IMG Factory 1.6 - Welcome / Intro screen
 """Welcome / Intro screen shown on startup.
 Full documentation of all IMG Factory features and workflows.
@@ -451,6 +451,10 @@ class WelcomeScreen(QWidget):
              "Edit GTA time-of-day colour cycles. Supports GTA III, VC and SA "
              "timecyc.dat / timecycp.dat with sky preview and game conversion.",
              self.open_timecyc_workshop),
+            (_SVG.view_icon(36, _ic), "Vehicle Workshop",
+             "Preview vehicle DFFs with steering, wheels and door animation. "
+             "VC/SA dummy detection, frame hierarchy tree.",
+             self.open_vehicle_workshop),
         ]
         for i, (ico, ttl, dsc, sig) in enumerate(eds):
             c = WelcomeCard(ico, ttl, dsc); c.clicked.connect(sig.emit)
@@ -477,10 +481,6 @@ class WelcomeScreen(QWidget):
              "Edit breakable object data — collision break models and "
              "object.dat / objects.ide breakable flags.",
              self.open_breakable_editor),
-            (_SVG.view_icon(36, _ic), "Vehicle Workshop",
-             "Preview vehicle DFFs with steering, wheels and door animation. "
-             "VC/SA dummy detection, frame hierarchy tree.",
-             self.open_vehicle_workshop),
             (_SVG.get_edit_icon(36, _ic), "SCM Workshop",
              "Edit compiled GTA mission scripts — decompile, browse opcodes "
              "and patch main.scm / script.img.",

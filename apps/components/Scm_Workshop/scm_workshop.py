@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/Scm_Workshop/scm_workshop.py — Version 1
+# apps/components/Scm_Workshop/scm_workshop.py — Version 2
 # X-Seti / Claudia — IMG Factory 1.6 — SCM Script Workshop
 # GTA III / VC / SA main.scm browser, coord searcher and patcher.
 

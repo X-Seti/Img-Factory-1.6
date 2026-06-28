@@ -1,4 +1,4 @@
-#belongs in gui/gui_layout_custom.py - Version 15
+#belongs in gui/gui_layout_custom.py - Version 16
 # X-Seti - February04 2026 - Img Factory 1.6 - Custom UI Module
 
 from PyQt6.QtWidgets import (

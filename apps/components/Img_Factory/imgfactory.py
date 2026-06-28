@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in components/Img_Factory/imgfactory.py - Version: 81
+#this belongs in components/Img_Factory/imgfactory.py - Version: 82
 # X-Seti - Feb 24 2026 - IMG Factory 1.6 - Icon system, button layout
 
 """

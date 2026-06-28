@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in components/Txd_Editor/ txd_workshop.py - Version: 14
+#this belongs in components/Txd_Editor/ txd_workshop.py - Version: 15
 # X-Seti - October10 2025 - Img Factory 1.5 - TXD Workshop Header Update
 
 """
