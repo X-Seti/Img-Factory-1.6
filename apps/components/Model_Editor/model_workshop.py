@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 121
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 122
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -7286,7 +7286,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.flip_vert_btn.setFixedHeight(btn_height)
         self.flip_vert_btn.setMinimumWidth(btn_width)
         self.flip_vert_btn.setEnabled(False)
-        self.flip_vert_btn.setToolTip("Flip col vertically")
+        self.flip_vert_btn.setToolTip("Flip model vertically")
         self.flip_vert_btn.clicked.connect(lambda: getattr(self,"preview_widget",None) and self.preview_widget.flip_vertical())
         layout.addWidget(self.flip_vert_btn)
         layout.addSpacing(spacer)
@@ -7298,7 +7298,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.flip_horz_btn.setFixedHeight(btn_height)
         self.flip_horz_btn.setMinimumWidth(btn_width)
         self.flip_horz_btn.setEnabled(False)
-        self.flip_horz_btn.setToolTip("Flip col horizontally")
+        self.flip_horz_btn.setToolTip("Flip model horizontally")
         self.flip_horz_btn.clicked.connect(lambda: getattr(self,"preview_widget",None) and self.preview_widget.flip_horizontal())
         layout.addWidget(self.flip_horz_btn)
         layout.addSpacing(spacer)
@@ -7335,7 +7335,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.analyze_btn.setMinimumWidth(btn_width)
         self.analyze_btn.clicked.connect(self._analyze_collision)
         self.analyze_btn.setEnabled(False)
-        self.analyze_btn.setToolTip("Analyze collision data")
+        self.analyze_btn.setToolTip("Analyse model")
         layout.addWidget(self.analyze_btn)
         layout.addSpacing(spacer)
 
@@ -7346,7 +7346,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.copy_btn.setFixedHeight(btn_height)
         self.copy_btn.setMinimumWidth(btn_width)
         self.copy_btn.setEnabled(False)
-        self.copy_btn.setToolTip("Copy col to clipboard")
+        self.copy_btn.setToolTip("Copy model to clipboard")
         self.copy_btn.clicked.connect(self._copy_surface)
         layout.addWidget(self.copy_btn)
         layout.addSpacing(spacer)
@@ -7358,7 +7358,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.paste_btn.setFixedHeight(btn_height)
         self.paste_btn.setMinimumWidth(btn_width)
         self.paste_btn.setEnabled(False)
-        self.paste_btn.setToolTip("Paste col from clipboard")
+        self.paste_btn.setToolTip("Paste model from clipboard")
         self.paste_btn.clicked.connect(self._paste_surface)
         layout.addWidget(self.paste_btn)
         layout.addSpacing(spacer)
@@ -7701,7 +7701,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.flip_vert_btn.setFont(self.button_font)
         self.flip_vert_btn.setFixedHeight(btn_height)
         self.flip_vert_btn.setEnabled(False)
-        self.flip_vert_btn.setToolTip("Flip col vertically")
+        self.flip_vert_btn.setToolTip("Flip model vertically")
         self.flip_vert_btn.clicked.connect(lambda: getattr(self,"preview_widget",None) and self.preview_widget.flip_vertical())
         layout.addWidget(self.flip_vert_btn)
         layout.addSpacing(spacer)
@@ -7711,7 +7711,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.flip_horz_btn.setFont(self.button_font)
         self.flip_horz_btn.setFixedHeight(btn_height)
         self.flip_horz_btn.setEnabled(False)
-        self.flip_horz_btn.setToolTip("Flip col horizontally")
+        self.flip_horz_btn.setToolTip("Flip model horizontally")
         self.flip_horz_btn.clicked.connect(lambda: getattr(self,"preview_widget",None) and self.preview_widget.flip_horizontal())
         layout.addWidget(self.flip_horz_btn)
         layout.addSpacing(spacer)
@@ -7737,31 +7737,31 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         layout.addSpacing(spacer)
 
         # Analyze
-        self.analyze_btn = QPushButton("Analyze")
+        self.analyze_btn = QPushButton("Analyse Model")
         self.analyze_btn.setFont(self.button_font)
         self.analyze_btn.setFixedHeight(btn_height)
         self.analyze_btn.clicked.connect(self._analyze_collision)
         self.analyze_btn.setEnabled(False)
-        self.analyze_btn.setToolTip("Analyze collision data")
+        self.analyze_btn.setToolTip("Analyse model")
         layout.addWidget(self.analyze_btn)
         layout.addSpacing(spacer)
 
         # Copy
-        self.copy_btn = QPushButton("Copy")
+        self.copy_btn = QPushButton("Copy Model")
         self.copy_btn.setFont(self.button_font)
         self.copy_btn.setFixedHeight(btn_height)
         self.copy_btn.setEnabled(False)
-        self.copy_btn.setToolTip("Copy col to clipboard")
+        self.copy_btn.setToolTip("Copy model to clipboard")
         self.copy_btn.clicked.connect(self._copy_surface)
         layout.addWidget(self.copy_btn)
         layout.addSpacing(spacer)
 
         # Paste
-        self.paste_btn = QPushButton("Paste")
+        self.paste_btn = QPushButton("Paste Model")
         self.paste_btn.setFont(self.button_font)
         self.paste_btn.setFixedHeight(btn_height)
         self.paste_btn.setEnabled(False)
-        self.paste_btn.setToolTip("Paste col from clipboard")
+        self.paste_btn.setToolTip("Paste model from clipboard")
         self.paste_btn.clicked.connect(self._paste_surface)
         layout.addWidget(self.paste_btn)
         layout.addSpacing(spacer)
