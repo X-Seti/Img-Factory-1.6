@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 122
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 123
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -7184,27 +7184,37 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         return verts, tris
 
     def _add_geometry_to_dff(self, verts: list, tris: list,
-                              name: str = "primitive"): #vers 1
+                              name: str = "primitive"): #vers 2
         """Add a new geometry to the current DFF model from raw verts+tris.
-        Creates a minimal DFF geometry object and refreshes the viewport."""
-        import types, math
+        If no DFF model is loaded yet, creates a new blank one first so
+        primitives can be built completely from scratch.
+        Builds a real Geometry/Triangle/Vector3 (not a duck-typed stand-in)
+        so the result is identical to a loaded DFF and saves correctly."""
+        import math
+        from apps.components.Model_Editor.depends.dff_classes import (
+            DFFModel, Geometry, Triangle, Vector3, TexCoord, Frame, Atomic,
+            BoundingSphere)
 
         model = getattr(self, '_current_dff_model', None)
         if model is None:
-            raise RuntimeError("No DFF loaded. Load a DFF file first.")
+            # Nothing loaded — create a brand new empty model with one
+            # root frame so the primitive has somewhere to attach.
+            model = DFFModel()
+            model.frames.append(Frame(name="root", parent_index=-1))
+            self._current_dff_model = model
+            self._current_dff_path = None
+            self.current_col_file = None
+            if hasattr(self, 'format_combo'):
+                self.format_combo.setVisible(False)
 
-        # Build a minimal geometry-like object the viewport can render
-        # The DFF geometry stores vertex positions and face indices
-        geom = types.SimpleNamespace()
-        geom.vertices  = verts
-        geom.faces     = tris
-        geom.normals   = []
-        geom.uv_layers = []
-        geom.materials = []
-        geom.name      = name
+        geom = Geometry()
+        geom.vertices = [Vector3(x, y, z) for (x, y, z) in verts]
+        geom.triangles = [Triangle(v1=i0, v2=i1, v3=i2, material_id=0)
+                           for (i0, i1, i2) in tris]
+        geom.uv_layers = [[TexCoord(0.0, 0.0) for _ in verts]]
 
-        # Calculate normals per face → per vertex (flat shading)
-        vert_normals = [(0.0, 0.0, 0.0)] * len(verts)
+        # Per-vertex normals: accumulate face normals, then normalise
+        vert_normals = [[0.0, 0.0, 0.0] for _ in verts]
         for i0, i1, i2 in tris:
             v0, v1, v2 = verts[i0], verts[i1], verts[i2]
             ax, ay, az = v1[0]-v0[0], v1[1]-v0[1], v1[2]-v0[2]
@@ -7215,23 +7225,33 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             ln = math.sqrt(nx*nx + ny*ny + nz*nz) or 1.0
             nx, ny, nz = nx/ln, ny/ln, nz/ln
             for idx in (i0, i1, i2):
-                ox, oy, oz = vert_normals[idx]
-                vert_normals[idx] = (ox+nx, oy+ny, oz+nz)
-        # Normalise accumulated normals
-        geom.normals = []
+                vert_normals[idx][0] += nx
+                vert_normals[idx][1] += ny
+                vert_normals[idx][2] += nz
+        normals = []
         for nx, ny, nz in vert_normals:
             ln = math.sqrt(nx*nx + ny*ny + nz*nz) or 1.0
-            geom.normals.append((nx/ln, ny/ln, nz/ln))
+            normals.append(Vector3(nx/ln, ny/ln, nz/ln))
+        geom.normals = normals
 
-        # Append to model geometries
-        if not hasattr(model, 'geometries'):
-            model.geometries = []
+        # Bounding sphere — centre + radius enclosing all verts
+        if verts:
+            cx = sum(v[0] for v in verts) / len(verts)
+            cy = sum(v[1] for v in verts) / len(verts)
+            cz = sum(v[2] for v in verts) / len(verts)
+            radius = max(math.sqrt((v[0]-cx)**2 + (v[1]-cy)**2 + (v[2]-cz)**2)
+                         for v in verts)
+            geom.bounding_sphere = BoundingSphere(center=Vector3(cx, cy, cz),
+                                                   radius=radius)
+
+        geom_index = len(model.geometries)
         model.geometries.append(geom)
-        if not hasattr(model, 'geometry_count'):
-            model.geometry_count = 0
-        model.geometry_count = len(model.geometries)
 
-        # Refresh viewport
+        # New geometry needs a frame + atomic to attach to so the frame
+        # hierarchy / Model Viewer can see it; attach to the root frame.
+        model.atomics.append(Atomic(frame_index=0, geometry_index=geom_index))
+
+        # Refresh viewport / mesh list
         self._display_dff_model(model)
         mw = self.main_window
         if mw and hasattr(mw, 'log_message'):
