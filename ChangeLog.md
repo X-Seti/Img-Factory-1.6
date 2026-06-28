@@ -1,4 +1,29 @@
-#this belongs in root /ChangeLog.md - Version: 76
+#this belongs in root /ChangeLog.md - Version: 77
+
+## June 2026 - Intro page missing 7 existing editors/workshops
+
+**apps/components/Img_Factory/welcome_screen.py, apps/gui/gui_layout_custom.py,
+apps/components/Img_Factory/imgfactory.py, apps/components/Scm_Workshop/scm_workshop.py,
+apps/components/Hex_Editor/hex_workshop.py:**
+- IDE Editor, IPL Editor, Handling Editor, Breakable Editor, Vehicle
+  Workshop, SCM Workshop and Hex Workshop all existed and worked but had
+  no tile on the Intro/Quick Start page - AI Workshop intentionally left
+  out, needs more work first
+- Added "Editors & Tools" section to Quick Start with 7 new tiles and
+  signals, wired through _connect_workshops same as existing tiles
+- IDE/IPL/Handling/Breakable: connected to their existing docked open
+  methods, no further changes needed
+- Vehicle Workshop: open_vehi_editor was a dead "coming soon" stub even
+  though VehicleWorkshop's real module worked standalone - added
+  open_vehicle_workshop_docked via the generic _open_workshop_tab
+  helper, redirected the stub to call it
+- SCM Workshop: had a working docked embed path already, just missing
+  _ensure_tab_area_visible() - added it, added open_scm_workshop_docked
+  wrapper on main window
+- Hex Workshop: had no docked path at all (standalone QApplication only)
+  - added one matching SCM's embed pattern, added open_hex_workshop_docked
+  wrapper
+
 
 ## June 2026 - Intro toggle collapsing instead of opening after workshop tab opens
 
