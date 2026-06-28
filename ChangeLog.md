@@ -1,4 +1,19 @@
-#this belongs in root /ChangeLog.md - Version: 73
+#this belongs in root /ChangeLog.md - Version: 74
+
+## June 2026 - Docked workshop tabs opening with collapsed splitter
+
+**apps/components/Txd_Editor/txd_workshop.py, apps/components/Col_Editor/col_workshop.py,
+apps/components/Model_Editor/model_workshop.py, apps/components/Img_Factory/imgfactory.py:**
+- Reverted the raise_()/activateWindow() standalone-window changes from
+  the previous session - wrong fix for this bug, these workshops are
+  docked tabs, not standalone windows
+- Real cause: TXD, COL, Model Workshop and Model Viewer embedded-tab opens
+  called setCurrentIndex() but never _ensure_tab_area_visible(), so
+  content_splitter kept the tab area at ~0% width - tab was selected but
+  invisible until the splitter handle was dragged open by hand
+- Water, DP5, AI, IDE and Radar Workshop already called this after
+  setCurrentIndex() - added the same call to the four missing spots
+
 
 ## June 2026 - Model Workshop: Extrude selected faces (DFF v119)
 
