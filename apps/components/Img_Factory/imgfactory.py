@@ -6750,8 +6750,21 @@ class IMGFactory(QMainWindow):
                     tab_idx = i
                     break
 
-            # If tab area is collapsed (< 30%), give it space
-            if sizes[tab_idx] < total * 0.30:
+            # If left panel is taking space, fully collapse it so the
+            # new workshop tab gets the whole content width
+            left_idx = 1 - tab_idx if splitter.count() == 2 else None
+            if left_idx is not None and sizes[left_idx] > total * 0.05:
+                new_sizes = [0] * splitter.count()
+                new_sizes[tab_idx] = total
+                splitter.setSizes(new_sizes)
+                if left_stack and left_stack.isVisible():
+                    left_stack.hide()
+                if hasattr(self, 'tool_taskbar'):
+                    self.tool_taskbar.set_active('intro', False)
+                    self.tool_taskbar.set_active('dirtree', False)
+                    self.tool_taskbar.set_active('dat', False)
+            elif sizes[tab_idx] < total * 0.30:
+                # Fallback: left panel already small but not collapsed - give tab area space
                 new_sizes = list(sizes)
                 new_sizes[tab_idx] = int(total * 0.80)
                 for i in range(len(new_sizes)):
