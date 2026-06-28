@@ -227,9 +227,11 @@ def _show_intro_panel(mw): #vers 5
             left_stack.removeWidget(old)
             left_stack.insertWidget(2, ws)
 
-        # Toggle: if already on intro page and visible — collapse
+        # Toggle: if already on intro page and actually showing — collapse
+        sizes_now = splitter.sizes()
+        total_now = sum(sizes_now) or 1
         currently_intro = (left_stack.currentIndex() == 2 and left_stack.isVisible()
-                           and splitter.sizes()[0] > 20)
+                           and sizes_now[0] > total_now * 0.10)
         if currently_intro:
             total = splitter.width() or sum(splitter.sizes()) or 10000
             splitter.setSizes([0, total])
