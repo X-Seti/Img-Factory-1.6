@@ -1,5 +1,5 @@
 # X-Seti - May13 2026 - IMG Factory 1.6 - DFF OpenGL Viewport
-# this belongs in apps/methods/dff_viewport.py - Version: 1
+# this belongs in apps/methods/dff_viewport.py - Version: 2
 """
 DFFViewport - Shared OpenGL viewport for DFF model rendering.
 Used by Model Viewer, Model Workshop, Vehicle Workshop (docked).
@@ -120,6 +120,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
         # App settings ref (optional — set by host tool)
         self.app_settings = None
+        # Explicit background override (R,G,B 0-255) — None means use theme colour
+        self._bg_color_override = None
 
     def _get_ui_color(self, key): #vers 2
         """Get theme color — tries app_settings, falls back to defaults."""
@@ -142,9 +144,15 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         rgb = defaults.get(key, (40, 40, 50))
         return QColor(*rgb)
 
-    def initializeGL(self): #vers 1
+    def _get_bg_color(self): #vers 1
+        """Resolve actual background colour — explicit override takes priority over theme."""
+        if self._bg_color_override is not None:
+            return QColor(*self._bg_color_override)
+        return self._get_ui_color('bg_panel')
+
+    def initializeGL(self): #vers 2
         if not OPENGL_AVAILABLE: return
-        bg = self._get_ui_color('bg_panel')
+        bg = self._get_bg_color()
         glClearColor(bg.redF(), bg.greenF(), bg.blueF(), 1.0)
         glEnable(GL_DEPTH_TEST)
         glEnable(GL_BLEND)
@@ -168,9 +176,9 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         gluPerspective(45.0, max(1, w) / max(1, h), 0.01, 100000.0)
         glMatrixMode(GL_MODELVIEW)
 
-    def paintGL(self): #vers 3
+    def paintGL(self): #vers 4
         if not OPENGL_AVAILABLE: return
-        bg = self._get_ui_color('bg_panel')
+        bg = self._get_bg_color()
         glClearColor(bg.redF(), bg.greenF(), bg.blueF(), 1.0)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         glLoadIdentity()
@@ -757,12 +765,22 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         g = model.geometries[min(index, len(model.geometries)-1)]
         self.load_geometry(g, g.materials)
 
-    def set_checkerboard_background(self): #vers 1
-        # No-op — OpenGL bg is solid theme colour
-        pass
+    def set_checkerboard_background(self): #vers 2
+        """No checkerboard rendering in GL mode — clear any colour override back to theme."""
+        self._bg_color_override = None
+        self.update()
 
-    def set_background_color(self, color): #vers 1
-        pass
+    def set_background_color(self, color): #vers 2
+        """Set an explicit background colour, overriding the theme colour.
+
+        color: (r, g, b) tuple 0-255, or a QColor.
+        """
+        if hasattr(color, 'getRgb'):
+            r, g, b, _ = color.getRgb()
+            self._bg_color_override = (r, g, b)
+        else:
+            self._bg_color_override = tuple(color[:3])
+        self.update()
 
     def _refresh(self): #vers 1
         self.update()

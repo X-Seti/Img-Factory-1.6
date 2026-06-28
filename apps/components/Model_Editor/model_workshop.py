@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 120
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 121
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -3207,7 +3207,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             except Exception:
                 pass
             if pw:
-                b.clicked.connect(lambda _=False, s=style, p=pw: p.set_render_style(s))
+                rev = {'wire': 'wireframe', 'semi': 'solid', 'solid': 'solid', 'textured': 'textured'}
+                b.clicked.connect(lambda _=False, s=style, p=pw: p.set_render_mode(rev.get(s, 'solid')))
             prev_row.addWidget(b)
             _prev_btns.append((b, label))
         prev_row.addStretch()
@@ -3346,14 +3347,18 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         dlg.exec()
 
 
-    def _cycle_view_render_style(self): #vers 1
-        """Cycle viewport render: wireframe -> semi -> solid."""
+    def _cycle_view_render_style(self): #vers 2
+        """Cycle viewport render: wireframe -> solid -> textured."""
         pw = getattr(self, 'preview_widget', None)
         if not pw: return
-        modes = ['wireframe','semi','solid','textured']
-        cur = getattr(pw, '_render_style', 'semi')
-        pw._render_style = modes[(modes.index(cur)+1) % len(modes)] if cur in modes else 'semi'
-        pw.update()
+        modes = ['wireframe', 'solid', 'textured']
+        cur = getattr(pw, '_mode', 'solid')
+        nxt = modes[(modes.index(cur) + 1) % len(modes)] if cur in modes else 'solid'
+        if hasattr(pw, 'set_render_mode'):
+            pw.set_render_mode(nxt)
+        else:
+            pw._mode = nxt
+            pw.update()
 
 
     def _open_paint_editor(self): #vers 5
@@ -4244,13 +4249,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._open_file(self.current_file_path)
 
 
-    def _open_render_settings_dialog(self): #vers 1
+    def _open_render_settings_dialog(self): #vers 2
         """Render & background settings dialog."""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
-                                     QComboBox, QSlider, QPushButton, QColorDialog,
-                                     QGroupBox, QDialogButtonBox, QCheckBox)
+                                     QComboBox, QPushButton, QColorDialog,
+                                     QGroupBox, QDialogButtonBox)
         from PyQt6.QtGui import QColor
-        from PyQt6.QtCore import Qt
 
         pw = getattr(self, 'preview_widget', None)
         if not pw: return
@@ -4265,31 +4269,35 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         sg = QHBoxLayout(style_grp)
         sg.addWidget(QLabel("Style:"))
         style_combo = QComboBox()
-        style_combo.addItems(["Wireframe", "Semi-transparent", "Solid"])
-        mapping = {"wireframe":"Wireframe","semi":"Semi-transparent","solid":"Solid"}
-        style_combo.setCurrentText(mapping.get(pw._render_style, "Semi-transparent"))
+        style_combo.addItems(["Wireframe", "Solid", "Textured"])
+        mapping = {"wireframe": "Wireframe", "solid": "Solid", "textured": "Textured"}
+        cur_mode = getattr(pw, '_mode', 'solid')
+        style_combo.setCurrentText(mapping.get(cur_mode, "Solid"))
         sg.addWidget(style_combo)
         lay.addWidget(style_grp)
 
         # Background
         bg_grp = QGroupBox("Background")
         bg = QHBoxLayout(bg_grp)
-        r,g,b = pw._bg_color
+        override = getattr(pw, '_bg_color_override', None)
+        r, g, b = override if override is not None else (
+            pw._get_ui_color('bg_panel').red(),
+            pw._get_ui_color('bg_panel').green(),
+            pw._get_ui_color('bg_panel').blue())
         bg_preview = QPushButton("  ")
         bg_preview.setFixedSize(60, 28)
         bg_preview.setStyleSheet(f"background-color: rgb({r},{g},{b});")
         def _pick_bg():
-            c = QColorDialog.getColor(QColor(r,g,b), dlg, "Background Colour")
+            c = QColorDialog.getColor(QColor(r, g, b), dlg, "Background Colour")
             if c.isValid():
                 bg_preview.setStyleSheet(f"background-color: {c.name()};")
                 bg_preview.setProperty("chosen", (c.red(), c.green(), c.blue()))
         bg_preview.clicked.connect(_pick_bg)
         bg.addWidget(QLabel("Colour:"))
         bg.addWidget(bg_preview)
-
-        scene_cb = QComboBox()
-        scene_cb.addItems(["Dark", "Mid", "Light"])
-        bg.addWidget(scene_cb)
+        reset_btn = QPushButton("Use Theme")
+        reset_btn.clicked.connect(lambda: bg_preview.setProperty("reset_to_theme", True))
+        bg.addWidget(reset_btn)
         lay.addWidget(bg_grp)
 
         # Buttons
@@ -4298,11 +4306,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         btns.rejected.connect(dlg.reject)
         def _apply():
             s = style_combo.currentText()
-            rev = {"Wireframe":"wireframe","Semi-transparent":"semi","Solid":"solid"}
-            pw.set_render_style(rev.get(s,"semi"))
-            chosen = bg_preview.property("chosen")
-            if chosen:
-                pw.set_background_color(chosen)
+            rev = {"Wireframe": "wireframe", "Solid": "solid", "Textured": "textured"}
+            pw.set_render_mode(rev.get(s, "solid"))
+            if bg_preview.property("reset_to_theme"):
+                pw.set_checkerboard_background()
+            else:
+                chosen = bg_preview.property("chosen")
+                if chosen:
+                    pw.set_background_color(chosen)
             dlg.accept()
         btns.accepted.connect(_apply)
         lay.addWidget(btns)
@@ -10654,7 +10665,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         if found_count:
             if pw:
-                pw.set_render_style('textured')
+                pw.set_render_mode('textured')
                 pw.update()
             if mw and hasattr(mw, 'log_message'):
                 mw.log_message(
@@ -10830,7 +10841,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             elif pw and hasattr(pw, 'load_textures'):
                 pw.load_textures(textures)
                 if len(textures) > 0:
-                    pw.set_render_style('textured')
+                    pw.set_render_mode('textured')
         except Exception as e:
             import traceback; traceback.print_exc()
             QMessageBox.critical(self, "TXD Error",
@@ -13610,16 +13621,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         menu.addSeparator()
         render_menu = menu.addMenu("Render Mode")
         pw = getattr(self, 'preview_widget', None)
-        cur_style = getattr(pw, '_render_style', 'semi') if pw else 'semi'
+        cur_style = getattr(pw, '_mode', 'solid') if pw else 'solid'
         for style, label in [('wireframe', 'Wireframe'),
-                              ('semi',     'Semi-transparent'),
                               ('solid',    'Solid'),
                               ('textured', 'Textured')]:
             tick = '✓ ' if cur_style == style else '    '
             act = render_menu.addAction(tick + label)
             if pw:
                 act.triggered.connect(
-                    lambda _=False, s=style, p=pw: p.set_render_style(s))
+                    lambda _=False, s=style, p=pw: p.set_render_mode(s))
 
         # - UV info
         if geom:
