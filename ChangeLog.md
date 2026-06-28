@@ -1,4 +1,21 @@
-#this belongs in root /ChangeLog.md - Version: 75
+#this belongs in root /ChangeLog.md - Version: 76
+
+## June 2026 - Intro toggle collapsing instead of opening after workshop tab opens
+
+**apps/components/Img_Factory/imgfactory.py, apps/gui/gui_layout_custom.py:**
+- _ensure_tab_area_visible's >5%/<30% threshold logic could leave the
+  left panel at a non-zero width without resetting isVisible() or
+  currentIndex(), so the next click on Intro read it as already showing
+  and collapsed it instead of opening it - regression from the previous
+  session's 100%-width fix landing as an 80/20 split in practice
+- Simplified _ensure_tab_area_visible to unconditionally fully collapse
+  the left panel (hide + 0 width) whenever a workshop tab opens, no
+  threshold branching
+- _show_intro_panel's toggle check used a fixed 20px width threshold
+  (not a percentage) to decide "is intro currently showing" - changed
+  to percentage-based so a partial-width leftover state can't be
+  misread as intro being open
+
 
 ## June 2026 - Workshop tabs squeezed half-width by left panel
 
