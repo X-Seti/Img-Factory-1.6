@@ -1,4 +1,16 @@
-#this belongs in root /ChangeLog.md - Version: 74
+#this belongs in root /ChangeLog.md - Version: 75
+
+## June 2026 - Workshop tabs squeezed half-width by left panel
+
+**apps/components/Img_Factory/imgfactory.py:**
+- _ensure_tab_area_visible only shrank left_stack (Intro/Dir Tree/DAT) to
+  20%, so a freshly opened workshop tab still got squeezed into the
+  remaining 80% of a narrower total width - screenshot showed Timecyc
+  Workshop sharing the window with Quick Start at roughly half width
+- Now fully collapses left_stack (hide + splitter to 0) and gives the
+  tab area 100% width, clearing intro/dirtree/dat active state in the
+  tool taskbar to match - same as manually toggling Intro off
+
 
 ## June 2026 - Docked workshop tabs opening with collapsed splitter
 
