@@ -1,4 +1,24 @@
-#this belongs in root /ChangeLog.md - Version: 79
+#this belongs in root /ChangeLog.md - Version: 80
+
+## June 2026 - Build 387.83 - IMG tabs missing taskbar button and collapsed splitter
+
+**apps/components/Img_Factory/imgfactory.py, apps/methods/tab_system.py, apps/app_info.py:**
+- Opening an IMG file logged "Switched to tab" but gave no taskbar
+  button to switch back to it later, and the tab area could still be
+  squeezed by the left panel
+- Root cause: _sync_img_taskbar_buttons() deliberately skips tabs whose
+  file_object is still None - correct, since create_tab() is called
+  before the IMGLoadThread finishes - but nothing called it again once
+  loading completed and file_object got set, so the button never
+  appeared
+- Added a call to _sync_img_taskbar_buttons() + _ensure_tab_area_visible()
+  at the end of _on_img_loaded(), after file_object is set
+- create_tab() also still had the old _dirtree_state==2 splitter-resize
+  branch (50/50 split, one specific state only) instead of the shared
+  _ensure_tab_area_visible() helper - replaced it, fixing the same
+  collapsed-splitter issue for COL tabs too
+- App_build_num 386 -> 387, App_imgfactory_version 82 -> 83
+
 
 ## June 2026 - Stale build date on welcome screen
 
