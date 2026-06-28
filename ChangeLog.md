@@ -1,4 +1,31 @@
-#this belongs in root /ChangeLog.md - Version: 80
+#this belongs in root /ChangeLog.md - Version: 81
+
+## June 2026 - Crash: Render Settings dialog used COL3DViewport API on DFFViewport
+
+**apps/methods/dff_viewport.py, apps/components/Model_Editor/model_workshop.py:**
+- AttributeError: 'DFFViewport' object has no attribute '_bg_color' -
+  app aborted (core dumped) - reported with full traceback from
+  _open_render_settings_dialog
+- _render_style/_bg_color belong to the unrelated COL3DViewport class;
+  DFFViewport (Model Workshop's actual preview_widget) uses _mode
+  ('wireframe'/'solid'/'textured') and had no background override at
+  all - set_background_color was a deliberate no-op, background was
+  theme-only
+- Added a real _bg_color_override + _get_bg_color() resolver to
+  DFFViewport (override takes priority over theme), wired both GL
+  clear calls to it. Implemented set_background_color() for real;
+  set_checkerboard_background() now clears the override back to theme
+- Rewrote _open_render_settings_dialog to use _mode/set_render_mode
+  and the new bg override - dropped Semi-transparent (not supported)
+  and the unconnected Scene dropdown, added "Use Theme" reset button
+- Fixed 5 other call sites making the same pw.set_render_style()/
+  pw._render_style mistake on a DFFViewport instance
+  (_cycle_view_render_style, texture panel preview row, render-mode
+  right-click menu, 2 texture-load paths) - latent no-ops/crashes
+  depending on whether _render_style happened to already exist as a
+  stray instance attribute. Texture panel's Semi button now maps to
+  Solid (closest equivalent, per Keith)
+
 
 ## June 2026 - Build 387.83 - IMG tabs missing taskbar button and collapsed splitter
 
