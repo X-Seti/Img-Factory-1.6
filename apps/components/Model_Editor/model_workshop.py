@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 132
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 133
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -8285,7 +8285,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._right_panel_ref = panel
         main_layout = QVBoxLayout(panel)
         main_layout.setContentsMargins(4, 4, 4, 4)
-        main_layout.setSpacing(3)
+        main_layout.setSpacing(0)   # bars stack flush by default (matches
+                                     # 3ds Max); explicit spacer added below
+                                     # only where breathing room is wanted
 
         # - Top toolbar row
         left_toolbar = self._create_transform_icon_panel()
@@ -8305,9 +8307,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         main_layout.addWidget(geo_toolbar, stretch=0)
         geo_toolbar.set_dock_position('top')
 
+        main_layout.addSpacing(4)   # breathing room between the toolbar
+                                     # stack and the preview content below
+
         # - Preview row: viewport + right dockable toolbar
         preview_row = QHBoxLayout()
-        preview_row.setSpacing(3)
+        preview_row.setSpacing(0)   # nav/render bars stack flush against
+                                     # each other and the viewport edge
 
         self.preview_widget = DFFViewport()
         self.preview_widget._workshop_ref = self
@@ -8319,6 +8325,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._gl_mode      = True
 
         self._create_paint_bar()
+
+        preview_row.addSpacing(4)   # breathing room between viewport and
+                                     # the right-docked bar stack
 
         nav_toolbar = self._create_nav_toolbar()
         nav_toolbar.set_dock_position('right')
