@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/img_svg_icons.py - Version: 9
+#this belongs in apps/methods/img_svg_icons.py - Version: 10
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -62,6 +62,14 @@ from PyQt6.QtCore import Qt
 # search_icon
 # svg_edit_icon
 # settings_icon
+# snap_axis_constraint_icon
+# snap_edge_icon
+# snap_endpoint_icon
+# snap_face_icon
+# snap_grid_icon
+# snap_midpoint_icon
+# snap_pivot_icon
+# snap_vertex_icon
 # sphere_icon
 # stop_icon
 # txd_workshop_icon
@@ -3136,6 +3144,92 @@ class SVGIconFactory: #vers 8
                   stroke="currentColor" stroke-width="0.8" opacity="0.4"/>
             <line x1="12" y1="4" x2="12" y2="20"
                   stroke="currentColor" stroke-width="0.8" opacity="0.4"/>
+        </svg>''', size, color)
+
+    # - Snap target icons (3ds Max style: magnet base + target-type pictogram,
+    #   confirmed visual language from 3dsmax2014_ui_catalog.md session)
+
+    @staticmethod
+    def _snap_magnet_base() -> str: #vers 1
+        """Shared magnet-shape base path reused by every snap target icon
+        below, so the 'magnet' part stays pixel-identical across all 7 and
+        only the inner pictogram differs - matches how Max's own icon set
+        clearly shares one base asset across its snap toolbar row."""
+        return '''<path d="M7 3 H10 V11 A2 2 0 0 0 14 11 V3 H17 V11
+                   A5 5 0 0 1 7 11 Z" fill="currentColor" opacity="0.55"
+                   stroke="currentColor" stroke-width="0.6"/>
+                   <rect x="7" y="1.2" width="3" height="2.2" fill="currentColor" opacity="0.55"/>
+                   <rect x="14" y="1.2" width="3" height="2.2" fill="currentColor" opacity="0.55"/>'''
+
+    @staticmethod
+    def snap_grid_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+        """Snap To Grid Points Toggle"""
+        return SVGIconFactory._create_icon(f'''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            {SVGIconFactory._snap_magnet_base()}
+            <circle cx="9.5"  cy="16" r="1" fill="currentColor"/>
+            <circle cx="14.5" cy="16" r="1" fill="currentColor"/>
+            <circle cx="9.5"  cy="20" r="1" fill="currentColor"/>
+            <circle cx="14.5" cy="20" r="1" fill="currentColor"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def snap_pivot_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+        """Snap To Pivot Toggle"""
+        return SVGIconFactory._create_icon(f'''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            {SVGIconFactory._snap_magnet_base()}
+            <circle cx="12" cy="17.5" r="2.6" fill="none" stroke="currentColor" stroke-width="1.3"/>
+            <circle cx="12" cy="17.5" r="0.8" fill="currentColor"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def snap_vertex_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+        """Snap To Vertex Toggle"""
+        return SVGIconFactory._create_icon(f'''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            {SVGIconFactory._snap_magnet_base()}
+            <circle cx="12" cy="17.5" r="1.6" fill="currentColor"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def snap_endpoint_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+        """Snap To Endpoint Toggle"""
+        return SVGIconFactory._create_icon(f'''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            {SVGIconFactory._snap_magnet_base()}
+            <line x1="8.5" y1="20" x2="15.5" y2="15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+            <circle cx="15.5" cy="15" r="1.5" fill="currentColor"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def snap_midpoint_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+        """Snap To Midpoint Toggle"""
+        return SVGIconFactory._create_icon(f'''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            {SVGIconFactory._snap_magnet_base()}
+            <line x1="8.5" y1="20" x2="15.5" y2="15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+            <circle cx="12" cy="17.5" r="1.5" fill="currentColor"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def snap_edge_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+        """Snap To Edge/Segment Toggle"""
+        return SVGIconFactory._create_icon(f'''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            {SVGIconFactory._snap_magnet_base()}
+            <line x1="8" y1="20" x2="16" y2="14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def snap_face_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+        """Snap To Face Toggle"""
+        return SVGIconFactory._create_icon(f'''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            {SVGIconFactory._snap_magnet_base()}
+            <polygon points="12,13.5 16.5,20.5 7.5,20.5" fill="currentColor" opacity="0.85"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def snap_axis_constraint_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+        """Enable Axis Constraints in Snaps Toggle"""
+        return SVGIconFactory._create_icon(f'''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            {SVGIconFactory._snap_magnet_base()}
+            <line x1="9" y1="20" x2="9" y2="14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="9" y1="20" x2="15" y2="20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
         </svg>''', size, color)
 
     @staticmethod
