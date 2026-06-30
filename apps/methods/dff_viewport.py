@@ -1,5 +1,5 @@
 # X-Seti - May13 2026 - IMG Factory 1.6 - DFF OpenGL Viewport
-# this belongs in apps/methods/dff_viewport.py - Version: 3
+# this belongs in apps/methods/dff_viewport.py - Version: 4
 """
 DFFViewport - Shared OpenGL viewport for DFF model rendering.
 Used by Model Viewer, Model Workshop, Vehicle Workshop (docked).
@@ -337,6 +337,29 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         else:
             sel.clear()
             sel.add(key)
+        self._notify_selection_changed()
+
+    def _get_selection_count(self): #vers 1
+        """Count of currently selected items in the active sub-object mode.
+        Mirrors COL3DViewport's identically-named method - see note in
+        toolbar_layout_manager.py session about consolidating the two
+        viewport classes' duplicated selection logic into methods/."""
+        mode = getattr(self, '_select_mode', 'face')
+        if mode == 'vertex':
+            return len(self._selected_verts)
+        if mode == 'edge':
+            return len(self._selected_edges)
+        return len(self._selected_faces)   # 'face' and 'poly' both live here
+
+    def _notify_selection_changed(self): #vers 2
+        """Tell the parent ModelWorkshop panel the selection set changed,
+        so it can refresh the 'N Vertices/Edges/Faces/Polygons Selected'
+        label. Uses _workshop_ref (set at construction in model_workshop.py)
+        rather than walking the Qt parent chain - more reliable since this
+        widget is set up with a direct back-reference already."""
+        ws = getattr(self, '_workshop_ref', None)
+        if ws is not None and hasattr(ws, '_update_selection_count_label'):
+            ws._update_selection_count_label()
 
     def initializeGL(self): #vers 2
         if not OPENGL_AVAILABLE: return
@@ -963,6 +986,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                                            Qt.KeyboardModifier.ShiftModifier)):
                 # Clicked empty space with no modifier — clear selection
                 self._selected_set_for_mode(mode).clear()
+                self._notify_selection_changed()
                 self.update()
 
     def mouseMoveEvent(self, event): #vers 1

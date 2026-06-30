@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 127
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 128
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -779,15 +779,15 @@ class COL3DViewport(QWidget): #vers 2
             return len(self._selected_edges)
         return len(self._selected_faces)   # 'face' and 'poly' both live here
 
-    def _notify_selection_changed(self): #vers 1
+    def _notify_selection_changed(self): #vers 2
         """Tell the parent ModelWorkshop panel the selection set changed,
         so it can refresh the 'N Vertices/Edges/Faces/Polygons Selected'
-        label. Safe no-op if not docked under ModelWorkshop."""
-        parent = self.parent()
-        while parent is not None and not hasattr(parent, '_update_selection_count_label'):
-            parent = parent.parent()
-        if parent is not None:
-            parent._update_selection_count_label()
+        label. Uses the existing _find_workshop() helper (checks
+        _workshop_ref first, falls back to type-checked parent walk)
+        rather than a raw parent-chain walk."""
+        ws = self._find_workshop()
+        if ws is not None and hasattr(ws, '_update_selection_count_label'):
+            ws._update_selection_count_label()
 
     def _selected_vertex_indices(self): #vers 1
         """Resolve the active sub-object selection, whatever mode it's in,
