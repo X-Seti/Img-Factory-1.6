@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 124
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 126
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -112,6 +112,7 @@ except ImportError:
 # _extrude_selected_faces      duplicate+offset selected face verts, build side walls #vers 1
 # _face_material_id           normalise face.material to plain int id #vers 1
 # _find_in_ide                look up model in DAT Browser IDE entries
+# _get_selection_count        count selected items for active sub-object mode #vers 1
 # _hide_tex_hover             close texture hover popup #vers 1
 # _load_txd_file              load TXD file → texture panel + viewport cache
 # _load_txd_file_from_data    load TXD from raw bytes
@@ -142,6 +143,8 @@ except ImportError:
 # _show_tex_hover             hover texture preview popup #vers 1
 # _toggle_tex_view            switch texture panel list/thumbnail view #vers 1
 # _toggle_viewport_shading    toggle Lambertian shading on/off #vers 1
+# _notify_selection_changed   tell ModelWorkshop panel to refresh selection count label #vers 1
+# _update_selection_count_label  refresh 'N <Type> Selected' label for active mode #vers 1
 # _update_tex_btn_compact     icon-only when texture panel narrow #vers 1
 # apply_changes               TODO: commit pending edits to DFF/COL data
 # export_model                STUB: write DFF to file
@@ -761,6 +764,30 @@ class COL3DViewport(QWidget): #vers 2
         else:
             sel.clear()
             sel.add(key)
+        self._notify_selection_changed()
+
+    def _get_selection_count(self): #vers 1
+        """Count of currently selected items in the active sub-object mode.
+        Vertex/edge/face modes count their own set directly; poly mode
+        counts _selected_faces too (it stores the picked group's member
+        triangles there) but is reported separately so the label can say
+        'Polygons' instead of 'Faces'."""
+        mode = getattr(self, '_select_mode', 'face')
+        if mode == 'vertex':
+            return len(self._selected_verts)
+        if mode == 'edge':
+            return len(self._selected_edges)
+        return len(self._selected_faces)   # 'face' and 'poly' both live here
+
+    def _notify_selection_changed(self): #vers 1
+        """Tell the parent ModelWorkshop panel the selection set changed,
+        so it can refresh the 'N Vertices/Edges/Faces/Polygons Selected'
+        label. Safe no-op if not docked under ModelWorkshop."""
+        parent = self.parent()
+        while parent is not None and not hasattr(parent, '_update_selection_count_label'):
+            parent = parent.parent()
+        if parent is not None:
+            parent._update_selection_count_label()
 
     def _selected_vertex_indices(self): #vers 1
         """Resolve the active sub-object selection, whatever mode it's in,
@@ -1102,6 +1129,7 @@ class COL3DViewport(QWidget): #vers 2
                     # shell; dragging would just re-trigger the same group.
                     if self.on_face_selected:
                         self.on_face_selected(next(iter(group)), seed_face)
+                    self._notify_selection_changed()
                     self.update()
                     return
 
@@ -6939,9 +6967,27 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 vp._selected_faces.clear()
             vp.update()
         self._set_status(f"Select mode: {mode}")
+        self._update_selection_count_label()
         mw = self.main_window
         if mw and hasattr(mw, 'log_message'):
             mw.log_message(f"Model Workshop: select mode → {mode}")
+
+    def _update_selection_count_label(self): #vers 1
+        """Refresh the 'N Vertices/Edges/Faces/Polygons Selected' label to
+        match the active sub-object mode and current selection — mirrors
+        3ds Max's per-mode live count shown in its Selection rollout."""
+        lbl = getattr(self, '_sel_count_label', None)
+        vp = getattr(self, 'preview_widget', None)
+        if not lbl or not vp:
+            return
+        mode = getattr(vp, '_select_mode', 'face')
+        names = {'vertex': 'Vertices', 'edge': 'Edges',
+                 'face': 'Faces', 'poly': 'Polygons'}
+        if mode not in names:
+            lbl.setText("")
+            return
+        n = vp._get_selection_count()
+        lbl.setText(f"{n} {names[mode]} Selected")
 
     def _update_select_mode_availability(self): #vers 1
         """Enable vertex/edge/face/poly select buttons only when there is
@@ -6974,6 +7020,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     b = getattr(self, attr, None)
                     if b: b.setChecked(False)
                 grp.setExclusive(True)
+            lbl = getattr(self, '_sel_count_label', None)
+            if lbl:
+                lbl.setText("")
 
     def _toggle_backface_cull(self): #vers 1
         """Toggle backface culling — when ON only the front face is visible/selectable."""
@@ -7306,15 +7355,23 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         from PyQt6.QtWidgets import QGridLayout
         icon_color = self._get_icon_color()
 
+        from apps.methods.toolbar_layout_manager import GroupedToolbarLayout
+
         icon_frame = QFrame()
         icon_frame.setFrameStyle(QFrame.Shape.NoFrame)
-        grid = QGridLayout(icon_frame)
-        grid.setContentsMargins(0, 0, 0, 0)
-        grid.setSpacing(2)
-        icon_frame._grid = grid
 
+        self._mod_toolbar_layout = GroupedToolbarLayout(
+            icon_frame, settings_key='model_left_toolbar')
+        self._mod_toolbar_layout.add_group('selection', "Selection")
+        self._mod_toolbar_layout.add_group('selection_modifiers', "Selection Modifiers")
+        self._mod_toolbar_layout.add_group('geometry', "Edit Geometry")
+        self._mod_toolbar_layout.add_group('view', "View / Render")
+
+        icon_frame._grid = self._mod_toolbar_layout.grid
         self._mod_icon_grid    = icon_frame._grid
-        self._mod_icon_buttons = []
+        self._mod_icon_buttons = []   # kept for code that still appends here;
+                                       # _dff_only_toolbar_btns visibility list
+                                       # below still reads from this
         self._mod_icon_frame   = icon_frame
 
         rp = getattr(self, '_right_panel_ref', None)
@@ -7331,7 +7388,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         def _add(btn):
             btn.setFixedSize(26, 26)
-            self._mod_icon_buttons.append(btn)
+            if not btn.objectName():
+                btn.setObjectName(f"mod_misc_{id(btn)}")
+            self._mod_toolbar_layout.add_widget('geometry', btn)
             return btn
 
         layout = type('_FakeLayout', (), {
@@ -7508,6 +7567,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # Select mode buttons
         def _sel_btn(attr, tip, mode, icon_fn_name):
             b = QPushButton()
+            b.setObjectName(f"mod_sel_{mode}_btn")
             b.setFixedSize(btn_width, btn_height)
             b.setCheckable(True)
             b.setToolTip(tip)
@@ -7519,7 +7579,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             b.clicked.connect(lambda _=False, m=mode: self._set_select_mode(m))
             b.setEnabled(False)   # re-enabled once a model exists — see _update_select_mode_availability
             setattr(self, attr, b)
-            self._mod_icon_buttons.append(b)
+            self._mod_toolbar_layout.add_widget('selection', b)
             return b
 
         _sel_btn('_sel_vert_btn',  'Vertex select — click individual vertices',  'vertex', 'vertex_select_icon')
@@ -7536,25 +7596,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._select_mode_group.addButton(b)
         self._sel_face_btn.setChecked(True)   # default mode matches self._select_mode = 'face'
 
-        # Backface cull toggle
-        self._backface_cull_btn = QPushButton()
-        self._backface_cull_btn.setFixedSize(btn_width, btn_height)
-        self._backface_cull_btn.setCheckable(True)
-        self._backface_cull_btn.setToolTip(
-            "Backface culling — ON: only front faces visible\n"
-            "Prevents accidentally selecting/painting faces behind geometry")
-        self._backface_cull_btn.setIconSize(icon_size)
-        try:
-            self._backface_cull_btn.setIcon(
-                self.icon_factory.backface_icon(color=icon_color))
-        except Exception:
-            self._backface_cull_btn.setText("BF")
-        self._backface_cull_btn.toggled.connect(
-            lambda v: self._toggle_backface_cull())
-        self._mod_icon_buttons.append(self._backface_cull_btn)
+        # Selection count label — "N Faces Selected" etc, mirrors 3ds Max's
+        # rollout-local live count (not a global status bar item)
+        self._sel_count_label = QLabel("")
+        self._sel_count_label.setObjectName("mod_sel_count_label")
+        self._sel_count_label.setStyleSheet("color: palette(mid); font-size: 11px;")
+        self._mod_toolbar_layout.add_widget('selection', self._sel_count_label)
 
         # Front-only paint toggle
         self._front_paint_btn = QPushButton()
+        self._front_paint_btn.setObjectName("mod_front_paint_btn")
         self._front_paint_btn.setFixedSize(btn_width, btn_height)
         self._front_paint_btn.setCheckable(True)
         self._front_paint_btn.setToolTip(
@@ -7572,10 +7623,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 self._front_paint_btn.setText("FP")
         self._front_paint_btn.toggled.connect(
             lambda v: self._toggle_front_only_paint())
-        self._mod_icon_buttons.append(self._front_paint_btn)
+        self._mod_toolbar_layout.add_widget('selection_modifiers', self._front_paint_btn)
 
         # Create Primitive button
         self._prim_btn = QPushButton()
+        self._prim_btn.setObjectName("mod_prim_btn")
         self._prim_btn.setFixedSize(btn_width, btn_height)
         self._prim_btn.setToolTip(
             "Create primitive shape (Box, Sphere, Cylinder, Plane)\n"
@@ -7586,7 +7638,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         except Exception:
             self._prim_btn.setText("+□")
         self._prim_btn.clicked.connect(self._create_primitive_dialog)
-        self._mod_icon_buttons.append(self._prim_btn)
+        self._mod_toolbar_layout.add_widget('geometry', self._prim_btn)
 
         # Extrude selected face(s) button
         self._extrude_btn = QPushButton()
@@ -7601,7 +7653,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         except Exception:
             self._extrude_btn.setText("Ext")
         self._extrude_btn.clicked.connect(self._extrude_dialog)
-        self._mod_icon_buttons.append(self._extrude_btn)
+        self._extrude_btn.setObjectName("mod_extrude_btn")
+        self._mod_toolbar_layout.add_widget('geometry', self._extrude_btn)
 
         # Store refs to DFF-only buttons for enable/disable
         # Shading on/off toggle
@@ -7619,7 +7672,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         except Exception:
             self._shading_btn.setText("S")
         self._shading_btn.toggled.connect(self._toggle_viewport_shading)
-        self._mod_icon_buttons.append(self._shading_btn)
+        self._shading_btn.setObjectName("mod_shading_btn")
+        self._mod_toolbar_layout.add_widget('view', self._shading_btn)
 
         # Backface cull toggle
         self._backface_cull_btn = QPushButton()
@@ -7637,7 +7691,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         except Exception:
             self._backface_cull_btn.setText("BF")
         self._backface_cull_btn.toggled.connect(self._toggle_backface_cull)
-        self._mod_icon_buttons.append(self._backface_cull_btn)
+        self._backface_cull_btn.setObjectName("mod_backface_cull_btn")
+        self._mod_toolbar_layout.add_widget('selection_modifiers', self._backface_cull_btn)
 
         # Light setup button (lightbulb)
         self._light_setup_btn = QPushButton()
@@ -7654,28 +7709,23 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         except Exception:
             self._light_setup_btn.setText("💡")
         self._light_setup_btn.clicked.connect(self._open_light_setup_dialog)
-        self._mod_icon_buttons.append(self._light_setup_btn)
+        self._light_setup_btn.setObjectName("mod_light_setup_btn")
+        self._mod_toolbar_layout.add_widget('view', self._light_setup_btn)
 
         self._dff_only_toolbar_btns = [
             self._sel_vert_btn, self._sel_edge_btn,
             self._sel_face_btn, self._sel_poly_btn,
+            self._sel_count_label,
             self._backface_cull_btn, self._front_paint_btn,
             self._prim_btn,
             self._shading_btn,
             self._light_setup_btn,
         ]
 
-        # Place into grid BEFORE set_content (same as COL/TXD pattern)
-        n = len(self._mod_icon_buttons)
-        for i in range(self._mod_icon_grid.count()-1, -1, -1):
-            item = self._mod_icon_grid.itemAt(i)
-            if item and item.widget():
-                self._mod_icon_grid.removeWidget(item.widget())
-        for idx, btn in enumerate(self._mod_icon_buttons):
-            if btn.parent() is not icon_frame:
-                btn.setParent(icon_frame)
-            self._mod_icon_grid.addWidget(btn, 0, idx)
-            btn.show()
+        # Restore saved group/order/divider customization, if any — falls
+        # back silently to the code-defined groups above when no saved
+        # layout exists yet (first run, or after a reset)
+        self._mod_toolbar_layout.load_layout()
 
         toolbar.set_content(icon_frame)
 
@@ -7697,11 +7747,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         return toolbar
 
-    def _mod_place_icon_grid(self, n_cols=None): #vers 1
-        grid  = getattr(self, '_mod_icon_grid', None)
-        btns  = getattr(self, '_mod_icon_buttons', [])
+    def _mod_place_icon_grid(self, n_cols=None): #vers 2
+        """Reflow the grouped toolbar into n_cols columns (vertical dock /
+        float) or back to a single row (n_cols=None, normal horizontal
+        dock). Delegates the actual grid rebuild to GroupedToolbarLayout -
+        this just translates the requested width into a column count."""
+        gtl = getattr(self, '_mod_toolbar_layout', None)
         frame = getattr(self, '_mod_icon_frame', None)
-        if grid is None or not btns:
+        if gtl is None:
             return
         btn_w = 28
         if n_cols is None:
@@ -7710,23 +7763,17 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 n_cols = forced
             else:
                 pw = frame.width() if frame else 0
-                n_cols = max(1, pw // btn_w) if pw > btn_w else len(btns)
+                total = sum(len(w) for w in gtl._groups.values())
+                n_cols = max(1, pw // btn_w) if pw > btn_w else total
         self._mod_icon_last_cols = n_cols
-        for i in range(grid.count()-1, -1, -1):
-            item = grid.itemAt(i)
-            if item and item.widget():
-                grid.removeWidget(item.widget())
-        for idx, btn in enumerate(btns):
-            if btn.parent() is not frame:
-                btn.setParent(frame)
-            grid.addWidget(btn, idx // n_cols, idx % n_cols)
-            btn.show()
+        gtl.set_columns(n_cols)
         if frame:
             frame.setMaximumWidth(btn_w + 4 if n_cols == 1 else 16777215)
 
-    def _reflow_mod_left_toolbar(self, pos): #vers 1
+    def _reflow_mod_left_toolbar(self, pos): #vers 2
         from apps.components.Model_Editor.dockable_toolbar import SNAP_LEFT, SNAP_RIGHT
-        n = len(getattr(self, '_mod_icon_buttons', []))
+        gtl = getattr(self, '_mod_toolbar_layout', None)
+        n = sum(len(w) for w in gtl._groups.values()) if gtl else 0
         if pos == 'float':
             self._mod_icon_forced_cols = n
         elif pos in (SNAP_LEFT, SNAP_RIGHT):
