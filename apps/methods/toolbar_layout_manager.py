@@ -1,4 +1,4 @@
-#this belongs in apps/methods/toolbar_layout_manager.py - Version: 2
+#this belongs in apps/methods/toolbar_layout_manager.py - Version: 3
 # X-Seti - June 2026 - IMG Factory 1.6 - Toolbar Group/Divider Customization
 
 """
@@ -291,16 +291,79 @@ class GroupedToolbarLayout:
         self.grid.setRowStretch(last_row, 1)
         self.grid.setColumnStretch(last_col, 1)
 
-    def _show_context_menu(self, pos): #vers 2
+    def _show_context_menu(self, pos): #vers 3
         menu = QMenu(self.host)
         cust_act = menu.addAction("Customize...")
         cust_act.setCheckable(True)
         cust_act.setChecked(self.customize_mode)
         cust_act.toggled.connect(self.set_customize_mode)
         menu.addSeparator()
+        menu.addAction("Icon Size...", self._show_icon_size_dialog)
+        menu.addSeparator()
         menu.addAction("Save toolbar layout", self.save_layout)
         menu.addAction("Reset to default layout", self._reset_layout)
         menu.exec(self.host.mapToGlobal(pos))
+
+    def _show_icon_size_dialog(self): #vers 1
+        """Floating slider dialog for live toolbar icon resizing. Looks for
+        a _apply_icon_scale method by walking up the Qt parent chain to the
+        first widget that has one (should be ModelWorkshop), so this works
+        regardless of which specific toolbar's context menu was used."""
+        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
+                                      QLabel, QSlider, QDialogButtonBox)
+        from PyQt6.QtCore import Qt
+
+        # Find the workshop-level _apply_icon_scale
+        workshop = self.host
+        while workshop is not None and not hasattr(workshop, '_apply_icon_scale'):
+            workshop = workshop.parent() if callable(
+                getattr(workshop, 'parent', None)) else None
+        if workshop is None:
+            return
+
+        current = getattr(workshop, '_mod_icon_scale', 16)
+
+        dlg = QDialog(self.host)
+        dlg.setWindowTitle("Icon Size")
+        dlg.setFixedWidth(260)
+        vbox = QVBoxLayout(dlg)
+        vbox.setSpacing(8)
+
+        row = QHBoxLayout()
+        lbl_small = QLabel("Small")
+        lbl_small.setFixedWidth(40)
+        slider = QSlider(Qt.Orientation.Horizontal)
+        slider.setMinimum(10)
+        slider.setMaximum(40)
+        slider.setValue(current)
+        slider.setTickInterval(5)
+        slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        lbl_large = QLabel("Large")
+        lbl_large.setFixedWidth(40)
+        row.addWidget(lbl_small)
+        row.addWidget(slider)
+        row.addWidget(lbl_large)
+        vbox.addLayout(row)
+
+        lbl_value = QLabel(f"{current} px")
+        lbl_value.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        vbox.addWidget(lbl_value)
+
+        def on_change(val):
+            lbl_value.setText(f"{val} px")
+            workshop._apply_icon_scale(val)
+
+        slider.valueChanged.connect(on_change)
+
+        btns = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok |
+            QDialogButtonBox.StandardButton.Cancel)
+        btns.accepted.connect(dlg.accept)
+        btns.rejected.connect(lambda: (
+            workshop._apply_icon_scale(current), dlg.reject()))
+        vbox.addWidget(btns)
+
+        dlg.exec()
 
     def _show_divider_menu(self, group_id): #vers 1
         menu = QMenu(self.host)

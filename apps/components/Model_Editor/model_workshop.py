@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 133
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 134
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -5750,6 +5750,22 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         except Exception:
             pass
 
+    def _restore_icon_scale(self): #vers 1
+        """Restore persisted icon scale from model_workshop.json on startup,
+        50ms after toolbar layouts have been restored (slight delay so
+        widgets are fully parented into their layouts before being resized)."""
+        try:
+            import json
+            from pathlib import Path
+            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            if path.exists():
+                data = json.loads(path.read_text())
+                saved = data.get('icon_scale')
+                if saved and isinstance(saved, int) and saved != 16:
+                    self._apply_icon_scale(saved)
+        except Exception:
+            pass
+
 
     def showEvent(self, event): #vers 1
         """On first show, restore toolbar layouts after Qt has laid out everything."""
@@ -7587,12 +7603,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             b.setCheckable(True)
             b.setToolTip(tip)
             b.setIconSize(icon_size)
+            _fn = getattr(self.icon_factory, icon_fn_name)
+            _c = icon_color
             try:
-                b.setIcon(getattr(self.icon_factory, icon_fn_name)(color=icon_color))
+                b.setIcon(_fn(color=_c))
             except Exception:
                 b.setText(mode[0].upper())
+            b._icon_fn = lambda sz, fn=_fn, c=_c: fn(size=sz, color=c)
             b.clicked.connect(lambda _=False, m=mode: self._set_select_mode(m))
-            b.setEnabled(False)   # re-enabled once a model exists — see _update_select_mode_availability
+            b.setEnabled(False)
             setattr(self, attr, b)
             self._mod_toolbar_layout.add_widget('selection', b)
             return b
@@ -7804,6 +7823,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         btn_height = 26
         btn_width  = 26
         icon_size  = QSize(16, 16)
+        accent_color = self._get_icon_accent_color()
 
         def _snap_btn(target, tip, icon_fn_name):
             b = QPushButton()
@@ -7812,10 +7832,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             b.setCheckable(True)
             b.setToolTip(tip)
             b.setIconSize(icon_size)
+            _fn = getattr(self.icon_factory, icon_fn_name)
+            _c, _ac = icon_color, accent_color
             try:
-                b.setIcon(getattr(self.icon_factory, icon_fn_name)(color=icon_color))
+                b.setIcon(_fn(color=_c, accent_color=_ac))
             except Exception:
                 b.setText(target[0].upper())
+            b._icon_fn = lambda sz, fn=_fn, c=_c, ac=_ac: fn(
+                size=sz, color=c, accent_color=ac)
 
             def _on_click(_=False, t=target, btn=b):
                 vp = getattr(self, 'preview_widget', None)
@@ -7842,7 +7866,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._snap_axis_btn.setIconSize(icon_size)
         try:
             self._snap_axis_btn.setIcon(
-                self.icon_factory.snap_axis_constraint_icon(color=icon_color))
+                self.icon_factory.snap_axis_constraint_icon(
+                    color=icon_color, accent_color=accent_color))
+            self._snap_axis_btn._icon_fn = lambda sz, c=icon_color, ac=accent_color: \
+                self.icon_factory.snap_axis_constraint_icon(size=sz, color=c, accent_color=ac)
         except Exception:
             self._snap_axis_btn.setText("XY")
 
@@ -8349,6 +8376,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         from PyQt6.QtCore import QTimer as _QT
         # 400ms: wait for parent widget to be fully laid out before restoring
         _QT.singleShot(400, self._load_mod_toolbar_layouts)
+        _QT.singleShot(450, self._restore_icon_scale)
 
         # Information group below
         info_group = QGroupBox("")
@@ -8666,6 +8694,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             b.setIconSize(QSize(16, 16))
             b.setFixedSize(26, 26)
             b.setToolTip(tip)
+            b._icon_fn = lambda sz, fn=icon_fn, c=icon_color: fn(size=sz, color=c)
             if checkable:
                 b.setCheckable(True)
                 b.setChecked(checked)
@@ -8740,6 +8769,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             b.setIconSize(QSize(16, 16))
             b.setFixedSize(26, 26)
             b.setToolTip(tip)
+            b._icon_fn = lambda sz, fn=icon_fn, c=icon_color: fn(size=sz, color=c)
             if checkable:
                 b.setCheckable(True)
                 b.setChecked(checked)
@@ -8820,6 +8850,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._prim_btn.setIcon(self.icon_factory.add_icon(color=icon_color))
         except Exception:
             self._prim_btn.setText("+□")
+        self._prim_btn._icon_fn = lambda sz, c=icon_color: \
+            self.icon_factory.add_icon(size=sz, color=c)
         self._prim_btn.clicked.connect(self._create_primitive_dialog)
         self._geo_toolbar_layout.add_widget('geometry', self._prim_btn)
 
@@ -8836,6 +8868,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._extrude_btn.setIcon(self.icon_factory.add_icon(color=icon_color))
         except Exception:
             self._extrude_btn.setText("Ext")
+        self._extrude_btn._icon_fn = lambda sz, c=icon_color: \
+            self.icon_factory.add_icon(size=sz, color=c)
         self._extrude_btn.clicked.connect(self._extrude_dialog)
         self._geo_toolbar_layout.add_widget('geometry', self._extrude_btn)
 
@@ -10002,6 +10036,71 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 pass
         return '#cccccc'
 
+    def _get_icon_accent_color(self): #vers 1
+        """Get the theme's accent colour, for icons that want a two-tone
+        look (e.g. snap target icons: magnet base in the normal icon
+        colour, pictogram overlay in the accent colour — mirrors 3ds
+        Max's red-base/white-overlay snap icon convention while staying
+        theme-driven instead of hardcoded)."""
+        as_ = (self.app_settings
+               or getattr(getattr(self, 'main_window', None), 'app_settings', None))
+        if as_:
+            try:
+                colors = as_.get_theme_colors() or {}
+                return colors.get('text_accent', '#0066cc')
+            except Exception:
+                pass
+        return '#0066cc'
+
+    def _all_toolbar_widgets(self): #vers 1
+        """Yield every widget registered across all five GroupedToolbarLayout
+        toolbar bars, without needing a separate manually-curated master
+        list. Used by _apply_icon_scale to reach every icon in one pass."""
+        for attr in ('_mod_toolbar_layout', '_snap_toolbar_layout',
+                     '_geo_toolbar_layout', '_nav_toolbar_layout',
+                     '_render_toolbar_layout'):
+            gtl = getattr(self, attr, None)
+            if gtl is None:
+                continue
+            for widgets in gtl._groups.values():
+                for w in widgets:
+                    yield w
+
+    def _apply_icon_scale(self, icon_px: int): #vers 1
+        """Live-resize every toolbar icon to icon_px x icon_px. Each button
+        stores its own icon-generation lambda as b._icon_fn (set at button
+        construction time); if present, the icon is re-rendered at the new
+        size rather than just scaling a pre-baked pixmap — keeps SVG icons
+        crisp at any size. The new size is persisted to model_workshop.json
+        under 'icon_scale' so it survives restarts."""
+        icon_px = max(10, min(40, icon_px))
+        qs = QSize(icon_px, icon_px)
+        btn_px = icon_px + 10
+        for w in self._all_toolbar_widgets():
+            try:
+                if hasattr(w, 'setIconSize'):
+                    w.setIconSize(qs)
+                if hasattr(w, 'setFixedSize') and hasattr(w, '_icon_fn'):
+                    w.setFixedSize(btn_px, btn_px)
+                if hasattr(w, '_icon_fn'):
+                    icon = w._icon_fn(icon_px)
+                    if icon:
+                        w.setIcon(icon)
+            except Exception:
+                pass
+        self._mod_icon_scale = icon_px
+        try:
+            import json
+            from pathlib import Path
+            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            try:
+                data = json.loads(path.read_text())
+            except Exception:
+                data = {}
+            data['icon_scale'] = icon_px
+            path.write_text(json.dumps(data, indent=2))
+        except Exception:
+            pass
 
     def _apply_fonts_to_widgets(self): #vers 1
         """Apply fonts from AppSettings to all widgets"""

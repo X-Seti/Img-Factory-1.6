@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/img_svg_icons.py - Version: 10
+#this belongs in apps/methods/img_svg_icons.py - Version: 11
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -143,8 +143,14 @@ class SVGIconFactory: #vers 8
         return None
 
     @staticmethod
-    def _create_icon(svg_data: str, size: int = 20, color: str = None, bg_color: str = None) -> QIcon: #vers 2
-        """Create QIcon from SVG data with optional coloured background square"""
+    def _create_icon(svg_data: str, size: int = 20, color: str = None,
+                      bg_color: str = None, accent_color: str = None) -> QIcon: #vers 3
+        """Create QIcon from SVG data with optional coloured background square.
+        accent_color, if given, substitutes a second token 'currentAccent' in
+        the SVG, separate from 'currentColor' — used by two-tone icons (e.g.
+        snap target icons: magnet base in the normal icon colour, pictogram
+        overlay in the theme accent colour, mirroring 3ds Max's red-base/
+        white-overlay snap icon convention while staying theme-driven)."""
         if color is None:
             if hasattr(SVGIconFactory, "_cached_color"):
                 color = SVGIconFactory._cached_color
@@ -152,6 +158,13 @@ class SVGIconFactory: #vers 8
                 color = "#000000"
 
         svg_data = svg_data.replace("currentColor", color)
+        if accent_color:
+            svg_data = svg_data.replace("currentAccent", accent_color)
+        else:
+            # No accent given — fall back to the same colour as the base,
+            # so two-tone icons still render sensibly (just monochrome)
+            # rather than leaving a literal unresolved token in the SVG.
+            svg_data = svg_data.replace("currentAccent", color)
 
         # Inject bg rect + rounded corners before icon paths if bg_color given
         if bg_color:
@@ -3162,75 +3175,76 @@ class SVGIconFactory: #vers 8
                    <rect x="14" y="1.2" width="3" height="2.2" fill="currentColor" opacity="0.55"/>'''
 
     @staticmethod
-    def snap_grid_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+    def snap_grid_icon(size: int = 20, color: str = None, accent_color: str = None) -> 'QIcon': #vers 2
         """Snap To Grid Points Toggle"""
         return SVGIconFactory._create_icon(f'''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             {SVGIconFactory._snap_magnet_base()}
-            <circle cx="9.5"  cy="16" r="1" fill="currentColor"/>
-            <circle cx="14.5" cy="16" r="1" fill="currentColor"/>
-            <circle cx="9.5"  cy="20" r="1" fill="currentColor"/>
-            <circle cx="14.5" cy="20" r="1" fill="currentColor"/>
-        </svg>''', size, color)
+            <circle cx="9.5"  cy="16" r="1" fill="currentAccent"/>
+            <circle cx="14.5" cy="16" r="1" fill="currentAccent"/>
+            <circle cx="9.5"  cy="20" r="1" fill="currentAccent"/>
+            <circle cx="14.5" cy="20" r="1" fill="currentAccent"/>
+        </svg>''', size, color, accent_color=accent_color)
 
     @staticmethod
-    def snap_pivot_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+    def snap_pivot_icon(size: int = 20, color: str = None, accent_color: str = None) -> 'QIcon': #vers 2
         """Snap To Pivot Toggle"""
         return SVGIconFactory._create_icon(f'''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             {SVGIconFactory._snap_magnet_base()}
-            <circle cx="12" cy="17.5" r="2.6" fill="none" stroke="currentColor" stroke-width="1.3"/>
-            <circle cx="12" cy="17.5" r="0.8" fill="currentColor"/>
-        </svg>''', size, color)
+            <circle cx="12" cy="17.5" r="2.6" fill="none" stroke="currentAccent" stroke-width="1.3"/>
+            <circle cx="12" cy="17.5" r="0.8" fill="currentAccent"/>
+        </svg>''', size, color, accent_color=accent_color)
 
     @staticmethod
-    def snap_vertex_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+    def snap_vertex_icon(size: int = 20, color: str = None, accent_color: str = None) -> 'QIcon': #vers 2
         """Snap To Vertex Toggle"""
         return SVGIconFactory._create_icon(f'''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             {SVGIconFactory._snap_magnet_base()}
-            <circle cx="12" cy="17.5" r="1.6" fill="currentColor"/>
-        </svg>''', size, color)
+            <circle cx="12" cy="17.5" r="1.6" fill="currentAccent"/>
+        </svg>''', size, color, accent_color=accent_color)
 
     @staticmethod
-    def snap_endpoint_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+    def snap_endpoint_icon(size: int = 20, color: str = None, accent_color: str = None) -> 'QIcon': #vers 2
         """Snap To Endpoint Toggle"""
         return SVGIconFactory._create_icon(f'''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             {SVGIconFactory._snap_magnet_base()}
-            <line x1="8.5" y1="20" x2="15.5" y2="15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-            <circle cx="15.5" cy="15" r="1.5" fill="currentColor"/>
-        </svg>''', size, color)
+            <line x1="8.5" y1="20" x2="15.5" y2="15" stroke="currentAccent" stroke-width="1.6" stroke-linecap="round"/>
+            <circle cx="15.5" cy="15" r="1.5" fill="currentAccent"/>
+        </svg>''', size, color, accent_color=accent_color)
 
     @staticmethod
-    def snap_midpoint_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+    def snap_midpoint_icon(size: int = 20, color: str = None, accent_color: str = None) -> 'QIcon': #vers 2
         """Snap To Midpoint Toggle"""
         return SVGIconFactory._create_icon(f'''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             {SVGIconFactory._snap_magnet_base()}
-            <line x1="8.5" y1="20" x2="15.5" y2="15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-            <circle cx="12" cy="17.5" r="1.5" fill="currentColor"/>
-        </svg>''', size, color)
+            <line x1="8.5" y1="20" x2="15.5" y2="15" stroke="currentAccent" stroke-width="1.6" stroke-linecap="round"/>
+            <circle cx="12" cy="17.5" r="1.5" fill="currentAccent"/>
+        </svg>''', size, color, accent_color=accent_color)
 
     @staticmethod
-    def snap_edge_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+    def snap_edge_icon(size: int = 20, color: str = None, accent_color: str = None) -> 'QIcon': #vers 2
         """Snap To Edge/Segment Toggle"""
         return SVGIconFactory._create_icon(f'''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             {SVGIconFactory._snap_magnet_base()}
-            <line x1="8" y1="20" x2="16" y2="14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
-        </svg>''', size, color)
+            <line x1="8" y1="20" x2="16" y2="14" stroke="currentAccent" stroke-width="2.2" stroke-linecap="round"/>
+        </svg>''', size, color, accent_color=accent_color)
 
     @staticmethod
-    def snap_face_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+    def snap_face_icon(size: int = 20, color: str = None, accent_color: str = None) -> 'QIcon': #vers 2
         """Snap To Face Toggle"""
         return SVGIconFactory._create_icon(f'''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             {SVGIconFactory._snap_magnet_base()}
-            <polygon points="12,13.5 16.5,20.5 7.5,20.5" fill="currentColor" opacity="0.85"/>
-        </svg>''', size, color)
+            <polygon points="12,13.5 16.5,20.5 7.5,20.5" fill="currentAccent" opacity="0.85"/>
+        </svg>''', size, color, accent_color=accent_color)
 
     @staticmethod
-    def snap_axis_constraint_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+    def snap_axis_constraint_icon(size: int = 20, color: str = None, accent_color: str = None) -> 'QIcon': #vers 2
         """Enable Axis Constraints in Snaps Toggle"""
         return SVGIconFactory._create_icon(f'''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             {SVGIconFactory._snap_magnet_base()}
-            <line x1="9" y1="20" x2="9" y2="14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            <line x1="9" y1="20" x2="15" y2="20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-        </svg>''', size, color)
+            <line x1="9" y1="20" x2="9" y2="14" stroke="currentAccent" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="9" y1="20" x2="15" y2="20" stroke="currentAccent" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>''', size, color, accent_color=accent_color)
+
 
     @staticmethod
     def col_from_dff_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
