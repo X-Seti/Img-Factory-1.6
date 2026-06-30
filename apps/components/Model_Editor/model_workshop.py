@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 129
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 130
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -137,7 +137,9 @@ except ImportError:
 # _save_textures_as_txd       save current textures as new TXD file
 # _selected_set_for_mode      live selection set for given sub-object mode #vers 1
 # _selected_vertex_indices    resolve active selection (any mode) to vertex indices #vers 1
+# _create_snap_toolbar        build the separate snap toggle DockableToolbar #vers 1
 # _set_select_mode             switch vertex/edge/face/poly/object select mode #vers 2
+# _reflow_mod_snap_toolbar    reflow snap toolbar columns on dock/float #vers 1
 # _set_texlist_folder         set texlist/ folder via dialog
 # _show_dff_geometry          push _DFFGeometryAdapter into COL3DViewport #vers 1
 # _show_tex_hover             hover texture preview popup #vers 1
@@ -6696,6 +6698,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             btn.setVisible(dff_mode)
             if not is_select_btn:
                 btn.setEnabled(dff_mode)
+        for btn in getattr(self, '_snap_only_toolbar_btns', []):
+            btn.setVisible(dff_mode)
+            btn.setEnabled(dff_mode)
         self._update_select_mode_availability()
 
         # Prelighting row — shown in DFF mode
@@ -7366,14 +7371,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._mod_toolbar_layout.add_group('selection_modifiers', "Selection Modifiers")
         self._mod_toolbar_layout.add_group('geometry', "Edit Geometry")
         self._mod_toolbar_layout.add_group('view', "View / Render")
-        self._mod_toolbar_layout.add_group('snap', "Snaps")
-        # Default separators between clusters - matches Max's visual grouping;
-        # user can remove via right-click once Customize mode is on, and the
-        # removal persists same as any other layout change
         self._mod_toolbar_layout.add_divider_before('selection_modifiers')
         self._mod_toolbar_layout.add_divider_before('geometry')
         self._mod_toolbar_layout.add_divider_before('view')
-        self._mod_toolbar_layout.add_divider_before('snap')
 
         icon_frame._grid = self._mod_toolbar_layout.grid
         self._mod_icon_grid    = icon_frame._grid
@@ -7611,59 +7611,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._sel_count_label.setStyleSheet("color: palette(mid); font-size: 11px;")
         self._mod_toolbar_layout.add_widget('selection', self._sel_count_label)
 
-        # Snap target toggles — independently toggleable (NOT mutually
-        # exclusive, unlike the V/E/F/P select-mode buttons above). State
-        # only for now: toggling these updates vp._snap_targets but the
-        # actual snap-during-drag math isn't wired up yet (follow-up task).
-        def _snap_btn(target, tip, icon_fn_name):
-            b = QPushButton()
-            b.setObjectName(f"mod_snap_{target}_btn")
-            b.setFixedSize(btn_width, btn_height)
-            b.setCheckable(True)
-            b.setToolTip(tip)
-            b.setIconSize(icon_size)
-            try:
-                b.setIcon(getattr(self.icon_factory, icon_fn_name)(color=icon_color))
-            except Exception:
-                b.setText(target[0].upper())
-
-            def _on_click(_=False, t=target, btn=b):
-                vp = getattr(self, 'preview_widget', None)
-                if vp:
-                    vp.toggle_snap_target(t)
-                    btn.setChecked(vp._snap_targets.get(t, False))
-            b.clicked.connect(_on_click)
-            self._mod_toolbar_layout.add_widget('snap', b)
-            return b
-
-        self._snap_grid_btn     = _snap_btn('grid',     'Snap To Grid Points Toggle',      'snap_grid_icon')
-        self._snap_pivot_btn    = _snap_btn('pivot',    'Snap To Pivot Toggle',            'snap_pivot_icon')
-        self._snap_vertex_btn   = _snap_btn('vertex',   'Snap To Vertex Toggle',           'snap_vertex_icon')
-        self._snap_endpoint_btn = _snap_btn('endpoint', 'Snap To Endpoint Toggle',         'snap_endpoint_icon')
-        self._snap_midpoint_btn = _snap_btn('midpoint', 'Snap To Midpoint Toggle',         'snap_midpoint_icon')
-        self._snap_edge_btn     = _snap_btn('edge',     'Snap To Edge/Segment Toggle',     'snap_edge_icon')
-        self._snap_face_btn     = _snap_btn('face',     'Snap To Face Toggle',             'snap_face_icon')
-
-        self._snap_axis_btn = QPushButton()
-        self._snap_axis_btn.setObjectName("mod_snap_axis_btn")
-        self._snap_axis_btn.setFixedSize(btn_width, btn_height)
-        self._snap_axis_btn.setCheckable(True)
-        self._snap_axis_btn.setToolTip("Enable Axis Constraints in Snaps Toggle")
-        self._snap_axis_btn.setIconSize(icon_size)
-        try:
-            self._snap_axis_btn.setIcon(
-                self.icon_factory.snap_axis_constraint_icon(color=icon_color))
-        except Exception:
-            self._snap_axis_btn.setText("XY")
-
-        def _on_axis_click(_=False):
-            vp = getattr(self, 'preview_widget', None)
-            if vp:
-                vp.toggle_snap_axis_constraint()
-                self._snap_axis_btn.setChecked(vp._snap_axis_constraint)
-        self._snap_axis_btn.clicked.connect(_on_axis_click)
-        self._mod_toolbar_layout.add_widget('snap', self._snap_axis_btn)
-
         # Front-only paint toggle
         self._front_paint_btn = QPushButton()
         self._front_paint_btn.setObjectName("mod_front_paint_btn")
@@ -7777,9 +7724,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._sel_vert_btn, self._sel_edge_btn,
             self._sel_face_btn, self._sel_poly_btn,
             self._sel_count_label,
-            self._snap_grid_btn, self._snap_pivot_btn, self._snap_vertex_btn,
-            self._snap_endpoint_btn, self._snap_midpoint_btn,
-            self._snap_edge_btn, self._snap_face_btn, self._snap_axis_btn,
             self._backface_cull_btn, self._front_paint_btn,
             self._prim_btn,
             self._shading_btn,
@@ -7851,6 +7795,113 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._mod_place_icon_grid(n_cols)
             return
         self._mod_place_icon_grid()
+
+
+    def _create_snap_toolbar(self): #vers 1
+        """Snap toggle bar — separate DockableToolbar from the main left
+        toolbar, matching 3ds Max where Snap toggles are their own distinct
+        toolbar cluster. 7 independently-toggleable snap targets (Grid,
+        Pivot, Vertex, Endpoint, Midpoint, Edge, Face) + axis constraint
+        toggle. State only for now - see toggle_snap_target() in
+        dff_viewport.py for the scope note on snap-during-drag math."""
+        from apps.components.Model_Editor.dockable_toolbar import DockableToolbar
+        from apps.methods.toolbar_layout_manager import GroupedToolbarLayout
+        icon_color = self._get_icon_color()
+
+        snap_frame = QFrame()
+        snap_frame.setFrameStyle(QFrame.Shape.NoFrame)
+
+        self._snap_toolbar_layout = GroupedToolbarLayout(
+            snap_frame, settings_key='model_snap_toolbar')
+        self._snap_toolbar_layout.add_group('targets', "Snap Targets")
+        self._snap_toolbar_layout.add_group('constraints', "Constraints")
+        self._snap_toolbar_layout.add_divider_before('constraints')
+
+        snap_frame._grid = self._snap_toolbar_layout.grid
+        self._snap_icon_grid  = snap_frame._grid
+        self._snap_icon_frame = snap_frame
+
+        rp = getattr(self, '_right_panel_ref', None)
+        toolbar = DockableToolbar(rp or self, settings_key='model_snap_toolbar')
+        toolbar.reflow_requested.connect(self._reflow_mod_snap_toolbar)
+        self._mod_snap_toolbar = toolbar
+
+        btn_height = 26
+        btn_width  = 26
+        icon_size  = QSize(16, 16)
+
+        def _snap_btn(target, tip, icon_fn_name):
+            b = QPushButton()
+            b.setObjectName(f"mod_snap_{target}_btn")
+            b.setFixedSize(btn_width, btn_height)
+            b.setCheckable(True)
+            b.setToolTip(tip)
+            b.setIconSize(icon_size)
+            try:
+                b.setIcon(getattr(self.icon_factory, icon_fn_name)(color=icon_color))
+            except Exception:
+                b.setText(target[0].upper())
+
+            def _on_click(_=False, t=target, btn=b):
+                vp = getattr(self, 'preview_widget', None)
+                if vp:
+                    vp.toggle_snap_target(t)
+                    btn.setChecked(vp._snap_targets.get(t, False))
+            b.clicked.connect(_on_click)
+            self._snap_toolbar_layout.add_widget('targets', b)
+            return b
+
+        self._snap_grid_btn     = _snap_btn('grid',     'Snap To Grid Points Toggle',      'snap_grid_icon')
+        self._snap_pivot_btn    = _snap_btn('pivot',    'Snap To Pivot Toggle',            'snap_pivot_icon')
+        self._snap_vertex_btn   = _snap_btn('vertex',   'Snap To Vertex Toggle',           'snap_vertex_icon')
+        self._snap_endpoint_btn = _snap_btn('endpoint', 'Snap To Endpoint Toggle',         'snap_endpoint_icon')
+        self._snap_midpoint_btn = _snap_btn('midpoint', 'Snap To Midpoint Toggle',         'snap_midpoint_icon')
+        self._snap_edge_btn     = _snap_btn('edge',     'Snap To Edge/Segment Toggle',     'snap_edge_icon')
+        self._snap_face_btn     = _snap_btn('face',     'Snap To Face Toggle',             'snap_face_icon')
+
+        self._snap_axis_btn = QPushButton()
+        self._snap_axis_btn.setObjectName("mod_snap_axis_btn")
+        self._snap_axis_btn.setFixedSize(btn_width, btn_height)
+        self._snap_axis_btn.setCheckable(True)
+        self._snap_axis_btn.setToolTip("Enable Axis Constraints in Snaps Toggle")
+        self._snap_axis_btn.setIconSize(icon_size)
+        try:
+            self._snap_axis_btn.setIcon(
+                self.icon_factory.snap_axis_constraint_icon(color=icon_color))
+        except Exception:
+            self._snap_axis_btn.setText("XY")
+
+        def _on_axis_click(_=False):
+            vp = getattr(self, 'preview_widget', None)
+            if vp:
+                vp.toggle_snap_axis_constraint()
+                self._snap_axis_btn.setChecked(vp._snap_axis_constraint)
+        self._snap_axis_btn.clicked.connect(_on_axis_click)
+        self._snap_toolbar_layout.add_widget('constraints', self._snap_axis_btn)
+
+        self._snap_only_toolbar_btns = [
+            self._snap_grid_btn, self._snap_pivot_btn, self._snap_vertex_btn,
+            self._snap_endpoint_btn, self._snap_midpoint_btn,
+            self._snap_edge_btn, self._snap_face_btn, self._snap_axis_btn,
+        ]
+
+        self._snap_toolbar_layout.load_layout()
+        toolbar.set_content(snap_frame)
+        return toolbar
+
+    def _reflow_mod_snap_toolbar(self, pos): #vers 1
+        from apps.components.Model_Editor.dockable_toolbar import SNAP_LEFT, SNAP_RIGHT
+        gtl = getattr(self, '_snap_toolbar_layout', None)
+        n = sum(len(w) for w in gtl._groups.values()) if gtl else 0
+        if pos == 'float':
+            gtl.set_columns(n)
+        elif pos in (SNAP_LEFT, SNAP_RIGHT):
+            gtl.set_columns(1)
+        else:
+            frame = getattr(self, '_snap_icon_frame', None)
+            pw = frame.width() if frame else 0
+            n_cols = max(1, pw // 28) if pw > 28 else n
+            gtl.set_columns(n_cols)
 
 
     def _create_transform_text_panel(self): #vers 12
@@ -8266,6 +8317,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         main_layout.addWidget(left_toolbar, stretch=0)
         left_toolbar.set_dock_position('top')
 
+        # - Snap toolbar row — separate dockable bar, matches 3ds Max where
+        # snap toggles are their own distinct toolbar cluster, not buried
+        # inside the main left toolbar
+        snap_toolbar = self._create_snap_toolbar()
+        main_layout.addWidget(snap_toolbar, stretch=0)
+        snap_toolbar.set_dock_position('top')
+
         # - Preview row: viewport + right dockable toolbar
         preview_row = QHBoxLayout()
         preview_row.setSpacing(3)
@@ -8294,6 +8352,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         left_toolbar._extra_panels  = [self.preview_widget]
         right_toolbar._extra_panels = [self.preview_widget]
+        snap_toolbar._extra_panels  = [self.preview_widget]
 
         from PyQt6.QtCore import QTimer as _QT
         # 400ms: wait for parent widget to be fully laid out before restoring
@@ -8584,25 +8643,30 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 _bar.raise_()
         vp.resizeEvent = _on_vp_resize
 
-    def _create_preview_controls(self): #vers 7
+    def _create_preview_controls(self): #vers 8
         """Right toolbar icon grid — DockableToolbar pattern."""
-        from PyQt6.QtWidgets import QGridLayout
+        from apps.methods.toolbar_layout_manager import GroupedToolbarLayout
         icon_color = self._get_icon_color()
         pw = self.preview_widget
 
         ctrl_frame = QFrame()
         ctrl_frame.setFrameStyle(QFrame.Shape.NoFrame)
-        grid = QGridLayout(ctrl_frame)
-        grid.setContentsMargins(0, 0, 0, 0)
-        grid.setSpacing(2)
-        ctrl_frame._grid = grid
 
+        self._mod_ctrl_layout = GroupedToolbarLayout(
+            ctrl_frame, settings_key='model_right_toolbar')
+        self._mod_ctrl_layout.add_group('navigation', "Navigation")
+        self._mod_ctrl_layout.add_group('render', "Render")
+        self._mod_ctrl_layout.add_divider_before('render')
+
+        ctrl_frame._grid = self._mod_ctrl_layout.grid
         self._mod_ctrl_grid    = ctrl_frame._grid
-        self._mod_ctrl_buttons = []
+        self._mod_ctrl_buttons = []   # legacy attr, kept for any stray reads
         self._mod_ctrl_frame   = ctrl_frame
 
-        def btn(tip, icon_fn, callback, checkable=False, checked=False):
+        def btn(tip, icon_fn, callback, checkable=False, checked=False,
+                group='navigation', obj_name=None):
             b = QPushButton(ctrl_frame)
+            b.setObjectName(obj_name or f"mod_ctrl_{id(b)}")
             b.setIcon(icon_fn(color=icon_color))
             b.setIconSize(QSize(16, 16))
             b.setFixedSize(26, 26)
@@ -8611,13 +8675,18 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 b.setCheckable(True)
                 b.setChecked(checked)
             b.clicked.connect(callback)
-            self._mod_ctrl_buttons.append(b)
+            self._mod_ctrl_layout.add_widget(group, b)
             return b
 
-        btn("Zoom In",      self.icon_factory.zoom_in_icon,   pw.zoom_in)
-        btn("Zoom Out",     self.icon_factory.zoom_out_icon,  pw.zoom_out)
-        btn("Reset View",   self.icon_factory.reset_icon,     pw.reset_view)
-        btn("Fit to Window",self.icon_factory.fit_icon,       pw.fit_to_window)
+
+        btn("Zoom In",      self.icon_factory.zoom_in_icon,   pw.zoom_in,
+            obj_name="mod_zoom_in_btn")
+        btn("Zoom Out",     self.icon_factory.zoom_out_icon,  pw.zoom_out,
+            obj_name="mod_zoom_out_btn")
+        btn("Reset View",   self.icon_factory.reset_icon,     pw.reset_view,
+            obj_name="mod_reset_view_btn")
+        btn("Fit to Window",self.icon_factory.fit_icon,       pw.fit_to_window,
+            obj_name="mod_fit_window_btn")
 
         _view_icons = [
             ("XY",  0,   0,  self.icon_factory.view_xy_icon),
@@ -8628,48 +8697,45 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         for v_label, v_yaw, v_pitch, v_icon_fn in _view_icons:
             def _set_v(checked=False, y=v_yaw, p=v_pitch):
                 pw._yaw = y; pw._pitch = p; pw.update()
-            btn(f"View: {v_label}", v_icon_fn, _set_v)
+            btn(f"View: {v_label}", v_icon_fn, _set_v,
+                obj_name=f"mod_view_{v_label.lower()}_btn")
 
         btn("Render / Background Settings",
-            self.icon_factory.color_picker_icon, self._open_render_settings_dialog)
+            self.icon_factory.color_picker_icon, self._open_render_settings_dialog,
+            group='render', obj_name="mod_render_settings_btn")
 
         self.view_mesh_btn = btn("Toggle Mesh", self.icon_factory.mesh_icon,
                                   lambda checked: pw.set_show_mesh(checked),
-                                  checkable=True, checked=True)
+                                  checkable=True, checked=True,
+                                  group='render', obj_name="mod_view_mesh_btn")
         self.backface_btn  = btn("Toggle Backface", self.icon_factory.backface_icon,
                                   lambda checked: pw.set_backface(checked),
-                                  checkable=True, checked=False)
+                                  checkable=True, checked=False,
+                                  group='render', obj_name="mod_backface_btn")
         btn("Cycle Render Style", self.icon_factory.color_picker_icon,
-            self._cycle_view_render_style)
+            self._cycle_view_render_style,
+            group='render', obj_name="mod_cycle_render_style_btn")
 
+        self._mod_ctrl_layout.load_layout()
         self._mod_place_ctrl_grid(1)
         return ctrl_frame
 
 
-    def _mod_place_ctrl_grid(self, n_cols=None): #vers 1
-        grid  = getattr(self, '_mod_ctrl_grid', None)
-        btns  = getattr(self, '_mod_ctrl_buttons', [])
-        frame = getattr(self, '_mod_ctrl_frame', None)
-        if grid is None or not btns:
+    def _mod_place_ctrl_grid(self, n_cols=None): #vers 2
+        gtl = getattr(self, '_mod_ctrl_layout', None)
+        if gtl is None:
             return
-        btn_w = 28
         if n_cols is None:
             n_cols = getattr(self, '_mod_ctrl_forced_cols', 1)
-        for i in range(grid.count()-1, -1, -1):
-            item = grid.itemAt(i)
-            if item and item.widget():
-                grid.removeWidget(item.widget())
-        for idx, b in enumerate(btns):
-            if b.parent() is not frame:
-                b.setParent(frame)
-            grid.addWidget(b, idx // n_cols, idx % n_cols)
-            b.show()
+        gtl.set_columns(n_cols)
+        frame = getattr(self, '_mod_ctrl_frame', None)
         if frame:
-            frame.setMaximumWidth(btn_w + 4 if n_cols == 1 else 16777215)
+            frame.setMaximumWidth(28 + 4 if n_cols == 1 else 16777215)
 
-    def _reflow_mod_right_toolbar(self, pos): #vers 1
+    def _reflow_mod_right_toolbar(self, pos): #vers 2
         from apps.components.Model_Editor.dockable_toolbar import SNAP_LEFT, SNAP_RIGHT, SNAP_TOP, SNAP_BOTTOM
-        n = len(getattr(self, '_mod_ctrl_buttons', []))
+        gtl = getattr(self, '_mod_ctrl_layout', None)
+        n = sum(len(w) for w in gtl._groups.values()) if gtl else 0
         if pos in ('float', SNAP_LEFT, SNAP_RIGHT):
             self._mod_ctrl_forced_cols = 1
         elif pos in (SNAP_TOP, SNAP_BOTTOM):
