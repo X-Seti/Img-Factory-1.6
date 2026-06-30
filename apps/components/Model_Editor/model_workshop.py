@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 126
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 127
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -7366,6 +7366,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._mod_toolbar_layout.add_group('selection_modifiers', "Selection Modifiers")
         self._mod_toolbar_layout.add_group('geometry', "Edit Geometry")
         self._mod_toolbar_layout.add_group('view', "View / Render")
+        # Default separators between clusters - matches Max's visual grouping;
+        # user can remove via right-click once Customize mode is on, and the
+        # removal persists same as any other layout change
+        self._mod_toolbar_layout.add_divider_before('selection_modifiers')
+        self._mod_toolbar_layout.add_divider_before('geometry')
+        self._mod_toolbar_layout.add_divider_before('view')
 
         icon_frame._grid = self._mod_toolbar_layout.grid
         self._mod_icon_grid    = icon_frame._grid
