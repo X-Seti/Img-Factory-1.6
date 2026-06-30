@@ -1,5 +1,5 @@
 # X-Seti - May13 2026 - IMG Factory 1.6 - DFF OpenGL Viewport
-# this belongs in apps/methods/dff_viewport.py - Version: 4
+# this belongs in apps/methods/dff_viewport.py - Version: 5
 """
 DFFViewport - Shared OpenGL viewport for DFF model rendering.
 Used by Model Viewer, Model Workshop, Vehicle Workshop (docked).
@@ -7,6 +7,7 @@ Standalone tools import from their own methods/dff_viewport.py.
 
 ##Methods list -
 # DFFViewport.__init__
+# DFFViewport._apply_selection_click
 # DFFViewport._auto_fit
 # DFFViewport._calc_world_matrix
 # DFFViewport._draw_assembly
@@ -17,9 +18,12 @@ Standalone tools import from their own methods/dff_viewport.py.
 # DFFViewport._draw_wireframe
 # DFFViewport._emit_verts
 # DFFViewport._face_color
+# DFFViewport._get_selection_count
 # DFFViewport._get_ui_color
 # DFFViewport._get_wheel_geom_data
+# DFFViewport._notify_selection_changed
 # DFFViewport._rw_wrap_to_gl
+# DFFViewport._selected_set_for_mode
 # DFFViewport._setup_lighting
 # DFFViewport.clear_textures
 # DFFViewport.initializeGL
@@ -28,6 +32,8 @@ Standalone tools import from their own methods/dff_viewport.py.
 # DFFViewport.load_wheels_dff
 # DFFViewport.mouseMoveEvent
 # DFFViewport.mousePressEvent
+# DFFViewport.toggle_snap_axis_constraint
+# DFFViewport.toggle_snap_target
 # DFFViewport.mouseReleaseEvent
 # DFFViewport.paintGL
 # DFFViewport.reset_camera
@@ -128,6 +134,16 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._selected_edges = set()    # set of (vi, vj) tuples, vi < vj
         self._selected_faces = set()    # set of triangle indices
         self._select_mode    = 'object'  # 'vertex'|'edge'|'face'|'poly'|'object'
+
+        # Snap target toggles — 3ds Max style, independently toggleable
+        # (not single-select like _select_mode). All off by default; this
+        # is state only for now, the actual snap-during-drag math that
+        # reads these flags is a follow-up task, not wired yet.
+        self._snap_targets = {
+            'grid': False, 'pivot': False, 'vertex': False,
+            'endpoint': False, 'midpoint': False, 'edge': False, 'face': False,
+        }
+        self._snap_axis_constraint = False   # "Enable Axis Constraints in Snaps"
 
     def _get_ui_color(self, key): #vers 2
         """Get theme color — tries app_settings, falls back to defaults."""
@@ -338,6 +354,17 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             sel.clear()
             sel.add(key)
         self._notify_selection_changed()
+
+    def toggle_snap_target(self, target: str): #vers 1
+        """Flip one snap target on/off (independently toggleable, not
+        single-select - matches 3ds Max's snap ribbon where Vertex+Endpoint+
+        Midpoint etc. can all be active together). No-op for unknown keys
+        rather than raising, since this is called from button clicks."""
+        if target in self._snap_targets:
+            self._snap_targets[target] = not self._snap_targets[target]
+
+    def toggle_snap_axis_constraint(self): #vers 1
+        self._snap_axis_constraint = not self._snap_axis_constraint
 
     def _get_selection_count(self): #vers 1
         """Count of currently selected items in the active sub-object mode.

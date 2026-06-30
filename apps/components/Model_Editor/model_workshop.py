@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 128
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 129
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -7366,12 +7366,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._mod_toolbar_layout.add_group('selection_modifiers', "Selection Modifiers")
         self._mod_toolbar_layout.add_group('geometry', "Edit Geometry")
         self._mod_toolbar_layout.add_group('view', "View / Render")
+        self._mod_toolbar_layout.add_group('snap', "Snaps")
         # Default separators between clusters - matches Max's visual grouping;
         # user can remove via right-click once Customize mode is on, and the
         # removal persists same as any other layout change
         self._mod_toolbar_layout.add_divider_before('selection_modifiers')
         self._mod_toolbar_layout.add_divider_before('geometry')
         self._mod_toolbar_layout.add_divider_before('view')
+        self._mod_toolbar_layout.add_divider_before('snap')
 
         icon_frame._grid = self._mod_toolbar_layout.grid
         self._mod_icon_grid    = icon_frame._grid
@@ -7609,6 +7611,59 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._sel_count_label.setStyleSheet("color: palette(mid); font-size: 11px;")
         self._mod_toolbar_layout.add_widget('selection', self._sel_count_label)
 
+        # Snap target toggles — independently toggleable (NOT mutually
+        # exclusive, unlike the V/E/F/P select-mode buttons above). State
+        # only for now: toggling these updates vp._snap_targets but the
+        # actual snap-during-drag math isn't wired up yet (follow-up task).
+        def _snap_btn(target, tip, icon_fn_name):
+            b = QPushButton()
+            b.setObjectName(f"mod_snap_{target}_btn")
+            b.setFixedSize(btn_width, btn_height)
+            b.setCheckable(True)
+            b.setToolTip(tip)
+            b.setIconSize(icon_size)
+            try:
+                b.setIcon(getattr(self.icon_factory, icon_fn_name)(color=icon_color))
+            except Exception:
+                b.setText(target[0].upper())
+
+            def _on_click(_=False, t=target, btn=b):
+                vp = getattr(self, 'preview_widget', None)
+                if vp:
+                    vp.toggle_snap_target(t)
+                    btn.setChecked(vp._snap_targets.get(t, False))
+            b.clicked.connect(_on_click)
+            self._mod_toolbar_layout.add_widget('snap', b)
+            return b
+
+        self._snap_grid_btn     = _snap_btn('grid',     'Snap To Grid Points Toggle',      'snap_grid_icon')
+        self._snap_pivot_btn    = _snap_btn('pivot',    'Snap To Pivot Toggle',            'snap_pivot_icon')
+        self._snap_vertex_btn   = _snap_btn('vertex',   'Snap To Vertex Toggle',           'snap_vertex_icon')
+        self._snap_endpoint_btn = _snap_btn('endpoint', 'Snap To Endpoint Toggle',         'snap_endpoint_icon')
+        self._snap_midpoint_btn = _snap_btn('midpoint', 'Snap To Midpoint Toggle',         'snap_midpoint_icon')
+        self._snap_edge_btn     = _snap_btn('edge',     'Snap To Edge/Segment Toggle',     'snap_edge_icon')
+        self._snap_face_btn     = _snap_btn('face',     'Snap To Face Toggle',             'snap_face_icon')
+
+        self._snap_axis_btn = QPushButton()
+        self._snap_axis_btn.setObjectName("mod_snap_axis_btn")
+        self._snap_axis_btn.setFixedSize(btn_width, btn_height)
+        self._snap_axis_btn.setCheckable(True)
+        self._snap_axis_btn.setToolTip("Enable Axis Constraints in Snaps Toggle")
+        self._snap_axis_btn.setIconSize(icon_size)
+        try:
+            self._snap_axis_btn.setIcon(
+                self.icon_factory.snap_axis_constraint_icon(color=icon_color))
+        except Exception:
+            self._snap_axis_btn.setText("XY")
+
+        def _on_axis_click(_=False):
+            vp = getattr(self, 'preview_widget', None)
+            if vp:
+                vp.toggle_snap_axis_constraint()
+                self._snap_axis_btn.setChecked(vp._snap_axis_constraint)
+        self._snap_axis_btn.clicked.connect(_on_axis_click)
+        self._mod_toolbar_layout.add_widget('snap', self._snap_axis_btn)
+
         # Front-only paint toggle
         self._front_paint_btn = QPushButton()
         self._front_paint_btn.setObjectName("mod_front_paint_btn")
@@ -7722,6 +7777,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._sel_vert_btn, self._sel_edge_btn,
             self._sel_face_btn, self._sel_poly_btn,
             self._sel_count_label,
+            self._snap_grid_btn, self._snap_pivot_btn, self._snap_vertex_btn,
+            self._snap_endpoint_btn, self._snap_midpoint_btn,
+            self._snap_edge_btn, self._snap_face_btn, self._snap_axis_btn,
             self._backface_cull_btn, self._front_paint_btn,
             self._prim_btn,
             self._shading_btn,
