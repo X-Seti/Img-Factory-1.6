@@ -1,4 +1,4 @@
-#this belongs in apps/methods/toolbar_layout_manager.py - Version: 1
+#this belongs in apps/methods/toolbar_layout_manager.py - Version: 2
 # X-Seti - June 2026 - IMG Factory 1.6 - Toolbar Group/Divider Customization
 
 """
@@ -233,14 +233,29 @@ class GroupedToolbarLayout:
         self._n_cols = n_cols
         self._rebuild_grid()
 
-    def _rebuild_grid(self): #vers 2
+    def _rebuild_grid(self): #vers 3
         """Clear and re-populate the grid from current group/divider state.
         Single row by default (matches the existing flat-row toolbar style);
-        wraps into self._n_cols columns per row when set via set_columns()."""
+        wraps into self._n_cols columns per row when set via set_columns().
+        Adds a trailing stretch row+column after the real content so buttons
+        pack tightly at their natural size instead of QGridLayout spreading
+        them evenly across whatever height/width the docked bar happens to
+        be given (the cause of large gaps between icons in a tall vertical
+        dock - buttons were occupying the full grid with no stretch sink to
+        absorb the leftover space)."""
         for i in reversed(range(self.grid.count())):
             item = self.grid.itemAt(i)
             if item and item.widget():
                 self.grid.removeWidget(item.widget())
+
+        # Clear stretch factors from any previous, possibly larger, layout -
+        # QGridLayout remembers them by row/column index even after items
+        # are removed, so a rebuild into a smaller grid can leave stale
+        # stretch on rows/columns that no longer hold real content.
+        for r in range(self.grid.rowCount()):
+            self.grid.setRowStretch(r, 0)
+        for c in range(self.grid.columnCount()):
+            self.grid.setColumnStretch(c, 0)
 
         n_cols = getattr(self, '_n_cols', None)
         col = 0
@@ -266,6 +281,15 @@ class GroupedToolbarLayout:
                 if w.parent() is not self.host:
                     w.setParent(self.host)
                 _place(w)
+
+        # Trailing stretch sink - absorbs all leftover space so the real
+        # buttons stay packed at the top-left instead of spreading out.
+        # One extra row past the last used row, one extra column past the
+        # last used column, each given stretch=1.
+        last_row = row + 1 if col > 0 else row  # +1 only if current row has content
+        last_col = n_cols if n_cols is not None else col
+        self.grid.setRowStretch(last_row, 1)
+        self.grid.setColumnStretch(last_col, 1)
 
     def _show_context_menu(self, pos): #vers 2
         menu = QMenu(self.host)
