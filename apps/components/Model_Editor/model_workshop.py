@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 131
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 132
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -7701,7 +7701,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._sel_face_btn, self._sel_poly_btn,
             self._sel_count_label,
             self._backface_cull_btn, self._front_paint_btn,
-            self._prim_btn,
             self._shading_btn,
             self._light_setup_btn,
         ]
