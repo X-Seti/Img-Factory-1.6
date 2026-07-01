@@ -1,4 +1,4 @@
-#this belongs in apps/methods/toolbar_layout_manager.py - Version: 3
+#this belongs in apps/methods/toolbar_layout_manager.py - Version: 4
 # X-Seti - June 2026 - IMG Factory 1.6 - Toolbar Group/Divider Customization
 
 """
@@ -35,6 +35,7 @@ from PyQt6.QtGui import QDrag, QPainter, QColor, QPen
 # set_columns
 # set_customize_mode
 # _delete_widget
+# _open_ribbon_manager
 
 ##Classes -
 # _DividerWidget
@@ -291,7 +292,7 @@ class GroupedToolbarLayout:
         self.grid.setRowStretch(last_row, 1)
         self.grid.setColumnStretch(last_col, 1)
 
-    def _show_context_menu(self, pos): #vers 3
+    def _show_context_menu(self, pos): #vers 4
         menu = QMenu(self.host)
         cust_act = menu.addAction("Customize...")
         cust_act.setCheckable(True)
@@ -299,10 +300,22 @@ class GroupedToolbarLayout:
         cust_act.toggled.connect(self.set_customize_mode)
         menu.addSeparator()
         menu.addAction("Icon Size...", self._show_icon_size_dialog)
+        menu.addAction("Ribbon Manager...", self._open_ribbon_manager)
         menu.addSeparator()
         menu.addAction("Save toolbar layout", self.save_layout)
         menu.addAction("Reset to default layout", self._reset_layout)
         menu.exec(self.host.mapToGlobal(pos))
+
+    def _open_ribbon_manager(self): #vers 1
+        """Walk up the parent chain to find the ModelWorkshop and call
+        open_ribbon_manager() on it."""
+        parent = self.host
+        while parent is not None:
+            if hasattr(parent, 'open_ribbon_manager'):
+                parent.open_ribbon_manager()
+                return
+            parent = parent.parent() if callable(
+                getattr(parent, 'parent', None)) else None
 
     def _show_icon_size_dialog(self): #vers 1
         """Floating slider dialog for live toolbar icon resizing. Looks for

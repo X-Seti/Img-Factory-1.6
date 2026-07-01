@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 140
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 141
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -50,6 +50,7 @@ from PyQt6.QtSvg import QSvgRenderer
 # Import project modules AFTER path setup
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
 from apps.components.Model_Editor.depends.max_svg_icons import MaxSVGIcons
+from apps.methods.ribbon_manager import RibbonRegistry, RibbonManagerDialog, tag_button
 
 # Parser imports — fall back to local depends/ when running standalone
 try:
@@ -5752,9 +5753,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             pass
 
     def _restore_icon_scale(self): #vers 1
-        """Restore persisted icon scale from model_workshop.json on startup,
-        50ms after toolbar layouts have been restored (slight delay so
-        widgets are fully parented into their layouts before being resized)."""
+        """Restore persisted icon scale from model_workshop.json on startup."""
         try:
             import json
             from pathlib import Path
@@ -5767,6 +5766,36 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         except Exception:
             pass
 
+    def _init_ribbon_registry(self): #vers 1
+        """Create the RibbonRegistry, register all five toolbar bars, tag
+        every button with a stable _ribbon_id, then take the default snapshot."""
+        self._ribbon_registry = RibbonRegistry(self)
+        bars = [
+            ('_mod_left_toolbar',     '_mod_toolbar_layout',    "Selection / View"),
+            ('_mod_snap_toolbar',     '_snap_toolbar_layout',   "Snap Targets"),
+            ('_mod_geometry_toolbar', '_geo_toolbar_layout',    "Edit Geometry"),
+            ('_mod_nav_toolbar',      '_nav_toolbar_layout',    "Navigation"),
+            ('_mod_render_toolbar',   '_render_toolbar_layout', "Render"),
+        ]
+        for toolbar_attr, layout_attr, name in bars:
+            toolbar = getattr(self, toolbar_attr, None)
+            layout  = getattr(self, layout_attr,  None)
+            if toolbar is not None:
+                self._ribbon_registry.register_ribbon(toolbar, layout, name)
+        for w in self._all_toolbar_widgets():
+            if hasattr(w, 'setIcon'):
+                tag_button(w)
+        if self._ribbon_registry._default_snapshot is None:
+            self._ribbon_registry._default_snapshot = \
+                self._ribbon_registry.take_snapshot()
+        self._ribbon_registry.load_state()
+
+    def open_ribbon_manager(self): #vers 1
+        """Open the Ribbon Manager dialog."""
+        if not hasattr(self, '_ribbon_registry') or self._ribbon_registry is None:
+            self._init_ribbon_registry()
+        dlg = RibbonManagerDialog(self._ribbon_registry, parent=self)
+        dlg.exec()
 
     def showEvent(self, event): #vers 1
         """On first show, restore toolbar layouts after Qt has laid out everything."""
@@ -8380,6 +8409,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # 400ms: wait for parent widget to be fully laid out before restoring
         _QT.singleShot(400, self._load_mod_toolbar_layouts)
         _QT.singleShot(450, self._restore_icon_scale)
+        _QT.singleShot(500, self._init_ribbon_registry)
 
         # Information group below
         info_group = QGroupBox("")
