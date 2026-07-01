@@ -1,5 +1,5 @@
 """
-apps/components/Txd_Editor/dockable_toolbar.py  — Build 5
+apps/components/Model_Editor/dockable_toolbar.py  — Build 6
 
 Key design:
   - NO separate title bar above icons.
@@ -81,13 +81,56 @@ class _EdgeOverlay(QWidget):
         accent.setAlpha(130) if not hasattr(self,'_get_ui_color') else None
         outline = self._get_ui_color('accent_primary') if hasattr(self,'_get_ui_color') else QColor(30,144,255)
         if not hasattr(self,'_get_ui_color'): outline.setAlpha(200)
+
+        # Sibling-relative drop indicator — draw a thin insertion line
+        # at the position where the bar would be inserted, not a full band
+        if self._zone.startswith('sibling:'):
+            # Parse 'sibling:before:<key>' or 'sibling:after:<key>'
+            parts = self._zone.split(':', 2)
+            side = parts[1] if len(parts) > 1 else 'before'
+            target_key = parts[2] if len(parts) > 2 else ''
+            # Find the target sibling widget in the parent panel
+            panel = self.parent()
+            target_widget = None
+            if panel and panel.layout():
+                for i in range(panel.layout().count()):
+                    item = panel.layout().itemAt(i)
+                    if item and item.widget():
+                        w_candidate = item.widget()
+                        if getattr(w_candidate, '_settings_key', '') == target_key:
+                            target_widget = w_candidate
+                            break
+            if target_widget:
+                # Draw insertion line at the sibling's top (before) or bottom (after) edge
+                tl = target_widget.mapTo(panel, QPoint(0, 0))
+                if side == 'before':
+                    y = tl.y()
+                else:
+                    y = tl.y() + target_widget.height()
+                insert_accent = QColor(self._get_ui_color('accent_primary'))
+                insert_accent.setAlpha(220)
+                p.setPen(QPen(insert_accent, 3))
+                p.drawLine(4, y, panel.width() - 4, y)
+                # Draw small arrow indicators on both ends
+                p.setBrush(QBrush(insert_accent))
+                p.setPen(Qt.PenStyle.NoPen)
+                tri_left  = QPolygon([QPoint(2, y-5), QPoint(2, y+5), QPoint(10, y)])
+                tri_right = QPolygon([QPoint(panel.width()-2, y-5),
+                                       QPoint(panel.width()-2, y+5),
+                                       QPoint(panel.width()-10, y)])
+                p.drawPolygon(tri_left)
+                p.drawPolygon(tri_right)
+            return
+
         bands = {
             SNAP_TOP:    QRect(0,     0,     w, T),
             SNAP_BOTTOM: QRect(0,     h-T,   w, T),
             SNAP_LEFT:   QRect(0,     0,     T, h),
             SNAP_RIGHT:  QRect(w-T,   0,     T, h),
         }
-        band = bands[self._zone]
+        band = bands.get(self._zone)
+        if band is None:
+            return
         p.fillRect(band, accent)
         p.setPen(QPen(outline, 2))
         p.drawRect(band.adjusted(1, 1, -1, -1))
@@ -95,7 +138,7 @@ class _EdgeOverlay(QWidget):
         p.setPen(QPen(_tc, 1))
         labels = {SNAP_TOP:'▼ Top', SNAP_BOTTOM:'▲ Bottom',
                   SNAP_LEFT:'▶ Left', SNAP_RIGHT:'◀ Right'}
-        p.drawText(band, Qt.AlignmentFlag.AlignCenter, labels[self._zone])
+        p.drawText(band, Qt.AlignmentFlag.AlignCenter, labels.get(self._zone, ''))
 
 
 #    Grip button — lives inline with the icons                                  
@@ -287,6 +330,45 @@ class _FloatWindow(QWidget):
             self._overlay.set_zone(zone)
 
     def _calc_zone(self, gp: QPoint) -> str:
+        # --- Sibling-relative check (takes priority over panel-edge zones) ---
+        # Walk the parent panel's layout looking for other DockableToolbar
+        # widgets. If the cursor is within SIBLING_THRESHOLD px of a sibling's
+        # top or bottom edge, return a sibling-relative zone so the drop
+        # inserts before/after that specific bar rather than snapping to the
+        # whole panel edge.
+        SIBLING_T = 30
+        panel = self._panel
+        if panel and panel.layout():
+            plo = panel.layout()
+            for i in range(plo.count()):
+                item = plo.itemAt(i)
+                if not item or not item.widget():
+                    continue
+                sib = item.widget()
+                if sib is self or not isinstance(sib, DockableToolbar):
+                    continue
+                if not sib.isVisible():
+                    continue
+                try:
+                    sib_tl = sib.mapToGlobal(QPoint(0, 0))
+                except Exception:
+                    continue
+                sib_rect = QRect(sib_tl.x(), sib_tl.y(), sib.width(), sib.height())
+                # Extend hit-area horizontally so user doesn't have to be pixel-perfect
+                hit = QRect(sib_rect.left() - 20, sib_rect.top() - SIBLING_T,
+                            sib_rect.width() + 40, sib_rect.height() + SIBLING_T * 2)
+                if not hit.contains(gp):
+                    continue
+                lc = gp - sib_tl
+                dist_top    = abs(lc.y())
+                dist_bottom = abs(sib.height() - lc.y())
+                key = getattr(sib, '_settings_key', '')
+                if dist_top <= dist_bottom and dist_top <= SIBLING_T:
+                    return f'sibling:before:{key}'
+                if dist_bottom < dist_top and dist_bottom <= SIBLING_T:
+                    return f'sibling:after:{key}'
+
+        # --- Original panel-edge detection ---
         for panel in [self._panel] + self._extra_panels:
             if not panel or not panel.isVisible():
                 continue
@@ -446,6 +528,34 @@ class DockableToolbar(QWidget):
             win.redock.connect(self._on_redock)
             self._float_win = win
             self.show()
+
+        elif zone.startswith('sibling:'):
+            # Sibling-relative insertion — parse 'sibling:before/after:<key>'
+            parts = zone.split(':', 2)
+            side = parts[1] if len(parts) > 1 else 'before'
+            target_key = parts[2] if len(parts) > 2 else ''
+            self._remove_from_dock()
+            plo = self._panel.layout() if self._panel else None
+            if plo:
+                # Find target sibling index
+                target_idx = -1
+                for i in range(plo.count()):
+                    item = plo.itemAt(i)
+                    if item and item.widget():
+                        if getattr(item.widget(), '_settings_key', '') == target_key:
+                            target_idx = i
+                            break
+                if target_idx >= 0:
+                    insert_at = target_idx if side == 'before' else target_idx + 1
+                    plo.insertWidget(insert_at, self, stretch=0)
+                else:
+                    plo.insertWidget(0, self, stretch=0)
+            self._floating = False
+            self.set_dock_position(SNAP_TOP)
+            self.show()
+            self.dock_position_changed.emit(SNAP_TOP)
+            QTimer.singleShot(50, lambda: self.reflow_requested.emit(SNAP_TOP))
+
         else:
             self._floating = False
             self._dock_to(zone)

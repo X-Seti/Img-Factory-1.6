@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 139
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 140
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -8312,6 +8312,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         panel.setMinimumWidth(200)
         self._right_panel_ref = panel
         main_layout = QVBoxLayout(panel)
+        self._mod_main_layout = main_layout   # stored for sibling-docking insertWidget
         main_layout.setContentsMargins(4, 4, 4, 4)
         main_layout.setSpacing(0)   # bars stack flush by default (matches
                                      # 3ds Max); explicit spacer added below
@@ -8340,6 +8341,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         # - Preview row: viewport + right dockable toolbar
         preview_row = QHBoxLayout()
+        self._mod_preview_row = preview_row   # stored for sibling-docking insertWidget
         preview_row.setSpacing(0)   # nav/render bars stack flush against
                                      # each other and the viewport edge
 
