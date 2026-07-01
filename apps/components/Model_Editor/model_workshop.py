@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 136
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 137
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -49,6 +49,7 @@ from PyQt6.QtSvg import QSvgRenderer
 
 # Import project modules AFTER path setup
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
+from apps.components.Model_Editor.depends.max_svg_icons import MaxSVGIcons
 
 # Parser imports — fall back to local depends/ when running standalone
 try:
@@ -7832,7 +7833,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             b.setCheckable(True)
             b.setToolTip(tip)
             b.setIconSize(icon_size)
-            _fn = getattr(self.icon_factory, icon_fn_name)
+            _fn = getattr(MaxSVGIcons, icon_fn_name)
             _c, _ac = icon_color, accent_color
             try:
                 b.setIcon(_fn(color=_c, accent_color=_ac))
@@ -7867,10 +7868,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._snap_axis_btn.setIconSize(icon_size)
         try:
             self._snap_axis_btn.setIcon(
-                self.icon_factory.snap_axis_constraint_icon(
+                MaxSVGIcons.snap_axis_constraint_icon(
                     color=icon_color, accent_color=accent_color))
             self._snap_axis_btn._icon_fn = lambda sz, c=icon_color, ac=accent_color: \
-                self.icon_factory.snap_axis_constraint_icon(size=sz, color=c, accent_color=ac)
+                MaxSVGIcons.snap_axis_constraint_icon(size=sz, color=c, accent_color=ac)
         except Exception:
             self._snap_axis_btn.setText("XY")
 
