@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/ribbon_manager.py - Version: 1
+#this belongs in apps/methods/ribbon_manager.py - Version: 2
 # X-Seti - June 2026 - IMG Factory 1.6 - Ribbon Manager
 
 """
@@ -467,11 +467,26 @@ class RibbonManagerDialog(QDialog): #vers 1
         # Snapshot for cancel
         self._cancel_snapshot = self._reg.take_snapshot()
 
-    def _refresh_ribbon_list(self): #vers 1
+    def _refresh_ribbon_list(self): #vers 2
         self._ribbon_list.clear()
+        self._ribbon_list.setIconSize(QSize(20, 20))
         for rid, info in self._reg._ribbons.items():
             item = QListWidgetItem(info['name'])
             item.setData(Qt.ItemDataRole.UserRole, rid)
+            # Show the first button's icon as a ribbon preview
+            for bid in info.get('buttons', []):
+                w = self._reg._buttons.get(bid)
+                if w and hasattr(w, '_icon_fn'):
+                    try:
+                        icon = w._icon_fn(20)
+                        if icon and not icon.isNull():
+                            item.setIcon(icon)
+                            break
+                    except Exception:
+                        pass
+                elif w and not w.icon().isNull():
+                    item.setIcon(w.icon())
+                    break
             self._ribbon_list.addItem(item)
         # Unassigned pool
         if self._reg._unassigned:
@@ -488,8 +503,9 @@ class RibbonManagerDialog(QDialog): #vers 1
         self._selected_ribbon_id = rid
         self._refresh_button_list(rid)
 
-    def _refresh_button_list(self, ribbon_id): #vers 1
+    def _refresh_button_list(self, ribbon_id): #vers 2
         self._button_list.clear()
+        self._button_list.setIconSize(QSize(24, 24))
         if ribbon_id is None:
             self._right_label.setText("Unassigned buttons")
             bids = self._reg._unassigned
@@ -501,11 +517,22 @@ class RibbonManagerDialog(QDialog): #vers 1
             bids = info.get('buttons', [])
         for bid in bids:
             w = self._reg._buttons.get(bid)
+            tip  = (w.toolTip()    if w else '') or ''
             name = (w.objectName() if w else bid) or bid
-            tip = (w.toolTip() if w else '') or ''
             label = tip if tip else name
             item = QListWidgetItem(label)
             item.setData(Qt.ItemDataRole.UserRole, bid)
+            # Show the button's own icon at a readable size
+            if w and hasattr(w, '_icon_fn'):
+                try:
+                    icon = w._icon_fn(24)
+                    if icon and not icon.isNull():
+                        item.setIcon(icon)
+                except Exception:
+                    pass
+            elif w and not w.icon().isNull():
+                # Fallback: use the button's existing baked icon
+                item.setIcon(w.icon())
             self._button_list.addItem(item)
 
     def _ribbon_context_menu(self, pos): #vers 1
