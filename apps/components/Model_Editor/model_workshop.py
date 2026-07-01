@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 138
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 139
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -8848,11 +8848,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "Set dimensions and subdivision count")
         self._prim_btn.setIconSize(icon_size)
         try:
-            self._prim_btn.setIcon(self.icon_factory.add_icon(color=icon_color))
+            self._prim_btn.setIcon(MaxSVGIcons.create_primitive_icon(color=icon_color))
         except Exception as _e:
-            print(f"[icon] add_icon (prim) failed: {_e}")
+            print(f"[icon] create_primitive_icon failed: {_e}")
         self._prim_btn._icon_fn = lambda sz, c=icon_color: \
-            self.icon_factory.add_icon(size=sz, color=c)
+            MaxSVGIcons.create_primitive_icon(size=sz, color=c)
         self._prim_btn.clicked.connect(self._create_primitive_dialog)
         self._geo_toolbar_layout.add_widget('geometry', self._prim_btn)
 
@@ -8866,11 +8866,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "Select faces in Face or Polygon mode first")
         self._extrude_btn.setIconSize(icon_size)
         try:
-            self._extrude_btn.setIcon(self.icon_factory.add_icon(color=icon_color))
+            self._extrude_btn.setIcon(MaxSVGIcons.extrude_icon(color=icon_color))
         except Exception as _e:
-            print(f"[icon] add_icon (extrude) failed: {_e}")
+            print(f"[icon] extrude_icon failed: {_e}")
         self._extrude_btn._icon_fn = lambda sz, c=icon_color: \
-            self.icon_factory.add_icon(size=sz, color=c)
+            MaxSVGIcons.extrude_icon(size=sz, color=c)
         self._extrude_btn.clicked.connect(self._extrude_dialog)
         self._geo_toolbar_layout.add_widget('geometry', self._extrude_btn)
 

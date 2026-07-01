@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/depends/max_svg_icons.py - Version: 3
+#this belongs in apps/components/Model_Editor/depends/max_svg_icons.py - Version: 4
 # X-Seti - June 2026 - IMG Factory 1.6 - 3ds Max-style SVG Icons for Model Workshop
 
 """
@@ -22,6 +22,8 @@ from apps.methods.imgfactory_svg_icons import SVGIconFactory
 
 ##Methods list -
 # MaxSVGIcons._snap_magnet_base
+# MaxSVGIcons.create_primitive_icon
+# MaxSVGIcons.extrude_icon
 # MaxSVGIcons.snap_axis_constraint_icon
 # MaxSVGIcons.snap_edge_icon
 # MaxSVGIcons.snap_endpoint_icon
@@ -137,13 +139,25 @@ class MaxSVGIcons:
 
 
     # ------------------------------------------------------------------ #
-    # Placeholder sections for future Max-catalogue icon families         #
-    # Add here as Phase 4 (Edit Geometry), Phase 2 (Transform tools)     #
-    # and other roadmap items are implemented.                            #
+    # Edit Geometry operations (Phase 4 roadmap)                         #
     # ------------------------------------------------------------------ #
-    # Edit Geometry operations (Phase 4):
-    #   extrude_icon, bevel_icon, weld_selected_icon, weld_target_icon,
-    #   cut_icon, slice_icon, detach_icon, attach_icon, divide_icon, turn_icon
-    # Transform tools (Phase 2):
-    #   move_type_in_icon, rotate_type_in_icon, scale_type_in_icon
-    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def create_primitive_icon(size: int = 20, color: str = None, accent_color: str = None) -> QIcon: #vers 1
+        """Create Primitive — box/cube shape"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="4,8 12,4 20,8 20,18 12,22 4,18"
+                     stroke="currentColor" stroke-width="2" fill="none"/>
+            <line x1="4"  y1="8"  x2="12" y2="12" stroke="currentColor" stroke-width="1.5"/>
+            <line x1="20" y1="8"  x2="12" y2="12" stroke="currentColor" stroke-width="1.5"/>
+            <line x1="12" y1="12" x2="12" y2="22" stroke="currentColor" stroke-width="1.5"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def extrude_icon(size: int = 20, color: str = None, accent_color: str = None) -> QIcon: #vers 1
+        """Extrude — face with arrow pushing outward"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <rect x="3" y="14" width="18" height="6" stroke="currentColor" stroke-width="2" fill="none"/>
+            <line x1="12" y1="14" x2="12" y2="4"  stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+            <polygon points="12,2 8,8 16,8" fill="currentColor"/>
+        </svg>''', size, color)
