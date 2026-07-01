@@ -1,4 +1,4 @@
-#this belongs in methods/imgfactory_ui_settings.py - Version: 6
+#this belongs in methods/imgfactory_ui_settings.py - Version: 7
 # X-Seti - February04 2026 - IMG Factory 1.6 - IMG Factory Settings Dialog
 
 """
@@ -35,7 +35,7 @@ from img_factory_settings import IMGFactorySettings
 # _save_and_close
 # _save_settings
 
-class IMGFactorySettingsDialog(QDialog): #vers 2
+class IMGFactorySettingsDialog(QDialog): #vers 3
     """IMG Factory-specific settings dialog — non-modal standalone window."""
 
     def __init__(self, main_window, parent=None): #vers 2
@@ -276,6 +276,48 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
         hint_row.addWidget(QLabel("900 px (always text)"))
         col_lay.addLayout(hint_row)
         layout.addWidget(col_grp)
+
+        #    Toolbar Icons                                                   
+        ico_grp = QGroupBox("Toolbar Icons")
+        ico_lay = QVBoxLayout(ico_grp); ico_lay.setSpacing(4)
+        desc2 = QLabel("Icon size for Model Workshop toolbar ribbons.\n"
+                       "Also adjustable by right-clicking any toolbar.")
+        desc2.setStyleSheet("color: #888; font-size: 10px;")
+        ico_lay.addWidget(desc2)
+
+        # Read current saved value from model_workshop.json
+        _saved_icon_px = 16
+        try:
+            import json as _json
+            from pathlib import Path as _Path
+            _mw_cfg = _Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            if _mw_cfg.exists():
+                _saved_icon_px = _json.loads(_mw_cfg.read_text()).get('icon_scale', 16)
+        except Exception:
+            pass
+
+        ico_row = QHBoxLayout(); ico_row.setSpacing(8)
+        ico_row.addWidget(QLabel("Size:"))
+        self.toolbar_icon_slider = QSlider(Qt.Orientation.Horizontal)
+        self.toolbar_icon_slider.setRange(10, 40)
+        self.toolbar_icon_slider.setSingleStep(1)
+        self.toolbar_icon_slider.setTickInterval(5)
+        self.toolbar_icon_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        self.toolbar_icon_slider.setValue(_saved_icon_px)
+        ico_row.addWidget(self.toolbar_icon_slider)
+        self.toolbar_icon_label = QLabel(f"{_saved_icon_px} px")
+        self.toolbar_icon_label.setMinimumWidth(40)
+        ico_row.addWidget(self.toolbar_icon_label)
+        self.toolbar_icon_slider.valueChanged.connect(
+            lambda v: self.toolbar_icon_label.setText(f"{v} px"))
+        ico_lay.addLayout(ico_row)
+
+        hint_row2 = QHBoxLayout()
+        hint_row2.addWidget(QLabel("10 px (small)"))
+        hint_row2.addStretch()
+        hint_row2.addWidget(QLabel("40 px (large)"))
+        ico_lay.addLayout(hint_row2)
+        layout.addWidget(ico_grp)
 
         layout.addStretch()
         return widget
@@ -837,6 +879,30 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
         # Panel collapse threshold
         if hasattr(self, 'collapse_slider'):
             self.img_settings.set("panel_collapse_threshold", self.collapse_slider.value())
+
+        # Toolbar icon size — saved to model_workshop.json and applied live
+        # to any open ModelWorkshop instance via its _apply_icon_scale method
+        if hasattr(self, 'toolbar_icon_slider'):
+            icon_px = self.toolbar_icon_slider.value()
+            try:
+                import json as _json
+                from pathlib import Path as _Path
+                _mw_cfg = _Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+                try:
+                    _data = _json.loads(_mw_cfg.read_text())
+                except Exception:
+                    _data = {}
+                _data['icon_scale'] = icon_px
+                _mw_cfg.write_text(_json.dumps(_data, indent=2))
+            except Exception:
+                pass
+            # Apply live to any open ModelWorkshop
+            try:
+                mw = getattr(self.parent(), '_model_workshop_ref', None)
+                if mw and hasattr(mw, '_apply_icon_scale'):
+                    mw._apply_icon_scale(icon_px)
+            except Exception:
+                pass
 
         # Advanced tab
         self.img_settings.set("recent_files_limit", self.recent_files_spin.value())
