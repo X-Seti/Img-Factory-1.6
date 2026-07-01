@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in root /apps/app_info.py - Version: 7
+#this belongs in root /apps/app_info.py - Version: 8
 # X-Seti - Feb 24 2026 - IMG Factory 1.6 - App constants
 """
 App-wide constants - import from here to avoid circular imports.
@@ -11,8 +11,8 @@ Build numbering:  Build <release>.<imgfactory_file_version>
 """
 
 App_name  = "Img Factory 1.6"
-App_build = "June 28 2026"
-App_build_num = "Build 387"          # increment manually with each release
+App_build = "June 29 2026"
+App_build_num = "Build 388"          # increment manually with each release
 App_imgfactory_version = 83          # mirrors Version: N in imgfactory.py — increment on every change
 App_auth  = "X-Seti"
 
