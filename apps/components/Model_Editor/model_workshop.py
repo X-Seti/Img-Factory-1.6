@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 134
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 135
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -7836,7 +7836,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             _c, _ac = icon_color, accent_color
             try:
                 b.setIcon(_fn(color=_c, accent_color=_ac))
-            except Exception:
+            except Exception as _e:
+                print(f"[snap icon] {icon_fn_name} failed: {_e}")
                 b.setText(target[0].upper())
             b._icon_fn = lambda sz, fn=_fn, c=_c, ac=_ac: fn(
                 size=sz, color=c, accent_color=ac)
@@ -8848,7 +8849,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._prim_btn.setIconSize(icon_size)
         try:
             self._prim_btn.setIcon(self.icon_factory.add_icon(color=icon_color))
-        except Exception:
+        except Exception as _e:
+            print(f"[geo icon] add_icon (prim) failed: {_e}")
             self._prim_btn.setText("+□")
         self._prim_btn._icon_fn = lambda sz, c=icon_color: \
             self.icon_factory.add_icon(size=sz, color=c)
@@ -8866,7 +8868,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._extrude_btn.setIconSize(icon_size)
         try:
             self._extrude_btn.setIcon(self.icon_factory.add_icon(color=icon_color))
-        except Exception:
+        except Exception as _e:
+            print(f"[geo icon] add_icon (extrude) failed: {_e}")
             self._extrude_btn.setText("Ext")
         self._extrude_btn._icon_fn = lambda sz, c=icon_color: \
             self.icon_factory.add_icon(size=sz, color=c)
