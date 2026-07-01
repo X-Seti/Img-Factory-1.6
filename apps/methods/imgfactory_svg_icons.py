@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/img_svg_icons.py - Version: 11
+#this belongs in apps/methods/img_svg_icons.py - Version: 12
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -179,6 +179,7 @@ class SVGIconFactory: #vers 8
         try:
             renderer = QSvgRenderer(svg_data.encode())
             if not renderer.isValid():
+                print(f"[SVGIconFactory] invalid SVG (first 300): {svg_data[:300]}")
                 return QIcon()
 
             pixmap = QPixmap(size, size)
