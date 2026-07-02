@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 146
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 147
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -6041,8 +6041,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.showMaximized()
 
 
-    def closeEvent(self, event): #vers 2
-        """Save all layout state on close."""
+    def _save_layout_state(self): #vers 1
+        """Save all ribbon/toolbar layout state. Called from both closeEvent
+        (standalone window) and window_closed signal (tab close via close_tab
+        in tab_system.py which bypasses closeEvent entirely)."""
+        print("[ModelWorkshop] _save_layout_state called")
         try:
             import json
             from pathlib import Path
@@ -6065,23 +6068,25 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 if gtl and hasattr(gtl, 'save_layout'):
                     gtl.save_layout()
 
-            # 3. Ribbon row layout — which bars share a row and in what order.
-            # Serialised as a list of rows, each row a list of settings_keys.
+            # 3. Ribbon row layout
             row_state = []
-            for row_idx in range(self._mod_main_layout.count()):
-                item = self._mod_main_layout.itemAt(row_idx)
-                if not item or not item.layout():
-                    continue
-                lo = item.layout()
-                row_keys = []
-                for j in range(lo.count()):
-                    sub = lo.itemAt(j)
-                    if sub and sub.widget():
-                        key = getattr(sub.widget(), '_settings_key', '')
-                        if key:
-                            row_keys.append(key)
-                if row_keys:
-                    row_state.append(row_keys)
+            main_layout = getattr(self, '_mod_main_layout', None)
+            if main_layout:
+                for row_idx in range(main_layout.count()):
+                    item = main_layout.itemAt(row_idx)
+                    if not item or not item.layout():
+                        continue
+                    lo = item.layout()
+                    row_keys = []
+                    for j in range(lo.count()):
+                        sub = lo.itemAt(j)
+                        if sub and sub.widget():
+                            key = getattr(sub.widget(), '_settings_key', '')
+                            if key:
+                                row_keys.append(key)
+                    if row_keys:
+                        row_state.append(row_keys)
+
             path = cfg / 'model_workshop.json'
             try:
                 data = json.loads(path.read_text())
@@ -6089,20 +6094,26 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 data = {}
             data['ribbon_row_layout'] = row_state
             path.write_text(json.dumps(data, indent=2))
+            print(f"[ModelWorkshop] saved ribbon_row_layout: {row_state}")
 
             # 4. Ribbon registry
             reg = getattr(self, '_ribbon_registry', None)
             if reg:
                 reg.save_state()
 
-            # Log to main window activity log (persists after tab closes)
             mw = getattr(self, 'main_window', None)
             if mw and hasattr(mw, 'log_message'):
                 mw.log_message("Model Workshop: Ribbon layout saved")
 
         except Exception as _e:
-            print(f"[ModelWorkshop] closeEvent save error: {_e}")
+            print(f"[ModelWorkshop] _save_layout_state error: {_e}")
 
+    def closeEvent(self, event): #vers 3
+        """Emit window_closed (which triggers _save_layout_state via signal)
+        and do menu cleanup. The actual save happens in _save_layout_state
+        connected to window_closed, so it fires whether the close comes from
+        closeEvent (standalone window) or close_tab() in tab_system.py
+        (tab close, which emits window_closed directly bypassing closeEvent)."""
         self.window_closed.emit()
         try:
             mw = getattr(self, 'main_window', None) or getattr(self, '_imgfactory', None)
@@ -8651,6 +8662,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         _QT.singleShot(400, self._load_mod_toolbar_layouts)
         _QT.singleShot(450, self._restore_icon_scale)
         _QT.singleShot(500, self._init_ribbon_registry)
+
+        # Connect window_closed to save — fires whether the close comes from
+        # closeEvent (standalone) or close_tab() in tab_system.py (tab close,
+        # which emits window_closed directly without calling closeEvent)
+        self.window_closed.connect(self._save_layout_state)
 
         # Information group below
         info_group = QGroupBox("")
