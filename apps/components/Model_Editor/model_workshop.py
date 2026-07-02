@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 145
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 146
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -5834,6 +5834,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     self._mod_toolbar_rows.append(new_row)
                     insert_idx += 1
             self._set_status("Ribbon layout restored")
+            mw = getattr(self, 'main_window', None)
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message("Model Workshop: Ribbon layout restored")
         except Exception as _e:
             print(f"[layout] ribbon_row_layout restore failed: {_e}")
 
@@ -6087,12 +6090,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             data['ribbon_row_layout'] = row_state
             path.write_text(json.dumps(data, indent=2))
 
-            # 4. Ribbon registry (button assignments, ribbon names)
+            # 4. Ribbon registry
             reg = getattr(self, '_ribbon_registry', None)
             if reg:
                 reg.save_state()
 
-            self._set_status("Ribbon layout saved")
+            # Log to main window activity log (persists after tab closes)
+            mw = getattr(self, 'main_window', None)
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message("Model Workshop: Ribbon layout saved")
 
         except Exception as _e:
             print(f"[ModelWorkshop] closeEvent save error: {_e}")
