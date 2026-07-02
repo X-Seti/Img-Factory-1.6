@@ -1,5 +1,5 @@
 """
-apps/components/Model_Editor/dockable_toolbar.py  — Build 7
+apps/components/Model_Editor/dockable_toolbar.py  — Build 8
 
 Key design:
   - NO separate title bar above icons.
@@ -745,7 +745,22 @@ class DockableToolbar(QWidget):
         layout_sub.addAction("Load saved layout",   self.load_layout)
         layout_sub.addAction("Reset to default",    lambda: self._on_redock(SNAP_TOP))
 
+        menu.addSeparator()
+        ribbon_act = menu.addAction("Ribbon Manager...")
+        ribbon_act.triggered.connect(self._open_ribbon_manager)
+
         menu.exec(global_pos)
+
+    def _open_ribbon_manager(self): #vers 1
+        """Walk up the parent chain to find the ModelWorkshop and open
+        the Ribbon Manager dialog from the grip handle right-click menu."""
+        parent = self._panel
+        while parent is not None:
+            if hasattr(parent, 'open_ribbon_manager'):
+                parent.open_ribbon_manager()
+                return
+            parent = parent.parent() if callable(
+                getattr(parent, 'parent', None)) else None
 
     def _save_layout_notify(self):
         ok = self.save_layout()
