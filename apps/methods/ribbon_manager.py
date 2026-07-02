@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/ribbon_manager.py - Version: 4
+#this belongs in apps/methods/ribbon_manager.py - Version: 5
 # X-Seti - June 2026 - IMG Factory 1.6 - Ribbon Manager
 
 """
@@ -517,8 +517,8 @@ class RibbonManagerDialog(QDialog): #vers 1
             bids = info.get('buttons', [])
         for bid in bids:
             w = self._reg._buttons.get(bid)
-            # Build a human-readable label — try tooltip first (most descriptive),
-            # then button text, then objectName, then a short UUID prefix as last resort
+            if w is None:
+                print(f"[RibbonManager] no widget for bid={bid[:8]}... (not in _buttons dict)")
             tip  = (w.toolTip()    if w else '') or ''
             text = (w.text()       if w and hasattr(w, 'text') else '') or ''
             name = (w.objectName() if w else '') or ''
