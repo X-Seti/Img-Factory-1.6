@@ -1,5 +1,5 @@
 """
-apps/components/Model_Editor/dockable_toolbar.py  — Build 8
+apps/components/Model_Editor/dockable_toolbar.py  — Build 9
 
 Key design:
   - NO separate title bar above icons.
@@ -686,7 +686,10 @@ class DockableToolbar(QWidget):
         except Exception:
             return False
 
-    def load_layout(self) -> bool:
+    def load_layout(self, skip_redock: bool = False) -> bool:
+        """Restore saved dock state. If skip_redock=True, only restores
+        collapsed state — caller is responsible for placement (used when
+        the ribbon row system handles layout, so _on_redock doesn't fight it)."""
         try:
             path = self._settings_path()
             if not path.exists():
@@ -699,16 +702,14 @@ class DockableToolbar(QWidget):
             collapsed = cfg.get('collapsed', False)
             floating  = cfg.get('floating',  False)
 
-            if floating:
-                # Re-float after layout settles
-                QTimer.singleShot(250,
-                    lambda: self._on_drag_started(
-                        self.mapToGlobal(QPoint(self.width()//2, self.height()//2))))
-            else:
-                # Redock to saved position — triggers reflow via signal
-                self._on_redock(pos)
+            if not skip_redock:
+                if floating:
+                    QTimer.singleShot(250,
+                        lambda: self._on_drag_started(
+                            self.mapToGlobal(QPoint(self.width()//2, self.height()//2))))
+                else:
+                    self._on_redock(pos)
 
-            # Restore collapsed state after redock
             if collapsed != self._collapsed:
                 QTimer.singleShot(60, self._toggle_collapse)
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 144
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 145
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -5738,17 +5738,23 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if btr: btr.setVisible(wide)
             if bir: bir.setVisible(not wide)
 
-    def _load_mod_toolbar_layouts(self): #vers 4
-        """Restore all saved layout state on startup:
-        1. Per-bar DockableToolbar dock position / float / collapsed
-        2. Per-bar GroupedToolbarLayout group order / dividers / button order
-        3. Ribbon row layout — which bars share a row and in what order
-        4. Ribbon registry state — handled separately via _init_ribbon_registry
-        """
-        # 1. Per-bar DockableToolbar state
+    def _load_mod_toolbar_layouts(self): #vers 5
+        """Restore all saved layout state on startup."""
+        # Top-row bars: skip _on_redock — the ribbon_row_layout restore
+        # below handles placement, so we don't want individual load_layout
+        # calls fighting it by redocking each bar to SNAP_TOP independently.
         for attr in ('_mod_left_toolbar', '_mod_snap_toolbar',
-                     '_mod_geometry_toolbar',
-                     '_mod_nav_toolbar', '_mod_render_toolbar'):
+                     '_mod_geometry_toolbar'):
+            tb = getattr(self, attr, None)
+            if tb and hasattr(tb, 'load_layout'):
+                try:
+                    tb.load_layout(skip_redock=True)
+                except Exception as _e:
+                    print(f"[layout] {attr} load_layout failed: {_e}")
+
+        # Preview-row bars: these live in a QHBoxLayout alongside the viewport
+        # and use normal _on_redock (they float independently, not in row system)
+        for attr in ('_mod_nav_toolbar', '_mod_render_toolbar'):
             tb = getattr(self, attr, None)
             if tb and hasattr(tb, 'load_layout'):
                 try:
@@ -5756,10 +5762,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 except Exception as _e:
                     print(f"[layout] {attr} load_layout failed: {_e}")
 
-        # 2. GroupedToolbarLayout internal state (already called during bar
-        #    construction via layout.load_layout() — skip here to avoid double-load)
-
-        # 3. Ribbon row layout — restore which bars share rows
+        # Restore ribbon row layout from model_workshop.json
         try:
             import json
             from pathlib import Path
@@ -5770,7 +5773,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             row_state = data.get('ribbon_row_layout')
             if not row_state:
                 return
-            # Build a key → toolbar mapping
             key_to_tb = {}
             for attr in ('_mod_left_toolbar', '_mod_snap_toolbar',
                          '_mod_geometry_toolbar',
@@ -5782,12 +5784,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                         key_to_tb[key] = tb
             if not key_to_tb:
                 return
-            # Reconstruct rows from saved state
-            # First remove all toolbars from the current main_layout rows
             main_layout = getattr(self, '_mod_main_layout', None)
             if main_layout is None:
                 return
-            # Remove existing toolbar rows (not the preview_row or spacing items)
+            # Remove existing toolbar rows
             existing_rows = getattr(self, '_mod_toolbar_rows', [])
             for row in existing_rows:
                 for i in reversed(range(row.count())):
@@ -5796,8 +5796,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                         row.removeWidget(item.widget())
                 main_layout.removeItem(row)
             self._mod_toolbar_rows = []
-            # Rebuild rows in saved order, inserted before the spacing/preview items
-            # Find insertion point (before the addSpacing item)
+            # Find insertion point before the spacing/preview items
             insert_idx = 0
             for i in range(main_layout.count()):
                 item = main_layout.itemAt(i)
@@ -5805,17 +5804,20 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     insert_idx = i
                     break
                 if item and item.layout():
-                    # Check if it's a preview row (contains DFFViewport)
                     lo = item.layout()
                     for j in range(lo.count()):
                         sub = lo.itemAt(j)
                         if sub and sub.widget():
-                            from apps.methods.dff_viewport import DFFViewport
-                            if isinstance(sub.widget(), DFFViewport):
-                                insert_idx = i
-                                break
+                            try:
+                                from apps.methods.dff_viewport import DFFViewport
+                                if isinstance(sub.widget(), DFFViewport):
+                                    insert_idx = i
+                                    break
+                            except Exception:
+                                pass
+            # Rebuild rows in saved order
+            from PyQt6.QtWidgets import QHBoxLayout as _QHB
             for row_keys in row_state:
-                from PyQt6.QtWidgets import QHBoxLayout as _QHB
                 new_row = _QHB()
                 new_row.setSpacing(0)
                 new_row.setContentsMargins(0, 0, 0, 0)
@@ -5824,12 +5826,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     tb = key_to_tb.get(key)
                     if tb:
                         new_row.addWidget(tb, stretch=0)
+                        tb.show()
                         added = True
                 if added:
                     new_row.addStretch(1)
                     main_layout.insertLayout(insert_idx, new_row)
                     self._mod_toolbar_rows.append(new_row)
                     insert_idx += 1
+            self._set_status("Ribbon layout restored")
         except Exception as _e:
             print(f"[layout] ribbon_row_layout restore failed: {_e}")
 
@@ -6087,6 +6091,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             reg = getattr(self, '_ribbon_registry', None)
             if reg:
                 reg.save_state()
+
+            self._set_status("Ribbon layout saved")
 
         except Exception as _e:
             print(f"[ModelWorkshop] closeEvent save error: {_e}")
