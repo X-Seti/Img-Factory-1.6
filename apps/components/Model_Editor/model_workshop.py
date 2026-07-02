@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 141
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 142
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -5752,17 +5752,20 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         except Exception:
             pass
 
-    def _restore_icon_scale(self): #vers 1
-        """Restore persisted icon scale from model_workshop.json on startup."""
+    def _restore_icon_scale(self): #vers 2
+        """Restore persisted icon scale and icon set from model_workshop.json."""
         try:
             import json
             from pathlib import Path
             path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
             if path.exists():
                 data = json.loads(path.read_text())
-                saved = data.get('icon_scale')
-                if saved and isinstance(saved, int) and saved != 16:
-                    self._apply_icon_scale(saved)
+                saved_px = data.get('icon_scale')
+                if saved_px and isinstance(saved_px, int) and saved_px != 16:
+                    self._apply_icon_scale(saved_px)
+                saved_set = data.get('icon_set', 'default')
+                if saved_set != 'default':
+                    self._apply_icon_set(saved_set)
         except Exception:
             pass
 
@@ -5796,6 +5799,93 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._init_ribbon_registry()
         dlg = RibbonManagerDialog(self._ribbon_registry, parent=self)
         dlg.exec()
+
+    def merge_ribbon_rows(self, toolbar_a, toolbar_b, position='after'): #vers 1
+        """Move toolbar_b onto the same horizontal row as toolbar_a.
+        position='after': toolbar_b sits to the right of toolbar_a.
+        position='before': toolbar_b sits to the left of toolbar_a.
+        This is how 'stack ribbons in the same row' is implemented —
+        find toolbar_a's row, remove toolbar_b from its own row (deleting
+        that row if it becomes empty), then insert toolbar_b into
+        toolbar_a's row at the right position."""
+        main_layout = getattr(self, '_mod_main_layout', None)
+        if main_layout is None:
+            return
+        # Find which row each toolbar is currently in
+        row_a = row_b = None
+        idx_a = idx_b = -1
+        for i in range(main_layout.count()):
+            item = main_layout.itemAt(i)
+            if not item or not item.layout():
+                continue
+            lo = item.layout()
+            for j in range(lo.count()):
+                sub = lo.itemAt(j)
+                if sub and sub.widget() is toolbar_a:
+                    row_a, idx_a = lo, j
+                if sub and sub.widget() is toolbar_b:
+                    row_b, idx_b = lo, j
+        if row_a is None or row_b is None:
+            return
+        if row_a is row_b:
+            return  # already on the same row
+        # Remove toolbar_b from its row
+        row_b.removeWidget(toolbar_b)
+        # If row_b is now empty (only has the stretch), remove it from main_layout
+        real_widgets = [row_b.itemAt(k).widget() for k in range(row_b.count())
+                        if row_b.itemAt(k) and row_b.itemAt(k).widget()]
+        if not real_widgets:
+            for i in range(main_layout.count()):
+                item = main_layout.itemAt(i)
+                if item and item.layout() is row_b:
+                    main_layout.removeItem(item)
+                    if row_b in getattr(self, '_mod_toolbar_rows', []):
+                        self._mod_toolbar_rows.remove(row_b)
+                    break
+        # Insert toolbar_b into row_a at the right position relative to toolbar_a
+        insert_at = idx_a + (1 if position == 'after' else 0)
+        row_a.insertWidget(insert_at, toolbar_b, stretch=0)
+
+    def split_ribbon_row(self, toolbar): #vers 1
+        """Move toolbar onto its own new row, placed immediately below
+        its current row. Inverse of merge_ribbon_rows."""
+        main_layout = getattr(self, '_mod_main_layout', None)
+        if main_layout is None:
+            return
+        current_row = None
+        current_row_idx = -1
+        for i in range(main_layout.count()):
+            item = main_layout.itemAt(i)
+            if not item or not item.layout():
+                continue
+            lo = item.layout()
+            for j in range(lo.count()):
+                sub = lo.itemAt(j)
+                if sub and sub.widget() is toolbar:
+                    current_row = lo
+                    current_row_idx = i
+                    break
+            if current_row is not None:
+                break
+        if current_row is None:
+            return
+        # Check it actually shares its row with another bar
+        real_widgets = [current_row.itemAt(k).widget()
+                        for k in range(current_row.count())
+                        if current_row.itemAt(k) and current_row.itemAt(k).widget()]
+        if len(real_widgets) <= 1:
+            return  # already alone on its row
+        current_row.removeWidget(toolbar)
+        # Create new row and insert it just below the current one
+        from PyQt6.QtWidgets import QHBoxLayout as _QHB
+        new_row = _QHB()
+        new_row.setSpacing(0)
+        new_row.setContentsMargins(0, 0, 0, 0)
+        new_row.addWidget(toolbar, stretch=0)
+        new_row.addStretch(1)
+        main_layout.insertLayout(current_row_idx + 1, new_row)
+        if hasattr(self, '_mod_toolbar_rows'):
+            self._mod_toolbar_rows.insert(current_row_idx + 1, new_row)
 
     def showEvent(self, event): #vers 1
         """On first show, restore toolbar layouts after Qt has laid out everything."""
@@ -8343,30 +8433,43 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         main_layout = QVBoxLayout(panel)
         self._mod_main_layout = main_layout   # stored for sibling-docking insertWidget
         main_layout.setContentsMargins(4, 4, 4, 4)
-        main_layout.setSpacing(0)   # bars stack flush by default (matches
-                                     # 3ds Max); explicit spacer added below
-                                     # only where breathing room is wanted
+        main_layout.setSpacing(0)
 
-        # - Top toolbar row
+        # Ribbon row system — each row is a QHBoxLayout holding one or more
+        # DockableToolbar bars. Multiple bars per row = horizontal stacking
+        # (matching 3ds Max where multiple toolbar clusters sit side-by-side
+        # on the same row). Single bar per row = current default (one toolbar
+        # per horizontal band, stacked vertically).
+        # self._mod_toolbar_rows: list of QHBoxLayout, one per band.
+        self._mod_toolbar_rows = []
+
+        def _add_ribbon_row(*toolbars):
+            """Create a new horizontal row and add toolbars to it.
+            Multiple toolbars in one call = they share the same row."""
+            row = QHBoxLayout()
+            row.setSpacing(0)
+            row.setContentsMargins(0, 0, 0, 0)
+            for tb in toolbars:
+                row.addWidget(tb, stretch=0)
+            row.addStretch(1)   # pushes bars to the left, matching Max's left-aligned rows
+            main_layout.addLayout(row)
+            self._mod_toolbar_rows.append(row)
+            return row
+
+        # Default: one bar per row (user can merge via Ribbon Manager later)
         left_toolbar = self._create_transform_icon_panel()
-        main_layout.addWidget(left_toolbar, stretch=0)
         left_toolbar.set_dock_position('top')
+        _add_ribbon_row(left_toolbar)
 
-        # - Snap toolbar row — separate dockable bar, matches 3ds Max where
-        # snap toggles are their own distinct toolbar cluster, not buried
-        # inside the main left toolbar
         snap_toolbar = self._create_snap_toolbar()
-        main_layout.addWidget(snap_toolbar, stretch=0)
         snap_toolbar.set_dock_position('top')
+        _add_ribbon_row(snap_toolbar)
 
-        # - Edit Geometry bar — own dockable bar (Create Primitive, Extrude,
-        # more operations land here as Phase 4 progresses)
         geo_toolbar = self._create_geometry_toolbar()
-        main_layout.addWidget(geo_toolbar, stretch=0)
         geo_toolbar.set_dock_position('top')
+        _add_ribbon_row(geo_toolbar)
 
-        main_layout.addSpacing(4)   # breathing room between the toolbar
-                                     # stack and the preview content below
+        main_layout.addSpacing(4)
 
         # - Preview row: viewport + right dockable toolbar
         preview_row = QHBoxLayout()
@@ -10070,11 +10173,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         return '#cccccc'
 
     def _get_icon_accent_color(self): #vers 1
-        """Get the theme's accent colour, for icons that want a two-tone
-        look (e.g. snap target icons: magnet base in the normal icon
-        colour, pictogram overlay in the accent colour — mirrors 3ds
-        Max's red-base/white-overlay snap icon convention while staying
-        theme-driven instead of hardcoded)."""
+        """Get the theme's accent colour for two-tone icons."""
         as_ = (self.app_settings
                or getattr(getattr(self, 'main_window', None), 'app_settings', None))
         if as_:
@@ -10085,7 +10184,68 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 pass
         return '#0066cc'
 
-    def _all_toolbar_widgets(self): #vers 1
+    def _get_icon_set(self) -> str: #vers 1
+        """Return the active icon set name: 'default' or '3dsmax'.
+        Read from model_workshop.json 'icon_set' key; defaults to 'default'."""
+        try:
+            import json
+            from pathlib import Path
+            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            if path.exists():
+                return json.loads(path.read_text()).get('icon_set', 'default')
+        except Exception:
+            pass
+        return 'default'
+
+    def _save_icon_set(self, icon_set: str): #vers 1
+        """Persist the icon set choice and regenerate all snap icons."""
+        try:
+            import json
+            from pathlib import Path
+            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            try:
+                data = json.loads(path.read_text())
+            except Exception:
+                data = {}
+            data['icon_set'] = icon_set
+            path.write_text(json.dumps(data, indent=2))
+        except Exception:
+            pass
+        self._apply_icon_set(icon_set)
+
+    def _apply_icon_set(self, icon_set: str): #vers 1
+        """Regenerate snap toolbar icons for the chosen set.
+        'default'  — single-color geometric symbols (current style)
+        '3dsmax'   — neutral base + red accent pictogram (matches Max's
+                     red magnet marker visual language)"""
+        icon_color   = self._get_icon_color()
+        accent_color = self._get_icon_accent_color() if icon_set == '3dsmax' else icon_color
+        icon_px = getattr(self, '_mod_icon_scale', 16)
+        snap_map = {
+            '_snap_grid_btn':     'snap_grid_icon',
+            '_snap_pivot_btn':    'snap_pivot_icon',
+            '_snap_vertex_btn':   'snap_vertex_icon',
+            '_snap_endpoint_btn': 'snap_endpoint_icon',
+            '_snap_midpoint_btn': 'snap_midpoint_icon',
+            '_snap_edge_btn':     'snap_edge_icon',
+            '_snap_face_btn':     'snap_face_icon',
+            '_snap_axis_btn':     'snap_axis_constraint_icon',
+        }
+        for attr, fn_name in snap_map.items():
+            btn = getattr(self, attr, None)
+            if btn is None:
+                continue
+            try:
+                icon = getattr(MaxSVGIcons, fn_name)(
+                    size=icon_px, color=icon_color, accent_color=accent_color)
+                btn.setIcon(icon)
+                # Update _icon_fn so future scale changes also use the right set
+                btn._icon_fn = (lambda sz, fn=fn_name, c=icon_color, ac=accent_color:
+                                getattr(MaxSVGIcons, fn)(size=sz, color=c, accent_color=ac))
+            except Exception as _e:
+                print(f"[icon_set] {fn_name} failed: {_e}")
+
+
         """Yield every widget registered across all five GroupedToolbarLayout
         toolbar bars, without needing a separate manually-curated master
         list. Used by _apply_icon_scale to reach every icon in one pass."""

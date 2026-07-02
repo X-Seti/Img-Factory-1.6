@@ -1,5 +1,5 @@
 """
-apps/components/Model_Editor/dockable_toolbar.py  — Build 6
+apps/components/Model_Editor/dockable_toolbar.py  — Build 7
 
 Key design:
   - NO separate title bar above icons.
@@ -342,31 +342,50 @@ class _FloatWindow(QWidget):
             plo = panel.layout()
             for i in range(plo.count()):
                 item = plo.itemAt(i)
-                if not item or not item.widget():
+                if not item:
                     continue
-                sib = item.widget()
-                if sib is self or not isinstance(sib, DockableToolbar):
-                    continue
-                if not sib.isVisible():
-                    continue
-                try:
-                    sib_tl = sib.mapToGlobal(QPoint(0, 0))
-                except Exception:
-                    continue
-                sib_rect = QRect(sib_tl.x(), sib_tl.y(), sib.width(), sib.height())
-                # Extend hit-area horizontally so user doesn't have to be pixel-perfect
-                hit = QRect(sib_rect.left() - 20, sib_rect.top() - SIBLING_T,
-                            sib_rect.width() + 40, sib_rect.height() + SIBLING_T * 2)
-                if not hit.contains(gp):
-                    continue
-                lc = gp - sib_tl
-                dist_top    = abs(lc.y())
-                dist_bottom = abs(sib.height() - lc.y())
-                key = getattr(sib, '_settings_key', '')
-                if dist_top <= dist_bottom and dist_top <= SIBLING_T:
-                    return f'sibling:before:{key}'
-                if dist_bottom < dist_top and dist_bottom <= SIBLING_T:
-                    return f'sibling:after:{key}'
+                # Check direct children (vertical stacking) and row children (horizontal)
+                candidates = []
+                if item.widget() and isinstance(item.widget(), DockableToolbar):
+                    candidates.append(item.widget())
+                elif item.layout():
+                    # Row layout — check all bars within it for horizontal stacking
+                    for j in range(item.layout().count()):
+                        sub = item.layout().itemAt(j)
+                        if sub and sub.widget() and isinstance(sub.widget(), DockableToolbar):
+                            candidates.append(sub.widget())
+                for sib in candidates:
+                    if sib is self or not sib.isVisible():
+                        continue
+                    try:
+                        sib_tl = sib.mapToGlobal(QPoint(0, 0))
+                    except Exception:
+                        continue
+                    sib_rect = QRect(sib_tl.x(), sib_tl.y(), sib.width(), sib.height())
+                    hit = QRect(sib_rect.left() - 20, sib_rect.top() - SIBLING_T,
+                                sib_rect.width() + 40, sib_rect.height() + SIBLING_T * 2)
+                    if not hit.contains(gp):
+                        continue
+                    lc = gp - sib_tl
+                    dist_top    = abs(lc.y())
+                    dist_bottom = abs(sib.height() - lc.y())
+                    dist_left   = abs(lc.x())
+                    dist_right  = abs(sib.width() - lc.x())
+                    key = getattr(sib, '_settings_key', '')
+                    # Determine closest edge
+                    dists = {'top': dist_top, 'bottom': dist_bottom,
+                             'left': dist_left, 'right': dist_right}
+                    closest = min(dists, key=lambda k: dists[k])
+                    if dists[closest] > SIBLING_T:
+                        continue
+                    if closest == 'top':
+                        return f'sibling:before:{key}'
+                    elif closest == 'bottom':
+                        return f'sibling:after:{key}'
+                    elif closest == 'left':
+                        return f'sibling:before:{key}'   # insert left = insert before
+                    else:
+                        return f'sibling:after:{key}'    # insert right = insert after
 
         # --- Original panel-edge detection ---
         for panel in [self._panel] + self._extra_panels:
@@ -535,21 +554,35 @@ class DockableToolbar(QWidget):
             side = parts[1] if len(parts) > 1 else 'before'
             target_key = parts[2] if len(parts) > 2 else ''
             self._remove_from_dock()
-            plo = self._panel.layout() if self._panel else None
-            if plo:
-                # Find target sibling index
-                target_idx = -1
-                for i in range(plo.count()):
-                    item = plo.itemAt(i)
-                    if item and item.widget():
-                        if getattr(item.widget(), '_settings_key', '') == target_key:
-                            target_idx = i
-                            break
-                if target_idx >= 0:
-                    insert_at = target_idx if side == 'before' else target_idx + 1
-                    plo.insertWidget(insert_at, self, stretch=0)
-                else:
-                    plo.insertWidget(0, self, stretch=0)
+            # Find the target sibling and its parent layout
+            panel = self._panel
+            target_widget = None
+            target_layout = None
+            if panel:
+                def _find_in_layout(lo, key):
+                    for i in range(lo.count()):
+                        item = lo.itemAt(i)
+                        if item and item.widget():
+                            if getattr(item.widget(), '_settings_key', '') == key:
+                                return item.widget(), lo
+                        elif item and item.layout():
+                            result = _find_in_layout(item.layout(), key)
+                            if result:
+                                return result
+                    return None
+                result = _find_in_layout(panel.layout(), target_key)
+                if result:
+                    target_widget, target_layout = result
+            if target_widget and target_layout:
+                # Find insert index
+                for i in range(target_layout.count()):
+                    item = target_layout.itemAt(i)
+                    if item and item.widget() is target_widget:
+                        insert_at = i if side == 'before' else i + 1
+                        target_layout.insertWidget(insert_at, self, stretch=0)
+                        break
+            elif panel and panel.layout():
+                panel.layout().insertWidget(0, self, stretch=0)
             self._floating = False
             self.set_dock_position(SNAP_TOP)
             self.show()

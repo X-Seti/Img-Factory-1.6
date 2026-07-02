@@ -1,4 +1,4 @@
-#this belongs in methods/imgfactory_ui_settings.py - Version: 7
+#this belongs in methods/imgfactory_ui_settings.py - Version: 8
 # X-Seti - February04 2026 - IMG Factory 1.6 - IMG Factory Settings Dialog
 
 """
@@ -280,21 +280,37 @@ class IMGFactorySettingsDialog(QDialog): #vers 3
         #    Toolbar Icons                                                   
         ico_grp = QGroupBox("Toolbar Icons")
         ico_lay = QVBoxLayout(ico_grp); ico_lay.setSpacing(4)
-        desc2 = QLabel("Icon size for Model Workshop toolbar ribbons.\n"
-                       "Also adjustable by right-clicking any toolbar.")
+        desc2 = QLabel("Icon size and style for Model Workshop toolbar ribbons.\n"
+                       "Size also adjustable by right-clicking any toolbar.")
         desc2.setStyleSheet("color: #888; font-size: 10px;")
         ico_lay.addWidget(desc2)
 
-        # Read current saved value from model_workshop.json
-        _saved_icon_px = 16
+        # Read current saved values from model_workshop.json
+        _saved_icon_px  = 16
+        _saved_icon_set = 'default'
         try:
             import json as _json
             from pathlib import Path as _Path
             _mw_cfg = _Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
             if _mw_cfg.exists():
-                _saved_icon_px = _json.loads(_mw_cfg.read_text()).get('icon_scale', 16)
+                _mw_data = _json.loads(_mw_cfg.read_text())
+                _saved_icon_px  = _mw_data.get('icon_scale', 16)
+                _saved_icon_set = _mw_data.get('icon_set', 'default')
         except Exception:
             pass
+
+        # Icon set selector
+        set_row = QHBoxLayout(); set_row.setSpacing(8)
+        from PyQt6.QtWidgets import QComboBox
+        set_row.addWidget(QLabel("Icon style:"))
+        self.icon_set_combo = QComboBox()
+        self.icon_set_combo.addItem("Default (single-color)", 'default')
+        self.icon_set_combo.addItem("3ds Max style (two-tone accent)", '3dsmax')
+        idx = self.icon_set_combo.findData(_saved_icon_set)
+        self.icon_set_combo.setCurrentIndex(max(0, idx))
+        set_row.addWidget(self.icon_set_combo)
+        set_row.addStretch()
+        ico_lay.addLayout(set_row)
 
         ico_row = QHBoxLayout(); ico_row.setSpacing(8)
         ico_row.addWidget(QLabel("Size:"))
@@ -880,10 +896,10 @@ class IMGFactorySettingsDialog(QDialog): #vers 3
         if hasattr(self, 'collapse_slider'):
             self.img_settings.set("panel_collapse_threshold", self.collapse_slider.value())
 
-        # Toolbar icon size — saved to model_workshop.json and applied live
-        # to any open ModelWorkshop instance via its _apply_icon_scale method
+        # Toolbar icon size + set — saved to model_workshop.json
         if hasattr(self, 'toolbar_icon_slider'):
-            icon_px = self.toolbar_icon_slider.value()
+            icon_px  = self.toolbar_icon_slider.value()
+            icon_set = self.icon_set_combo.currentData() if hasattr(self, 'icon_set_combo') else 'default'
             try:
                 import json as _json
                 from pathlib import Path as _Path
@@ -893,6 +909,7 @@ class IMGFactorySettingsDialog(QDialog): #vers 3
                 except Exception:
                     _data = {}
                 _data['icon_scale'] = icon_px
+                _data['icon_set']   = icon_set
                 _mw_cfg.write_text(_json.dumps(_data, indent=2))
             except Exception:
                 pass
@@ -901,6 +918,8 @@ class IMGFactorySettingsDialog(QDialog): #vers 3
                 mw = getattr(self.parent(), '_model_workshop_ref', None)
                 if mw and hasattr(mw, '_apply_icon_scale'):
                     mw._apply_icon_scale(icon_px)
+                if mw and hasattr(mw, '_save_icon_set'):
+                    mw._save_icon_set(icon_set)
             except Exception:
                 pass
 
