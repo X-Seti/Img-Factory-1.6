@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/ribbon_manager.py - Version: 2
+#this belongs in apps/methods/ribbon_manager.py - Version: 3
 # X-Seti - June 2026 - IMG Factory 1.6 - Ribbon Manager
 
 """
@@ -484,7 +484,7 @@ class RibbonManagerDialog(QDialog): #vers 1
                             break
                     except Exception:
                         pass
-                elif w and not w.icon().isNull():
+                elif w and hasattr(w, "icon") and not w.icon().isNull():
                     item.setIcon(w.icon())
                     break
             self._ribbon_list.addItem(item)
@@ -530,7 +530,7 @@ class RibbonManagerDialog(QDialog): #vers 1
                         item.setIcon(icon)
                 except Exception:
                     pass
-            elif w and not w.icon().isNull():
+            elif w and hasattr(w, "icon") and not w.icon().isNull():
                 # Fallback: use the button's existing baked icon
                 item.setIcon(w.icon())
             self._button_list.addItem(item)
