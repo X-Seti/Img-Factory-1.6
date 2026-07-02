@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/ribbon_manager.py - Version: 3
+#this belongs in apps/methods/ribbon_manager.py - Version: 4
 # X-Seti - June 2026 - IMG Factory 1.6 - Ribbon Manager
 
 """
@@ -517,9 +517,12 @@ class RibbonManagerDialog(QDialog): #vers 1
             bids = info.get('buttons', [])
         for bid in bids:
             w = self._reg._buttons.get(bid)
+            # Build a human-readable label — try tooltip first (most descriptive),
+            # then button text, then objectName, then a short UUID prefix as last resort
             tip  = (w.toolTip()    if w else '') or ''
-            name = (w.objectName() if w else bid) or bid
-            label = tip if tip else name
+            text = (w.text()       if w and hasattr(w, 'text') else '') or ''
+            name = (w.objectName() if w else '') or ''
+            label = tip or text or name or f"Button ({bid[:8]}...)"
             item = QListWidgetItem(label)
             item.setData(Qt.ItemDataRole.UserRole, bid)
             # Show the button's own icon at a readable size
