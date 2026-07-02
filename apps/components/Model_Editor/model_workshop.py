@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 143
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 144
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -5738,19 +5738,100 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if btr: btr.setVisible(wide)
             if bir: bir.setVisible(not wide)
 
-    def _load_mod_toolbar_layouts(self): #vers 3
-        """Restore saved toolbar layouts on startup - all independently
-        dockable bars: left (selection/view), snap, geometry, navigation,
-        render."""
+    def _load_mod_toolbar_layouts(self): #vers 4
+        """Restore all saved layout state on startup:
+        1. Per-bar DockableToolbar dock position / float / collapsed
+        2. Per-bar GroupedToolbarLayout group order / dividers / button order
+        3. Ribbon row layout — which bars share a row and in what order
+        4. Ribbon registry state — handled separately via _init_ribbon_registry
+        """
+        # 1. Per-bar DockableToolbar state
+        for attr in ('_mod_left_toolbar', '_mod_snap_toolbar',
+                     '_mod_geometry_toolbar',
+                     '_mod_nav_toolbar', '_mod_render_toolbar'):
+            tb = getattr(self, attr, None)
+            if tb and hasattr(tb, 'load_layout'):
+                try:
+                    tb.load_layout()
+                except Exception as _e:
+                    print(f"[layout] {attr} load_layout failed: {_e}")
+
+        # 2. GroupedToolbarLayout internal state (already called during bar
+        #    construction via layout.load_layout() — skip here to avoid double-load)
+
+        # 3. Ribbon row layout — restore which bars share rows
         try:
+            import json
+            from pathlib import Path
+            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            if not path.exists():
+                return
+            data = json.loads(path.read_text())
+            row_state = data.get('ribbon_row_layout')
+            if not row_state:
+                return
+            # Build a key → toolbar mapping
+            key_to_tb = {}
             for attr in ('_mod_left_toolbar', '_mod_snap_toolbar',
                          '_mod_geometry_toolbar',
                          '_mod_nav_toolbar', '_mod_render_toolbar'):
                 tb = getattr(self, attr, None)
-                if tb and hasattr(tb, 'load_layout'):
-                    tb.load_layout()
-        except Exception:
-            pass
+                if tb:
+                    key = getattr(tb, '_settings_key', '')
+                    if key:
+                        key_to_tb[key] = tb
+            if not key_to_tb:
+                return
+            # Reconstruct rows from saved state
+            # First remove all toolbars from the current main_layout rows
+            main_layout = getattr(self, '_mod_main_layout', None)
+            if main_layout is None:
+                return
+            # Remove existing toolbar rows (not the preview_row or spacing items)
+            existing_rows = getattr(self, '_mod_toolbar_rows', [])
+            for row in existing_rows:
+                for i in reversed(range(row.count())):
+                    item = row.itemAt(i)
+                    if item and item.widget():
+                        row.removeWidget(item.widget())
+                main_layout.removeItem(row)
+            self._mod_toolbar_rows = []
+            # Rebuild rows in saved order, inserted before the spacing/preview items
+            # Find insertion point (before the addSpacing item)
+            insert_idx = 0
+            for i in range(main_layout.count()):
+                item = main_layout.itemAt(i)
+                if item and item.spacerItem():
+                    insert_idx = i
+                    break
+                if item and item.layout():
+                    # Check if it's a preview row (contains DFFViewport)
+                    lo = item.layout()
+                    for j in range(lo.count()):
+                        sub = lo.itemAt(j)
+                        if sub and sub.widget():
+                            from apps.methods.dff_viewport import DFFViewport
+                            if isinstance(sub.widget(), DFFViewport):
+                                insert_idx = i
+                                break
+            for row_keys in row_state:
+                from PyQt6.QtWidgets import QHBoxLayout as _QHB
+                new_row = _QHB()
+                new_row.setSpacing(0)
+                new_row.setContentsMargins(0, 0, 0, 0)
+                added = False
+                for key in row_keys:
+                    tb = key_to_tb.get(key)
+                    if tb:
+                        new_row.addWidget(tb, stretch=0)
+                        added = True
+                if added:
+                    new_row.addStretch(1)
+                    main_layout.insertLayout(insert_idx, new_row)
+                    self._mod_toolbar_rows.append(new_row)
+                    insert_idx += 1
+        except Exception as _e:
+            print(f"[layout] ribbon_row_layout restore failed: {_e}")
 
     def _restore_icon_scale(self): #vers 2
         """Restore persisted icon scale and icon set from model_workshop.json."""
@@ -5953,19 +6034,64 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.showMaximized()
 
 
-    def closeEvent(self, event): #vers 1
-        """Handle close event"""
+    def closeEvent(self, event): #vers 2
+        """Save all layout state on close."""
         try:
+            import json
+            from pathlib import Path
+            cfg = Path.home() / '.config' / 'imgfactory'
+            cfg.mkdir(parents=True, exist_ok=True)
+
+            # 1. Per-bar DockableToolbar dock position / float / collapsed
             for attr in ('_mod_left_toolbar', '_mod_snap_toolbar',
                          '_mod_geometry_toolbar',
                          '_mod_nav_toolbar', '_mod_render_toolbar'):
                 tb = getattr(self, attr, None)
                 if tb and hasattr(tb, 'save_layout'):
                     tb.save_layout()
-        except Exception:
-            pass
+
+            # 2. Per-bar GroupedToolbarLayout group order / dividers / button order
+            for attr in ('_mod_toolbar_layout', '_snap_toolbar_layout',
+                         '_geo_toolbar_layout', '_nav_toolbar_layout',
+                         '_render_toolbar_layout'):
+                gtl = getattr(self, attr, None)
+                if gtl and hasattr(gtl, 'save_layout'):
+                    gtl.save_layout()
+
+            # 3. Ribbon row layout — which bars share a row and in what order.
+            # Serialised as a list of rows, each row a list of settings_keys.
+            row_state = []
+            for row_idx in range(self._mod_main_layout.count()):
+                item = self._mod_main_layout.itemAt(row_idx)
+                if not item or not item.layout():
+                    continue
+                lo = item.layout()
+                row_keys = []
+                for j in range(lo.count()):
+                    sub = lo.itemAt(j)
+                    if sub and sub.widget():
+                        key = getattr(sub.widget(), '_settings_key', '')
+                        if key:
+                            row_keys.append(key)
+                if row_keys:
+                    row_state.append(row_keys)
+            path = cfg / 'model_workshop.json'
+            try:
+                data = json.loads(path.read_text())
+            except Exception:
+                data = {}
+            data['ribbon_row_layout'] = row_state
+            path.write_text(json.dumps(data, indent=2))
+
+            # 4. Ribbon registry (button assignments, ribbon names)
+            reg = getattr(self, '_ribbon_registry', None)
+            if reg:
+                reg.save_state()
+
+        except Exception as _e:
+            print(f"[ModelWorkshop] closeEvent save error: {_e}")
+
         self.window_closed.emit()
-        # Remove injected tool menu from imgfactory menubar
         try:
             mw = getattr(self, 'main_window', None) or getattr(self, '_imgfactory', None)
             if mw and hasattr(mw, '_update_tool_menu_for_tab'):
