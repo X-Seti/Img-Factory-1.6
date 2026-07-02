@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/ribbon_manager.py - Version: 6
+#this belongs in apps/methods/ribbon_manager.py - Version: 7
 # X-Seti - June 2026 - IMG Factory 1.6 - Ribbon Manager
 
 """
@@ -41,7 +41,10 @@ from PyQt6.QtGui import QUndoStack, QUndoCommand, QIcon, QKeySequence
 # RibbonRegistry.register_ribbon
 # RibbonRegistry.save_state
 # RibbonRegistry.load_state
+# RibbonRegistry.take_snapshot
 # RibbonRegistry.unregister_ribbon
+# RibbonManagerDialog._apply_registry_to_live_toolbars
+# RibbonManagerDialog._sync_button_list_to_registry
 # tag_button
 
 
@@ -484,7 +487,8 @@ class RibbonManagerDialog(QDialog): #vers 1
         self._right_label = QLabel("Select a ribbon to see its buttons")
         right_lay.addWidget(self._right_label)
         self._button_list = QListWidget()
-        self._button_list.setDragDropMode(QAbstractItemView.DragDropMode.DragDrop)
+        self._button_list.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+        self._button_list.setDefaultDropAction(Qt.DropAction.MoveAction)
         self._button_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._button_list.customContextMenuRequested.connect(self._button_context_menu)
         right_lay.addWidget(self._button_list, stretch=1)
@@ -583,21 +587,29 @@ class RibbonManagerDialog(QDialog): #vers 1
         menu.addAction("Delete", lambda: self._delete_ribbon())
         menu.exec(self._ribbon_list.mapToGlobal(pos))
 
-    def _button_context_menu(self, pos): #vers 1
+    def _button_context_menu(self, pos): #vers 2
         item = self._button_list.itemAt(pos)
-        if not item:
-            return
-        bid = item.data(Qt.ItemDataRole.UserRole)
         menu = QMenu(self)
-        # Move to another ribbon submenu
-        move_menu = menu.addMenu("Move to ribbon")
-        for rid, info in self._reg._ribbons.items():
-            if rid != self._selected_ribbon_id:
-                move_menu.addAction(info['name'],
-                    lambda _=False, r=rid, b=bid: self._move_button(b, self._selected_ribbon_id, r))
-        move_menu.addSeparator()
-        move_menu.addAction("Unassigned",
-            lambda _=False, b=bid: self._move_button(b, self._selected_ribbon_id, None))
+
+        if item:
+            # Right-click on a specific button — show move options
+            bid = item.data(Qt.ItemDataRole.UserRole)
+            move_menu = menu.addMenu("Move to ribbon")
+            for rid, info in self._reg._ribbons.items():
+                if rid != self._selected_ribbon_id:
+                    move_menu.addAction(info['name'],
+                        lambda _=False, r=rid, b=bid: self._move_button(b, self._selected_ribbon_id, r))
+            move_menu.addSeparator()
+            move_menu.addAction("Unassigned",
+                lambda _=False, b=bid: self._move_button(b, self._selected_ribbon_id, None))
+            menu.addSeparator()
+
+        # These actions always appear (empty space or item)
+        menu.addAction("+ New Ribbon", self._create_ribbon)
+        if self._selected_ribbon_id is not None:
+            menu.addAction("Delete this ribbon", self._delete_ribbon)
+        menu.addSeparator()
+        menu.addAction("Reset to Default", self._reset_to_default)
         menu.exec(self._button_list.mapToGlobal(pos))
 
     def _move_button(self, button_rid: str, from_rid, to_rid): #vers 1
@@ -668,9 +680,67 @@ class RibbonManagerDialog(QDialog): #vers 1
         self._refresh_ribbon_list()
         self._refresh_button_list(self._selected_ribbon_id)
 
-    def _on_accept(self): #vers 1
+    def _on_accept(self): #vers 2
+        """Sync dialog state back to registry and apply to live toolbars."""
+        # 1. Sync button list order from the QListWidget back into the registry —
+        #    InternalMove drag-drop reorders the QListWidget rows but the registry's
+        #    button_ids list isn't updated automatically, so we do it here.
+        self._sync_button_list_to_registry()
+        # 2. Apply the new order to every live GroupedToolbarLayout
+        self._apply_registry_to_live_toolbars()
+        # 3. Persist
         self._reg.save_state()
         self.accept()
+
+    def _sync_button_list_to_registry(self): #vers 1
+        """Read the current QListWidget row order and update the registry's
+        button list for the selected ribbon to match."""
+        rid = self._selected_ribbon_id
+        if rid is None or rid not in self._reg._ribbons:
+            return
+        new_order = []
+        for i in range(self._button_list.count()):
+            item = self._button_list.item(i)
+            if item:
+                bid = item.data(Qt.ItemDataRole.UserRole)
+                if bid:
+                    new_order.append(bid)
+        self._reg._ribbons[rid]['buttons'] = new_order
+
+    def _apply_registry_to_live_toolbars(self): #vers 1
+        """Push the registry's button order back into each ribbon's live
+        GroupedToolbarLayout so the visible toolbar reflects dialog changes."""
+        for rid, info in self._reg._ribbons.items():
+            layout = info.get('layout')
+            if layout is None:
+                continue
+            # Rebuild each group's widget list in registry order
+            # Collect all widgets currently in the layout's groups
+            all_widgets = {}
+            for widgets in layout._groups.values():
+                for w in widgets:
+                    if hasattr(w, '_ribbon_id'):
+                        all_widgets[w._ribbon_id] = w
+            # Reassign buttons in registry order into the first group
+            # (buttons moved between ribbons will have been removed from
+            # their source group by the undo command already)
+            bids_in_order = info.get('buttons', [])
+            ordered_widgets = [self._reg._buttons.get(bid)
+                               for bid in bids_in_order
+                               if self._reg._buttons.get(bid) is not None]
+            if not ordered_widgets:
+                continue
+            # Put all buttons into the primary group in the new order
+            groups = list(layout._groups.keys())
+            if not groups:
+                continue
+            primary = groups[0]
+            layout._groups[primary] = ordered_widgets
+            # Clear other groups that might have been used for sub-grouping
+            for g in groups[1:]:
+                layout._groups[g] = [w for w in layout._groups[g]
+                                     if w not in ordered_widgets]
+            layout._rebuild_grid()
 
     def _on_cancel(self): #vers 1
         # Undo all changes made during this dialog session
