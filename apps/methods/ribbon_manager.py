@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/ribbon_manager.py - Version: 5
+#this belongs in apps/methods/ribbon_manager.py - Version: 6
 # X-Seti - June 2026 - IMG Factory 1.6 - Ribbon Manager
 
 """
@@ -160,21 +160,32 @@ class RibbonRegistry: #vers 1
         """Find a button widget by its _ribbon_id string."""
         return self._buttons.get(ribbon_id)
 
-    def take_snapshot(self) -> dict: #vers 1
-        """Snapshot current ribbon assignments for undo/default-preset use."""
+    def take_snapshot(self) -> dict: #vers 2
+        """Snapshot current ribbon assignments using objectName as the stable
+        cross-session identifier (UUIDs are session-local only)."""
         return {
             'ribbons': {
                 rid: {
                     'name': info['name'],
-                    'buttons': list(info['buttons']),
+                    'buttons': [
+                        self._buttons[bid].objectName()
+                        for bid in info['buttons']
+                        if bid in self._buttons and self._buttons[bid]
+                        and self._buttons[bid].objectName()
+                    ],
                 }
                 for rid, info in self._ribbons.items()
             },
-            'unassigned': list(self._unassigned),
+            'unassigned': [
+                self._buttons[bid].objectName()
+                for bid in self._unassigned
+                if bid in self._buttons and self._buttons[bid]
+                and self._buttons[bid].objectName()
+            ],
             'next_id': self._next_id,
         }
 
-    def save_state(self): #vers 1
+    def save_state(self): #vers 2
         try:
             state = self.take_snapshot()
             path = self._SETTINGS_FILE
@@ -189,7 +200,10 @@ class RibbonRegistry: #vers 1
         except Exception as e:
             print(f"[RibbonRegistry] save_state failed: {e}")
 
-    def load_state(self) -> bool: #vers 1
+    def load_state(self) -> bool: #vers 2
+        """Restore ribbon assignments using objectName as stable identifier.
+        Builds an objectName -> widget lookup from the current _buttons dict,
+        then reassigns buttons to ribbons based on saved objectNames."""
         try:
             path = self._SETTINGS_FILE
             if not path.exists():
@@ -201,15 +215,36 @@ class RibbonRegistry: #vers 1
             default = data.get('ribbon_default')
             if default:
                 self._default_snapshot = default
+
+            # Build objectName -> (_ribbon_id, widget) lookup
+            obj_to_bid = {}
+            for bid, w in self._buttons.items():
+                if w and w.objectName():
+                    obj_to_bid[w.objectName()] = bid
+
             self._next_id = state.get('next_id', self._next_id)
-            self._unassigned = state.get('unassigned', [])
-            # Restore per-ribbon button lists (toolbar/layout refs stay as-is
-            # since they're live Qt objects not serialisable)
+
+            # Restore per-ribbon button lists by objectName
             for rid_str, info in state.get('ribbons', {}).items():
                 rid = int(rid_str)
-                if rid in self._ribbons:
-                    self._ribbons[rid]['buttons'] = info.get('buttons', [])
-                    self._ribbons[rid]['name'] = info.get('name', f"Ribbon {rid}")
+                if rid not in self._ribbons:
+                    continue
+                restored = []
+                for obj_name in info.get('buttons', []):
+                    bid = obj_to_bid.get(obj_name)
+                    if bid:
+                        restored.append(bid)
+                if restored:
+                    self._ribbons[rid]['buttons'] = restored
+                self._ribbons[rid]['name'] = info.get('name',
+                    self._ribbons[rid]['name'])
+
+            # Restore unassigned pool
+            self._unassigned = [
+                obj_to_bid[obj_name]
+                for obj_name in state.get('unassigned', [])
+                if obj_name in obj_to_bid
+            ]
             return True
         except Exception as e:
             print(f"[RibbonRegistry] load_state failed: {e}")
@@ -517,8 +552,6 @@ class RibbonManagerDialog(QDialog): #vers 1
             bids = info.get('buttons', [])
         for bid in bids:
             w = self._reg._buttons.get(bid)
-            if w is None:
-                print(f"[RibbonManager] no widget for bid={bid[:8]}... (not in _buttons dict)")
             tip  = (w.toolTip()    if w else '') or ''
             text = (w.text()       if w and hasattr(w, 'text') else '') or ''
             name = (w.objectName() if w else '') or ''
