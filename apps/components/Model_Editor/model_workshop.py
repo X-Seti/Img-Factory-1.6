@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 142
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 143
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -10249,6 +10249,19 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         """Yield every widget registered across all five GroupedToolbarLayout
         toolbar bars, without needing a separate manually-curated master
         list. Used by _apply_icon_scale to reach every icon in one pass."""
+        for attr in ('_mod_toolbar_layout', '_snap_toolbar_layout',
+                     '_geo_toolbar_layout', '_nav_toolbar_layout',
+                     '_render_toolbar_layout'):
+            gtl = getattr(self, attr, None)
+            if gtl is None:
+                continue
+            for widgets in gtl._groups.values():
+                for w in widgets:
+                    yield w
+
+    def _all_toolbar_widgets(self): #vers 1
+        """Yield every widget registered across all five GroupedToolbarLayout
+        toolbar bars. Used by _apply_icon_scale and _init_ribbon_registry."""
         for attr in ('_mod_toolbar_layout', '_snap_toolbar_layout',
                      '_geo_toolbar_layout', '_nav_toolbar_layout',
                      '_render_toolbar_layout'):
