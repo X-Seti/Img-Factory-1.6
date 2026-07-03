@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 147
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 148
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -5833,10 +5833,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     main_layout.insertLayout(insert_idx, new_row)
                     self._mod_toolbar_rows.append(new_row)
                     insert_idx += 1
-            self._set_status("Ribbon layout restored")
+            self._set_status("Ribbon config loaded")
             mw = getattr(self, 'main_window', None)
             if mw and hasattr(mw, 'log_message'):
-                mw.log_message("Model Workshop: Ribbon layout restored")
+                mw.log_message("Model Workshop: Ribbon config loaded")
         except Exception as _e:
             print(f"[layout] ribbon_row_layout restore failed: {_e}")
 
@@ -6045,7 +6045,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         """Save all ribbon/toolbar layout state. Called from both closeEvent
         (standalone window) and window_closed signal (tab close via close_tab
         in tab_system.py which bypasses closeEvent entirely)."""
-        print("[ModelWorkshop] _save_layout_state called")
         try:
             import json
             from pathlib import Path
@@ -6094,16 +6093,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 data = {}
             data['ribbon_row_layout'] = row_state
             path.write_text(json.dumps(data, indent=2))
-            print(f"[ModelWorkshop] saved ribbon_row_layout: {row_state}")
 
             # 4. Ribbon registry
             reg = getattr(self, '_ribbon_registry', None)
             if reg:
                 reg.save_state()
 
+            self._set_status("Ribbon config saved")
             mw = getattr(self, 'main_window', None)
             if mw and hasattr(mw, 'log_message'):
-                mw.log_message("Model Workshop: Ribbon layout saved")
+                mw.log_message("Model Workshop: Ribbon config saved")
 
         except Exception as _e:
             print(f"[ModelWorkshop] _save_layout_state error: {_e}")

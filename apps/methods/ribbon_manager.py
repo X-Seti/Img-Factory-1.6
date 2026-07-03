@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/ribbon_manager.py - Version: 7
+#this belongs in apps/methods/ribbon_manager.py - Version: 8
 # X-Seti - June 2026 - IMG Factory 1.6 - Ribbon Manager
 
 """
@@ -575,17 +575,61 @@ class RibbonManagerDialog(QDialog): #vers 1
                 item.setIcon(w.icon())
             self._button_list.addItem(item)
 
-    def _ribbon_context_menu(self, pos): #vers 1
+    def _ribbon_context_menu(self, pos): #vers 2
         item = self._ribbon_list.itemAt(pos)
         if not item:
             return
         rid = item.data(Qt.ItemDataRole.UserRole)
         if rid is None:
             return
+        row = self._ribbon_list.row(item)
         menu = QMenu(self)
         menu.addAction("Rename...", lambda: self._rename_ribbon(rid))
+        menu.addSeparator()
+
+        # Row stacking options
+        stack_menu = menu.addMenu("Stack on same row as...")
+        for other_rid, other_info in self._reg._ribbons.items():
+            if other_rid == rid:
+                continue
+            stack_menu.addAction(
+                other_info['name'],
+                lambda _=False, a=rid, b=other_rid: self._stack_ribbons(a, b))
+
+        menu.addAction("Move to own row", lambda: self._unstack_ribbon(rid))
+        menu.addSeparator()
         menu.addAction("Delete", lambda: self._delete_ribbon())
         menu.exec(self._ribbon_list.mapToGlobal(pos))
+
+    def _stack_ribbons(self, ribbon_id_a: int, ribbon_id_b: int): #vers 1
+        """Stack ribbon_a onto the same row as ribbon_b (place after it).
+        Calls merge_ribbon_rows on the parent ModelWorkshop."""
+        ws = self._find_workshop()
+        if ws is None:
+            return
+        tb_a = self._reg._ribbons.get(ribbon_id_a, {}).get('toolbar')
+        tb_b = self._reg._ribbons.get(ribbon_id_b, {}).get('toolbar')
+        if tb_a and tb_b:
+            ws.merge_ribbon_rows(tb_b, tb_a, position='after')
+
+    def _unstack_ribbon(self, ribbon_id: int): #vers 1
+        """Move this ribbon onto its own row."""
+        ws = self._find_workshop()
+        if ws is None:
+            return
+        tb = self._reg._ribbons.get(ribbon_id, {}).get('toolbar')
+        if tb:
+            ws.split_ribbon_row(tb)
+
+    def _find_workshop(self): #vers 1
+        """Walk up the parent chain to find the ModelWorkshop instance."""
+        parent = self.parent()
+        while parent is not None:
+            if hasattr(parent, 'merge_ribbon_rows'):
+                return parent
+            parent = parent.parent() if callable(
+                getattr(parent, 'parent', None)) else None
+        return None
 
     def _button_context_menu(self, pos): #vers 2
         item = self._button_list.itemAt(pos)
