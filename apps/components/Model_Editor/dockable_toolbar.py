@@ -1,5 +1,5 @@
 """
-apps/components/Model_Editor/dockable_toolbar.py  — Build 10
+apps/components/Model_Editor/dockable_toolbar.py  — Build 11
 
 Key design:
   - NO separate title bar above icons.
@@ -347,12 +347,6 @@ class _FloatWindow(QWidget):
             self._overlay.set_zone(zone)
 
     def _calc_zone(self, gp: QPoint) -> str:
-        # --- Sibling-relative check (takes priority over panel-edge zones) ---
-        # Walk the parent panel's layout looking for other DockableToolbar
-        # widgets. If the cursor is within SIBLING_THRESHOLD px of a sibling's
-        # top or bottom edge, return a sibling-relative zone so the drop
-        # inserts before/after that specific bar rather than snapping to the
-        # whole panel edge.
         SIBLING_T = 30
         panel = self._panel
         if panel and panel.layout():
@@ -361,48 +355,53 @@ class _FloatWindow(QWidget):
                 item = plo.itemAt(i)
                 if not item:
                     continue
-                # Check direct children (vertical stacking) and row children (horizontal)
                 candidates = []
                 if item.widget() and isinstance(item.widget(), DockableToolbar):
-                    candidates.append(item.widget())
+                    candidates.append((item.widget(), False))  # (widget, in_row)
                 elif item.layout():
-                    # Row layout — check all bars within it for horizontal stacking
                     for j in range(item.layout().count()):
                         sub = item.layout().itemAt(j)
                         if sub and sub.widget() and isinstance(sub.widget(), DockableToolbar):
-                            candidates.append(sub.widget())
-                for sib in candidates:
+                            candidates.append((sub.widget(), True))  # in a row layout
+                for sib, in_row in candidates:
                     if sib is self or not sib.isVisible():
                         continue
                     try:
                         sib_tl = sib.mapToGlobal(QPoint(0, 0))
                     except Exception:
                         continue
-                    sib_rect = QRect(sib_tl.x(), sib_tl.y(), sib.width(), sib.height())
-                    hit = QRect(sib_rect.left() - 20, sib_rect.top() - SIBLING_T,
-                                sib_rect.width() + 40, sib_rect.height() + SIBLING_T * 2)
+                    sw, sh = sib.width(), sib.height()
+                    # Extended hit rect — generous horizontal, tight vertical
+                    hit = QRect(sib_tl.x() - SIBLING_T, sib_tl.y() - SIBLING_T,
+                                sw + SIBLING_T * 2, sh + SIBLING_T * 2)
                     if not hit.contains(gp):
                         continue
                     lc = gp - sib_tl
-                    dist_top    = abs(lc.y())
-                    dist_bottom = abs(sib.height() - lc.y())
-                    dist_left   = abs(lc.x())
-                    dist_right  = abs(sib.width() - lc.x())
                     key = getattr(sib, '_settings_key', '')
-                    # Determine closest edge
-                    dists = {'top': dist_top, 'bottom': dist_bottom,
-                             'left': dist_left, 'right': dist_right}
-                    closest = min(dists, key=lambda k: dists[k])
-                    if dists[closest] > SIBLING_T:
-                        continue
-                    if closest == 'top':
-                        return f'sibling:before:{key}'
-                    elif closest == 'bottom':
-                        return f'sibling:after:{key}'
-                    elif closest == 'left':
-                        return f'sibling:left:{key}'
-                    else:
-                        return f'sibling:right:{key}'
+
+                    # Intent-based detection — NOT min-distance, which always
+                    # picks top/bottom for thin horizontal bars.
+                    #
+                    # LEFT/RIGHT (same-row horizontal stacking):
+                    # Cursor is to the left of the bar OR to the right of it,
+                    # AND within SIBLING_T of that edge. Only fire if the cursor
+                    # is NOT primarily above/below the bar (i.e. within its
+                    # vertical span with some tolerance).
+                    in_vertical_span = -SIBLING_T//2 <= lc.y() <= sh + SIBLING_T//2
+                    if in_vertical_span:
+                        if lc.x() < 0 and abs(lc.x()) <= SIBLING_T:
+                            return f'sibling:left:{key}'
+                        if lc.x() > sw and (lc.x() - sw) <= SIBLING_T:
+                            return f'sibling:right:{key}'
+
+                    # BEFORE/AFTER (new-row vertical stacking):
+                    # Cursor is above or below the bar within SIBLING_T.
+                    in_horizontal_span = -20 <= lc.x() <= sw + 20
+                    if in_horizontal_span:
+                        if lc.y() < 0 and abs(lc.y()) <= SIBLING_T:
+                            return f'sibling:before:{key}'
+                        if lc.y() > sh and (lc.y() - sh) <= SIBLING_T:
+                            return f'sibling:after:{key}'
 
         # --- Original panel-edge detection ---
         for panel in [self._panel] + self._extra_panels:
