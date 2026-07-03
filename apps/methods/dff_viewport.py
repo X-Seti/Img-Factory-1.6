@@ -1,5 +1,5 @@
 # X-Seti - May13 2026 - IMG Factory 1.6 - DFF OpenGL Viewport
-# this belongs in apps/methods/dff_viewport.py - Version: 5
+# this belongs in apps/methods/dff_viewport.py - Version: 6
 """
 DFFViewport - Shared OpenGL viewport for DFF model rendering.
 Used by Model Viewer, Model Workshop, Vehicle Workshop (docked).
@@ -397,13 +397,18 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         self._setup_lighting()
 
-    def _setup_lighting(self): #vers 1
+    def _setup_lighting(self): #vers 2
         if not OPENGL_AVAILABLE: return
+        import numpy as np
         glEnable(GL_LIGHTING); glEnable(GL_LIGHT0)
-        glLightfv(GL_LIGHT0, GL_POSITION,  list(self._light_dir))
-        glLightfv(GL_LIGHT0, GL_AMBIENT,   [self._ambient]*3 + [1.0])
-        glLightfv(GL_LIGHT0, GL_DIFFUSE,   [self._diffuse]*3 + [1.0])
-        glLightfv(GL_LIGHT0, GL_SPECULAR,  [0.3, 0.3, 0.3, 1.0])
+        glLightfv(GL_LIGHT0, GL_POSITION,
+                  np.array(self._light_dir, dtype=np.float32))
+        glLightfv(GL_LIGHT0, GL_AMBIENT,
+                  np.array([self._ambient]*3 + [1.0], dtype=np.float32))
+        glLightfv(GL_LIGHT0, GL_DIFFUSE,
+                  np.array([self._diffuse]*3 + [1.0], dtype=np.float32))
+        glLightfv(GL_LIGHT0, GL_SPECULAR,
+                  np.array([0.3, 0.3, 0.3, 1.0], dtype=np.float32))
         glEnable(GL_COLOR_MATERIAL)
         glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE)
 
