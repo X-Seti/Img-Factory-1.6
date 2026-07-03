@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 148
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 149
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -5981,7 +5981,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if not getattr(self, '_toolbar_layout_loaded', False):
             self._toolbar_layout_loaded = True
             from PyQt6.QtCore import QTimer as _QT2
-            _QT2.singleShot(500, self._load_mod_toolbar_layouts)
+            _QT2.singleShot(600, self._load_mod_toolbar_layouts)
 
     def resizeEvent(self, event): #vers 5
         """Keep resize grip in corner; auto-collapse panels; adaptive button display."""
@@ -8657,8 +8657,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         geo_toolbar._extra_panels    = [self.preview_widget]
 
         from PyQt6.QtCore import QTimer as _QT
-        # 400ms: wait for parent widget to be fully laid out before restoring
-        _QT.singleShot(400, self._load_mod_toolbar_layouts)
+        # Icon scale and ribbon registry are deferred — toolbar layout restore
+        # is handled by showEvent which fires after Qt has fully laid out the
+        # widget, using _toolbar_layout_loaded guard to prevent double-calls
         _QT.singleShot(450, self._restore_icon_scale)
         _QT.singleShot(500, self._init_ribbon_registry)
 
