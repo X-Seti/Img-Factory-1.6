@@ -1,5 +1,5 @@
 """
-apps/components/Model_Editor/dockable_toolbar.py  — Build 9
+apps/components/Model_Editor/dockable_toolbar.py  — Build 10
 
 Key design:
   - NO separate title bar above icons.
@@ -82,44 +82,61 @@ class _EdgeOverlay(QWidget):
         outline = self._get_ui_color('accent_primary') if hasattr(self,'_get_ui_color') else QColor(30,144,255)
         if not hasattr(self,'_get_ui_color'): outline.setAlpha(200)
 
-        # Sibling-relative drop indicator — draw a thin insertion line
-        # at the position where the bar would be inserted, not a full band
+        # Sibling-relative drop indicator
         if self._zone.startswith('sibling:'):
-            # Parse 'sibling:before:<key>' or 'sibling:after:<key>'
             parts = self._zone.split(':', 2)
             side = parts[1] if len(parts) > 1 else 'before'
             target_key = parts[2] if len(parts) > 2 else ''
-            # Find the target sibling widget in the parent panel
             panel = self.parent()
             target_widget = None
-            if panel and panel.layout():
-                for i in range(panel.layout().count()):
-                    item = panel.layout().itemAt(i)
+
+            # Deep search — target may be nested inside row QHBoxLayouts
+            def _find_in(lo):
+                for i in range(lo.count()):
+                    item = lo.itemAt(i)
                     if item and item.widget():
-                        w_candidate = item.widget()
-                        if getattr(w_candidate, '_settings_key', '') == target_key:
-                            target_widget = w_candidate
-                            break
+                        if getattr(item.widget(), '_settings_key', '') == target_key:
+                            return item.widget()
+                    elif item and item.layout():
+                        result = _find_in(item.layout())
+                        if result:
+                            return result
+                return None
+
+            if panel and panel.layout():
+                target_widget = _find_in(panel.layout())
+
             if target_widget:
-                # Draw insertion line at the sibling's top (before) or bottom (after) edge
                 tl = target_widget.mapTo(panel, QPoint(0, 0))
-                if side == 'before':
-                    y = tl.y()
-                else:
-                    y = tl.y() + target_widget.height()
                 insert_accent = QColor(self._get_ui_color('accent_primary'))
                 insert_accent.setAlpha(220)
                 p.setPen(QPen(insert_accent, 3))
-                p.drawLine(4, y, panel.width() - 4, y)
-                # Draw small arrow indicators on both ends
                 p.setBrush(QBrush(insert_accent))
-                p.setPen(Qt.PenStyle.NoPen)
-                tri_left  = QPolygon([QPoint(2, y-5), QPoint(2, y+5), QPoint(10, y)])
-                tri_right = QPolygon([QPoint(panel.width()-2, y-5),
-                                       QPoint(panel.width()-2, y+5),
-                                       QPoint(panel.width()-10, y)])
-                p.drawPolygon(tri_left)
-                p.drawPolygon(tri_right)
+
+                if side in ('before', 'after'):
+                    # Vertical stacking — horizontal insertion line at top/bottom edge
+                    if side == 'before':
+                        y = tl.y()
+                    else:
+                        y = tl.y() + target_widget.height()
+                    p.drawLine(4, y, panel.width() - 4, y)
+                    p.setPen(Qt.PenStyle.NoPen)
+                    p.drawPolygon(QPolygon([QPoint(2, y-5), QPoint(2, y+5), QPoint(10, y)]))
+                    p.drawPolygon(QPolygon([QPoint(panel.width()-2, y-5),
+                                            QPoint(panel.width()-2, y+5),
+                                            QPoint(panel.width()-10, y)]))
+                elif side in ('left', 'right'):
+                    # Horizontal stacking — vertical insertion line at left/right edge
+                    if side == 'left':
+                        x = tl.x()
+                    else:
+                        x = tl.x() + target_widget.width()
+                    y0 = tl.y()
+                    y1 = tl.y() + target_widget.height()
+                    p.drawLine(x, y0 + 4, x, y1 - 4)
+                    p.setPen(Qt.PenStyle.NoPen)
+                    p.drawPolygon(QPolygon([QPoint(x-5, y0+2), QPoint(x+5, y0+2), QPoint(x, y0+10)]))
+                    p.drawPolygon(QPolygon([QPoint(x-5, y1-2), QPoint(x+5, y1-2), QPoint(x, y1-10)]))
             return
 
         bands = {
@@ -383,9 +400,9 @@ class _FloatWindow(QWidget):
                     elif closest == 'bottom':
                         return f'sibling:after:{key}'
                     elif closest == 'left':
-                        return f'sibling:before:{key}'   # insert left = insert before
+                        return f'sibling:left:{key}'
                     else:
-                        return f'sibling:after:{key}'    # insert right = insert after
+                        return f'sibling:right:{key}'
 
         # --- Original panel-edge detection ---
         for panel in [self._panel] + self._extra_panels:
@@ -574,11 +591,12 @@ class DockableToolbar(QWidget):
                 if result:
                     target_widget, target_layout = result
             if target_widget and target_layout:
-                # Find insert index
+                # before/after = vertical stacking (new row above/below)
+                # left/right = horizontal stacking (same row, insert beside)
                 for i in range(target_layout.count()):
                     item = target_layout.itemAt(i)
                     if item and item.widget() is target_widget:
-                        insert_at = i if side == 'before' else i + 1
+                        insert_at = i if side in ('before', 'left') else i + 1
                         target_layout.insertWidget(insert_at, self, stretch=0)
                         break
             elif panel and panel.layout():
@@ -726,6 +744,36 @@ class DockableToolbar(QWidget):
         dock_sub.addAction("Bottom", lambda: self._on_redock(SNAP_BOTTOM))
         dock_sub.addAction("Left",   lambda: self._on_redock(SNAP_LEFT))
         dock_sub.addAction("Right",  lambda: self._on_redock(SNAP_RIGHT))
+
+        menu.addSeparator()
+
+        # Snap to sibling ribbon — explicit alternative to drag-and-drop
+        panel = self._panel
+        siblings = []
+        if panel and panel.layout():
+            def _collect(lo):
+                for i in range(lo.count()):
+                    item = lo.itemAt(i)
+                    if item and item.widget():
+                        w = item.widget()
+                        if isinstance(w, DockableToolbar) and w is not self:
+                            siblings.append(w)
+                    elif item and item.layout():
+                        _collect(item.layout())
+            _collect(panel.layout())
+
+        if siblings:
+            snap_sub = menu.addMenu("Stack beside ribbon…")
+            for sib in siblings:
+                key = getattr(sib, '_settings_key', '')
+                name = key.replace('model_', '').replace('_toolbar', '').replace('_', ' ').title()
+                snap_sub.addAction(f"← Before '{name}'",
+                    lambda _=False, k=key: self._on_redock(f'sibling:left:{k}'))
+                snap_sub.addAction(f"→ After '{name}'",
+                    lambda _=False, k=key: self._on_redock(f'sibling:right:{k}'))
+            snap_sub.addSeparator()
+            snap_sub.addAction("Move to own row",
+                lambda: self._on_redock(SNAP_TOP))
 
         menu.addSeparator()
 
