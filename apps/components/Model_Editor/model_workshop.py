@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 125
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 126
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -8555,9 +8555,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     main_wnd.log_message("Model Workshop: Ribbon config loaded")
         except Exception as _e:
             print(f"[ModelWorkshop] _restore_toolbar_state error: {_e}")
-
-        # Information group below
-        info_group = QGroupBox("")
         info_group.setFont(self.title_font)
         info_layout = QVBoxLayout(info_group)
         info_group.setMaximumHeight(180)  # extra 40px for paint row
