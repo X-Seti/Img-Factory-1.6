@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 124
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 125
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -7301,8 +7301,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
 
     def _create_transform_icon_panel(self): #vers 13
-        """Icon grid panel - DockableToolbar pattern (same as COL Workshop)."""
-        from apps.components.Model_Editor.dockable_toolbar import DockableToolbar
+        """STUB: replaced by _build_toolbars / QToolBar system."""
+        return None  # no longer used
         from PyQt6.QtWidgets import QGridLayout
         icon_color = self._get_icon_color()
 
@@ -8138,55 +8138,423 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         return panel
 
 
-    def _create_right_panel(self): #vers 12
-        """Create right panel — DockableToolbar layout (same as COL Workshop)."""
-        from apps.components.Model_Editor.dockable_toolbar import DockableToolbar
-        icon_color = self._get_icon_color()   # used by info row buttons below
+    def _create_right_panel(self): #vers 13
+        """Right panel using QMainWindow + QToolBar for native docking.
+        QMainWindow handles toolbar placement, row stacking, floating, and
+        save/restore natively — same system Gwenview/KDE apps use."""
+        icon_color = self._get_icon_color()
+
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
         panel.setMinimumWidth(200)
         self._right_panel_ref = panel
-        main_layout = QVBoxLayout(panel)
-        main_layout.setContentsMargins(4, 4, 4, 4)
-        main_layout.setSpacing(3)
+        outer_layout = QVBoxLayout(panel)
+        outer_layout.setContentsMargins(4, 4, 4, 4)
+        outer_layout.setSpacing(3)
 
-        # - Top toolbar row
-        left_toolbar = self._create_transform_icon_panel()
-        main_layout.addWidget(left_toolbar, stretch=0)
-        left_toolbar.set_dock_position('top')
+        # Inner QMainWindow — owns the viewport as central widget and all
+        # QToolBars. Embedded as a plain widget (no window chrome).
+        from PyQt6.QtWidgets import QMainWindow
+        inner_mw = QMainWindow()
+        inner_mw.setWindowFlags(Qt.WindowType.Widget)
+        inner_mw.setDockOptions(
+            QMainWindow.DockOption.AllowNestedDocks |
+            QMainWindow.DockOption.AllowTabbedDocks)
+        self._inner_mw = inner_mw
 
-        # - Preview row: viewport + right dockable toolbar
-        preview_row = QHBoxLayout()
-        preview_row.setSpacing(3)
-
+        # Central widget — the 3D viewport
         self.preview_widget = DFFViewport()
         self.preview_widget._workshop_ref = self
-        preview_row.addWidget(self.preview_widget, stretch=1)
-        self.preview_row = preview_row
-        # GLViewportMixin compatibility — preview_widget IS the GL viewport
+        inner_mw.setCentralWidget(self.preview_widget)
         self._gl_viewport  = self.preview_widget
         self._qp_viewport  = self.preview_widget
         self._gl_mode      = True
 
         self._create_paint_bar()
 
-        ctrl_frame = self._create_preview_controls()
-        right_toolbar = DockableToolbar(panel, settings_key='model_right_toolbar')
-        right_toolbar.set_content(ctrl_frame)
-        right_toolbar.set_dock_position('right')
-        right_toolbar.reflow_requested.connect(self._reflow_mod_right_toolbar)
-        self._mod_right_toolbar = right_toolbar
-        self.preview_controls   = ctrl_frame
-        preview_row.addWidget(right_toolbar, stretch=0)
+        # Build all toolbars and add to the inner QMainWindow
+        self._build_toolbars(inner_mw, icon_color)
 
-        main_layout.addLayout(preview_row, stretch=1)
+        outer_layout.addWidget(inner_mw, stretch=1)
 
-        left_toolbar._extra_panels  = [self.preview_widget]
-        right_toolbar._extra_panels = [self.preview_widget]
-
+        # Restore saved toolbar state (positions, rows, floating)
         from PyQt6.QtCore import QTimer as _QT
-        # 400ms: wait for parent widget to be fully laid out before restoring
-        _QT.singleShot(400, self._load_mod_toolbar_layouts)
+        _QT.singleShot(400, self._restore_toolbar_state)
+
+        # Save on close
+        self.window_closed.connect(self._save_toolbar_state)
+
+        # Information group below viewport
+        info_group = QGroupBox("")
+        info_group.setFont(self.title_font)
+        info_layout = QVBoxLayout(info_group)
+        info_group.setMaximumHeight(180)
+
+        name_layout = QHBoxLayout()
+        name_label = QLabel("Model Name:")
+        name_label.setFont(self.panel_font)
+        name_layout.addWidget(name_label)
+        self.info_name = QLineEdit()
+        self.info_name.setText("Click to edit...")
+        self.info_name.setFont(self.panel_font)
+        self.info_name.setReadOnly(True)
+        self.info_name.setStyleSheet("padding: px; border: 1px solid palette(mid);")
+        self.info_name.mousePressEvent = lambda e: self._enable_name_edit(e, False)
+        name_layout.addWidget(self.info_name, stretch=1)
+        info_layout.addLayout(name_layout)
+
+        ide_layout = QHBoxLayout()
+        ide_layout.setSpacing(4)
+        ide_lbl = QLabel("IDE:")
+        ide_lbl.setFont(self.panel_font)
+        ide_lbl.setFixedWidth(28)
+        ide_layout.addWidget(ide_lbl)
+        self.info_ide_section = QLabel("—")
+        self.info_ide_section.setFont(self.panel_font)
+        self.info_ide_section.setFixedWidth(90)
+        ide_layout.addWidget(self.info_ide_section)
+        self.info_model_id = QLabel("ID: —")
+        self.info_model_id.setFont(self.panel_font)
+        self.info_model_id.setFixedWidth(70)
+        ide_layout.addWidget(self.info_model_id)
+        txd_lbl = QLabel("TXD:")
+        txd_lbl.setFont(self.panel_font)
+        txd_lbl.setFixedWidth(32)
+        ide_layout.addWidget(txd_lbl)
+        self.info_txd_name = QLabel("—")
+        self.info_txd_name.setFont(self.panel_font)
+        ide_layout.addWidget(self.info_txd_name, stretch=1)
+
+        self.load_txd_btn = QPushButton("Open TXD")
+        self.load_txd_btn.setFont(self.button_font)
+        self.load_txd_btn.setIcon(self.icon_factory.open_icon(color=icon_color))
+        self.load_txd_btn.setIconSize(QSize(16, 16))
+        self.load_txd_btn.setFixedHeight(26)
+        self.load_txd_btn.setMinimumWidth(80)
+        self.load_txd_btn.setToolTip("Open TXD — uses IDE link if available, else browse")
+        self.load_txd_btn.clicked.connect(self._open_txd_smart)
+        ide_layout.addWidget(self.load_txd_btn)
+
+        self.find_in_ide_btn = QPushButton("IDE Ref")
+        self.find_in_ide_btn.setFont(self.button_font)
+        self.find_in_ide_btn.setIcon(self.icon_factory.search_icon(color=icon_color))
+        self.find_in_ide_btn.setIconSize(QSize(16, 16))
+        self.find_in_ide_btn.setFixedHeight(26)
+        self.find_in_ide_btn.setMinimumWidth(72)
+        self.find_in_ide_btn.setToolTip("Look up model in DAT Browser IDE entries")
+        self.find_in_ide_btn.clicked.connect(self._find_in_ide)
+        ide_layout.addWidget(self.find_in_ide_btn)
+
+        self.export_ojs_btn = QPushButton("Objs/Col")
+        self.export_ojs_btn.setFont(self.button_font)
+        self.export_ojs_btn.setFixedHeight(26)
+        self.export_ojs_btn.setToolTip("Export geometry / COL")
+        self.export_ojs_btn.clicked.connect(self.export_all)
+        try:
+            self.export_ojs_btn.setIcon(self.icon_factory.package_icon(color=icon_color))
+            self.export_ojs_btn.setIconSize(QSize(14, 14))
+        except Exception: pass
+        ide_layout.addWidget(self.export_ojs_btn)
+
+        self.gl_viewer_btn = QPushButton("3D View")
+        self.gl_viewer_btn.setFont(self.button_font)
+        self.gl_viewer_btn.setFixedHeight(26)
+        self.gl_viewer_btn.setToolTip("Open GL Model Viewer")
+        self.gl_viewer_btn.clicked.connect(self._open_gl_viewer)
+        try:
+            self.gl_viewer_btn.setIcon(self.icon_factory.cube_icon(color=icon_color))
+            self.gl_viewer_btn.setIconSize(QSize(14, 14))
+        except Exception: pass
+        ide_layout.addWidget(self.gl_viewer_btn)
+        info_layout.addLayout(ide_layout)
+
+        self._bottom_text_row = QWidget()
+        tr_lay = QVBoxLayout(self._bottom_text_row)
+        tr_lay.setContentsMargins(0, 0, 0, 0)
+        tr_lay.setSpacing(2)
+        fmt_lay = QHBoxLayout()
+        fmt_lay.setSpacing(5)
+        self.format_combo = QComboBox()
+        self.format_combo.setFont(self.panel_font)
+        self.format_combo.addItems(["COL", "COL2", "COL3", "COL4"])
+        self.format_combo.currentTextChanged.connect(self._change_format)
+        self.format_combo.setMaximumWidth(100)
+        self.format_combo.setVisible(False)
+        self.format_combo.setToolTip("COL export format")
+        fmt_lay.addWidget(self.format_combo)
+        fmt_lay.addStretch()
+        tr_lay.addLayout(fmt_lay)
+        self.prelight_apply_btn = None
+        self.prelight_setup_btn = None
+        self.info_format = None
+        self.show_shadow_btn   = None
+        self.create_shadow_btn = None
+        self.remove_shadow_btn = None
+        info_layout.addWidget(self._bottom_text_row)
+
+        self._bottom_icon_row = QWidget()
+        ir_lay = QHBoxLayout(self._bottom_icon_row)
+        ir_lay.setContentsMargins(0, 0, 0, 0)
+        ir_lay.setSpacing(2)
+        fmt_ico = QComboBox()
+        fmt_ico.addItems(["COL","COL2","COL3","COL4"])
+        fmt_ico.currentTextChanged.connect(self._change_format)
+        fmt_ico.setMaximumWidth(65)
+        fmt_ico.setVisible(False)
+        ir_lay.addWidget(fmt_ico)
+        for icon_fn, tip, slot in [
+            ('flip_vert_icon',    'Cycle render mode',  'switch_surface_view'),
+            ('convert_icon',      'Convert',            '_convert_surface'),
+            ('compress_icon',     'Compress',           '_compress_surface'),
+            ('uncompress_icon',   'Uncompress',         '_uncompress_surface'),
+            ('import_icon',       'Import',             '_import_selected'),
+            ('export_icon',       'Export',             'export_selected'),
+            ('color_picker_icon', 'Apply Prelighting',  '_apply_prelighting'),
+            ('settings_icon',     'Prelight Setup',     '_prelight_setup_dialog'),
+        ]:
+            b = QPushButton()
+            b.setIcon(getattr(self.icon_factory, icon_fn)(color=icon_color))
+            b.setIconSize(QSize(18, 18))
+            b.setFixedSize(30, 30)
+            b.setToolTip(tip)
+            b.clicked.connect(getattr(self, slot))
+            b.setEnabled(False)
+            ir_lay.addWidget(b)
+        ir_lay.addStretch()
+        info_layout.addWidget(self._bottom_icon_row)
+        self._bottom_icon_row.setVisible(False)
+
+        outer_layout.addWidget(info_group, stretch=0)
+        return panel
+
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 1
+        """Build all QToolBar instances and add them to the inner QMainWindow.
+        Qt handles row stacking, floating, drag-to-reorder, and save/restore
+        natively — no custom docking code needed."""
+        from PyQt6.QtWidgets import QToolBar
+        icon_size = QSize(20, 20)
+        pw = self.preview_widget
+
+        def _tb(name, area=Qt.ToolBarArea.TopToolBarArea):
+            tb = QToolBar(name, mw)
+            tb.setObjectName(name)
+            tb.setIconSize(icon_size)
+            tb.setMovable(True)
+            tb.setFloatable(True)
+            mw.addToolBar(area, tb)
+            return tb
+
+        def _btn(tb, tip, icon_fn, callback=None, checkable=False, checked=False):
+            """Add a QPushButton-style action to a QToolBar."""
+            b = QPushButton()
+            b.setIcon(icon_fn(color=icon_color))
+            b.setIconSize(icon_size)
+            b.setFixedSize(28, 28)
+            b.setToolTip(tip)
+            if checkable:
+                b.setCheckable(True)
+                b.setChecked(checked)
+            if callback:
+                b.clicked.connect(callback)
+            tb.addWidget(b)
+            return b
+
+        # ── Ribbon 1: Selection ───────────────────────────────────────────
+        tb_sel = _tb("Selection")
+        from PyQt6.QtWidgets import QButtonGroup, QLabel as _QL
+        self._mod_icon_buttons = []   # legacy compat
+
+        def _sel_btn(attr, tip, mode, icon_fn_name):
+            b = QPushButton()
+            b.setCheckable(True)
+            b.setToolTip(tip)
+            b.setIconSize(icon_size)
+            b.setFixedSize(28, 28)
+            try:
+                b.setIcon(getattr(self.icon_factory, icon_fn_name)(color=icon_color))
+            except Exception:
+                pass
+            b.clicked.connect(lambda _=False, m=mode: self._set_select_mode(m))
+            b.setEnabled(False)
+            setattr(self, attr, b)
+            tb_sel.addWidget(b)
+            return b
+
+        _sel_btn('_sel_vert_btn', 'Vertex select', 'vertex', 'vertex_select_icon')
+        _sel_btn('_sel_edge_btn', 'Edge select',   'edge',   'edge_select_icon')
+        _sel_btn('_sel_face_btn', 'Face select',   'face',   'face_select_icon')
+        _sel_btn('_sel_poly_btn', 'Polygon select','poly',   'poly_select_icon')
+
+        grp = QButtonGroup(self)
+        grp.setExclusive(True)
+        for b in (self._sel_vert_btn, self._sel_edge_btn,
+                  self._sel_face_btn, self._sel_poly_btn):
+            grp.addButton(b)
+        self._sel_face_btn.setChecked(True)
+        self._select_mode_group = grp
+
+        self._sel_count_label = _QL("")
+        self._sel_count_label.setStyleSheet("color: palette(mid); font-size: 11px; padding: 0 4px;")
+        tb_sel.addWidget(self._sel_count_label)
+
+        tb_sel.addSeparator()
+
+        self._backface_cull_btn = _btn(tb_sel,
+            "Backface culling — ON: only front faces visible",
+            self.icon_factory.backface_icon, checkable=True)
+        self._backface_cull_btn.toggled.connect(lambda v: self._toggle_backface_cull())
+
+        self._front_paint_btn = _btn(tb_sel,
+            "Front-only paint",
+            self.icon_factory.view_icon, checkable=True)
+        self._front_paint_btn.toggled.connect(lambda v: self._toggle_front_only_paint())
+
+        # ── Ribbon 2: Snap Targets ────────────────────────────────────────
+        from apps.components.Model_Editor.depends.max_svg_icons import MaxSVGIcons
+        tb_snap = _tb("Snap Targets")
+
+        def _snap_btn(target, tip, icon_fn_name):
+            b = QPushButton()
+            b.setCheckable(True)
+            b.setToolTip(tip)
+            b.setIconSize(icon_size)
+            b.setFixedSize(28, 28)
+            try:
+                b.setIcon(getattr(MaxSVGIcons, icon_fn_name)(size=20, color=icon_color))
+            except Exception as _e:
+                print(f"[snap icon] {icon_fn_name}: {_e}")
+            def _on(checked=False, t=target, btn=b):
+                vp = getattr(self, 'preview_widget', None)
+                if vp and hasattr(vp, '_snap_targets'):
+                    vp.toggle_snap_target(t)
+                    btn.setChecked(vp._snap_targets.get(t, False))
+            b.clicked.connect(_on)
+            tb_snap.addWidget(b)
+            return b
+
+        self._snap_grid_btn     = _snap_btn('grid',     'Snap To Grid',     'snap_grid_icon')
+        self._snap_pivot_btn    = _snap_btn('pivot',    'Snap To Pivot',    'snap_pivot_icon')
+        self._snap_vertex_btn   = _snap_btn('vertex',   'Snap To Vertex',   'snap_vertex_icon')
+        self._snap_endpoint_btn = _snap_btn('endpoint', 'Snap To Endpoint', 'snap_endpoint_icon')
+        self._snap_midpoint_btn = _snap_btn('midpoint', 'Snap To Midpoint', 'snap_midpoint_icon')
+        self._snap_edge_btn     = _snap_btn('edge',     'Snap To Edge',     'snap_edge_icon')
+        self._snap_face_btn     = _snap_btn('face',     'Snap To Face',     'snap_face_icon')
+        tb_snap.addSeparator()
+        self._snap_axis_btn = _btn(tb_snap,
+            "Enable Axis Constraints in Snaps",
+            lambda color=icon_color: MaxSVGIcons.snap_axis_constraint_icon(size=20, color=color),
+            checkable=True)
+
+        # ── Ribbon 3: Edit Geometry ───────────────────────────────────────
+        tb_geo = _tb("Edit Geometry")
+        self._prim_btn = _btn(tb_geo, "Create Primitive",
+            lambda color=icon_color: MaxSVGIcons.create_primitive_icon(size=20, color=color),
+            callback=self._create_primitive_dialog)
+        self._extrude_btn = _btn(tb_geo,
+            "Extrude selected face(s) along their normal\n"
+            "Positive distance = outward, negative = push in\n"
+            "Select faces in Face or Polygon mode first",
+            lambda color=icon_color: MaxSVGIcons.extrude_icon(size=20, color=color),
+            callback=self._extrude_dialog)
+
+        # ── Ribbon 4: Navigation ──────────────────────────────────────────
+        tb_nav = _tb("Navigation", Qt.ToolBarArea.RightToolBarArea)
+        _btn(tb_nav, "Zoom In",       self.icon_factory.zoom_in_icon,  pw.zoom_in)
+        _btn(tb_nav, "Zoom Out",      self.icon_factory.zoom_out_icon, pw.zoom_out)
+        _btn(tb_nav, "Reset View",    self.icon_factory.reset_icon,    pw.reset_view)
+        _btn(tb_nav, "Fit to Window", self.icon_factory.fit_icon,      pw.fit_to_window)
+        tb_nav.addSeparator()
+        for label, yaw, pitch, icon_fn in [
+            ("XY",  0,   0,  self.icon_factory.view_xy_icon),
+            ("XZ",  0,  90,  self.icon_factory.view_xz_icon),
+            ("YZ",  90,  0,  self.icon_factory.view_yz_icon),
+            ("Iso", 30, 20,  self.icon_factory.view_iso_icon),
+        ]:
+            def _set_v(checked=False, y=yaw, p=pitch):
+                pw._yaw = y; pw._pitch = p; pw.update()
+            _btn(tb_nav, f"View: {label}", icon_fn, _set_v)
+
+        # ── Ribbon 5: Render ──────────────────────────────────────────────
+        tb_rend = _tb("Render", Qt.ToolBarArea.RightToolBarArea)
+        _btn(tb_rend, "Render / Background Settings",
+             self.icon_factory.color_picker_icon, self._open_render_settings_dialog)
+        self.view_mesh_btn = _btn(tb_rend, "Toggle Mesh",
+            self.icon_factory.mesh_icon,
+            lambda checked: pw.set_show_mesh(checked), checkable=True, checked=True)
+        self.backface_btn = _btn(tb_rend, "Toggle Backface",
+            self.icon_factory.backface_icon,
+            lambda checked: pw.set_backface(checked), checkable=True)
+        _btn(tb_rend, "Cycle Render Style",
+             self.icon_factory.color_picker_icon, self._cycle_view_render_style)
+        tb_rend.addSeparator()
+        self._shading_btn = _btn(tb_rend, "Toggle Shading",
+            self.icon_factory.settings_icon,
+            checkable=True, checked=True)
+        self._shading_btn.toggled.connect(self._toggle_viewport_shading)
+        self._light_setup_btn = _btn(tb_rend, "Light Setup",
+            self.icon_factory.settings_icon, self._open_light_setup_dialog)
+
+        # Store toolbar refs
+        self._tb_selection = tb_sel
+        self._tb_snap      = tb_snap
+        self._tb_geometry  = tb_geo
+        self._tb_nav       = tb_nav
+        self._tb_render    = tb_rend
+
+        # DFF-only buttons — disabled until a model is loaded
+        self._dff_only_toolbar_btns = [
+            self._sel_vert_btn, self._sel_edge_btn,
+            self._sel_face_btn, self._sel_poly_btn,
+            self._sel_count_label,
+            self._backface_cull_btn, self._front_paint_btn,
+            self._prim_btn, self._extrude_btn,
+            self._shading_btn, self._light_setup_btn,
+        ]
+
+    def _save_toolbar_state(self): #vers 1
+        """Save QMainWindow toolbar state to model_workshop.json."""
+        mw = getattr(self, '_inner_mw', None)
+        if mw is None:
+            return
+        try:
+            import json
+            from pathlib import Path
+            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            try:
+                data = json.loads(path.read_text())
+            except Exception:
+                data = {}
+            data['toolbar_state'] = mw.saveState().toHex().data().decode()
+            path.write_text(json.dumps(data, indent=2))
+            self._set_status("Ribbon config saved")
+            main_wnd = getattr(self, 'main_window', None)
+            if main_wnd and hasattr(main_wnd, 'log_message'):
+                main_wnd.log_message("Model Workshop: Ribbon config saved")
+        except Exception as _e:
+            print(f"[ModelWorkshop] _save_toolbar_state error: {_e}")
+
+    def _restore_toolbar_state(self): #vers 1
+        """Restore QMainWindow toolbar state from model_workshop.json."""
+        mw = getattr(self, '_inner_mw', None)
+        if mw is None:
+            return
+        try:
+            import json
+            from pathlib import Path
+            from PyQt6.QtCore import QByteArray
+            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            if not path.exists():
+                return
+            data = json.loads(path.read_text())
+            state_hex = data.get('toolbar_state')
+            if state_hex:
+                mw.restoreState(QByteArray.fromHex(state_hex.encode()))
+                self._set_status("Ribbon config loaded")
+                main_wnd = getattr(self, 'main_window', None)
+                if main_wnd and hasattr(main_wnd, 'log_message'):
+                    main_wnd.log_message("Model Workshop: Ribbon config loaded")
+        except Exception as _e:
+            print(f"[ModelWorkshop] _restore_toolbar_state error: {_e}")
 
         # Information group below
         info_group = QGroupBox("")
