@@ -1,5 +1,5 @@
 # X-Seti - May13 2026 - IMG Factory 1.6 - DFF OpenGL Viewport
-# this belongs in apps/methods/dff_viewport.py - Version: 7
+# this belongs in apps/methods/dff_viewport.py - Version: 8
 """
 DFFViewport - Shared OpenGL viewport for DFF model rendering.
 Used by Model Viewer, Model Workshop, Vehicle Workshop (docked).
@@ -397,17 +397,35 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         self._setup_lighting()
 
-    def _setup_lighting(self): #vers 3
+    def _setup_lighting(self): #vers 4
         if not OPENGL_AVAILABLE: return
-        import ctypes
-        def _f4(*vals):
-            return (ctypes.c_float * 4)(*vals)
+        import ctypes, ctypes.util
+        # PyOpenGL's array converter is broken on Python 3.14 — call
+        # libGL directly via ctypes to bypass it entirely.
+        try:
+            _libGL = ctypes.CDLL(ctypes.util.find_library('GL') or 'libGL.so.1')
+            _glLightfv = _libGL.glLightfv
+            _glLightfv.argtypes = [ctypes.c_uint, ctypes.c_uint,
+                                    ctypes.POINTER(ctypes.c_float)]
+            def _lf(light, pname, *vals):
+                arr = (ctypes.c_float * len(vals))(*vals)
+                _glLightfv(light, pname, arr)
+        except Exception:
+            # libGL not found — fall back to PyOpenGL and hope for the best
+            def _lf(light, pname, *vals):
+                glLightfv(light, pname, list(vals))
+
+        from OpenGL.GL import (GL_LIGHTING, GL_LIGHT0, GL_POSITION,
+                                GL_AMBIENT, GL_DIFFUSE, GL_SPECULAR,
+                                GL_COLOR_MATERIAL, GL_FRONT_AND_BACK,
+                                GL_AMBIENT_AND_DIFFUSE,
+                                glEnable, glColorMaterial)
         glEnable(GL_LIGHTING); glEnable(GL_LIGHT0)
         ld = self._light_dir
-        glLightfv(GL_LIGHT0, GL_POSITION,  _f4(ld[0], ld[1], ld[2], ld[3]))
-        glLightfv(GL_LIGHT0, GL_AMBIENT,   _f4(self._ambient, self._ambient, self._ambient, 1.0))
-        glLightfv(GL_LIGHT0, GL_DIFFUSE,   _f4(self._diffuse, self._diffuse, self._diffuse, 1.0))
-        glLightfv(GL_LIGHT0, GL_SPECULAR,  _f4(0.3, 0.3, 0.3, 1.0))
+        _lf(GL_LIGHT0, GL_POSITION, ld[0], ld[1], ld[2], ld[3])
+        _lf(GL_LIGHT0, GL_AMBIENT,  self._ambient, self._ambient, self._ambient, 1.0)
+        _lf(GL_LIGHT0, GL_DIFFUSE,  self._diffuse, self._diffuse, self._diffuse, 1.0)
+        _lf(GL_LIGHT0, GL_SPECULAR, 0.3, 0.3, 0.3, 1.0)
         glEnable(GL_COLOR_MATERIAL)
         glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE)
 
