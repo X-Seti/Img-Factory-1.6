@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 127
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 128
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -13773,7 +13773,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return
 
         # - COL mode: existing collision menu
-        models = getattr(self.current_col_file, 'models', []) if self.current_col_file else []
+        col_file = getattr(self, 'current_col_file', None)
+        models = getattr(col_file, 'models', []) if col_file else []
         model  = models[row] if 0 <= row < len(models) else None
         menu   = QMenu(self)
 
