@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 150
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 124
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -49,8 +49,6 @@ from PyQt6.QtSvg import QSvgRenderer
 
 # Import project modules AFTER path setup
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
-from apps.components.Model_Editor.depends.max_svg_icons import MaxSVGIcons
-from apps.methods.ribbon_manager import RibbonRegistry, RibbonManagerDialog, tag_button
 
 # Parser imports — fall back to local depends/ when running standalone
 try:
@@ -114,7 +112,6 @@ except ImportError:
 # _extrude_selected_faces      duplicate+offset selected face verts, build side walls #vers 1
 # _face_material_id           normalise face.material to plain int id #vers 1
 # _find_in_ide                look up model in DAT Browser IDE entries
-# _get_selection_count        count selected items for active sub-object mode #vers 1
 # _hide_tex_hover             close texture hover popup #vers 1
 # _load_txd_file              load TXD file → texture panel + viewport cache
 # _load_txd_file_from_data    load TXD from raw bytes
@@ -139,16 +136,12 @@ except ImportError:
 # _save_textures_as_txd       save current textures as new TXD file
 # _selected_set_for_mode      live selection set for given sub-object mode #vers 1
 # _selected_vertex_indices    resolve active selection (any mode) to vertex indices #vers 1
-# _create_snap_toolbar        build the separate snap toggle DockableToolbar #vers 1
 # _set_select_mode             switch vertex/edge/face/poly/object select mode #vers 2
-# _reflow_mod_snap_toolbar    reflow snap toolbar columns on dock/float #vers 1
 # _set_texlist_folder         set texlist/ folder via dialog
 # _show_dff_geometry          push _DFFGeometryAdapter into COL3DViewport #vers 1
 # _show_tex_hover             hover texture preview popup #vers 1
 # _toggle_tex_view            switch texture panel list/thumbnail view #vers 1
 # _toggle_viewport_shading    toggle Lambertian shading on/off #vers 1
-# _notify_selection_changed   tell ModelWorkshop panel to refresh selection count label #vers 1
-# _update_selection_count_label  refresh 'N <Type> Selected' label for active mode #vers 1
 # _update_tex_btn_compact     icon-only when texture panel narrow #vers 1
 # apply_changes               TODO: commit pending edits to DFF/COL data
 # export_model                STUB: write DFF to file
@@ -768,30 +761,6 @@ class COL3DViewport(QWidget): #vers 2
         else:
             sel.clear()
             sel.add(key)
-        self._notify_selection_changed()
-
-    def _get_selection_count(self): #vers 1
-        """Count of currently selected items in the active sub-object mode.
-        Vertex/edge/face modes count their own set directly; poly mode
-        counts _selected_faces too (it stores the picked group's member
-        triangles there) but is reported separately so the label can say
-        'Polygons' instead of 'Faces'."""
-        mode = getattr(self, '_select_mode', 'face')
-        if mode == 'vertex':
-            return len(self._selected_verts)
-        if mode == 'edge':
-            return len(self._selected_edges)
-        return len(self._selected_faces)   # 'face' and 'poly' both live here
-
-    def _notify_selection_changed(self): #vers 2
-        """Tell the parent ModelWorkshop panel the selection set changed,
-        so it can refresh the 'N Vertices/Edges/Faces/Polygons Selected'
-        label. Uses the existing _find_workshop() helper (checks
-        _workshop_ref first, falls back to type-checked parent walk)
-        rather than a raw parent-chain walk."""
-        ws = self._find_workshop()
-        if ws is not None and hasattr(ws, '_update_selection_count_label'):
-            ws._update_selection_count_label()
 
     def _selected_vertex_indices(self): #vers 1
         """Resolve the active sub-object selection, whatever mode it's in,
@@ -1133,7 +1102,6 @@ class COL3DViewport(QWidget): #vers 2
                     # shell; dragging would just re-trigger the same group.
                     if self.on_face_selected:
                         self.on_face_selected(next(iter(group)), seed_face)
-                    self._notify_selection_changed()
                     self.update()
                     return
 
@@ -5738,259 +5706,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if btr: btr.setVisible(wide)
             if bir: bir.setVisible(not wide)
 
-    def _load_mod_toolbar_layouts(self): #vers 6
-        """Restore all saved layout state on startup."""
-        # Per-bar DockableToolbar collapsed state (skip_redock — row system handles placement)
-        for attr in ('_mod_left_toolbar', '_mod_snap_toolbar', '_mod_geometry_toolbar'):
-            tb = getattr(self, attr, None)
-            if tb and hasattr(tb, 'load_layout'):
-                try:
-                    tb.load_layout(skip_redock=True)
-                except Exception as _e:
-                    print(f"[layout] {attr} load_layout failed: {_e}")
-
-        # Nav/render use normal load — they float independently in preview_row
-        for attr in ('_mod_nav_toolbar', '_mod_render_toolbar'):
-            tb = getattr(self, attr, None)
-            if tb and hasattr(tb, 'load_layout'):
-                try:
-                    tb.load_layout()
-                except Exception as _e:
-                    print(f"[layout] {attr} load_layout failed: {_e}")
-
-        # Restore ribbon row layout
+    def _load_mod_toolbar_layouts(self): #vers 1
+        """Restore saved toolbar layouts on startup."""
         try:
-            import json
-            from pathlib import Path
-            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
-            if not path.exists():
-                return
-            data = json.loads(path.read_text())
-            row_state = data.get('ribbon_row_layout')
-            if not row_state:
-                return
-
-            # Build key -> toolbar mapping (top bars only)
-            key_to_tb = {}
-            for attr in ('_mod_left_toolbar', '_mod_snap_toolbar', '_mod_geometry_toolbar'):
-                tb = getattr(self, attr, None)
-                if tb:
-                    key = getattr(tb, '_settings_key', '')
-                    if key:
-                        key_to_tb[key] = tb
-
-            if not key_to_tb:
-                return
-
-            # Each bar starts on its own row (default from construction).
-            # Use merge_ribbon_rows to combine bars that should share a row —
-            # this is the correct method that handles Qt layout manipulation
-            # properly, rather than us trying to do it manually.
-            #
-            # First pass: ensure every bar is on its own row (split any
-            # existing multi-bar rows back to singles so we start clean).
-            for tb in key_to_tb.values():
-                try:
-                    self.split_ribbon_row(tb)
-                except Exception:
-                    pass
-
-            # Second pass: merge bars that should share rows, in saved order.
-            for row_keys in row_state:
-                valid = [key_to_tb[k] for k in row_keys if k in key_to_tb]
-                if len(valid) < 2:
-                    continue  # single-bar rows are already correct from split pass
-                # Merge all bars in this row sequentially
-                anchor = valid[0]
-                for tb in valid[1:]:
-                    try:
-                        self.merge_ribbon_rows(anchor, tb, position='after')
-                    except Exception as _e:
-                        print(f"[layout] merge_ribbon_rows failed: {_e}")
-
-            # Third pass: reorder the rows themselves to match saved order.
-            # _mod_toolbar_rows should now reflect the merged state; reorder
-            # main_layout to match the first key of each saved row.
-            main_layout = getattr(self, '_mod_main_layout', None)
-            if main_layout:
-                # Find the QHBoxLayout row containing each anchor bar
-                def _find_row_for(toolbar):
-                    for i in range(main_layout.count()):
-                        item = main_layout.itemAt(i)
-                        if item and item.layout():
-                            lo = item.layout()
-                            for j in range(lo.count()):
-                                sub = lo.itemAt(j)
-                                if sub and sub.widget() is toolbar:
-                                    return i, lo
-                    return -1, None
-
-                # Build desired row order from saved state
-                desired_order = []
-                seen = set()
-                for row_keys in row_state:
-                    first_key = next((k for k in row_keys if k in key_to_tb), None)
-                    if first_key and first_key not in seen:
-                        seen.add(first_key)
-                        desired_order.append(key_to_tb[first_key])
-                # Add any bars not in saved state at the end
-                for tb in key_to_tb.values():
-                    key = getattr(tb, '_settings_key', '')
-                    if key not in seen:
-                        desired_order.append(tb)
-
-                # Re-insert rows in desired order
-                insert_at = 0
-                for tb in desired_order:
-                    idx, row_lo = _find_row_for(tb)
-                    if idx >= 0 and row_lo:
-                        item = main_layout.takeAt(idx)
-                        if item:
-                            main_layout.insertLayout(insert_at, row_lo)
-                            insert_at += 1
-
-            self._set_status("Ribbon config loaded")
-            mw = getattr(self, 'main_window', None)
-            if mw and hasattr(mw, 'log_message'):
-                mw.log_message("Model Workshop: Ribbon config loaded")
-
-        except Exception as _e:
-            print(f"[layout] ribbon_row_layout restore failed: {_e}")
-
-    def _restore_icon_scale(self): #vers 2
-        """Restore persisted icon scale and icon set from model_workshop.json."""
-        try:
-            import json
-            from pathlib import Path
-            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
-            if path.exists():
-                data = json.loads(path.read_text())
-                saved_px = data.get('icon_scale')
-                if saved_px and isinstance(saved_px, int) and saved_px != 16:
-                    self._apply_icon_scale(saved_px)
-                saved_set = data.get('icon_set', 'default')
-                if saved_set != 'default':
-                    self._apply_icon_set(saved_set)
+            if getattr(self, '_mod_left_toolbar', None):
+                self._mod_left_toolbar.load_layout()
+            if getattr(self, '_mod_right_toolbar', None):
+                self._mod_right_toolbar.load_layout()
         except Exception:
             pass
 
-    def _init_ribbon_registry(self): #vers 1
-        """Create the RibbonRegistry, register all five toolbar bars, tag
-        every button with a stable _ribbon_id, then take the default snapshot."""
-        self._ribbon_registry = RibbonRegistry(self)
-        bars = [
-            ('_mod_left_toolbar',     '_mod_toolbar_layout',    "Selection / View"),
-            ('_mod_snap_toolbar',     '_snap_toolbar_layout',   "Snap Targets"),
-            ('_mod_geometry_toolbar', '_geo_toolbar_layout',    "Edit Geometry"),
-            ('_mod_nav_toolbar',      '_nav_toolbar_layout',    "Navigation"),
-            ('_mod_render_toolbar',   '_render_toolbar_layout', "Render"),
-        ]
-        for toolbar_attr, layout_attr, name in bars:
-            toolbar = getattr(self, toolbar_attr, None)
-            layout  = getattr(self, layout_attr,  None)
-            if toolbar is not None:
-                self._ribbon_registry.register_ribbon(toolbar, layout, name)
-        for w in self._all_toolbar_widgets():
-            if hasattr(w, 'setIcon'):
-                tag_button(w)
-        if self._ribbon_registry._default_snapshot is None:
-            self._ribbon_registry._default_snapshot = \
-                self._ribbon_registry.take_snapshot()
-        self._ribbon_registry.load_state()
-
-    def open_ribbon_manager(self): #vers 1
-        """Open the Ribbon Manager dialog."""
-        if not hasattr(self, '_ribbon_registry') or self._ribbon_registry is None:
-            self._init_ribbon_registry()
-        dlg = RibbonManagerDialog(self._ribbon_registry, parent=self)
-        dlg.exec()
-
-    def merge_ribbon_rows(self, toolbar_a, toolbar_b, position='after'): #vers 1
-        """Move toolbar_b onto the same horizontal row as toolbar_a.
-        position='after': toolbar_b sits to the right of toolbar_a.
-        position='before': toolbar_b sits to the left of toolbar_a.
-        This is how 'stack ribbons in the same row' is implemented —
-        find toolbar_a's row, remove toolbar_b from its own row (deleting
-        that row if it becomes empty), then insert toolbar_b into
-        toolbar_a's row at the right position."""
-        main_layout = getattr(self, '_mod_main_layout', None)
-        if main_layout is None:
-            return
-        # Find which row each toolbar is currently in
-        row_a = row_b = None
-        idx_a = idx_b = -1
-        for i in range(main_layout.count()):
-            item = main_layout.itemAt(i)
-            if not item or not item.layout():
-                continue
-            lo = item.layout()
-            for j in range(lo.count()):
-                sub = lo.itemAt(j)
-                if sub and sub.widget() is toolbar_a:
-                    row_a, idx_a = lo, j
-                if sub and sub.widget() is toolbar_b:
-                    row_b, idx_b = lo, j
-        if row_a is None or row_b is None:
-            return
-        if row_a is row_b:
-            return  # already on the same row
-        # Remove toolbar_b from its row
-        row_b.removeWidget(toolbar_b)
-        # If row_b is now empty (only has the stretch), remove it from main_layout
-        real_widgets = [row_b.itemAt(k).widget() for k in range(row_b.count())
-                        if row_b.itemAt(k) and row_b.itemAt(k).widget()]
-        if not real_widgets:
-            for i in range(main_layout.count()):
-                item = main_layout.itemAt(i)
-                if item and item.layout() is row_b:
-                    main_layout.removeItem(item)
-                    if row_b in getattr(self, '_mod_toolbar_rows', []):
-                        self._mod_toolbar_rows.remove(row_b)
-                    break
-        # Insert toolbar_b into row_a at the right position relative to toolbar_a
-        insert_at = idx_a + (1 if position == 'after' else 0)
-        row_a.insertWidget(insert_at, toolbar_b, stretch=0)
-
-    def split_ribbon_row(self, toolbar): #vers 1
-        """Move toolbar onto its own new row, placed immediately below
-        its current row. Inverse of merge_ribbon_rows."""
-        main_layout = getattr(self, '_mod_main_layout', None)
-        if main_layout is None:
-            return
-        current_row = None
-        current_row_idx = -1
-        for i in range(main_layout.count()):
-            item = main_layout.itemAt(i)
-            if not item or not item.layout():
-                continue
-            lo = item.layout()
-            for j in range(lo.count()):
-                sub = lo.itemAt(j)
-                if sub and sub.widget() is toolbar:
-                    current_row = lo
-                    current_row_idx = i
-                    break
-            if current_row is not None:
-                break
-        if current_row is None:
-            return
-        # Check it actually shares its row with another bar
-        real_widgets = [current_row.itemAt(k).widget()
-                        for k in range(current_row.count())
-                        if current_row.itemAt(k) and current_row.itemAt(k).widget()]
-        if len(real_widgets) <= 1:
-            return  # already alone on its row
-        current_row.removeWidget(toolbar)
-        # Create new row and insert it just below the current one
-        from PyQt6.QtWidgets import QHBoxLayout as _QHB
-        new_row = _QHB()
-        new_row.setSpacing(0)
-        new_row.setContentsMargins(0, 0, 0, 0)
-        new_row.addWidget(toolbar, stretch=0)
-        new_row.addStretch(1)
-        main_layout.insertLayout(current_row_idx + 1, new_row)
-        if hasattr(self, '_mod_toolbar_rows'):
-            self._mod_toolbar_rows.insert(current_row_idx + 1, new_row)
 
     def showEvent(self, event): #vers 1
         """On first show, restore toolbar layouts after Qt has laid out everything."""
@@ -5998,7 +5723,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if not getattr(self, '_toolbar_layout_loaded', False):
             self._toolbar_layout_loaded = True
             from PyQt6.QtCore import QTimer as _QT2
-            _QT2.singleShot(600, self._load_mod_toolbar_layouts)
+            _QT2.singleShot(500, self._load_mod_toolbar_layouts)
 
     def resizeEvent(self, event): #vers 5
         """Keep resize grip in corner; auto-collapse panels; adaptive button display."""
@@ -6058,80 +5783,17 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.showMaximized()
 
 
-    def _save_layout_state(self): #vers 2
-        """Save all ribbon/toolbar layout state."""
+    def closeEvent(self, event): #vers 1
+        """Handle close event"""
         try:
-            import json
-            from pathlib import Path
-            cfg = Path.home() / '.config' / 'imgfactory'
-            cfg.mkdir(parents=True, exist_ok=True)
-
-            # 1. Per-bar DockableToolbar dock position / float / collapsed
-            for attr in ('_mod_left_toolbar', '_mod_snap_toolbar',
-                         '_mod_geometry_toolbar',
-                         '_mod_nav_toolbar', '_mod_render_toolbar'):
+            for attr in ('_mod_left_toolbar', '_mod_right_toolbar'):
                 tb = getattr(self, attr, None)
                 if tb and hasattr(tb, 'save_layout'):
                     tb.save_layout()
-
-            # 2. Per-bar GroupedToolbarLayout group order / dividers
-            for attr in ('_mod_toolbar_layout', '_snap_toolbar_layout',
-                         '_geo_toolbar_layout', '_nav_toolbar_layout',
-                         '_render_toolbar_layout'):
-                gtl = getattr(self, attr, None)
-                if gtl and hasattr(gtl, 'save_layout'):
-                    gtl.save_layout()
-
-            # 3. Ribbon row layout — only the TOP toolbar rows
-            # (nav/render live in preview_row, not _mod_main_layout rows).
-            # Save as ordered list of rows, each row a list of settings_keys.
-            # Use _mod_toolbar_rows which is maintained by merge/split methods.
-            top_bar_keys = {
-                getattr(getattr(self, a, None), '_settings_key', ''): a
-                for a in ('_mod_left_toolbar', '_mod_snap_toolbar', '_mod_geometry_toolbar')
-            }
-            top_bar_keys.pop('', None)
-
-            row_state = []
-            for row in getattr(self, '_mod_toolbar_rows', []):
-                row_keys = []
-                for j in range(row.count()):
-                    sub = row.itemAt(j)
-                    if sub and sub.widget():
-                        key = getattr(sub.widget(), '_settings_key', '')
-                        if key in top_bar_keys:
-                            row_keys.append(key)
-                if row_keys:
-                    row_state.append(row_keys)
-
-            path = cfg / 'model_workshop.json'
-            try:
-                data = json.loads(path.read_text())
-            except Exception:
-                data = {}
-            data['ribbon_row_layout'] = row_state
-            path.write_text(json.dumps(data, indent=2))
-
-            # 4. Ribbon registry
-            reg = getattr(self, '_ribbon_registry', None)
-            if reg:
-                reg.save_state()
-
-            self._set_status("Ribbon config saved")
-            mw = getattr(self, 'main_window', None)
-            if mw and hasattr(mw, 'log_message'):
-                mw.log_message("Model Workshop: Ribbon config saved")
-
-        except Exception as _e:
-            print(f"[ModelWorkshop] _save_layout_state error: {_e}")
-
-    def closeEvent(self, event): #vers 3
-        """Emit window_closed (which triggers _save_layout_state via signal)
-        and do menu cleanup. The actual save happens in _save_layout_state
-        connected to window_closed, so it fires whether the close comes from
-        closeEvent (standalone window) or close_tab() in tab_system.py
-        (tab close, which emits window_closed directly bypassing closeEvent)."""
+        except Exception:
+            pass
         self.window_closed.emit()
+        # Remove injected tool menu from imgfactory menubar
         try:
             mw = getattr(self, 'main_window', None) or getattr(self, '_imgfactory', None)
             if mw and hasattr(mw, '_update_tool_menu_for_tab'):
@@ -7006,12 +6668,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             btn.setVisible(dff_mode)
             if not is_select_btn:
                 btn.setEnabled(dff_mode)
-        for btn in getattr(self, '_snap_only_toolbar_btns', []):
-            btn.setVisible(dff_mode)
-            btn.setEnabled(dff_mode)
-        for btn in getattr(self, '_geo_only_toolbar_btns', []):
-            btn.setVisible(dff_mode)
-            btn.setEnabled(dff_mode)
         self._update_select_mode_availability()
 
         # Prelighting row — shown in DFF mode
@@ -7283,27 +6939,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 vp._selected_faces.clear()
             vp.update()
         self._set_status(f"Select mode: {mode}")
-        self._update_selection_count_label()
         mw = self.main_window
         if mw and hasattr(mw, 'log_message'):
             mw.log_message(f"Model Workshop: select mode → {mode}")
-
-    def _update_selection_count_label(self): #vers 1
-        """Refresh the 'N Vertices/Edges/Faces/Polygons Selected' label to
-        match the active sub-object mode and current selection — mirrors
-        3ds Max's per-mode live count shown in its Selection rollout."""
-        lbl = getattr(self, '_sel_count_label', None)
-        vp = getattr(self, 'preview_widget', None)
-        if not lbl or not vp:
-            return
-        mode = getattr(vp, '_select_mode', 'face')
-        names = {'vertex': 'Vertices', 'edge': 'Edges',
-                 'face': 'Faces', 'poly': 'Polygons'}
-        if mode not in names:
-            lbl.setText("")
-            return
-        n = vp._get_selection_count()
-        lbl.setText(f"{n} {names[mode]} Selected")
 
     def _update_select_mode_availability(self): #vers 1
         """Enable vertex/edge/face/poly select buttons only when there is
@@ -7336,9 +6974,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     b = getattr(self, attr, None)
                     if b: b.setChecked(False)
                 grp.setExclusive(True)
-            lbl = getattr(self, '_sel_count_label', None)
-            if lbl:
-                lbl.setText("")
 
     def _toggle_backface_cull(self): #vers 1
         """Toggle backface culling — when ON only the front face is visible/selectable."""
@@ -7671,24 +7306,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         from PyQt6.QtWidgets import QGridLayout
         icon_color = self._get_icon_color()
 
-        from apps.methods.toolbar_layout_manager import GroupedToolbarLayout
-
         icon_frame = QFrame()
         icon_frame.setFrameStyle(QFrame.Shape.NoFrame)
+        grid = QGridLayout(icon_frame)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setSpacing(2)
+        icon_frame._grid = grid
 
-        self._mod_toolbar_layout = GroupedToolbarLayout(
-            icon_frame, settings_key='model_left_toolbar')
-        self._mod_toolbar_layout.add_group('selection', "Selection")
-        self._mod_toolbar_layout.add_group('selection_modifiers', "Selection Modifiers")
-        self._mod_toolbar_layout.add_group('view', "View / Render")
-        self._mod_toolbar_layout.add_divider_before('selection_modifiers')
-        self._mod_toolbar_layout.add_divider_before('view')
-
-        icon_frame._grid = self._mod_toolbar_layout.grid
         self._mod_icon_grid    = icon_frame._grid
-        self._mod_icon_buttons = []   # kept for code that still appends here;
-                                       # _dff_only_toolbar_btns visibility list
-                                       # below still reads from this
+        self._mod_icon_buttons = []
         self._mod_icon_frame   = icon_frame
 
         rp = getattr(self, '_right_panel_ref', None)
@@ -7705,9 +7331,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         def _add(btn):
             btn.setFixedSize(26, 26)
-            if not btn.objectName():
-                btn.setObjectName(f"mod_misc_{id(btn)}")
-            self._mod_toolbar_layout.add_widget('selection_modifiers', btn)
+            self._mod_icon_buttons.append(btn)
             return btn
 
         layout = type('_FakeLayout', (), {
@@ -7884,22 +7508,18 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # Select mode buttons
         def _sel_btn(attr, tip, mode, icon_fn_name):
             b = QPushButton()
-            b.setObjectName(f"mod_sel_{mode}_btn")
             b.setFixedSize(btn_width, btn_height)
             b.setCheckable(True)
             b.setToolTip(tip)
             b.setIconSize(icon_size)
-            _fn = getattr(self.icon_factory, icon_fn_name)
-            _c = icon_color
             try:
-                b.setIcon(_fn(color=_c))
-            except Exception as _e:
-                print(f"[icon] {icon_fn_name} failed: {_e}")
-            b._icon_fn = lambda sz, fn=_fn, c=_c: fn(size=sz, color=c)
+                b.setIcon(getattr(self.icon_factory, icon_fn_name)(color=icon_color))
+            except Exception:
+                b.setText(mode[0].upper())
             b.clicked.connect(lambda _=False, m=mode: self._set_select_mode(m))
-            b.setEnabled(False)
+            b.setEnabled(False)   # re-enabled once a model exists — see _update_select_mode_availability
             setattr(self, attr, b)
-            self._mod_toolbar_layout.add_widget('selection', b)
+            self._mod_icon_buttons.append(b)
             return b
 
         _sel_btn('_sel_vert_btn',  'Vertex select — click individual vertices',  'vertex', 'vertex_select_icon')
@@ -7916,16 +7536,25 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._select_mode_group.addButton(b)
         self._sel_face_btn.setChecked(True)   # default mode matches self._select_mode = 'face'
 
-        # Selection count label — "N Faces Selected" etc, mirrors 3ds Max's
-        # rollout-local live count (not a global status bar item)
-        self._sel_count_label = QLabel("")
-        self._sel_count_label.setObjectName("mod_sel_count_label")
-        self._sel_count_label.setStyleSheet("color: palette(mid); font-size: 11px;")
-        self._mod_toolbar_layout.add_widget('selection', self._sel_count_label)
+        # Backface cull toggle
+        self._backface_cull_btn = QPushButton()
+        self._backface_cull_btn.setFixedSize(btn_width, btn_height)
+        self._backface_cull_btn.setCheckable(True)
+        self._backface_cull_btn.setToolTip(
+            "Backface culling — ON: only front faces visible\n"
+            "Prevents accidentally selecting/painting faces behind geometry")
+        self._backface_cull_btn.setIconSize(icon_size)
+        try:
+            self._backface_cull_btn.setIcon(
+                self.icon_factory.backface_icon(color=icon_color))
+        except Exception:
+            self._backface_cull_btn.setText("BF")
+        self._backface_cull_btn.toggled.connect(
+            lambda v: self._toggle_backface_cull())
+        self._mod_icon_buttons.append(self._backface_cull_btn)
 
         # Front-only paint toggle
         self._front_paint_btn = QPushButton()
-        self._front_paint_btn.setObjectName("mod_front_paint_btn")
         self._front_paint_btn.setFixedSize(btn_width, btn_height)
         self._front_paint_btn.setCheckable(True)
         self._front_paint_btn.setToolTip(
@@ -7943,7 +7572,36 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 self._front_paint_btn.setText("FP")
         self._front_paint_btn.toggled.connect(
             lambda v: self._toggle_front_only_paint())
-        self._mod_toolbar_layout.add_widget('selection_modifiers', self._front_paint_btn)
+        self._mod_icon_buttons.append(self._front_paint_btn)
+
+        # Create Primitive button
+        self._prim_btn = QPushButton()
+        self._prim_btn.setFixedSize(btn_width, btn_height)
+        self._prim_btn.setToolTip(
+            "Create primitive shape (Box, Sphere, Cylinder, Plane)\n"
+            "Set dimensions and subdivision count")
+        self._prim_btn.setIconSize(icon_size)
+        try:
+            self._prim_btn.setIcon(self.icon_factory.add_icon(color=icon_color))
+        except Exception:
+            self._prim_btn.setText("+□")
+        self._prim_btn.clicked.connect(self._create_primitive_dialog)
+        self._mod_icon_buttons.append(self._prim_btn)
+
+        # Extrude selected face(s) button
+        self._extrude_btn = QPushButton()
+        self._extrude_btn.setFixedSize(btn_width, btn_height)
+        self._extrude_btn.setToolTip(
+            "Extrude selected face(s) along their normal\n"
+            "Positive distance = outward, negative = push in (door/window/vent)\n"
+            "Select faces in Face or Polygon mode first")
+        self._extrude_btn.setIconSize(icon_size)
+        try:
+            self._extrude_btn.setIcon(self.icon_factory.add_icon(color=icon_color))
+        except Exception:
+            self._extrude_btn.setText("Ext")
+        self._extrude_btn.clicked.connect(self._extrude_dialog)
+        self._mod_icon_buttons.append(self._extrude_btn)
 
         # Store refs to DFF-only buttons for enable/disable
         # Shading on/off toggle
@@ -7961,8 +7619,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         except Exception:
             self._shading_btn.setText("S")
         self._shading_btn.toggled.connect(self._toggle_viewport_shading)
-        self._shading_btn.setObjectName("mod_shading_btn")
-        self._mod_toolbar_layout.add_widget('view', self._shading_btn)
+        self._mod_icon_buttons.append(self._shading_btn)
 
         # Backface cull toggle
         self._backface_cull_btn = QPushButton()
@@ -7980,8 +7637,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         except Exception:
             self._backface_cull_btn.setText("BF")
         self._backface_cull_btn.toggled.connect(self._toggle_backface_cull)
-        self._backface_cull_btn.setObjectName("mod_backface_cull_btn")
-        self._mod_toolbar_layout.add_widget('selection_modifiers', self._backface_cull_btn)
+        self._mod_icon_buttons.append(self._backface_cull_btn)
 
         # Light setup button (lightbulb)
         self._light_setup_btn = QPushButton()
@@ -7998,22 +7654,28 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         except Exception:
             self._light_setup_btn.setText("💡")
         self._light_setup_btn.clicked.connect(self._open_light_setup_dialog)
-        self._light_setup_btn.setObjectName("mod_light_setup_btn")
-        self._mod_toolbar_layout.add_widget('view', self._light_setup_btn)
+        self._mod_icon_buttons.append(self._light_setup_btn)
 
         self._dff_only_toolbar_btns = [
             self._sel_vert_btn, self._sel_edge_btn,
             self._sel_face_btn, self._sel_poly_btn,
-            self._sel_count_label,
             self._backface_cull_btn, self._front_paint_btn,
+            self._prim_btn,
             self._shading_btn,
             self._light_setup_btn,
         ]
 
-        # Restore saved group/order/divider customization, if any — falls
-        # back silently to the code-defined groups above when no saved
-        # layout exists yet (first run, or after a reset)
-        self._mod_toolbar_layout.load_layout()
+        # Place into grid BEFORE set_content (same as COL/TXD pattern)
+        n = len(self._mod_icon_buttons)
+        for i in range(self._mod_icon_grid.count()-1, -1, -1):
+            item = self._mod_icon_grid.itemAt(i)
+            if item and item.widget():
+                self._mod_icon_grid.removeWidget(item.widget())
+        for idx, btn in enumerate(self._mod_icon_buttons):
+            if btn.parent() is not icon_frame:
+                btn.setParent(icon_frame)
+            self._mod_icon_grid.addWidget(btn, 0, idx)
+            btn.show()
 
         toolbar.set_content(icon_frame)
 
@@ -8035,14 +7697,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         return toolbar
 
-    def _mod_place_icon_grid(self, n_cols=None): #vers 2
-        """Reflow the grouped toolbar into n_cols columns (vertical dock /
-        float) or back to a single row (n_cols=None, normal horizontal
-        dock). Delegates the actual grid rebuild to GroupedToolbarLayout -
-        this just translates the requested width into a column count."""
-        gtl = getattr(self, '_mod_toolbar_layout', None)
+    def _mod_place_icon_grid(self, n_cols=None): #vers 1
+        grid  = getattr(self, '_mod_icon_grid', None)
+        btns  = getattr(self, '_mod_icon_buttons', [])
         frame = getattr(self, '_mod_icon_frame', None)
-        if gtl is None:
+        if grid is None or not btns:
             return
         btn_w = 28
         if n_cols is None:
@@ -8051,17 +7710,23 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 n_cols = forced
             else:
                 pw = frame.width() if frame else 0
-                total = sum(len(w) for w in gtl._groups.values())
-                n_cols = max(1, pw // btn_w) if pw > btn_w else total
+                n_cols = max(1, pw // btn_w) if pw > btn_w else len(btns)
         self._mod_icon_last_cols = n_cols
-        gtl.set_columns(n_cols)
+        for i in range(grid.count()-1, -1, -1):
+            item = grid.itemAt(i)
+            if item and item.widget():
+                grid.removeWidget(item.widget())
+        for idx, btn in enumerate(btns):
+            if btn.parent() is not frame:
+                btn.setParent(frame)
+            grid.addWidget(btn, idx // n_cols, idx % n_cols)
+            btn.show()
         if frame:
             frame.setMaximumWidth(btn_w + 4 if n_cols == 1 else 16777215)
 
-    def _reflow_mod_left_toolbar(self, pos): #vers 2
+    def _reflow_mod_left_toolbar(self, pos): #vers 1
         from apps.components.Model_Editor.dockable_toolbar import SNAP_LEFT, SNAP_RIGHT
-        gtl = getattr(self, '_mod_toolbar_layout', None)
-        n = sum(len(w) for w in gtl._groups.values()) if gtl else 0
+        n = len(getattr(self, '_mod_icon_buttons', []))
         if pos == 'float':
             self._mod_icon_forced_cols = n
         elif pos in (SNAP_LEFT, SNAP_RIGHT):
@@ -8075,121 +7740,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._mod_place_icon_grid(n_cols)
             return
         self._mod_place_icon_grid()
-
-
-    def _create_snap_toolbar(self): #vers 1
-        """Snap toggle bar — separate DockableToolbar from the main left
-        toolbar, matching 3ds Max where Snap toggles are their own distinct
-        toolbar cluster. 7 independently-toggleable snap targets (Grid,
-        Pivot, Vertex, Endpoint, Midpoint, Edge, Face) + axis constraint
-        toggle. State only for now - see toggle_snap_target() in
-        dff_viewport.py for the scope note on snap-during-drag math."""
-        from apps.components.Model_Editor.dockable_toolbar import DockableToolbar
-        from apps.methods.toolbar_layout_manager import GroupedToolbarLayout
-        icon_color = self._get_icon_color()
-
-        snap_frame = QFrame()
-        snap_frame.setFrameStyle(QFrame.Shape.NoFrame)
-
-        self._snap_toolbar_layout = GroupedToolbarLayout(
-            snap_frame, settings_key='model_snap_toolbar')
-        self._snap_toolbar_layout.add_group('targets', "Snap Targets")
-        self._snap_toolbar_layout.add_group('constraints', "Constraints")
-        self._snap_toolbar_layout.add_divider_before('constraints')
-
-        snap_frame._grid = self._snap_toolbar_layout.grid
-        self._snap_icon_grid  = snap_frame._grid
-        self._snap_icon_frame = snap_frame
-
-        rp = getattr(self, '_right_panel_ref', None)
-        toolbar = DockableToolbar(rp or self, settings_key='model_snap_toolbar')
-        toolbar.reflow_requested.connect(self._reflow_mod_snap_toolbar)
-        self._mod_snap_toolbar = toolbar
-
-        btn_height = 26
-        btn_width  = 26
-        icon_size  = QSize(16, 16)
-        accent_color = self._get_icon_accent_color()
-
-        def _snap_btn(target, tip, icon_fn_name):
-            b = QPushButton()
-            b.setObjectName(f"mod_snap_{target}_btn")
-            b.setFixedSize(btn_width, btn_height)
-            b.setCheckable(True)
-            b.setToolTip(tip)
-            b.setIconSize(icon_size)
-            _fn = getattr(MaxSVGIcons, icon_fn_name)
-            _c, _ac = icon_color, accent_color
-            try:
-                b.setIcon(_fn(color=_c, accent_color=_ac))
-            except Exception as _e:
-                print(f"[snap icon] {icon_fn_name} failed: {_e}")
-            b._icon_fn = lambda sz, fn=_fn, c=_c, ac=_ac: fn(
-                size=sz, color=c, accent_color=ac)
-
-            def _on_click(_=False, t=target, btn=b):
-                vp = getattr(self, 'preview_widget', None)
-                if vp:
-                    vp.toggle_snap_target(t)
-                    btn.setChecked(vp._snap_targets.get(t, False))
-            b.clicked.connect(_on_click)
-            self._snap_toolbar_layout.add_widget('targets', b)
-            return b
-
-        self._snap_grid_btn     = _snap_btn('grid',     'Snap To Grid Points Toggle',      'snap_grid_icon')
-        self._snap_pivot_btn    = _snap_btn('pivot',    'Snap To Pivot Toggle',            'snap_pivot_icon')
-        self._snap_vertex_btn   = _snap_btn('vertex',   'Snap To Vertex Toggle',           'snap_vertex_icon')
-        self._snap_endpoint_btn = _snap_btn('endpoint', 'Snap To Endpoint Toggle',         'snap_endpoint_icon')
-        self._snap_midpoint_btn = _snap_btn('midpoint', 'Snap To Midpoint Toggle',         'snap_midpoint_icon')
-        self._snap_edge_btn     = _snap_btn('edge',     'Snap To Edge/Segment Toggle',     'snap_edge_icon')
-        self._snap_face_btn     = _snap_btn('face',     'Snap To Face Toggle',             'snap_face_icon')
-
-        self._snap_axis_btn = QPushButton()
-        self._snap_axis_btn.setObjectName("mod_snap_axis_btn")
-        self._snap_axis_btn.setFixedSize(btn_width, btn_height)
-        self._snap_axis_btn.setCheckable(True)
-        self._snap_axis_btn.setToolTip("Enable Axis Constraints in Snaps Toggle")
-        self._snap_axis_btn.setIconSize(icon_size)
-        try:
-            self._snap_axis_btn.setIcon(
-                MaxSVGIcons.snap_axis_constraint_icon(
-                    color=icon_color, accent_color=accent_color))
-            self._snap_axis_btn._icon_fn = lambda sz, c=icon_color, ac=accent_color: \
-                MaxSVGIcons.snap_axis_constraint_icon(size=sz, color=c, accent_color=ac)
-        except Exception as _e:
-            print(f"[snap icon] snap_axis_constraint_icon failed: {_e}")
-
-        def _on_axis_click(_=False):
-            vp = getattr(self, 'preview_widget', None)
-            if vp:
-                vp.toggle_snap_axis_constraint()
-                self._snap_axis_btn.setChecked(vp._snap_axis_constraint)
-        self._snap_axis_btn.clicked.connect(_on_axis_click)
-        self._snap_toolbar_layout.add_widget('constraints', self._snap_axis_btn)
-
-        self._snap_only_toolbar_btns = [
-            self._snap_grid_btn, self._snap_pivot_btn, self._snap_vertex_btn,
-            self._snap_endpoint_btn, self._snap_midpoint_btn,
-            self._snap_edge_btn, self._snap_face_btn, self._snap_axis_btn,
-        ]
-
-        self._snap_toolbar_layout.load_layout()
-        toolbar.set_content(snap_frame)
-        return toolbar
-
-    def _reflow_mod_snap_toolbar(self, pos): #vers 1
-        from apps.components.Model_Editor.dockable_toolbar import SNAP_LEFT, SNAP_RIGHT
-        gtl = getattr(self, '_snap_toolbar_layout', None)
-        n = sum(len(w) for w in gtl._groups.values()) if gtl else 0
-        if pos == 'float':
-            gtl.set_columns(n)
-        elif pos in (SNAP_LEFT, SNAP_RIGHT):
-            gtl.set_columns(1)
-        else:
-            frame = getattr(self, '_snap_icon_frame', None)
-            pw = frame.width() if frame else 0
-            n_cols = max(1, pw // 28) if pw > 28 else n
-            gtl.set_columns(n_cols)
 
 
     def _create_transform_text_panel(self): #vers 12
@@ -8597,51 +8147,17 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         panel.setMinimumWidth(200)
         self._right_panel_ref = panel
         main_layout = QVBoxLayout(panel)
-        self._mod_main_layout = main_layout   # stored for sibling-docking insertWidget
         main_layout.setContentsMargins(4, 4, 4, 4)
-        main_layout.setSpacing(0)
+        main_layout.setSpacing(3)
 
-        # Ribbon row system — each row is a QHBoxLayout holding one or more
-        # DockableToolbar bars. Multiple bars per row = horizontal stacking
-        # (matching 3ds Max where multiple toolbar clusters sit side-by-side
-        # on the same row). Single bar per row = current default (one toolbar
-        # per horizontal band, stacked vertically).
-        # self._mod_toolbar_rows: list of QHBoxLayout, one per band.
-        self._mod_toolbar_rows = []
-
-        def _add_ribbon_row(*toolbars):
-            """Create a new horizontal row and add toolbars to it.
-            Multiple toolbars in one call = they share the same row."""
-            row = QHBoxLayout()
-            row.setSpacing(0)
-            row.setContentsMargins(0, 0, 0, 0)
-            for tb in toolbars:
-                row.addWidget(tb, stretch=0)
-            row.addStretch(1)   # pushes bars to the left, matching Max's left-aligned rows
-            main_layout.addLayout(row)
-            self._mod_toolbar_rows.append(row)
-            return row
-
-        # Default: one bar per row (user can merge via Ribbon Manager later)
+        # - Top toolbar row
         left_toolbar = self._create_transform_icon_panel()
+        main_layout.addWidget(left_toolbar, stretch=0)
         left_toolbar.set_dock_position('top')
-        _add_ribbon_row(left_toolbar)
-
-        snap_toolbar = self._create_snap_toolbar()
-        snap_toolbar.set_dock_position('top')
-        _add_ribbon_row(snap_toolbar)
-
-        geo_toolbar = self._create_geometry_toolbar()
-        geo_toolbar.set_dock_position('top')
-        _add_ribbon_row(geo_toolbar)
-
-        main_layout.addSpacing(4)
 
         # - Preview row: viewport + right dockable toolbar
         preview_row = QHBoxLayout()
-        self._mod_preview_row = preview_row   # stored for sibling-docking insertWidget
-        preview_row.setSpacing(0)   # nav/render bars stack flush against
-                                     # each other and the viewport edge
+        preview_row.setSpacing(3)
 
         self.preview_widget = DFFViewport()
         self.preview_widget._workshop_ref = self
@@ -8654,37 +8170,23 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         self._create_paint_bar()
 
-        preview_row.addSpacing(4)   # breathing room between viewport and
-                                     # the right-docked bar stack
-
-        nav_toolbar = self._create_nav_toolbar()
-        nav_toolbar.set_dock_position('right')
-        self.preview_controls = nav_toolbar   # legacy attr, some code may read this
-        preview_row.addWidget(nav_toolbar, stretch=0)
-
-        render_toolbar = self._create_render_toolbar()
-        render_toolbar.set_dock_position('right')
-        preview_row.addWidget(render_toolbar, stretch=0)
+        ctrl_frame = self._create_preview_controls()
+        right_toolbar = DockableToolbar(panel, settings_key='model_right_toolbar')
+        right_toolbar.set_content(ctrl_frame)
+        right_toolbar.set_dock_position('right')
+        right_toolbar.reflow_requested.connect(self._reflow_mod_right_toolbar)
+        self._mod_right_toolbar = right_toolbar
+        self.preview_controls   = ctrl_frame
+        preview_row.addWidget(right_toolbar, stretch=0)
 
         main_layout.addLayout(preview_row, stretch=1)
 
-        left_toolbar._extra_panels   = [self.preview_widget]
-        nav_toolbar._extra_panels    = [self.preview_widget]
-        render_toolbar._extra_panels = [self.preview_widget]
-        snap_toolbar._extra_panels   = [self.preview_widget]
-        geo_toolbar._extra_panels    = [self.preview_widget]
+        left_toolbar._extra_panels  = [self.preview_widget]
+        right_toolbar._extra_panels = [self.preview_widget]
 
         from PyQt6.QtCore import QTimer as _QT
-        # Icon scale and ribbon registry are deferred — toolbar layout restore
-        # is handled by showEvent which fires after Qt has fully laid out the
-        # widget, using _toolbar_layout_loaded guard to prevent double-calls
-        _QT.singleShot(450, self._restore_icon_scale)
-        _QT.singleShot(500, self._init_ribbon_registry)
-
-        # Connect window_closed to save — fires whether the close comes from
-        # closeEvent (standalone) or close_tab() in tab_system.py (tab close,
-        # which emits window_closed directly without calling closeEvent)
-        self.window_closed.connect(self._save_layout_state)
+        # 400ms: wait for parent widget to be fully laid out before restoring
+        _QT.singleShot(400, self._load_mod_toolbar_layouts)
 
         # Information group below
         info_group = QGroupBox("")
@@ -8971,49 +8473,40 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 _bar.raise_()
         vp.resizeEvent = _on_vp_resize
 
-    def _create_nav_toolbar(self): #vers 1
-        """Navigation bar — own DockableToolbar. Zoom/Reset/Fit + view
-        presets. Split out of the old combined nav+render bar so each
-        can be docked/floated/stacked independently."""
-        from apps.components.Model_Editor.dockable_toolbar import DockableToolbar
-        from apps.methods.toolbar_layout_manager import GroupedToolbarLayout
+    def _create_preview_controls(self): #vers 7
+        """Right toolbar icon grid — DockableToolbar pattern."""
+        from PyQt6.QtWidgets import QGridLayout
         icon_color = self._get_icon_color()
         pw = self.preview_widget
 
-        nav_frame = QFrame()
-        nav_frame.setFrameStyle(QFrame.Shape.NoFrame)
+        ctrl_frame = QFrame()
+        ctrl_frame.setFrameStyle(QFrame.Shape.NoFrame)
+        grid = QGridLayout(ctrl_frame)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setSpacing(2)
+        ctrl_frame._grid = grid
 
-        self._nav_toolbar_layout = GroupedToolbarLayout(
-            nav_frame, settings_key='model_nav_toolbar')
-        self._nav_toolbar_layout.add_group('navigation', "Navigation")
+        self._mod_ctrl_grid    = ctrl_frame._grid
+        self._mod_ctrl_buttons = []
+        self._mod_ctrl_frame   = ctrl_frame
 
-        nav_frame._grid = self._nav_toolbar_layout.grid
-        self._nav_icon_frame = nav_frame
-
-        rp = getattr(self, '_right_panel_ref', None)
-        toolbar = DockableToolbar(rp or self, settings_key='model_nav_toolbar')
-        toolbar.reflow_requested.connect(self._reflow_mod_nav_toolbar)
-        self._mod_nav_toolbar = toolbar
-
-        def btn(tip, icon_fn, callback, checkable=False, checked=False, obj_name=None):
-            b = QPushButton(nav_frame)
-            b.setObjectName(obj_name or f"mod_nav_{id(b)}")
+        def btn(tip, icon_fn, callback, checkable=False, checked=False):
+            b = QPushButton(ctrl_frame)
             b.setIcon(icon_fn(color=icon_color))
             b.setIconSize(QSize(16, 16))
             b.setFixedSize(26, 26)
             b.setToolTip(tip)
-            b._icon_fn = lambda sz, fn=icon_fn, c=icon_color: fn(size=sz, color=c)
             if checkable:
                 b.setCheckable(True)
                 b.setChecked(checked)
             b.clicked.connect(callback)
-            self._nav_toolbar_layout.add_widget('navigation', b)
+            self._mod_ctrl_buttons.append(b)
             return b
 
-        btn("Zoom In",       self.icon_factory.zoom_in_icon,  pw.zoom_in,       obj_name="mod_zoom_in_btn")
-        btn("Zoom Out",      self.icon_factory.zoom_out_icon, pw.zoom_out,      obj_name="mod_zoom_out_btn")
-        btn("Reset View",    self.icon_factory.reset_icon,    pw.reset_view,    obj_name="mod_reset_view_btn")
-        btn("Fit to Window", self.icon_factory.fit_icon,      pw.fit_to_window, obj_name="mod_fit_window_btn")
+        btn("Zoom In",      self.icon_factory.zoom_in_icon,   pw.zoom_in)
+        btn("Zoom Out",     self.icon_factory.zoom_out_icon,  pw.zoom_out)
+        btn("Reset View",   self.icon_factory.reset_icon,     pw.reset_view)
+        btn("Fit to Window",self.icon_factory.fit_icon,       pw.fit_to_window)
 
         _view_icons = [
             ("XY",  0,   0,  self.icon_factory.view_xy_icon),
@@ -9024,183 +8517,55 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         for v_label, v_yaw, v_pitch, v_icon_fn in _view_icons:
             def _set_v(checked=False, y=v_yaw, p=v_pitch):
                 pw._yaw = y; pw._pitch = p; pw.update()
-            btn(f"View: {v_label}", v_icon_fn, _set_v,
-                obj_name=f"mod_view_{v_label.lower()}_btn")
-
-        self._nav_toolbar_layout.load_layout()
-        toolbar.set_content(nav_frame)
-        return toolbar
-
-    def _reflow_mod_nav_toolbar(self, pos): #vers 1
-        from apps.components.Model_Editor.dockable_toolbar import SNAP_LEFT, SNAP_RIGHT
-        gtl = getattr(self, '_nav_toolbar_layout', None)
-        n = sum(len(w) for w in gtl._groups.values()) if gtl else 0
-        if pos == 'float':
-            gtl.set_columns(n)
-        elif pos in (SNAP_LEFT, SNAP_RIGHT):
-            gtl.set_columns(1)
-        else:
-            frame = getattr(self, '_nav_icon_frame', None)
-            pw = frame.width() if frame else 0
-            n_cols = max(1, pw // 28) if pw > 28 else n
-            gtl.set_columns(n_cols)
-
-    def _create_render_toolbar(self): #vers 1
-        """Render bar — own DockableToolbar. Render settings, mesh/backface
-        toggles, cycle render style. Split out of the old combined
-        nav+render bar so it can be docked/floated/stacked independently
-        from Navigation."""
-        from apps.components.Model_Editor.dockable_toolbar import DockableToolbar
-        from apps.methods.toolbar_layout_manager import GroupedToolbarLayout
-        icon_color = self._get_icon_color()
-        pw = self.preview_widget
-
-        render_frame = QFrame()
-        render_frame.setFrameStyle(QFrame.Shape.NoFrame)
-
-        self._render_toolbar_layout = GroupedToolbarLayout(
-            render_frame, settings_key='model_render_toolbar')
-        self._render_toolbar_layout.add_group('render', "Render")
-
-        render_frame._grid = self._render_toolbar_layout.grid
-        self._render_icon_frame = render_frame
-
-        rp = getattr(self, '_right_panel_ref', None)
-        toolbar = DockableToolbar(rp or self, settings_key='model_render_toolbar')
-        toolbar.reflow_requested.connect(self._reflow_mod_render_toolbar)
-        self._mod_render_toolbar = toolbar
-
-        def btn(tip, icon_fn, callback, checkable=False, checked=False, obj_name=None):
-            b = QPushButton(render_frame)
-            b.setObjectName(obj_name or f"mod_render_{id(b)}")
-            b.setIcon(icon_fn(color=icon_color))
-            b.setIconSize(QSize(16, 16))
-            b.setFixedSize(26, 26)
-            b.setToolTip(tip)
-            b._icon_fn = lambda sz, fn=icon_fn, c=icon_color: fn(size=sz, color=c)
-            if checkable:
-                b.setCheckable(True)
-                b.setChecked(checked)
-            b.clicked.connect(callback)
-            self._render_toolbar_layout.add_widget('render', b)
-            return b
+            btn(f"View: {v_label}", v_icon_fn, _set_v)
 
         btn("Render / Background Settings",
-            self.icon_factory.color_picker_icon, self._open_render_settings_dialog,
-            obj_name="mod_render_settings_btn")
+            self.icon_factory.color_picker_icon, self._open_render_settings_dialog)
 
         self.view_mesh_btn = btn("Toggle Mesh", self.icon_factory.mesh_icon,
                                   lambda checked: pw.set_show_mesh(checked),
-                                  checkable=True, checked=True,
-                                  obj_name="mod_view_mesh_btn")
+                                  checkable=True, checked=True)
         self.backface_btn  = btn("Toggle Backface", self.icon_factory.backface_icon,
                                   lambda checked: pw.set_backface(checked),
-                                  checkable=True, checked=False,
-                                  obj_name="mod_backface_btn")
+                                  checkable=True, checked=False)
         btn("Cycle Render Style", self.icon_factory.color_picker_icon,
-            self._cycle_view_render_style, obj_name="mod_cycle_render_style_btn")
+            self._cycle_view_render_style)
 
-        self._render_toolbar_layout.load_layout()
-        toolbar.set_content(render_frame)
-        return toolbar
+        self._mod_place_ctrl_grid(1)
+        return ctrl_frame
 
-    def _reflow_mod_render_toolbar(self, pos): #vers 1
-        from apps.components.Model_Editor.dockable_toolbar import SNAP_LEFT, SNAP_RIGHT
-        gtl = getattr(self, '_render_toolbar_layout', None)
-        n = sum(len(w) for w in gtl._groups.values()) if gtl else 0
-        if pos == 'float':
-            gtl.set_columns(n)
-        elif pos in (SNAP_LEFT, SNAP_RIGHT):
-            gtl.set_columns(1)
+
+    def _mod_place_ctrl_grid(self, n_cols=None): #vers 1
+        grid  = getattr(self, '_mod_ctrl_grid', None)
+        btns  = getattr(self, '_mod_ctrl_buttons', [])
+        frame = getattr(self, '_mod_ctrl_frame', None)
+        if grid is None or not btns:
+            return
+        btn_w = 28
+        if n_cols is None:
+            n_cols = getattr(self, '_mod_ctrl_forced_cols', 1)
+        for i in range(grid.count()-1, -1, -1):
+            item = grid.itemAt(i)
+            if item and item.widget():
+                grid.removeWidget(item.widget())
+        for idx, b in enumerate(btns):
+            if b.parent() is not frame:
+                b.setParent(frame)
+            grid.addWidget(b, idx // n_cols, idx % n_cols)
+            b.show()
+        if frame:
+            frame.setMaximumWidth(btn_w + 4 if n_cols == 1 else 16777215)
+
+    def _reflow_mod_right_toolbar(self, pos): #vers 1
+        from apps.components.Model_Editor.dockable_toolbar import SNAP_LEFT, SNAP_RIGHT, SNAP_TOP, SNAP_BOTTOM
+        n = len(getattr(self, '_mod_ctrl_buttons', []))
+        if pos in ('float', SNAP_LEFT, SNAP_RIGHT):
+            self._mod_ctrl_forced_cols = 1
+        elif pos in (SNAP_TOP, SNAP_BOTTOM):
+            self._mod_ctrl_forced_cols = n
         else:
-            frame = getattr(self, '_render_icon_frame', None)
-            pw = frame.width() if frame else 0
-            n_cols = max(1, pw // 28) if pw > 28 else n
-            gtl.set_columns(n_cols)
-
-    def _create_geometry_toolbar(self): #vers 1
-        """Edit Geometry bar — own DockableToolbar. Create Primitive,
-        Extrude (more Edit Geometry operations land here as Phase 4 of the
-        roadmap progresses). Split out of the left toolbar so it can be
-        docked/floated/stacked independently."""
-        from apps.components.Model_Editor.dockable_toolbar import DockableToolbar
-        from apps.methods.toolbar_layout_manager import GroupedToolbarLayout
-        icon_color = self._get_icon_color()
-
-        geo_frame = QFrame()
-        geo_frame.setFrameStyle(QFrame.Shape.NoFrame)
-
-        self._geo_toolbar_layout = GroupedToolbarLayout(
-            geo_frame, settings_key='model_geometry_toolbar')
-        self._geo_toolbar_layout.add_group('geometry', "Edit Geometry")
-
-        geo_frame._grid = self._geo_toolbar_layout.grid
-        self._geo_icon_frame = geo_frame
-
-        rp = getattr(self, '_right_panel_ref', None)
-        toolbar = DockableToolbar(rp or self, settings_key='model_geometry_toolbar')
-        toolbar.reflow_requested.connect(self._reflow_mod_geometry_toolbar)
-        self._mod_geometry_toolbar = toolbar
-
-        btn_height = 26
-        btn_width  = 26
-        icon_size  = QSize(16, 16)
-
-        # Create Primitive button
-        self._prim_btn = QPushButton()
-        self._prim_btn.setObjectName("mod_prim_btn")
-        self._prim_btn.setFixedSize(btn_width, btn_height)
-        self._prim_btn.setToolTip(
-            "Create primitive shape (Box, Sphere, Cylinder, Plane)\n"
-            "Set dimensions and subdivision count")
-        self._prim_btn.setIconSize(icon_size)
-        try:
-            self._prim_btn.setIcon(MaxSVGIcons.create_primitive_icon(color=icon_color))
-        except Exception as _e:
-            print(f"[icon] create_primitive_icon failed: {_e}")
-        self._prim_btn._icon_fn = lambda sz, c=icon_color: \
-            MaxSVGIcons.create_primitive_icon(size=sz, color=c)
-        self._prim_btn.clicked.connect(self._create_primitive_dialog)
-        self._geo_toolbar_layout.add_widget('geometry', self._prim_btn)
-
-        # Extrude selected face(s) button
-        self._extrude_btn = QPushButton()
-        self._extrude_btn.setObjectName("mod_extrude_btn")
-        self._extrude_btn.setFixedSize(btn_width, btn_height)
-        self._extrude_btn.setToolTip(
-            "Extrude selected face(s) along their normal\n"
-            "Positive distance = outward, negative = push in (door/window/vent)\n"
-            "Select faces in Face or Polygon mode first")
-        self._extrude_btn.setIconSize(icon_size)
-        try:
-            self._extrude_btn.setIcon(MaxSVGIcons.extrude_icon(color=icon_color))
-        except Exception as _e:
-            print(f"[icon] extrude_icon failed: {_e}")
-        self._extrude_btn._icon_fn = lambda sz, c=icon_color: \
-            MaxSVGIcons.extrude_icon(size=sz, color=c)
-        self._extrude_btn.clicked.connect(self._extrude_dialog)
-        self._geo_toolbar_layout.add_widget('geometry', self._extrude_btn)
-
-        self._geo_only_toolbar_btns = [self._prim_btn, self._extrude_btn]
-
-        self._geo_toolbar_layout.load_layout()
-        toolbar.set_content(geo_frame)
-        return toolbar
-
-    def _reflow_mod_geometry_toolbar(self, pos): #vers 1
-        from apps.components.Model_Editor.dockable_toolbar import SNAP_LEFT, SNAP_RIGHT
-        gtl = getattr(self, '_geo_toolbar_layout', None)
-        n = sum(len(w) for w in gtl._groups.values()) if gtl else 0
-        if pos == 'float':
-            gtl.set_columns(n)
-        elif pos in (SNAP_LEFT, SNAP_RIGHT):
-            gtl.set_columns(1)
-        else:
-            frame = getattr(self, '_geo_icon_frame', None)
-            pw = frame.width() if frame else 0
-            n_cols = max(1, pw // 28) if pw > 28 else n
-            gtl.set_columns(n_cols)
-
+            self._mod_ctrl_forced_cols = 1
+        self._mod_place_ctrl_grid()
 
 
     def _update_toolbar_for_docking_state(self): #vers 1
@@ -10344,141 +9709,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 pass
         return '#cccccc'
 
-    def _get_icon_accent_color(self): #vers 1
-        """Get the theme's accent colour for two-tone icons."""
-        as_ = (self.app_settings
-               or getattr(getattr(self, 'main_window', None), 'app_settings', None))
-        if as_:
-            try:
-                colors = as_.get_theme_colors() or {}
-                return colors.get('text_accent', '#0066cc')
-            except Exception:
-                pass
-        return '#0066cc'
-
-    def _get_icon_set(self) -> str: #vers 1
-        """Return the active icon set name: 'default' or '3dsmax'.
-        Read from model_workshop.json 'icon_set' key; defaults to 'default'."""
-        try:
-            import json
-            from pathlib import Path
-            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
-            if path.exists():
-                return json.loads(path.read_text()).get('icon_set', 'default')
-        except Exception:
-            pass
-        return 'default'
-
-    def _save_icon_set(self, icon_set: str): #vers 1
-        """Persist the icon set choice and regenerate all snap icons."""
-        try:
-            import json
-            from pathlib import Path
-            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
-            try:
-                data = json.loads(path.read_text())
-            except Exception:
-                data = {}
-            data['icon_set'] = icon_set
-            path.write_text(json.dumps(data, indent=2))
-        except Exception:
-            pass
-        self._apply_icon_set(icon_set)
-
-    def _apply_icon_set(self, icon_set: str): #vers 1
-        """Regenerate snap toolbar icons for the chosen set.
-        'default'  — single-color geometric symbols (current style)
-        '3dsmax'   — neutral base + red accent pictogram (matches Max's
-                     red magnet marker visual language)"""
-        icon_color   = self._get_icon_color()
-        accent_color = self._get_icon_accent_color() if icon_set == '3dsmax' else icon_color
-        icon_px = getattr(self, '_mod_icon_scale', 16)
-        snap_map = {
-            '_snap_grid_btn':     'snap_grid_icon',
-            '_snap_pivot_btn':    'snap_pivot_icon',
-            '_snap_vertex_btn':   'snap_vertex_icon',
-            '_snap_endpoint_btn': 'snap_endpoint_icon',
-            '_snap_midpoint_btn': 'snap_midpoint_icon',
-            '_snap_edge_btn':     'snap_edge_icon',
-            '_snap_face_btn':     'snap_face_icon',
-            '_snap_axis_btn':     'snap_axis_constraint_icon',
-        }
-        for attr, fn_name in snap_map.items():
-            btn = getattr(self, attr, None)
-            if btn is None:
-                continue
-            try:
-                icon = getattr(MaxSVGIcons, fn_name)(
-                    size=icon_px, color=icon_color, accent_color=accent_color)
-                btn.setIcon(icon)
-                # Update _icon_fn so future scale changes also use the right set
-                btn._icon_fn = (lambda sz, fn=fn_name, c=icon_color, ac=accent_color:
-                                getattr(MaxSVGIcons, fn)(size=sz, color=c, accent_color=ac))
-            except Exception as _e:
-                print(f"[icon_set] {fn_name} failed: {_e}")
-
-
-        """Yield every widget registered across all five GroupedToolbarLayout
-        toolbar bars, without needing a separate manually-curated master
-        list. Used by _apply_icon_scale to reach every icon in one pass."""
-        for attr in ('_mod_toolbar_layout', '_snap_toolbar_layout',
-                     '_geo_toolbar_layout', '_nav_toolbar_layout',
-                     '_render_toolbar_layout'):
-            gtl = getattr(self, attr, None)
-            if gtl is None:
-                continue
-            for widgets in gtl._groups.values():
-                for w in widgets:
-                    yield w
-
-    def _all_toolbar_widgets(self): #vers 1
-        """Yield every widget registered across all five GroupedToolbarLayout
-        toolbar bars. Used by _apply_icon_scale and _init_ribbon_registry."""
-        for attr in ('_mod_toolbar_layout', '_snap_toolbar_layout',
-                     '_geo_toolbar_layout', '_nav_toolbar_layout',
-                     '_render_toolbar_layout'):
-            gtl = getattr(self, attr, None)
-            if gtl is None:
-                continue
-            for widgets in gtl._groups.values():
-                for w in widgets:
-                    yield w
-
-    def _apply_icon_scale(self, icon_px: int): #vers 1
-        """Live-resize every toolbar icon to icon_px x icon_px. Each button
-        stores its own icon-generation lambda as b._icon_fn (set at button
-        construction time); if present, the icon is re-rendered at the new
-        size rather than just scaling a pre-baked pixmap — keeps SVG icons
-        crisp at any size. The new size is persisted to model_workshop.json
-        under 'icon_scale' so it survives restarts."""
-        icon_px = max(10, min(40, icon_px))
-        qs = QSize(icon_px, icon_px)
-        btn_px = icon_px + 10
-        for w in self._all_toolbar_widgets():
-            try:
-                if hasattr(w, 'setIconSize'):
-                    w.setIconSize(qs)
-                if hasattr(w, 'setFixedSize') and hasattr(w, '_icon_fn'):
-                    w.setFixedSize(btn_px, btn_px)
-                if hasattr(w, '_icon_fn'):
-                    icon = w._icon_fn(icon_px)
-                    if icon:
-                        w.setIcon(icon)
-            except Exception:
-                pass
-        self._mod_icon_scale = icon_px
-        try:
-            import json
-            from pathlib import Path
-            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
-            try:
-                data = json.loads(path.read_text())
-            except Exception:
-                data = {}
-            data['icon_scale'] = icon_px
-            path.write_text(json.dumps(data, indent=2))
-        except Exception:
-            pass
 
     def _apply_fonts_to_widgets(self): #vers 1
         """Apply fonts from AppSettings to all widgets"""
