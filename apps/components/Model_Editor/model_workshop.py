@@ -8107,8 +8107,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.mod_compact_list.setItemDelegate(_ModelListDelegate(self.mod_compact_list))
         layout.addWidget(self.mod_compact_list)
 
-
-        self.load_txd_btn = QPushButton("TXD")
+        samerow_layout = QHBoxLayout()
+        samerow_label = QLabel("")
+        self.load_txd_btn = QPushButton("TXD") #TODO; This needs to be added to load dff, on standalone and docked.
+                                               #      both looking for the same name "not matter the letter case.txd or Case.TXD, if not found ask for it, or skip.
         self.load_txd_btn.setFont(self.button_font)
         self.load_txd_btn.setIcon(self.icon_factory.open_icon(color=icon_color))
         self.load_txd_btn.setIconSize(QSize(16, 16))
@@ -8116,8 +8118,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.load_txd_btn.setMinimumWidth(80)
         self.load_txd_btn.setToolTip("Open TXD — uses IDE link if available, else browse")
         self.load_txd_btn.clicked.connect(self._open_txd_smart)
-        layout.addWidget(self.load_txd_btn)
-        self.export_ojs_btn = QPushButton("Objs/Col")
+
+        self.export_ojs_btn = QPushButton("Objs/Col") #TODO goes to the standalone title bar, and be added to the docked bar icons.
         self.export_ojs_btn.setFont(self.button_font)
         self.export_ojs_btn.setFixedHeight(26)
         self.export_ojs_btn.setToolTip("Export geometry / COL")
@@ -8126,8 +8128,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.export_ojs_btn.setIcon(self.icon_factory.package_icon(color=icon_color))
             self.export_ojs_btn.setIconSize(QSize(14, 14))
         except Exception: pass
-        layout.addWidget(self.export_ojs_btn)
-        self.gl_viewer_btn = QPushButton("3D View")
+
+        self.gl_viewer_btn = QPushButton("3D View")  #TODO this needs to be added to the title bar icons after UNDO, or docked icon row in the middle bar.
         self.gl_viewer_btn.setFont(self.button_font)
         self.gl_viewer_btn.setFixedHeight(26)
         self.gl_viewer_btn.setToolTip("Open GL Model Viewer")
@@ -8136,7 +8138,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.gl_viewer_btn.setIcon(self.icon_factory.cube_icon(color=icon_color))
             self.gl_viewer_btn.setIconSize(QSize(14, 14))
         except Exception: pass
-        layout.addWidget(self.gl_viewer_btn)
+        samerow_layout.addWidget(self.gl_viewer_btn)
+        samerow_layout.addWidget(self.export_ojs_btn)
+        samerow_layout.addWidget(self.load_txd_btn)
+        samerow_layout.addWidget(samerow_label)
 
         # - Frame / Bone hierarchy tree (DFF only)
         from PyQt6.QtWidgets import QTreeWidget
@@ -8210,15 +8215,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         ide_layout.addWidget(ide_lbl)
         self.info_ide_section = QLabel("—")
         self.info_ide_section.setFont(self.panel_font)
-        self.info_ide_section.setFixedWidth(50)
+        #self.info_ide_section.setFixedWidth(50)
         ide_layout.addWidget(self.info_ide_section)
         self.info_model_id = QLabel("ID: —")
         self.info_model_id.setFont(self.panel_font)
-        self.info_model_id.setFixedWidth(40)
+        #self.info_model_id.setFixedWidth(40)
         ide_layout.addWidget(self.info_model_id)
         txd_lbl = QLabel("TXD:")
         txd_lbl.setFont(self.panel_font)
-        txd_lbl.setFixedWidth(32)
+        #txd_lbl.setFixedWidth(32)
         ide_layout.addWidget(txd_lbl)
         self.info_txd_name = QLabel("—")
         ide_layout.addWidget(self.info_txd_name)
