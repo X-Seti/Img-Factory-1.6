@@ -1,5 +1,5 @@
 # X-Seti - May13 2026 - IMG Factory 1.6 - DFF OpenGL Viewport
-# this belongs in apps/methods/dff_viewport.py - Version: 10
+# this belongs in apps/methods/dff_viewport.py - Version: 11
 """
 DFFViewport - Shared OpenGL viewport for DFF model rendering.
 Used by Model Viewer, Model Workshop, Vehicle Workshop (docked).
@@ -413,26 +413,21 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
         _libGL = None
         for _name in ('libGL.so.1', 'libGL.so', '/usr/lib/libGL.so.1',
-                      '/usr/lib64/libGL.so.1', 'libOpenGL.so.0',
-                      '/usr/lib/x86_64-linux-gnu/libGL.so.1',
-                      '/usr/lib/libGL.so', '/usr/lib64/libGL.so'):
+                      '/usr/lib/libGL.so', '/usr/lib64/libGL.so.1',
+                      'libOpenGL.so.0', '/usr/lib/x86_64-linux-gnu/libGL.so.1'):
             try:
                 _libGL = ctypes.CDLL(_name)
-                _libGL.glEnable  # confirm symbol exists
                 break
-            except Exception:
+            except OSError:
                 _libGL = None
 
         if _libGL is None:
-            # Glob search as final fallback — avoids ctypes.util which
-            # also recurses on Python 3.14
             import glob
             for _p in glob.glob('/usr/lib*/**/libGL.so*', recursive=True):
                 try:
                     _libGL = ctypes.CDLL(_p)
-                    _libGL.glEnable
                     break
-                except Exception:
+                except OSError:
                     _libGL = None
 
         if _libGL is None:
