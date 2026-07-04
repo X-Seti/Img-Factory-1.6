@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 149
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 150
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -5738,13 +5738,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if btr: btr.setVisible(wide)
             if bir: bir.setVisible(not wide)
 
-    def _load_mod_toolbar_layouts(self): #vers 5
+    def _load_mod_toolbar_layouts(self): #vers 6
         """Restore all saved layout state on startup."""
-        # Top-row bars: skip _on_redock — the ribbon_row_layout restore
-        # below handles placement, so we don't want individual load_layout
-        # calls fighting it by redocking each bar to SNAP_TOP independently.
-        for attr in ('_mod_left_toolbar', '_mod_snap_toolbar',
-                     '_mod_geometry_toolbar'):
+        # Per-bar DockableToolbar collapsed state (skip_redock — row system handles placement)
+        for attr in ('_mod_left_toolbar', '_mod_snap_toolbar', '_mod_geometry_toolbar'):
             tb = getattr(self, attr, None)
             if tb and hasattr(tb, 'load_layout'):
                 try:
@@ -5752,8 +5749,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 except Exception as _e:
                     print(f"[layout] {attr} load_layout failed: {_e}")
 
-        # Preview-row bars: these live in a QHBoxLayout alongside the viewport
-        # and use normal _on_redock (they float independently, not in row system)
+        # Nav/render use normal load — they float independently in preview_row
         for attr in ('_mod_nav_toolbar', '_mod_render_toolbar'):
             tb = getattr(self, attr, None)
             if tb and hasattr(tb, 'load_layout'):
@@ -5762,7 +5758,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 except Exception as _e:
                     print(f"[layout] {attr} load_layout failed: {_e}")
 
-        # Restore ribbon row layout from model_workshop.json
+        # Restore ribbon row layout
         try:
             import json
             from pathlib import Path
@@ -5773,70 +5769,91 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             row_state = data.get('ribbon_row_layout')
             if not row_state:
                 return
+
+            # Build key -> toolbar mapping (top bars only)
             key_to_tb = {}
-            for attr in ('_mod_left_toolbar', '_mod_snap_toolbar',
-                         '_mod_geometry_toolbar',
-                         '_mod_nav_toolbar', '_mod_render_toolbar'):
+            for attr in ('_mod_left_toolbar', '_mod_snap_toolbar', '_mod_geometry_toolbar'):
                 tb = getattr(self, attr, None)
                 if tb:
                     key = getattr(tb, '_settings_key', '')
                     if key:
                         key_to_tb[key] = tb
+
             if not key_to_tb:
                 return
-            main_layout = getattr(self, '_mod_main_layout', None)
-            if main_layout is None:
-                return
-            # Remove existing toolbar rows
-            existing_rows = getattr(self, '_mod_toolbar_rows', [])
-            for row in existing_rows:
-                for i in reversed(range(row.count())):
-                    item = row.itemAt(i)
-                    if item and item.widget():
-                        row.removeWidget(item.widget())
-                main_layout.removeItem(row)
-            self._mod_toolbar_rows = []
-            # Find insertion point before the spacing/preview items
-            insert_idx = 0
-            for i in range(main_layout.count()):
-                item = main_layout.itemAt(i)
-                if item and item.spacerItem():
-                    insert_idx = i
-                    break
-                if item and item.layout():
-                    lo = item.layout()
-                    for j in range(lo.count()):
-                        sub = lo.itemAt(j)
-                        if sub and sub.widget():
-                            try:
-                                from apps.methods.dff_viewport import DFFViewport
-                                if isinstance(sub.widget(), DFFViewport):
-                                    insert_idx = i
-                                    break
-                            except Exception:
-                                pass
-            # Rebuild rows in saved order
-            from PyQt6.QtWidgets import QHBoxLayout as _QHB
+
+            # Each bar starts on its own row (default from construction).
+            # Use merge_ribbon_rows to combine bars that should share a row —
+            # this is the correct method that handles Qt layout manipulation
+            # properly, rather than us trying to do it manually.
+            #
+            # First pass: ensure every bar is on its own row (split any
+            # existing multi-bar rows back to singles so we start clean).
+            for tb in key_to_tb.values():
+                try:
+                    self.split_ribbon_row(tb)
+                except Exception:
+                    pass
+
+            # Second pass: merge bars that should share rows, in saved order.
             for row_keys in row_state:
-                new_row = _QHB()
-                new_row.setSpacing(0)
-                new_row.setContentsMargins(0, 0, 0, 0)
-                added = False
-                for key in row_keys:
-                    tb = key_to_tb.get(key)
-                    if tb:
-                        new_row.addWidget(tb, stretch=0)
-                        tb.show()
-                        added = True
-                if added:
-                    new_row.addStretch(1)
-                    main_layout.insertLayout(insert_idx, new_row)
-                    self._mod_toolbar_rows.append(new_row)
-                    insert_idx += 1
+                valid = [key_to_tb[k] for k in row_keys if k in key_to_tb]
+                if len(valid) < 2:
+                    continue  # single-bar rows are already correct from split pass
+                # Merge all bars in this row sequentially
+                anchor = valid[0]
+                for tb in valid[1:]:
+                    try:
+                        self.merge_ribbon_rows(anchor, tb, position='after')
+                    except Exception as _e:
+                        print(f"[layout] merge_ribbon_rows failed: {_e}")
+
+            # Third pass: reorder the rows themselves to match saved order.
+            # _mod_toolbar_rows should now reflect the merged state; reorder
+            # main_layout to match the first key of each saved row.
+            main_layout = getattr(self, '_mod_main_layout', None)
+            if main_layout:
+                # Find the QHBoxLayout row containing each anchor bar
+                def _find_row_for(toolbar):
+                    for i in range(main_layout.count()):
+                        item = main_layout.itemAt(i)
+                        if item and item.layout():
+                            lo = item.layout()
+                            for j in range(lo.count()):
+                                sub = lo.itemAt(j)
+                                if sub and sub.widget() is toolbar:
+                                    return i, lo
+                    return -1, None
+
+                # Build desired row order from saved state
+                desired_order = []
+                seen = set()
+                for row_keys in row_state:
+                    first_key = next((k for k in row_keys if k in key_to_tb), None)
+                    if first_key and first_key not in seen:
+                        seen.add(first_key)
+                        desired_order.append(key_to_tb[first_key])
+                # Add any bars not in saved state at the end
+                for tb in key_to_tb.values():
+                    key = getattr(tb, '_settings_key', '')
+                    if key not in seen:
+                        desired_order.append(tb)
+
+                # Re-insert rows in desired order
+                insert_at = 0
+                for tb in desired_order:
+                    idx, row_lo = _find_row_for(tb)
+                    if idx >= 0 and row_lo:
+                        item = main_layout.takeAt(idx)
+                        if item:
+                            main_layout.insertLayout(insert_at, row_lo)
+                            insert_at += 1
+
             self._set_status("Ribbon config loaded")
             mw = getattr(self, 'main_window', None)
             if mw and hasattr(mw, 'log_message'):
                 mw.log_message("Model Workshop: Ribbon config loaded")
+
         except Exception as _e:
             print(f"[layout] ribbon_row_layout restore failed: {_e}")
 
@@ -6041,10 +6058,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.showMaximized()
 
 
-    def _save_layout_state(self): #vers 1
-        """Save all ribbon/toolbar layout state. Called from both closeEvent
-        (standalone window) and window_closed signal (tab close via close_tab
-        in tab_system.py which bypasses closeEvent entirely)."""
+    def _save_layout_state(self): #vers 2
+        """Save all ribbon/toolbar layout state."""
         try:
             import json
             from pathlib import Path
@@ -6059,7 +6074,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 if tb and hasattr(tb, 'save_layout'):
                     tb.save_layout()
 
-            # 2. Per-bar GroupedToolbarLayout group order / dividers / button order
+            # 2. Per-bar GroupedToolbarLayout group order / dividers
             for attr in ('_mod_toolbar_layout', '_snap_toolbar_layout',
                          '_geo_toolbar_layout', '_nav_toolbar_layout',
                          '_render_toolbar_layout'):
@@ -6067,24 +6082,27 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 if gtl and hasattr(gtl, 'save_layout'):
                     gtl.save_layout()
 
-            # 3. Ribbon row layout
+            # 3. Ribbon row layout — only the TOP toolbar rows
+            # (nav/render live in preview_row, not _mod_main_layout rows).
+            # Save as ordered list of rows, each row a list of settings_keys.
+            # Use _mod_toolbar_rows which is maintained by merge/split methods.
+            top_bar_keys = {
+                getattr(getattr(self, a, None), '_settings_key', ''): a
+                for a in ('_mod_left_toolbar', '_mod_snap_toolbar', '_mod_geometry_toolbar')
+            }
+            top_bar_keys.pop('', None)
+
             row_state = []
-            main_layout = getattr(self, '_mod_main_layout', None)
-            if main_layout:
-                for row_idx in range(main_layout.count()):
-                    item = main_layout.itemAt(row_idx)
-                    if not item or not item.layout():
-                        continue
-                    lo = item.layout()
-                    row_keys = []
-                    for j in range(lo.count()):
-                        sub = lo.itemAt(j)
-                        if sub and sub.widget():
-                            key = getattr(sub.widget(), '_settings_key', '')
-                            if key:
-                                row_keys.append(key)
-                    if row_keys:
-                        row_state.append(row_keys)
+            for row in getattr(self, '_mod_toolbar_rows', []):
+                row_keys = []
+                for j in range(row.count()):
+                    sub = row.itemAt(j)
+                    if sub and sub.widget():
+                        key = getattr(sub.widget(), '_settings_key', '')
+                        if key in top_bar_keys:
+                            row_keys.append(key)
+                if row_keys:
+                    row_state.append(row_keys)
 
             path = cfg / 'model_workshop.json'
             try:
