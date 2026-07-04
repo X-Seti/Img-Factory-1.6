@@ -1,5 +1,5 @@
 # X-Seti - May13 2026 - IMG Factory 1.6 - DFF OpenGL Viewport
-# this belongs in apps/methods/dff_viewport.py - Version: 9
+# this belongs in apps/methods/dff_viewport.py - Version: 10
 """
 DFFViewport - Shared OpenGL viewport for DFF model rendering.
 Used by Model Viewer, Model Workshop, Vehicle Workshop (docked).
@@ -397,61 +397,59 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         self._setup_lighting()
 
-    def _setup_lighting(self): #vers 5
+    def _setup_lighting(self): #vers 6
         if not OPENGL_AVAILABLE: return
-        import ctypes, ctypes.util
+        import ctypes
 
-        # GL constants — hardcoded to avoid importing from PyOpenGL
-        # which triggers the recursive array converter on Python 3.14
-        _GL_LIGHTING     = 0x0B50
-        _GL_LIGHT0       = 0x4000
-        _GL_POSITION     = 0x1203
-        _GL_AMBIENT      = 0x1200
-        _GL_DIFFUSE      = 0x1201
-        _GL_SPECULAR     = 0x1202
-        _GL_COLOR_MATERIAL          = 0x0B57
-        _GL_FRONT_AND_BACK          = 0x0408
-        _GL_AMBIENT_AND_DIFFUSE     = 0x1602
+        _GL_LIGHTING             = 0x0B50
+        _GL_LIGHT0               = 0x4000
+        _GL_POSITION             = 0x1203
+        _GL_AMBIENT              = 0x1200
+        _GL_DIFFUSE              = 0x1201
+        _GL_SPECULAR             = 0x1202
+        _GL_COLOR_MATERIAL       = 0x0B57
+        _GL_FRONT_AND_BACK       = 0x0408
+        _GL_AMBIENT_AND_DIFFUSE  = 0x1602
 
-        # Load libGL directly — try several names used across distros
         _libGL = None
-        for _name in ('libGL.so.1', 'libGL.so', 'libGL.so.1.7.0',
-                      'libOpenGL.so.0', 'libGL'):
+        for _name in ('libGL.so.1', 'libGL.so', '/usr/lib/libGL.so.1',
+                      '/usr/lib64/libGL.so.1', 'libOpenGL.so.0',
+                      '/usr/lib/x86_64-linux-gnu/libGL.so.1',
+                      '/usr/lib/libGL.so', '/usr/lib64/libGL.so'):
             try:
                 _libGL = ctypes.CDLL(_name)
-                _ = _libGL.glEnable   # confirm it has GL symbols
+                _libGL.glEnable  # confirm symbol exists
                 break
             except Exception:
                 _libGL = None
 
         if _libGL is None:
-            # Last resort — ask ctypes.util
-            _found = ctypes.util.find_library('GL')
-            if _found:
+            # Glob search as final fallback — avoids ctypes.util which
+            # also recurses on Python 3.14
+            import glob
+            for _p in glob.glob('/usr/lib*/**/libGL.so*', recursive=True):
                 try:
-                    _libGL = ctypes.CDLL(_found)
+                    _libGL = ctypes.CDLL(_p)
+                    _libGL.glEnable
+                    break
                 except Exception:
-                    pass
+                    _libGL = None
 
         if _libGL is None:
-            print("[DFFViewport] _setup_lighting: libGL not found, lighting disabled")
+            print("[DFFViewport] libGL not found — lighting disabled")
             return
 
         _f4 = ctypes.c_float * 4
-        _glEnable   = _libGL.glEnable
-        _glLightfv  = _libGL.glLightfv
-        _glColorMat = _libGL.glColorMaterial
-
-        _glEnable(_GL_LIGHTING)
-        _glEnable(_GL_LIGHT0)
+        _libGL.glEnable(_GL_LIGHTING)
+        _libGL.glEnable(_GL_LIGHT0)
         ld = self._light_dir
         a, d = self._ambient, self._diffuse
-        _glLightfv(_GL_LIGHT0, _GL_POSITION, _f4(ld[0], ld[1], ld[2], ld[3]))
-        _glLightfv(_GL_LIGHT0, _GL_AMBIENT,  _f4(a, a, a, 1.0))
-        _glLightfv(_GL_LIGHT0, _GL_DIFFUSE,  _f4(d, d, d, 1.0))
-        _glLightfv(_GL_LIGHT0, _GL_SPECULAR, _f4(0.3, 0.3, 0.3, 1.0))
-        _glEnable(_GL_COLOR_MATERIAL)
-        _glColorMat(_GL_FRONT_AND_BACK, _GL_AMBIENT_AND_DIFFUSE)
+        _libGL.glLightfv(_GL_LIGHT0, _GL_POSITION, _f4(ld[0], ld[1], ld[2], ld[3]))
+        _libGL.glLightfv(_GL_LIGHT0, _GL_AMBIENT,  _f4(a, a, a, 1.0))
+        _libGL.glLightfv(_GL_LIGHT0, _GL_DIFFUSE,  _f4(d, d, d, 1.0))
+        _libGL.glLightfv(_GL_LIGHT0, _GL_SPECULAR, _f4(0.3, 0.3, 0.3, 1.0))
+        _libGL.glEnable(_GL_COLOR_MATERIAL)
+        _libGL.glColorMaterial(_GL_FRONT_AND_BACK, _GL_AMBIENT_AND_DIFFUSE)
 
     def resizeGL(self, w, h): #vers 1
         if not OPENGL_AVAILABLE: return
