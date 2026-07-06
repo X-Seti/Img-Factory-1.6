@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 142
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 143
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -8804,21 +8804,102 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._sel_face_btn   = None
         self._sel_poly_btn   = None
 
-    def _toolbar_context_menu(self, toolbar, pos): #vers 1
-        """Right-click context menu on any toolbar — shows Ribbon Manager."""
+    def _toolbar_context_menu(self, toolbar, pos): #vers 2
+        """Right-click context menu on any toolbar."""
         from PyQt6.QtWidgets import QMenu
         menu = QMenu(self)
+
+        # Icon Set submenu
+        icon_set_menu = menu.addMenu("Icon Set")
+        current = self._get_icon_set()
+        for label, key in [("Default (theme-aware)", 'default'),
+                            ("3ds Max style",         '3dsmax')]:
+            act = icon_set_menu.addAction(label)
+            act.setCheckable(True)
+            act.setChecked(current == key)
+            act.triggered.connect(lambda _, k=key: self._switch_icon_set(k))
+
+        # Icon Size submenu
+        size_menu = menu.addMenu("Icon Size")
+        from PyQt6.QtWidgets import QSlider, QWidgetAction
+        slider = QSlider(Qt.Orientation.Horizontal)
+        slider.setRange(14, 40)
+        slider.setSingleStep(2)
+        try:
+            import json
+            from pathlib import Path
+            data = json.loads((Path.home()/'.config'/'imgfactory'/'model_workshop.json').read_text())
+            slider.setValue(data.get('icon_scale', 20))
+        except Exception:
+            slider.setValue(20)
+        slider.valueChanged.connect(self._apply_icon_scale)
+        wa = QWidgetAction(menu)
+        wa.setDefaultWidget(slider)
+        size_menu.addAction(wa)
+
+        menu.addSeparator()
         menu.addAction("Ribbon Manager...", self.open_ribbon_manager)
         menu.addSeparator()
+        from PyQt6.QtWidgets import QToolBar as _QTB
         menu.addAction("Lock All Toolbars",
             lambda: [tb.setMovable(False)
-                     for tb in self._inner_mw.findChildren(
-                         __import__('PyQt6.QtWidgets', fromlist=['QToolBar']).QToolBar)])
+                     for tb in self._inner_mw.findChildren(_QTB)])
         menu.addAction("Unlock All Toolbars",
             lambda: [tb.setMovable(True)
-                     for tb in self._inner_mw.findChildren(
-                         __import__('PyQt6.QtWidgets', fromlist=['QToolBar']).QToolBar)])
+                     for tb in self._inner_mw.findChildren(_QTB)])
         menu.exec(toolbar.mapToGlobal(pos))
+
+    def _switch_icon_set(self, key: str): #vers 1
+        """Save icon set choice and rebuild toolbars to apply it."""
+        try:
+            import json
+            from pathlib import Path
+            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            try:
+                data = json.loads(path.read_text())
+            except Exception:
+                data = {}
+            data['icon_set'] = key
+            path.write_text(json.dumps(data, indent=2))
+        except Exception as _e:
+            print(f"[icon_set] save failed: {_e}")
+        # Rebuild toolbars live
+        self._rebuild_toolbars()
+
+    def _rebuild_toolbars(self): #vers 1
+        """Remove all existing toolbars and rebuild with the current icon set."""
+        mw = getattr(self, '_inner_mw', None)
+        if mw is None:
+            return
+        from PyQt6.QtWidgets import QToolBar
+        for tb in list(mw.findChildren(QToolBar)):
+            mw.removeToolBar(tb)
+            tb.deleteLater()
+        self._ribbon_actions = []
+        icon_color = self._get_icon_color()
+        self._build_toolbars(mw, icon_color)
+        self._set_status(f"Icon set applied")
+
+    def _apply_icon_scale(self, px: int): #vers 1
+        """Apply icon size to all toolbars live and persist it."""
+        mw = getattr(self, '_inner_mw', None)
+        if mw:
+            from PyQt6.QtWidgets import QToolBar
+            from PyQt6.QtCore import QSize
+            for tb in mw.findChildren(QToolBar):
+                tb.setIconSize(QSize(px, px))
+        try:
+            import json
+            from pathlib import Path
+            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            try:
+                data = json.loads(path.read_text())
+            except Exception:
+                data = {}
+            data['icon_scale'] = px
+            path.write_text(json.dumps(data, indent=2))
+        except Exception:
+            pass
 
     def open_ribbon_manager(self): #vers 1
         """Open the Ribbon Manager dialog."""
