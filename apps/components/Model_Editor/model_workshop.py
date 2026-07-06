@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 129
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 130
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -8567,7 +8567,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         _ribbon_actions: list of dicts describing every action for the ribbon
         manager — {action, toolbar, name, icon_fn, checkable}."""
         from PyQt6.QtWidgets import QToolBar
-        from PyQt6.QtGui import QAction
         icon_size = QSize(20, 20)
         pw = self.preview_widget
         self._ribbon_actions = []   # registry for ribbon manager
@@ -8615,7 +8614,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         # ── Ribbon 1: Selection ───────────────────────────────────────────
         tb_sel = _tb("Selection")
-        from PyQt6.QtWidgets import QActionGroup, QLabel as _QL
+        from PyQt6.QtGui import QAction, QActionGroup
+        from PyQt6.QtWidgets import QLabel as _QL
 
         # V/E/F/P as exclusive QActions in an action group
         sel_group = QActionGroup(mw)
