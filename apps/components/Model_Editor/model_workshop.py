@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 138
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 139
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -8738,7 +8738,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # ── Ribbon 5: Render ──────────────────────────────────────────────
         tb_rend = _tb("Render", Qt.ToolBarArea.RightToolBarArea)
         _act(tb_rend, "Render Settings",
-             self.icon_factory.color_picker_icon,
+             self.icon_factory.render_settings_icon,
              self._open_render_settings_dialog)
         _act(tb_rend, "Toggle Mesh",
              self.icon_factory.mesh_icon,
@@ -8749,7 +8749,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
              lambda v: pw.set_backface(v),
              checkable=True, attr='_backface_act')
         _act(tb_rend, "Cycle Render Style",
-             self.icon_factory.color_picker_icon,
+             self.icon_factory.render_style_icon,
              self._cycle_view_render_style)
         tb_rend.addSeparator()
         _act(tb_rend, "Toggle Shading",

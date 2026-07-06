@@ -1266,6 +1266,47 @@ class SVGIconFactory: #vers 8
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
+    @staticmethod
+    def render_style_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Cycle render style — sphere half solid half wireframe,
+        the classic 3D app render mode indicator."""
+        svg_data = '''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <clipPath id="lhalf"><rect x="0" y="0" width="12" height="24"/></clipPath>
+            <clipPath id="rhalf"><rect x="12" y="0" width="12" height="24"/></clipPath>
+            <!-- Left half: solid filled -->
+            <circle cx="12" cy="12" r="9"
+                fill="currentColor" opacity="0.7" clip-path="url(#lhalf)"/>
+            <!-- Right half: wireframe lines -->
+            <circle cx="12" cy="12" r="9"
+                stroke="currentColor" stroke-width="1.5" fill="none"
+                clip-path="url(#rhalf)"/>
+            <ellipse cx="12" cy="12" rx="4.5" ry="9"
+                stroke="currentColor" stroke-width="1" fill="none"
+                clip-path="url(#rhalf)"/>
+            <line x1="12" y1="3" x2="12" y2="21"
+                stroke="currentColor" stroke-width="1.5"/>
+            <!-- Outer ring -->
+            <circle cx="12" cy="12" r="9"
+                stroke="currentColor" stroke-width="1.8" fill="none"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def render_settings_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Render settings — three horizontal sliders, standard settings metaphor."""
+        svg_data = '''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <line x1="3" y1="6"  x2="21" y2="6"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="3" y1="12" x2="21" y2="12"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="3" y1="18" x2="21" y2="18"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <circle cx="8"  cy="6"  r="2.5" fill="currentColor"/>
+            <circle cx="16" cy="12" r="2.5" fill="currentColor"/>
+            <circle cx="10" cy="18" r="2.5" fill="currentColor"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
 
     @staticmethod #added from img Factory
     def _colour_picker_icon(size: int = 24, color: str = None) -> QIcon: #vers 2
