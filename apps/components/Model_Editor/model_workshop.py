@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 136
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 137
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -8302,12 +8302,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._import_model)
         btn_layout.addWidget(self.import_btn)
 
-        # Export (COL, CST, OBS, 3DS, OBJ…)
+        # Export (multiple formats — geometry + COL)
         self.export_col_btn = _icon_btn(
-            self.icon_factory.export_icon(color=icon_color)
-                if hasattr(self.icon_factory, 'export_icon')
-                else self.icon_factory.package_icon(color=icon_color),
-            "Export — COL, CST, OBS, 3DS, OBJ and other formats",
+            self.icon_factory.multi_export_icon(color=icon_color),
+            "Export — OBJ, COL, 3DS, FBX and other formats",
             self._export_model_menu)
         btn_layout.addWidget(self.export_col_btn)
 
@@ -8318,19 +8316,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._undo_last_action)
         btn_layout.addWidget(self.undo_col_btn)
 
-        # 3D View — after Undo per TODO
+        # 3D View
         self._mini_3d_btn = _icon_btn(
             self.icon_factory.viewport_icon(color=icon_color),
             "Open GL Model Viewer",
             self._open_gl_viewer)
         btn_layout.addWidget(self._mini_3d_btn)
-
-        # Objs/Col export — after 3D View per TODO
-        self._mini_export_btn = _icon_btn(
-            self.icon_factory.multi_export_icon(color=icon_color),
-            "Export geometry / COL (multiple formats)",
-            self._export_model_menu)
-        btn_layout.addWidget(self._mini_export_btn)
 
         btn_layout.addStretch()
         layout.addWidget(self._middle_btn_row)
@@ -10368,8 +10359,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         menu.addAction("Export as OBS (OpenBVE)",
             lambda: self._export_not_implemented("OBS"))
         # Pop up below whichever button called us
-        btn = getattr(self, '_mini_export_btn',
-              getattr(self, 'export_col_btn', None))
+        btn = getattr(self, 'export_col_btn', None)
         if btn:
             menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
         else:
