@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 135
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 136
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -8320,16 +8320,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         # 3D View — after Undo per TODO
         self._mini_3d_btn = _icon_btn(
-            self.icon_factory.box_icon(color=icon_color),
+            self.icon_factory.viewport_icon(color=icon_color),
             "Open GL Model Viewer",
             self._open_gl_viewer)
         btn_layout.addWidget(self._mini_3d_btn)
 
         # Objs/Col export — after 3D View per TODO
         self._mini_export_btn = _icon_btn(
-            self.icon_factory.package_icon(color=icon_color),
-            "Export geometry / COL",
-            self.export_all)
+            self.icon_factory.multi_export_icon(color=icon_color),
+            "Export geometry / COL (multiple formats)",
+            self._export_model_menu)
         btn_layout.addWidget(self._mini_export_btn)
 
         btn_layout.addStretch()
@@ -8405,23 +8405,23 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.load_txd_btn.setToolTip("Open TXD — uses IDE link if available, else browse")
         self.load_txd_btn.clicked.connect(self._open_txd_smart)
 
-        self.export_ojs_btn = QPushButton("Objs/Col") #TODO goes to the standalone title bar, and be added to the docked bar icons.
+        self.export_ojs_btn = QPushButton("Export")
         self.export_ojs_btn.setFont(self.button_font)
         self.export_ojs_btn.setFixedHeight(26)
-        self.export_ojs_btn.setToolTip("Export geometry / COL")
-        self.export_ojs_btn.clicked.connect(self.export_all)
+        self.export_ojs_btn.setToolTip("Export geometry / COL (multiple formats)")
+        self.export_ojs_btn.clicked.connect(self._export_model_menu)
         try:
-            self.export_ojs_btn.setIcon(self.icon_factory.package_icon(color=icon_color))
+            self.export_ojs_btn.setIcon(self.icon_factory.multi_export_icon(color=icon_color))
             self.export_ojs_btn.setIconSize(QSize(14, 14))
         except Exception: pass
 
-        self.gl_viewer_btn = QPushButton("3D View")  #TODO this needs to be added to the title bar icons after UNDO, or docked icon row in the middle bar.
+        self.gl_viewer_btn = QPushButton("3D View")
         self.gl_viewer_btn.setFont(self.button_font)
         self.gl_viewer_btn.setFixedHeight(26)
         self.gl_viewer_btn.setToolTip("Open GL Model Viewer")
         self.gl_viewer_btn.clicked.connect(self._open_gl_viewer)
         try:
-            self.gl_viewer_btn.setIcon(self.icon_factory.box_icon(color=icon_color))
+            self.gl_viewer_btn.setIcon(self.icon_factory.viewport_icon(color=icon_color))
             self.gl_viewer_btn.setIconSize(QSize(14, 14))
         except Exception: pass
         samerow_layout.addWidget(self.gl_viewer_btn)
@@ -10350,23 +10350,30 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             f"Imported: {fname}\n{len(verts)} vertices, {len(faces)} faces\n"
             f"Note: OBJ geometry loaded as preview. DFF write-back in next session.")
 
-    def _export_model_menu(self): #vers 1
-        """Show export format menu: COL, CST, OBS, 3DS, OBJ…"""
+    def _export_model_menu(self): #vers 2
+        """Show export format menu — DFF geometry + COL + other formats."""
         from PyQt6.QtWidgets import QMenu
         menu = QMenu(self)
-        menu.addAction("Export as OBJ (Wavefront)",  self._export_dff_obj)
-        menu.addAction("Export as COL (collision)",   self._export_col_data)
-        menu.addSeparator()
+        menu.addSection("Geometry")
+        menu.addAction("Export as OBJ (Wavefront)",    self._export_dff_obj)
         menu.addAction("Export as 3DS (3D Studio)",
             lambda: self._export_not_implemented("3DS"))
+        menu.addAction("Export as FBX",
+            lambda: self._export_not_implemented("FBX"))
+        menu.addSection("Collision")
+        menu.addAction("Export as COL (collision)",    self._export_col_data)
+        menu.addSection("Other")
         menu.addAction("Export as CST (Crysis)",
             lambda: self._export_not_implemented("CST"))
         menu.addAction("Export as OBS (OpenBVE)",
             lambda: self._export_not_implemented("OBS"))
-        menu.addAction("Export as FBX",
-            lambda: self._export_not_implemented("FBX"))
-        menu.exec(self.export_col_btn.mapToGlobal(
-            self.export_col_btn.rect().bottomLeft()))
+        # Pop up below whichever button called us
+        btn = getattr(self, '_mini_export_btn',
+              getattr(self, 'export_col_btn', None))
+        if btn:
+            menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
+        else:
+            menu.exec(self.cursor().pos())
 
     def _export_not_implemented(self, fmt: str): #vers 1
         from PyQt6.QtWidgets import QMessageBox
@@ -13017,43 +13024,41 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         else:
             QMessageBox.warning(self, "Extract Failed", msg)
 
-    def _save_file(self): #vers 2
-        """Save current COL file — serialises all models via COLWriter."""
-        if not getattr(self, "current_col_file", None):
-            QMessageBox.warning(self, "Save", "No COL file loaded to save")
+    def _save_file(self): #vers 3
+        """Save current DFF model. Falls back to Save As if no path set."""
+        from PyQt6.QtWidgets import QFileDialog
+        dff_model = getattr(self, '_current_dff_model', None)
+        dff_path  = getattr(self, '_current_dff_path', '') or ''
+
+        if not dff_model:
+            QMessageBox.warning(self, "Save", "No DFF model loaded to save.")
             return
 
-        if not self.current_file_path:
-            self._save_file_as()
-            return
-
-        models = getattr(self.current_col_file, 'models', [])
-        if not models:
-            QMessageBox.warning(self, "Save", "No models to save.")
-            return
-
-        try:
-            from apps.components.Model_Editor.depends.col_workshop_parser import COLWriter
-            raw = COLWriter.write_file(models)
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            QMessageBox.critical(self, "Serialise Error",
-                f"Failed to serialise COL data:\n{e}")
-            return
+        if not dff_path:
+            path, _ = QFileDialog.getSaveFileName(
+                self, "Save DFF", '',
+                "DFF Files (*.dff);;MDL Files (*.mdl);;All Files (*)")
+            if not path:
+                return
+            dff_path = path
 
         try:
-            with open(self.current_file_path, 'wb') as f:
+            from apps.components.Model_Editor.depends.dff_parser import DFFWriter
+            raw = DFFWriter.write(dff_model)
+            with open(dff_path, 'wb') as f:
                 f.write(raw)
-            # Update raw_data so a second Save uses the fresh bytes
-            self.current_col_file.raw_data = raw
-            fname = os.path.basename(self.current_file_path)
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(
-                    f"Saved COL: {fname} ({len(models)} models, {len(raw):,} bytes)")
+            self._current_dff_path = dff_path
+            fname = os.path.basename(dff_path)
             self._set_status(f"Saved: {fname}")
+            mw = getattr(self, 'main_window', None)
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(f"Saved DFF: {fname} ({len(raw):,} bytes)")
+        except NotImplementedError:
+            QMessageBox.information(self, "Save DFF",
+                "DFF round-trip save is not yet fully implemented.\n"
+                "Use Export → OBJ for now.")
         except Exception as e:
-            QMessageBox.critical(self, "Write Error", str(e))
+            QMessageBox.critical(self, "Save Error", str(e))
 
 
     def _save_file_as(self): #vers 1

@@ -765,6 +765,43 @@ class SVGIconFactory: #vers 8
                 fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def multi_export_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Multi-format export icon — stacked arrows suggesting multiple outputs."""
+        svg_data = '''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 3v10M8 7l4-4 4 4"
+                stroke="currentColor" stroke-width="2.2"
+                fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M12 9v8M9 13l3-3 3 3"
+                stroke="currentColor" stroke-width="1.5" opacity="0.55"
+                fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            <line x1="4" y1="20" x2="20" y2="20"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="4" y1="22" x2="14" y2="22"
+                stroke="currentColor" stroke-width="1.5" opacity="0.5" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def viewport_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """3D viewport / model viewer icon — screen with crosshair axes."""
+        svg_data = '''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <rect x="2" y="3" width="20" height="15" rx="2"
+                stroke="currentColor" stroke-width="1.8" fill="none"/>
+            <line x1="12" y1="3" x2="12" y2="18"
+                stroke="currentColor" stroke-width="1" opacity="0.4"/>
+            <line x1="2" y1="10.5" x2="22" y2="10.5"
+                stroke="currentColor" stroke-width="1" opacity="0.4"/>
+            <line x1="12" y1="10.5" x2="18" y2="6"
+                stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <circle cx="12" cy="10.5" r="1.5" fill="currentColor"/>
+            <line x1="8" y1="21" x2="16" y2="21"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="12" y1="18" x2="12" y2="21"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
     
 
     @staticmethod
