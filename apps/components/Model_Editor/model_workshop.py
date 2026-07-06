@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 132
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 133
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -8328,7 +8328,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         # 3D View — after Undo per TODO
         self._mini_3d_btn = _icon_btn(
-            self.icon_factory.cube_icon(color=icon_color),
+            self.icon_factory.box_icon(color=icon_color),
             "Open GL Model Viewer",
             self._open_gl_viewer)
         btn_layout.addWidget(self._mini_3d_btn)
@@ -8429,7 +8429,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.gl_viewer_btn.setToolTip("Open GL Model Viewer")
         self.gl_viewer_btn.clicked.connect(self._open_gl_viewer)
         try:
-            self.gl_viewer_btn.setIcon(self.icon_factory.cube_icon(color=icon_color))
+            self.gl_viewer_btn.setIcon(self.icon_factory.box_icon(color=icon_color))
             self.gl_viewer_btn.setIconSize(QSize(14, 14))
         except Exception: pass
         samerow_layout.addWidget(self.gl_viewer_btn)
