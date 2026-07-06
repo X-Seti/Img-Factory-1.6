@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 139
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 140
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -8753,11 +8753,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
              self._cycle_view_render_style)
         tb_rend.addSeparator()
         _act(tb_rend, "Toggle Shading",
-             self.icon_factory.settings_icon,
+             self.icon_factory.shading_sphere_icon,
              lambda v: self._toggle_viewport_shading(),
              checkable=True, checked=True, attr='_shading_act')
         _act(tb_rend, "Light Setup",
-             self.icon_factory.settings_icon,
+             self.icon_factory.light_icon,
              self._open_light_setup_dialog, attr='_light_setup_act')
 
         # Store toolbar refs

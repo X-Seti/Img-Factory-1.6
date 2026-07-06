@@ -3343,6 +3343,21 @@ class SVGIconFactory: #vers 8
                   stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.7"/>
         </svg>''', size, color)
 
+    @staticmethod
+    def shading_sphere_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+        """Toggle shading — sphere with highlight suggesting smooth shading on."""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <!-- Sphere body -->
+            <circle cx="12" cy="12" r="9"
+                stroke="currentColor" stroke-width="1.8"
+                fill="currentColor" fill-opacity="0.3"/>
+            <!-- Highlight spot — top-left, suggests a light source -->
+            <circle cx="9" cy="9" r="3"
+                fill="currentColor" fill-opacity="0.6"/>
+            <circle cx="8" cy="8" r="1.5"
+                fill="currentColor" fill-opacity="0.9"/>
+        </svg>''', size, color)
+
 
     @staticmethod
     def dp_lighten_icon(size: int = 42, color: str = None, bg_color: str = None) -> 'QIcon':
