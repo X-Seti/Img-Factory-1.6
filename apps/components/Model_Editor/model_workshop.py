@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 140
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 141
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -8558,16 +8558,27 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         return panel
 
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 2
-        """Build all QToolBar instances using QAction (not QPushButton widgets).
-        QAction gives native toolbar drag-to-reorder, proper checkable state,
-        and clean move-between-toolbars via removeAction/addAction.
-        _ribbon_actions: list of dicts describing every action for the ribbon
-        manager — {action, toolbar, name, icon_fn, checkable}."""
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 3
+        """Build all QToolBar instances using QAction.
+        Icon set resolved once — 'default' uses SVGIconFactory with currentColor,
+        '3dsmax' uses MaxIconSet with hardcoded Max palette."""
         from PyQt6.QtWidgets import QToolBar
         icon_size = QSize(20, 20)
         pw = self.preview_widget
-        self._ribbon_actions = []   # registry for ribbon manager
+        self._ribbon_actions = []
+
+        # Resolve icon set once for all buttons
+        _icon_set = self._get_icon_set()
+        if _icon_set == '3dsmax':
+            from apps.components.Model_Editor.depends.max_icon_set import MaxIconSet as _IS
+        else:
+            _IS = None
+
+        def _icon(default_fn, max_name: str = None):
+            """Return correct icon function for active icon set."""
+            if _IS and max_name and hasattr(_IS, max_name):
+                return getattr(_IS, max_name)
+            return default_fn
 
         def _tb(name, area=Qt.ToolBarArea.TopToolBarArea):
             tb = QToolBar(name, mw)
@@ -8619,10 +8630,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         sel_group = QActionGroup(mw)
         sel_group.setExclusive(True)
 
-        def _sel_act(attr, name, mode, icon_fn_name):
+        def _sel_act(attr, name, mode, icon_fn_name, max_name=None):
             act = QAction(name, mw)
             try:
-                act.setIcon(getattr(self.icon_factory, icon_fn_name)(color=icon_color))
+                fn = _icon(getattr(self.icon_factory, icon_fn_name), max_name or icon_fn_name)
+                act.setIcon(fn(color=icon_color))
             except Exception:
                 pass
             act.setToolTip(name)
@@ -8639,10 +8651,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             setattr(self, attr, act)
             return act
 
-        _sel_act('_sel_vert_act', 'Vertex Select', 'vertex', 'vertex_select_icon')
-        _sel_act('_sel_edge_act', 'Edge Select',   'edge',   'edge_select_icon')
-        _sel_act('_sel_face_act', 'Face Select',   'face',   'face_select_icon')
-        _sel_act('_sel_poly_act', 'Polygon Select','poly',   'poly_select_icon')
+        _sel_act('_sel_vert_act', 'Vertex Select', 'vertex', 'vertex_select_icon', 'vertex_select_icon')
+        _sel_act('_sel_edge_act', 'Edge Select',   'edge',   'edge_select_icon',   'edge_select_icon')
+        _sel_act('_sel_face_act', 'Face Select',   'face',   'face_select_icon',   'face_select_icon')
+        _sel_act('_sel_poly_act', 'Polygon Select','poly',   'poly_select_icon',   'poly_select_icon')
         self._sel_face_act.setChecked(True)
         self._select_mode_group = sel_group
 
@@ -8655,7 +8667,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         tb_sel.addSeparator()
 
         _act(tb_sel, "Backface Culling",
-             self.icon_factory.backface_icon,
+             _icon(self.icon_factory.backface_icon, 'backface_cull_icon'),
              lambda v: self._toggle_backface_cull(),
              checkable=True, attr='_backface_cull_act')
 
@@ -8668,12 +8680,20 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         from apps.components.Model_Editor.depends.max_svg_icons import MaxSVGIcons
         tb_snap = _tb("Snap Targets")
 
-        def _snap_act(attr, target, name, icon_fn_name):
-            try:
-                icon = getattr(MaxSVGIcons, icon_fn_name)(size=20, color=icon_color)
-            except Exception as _e:
-                print(f"[snap icon] {icon_fn_name}: {_e}")
-                icon = self.icon_factory.settings_icon(color=icon_color)
+        def _snap_act(attr, target, name, icon_fn_name, max_name=None):
+            # Resolve icon — Max set overrides MaxSVGIcons snap icons
+            if _IS and max_name and hasattr(_IS, max_name):
+                try:
+                    icon = getattr(_IS, max_name)(size=20)
+                except Exception as _e:
+                    print(f"[max snap icon] {max_name}: {_e}")
+                    icon = self.icon_factory.settings_icon(color=icon_color)
+            else:
+                try:
+                    icon = getattr(MaxSVGIcons, icon_fn_name)(size=20, color=icon_color)
+                except Exception as _e:
+                    print(f"[snap icon] {icon_fn_name}: {_e}")
+                    icon = self.icon_factory.settings_icon(color=icon_color)
             act = QAction(icon, name, mw)
             act.setToolTip(name)
             act.setCheckable(True)
@@ -8694,70 +8714,70 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             setattr(self, attr, act)
             return act
 
-        _snap_act('_snap_grid_act',     'grid',     'Snap: Grid Points', 'snap_grid_icon')
-        _snap_act('_snap_pivot_act',    'pivot',    'Snap: Pivot',       'snap_pivot_icon')
-        _snap_act('_snap_vertex_act',   'vertex',   'Snap: Vertex',      'snap_vertex_icon')
-        _snap_act('_snap_endpoint_act', 'endpoint', 'Snap: Endpoint',    'snap_endpoint_icon')
-        _snap_act('_snap_midpoint_act', 'midpoint', 'Snap: Midpoint',    'snap_midpoint_icon')
-        _snap_act('_snap_edge_act',     'edge',     'Snap: Edge',        'snap_edge_icon')
-        _snap_act('_snap_face_act',     'face',     'Snap: Face',        'snap_face_icon')
+        _snap_act('_snap_grid_act',     'grid',     'Snap: Grid Points', 'snap_grid_icon',     'snap_grid_icon')
+        _snap_act('_snap_pivot_act',    'pivot',    'Snap: Pivot',       'snap_pivot_icon',    'snap_pivot_icon')
+        _snap_act('_snap_vertex_act',   'vertex',   'Snap: Vertex',      'snap_vertex_icon',   'snap_vertex_icon')
+        _snap_act('_snap_endpoint_act', 'endpoint', 'Snap: Endpoint',    'snap_endpoint_icon', 'snap_endpoint_icon')
+        _snap_act('_snap_midpoint_act', 'midpoint', 'Snap: Midpoint',    'snap_midpoint_icon', 'snap_midpoint_icon')
+        _snap_act('_snap_edge_act',     'edge',     'Snap: Edge',        'snap_edge_icon',     'snap_edge_icon')
+        _snap_act('_snap_face_act',     'face',     'Snap: Face',        'snap_face_icon',     'snap_face_icon')
         tb_snap.addSeparator()
         _act(tb_snap, "Axis Constraints",
-             lambda color=icon_color: MaxSVGIcons.snap_axis_constraint_icon(
-                 size=20, color=color),
+             _icon(lambda color=icon_color: MaxSVGIcons.snap_axis_constraint_icon(
+                 size=20, color=color), 'snap_axis_icon'),
              checkable=True, attr='_snap_axis_act')
 
         # ── Ribbon 3: Edit Geometry ───────────────────────────────────────
         tb_geo = _tb("Edit Geometry")
         _act(tb_geo, "Create Primitive",
-             lambda color=icon_color: MaxSVGIcons.create_primitive_icon(
-                 size=20, color=color),
+             _icon(lambda color=icon_color: MaxSVGIcons.create_primitive_icon(
+                 size=20, color=color), 'create_primitive_icon'),
              callback=self._create_primitive_dialog, attr='_prim_act')
         _act(tb_geo, "Extrude Faces",
-             lambda color=icon_color: MaxSVGIcons.extrude_icon(
-                 size=20, color=color),
+             _icon(lambda color=icon_color: MaxSVGIcons.extrude_icon(
+                 size=20, color=color), 'extrude_icon'),
              callback=self._extrude_dialog, attr='_extrude_act')
 
         # ── Ribbon 4: Navigation ──────────────────────────────────────────
         tb_nav = _tb("Navigation", Qt.ToolBarArea.RightToolBarArea)
-        _act(tb_nav, "Zoom In",       self.icon_factory.zoom_in_icon,  pw.zoom_in)
-        _act(tb_nav, "Zoom Out",      self.icon_factory.zoom_out_icon, pw.zoom_out)
-        _act(tb_nav, "Reset View",    self.icon_factory.reset_view_icon,   pw.reset_view)
-        _act(tb_nav, "Fit to Window", self.icon_factory.fit_icon,      pw.fit_to_window)
+        _act(tb_nav, "Zoom In",       _icon(self.icon_factory.zoom_in_icon,   'zoom_in_icon'),   pw.zoom_in)
+        _act(tb_nav, "Zoom Out",      _icon(self.icon_factory.zoom_out_icon,  'zoom_out_icon'),  pw.zoom_out)
+        _act(tb_nav, "Reset View",    _icon(self.icon_factory.reset_view_icon,'reset_view_icon'),pw.reset_view)
+        _act(tb_nav, "Fit to Window", _icon(self.icon_factory.fit_icon,       'fit_view_icon'),  pw.fit_to_window)
         tb_nav.addSeparator()
-        for label, yaw, pitch, icon_fn in [
-            ("View XY",  0,   0,  self.icon_factory.view_xy_icon),
-            ("View XZ",  0,  90,  self.icon_factory.view_xz_icon),
-            ("View YZ",  90,  0,  self.icon_factory.view_yz_icon),
-            ("View Iso", 30, 20,  self.icon_factory.view_iso_icon),
+        for label, yaw, pitch, default_fn, max_name in [
+            ("View XY",  0,   0,  self.icon_factory.view_xy_icon,  'view_xy_icon'),
+            ("View XZ",  0,  90,  self.icon_factory.view_xz_icon,  'view_xz_icon'),
+            ("View YZ",  90,  0,  self.icon_factory.view_yz_icon,  'view_yz_icon'),
+            ("View Iso", 30, 20,  self.icon_factory.view_iso_icon, 'view_iso_icon'),
         ]:
             def _set_v(checked=False, y=yaw, p=pitch):
                 pw._yaw = y; pw._pitch = p; pw.update()
-            _act(tb_nav, label, icon_fn, _set_v)
+            _act(tb_nav, label, _icon(default_fn, max_name), _set_v)
 
         # ── Ribbon 5: Render ──────────────────────────────────────────────
         tb_rend = _tb("Render", Qt.ToolBarArea.RightToolBarArea)
         _act(tb_rend, "Render Settings",
-             self.icon_factory.render_settings_icon,
+             _icon(self.icon_factory.render_settings_icon, 'render_settings_icon'),
              self._open_render_settings_dialog)
         _act(tb_rend, "Toggle Mesh",
-             self.icon_factory.mesh_icon,
+             _icon(self.icon_factory.mesh_icon, 'toggle_mesh_icon'),
              lambda v: pw.set_show_mesh(v),
              checkable=True, checked=True, attr='_view_mesh_act')
         _act(tb_rend, "Toggle Backface",
-             self.icon_factory.toggle_backface_icon,
+             _icon(self.icon_factory.toggle_backface_icon, 'toggle_backface_icon'),
              lambda v: pw.set_backface(v),
              checkable=True, attr='_backface_act')
         _act(tb_rend, "Cycle Render Style",
-             self.icon_factory.render_style_icon,
+             _icon(self.icon_factory.render_style_icon, 'render_style_icon'),
              self._cycle_view_render_style)
         tb_rend.addSeparator()
         _act(tb_rend, "Toggle Shading",
-             self.icon_factory.shading_sphere_icon,
+             _icon(self.icon_factory.shading_sphere_icon, 'shading_icon'),
              lambda v: self._toggle_viewport_shading(),
              checkable=True, checked=True, attr='_shading_act')
         _act(tb_rend, "Light Setup",
-             self.icon_factory.light_icon,
+             _icon(self.icon_factory.light_icon, 'light_setup_icon'),
              self._open_light_setup_dialog, attr='_light_setup_act')
 
         # Store toolbar refs

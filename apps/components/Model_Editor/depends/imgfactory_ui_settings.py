@@ -304,8 +304,8 @@ class IMGFactorySettingsDialog(QDialog): #vers 3
         from PyQt6.QtWidgets import QComboBox
         set_row.addWidget(QLabel("Icon style:"))
         self.icon_set_combo = QComboBox()
-        self.icon_set_combo.addItem("Default (single-color)", 'default')
-        self.icon_set_combo.addItem("3ds Max style (two-tone accent)", '3dsmax')
+        self.icon_set_combo.addItem("Default (theme-aware)", 'default')
+        self.icon_set_combo.addItem("3ds Max style (hardcoded Max palette)", '3dsmax')
         idx = self.icon_set_combo.findData(_saved_icon_set)
         self.icon_set_combo.setCurrentIndex(max(0, idx))
         set_row.addWidget(self.icon_set_combo)
