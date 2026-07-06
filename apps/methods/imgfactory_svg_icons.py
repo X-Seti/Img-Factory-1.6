@@ -919,22 +919,16 @@ class SVGIconFactory: #vers 8
         return SVGIconFactory._create_icon(svg_data, size, color)
 
     @staticmethod
-    def view_iso_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
-        """Isometric / perspective view icon — 3D cube silhouette"""
+    def view_iso_icon(size: int = 20, color: str = None) -> QIcon: #vers 2
+        """Isometric view icon — compact 'ISO' text label matching XY/XZ/YZ style.
+        Three letters fit by using a smaller font size, all in currentColor."""
         svg_data = '''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <!-- Isometric cube outline -->
-            <!-- Top face -->
-            <polygon points="12,2 22,7 12,12 2,7"
-                stroke="currentColor" stroke-width="1.8" fill="none"
-                stroke-linejoin="round"/>
-            <!-- Left face -->
-            <polygon points="2,7 12,12 12,22 2,17"
-                stroke="currentColor" stroke-width="1.8" fill="none"
-                stroke-linejoin="round"/>
-            <!-- Right face -->
-            <polygon points="12,12 22,7 22,17 12,22"
-                stroke="currentColor" stroke-width="1.8" fill="none"
-                stroke-linejoin="round"/>
+            <text x="1" y="11" font-family="Arial,sans-serif" font-size="10"
+                font-weight="bold" fill="currentColor">ISO</text>
+            <line x1="1" y1="13" x2="23" y2="13"
+                stroke="currentColor" stroke-width="1" opacity="0.4"/>
+            <text x="4" y="21" font-family="Arial,sans-serif" font-size="8"
+                font-weight="bold" fill="currentColor" opacity="0.7">VIEW</text>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
