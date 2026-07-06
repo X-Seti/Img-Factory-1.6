@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 134
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 135
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -8479,11 +8479,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         name_label.setFont(self.panel_font)
         name_layout.addWidget(name_label)
 
-        self.find_in_ide_btn = QPushButton("IDE Ref")
+        self.find_in_ide_btn = QPushButton()
         self.find_in_ide_btn.setFont(self.button_font)
-        self.find_in_ide_btn.setIcon(self.icon_factory.search_icon(color=icon_color))
-        self.find_in_ide_btn.setIconSize(QSize(16, 16))
-        #self.find_in_ide_btn.setFixedHeight(26)
+        self.find_in_ide_btn.setIcon(self.icon_factory.database_icon(color=icon_color))
+        self.find_in_ide_btn.setIconSize(QSize(18, 18))
+        self.find_in_ide_btn.setFixedSize(28, 28)
         self.find_in_ide_btn.setToolTip("Look up model in DAT Browser IDE entries")
         self.find_in_ide_btn.clicked.connect(self._find_in_ide)
 
