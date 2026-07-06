@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 131
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 132
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -8326,6 +8326,20 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._undo_last_action)
         btn_layout.addWidget(self.undo_col_btn)
 
+        # 3D View — after Undo per TODO
+        self._mini_3d_btn = _icon_btn(
+            self.icon_factory.cube_icon(color=icon_color),
+            "Open GL Model Viewer",
+            self._open_gl_viewer)
+        btn_layout.addWidget(self._mini_3d_btn)
+
+        # Objs/Col export — after 3D View per TODO
+        self._mini_export_btn = _icon_btn(
+            self.icon_factory.package_icon(color=icon_color),
+            "Export geometry / COL",
+            self.export_all)
+        btn_layout.addWidget(self._mini_export_btn)
+
         btn_layout.addStretch()
         layout.addWidget(self._middle_btn_row)
         self._middle_btn_row.setVisible(self.is_docked and not self.standalone_mode)
@@ -8421,7 +8435,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         samerow_layout.addWidget(self.gl_viewer_btn)
         samerow_layout.addWidget(self.export_ojs_btn)
         samerow_layout.addWidget(self.load_txd_btn)
-        samerow_layout.addWidget(samerow_label)
+        samerow_layout.addStretch()
+        layout.addLayout(samerow_layout)   # was never added — fixed
 
         # - Frame / Bone hierarchy tree (DFF only)
         from PyQt6.QtWidgets import QTreeWidget
@@ -12016,13 +12031,88 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             _QTLBL.singleShot(50, fn)
         return obj
 
-    def _open_txd_smart(self): #vers 1
-        """Open TXD — IDE link if available, else browse."""
+    def _open_txd_smart(self): #vers 2
+        """Open TXD — tries in order:
+        1. IDE-linked TXD name → search current IMG (case-insensitive)
+        2. DFF filename stem → search same folder as DFF (case-insensitive)
+        3. DFF filename stem → search game_root recursively (case-insensitive)
+        4. Ask user via file dialog, or skip
+        Works the same whether docked or standalone."""
+        import os, glob
+        from PyQt6.QtWidgets import QFileDialog, QMessageBox
+
+        mw  = getattr(self, 'main_window', None)
+        dff_path = getattr(self, '_current_dff_path', '') or ''
+
+        # Build candidate TXD names to search for (case-insensitive)
+        candidates = []
         obj = getattr(self, '_current_ide_obj', None)
         if obj and getattr(obj, 'txd_name', ''):
-            self._open_linked_txd()
-        else:
-            self._open_txd_combined()
+            candidates.append(obj.txd_name.lower())
+        if dff_path:
+            candidates.append(os.path.splitext(os.path.basename(dff_path))[0].lower())
+        candidates = list(dict.fromkeys(candidates))   # dedupe, preserve order
+
+        def _open(path):
+            if mw and hasattr(mw, 'open_txd_workshop_docked'):
+                mw.open_txd_workshop_docked(file_path=path)
+            else:
+                from apps.components.Txd_Editor.txd_workshop import open_txd_workshop
+                open_txd_workshop(self, path)
+
+        def _name_matches(filename, candidate):
+            return os.path.splitext(filename.lower())[0] == candidate
+
+        # 1. Search current IMG
+        img = (getattr(mw, 'current_img', None) if mw else None) or \
+              getattr(self, 'current_img', None)
+        if img:
+            for cand in candidates:
+                for entry in getattr(img, 'entries', []):
+                    if _name_matches(entry.name, cand):
+                        if mw and hasattr(mw, 'open_txd_workshop_docked'):
+                            mw.open_txd_workshop_docked(txd_name=entry.name)
+                        return
+
+        # 2. Same folder as DFF — case-insensitive
+        if dff_path:
+            dff_dir = os.path.dirname(dff_path)
+            for fname in os.listdir(dff_dir):
+                if fname.lower().endswith('.txd'):
+                    stem = os.path.splitext(fname.lower())[0]
+                    if stem in candidates:
+                        _open(os.path.join(dff_dir, fname))
+                        return
+
+        # 3. Recursive game_root search
+        xref = self._get_xref() if hasattr(self, '_get_xref') else None
+        game_root = getattr(xref, 'game_root', '') if xref else ''
+        if not game_root and mw:
+            game_root = getattr(mw, '_game_root', '') or ''
+        if game_root:
+            for cand in candidates:
+                for fpath in glob.glob(
+                        os.path.join(game_root, '**', '*.txd'), recursive=True):
+                    if os.path.splitext(os.path.basename(fpath).lower())[0] == cand:
+                        _open(fpath)
+                        return
+
+        # 4. Not found — ask user or skip
+        cand_str = ' / '.join(f"{c}.txd" for c in candidates) or 'TXD'
+        ans = QMessageBox.question(
+            self, "TXD Not Found",
+            f"Could not automatically find '{cand_str}'.\n"
+            "Browse for it, or skip?",
+            QMessageBox.StandardButton.Open |
+            QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Open)
+        if ans == QMessageBox.StandardButton.Open:
+            path, _ = QFileDialog.getOpenFileName(
+                self, "Open TXD",
+                os.path.dirname(dff_path) if dff_path else '',
+                "TXD Files (*.txd);;All Files (*)")
+            if path:
+                _open(path)
 
     def _open_linked_txd(self): #vers 1
 
