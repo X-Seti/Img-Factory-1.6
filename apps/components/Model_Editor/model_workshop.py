@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 133
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 134
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -6063,17 +6063,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.showMaximized()
 
 
-    def closeEvent(self, event): #vers 1
-        """Handle close event"""
-        try:
-            for attr in ('_mod_left_toolbar', '_mod_right_toolbar'):
-                tb = getattr(self, attr, None)
-                if tb and hasattr(tb, 'save_layout'):
-                    tb.save_layout()
-        except Exception:
-            pass
+    def closeEvent(self, event): #vers 2
+        """Handle close — _save_toolbar_state fires via window_closed signal."""
         self.window_closed.emit()
-        # Remove injected tool menu from imgfactory menubar
         try:
             mw = getattr(self, 'main_window', None) or getattr(self, '_imgfactory', None)
             if mw and hasattr(mw, '_update_tool_menu_for_tab'):
