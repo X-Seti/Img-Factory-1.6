@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 128
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 129
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -2280,6 +2280,286 @@ class _ModelListDelegate(QStyledItemDelegate):
         r = fm.boundingRect(0, 0, w, 9999,
             Qt.TextFlag.TextWordWrap | Qt.AlignmentFlag.AlignTop, text)
         return QSize(w, max(72, r.height() + 12))
+
+
+
+
+class RibbonManagerDialog(QDialog): #vers 1
+    """Ribbon Manager — two-pane dialog for managing QToolBar layout.
+    Left pane: list of toolbars. Right pane: actions in selected toolbar.
+    Drag actions between toolbars to reassign. Create/delete toolbars.
+    Save/load named presets. All changes apply live via QAction
+    removeAction()/addAction() and QMainWindow addToolBar()."""
+
+    ##Methods list -
+    # RibbonManagerDialog.__init__
+    # RibbonManagerDialog._build_ui
+    # RibbonManagerDialog._refresh_toolbar_list
+    # RibbonManagerDialog._refresh_action_list
+    # RibbonManagerDialog._on_toolbar_selected
+    # RibbonManagerDialog._move_action
+    # RibbonManagerDialog._create_toolbar
+    # RibbonManagerDialog._delete_toolbar
+    # RibbonManagerDialog._save_preset
+    # RibbonManagerDialog._load_preset
+    # RibbonManagerDialog._on_accept
+    # RibbonManagerDialog._on_cancel
+
+    def __init__(self, workshop, parent=None): #vers 1
+        super().__init__(parent)
+        self._ws = workshop
+        self._mw = getattr(workshop, '_inner_mw', None)
+        self._selected_tb = None
+        self._cancel_state = None
+        self.setWindowTitle("Ribbon Manager")
+        self.setMinimumSize(660, 440)
+        self._build_ui()
+        self._refresh_toolbar_list()
+        # Snapshot current state for cancel
+        if self._mw:
+            self._cancel_state = self._mw.saveState()
+
+    def _build_ui(self): #vers 1
+        from PyQt6.QtWidgets import (QSplitter, QListWidget, QListWidgetItem,
+            QDialogButtonBox, QAbstractItemView)
+        outer = QVBoxLayout(self)
+
+        # Toolbar row
+        tb_row = QHBoxLayout()
+        self._new_btn = QPushButton("+ New Toolbar")
+        self._del_btn = QPushButton("Delete")
+        self._save_preset_btn = QPushButton("Save Preset…")
+        self._load_preset_btn = QPushButton("Load Preset…")
+        for b in (self._new_btn, self._del_btn,
+                  self._save_preset_btn, self._load_preset_btn):
+            tb_row.addWidget(b)
+        tb_row.addStretch()
+        self._new_btn.clicked.connect(self._create_toolbar)
+        self._del_btn.clicked.connect(self._delete_toolbar)
+        self._save_preset_btn.clicked.connect(self._save_preset)
+        self._load_preset_btn.clicked.connect(self._load_preset)
+        outer.addLayout(tb_row)
+
+        # Splitter: left = toolbar list, right = action list
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        outer.addWidget(splitter, stretch=1)
+
+        # Left pane
+        left = QWidget()
+        ll = QVBoxLayout(left); ll.setSpacing(4)
+        ll.addWidget(QLabel("Toolbars"))
+        self._tb_list = QListWidget()
+        self._tb_list.currentRowChanged.connect(self._on_toolbar_selected)
+        ll.addWidget(self._tb_list)
+        splitter.addWidget(left)
+
+        # Right pane
+        right = QWidget()
+        rl = QVBoxLayout(right); rl.setSpacing(4)
+        self._action_label = QLabel("Select a toolbar")
+        rl.addWidget(self._action_label)
+        self._act_list = QListWidget()
+        self._act_list.setDragDropMode(
+            QAbstractItemView.DragDropMode.InternalMove)
+        self._act_list.setDefaultDropAction(Qt.DropAction.MoveAction)
+        self._act_list.setIconSize(QSize(24, 24))
+        self._act_list.model().rowsMoved.connect(self._on_action_reordered)
+        rl.addWidget(self._act_list)
+
+        # Move-to-toolbar button row
+        move_row = QHBoxLayout()
+        move_row.addWidget(QLabel("Move selected to:"))
+        self._move_combo = QComboBox()
+        move_row.addWidget(self._move_combo, stretch=1)
+        self._move_btn = QPushButton("Move →")
+        self._move_btn.clicked.connect(self._move_action)
+        move_row.addWidget(self._move_btn)
+        rl.addLayout(move_row)
+        splitter.addWidget(right)
+        splitter.setSizes([200, 440])
+
+        # OK / Cancel
+        btns = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok |
+            QDialogButtonBox.StandardButton.Cancel)
+        btns.accepted.connect(self._on_accept)
+        btns.rejected.connect(self._on_cancel)
+        outer.addWidget(btns)
+
+    def _refresh_toolbar_list(self): #vers 1
+        """Populate left pane with all QToolBar instances."""
+        from PyQt6.QtWidgets import QToolBar, QListWidgetItem
+        self._tb_list.clear()
+        self._move_combo.clear()
+        if not self._mw:
+            return
+        for tb in self._mw.findChildren(QToolBar):
+            name = tb.windowTitle() or tb.objectName()
+            item = QListWidgetItem(name)
+            item.setData(Qt.ItemDataRole.UserRole, tb)
+            # Show first action's icon as preview
+            acts = [a for a in tb.actions() if not a.isSeparator() and a.icon()]
+            if acts:
+                item.setIcon(acts[0].icon())
+            self._tb_list.addItem(item)
+            self._move_combo.addItem(name, tb)
+
+    def _on_toolbar_selected(self, row): #vers 1
+        item = self._tb_list.item(row)
+        if not item:
+            return
+        self._selected_tb = item.data(Qt.ItemDataRole.UserRole)
+        self._refresh_action_list()
+
+    def _refresh_action_list(self): #vers 1
+        """Populate right pane with actions in the selected toolbar."""
+        from PyQt6.QtWidgets import QListWidgetItem
+        self._act_list.clear()
+        tb = self._selected_tb
+        if not tb:
+            return
+        name = tb.windowTitle() or tb.objectName()
+        self._action_label.setText(f"{name} — actions")
+        for act in tb.actions():
+            if act.isSeparator():
+                item = QListWidgetItem("── separator ──")
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsDragEnabled)
+            else:
+                item = QListWidgetItem(act.text() or act.toolTip() or "Action")
+                if act.icon():
+                    item.setIcon(act.icon())
+            item.setData(Qt.ItemDataRole.UserRole, act)
+            self._act_list.addItem(item)
+
+    def _on_action_reordered(self): #vers 1
+        """After drag-reorder in the action list, apply new order to toolbar."""
+        tb = self._selected_tb
+        if not tb:
+            return
+        # Read new order from the list widget
+        new_order = []
+        for i in range(self._act_list.count()):
+            act = self._act_list.item(i).data(Qt.ItemDataRole.UserRole)
+            if act:
+                new_order.append(act)
+        # Remove and re-add all actions in new order
+        for act in list(tb.actions()):
+            tb.removeAction(act)
+        for act in new_order:
+            tb.addAction(act)
+
+    def _move_action(self): #vers 1
+        """Move selected action from current toolbar to the target toolbar."""
+        act_item = self._act_list.currentItem()
+        if not act_item:
+            return
+        act = act_item.data(Qt.ItemDataRole.UserRole)
+        if not act or not self._selected_tb:
+            return
+        target_tb = self._move_combo.currentData()
+        if not target_tb or target_tb is self._selected_tb:
+            return
+        self._selected_tb.removeAction(act)
+        target_tb.addAction(act)
+        self._refresh_action_list()
+
+    def _create_toolbar(self): #vers 1
+        """Create a new empty QToolBar and add it to the inner QMainWindow."""
+        from PyQt6.QtWidgets import QInputDialog, QToolBar
+        if not self._mw:
+            return
+        name, ok = QInputDialog.getText(self, "New Toolbar", "Toolbar name:")
+        if not ok or not name.strip():
+            return
+        name = name.strip()
+        tb = QToolBar(name, self._mw)
+        tb.setObjectName(name)
+        tb.setMovable(True)
+        tb.setFloatable(True)
+        tb.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        tb.customContextMenuRequested.connect(
+            lambda pos, t=tb: self._ws._toolbar_context_menu(t, pos))
+        self._mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, tb)
+        self._refresh_toolbar_list()
+
+    def _delete_toolbar(self): #vers 1
+        """Delete the selected toolbar, moving its actions to Unassigned."""
+        from PyQt6.QtWidgets import QMessageBox
+        tb = self._selected_tb
+        if not tb:
+            return
+        n_acts = len([a for a in tb.actions() if not a.isSeparator()])
+        if n_acts > 0:
+            ans = QMessageBox.question(
+                self, "Delete Toolbar",
+                f"'{tb.windowTitle()}' has {n_acts} action(s).\n"
+                "They will be removed from all toolbars.\nContinue?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel)
+            if ans != QMessageBox.StandardButton.Yes:
+                return
+        self._mw.removeToolBar(tb)
+        tb.deleteLater()
+        self._selected_tb = None
+        self._refresh_toolbar_list()
+        self._act_list.clear()
+
+    def _save_preset(self): #vers 1
+        """Save current toolbar layout as a named preset."""
+        from PyQt6.QtWidgets import QInputDialog
+        import json
+        from pathlib import Path
+        if not self._mw:
+            return
+        name, ok = QInputDialog.getText(self, "Save Preset", "Preset name:")
+        if not ok or not name.strip():
+            return
+        path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+        try:
+            data = json.loads(path.read_text())
+        except Exception:
+            data = {}
+        presets = data.setdefault('toolbar_presets', {})
+        presets[name.strip()] = self._mw.saveState().toHex().data().decode()
+        path.write_text(json.dumps(data, indent=2))
+        self._ws._set_status(f"Preset '{name.strip()}' saved")
+
+    def _load_preset(self): #vers 1
+        """Load a named preset."""
+        from PyQt6.QtWidgets import QInputDialog
+        from PyQt6.QtCore import QByteArray
+        import json
+        from pathlib import Path
+        if not self._mw:
+            return
+        path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+        try:
+            data = json.loads(path.read_text())
+        except Exception:
+            data = {}
+        presets = data.get('toolbar_presets', {})
+        if not presets:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.information(self, "Load Preset", "No saved presets found.")
+            return
+        name, ok = QInputDialog.getItem(
+            self, "Load Preset", "Select preset:",
+            list(presets.keys()), editable=False)
+        if not ok:
+            return
+        self._mw.restoreState(QByteArray.fromHex(presets[name].encode()))
+        self._refresh_toolbar_list()
+        self._ws._set_status(f"Preset '{name}' loaded")
+
+    def _on_accept(self): #vers 1
+        """Apply and save state."""
+        self._ws._save_toolbar_state()
+        self.accept()
+
+    def _on_cancel(self): #vers 1
+        """Restore pre-dialog state."""
+        if self._cancel_state and self._mw:
+            self._mw.restoreState(self._cancel_state)
+        self.reject()
 
 
 class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
@@ -8280,13 +8560,17 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         return panel
 
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 1
-        """Build all QToolBar instances and add them to the inner QMainWindow.
-        Qt handles row stacking, floating, drag-to-reorder, and save/restore
-        natively — no custom docking code needed."""
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 2
+        """Build all QToolBar instances using QAction (not QPushButton widgets).
+        QAction gives native toolbar drag-to-reorder, proper checkable state,
+        and clean move-between-toolbars via removeAction/addAction.
+        _ribbon_actions: list of dicts describing every action for the ribbon
+        manager — {action, toolbar, name, icon_fn, checkable}."""
         from PyQt6.QtWidgets import QToolBar
+        from PyQt6.QtGui import QAction
         icon_size = QSize(20, 20)
         pw = self.preview_widget
+        self._ribbon_actions = []   # registry for ribbon manager
 
         def _tb(name, area=Qt.ToolBarArea.TopToolBarArea):
             tb = QToolBar(name, mw)
@@ -8294,158 +8578,189 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             tb.setIconSize(icon_size)
             tb.setMovable(True)
             tb.setFloatable(True)
+            tb.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            tb.customContextMenuRequested.connect(
+                lambda pos, t=tb: self._toolbar_context_menu(t, pos))
             mw.addToolBar(area, tb)
             return tb
 
-        def _btn(tb, tip, icon_fn, callback=None, checkable=False, checked=False):
-            """Add a QPushButton-style action to a QToolBar."""
-            b = QPushButton()
-            b.setIcon(icon_fn(color=icon_color))
-            b.setIconSize(icon_size)
-            b.setFixedSize(28, 28)
-            b.setToolTip(tip)
+        def _act(tb, name, icon_fn, callback=None, checkable=False,
+                 checked=False, attr=None):
+            """Create a QAction, add to toolbar, register in _ribbon_actions."""
+            try:
+                icon = icon_fn(color=icon_color)
+            except Exception:
+                icon = self.icon_factory.settings_icon(color=icon_color)
+            act = QAction(icon, name, mw)
+            act.setToolTip(name)
+            act.setCheckable(checkable)
             if checkable:
-                b.setCheckable(True)
-                b.setChecked(checked)
+                act.setChecked(checked)
             if callback:
-                b.clicked.connect(callback)
-            tb.addWidget(b)
-            return b
+                if checkable:
+                    act.toggled.connect(callback)
+                else:
+                    act.triggered.connect(callback)
+            tb.addAction(act)
+            self._ribbon_actions.append({
+                'action':    act,
+                'toolbar':   tb,
+                'name':      name,
+                'icon_fn':   icon_fn,
+                'checkable': checkable,
+            })
+            if attr:
+                setattr(self, attr, act)
+            return act
 
         # ── Ribbon 1: Selection ───────────────────────────────────────────
         tb_sel = _tb("Selection")
-        from PyQt6.QtWidgets import QButtonGroup, QLabel as _QL
-        self._mod_icon_buttons = []   # legacy compat
+        from PyQt6.QtWidgets import QActionGroup, QLabel as _QL
 
-        def _sel_btn(attr, tip, mode, icon_fn_name):
-            b = QPushButton()
-            b.setCheckable(True)
-            b.setToolTip(tip)
-            b.setIconSize(icon_size)
-            b.setFixedSize(28, 28)
+        # V/E/F/P as exclusive QActions in an action group
+        sel_group = QActionGroup(mw)
+        sel_group.setExclusive(True)
+
+        def _sel_act(attr, name, mode, icon_fn_name):
+            act = QAction(name, mw)
             try:
-                b.setIcon(getattr(self.icon_factory, icon_fn_name)(color=icon_color))
+                act.setIcon(getattr(self.icon_factory, icon_fn_name)(color=icon_color))
             except Exception:
                 pass
-            b.clicked.connect(lambda _=False, m=mode: self._set_select_mode(m))
-            b.setEnabled(False)
-            setattr(self, attr, b)
-            tb_sel.addWidget(b)
-            return b
+            act.setToolTip(name)
+            act.setCheckable(True)
+            act.setEnabled(False)
+            act.triggered.connect(lambda _=False, m=mode: self._set_select_mode(m))
+            sel_group.addAction(act)
+            tb_sel.addAction(act)
+            self._ribbon_actions.append({
+                'action': act, 'toolbar': tb_sel, 'name': name,
+                'icon_fn': getattr(self.icon_factory, icon_fn_name, None),
+                'checkable': True,
+            })
+            setattr(self, attr, act)
+            return act
 
-        _sel_btn('_sel_vert_btn', 'Vertex select', 'vertex', 'vertex_select_icon')
-        _sel_btn('_sel_edge_btn', 'Edge select',   'edge',   'edge_select_icon')
-        _sel_btn('_sel_face_btn', 'Face select',   'face',   'face_select_icon')
-        _sel_btn('_sel_poly_btn', 'Polygon select','poly',   'poly_select_icon')
+        _sel_act('_sel_vert_act', 'Vertex Select', 'vertex', 'vertex_select_icon')
+        _sel_act('_sel_edge_act', 'Edge Select',   'edge',   'edge_select_icon')
+        _sel_act('_sel_face_act', 'Face Select',   'face',   'face_select_icon')
+        _sel_act('_sel_poly_act', 'Polygon Select','poly',   'poly_select_icon')
+        self._sel_face_act.setChecked(True)
+        self._select_mode_group = sel_group
 
-        grp = QButtonGroup(self)
-        grp.setExclusive(True)
-        for b in (self._sel_vert_btn, self._sel_edge_btn,
-                  self._sel_face_btn, self._sel_poly_btn):
-            grp.addButton(b)
-        self._sel_face_btn.setChecked(True)
-        self._select_mode_group = grp
-
+        # Selection count label — QToolBar widget (labels can't be QAction)
         self._sel_count_label = _QL("")
-        self._sel_count_label.setStyleSheet("color: palette(mid); font-size: 11px; padding: 0 4px;")
+        self._sel_count_label.setStyleSheet(
+            "color: palette(mid); font-size: 11px; padding: 0 4px;")
         tb_sel.addWidget(self._sel_count_label)
 
         tb_sel.addSeparator()
 
-        self._backface_cull_btn = _btn(tb_sel,
-            "Backface culling — ON: only front faces visible",
-            self.icon_factory.backface_icon, checkable=True)
-        self._backface_cull_btn.toggled.connect(lambda v: self._toggle_backface_cull())
+        _act(tb_sel, "Backface Culling",
+             self.icon_factory.backface_icon,
+             lambda v: self._toggle_backface_cull(),
+             checkable=True, attr='_backface_cull_act')
 
-        self._front_paint_btn = _btn(tb_sel,
-            "Front-only paint",
-            self.icon_factory.view_icon, checkable=True)
-        self._front_paint_btn.toggled.connect(lambda v: self._toggle_front_only_paint())
+        _act(tb_sel, "Front-only Paint",
+             self.icon_factory.view_icon,
+             lambda v: self._toggle_front_only_paint(),
+             checkable=True, attr='_front_paint_act')
 
         # ── Ribbon 2: Snap Targets ────────────────────────────────────────
         from apps.components.Model_Editor.depends.max_svg_icons import MaxSVGIcons
         tb_snap = _tb("Snap Targets")
 
-        def _snap_btn(target, tip, icon_fn_name):
-            b = QPushButton()
-            b.setCheckable(True)
-            b.setToolTip(tip)
-            b.setIconSize(icon_size)
-            b.setFixedSize(28, 28)
+        def _snap_act(attr, target, name, icon_fn_name):
             try:
-                b.setIcon(getattr(MaxSVGIcons, icon_fn_name)(size=20, color=icon_color))
+                icon = getattr(MaxSVGIcons, icon_fn_name)(size=20, color=icon_color)
             except Exception as _e:
                 print(f"[snap icon] {icon_fn_name}: {_e}")
-            def _on(checked=False, t=target, btn=b):
+                icon = self.icon_factory.settings_icon(color=icon_color)
+            act = QAction(icon, name, mw)
+            act.setToolTip(name)
+            act.setCheckable(True)
+            def _on(checked, t=target, a=act):
                 vp = getattr(self, 'preview_widget', None)
                 if vp and hasattr(vp, '_snap_targets'):
                     vp.toggle_snap_target(t)
-                    btn.setChecked(vp._snap_targets.get(t, False))
-            b.clicked.connect(_on)
-            tb_snap.addWidget(b)
-            return b
+                    a.setChecked(vp._snap_targets.get(t, False))
+            act.toggled.connect(_on)
+            tb_snap.addAction(act)
+            _fn = getattr(MaxSVGIcons, icon_fn_name, None)
+            self._ribbon_actions.append({
+                'action': act, 'toolbar': tb_snap, 'name': name,
+                'icon_fn': (lambda sz=20, c=icon_color, fn=_fn:
+                            fn(size=sz, color=c)) if _fn else None,
+                'checkable': True,
+            })
+            setattr(self, attr, act)
+            return act
 
-        self._snap_grid_btn     = _snap_btn('grid',     'Snap To Grid',     'snap_grid_icon')
-        self._snap_pivot_btn    = _snap_btn('pivot',    'Snap To Pivot',    'snap_pivot_icon')
-        self._snap_vertex_btn   = _snap_btn('vertex',   'Snap To Vertex',   'snap_vertex_icon')
-        self._snap_endpoint_btn = _snap_btn('endpoint', 'Snap To Endpoint', 'snap_endpoint_icon')
-        self._snap_midpoint_btn = _snap_btn('midpoint', 'Snap To Midpoint', 'snap_midpoint_icon')
-        self._snap_edge_btn     = _snap_btn('edge',     'Snap To Edge',     'snap_edge_icon')
-        self._snap_face_btn     = _snap_btn('face',     'Snap To Face',     'snap_face_icon')
+        _snap_act('_snap_grid_act',     'grid',     'Snap: Grid Points', 'snap_grid_icon')
+        _snap_act('_snap_pivot_act',    'pivot',    'Snap: Pivot',       'snap_pivot_icon')
+        _snap_act('_snap_vertex_act',   'vertex',   'Snap: Vertex',      'snap_vertex_icon')
+        _snap_act('_snap_endpoint_act', 'endpoint', 'Snap: Endpoint',    'snap_endpoint_icon')
+        _snap_act('_snap_midpoint_act', 'midpoint', 'Snap: Midpoint',    'snap_midpoint_icon')
+        _snap_act('_snap_edge_act',     'edge',     'Snap: Edge',        'snap_edge_icon')
+        _snap_act('_snap_face_act',     'face',     'Snap: Face',        'snap_face_icon')
         tb_snap.addSeparator()
-        self._snap_axis_btn = _btn(tb_snap,
-            "Enable Axis Constraints in Snaps",
-            lambda color=icon_color: MaxSVGIcons.snap_axis_constraint_icon(size=20, color=color),
-            checkable=True)
+        _act(tb_snap, "Axis Constraints",
+             lambda color=icon_color: MaxSVGIcons.snap_axis_constraint_icon(
+                 size=20, color=color),
+             checkable=True, attr='_snap_axis_act')
 
         # ── Ribbon 3: Edit Geometry ───────────────────────────────────────
         tb_geo = _tb("Edit Geometry")
-        self._prim_btn = _btn(tb_geo, "Create Primitive",
-            lambda color=icon_color: MaxSVGIcons.create_primitive_icon(size=20, color=color),
-            callback=self._create_primitive_dialog)
-        self._extrude_btn = _btn(tb_geo,
-            "Extrude selected face(s) along their normal\n"
-            "Positive distance = outward, negative = push in\n"
-            "Select faces in Face or Polygon mode first",
-            lambda color=icon_color: MaxSVGIcons.extrude_icon(size=20, color=color),
-            callback=self._extrude_dialog)
+        _act(tb_geo, "Create Primitive",
+             lambda color=icon_color: MaxSVGIcons.create_primitive_icon(
+                 size=20, color=color),
+             callback=self._create_primitive_dialog, attr='_prim_act')
+        _act(tb_geo, "Extrude Faces",
+             lambda color=icon_color: MaxSVGIcons.extrude_icon(
+                 size=20, color=color),
+             callback=self._extrude_dialog, attr='_extrude_act')
 
         # ── Ribbon 4: Navigation ──────────────────────────────────────────
         tb_nav = _tb("Navigation", Qt.ToolBarArea.RightToolBarArea)
-        _btn(tb_nav, "Zoom In",       self.icon_factory.zoom_in_icon,  pw.zoom_in)
-        _btn(tb_nav, "Zoom Out",      self.icon_factory.zoom_out_icon, pw.zoom_out)
-        _btn(tb_nav, "Reset View",    self.icon_factory.reset_icon,    pw.reset_view)
-        _btn(tb_nav, "Fit to Window", self.icon_factory.fit_icon,      pw.fit_to_window)
+        _act(tb_nav, "Zoom In",       self.icon_factory.zoom_in_icon,  pw.zoom_in)
+        _act(tb_nav, "Zoom Out",      self.icon_factory.zoom_out_icon, pw.zoom_out)
+        _act(tb_nav, "Reset View",    self.icon_factory.reset_icon,    pw.reset_view)
+        _act(tb_nav, "Fit to Window", self.icon_factory.fit_icon,      pw.fit_to_window)
         tb_nav.addSeparator()
         for label, yaw, pitch, icon_fn in [
-            ("XY",  0,   0,  self.icon_factory.view_xy_icon),
-            ("XZ",  0,  90,  self.icon_factory.view_xz_icon),
-            ("YZ",  90,  0,  self.icon_factory.view_yz_icon),
-            ("Iso", 30, 20,  self.icon_factory.view_iso_icon),
+            ("View XY",  0,   0,  self.icon_factory.view_xy_icon),
+            ("View XZ",  0,  90,  self.icon_factory.view_xz_icon),
+            ("View YZ",  90,  0,  self.icon_factory.view_yz_icon),
+            ("View Iso", 30, 20,  self.icon_factory.view_iso_icon),
         ]:
             def _set_v(checked=False, y=yaw, p=pitch):
                 pw._yaw = y; pw._pitch = p; pw.update()
-            _btn(tb_nav, f"View: {label}", icon_fn, _set_v)
+            _act(tb_nav, label, icon_fn, _set_v)
 
         # ── Ribbon 5: Render ──────────────────────────────────────────────
         tb_rend = _tb("Render", Qt.ToolBarArea.RightToolBarArea)
-        _btn(tb_rend, "Render / Background Settings",
-             self.icon_factory.color_picker_icon, self._open_render_settings_dialog)
-        self.view_mesh_btn = _btn(tb_rend, "Toggle Mesh",
-            self.icon_factory.mesh_icon,
-            lambda checked: pw.set_show_mesh(checked), checkable=True, checked=True)
-        self.backface_btn = _btn(tb_rend, "Toggle Backface",
-            self.icon_factory.backface_icon,
-            lambda checked: pw.set_backface(checked), checkable=True)
-        _btn(tb_rend, "Cycle Render Style",
-             self.icon_factory.color_picker_icon, self._cycle_view_render_style)
+        _act(tb_rend, "Render Settings",
+             self.icon_factory.color_picker_icon,
+             self._open_render_settings_dialog)
+        _act(tb_rend, "Toggle Mesh",
+             self.icon_factory.mesh_icon,
+             lambda v: pw.set_show_mesh(v),
+             checkable=True, checked=True, attr='_view_mesh_act')
+        _act(tb_rend, "Toggle Backface",
+             self.icon_factory.backface_icon,
+             lambda v: pw.set_backface(v),
+             checkable=True, attr='_backface_act')
+        _act(tb_rend, "Cycle Render Style",
+             self.icon_factory.color_picker_icon,
+             self._cycle_view_render_style)
         tb_rend.addSeparator()
-        self._shading_btn = _btn(tb_rend, "Toggle Shading",
-            self.icon_factory.settings_icon,
-            checkable=True, checked=True)
-        self._shading_btn.toggled.connect(self._toggle_viewport_shading)
-        self._light_setup_btn = _btn(tb_rend, "Light Setup",
-            self.icon_factory.settings_icon, self._open_light_setup_dialog)
+        _act(tb_rend, "Toggle Shading",
+             self.icon_factory.settings_icon,
+             lambda v: self._toggle_viewport_shading(),
+             checkable=True, checked=True, attr='_shading_act')
+        _act(tb_rend, "Light Setup",
+             self.icon_factory.settings_icon,
+             self._open_light_setup_dialog, attr='_light_setup_act')
 
         # Store toolbar refs
         self._tb_selection = tb_sel
@@ -8454,17 +8769,45 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._tb_nav       = tb_nav
         self._tb_render    = tb_rend
 
-        # DFF-only buttons — disabled until a model is loaded
-        self._dff_only_toolbar_btns = [
-            self._sel_vert_btn, self._sel_edge_btn,
-            self._sel_face_btn, self._sel_poly_btn,
-            self._sel_count_label,
-            self._backface_cull_btn, self._front_paint_btn,
-            self._prim_btn, self._extrude_btn,
-            self._shading_btn, self._light_setup_btn,
+        # DFF-only actions — disabled until a model is loaded
+        self._dff_only_actions = [
+            self._sel_vert_act, self._sel_edge_act,
+            self._sel_face_act, self._sel_poly_act,
+            self._backface_cull_act, self._front_paint_act,
+            self._prim_act, self._extrude_act,
+            self._shading_act, self._light_setup_act,
         ]
+        # Legacy compat for code that checks _dff_only_toolbar_btns
+        self._dff_only_toolbar_btns = []
 
-    def _save_toolbar_state(self): #vers 1
+        # Compatibility attrs for code using old QPushButton names
+        self._sel_vert_btn   = None
+        self._sel_edge_btn   = None
+        self._sel_face_btn   = None
+        self._sel_poly_btn   = None
+
+    def _toolbar_context_menu(self, toolbar, pos): #vers 1
+        """Right-click context menu on any toolbar — shows Ribbon Manager."""
+        from PyQt6.QtWidgets import QMenu
+        menu = QMenu(self)
+        menu.addAction("Ribbon Manager...", self.open_ribbon_manager)
+        menu.addSeparator()
+        menu.addAction("Lock All Toolbars",
+            lambda: [tb.setMovable(False)
+                     for tb in self._inner_mw.findChildren(
+                         __import__('PyQt6.QtWidgets', fromlist=['QToolBar']).QToolBar)])
+        menu.addAction("Unlock All Toolbars",
+            lambda: [tb.setMovable(True)
+                     for tb in self._inner_mw.findChildren(
+                         __import__('PyQt6.QtWidgets', fromlist=['QToolBar']).QToolBar)])
+        menu.exec(toolbar.mapToGlobal(pos))
+
+    def open_ribbon_manager(self): #vers 1
+        """Open the Ribbon Manager dialog."""
+        dlg = RibbonManagerDialog(self, parent=self)
+        dlg.exec()
+
+
         """Save QMainWindow toolbar state to model_workshop.json."""
         mw = getattr(self, '_inner_mw', None)
         if mw is None:
