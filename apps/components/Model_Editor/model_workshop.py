@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 141
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 142
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -10200,6 +10200,19 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             except Exception:
                 pass
         return '#cccccc'
+
+    def _get_icon_set(self) -> str: #vers 1
+        """Return active icon set: 'default' or '3dsmax'.
+        Read from model_workshop.json 'icon_set' key."""
+        try:
+            import json
+            from pathlib import Path
+            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            if path.exists():
+                return json.loads(path.read_text()).get('icon_set', 'default')
+        except Exception:
+            pass
+        return 'default'
 
 
     def _apply_fonts_to_widgets(self): #vers 1
