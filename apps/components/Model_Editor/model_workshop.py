@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 137
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 138
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -8722,7 +8722,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         tb_nav = _tb("Navigation", Qt.ToolBarArea.RightToolBarArea)
         _act(tb_nav, "Zoom In",       self.icon_factory.zoom_in_icon,  pw.zoom_in)
         _act(tb_nav, "Zoom Out",      self.icon_factory.zoom_out_icon, pw.zoom_out)
-        _act(tb_nav, "Reset View",    self.icon_factory.reset_icon,    pw.reset_view)
+        _act(tb_nav, "Reset View",    self.icon_factory.reset_view_icon,   pw.reset_view)
         _act(tb_nav, "Fit to Window", self.icon_factory.fit_icon,      pw.fit_to_window)
         tb_nav.addSeparator()
         for label, yaw, pitch, icon_fn in [
@@ -8745,7 +8745,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
              lambda v: pw.set_show_mesh(v),
              checkable=True, checked=True, attr='_view_mesh_act')
         _act(tb_rend, "Toggle Backface",
-             self.icon_factory.backface_icon,
+             self.icon_factory.toggle_backface_icon,
              lambda v: pw.set_backface(v),
              checkable=True, attr='_backface_act')
         _act(tb_rend, "Cycle Render Style",

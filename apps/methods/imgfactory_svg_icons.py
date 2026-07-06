@@ -1022,21 +1022,50 @@ class SVGIconFactory: #vers 8
     
 
     @staticmethod
-    def backface_icon(size: int = 20, color: str = None) -> QIcon: #vers 7
-        """Backface culling icon"""
-        svg_data = '''<svg viewBox="0 0 24 24">
-            <path d="M12 4 L20 8 L16 16 L8 16 L4 8 Z"
-                fill="currentColor" opacity="0.8"/>
-            <path d="M12 4 L8 16 M12 4 L16 16"
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-dasharray="2,2"
-                opacity="0.3"
-                fill="none"/>
-            <path d="M4 8 L12 4 L20 8 L16 16 L8 16 Z"
-                stroke="currentColor"
-                stroke-width="1.5"
-                fill="none"/>
+    def backface_icon(size: int = 20, color: str = None) -> QIcon: #vers 8
+        """Backface culling toggle — two overlapping faces showing front/back.
+        Front face solid, back face dashed behind it."""
+        svg_data = '''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <!-- Back face — dashed, offset -->
+            <polygon points="6,5 20,5 20,17 6,17"
+                stroke="currentColor" stroke-width="1.5" fill="none"
+                stroke-dasharray="3,2" opacity="0.5"/>
+            <!-- Front face — solid -->
+            <polygon points="4,7 18,7 18,19 4,19"
+                stroke="currentColor" stroke-width="2" fill="currentColor" opacity="0.25"/>
+            <polygon points="4,7 18,7 18,19 4,19"
+                stroke="currentColor" stroke-width="2" fill="none"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def toggle_backface_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Toggle backface visibility in render — eye with arrow suggesting
+        flip/reverse, distinct from the culling toggle."""
+        svg_data = '''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <!-- Triangle face, front -->
+            <polygon points="12,3 22,19 2,19"
+                stroke="currentColor" stroke-width="2" fill="none"/>
+            <!-- Reverse arrow suggesting flip to back -->
+            <path d="M8,19 Q12,23 16,19"
+                stroke="currentColor" stroke-width="1.8"
+                fill="none" stroke-linecap="round"/>
+            <polygon points="16,19 13,21 14,17" fill="currentColor"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def reset_view_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Reset view to home position — house/home shape with a small
+        circular reset arrow, distinct from the generic refresh icon."""
+        svg_data = '''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <!-- House/home shape -->
+            <path d="M3,12 L12,3 L21,12"
+                stroke="currentColor" stroke-width="2" fill="none"
+                stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M5,10 L5,20 L10,20 L10,15 L14,15 L14,20 L19,20 L19,10"
+                stroke="currentColor" stroke-width="2" fill="none"
+                stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
     
