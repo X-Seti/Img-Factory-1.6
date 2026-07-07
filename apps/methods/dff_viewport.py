@@ -1,5 +1,5 @@
-# X-Seti - May13 2026 - IMG Factory 1.6 - DFF OpenGL Viewport
-# this belongs in apps/methods/dff_viewport.py - Version: 11
+# X-Seti - Jul07 2026 - IMG Factory 1.6 - DFF OpenGL Viewport
+# this belongs in apps/methods/dff_viewport.py - Version: 12
 """
 DFFViewport - Shared OpenGL viewport for DFF model rendering.
 Used by Model Viewer, Model Workshop, Vehicle Workshop (docked).
@@ -47,6 +47,7 @@ Standalone tools import from their own methods/dff_viewport.py.
 # DFFViewport.set_render_mode
 # DFFViewport.set_show_grid
 # DFFViewport.set_show_lod
+# DFFViewport.set_view_lock
 # DFFViewport.wheelEvent
 # DFFViewport._upload_textures
 """
@@ -56,7 +57,7 @@ import struct
 from typing import Dict, List, Optional
 
 from PyQt6.QtCore import Qt, QPoint
-from PyQt6.QtWidgets import QWidget
+from PyQt6.QtWidgets import QWidget, QLabel
 from PyQt6.QtGui import QColor
 
 try:
@@ -144,6 +145,18 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             'endpoint': False, 'midpoint': False, 'edge': False, 'face': False,
         }
         self._snap_axis_constraint = False   # "Enable Axis Constraints in Snaps"
+
+        # Multi-pane view lock (3ds Max style Top/Front/Side/Perspective panes)
+        self._view_locked = False
+        self._view_label  = ""
+        self._projection  = 'perspective'   # 'perspective' or 'ortho'
+        self._on_geometry_loaded = None     # optional callback, set by host tool
+
+        self._label_widget = QLabel(self)
+        self._label_widget.setStyleSheet(
+            "color: rgba(255,255,255,190); background: transparent; font-size: 10px;")
+        self._label_widget.move(4, 2)
+        self._label_widget.hide()
 
     def _get_ui_color(self, key): #vers 2
         """Get theme color — tries app_settings, falls back to defaults."""
@@ -446,12 +459,18 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         _libGL.glEnable(_GL_COLOR_MATERIAL)
         _libGL.glColorMaterial(_GL_FRONT_AND_BACK, _GL_AMBIENT_AND_DIFFUSE)
 
-    def resizeGL(self, w, h): #vers 1
+    def resizeGL(self, w, h): #vers 2
         if not OPENGL_AVAILABLE: return
         glViewport(0, 0, max(1, w), max(1, h))
         glMatrixMode(GL_PROJECTION); glLoadIdentity()
-        gluPerspective(45.0, max(1, w) / max(1, h), 0.01, 100000.0)
+        aspect = max(1, w) / max(1, h)
+        if self._projection == 'ortho':
+            half_h = max(0.01, self._dist * 0.5)
+            glOrtho(-half_h*aspect, half_h*aspect, -half_h, half_h, -100000.0, 100000.0)
+        else:
+            gluPerspective(45.0, aspect, 0.01, 100000.0)
         glMatrixMode(GL_MODELVIEW)
+        self._label_widget.move(4, 2)
 
     def paintGL(self): #vers 4
         if not OPENGL_AVAILABLE: return
@@ -805,7 +824,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._tex_ids.clear()
         self._tex_wrap.clear()
 
-    def load_geometry(self, geometry, materials: list): #vers 2
+    def load_geometry(self, geometry, materials: list): #vers 3
         self._all_geoms  = []  # clear multi-geom data
         self._current_geom_flags = getattr(geometry, 'flags', 0)
         self._vertices  = [(v.x,v.y,v.z) for v in geometry.vertices]
@@ -815,6 +834,9 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._materials = materials
         self._prelit    = [(c.r,c.g,c.b,c.a) for c in getattr(geometry,'colors',[])] if geometry.colors else []
         self._auto_fit(); self.update()
+        if self._on_geometry_loaded:
+            try: self._on_geometry_loaded()
+            except Exception: pass
 
     def _auto_fit(self): #vers 1
         if not self._vertices: return
@@ -834,7 +856,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
     def set_show_grid(self, v: bool): #vers 1
         self._show_grid = v; self.update()
 
-    def load_all_geometries(self, geometries, materials_list, frames, atomics, damaged=False): #vers 3
+    def load_all_geometries(self, geometries, materials_list, frames, atomics, damaged=False): #vers 4
         self._all_geoms = []
         self._vertices  = []  # clear single-geom data
         # Use flags from first geometry as representative
@@ -907,6 +929,9 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._dist=max(diag*2.0,2.0)
             self._pan_x=-(max(xs)+min(xs))/2; self._pan_y=-(max(ys)+min(ys))/2
         self.update()
+        if self._on_geometry_loaded:
+            try: self._on_geometry_loaded()
+            except Exception: pass
 
     def _calc_world_matrix(self, frames, frame_idx): #vers 1
         r=[1,0,0,0,1,0,0,0,1]; tx=ty=tz=0.0
@@ -1032,6 +1057,26 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._yaw=45.0; self._pitch=25.0; self._pan_x=0.0; self._pan_y=0.0
         self._auto_fit(); self.update()
 
+    def set_view_lock(self, locked: bool, label: str = "", yaw: float = None,
+                       pitch: float = None, projection: str = 'perspective'): #vers 1
+        """Lock/unlock this pane to a fixed preset view (3ds Max style Top/
+        Front/Side/Perspective panes). Locked panes cannot rotate-drag and
+        use parallel (ortho) projection; unlocked/perspective panes behave
+        as before (free rotate)."""
+        self._view_locked = locked
+        self._view_label  = label
+        self._projection  = projection
+        if yaw   is not None: self._yaw   = yaw
+        if pitch is not None: self._pitch = pitch
+        if label:
+            self._label_widget.setText(label)
+            self._label_widget.adjustSize()
+            self._label_widget.show()
+        else:
+            self._label_widget.hide()
+        self.resizeGL(self.width(), self.height())
+        self.update()
+
     def mousePressEvent(self, event): #vers 2
         self._last_pos = event.pos()
         if event.button() == Qt.MouseButton.LeftButton:
@@ -1055,10 +1100,10 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 self._notify_selection_changed()
                 self.update()
 
-    def mouseMoveEvent(self, event): #vers 1
+    def mouseMoveEvent(self, event): #vers 2
         dx = event.pos().x() - self._last_pos.x()
         dy = event.pos().y() - self._last_pos.y()
-        if event.buttons() & Qt.MouseButton.RightButton:
+        if event.buttons() & Qt.MouseButton.RightButton and not self._view_locked:
             self._yaw   += dx * 0.5
             self._pitch += dy * 0.5
         elif event.buttons() & Qt.MouseButton.MiddleButton:
@@ -1070,18 +1115,25 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
     def mouseReleaseEvent(self, event): #vers 1
         self._last_pos = event.pos()
 
-    def wheelEvent(self, event): #vers 1
+    def wheelEvent(self, event): #vers 2
         f = 0.85 if event.angleDelta().y() > 0 else 1.15
-        self._dist = max(0.1, min(50000.0, self._dist*f)); self.update()
+        self._dist = max(0.1, min(50000.0, self._dist*f))
+        if self._projection == 'ortho':
+            self.resizeGL(self.width(), self.height())
+        self.update()
 
     # - Model Workshop compatibility methods
     # These map COL3DViewport API onto DFFViewport equivalents
 
-    def zoom_in(self): #vers 1
-        self._dist = max(0.1, self._dist * 0.8); self.update()
+    def zoom_in(self): #vers 2
+        self._dist = max(0.1, self._dist * 0.8)
+        if self._projection == 'ortho': self.resizeGL(self.width(), self.height())
+        self.update()
 
-    def zoom_out(self): #vers 1
-        self._dist = min(50000.0, self._dist * 1.25); self.update()
+    def zoom_out(self): #vers 2
+        self._dist = min(50000.0, self._dist * 1.25)
+        if self._projection == 'ortho': self.resizeGL(self.width(), self.height())
+        self.update()
 
     def reset_view(self): #vers 1
         self._yaw=45.0; self._pitch=25.0; self._pan_x=0.0; self._pan_y=0.0

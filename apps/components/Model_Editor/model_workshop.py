@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 144
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 145
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
 # [FIX] _rebuild_grid QWidget crash: removed redundant deleteLater (QScrollArea auto-deletes old widget).
 # [FIX] _rebuild_grid QFrame deletion crash: reparent slots before scroll widget swap.
 # X-Seti - May08 2026 - Model editor
+# X-Seti - Jul07 2026 - Added 3ds Max style 4-pane viewport (Top/Front/Side/Perspective) via QStackedWidget central widget; user-assignable per pane by right-click; splitter-resizable; layout persists to model_workshop.json.
 
 import os
 # Force X11/GLX backend for NVIDIA on Wayland
@@ -8524,7 +8525,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         return panel
 
-    def _create_right_panel(self): #vers 13
+    def _create_right_panel(self): #vers 14
         """Right panel using QMainWindow + QToolBar for native docking.
         QMainWindow handles toolbar placement, row stacking, floating, and
         save/restore natively — same system Gwenview/KDE apps use."""
@@ -8548,10 +8549,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             QMainWindow.DockOption.AllowTabbedDocks)
         self._inner_mw = inner_mw
 
-        # Central widget — the 3D viewport
+        # Central widget — the 3D viewport, wrapped in a stack so the
+        # 4-Pane view (Top/Front/Side/Perspective) can be swapped in without
+        # disturbing QMainWindow's central-widget ownership.
+        from PyQt6.QtWidgets import QStackedWidget
         self.preview_widget = DFFViewport()
         self.preview_widget._workshop_ref = self
-        inner_mw.setCentralWidget(self.preview_widget)
+        self._viewport_stack = QStackedWidget()
+        self._viewport_stack.addWidget(self.preview_widget)   # index 0: single view
+        inner_mw.setCentralWidget(self._viewport_stack)
         self._gl_viewport  = self.preview_widget
         self._qp_viewport  = self.preview_widget
         self._gl_mode      = True
@@ -8569,10 +8575,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         # Save on close
         self.window_closed.connect(self._save_toolbar_state)
+        self.window_closed.connect(self._save_quad_layout)
 
         return panel
 
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 3
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 4
         """Build all QToolBar instances using QAction.
         Icon set resolved once — 'default' uses SVGIconFactory with currentColor,
         '3dsmax' uses MaxIconSet with hardcoded Max palette."""
@@ -8785,6 +8792,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             def _set_v(checked=False, y=yaw, p=pitch):
                 pw._yaw = y; pw._pitch = p; pw.update()
             _act(tb_nav, label, _icon(default_fn, max_name), _set_v)
+        tb_nav.addSeparator()
+        _act(tb_nav, "4-Pane View",
+             _icon(self.icon_factory.grid_icon, 'grid_icon'),
+             self._toggle_quad_view, checkable=True, attr='_quad_view_act')
 
         # ── Ribbon 5: Render ──────────────────────────────────────────────
         tb_rend = _tb("Render", Qt.ToolBarArea.RightToolBarArea)
@@ -9177,6 +9188,170 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # Hide/show drag button based on docking state
         if hasattr(self, 'drag_btn'):
             self.drag_btn.setVisible(not self.is_docked)
+
+    # - 3ds Max style 4-pane viewport (Top/Front/Side/Perspective)
+
+    def _create_quad_viewport(self): #vers 1
+        """Build the 2x2 quad viewport, resizable via splitters, each pane's
+        view is user-assignable (right-click). Perspective pane stays free-
+        rotate; Top/Front/Side panes are locked to ortho projection. Added
+        as a second page of self._viewport_stack."""
+        presets = [
+            ("Top",         0,   0, 'ortho'),
+            ("Front",       0,  90, 'ortho'),
+            ("Side",       90,   0, 'ortho'),
+            ("Perspective",30,  20, 'perspective'),
+        ]
+        self._quad_panes = []
+        for label, yaw, pitch, proj in presets:
+            pane = DFFViewport()
+            pane.app_settings = getattr(self.preview_widget, 'app_settings', None)
+            pane.set_view_lock(proj == 'ortho', label, yaw=yaw, pitch=pitch, projection=proj)
+            pane._quad_preset_name = label
+            pane.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            pane.customContextMenuRequested.connect(
+                lambda pos, p=pane: self._show_quad_pane_menu(p, pos))
+            self._quad_panes.append(pane)
+
+        top_row = QSplitter(Qt.Orientation.Horizontal)
+        top_row.addWidget(self._quad_panes[0])
+        top_row.addWidget(self._quad_panes[1])
+
+        bottom_row = QSplitter(Qt.Orientation.Horizontal)
+        bottom_row.addWidget(self._quad_panes[2])
+        bottom_row.addWidget(self._quad_panes[3])
+
+        quad = QSplitter(Qt.Orientation.Vertical)
+        quad.addWidget(top_row)
+        quad.addWidget(bottom_row)
+        self._quad_container  = quad
+        self._quad_top_row    = top_row
+        self._quad_bottom_row = bottom_row
+        self._viewport_stack.addWidget(quad)
+
+        self._load_quad_layout()
+        return quad
+
+    def _show_quad_pane_menu(self, pane, pos): #vers 1
+        """Right-click a pane's corner to reassign its view, user-defined,
+        same idea as 3ds Max viewport labels."""
+        options = [
+            ("Top",         0,   0, 'ortho'),
+            ("Front",       0,  90, 'ortho'),
+            ("Side",       90,   0, 'ortho'),
+            ("Back",      180,  90, 'ortho'),
+            ("Bottom",       0, 180, 'ortho'),
+            ("Perspective",30,  20, 'perspective'),
+        ]
+        menu = QMenu(pane)
+        for label, yaw, pitch, proj in options:
+            act = menu.addAction(label)
+            act.triggered.connect(
+                lambda checked=False, l=label, y=yaw, p=pitch, pr=proj:
+                    self._assign_quad_pane_view(pane, l, y, p, pr))
+        menu.exec(pane.mapToGlobal(pos))
+
+    def _assign_quad_pane_view(self, pane, label, yaw, pitch, projection): #vers 1
+        """Apply a user-chosen preset to one quad pane and persist it."""
+        pane.set_view_lock(projection == 'ortho', label, yaw=yaw, pitch=pitch,
+                            projection=projection)
+        pane._quad_preset_name = label
+        self._save_quad_layout()
+
+    def _toggle_quad_view(self, checked): #vers 1
+        """Swap the central-widget stack between the single viewport and the
+        4-pane view."""
+        if checked:
+            if not hasattr(self, '_quad_container'):
+                self._create_quad_viewport()
+                self.preview_widget._on_geometry_loaded = self._sync_quad_from_main
+            self._viewport_stack.setCurrentWidget(self._quad_container)
+            self._sync_quad_from_main()
+        else:
+            if hasattr(self, '_quad_container'):
+                self._save_quad_layout()
+            self._viewport_stack.setCurrentWidget(self.preview_widget)
+
+    def _sync_quad_from_main(self): #vers 1
+        """Mirror the main viewport's loaded geometry into the 4 quad panes."""
+        panes = getattr(self, '_quad_panes', None)
+        if not panes:
+            return
+        src = self.preview_widget
+        for pane in panes:
+            pane._vertices  = list(getattr(src, '_vertices', []))
+            pane._normals   = list(getattr(src, '_normals', []))
+            pane._uvs       = list(getattr(src, '_uvs', []))
+            pane._triangles = list(getattr(src, '_triangles', []))
+            pane._materials = getattr(src, '_materials', [])
+            pane._prelit    = list(getattr(src, '_prelit', []))
+            pane._all_geoms = list(getattr(src, '_all_geoms', []))
+            pane._current_geom_flags = getattr(src, '_current_geom_flags', 0)
+            pane._auto_fit()
+            pane.update()
+
+    def _save_quad_layout(self): #vers 1
+        """Persist per-pane view assignment + splitter sizes."""
+        import json, os
+        panes = getattr(self, '_quad_panes', None)
+        if not panes:
+            return
+        try:
+            cfg_dir = os.path.expanduser('~/.config/imgfactory')
+            os.makedirs(cfg_dir, exist_ok=True)
+            cfg_path = os.path.join(cfg_dir, 'model_workshop.json')
+            data = {}
+            if os.path.exists(cfg_path):
+                try:
+                    with open(cfg_path) as f:
+                        data = json.load(f)
+                except Exception:
+                    data = {}
+            data['quad_view'] = {
+                'panes': [
+                    {'label': p._view_label, 'yaw': p._yaw, 'pitch': p._pitch,
+                     'projection': p._projection}
+                    for p in panes
+                ],
+                'top_row_sizes':    self._quad_top_row.sizes(),
+                'bottom_row_sizes': self._quad_bottom_row.sizes(),
+                'outer_sizes':      self._quad_container.sizes(),
+            }
+            with open(cfg_path, 'w') as f:
+                json.dump(data, f, indent=2)
+        except Exception:
+            pass
+
+    def _load_quad_layout(self): #vers 1
+        """Restore per-pane view assignment + splitter sizes, if saved."""
+        import json, os
+        panes = getattr(self, '_quad_panes', None)
+        if not panes:
+            return
+        try:
+            cfg_path = os.path.expanduser('~/.config/imgfactory/model_workshop.json')
+            if not os.path.exists(cfg_path):
+                return
+            with open(cfg_path) as f:
+                data = json.load(f)
+            qv = data.get('quad_view')
+            if not qv:
+                return
+            saved_panes = qv.get('panes', [])
+            for pane, saved in zip(panes, saved_panes):
+                pane.set_view_lock(saved.get('projection') == 'ortho',
+                                    saved.get('label', ''),
+                                    yaw=saved.get('yaw'), pitch=saved.get('pitch'),
+                                    projection=saved.get('projection', 'perspective'))
+                pane._quad_preset_name = saved.get('label', '')
+            if qv.get('top_row_sizes'):
+                self._quad_top_row.setSizes(qv['top_row_sizes'])
+            if qv.get('bottom_row_sizes'):
+                self._quad_bottom_row.setSizes(qv['bottom_row_sizes'])
+            if qv.get('outer_sizes'):
+                self._quad_container.setSizes(qv['outer_sizes'])
+        except Exception:
+            pass
 
 
 # - Rest of the logic for the panels
