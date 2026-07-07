@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 143
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 144
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -7207,6 +7207,20 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             vp.update()
         self._set_status(f"Geometry [{idx}] duplicated.")
 
+    def _mirror_dialog(self): #vers 1
+        """STUB: Mirror selected geometry across a chosen axis."""
+        from PyQt6.QtWidgets import QMessageBox
+        QMessageBox.information(self, "Mirror",
+            "Mirror is not yet implemented.\n"
+            "Coming in a future build.")
+
+    def _align_dialog(self): #vers 1
+        """STUB: Align selection to another object or the world grid."""
+        from PyQt6.QtWidgets import QMessageBox
+        QMessageBox.information(self, "Align",
+            "Align is not yet implemented.\n"
+            "Coming in a future build.")
+
     def _set_select_mode(self, mode: str): #vers 2
         """Set viewport selection mode: vertex / edge / face / poly / object.
         Switching modes clears the other modes' selection sets, so there is
@@ -8726,6 +8740,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
              _icon(lambda color=icon_color: MaxSVGIcons.snap_axis_constraint_icon(
                  size=20, color=color), 'snap_axis_icon'),
              checkable=True, attr='_snap_axis_act')
+        _act(tb_snap, "Angle Snap",
+             _icon(lambda color=icon_color: MaxSVGIcons.snap_angle_icon(
+                 size=20, color=color), 'snap_angle_icon'),
+             checkable=True, attr='_snap_angle_act')
+        _act(tb_snap, "Percent Snap",
+             _icon(lambda color=icon_color: MaxSVGIcons.snap_percent_icon(
+                 size=20, color=color), 'snap_percent_icon'),
+             checkable=True, attr='_snap_percent_act')
 
         # ── Ribbon 3: Edit Geometry ───────────────────────────────────────
         tb_geo = _tb("Edit Geometry")
@@ -8737,6 +8759,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
              _icon(lambda color=icon_color: MaxSVGIcons.extrude_icon(
                  size=20, color=color), 'extrude_icon'),
              callback=self._extrude_dialog, attr='_extrude_act')
+        tb_geo.addSeparator()
+        _act(tb_geo, "Mirror",
+             _icon(lambda color=icon_color: MaxSVGIcons.mirror_icon(
+                 size=20, color=color), 'mirror_icon'),
+             callback=self._mirror_dialog, attr='_mirror_act')
+        _act(tb_geo, "Align",
+             _icon(lambda color=icon_color: MaxSVGIcons.align_icon(
+                 size=20, color=color), 'align_icon'),
+             callback=self._align_dialog, attr='_align_act')
 
         # ── Ribbon 4: Navigation ──────────────────────────────────────────
         tb_nav = _tb("Navigation", Qt.ToolBarArea.RightToolBarArea)

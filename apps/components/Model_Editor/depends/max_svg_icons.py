@@ -22,14 +22,18 @@ from apps.methods.imgfactory_svg_icons import SVGIconFactory
 
 ##Methods list -
 # MaxSVGIcons._snap_magnet_base
+# MaxSVGIcons.align_icon
 # MaxSVGIcons.create_primitive_icon
 # MaxSVGIcons.extrude_icon
+# MaxSVGIcons.mirror_icon
+# MaxSVGIcons.snap_angle_icon
 # MaxSVGIcons.snap_axis_constraint_icon
 # MaxSVGIcons.snap_edge_icon
 # MaxSVGIcons.snap_endpoint_icon
 # MaxSVGIcons.snap_face_icon
 # MaxSVGIcons.snap_grid_icon
 # MaxSVGIcons.snap_midpoint_icon
+# MaxSVGIcons.snap_percent_icon
 # MaxSVGIcons.snap_pivot_icon
 # MaxSVGIcons.snap_vertex_icon
 
@@ -168,4 +172,57 @@ class MaxSVGIcons:
             <rect x="3" y="14" width="18" height="6" stroke="currentColor" stroke-width="2" fill="none"/>
             <line x1="12" y1="14" x2="12" y2="4"  stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
             <polygon points="12,2 8,8 16,8" fill="currentColor"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def snap_angle_icon(size: int = 20, color: str = None, accent_color: str = None) -> QIcon: #vers 1
+        """Angle Snap — two lines forming an angle with arc and snap dot."""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <line x1="3" y1="19" x2="21" y2="19"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="3" y1="19" x2="17" y2="5"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <path d="M9,19 A6,6 0 0,0 6.2,12.5"
+                stroke="currentColor" stroke-width="1.8"
+                fill="none" stroke-linecap="round" opacity="0.7"/>
+            <circle cx="6.2" cy="12.5" r="2.2" fill="currentColor"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def snap_percent_icon(size: int = 20, color: str = None, accent_color: str = None) -> QIcon: #vers 1
+        """Percent Snap — % symbol with snap indicator dot."""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <text x="1" y="17" font-family="Arial,sans-serif" font-size="15"
+                font-weight="bold" fill="currentColor" opacity="0.9">%</text>
+            <circle cx="19" cy="19" r="3" fill="currentColor" opacity="0.5"/>
+            <circle cx="19" cy="19" r="1.2" fill="currentColor"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def mirror_icon(size: int = 20, color: str = None, accent_color: str = None) -> QIcon: #vers 1
+        """Mirror — two triangles reflected across a centre axis line."""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <line x1="12" y1="2" x2="12" y2="22"
+                stroke="currentColor" stroke-width="1.5"
+                stroke-dasharray="3,2" opacity="0.6"/>
+            <polygon points="3,5 10,12 3,19"
+                fill="currentColor" opacity="0.7"
+                stroke="currentColor" stroke-width="1.2"/>
+            <polygon points="21,5 14,12 21,19"
+                fill="currentColor" opacity="0.35"
+                stroke="currentColor" stroke-width="1.2"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def align_icon(size: int = 20, color: str = None, accent_color: str = None) -> QIcon: #vers 1
+        """Align — dashed source box aligning to solid target, arrow showing movement."""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <rect x="11" y="4" width="10" height="16"
+                stroke="currentColor" stroke-width="2" fill="none"/>
+            <rect x="3" y="8" width="8" height="8"
+                stroke="currentColor" stroke-width="1.8" fill="none"
+                stroke-dasharray="2.5,2" opacity="0.6"/>
+            <line x1="7" y1="12" x2="11" y2="12"
+                stroke="currentColor" stroke-width="1.5"/>
+            <polygon points="11,12 9,10.5 9,13.5" fill="currentColor"/>
         </svg>''', size, color)
