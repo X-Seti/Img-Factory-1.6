@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/depends/max_icon_set.py - Version: 4
+#this belongs in apps/components/Model_Editor/depends/max_icon_set.py - Version: 5
 # X-Seti - July 2026 - IMG Factory 1.6 - 3ds Max 2014 Style Icon Set
 
 """
@@ -257,47 +257,51 @@ class MaxIconSet:
         </svg>''', size)
 
     @staticmethod
-    def snap_angle_icon(size: int = 20, **_) -> QIcon: #vers 1
-        """Angle Snap Toggle — arc with degree marker, red snap dot.
-        Matches Max's angle snap icon from main toolbar."""
+    def snap_angle_icon(size: int = 20, **_) -> QIcon: #vers 2
+        """Angle Snap — angle lines + arc above small magnet, matching Max."""
         return _ic(f'''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <!-- Horizontal base line -->
-            <line x1="3" y1="18" x2="21" y2="18"
-                stroke="{_WHITE}" stroke-width="1.8" stroke-linecap="round"
-                opacity="0.7"/>
-            <!-- Angled line from origin -->
-            <line x1="3" y1="18" x2="17" y2="6"
-                stroke="{_WHITE}" stroke-width="1.8" stroke-linecap="round"
-                opacity="0.7"/>
-            <!-- Arc showing the angle -->
-            <path d="M9,18 A6,6 0 0,0 6.5,11.5"
-                stroke="{_SNAP_T}" stroke-width="1.8"
-                fill="none" stroke-linecap="round"/>
-            <!-- Red snap dot at angle position -->
-            <circle cx="6.5" cy="11.5" r="2" fill="{_SNAP_R}"/>
+            <line x1="3" y1="15" x2="21" y2="15"
+                stroke="{_WHITE}" stroke-width="1.8" stroke-linecap="round" opacity="0.7"/>
+            <line x1="3" y1="15" x2="14" y2="3"
+                stroke="{_WHITE}" stroke-width="1.8" stroke-linecap="round" opacity="0.7"/>
+            <path d="M8,15 A5,5 0 0,0 5.5,9.5"
+                stroke="{_SNAP_T}" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+            <circle cx="5.5" cy="9.5" r="1.8" fill="{_SNAP_R}"/>
+            {MaxIconSet._snap_base()}
         </svg>''', size)
 
     @staticmethod
-    def snap_percent_icon(size: int = 20, **_) -> QIcon: #vers 1
-        """Percent Snap Toggle — % symbol with red snap marker.
-        Matches Max's percent snap icon."""
+    def snap_percent_icon(size: int = 20, **_) -> QIcon: #vers 2
+        """Percent Snap — % symbol above small magnet, matching Max."""
         return _ic(f'''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <text x="2" y="16" font-family="Arial,sans-serif" font-size="14"
-                font-weight="bold" fill="{_WHITE}" opacity="0.85">%</text>
-            <circle cx="18" cy="18" r="3" fill="{_SNAP_R}"/>
-            <circle cx="18" cy="18" r="1.2" fill="{_SNAP_T}"/>
+            <text x="3" y="15" font-family="Arial,sans-serif" font-size="13"
+                font-weight="bold" fill="{_WHITE}">%</text>
+            {MaxIconSet._snap_base()}
         </svg>''', size)
 
     @staticmethod
-    def snap_3d_icon(size: int = 20, **_) -> QIcon: #vers 1
-        """3D Snap mode badge — '3' numeral with red magnet dot.
-        Matches Max's 3D snaps toggle (shows '3' badge)."""
+    def snap_3d_icon(size: int = 20, **_) -> QIcon: #vers 2
+        """3D Snap mode — '3' numeral above small magnet, matching Max."""
         return _ic(f'''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <text x="2" y="17" font-family="Arial,sans-serif" font-size="16"
-                font-weight="bold" fill="{_WHITE}" opacity="0.9">3</text>
-            <circle cx="18" cy="6" r="4" fill="{_SNAP_R}"/>
-            <circle cx="18" cy="6" r="1.8" fill="{_SNAP_T}"/>
+            <text x="5" y="15" font-family="Arial,sans-serif" font-size="14"
+                font-weight="bold" fill="{_WHITE}">3</text>
+            {MaxIconSet._snap_base()}
         </svg>''', size)
+
+    @staticmethod
+    def snap_spinner_icon(size: int = 20, **_) -> QIcon: #vers 1
+        """Spinner Snap — grid subdivide symbol above magnet, matching Max."""
+        return _ic(f'''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <rect x="3" y="2" width="12" height="12"
+                stroke="{_WHITE}" stroke-width="1.5" fill="none" opacity="0.7"/>
+            <line x1="9"  y1="2"  x2="9"  y2="14" stroke="{_WHITE}" stroke-width="1" opacity="0.5"/>
+            <line x1="3"  y1="8"  x2="15" y2="8"  stroke="{_WHITE}" stroke-width="1" opacity="0.5"/>
+            <line x1="15" y1="5"  x2="19" y2="5"  stroke="{_SNAP_T}" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="15" y1="11" x2="19" y2="11" stroke="{_SNAP_T}" stroke-width="1.5" stroke-linecap="round"/>
+            <polygon points="19,3 19,8 22,5.5" fill="{_SNAP_T}"/>
+            {MaxIconSet._snap_base()}
+        </svg>''', size)
+
 
     # ------------------------------------------------------------------ #
     # Edit Geometry — Mirror and Align                                     #
