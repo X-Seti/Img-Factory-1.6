@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 13 (Build 333)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 14 (Build 333)
 # X-Seti - April 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -14,6 +14,504 @@
 #   Centre: menubar + zoomable scrollable DP5Canvas
 #   Right:  2-col tool gadget bar (SVG icons) + brush size slider +
 #           FG/BG swatches + IMAGE palette strip + USER palette (retro presets)
+#
+##Methods list -
+# _load_tool_icon
+# _make_tool_icon
+# open_dp5_workshop
+#
+##class DP5Settings: -
+# __init__
+# _load
+# get
+# save
+# set
+#
+##class DP5SettingsDialog: -
+# __init__
+# _accept
+#
+##class DP5Canvas: -
+# __init__
+# _do_blur_brush
+# _do_dodge_burn
+# _do_smudge
+# _do_spray
+# _get_scroll_area
+# _lift_selection
+# _point_in_sel_rect
+# _push_undo_canvas
+# _scroll_by
+# _stamp_selection
+# _tex_to_widget
+# _widget_to_tex
+# cancel_sel_move
+# copy_selection
+# cut_selection
+# draw_bezier_curve
+# draw_circle
+# draw_filled_circle
+# draw_filled_rect
+# draw_line
+# draw_rect
+# draw_regular_polygon
+# draw_star
+# draw_triangle
+# flood_fill
+# get_pixel
+# keyPressEvent
+# keyReleaseEvent
+# mouseDoubleClickEvent
+# mouseMoveEvent
+# mousePressEvent
+# mouseReleaseEvent
+# nudge_float
+# paintEvent
+# paste_selection
+# set_pixel
+# set_pixel_brush
+# sizeHint
+# wheelEvent
+#
+##class PaletteGrid: -
+# __init__
+# _effective_cols
+# _get_ui_color
+# _recalc_height
+# mousePressEvent
+# paintEvent
+# resizeEvent
+# set_colors
+# set_palette
+# set_palette_raw
+# set_selection_by_color
+#
+##class _AutoCellPaletteGrid: -
+# __init__
+# _cell_size
+# _effective_cols
+# _get_ui_color
+# _recalc_height
+# mousePressEvent
+# paintEvent
+# resizeEvent
+# set_colors
+# set_palette_raw
+#
+##class ColorPickerWidget: -
+# __init__
+# _pick
+# current_color
+#
+##class FGBGSwatch: -
+# __init__
+# _bg_rect
+# _fg_rect
+# _get_ui_color
+# _pick_bg
+# _pick_fg
+# bg
+# fg
+# heightForWidth
+# mouseDoubleClickEvent
+# mousePressEvent
+# paintEvent
+# set_bg
+# set_fg
+# sizeHint
+# swap
+#
+##class _CanvasTextOverlay: -
+# __init__
+# _commit
+# keyPressEvent
+#
+##class BrushManager: -
+# __init__
+# _brush_dir
+# _delete_brush
+# _import_brush
+# _on_brush_selected
+# _refresh
+# _save_brush
+# _setup_ui
+# save_current_buffer
+#
+##class BrushThumbnail: -
+# __init__
+# mousePressEvent
+# paintEvent
+# set_active
+# set_buffer
+#
+##class ColorPalPresetsMixin: -
+# _apply_retro_palette
+# _apply_user_palette_dither
+# _build_retro_palettes
+# _cycle_pal_dither
+# _get_retro_colors
+# _show_retro_menu
+#
+##class _CornerOverlay: -
+# __init__
+# _update_mask
+# paintEvent
+# resizeEvent
+# setGeometry
+# update_state
+#
+##class DP5Workshop: -
+# __init__
+# _9bit_to_rgb
+# _activate_stamp_mode
+# _adjust
+# _anim_add_frame
+# _anim_del_frame
+# _anim_dup_frame
+# _anim_export_gif
+# _anim_export_png_seq
+# _anim_first
+# _anim_highlight_thumb
+# _anim_init_frames
+# _anim_last
+# _anim_load_frame
+# _anim_next
+# _anim_prev
+# _anim_refresh_thumbs
+# _anim_save_current_frame
+# _anim_tick
+# _anim_toggle_play
+# _anim_update_label
+# _apply_atari_st_constraint
+# _apply_bit_depth
+# _apply_cell_constraint
+# _apply_generic_constraint
+# _apply_ham_constraint
+# _apply_menu_bar_style
+# _apply_mode_to_canvas
+# _apply_msx_constraint
+# _apply_palette0_alpha
+# _apply_pending_constraint
+# _apply_selection_rotation
+# _apply_spectrum_clash
+# _apply_theme
+# _apply_zx8x_dither
+# _batch_convert_icons
+# _batch_convert_textures
+# _build_canvas_menus
+# _build_load_menu
+# _build_menus_into_qmenu
+# _canvas_to_256colour_indexed
+# _clear_brush
+# _clear_canvas
+# _copy_selection
+# _create_anim_strip
+# _create_centre_panel
+# _create_docked_bar
+# _create_left_panel
+# _create_right_panel
+# _create_toolbar
+# _crop_to_selection
+# _cut_selection
+# _decode_amiga_info
+# _decode_iff_ilbm
+# _decode_newicon_im1
+# _delete_bitmap
+# _deselect
+# _dither_bayer_canvas
+# _dither_checker_canvas
+# _dither_floyd_steinberg
+# _dp5_blur
+# _dp5_edge_detect
+# _dp5_emboss
+# _dp5_sharpen
+# _export_amiga_icon
+# _export_art_studio
+# _export_bitmap
+# _export_c64mprg
+# _export_c64prg
+# _export_dds
+# _export_icns
+# _export_ico
+# _export_iff
+# _export_iff_ham
+# _export_koala
+# _export_msxcom
+# _export_nex
+# _export_nxi
+# _export_pal
+# _export_pcx
+# _export_pi1
+# _export_plus4prg
+# _export_sc2
+# _export_scr
+# _export_svg_icon
+# _export_tap
+# _export_texture_bmp
+# _export_texture_png
+# _export_tga
+# _export_vicprg
+# _fill_canvas
+# _fit_canvas_to_viewport
+# _fit_img_pal_height
+# _flip_h
+# _flip_v
+# _get_canvas_pil
+# _get_icon_color
+# _get_resize_corner
+# _get_resize_direction
+# _get_tool_menu_style
+# _get_user_palette_rgb
+# _group_palette
+# _handle_corner_resize
+# _handle_resize
+# _iff_find_chunk
+# _iff_unpack_body
+# _import_amiga_info
+# _import_art_studio
+# _import_bitmap
+# _import_bitmap_path
+# _import_bitmap_snap_canvas_size
+# _import_bitmap_snap_canvas_size_dither
+# _import_bitmap_snap_dither
+# _import_bitmap_snap_user_pal
+# _import_dds
+# _import_gif
+# _import_icns
+# _import_ico
+# _import_iff
+# _import_koala
+# _import_nxi
+# _import_pal
+# _import_pcx
+# _import_pi1
+# _import_psd
+# _import_sc2
+# _import_scr
+# _import_svg
+# _import_tga
+# _import_tiff
+# _invert
+# _is_on_draggable_area
+# _launch_theme_settings
+# _limit_cell_colours
+# _load_btn_context_menu
+# _load_rgba
+# _make_checkerboard
+# _mirror_h
+# _mirror_v
+# _nearest_in_palette
+# _nearest_zx_colour
+# _new_btn_context_menu
+# _new_canvas
+# _on_bg_changed
+# _on_bitmap_selected
+# _on_brush_mgr_selected
+# _on_canvas_changed
+# _on_fg_changed
+# _on_image_palette_color
+# _on_menu_btn_clicked
+# _on_splitter_moved
+# _on_user_palette_color
+# _open_char_editor
+# _open_dp5_colour_adjust
+# _open_dp5_seamless
+# _open_dp5_snow
+# _open_icon_browser
+# _open_icon_editor
+# _open_sprite_editor
+# _open_zoom_lens
+# _paste_selection
+# _pil_transform
+# _place_text_at
+# _push_color_history
+# _push_undo
+# _rebuild_right_panel
+# _redo_canvas
+# _refresh_corner_overlay
+# _refresh_icons
+# _render_as_ansi
+# _render_as_ascii
+# _render_as_petscii
+# _render_as_teletext
+# _resize_canvas_dialog
+# _rgb_to_9bit
+# _rotate_180
+# _rotate_90_ccw
+# _rotate_90_cw
+# _rotate_arbitrary
+# _rotate_selection_dialog
+# _scale_canvas
+# _select_all
+# _select_tool
+# _set_brush_size
+# _set_canvas_mode
+# _set_opacity
+# _set_platform
+# _set_polygon_sides
+# _set_show_grid
+# _set_snap_grid
+# _set_status
+# _set_zoom
+# _set_zoom_mode
+# _setup_corner_overlay
+# _show_dropdown_menu
+# _show_load_menu
+# _show_load_menu_at
+# _show_workshop_settings
+# _snap_canvas_to_user_palette
+# _snap_canvas_to_user_palette_dither
+# _snap_cell_to_palette
+# _snap_image_to_platform_palette
+# _snap_image_to_user_palette
+# _sync_brush_thumb
+# _toggle_anim_strip
+# _toggle_brush_manager
+# _toggle_cell_grid
+# _toggle_clash_visualiser
+# _toggle_colour_constraints
+# _toggle_dither_mode
+# _toggle_maximize
+# _toggle_menubar
+# _toggle_onion_skin
+# _toggle_shape_fill
+# _toggle_statusbar
+# _toggle_symmetry_mode
+# _undo_canvas
+# _update_color_swatches
+# _update_cursor
+# _update_mode_buttons
+# _update_status
+# _update_transform_text_panel_visibility
+# _update_zoom_label
+# _write_amiga_info
+# _write_icns
+# _zoom_mode_menu
+# closeEvent
+# get_menu_title
+# keyPressEvent
+# mouseMoveEvent
+# mousePressEvent
+# mouseReleaseEvent
+# paintEvent
+# resizeEvent
+# set_menu_orientation
+# setup_ui
+# showEvent
+#
+##class _DockablePanelMixin: -
+# _add_dock_button
+# _dmp_float
+# _dmp_reposition
+# _dmp_save
+# _dmp_snap
+# _dmp_toggle_dock
+# _init_dock
+#
+##class _CharFontEditor: -
+# __init__
+# _browse_font_folder
+# _build_ui
+# _clear_char
+# _export_asm
+# _export_c
+# _filter_fonts
+# _invert_char
+# _load_binary
+# _load_font_file
+# _load_system_font
+# _on_bit_toggle
+# _on_char_select
+# _on_size_change
+# _populate_font_list
+# _refresh_char_list
+# _refresh_grid
+# _refresh_hex
+# _refresh_preview
+# _save_binary
+# _scan_font_folder
+# _shift_d
+# _shift_l
+# _shift_r
+# _shift_u
+# _stamp_to_canvas
+#
+##class _CharGrid: -
+# __init__
+# _cell
+# _get_ui_color
+# mouseMoveEvent
+# mousePressEvent
+# mouseReleaseEvent
+# paintEvent
+# set_data
+# set_size
+#
+##class _SpriteEditor: -
+# __init__
+# _browse_font_folder
+# _browse_sprite_folder
+# _build_ui
+# _export_sheet
+# _filter_fonts
+# _load_font_file
+# _load_sprite_file
+# _load_system_font
+# _on_frame_select
+# _on_size_change
+# _on_zoom
+# _populate_font_list
+# _refresh_frames
+# _scan_font_folder
+# _scan_sprite_folder
+# _set_sprite_size
+#
+##class _IconEditor: -
+# __init__
+# _alpha_swatch_context
+# _amiga_pal_to_mode
+# _browse_folder
+# _browse_open
+# _build_ui
+# _clipboard_copy
+# _clipboard_paste
+# _export_all
+# _export_rgba
+# _export_single
+# _float_panel
+# _fmt_ext
+# _get_export_rgba
+# _icon_context_menu
+# _load_file
+# _load_raster
+# _load_svg
+# _make_thumbnail
+# _on_folder_icon_open
+# _on_folder_icon_selected
+# _on_format_changed
+# _on_variant_select
+# _open_folder_in_fm
+# _open_in_canvas
+# _pick_alpha
+# _populate_icon_list
+# _populate_variants
+# _refresh_alpha_swatch
+# _reposition_overlay
+# _save_settings
+# _scan_folder
+# _search_icons
+# _snap_to_overlay
+# _sort_icons
+# _toggle_dock
+# closeEvent
+#
+##class _SpriteView: -
+# __init__
+# paintEvent
+# set_sprite
+# set_zoom
+#
+
 
 import os, sys, random, json
 from collections import deque
@@ -104,22 +602,22 @@ try:
 except ImportError:
     ICONS_AVAILABLE = False
     class SVGIconFactory:
-        def __getattr__(self, name):
+        def __getattr__(self, name):  #vers 1
             return lambda *a, **k: QIcon()
         @staticmethod
-        def clear_cache(): pass
+        def clear_cache(): pass  #vers 1
         @staticmethod
-        def settings_icon(size=20, color='#ffffff'): return QIcon()
+        def settings_icon(size=20, color='#ffffff'): return QIcon()  #vers 1
         @staticmethod
-        def properties_icon(size=20, color='#ffffff'): return QIcon()
+        def properties_icon(size=20, color='#ffffff'): return QIcon()  #vers 1
         @staticmethod
-        def minimize_icon(size=20, color='#ffffff'): return QIcon()
+        def minimize_icon(size=20, color='#ffffff'): return QIcon()  #vers 1
         @staticmethod
-        def maximize_icon(size=20, color='#ffffff'): return QIcon()
+        def maximize_icon(size=20, color='#ffffff'): return QIcon()  #vers 1
         @staticmethod
-        def close_icon(size=20, color='#ffffff'): return QIcon()
+        def close_icon(size=20, color='#ffffff'): return QIcon()  #vers 1
         @staticmethod
-        def ai_icon(size=20, color='#ffffff'): return QIcon()
+        def ai_icon(size=20, color='#ffffff'): return QIcon()  #vers 1
 
 try:
     from apps.utils.app_settings_system import AppSettings, SettingsDialog
@@ -780,7 +1278,7 @@ class DP5SettingsDialog(QDialog):
         self._grid_color_btn.setStyleSheet(f"background:{gc.name()};")
         self._grid_color_btn.setFixedHeight(22)
         self._grid_color_btn.setToolTip("Click to pick pixel grid colour")
-        def _pick_grid_color():
+        def _pick_grid_color():  #vers 1
             c = QColorDialog.getColor(QColor(self.s.get('grid_color')), self, "Grid Colour",
                                       QColorDialog.ColorDialogOption.ShowAlphaChannel)
             if c.isValid():
@@ -1109,7 +1607,7 @@ class DP5Canvas(QWidget):
         fr,fg,fb,fa = fill_col.red(), fill_col.green(), fill_col.blue(), fill_col.alpha()
         if (tr,tg,tb,ta) == (fr,fg,fb,fa): return
 
-        def match(x, y):
+        def match(x, y):  #vers 1
             i = (y*w+x)*4
             return (self.rgba[i]==tr and self.rgba[i+1]==tg and
                     self.rgba[i+2]==tb and self.rgba[i+3]==ta)
@@ -1156,13 +1654,13 @@ class DP5Canvas(QWidget):
             if e2 > -dy: err -= dy; x0 += sx
             if e2 <  dx: err += dx; y0 += sy
 
-    def draw_rect(self, x0, y0, x1, y1, c: QColor):
+    def draw_rect(self, x0, y0, x1, y1, c: QColor):  #vers 1
         if x0 > x1: x0,x1 = x1,x0
         if y0 > y1: y0,y1 = y1,y0
         self.draw_line(x0,y0,x1,y0,c); self.draw_line(x1,y0,x1,y1,c)
         self.draw_line(x1,y1,x0,y1,c); self.draw_line(x0,y1,x0,y0,c)
 
-    def draw_circle(self, cx, cy, rx, ry, c: QColor):
+    def draw_circle(self, cx, cy, rx, ry, c: QColor):  #vers 1
         x, y = 0, ry
         d1 = ry*ry - rx*rx*ry + 0.25*rx*rx
         dx, dy = 2*ry*ry*x, 2*rx*rx*y
@@ -1178,14 +1676,14 @@ class DP5Canvas(QWidget):
             if d2>0: dy-=2*rx*rx; d2+=rx*rx-dy; y-=1
             else: dx+=2*ry*ry; dy-=2*rx*rx; d2+=dx-dy+rx*rx; x+=1; y-=1
 
-    def draw_filled_rect(self, x0, y0, x1, y1, c: QColor):
+    def draw_filled_rect(self, x0, y0, x1, y1, c: QColor):  #vers 1
         if x0 > x1: x0,x1 = x1,x0
         if y0 > y1: y0,y1 = y1,y0
         for yy in range(y0, y1+1):
             for xx in range(x0, x1+1):
                 self.set_pixel(xx, yy, c)
 
-    def draw_filled_circle(self, cx, cy, rx, ry, c: QColor):
+    def draw_filled_circle(self, cx, cy, rx, ry, c: QColor):  #vers 1
         """Filled ellipse via scanline."""
         for yy in range(-ry, ry+1):
             if ry == 0: continue
@@ -1193,13 +1691,13 @@ class DP5Canvas(QWidget):
             for xx in range(-half_w, half_w+1):
                 self.set_pixel(cx+xx, cy+yy, c)
 
-    def draw_triangle(self, x0, y0, x1, y1, x2, y2, c: QColor):
+    def draw_triangle(self, x0, y0, x1, y1, x2, y2, c: QColor):  #vers 1
         """Outline triangle through three points."""
         self.draw_line(x0, y0, x1, y1, c)
         self.draw_line(x1, y1, x2, y2, c)
         self.draw_line(x2, y2, x0, y0, c)
 
-    def draw_star(self, cx, cy, outer_r, inner_r, points, c: QColor):
+    def draw_star(self, cx, cy, outer_r, inner_r, points, c: QColor):  #vers 1
         """Outline star polygon."""
         import math
         pts = []
@@ -1213,7 +1711,7 @@ class DP5Canvas(QWidget):
             x1,y1 = pts[(i+1) % len(pts)]
             self.draw_line(x0, y0, x1, y1, c)
 
-    def draw_bezier_curve(self, pts_widget: List[QPoint], c: QColor):
+    def draw_bezier_curve(self, pts_widget: List[QPoint], c: QColor):  #vers 1
         """
         Draw a cubic Bézier through widget-space control points onto the canvas.
         Rasterises 256 steps and plots with set_pixel_brush.
@@ -1240,7 +1738,7 @@ class DP5Canvas(QWidget):
                 self.draw_line(prev[0], prev[1], x, y, c)
             prev = (x, y)
 
-    def draw_regular_polygon(self, cx, cy, radius, sides, c: QColor):
+    def draw_regular_polygon(self, cx, cy, radius, sides, c: QColor):  #vers 1
         """Draw a regular N-sided polygon outline."""
         import math
         pts = []
@@ -1255,7 +1753,7 @@ class DP5Canvas(QWidget):
 
     #    Selection clipboard ops                                                
 
-    def copy_selection(self):
+    def copy_selection(self):  #vers 1
         """Copy the selected rectangle to the internal buffer."""
         if not self._sel_active or not self._selection_rect: return
         r = self._selection_rect
@@ -1274,7 +1772,7 @@ class DP5Canvas(QWidget):
         self._sel_buf_w  = w
         self._sel_buf_h  = h
 
-    def cut_selection(self):
+    def cut_selection(self):  #vers 1
         """Copy selected area then clear it to transparent."""
         self.copy_selection()
         if not self._sel_active or not self._selection_rect: return
@@ -1288,7 +1786,7 @@ class DP5Canvas(QWidget):
                 self.rgba[i:i+4] = b'\x00\x00\x00\x00'
         self.update()
 
-    def paste_selection(self, dx: int = 0, dy: int = 0):
+    def paste_selection(self, dx: int = 0, dy: int = 0):  #vers 1
         """Paste the clipboard buffer at (dx, dy) offset from selection origin."""
         if not self._sel_buffer: return
         x0 = (self._selection_rect.x() if self._sel_active and self._selection_rect
@@ -1312,14 +1810,14 @@ class DP5Canvas(QWidget):
 
     #    Selection move helpers                                                 
 
-    def _point_in_sel_rect(self, tx: int, ty: int) -> bool:
+    def _point_in_sel_rect(self, tx: int, ty: int) -> bool:  #vers 1
         """True if tex-coord (tx,ty) is inside the committed selection rect."""
         if not self._sel_active or not self._selection_rect:
             return False
         r = self._selection_rect
         return r.x() <= tx < r.x() + r.width() and r.y() <= ty < r.y() + r.height()
 
-    def _lift_selection(self):
+    def _lift_selection(self):  #vers 1
         """
         Lift the selected pixels off the canvas into _sel_buffer and clear the
         source area to transparent.  Saves a full canvas backup in _sel_float_orig
@@ -1342,7 +1840,7 @@ class DP5Canvas(QWidget):
         self._sel_floating  = True
         self._sel_float_pos = (r.x(), r.y())
 
-    def _stamp_selection(self, keep_floating: bool = False):
+    def _stamp_selection(self, keep_floating: bool = False):  #vers 1
         """
         Blit the floating buffer at _sel_float_pos onto the canvas.
         If keep_floating is True the buffer stays in memory (still draggable).
@@ -1364,7 +1862,7 @@ class DP5Canvas(QWidget):
             self._selection_rect = QRect(ox, oy, w, h)
         self.update()
 
-    def cancel_sel_move(self):
+    def cancel_sel_move(self):  #vers 1
         """Escape while floating — restore canvas to pre-lift state."""
         if self._sel_floating and self._sel_float_orig:
             self.rgba[:] = self._sel_float_orig
@@ -1372,7 +1870,7 @@ class DP5Canvas(QWidget):
             self._sel_float_orig = None
         self.update()
 
-    def nudge_float(self, dx: int, dy: int):
+    def nudge_float(self, dx: int, dy: int):  #vers 1
         """Move the floating object by (dx, dy) pixels in tex-space."""
         if not self._sel_floating or not self._sel_float_pos:
             return
@@ -1383,7 +1881,7 @@ class DP5Canvas(QWidget):
             self._selection_rect = QRect(r.x()+dx, r.y()+dy, r.width(), r.height())
         self.update()
 
-    def _get_scroll_area(self):
+    def _get_scroll_area(self):  #vers 1
         """Walk up the parent chain to find the QScrollArea containing this canvas."""
         p = self.parent()
         while p is not None:
@@ -1392,7 +1890,7 @@ class DP5Canvas(QWidget):
             p = p.parent() if callable(getattr(p, 'parent', None)) else None
         return None
 
-    def _scroll_by(self, dx: int, dy: int):
+    def _scroll_by(self, dx: int, dy: int):  #vers 1
         """Pan the scroll area by (dx, dy) pixels."""
         sa = self._get_scroll_area()
         if sa:
@@ -1401,7 +1899,7 @@ class DP5Canvas(QWidget):
             hb.setValue(hb.value() + dx)
             vb.setValue(vb.value() + dy)
 
-    def _do_spray(self, cx: int, cy: int):
+    def _do_spray(self, cx: int, cy: int):  #vers 1
         """Spray paint random pixels in a circle around (cx, cy)."""
         r = self.brush_size * 5
         for _ in range(max(1, r)):
@@ -1485,7 +1983,7 @@ class DP5Canvas(QWidget):
                 buf[i+2] = max(0, min(255, buf[i+2] + adj))
 
 
-    def paintEvent(self, event):
+    def paintEvent(self, event):  #vers 1
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
 
@@ -1700,7 +2198,7 @@ class DP5Canvas(QWidget):
 
     #    Mouse events                                                           
 
-    def mousePressEvent(self, e: QMouseEvent):
+    def mousePressEvent(self, e: QMouseEvent):  #vers 1
         btn = e.button()
         tx, ty = self._widget_to_tex(e.position().toPoint())
 
@@ -1863,7 +2361,7 @@ class DP5Canvas(QWidget):
             self._lasso_pts  = [e.position().toPoint()]
             self._sel_active = False
 
-    def mouseDoubleClickEvent(self, e: QMouseEvent):
+    def mouseDoubleClickEvent(self, e: QMouseEvent):  #vers 1
         """Double-click commits curve/polygon."""
         if e.button() != Qt.MouseButton.LeftButton: return
 
@@ -1887,27 +2385,27 @@ class DP5Canvas(QWidget):
             self._poly_pts = []
             self.update()
 
-    def keyPressEvent(self, e):
+    def keyPressEvent(self, e):  #vers 1
         if e.key() == Qt.Key.Key_Space and not e.isAutoRepeat():
             self._space_panning = True
             self.setCursor(Qt.CursorShape.OpenHandCursor)
         else:
             e.ignore()   # let parent handle all other keys
 
-    def keyReleaseEvent(self, e):
+    def keyReleaseEvent(self, e):  #vers 1
         if e.key() == Qt.Key.Key_Space and not e.isAutoRepeat():
             self._space_panning = False
             self.setCursor(Qt.CursorShape.ArrowCursor)
         else:
             e.ignore()
 
-    def _push_undo_canvas(self):
+    def _push_undo_canvas(self):  #vers 1
         """Push undo state from within the canvas (used by tool handlers)."""
         ed = self._editor
         if ed and hasattr(ed, '_push_undo'):
             ed._push_undo()
 
-    def mouseMoveEvent(self, e: QMouseEvent):
+    def mouseMoveEvent(self, e: QMouseEvent):  #vers 1
         tx, ty = self._widget_to_tex(e.position().toPoint())
         ed = self._editor
         if ed and hasattr(ed, '_update_status'):
@@ -2018,7 +2516,7 @@ class DP5Canvas(QWidget):
         elif self.tool in (TOOL_LASSO, TOOL_FILLED_LASSO):
             self._lasso_pts.append(e.position().toPoint()); self.update()
 
-    def mouseReleaseEvent(self, e: QMouseEvent):
+    def mouseReleaseEvent(self, e: QMouseEvent):  #vers 1
         if e.button() == Qt.MouseButton.MiddleButton:
             self._pan_start = None
             return
@@ -2155,7 +2653,7 @@ class DP5Canvas(QWidget):
         self.update()
         self.pixel_changed.emit(tx, ty)
 
-    def wheelEvent(self, e: QWheelEvent):
+    def wheelEvent(self, e: QWheelEvent):  #vers 1
         if not (e.modifiers() & Qt.KeyboardModifier.ControlModifier):
             return   # pass non-Ctrl scroll to scroll area for panning
         d        = e.angleDelta().y()
@@ -2209,7 +2707,7 @@ class PaletteGrid(QWidget):
         (50,100,200),(200,50,100),(100,50,200),(50,200,100),
     ]
 
-    def __init__(self, cols: int = 16, cell: int = 13, parent=None):
+    def __init__(self, cols: int = 16, cell: int = 13, parent=None):  #vers 1
         super().__init__(parent)
         self._cols_hint = cols   # used only when widget has no width yet
         self._cell      = cell
@@ -2239,19 +2737,19 @@ class PaletteGrid(QWidget):
             return pal.color(pal.ColorRole.Mid)
         return pal.color(pal.ColorRole.WindowText)
 
-    def _effective_cols(self) -> int:
+    def _effective_cols(self) -> int:  #vers 1
         """Columns that fit in current width, falling back to hint."""
         w = self.width()
         if w > self._cell:
             return max(1, w // self._cell)
         return max(1, self._cols_hint)
 
-    def _recalc_height(self):
+    def _recalc_height(self):  #vers 1
         cols = self._effective_cols()
         rows = max(1, (len(self._colors) + cols - 1) // cols)
         self.setFixedHeight(rows * self._cell + 1)
 
-    def resizeEvent(self, event):
+    def resizeEvent(self, event):  #vers 1
         super().resizeEvent(event)
         self._recalc_height()
 
@@ -2301,7 +2799,7 @@ class PaletteGrid(QWidget):
         self._recalc_height()
         self.update()
 
-    def set_selection_by_color(self, c: QColor):
+    def set_selection_by_color(self, c: QColor):  #vers 1
         for i, p in enumerate(self._colors):
             if p.rgb() == c.rgb():
                 self._selected = i
@@ -2310,7 +2808,7 @@ class PaletteGrid(QWidget):
 
     #    Paint                                                                  
 
-    def paintEvent(self, event):
+    def paintEvent(self, event):  #vers 1
         p    = QPainter(self)
         cs   = self._cell
         cols = self._effective_cols()
@@ -2327,7 +2825,7 @@ class PaletteGrid(QWidget):
 
     #    Mouse                                                                  
 
-    def mousePressEvent(self, e: QMouseEvent):
+    def mousePressEvent(self, e: QMouseEvent):  #vers 1
         cs   = self._cell
         cols = self._effective_cols()
         col  = e.position().toPoint().x() // cs
@@ -2340,7 +2838,7 @@ class PaletteGrid(QWidget):
 
     #    Compat alias (legacy callers used set_palette)                         
 
-    def set_palette(self, palette_data):
+    def set_palette(self, palette_data):  #vers 1
         self.set_palette_raw(palette_data)
 
 
@@ -2369,40 +2867,40 @@ class _AutoCellPaletteGrid(PaletteGrid):
         }
         return pal.color(_map.get(key, pal.ColorRole.WindowText))
 
-    def __init__(self, cols: int = 16, parent=None):
+    def __init__(self, cols: int = 16, parent=None):  #vers 1
         self._fixed_cols = cols   # must be set BEFORE super().__init__ calls _recalc_height
         super().__init__(cols=cols, cell=13, parent=parent)
 
-    def _effective_cols(self) -> int:
+    def _effective_cols(self) -> int:  #vers 1
         return max(1, self._fixed_cols)
 
-    def _cell_size(self) -> int:
+    def _cell_size(self) -> int:  #vers 1
         """Cell size = floor(widget_width / cols), minimum 4px."""
         w = self.width()
         if w <= 0:
             return self._cell
         return max(4, w // self._fixed_cols)
 
-    def set_colors(self, colors, cols: int = None):
+    def set_colors(self, colors, cols: int = None):  #vers 1
         if cols:
             self._fixed_cols = max(1, cols)
         super().set_colors(colors, cols=None)   # don't let super touch _cols_hint
 
-    def set_palette_raw(self, palette_data):
+    def set_palette_raw(self, palette_data):  #vers 1
         super().set_palette_raw(palette_data)
 
-    def _recalc_height(self):
+    def _recalc_height(self):  #vers 1
         cs   = self._cell_size()
         cols = self._fixed_cols
         rows = max(1, (len(self._colors) + cols - 1) // cols)
         self.setFixedHeight(rows * cs + 1)
 
-    def resizeEvent(self, event):
+    def resizeEvent(self, event):  #vers 1
         super().resizeEvent(event)
         self._recalc_height()
         self.update()
 
-    def paintEvent(self, event):
+    def paintEvent(self, event):  #vers 1
         from PyQt6.QtGui import QPainter, QPen, QColor
         p    = QPainter(self)
         cs   = self._cell_size()
@@ -2419,7 +2917,7 @@ class _AutoCellPaletteGrid(PaletteGrid):
                 p.setPen(QPen(self._get_ui_color('viewport_bg'), 1))
                 p.drawRect(x + 1, y + 1, cs - 4, cs - 4)
 
-    def mousePressEvent(self, e):
+    def mousePressEvent(self, e):  #vers 1
         from PyQt6.QtCore import Qt
         cs   = self._cell_size()
         cols = self._fixed_cols
@@ -2445,7 +2943,7 @@ class ColorPickerWidget(QWidget):
 
     color_picked = pyqtSignal(QColor)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None):  #vers 1
         super().__init__(parent)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(2, 2, 2, 2)
@@ -2458,7 +2956,7 @@ class ColorPickerWidget(QWidget):
         lay.addWidget(self._swatch)
         lay.addWidget(btn)
 
-    def _pick(self):
+    def _pick(self):  #vers 1
         c = QColorDialog.getColor(self._color, self, "Pick Colour",
                                    QColorDialog.ColorDialogOption.ShowAlphaChannel)
         if c.isValid():
@@ -2467,7 +2965,7 @@ class ColorPickerWidget(QWidget):
                 f"background:{c.name()}; border:1px solid #888;")
             self.color_picked.emit(c)
 
-    def current_color(self) -> QColor:
+    def current_color(self) -> QColor:  #vers 1
         return self._color
 
 
@@ -2502,7 +3000,7 @@ class FGBGSwatch(QWidget):
         }
         return pal.color(_map.get(key, pal.ColorRole.WindowText))
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None):  #vers 1
         super().__init__(parent)
         self._fg = QColor(255, 0,   0,   255)
         self._bg = QColor(0,   0,   0,   255)
@@ -2515,26 +3013,26 @@ class FGBGSwatch(QWidget):
             "Click outer area → pick BG\n"
             "Double-click → swap FG↔BG")
 
-    def sizeHint(self):
+    def sizeHint(self):  #vers 1
         from PyQt6.QtCore import QSize
         return QSize(64, 48)
 
-    def heightForWidth(self, w: int) -> int:
+    def heightForWidth(self, w: int) -> int:  #vers 1
         return max(30, int(w * 0.75))
 
     #    Properties                                                             
 
     @property
-    def fg(self) -> QColor: return QColor(self._fg)
+    def fg(self) -> QColor: return QColor(self._fg)  #vers 1
     @property
-    def bg(self) -> QColor: return QColor(self._bg)
+    def bg(self) -> QColor: return QColor(self._bg)  #vers 1
 
-    def set_fg(self, c: QColor):
+    def set_fg(self, c: QColor):  #vers 1
         self._fg = QColor(c); self.update(); self.fg_changed.emit(self._fg)
-    def set_bg(self, c: QColor):
+    def set_bg(self, c: QColor):  #vers 1
         self._bg = QColor(c); self.update(); self.bg_changed.emit(self._bg)
 
-    def swap(self):
+    def swap(self):  #vers 1
         self._fg, self._bg = self._bg, self._fg
         self.update()
         self.fg_changed.emit(self._fg)
@@ -2542,7 +3040,7 @@ class FGBGSwatch(QWidget):
 
     #    Paint                                                                  
 
-    def paintEvent(self, _):
+    def paintEvent(self, _):  #vers 1
         p  = QPainter(self)
         w, h = self.width(), self.height()
         pad, gap = 4, 8    # outer border, FG offset from BG rect
@@ -2559,36 +3057,36 @@ class FGBGSwatch(QWidget):
         p.setPen(QPen(self._get_ui_color('border'), 1))
         p.drawRect(fg_r)
 
-    def _fg_rect(self) -> QRect:
+    def _fg_rect(self) -> QRect:  #vers 1
         w, h = self.width(), self.height()
         pad, gap = 4, 8
         return QRect(pad, pad, w - gap - pad, h - gap - pad)
 
-    def _bg_rect(self) -> QRect:
+    def _bg_rect(self) -> QRect:  #vers 1
         w, h = self.width(), self.height()
         pad, gap = 4, 8
         return QRect(gap, gap, w - gap - pad, h - gap - pad)
 
     #    Mouse                                                                  
 
-    def mousePressEvent(self, e: QMouseEvent):
+    def mousePressEvent(self, e: QMouseEvent):  #vers 1
         if e.button() == Qt.MouseButton.LeftButton:
             if self._fg_rect().contains(e.position().toPoint()):
                 self._pick_fg()
             else:
                 self._pick_bg()
 
-    def mouseDoubleClickEvent(self, e: QMouseEvent):
+    def mouseDoubleClickEvent(self, e: QMouseEvent):  #vers 1
         if e.button() == Qt.MouseButton.LeftButton:
             self.swap()
 
-    def _pick_fg(self):
+    def _pick_fg(self):  #vers 1
         c = QColorDialog.getColor(self._fg, self, "Foreground Colour",
                                    QColorDialog.ColorDialogOption.ShowAlphaChannel)
         if c.isValid():
             self.set_fg(c)
 
-    def _pick_bg(self):
+    def _pick_bg(self):  #vers 1
         c = QColorDialog.getColor(self._bg, self, "Background Colour",
                                    QColorDialog.ColorDialogOption.ShowAlphaChannel)
         if c.isValid():
@@ -2603,7 +3101,7 @@ class _CanvasTextOverlay(QWidget):
     """Inline text input that floats over the canvas — no dialog needed.
     User types directly; Enter commits to canvas, Escape cancels."""
 
-    def __init__(self, editor, tx: int, ty: int, zoom: float, canvas, parent=None):
+    def __init__(self, editor, tx: int, ty: int, zoom: float, canvas, parent=None):  #vers 1
         super().__init__(parent or editor)
         self._editor = editor
         self._tx = tx; self._ty = ty
@@ -2650,7 +3148,7 @@ class _CanvasTextOverlay(QWidget):
         lay.addWidget(esc_btn)
         self.adjustSize()
 
-    def keyPressEvent(self, e):
+    def keyPressEvent(self, e):  #vers 1
         if e.key() == Qt.Key.Key_Escape:
             self.close()
         else:
@@ -2700,7 +3198,7 @@ class BrushManager(QWidget):
 
     _BRUSH_DIR = Path.home() / '.config' / 'imgfactory' / 'dp5_brushes'
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None):  #vers 1
         super().__init__(parent)
         self.setWindowTitle("Brush Manager")
         self.setMinimumWidth(180)
@@ -2710,10 +3208,10 @@ class BrushManager(QWidget):
         self._refresh()
 
     @property
-    def _brush_dir(self) -> Path:
+    def _brush_dir(self) -> Path:  #vers 1
         return BrushManager._BRUSH_DIR
 
-    def _setup_ui(self):
+    def _setup_ui(self):  #vers 1
         lay = QVBoxLayout(self)
         lay.setContentsMargins(4, 4, 4, 4)
         lay.setSpacing(3)
@@ -2748,7 +3246,7 @@ class BrushManager(QWidget):
             btns.addWidget(btn)
         lay.addLayout(btns)
 
-    def _refresh(self):
+    def _refresh(self):  #vers 1
         self._list.clear()
         self._brushes = sorted(self._brush_dir.glob("*.png"))
         for path in self._brushes:
@@ -2760,7 +3258,7 @@ class BrushManager(QWidget):
             item.setData(Qt.ItemDataRole.UserRole, str(path))
             self._list.addItem(item)
 
-    def _on_brush_selected(self, item: QListWidgetItem):
+    def _on_brush_selected(self, item: QListWidgetItem):  #vers 1
         path = item.data(Qt.ItemDataRole.UserRole)
         try:
             from PIL import Image
@@ -2771,7 +3269,7 @@ class BrushManager(QWidget):
         except Exception as e:
             QMessageBox.warning(self, "Brush Load Error", str(e))
 
-    def save_current_buffer(self, buf: bytearray, w: int, h: int):
+    def save_current_buffer(self, buf: bytearray, w: int, h: int):  #vers 1
         """Save the current canvas copy buffer as a named brush PNG."""
         if not buf or w <= 0: return
         name, ok = QInputDialog.getText(self, "Save Brush", "Brush name:")
@@ -2785,10 +3283,10 @@ class BrushManager(QWidget):
         except Exception as e:
             QMessageBox.warning(self, "Save Error", str(e))
 
-    def _save_brush(self):
+    def _save_brush(self):  #vers 1
         self.brush_selected.emit(bytearray(), 0, 0)   # asks parent to call save_current_buffer
 
-    def _delete_brush(self):
+    def _delete_brush(self):  #vers 1
         item = self._list.currentItem()
         if not item: return
         path = Path(item.data(Qt.ItemDataRole.UserRole))
@@ -2800,7 +3298,7 @@ class BrushManager(QWidget):
             path.unlink(missing_ok=True)
             self._refresh()
 
-    def _import_brush(self):
+    def _import_brush(self):  #vers 1
         path, _ = QFileDialog.getOpenFileName(
             self, "Import Brush PNG", "", "PNG Images (*.png);;All Files (*)")
         if not path: return
@@ -2827,7 +3325,7 @@ class BrushThumbnail(QWidget):
     stamp_requested = pyqtSignal()   # emitted when user clicks to stamp
     clear_requested = pyqtSignal()   # emitted when user right-clicks to clear
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None):  #vers 1
         super().__init__(parent)
         self._buf:   Optional[bytearray] = None
         self._buf_w  = 0
@@ -2837,17 +3335,17 @@ class BrushThumbnail(QWidget):
         self.setToolTip("Copy buffer — click to stamp, right-click to clear")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
-    def set_buffer(self, buf: Optional[bytearray], w: int, h: int):
+    def set_buffer(self, buf: Optional[bytearray], w: int, h: int):  #vers 1
         self._buf   = buf
         self._buf_w = w
         self._buf_h = h
         self.update()
 
-    def set_active(self, active: bool):
+    def set_active(self, active: bool):  #vers 1
         self._active = active
         self.update()
 
-    def paintEvent(self, _):
+    def paintEvent(self, _):  #vers 1
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing, False)
         w, h = self.width(), self.height()
@@ -2880,7 +3378,7 @@ class BrushThumbnail(QWidget):
 
         p.end()
 
-    def mousePressEvent(self, e: QMouseEvent):
+    def mousePressEvent(self, e: QMouseEvent):  #vers 1
         if e.button() == Qt.MouseButton.LeftButton:
             if self._buf:
                 self.stamp_requested.emit()
@@ -2895,7 +3393,7 @@ class BrushThumbnail(QWidget):
 class ColorPalPresetsMixin:
     """Retro palette preset data and helpers — mixed into DP5Workshop."""
 
-    def _build_retro_palettes(self):
+    def _build_retro_palettes(self):  #vers 1
         """Initialise the retro palette registry. Call once from __init__."""
 
         zx_spectrum = [
@@ -3154,7 +3652,7 @@ class ColorPalPresetsMixin:
 
         # Atari ST — 9-bit palette (3R 3G 3B) 512 colours, show 64 representative
         # 16 on screen in low-res. Scale: val*36 + val//2
-        def _st9(v): return v*36 + v//2
+        def _st9(v): return v*36 + v//2  #vers 1
         atari_st_512 = [f"#{_st9(r):02X}{_st9(g):02X}{_st9(b):02X}"
                         for r in range(8) for g in range(8) for b in range(8)]
         # Show 64 evenly-sampled colours (every 8th) for swatch display
@@ -3221,7 +3719,7 @@ class ColorPalPresetsMixin:
 
         # SNES — 15-bit (5R 5G 5B), 32768 colours
         # Correct 5-bit scale: val*8 + val//4 gives exact GameBoy/SNES levels
-        def _snes5(v): return min(255, v * 8 + v // 4)
+        def _snes5(v): return min(255, v * 8 + v // 4)  #vers 1
         _sv = [_snes5(i) for i in range(32)]
         snes = [f"#{r:02X}{g:02X}{b:02X}" for r in _sv for g in _sv for b in _sv]
 
@@ -3524,7 +4022,7 @@ class ColorPalPresetsMixin:
         }
         self.current_retro_palette = "Amiga OCS"
 
-    def _get_retro_colors(self, name: str) -> Tuple[List[QColor], int]:
+    def _get_retro_colors(self, name: str) -> Tuple[List[QColor], int]:  #vers 1
         """Return (colors, cols) for named retro palette."""
         data, cols = self.retro_palettes.get(
             name, self.retro_palettes["Amiga OCS"])
@@ -4015,7 +4513,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         icon_color = self._get_icon_color()
 
         # -_tb helper — adds button to layout with optional SVG icon
-        def _tb(text, tip, slot, icon_fn=None):
+        def _tb(text, tip, slot, icon_fn=None):  #vers 1
             btn = QPushButton(text)
             btn.setFont(self.button_font)
             btn.setToolTip(tip)
@@ -4171,7 +4669,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             except Exception:
                 pass
 
-        def _btn(label, tip, slot, icon_fn):
+        def _btn(label, tip, slot, icon_fn):  #vers 1
             b = QPushButton(label)
             b.setFixedHeight(24)
             b.setToolTip(tip)
@@ -4553,7 +5051,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         # ... later in the _pm helper ...
 
-        def _pm(label, items):
+        def _pm(label, items):  #vers 1
             sub = plm.addMenu(label)
             for name, mode in items:
                 # Use 'checked' as a throwaway variable to catch the signal's boolean
@@ -4564,7 +5062,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         plm.addAction("None (free)", lambda: self._set_platform('none'))
         plm.addSeparator()
 
-        def _pm(label, items):
+        def _pm(label, items):  #vers 1
             sub = plm.addMenu(label)
             for name, mode in items:
                 sub.addAction(name, lambda m=mode: self._set_platform(m))
@@ -4843,11 +5341,11 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         # Tiny subclass to capture right-click on shape toggle buttons
         class ShapeToolButton(QPushButton):
-            def __init__(self, tool_id, shape_key, **kw):
+            def __init__(self, tool_id, shape_key, **kw):  #vers 1
                 super().__init__(**kw)
                 self._tool_id  = tool_id
                 self._shape_key = shape_key
-            def mousePressEvent(self, ev):
+            def mousePressEvent(self, ev):  #vers 1
                 if ev.button() == Qt.MouseButton.RightButton:
                     _ws._toggle_shape_fill(self._tool_id)
                 else:
@@ -5109,7 +5607,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         imgop_row = QHBoxLayout()
         imgop_row.setSpacing(3)
 
-        def _imgop_btn(icon_method, tip, slot):
+        def _imgop_btn(icon_method, tip, slot):  #vers 1
             b = QPushButton()
             b.setFixedSize(32, 32)
             b.setToolTip(tip)
@@ -5330,7 +5828,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 btn.setStyleSheet("background:#222; border:1px solid palette(mid);")
                 btn.setEnabled(False)
 
-    def _on_bg_changed(self, c: QColor):
+    def _on_bg_changed(self, c: QColor):  #vers 1
         # Background colour stored in swatch; eraser uses it in future
         pass
 
@@ -5429,7 +5927,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 return
             self._group_palette_asc = not getattr(self, '_group_palette_asc', True)
             asc = self._group_palette_asc
-            def hue_key(qc):
+            def hue_key(qc):  #vers 1
                 h, s, v = colorsys.rgb_to_hsv(qc.red()/255, qc.green()/255, qc.blue()/255)
                 return (h, -v, -s)
             sorted_colors = sorted(self.pal_bar._colors, key=hue_key, reverse=not asc)
@@ -6018,7 +6516,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         else:
             self._set_status("Nothing to paste")
 
-    def _select_all(self):
+    def _select_all(self):  #vers 1
         if not self.dp5_canvas: return
         self.dp5_canvas._selection_rect = QRect(0, 0,
                                                 self._canvas_width,
@@ -6071,7 +6569,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         parent_vp = self._canvas_scroll.viewport() if hasattr(self, '_canvas_scroll') else self
 
-        def _apply():
+        def _apply():  #vers 1
             angle = deg_spin.value()
             if angle != 0.0:
                 self._apply_selection_rotation(angle, expand=expand_cb.isChecked())
@@ -6469,7 +6967,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         small = src.resize((cols, rows), Image.LANCZOS)
         pixels = list(small.getdata())
 
-        def nearest_ansi(r,g,b):
+        def nearest_ansi(r,g,b):  #vers 1
             return min(range(16), key=lambda i:(ANSI_PAL[i][0]-r)**2+(ANSI_PAL[i][1]-g)**2+(ANSI_PAL[i][2]-b)**2)
 
         # Build ANSI escape sequence string
@@ -6565,7 +7063,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         pixels = list(small.getdata())
         sw = cols*2
 
-        def nearest_c64(r,g,b):
+        def nearest_c64(r,g,b):  #vers 1
             return min(range(16), key=lambda i:(C64_PAL[i][0]-r)**2+(C64_PAL[i][1]-g)**2+(C64_PAL[i][2]-b)**2)
 
         # For each char cell, pick dominant fg/bg from 4 sub-pixels
@@ -6647,7 +7145,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             (0,0,255),(255,0,255),(0,255,255),(255,255,255),
         ]
 
-        def nearest_tt(r,g,b):
+        def nearest_tt(r,g,b):  #vers 1
             return min(range(8), key=lambda i:(TT_PAL[i][0]-r)**2+(TT_PAL[i][1]-g)**2+(TT_PAL[i][2]-b)**2)
 
         # Teletext mosaic: each char cell = 2×3 grid of sub-blocks
@@ -6979,10 +7477,10 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             n_base = 256 if is_ham8 else 16
             base_pal = [(i*scale, i*scale, i*scale) for i in range(n_base)]
 
-        def nearest_base(r, g, b):
+        def nearest_base(r, g, b):  #vers 1
             return min(base_pal, key=lambda c:(c[0]-r)**2+(c[1]-g)**2+(c[2]-b)**2)
 
-        def ham_encode_decode_row(ty):
+        def ham_encode_decode_row(ty):  #vers 1
             """Re-encode one scanline as HAM and return the decoded RGBA."""
             prev_r, prev_g, prev_b = 0, 0, 0
             out = []
@@ -7129,7 +7627,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 colours[key] = colours.get(key, 0) + 1
         if len(colours) <= max_c: return
         kept = sorted(colours, key=lambda k: -colours[k])[:max_c]
-        def nearest(c):
+        def nearest(c):  #vers 1
             return min(kept, key=lambda k:(k[0]-c[0])**2+(k[1]-c[1])**2+(k[2]-c[2])**2)
         for dy in range(ch):
             for dx in range(cw):
@@ -7162,7 +7660,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
     #    Canvas operations                                                      
 
 
-    def _push_undo(self):
+    def _push_undo(self):  #vers 1
         if self.dp5_canvas: #vers 1
             self._undo_stack.append(bytes(self.dp5_canvas.rgba))
             self._redo_stack.clear()
@@ -7259,13 +7757,13 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self.dp5_canvas.update()
 
 
-    def _flip_h(self):   self._mirror_h()   # legacy alias
-    def _flip_v(self):   self._mirror_v()   # legacy alias
+    def _flip_h(self):   self._mirror_h()   # legacy alias  #vers 1
+    def _flip_v(self):   self._mirror_v()   # legacy alias  #vers 1
 
 
     def _invert(self): #vers 1
         from PIL import Image, ImageOps
-        def _inv(img):
+        def _inv(img):  #vers 1
             r, g, b, a = img.split()
             return Image.merge('RGBA', (ImageOps.invert(r), ImageOps.invert(g),
                                         ImageOps.invert(b), a))
@@ -7441,7 +7939,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         parent_vp = self._canvas_scroll.viewport() if hasattr(self, '_canvas_scroll') else self
 
-        def _apply():
+        def _apply():  #vers 1
             from PIL import Image
             methods = [Image.Resampling.NEAREST, Image.Resampling.BILINEAR,
                        Image.Resampling.BICUBIC, Image.Resampling.LANCZOS]
@@ -7471,7 +7969,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         tabs = QTabWidget()
 
         #    Helper: build a preset combo + w/h/depth form                  
-        def make_preset_tab(presets, default_w, default_h, default_d):
+        def make_preset_tab(presets, default_w, default_h, default_d):  #vers 1
             w = QWidget(); fl = QFormLayout(w); fl.setSpacing(6)
             pc = QComboBox()
             for name, pw, ph, pd in presets:
@@ -7488,7 +7986,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             fc = QComboBox()
             fc.addItems(["Grey (128,128,128)","Black","White","Transparent"])
             fl.addRow("Fill:", fc)
-            def on_preset(idx):
+            def on_preset(idx):  #vers 1
                 data = pc.itemData(idx)
                 if data:
                     pw,ph,pd = data
@@ -7773,7 +8271,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         parent_vp = self._canvas_scroll.viewport() if hasattr(self, '_canvas_scroll') else self
 
-        def _apply():
+        def _apply():  #vers 1
             w, h = w_spin.value(), h_spin.value()
             self._canvas_bit_depth = depth_combo.currentIndex()
             try:
@@ -7946,7 +8444,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         parent_vp = self._canvas_scroll.viewport() if hasattr(self, '_canvas_scroll') else self
 
-        def _apply():
+        def _apply():  #vers 1
             mode = next(m for m, rb in radios if rb.isChecked())
             path, _ = QFileDialog.getOpenFileName(
                 self, f"Open + Snap ({mode} dither)", "",
@@ -8126,7 +8624,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         class _ZoomOverlay(QWidget):
             """Overlay lens widget — parented to canvas viewport, top-left anchored."""
 
-            def __init__(self, workshop):
+            def __init__(self, workshop):  #vers 1
                 super().__init__(parent_vp)
                 self._ws   = workshop
                 self._mag  = [8]    # mutable magnification
@@ -8141,14 +8639,14 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 self._timer.start(80)
                 self._place()
 
-            def _rebuild(self):
+            def _rebuild(self):  #vers 1
                 sz = self._sz[0]
                 self.setFixedSize(sz, sz + 22)   # +22 for header bar
 
-            def _place(self):
+            def _place(self):  #vers 1
                 self.move(4, 4)
 
-            def _refresh(self):
+            def _refresh(self):  #vers 1
                 if not self.isVisible(): return
                 ws = self._ws
                 canvas = getattr(ws, 'dp5_canvas', None)
@@ -8197,7 +8695,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 except Exception:
                     pass
 
-            def paintEvent(self, ev):
+            def paintEvent(self, ev):  #vers 1
                 from PyQt6.QtGui import QPainter, QColor, QPen, QFont
                 p = QPainter(self)
                 if not p.isActive():
@@ -8272,22 +8770,22 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 p.drawLine(mid, 22 + mid - 8, mid, 22 + mid + 8)
                 p.end()
 
-            def _change_mag(self, delta):
+            def _change_mag(self, delta):  #vers 1
                 self._mag[0] = max(2, min(32, self._mag[0] + delta))
                 self._refresh()
 
-            def _change_size(self, delta):
+            def _change_size(self, delta):  #vers 1
                 self._sz[0] = max(100, min(400, self._sz[0] + delta))
                 self._rebuild()
                 self.update()
 
-            def wheelEvent(self, ev):
+            def wheelEvent(self, ev):  #vers 1
                 """Scroll to resize the overlay panel."""
                 delta = 1 if ev.angleDelta().y() > 0 else -1
                 self._change_size(delta * 20)
                 ev.accept()
 
-            def mousePressEvent(self, ev):
+            def mousePressEvent(self, ev):  #vers 1
                 sz = self._sz[0]
                 x, y = ev.position().x(), ev.position().y()
                 total_h = sz + 22
@@ -8309,7 +8807,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                         self._drag_start = ev.globalPosition().toPoint() - self.pos()
                 ev.accept()
 
-            def contextMenuEvent(self, ev):
+            def contextMenuEvent(self, ev):  #vers 1
                 """Right-click: tint controls."""
                 from PyQt6.QtWidgets import QMenu, QWidgetAction, QSlider, QLabel, QColorDialog
                 menu = QMenu(self)
@@ -8321,11 +8819,11 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 menu.addAction("Pick tint colour…", self._pick_tint_color)
                 menu.exec(ev.globalPos())
 
-            def _set_tint(self, alpha):
+            def _set_tint(self, alpha):  #vers 1
                 self._tint_alpha = alpha
                 self._refresh()
 
-            def _pick_tint_color(self):
+            def _pick_tint_color(self):  #vers 1
                 from PyQt6.QtWidgets import QColorDialog
                 from PyQt6.QtGui import QColor
                 c = QColorDialog.getColor(
@@ -8337,7 +8835,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                         self._tint_alpha = 64
                     self._refresh()
 
-            def mouseMoveEvent(self, ev):
+            def mouseMoveEvent(self, ev):  #vers 1
                 if getattr(self, '_resize_drag', False) and \
                         ev.buttons() & Qt.MouseButton.LeftButton:
                     gp = ev.globalPosition().toPoint()
@@ -8355,7 +8853,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                               max(0, min(new_pos.y(), ph)))
                 ev.accept()
 
-            def mouseReleaseEvent(self, ev):
+            def mouseReleaseEvent(self, ev):  #vers 1
                 self._drag_start  = None
                 self._resize_drag = False
                 ev.accept()
@@ -8375,7 +8873,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         height-capped, with action buttons at the bottom.
         """
         def __init__(self, parent_vp, workshop, title,
-                     controls_widget, apply_fn, generate_fn=None):
+                     controls_widget, apply_fn, generate_fn=None):  #vers 1
             super().__init__(parent_vp)
             self._ws   = workshop
             self._apply_fn    = apply_fn
@@ -8466,7 +8964,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             ctrl_row.addLayout(btn_col)
             root.addLayout(ctrl_row)
 
-        def set_orig_pixmap(self, pm):
+        def set_orig_pixmap(self, pm):  #vers 1
             if not pm.isNull():
                 sz = self._orig_lbl.size()
                 self._orig_lbl.setPixmap(
@@ -8474,7 +8972,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                               Qt.AspectRatioMode.KeepAspectRatio,
                               Qt.TransformationMode.SmoothTransformation))
 
-        def set_result_pixmap(self, pm):
+        def set_result_pixmap(self, pm):  #vers 1
             if not pm.isNull():
                 sz = self._result_lbl.size()
                 self._result_lbl.setPixmap(
@@ -8482,20 +8980,20 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                               Qt.AspectRatioMode.KeepAspectRatio,
                               Qt.TransformationMode.SmoothTransformation))
 
-        def _generate(self):
+        def _generate(self):  #vers 1
             if self._generate_fn:
                 self._generate_fn()
 
-        def _apply(self):
+        def _apply(self):  #vers 1
             if self._apply_fn:
                 self._apply_fn()
             self._close()
 
-        def _close(self):
+        def _close(self):  #vers 1
             self.hide()
             self.deleteLater()
 
-        def resizeEvent(self, e):
+        def resizeEvent(self, e):  #vers 1
             super().resizeEvent(e)
 
 
@@ -8539,7 +9037,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             _result = [None]
             parent_vp = self._canvas_scroll.viewport() if hasattr(self, '_canvas_scroll') else self
 
-            def _gen():
+            def _gen():  #vers 1
                 result = _apply_seamless(rgba, w, h,
                     mode=_mode.currentIndex(),
                     blend=_blend_sl.value() / 100.0)
@@ -8550,7 +9048,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 pm = rgba_to_qpixmap(tiled, w*n, h*n, _preview_bg(overlay))
                 overlay.set_result_pixmap(pm)
 
-            def _apply():
+            def _apply():  #vers 1
                 if _result[0]:
                     self._push_undo()
                     self.dp5_canvas.rgba = bytearray(_result[0])
@@ -8586,7 +9084,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             cl = QVBoxLayout(ctrl); cl.setContentsMargins(0,0,0,0); cl.setSpacing(2)
 
             sliders = {}
-            def _sl(label, lo, hi, val):
+            def _sl(label, lo, hi, val):  #vers 1
                 row = QHBoxLayout()
                 row.addWidget(QLabel(f"{label}:"))
                 sl = QSlider(Qt.Orientation.Horizontal)
@@ -8609,7 +9107,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             _result = [None]
             parent_vp = self._canvas_scroll.viewport() if hasattr(self, '_canvas_scroll') else self
 
-            def _gen():
+            def _gen():  #vers 1
                 result = _apply_colour_adjust(rgba, w, h,
                     brightness=sliders["Brightness"].value(),
                     contrast=sliders["Contrast"].value(),
@@ -8621,7 +9119,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 pm = rgba_to_qpixmap(result, w, h, _preview_bg(overlay))
                 overlay.set_result_pixmap(pm)
 
-            def _apply():
+            def _apply():  #vers 1
                 if _result[0]:
                     self._push_undo()
                     self.dp5_canvas.rgba = bytearray(_result[0])
@@ -8657,7 +9155,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             ctrl = QWidget()
             cl = QVBoxLayout(ctrl); cl.setContentsMargins(0,0,0,0); cl.setSpacing(2)
 
-            def _sl(label, lo, hi, val):
+            def _sl(label, lo, hi, val):  #vers 1
                 row = QHBoxLayout()
                 row.addWidget(QLabel(f"{label}:"))
                 sl = QSlider(Qt.Orientation.Horizontal)
@@ -8682,7 +9180,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 parent_vp, self, "Snow — Canvas", ctrl,
                 apply_fn=None, generate_fn=None)
 
-            def _gen():
+            def _gen():  #vers 1
                 result = _apply_snow(rgba, w, h,
                     threshold=_threshold.value(),
                     depth=_depth.value() / 100.0,
@@ -8693,7 +9191,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 pm = rgba_to_qpixmap(result, w, h, _preview_bg(overlay))
                 overlay.set_result_pixmap(pm)
 
-            def _apply():
+            def _apply():  #vers 1
                 if _result[0]:
                     self._push_undo()
                     self.dp5_canvas.rgba = bytearray(_result[0])
@@ -8943,7 +9441,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 base_pal = [(i*17,i*17,i*17) for i in range(16)]
             while len(base_pal) < 16: base_pal.append((0,0,0))
 
-            def nearest_base(r,g,b):
+            def nearest_base(r,g,b):  #vers 1
                 return min(range(16),
                     key=lambda i:(base_pal[i][0]-r)**2+(base_pal[i][1]-g)**2+(base_pal[i][2]-b)**2)
 
@@ -8989,7 +9487,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 for p in planes:
                     body += bytes(p)
 
-            def chunk(tag, data):
+            def chunk(tag, data):  #vers 1
                 d = bytes(data)
                 c = tag.encode() + struct.pack('>I', len(d)) + d
                 if len(d) % 2: c += b'\x00'
@@ -9483,7 +9981,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                     attrs[ay*32+ax] = pixels[(ay*8)*256+ax*8]&7
             scr = bitmap+attrs
             # Wrap in TAP: header block + data block
-            def tap_block(flag, data):
+            def tap_block(flag, data):  #vers 1
                 payload = bytes([flag])+bytes(data)
                 chk = 0
                 for b in payload: chk ^= b
@@ -10509,14 +11007,14 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         parent_vp = self._canvas_scroll.viewport() if hasattr(self, '_canvas_scroll') else self
 
-        def _run():
+        def _run():  #vers 1
             src = src_edit.text(); dst = dst_edit.text()
             if not src or not dst:
                 log.append("ERROR: set source and output folders"); return
             import os
             from PIL import Image
 
-            def nearest_pot(x): return 1 << (x-1).bit_length()
+            def nearest_pot(x): return 1 << (x-1).bit_length()  #vers 1
 
             # Gather files
             files = []
@@ -10658,14 +11156,14 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         parent_vp = self._canvas_scroll.viewport() if hasattr(self, '_canvas_scroll') else self
 
-        def _run():
+        def _run():  #vers 1
             src = src_edit.text(); dst = dst_edit.text()
             if not src or not dst:
                 log.append("ERROR: set source and output folders"); return
             import os
             from PIL import Image
 
-            def nearest_pot(n):
+            def nearest_pot(n):  #vers 1
                 p = 1
                 while p < n: p <<= 1
                 return p
@@ -11012,7 +11510,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         hl.setSpacing(4)
 
         # Transport buttons
-        def tbtn(label, tip, slot):
+        def tbtn(label, tip, slot):  #vers 1
             b = QPushButton(label)
             b.setFixedSize(28, 28)
             b.setToolTip(tip)
@@ -12891,7 +13389,7 @@ class _IconEditor(QWidget): #vers 1
         if parent and hasattr(parent, 'dp5_settings'):
             self._settings = parent.dp5_settings
 
-        def _s(key, default=None):
+        def _s(key, default=None):  #vers 1
             return self._settings.get(key, default) if self._settings else default
 
         self._alpha_color = (
@@ -13317,7 +13815,7 @@ class _IconEditor(QWidget): #vers 1
 
             # Rename
             act_rename = menu.addAction("Rename…")
-            def _do_rename():
+            def _do_rename():  #vers 1
                 base, ext = os.path.splitext(fname)
                 new_name, ok = QInputDialog.getText(
                     self, "Rename Icon", "New name (without extension):", text=base)
@@ -13343,7 +13841,7 @@ class _IconEditor(QWidget): #vers 1
 
             # Delete
             act_delete = menu.addAction("Delete…")
-            def _do_delete():
+            def _do_delete():  #vers 1
                 sel_items = self._icon_list.selectedItems()
                 names = [i.data(Qt.ItemDataRole.UserRole + 1) for i in sel_items]
                 r = QMessageBox.question(
@@ -13592,7 +14090,7 @@ class _IconEditor(QWidget): #vers 1
                 f"background:#{r:02x}{g:02x}{b:02x};"
                 f"border:1px solid palette(mid); border-radius:1px;")
             btn.setToolTip(f"#{r:02x}{g:02x}{b:02x}  R:{r} G:{g} B:{b}")
-            def _pick(_, rgb=(r,g,b)):
+            def _pick(_, rgb=(r,g,b)):  #vers 1
                 self._alpha_color = rgb
                 self._refresh_alpha_swatch()
                 self._save_settings()
@@ -13864,7 +14362,7 @@ class _SpriteView(QWidget):
         self._rgba = None; self._w = 16; self._h = 16; self._zoom = 4
         self.setMinimumSize(200,200)
 
-    def set_sprite(self, rgba, w, h, zoom):
+    def set_sprite(self, rgba, w, h, zoom):  #vers 1
         self._rgba=rgba; self._w=w; self._h=h; self._zoom=zoom
         self.setFixedSize(w*zoom+2, h*zoom+2)
         self.update()
