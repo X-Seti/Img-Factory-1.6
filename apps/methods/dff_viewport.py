@@ -1,5 +1,5 @@
 # X-Seti - Jul07 2026 - IMG Factory 1.6 - DFF OpenGL Viewport
-# this belongs in apps/methods/dff_viewport.py - Version: 12
+# this belongs in apps/methods/dff_viewport.py - Version: 13
 """
 DFFViewport - Shared OpenGL viewport for DFF model rendering.
 Used by Model Viewer, Model Workshop, Vehicle Workshop (docked).
@@ -7,44 +7,83 @@ Standalone tools import from their own methods/dff_viewport.py.
 
 ##Methods list -
 # DFFViewport.__init__
+# DFFViewport._anim_tick
 # DFFViewport._apply_selection_click
 # DFFViewport._auto_fit
 # DFFViewport._calc_world_matrix
+# DFFViewport._closest_point_on_ray
 # DFFViewport._draw_assembly
 # DFFViewport._draw_axes
 # DFFViewport._draw_grid
+# DFFViewport._draw_selection_overlay
 # DFFViewport._draw_solid
 # DFFViewport._draw_textured
 # DFFViewport._draw_wireframe
 # DFFViewport._emit_verts
 # DFFViewport._face_color
+# DFFViewport._flush_pending_textures
+# DFFViewport._geom_flags
+# DFFViewport._get_anim_rotation
+# DFFViewport._get_bg_color
 # DFFViewport._get_selection_count
 # DFFViewport._get_ui_color
 # DFFViewport._get_wheel_geom_data
 # DFFViewport._notify_selection_changed
+# DFFViewport._pick_edge
+# DFFViewport._pick_face
+# DFFViewport._pick_ray
+# DFFViewport._pick_vertex
+# DFFViewport._point_seg_dist2
+# DFFViewport._ray_triangle_intersect
+# DFFViewport._rebuild_anim_geoms
+# DFFViewport._refresh
 # DFFViewport._rw_wrap_to_gl
 # DFFViewport._selected_set_for_mode
 # DFFViewport._setup_lighting
+# DFFViewport._strip_tex_suffix
+# DFFViewport._upload_textures
 # DFFViewport.clear_textures
+# DFFViewport.fit_to_window
+# DFFViewport.flip_horizontal
+# DFFViewport.flip_vertical
 # DFFViewport.initializeGL
 # DFFViewport.load_all_geometries
 # DFFViewport.load_geometry
 # DFFViewport.load_wheels_dff
 # DFFViewport.mouseMoveEvent
 # DFFViewport.mousePressEvent
-# DFFViewport.toggle_snap_axis_constraint
-# DFFViewport.toggle_snap_target
 # DFFViewport.mouseReleaseEvent
 # DFFViewport.paintGL
+# DFFViewport.pan
 # DFFViewport.reset_camera
+# DFFViewport.reset_view
 # DFFViewport.resizeGL
+# DFFViewport.rotate_ccw
+# DFFViewport.rotate_cw
 # DFFViewport.set_ambient
+# DFFViewport.set_animation
+# DFFViewport.set_animation_speed
 # DFFViewport.set_assembly_mode
+# DFFViewport.set_backface
 # DFFViewport.set_backface_cull
+# DFFViewport.set_background_color
+# DFFViewport.set_checkerboard_background
+# DFFViewport.set_current_model
 # DFFViewport.set_diffuse
 # DFFViewport.set_light_dir
 # DFFViewport.set_prelight
 # DFFViewport.set_render_mode
+# DFFViewport.set_show_grid
+# DFFViewport.set_show_lod
+# DFFViewport.set_show_mesh
+# DFFViewport.set_view_lock
+# DFFViewport.set_wheel_heading
+# DFFViewport.toggle_door
+# DFFViewport.toggle_snap_axis_constraint
+# DFFViewport.toggle_snap_target
+# DFFViewport.wheelEvent
+# DFFViewport.zoom_in
+# DFFViewport.zoom_out
 # DFFViewport.set_show_grid
 # DFFViewport.set_show_lod
 # DFFViewport.set_view_lock
@@ -391,7 +430,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             return len(self._selected_edges)
         return len(self._selected_faces)   # 'face' and 'poly' both live here
 
-    def _notify_selection_changed(self): #vers 2
+    def _notify_selection_changed(self): #vers 3
         """Tell the parent ModelWorkshop panel the selection set changed,
         so it can refresh the 'N Vertices/Edges/Faces/Polygons Selected'
         label. Uses _workshop_ref (set at construction in model_workshop.py)
@@ -400,6 +439,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         ws = getattr(self, '_workshop_ref', None)
         if ws is not None and hasattr(ws, '_update_selection_count_label'):
             ws._update_selection_count_label()
+        if ws is not None and hasattr(ws, '_sync_selection_to_other_viewports'):
+            ws._sync_selection_to_other_viewports(self)
 
     def initializeGL(self): #vers 2
         if not OPENGL_AVAILABLE: return

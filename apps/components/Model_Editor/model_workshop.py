@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 147
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 148
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -296,6 +296,8 @@ except ImportError:
 # _find_all_paint_btns
 # _find_col_via_db
 # _find_in_ide    look up model in DAT Browser IDE entries
+# _flip_horizontal_all
+# _flip_vertical_all
 # _focus_search
 # _force_save_col
 # _generate_collision_thumbnail
@@ -321,6 +323,7 @@ except ImportError:
 # _is_model_pinned
 # _is_on_draggable_area
 # _launch_theme_settings
+# _live_viewports
 # _load_iff_as_qimage
 # _load_img_col_list
 # _load_mod_toolbar_layouts
@@ -404,6 +407,8 @@ except ImportError:
 # _render_collision_preview
 # _reset_hotkeys_to_defaults
 # _restore_toolbar_state
+# _rotate_ccw_all
+# _rotate_cw_all
 # _save_as_col_file
 # _save_col_file
 # _save_file
@@ -454,6 +459,7 @@ except ImportError:
 # _stop_thumbnail_spin
 # _switch_icon_set
 # _sync_quad_from_main
+# _sync_selection_to_other_viewports
 # _tbl_item
 # _tex_context_menu
 # _tick_thumbnail_spin
@@ -4029,18 +4035,20 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         dlg.exec()
 
 
-    def _cycle_view_render_style(self): #vers 2
-        """Cycle viewport render: wireframe -> solid -> textured."""
+    def _cycle_view_render_style(self): #vers 3
+        """Cycle viewport render: wireframe -> solid -> textured.
+        Applied to every visible viewport (single or all 4 quad panes)."""
         pw = getattr(self, 'preview_widget', None)
         if not pw: return
         modes = ['wireframe', 'solid', 'textured']
         cur = getattr(pw, '_mode', 'solid')
         nxt = modes[(modes.index(cur) + 1) % len(modes)] if cur in modes else 'solid'
-        if hasattr(pw, 'set_render_mode'):
-            pw.set_render_mode(nxt)
-        else:
-            pw._mode = nxt
-            pw.update()
+        for vp in self._live_viewports():
+            if hasattr(vp, 'set_render_mode'):
+                vp.set_render_mode(nxt)
+            else:
+                vp._mode = nxt
+                vp.update()
 
 
     def _open_paint_editor(self): #vers 5
@@ -7623,12 +7631,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "Align is not yet implemented.\n"
             "Coming in a future build.")
 
-    def _set_select_mode(self, mode: str): #vers 2
+    def _set_select_mode(self, mode: str): #vers 3
         """Set viewport selection mode: vertex / edge / face / poly / object.
+        Applied to every visible viewport (single or all 4 quad panes).
         Switching modes clears the other modes' selection sets, so there is
         no stale hidden selection left over when the user switches back."""
-        vp = getattr(self, 'preview_widget', None)
-        if vp:
+        for vp in self._live_viewports():
             vp._select_mode = mode
             if mode != 'vertex':
                 vp._selected_verts.clear()
@@ -7642,7 +7650,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if mw and hasattr(mw, 'log_message'):
             mw.log_message(f"Model Workshop: select mode → {mode}")
 
-    def _update_select_mode_availability(self): #vers 1
+    def _update_select_mode_availability(self): #vers 2
         """Enable vertex/edge/face/poly select buttons only when there is
         an actual model (DFF geometry or COL surfaces) to select from.
         Called after load, after creating a primitive from scratch, and
@@ -7658,8 +7666,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if b:
                 b.setEnabled(has_model)
         if not has_model:
-            vp = getattr(self, 'preview_widget', None)
-            if vp:
+            for vp in self._live_viewports():
                 vp._select_mode = 'object'
                 vp._selected_verts.clear()
                 vp._selected_edges.clear()
@@ -8047,7 +8054,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.flip_vert_btn.setMinimumWidth(btn_width)
         self.flip_vert_btn.setEnabled(False)
         self.flip_vert_btn.setToolTip("Flip model vertically")
-        self.flip_vert_btn.clicked.connect(lambda: getattr(self,"preview_widget",None) and self.preview_widget.flip_vertical())
+        self.flip_vert_btn.clicked.connect(self._flip_vertical_all)
         layout.addWidget(self.flip_vert_btn)
         layout.addSpacing(spacer)
 
@@ -8059,7 +8066,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.flip_horz_btn.setMinimumWidth(btn_width)
         self.flip_horz_btn.setEnabled(False)
         self.flip_horz_btn.setToolTip("Flip model horizontally")
-        self.flip_horz_btn.clicked.connect(lambda: getattr(self,"preview_widget",None) and self.preview_widget.flip_horizontal())
+        self.flip_horz_btn.clicked.connect(self._flip_horizontal_all)
         layout.addWidget(self.flip_horz_btn)
         layout.addSpacing(spacer)
 
@@ -8071,7 +8078,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.rotate_cw_btn.setMinimumWidth(btn_width)
         self.rotate_cw_btn.setEnabled(False)
         self.rotate_cw_btn.setToolTip("Rotate 90 degrees clockwise")
-        self.rotate_cw_btn.clicked.connect(lambda: getattr(self,"preview_widget",None) and self.preview_widget.rotate_cw())
+        self.rotate_cw_btn.clicked.connect(self._rotate_cw_all)
         layout.addWidget(self.rotate_cw_btn)
         layout.addSpacing(spacer)
 
@@ -8083,7 +8090,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.rotate_ccw_btn.setMinimumWidth(btn_width)
         self.rotate_ccw_btn.setEnabled(False)
         self.rotate_ccw_btn.setToolTip("Rotate 90 degrees counter-clockwise")
-        self.rotate_ccw_btn.clicked.connect(lambda: getattr(self,"preview_widget",None) and self.preview_widget.rotate_ccw())
+        self.rotate_ccw_btn.clicked.connect(self._rotate_ccw_all)
         layout.addWidget(self.rotate_ccw_btn)
         layout.addSpacing(spacer)
 
@@ -8463,7 +8470,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.flip_vert_btn.setFixedHeight(btn_height)
         self.flip_vert_btn.setEnabled(False)
         self.flip_vert_btn.setToolTip("Flip model vertically")
-        self.flip_vert_btn.clicked.connect(lambda: getattr(self,"preview_widget",None) and self.preview_widget.flip_vertical())
+        self.flip_vert_btn.clicked.connect(self._flip_vertical_all)
         layout.addWidget(self.flip_vert_btn)
         layout.addSpacing(spacer)
 
@@ -8473,7 +8480,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.flip_horz_btn.setFixedHeight(btn_height)
         self.flip_horz_btn.setEnabled(False)
         self.flip_horz_btn.setToolTip("Flip model horizontally")
-        self.flip_horz_btn.clicked.connect(lambda: getattr(self,"preview_widget",None) and self.preview_widget.flip_horizontal())
+        self.flip_horz_btn.clicked.connect(self._flip_horizontal_all)
         layout.addWidget(self.flip_horz_btn)
         layout.addSpacing(spacer)
 
@@ -8483,7 +8490,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.rotate_cw_btn.setFixedHeight(btn_height)
         self.rotate_cw_btn.setEnabled(False)
         self.rotate_cw_btn.setToolTip("Rotate 90 degrees clockwise")
-        self.rotate_cw_btn.clicked.connect(lambda: getattr(self,"preview_widget",None) and self.preview_widget.rotate_cw())
+        self.rotate_cw_btn.clicked.connect(self._rotate_cw_all)
         layout.addWidget(self.rotate_cw_btn)
         layout.addSpacing(spacer)
 
@@ -8493,7 +8500,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.rotate_ccw_btn.setFixedHeight(btn_height)
         self.rotate_ccw_btn.setEnabled(False)
         self.rotate_ccw_btn.setToolTip("Rotate 90 degrees counter-clockwise")
-        self.rotate_ccw_btn.clicked.connect(lambda: getattr(self,"preview_widget",None) and self.preview_widget.rotate_ccw())
+        self.rotate_ccw_btn.clicked.connect(self._rotate_ccw_all)
         layout.addWidget(self.rotate_ccw_btn)
         layout.addSpacing(spacer)
 
@@ -9607,6 +9614,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         for label, yaw, pitch, proj in presets:
             pane = DFFViewport()
             pane.app_settings = getattr(self.preview_widget, 'app_settings', None)
+            pane._workshop_ref = self
             pane.set_view_lock(proj == 'ortho', label, yaw=yaw, pitch=pitch, projection=proj)
             pane._quad_preset_name = label
             pane.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -9673,8 +9681,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 self._save_quad_layout()
             self._viewport_stack.setCurrentWidget(self.preview_widget)
 
-    def _sync_quad_from_main(self): #vers 1
-        """Mirror the main viewport's loaded geometry into the 4 quad panes."""
+    def _sync_quad_from_main(self): #vers 2
+        """Mirror the main viewport's loaded geometry, selection state and
+        render mode into the 4 quad panes (so opening 4-Pane View shows
+        whatever was already selected/set in the single view)."""
         panes = getattr(self, '_quad_panes', None)
         if not panes:
             return
@@ -9688,6 +9698,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             pane._prelit    = list(getattr(src, '_prelit', []))
             pane._all_geoms = list(getattr(src, '_all_geoms', []))
             pane._current_geom_flags = getattr(src, '_current_geom_flags', 0)
+            pane._select_mode    = getattr(src, '_select_mode', 'object')
+            pane._selected_verts = set(getattr(src, '_selected_verts', set()))
+            pane._selected_edges = set(getattr(src, '_selected_edges', set()))
+            pane._selected_faces = set(getattr(src, '_selected_faces', set()))
+            if hasattr(pane, 'set_render_mode') and hasattr(src, '_mode'):
+                pane.set_render_mode(src._mode)
             pane._auto_fit()
             pane.update()
 
@@ -9753,6 +9769,57 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 self._quad_container.setSizes(qv['outer_sizes'])
         except Exception:
             pass
+
+    def _flip_vertical_all(self): #vers 1
+        """Flip vertically - applied to every visible viewport (single or
+        all 4 quad panes), so the transform isn't lost when only preview_widget
+        used to be touched."""
+        for vp in self._live_viewports():
+            vp.flip_vertical()
+
+    def _flip_horizontal_all(self): #vers 1
+        for vp in self._live_viewports():
+            vp.flip_horizontal()
+
+    def _rotate_cw_all(self): #vers 1
+        for vp in self._live_viewports():
+            vp.rotate_cw()
+
+    def _rotate_ccw_all(self): #vers 1
+        for vp in self._live_viewports():
+            vp.rotate_ccw()
+
+    def _live_viewports(self): #vers 1
+        """All currently active DFF viewport instances - just preview_widget
+        in single-view mode, or preview_widget + the 4 quad panes when the
+        4-Pane View is showing. Toolbar actions (flip/rotate/render style/
+        select mode) and selection state are applied across every entry
+        here, so every visible pane behaves like the main viewport did."""
+        vps = []
+        pw = getattr(self, 'preview_widget', None)
+        if pw:
+            vps.append(pw)
+        stack = getattr(self, '_viewport_stack', None)
+        quad_visible = bool(stack and getattr(self, '_quad_container', None)
+                             and stack.currentWidget() is self._quad_container)
+        if quad_visible:
+            vps.extend(getattr(self, '_quad_panes', None) or [])
+        return vps
+
+    def _sync_selection_to_other_viewports(self, source): #vers 1
+        """Called via source._workshop_ref after a selection click. Copies
+        the sub-object selection mode + sets from source into every other
+        live viewport so a click in one pane highlights the same
+        vertices/edges/faces everywhere (3ds Max behaviour). Camera
+        (yaw/pitch/pan/zoom) is untouched - only selection state."""
+        for vp in self._live_viewports():
+            if vp is source:
+                continue
+            vp._select_mode     = source._select_mode
+            vp._selected_verts  = set(source._selected_verts)
+            vp._selected_edges  = set(source._selected_edges)
+            vp._selected_faces  = set(source._selected_faces)
+            vp.update()
 
 
 # - Rest of the logic for the panels
