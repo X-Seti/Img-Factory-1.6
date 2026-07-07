@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/img_svg_icons.py - Version: 13
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 14
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -4695,6 +4695,27 @@ def get_fit_grid_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
     return QIcon(px)
 
 SVGIconFactory.fit_grid_icon = staticmethod(get_fit_grid_icon)
+
+
+def get_quad_view_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+    """Quad view — 4 separate panes (Top/Front/Side/Perspective split),
+    like 3ds Max's viewport-configuration icon. Distinct from fit_grid_icon
+    (which means 'zoom to fit'), this means 'split into 4 viewports'."""
+    from PyQt6.QtGui import QIcon, QPixmap, QPainter
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtSvg import QSvgRenderer
+    c = color or '#ffffff'
+    svg = f'''<svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+      <rect x="2"  y="2"  width="7" height="7" fill="none" stroke="{c}" stroke-width="1.4"/>
+      <rect x="11" y="2"  width="7" height="7" fill="none" stroke="{c}" stroke-width="1.4"/>
+      <rect x="2"  y="11" width="7" height="7" fill="none" stroke="{c}" stroke-width="1.4"/>
+      <rect x="11" y="11" width="7" height="7" fill="none" stroke="{c}" stroke-width="1.4"/>
+    </svg>'''
+    px = QPixmap(size, size); px.fill(Qt.GlobalColor.transparent)
+    r = QSvgRenderer(svg.encode()); p = QPainter(px); r.render(p); p.end()
+    return QIcon(px)
+
+SVGIconFactory.quad_view_icon = staticmethod(get_quad_view_icon)
 
 
 def get_locate_icon(size: int = 20, color: str = None) -> QIcon: #vers 1

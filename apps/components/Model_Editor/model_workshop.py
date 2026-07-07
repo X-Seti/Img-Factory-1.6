@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 148
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 149
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -9202,7 +9202,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             _act(tb_nav, label, _icon(default_fn, max_name), _set_v)
         tb_nav.addSeparator()
         _act(tb_nav, "4-Pane View",
-             _icon(self.icon_factory.fit_grid_icon, 'grid_icon'),
+             _icon(self.icon_factory.quad_view_icon, 'quad_view_icon'),
              self._toggle_quad_view, checkable=True, attr='_quad_view_act')
 
         # ── Ribbon 5: Render ──────────────────────────────────────────────
