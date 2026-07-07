@@ -1,4 +1,4 @@
-#this belongs in methods/dragdrop_functions.py - Version: 1
+#this belongs in methods/dragdrop_functions.py - Version: 2
 # X-Seti - September04 2025 - IMG Factory 1.5 - Drag and Drop Support
 
 """
@@ -333,11 +333,14 @@ class DragDropHandler:
             print(f"[DRAG-DROP] {message}")
 
 
-def setup_drag_drop_widget(widget: QWidget, handler: DragDropHandler, target_type: str = "main") -> bool: #vers 1
+def setup_drag_drop_widget(widget: QWidget, handler: DragDropHandler, target_type: str = "main") -> bool: #vers 2
     """Setup drag-and-drop for a widget"""
+    if widget is None:
+        print(f"Setup drag-drop widget error: widget is None (target_type={target_type})")
+        return False
     try:
         # Enable drag and drop
-        if widget and hasattr(widget, 'setAcceptDrops'):
+        if hasattr(widget, 'setAcceptDrops'):
             widget.setAcceptDrops(True)
         
         # Store handler and target type
@@ -368,7 +371,7 @@ def setup_drag_drop_widget(widget: QWidget, handler: DragDropHandler, target_typ
         return False
 
 
-def setup_main_window_drag_drop(main_window) -> bool: #vers 1
+def setup_main_window_drag_drop(main_window) -> bool: #vers 2
     """Setup drag-and-drop for main window"""
     try:
         # Create handler
@@ -378,11 +381,11 @@ def setup_main_window_drag_drop(main_window) -> bool: #vers 1
         setup_drag_drop_widget(main_window, handler, "main_window")
         
         # Setup GUI layout widget if available
-        if hasattr(main_window, 'gui_layout'):
+        if getattr(main_window, 'gui_layout', None) is not None:
             setup_drag_drop_widget(main_window.gui_layout, handler, "gui_layout")
-            
-            # Setup table widget if available
-            if hasattr(main_window.gui_layout, 'table'):
+
+            # Setup table widget if available (and actually created, not just declared)
+            if getattr(main_window.gui_layout, 'table', None) is not None:
                 setup_drag_drop_widget(main_window.gui_layout.table, handler, "table")
         
         # Store handler in main window

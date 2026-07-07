@@ -1,4 +1,4 @@
-#belongs in gui/gui_layout_custom.py - Version 16
+#belongs in gui/gui_layout_custom.py - Version 17
 # X-Seti - February04 2026 - Img Factory 1.6 - Custom UI Module
 
 from PyQt6.QtWidgets import (
@@ -3281,6 +3281,27 @@ The <code>.dir</code> file must be in the same folder as the <code>.img</code> f
                     QApplication.instance().setStyleSheet(ss)
         except Exception as e:
             print(f"gui_layout_custom _apply_theme error: {e}")
+
+    def _update_status_indicators(self): #vers 1
+        """Refresh main window status bar indicators (current IMG file info,
+        or ready state if none loaded)."""
+        mw = getattr(self, 'main_window', None)
+        if not mw:
+            return
+        img = getattr(mw, 'current_img', None)
+        if img and hasattr(mw, 'update_img_status'):
+            import os
+            filename = os.path.basename(getattr(img, 'file_path', '') or '')
+            entry_count = len(getattr(img, 'entries', []) or [])
+            version = getattr(getattr(img, 'version', None), 'name', 'Unknown')
+            try:
+                file_size = os.path.getsize(img.file_path) if getattr(img, 'file_path', '') else 0
+            except Exception:
+                file_size = 0
+            mw.update_img_status(img_file=img, filename=filename, entry_count=entry_count,
+                                  file_size=file_size, version=version)
+        elif hasattr(mw, 'set_ready_status'):
+            mw.set_ready_status()
 
     def _initialize_features(self): #vers 5
         """Initialize all features after UI setup - including enhanced logging"""
