@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 14 (Build 333)
-# X-Seti - April 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 15 (Build 334)
+# X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
 #   dp5_workshop.py   (v1 container skeleton)
@@ -14,23 +14,54 @@
 #   Centre: menubar + zoomable scrollable DP5Canvas
 #   Right:  2-col tool gadget bar (SVG icons) + brush size slider +
 #           FG/BG swatches + IMAGE palette strip + USER palette (retro presets)
-#
+
+
+import os, sys, random, json
+from collections import deque
+from pathlib import Path
+from typing import Optional, List, Tuple
+
+os.environ['QT_QPA_PLATFORM'] = 'xcb'
+os.environ['QSG_RHI_BACKEND'] = 'opengl'
+
+current_dir  = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
+from PyQt6.QtWidgets import (
+    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QSplitter,
+    QListWidget, QListWidgetItem, QLabel, QPushButton, QFrame,
+    QLineEdit, QMessageBox, QGroupBox, QComboBox,
+    QSpinBox, QTabWidget, QScrollArea, QCheckBox, QDialog,
+    QFormLayout, QFontComboBox, QSlider, QSizePolicy,
+    QAbstractItemView, QMenu, QMenuBar, QStatusBar,
+    QFileDialog, QColorDialog, QGridLayout, QInputDialog
+)
+from PyQt6.QtCore import Qt, QPoint, QRect, pyqtSignal, QSize, QTimer
+from PyQt6.QtGui import (
+    QImage, QPixmap, QPainter, QColor, QCursor, QAction,
+    QMouseEvent, QWheelEvent, QFont, QIcon, QPen, QBrush,
+    QPainterPath, QKeySequence
+)
+
+
 ##Methods list -
 # _load_tool_icon
 # _make_tool_icon
 # open_dp5_workshop
-#
+
 ##class DP5Settings: -
 # __init__
 # _load
 # get
 # save
 # set
-#
+
 ##class DP5SettingsDialog: -
 # __init__
 # _accept
-#
+
 ##class DP5Canvas: -
 # __init__
 # _do_blur_brush
@@ -72,7 +103,7 @@
 # set_pixel_brush
 # sizeHint
 # wheelEvent
-#
+
 ##class PaletteGrid: -
 # __init__
 # _effective_cols
@@ -85,7 +116,7 @@
 # set_palette
 # set_palette_raw
 # set_selection_by_color
-#
+
 ##class _AutoCellPaletteGrid: -
 # __init__
 # _cell_size
@@ -97,12 +128,12 @@
 # resizeEvent
 # set_colors
 # set_palette_raw
-#
+
 ##class ColorPickerWidget: -
 # __init__
 # _pick
 # current_color
-#
+
 ##class FGBGSwatch: -
 # __init__
 # _bg_rect
@@ -120,12 +151,12 @@
 # set_fg
 # sizeHint
 # swap
-#
+
 ##class _CanvasTextOverlay: -
 # __init__
 # _commit
 # keyPressEvent
-#
+
 ##class BrushManager: -
 # __init__
 # _brush_dir
@@ -136,14 +167,14 @@
 # _save_brush
 # _setup_ui
 # save_current_buffer
-#
+
 ##class BrushThumbnail: -
 # __init__
 # mousePressEvent
 # paintEvent
 # set_active
 # set_buffer
-#
+
 ##class ColorPalPresetsMixin: -
 # _apply_retro_palette
 # _apply_user_palette_dither
@@ -151,7 +182,7 @@
 # _cycle_pal_dither
 # _get_retro_colors
 # _show_retro_menu
-#
+
 ##class _CornerOverlay: -
 # __init__
 # _update_mask
@@ -159,7 +190,7 @@
 # resizeEvent
 # setGeometry
 # update_state
-#
+
 ##class DP5Workshop: -
 # __init__
 # _9bit_to_rgb
@@ -398,7 +429,7 @@
 # set_menu_orientation
 # setup_ui
 # showEvent
-#
+
 ##class _DockablePanelMixin: -
 # _add_dock_button
 # _dmp_float
@@ -407,7 +438,7 @@
 # _dmp_snap
 # _dmp_toggle_dock
 # _init_dock
-#
+
 ##class _CharFontEditor: -
 # __init__
 # _browse_font_folder
@@ -435,7 +466,7 @@
 # _shift_r
 # _shift_u
 # _stamp_to_canvas
-#
+
 ##class _CharGrid: -
 # __init__
 # _cell
@@ -446,7 +477,7 @@
 # paintEvent
 # set_data
 # set_size
-#
+
 ##class _SpriteEditor: -
 # __init__
 # _browse_font_folder
@@ -465,7 +496,7 @@
 # _scan_font_folder
 # _scan_sprite_folder
 # _set_sprite_size
-#
+
 ##class _IconEditor: -
 # __init__
 # _alpha_swatch_context
@@ -504,45 +535,16 @@
 # _sort_icons
 # _toggle_dock
 # closeEvent
-#
+
 ##class _SpriteView: -
 # __init__
 # paintEvent
 # set_sprite
 # set_zoom
-#
 
-
-import os, sys, random, json
-from collections import deque
-from pathlib import Path
-from typing import Optional, List, Tuple
-
-os.environ['QT_QPA_PLATFORM'] = 'xcb'
-os.environ['QSG_RHI_BACKEND'] = 'opengl'
-
-current_dir  = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
-
-from PyQt6.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QSplitter,
-    QListWidget, QListWidgetItem, QLabel, QPushButton, QFrame,
-    QLineEdit, QMessageBox, QGroupBox, QComboBox,
-    QSpinBox, QTabWidget, QScrollArea, QCheckBox, QDialog,
-    QFormLayout, QFontComboBox, QSlider, QSizePolicy,
-    QAbstractItemView, QMenu, QMenuBar, QStatusBar,
-    QFileDialog, QColorDialog, QGridLayout, QInputDialog
-)
-from PyQt6.QtCore import Qt, QPoint, QRect, pyqtSignal, QSize, QTimer
-from PyQt6.QtGui import (
-    QImage, QPixmap, QPainter, QColor, QCursor, QAction,
-    QMouseEvent, QWheelEvent, QFont, QIcon, QPen, QBrush,
-    QPainterPath, QKeySequence
-)
-
+# Build information
 App_name = "DP5 Workshop"
+App_build = "July 07 26 (334) Vers 15"
 DEBUG_STANDALONE = False
 
 # - Tool IDs
