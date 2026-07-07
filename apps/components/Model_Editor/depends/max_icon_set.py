@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/depends/max_icon_set.py - Version: 2
+#this belongs in apps/components/Model_Editor/depends/max_icon_set.py - Version: 3
 # X-Seti - July 2026 - IMG Factory 1.6 - 3ds Max 2014 Style Icon Set
 
 """
@@ -154,92 +154,77 @@ class MaxIconSet:
     # ------------------------------------------------------------------ #
 
     @staticmethod
-    def _snap_base() -> str: #vers 2
-        """Thick horseshoe magnet matching actual Max snap icon style.
-        Legs are wider/thicker than v1, flat rectangular caps on top."""
+    def _snap_base() -> str: #vers 3
+        """Compact horseshoe magnet in top 55% of 24x24 viewBox,
+        leaving bottom 45% clear for target markers."""
         return f'''
-            <rect x="3"  y="1" width="5" height="3" rx="0.5" fill="{_SNAP_R}"/>
-            <rect x="16" y="1" width="5" height="3" rx="0.5" fill="{_SNAP_R}"/>
-            <path d="M3,3 L3,12 Q3,18 12,18 Q21,18 21,12 L21,3"
-                stroke="{_SNAP_R}" stroke-width="4.5"
+            <rect x="4"  y="1" width="4" height="2.5" rx="0.5" fill="{_SNAP_R}"/>
+            <rect x="16" y="1" width="4" height="2.5" rx="0.5" fill="{_SNAP_R}"/>
+            <path d="M4,2.5 L4,9 Q4,14 12,14 Q20,14 20,9 L20,2.5"
+                stroke="{_SNAP_R}" stroke-width="4"
                 fill="none" stroke-linecap="butt"/>'''
 
     @staticmethod
-    def snap_grid_icon(size: int = 20, **_) -> QIcon: #vers 2
-        """Snap To Grid — magnet + 2×2 yellow dot grid below."""
+    def snap_grid_icon(size: int = 20, **_) -> QIcon: #vers 3
         return _ic(f'''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             {MaxIconSet._snap_base()}
-            <circle cx="8"  cy="21" r="1.8" fill="{_SNAP_T}"/>
-            <circle cx="16" cy="21" r="1.8" fill="{_SNAP_T}"/>
-            <circle cx="8"  cy="26" r="1.8" fill="{_SNAP_T}"/>
-            <circle cx="16" cy="26" r="1.8" fill="{_SNAP_T}"/>
+            <circle cx="8"  cy="18" r="1.6" fill="{_SNAP_T}"/>
+            <circle cx="16" cy="18" r="1.6" fill="{_SNAP_T}"/>
+            <circle cx="8"  cy="22" r="1.6" fill="{_SNAP_T}"/>
+            <circle cx="16" cy="22" r="1.6" fill="{_SNAP_T}"/>
         </svg>''', size)
 
     @staticmethod
-    def snap_pivot_icon(size: int = 20, **_) -> QIcon: #vers 2
-        """Snap To Pivot — magnet + crosshair circle."""
+    def snap_pivot_icon(size: int = 20, **_) -> QIcon: #vers 3
         return _ic(f'''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             {MaxIconSet._snap_base()}
-            <circle cx="12" cy="22" r="3.5"
+            <circle cx="12" cy="20" r="3"
                 fill="none" stroke="{_SNAP_T}" stroke-width="1.8"/>
-            <circle cx="12" cy="22" r="1.2" fill="{_SNAP_T}"/>
-            <line x1="12" y1="18" x2="12" y2="19"
-                stroke="{_SNAP_T}" stroke-width="1.5"/>
-            <line x1="12" y1="25" x2="12" y2="26"
-                stroke="{_SNAP_T}" stroke-width="1.5"/>
-            <line x1="8"  y1="22" x2="9"  y2="22"
-                stroke="{_SNAP_T}" stroke-width="1.5"/>
-            <line x1="15" y1="22" x2="16" y2="22"
-                stroke="{_SNAP_T}" stroke-width="1.5"/>
+            <circle cx="12" cy="20" r="1.2" fill="{_SNAP_T}"/>
         </svg>''', size)
 
     @staticmethod
-    def snap_vertex_icon(size: int = 20, **_) -> QIcon: #vers 2
-        """Snap To Vertex — magnet + large yellow filled dot."""
+    def snap_vertex_icon(size: int = 20, **_) -> QIcon: #vers 3
         return _ic(f'''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             {MaxIconSet._snap_base()}
-            <circle cx="12" cy="22" r="3.5" fill="{_SNAP_T}"/>
+            <circle cx="12" cy="20" r="3" fill="{_SNAP_T}"/>
         </svg>''', size)
 
     @staticmethod
-    def snap_endpoint_icon(size: int = 20, **_) -> QIcon: #vers 2
-        """Snap To Endpoint — magnet + diagonal line, dot at end."""
+    def snap_endpoint_icon(size: int = 20, **_) -> QIcon: #vers 3
         return _ic(f'''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             {MaxIconSet._snap_base()}
-            <line x1="5" y1="27" x2="19" y2="19"
+            <line x1="5" y1="23" x2="18" y2="16"
                 stroke="{_WHITE}" stroke-width="1.8"
                 stroke-linecap="round" opacity="0.6"/>
-            <circle cx="19" cy="19" r="2.5" fill="{_SNAP_T}"/>
-            <circle cx="5"  cy="27" r="1.5" fill="{_WHITE}" opacity="0.4"/>
+            <circle cx="18" cy="16" r="2.2" fill="{_SNAP_T}"/>
+            <circle cx="5"  cy="23" r="1.2" fill="{_WHITE}" opacity="0.4"/>
         </svg>''', size)
 
     @staticmethod
-    def snap_midpoint_icon(size: int = 20, **_) -> QIcon: #vers 2
-        """Snap To Midpoint — magnet + line, dot at midpoint."""
+    def snap_midpoint_icon(size: int = 20, **_) -> QIcon: #vers 3
         return _ic(f'''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             {MaxIconSet._snap_base()}
-            <line x1="5" y1="27" x2="19" y2="19"
+            <line x1="5" y1="23" x2="19" y2="16"
                 stroke="{_WHITE}" stroke-width="1.8"
                 stroke-linecap="round" opacity="0.6"/>
-            <circle cx="12" cy="23" r="2.5" fill="{_SNAP_T}"/>
+            <circle cx="12" cy="19.5" r="2.2" fill="{_SNAP_T}"/>
         </svg>''', size)
 
     @staticmethod
-    def snap_edge_icon(size: int = 20, **_) -> QIcon: #vers 2
-        """Snap To Edge — magnet + bold yellow diagonal line."""
+    def snap_edge_icon(size: int = 20, **_) -> QIcon: #vers 3
         return _ic(f'''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             {MaxIconSet._snap_base()}
-            <line x1="4" y1="27" x2="20" y2="19"
+            <line x1="4" y1="23" x2="20" y2="16"
                 stroke="{_SNAP_T}" stroke-width="3.5"
                 stroke-linecap="round"/>
         </svg>''', size)
 
     @staticmethod
-    def snap_face_icon(size: int = 20, **_) -> QIcon: #vers 2
-        """Snap To Face — magnet + yellow filled triangle."""
+    def snap_face_icon(size: int = 20, **_) -> QIcon: #vers 3
         return _ic(f'''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             {MaxIconSet._snap_base()}
-            <polygon points="5,19 19,19 12,27"
+            <polygon points="5,16 19,16 12,23"
                 fill="{_SNAP_T}" opacity="0.9"/>
         </svg>''', size)
 
