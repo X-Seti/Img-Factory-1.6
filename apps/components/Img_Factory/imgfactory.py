@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in components/Img_Factory/imgfactory.py - Version: 83
+#this belongs in components/Img_Factory/imgfactory.py - Version: 84
 # X-Seti - Feb 24 2026 - IMG Factory 1.6 - Icon system, button layout
 
 """
@@ -430,7 +430,20 @@ class IMGFactory(QMainWindow):
         # Initialize project manager
         try:
             from apps.components.Project_Manager.project_manager import ProjectManager
-            self.project_manager = ProjectManager()
+            self.project_manager = ProjectManager(self)
+
+            # Auto-restore last active project (game_root etc.) so the
+            # directory tree autoload doesn't falsely report "No Project
+            # Configured" when a project was actually set up previously.
+            last_name = self.img_settings.get('last_project_name', '')
+            if last_name and last_name in self.project_manager.projects:
+                self.project_manager.set_current_project(last_name)
+            elif not getattr(self, 'game_root', None):
+                # Fallback: last_game_root survives even if the named
+                # project was since renamed/deleted.
+                last_root = self.img_settings.get('last_game_root', '')
+                if last_root:
+                    self.game_root = last_root
         except Exception:
             self.project_manager = None
 
@@ -539,7 +552,7 @@ class IMGFactory(QMainWindow):
                 from apps.components.Project_Manager.project_manager import create_new_project
                 if not getattr(mw, 'project_manager', None):
                     from apps.components.Project_Manager.project_manager import ProjectManager
-                    mw.project_manager = ProjectManager()
+                    mw.project_manager = ProjectManager(mw)
                 create_new_project(mw)
             except Exception as e:
                 mw.log_message(f"New project error: {e}")
@@ -549,7 +562,7 @@ class IMGFactory(QMainWindow):
                 from apps.components.Project_Manager.project_manager import show_project_manager_dialog
                 if not getattr(mw, 'project_manager', None):
                     from apps.components.Project_Manager.project_manager import ProjectManager
-                    mw.project_manager = ProjectManager()
+                    mw.project_manager = ProjectManager(mw)
                 show_project_manager_dialog(mw)
             except Exception as e:
                 mw.log_message(f"Open project error: {e}")
@@ -567,7 +580,7 @@ class IMGFactory(QMainWindow):
                 from apps.components.Project_Manager.project_manager import show_project_manager_dialog
                 if not getattr(mw, 'project_manager', None):
                     from apps.components.Project_Manager.project_manager import ProjectManager
-                    mw.project_manager = ProjectManager()
+                    mw.project_manager = ProjectManager(mw)
                 show_project_manager_dialog(mw)
             except Exception as e:
                 mw.log_message(f"Manage project error: {e}")

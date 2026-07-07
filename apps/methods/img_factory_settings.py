@@ -1,4 +1,4 @@
-#this belongs in methods/img_factory_settings.py - Version: 2
+#this belongs in methods/img_factory_settings.py - Version: 3
 # X-Seti - December31 2025 - IMG Factory 1.6
 """
 IMG Factory-specific settings manager
@@ -72,6 +72,12 @@ class IMGFactorySettings:
             "recent_files_limit": 10,
             "auto_backup": False,
             "backup_count": 3,
+
+            # Last active project (IMG Factory's own record - restored at
+            # startup so game_root doesn't need Project Manager to be
+            # opened manually every launch)
+            "last_project_name": "",
+            "last_game_root": "",
         }
 
         self.current_settings = self.load_settings()

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in components/Project_Manager/project_manager.py - Version: 1
+#this belongs in components/Project_Manager/project_manager.py - Version: 2
 # X-Seti - January08 2026 - IMG Factory 1.6 - Project Manager
 
 """
@@ -144,7 +144,7 @@ class ProjectManager:
             self.projects[name].update(settings)
             self.save_projects()
             
-    def set_current_project(self, name: str):
+    def set_current_project(self, name: str): #vers 2
         """Set the current active project"""
         if name in self.projects:
             self.current_project = name
@@ -155,6 +155,16 @@ class ProjectManager:
             from datetime import datetime
             self.projects[name]["last_used"] = datetime.now().isoformat()
             self.save_projects()
+
+            # Record as the last active project in IMG Factory's own
+            # settings (not the shared app_settings_system), so it can be
+            # auto-restored at next startup without needing projects.json
+            # to be re-parsed or the Project Manager opened manually.
+            img_settings = getattr(self.main_window, 'img_settings', None)
+            if img_settings is not None:
+                img_settings.set('last_project_name', name)
+                img_settings.set('last_game_root', project_settings.get('game_root', ''))
+                img_settings.save_settings()
             
             if "game_root" in project_settings and project_settings["game_root"]:
                 self.main_window.game_root = project_settings["game_root"]
