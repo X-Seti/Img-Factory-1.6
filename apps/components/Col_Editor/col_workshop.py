@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 82
+#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 83
 # X-Seti - August10 2025 - Converted col editor using gui base template.
 
 """
@@ -180,6 +180,7 @@ DEBUG_STANDALONE = False
 # COLWorkshop._create_stat_box
 # COLWorkshop._create_stats_grid
 # COLWorkshop._create_status_bar
+# COLWorkshop._create_surface_tab
 # COLWorkshop._create_toolbar
 # COLWorkshop._cycle_render_mode
 # COLWorkshop._cycle_view_render_style
@@ -303,6 +304,15 @@ DEBUG_STANDALONE = False
 # COLWorkshop._sort_models_desc
 # COLWorkshop._start_thumbnail_spin
 # COLWorkshop._stop_thumbnail_spin
+# COLWorkshop._surf_add
+# COLWorkshop._surf_changed
+# COLWorkshop._surf_delete
+# COLWorkshop._surf_dup
+# COLWorkshop._surf_on_select
+# COLWorkshop._surf_open
+# COLWorkshop._surf_populate
+# COLWorkshop._surf_refresh_list
+# COLWorkshop._surf_save
 # COLWorkshop._tick_thumbnail_spin
 # COLWorkshop._toggle_boxes
 # COLWorkshop._toggle_col_view
@@ -391,7 +401,7 @@ DEBUG_STANDALONE = False
 # _SurfaceParser.save
 # Build information
 App_name = "Col Workshop"
-App_build = "82"
+App_build = "83"
 
 # Import AppSettings
 try:
@@ -4909,6 +4919,192 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
         layout.addWidget(self.close_btn)
 
         return self.toolbar
+
+    def _create_surface_tab(self): #vers 1
+        """Build the Surface Data tab — parser + editor for surface.dat."""
+        from PyQt6.QtWidgets import (QSplitter, QListWidget, QListWidgetItem,
+                                      QScrollArea, QFormLayout, QDoubleSpinBox,
+                                      QSpinBox, QCheckBox, QLineEdit, QProgressBar)
+
+        self._surf_parser  = _SurfaceParser()
+        self._surf_cur_idx = -1
+        self._surf_blocking = False
+        self._surf_widgets: dict = {}
+
+        tab = QWidget()
+        root = QVBoxLayout(tab)
+        root.setContentsMargins(4, 4, 4, 4)
+
+        # Toolbar row
+        tb = QHBoxLayout()
+        open_btn = QPushButton("Open surface.dat")
+        open_btn.setFixedHeight(26)
+        open_btn.clicked.connect(self._surf_open)
+        save_btn = QPushButton("Save")
+        save_btn.setFixedHeight(26)
+        save_btn.clicked.connect(self._surf_save)
+        self._surf_status = QLabel("No file loaded")
+        tb.addWidget(open_btn)
+        tb.addWidget(save_btn)
+        tb.addStretch()
+        tb.addWidget(self._surf_status)
+        root.addLayout(tb)
+
+        sp = QSplitter(Qt.Orientation.Horizontal)
+
+        # Left — surface list
+        left = QWidget(); ll = QVBoxLayout(left); ll.setContentsMargins(2,2,2,2)
+        ll.addWidget(QLabel("Surfaces"))
+        self._surf_search = QLineEdit(); self._surf_search.setPlaceholderText("Search…")
+        self._surf_search.textChanged.connect(lambda t: self._surf_refresh_list(t))
+        ll.addWidget(self._surf_search)
+        self._surf_list = QListWidget()
+        self._surf_list.currentRowChanged.connect(self._surf_on_select)
+        ll.addWidget(self._surf_list)
+        br = QHBoxLayout()
+        for lbl, fn in [("Add", self._surf_add), ("Del", self._surf_delete), ("Dup", self._surf_dup)]:
+            b = QPushButton(lbl); b.setFixedHeight(24); b.clicked.connect(fn); br.addWidget(b)
+        ll.addLayout(br)
+        sp.addWidget(left)
+
+        # Centre — field form
+        scroll = QScrollArea(); scroll.setWidgetResizable(True)
+        ctr = QWidget(); scroll.setWidget(ctr)
+        form = QFormLayout(ctr); form.setSpacing(4); form.setContentsMargins(6,6,6,6)
+
+        for fname, ftype, fmin, fmax, tip in _SURFACE_FIELDS:
+            lbl = QLabel(fname); lbl.setToolTip(tip); lbl.setFixedWidth(160)
+            if ftype == 'float':
+                w = QDoubleSpinBox(); w.setRange(float(fmin), float(fmax))
+                w.setDecimals(4); w.setSingleStep(0.01)
+                w.valueChanged.connect(lambda v, n=fname: self._surf_changed(n, v))
+            elif ftype == 'int':
+                w = QSpinBox(); w.setRange(int(fmin), int(fmax))
+                w.valueChanged.connect(lambda v, n=fname: self._surf_changed(n, v))
+            elif ftype == 'bool':
+                w = QCheckBox()
+                w.stateChanged.connect(lambda v, n=fname: self._surf_changed(n, int(v > 0)))
+            else:
+                w = QLineEdit()
+                w.textChanged.connect(lambda v, n=fname: self._surf_changed(n, v))
+            w.setToolTip(tip)
+            self._surf_widgets[fname] = w
+            form.addRow(lbl, w)
+        sp.addWidget(scroll)
+
+        # Right — quick reference
+        right = QWidget(); rl = QVBoxLayout(right); rl.setContentsMargins(4,4,4,4)
+        rl.addWidget(QLabel("WheelEffect values"))
+        for val, desc in [(0,"None"),(1,"Dirt/sand"),(2,"Water"),(3,"Grass")]:
+            rl.addWidget(QLabel(f"  {val} = {desc}"))
+        rl.addSpacing(12)
+        rl.addWidget(QLabel("Common Audio IDs"))
+        for a in ["ROAD","DIRT","GRASS","GRAVEL","MUD","SAND","WATER",
+                  "METAL","WOOD","TILE","CARPET","FLESH"]:
+            rl.addWidget(QLabel(f"  {a}"))
+        rl.addStretch()
+        sp.addWidget(right)
+
+        sp.setSizes([200, 580, 150])
+        root.addWidget(sp)
+        return tab
+
+    def _surf_open(self, path: str = None): #vers 1
+        if not path:
+            path, _ = QFileDialog.getOpenFileName(
+                self, "Open surface.dat", "",
+                "Surface data (surface.dat *.dat);;All files (*)")
+        if not path:
+            return
+        if self._surf_parser.load(path):
+            self._surf_path = path
+            self._surf_refresh_list()
+            self._surf_status.setText(
+                f"{os.path.basename(path)}  —  {len(self._surf_parser.entries)} surfaces  [{self._surf_parser.game}]")
+        else:
+            QMessageBox.critical(self, "Error", f"Failed to load {path}")
+
+    def _surf_save(self): #vers 1
+        path = getattr(self, '_surf_path', None)
+        if not path:
+            path, _ = QFileDialog.getSaveFileName(self, "Save surface.dat", "", "DAT files (*.dat)")
+        if path and self._surf_parser.save(path):
+            self._surf_status.setText(f"Saved {os.path.basename(path)}")
+
+    def _surf_refresh_list(self, ft: str = ""): #vers 1
+        self._surf_list.clear()
+        for i, e in enumerate(self._surf_parser.entries):
+            if ft and ft.lower() not in e.values[0].lower():
+                continue
+            item = QListWidgetItem(e.values[0] if e.values else f"surface_{i}")
+            item.setData(Qt.ItemDataRole.UserRole, i)
+            self._surf_list.addItem(item)
+
+    def _surf_on_select(self, row: int): #vers 1
+        item = self._surf_list.item(row)
+        if not item:
+            return
+        idx = item.data(Qt.ItemDataRole.UserRole)
+        if idx is None or idx >= len(self._surf_parser.entries):
+            return
+        self._surf_cur_idx = idx
+        self._surf_populate(self._surf_parser.entries[idx])
+
+    def _surf_populate(self, entry): #vers 1
+        self._surf_blocking = True
+        for i, (fname, ftype, *_) in enumerate(_SURFACE_FIELDS):
+            if i >= len(entry.values):
+                break
+            w = self._surf_widgets.get(fname)
+            if not w:
+                continue
+            try:
+                v = entry.values[i]
+                if ftype == 'float':   w.setValue(float(v))
+                elif ftype == 'int':   w.setValue(int(v))
+                elif ftype == 'bool':  w.setChecked(int(v) != 0)
+                elif hasattr(w,'setText'): w.setText(str(v))
+            except Exception:
+                pass
+        self._surf_blocking = False
+
+    def _surf_changed(self, fname: str, value): #vers 1
+        if self._surf_blocking or self._surf_cur_idx < 0:
+            return
+        entry = self._surf_parser.entries[self._surf_cur_idx]
+        for i, (fn, *_) in enumerate(_SURFACE_FIELDS):
+            if fn == fname and i < len(entry.values):
+                entry.values[i] = str(value)
+                break
+
+    def _surf_add(self): #vers 1
+        tmpl = self._surf_parser.entries[0].values[:] if self._surf_parser.entries \
+               else ['NEWSURFACE','0.9','0.9','0','0','1','0.1','0','ROAD','1','1','1','0']
+        tmpl[0] = 'NEWSURFACE'
+        e = _SurfaceEntry(); e.values = tmpl
+        self._surf_parser.entries.append(e)
+        self._surf_refresh_list(self._surf_search.text())
+        self._surf_list.setCurrentRow(self._surf_list.count()-1)
+
+    def _surf_delete(self): #vers 1
+        if self._surf_cur_idx < 0:
+            return
+        name = self._surf_parser.entries[self._surf_cur_idx].values[0]
+        if QMessageBox.question(self, "Delete", f"Delete {name}?") != QMessageBox.StandardButton.Yes:
+            return
+        self._surf_parser.entries.pop(self._surf_cur_idx)
+        self._surf_cur_idx = -1
+        self._surf_refresh_list(self._surf_search.text())
+
+    def _surf_dup(self): #vers 1
+        if self._surf_cur_idx < 0:
+            return
+        src = self._surf_parser.entries[self._surf_cur_idx]
+        e = _SurfaceEntry(); e.values = src.values[:]
+        e.values[0] = src.values[0] + '_COPY'
+        self._surf_parser.entries.insert(self._surf_cur_idx + 1, e)
+        self._surf_refresh_list(self._surf_search.text())
+
 
     #Left side vertical panel
     def _create_left_panel(self): #vers 5
