@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 149
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 150
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -243,7 +243,6 @@ except ImportError:
 # _create_new_model
 # _create_new_surface
 # _create_paint_bar
-# _create_preview_controls
 # _create_preview_widget
 # _create_primitive_dialog    dialog to add Box/Sphere/Cylinder/Plane to DFF #vers 1
 # _create_quad_viewport
@@ -254,8 +253,6 @@ except ImportError:
 # _create_status_bar
 # _create_texture_panel
 # _create_toolbar
-# _create_transform_icon_panel
-# _create_transform_text_panel
 # _cycle_render_mode
 # _cycle_view_render_style
 # _delete_selected_model
@@ -326,7 +323,6 @@ except ImportError:
 # _live_viewports
 # _load_iff_as_qimage
 # _load_img_col_list
-# _load_mod_toolbar_layouts
 # _load_quad_layout
 # _load_settings
 # _load_texlist_setting
@@ -337,8 +333,6 @@ except ImportError:
 # _lookup_ide_for_dff    find IDE entry via xref or IDEDatabase #vers 2
 # _lookup_ide_from_db
 # _mirror_dialog
-# _mod_place_ctrl_grid
-# _mod_place_icon_grid
 # _on_col_selected
 # _on_collision_selected
 # _on_compact_col_selected
@@ -392,8 +386,6 @@ except ImportError:
 # _project_model_2d
 # _push_undo
 # _rebuild_toolbars
-# _reflow_mod_left_toolbar
-# _reflow_mod_right_toolbar
 # _refresh_icons    refresh all SVG icons after theme change
 # _refresh_main_window
 # _regenerate_all_thumbnails
@@ -487,7 +479,6 @@ except ImportError:
 # _update_select_mode_availability
 # _update_status_indicators
 # _update_tex_btn_compact    icon-only when texture panel narrow #vers 1
-# _update_toolbar_for_docking_state
 # _update_transform_text_panel_visibility
 # _wire_col_buttons
 # _wire_dff_buttons
@@ -563,7 +554,7 @@ except ImportError:
 
 # Build information
 App_name = "Model Workshop"
-App_build = "118"
+App_build = "119"
 
 # Model Workshop icon available: SVGIconFactory.model_workshop_icon()
 # Use for: DFF edit button in main toolbar, Model Workshop tab icon.
@@ -6396,24 +6387,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if btr: btr.setVisible(wide)
             if bir: bir.setVisible(not wide)
 
-    def _load_mod_toolbar_layouts(self): #vers 1
-        """Restore saved toolbar layouts on startup."""
-        try:
-            if getattr(self, '_mod_left_toolbar', None):
-                self._mod_left_toolbar.load_layout()
-            if getattr(self, '_mod_right_toolbar', None):
-                self._mod_right_toolbar.load_layout()
-        except Exception:
-            pass
-
-
-    def showEvent(self, event): #vers 1
-        """On first show, restore toolbar layouts after Qt has laid out everything."""
+    def showEvent(self, event): #vers 2
+        """On first show, mark shown. Toolbar-layout restore itself is
+        handled by _restore_toolbar_state (scheduled from _build_toolbars)."""
         super().showEvent(event)
         if not getattr(self, '_toolbar_layout_loaded', False):
             self._toolbar_layout_loaded = True
-            from PyQt6.QtCore import QTimer as _QT2
-            _QT2.singleShot(500, self._load_mod_toolbar_layouts)
 
     def resizeEvent(self, event): #vers 5
         """Keep resize grip in corner; auto-collapse panels; adaptive button display."""
@@ -8006,603 +7985,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 f"Primitive '{name}': {len(verts)} verts, {len(tris)} tris added to DFF")
 
 
-    def _create_transform_icon_panel(self): #vers 13
-        """STUB: replaced by _build_toolbars / QToolBar system."""
-        return None  # no longer used
-        from PyQt6.QtWidgets import QGridLayout
-        icon_color = self._get_icon_color()
-
-        icon_frame = QFrame()
-        icon_frame.setFrameStyle(QFrame.Shape.NoFrame)
-        grid = QGridLayout(icon_frame)
-        grid.setContentsMargins(0, 0, 0, 0)
-        grid.setSpacing(2)
-        icon_frame._grid = grid
-
-        self._mod_icon_grid    = icon_frame._grid
-        self._mod_icon_buttons = []
-        self._mod_icon_frame   = icon_frame
-
-        rp = getattr(self, '_right_panel_ref', None)
-        toolbar = DockableToolbar(rp or self, settings_key='model_left_toolbar')
-        toolbar.reflow_requested.connect(self._reflow_mod_left_toolbar)
-        self._mod_left_toolbar         = toolbar
-        self.transform_icon_panel      = toolbar
-        self._transform_icon_panel_ref = toolbar
-
-        btn_height = 26
-        btn_width  = 26
-        icon_size  = QSize(16, 16)
-        spacer     = 0
-
-        def _add(btn):  #vers 1
-            btn.setFixedSize(26, 26)
-            self._mod_icon_buttons.append(btn)
-            return btn
-
-        layout = type('_FakeLayout', (), {
-            'addWidget':  lambda s, w, *a, **kw: _add(w),
-            'addSpacing': lambda s, *a: None,
-            'addStretch': lambda s: None,
-        })()
-
-        # Flip Vertical
-        self.flip_vert_btn = QPushButton()
-        self.flip_vert_btn.setIcon(self.icon_factory.flip_vert_icon(color=icon_color))
-        self.flip_vert_btn.setIconSize(icon_size)
-        self.flip_vert_btn.setFixedHeight(btn_height)
-        self.flip_vert_btn.setMinimumWidth(btn_width)
-        self.flip_vert_btn.setEnabled(False)
-        self.flip_vert_btn.setToolTip("Flip model vertically")
-        self.flip_vert_btn.clicked.connect(self._flip_vertical_all)
-        layout.addWidget(self.flip_vert_btn)
-        layout.addSpacing(spacer)
-
-        # Flip Horizontal
-        self.flip_horz_btn = QPushButton()
-        self.flip_horz_btn.setIcon(self.icon_factory.flip_horz_icon(color=icon_color))
-        self.flip_horz_btn.setIconSize(icon_size)
-        self.flip_horz_btn.setFixedHeight(btn_height)
-        self.flip_horz_btn.setMinimumWidth(btn_width)
-        self.flip_horz_btn.setEnabled(False)
-        self.flip_horz_btn.setToolTip("Flip model horizontally")
-        self.flip_horz_btn.clicked.connect(self._flip_horizontal_all)
-        layout.addWidget(self.flip_horz_btn)
-        layout.addSpacing(spacer)
-
-        # Rotate Clockwise
-        self.rotate_cw_btn = QPushButton()
-        self.rotate_cw_btn.setIcon(self.icon_factory.rotate_cw_icon(color=icon_color))
-        self.rotate_cw_btn.setIconSize(icon_size)
-        self.rotate_cw_btn.setFixedHeight(btn_height)
-        self.rotate_cw_btn.setMinimumWidth(btn_width)
-        self.rotate_cw_btn.setEnabled(False)
-        self.rotate_cw_btn.setToolTip("Rotate 90 degrees clockwise")
-        self.rotate_cw_btn.clicked.connect(self._rotate_cw_all)
-        layout.addWidget(self.rotate_cw_btn)
-        layout.addSpacing(spacer)
-
-        # Rotate Counter-Clockwise
-        self.rotate_ccw_btn = QPushButton()
-        self.rotate_ccw_btn.setIcon(self.icon_factory.rotate_ccw_icon(color=icon_color))
-        self.rotate_ccw_btn.setIconSize(icon_size)
-        self.rotate_ccw_btn.setFixedHeight(btn_height)
-        self.rotate_ccw_btn.setMinimumWidth(btn_width)
-        self.rotate_ccw_btn.setEnabled(False)
-        self.rotate_ccw_btn.setToolTip("Rotate 90 degrees counter-clockwise")
-        self.rotate_ccw_btn.clicked.connect(self._rotate_ccw_all)
-        layout.addWidget(self.rotate_ccw_btn)
-        layout.addSpacing(spacer)
-
-        # Analyze
-        self.analyze_btn = QPushButton()
-        self.analyze_btn.setIcon(self.icon_factory.analyze_icon(color=icon_color))
-        self.analyze_btn.setIconSize(icon_size)
-        self.analyze_btn.setFixedHeight(btn_height)
-        self.analyze_btn.setMinimumWidth(btn_width)
-        self.analyze_btn.clicked.connect(self._analyze_collision)
-        self.analyze_btn.setEnabled(False)
-        self.analyze_btn.setToolTip("Analyse model")
-        layout.addWidget(self.analyze_btn)
-        layout.addSpacing(spacer)
-
-        # Copy
-        self.copy_btn = QPushButton()
-        self.copy_btn.setIcon(self.icon_factory.copy_icon(color=icon_color))
-        self.copy_btn.setIconSize(icon_size)
-        self.copy_btn.setFixedHeight(btn_height)
-        self.copy_btn.setMinimumWidth(btn_width)
-        self.copy_btn.setEnabled(False)
-        self.copy_btn.setToolTip("Copy model to clipboard")
-        self.copy_btn.clicked.connect(self._copy_surface)
-        layout.addWidget(self.copy_btn)
-        layout.addSpacing(spacer)
-
-        # Paste
-        self.paste_btn = QPushButton()
-        self.paste_btn.setIcon(self.icon_factory.paste_icon(color=icon_color))
-        self.paste_btn.setIconSize(icon_size)
-        self.paste_btn.setFixedHeight(btn_height)
-        self.paste_btn.setMinimumWidth(btn_width)
-        self.paste_btn.setEnabled(False)
-        self.paste_btn.setToolTip("Paste model from clipboard")
-        self.paste_btn.clicked.connect(self._paste_surface)
-        layout.addWidget(self.paste_btn)
-        layout.addSpacing(spacer)
-
-        # Create
-        self.create_surface_btn = QPushButton()
-        self.create_surface_btn.setIcon(self.icon_factory.add_icon(color=icon_color))
-        self.create_surface_btn.setIconSize(icon_size)
-        self.create_surface_btn.setFixedHeight(btn_height)
-        self.create_surface_btn.setMinimumWidth(btn_width)
-        self.create_surface_btn.setToolTip("Create new blank Collision")
-        self.create_surface_btn.clicked.connect(self._create_new_surface)
-        layout.addWidget(self.create_surface_btn)
-        layout.addSpacing(spacer)
-
-        # Delete
-        self.delete_surface_btn = QPushButton()
-        self.delete_surface_btn.setIcon(self.icon_factory.delete_icon(color=icon_color))
-        self.delete_surface_btn.setIconSize(icon_size)
-        self.delete_surface_btn.setFixedHeight(btn_height)
-        self.delete_surface_btn.setMinimumWidth(btn_width)
-        self.delete_surface_btn.setEnabled(False)
-        self.delete_surface_btn.setToolTip("Remove selected Collision")
-        self.delete_surface_btn.clicked.connect(self._delete_surface)
-        layout.addWidget(self.delete_surface_btn)
-        layout.addSpacing(spacer)
-
-        # Duplicate
-        self.duplicate_surface_btn = QPushButton()
-        self.duplicate_surface_btn.setIcon(self.icon_factory.duplicate_icon(color=icon_color))
-        self.duplicate_surface_btn.setIconSize(icon_size)
-        self.duplicate_surface_btn.setFixedHeight(btn_height)
-        self.duplicate_surface_btn.setMinimumWidth(btn_width)
-        self.duplicate_surface_btn.setEnabled(False)
-        self.duplicate_surface_btn.setToolTip("Clone selected Collision")
-        self.duplicate_surface_btn.clicked.connect(self._duplicate_surface)
-        layout.addWidget(self.duplicate_surface_btn)
-        layout.addSpacing(spacer)
-
-        # Paint
-        self.paint_btn = QPushButton()
-        self.paint_btn.setIcon(self.icon_factory.paint_icon(color=icon_color))
-        self.paint_btn.setIconSize(icon_size)
-        self.paint_btn.setFixedHeight(btn_height)
-        self.paint_btn.setMinimumWidth(btn_width)
-        self.paint_btn.setEnabled(False)
-        self.paint_btn.setToolTip("Paint free hand on surface — assign materials")
-        self.paint_btn.clicked.connect(self._open_paint_editor)
-        layout.addWidget(self.paint_btn)
-        layout.addSpacing(spacer)
-
-        # Material List (DFF) / Surface Types (COL)
-        self.surface_type_btn = QPushButton()
-        self.surface_type_btn.setIcon(self.icon_factory.checkerboard_icon(color=icon_color))
-        self.surface_type_btn.setIconSize(icon_size)
-        self.surface_type_btn.setFixedHeight(btn_height)
-        self.surface_type_btn.setMinimumWidth(btn_width)
-        self.surface_type_btn.setToolTip(
-            "Material Editor (DFF) — view all materials, textures, IDE info, swap TXD\n"
-            "Surface Types (COL) — paint collision surface materials")
-        self.surface_type_btn.clicked.connect(self._open_material_list_or_surface_types)
-        layout.addWidget(self.surface_type_btn)
-        layout.addSpacing(spacer)
-
-        # surface_edit_btn removed — unified Material Editor opened via surface_type_btn
-        self.surface_edit_btn = None  # kept as attr so _enable_dff_toolbar doesn't crash
-
-        # Create COL from DFF geometry
-        self.build_from_txd_btn = QPushButton()
-        try:
-            self.build_from_txd_btn.setIcon(
-                self.icon_factory.col_from_dff_icon(color=icon_color))
-        except Exception:
-            self.build_from_txd_btn.setIcon(
-                self.icon_factory.build_icon(color=icon_color))
-        self.build_from_txd_btn.setIconSize(icon_size)
-        self.build_from_txd_btn.setFixedHeight(btn_height)
-        self.build_from_txd_btn.setMinimumWidth(btn_width)
-        self.build_from_txd_btn.setToolTip(
-            "Create COL from DFF geometry\n"
-            "Generates a collision mesh from the loaded DFF model vertices")
-        self.build_from_txd_btn.clicked.connect(self._create_col_from_dff)
-        layout.addWidget(self.build_from_txd_btn)
-
-        # - DFF-mode buttons (shown when DFF loaded, hidden for COL)
-        # Select mode buttons
-        def _sel_btn(attr, tip, mode, icon_fn_name):  #vers 1
-            b = QPushButton()
-            b.setFixedSize(btn_width, btn_height)
-            b.setCheckable(True)
-            b.setToolTip(tip)
-            b.setIconSize(icon_size)
-            try:
-                b.setIcon(getattr(self.icon_factory, icon_fn_name)(color=icon_color))
-            except Exception:
-                b.setText(mode[0].upper())
-            b.clicked.connect(lambda _=False, m=mode: self._set_select_mode(m))
-            b.setEnabled(False)   # re-enabled once a model exists — see _update_select_mode_availability
-            setattr(self, attr, b)
-            self._mod_icon_buttons.append(b)
-            return b
-
-        _sel_btn('_sel_vert_btn',  'Vertex select — click individual vertices',  'vertex', 'vertex_select_icon')
-        _sel_btn('_sel_edge_btn',  'Edge select — click edges between vertices',  'edge',   'edge_select_icon')
-        _sel_btn('_sel_face_btn',  'Face select — click individual triangles',    'face',   'face_select_icon')
-        _sel_btn('_sel_poly_btn',  'Polygon select — click connected face groups','poly',   'poly_select_icon')
-
-        # Mutual exclusivity — only one sub-object select mode active at a time
-        from PyQt6.QtWidgets import QButtonGroup
-        self._select_mode_group = QButtonGroup(self)
-        self._select_mode_group.setExclusive(True)
-        for b in (self._sel_vert_btn, self._sel_edge_btn,
-                  self._sel_face_btn, self._sel_poly_btn):
-            self._select_mode_group.addButton(b)
-        self._sel_face_btn.setChecked(True)   # default mode matches self._select_mode = 'face'
-
-        # Backface cull toggle
-        self._backface_cull_btn = QPushButton()
-        self._backface_cull_btn.setFixedSize(btn_width, btn_height)
-        self._backface_cull_btn.setCheckable(True)
-        self._backface_cull_btn.setToolTip(
-            "Backface culling — ON: only front faces visible\n"
-            "Prevents accidentally selecting/painting faces behind geometry")
-        self._backface_cull_btn.setIconSize(icon_size)
-        try:
-            self._backface_cull_btn.setIcon(
-                self.icon_factory.backface_icon(color=icon_color))
-        except Exception:
-            self._backface_cull_btn.setText("BF")
-        self._backface_cull_btn.toggled.connect(
-            lambda v: self._toggle_backface_cull())
-        self._mod_icon_buttons.append(self._backface_cull_btn)
-
-        # Front-only paint toggle
-        self._front_paint_btn = QPushButton()
-        self._front_paint_btn.setFixedSize(btn_width, btn_height)
-        self._front_paint_btn.setCheckable(True)
-        self._front_paint_btn.setToolTip(
-            "Front-only paint — only paint faces pointing toward the camera\n"
-            "Prevents painting hidden back faces through geometry")
-        self._front_paint_btn.setIconSize(icon_size)
-        try:
-            self._front_paint_btn.setIcon(
-                self.icon_factory.front_paint_icon(color=icon_color))
-        except Exception:
-            try:
-                self._front_paint_btn.setIcon(
-                    self.icon_factory.view_icon(color=icon_color))
-            except Exception:
-                self._front_paint_btn.setText("FP")
-        self._front_paint_btn.toggled.connect(
-            lambda v: self._toggle_front_only_paint())
-        self._mod_icon_buttons.append(self._front_paint_btn)
-
-        # Create Primitive button
-        self._prim_btn = QPushButton()
-        self._prim_btn.setFixedSize(btn_width, btn_height)
-        self._prim_btn.setToolTip(
-            "Create primitive shape (Box, Sphere, Cylinder, Plane)\n"
-            "Set dimensions and subdivision count")
-        self._prim_btn.setIconSize(icon_size)
-        try:
-            self._prim_btn.setIcon(self.icon_factory.add_icon(color=icon_color))
-        except Exception:
-            self._prim_btn.setText("+□")
-        self._prim_btn.clicked.connect(self._create_primitive_dialog)
-        self._mod_icon_buttons.append(self._prim_btn)
-
-        # Extrude selected face(s) button
-        self._extrude_btn = QPushButton()
-        self._extrude_btn.setFixedSize(btn_width, btn_height)
-        self._extrude_btn.setToolTip(
-            "Extrude selected face(s) along their normal\n"
-            "Positive distance = outward, negative = push in (door/window/vent)\n"
-            "Select faces in Face or Polygon mode first")
-        self._extrude_btn.setIconSize(icon_size)
-        try:
-            self._extrude_btn.setIcon(self.icon_factory.add_icon(color=icon_color))
-        except Exception:
-            self._extrude_btn.setText("Ext")
-        self._extrude_btn.clicked.connect(self._extrude_dialog)
-        self._mod_icon_buttons.append(self._extrude_btn)
-
-        # Store refs to DFF-only buttons for enable/disable
-        # Shading on/off toggle
-        self._shading_btn = QPushButton()
-        self._shading_btn.setFixedSize(btn_width, btn_height)
-        self._shading_btn.setCheckable(True)
-        self._shading_btn.setChecked(True)
-        self._shading_btn.setIconSize(icon_size)
-        self._shading_btn.setToolTip(
-            "Toggle viewport shading ON/OFF\n"
-            "OFF = flat unlit render (full brightness)")
-        try:
-            self._shading_btn.setIcon(
-                self.icon_factory.backface_icon(color=icon_color))
-        except Exception:
-            self._shading_btn.setText("S")
-        self._shading_btn.toggled.connect(self._toggle_viewport_shading)
-        self._mod_icon_buttons.append(self._shading_btn)
-
-        # Backface cull toggle
-        self._backface_cull_btn = QPushButton()
-        self._backface_cull_btn.setFixedSize(btn_width, btn_height)
-        self._backface_cull_btn.setCheckable(True)
-        self._backface_cull_btn.setChecked(True)
-        self._backface_cull_btn.setIconSize(icon_size)
-        self._backface_cull_btn.setToolTip(
-            "Toggle back-face culling ON/OFF\n"
-            "ON  = hide back faces (solid/textured)\n"
-            "OFF = show both sides (darkened)")
-        try:
-            self._backface_cull_btn.setIcon(
-                self.icon_factory.backface_icon(color=icon_color))
-        except Exception:
-            self._backface_cull_btn.setText("BF")
-        self._backface_cull_btn.toggled.connect(self._toggle_backface_cull)
-        self._mod_icon_buttons.append(self._backface_cull_btn)
-
-        # Light setup button (lightbulb)
-        self._light_setup_btn = QPushButton()
-        self._light_setup_btn.setFixedSize(btn_width, btn_height)
-        self._light_setup_btn.setIconSize(icon_size)
-        self._light_setup_btn.setToolTip(
-            "Viewport light setup\n"
-            "Set light direction, intensity and ambient level\n"
-            "Changes preview immediately — saved to settings")
-        try:
-            from apps.methods.imgfactory_svg_icons import SVGIconFactory as _SVG
-            self._light_setup_btn.setIcon(
-                _SVG.light_icon(size=16, color=icon_color))
-        except Exception:
-            self._light_setup_btn.setText("💡")
-        self._light_setup_btn.clicked.connect(self._open_light_setup_dialog)
-        self._mod_icon_buttons.append(self._light_setup_btn)
-
-        self._dff_only_toolbar_btns = [
-            self._sel_vert_btn, self._sel_edge_btn,
-            self._sel_face_btn, self._sel_poly_btn,
-            self._backface_cull_btn, self._front_paint_btn,
-            self._prim_btn,
-            self._shading_btn,
-            self._light_setup_btn,
-        ]
-
-        # Place into grid BEFORE set_content (same as COL/TXD pattern)
-        n = len(self._mod_icon_buttons)
-        for i in range(self._mod_icon_grid.count()-1, -1, -1):
-            item = self._mod_icon_grid.itemAt(i)
-            if item and item.widget():
-                self._mod_icon_grid.removeWidget(item.widget())
-        for idx, btn in enumerate(self._mod_icon_buttons):
-            if btn.parent() is not icon_frame:
-                btn.setParent(icon_frame)
-            self._mod_icon_grid.addWidget(btn, 0, idx)
-            btn.show()
-
-        toolbar.set_content(icon_frame)
-
-        # Resize event reflows grid
-        from PyQt6.QtCore import QObject, QEvent
-        _ws = self
-        class _Filter(QObject):
-            def eventFilter(self, obj, ev):  #vers 1
-                if ev.type() == QEvent.Type.Resize:
-                    if getattr(_ws, '_mod_icon_forced_cols', None) is None:
-                        pw = obj.width()
-                        new_cols = max(1, pw // 28)
-                        if new_cols != getattr(_ws, '_mod_icon_last_cols', 0):
-                            _ws._mod_icon_last_cols = new_cols
-                            _ws._mod_place_icon_grid(new_cols)
-                return False
-        self._mod_icon_filter = _Filter(icon_frame)
-        icon_frame.installEventFilter(self._mod_icon_filter)
-
-        return toolbar
-
-    def _mod_place_icon_grid(self, n_cols=None): #vers 1
-        grid  = getattr(self, '_mod_icon_grid', None)
-        btns  = getattr(self, '_mod_icon_buttons', [])
-        frame = getattr(self, '_mod_icon_frame', None)
-        if grid is None or not btns:
-            return
-        btn_w = 28
-        if n_cols is None:
-            forced = getattr(self, '_mod_icon_forced_cols', None)
-            if forced is not None:
-                n_cols = forced
-            else:
-                pw = frame.width() if frame else 0
-                n_cols = max(1, pw // btn_w) if pw > btn_w else len(btns)
-        self._mod_icon_last_cols = n_cols
-        for i in range(grid.count()-1, -1, -1):
-            item = grid.itemAt(i)
-            if item and item.widget():
-                grid.removeWidget(item.widget())
-        for idx, btn in enumerate(btns):
-            if btn.parent() is not frame:
-                btn.setParent(frame)
-            grid.addWidget(btn, idx // n_cols, idx % n_cols)
-            btn.show()
-        if frame:
-            frame.setMaximumWidth(btn_w + 4 if n_cols == 1 else 16777215)
-
-    def _reflow_mod_left_toolbar(self, pos): #vers 1
-        from apps.components.Model_Editor.dockable_toolbar import SNAP_LEFT, SNAP_RIGHT
-        n = len(getattr(self, '_mod_icon_buttons', []))
-        if pos == 'float':
-            self._mod_icon_forced_cols = n
-        elif pos in (SNAP_LEFT, SNAP_RIGHT):
-            self._mod_icon_forced_cols = 1
-        else:
-            self._mod_icon_forced_cols = None
-            frame = getattr(self, '_mod_icon_frame', None)
-            pw = frame.width() if frame else 0
-            n_cols = max(1, pw // 28) if pw > 28 else n
-            self._mod_icon_last_cols = 0
-            self._mod_place_icon_grid(n_cols)
-            return
-        self._mod_place_icon_grid()
-
-
-    def _create_transform_text_panel(self): #vers 12
-        """Create transform panel with text - aligned with icon panel"""
-        self.transform_text_panel = QFrame()
-        self.transform_text_panel.setFrameStyle(QFrame.Shape.StyledPanel)
-        self.transform_text_panel.setMinimumWidth(140)
-        self.transform_text_panel.setMaximumWidth(140)
-
-        layout = QVBoxLayout(self.transform_text_panel)
-        layout.setContentsMargins(5, 5, 5, 5)
-        layout.setSpacing(1)
-
-        btn_height = 32
-        spacer = 3
-
-        layout.addSpacing(2)
-
-        # Flip Vertical
-        self.flip_vert_btn = QPushButton("Flip Vertical")
-        self.flip_vert_btn.setFont(self.button_font)
-        self.flip_vert_btn.setFixedHeight(btn_height)
-        self.flip_vert_btn.setEnabled(False)
-        self.flip_vert_btn.setToolTip("Flip model vertically")
-        self.flip_vert_btn.clicked.connect(self._flip_vertical_all)
-        layout.addWidget(self.flip_vert_btn)
-        layout.addSpacing(spacer)
-
-        # Flip Horizontal
-        self.flip_horz_btn = QPushButton("Flip Horizontal")
-        self.flip_horz_btn.setFont(self.button_font)
-        self.flip_horz_btn.setFixedHeight(btn_height)
-        self.flip_horz_btn.setEnabled(False)
-        self.flip_horz_btn.setToolTip("Flip model horizontally")
-        self.flip_horz_btn.clicked.connect(self._flip_horizontal_all)
-        layout.addWidget(self.flip_horz_btn)
-        layout.addSpacing(spacer)
-
-        # Rotate Clockwise
-        self.rotate_cw_btn = QPushButton("Rotate 90° CW")
-        self.rotate_cw_btn.setFont(self.button_font)
-        self.rotate_cw_btn.setFixedHeight(btn_height)
-        self.rotate_cw_btn.setEnabled(False)
-        self.rotate_cw_btn.setToolTip("Rotate 90 degrees clockwise")
-        self.rotate_cw_btn.clicked.connect(self._rotate_cw_all)
-        layout.addWidget(self.rotate_cw_btn)
-        layout.addSpacing(spacer)
-
-        # Rotate Counter-Clockwise
-        self.rotate_ccw_btn = QPushButton("Rotate 90° CCW")
-        self.rotate_ccw_btn.setFont(self.button_font)
-        self.rotate_ccw_btn.setFixedHeight(btn_height)
-        self.rotate_ccw_btn.setEnabled(False)
-        self.rotate_ccw_btn.setToolTip("Rotate 90 degrees counter-clockwise")
-        self.rotate_ccw_btn.clicked.connect(self._rotate_ccw_all)
-        layout.addWidget(self.rotate_ccw_btn)
-        layout.addSpacing(spacer)
-
-        # Analyze
-        self.analyze_btn = QPushButton("Analyse Model")
-        self.analyze_btn.setFont(self.button_font)
-        self.analyze_btn.setFixedHeight(btn_height)
-        self.analyze_btn.clicked.connect(self._analyze_collision)
-        self.analyze_btn.setEnabled(False)
-        self.analyze_btn.setToolTip("Analyse model")
-        layout.addWidget(self.analyze_btn)
-        layout.addSpacing(spacer)
-
-        # Copy
-        self.copy_btn = QPushButton("Copy Model")
-        self.copy_btn.setFont(self.button_font)
-        self.copy_btn.setFixedHeight(btn_height)
-        self.copy_btn.setEnabled(False)
-        self.copy_btn.setToolTip("Copy model to clipboard")
-        self.copy_btn.clicked.connect(self._copy_surface)
-        layout.addWidget(self.copy_btn)
-        layout.addSpacing(spacer)
-
-        # Paste
-        self.paste_btn = QPushButton("Paste Model")
-        self.paste_btn.setFont(self.button_font)
-        self.paste_btn.setFixedHeight(btn_height)
-        self.paste_btn.setEnabled(False)
-        self.paste_btn.setToolTip("Paste model from clipboard")
-        self.paste_btn.clicked.connect(self._paste_surface)
-        layout.addWidget(self.paste_btn)
-        layout.addSpacing(spacer)
-
-        # Create
-        self.create_surface_btn = QPushButton("Create")
-        self.create_surface_btn.setFont(self.button_font)
-        self.create_surface_btn.setFixedHeight(btn_height)
-        self.create_surface_btn.setToolTip("Create new blank Collision")
-        self.create_surface_btn.clicked.connect(self._create_new_surface)
-        layout.addWidget(self.create_surface_btn)
-        layout.addSpacing(spacer)
-
-        # Delete
-        self.delete_surface_btn = QPushButton("Delete")
-        self.delete_surface_btn.setFont(self.button_font)
-        self.delete_surface_btn.setFixedHeight(btn_height)
-        self.delete_surface_btn.setEnabled(False)
-        self.delete_surface_btn.setToolTip("Remove selected Collision")
-        self.delete_surface_btn.clicked.connect(self._delete_surface)
-        layout.addWidget(self.delete_surface_btn)
-        layout.addSpacing(spacer)
-
-        # Duplicate
-        self.duplicate_surface_btn = QPushButton("Duplicate")
-        self.duplicate_surface_btn.setFont(self.button_font)
-        self.duplicate_surface_btn.setFixedHeight(btn_height)
-        self.duplicate_surface_btn.setEnabled(False)
-        self.duplicate_surface_btn.setToolTip("Clone selected Collision")
-        self.duplicate_surface_btn.clicked.connect(self._duplicate_surface)
-        layout.addWidget(self.duplicate_surface_btn)
-        layout.addSpacing(spacer)
-
-        # Paint
-        self.paint_btn = QPushButton("Paint")
-        self.paint_btn.setFont(self.button_font)
-        self.paint_btn.setFixedHeight(btn_height)
-        self.paint_btn.setEnabled(False)
-        self.paint_btn.setToolTip("Paint free hand on surface — assign materials")
-        self.paint_btn.clicked.connect(self._open_paint_editor)
-        layout.addWidget(self.paint_btn)
-        layout.addSpacing(spacer)
-
-        # Surface Type
-        self.surface_type_btn = QPushButton("Surface type")
-        self.surface_type_btn.setFont(self.button_font)
-        self.surface_type_btn.setFixedHeight(btn_height)
-        self.surface_type_btn.setToolTip("Surface types")
-        self.surface_type_btn.clicked.connect(self._open_surface_type_dialog)
-        layout.addWidget(self.surface_type_btn)
-        layout.addSpacing(spacer)
-
-        # Surface Edit
-        self.surface_edit_btn = QPushButton("Surface Edit")
-        self.surface_edit_btn.setFont(self.button_font)
-        self.surface_edit_btn.setFixedHeight(btn_height)
-        self.surface_edit_btn.setToolTip("Surface Editor — edit mesh faces and vertices")
-        self.surface_edit_btn.clicked.connect(self._open_surface_edit_dialog)
-        layout.addWidget(self.surface_edit_btn)
-        layout.addSpacing(spacer)
-
-        # Build from TXD
-        self.build_from_txd_btn = QPushButton("Build col via")
-        self.build_from_txd_btn.setFont(self.button_font)
-        self.build_from_txd_btn.setFixedHeight(btn_height)
-        self.build_from_txd_btn.setToolTip("Create col surface from txd texture names")
-        self.build_from_txd_btn.clicked.connect(lambda: self._dff_to_col_surfaces(single=True))
-        layout.addWidget(self.build_from_txd_btn)
-
-        layout.addStretch()
-        return self.transform_text_panel
-
-
     def _create_left_panel(self): #vers 6
         """Create left panel - COL file list (only in IMG Factory mode)"""
         # In standalone mode, don't create this panel
@@ -9496,106 +8878,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 _bar.raise_()
         vp.resizeEvent = _on_vp_resize
 
-    def _create_preview_controls(self): #vers 7
-        """Right toolbar icon grid — DockableToolbar pattern."""
-        from PyQt6.QtWidgets import QGridLayout
-        icon_color = self._get_icon_color()
-        pw = self.preview_widget
-
-        ctrl_frame = QFrame()
-        ctrl_frame.setFrameStyle(QFrame.Shape.NoFrame)
-        grid = QGridLayout(ctrl_frame)
-        grid.setContentsMargins(0, 0, 0, 0)
-        grid.setSpacing(2)
-        ctrl_frame._grid = grid
-
-        self._mod_ctrl_grid    = ctrl_frame._grid
-        self._mod_ctrl_buttons = []
-        self._mod_ctrl_frame   = ctrl_frame
-
-        def btn(tip, icon_fn, callback, checkable=False, checked=False):  #vers 1
-            b = QPushButton(ctrl_frame)
-            b.setIcon(icon_fn(color=icon_color))
-            b.setIconSize(QSize(16, 16))
-            b.setFixedSize(26, 26)
-            b.setToolTip(tip)
-            if checkable:
-                b.setCheckable(True)
-                b.setChecked(checked)
-            b.clicked.connect(callback)
-            self._mod_ctrl_buttons.append(b)
-            return b
-
-        btn("Zoom In",      self.icon_factory.zoom_in_icon,   pw.zoom_in)
-        btn("Zoom Out",     self.icon_factory.zoom_out_icon,  pw.zoom_out)
-        btn("Reset View",   self.icon_factory.reset_icon,     pw.reset_view)
-        btn("Fit to Window",self.icon_factory.fit_icon,       pw.fit_to_window)
-
-        _view_icons = [
-            ("XY",  0,   0,  self.icon_factory.view_xy_icon),
-            ("XZ",  0,  90,  self.icon_factory.view_xz_icon),
-            ("YZ",  90,  0,  self.icon_factory.view_yz_icon),
-            ("Iso", 30, 20,  self.icon_factory.view_iso_icon),
-        ]
-        for v_label, v_yaw, v_pitch, v_icon_fn in _view_icons:
-            def _set_v(checked=False, y=v_yaw, p=v_pitch):  #vers 1
-                pw._yaw = y; pw._pitch = p; pw.update()
-            btn(f"View: {v_label}", v_icon_fn, _set_v)
-
-        btn("Render / Background Settings",
-            self.icon_factory.color_picker_icon, self._open_render_settings_dialog)
-
-        self.view_mesh_btn = btn("Toggle Mesh", self.icon_factory.mesh_icon,
-                                  lambda checked: pw.set_show_mesh(checked),
-                                  checkable=True, checked=True)
-        self.backface_btn  = btn("Toggle Backface", self.icon_factory.backface_icon,
-                                  lambda checked: pw.set_backface(checked),
-                                  checkable=True, checked=False)
-        btn("Cycle Render Style", self.icon_factory.color_picker_icon,
-            self._cycle_view_render_style)
-
-        self._mod_place_ctrl_grid(1)
-        return ctrl_frame
-
-
-    def _mod_place_ctrl_grid(self, n_cols=None): #vers 1
-        grid  = getattr(self, '_mod_ctrl_grid', None)
-        btns  = getattr(self, '_mod_ctrl_buttons', [])
-        frame = getattr(self, '_mod_ctrl_frame', None)
-        if grid is None or not btns:
-            return
-        btn_w = 28
-        if n_cols is None:
-            n_cols = getattr(self, '_mod_ctrl_forced_cols', 1)
-        for i in range(grid.count()-1, -1, -1):
-            item = grid.itemAt(i)
-            if item and item.widget():
-                grid.removeWidget(item.widget())
-        for idx, b in enumerate(btns):
-            if b.parent() is not frame:
-                b.setParent(frame)
-            grid.addWidget(b, idx // n_cols, idx % n_cols)
-            b.show()
-        if frame:
-            frame.setMaximumWidth(btn_w + 4 if n_cols == 1 else 16777215)
-
-    def _reflow_mod_right_toolbar(self, pos): #vers 1
-        from apps.components.Model_Editor.dockable_toolbar import SNAP_LEFT, SNAP_RIGHT, SNAP_TOP, SNAP_BOTTOM
-        n = len(getattr(self, '_mod_ctrl_buttons', []))
-        if pos in ('float', SNAP_LEFT, SNAP_RIGHT):
-            self._mod_ctrl_forced_cols = 1
-        elif pos in (SNAP_TOP, SNAP_BOTTOM):
-            self._mod_ctrl_forced_cols = n
-        else:
-            self._mod_ctrl_forced_cols = 1
-        self._mod_place_ctrl_grid()
-
-
-    def _update_toolbar_for_docking_state(self): #vers 1
-        """Update toolbar visibility based on docking state"""
-        # Hide/show drag button based on docking state
-        if hasattr(self, 'drag_btn'):
-            self.drag_btn.setVisible(not self.is_docked)
 
     # - 3ds Max style 4-pane viewport (Top/Front/Side/Perspective)
 
