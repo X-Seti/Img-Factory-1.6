@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Vehicle_Workshop/vehicle_workshop.py - Version: 5
+#this belongs in apps/components/Vehicle_Workshop/vehicle_workshop.py - Version: 6
 # X-Seti - May08 2026 - Img Factory 1.6 - Vehicle Workshop
 
 """
@@ -85,7 +85,7 @@ except ImportError:
     except ImportError:
         class SVGIconFactory:
             @staticmethod
-            def _s(sz=20, c=None): return QIcon()
+            def _s(sz=20, c=None): return QIcon()  #vers 1
             open_icon = save_icon = export_icon = import_icon = delete_icon = \
             undo_icon = info_icon = properties_icon = minimize_icon = \
             maximize_icon = close_icon = settings_icon = search_icon = \
@@ -105,7 +105,7 @@ except ImportError:
         from apps.gui.tool_menu_mixin import ToolMenuMixin
     except ImportError:
         class ToolMenuMixin:
-            def _build_menus_into_qmenu(self, pm): pass
+            def _build_menus_into_qmenu(self, pm): pass  #vers 1
 
 # GLViewportMixin — embedded in this file
 class GLViewportMixin: pass
@@ -140,7 +140,7 @@ except ImportError:
         parse_txd = None
 
 # - Detect standalone vs docked
-def _is_standalone():
+def _is_standalone():  #vers 1
     import inspect
     frame = inspect.currentframe()
     try:
@@ -155,61 +155,211 @@ def _is_standalone():
 STANDALONE_MODE = _is_standalone()
 DEBUG_STANDALONE = False
 
+##Methods list -
+# _is_standalone
+# open_vehicle_workshop
+# CarColour.__str__
+# CarColour.to_qcolor
+# CarColoursTab.__init__
+# CarColoursTab._add_pair
+# CarColoursTab._add_vehicle
+# CarColoursTab._build_ui
+# CarColoursTab._delete_vehicle
+# CarColoursTab._edit_selected_colour
+# CarColoursTab._on_colour_index_clicked
+# CarColoursTab._on_vehicle_selected
+# CarColoursTab._populate_vehicle_colours
+# CarColoursTab._refresh_veh_list
+# CarColoursTab._remove_pair
+# CarColoursTab.load_file
+# CarColoursTab.save_file
+# CarColsParser.__init__
+# CarColsParser._detect_game
+# CarColsParser.load
+# CarColsParser.save
+# CarModsParser.__init__
+# CarModsParser.load
+# CarModsParser.save
+# CarModsTab.__init__
+# CarModsTab._add_mod
+# CarModsTab._add_vehicle
+# CarModsTab._build_ui
+# CarModsTab._delete_vehicle
+# CarModsTab._on_vehicle_selected
+# CarModsTab._populate_mods
+# CarModsTab._refresh_list
+# CarModsTab._remove_mod
+# CarModsTab.load_file
+# CarModsTab.save_file
+# ColourSwatchGrid.__init__
+# ColourSwatchGrid.colour_clicked
+# ColourSwatchGrid.mousePressEvent
+# ColourSwatchGrid.paintEvent
+# ColourSwatchGrid.set_palette
+# GUIWorkshop.__init__
+# GUIWorkshop._get_resize_corner
+# GUIWorkshop._get_resize_direction
+# GUIWorkshop._handle_corner_resize
+# GUIWorkshop._handle_resize
+# GUIWorkshop._is_on_draggable_area
+# GUIWorkshop._load_fonts_from_settings
+# GUIWorkshop._refresh_corner_overlay
+# GUIWorkshop._setup_corner_overlay
+# GUIWorkshop._setup_shortcuts
+# GUIWorkshop._toggle_maximize
+# GUIWorkshop._update_cursor
+# GUIWorkshop.closeEvent
+# GUIWorkshop.get_content_margins
+# GUIWorkshop.get_panel_margins
+# GUIWorkshop.mousePressEvent
+# GUIWorkshop.mouseReleaseEvent
+# GUIWorkshop.paintEvent
+# GUIWorkshop.resizeEvent
+# GUIWorkshop.showEvent
+# GUIWorkshop.toggle_dock_mode
+# HandlingTab.__init__
+# HandlingTab._add
+# HandlingTab._build_ui
+# HandlingTab._changed
+# HandlingTab._delete
+# HandlingTab._dup
+# HandlingTab._on_select
+# HandlingTab._populate
+# HandlingTab._refresh_list
+# HandlingTab._update_stats
+# HandlingTab.load_file
+# HandlingTab.save_file
+# VehicleWorkshop.__init__
+# VehicleWorkshop._build_menus_into_qmenu
+# VehicleWorkshop._create_centre_panel
+# VehicleWorkshop._create_preview_tab
+# VehicleWorkshop._light_setup_dialog
+# VehicleWorkshop._open_file
+# VehicleWorkshop._open_specific
+# VehicleWorkshop._save_as
+# VehicleWorkshop._save_file
+# VehicleWorkshop._show_progress
+# VehicleWorkshop._vw_load_dff
+# VehicleWorkshop._vw_load_txd
+# VehicleWorkshop._vw_pick_dff
+# VehicleWorkshop._vw_pick_paint1
+# VehicleWorkshop._vw_pick_paint2
+# VehicleWorkshop._vw_pick_txd
+# VehicleWorkshop._vw_set_mode
+# VehicleWorkshop._vw_toggle_assembly
+# VehicleWorkshop.setup_ui
+# WorkshopSettings.__init__
+# WorkshopSettings._load
+# WorkshopSettings.add_recent
+# WorkshopSettings.get
+# WorkshopSettings.get_recent
+# WorkshopSettings.save
+# WorkshopSettings.set
+# _CornerOverlay.__init__
+# _CornerOverlay._get_ui_color
+# _CornerOverlay._update_mask
+# _CornerOverlay.paintEvent
+# _CornerOverlay.resizeEvent
+# _CornerOverlay.setGeometry
+# _CornerOverlay.update_state
+# _LayoutMixin._create_centre_panel
+# _LayoutMixin._create_left_panel
+# _LayoutMixin._create_left_panel_old
+# _LayoutMixin._create_right_panel
+# _LayoutMixin._create_right_panel_old
+# _LayoutMixin._create_status_bar
+# _LayoutMixin._filter_img_list
+# _LayoutMixin._light_setup_dialog
+# _LayoutMixin._make_section_header
+# _LayoutMixin._on_frame_visibility_changed
+# _LayoutMixin._on_geom_selected
+# _LayoutMixin._on_img_entry_dclicked
+# _LayoutMixin._populate_frame_tree
+# _LayoutMixin._populate_geom_list
+# _LayoutMixin._populate_sidebar
+# _LayoutMixin._set_status
+# _LayoutMixin.get_content_margins
+# _LayoutMixin.get_panel_margins
+# _LayoutMixin.get_tab_margins
+# _LayoutMixin.setup_ui
+# _LogicStubsMixin._build_menus_into_qmenu
+# _LogicStubsMixin._clear_recent
+# _LogicStubsMixin._copy_item
+# _LogicStubsMixin._export_file
+# _LogicStubsMixin._fit
+# _LogicStubsMixin._import_file
+# _LogicStubsMixin._jump
+# _LogicStubsMixin._on_add_item
+# _LogicStubsMixin._on_list_selection_changed
+# _LogicStubsMixin._on_remove_item
+# _LogicStubsMixin._on_tab_changed
+# _LogicStubsMixin._on_toolbar_action
+# _LogicStubsMixin._open_file
+# _LogicStubsMixin._paste_item
+# _LogicStubsMixin._redo
+# _LogicStubsMixin._save_file
+# _LogicStubsMixin._set_active_tool
+# _LogicStubsMixin._undo
+# _LogicStubsMixin._zoom
+# _LogicStubsMixin.get_menu_title
+# _ToolbarMixin._apply_theme
+# _ToolbarMixin._auto_load_shared_txds
+# _ToolbarMixin._collect_needed_textures
+# _ToolbarMixin._create_toolbar
+# _ToolbarMixin._cycle_carcol
+# _ToolbarMixin._export_dff
+# _ToolbarMixin._find_game_root
+# _ToolbarMixin._get_accent_color
+# _ToolbarMixin._get_game_root
+# _ToolbarMixin._get_icon_color
+# _ToolbarMixin._get_ide_db
+# _ToolbarMixin._launch_theme_settings
+# _ToolbarMixin._load_carcols
+# _ToolbarMixin._load_vehicle_meta
+# _ToolbarMixin._lookup_txd_for_stem
+# _ToolbarMixin._on_img_entry_dclicked
+# _ToolbarMixin._on_menu_btn_clicked
+# _ToolbarMixin._on_shared_txds_found
+# _ToolbarMixin._open_app_settings
+# _ToolbarMixin._open_dff
+# _ToolbarMixin._open_txd
+# _ToolbarMixin._parse_sa_vehicles_ide
+# _ToolbarMixin._pick_paint1
+# _ToolbarMixin._pick_paint2
+# _ToolbarMixin._refresh_icons
+# _ToolbarMixin._set_anim_speed
+# _ToolbarMixin._set_mode
+# _ToolbarMixin._set_paint_pair
+# _ToolbarMixin._set_wheel_steer
+# _ToolbarMixin._show_about
+# _ToolbarMixin._show_dropdown_menu
+# _ToolbarMixin._show_popup_menu
+# _ToolbarMixin._show_workshop_settings
+# _ToolbarMixin._strip_tex_suffix
+# _ToolbarMixin._toggle_animation
+# _ToolbarMixin._toggle_assembly_mode
+# _ToolbarMixin._toggle_bounds
+# _ToolbarMixin._toggle_com_indicator
+# _ToolbarMixin._toggle_damage_mode
+# _ToolbarMixin._toggle_door
+# _ToolbarMixin._toggle_dummy_overlay
+# _ToolbarMixin._toggle_lod_mode
+# _ToolbarMixin._toggle_seat_overlay
+# _ToolbarMixin._toggle_show_wheels
+# _ToolbarMixin._toggle_suspension_vis
+# _ToolbarMixin._update_paint_btns
+# _ToolbarMixin._upload_txd_additive
+# _ToolbarMixin.load_dff
+# _ToolbarMixin.load_img
+# _ToolbarMixin.load_txd
+
+# Build information (decorative module-level copy; self.App_name/App_build
+# used at runtime come from the GUIWorkshop class attributes instead)
 App_name   = "Vehicle Workshop"
 App_build  = "Build 2"
 App_auth   = "X-Seti"
 config_key = "vehicle_workshop"
 
-##Methods list -
-# CarColour.__init__
-# CarColsParser.__init__
-# CarColsParser.load
-# CarColsParser.save
-# CarColsParser._detect_game
-# CarModEntry.__init__
-# CarModsParser.__init__
-# CarModsParser.load
-# CarModsParser.save
-# ColourSwatchGrid.__init__
-# ColourSwatchGrid.set_palette
-# ColourSwatchGrid.paintEvent
-# ColourSwatchGrid.mousePressEvent
-# HandlingTab.__init__
-# HandlingTab._build_ui
-# HandlingTab.load_file
-# HandlingTab.save_file
-# CarColoursTab.__init__
-# CarColoursTab._build_ui
-# CarColoursTab.load_file
-# CarColoursTab.save_file
-# CarColoursTab._on_vehicle_selected
-# CarColoursTab._populate_vehicle_colours
-# CarColoursTab._on_colour_index_clicked
-# CarColoursTab._add_vehicle
-# CarColoursTab._delete_vehicle
-# CarColoursTab._edit_selected_colour
-# CarColoursTab._add_pair
-# CarColoursTab._remove_pair
-# CarModsTab.__init__
-# CarModsTab._build_ui
-# CarModsTab.load_file
-# CarModsTab.save_file
-# CarModsTab._on_vehicle_selected
-# CarModsTab._populate_mods
-# CarModsTab._add_vehicle
-# CarModsTab._delete_vehicle
-# CarModsTab._add_mod
-# CarModsTab._remove_mod
-# VehicleWorkshop.__init__
-# VehicleWorkshop._build_menus_into_qmenu
-# VehicleWorkshop._open_file
-# VehicleWorkshop._save_file
-# VehicleWorkshop._save_as
-# VehicleWorkshop._open_specific
-# VehicleWorkshop.setup_ui
-# open_vehicle_workshop
-
-# - WorkshopSettings
 class WorkshopSettings:
     """Per-app JSON settings.  Stored at ~/.config/imgfactory/{config_key}.json
     Same pattern as RADSettings / WATSettings across all workshops.
@@ -260,7 +410,7 @@ class WorkshopSettings:
         try: self._path.write_text(json.dumps(self._data, indent=2))
         except Exception: pass
 
-    def get(self, key, default=None):
+    def get(self, key, default=None):  #vers 1
         return self._data.get(
             key, default if default is not None else self.DEFAULTS.get(key))
 
@@ -389,7 +539,7 @@ class _ToolbarMixin:
         ic = self._get_icon_color()
 
         # Helper: create a fixed-size icon button
-        def _ibtn(icon_fn, tip, slot):
+        def _ibtn(icon_fn, tip, slot):  #vers 1
             btn = QPushButton()
             try:
                 btn.setIcon(getattr(SVGIconFactory, icon_fn)(20, ic))
@@ -519,7 +669,7 @@ class _ToolbarMixin:
                 self._anim_timer = QTimer(self)  # parent=self → auto-stopped on delete
             self._anim_angle = 0.0
             speed = getattr(self, '_anim_speed', 1.0)
-            def _step():
+            def _step():  #vers 1
                 try:
                     self._anim_angle = (self._anim_angle + speed * 2.0) % 180.0
                     vp._door_angles = getattr(vp, '_door_angles', {})
@@ -809,7 +959,7 @@ class _ToolbarMixin:
 
     def _update_paint_btns(self): #vers 1
         vp = self.viewport
-        def _css(rgb): return f'background-color:rgb({int(rgb[0]*255)},{int(rgb[1]*255)},{int(rgb[2]*255)});color:{"#000" if sum(rgb)>1.5 else "#fff"}'
+        def _css(rgb): return f'background-color:rgb({int(rgb[0]*255)},{int(rgb[1]*255)},{int(rgb[2]*255)});color:{"#000" if sum(rgb)>1.5 else "#fff"}'  #vers 1
         if hasattr(self,'_paint1_btn'): self._paint1_btn.setStyleSheet(_css(vp._paint1))
         if hasattr(self,'_paint2_btn'): self._paint2_btn.setStyleSheet(_css(vp._paint2))
 
@@ -914,7 +1064,7 @@ class _ToolbarMixin:
             for i,(p1,p2) in enumerate(pairs[:8]):
                 row=QWidget(); rl=QHBoxLayout(row)
                 rl.setContentsMargins(0,0,0,0); rl.setSpacing(2)
-                def _css(rgb): return f'background-color:rgb({int(rgb[0]*255)},{int(rgb[1]*255)},{int(rgb[2]*255)});min-height:16px;border:1px solid #333'
+                def _css(rgb): return f'background-color:rgb({int(rgb[0]*255)},{int(rgb[1]*255)},{int(rgb[2]*255)});min-height:16px;border:1px solid #333'  #vers 1
                 b1=QPushButton(); b1.setFixedSize(20,16); b1.setStyleSheet(_css(p1))
                 b2=QPushButton(); b2.setFixedSize(20,16); b2.setStyleSheet(_css(p2))
                 b1.setToolTip(f'Primary: rgb({int(p1[0]*255)},{int(p1[1]*255)},{int(p1[2]*255)})')
@@ -979,7 +1129,7 @@ class _ToolbarMixin:
             # Load vehicles.ide info (wheel type) + carcols colours
             stem = os.path.splitext(os.path.basename(path))[0]
             from PyQt6.QtCore import QTimer
-            def _meta_then_wheels(s=stem):
+            def _meta_then_wheels(s=stem):  #vers 1
                 self._load_vehicle_meta(s)
                 self._carcol_idx = -1
                 if getattr(self.viewport, '_show_wheels', False):
@@ -1065,7 +1215,7 @@ class _ToolbarMixin:
                     GL_TEXTURE_MAG_FILTER, GL_LINEAR, GL_TEXTURE_WRAP_S,
                     GL_TEXTURE_WRAP_T, GL_REPEAT, GL_CLAMP_TO_EDGE, GL_MIRRORED_REPEAT,
                     glTexImage2D, GL_RGBA, GL_UNSIGNED_BYTE, glGenerateMipmap, glDeleteTextures)
-                def _rw_wrap(rw):
+                def _rw_wrap(rw):  #vers 1
                     if rw == 2: return GL_CLAMP_TO_EDGE
                     if rw == 3: return GL_MIRRORED_REPEAT
                     return GL_REPEAT
@@ -1186,7 +1336,7 @@ class _ToolbarMixin:
             found = _sig(list)   # emits list of {'name','rgba_data','width','height','format'}
             status = _sig(str)
 
-            def run(self):
+            def run(self):  #vers 1
                 from apps.methods.txd_parser import parse_txd
                 import tempfile
                 collected = []
@@ -1200,7 +1350,7 @@ class _ToolbarMixin:
                     if base != n:
                         alias[base] = n  # base -> suffixed
 
-                def _try_txd_data(data):
+                def _try_txd_data(data):  #vers 1
                     nonlocal miss
                     try:
                         textures = parse_txd(data)
@@ -1418,7 +1568,7 @@ class _ToolbarMixin:
         new = [t for t in textures if t['name'].lower() not in self.viewport._tex_ids]
         if not new: return
         # Defer upload until GL context ready
-        def _do_shared_upload():
+        def _do_shared_upload():  #vers 1
             try:
                 vp = self.viewport
                 if hasattr(vp, 'isValid') and not vp.isValid():
@@ -1461,7 +1611,7 @@ class _ToolbarMixin:
             if not textures:
                 self._set_status(f'No textures: {os.path.basename(path)}'); return
             # GL upload — defer until GL context is initialized
-            def _do_upload():
+            def _do_upload():  #vers 1
                 try:
                     vp = self.viewport
                     if hasattr(vp, 'isValid') and not vp.isValid():
@@ -1688,7 +1838,7 @@ class _ToolbarMixin:
         #    Tab 1: Fonts
         ft  = QWidget(); fl = QVBoxLayout(ft)
 
-        def _font_row(label, fam_key, sz_key, def_fam, def_sz, mn=7, mx=32):
+        def _font_row(label, fam_key, sz_key, def_fam, def_sz, mn=7, mx=32):  #vers 1
             grp = QGroupBox(label); row = QHBoxLayout(grp)
             fc = QFontComboBox()
             fc.setCurrentFont(__import__("PyQt6.QtGui", fromlist=["QFont"])
@@ -1791,7 +1941,7 @@ class _ToolbarMixin:
         game_edit = QLineEdit(ws.get("game_root", ""))
         game_edit.setPlaceholderText("e.g. /home/user/GTASA-PC")
         browse_btn = QPushButton("Browse…")
-        def _browse_game():
+        def _browse_game():  #vers 1
             from PyQt6.QtWidgets import QFileDialog
             d = QFileDialog.getExistingDirectory(dlg, "Select GTA Game Root", game_edit.text())
             if d: game_edit.setText(d)
@@ -2076,7 +2226,7 @@ class _LayoutMixin:
 
         return panel
 
-    def _create_centre_panel(self): #Vers 1
+    def _create_centre_panel(self): #Vers 1  #vers 1
         """Centre panel — tab view with placeholder tabs.
         Override to replace with your own canvas/tabs.
         """
@@ -2101,7 +2251,7 @@ class _LayoutMixin:
         cl.addWidget(self._view_tabs)
         return panel
 
-    def _create_right_panel_old(self): #Vers 1
+    def _create_right_panel_old(self): #Vers 1  #vers 1
         """Right panel — sidebar with 2-col tool button grid.
         Override _populate_sidebar() to change tool buttons.
         """
@@ -2130,7 +2280,7 @@ class _LayoutMixin:
         lay.setSpacing(2)
 
         ic = self._get_icon_color()
-        def _icon(fname, size=14):
+        def _icon(fname, size=14):  #vers 1
             if not ICONS_AVAILABLE: return None
             try:
                 fn = getattr(SVGIconFactory, f'get_{fname}_icon', None)
@@ -2139,7 +2289,7 @@ class _LayoutMixin:
 
         from PyQt6.QtWidgets import QToolButton as _QTB, QSlider
 
-        def _tbtn(text, tip, cb, iname=None, checkable=False, checked=False):
+        def _tbtn(text, tip, cb, iname=None, checkable=False, checked=False):  #vers 1
             b = _QTB(); b.setFont(self.infobar_font)
             b.setToolTip(tip); b.setFixedHeight(24)
             ico = _icon(iname)
@@ -2158,7 +2308,7 @@ class _LayoutMixin:
                 b.clicked.connect(lambda _=False: cb())
             return b
 
-        def _tbtn_txt(text, tip, cb, iname=None, checkable=False, checked=False):
+        def _tbtn_txt(text, tip, cb, iname=None, checkable=False, checked=False):  #vers 1
             """Button with icon+short text side by side."""
             b = _QTB(); b.setFont(self.infobar_font)
             b.setToolTip(tip); b.setFixedHeight(24)
@@ -2178,7 +2328,7 @@ class _LayoutMixin:
                 b.clicked.connect(lambda _=False: cb())
             return b
 
-        def _row(*widgets, spacing=2):
+        def _row(*widgets, spacing=2):  #vers 1
             w = QWidget(); h = QHBoxLayout(w)
             h.setContentsMargins(0,0,0,0); h.setSpacing(spacing)
             for ww in widgets:
@@ -2187,13 +2337,13 @@ class _LayoutMixin:
                 else: h.addWidget(ww)  # no stretch factor — use natural size
             return w
 
-        def _sep():
+        def _sep():  #vers 1
             from PyQt6.QtWidgets import QFrame as _QF
             s = _QF(); s.setFrameShape(_QF.Shape.HLine)
             s.setFixedHeight(1); s.setStyleSheet("background:#333;")
             return s
 
-        def _lbl(text):
+        def _lbl(text):  #vers 1
             l = QLabel(text); l.setFont(self.panel_font); return l
 
         # ── Render ──────────────────────────────────────
@@ -2314,7 +2464,7 @@ class _LayoutMixin:
         self._wheel_scale_slider = wheel_scale_slider
         self._wheel_scale_lbl = QLabel('0%'); self._wheel_scale_lbl.setFont(self.infobar_font)
         self._wheel_scale_lbl.setFixedWidth(28)
-        def _on_scale_change(v):
+        def _on_scale_change(v):  #vers 1
             self._wheel_scale_lbl.setText(f'{v:+d}%')
             mult = 1.0 + v / 100.0
             self.viewport._wheel_scale_mult = mult
@@ -2387,7 +2537,7 @@ class _LayoutMixin:
         lay.setSpacing(3)
 
         ic = self._get_icon_color()
-        def _icon(name, size=16):
+        def _icon(name, size=16):  #vers 1
             if not ICONS_AVAILABLE: return None
             try:
                 fn = getattr(SVGIconFactory, name+'_icon', None)
@@ -2396,7 +2546,7 @@ class _LayoutMixin:
 
         from PyQt6.QtWidgets import QToolButton as _QTB, QSlider
 
-        def _tbtn(text, tip, cb, iname=None, checkable=False, checked=False, w=None):
+        def _tbtn(text, tip, cb, iname=None, checkable=False, checked=False, w=None):  #vers 1
             b = _QTB(); b.setFont(self.infobar_font)
             b.setToolTip(tip); b.setFixedHeight(26)
             ico = _icon(iname)
@@ -2413,7 +2563,7 @@ class _LayoutMixin:
                 b.clicked.connect(lambda _=False: cb())
             return b
 
-        def _row(*widgets, spacing=3):
+        def _row(*widgets, spacing=3):  #vers 1
             w = QWidget(); h = QHBoxLayout(w)
             h.setContentsMargins(0,0,0,0); h.setSpacing(spacing)
             for ww in widgets:
@@ -2422,14 +2572,14 @@ class _LayoutMixin:
                 else: h.addWidget(ww, 1)
             return w
 
-        def _sep():
+        def _sep():  #vers 1
             from PyQt6.QtWidgets import QFrame as _QF
             s = _QF(); s.setFrameShape(_QF.Shape.HLine)
             s.setFixedHeight(1)
             s.setStyleSheet("background:#333;")
             return s
 
-        def _lbl(text):
+        def _lbl(text):  #vers 1
             l = QLabel(text); l.setFont(self.panel_font)
             return l
 
@@ -2565,7 +2715,7 @@ class _LayoutMixin:
         self._info_lbl.setAlignment(Qt.AlignmentFlag.AlignTop)
         lay.addWidget(self._info_lbl)
 
-        def _toggle_info(checked):
+        def _toggle_info(checked):  #vers 1
             self._info_lbl.setVisible(checked)
             info_toggle.setText(("▾" if checked else "▸") + " Model Info")
         info_toggle.toggled.connect(_toggle_info)
@@ -2608,7 +2758,7 @@ class _LayoutMixin:
         lay.addWidget(edit_row2)
 
         # Collapse edit buttons to icon-only when panel is narrow
-        def _on_panel_resize(event):
+        def _on_panel_resize(event):  #vers 1
             narrow = panel.width() < 170
             style = Qt.ToolButtonStyle.ToolButtonIconOnly if narrow else Qt.ToolButtonStyle.ToolButtonTextBesideIcon
             for b in self._edit_btns:
@@ -2626,7 +2776,7 @@ class _LayoutMixin:
         lay.setSpacing(4)
 
         ic = self._get_icon_color()
-        def _icon(name, size=16):
+        def _icon(name, size=16):  #vers 1
             if not ICONS_AVAILABLE: return None
             try:
                 fn = getattr(SVGIconFactory, name+'_icon', None)
@@ -2635,7 +2785,7 @@ class _LayoutMixin:
 
         from PyQt6.QtWidgets import QToolButton as _QTB
 
-        def _btn(text, tip, cb, iname=None, checkable=False, checked=False): #Vers 1
+        def _btn(text, tip, cb, iname=None, checkable=False, checked=False): #Vers 1  #vers 1
             b = _QTB(); b.setFont(self.panel_font)
             b.setToolTip(tip); b.setFixedHeight(28)
             b.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -2806,7 +2956,7 @@ class _LayoutMixin:
 
 
 
-    def _populate_sidebar(self): #Vers 1
+    def _populate_sidebar(self): #Vers 1  #vers 1
         """Build the 2-col icon grid in the right sidebar.
         Override to change or extend the tool set.
         """
@@ -2978,7 +3128,7 @@ class _LayoutMixin:
         vp = self.viewport
 
         # Light direction sliders
-        def _slider(lo, hi, val, scale=10):
+        def _slider(lo, hi, val, scale=10):  #vers 1
             s = QSlider(Qt.Orientation.Horizontal)
             s.setRange(int(lo*scale), int(hi*scale))
             s.setValue(int(val*scale))
@@ -2996,7 +3146,7 @@ class _LayoutMixin:
         la_lbl = QLabel(f"{vp._ambient:.2f}")
         ld_lbl = QLabel(f"{vp._diffuse:.2f}")
 
-        def _upd():
+        def _upd():  #vers 1
             x = sx.value()/10; y = sy.value()/10; z = sz.value()/10
             a = sa.value()/100; d = sd.value()/100
             lx_lbl.setText(f"{x:.1f}"); ly_lbl.setText(f"{y:.1f}"); lz_lbl.setText(f"{z:.1f}")
@@ -3005,7 +3155,7 @@ class _LayoutMixin:
 
         for s in (sx,sy,sz,sa,sd): s.valueChanged.connect(_upd)
 
-        def _row(lbl, slider, val_lbl):
+        def _row(lbl, slider, val_lbl):  #vers 1
             rw = QWidget(); rl = QHBoxLayout(rw); rl.setContentsMargins(0,0,0,0)
             rl.addWidget(slider,1); rl.addWidget(val_lbl)
             form.addRow(lbl, rw)
@@ -3023,14 +3173,14 @@ class _LayoutMixin:
         paint_grp = QGroupBox("Vehicle Paint Preview")
         paint_lay = QHBoxLayout(paint_grp)
 
-        def _colour_btn(label, current_rgb, setter):
-            def _to_qcolor(rgb):
+        def _colour_btn(label, current_rgb, setter):  #vers 1
+            def _to_qcolor(rgb):  #vers 1
                 from PyQt6.QtGui import QColor
                 return QColor(int(rgb[0]*255), int(rgb[1]*255), int(rgb[2]*255))
             btn = QPushButton(label)
             btn.setStyleSheet(f"background-color: rgb({int(current_rgb[0]*255)},{int(current_rgb[1]*255)},{int(current_rgb[2]*255)})")
             btn.setFixedHeight(28)
-            def _pick():
+            def _pick():  #vers 1
                 col = QColorDialog.getColor(_to_qcolor(setter.__self__._paint1 if 'paint1' in label.lower() or 'primary' in label.lower() else setter.__self__._paint2), dlg)
                 if col.isValid():
                     rgb = (col.redF(), col.greenF(), col.blueF())
@@ -3044,7 +3194,7 @@ class _LayoutMixin:
         p1_btn = QPushButton("Primary Paint")
         p1_btn.setStyleSheet(f"background-color: rgb({int(vp._paint1[0]*255)},{int(vp._paint1[1]*255)},{int(vp._paint1[2]*255)})")
         p1_btn.setFixedHeight(28)
-        def _pick1():
+        def _pick1():  #vers 1
             from PyQt6.QtGui import QColor
             col = QColorDialog.getColor(QColor(int(vp._paint1[0]*255),int(vp._paint1[1]*255),int(vp._paint1[2]*255)), dlg)
             if col.isValid():
@@ -3056,7 +3206,7 @@ class _LayoutMixin:
         p2_btn = QPushButton("Secondary Paint")
         p2_btn.setStyleSheet(f"background-color: rgb({int(vp._paint2[0]*255)},{int(vp._paint2[1]*255)},{int(vp._paint2[2]*255)})")
         p2_btn.setFixedHeight(28)
-        def _pick2():
+        def _pick2():  #vers 1
             from PyQt6.QtGui import QColor
             col = QColorDialog.getColor(QColor(int(vp._paint2[0]*255),int(vp._paint2[1]*255),int(vp._paint2[2]*255)), dlg)
             if col.isValid():
@@ -3069,7 +3219,7 @@ class _LayoutMixin:
         lay.addWidget(paint_grp)
 
         reset_btn = QPushButton("Reset Defaults")
-        def _reset():
+        def _reset():  #vers 1
             sx.setValue(10); sy.setValue(20); sz.setValue(15)
             sa.setValue(30); sd.setValue(85)
             vp._paint1 = (0.80, 0.20, 0.20)
@@ -3157,7 +3307,7 @@ class _LayoutMixin:
         m = self._dff_model
         g = m.geometries[row]
         damaged = getattr(self, '_damage_mode', False)
-        def _do_load():
+        def _do_load():  #vers 1
             if m.frames and m.atomics:
                 self.viewport.load_all_geometries(
                     m.geometries, [geom.materials for geom in m.geometries],
@@ -3230,8 +3380,8 @@ class _LogicStubsMixin:
         vm.addAction("About " + self.App_name, self._show_about)
 
     #    File operations
-    def _open_file(self, path=None):   pass   # override: load your format
-    def _save_file(self):              pass   # override: save your format
+    def _open_file(self, path=None):   pass   # override: load your format  #vers 1
+    def _save_file(self):              pass   # override: save your format  #vers 1
     def _export_file(self): #vers 1
         QMessageBox.information(self, "Export", "Export not yet implemented.")
     def _import_file(self): #vers 1
@@ -3241,20 +3391,20 @@ class _LogicStubsMixin:
         self._set_status("Recent files cleared")
 
     #    Edit operations
-    def _undo(self):         self._set_status("Undo — override in subclass")
-    def _redo(self):         self._set_status("Redo — override in subclass")
-    def _copy_item(self):    pass   # override: copy selection
-    def _paste_item(self):   pass   # override: paste clipboard
+    def _undo(self):         self._set_status("Undo — override in subclass")  #vers 1
+    def _redo(self):         self._set_status("Redo — override in subclass")  #vers 1
+    def _copy_item(self):    pass   # override: copy selection  #vers 1
+    def _paste_item(self):   pass   # override: paste clipboard  #vers 1
 
     #    View operations
-    def _zoom(self, factor: float): pass   # override: zoom your canvas
-    def _fit(self):                 pass   # override: fit view
-    def _jump(self):                pass   # override: jump to selection
+    def _zoom(self, factor: float): pass   # override: zoom your canvas  #vers 1
+    def _fit(self):                 pass   # override: fit view  #vers 1
+    def _jump(self):                pass   # override: jump to selection  #vers 1
 
     #    Panel callbacks
-    def _on_list_selection_changed(self, row: int): pass
-    def _on_tab_changed(self, idx: int):            pass
-    def _on_add_item(self):
+    def _on_list_selection_changed(self, row: int): pass  #vers 1
+    def _on_tab_changed(self, idx: int):            pass  #vers 1
+    def _on_add_item(self):  #vers 1
         self._item_list.addItem(
             QListWidgetItem(f"Item {self._item_list.count()}"))
 
@@ -3399,7 +3549,7 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
 
 
     #    Window chrome
-    def _get_resize_corner(self, pos): #Vers 1
+    def _get_resize_corner(self, pos): #Vers 1  #vers 1
         s = self.corner_size; x, y = pos.x(), pos.y()
         w, h = self.width(), self.height()
         if x < s and y < s:    return "top-left"
@@ -3409,7 +3559,7 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
         return None
 
 
-    def _update_cursor(self, direction): #Vers 2
+    def _update_cursor(self, direction): #Vers 2  #vers 1
         cursors = {
             "top":          Qt.CursorShape.SizeVerCursor,
             "bottom":       Qt.CursorShape.SizeVerCursor,
@@ -3488,7 +3638,7 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
         self.drag_position = global_pos
 
 
-    def _is_on_draggable_area(self, pos): #Vers 1
+    def _is_on_draggable_area(self, pos): #Vers 1  #vers 1
         if not hasattr(self, 'titlebar'):
             return False
         if not self.titlebar.rect().contains(pos):
@@ -3520,7 +3670,7 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
         super().mousePressEvent(ev)
 
 
-    def _toggle_maximize(self): #Vers 1
+    def _toggle_maximize(self): #Vers 1  #vers 1
         if self.isMaximized(): self.showNormal()
         else: self.showMaximized()
 
@@ -3529,7 +3679,7 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
         pass  # override if dock support needed
 
 
-    def mouseReleaseEvent(self, event): #Vers 2
+    def mouseReleaseEvent(self, event): #Vers 2  #vers 1
         if event.button() == Qt.MouseButton.LeftButton:
             self.dragging = self.resizing = False
             self.resize_corner = None
@@ -3537,7 +3687,7 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
             event.accept()
 
 
-    def _handle_corner_resize(self, global_pos): #Vers 1
+    def _handle_corner_resize(self, global_pos): #Vers 1  #vers 1
         if not self.resize_corner or not self.drag_position:
             return
         delta = global_pos - self.drag_position
@@ -3569,7 +3719,7 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
                 self.setGeometry(nx, ny, nw, nh)
 
 
-    def paintEvent(self, event): #Vers 2
+    def paintEvent(self, event): #Vers 2  #vers 1
         super().paintEvent(event)
         # Corner handles drawn by _corner_overlay — see _setup_corner_overlay
 
@@ -3609,7 +3759,7 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
         if hasattr(self,'size_grip'): self.size_grip.move(self.width()-16,self.height()-16)
         self._refresh_corner_overlay()
 
-    def closeEvent(self, event): #Vers 3
+    def closeEvent(self, event): #Vers 3  #vers 1
         # Stop any running timers before widget is destroyed
         try:
             if hasattr(self, '_anim_timer') and self._anim_timer:
@@ -3638,10 +3788,10 @@ class CarColour: #vers 1
     g: int = 0
     b: int = 0
 
-    def to_qcolor(self) -> QColor:
+    def to_qcolor(self) -> QColor:  #vers 1
         return QColor(self.r, self.g, self.b)
 
-    def __str__(self):
+    def __str__(self):  #vers 1
         return f"{self.r},{self.g},{self.b}"
 
 
@@ -3767,7 +3917,7 @@ class CarModsParser: #vers 1
 # Colour swatch grid
 
 class ColourSwatchGrid(QWidget): #vers 1
-    def __init__(self, parent=None):
+    def __init__(self, parent=None):  #vers 1
         super().__init__(parent)
         self._palette:  List[CarColour] = []
         self._selected: int = -1
@@ -3807,13 +3957,13 @@ class ColourSwatchGrid(QWidget): #vers 1
             self.update()
             self.colour_clicked(idx)
 
-    def colour_clicked(self, idx: int): pass  # override
+    def colour_clicked(self, idx: int): pass  # override  #vers 1
 
 
 # Tab 1 — Handling
 
 class HandlingTab(QWidget): #vers 1
-    def __init__(self, parent=None):
+    def __init__(self, parent=None):  #vers 1
         super().__init__(parent)
         self._parser   = HandlingParser() if _HANDLING_AVAILABLE else None
         self._cur_idx  = -1
@@ -3993,7 +4143,7 @@ class HandlingTab(QWidget): #vers 1
 # Tab 2 — Car Colours
 
 class CarColoursTab(QWidget): #vers 1
-    def __init__(self, parent=None):
+    def __init__(self, parent=None):  #vers 1
         super().__init__(parent)
         self._parser  = CarColsParser()
         self._cur_veh = -1
@@ -4143,7 +4293,7 @@ class CarColoursTab(QWidget): #vers 1
 # Tab 3 — Car Mods (SA only)
 
 class CarModsTab(QWidget): #vers 1
-    def __init__(self, parent=None):
+    def __init__(self, parent=None):  #vers 1
         super().__init__(parent)
         self._parser  = CarModsParser()
         self._cur_idx = -1
@@ -4311,7 +4461,7 @@ class VehicleWorkshop(GLViewportMixin, GUIWorkshop): #vers 3
         from PyQt6.QtWidgets import QSlider
 
         # Light direction sliders
-        def _slider(lo, hi, val, scale=10):
+        def _slider(lo, hi, val, scale=10):  #vers 1
             s = QSlider(Qt.Orientation.Horizontal)
             s.setRange(int(lo*scale), int(hi*scale))
             s.setValue(int(val*scale))
@@ -4329,7 +4479,7 @@ class VehicleWorkshop(GLViewportMixin, GUIWorkshop): #vers 3
         la_lbl = QLabel(f"{vp._ambient:.2f}")
         ld_lbl = QLabel(f"{vp._diffuse:.2f}")
 
-        def _upd():
+        def _upd():  #vers 1
             x = sx.value()/10; y = sy.value()/10; z = sz.value()/10
             a = sa.value()/100; d = sd.value()/100
             lx_lbl.setText(f"{x:.1f}"); ly_lbl.setText(f"{y:.1f}"); lz_lbl.setText(f"{z:.1f}")
@@ -4338,7 +4488,7 @@ class VehicleWorkshop(GLViewportMixin, GUIWorkshop): #vers 3
 
         for s in (sx,sy,sz,sa,sd): s.valueChanged.connect(_upd)
 
-        def _row(lbl, slider, val_lbl):
+        def _row(lbl, slider, val_lbl):  #vers 1
             rw = QWidget(); rl = QHBoxLayout(rw); rl.setContentsMargins(0,0,0,0)
             rl.addWidget(slider,1); rl.addWidget(val_lbl)
             form.addRow(lbl, rw)
@@ -4356,14 +4506,14 @@ class VehicleWorkshop(GLViewportMixin, GUIWorkshop): #vers 3
         paint_grp = QGroupBox("Vehicle Paint Preview")
         paint_lay = QHBoxLayout(paint_grp)
 
-        def _colour_btn(label, current_rgb, setter):
-            def _to_qcolor(rgb):
+        def _colour_btn(label, current_rgb, setter):  #vers 1
+            def _to_qcolor(rgb):  #vers 1
                 from PyQt6.QtGui import QColor
                 return QColor(int(rgb[0]*255), int(rgb[1]*255), int(rgb[2]*255))
             btn = QPushButton(label)
             btn.setStyleSheet(f"background-color: rgb({int(current_rgb[0]*255)},{int(current_rgb[1]*255)},{int(current_rgb[2]*255)})")
             btn.setFixedHeight(28)
-            def _pick():
+            def _pick():  #vers 1
                 col = QColorDialog.getColor(_to_qcolor(setter.__self__._paint1 if 'paint1' in label.lower() or 'primary' in label.lower() else setter.__self__._paint2), dlg)
                 if col.isValid():
                     rgb = (col.redF(), col.greenF(), col.blueF())
@@ -4377,7 +4527,7 @@ class VehicleWorkshop(GLViewportMixin, GUIWorkshop): #vers 3
         p1_btn = QPushButton("Primary Paint")
         p1_btn.setStyleSheet(f"background-color: rgb({int(vp._paint1[0]*255)},{int(vp._paint1[1]*255)},{int(vp._paint1[2]*255)})")
         p1_btn.setFixedHeight(28)
-        def _pick1():
+        def _pick1():  #vers 1
             from PyQt6.QtGui import QColor
             col = QColorDialog.getColor(QColor(int(vp._paint1[0]*255),int(vp._paint1[1]*255),int(vp._paint1[2]*255)), dlg)
             if col.isValid():
@@ -4389,7 +4539,7 @@ class VehicleWorkshop(GLViewportMixin, GUIWorkshop): #vers 3
         p2_btn = QPushButton("Secondary Paint")
         p2_btn.setStyleSheet(f"background-color: rgb({int(vp._paint2[0]*255)},{int(vp._paint2[1]*255)},{int(vp._paint2[2]*255)})")
         p2_btn.setFixedHeight(28)
-        def _pick2():
+        def _pick2():  #vers 1
             from PyQt6.QtGui import QColor
             col = QColorDialog.getColor(QColor(int(vp._paint2[0]*255),int(vp._paint2[1]*255),int(vp._paint2[2]*255)), dlg)
             if col.isValid():
@@ -4402,7 +4552,7 @@ class VehicleWorkshop(GLViewportMixin, GUIWorkshop): #vers 3
         lay.addWidget(paint_grp)
 
         reset_btn = QPushButton("Reset Defaults")
-        def _reset():
+        def _reset():  #vers 1
             sx.setValue(10); sy.setValue(20); sz.setValue(15)
             sa.setValue(30); sd.setValue(85)
             vp._paint1 = (0.80, 0.20, 0.20)
