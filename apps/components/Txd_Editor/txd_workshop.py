@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in components/Txd_Editor/ txd_workshop.py - Version: 15
+#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 16
 # X-Seti - October10 2025 - Img Factory 1.5 - TXD Workshop Header Update
 
 """
@@ -53,97 +53,368 @@ except ImportError:
     APPSETTINGS_AVAILABLE = False
     print("Warning: AppSettings not available")
 
-App_name = "Txd Workshop"
 DEBUG_STANDALONE = False
 
 ##Methods list -
-# _apply_gaussian_blur                  # Gaussian blur for bumpmap smoothing
-# _compress_to_dxt1
-# _compress_to_dxt3
-# _compress_to_dxt5
-# _convert_numpy_to_qimage              # NEW - Convert numpy to QImage
+# _565_to_rgb
+# _best_color_index
+# _call_external_upscaler
+# _encode_alpha_block
+# _encode_dxt1
+# _encode_dxt5
+# _rgb_to_565
+# open_txd_workshop
+#
+##class TXDConversionConfig: -
+# __init__
+# from_dict
+# to_dict
+#
+##class PlatformConversionDialog: -
+# __init__
+# _on_platform_changed
+# _setup_ui
+# _update_capabilities_display
+# get_config
+#
+##class TXDWorkshop: -
+# __init__
+# _add_checkerboard_background
+# _add_new_txd_tab
+# _add_texture_to_table
+# _add_txd_tab
+# _add_warning_badge
+# _apply_always_on_top
+# _apply_button_font
+# _apply_button_mode
+# _apply_button_mode_to_button
+# _apply_fonts_to_widgets
+# _apply_gaussian_blur    # Gaussian blur for bumpmap smoothing
+# _apply_hotkey_settings
+# _apply_icon_panel_orientation
+# _apply_infobar_font
+# _apply_panel_font
+# _apply_settings
+# _apply_texture_filters
+# _apply_theme
+# _apply_title_font
+# _apply_window_flags
+# _auto_generate_mipmaps
+# _auto_generate_mipmaps_to_level
+# _batch_export_dialog
+# _batch_import_from_folder
+# _build_menus_into_qmenu
+# _build_texture_dictionary_manual
+# _build_txd_from_dff
+# _calculate_new_txd_size
+# _change_bit_depth
+# _change_format
+# _check_alpha_validity
+# _check_txd_vs_dff
+# _clear_texture_search
+# _close_txd_tab
+# _compress_texture
+# _connect_texture_table_signals
+# _convert_bgra_to_rgba
+# _convert_format
+# _convert_rgba_to_bgra
+# _convert_texture
+# _convert_texture_format
+# _copy_texture
+# _create_action_section
+# _create_add_icon
+# _create_arrow_down_icon
+# _create_arrow_left_icon
+# _create_arrow_right_icon
+# _create_arrow_up_icon
+# _create_bitdepth_icon
 # _create_blank_texture
-# _create_bumpmap_data                  # Create bumpmap using various methods
+# _create_build_icon
+# _create_bumpmap_data    # Create bumpmap using various methods
+# _create_check_icon
+# _create_checkerboard_icon
+# _create_close_icon
+# _create_color_picker_icon
+# _create_compress_icon
+# _create_convert_icon
+# _create_copy_icon
+# _create_create_icon
+# _create_delete_icon
+# _create_document_icon
+# _create_duplicate_icon
+# _create_edit_icon
 # _create_empty_txd_data
 # _create_export_icon
+# _create_eye_icon
 # _create_file_icon
-# _create_flip_horiz_icon
+# _create_filter_icon
+# _create_fit_icon
+# _create_flip_horz_icon
 # _create_flip_vert_icon
 # _create_folder_icon
 # _create_import_icon
 # _create_info_icon
+# _create_info_section
 # _create_left_panel
+# _create_level_card
+# _create_list_icon
+# _create_manage_icon
+# _create_maximize_icon
+# _create_merged_icons_line
 # _create_middle_panel
+# _create_minimize_icon
+# _create_mipmaps_dialog
+# _create_new_texture
 # _create_new_texture_entry
 # _create_new_txd
+# _create_new_txd_data
 # _create_package_icon
+# _create_paint_icon
+# _create_paste_icon
+# _create_pencil_icon
+# _create_plus_icon
+# _create_preview_controls
+# _create_preview_widget
 # _create_properties_icon
-# _create_reflection_panel               # NEW - Create reflection map panel
+# _create_reset_icon
+# _create_resize_icon
+# _create_resize_icon2
 # _create_right_panel
+# _create_rotate_ccw_icon
+# _create_rotate_cw_icon
 # _create_save_icon
+# _create_settings_icon
+# _create_stat_box
+# _create_stats_grid
+# _create_status_bar
+# _create_texture_filters
+# _create_texture_search
 # _create_thumbnail
 # _create_toolbar
+# _create_transform_icon_panel
+# _create_transform_text_panel
+# _create_trash_icon
+# _create_uncompress_icon
 # _create_undo_icon
+# _create_upscale_icon
+# _create_view_icon
+# _create_warning_icon_svg
+# _create_zoom_in_icon
+# _create_zoom_out_icon
 # _decode_bumpmap
 # _decompress_dxt1
 # _decompress_dxt3
 # _decompress_dxt5
-# _decompress_uncompress
-# _delete_bumpmap                        # Delete bumpmap from texture
+# _decompress_texture
+# _decompress_uncompressed
+# _delete_bumpmap    # Delete bumpmap from texture
 # _delete_texture
+# _delete_texture_simple
 # _detect_txd_info
-# _detect_y_flip                         # NEW - Detect normal map Y-flip
-# _emboss_filter                         # Emboss filter for bumpmap
-# _encode_bumpmap
-# _export_bumpmap
-# _export_reflection_maps                # NEW - Export reflection/Fresnel maps
-# _extract_alpha_channel
-# _extract_txd_from_img
+# _detect_y_flip    # NEW - Detect normal map Y-flip
+# _display_mobile_textures
+# _display_xtx_texture
+# _dock_to_main
+# _duplicate_texture
+# _edit_texture
+# _edit_texture_external
+# _emboss_filter    # Emboss filter for bumpmap
+# _enable_move_mode
+# _enable_name_edit
+# _enable_txd_features_after_load
+# _ensure_depends_structure
+# _export_all_textures
 # _export_alpha_only
-# _generate_all_maps_from_texture        # NEW - Generate complete map set
-# _generate_bumpmap_from_texture         # Main bumpmap generator dialog
-# _generate_reflection_from_normal       # NEW - Generate reflection from normal
-# _generate_reflection_maps              # NEW - Generate reflection/Fresnel
-# _generate_rgb_normal_map               # Generate proper RGB normal map
+# _export_bumpmap
+# _export_selected_texture
+# _extract_alpha_channel
+# _extract_alpha_for_display
+# _extract_txd_from_img
+# _filter_txd_list
+# _find_txd_via_db
+# _flip_horizontal
+# _flip_vertical
+# _focus_search
+# _force_save_txd
+# _generate_alpha_mask
+# _generate_bumpmap_from_texture    # Main bumpmap generator dialog
+# _generate_rgb_normal_map    # Generate proper RGB normal map
+# _get_current_rgba
 # _get_format_description
+# _get_icon_color
+# _get_import_format_info
+# _get_resize_corner
 # _get_resize_direction
+# _get_target_version
+# _get_ui_color
+# _handle_corner_resize
 # _handle_resize
-# _has_bumpmap_data                      # Check if texture has bumpmap
-# _height_map                            # Height map bumpmap method
+# _has_bumpmap_data    # Check if texture has bumpmap
+# _height_map    # Height map bumpmap method
+# _icon_panel_context_menu
+# _import_alpha_texture
 # _import_bumpmap
+# _import_normal_texture
+# _import_single_texture
+# _import_textures
+# _initialize_features
+# _invert_grayscale
 # _is_on_draggable_area
+# _launch_theme_settings
 # _load_img_txd_list
+# _load_settings
+# _load_texture_with_pil
+# _load_toolbar_layouts
 # _load_txd_textures
+# _log
+# _manage_bumpmaps
 # _mark_as_modified
-# _normal_map                            # Normal map bumpmap method
-# _normal_to_bump                        # NEW - Normal to bump conversion
-# _normal_to_reflection                  # NEW - Normal to reflection/Fresnel
-# _normalize_vector                      # NEW - Normalize vector arrays
+# _mipmap_io_menu
+# _normal_map    # Normal map bumpmap method
+# _normal_to_bump    # NEW - Normal to bump conversion
+# _normal_to_reflection    # NEW - Normal to reflection/Fresnel
+# _normalize_vector    # NEW - Normalize vector arrays
+# _on_display_mode_changed
+# _on_splitter_moved
 # _on_texture_selected
+# _on_texture_table_double_click
+# _on_toolbar_dock_changed
 # _on_txd_selected
+# _open_alpha_coverage
+# _open_chk_file
+# _open_colour_adjust
+# _open_filters_dialog
+# _open_mipmap_manager
+# _open_mobile_texture_db
+# _open_paint_editor
+# _open_ps2_txd
+# _open_seamless_tool
+# _open_settings_dialog
+# _open_snow_tool
+# _open_txd_file
+# _open_xtd_file
+# _open_xtx_file
+# _pan_preview
+# _parse_dff_materials
 # _parse_single_texture
+# _paste_texture
+# _perform_ai_upscale
+# _perform_texture_search
+# _pick_background_color
+# _place_icon_grid
 # _preserve_original_data
-# _preview_bumpmap_generation            # Preview bumpmap before applying
+# _preview_bumpmap_generation    # Preview bumpmap before applying
+# _quick_alpha_check
+# _rebuild_img_with_new_txd
+# _rebuild_info_panel
 # _rebuild_txd_data
+# _rebuild_txd_data_with_texture_progress
+# _rebuild_txd_with_size_management
+# _reflow_left_toolbar
+# _reflow_preview_controls
+# _reflow_right_toolbar
+# _refresh_icons
+# _refresh_main_window
 # _reload_texture_table
+# _remove_mipmaps
+# _remove_texture
+# _rename_texture
+# _rename_texture_shortcut
+# _requires_img_rebuild
+# _reset_hotkeys_to_defaults
+# _reset_icon_panel_horizontal
+# _resize_texture
+# _resize_texture_data
+# _rgba_to_iff_ilbm
+# _rotate_clockwise
+# _rotate_counterclockwise
+# _save_alpha_name
+# _save_as_new_img
 # _save_as_new_txd
 # _save_as_txd_file
+# _save_as_txd_file_with_progress
+# _save_as_txd_file_with_version_selector
+# _save_settings
+# _save_texture_format
+# _save_texture_name
 # _save_texture_png
 # _save_to_img
+# _save_txd_file
+# _save_txd_to_img_with_version_selector
+# _save_txd_with_progress
 # _save_undo_state
+# _scan_available_locales
+# _set_checkerboard_bg
+# _set_current_rgba
+# _set_selection_buttons_enabled
+# _set_tiled_preview
+# _set_transform_buttons_enabled
+# _setup_hotkeys
+# _setup_settings_button
+# _setup_status_indicators
+# _show_alpha_view
+# _show_amiga_locale_error
 # _show_detailed_info
+# _show_mobile_texture
+# _show_name_context_menu
+# _show_normal_view
+# _show_overlay_view
+# _show_ps2_texture
+# _show_settings_context_menu
+# _show_settings_dialog
+# _show_settings_hotkeys
+# _show_shaders_dialog
+# _show_split_view
 # _show_texture_context_menu
-# _sobel_filter                          # Sobel edge detection for bumpmap
+# _show_texture_info
+# _show_txd_info
+# _show_txd_search
+# _show_version_selector_dialog
+# _show_window_context_menu
+# _show_workshop_settings
+# _sobel_filter    # Sobel edge detection for bumpmap
+# _strip_unsupported_features_for_version
+# _svg_to_icon
+# _switch_txd_tab
+# _texture_statistics
+# _toggle_alpha_invert
+# _toggle_checkerboard
+# _toggle_icon_panel_orientation
 # _toggle_maximize
+# _toggle_tearoff
+# _toggle_upscale_native
+# _uncompress_texture
 # _undo_last_action
+# _undock_from_main
+# _update_all_buttons
 # _update_cursor
-# _update_reflection_previews            # NEW - Update reflection previews
+# _update_dock_button_visibility
+# _update_editing_controls
+# _update_img_with_large_txd
+# _update_img_with_txd
+# _update_status_indicators
+# _update_table_display
+# _update_texture_in_data
 # _update_texture_info
-# _view_bumpmap                          # Opens bumpmap manager
+# _update_texture_name_in_data
+# _update_toolbar_for_docking_state
+# _update_transform_text_panel_visibility
+# _upscale_texture
+# _upscale_texture_advanced
+# _validate_texture_dimensions
+# _verify_alpha_exists
+# _view_bumpmap    # Opens bumpmap manager
+# copy_texture
+# delete_texture
+# duplicate_texture
 # export_all_textures
 # export_selected_texture
+# export_texture
 # flip_texture
-# import_texture
+# get_menu_title
+# import_normal_texture
+# import_textures
+# keyPressEvent
 # load_from_img_archive
 # mouseDoubleClickEvent
 # mouseMoveEvent
@@ -151,61 +422,132 @@ DEBUG_STANDALONE = False
 # mouseReleaseEvent
 # open_img_archive
 # open_txd_file
+# paintEvent
+# paste_texture
+# refresh
+# reload_texture_table
+# resizeEvent
+# save_as_txd_file
 # save_txd_file
-# setup_ui
+# setup_ui    # UPDATED - Now includes reflection panel
+# show_help
 # show_properties
-
-##class TXDWorkshop: -
-# __init__
-# closeEvent
-
+# show_settings_dialog
+# switch_texture_view
+# toggle_dock_mode
+# undo_last_action
+#
 ##class BumpmapManagerWindow: -
 # __init__
-# setup_ui                               # UPDATED - Now includes reflection panel
+# _add_new_texture
 # _apply_changes
+# _convert_numpy_to_qimage    # NEW - Convert numpy to QImage
+# _create_add_icon
 # _create_button_bar
+# _create_close_icon
+# _create_delete_icon
+# _create_export_icon
+# _create_import_icon
 # _create_left_panel
-# _create_middle_panel
-# _create_reflection_panel               # NEW
+# _create_maximize_icon
+# _create_menu_bar
+# _create_minimize_icon
+# _create_reflection_panel    # NEW
+# _create_right_panel
 # _create_title_bar
-# _delete_bumpmap
+# _delete_bumpmap    # Delete bumpmap from texture
 # _export_bumpmap
+# _export_reflection_maps    # NEW - Export reflection/Fresnel maps
+# _generate_all_maps_from_texture    # NEW - Generate complete map set
 # _generate_bumpmap
-# _generate_reflection_maps              # NEW
-# _get_resize_corner
+# _generate_reflection_from_normal    # NEW - Generate reflection from normal
+# _generate_reflection_maps    # NEW
 # _has_bumpmap
 # _import_bumpmap
+# _import_reflection_maps
+# _load_settings
+# _replace_bumpmap
+# _save_settings
+# _serialize_current_txd
+# _setup_save_functionality
+# _svg_to_icon
+# _toggle_maximize
 # _update_bumpmap_preview
-# _update_reflection_previews            # NEW
+# _update_reflection_previews    # NEW
 # closeEvent
-# mouseMoveEvent
-# mousePressEvent
-# mouseReleaseEvent
-
+# save_to_img_file
+# setup_ui    # UPDATED - Now includes reflection panel
+#
 ##class MipmapManagerWindow: -
 # __init__
-# setup_ui
 # _apply_changes
-# _create_button_bar
+# _auto_generate_mipmaps
+# _clear_all_levels
+# _compress_to_dxt1
+# _compress_to_dxt3
+# _compress_to_dxt5
+# _create_action_section
+# _create_bottom_bar
+# _create_info_section
 # _create_level_card
+# _create_preview_widget
+# _create_stat_box
+# _create_stats_grid
 # _create_title_bar
+# _create_toolbar
 # _delete_level
-# _edit_level
 # _edit_main_texture
+# _export_all_levels
 # _export_level
-# _get_resize_corner
+# _import_all_levels
+# _import_level
 # _recompress_modified_levels
-# closeEvent
 # mouseMoveEvent
 # mousePressEvent
 # mouseReleaseEvent
-
+# setup_ui    # UPDATED - Now includes reflection panel
+#
 ##class TexturePropertiesDialog: -
 # __init__
-# _apply_properties
+# _apply_changes
+# _change_workshop_button_mode
+# _create_advanced_tab
+# _create_basic_tab
+# _create_format_tab
+# _create_mipmap_tab
+# _create_settings_tab
+# _do_generate_mipmaps
 # _export_mipmaps
 # _generate_mipmaps
+# _ok_clicked
 # _view_mipmaps
+# setup_ui    # UPDATED - Now includes reflection panel
+#
+##class TexturePreviewWidget: -
+# paintEvent
+# set_checkerboard_background
+#
+##class ZoomablePreview: -
+# __init__
+# _draw_checkerboard
+# _get_ui_color
+# _update_scaled_pixmap
+# fit_to_window
+# mouseMoveEvent
+# mousePressEvent
+# mouseReleaseEvent
+# paintEvent
+# pan
+# reset_background_to_theme
+# reset_view
+# setPixmap
+# set_background_color
+# set_checkerboard_background
+# set_pixmap
+# wheelEvent
+# zoom_in
+# zoom_out
+#
 
 """
 Complete texture dictionary structure:
@@ -254,6 +596,10 @@ texture_dict = {
     'address_v': int,               # V-axis addressing mode
 }
 """
+
+# Build information
+App_name = "Txd Workshop"
+App_build = "12"
 
 class TXDConversionConfig: #vers 1
     """Configuration for TXD platform conversion"""
@@ -1176,7 +1522,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             }
         """)
 
-        def apply_settings():
+        def apply_settings():  #vers 1
             # FONTS
             self.setFont(QFont(default_font_combo.currentFont().family(),
                             default_font_size.value()))
@@ -2963,7 +3309,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         _all_btns = []
 
-        def _btn(icon_method, tip, slot, style=None, attr=None):
+        def _btn(icon_method, tip, slot, style=None, attr=None):  #vers 1
             """Create button using icon_factory for theme-aware icons."""
             b = QPushButton()
             b.setFixedSize(B, B)
@@ -2983,7 +3329,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             _all_btns.append(b)
             return b
 
-        def _tool_btn(icon_method, tip, slot):
+        def _tool_btn(icon_method, tip, slot):  #vers 1
             """Create tool button using icon_factory for theme-aware icons."""
             b = QPushButton()
             b.setFixedSize(B, B)
@@ -3933,7 +4279,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         reset_layout.addStretch()
         reset_hotkeys_btn = QPushButton("Reset to Plasma6 Defaults")
 
-        def reset_hotkeys():
+        def reset_hotkeys():  #vers 1
             reply = QMessageBox.question(dialog, "Reset Hotkeys",
                 "Reset all keyboard shortcuts to Plasma6 defaults?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
@@ -3975,7 +4321,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         cancel_btn.clicked.connect(dialog.reject)
         button_layout.addWidget(cancel_btn)
 
-        def apply_settings(close_dialog=False):
+        def apply_settings(close_dialog=False):  #vers 1
             """Apply all settings"""
             # Apply display settings
             self.thumbnail_size = thumb_size_spin.value()
@@ -4510,7 +4856,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
                                     "background: palette(base); border-radius: 3px;")
         mipmap_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        def update_preview(value):
+        def update_preview(value):  #vers 1
             # Calculate dimensions at this level
             levels_from_top = max_levels - 1 - value
             min_w = max(1, width >> levels_from_top)
@@ -4549,7 +4895,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         button_layout = QHBoxLayout()
         button_layout.addStretch()
 
-        def do_generate():
+        def do_generate():  #vers 1
             slider_value = mipmap_slider.value()
             num_levels = max_levels - slider_value
             dialog.accept()
@@ -4781,7 +5127,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             type_info.setStyleSheet("color: #888; font-size: 9pt; padding: 5px;")
             type_info.setWordWrap(True)
 
-            def update_type_info(index):
+            def update_type_info(index):  #vers 1
                 if index == 0:  # Grayscale
                     type_info.setText(
                         "Grayscale Height Map:\n"
@@ -6042,7 +6388,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         size_layout.addLayout(custom_layout)
 
         # Update spinboxes when preset changes
-        def update_from_preset(index):
+        def update_from_preset(index):  #vers 1
             if index == 0:  # Custom
                 width_spin.setEnabled(True)
                 height_spin.setEnabled(True)
@@ -6080,7 +6426,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         color_btn = QPushButton("Choose Color")
         selected_color = self._get_ui_color('viewport_text')  # Default gray
 
-        def choose_color():
+        def choose_color():  #vers 1
             nonlocal selected_color
             color = QColorDialog.getColor(selected_color, dialog, "Choose Texture Color")
             if color.isValid():
@@ -6294,7 +6640,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         layout.addWidget(components_group)
 
         # Enable/disable component checkboxes based on radio selection
-        def update_component_state():
+        def update_component_state():  #vers 1
             enabled = keep_main_radio.isChecked() and has_components
             if alpha_check:
                 alpha_check.setEnabled(enabled)
@@ -6316,7 +6662,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         info_label.setWordWrap(True)
 
-        def update_info_text():
+        def update_info_text():  #vers 1
             if delete_all_radio.isChecked():
                 info_label.setText("The entire texture will be removed from the TXD.")
             else:
@@ -7378,13 +7724,13 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             skip_all_entries = False
             user_cancelled = False
 
-            def log(message):
+            def log(message):  #vers 1
                 """Add message to log output"""
                 log_output.append(message)
                 log_output.verticalScrollBar().setValue(log_output.verticalScrollBar().maximum())
                 dialog.repaint()
 
-            def update_progress(value, message=None):
+            def update_progress(value, message=None):  #vers 1
                 """Update progress bar and optionally log"""
                 progress_bar.setValue(value)
                 if message:
@@ -7393,7 +7739,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
                     raise Exception("Loading cancelled by user")
 
             # Connect cancel button
-            def handle_cancel():
+            def handle_cancel():  #vers 1
                 nonlocal user_cancelled
                 user_cancelled = True
 
@@ -7636,7 +7982,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
                                     user_choice = [None]
 
-                                    def set_choice(choice):
+                                    def set_choice(choice):  #vers 1
                                         user_choice[0] = choice
                                         error_dialog.accept()
 
@@ -7841,7 +8187,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         preview_label = QLabel(f"Result: {width*2}x{height*2}")
         preview_label.setStyleSheet("color: palette(windowText); font-weight: bold; padding: 5px;")
 
-        def update_preview(index):
+        def update_preview(index):  #vers 1
             factor = [2, 3, 4, 6, 8][index]
             new_w = width * factor
             new_h = height * factor
@@ -7908,7 +8254,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         button_layout = QHBoxLayout()
         button_layout.addStretch()
 
-        def do_upscale():
+        def do_upscale():  #vers 1
             factor = [2, 3, 4, 6, 8][scale_combo.currentIndex()]
             method = method_combo.currentIndex()
             sharpness = sharp_slider.value()
@@ -8079,7 +8425,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         Compatible with PPaint, DPaint 5, and any IFF-aware tool."""
         import struct
 
-        def _iff_chunk(tag: str, data: bytes) -> bytes:
+        def _iff_chunk(tag: str, data: bytes) -> bytes:  #vers 1
             hdr = tag.encode('ascii') + struct.pack('>I', len(data))
             return hdr + data + (b'\x00' if len(data) % 2 else b'')
 
@@ -8972,7 +9318,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         layout.addWidget(warning_label)
 
         # Update info when selection changes
-        def update_version_info():
+        def update_version_info():  #vers 1
             game_idx = game_combo.currentIndex()
             platform_idx = platform_combo.currentIndex()
 
@@ -9057,7 +9403,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         return None
 
 
-    def _convert_format(self):
+    def _convert_format(self):  #vers 1
         """Convert texture format (e.g., DXT1, DXT5, RGBA)"""
         if not self.selected_texture:
             QMessageBox.warning(self, "No Selection", "Please select a texture first")
@@ -9328,13 +9674,13 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
             user_cancelled = False
 
-            def log(message):
+            def log(message):  #vers 1
                 """Add message to log output"""
                 log_output.append(message)
                 log_output.verticalScrollBar().setValue(log_output.verticalScrollBar().maximum())
                 dialog.repaint()
 
-            def update_progress(value, message=None):
+            def update_progress(value, message=None):  #vers 1
                 """Update progress bar and optionally log"""
                 progress_bar.setValue(value)
                 if message:
@@ -9342,7 +9688,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
                 if user_cancelled:
                     raise Exception("Save cancelled by user")
 
-            def handle_cancel():
+            def handle_cancel():  #vers 1
                 nonlocal user_cancelled
                 user_cancelled = True
 
@@ -9817,7 +10163,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             total_steps = total_textures * 4 + 3  # Per texture: mipmaps, bumpmap, reflection, compression + header/footer/write
             current_step = 0
 
-            def update_progress(message, step_increment=1):
+            def update_progress(message, step_increment=1):  #vers 1
                 nonlocal current_step
                 current_step += step_increment
                 progress.setValue(int((current_step / total_steps) * 100))
@@ -9922,7 +10268,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         progress.setWindowModality(Qt.WindowModality.WindowModal)
         progress.setMinimumDuration(0)
 
-        def update_progress(message):
+        def update_progress(message):  #vers 1
             current_step[0] += 1
             progress.setValue(int((current_step[0] / total_steps) * 100))
             progress.setLabelText(message)
@@ -11169,7 +11515,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         info_label.setStyleSheet("color: #ff9800; font-size: 10px; padding: 5px;")
         info_label.setWordWrap(True)
 
-        def update_info(index):
+        def update_info(index):  #vers 1
             if index == 7:  # PAL8
                 info_label.setText("8-bit indexed format (GTA III). Limited to 256 colors with palette.")
             else:
@@ -11191,7 +11537,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         size_label = QLabel(f"Texture: {width}x{height}")
         size_layout.addWidget(size_label)
 
-        def update_size_estimate(index):
+        def update_size_estimate(index):  #vers 1
             format_map = [
                 ('DXT1', 32), ('DXT3', 32), ('DXT5', 32),
                 ('ARGB8888', 32), ('RGB888', 24),
@@ -11232,7 +11578,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         button_layout = QHBoxLayout()
         button_layout.addStretch()
 
-        def do_convert():
+        def do_convert():  #vers 1
             format_map = [
                 ('DXT1', 32), ('DXT3', 32), ('DXT5', 32),
                 ('ARGB8888', 32), ('RGB888', 24),
@@ -11338,7 +11684,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         spacer     = 0   # grid handles spacing
         icon_color = self._get_icon_color()   # theme-aware colour
 
-        def _add(btn):
+        def _add(btn):  #vers 1
             self._icon_panel_buttons.append(btn)
             return btn
 
@@ -11558,7 +11904,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         from PyQt6.QtCore import QObject, QEvent
         _ws = self
         class _FrameFilter(QObject):
-            def eventFilter(self, obj, event):
+            def eventFilter(self, obj, event):  #vers 1
                 if event.type() == QEvent.Type.Resize:
                     # Skip if cols are forced (floating/single-row/single-col state)
                     if getattr(_ws, '_icon_panel_forced_cols', None) is None:
@@ -11770,7 +12116,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         H = 30
         IS = QSize(18, 18)
 
-        def _btn(attr, label, icon_fn, slot, enabled=True, checkable=False):
+        def _btn(attr, label, icon_fn, slot, enabled=True, checkable=False):  #vers 1
             b = QPushButton(label)
             b.setFont(self.button_font)
             b.setFixedHeight(H)
@@ -11934,7 +12280,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         button_layout.addStretch()
 
         apply_btn = QPushButton("Apply")
-        def _apply_filters():
+        def _apply_filters():  #vers 1
             if not self.selected_texture or not self.selected_texture.get('rgba_data'):
                 return
             try:
@@ -12393,24 +12739,24 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
 
     #    TXD method aliases and stubs (Build 131)                      
-    def _export_all_textures(self, *a, **kw): return self.export_all_textures(*a, **kw)
-    def _export_selected_texture(self, *a, **kw): return self.export_selected_texture(*a, **kw)
+    def _export_all_textures(self, *a, **kw): return self.export_all_textures(*a, **kw)  #vers 1
+    def _export_selected_texture(self, *a, **kw): return self.export_selected_texture(*a, **kw)  #vers 1
     def _open_txd_file(self, *a, **kw): return self._open_file(*a, **kw)  #vers 2
-    def copy_texture(self, *a, **kw): return self._copy_texture(*a, **kw)
-    def delete_texture(self, *a, **kw): return self._delete_texture(*a, **kw)
-    def duplicate_texture(self, *a, **kw): return self._duplicate_texture(*a, **kw)
-    def export_texture(self, *a, **kw): return self.export_selected_texture(*a, **kw)
-    def import_normal_texture(self, *a, **kw): return self._import_textures(*a, **kw)
-    def import_textures(self, *a, **kw): return self._import_textures(*a, **kw)
-    def paste_texture(self, *a, **kw): return self._paste_texture(*a, **kw)
-    def refresh(self, *a, **kw): return self._reload_texture_table(*a, **kw)
-    def reload_texture_table(self, *a, **kw): return self._reload_texture_table(*a, **kw)
-    def save_as_txd_file(self, *a, **kw): return self._save_as_txd_file(*a, **kw)
-    def undo_last_action(self, *a, **kw): return self._undo_last_action(*a, **kw)
-    def _show_detailed_info(self, *a, **kw): pass
-    def _show_texture_info(self, *a, **kw): pass
-    def show_help(self, *a, **kw): pass
-    def show_settings_dialog(self, *a, **kw): pass
+    def copy_texture(self, *a, **kw): return self._copy_texture(*a, **kw)  #vers 1
+    def delete_texture(self, *a, **kw): return self._delete_texture(*a, **kw)  #vers 1
+    def duplicate_texture(self, *a, **kw): return self._duplicate_texture(*a, **kw)  #vers 1
+    def export_texture(self, *a, **kw): return self.export_selected_texture(*a, **kw)  #vers 1
+    def import_normal_texture(self, *a, **kw): return self._import_textures(*a, **kw)  #vers 1
+    def import_textures(self, *a, **kw): return self._import_textures(*a, **kw)  #vers 1
+    def paste_texture(self, *a, **kw): return self._paste_texture(*a, **kw)  #vers 1
+    def refresh(self, *a, **kw): return self._reload_texture_table(*a, **kw)  #vers 1
+    def reload_texture_table(self, *a, **kw): return self._reload_texture_table(*a, **kw)  #vers 1
+    def save_as_txd_file(self, *a, **kw): return self._save_as_txd_file(*a, **kw)  #vers 1
+    def undo_last_action(self, *a, **kw): return self._undo_last_action(*a, **kw)  #vers 1
+    def _show_detailed_info(self, *a, **kw): pass  #vers 1
+    def _show_texture_info(self, *a, **kw): pass  #vers 1
+    def show_help(self, *a, **kw): pass  #vers 1
+    def show_settings_dialog(self, *a, **kw): pass  #vers 1
 
     def _flip_vertical(self): #vers 3
         """Flip texture vertically using PIL (fast)."""
@@ -12566,7 +12912,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         lay.addLayout(btns)
         cancel.clicked.connect(dlg.reject)
 
-        def _do_convert():
+        def _do_convert():  #vers 1
             target = fmt_combo.currentText()
             try:
                 from PIL import Image
@@ -12959,7 +13305,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
     #    Texture Tools                                                          
 
-    def _get_current_rgba(self):
+    def _get_current_rgba(self):  #vers 1
         """Return (rgba, w, h, name) for the selected texture, or (None,0,0,'')."""
         t = getattr(self, 'selected_texture', None)
         if not t:
@@ -12967,7 +13313,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         return (t.get('rgba_data', b''), t.get('width', 0),
                 t.get('height', 0), t.get('name', 'texture'))
 
-    def _set_current_rgba(self, rgba: bytes):
+    def _set_current_rgba(self, rgba: bytes):  #vers 1
         """Replace selected texture rgba_data and refresh preview."""
         t = getattr(self, 'selected_texture', None)
         if not t:
@@ -13234,7 +13580,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             QMessageBox.critical(self, "XTX Error", f"Failed to open XTX:\n{str(e)}")
 
 
-    def _log(self, msg: str):
+    def _log(self, msg: str):  #vers 1
         """Safe logging — uses print() since TXDWorkshop has no log_message."""
         print(f"[TXDWorkshop] {msg}")
 
@@ -14889,7 +15235,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         self.hotkey_force_save = QShortcut(QKeySequence("Alt+Shift+S"), self)
         if not hasattr(self, '_force_save_txd'):
             # Create force save method inline if it doesn't exist
-            def force_save():
+            def force_save():  #vers 1
                 if not self.texture_list:
                     from PyQt6.QtWidgets import QMessageBox
                     QMessageBox.warning(self, "No Textures", "No textures to save")
@@ -14960,7 +15306,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         self.hotkey_rename = QShortcut(QKeySequence("F2"), self)
         if not hasattr(self, '_rename_texture_shortcut'):
             # Create rename shortcut method inline
-            def rename_shortcut():
+            def rename_shortcut():  #vers 1
                 if not self.selected_texture:
                     return
                 # Focus the name input field if it exists
@@ -15036,7 +15382,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         self.hotkey_find = QShortcut(QKeySequence.StandardKey.Find, self)
         if not hasattr(self, '_focus_search'):
             # Create focus search method inline
-            def focus_search():
+            def focus_search():  #vers 1
                 if hasattr(self, 'search_input'):
                     self.search_input.setFocus()
                     self.search_input.selectAll()
@@ -17264,7 +17610,7 @@ class BumpmapManagerWindow(QWidget): #vers 1
 class MipmapManagerWindow(QWidget): #vers 2
     """Mipmap Manager - Modern card-based design matching mockup"""
 
-    def __init__(self, parent, texture_data, main_window=None):
+    def __init__(self, parent, texture_data, main_window=None):  #vers 1
         super().__init__(parent)
         self.parent_workshop = parent
         self.texture_data = texture_data
@@ -18090,7 +18436,7 @@ class MipmapManagerWindow(QWidget): #vers 2
 class TexturePropertiesDialog(QDialog): #vers 1
     """Complete texture properties dialog with all settings"""
 
-    def __init__(self, parent, texture_data, main_window=None):
+    def __init__(self, parent, texture_data, main_window=None):  #vers 1
         super().__init__(parent)
         self.parent_workshop = parent
         self.texture_data = texture_data.copy()  # Work on copy
@@ -18631,7 +18977,7 @@ class TexturePropertiesDialog(QDialog): #vers 1
         self.mipmap_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
 
-        def update_preview(value):
+        def update_preview(value):  #vers 1
             # Calculate dimensions at this level
             levels_from_top = max_levels - 1 - value
             min_w = max(1, width >> levels_from_top)
@@ -18805,7 +19151,7 @@ class TexturePreviewWidget(QLabel): #vers 1
 class ZoomablePreview(QLabel): #vers 2
     """Fixed preview widget with zoom and pan"""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None):  #vers 1
         super().__init__(parent)
         self.main_window = parent
         self.original_pixmap = None
@@ -19018,18 +19364,18 @@ class ZoomablePreview(QLabel): #vers 2
 
 # Footer functions
 
-def _rgb_to_565(r, g, b):
+def _rgb_to_565(r, g, b):  #vers 1
     return ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3)
 
 
-def _565_to_rgb(c):
+def _565_to_rgb(c):  #vers 1
     r = ((c >> 11) & 0x1F) << 3
     g = ((c >> 5) & 0x3F) << 2
     b = (c & 0x1F) << 3
     return r, g, b
 
 
-def _best_color_index(palette, r, g, b):
+def _best_color_index(palette, r, g, b):  #vers 1
     best = 0
     best_dist = None
     for i, (pr, pg, pb) in enumerate(palette):
@@ -19043,7 +19389,7 @@ def _best_color_index(palette, r, g, b):
     return best
 
 
-def _encode_dxt1(rgba_bytes, width, height):
+def _encode_dxt1(rgba_bytes, width, height):  #vers 1
     """Encode raw RGBA bytes (RGBA8888) into DXT1 bytes.
     Simple block-wise encoder: select endpoints by luminance heuristic and assign indices.
     """
@@ -19098,7 +19444,7 @@ def _encode_dxt1(rgba_bytes, width, height):
     return bytes(out)
 
 
-def _encode_alpha_block(alpha_bytes):
+def _encode_alpha_block(alpha_bytes):  #vers 1
     """Encode 4x4 alpha block for DXT5.
     alpha_bytes: list of 16 alpha values (0-255)
     Returns 8 bytes: a0, a1, and 48-bit index stream (little-endian packed 3 bits per pixel)
@@ -19138,7 +19484,7 @@ def _encode_alpha_block(alpha_bytes):
     return bytes([a0, a1]) + idx_bytes
 
 
-def _encode_dxt5(rgba_bytes, width, height):
+def _encode_dxt5(rgba_bytes, width, height):  #vers 1
     """Encode raw RGBA8888 bytes into DXT5 bytes.
     DXT5 block = 8 bytes alpha block + 8 bytes color block (same as DXT1 color block)
     """
