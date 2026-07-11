@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 84
+#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 85
 # X-Seti - August10 2025 - Converted col editor using gui base template.
 
 """
@@ -367,6 +367,7 @@ DEBUG_STANDALONE = False
 # RibbonManagerDialog._on_accept
 # RibbonManagerDialog._on_action_reordered
 # RibbonManagerDialog._on_cancel
+# RibbonManagerDialog._on_icon_size_changed
 # RibbonManagerDialog._on_toolbar_selected
 # RibbonManagerDialog._refresh_action_list
 # RibbonManagerDialog._refresh_toolbar_list
@@ -1848,6 +1849,7 @@ class RibbonManagerDialog(QDialog): #vers 1
     ##Methods list -
     # RibbonManagerDialog.__init__
     # RibbonManagerDialog._build_ui
+    # RibbonManagerDialog._on_icon_size_changed
     # RibbonManagerDialog._refresh_toolbar_list
     # RibbonManagerDialog._refresh_action_list
     # RibbonManagerDialog._on_toolbar_selected
@@ -1873,9 +1875,9 @@ class RibbonManagerDialog(QDialog): #vers 1
         if self._mw:
             self._cancel_state = self._mw.saveState()
 
-    def _build_ui(self): #vers 1
+    def _build_ui(self): #vers 2
         from PyQt6.QtWidgets import (QSplitter, QListWidget, QListWidgetItem,
-            QDialogButtonBox, QAbstractItemView)
+            QDialogButtonBox, QAbstractItemView, QSlider)
         outer = QVBoxLayout(self)
 
         # Toolbar row
@@ -1893,6 +1895,30 @@ class RibbonManagerDialog(QDialog): #vers 1
         self._save_preset_btn.clicked.connect(self._save_preset)
         self._load_preset_btn.clicked.connect(self._load_preset)
         outer.addLayout(tb_row)
+
+        # Icon size row - was previously only reachable via toolbar
+        # right-click context menu, easy to miss.
+        size_row = QHBoxLayout()
+        size_row.addWidget(QLabel("Ribbon Icon Size:"))
+        self._size_slider = QSlider(Qt.Orientation.Horizontal)
+        self._size_slider.setRange(14, 40)
+        self._size_slider.setSingleStep(2)
+        _saved_px = 20
+        try:
+            import json
+            from pathlib import Path
+            _saved_px = json.loads(
+                (Path.home()/'.config'/'imgfactory'/'col_workshop.json').read_text()
+            ).get('icon_scale', 20)
+        except Exception:
+            pass
+        self._size_slider.setValue(_saved_px)
+        self._size_value_label = QLabel(f"{_saved_px}px")
+        self._size_value_label.setMinimumWidth(36)
+        self._size_slider.valueChanged.connect(self._on_icon_size_changed)
+        size_row.addWidget(self._size_slider, stretch=1)
+        size_row.addWidget(self._size_value_label)
+        outer.addLayout(size_row)
 
         # Splitter: left = toolbar list, right = action list
         splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -1939,6 +1965,12 @@ class RibbonManagerDialog(QDialog): #vers 1
         btns.accepted.connect(self._on_accept)
         btns.rejected.connect(self._on_cancel)
         outer.addWidget(btns)
+
+    def _on_icon_size_changed(self, px: int): #vers 1
+        """Apply + persist ribbon icon size live, update the px label."""
+        self._size_value_label.setText(f"{px}px")
+        if hasattr(self._ws, '_apply_icon_scale'):
+            self._ws._apply_icon_scale(px)
 
     def _refresh_toolbar_list(self): #vers 1
         """Populate left pane with all QToolBar instances."""
