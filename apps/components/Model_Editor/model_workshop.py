@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 156
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 157
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -3030,6 +3030,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     workshop_closed = pyqtSignal()
     window_closed = pyqtSignal()
+
+    # Bump whenever the set of ribbon toolbars changes (added/removed/
+    # renamed) so a saved layout from an older structure is cleanly
+    # rejected by _restore_toolbar_state instead of Qt silently failing
+    # to restore it. History: 1 = Selection/Snap Targets/Edit Geometry/
+    # Navigation/Render ribbons.
+    _RIBBON_LAYOUT_VERSION = 1
 
 
     def __init__(self, parent=None, main_window=None): #vers 11
@@ -8777,7 +8784,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         dlg = RibbonManagerDialog(self, parent=self)
         dlg.exec()
 
-    def _save_toolbar_state(self): #vers 1
+    def _save_toolbar_state(self): #vers 2
         """Save QMainWindow toolbar state to model_workshop.json."""
         mw = getattr(self, '_inner_mw', None)
         if mw is None:
@@ -8790,7 +8797,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 data = json.loads(path.read_text())
             except Exception:
                 data = {}
-            data['toolbar_state'] = mw.saveState().toHex().data().decode()
+            data['toolbar_state'] = mw.saveState(self._RIBBON_LAYOUT_VERSION).toHex().data().decode()
+            data['toolbar_state_version'] = self._RIBBON_LAYOUT_VERSION
             path.write_text(json.dumps(data, indent=2))
             self._set_status("Ribbon config saved")
             main_wnd = getattr(self, 'main_window', None)
@@ -8799,8 +8807,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         except Exception as _e:
             print(f"[ModelWorkshop] _save_toolbar_state error: {_e}")
 
-    def _restore_toolbar_state(self): #vers 1
-        """Restore QMainWindow toolbar state from model_workshop.json."""
+    def _restore_toolbar_state(self): #vers 2
+        """Restore QMainWindow toolbar state from model_workshop.json.
+        Uses an explicit layout version - bumped whenever ribbons are
+        added/removed/renamed - so a stale save from an older ribbon
+        layout is cleanly rejected instead of silently failing to
+        restore (Qt's own toolbar-name hashing does this invisibly and
+        without any way to detect success/failure)."""
         mw = getattr(self, '_inner_mw', None)
         if mw is None:
             return
@@ -8813,14 +8826,38 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 return
             data = json.loads(path.read_text())
             state_hex = data.get('toolbar_state')
-            if state_hex:
-                mw.restoreState(QByteArray.fromHex(state_hex.encode()))
-                self._set_status("Ribbon config loaded")
-                main_wnd = getattr(self, 'main_window', None)
-                if main_wnd and hasattr(main_wnd, 'log_message'):
-                    main_wnd.log_message("Model Workshop: Ribbon config loaded")
+            saved_version = data.get('toolbar_state_version')
+            if state_hex and saved_version == self._RIBBON_LAYOUT_VERSION:
+                ok = mw.restoreState(QByteArray.fromHex(state_hex.encode()),
+                                      self._RIBBON_LAYOUT_VERSION)
+                if ok:
+                    self._set_status("Ribbon config loaded")
+                    main_wnd = getattr(self, 'main_window', None)
+                    if main_wnd and hasattr(main_wnd, 'log_message'):
+                        main_wnd.log_message("Model Workshop: Ribbon config loaded")
+                else:
+                    print("[ModelWorkshop] _restore_toolbar_state: restoreState() returned False")
+            elif state_hex:
+                print(f"[ModelWorkshop] Saved ribbon layout is from an older version "
+                      f"({saved_version} != {self._RIBBON_LAYOUT_VERSION}) - skipping, "
+                      f"will save fresh on next change.")
         except Exception as _e:
             print(f"[ModelWorkshop] _restore_toolbar_state error: {_e}")
+        finally:
+            # Safety net: restoreState() can leave a ribbon fully hidden
+            # (e.g. saved mid-drag, floating off-screen, squeezed out) with
+            # no user-facing 'closed' state for these ribbons to have meant
+            # intentionally - so force every one of them visible no matter
+            # what happened above. Only position/floating/row should be
+            # affected by the saved state, never full visibility.
+            for tb in (getattr(self, '_tb_selection', None),
+                       getattr(self, '_tb_snap', None),
+                       getattr(self, '_tb_geometry', None),
+                       getattr(self, '_tb_nav', None),
+                       getattr(self, '_tb_render', None)):
+                if tb is not None:
+                    tb.setVisible(True)
+                    tb.toggleViewAction().setChecked(True)
 
 
     def _create_paint_bar(self): #vers 3
