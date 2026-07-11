@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 20
+#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 21
 # X-Seti - October10 2025 - Img Factory 1.5 - TXD Workshop Header Update
 
 """
@@ -3263,7 +3263,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         return panel
 
 
-    def _create_right_panel(self): #vers 12
+    def _create_right_panel(self): #vers 13
         """Right panel using QMainWindow + QToolBar for native docking.
         Same system as Model/COL Workshop - QMainWindow handles toolbar
         placement, row stacking, floating, and save/restore natively,
@@ -3434,8 +3434,10 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
                 if 'bumpmap_data' in texture or texture.get('has_bumpmap', False):
                     has_bumpmap = True
 
-        # Update bumpmap UI - show status with color
-        if hasattr(self, 'info_format_b'):
+        # Update bumpmap UI - show status with color (text/both mode only;
+        # icons mode already built its own bumpmap buttons in
+        # _create_merged_icons_line and has no mipbump_layout to update)
+        if self.button_display_mode != 'icons' and hasattr(self, 'info_format_b'):
             if has_bumpmap:
                 self.info_format_b = QLabel("Bumpmaps: Present")
                 self.info_format_b.setText("Bumpmaps: Present")
