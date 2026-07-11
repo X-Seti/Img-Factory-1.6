@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 151
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 152
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -16354,6 +16354,14 @@ if __name__ == "__main__":
     print(App_name + " Starting.")
 
     try:
+        # Force desktop OpenGL before QApplication is created. Without this,
+        # Qt's RHI backing-store can pick GLES2 while DFFViewport's
+        # QSurfaceFormat explicitly requests a desktop Compatibility
+        # profile - the mismatch causes "Failed to create context" and a
+        # black window on some Wayland/driver combinations.
+        from PyQt6.QtCore import Qt as _Qt, QCoreApplication as _QCA
+        _QCA.setAttribute(_Qt.ApplicationAttribute.AA_UseDesktopOpenGL, True)
+
         app = QApplication(sys.argv)
         print("QApplication created")
 
