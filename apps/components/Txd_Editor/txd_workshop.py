@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 19
+#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 20
 # X-Seti - October10 2025 - Img Factory 1.5 - TXD Workshop Header Update
 
 """
@@ -2451,7 +2451,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         self.right_panel.layout().addWidget(info_group)
 
 
-    def _create_merged_icons_line(self): #vers 2
+    def _create_merged_icons_line(self): #vers 3
         """Create compact single-line layout for icon mode - merges Line 2 and Line 3"""
         merged_layout = QHBoxLayout()
         merged_layout.setSpacing(2)
@@ -2548,7 +2548,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         self.view_bumpmap_btn = QPushButton("Manage")
         self.view_bumpmap_btn.setFont(self.button_font)
-        self.view_bumpmap_btn.setIcon(self.create_manage_icon())
+        self.view_bumpmap_btn.setIcon(self._create_manage_icon())
         self.view_bumpmap_btn.setIconSize(QSize(20, 20))
         self.view_bumpmap_btn.setToolTip("View and Manage bumpmaps")
         self.view_bumpmap_btn.clicked.connect(self._view_bumpmap)
