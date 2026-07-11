@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 152
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 153
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -8369,21 +8369,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         return panel
 
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 5
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 6
         """Build all QToolBar instances using QAction.
         Icon set resolved once — 'default' uses SVGIconFactory with currentColor,
         '3dsmax' uses MaxIconSet with hardcoded Max palette."""
         from PyQt6.QtWidgets import QToolBar
-        _saved_px = 20
-        try:
-            import json
-            from pathlib import Path
-            _saved_px = json.loads(
-                (Path.home()/'.config'/'imgfactory'/'model_workshop.json').read_text()
-            ).get('icon_scale', 20)
-        except Exception:
-            pass
-        icon_size = QSize(_saved_px, _saved_px)
+        icon_size = QSize(20, 20)
         pw = self.preview_widget
         self._ribbon_actions = []
 
@@ -16354,14 +16345,6 @@ if __name__ == "__main__":
     print(App_name + " Starting.")
 
     try:
-        # Force desktop OpenGL before QApplication is created. Without this,
-        # Qt's RHI backing-store can pick GLES2 while DFFViewport's
-        # QSurfaceFormat explicitly requests a desktop Compatibility
-        # profile - the mismatch causes "Failed to create context" and a
-        # black window on some Wayland/driver combinations.
-        from PyQt6.QtCore import Qt as _Qt, QCoreApplication as _QCA
-        _QCA.setAttribute(_Qt.ApplicationAttribute.AA_UseDesktopOpenGL, True)
-
         app = QApplication(sys.argv)
         print("QApplication created")
 

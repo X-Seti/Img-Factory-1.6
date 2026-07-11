@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in components/Img_Factory/imgfactory.py - Version: 85
+#this belongs in components/Img_Factory/imgfactory.py - Version: 86
 # X-Seti - Feb 24 2026 - IMG Factory 1.6 - Icon system, button layout
 
 """
@@ -7507,15 +7507,6 @@ class IMGFactory(QMainWindow):
 def main():
    """Main application entry point"""
    try:
-       # Force desktop OpenGL before QApplication is created. Model
-       # Workshop's DFFViewport (QOpenGLWidget) explicitly requests a
-       # desktop Compatibility profile; without this, Qt's RHI backing
-       # store can pick GLES2 instead, and the mismatch causes "Failed
-       # to create context" / a black viewport on some Wayland/driver
-       # combinations.
-       from PyQt6.QtCore import Qt as _Qt, QCoreApplication as _QCA
-       _QCA.setAttribute(_Qt.ApplicationAttribute.AA_UseDesktopOpenGL, True)
-
        app = QApplication(sys.argv)
        app.setApplicationName("IMG Factory")
        app.setApplicationVersion("1.5")
