@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 17
+#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 18
 # X-Seti - October10 2025 - Img Factory 1.5 - TXD Workshop Header Update
 
 """
@@ -1114,7 +1114,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         self.texture_list = []
         self.selected_texture = None
         self.undo_stack = []
-        self.button_display_mode = 'both'
+        self.button_display_mode = 'icons'
         self.current_txd_path = None
         self.save_to_source_location = True
         self.last_save_directory = None
@@ -3551,7 +3551,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         else:
             print(f"[TXD] {msg}")
 
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 1
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 2
         """Build all QToolBar instances using QAction (Model/COL Workshop
         pattern). Replaces the old DockableToolbar-based
         _create_transform_icon_panel/_create_transform_text_panel/
@@ -3563,7 +3563,16 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         QPushButton."""
         from PyQt6.QtWidgets import QToolBar
         from PyQt6.QtGui import QAction
-        icon_size = QSize(20, 20)
+        _saved_px = 20
+        try:
+            import json
+            from pathlib import Path
+            _saved_px = json.loads(
+                (Path.home()/'.config'/'imgfactory'/'txd_workshop.json').read_text()
+            ).get('icon_scale', 20)
+        except Exception:
+            pass
+        icon_size = QSize(_saved_px, _saved_px)
         pw = self.preview_widget
         self._ribbon_actions = []
 

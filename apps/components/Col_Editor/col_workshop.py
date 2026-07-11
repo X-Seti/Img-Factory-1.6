@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 83
+#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 84
 # X-Seti - August10 2025 - Converted col editor using gui base template.
 
 """
@@ -5462,13 +5462,22 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
 
 
 
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 1
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 2
         """Build all QToolBar instances using QAction (Model Workshop pattern,
         Build 388+). Replaces the old DockableToolbar-based
         _create_transform_icon_panel/_create_preview_controls panels."""
         from PyQt6.QtWidgets import QToolBar
         from PyQt6.QtGui import QAction
-        icon_size = QSize(20, 20)
+        _saved_px = 20
+        try:
+            import json
+            from pathlib import Path
+            _saved_px = json.loads(
+                (Path.home()/'.config'/'imgfactory'/'col_workshop.json').read_text()
+            ).get('icon_scale', 20)
+        except Exception:
+            pass
+        icon_size = QSize(_saved_px, _saved_px)
         pw = self.preview_widget
         self._ribbon_actions = []
 
