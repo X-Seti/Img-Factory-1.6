@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 24
+#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 25
 # X-Seti - October10 2025 - Img Factory 1.5 - TXD Workshop Header Update
 
 """
@@ -2353,12 +2353,16 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         self._update_dock_button_visibility()
 
 
-    def _apply_button_mode_to_button(self, button, text): #vers 6
+    def _apply_button_mode_to_button(self, button, text): #vers 7
         """Apply display mode to a single button with proper spacing.
-        Skips QAction-based ribbon buttons (no setFixedSize) - those are
-        handled natively by QToolBar.setToolButtonStyle via
-        _update_transform_text_panel_visibility instead."""
-        if not hasattr(button, 'setFixedSize'):
+        Skips QAction-based ribbon buttons - those are handled natively by
+        QToolBar.setToolButtonStyle via _update_transform_text_panel_visibility
+        instead. Uses an explicit isinstance check (not hasattr) since
+        hasattr(QAction_instance, 'setFixedSize') was observed returning
+        True on at least one PyQt6 build, letting QActions through and
+        crashing on the QPushButton-only calls below."""
+        from PyQt6.QtGui import QAction
+        if isinstance(button, QAction) or not hasattr(button, 'setFixedSize'):
             return
         # Store original icon if not already stored
         if not hasattr(button, '_original_icon'):
