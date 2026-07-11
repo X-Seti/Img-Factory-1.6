@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 26
+#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 27
 # X-Seti - October10 2025 - Img Factory 1.5 - TXD Workshop Header Update
 
 """
@@ -1051,6 +1051,13 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
     workshop_closed = pyqtSignal()
     window_closed = pyqtSignal()
+
+    # Bump whenever the set of ribbon toolbars changes (added/removed/
+    # renamed) so a saved layout from an older structure is cleanly
+    # rejected by _restore_toolbar_state instead of Qt silently failing
+    # to restore it. History: 1 = Transform/Nav/Effects only,
+    # 2 = added merged Name/Format + Mipmaps, 3 = split Name/Format apart.
+    _RIBBON_LAYOUT_VERSION = 3
 
     def _get_ui_color(self, key): #vers 1
         """Return theme-aware QColor. No hardcoded colors."""
@@ -3310,7 +3317,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         self.alpha_label = QLabel("Alpha:")
         self.alpha_label.setStyleSheet("color: red;")
         self.alpha_label.setVisible(False)
-        tb_name.addWidget(self.alpha_label)
+        self._alpha_label_action = tb_name.addWidget(self.alpha_label)
 
         self.info_alpha_name = QLineEdit()
         self.info_alpha_name.setPlaceholderText("Click to edit...")
@@ -3322,7 +3329,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         self.info_alpha_name.editingFinished.connect(self._save_alpha_name)
         self.info_alpha_name.mousePressEvent = lambda e: self._enable_name_edit(e, True)
         self.info_alpha_name.setVisible(False)
-        tb_name.addWidget(self.info_alpha_name)
+        self._info_alpha_name_action = tb_name.addWidget(self.info_alpha_name)
 
         # ── Ribbon 5: Format ──────────────────────────────────────────────
         tb_format = _tb("Format", Qt.ToolBarArea.RightToolBarArea)
@@ -3477,7 +3484,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         dlg = RibbonManagerDialog(self, parent=self)
         dlg.exec()
 
-    def _save_toolbar_state(self): #vers 1
+    def _save_toolbar_state(self): #vers 2
         """Save QMainWindow toolbar state to txd_workshop.json."""
         mw = getattr(self, '_inner_mw', None)
         if mw is None:
@@ -3490,7 +3497,8 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
                 data = json.loads(path.read_text())
             except Exception:
                 data = {}
-            data['toolbar_state'] = mw.saveState().toHex().data().decode()
+            data['toolbar_state'] = mw.saveState(self._RIBBON_LAYOUT_VERSION).toHex().data().decode()
+            data['toolbar_state_version'] = self._RIBBON_LAYOUT_VERSION
             path.write_text(json.dumps(data, indent=2))
             self._set_status("Ribbon config saved")
             if self.main_window and hasattr(self.main_window, 'log_message'):
@@ -3498,8 +3506,13 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         except Exception as _e:
             print(f"[TXDWorkshop] _save_toolbar_state error: {_e}")
 
-    def _restore_toolbar_state(self): #vers 1
-        """Restore QMainWindow toolbar state from txd_workshop.json."""
+    def _restore_toolbar_state(self): #vers 2
+        """Restore QMainWindow toolbar state from txd_workshop.json.
+        Uses an explicit layout version - bumped whenever ribbons are
+        added/removed/renamed - so a stale save from an older ribbon
+        layout is cleanly rejected instead of silently failing to
+        restore (Qt's own toolbar-name hashing does this invisibly and
+        without any way to detect success/failure)."""
         mw = getattr(self, '_inner_mw', None)
         if mw is None:
             return
@@ -3512,11 +3525,20 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
                 return
             data = json.loads(path.read_text())
             state_hex = data.get('toolbar_state')
-            if state_hex:
-                mw.restoreState(QByteArray.fromHex(state_hex.encode()))
-                self._set_status("Ribbon config loaded")
-                if self.main_window and hasattr(self.main_window, 'log_message'):
-                    self.main_window.log_message("TXD Workshop: Ribbon config loaded")
+            saved_version = data.get('toolbar_state_version')
+            if state_hex and saved_version == self._RIBBON_LAYOUT_VERSION:
+                ok = mw.restoreState(QByteArray.fromHex(state_hex.encode()),
+                                      self._RIBBON_LAYOUT_VERSION)
+                if ok:
+                    self._set_status("Ribbon config loaded")
+                    if self.main_window and hasattr(self.main_window, 'log_message'):
+                        self.main_window.log_message("TXD Workshop: Ribbon config loaded")
+                else:
+                    print("[TXDWorkshop] _restore_toolbar_state: restoreState() returned False")
+            elif state_hex:
+                print(f"[TXDWorkshop] Saved ribbon layout is from an older version "
+                      f"({saved_version} != {self._RIBBON_LAYOUT_VERSION}) - skipping, "
+                      f"will save fresh on next change.")
         except Exception as _e:
             print(f"[TXDWorkshop] _restore_toolbar_state error: {_e}")
 
@@ -11908,14 +11930,18 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         dialog.exec()
 
 
-    def _update_texture_info(self, texture): #vers 8
+    def _update_texture_info(self, texture): #vers 9
         """Update texture display with 4-state view support and checkerboard"""
         if not texture:
             self.info_name.setText("")
             self.info_alpha_name.setText("")
             self.info_alpha_name.setVisible(False)
+            if hasattr(self, '_info_alpha_name_action'):
+                self._info_alpha_name_action.setVisible(False)
             if hasattr(self, 'alpha_label'):
                 self.alpha_label.setVisible(False)
+            if hasattr(self, '_alpha_label_action'):
+                self._alpha_label_action.setVisible(False)
             if hasattr(self, 'preview_widget'):
                 self.preview_widget.setText("No texture selected")
             return
@@ -11930,13 +11956,21 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             alpha_name = texture.get('alpha_name', name + 'a')
             self.info_alpha_name.setText(alpha_name)
             self.info_alpha_name.setVisible(True)
+            if hasattr(self, '_info_alpha_name_action'):
+                self._info_alpha_name_action.setVisible(True)
             if hasattr(self, 'alpha_label'):
                 self.alpha_label.setVisible(True)
+            if hasattr(self, '_alpha_label_action'):
+                self._alpha_label_action.setVisible(True)
         else:
             self.info_alpha_name.setText("")
             self.info_alpha_name.setVisible(False)
+            if hasattr(self, '_info_alpha_name_action'):
+                self._info_alpha_name_action.setVisible(False)
             if hasattr(self, 'alpha_label'):
                 self.alpha_label.setVisible(False)
+            if hasattr(self, '_alpha_label_action'):
+                self._alpha_label_action.setVisible(False)
 
         # Update size info WITH FILE SIZE
         width = texture.get('width', 0)
