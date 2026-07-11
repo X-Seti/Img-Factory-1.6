@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in components/Img_Factory/imgfactory.py - Version: 86
+#this belongs in components/Img_Factory/imgfactory.py - Version: 87
 # X-Seti - Feb 24 2026 - IMG Factory 1.6 - Icon system, button layout
 
 """
@@ -7484,8 +7484,30 @@ class IMGFactory(QMainWindow):
             self.showMaximized()
 
 
-    def closeEvent(self, event): #vers 4
+    def closeEvent(self, event): #vers 5
         """Handle application close"""
+        # Give any docked workshop tabs (Model/COL/TXD Workshop etc) a
+        # chance to save their ribbon layout - closing the whole app used
+        # to skip this entirely since only close_tab() emitted
+        # window_closed, never a full-application shutdown.
+        try:
+            from PyQt6.QtWidgets import QWidget as _QW
+            from apps.gui.tool_menu_mixin import ToolMenuMixin
+            if hasattr(self, 'main_tab_widget'):
+                for i in range(self.main_tab_widget.count()):
+                    tab = self.main_tab_widget.widget(i)
+                    if tab is None:
+                        continue
+                    for child in tab.findChildren(_QW):
+                        if isinstance(child, ToolMenuMixin) and hasattr(child, 'window_closed'):
+                            try:
+                                child.window_closed.emit()
+                            except Exception:
+                                pass
+                            break
+        except Exception:
+            pass
+
         try:
             self._save_settings()
         except Exception:
