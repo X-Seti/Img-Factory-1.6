@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 27
+#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 28
 # X-Seti - October10 2025 - Img Factory 1.5 - TXD Workshop Header Update
 
 """
@@ -3506,7 +3506,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         except Exception as _e:
             print(f"[TXDWorkshop] _save_toolbar_state error: {_e}")
 
-    def _restore_toolbar_state(self): #vers 2
+    def _restore_toolbar_state(self): #vers 3
         """Restore QMainWindow toolbar state from txd_workshop.json.
         Uses an explicit layout version - bumped whenever ribbons are
         added/removed/renamed - so a stale save from an older ribbon
@@ -3541,6 +3541,23 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
                       f"will save fresh on next change.")
         except Exception as _e:
             print(f"[TXDWorkshop] _restore_toolbar_state error: {_e}")
+        finally:
+            # Safety net: restoreState() can leave a ribbon fully hidden
+            # (e.g. if it was saved mid-drag, floating off-screen, or
+            # squeezed out) with no way for the user to bring it back -
+            # there's no "closed" state exposed anywhere for these ribbons,
+            # so force every one of them visible no matter what happened
+            # above. Only position/floating/row is meant to be restorable,
+            # never full visibility.
+            for tb in (getattr(self, '_tb_transform', None),
+                       getattr(self, '_tb_nav', None),
+                       getattr(self, '_tb_effects', None),
+                       getattr(self, '_tb_name', None),
+                       getattr(self, '_tb_format', None),
+                       getattr(self, '_tb_mipmaps', None)):
+                if tb is not None:
+                    tb.setVisible(True)
+                    tb.toggleViewAction().setChecked(True)
 
 # - Rest of the logic for the panels
 
