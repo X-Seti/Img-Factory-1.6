@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 25
+#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 26
 # X-Seti - October10 2025 - Img Factory 1.5 - TXD Workshop Header Update
 
 """
@@ -2749,7 +2749,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             if new_cols != getattr(self, '_preview_ctrl_last_cols', 0):
                 self._reflow_preview_controls(new_cols)
 
-    def _update_transform_text_panel_visibility(self): #vers 5
+    def _update_transform_text_panel_visibility(self): #vers 6
         """Apply the icon/text/both display mode to the ribbon toolbars via
         QToolBar's native setToolButtonStyle - replaces the old approach of
         keeping two separate panels (icon-only strip + wide text panel) and
@@ -2764,6 +2764,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
                    getattr(self, '_tb_nav', None),
                    getattr(self, '_tb_effects', None),
                    getattr(self, '_tb_name', None),
+                   getattr(self, '_tb_format', None),
                    getattr(self, '_tb_mipmaps', None)):
             if tb:
                 tb.setToolButtonStyle(style)
@@ -3149,7 +3150,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         else:
             print(f"[TXD] {msg}")
 
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 2
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 3
         """Build all QToolBar instances using QAction (Model/COL Workshop
         pattern). Replaces the old DockableToolbar-based
         _create_transform_icon_panel/_create_transform_text_panel/
@@ -3288,13 +3289,13 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         _act(tb_fx, "White Background", self.icon_factory.settings_icon,
              lambda: pw.set_background_color(self._get_ui_color('viewport_bg')))
 
-        # ── Ribbon 4: Name / Format ───────────────────────────────────────
+        # ── Ribbon 4: Name ────────────────────────────────────────────────
         # Replaces the old info_group QGroupBox (name/alpha fields + format/
         # bitdepth/resize/compress buttons) which duplicated itself between
         # icons-mode and text-mode with several latent bugs (undefined
         # 'texture' var, import_btn/export_btn never created in icons mode).
         # One set of widgets now, QToolBar handles icons/text/both natively.
-        tb_name = _tb("Name / Format", Qt.ToolBarArea.RightToolBarArea)
+        tb_name = _tb("Name", Qt.ToolBarArea.RightToolBarArea)
 
         self.info_name = QLineEdit()
         self.info_name.setPlaceholderText("Click to edit...")
@@ -3322,7 +3323,9 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         self.info_alpha_name.mousePressEvent = lambda e: self._enable_name_edit(e, True)
         self.info_alpha_name.setVisible(False)
         tb_name.addWidget(self.info_alpha_name)
-        tb_name.addSeparator()
+
+        # ── Ribbon 5: Format ──────────────────────────────────────────────
+        tb_format = _tb("Format", Qt.ToolBarArea.RightToolBarArea)
 
         self.format_combo = QComboBox()
         self.format_combo.addItems(["DXT1", "DXT3", "DXT5", "ARGB8888",
@@ -3330,34 +3333,34 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         self.format_combo.currentTextChanged.connect(self._change_format)
         self.format_combo.setEnabled(False)
         self.format_combo.setMaximumWidth(100)
-        tb_name.addWidget(self.format_combo)
+        tb_format.addWidget(self.format_combo)
 
         self.info_bitdepth = QLabel("[32bit]")
         self.info_bitdepth.setMinimumWidth(50)
-        tb_name.addWidget(self.info_bitdepth)
-        tb_name.addSeparator()
+        tb_format.addWidget(self.info_bitdepth)
+        tb_format.addSeparator()
 
-        _act(tb_name, "Change Bit Depth", lambda color=None: self._create_bitdepth_icon(),
+        _act(tb_format, "Change Bit Depth", lambda color=None: self._create_bitdepth_icon(),
              self._change_bit_depth,  enabled=False, attr='bitdepth_btn')
-        _act(tb_name, "Resize Texture",   lambda color=None: self._create_resize_icon(),
+        _act(tb_format, "Resize Texture",   lambda color=None: self._create_resize_icon(),
              self._resize_texture,    enabled=False, attr='resize_btn')
-        _act(tb_name, "AI Upscale",       lambda color=None: self._create_upscale_icon(),
+        _act(tb_format, "AI Upscale",       lambda color=None: self._create_upscale_icon(),
              self._upscale_texture,   enabled=False, attr='upscale_btn')
-        _act(tb_name, "Compress",         lambda color=None: self._create_compress_icon(),
+        _act(tb_format, "Compress",         lambda color=None: self._create_compress_icon(),
              self._compress_texture,  enabled=False, attr='compress_btn')
-        _act(tb_name, "Uncompress",       lambda color=None: self._create_uncompress_icon(),
+        _act(tb_format, "Uncompress",       lambda color=None: self._create_uncompress_icon(),
              self._uncompress_texture,enabled=False, attr='uncompress_btn')
-        _act(tb_name, "Convert Format",   lambda color=None: self._create_convert_icon(),
+        _act(tb_format, "Convert Format",   lambda color=None: self._create_convert_icon(),
              self._convert_texture,   enabled=False, attr='convert_btn')
-        tb_name.addSeparator()
-        _act(tb_name, "Import",
+        tb_format.addSeparator()
+        _act(tb_format, "Import",
              lambda color=None: self._create_import_icon(), self._import_textures,
              enabled=True, attr='import_btn')
-        _act(tb_name, "Export",
+        _act(tb_format, "Export",
              lambda color=None: self._create_export_icon(), self.export_selected_texture,
              enabled=False, attr='export_btn')
 
-        # ── Ribbon 5: Mipmaps ─────────────────────────────────────────────
+        # ── Ribbon 6: Mipmaps ─────────────────────────────────────────────
         tb_mips = _tb("Mipmaps", Qt.ToolBarArea.RightToolBarArea)
 
         self.info_format = QLabel("Mipmaps:")
@@ -3388,6 +3391,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         self._tb_nav        = tb_nav
         self._tb_effects     = tb_fx
         self._tb_name        = tb_name
+        self._tb_format      = tb_format
         self._tb_mipmaps     = tb_mips
 
         # Compat lists for _refresh_icons's tip_to_icon walk
