@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 23
+#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 24
 # X-Seti - October10 2025 - Img Factory 1.5 - TXD Workshop Header Update
 
 """
@@ -177,7 +177,6 @@ DEBUG_STANDALONE = False
 # _create_list_icon
 # _create_manage_icon
 # _create_maximize_icon
-# _create_merged_icons_line
 # _create_middle_panel
 # _create_minimize_icon
 # _create_mipmaps_dialog
@@ -316,7 +315,6 @@ DEBUG_STANDALONE = False
 # _preview_bumpmap_generation    # Preview bumpmap before applying
 # _quick_alpha_check
 # _rebuild_img_with_new_txd
-# _rebuild_info_panel
 # _rebuild_toolbars
 # _rebuild_txd_data
 # _rebuild_txd_data_with_texture_progress
@@ -558,7 +556,6 @@ DEBUG_STANDALONE = False
 # zoom_in
 # zoom_out
 #
-
 # Build information
 App_name = "Txd Workshop"
 App_build = "13"
@@ -2356,8 +2353,13 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         self._update_dock_button_visibility()
 
 
-    def _apply_button_mode_to_button(self, button, text): #vers 5
-        """Apply display mode to a single button with proper spacing"""
+    def _apply_button_mode_to_button(self, button, text): #vers 6
+        """Apply display mode to a single button with proper spacing.
+        Skips QAction-based ribbon buttons (no setFixedSize) - those are
+        handled natively by QToolBar.setToolButtonStyle via
+        _update_transform_text_panel_visibility instead."""
+        if not hasattr(button, 'setFixedSize'):
+            return
         # Store original icon if not already stored
         if not hasattr(button, '_original_icon'):
             button._original_icon = button.icon()
@@ -2391,7 +2393,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             button.setMaximumHeight(16777215)
 
 
-    def _on_display_mode_changed(self, text): #vers 2
+    def _on_display_mode_changed(self, text): #vers 3
         """Handle display mode combo box change"""
         mode_map = {
             "Icons Only": "icons",
@@ -2399,179 +2401,11 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             "Both": "both"
         }
 
-        old_mode = self.button_display_mode
         self.button_display_mode = mode_map.get(text, "both")
-
-        # If switching to/from icon mode, rebuild the info panel
-        if (old_mode == 'icons' or self.button_display_mode == 'icons') and old_mode != self.button_display_mode:
-            self._rebuild_info_panel()
-        else:
-            self._update_all_buttons()
+        self._update_all_buttons()
 
         if self.main_window and hasattr(self.main_window, 'log_message'):
             self.main_window.log_message(f"Button display: {text}")
-
-
-    def _rebuild_info_panel(self): #vers 2
-        """Rebuild texture info panel with new layout"""
-        # Find and remove old info group
-        for i in range(self.right_panel.layout().count()):
-            item = self.right_panel.layout().itemAt(i)
-            if item and item.widget():
-                widget = item.widget()
-                if isinstance(widget, QGroupBox) and widget.title() == "":
-                    widget.deleteLater()
-                    break
-
-        # Create new info group
-        info_group = QGroupBox("")
-        info_layout = QVBoxLayout(info_group)
-
-        # Lines 2 & 3: Adaptive
-        if self.button_display_mode == 'icons':
-            merged_line = self._create_merged_icons_line()
-            info_layout.addLayout(merged_line)
-
-        # Add to right panel (both modes)
-        self.right_panel.layout().addWidget(info_group)
-
-
-    def _create_merged_icons_line(self): #vers 4
-        """Create compact single-line layout for icon mode - merges Line 2 and Line 3"""
-        merged_layout = QHBoxLayout()
-        merged_layout.setSpacing(2)
-        merged_layout.setContentsMargins(0, 0, 0, 0)
-
-        # --- Format controls ---
-        self.format_combo = QComboBox()
-        self.format_combo.addItems(["DXT1", "DXT3", "DXT5", "ARGB8888", "ARGB1555", "ARGB4444", "RGB888", "RGB565"])
-        self.format_combo.currentTextChanged.connect(self._change_format)
-        self.format_combo.setEnabled(False)
-        self.format_combo.setMaximumWidth(100)
-        merged_layout.addWidget(self.format_combo)
-
-        self.info_bitdepth = QLabel("[32bit]")
-        self.info_bitdepth.setMinimumWidth(50)
-        merged_layout.addWidget(self.info_bitdepth)
-
-        # --- Bit depth / resize / upscale / compress ---
-        self.bitdepth_btn = QPushButton()
-        self.bitdepth_btn.setIcon(self._create_bitdepth_icon())
-        self.bitdepth_btn.setIconSize(QSize(20, 20))
-        self.bitdepth_btn.setFixedSize(26, 26)
-        self.bitdepth_btn.setToolTip("Change bit depth")
-        self.bitdepth_btn.clicked.connect(self._change_bit_depth)
-        self.bitdepth_btn.setEnabled(False)
-        merged_layout.addWidget(self.bitdepth_btn)
-
-        self.resize_btn = QPushButton()
-        self.resize_btn.setIcon(self._create_resize_icon())
-        self.resize_btn.setIconSize(QSize(20, 20))
-        self.resize_btn.setFixedSize(26, 26)
-        self.resize_btn.setToolTip("Resize texture")
-        self.resize_btn.clicked.connect(self._resize_texture)
-        self.resize_btn.setEnabled(False)
-        merged_layout.addWidget(self.resize_btn)
-
-        self.upscale_btn = QPushButton()
-        self.upscale_btn.setIcon(self._create_upscale_icon())
-        self.upscale_btn.setIconSize(QSize(20, 20))
-        self.upscale_btn.setFixedSize(26, 26)
-        self.upscale_btn.setToolTip("AI upscale texture")
-        self.upscale_btn.clicked.connect(self._upscale_texture)
-        self.upscale_btn.setEnabled(False)
-        merged_layout.addWidget(self.upscale_btn)
-
-        self.compress_btn = QPushButton()
-        self.compress_btn.setIcon(self._create_compress_icon())
-        self.compress_btn.setIconSize(QSize(20, 20))
-        self.compress_btn.setFixedSize(26, 26)
-        self.compress_btn.setToolTip("Compress texture")
-        self.compress_btn.clicked.connect(self._compress_texture)
-        self.compress_btn.setEnabled(False)
-        merged_layout.addWidget(self.compress_btn)
-
-        self.uncompress_btn = QPushButton()
-        self.uncompress_btn.setIcon(self._create_uncompress_icon())
-        self.uncompress_btn.setIconSize(QSize(20, 20))
-        self.uncompress_btn.setFixedSize(26, 26)
-        self.uncompress_btn.setToolTip("Uncompress texture")
-        self.uncompress_btn.clicked.connect(self._uncompress_texture)
-        self.uncompress_btn.setEnabled(False)
-        merged_layout.addWidget(self.uncompress_btn)
-        merged_layout.addSpacing(30)
-
-        # --- Mipmap section ---
-        self.info_format = QLabel("Mipmaps:")
-        self.info_format.setFont(self.panel_font)
-        self.info_format.setMinimumWidth(60)
-        merged_layout.addWidget(self.info_format)
-
-        self.show_mipmaps_btn = QPushButton()
-        self.show_mipmaps_btn.setIcon(self._create_view_icon())
-        self.show_mipmaps_btn.setIconSize(QSize(20, 20))
-        self.show_mipmaps_btn.setFixedSize(26, 26)
-        self.show_mipmaps_btn.setToolTip("View all mipmap levels")
-        self.show_mipmaps_btn.clicked.connect(self._open_mipmap_manager)
-        self.show_mipmaps_btn.setEnabled(False)
-        merged_layout.addWidget(self.show_mipmaps_btn)
-
-        self.create_mipmaps_btn = QPushButton()
-        self.create_mipmaps_btn.setIcon(self._create_add_icon())
-        self.create_mipmaps_btn.setIconSize(QSize(20, 20))
-        self.create_mipmaps_btn.setFixedSize(26, 26)
-        self.create_mipmaps_btn.setToolTip("Generate mipmaps")
-        self.create_mipmaps_btn.clicked.connect(self._create_mipmaps_dialog)
-        self.create_mipmaps_btn.setEnabled(False)
-        merged_layout.addWidget(self.create_mipmaps_btn)
-
-        self.remove_mipmaps_btn = QPushButton()
-        self.remove_mipmaps_btn.setIcon(self._create_delete_icon())
-        self.remove_mipmaps_btn.setIconSize(QSize(20, 20))
-        self.remove_mipmaps_btn.setFixedSize(26, 26)
-        self.remove_mipmaps_btn.setToolTip("Remove all mipmaps")
-        self.remove_mipmaps_btn.clicked.connect(self._remove_mipmaps)
-        self.remove_mipmaps_btn.setEnabled(False)
-        merged_layout.addWidget(self.remove_mipmaps_btn)
-
-        self.info_format_b = QLabel("Bumpmaps:")
-        self.info_format_b.setFont(self.panel_font)
-        self.info_format_b.setMinimumWidth(70)
-        merged_layout.addWidget(self.info_format_b)
-
-        self.view_bumpmap_btn = QPushButton()
-        self.view_bumpmap_btn.setFont(self.button_font)
-        self.view_bumpmap_btn.setIcon(self._create_manage_icon())
-        self.view_bumpmap_btn.setIconSize(QSize(20, 20))
-        self.view_bumpmap_btn.setFixedSize(26, 26)
-        self.view_bumpmap_btn.setToolTip("View and Manage bumpmaps")
-        self.view_bumpmap_btn.clicked.connect(self._view_bumpmap)
-        self.view_bumpmap_btn.setEnabled(False)
-        merged_layout.addWidget(self.view_bumpmap_btn)
-
-        self.export_bumpmap_btn = QPushButton()
-        self.export_bumpmap_btn.setFont(self.button_font)
-        self.export_bumpmap_btn.setIcon(self._create_export_icon())
-        self.export_bumpmap_btn.setIconSize(QSize(20, 20))
-        self.export_bumpmap_btn.setFixedSize(26, 26)
-        self.export_bumpmap_btn.setToolTip("Export bumpmap as PNG")
-        self.export_bumpmap_btn.clicked.connect(self._export_bumpmap)
-        self.export_bumpmap_btn.setEnabled(False)
-        merged_layout.addWidget(self.export_bumpmap_btn)
-
-        self.import_bumpmap_btn = QPushButton()
-        self.import_bumpmap_btn.setFont(self.button_font)
-        self.import_bumpmap_btn.setIcon(self._create_import_icon())
-        self.import_bumpmap_btn.setIconSize(QSize(20, 20))
-        self.import_bumpmap_btn.setFixedSize(26, 26)
-        self.import_bumpmap_btn.setToolTip("Import bumpmap from image")
-        self.import_bumpmap_btn.clicked.connect(self._import_bumpmap)
-        self.import_bumpmap_btn.setEnabled(False)
-        merged_layout.addWidget(self.import_bumpmap_btn)
-
-        merged_layout.addStretch()
-
-        return merged_layout
 
 
     def _detect_txd_info(self, txd_data: bytes) -> bool: #vers 1
@@ -2911,7 +2745,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             if new_cols != getattr(self, '_preview_ctrl_last_cols', 0):
                 self._reflow_preview_controls(new_cols)
 
-    def _update_transform_text_panel_visibility(self): #vers 4
+    def _update_transform_text_panel_visibility(self): #vers 5
         """Apply the icon/text/both display mode to the ribbon toolbars via
         QToolBar's native setToolButtonStyle - replaces the old approach of
         keeping two separate panels (icon-only strip + wide text panel) and
@@ -2924,7 +2758,9 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         }.get(mode, _Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         for tb in (getattr(self, '_tb_transform', None),
                    getattr(self, '_tb_nav', None),
-                   getattr(self, '_tb_effects', None)):
+                   getattr(self, '_tb_effects', None),
+                   getattr(self, '_tb_name', None),
+                   getattr(self, '_tb_mipmaps', None)):
             if tb:
                 tb.setToolButtonStyle(style)
 
@@ -3295,245 +3131,6 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         self.window_closed.connect(self._save_toolbar_state)
 
-        # Information group below
-        info_group = QGroupBox("")
-        info_group.setFont(self.title_font)
-        info_layout = QVBoxLayout(info_group)
-        info_group.setMaximumHeight(140)
-
-        # === LINE 1: Texture name and alpha name ===
-        name_layout = QHBoxLayout()
-        name_label = QLabel("Name:")
-        name_label.setFont(self.panel_font)
-        name_layout.addWidget(name_label)
-
-        self.info_name = QLineEdit()
-
-        self.info_name.setPlaceholderText("Click to edit...")
-        self.info_name.setFont(self.panel_font)
-        self.info_name.setReadOnly(True)
-        self.info_name.setStyleSheet("padding: px; border: 1px solid palette(mid);")
-        self.info_name.returnPressed.connect(self._save_texture_name)
-        self.info_name.editingFinished.connect(self._save_texture_name)
-        self.info_name.mousePressEvent = lambda e: self._enable_name_edit(e, False)
-        name_layout.addWidget(self.info_name, stretch=1)
-
-        self.alpha_label = QLabel("Alpha:")
-        self.alpha_label.setFont(self.panel_font)
-        self.alpha_label.setStyleSheet("color: red;")
-        self.alpha_label.setVisible(False)
-        name_layout.addWidget(self.alpha_label)
-
-        self.info_alpha_name = QLineEdit()
-        self.info_alpha_name.setFont(self.panel_font)
-        self.info_alpha_name.setPlaceholderText("Click to edit...")
-        self.info_alpha_name.setReadOnly(True)
-        self.info_alpha_name.setStyleSheet("color: palette(windowText); padding: 5px; border: 1px solid palette(mid);")
-        self.info_alpha_name.returnPressed.connect(self._save_alpha_name)
-        self.info_alpha_name.editingFinished.connect(self._save_alpha_name)
-        self.info_alpha_name.mousePressEvent = lambda e: self._enable_name_edit(e, True)
-        self.info_alpha_name.setVisible(False)
-        name_layout.addWidget(self.info_alpha_name, stretch=1)
-
-        info_layout.addLayout(name_layout)
-
-        # === LINES 2 & 3: Adaptive based on display mode ===
-        if self.button_display_mode == 'icons':
-            # MERGED: Single compact line for icon mode
-            merged_line = self._create_merged_icons_line()
-            info_layout.addLayout(merged_line)
-        else:
-            # SEPARATE: Original two-line layout for text/both modes
-            # Line 2: Format controls
-            format_layout = QHBoxLayout()
-            format_layout.setSpacing(5)
-
-            self.format_combo = QComboBox()
-            self.format_combo.setFont(self.panel_font)
-            self.format_combo.addItems(["DXT1", "DXT3", "DXT5", "ARGB8888", "ARGB1555", "ARGB4444", "RGB888", "RGB565"])
-            self.format_combo.currentTextChanged.connect(self._change_format)
-            self.format_combo.setEnabled(False)
-            self.format_combo.setMaximumWidth(100)
-            format_layout.addWidget(self.format_combo)
-
-            self.info_bitdepth.setFont(self.panel_font)
-            self.info_bitdepth = QLabel("[32bit]")
-            self.info_bitdepth.setMinimumWidth(50)
-            format_layout.addWidget(self.info_bitdepth)
-
-            format_layout.addStretch()
-
-            # Convert
-            self.convert_btn = QPushButton("Convert")
-            self.convert_btn.setFont(self.button_font)
-            self.convert_btn.setIcon(self._create_convert_icon())
-            self.convert_btn.setIconSize(QSize(20, 20))
-            self.convert_btn.setToolTip("Convert texture format")
-            self.convert_btn.clicked.connect(self._convert_texture)
-            self.convert_btn.setEnabled(False)
-            format_layout.addWidget(self.convert_btn)
-
-            # Line 3: Mipmaps + Bumpmaps
-            mipbump_layout = QHBoxLayout()
-            mipbump_layout.setSpacing(5)
-
-            self.info_format = QLabel("Mipmaps: ")
-            self.info_format.setFont(self.panel_font)
-            self.info_format.setMinimumWidth(100)
-            mipbump_layout.addWidget(self.info_format)
-
-            self.show_mipmaps_btn = QPushButton("View")
-            self.show_mipmaps_btn.setFont(self.button_font)
-            self.show_mipmaps_btn.setIcon(self._create_view_icon())
-            self.show_mipmaps_btn.setIconSize(QSize(20, 20))
-            self.show_mipmaps_btn.setToolTip("View all mipmap levels")
-            self.show_mipmaps_btn.clicked.connect(self._open_mipmap_manager)
-            self.show_mipmaps_btn.setEnabled(False)
-            mipbump_layout.addWidget(self.show_mipmaps_btn)
-
-            self.create_mipmaps_btn = QPushButton("Create")
-            self.create_mipmaps_btn.setFont(self.button_font)
-            self.create_mipmaps_btn.setIcon(self._create_add_icon())
-            self.create_mipmaps_btn.setIconSize(QSize(20, 20))
-            self.create_mipmaps_btn.setToolTip("Generate mipmaps")
-            self.create_mipmaps_btn.clicked.connect(self._create_mipmaps_dialog)
-            self.create_mipmaps_btn.setEnabled(False)
-            mipbump_layout.addWidget(self.create_mipmaps_btn)
-
-            self.remove_mipmaps_btn = QPushButton("Remove")
-            self.remove_mipmaps_btn.setFont(self.button_font)
-            self.remove_mipmaps_btn.setIcon(self._create_delete_icon())
-            self.remove_mipmaps_btn.setIconSize(QSize(20, 20))
-            self.remove_mipmaps_btn.setToolTip("Remove all mipmaps")
-            self.remove_mipmaps_btn.clicked.connect(self._remove_mipmaps)
-            self.remove_mipmaps_btn.setEnabled(False)
-            mipbump_layout.addWidget(self.remove_mipmaps_btn)
-
-            mipbump_layout.addSpacing(30)
-
-            # Bumpmap detection
-            self.info_format_b = QLabel("Bumpmaps:")
-            self.info_format_b.setFont(self.panel_font)
-            self.info_format_b.setMinimumWidth(120)
-            mipbump_layout.addWidget(self.info_format_b)
-
-
-            # Check if this version supports bumpmaps
-            if is_bumpmap_supported(self.txd_version_id, self.txd_device_id):
-                # Check for bumpmap format bits
-                if 'raster_format_flags' in texture:
-                    flags = texture.get('raster_format_flags', 0)
-                    if flags & 0x10:  # Bit 4 indicates environment/bumpmap
-                        has_bumpmap = True
-
-                # Also check for explicit bumpmap data
-                if 'bumpmap_data' in texture or texture.get('has_bumpmap', False):
-                    has_bumpmap = True
-
-        # Update bumpmap UI - show status with color (text/both mode only;
-        # icons mode already built its own bumpmap buttons in
-        # _create_merged_icons_line and has no mipbump_layout to update)
-        if self.button_display_mode != 'icons' and hasattr(self, 'info_format_b'):
-            if has_bumpmap:
-                self.info_format_b = QLabel("Bumpmaps: Present")
-                self.info_format_b.setText("Bumpmaps: Present")
-                self.info_format_b.setStyleSheet("color: #4CAF50;")  # Green
-            else:
-                self.info_format_b = QLabel("Bumpmaps: None")
-                self.info_format_b.setText("Bumpmaps: None")
-                self.info_format_b.setStyleSheet("color: #757575;")  # Gray
-
-            view_layout = QHBoxLayout()
-            view_layout.setSpacing(5)
-            self.view_bumpmap_btn = QPushButton("Manage")
-            self.view_bumpmap_btn.setFont(self.button_font)
-            self.view_bumpmap_btn.setIcon(self._create_manage_icon())
-            self.view_bumpmap_btn.setIconSize(QSize(20, 20))
-            self.view_bumpmap_btn.setToolTip("View and Manage Bumpmaps")
-            self.view_bumpmap_btn.clicked.connect(self._view_bumpmap)
-            self.view_bumpmap_btn.setEnabled(False)
-            mipbump_layout.addWidget(self.view_bumpmap_btn)
-
-            self.import_bumpmap_btn = QPushButton("Import")
-            self.import_bumpmap_btn.setFont(self.button_font)
-            self.import_bumpmap_btn.setIcon(self._create_import_icon())
-            self.import_bumpmap_btn.setIconSize(QSize(20, 20))
-            self.import_bumpmap_btn.setToolTip("Import bumpmap from image")
-            self.import_bumpmap_btn.clicked.connect(self._import_bumpmap)
-            self.import_bumpmap_btn.setEnabled(False)
-            mipbump_layout.addWidget(self.import_bumpmap_btn)
-
-            self.export_bumpmap_btn = QPushButton("Export")
-            self.export_bumpmap_btn.setFont(self.button_font)
-            self.export_bumpmap_btn.setIcon(self._create_export_icon())
-            self.export_bumpmap_btn.setIconSize(QSize(20, 20))
-            self.export_bumpmap_btn.setToolTip("Export bumpmap as PNG")
-            self.export_bumpmap_btn.clicked.connect(self._export_bumpmap)
-            self.export_bumpmap_btn.setEnabled(False)
-            mipbump_layout.addWidget(self.export_bumpmap_btn)
-
-            self.bitdepth_btn = QPushButton("Bit Depth")
-            self.bitdepth_btn.setFont(self.button_font)
-            self.bitdepth_btn.setIcon(self._create_bitdepth_icon())
-            self.bitdepth_btn.setIconSize(QSize(20, 20))
-            self.bitdepth_btn.setToolTip("Change bit depth")
-            self.bitdepth_btn.clicked.connect(self._change_bit_depth)
-            self.bitdepth_btn.setEnabled(False)
-            format_layout.addWidget(self.bitdepth_btn)
-
-            self.upscale_btn = QPushButton("AI Upscale")
-            self.upscale_btn.setFont(self.button_font)
-            self.upscale_btn.setIcon(self._create_upscale_icon())
-            self.upscale_btn.setIconSize(QSize(20, 20))
-            self.upscale_btn.setToolTip("AI upscale texture")
-            self.upscale_btn.clicked.connect(self._upscale_texture)
-            self.upscale_btn.setEnabled(False)
-            format_layout.addWidget(self.upscale_btn)
-
-            self.compress_btn = QPushButton("Compress")
-            self.compress_btn.setFont(self.button_font)
-            self.compress_btn.setIcon(self._create_compress_icon())
-            self.compress_btn.setIconSize(QSize(20, 20))
-            self.compress_btn.setToolTip("Compress texture")
-            self.compress_btn.clicked.connect(self._compress_texture)
-            self.compress_btn.setEnabled(False)
-            format_layout.addWidget(self.compress_btn)
-
-            self.uncompress_btn = QPushButton("Uncompress")
-            self.uncompress_btn.setFont(self.button_font)
-            self.uncompress_btn.setIcon(self._create_uncompress_icon())
-            self.uncompress_btn.setIconSize(QSize(20, 20))
-            self.uncompress_btn.setToolTip("Uncompress texture")
-            self.uncompress_btn.clicked.connect(self._uncompress_texture)
-            self.uncompress_btn.setEnabled(False)
-            format_layout.addWidget(self.uncompress_btn)
-
-            #layout.addSpacing(10)
-
-            self.import_btn = QPushButton("Import")
-            self.import_btn.setFont(self.button_font)
-            self.import_btn.setIcon(self._create_import_icon())
-            self.import_btn.setIconSize(QSize(20, 20))
-            self.import_btn.clicked.connect(self._import_textures)
-            self.import_btn.setEnabled(True)   # always enabled — import starts/adds to TXD
-            self.import_btn.setToolTip("Import image as texture (PNG/JPG/BMP/TGA/DDS)\n"
-                                       "If a texture is selected, offers to replace it.")
-            format_layout.addWidget(self.import_btn)
-
-            self.export_btn = QPushButton("Export")
-            self.export_btn.setFont(self.button_font)
-            self.export_btn.setIcon(self._create_export_icon())
-            self.export_btn.setIconSize(QSize(20, 20))
-            self.export_btn.clicked.connect(self.export_selected_texture)
-            self.export_btn.setEnabled(False)
-            format_layout.addWidget(self.export_btn)
-
-            info_layout.addLayout(format_layout)
-
-            info_layout.addLayout(view_layout)
-            info_layout.addLayout(mipbump_layout)
-
-        outer_layout.addWidget(info_group, stretch=0)
         return panel
 
 
@@ -3687,10 +3284,107 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         _act(tb_fx, "White Background", self.icon_factory.settings_icon,
              lambda: pw.set_background_color(self._get_ui_color('viewport_bg')))
 
+        # ── Ribbon 4: Name / Format ───────────────────────────────────────
+        # Replaces the old info_group QGroupBox (name/alpha fields + format/
+        # bitdepth/resize/compress buttons) which duplicated itself between
+        # icons-mode and text-mode with several latent bugs (undefined
+        # 'texture' var, import_btn/export_btn never created in icons mode).
+        # One set of widgets now, QToolBar handles icons/text/both natively.
+        tb_name = _tb("Name / Format", Qt.ToolBarArea.RightToolBarArea)
+
+        self.info_name = QLineEdit()
+        self.info_name.setPlaceholderText("Click to edit...")
+        self.info_name.setReadOnly(True)
+        self.info_name.setMinimumWidth(130)
+        self.info_name.setStyleSheet("padding: 2px; border: 1px solid palette(mid);")
+        self.info_name.returnPressed.connect(self._save_texture_name)
+        self.info_name.editingFinished.connect(self._save_texture_name)
+        self.info_name.mousePressEvent = lambda e: self._enable_name_edit(e, False)
+        tb_name.addWidget(self.info_name)
+
+        self.alpha_label = QLabel("Alpha:")
+        self.alpha_label.setStyleSheet("color: red;")
+        self.alpha_label.setVisible(False)
+        tb_name.addWidget(self.alpha_label)
+
+        self.info_alpha_name = QLineEdit()
+        self.info_alpha_name.setPlaceholderText("Click to edit...")
+        self.info_alpha_name.setReadOnly(True)
+        self.info_alpha_name.setMinimumWidth(100)
+        self.info_alpha_name.setStyleSheet(
+            "color: palette(windowText); padding: 2px; border: 1px solid palette(mid);")
+        self.info_alpha_name.returnPressed.connect(self._save_alpha_name)
+        self.info_alpha_name.editingFinished.connect(self._save_alpha_name)
+        self.info_alpha_name.mousePressEvent = lambda e: self._enable_name_edit(e, True)
+        self.info_alpha_name.setVisible(False)
+        tb_name.addWidget(self.info_alpha_name)
+        tb_name.addSeparator()
+
+        self.format_combo = QComboBox()
+        self.format_combo.addItems(["DXT1", "DXT3", "DXT5", "ARGB8888",
+                                     "ARGB1555", "ARGB4444", "RGB888", "RGB565"])
+        self.format_combo.currentTextChanged.connect(self._change_format)
+        self.format_combo.setEnabled(False)
+        self.format_combo.setMaximumWidth(100)
+        tb_name.addWidget(self.format_combo)
+
+        self.info_bitdepth = QLabel("[32bit]")
+        self.info_bitdepth.setMinimumWidth(50)
+        tb_name.addWidget(self.info_bitdepth)
+        tb_name.addSeparator()
+
+        _act(tb_name, "Change Bit Depth", lambda color=None: self._create_bitdepth_icon(),
+             self._change_bit_depth,  enabled=False, attr='bitdepth_btn')
+        _act(tb_name, "Resize Texture",   lambda color=None: self._create_resize_icon(),
+             self._resize_texture,    enabled=False, attr='resize_btn')
+        _act(tb_name, "AI Upscale",       lambda color=None: self._create_upscale_icon(),
+             self._upscale_texture,   enabled=False, attr='upscale_btn')
+        _act(tb_name, "Compress",         lambda color=None: self._create_compress_icon(),
+             self._compress_texture,  enabled=False, attr='compress_btn')
+        _act(tb_name, "Uncompress",       lambda color=None: self._create_uncompress_icon(),
+             self._uncompress_texture,enabled=False, attr='uncompress_btn')
+        _act(tb_name, "Convert Format",   lambda color=None: self._create_convert_icon(),
+             self._convert_texture,   enabled=False, attr='convert_btn')
+        tb_name.addSeparator()
+        _act(tb_name, "Import",
+             lambda color=None: self._create_import_icon(), self._import_textures,
+             enabled=True, attr='import_btn')
+        _act(tb_name, "Export",
+             lambda color=None: self._create_export_icon(), self.export_selected_texture,
+             enabled=False, attr='export_btn')
+
+        # ── Ribbon 5: Mipmaps ─────────────────────────────────────────────
+        tb_mips = _tb("Mipmaps", Qt.ToolBarArea.RightToolBarArea)
+
+        self.info_format = QLabel("Mipmaps:")
+        self.info_format.setMinimumWidth(60)
+        tb_mips.addWidget(self.info_format)
+
+        _act(tb_mips, "View Mipmaps",   lambda color=None: self._create_view_icon(),
+             self._open_mipmap_manager,  enabled=False, attr='show_mipmaps_btn')
+        _act(tb_mips, "Generate Mipmaps", lambda color=None: self._create_add_icon(),
+             self._create_mipmaps_dialog, enabled=False, attr='create_mipmaps_btn')
+        _act(tb_mips, "Remove Mipmaps", lambda color=None: self._create_delete_icon(),
+             self._remove_mipmaps,       enabled=False, attr='remove_mipmaps_btn')
+        tb_mips.addSeparator()
+
+        self.info_format_b = QLabel("Bumpmaps:")
+        self.info_format_b.setMinimumWidth(70)
+        tb_mips.addWidget(self.info_format_b)
+
+        _act(tb_mips, "Manage Bumpmaps", lambda color=None: self._create_manage_icon(),
+             self._view_bumpmap,   enabled=False, attr='view_bumpmap_btn')
+        _act(tb_mips, "Export Bumpmap",  lambda color=None: self._create_export_icon(),
+             self._export_bumpmap, enabled=False, attr='export_bumpmap_btn')
+        _act(tb_mips, "Import Bumpmap",  lambda color=None: self._create_import_icon(),
+             self._import_bumpmap, enabled=False, attr='import_bumpmap_btn')
+
         # Store toolbar refs
         self._tb_transform = tb_xform
         self._tb_nav        = tb_nav
         self._tb_effects     = tb_fx
+        self._tb_name        = tb_name
+        self._tb_mipmaps     = tb_mips
 
         # Compat lists for _refresh_icons's tip_to_icon walk
         self._preview_ctrl_view_btns = [e['action'] for e in self._ribbon_actions
