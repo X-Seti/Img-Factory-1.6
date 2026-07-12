@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 179
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 180
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -8570,7 +8570,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._middle_mw = middle_mw
         return middle_mw
 
-    def _build_model_name_toolbar(self): #vers 1
+    def _build_model_name_toolbar(self): #vers 2
         """Build the 'Model Name: Click to edit...' ribbon on its own,
         split out from the combined Model Info ribbon so it can be
         independently docked/moved from the IDE/TXD one."""
@@ -8578,6 +8578,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         tb = QToolBar("Model Name")
         tb.setObjectName("Model Name")
         tb.setIconSize(QSize(18, 18))
+        tb.setMovable(True)
+        tb.setFloatable(True)
         tb.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         tb.customContextMenuRequested.connect(
             lambda pos, t=tb, key='name': self._info_ribbon_menu(t, pos, key))
@@ -8597,7 +8599,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         return tb
 
-    def _build_model_ide_toolbar(self, icon_color): #vers 1
+    def _build_model_ide_toolbar(self, icon_color): #vers 2
         """Build the 'IDE: -- ID: -- TXD: --' ribbon on its own, split out
         from the combined Model Info ribbon so it can be independently
         docked/moved from the Name one."""
@@ -8606,6 +8608,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         tb = QToolBar("Model IDE / TXD")
         tb.setObjectName("Model IDE / TXD")
         tb.setIconSize(QSize(18, 18))
+        tb.setMovable(True)
+        tb.setFloatable(True)
         tb.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         tb.customContextMenuRequested.connect(
             lambda pos, t=tb, key='ide': self._info_ribbon_menu(t, pos, key))
