@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 87
+#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 88
 # X-Seti - August10 2025 - Converted col editor using gui base template.
 
 """
@@ -2319,7 +2319,7 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
         self._apply_theme()
 
 
-    def setup_ui(self): #vers 8
+    def setup_ui(self): #vers 9
         """Setup the main UI layout"""
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(5, 5, 5, 5)
@@ -2370,6 +2370,12 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
 
         # Top-level tab widget: COL Models | Surface Data
         self._workshop_tabs = QTabWidget()
+        # documentMode removes the default pane border/padding Qt draws
+        # around a QTabWidget's content - without this, the ribbon+viewport
+        # sat inside a padded frame, showing as empty space between the
+        # tab labels and the ribbon that TXD Workshop (no tab wrapper at
+        # all) never had.
+        self._workshop_tabs.setDocumentMode(True)
         self._workshop_tabs.addTab(self._main_splitter, "COL Models")
         self._surface_tab = self._create_surface_tab()
         self._workshop_tabs.addTab(self._surface_tab, "Surface Data")
