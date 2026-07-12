@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 178
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 179
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -8220,7 +8220,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 f"Primitive '{name}': {len(verts)} verts, {len(tris)} tris added to DFF")
 
 
-    def _create_left_panel(self): #vers 6
+    def _create_left_panel(self): #vers 7
         """Create left panel - COL file list (only in IMG Factory mode)"""
         # In standalone mode, don't create this panel
         if self.standalone_mode:
@@ -8242,8 +8242,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         # Header row with search button
         hdr_row = QHBoxLayout()
-        self._left_panel_header = QLabel("Model Files")
-        self._left_panel_header.setFont(self.section_title_font)
+        self._left_panel_header = QLabel("No files loaded")
+        self._left_panel_header.setFont(self.panel_font)
         hdr_row.addWidget(self._left_panel_header)
         hdr_row.addStretch()
 
@@ -11153,7 +11153,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     # - Texture management
 
-    def _create_texture_panel(self): #vers 4
+    def _create_texture_panel(self): #vers 5
         """Collapsible texture panel in middle column.
         Shows textures loaded from TXD files.
         Toggle between List view (table) and Thumbnail view (64x64 grid).
@@ -11167,15 +11167,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         lay.setContentsMargins(4, 4, 4, 4)
         lay.setSpacing(3)
 
-        # - Header row
+        # - Header row (count + view toggle only - the dock's own title
+        # bar already shows "Textures", a second label here was duplicate)
         hdr = QHBoxLayout()
-        lbl = QLabel("Textures")
-        lbl.setFont(self.section_title_font)
-        hdr.addWidget(lbl)
-        hdr.addStretch()
         self._tex_count_lbl = QLabel("0 textures")
         self._tex_count_lbl.setFont(self.panel_font)
         hdr.addWidget(self._tex_count_lbl)
+        hdr.addStretch()
 
         # View toggle: list ⇔ thumbnails
         self._tex_view_mode = 'list'
@@ -14015,7 +14013,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 hdr = getattr(self, '_left_panel_header', None)
                 if hdr:
                     hdr.setText(
-                        f"Model Files  —  "
                         f"DFF ({n_dff})  TXD ({n_txd})  COL ({n_col})")
 
             n_dff = sum(1 for e in model_entries if e.name.lower().endswith('.dff'))
@@ -14099,7 +14096,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         hdr = getattr(self, '_left_panel_header', None)
         if hdr:
             hdr.setText(
-                f"Model Files  —  DFF ({n_dff})  TXD ({n_txd})  COL ({n_col})")
+                f"DFF ({n_dff})  TXD ({n_txd})  COL ({n_col})")
         if self.main_window and hasattr(self.main_window, 'log_message'):
             self.main_window.log_message(
                 f"Model Workshop: {lw.count()} entries in left panel")
