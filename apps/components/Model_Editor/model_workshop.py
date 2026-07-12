@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 167
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 169
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -5410,14 +5410,18 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # Sync mini toolbar visibility with current dock state
         self._sync_middle_btn_row_visibility()
 
-    def _sync_middle_btn_row_visibility(self): #vers 2
-        """Show/hide the mini toolbar row (Open/Save/Import/Export/Undo/
-        3D View) based on dock state - the view-toggle button lives in
-        its own separate row now (above the model table), so the whole
-        mini toolbar row can just hide/show as one unit again."""
+    def _sync_middle_btn_row_visibility(self): #vers 1
+        """Show/hide the mini toolbar's action icons (Open/Save/Import/
+        Export/Undo/3D View) based on dock state - the row itself and its
+        view-toggle button always stay visible regardless."""
         if not hasattr(self, '_middle_btn_row'):
             return
-        self._middle_btn_row.setVisible(self.is_docked and not self.standalone_mode)
+        docked_only = self.is_docked and not self.standalone_mode
+        for attr in ('open_col_btn', 'save_col_btn', 'import_btn',
+                     'export_col_btn', 'undo_col_btn', '_mini_3d_btn'):
+            b = getattr(self, attr, None)
+            if b:
+                b.setVisible(docked_only)
 
     def _on_menu_btn_clicked(self): #vers 1
         from PyQt6.QtWidgets import QMenu
@@ -8186,7 +8190,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         return panel
 
 
-    def _create_middle_panel(self): #vers 11
+    def _create_middle_panel(self): #vers 9
         """Create middle panel with COL models table — mini toolbar + view toggle."""
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -8208,12 +8212,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         btn_layout.setContentsMargins(0, 0, 0, 0)
         btn_layout.setSpacing(3)
 
-        def _icon_btn(icon, tooltip, slot, enabled=True):  #vers 2
+        def _icon_btn(icon, tooltip, slot, enabled=True):  #vers 1
             b = QPushButton()
             b.setIcon(icon)
             b.setIconSize(QSize(20, 20))
-            b.setFixedHeight(28)
-            b.setMinimumWidth(28)
+            b.setFixedSize(28, 28)
             b.setToolTip(tooltip)
             b.clicked.connect(slot)
             b.setEnabled(enabled)
@@ -8262,9 +8265,25 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "Open GL Model Viewer",
             self._open_gl_viewer)
         btn_layout.addWidget(self._mini_3d_btn)
+
         btn_layout.addStretch()
 
+        # View-toggle button - always visible regardless of dock state,
+        # unlike the action icons above it.
+        self._col_view_mode = 'detail'   # start in compact thumbnail view
+        self.col_view_toggle_btn = QPushButton("[=]")
+        self.col_view_toggle_btn.setFont(self.button_font)
+        self.col_view_toggle_btn.setFixedWidth(32)
+        self.col_view_toggle_btn.setFixedHeight(22)
+        self.col_view_toggle_btn.setToolTip(
+            "Toggle view: compact list ↔ full details table")
+        self.col_view_toggle_btn.clicked.connect(self._toggle_col_view)
+        btn_layout.addWidget(self.col_view_toggle_btn)
+
         layout.addWidget(self._middle_btn_row)
+        self._middle_btn_row.setVisible(True)   # row itself always shown -
+        # the toggle button lives here now, only the action icons below
+        # are conditionally hidden when not docked.
         self._sync_middle_btn_row_visibility()
         # Register for adaptive compact display
         self._mid_compact_btns = [
@@ -8274,36 +8293,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             (getattr(self, 'export_col_btn',None), "Export"),
             (getattr(self, 'undo_col_btn',  None), "Undo"),
         ]
-
-        # View-toggle row: sits directly above whichever table is showing
-        # (compact 'Preview | Details' or full 'Name | Format | ...'),
-        # left-aligned with zero gap to the table below so it reads as
-        # part of that row - [=] Preview | Details, or
-        # [T] Name | Format | RW Version | Size - rather than occupying
-        # its own separate, mostly-empty row.
-        self._col_view_mode = 'detail'   # start in compact thumbnail view
-        toggle_row = QHBoxLayout()
-        toggle_row.setContentsMargins(0, 0, 0, 0)
-        toggle_row.setSpacing(0)
-        self.col_view_toggle_btn = QPushButton("[=]")
-        self.col_view_toggle_btn.setFont(self.button_font)
-        self.col_view_toggle_btn.setFixedWidth(32)
-        self.col_view_toggle_btn.setFixedHeight(22)
-        self.col_view_toggle_btn.setToolTip(
-            "Toggle view: compact list ↔ full details table")
-        self.col_view_toggle_btn.clicked.connect(self._toggle_col_view)
-        toggle_row.addWidget(self.col_view_toggle_btn)
-        toggle_row.addStretch()
-
-        # Nested zero-spacing container for [toggle row, tables] only -
-        # keeps the outer panel's normal spacing everywhere else, while
-        # this specific group reads as one continuous block.
-        table_group = QWidget()
-        table_group_layout = QVBoxLayout(table_group)
-        table_group_layout.setContentsMargins(0, 0, 0, 0)
-        table_group_layout.setSpacing(0)
-        table_group_layout.addLayout(toggle_row)
-        layout.addWidget(table_group)
 
         # - Model table (detail view)
         self.collision_list = QTableWidget()
@@ -8329,7 +8318,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.collision_list.customContextMenuRequested.connect(
             self._show_collision_context_menu)
         self.collision_list.setVisible(False)  # hidden at startup — compact view is default
-        table_group_layout.addWidget(self.collision_list)
+        layout.addWidget(self.collision_list)
 
         # - Compact list (thumbnail + name/version/counts, single row)
         self.mod_compact_list = QTableWidget()
@@ -8352,7 +8341,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.mod_compact_list.setRowCount(0)      # populated on first file load
         self.mod_compact_list.setWordWrap(True)
         self.mod_compact_list.setItemDelegate(_ModelListDelegate(self.mod_compact_list))
-        table_group_layout.addWidget(self.mod_compact_list)
+        layout.addWidget(self.mod_compact_list)
 
         # - Frame / Bone hierarchy tree (DFF only)
         from PyQt6.QtWidgets import QTreeWidget
