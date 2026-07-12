@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 176
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 177
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -8262,7 +8262,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         return panel
 
 
-    def _create_models_table_panel(self): #vers 1
+    def _create_models_table_panel(self): #vers 2
         """Create the Models table panel - mini toolbar + view toggle +
         model table only. Frame Hierarchy and Textures are now separate
         top-level dock widgets (see _create_frame_hierarchy_panel,
@@ -8449,6 +8449,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.mod_compact_list.setWordWrap(True)
         self.mod_compact_list.setItemDelegate(_ModelListDelegate(self.mod_compact_list))
         layout.addWidget(self.mod_compact_list)
+
+        # Model Name / IDE-TXD ribbons - built here but docked into the
+        # middle panel's own nested QMainWindow below, not added to this
+        # layout directly. Split into two so they can be moved
+        # independently of each other.
+        self._info_ribbons = {
+            'name': self._build_model_name_toolbar(),
+            'ide':  self._build_model_ide_toolbar(icon_color),
+        }
+        self._info_ribbon_location = {'name': 'middle', 'ide': 'middle'}
 
         return self._wrap_middle_panel_with_own_dock_areas(panel)
 
