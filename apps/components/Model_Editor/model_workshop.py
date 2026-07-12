@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 174
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 175
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -8454,7 +8454,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         return self._wrap_middle_panel_with_own_dock_areas(panel)
 
-    def _wrap_middle_panel_with_own_dock_areas(self, content_panel): #vers 2
+    def _wrap_middle_panel_with_own_dock_areas(self, content_panel): #vers 3
         """Give the middle panel its own nested QMainWindow (same pattern
         the right panel already uses for the viewport), so the Name and
         IDE/TXD ribbons have real Left/Right toolbar dock areas specifically
@@ -8472,6 +8472,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             QMainWindow.DockOption.AllowTabbedDocks)
         middle_mw.setCentralWidget(content_panel)
         middle_mw.addToolBar(Qt.ToolBarArea.BottomToolBarArea, self._info_ribbons['name'])
+        # Explicit break so IDE always sits on its own row below Name,
+        # instead of sharing one row whenever there's enough width.
+        middle_mw.addToolBarBreak(Qt.ToolBarArea.BottomToolBarArea)
         middle_mw.addToolBar(Qt.ToolBarArea.BottomToolBarArea, self._info_ribbons['ide'])
         self._middle_mw = middle_mw
         return middle_mw
