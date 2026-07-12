@@ -1,6 +1,125 @@
-#this belongs in root /ChangeLog.md - Version: 82
+#this belongs in root /ChangeLog.md - Version: 83
 
-## June 2026 - Model Workshop toolbar: leftover COL Workshop labels
+## July 2026 - Model/COL/TXD Workshop: native QToolBar ribbon rebuild
+
+**apps/components/Model_Editor/model_workshop.py:**
+- Replaced the old DockableToolbar-based panels (_create_transform_icon_panel,
+  _create_transform_text_panel, _create_preview_controls, plus their
+  reflow/grid helpers) with a native QMainWindow + QToolBar system -
+  Selection, Snap Targets, Edit Geometry, Navigation, Render ribbons.
+  RibbonManagerDialog added: two-pane dialog to reassign actions between
+  toolbars, create/delete toolbars, save/load named presets, drag to
+  reorder. Icon size slider added directly in the dialog (was only
+  reachable via toolbar right-click before).
+- Removed ~1,240 lines of now-dead code left over from the rebuild -
+  every removed action already had a live equivalent in the new ribbons,
+  confirmed via zero call sites before deletion.
+- Added the 3ds Max style 4-Pane View (Top/Front/Side/Perspective quad
+  viewport) - QStackedWidget central widget, per-pane view reassignment
+  via right-click, splitter-resizable, selection state shared live across
+  all panes and the main view, flip/rotate/render-style actions applied
+  to every visible pane instead of just whichever one is hidden.
+  DFFViewport (dff_viewport.py) gained set_view_lock() for ortho
+  projection + locked rotation on Top/Front/Side panes.
+- Icon-scale persistence bug fixed (slider wrote to model_workshop.json
+  but nothing read it back on next launch - was always resetting to 20px).
+- Ribbon layout save/restore made version-aware: _RIBBON_LAYOUT_VERSION
+  class constant passed into QMainWindow.saveState()/restoreState() so a
+  stale save from an older ribbon structure is cleanly rejected instead
+  of Qt silently failing to restore anything. restoreState()'s return
+  value is now checked/logged. All 5 ribbons force-shown after every
+  restore attempt regardless of outcome - there's no user-facing way to
+  have intentionally hidden one, so any hidden result is corrected.
+- Fixed the whole-app-close bug generically (see imgfactory.py below) -
+  ribbon layouts previously never saved unless each workshop tab was
+  closed individually rather than the whole app.
+- Chased a black-window/QOpenGLWidget context-creation failure through
+  several rounds of code rollback before journalctl confirmed it was a
+  GPU/PCIe hardware fault (BadTLP bus errors + NVIDIA GSP firmware load
+  failure) unrelated to any of the above - resolved by a reboot on the
+  affected machine, no code change needed.
+
+**apps/components/Col_Editor/col_workshop.py:**
+- Same DockableToolbar -> QToolBar rebuild: Transform, Navigation, Render
+  ribbons + RibbonManagerDialog (adapted). Removed 9 dead methods from
+  the old panel system.
+- Bottom info panel (COL name field, format combo, switch/convert/
+  compress/uncompress/import/export, shadow mesh view/create/remove) had
+  the same dual wide-row/narrow-row duplication TXD Workshop had -
+  replaced with three more ribbons: Name, Format, Shadow Mesh.
+  _update_transform_text_panel_visibility (the old width-based row
+  toggle) simplified to a no-op now that QToolBar compacts natively.
+- Mid-cleanup mistake: a dead-code deletion pass accidentally removed
+  the live Surface Data tab (_create_surface_tab + 9 helper methods) that
+  happened to sit between two genuinely-dead ribbon functions - caught
+  from the resulting crash, restored verbatim from the pre-rebuild
+  commit, and every subsequent deletion in this file was diffed against
+  a snapshot before committing.
+- Same icon-scale persistence fix, same versioned save/restore + force-
+  visible safety net as Model Workshop (_RIBBON_LAYOUT_VERSION 1 -> 2
+  when Name/Format/Shadow Mesh were added).
+- Dedicated quad_view_icon added to imgfactory_svg_icons.py (was
+  reusing fit_grid_icon, which means "zoom to fit" not "split view").
+
+**apps/components/Txd_Editor/txd_workshop.py:**
+- Same rebuild: Transform, Navigation, Effects ribbons + RibbonManagerDialog.
+  The old icon-vs-text dual-mode toggle (two separate panels, switched by
+  visibility) replaced by QToolBar's native setToolButtonStyle() - one
+  ribbon now handles icon-only/text-only/both instead of maintaining two.
+  Default display mode changed to icons-only per request.
+- Found and fixed several real bugs the old dual-mode system had, all
+  dormant until icons-mode became the default and started exercising
+  them: _set_status() called in 3 places but never defined anywhere in
+  this file; self.export_btn/import_btn only ever built in text/both
+  mode (icons mode would crash the instant a texture was selected);
+  _create_merged_icons_line referencing undefined 'info_layout' and
+  'texture' variables and a typo'd create_manage_icon (missing
+  underscore); _apply_button_mode_to_button calling setFixedSize() on
+  QActions from the new ribbon.
+- Bottom info panel (name/alpha fields, format/bitdepth/resize/compress,
+  mipmap/bumpmap controls) converted to three ribbons: Name, Format,
+  Mipmaps - fixing truncated/overlapping button text in icons mode (the
+  old row kept full text labels squeezed next to icons instead of being
+  true icon-only) and an alpha-name field that wouldn't show (QToolBar.
+  addWidget() wraps widgets in a QWidgetAction - toggling the inner
+  widget's visibility directly doesn't reliably relayout the toolbar,
+  needed to toggle the wrapping action too).
+- Same versioned save/restore + force-visible safety net
+  (_RIBBON_LAYOUT_VERSION 1 -> 3 across the Name/Format split).
+- #vers tags added to 67 previously-untagged methods, full ##Methods
+  list rebuilt, header filename typo fixed (was missing apps/ prefix
+  and had a stray space).
+
+**apps/components/Img_Factory/imgfactory.py:**
+- closeEvent only ever saved the main app's own settings - it never told
+  any open workshop tab (Model/COL/TXD Workshop etc) to save its own
+  ribbon state first. window_closed only got emitted via close_tab()
+  (closing one tab), never on a full application shutdown, which is the
+  normal way most people exit. Now iterates open tabs on close and emits
+  window_closed for each ToolMenuMixin child before quitting.
+- ProjectManager() was called with zero arguments in 4 places but
+  requires main_window - every call threw TypeError, silently caught,
+  leaving self.project_manager permanently None. Projects.json profiles
+  were never actually broken, they just never loaded into a live
+  instance. Fixed all 4 call sites; added last_project_name/
+  last_game_root to IMGFactorySettings (IMG Factory's own settings, not
+  the shared app_settings_system.py) so the last active project
+  auto-restores at startup.
+
+**apps/methods/dragdrop_functions.py:**
+- setup_drag_drop_widget's None-widget guard only wrapped the
+  setAcceptDrops call, not the attribute-set right after - crashed when
+  called with a None widget. setup_main_window_drag_drop separately had
+  a hasattr()-is-true-even-when-value-is-None bug on gui_layout.table.
+  Both fixed.
+
+**apps/gui/gui_layout_custom.py:**
+- _update_status_indicators was called in _initialize_features but never
+  defined anywhere in the class - silently caught every startup, logged
+  as a harmless-looking "Feature init error". Added it, wired to the
+  existing update_img_status()/set_ready_status() API.
+
+
 
 **apps/components/Model_Editor/model_workshop.py:**
 - Flip Horizontal/Flip Vertical buttons already had short, correct
