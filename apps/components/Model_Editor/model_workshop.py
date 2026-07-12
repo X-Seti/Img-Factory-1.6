@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 162
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 163
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -3173,7 +3173,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._apply_theme()
 
 
-    def setup_ui(self): #vers 10
+    def setup_ui(self): #vers 11
         """Setup the main UI layout.
 
         EXPERIMENTAL (Jul 2026): three independent QMainWindows, nested:
@@ -3236,56 +3236,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 QDockWidget.DockWidgetFeature.DockWidgetFloatable)
             outer_mw.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self._left_dock)
 
-        samerow_layout = QHBoxLayout()
-        samerow_label = QLabel("")
-        self.load_txd_btn = QPushButton("TXD") #TODO; This needs to be added to load dff, on standalone and docked.
-
-        # both looking for the same name "not matter the letter case.txd or Case.TXD, if not found ask for it, or skip.
-        self.load_txd_btn.setFont(self.button_font)
-        self.load_txd_btn.setIcon(self.icon_factory.open_icon(color=icon_color))
-        self.load_txd_btn.setIconSize(QSize(16, 16))
-        self.load_txd_btn.setFixedHeight(26)
-        self.load_txd_btn.setMinimumWidth(80)
-        self.load_txd_btn.setToolTip("Open TXD — uses IDE link if available, else browse")
-        self.load_txd_btn.clicked.connect(self._open_txd_smart)
-
-        self.export_ojs_btn = QPushButton("Export")
-        self.export_ojs_btn.setFont(self.button_font)
-        self.export_ojs_btn.setFixedHeight(26)
-        self.export_ojs_btn.setToolTip("Export geometry / COL (multiple formats)")
-        self.export_ojs_btn.clicked.connect(self._export_model_menu)
-        try:
-            self.export_ojs_btn.setIcon(self.icon_factory.multi_export_icon(color=icon_color))
-            self.export_ojs_btn.setIconSize(QSize(14, 14))
-        except Exception: pass
-
-        self.gl_viewer_btn = QPushButton("3D View")
-        self.gl_viewer_btn.setFont(self.button_font)
-        self.gl_viewer_btn.setFixedHeight(26)
-        self.gl_viewer_btn.setToolTip("Open GL Model Viewer")
-        self.gl_viewer_btn.clicked.connect(self._open_gl_viewer)
-        try:
-            self.gl_viewer_btn.setIcon(self.icon_factory.viewport_icon(color=icon_color))
-            self.gl_viewer_btn.setIconSize(QSize(14, 14))
-        except Exception: pass
-
-        samerow_layout.addWidget(self.gl_viewer_btn)
-        samerow_layout.addWidget(self.export_ojs_btn)
-        samerow_layout.addWidget(self.load_txd_btn)
-
-        self._middle_dock = QDockWidget("", self)
-
-        titlebar = QWidget()
-        layout = QHBoxLayout(titlebar)
-        layout.setContentsMargins(2, 2, 2, 2)
-
-        layout.addWidget(self.gl_viewer_btn)
-        layout.addWidget(self.export_ojs_btn)
-        layout.addWidget(self.load_txd_btn)
-        layout.addStretch()
-
-        self._middle_dock.setTitleBarWidget(titlebar)
-
+        self._middle_dock = QDockWidget("Models", self)
         self._middle_dock.setObjectName("Models")
         self._middle_dock.setWidget(middle_panel)
         self._middle_dock.setFeatures(
@@ -6535,7 +6486,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if not getattr(self, '_toolbar_layout_loaded', False):
             self._toolbar_layout_loaded = True
 
-    def resizeEvent(self, event): #vers 5
+    def resizeEvent(self, event): #vers 6
         """Keep resize grip in corner; auto-collapse panels; adaptive button display."""
         super().resizeEvent(event)
         if hasattr(self, 'size_grip'):
@@ -6550,6 +6501,18 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 row = getattr(self, '_middle_btn_row', None)
                 w = row.width() if (row and row.width() > 0) else self.width()
                 apply_compact_buttons(mid_btns, w, compact_threshold=320)
+        except Exception:
+            pass
+        # Auto icon-only for title bar buttons (Open/Save/Import/Export/
+        # Undo) when the toolbar is narrow - docked mode especially, where
+        # the tab gets a lot less width than a standalone window.
+        try:
+            from apps.methods.imgfactory_ui_settings import apply_compact_buttons
+            tb_btns = getattr(self, '_titlebar_compact_btns', [])
+            if tb_btns:
+                row = getattr(self, 'toolbar', None)
+                w = row.width() if (row and row.width() > 0) else self.width()
+                apply_compact_buttons(tb_btns, w, compact_threshold=520)
         except Exception:
             pass
 
@@ -6607,7 +6570,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
 # - Panel Setup
 
-    def _create_toolbar(self): #vers 13
+    def _create_toolbar(self): #vers 14
         """Create toolbar - Hide drag button when docked, ensure buttons visible"""
         # Read sizes from app_settings so they match Global App System Settings
         try:
@@ -6777,13 +6740,38 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.saveall_btn.clicked.connect(self._saveall_file)
         #layout.addWidget(self.saveall_btn)
 
-        self.export_ojs_btn = QPushButton("Ojs/ Col")
+        # Import button (title bar) — same _import_model callback the
+        # docked middle-panel mini toolbar already uses successfully.
+        self.tb_import_btn = QPushButton()
+        self.tb_import_btn.setFont(self.button_font)
+        self.tb_import_btn.setIcon(
+            self.icon_factory.import_icon(color=icon_color)
+            if hasattr(self.icon_factory, 'import_icon')
+            else self.icon_factory.open_icon(color=icon_color))
+        self.tb_import_btn.setText("Import")
+        self.tb_import_btn.setIconSize(QSize(20, 20))
+        if self.button_display_mode == 'icons':
+            self.tb_import_btn.setFixedSize(40, 40)
+        self.tb_import_btn.setToolTip("Import — MDL, OBJ, FBX and other formats")
+        self.tb_import_btn.clicked.connect(self._import_model)
+        layout.addWidget(self.tb_import_btn)
+
+        # Export button (title bar) — same _export_model_menu callback the
+        # docked middle-panel mini toolbar already uses successfully.
+        # (Previously wired to export_all(), which is COL-specific and the
+        # wrong callback for a general model export button - fixed.)
+        self.export_ojs_btn = QPushButton("Export")
         self.export_ojs_btn.setFont(self.button_font)
-        self.export_ojs_btn.setIcon(self.icon_factory.package_icon(color=icon_color))
+        self.export_ojs_btn.setIcon(self.icon_factory.multi_export_icon(color=icon_color)
+            if hasattr(self.icon_factory, 'multi_export_icon')
+            else self.icon_factory.package_icon(color=icon_color))
         self.export_ojs_btn.setIconSize(QSize(20, 20))
-        self.export_ojs_btn.setToolTip("Export geometries as OBJ, COL, or other formats")
-        self.export_ojs_btn.clicked.connect(self.export_all)
+        if self.button_display_mode == 'icons':
+            self.export_ojs_btn.setFixedSize(40, 40)
+        self.export_ojs_btn.setToolTip("Export — OBJ, COL, 3DS, FBX and other formats")
+        self.export_ojs_btn.clicked.connect(self._export_model_menu)
         self.export_ojs_btn.setEnabled(True)
+        layout.addWidget(self.export_ojs_btn)
 
         self.export_tex_btn = QPushButton("Extract Tex")
         self.export_tex_btn.setFont(self.button_font)
@@ -6804,6 +6792,19 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.undo_btn.setEnabled(True)
         self.undo_btn.setToolTip("Undo last change")
         layout.addWidget(self.undo_btn)
+
+        # Register title bar buttons for adaptive icon-only display when
+        # the window/toolbar is narrow (same apply_compact_buttons helper
+        # the middle panel's mini toolbar and texture panel already use).
+        self._titlebar_compact_btns = [
+            (self.open_btn,       "Open"),
+            (self.save_btn,       "Save"),
+            (self.tb_import_btn,  "Import"),
+            (self.export_ojs_btn, "Export"),
+            (self.undo_btn,       ""),
+        ]
+
+
 
         # Info button
         self.info_btn = QPushButton("")
@@ -8580,7 +8581,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         return panel
 
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 6
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 7
         """Build all QToolBar instances using QAction.
         Icon set resolved once — 'default' uses SVGIconFactory with currentColor,
         '3dsmax' uses MaxIconSet with hardcoded Max palette."""
@@ -8822,6 +8823,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         _act(tb_rend, "Light Setup",
              _icon(self.icon_factory.light_icon, 'light_setup_icon'),
              self._open_light_setup_dialog, attr='_light_setup_act')
+        tb_rend.addSeparator()
+        _act(tb_rend, "Open GL Model Viewer (hardware 3D)",
+             _icon(self.icon_factory.viewport_icon, 'gl_viewer_icon'),
+             self._open_gl_viewer, attr='_gl_viewer_act')
 
         # Store toolbar refs
         self._tb_selection = tb_sel
@@ -10932,20 +10937,30 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             except Exception as e:
                 QMessageBox.critical(self, "TXD Error", f"Failed to open TXD:\n{e}")
 
-    def _open_file(self): #vers 1
-        """Open file dialog — supports DFF (model) and COL (collision) files."""
+    def _open_file(self): #vers 2
+        """Open file dialog — supports DFF (model), COL (collision), and
+        TXD (texture dictionary) files."""
         try:
             file_path, _ = QFileDialog.getOpenFileName(
                 self,
-                "Open Model / Collision File",
+                "Open Model / Collision / Texture File",
                 "",
-                "Model/Collision Files (*.dff *.col);;DFF Models (*.dff);;COL Files (*.col);;All Files (*)"
+                "Model/Collision/Texture Files (*.dff *.col *.txd);;"
+                "DFF Models (*.dff);;COL Files (*.col);;TXD Files (*.txd);;"
+                "All Files (*)"
             )
             if not file_path:
                 return
             ext = os.path.splitext(file_path)[1].lower()
             if ext == '.dff':
                 self.open_dff_file(file_path)
+            elif ext == '.txd':
+                mw = getattr(self, 'main_window', None)
+                if mw and hasattr(mw, 'open_txd_workshop_docked'):
+                    mw.open_txd_workshop_docked(file_path=file_path)
+                else:
+                    from apps.components.Txd_Editor.txd_workshop import open_txd_workshop
+                    open_txd_workshop(self, file_path)
             else:
                 self.open_col_file(file_path)
         except Exception as e:
