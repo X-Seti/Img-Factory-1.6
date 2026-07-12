@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 173
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 174
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -11898,6 +11898,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._current_txd_path = path
             self._populate_texture_list()
             self._tex_panel.setVisible(True)
+            from PyQt6.QtCore import QTimer as _QTTex
+            _QTTex.singleShot(0, self._update_tex_btn_compact)   # visibility alone doesn't fire resizeEvent; defer so layout has settled
             txd_stem = os.path.splitext(os.path.basename(path))[0]
             if hasattr(self, 'info_txd_name'):
                 self.info_txd_name.setText(txd_stem)
@@ -12139,6 +12141,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     print(f"Texlist add error: {e}")
             self._populate_texture_list()
             self._tex_panel.setVisible(True)
+            from PyQt6.QtCore import QTimer as _QTTex
+            _QTTex.singleShot(0, self._update_tex_btn_compact)   # visibility alone doesn't fire resizeEvent; defer so layout has settled
             dlg.close()
 
         add_file_btn.clicked.connect(_add_whole_txd)
