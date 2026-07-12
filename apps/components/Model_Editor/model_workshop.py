@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 169
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 170
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -10840,7 +10840,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             import traceback; traceback.print_exc()
             self._set_status(f"GL Viewer error: {e}")
 
-    def _open_dff_standalone(self): #vers 4
+    def _open_dff_standalone(self): #vers 5
         """Open DFF + optionally TXD. Remembers last directory."""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
                                      QLabel, QLineEdit, QPushButton, QCheckBox)
@@ -10919,11 +10919,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._load_txd_file(txd_path)
         elif auto_txd_cb.isChecked():
             # No same-folder-same-name TXD was found/specified - fall back
-            # to _open_txd_smart's cascading search (IDE-linked name first,
-            # via _current_ide_obj which open_dff_file's _lookup_ide_for_dff
-            # call just populated, then same folder, then game_root, then
-            # ask the user).
-            self._open_txd_smart()
+            # to searching open IMGs (IDE-linked name via _current_ide_obj,
+            # which open_dff_file's _lookup_ide_for_dff call just
+            # populated). Loads directly into this workshop's own scene -
+            # _open_txd_smart() would be wrong here, it opens the separate
+            # TXD Workshop tool instead.
+            self._auto_load_txd_from_imgs()
 
     def _open_txd_standalone(self): #vers 2
         """Open a TXD file — loads textures into Model Workshop AND opens TXD Workshop."""
@@ -10955,7 +10956,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             except Exception as e:
                 QMessageBox.critical(self, "TXD Error", f"Failed to open TXD:\n{e}")
 
-    def _open_file(self): #vers 3
+    def _open_file(self): #vers 4
         """Open file dialog — supports DFF (model), COL (collision), and
         TXD (texture dictionary) files."""
         try:
@@ -10972,11 +10973,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             ext = os.path.splitext(file_path)[1].lower()
             if ext == '.dff':
                 self.open_dff_file(file_path)
-                # Auto-load matching TXD: _open_txd_smart already checks
+                # Auto-load matching TXD into this workshop's own scene -
                 # IDE-linked name (via _current_ide_obj, just populated by
-                # open_dff_file's internal _lookup_ide_for_dff call), then
-                # same-folder-same-name, then game_root, before asking.
-                self._open_txd_smart()
+                # open_dff_file's internal _lookup_ide_for_dff call), same
+                # folder, or open IMGs. _open_txd_smart() would be wrong
+                # here, it opens the separate TXD Workshop tool instead of
+                # loading textures into the current scene.
+                self._auto_load_txd_from_imgs()
             elif ext == '.txd':
                 mw = getattr(self, 'main_window', None)
                 if mw and hasattr(mw, 'open_txd_workshop_docked'):
@@ -11441,18 +11444,40 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         return min(1.0, ambient + (1.0 - ambient) * dot)
 
 
-    def _auto_load_txd_from_imgs(self, txd_stem: str = '') -> bool: #vers 1
+    def _auto_load_txd_from_imgs(self, txd_stem: str = '') -> bool: #vers 2
         """Search all open IMG tabs and current_img for txd_stem.txd.
-        Extracts and loads it into the texture cache. Returns True if found."""
+        Extracts and loads it into the texture cache. Returns True if found.
+        Falls back to the current DFF's own filename (same-folder-same-name
+        convention) if no IDE-linked name is available either."""
         mw = self.main_window
         if not txd_stem:
             # Try to get txd_stem from IDE link
             txd_stem = (getattr(self, '_ide_txd_name', '') or '').strip().lower()
             if not txd_stem:
-                return False
+                # No IDE link either - fall back to the DFF's own filename
+                # stem (same-folder-same-name convention).
+                dff_path = getattr(self, '_current_dff_path', '') or ''
+                if dff_path:
+                    txd_stem = os.path.splitext(os.path.basename(dff_path))[0].lower()
+                if not txd_stem:
+                    return False
 
         txd_stem_lo = txd_stem.lower().split('.')[0]  # strip extension if present
         txd_filename = txd_stem_lo + '.txd'
+
+        # Same-folder-as-DFF direct disk check first (cheap, common case)
+        dff_path = getattr(self, '_current_dff_path', '') or ''
+        if dff_path:
+            dff_dir = os.path.dirname(dff_path)
+            try:
+                for fname in os.listdir(dff_dir):
+                    if fname.lower() == txd_filename:
+                        self._load_txd_file(os.path.join(dff_dir, fname))
+                        if mw and hasattr(mw, 'log_message'):
+                            mw.log_message(f"Auto-loaded TXD: {fname} (same folder as DFF)")
+                        return True
+            except OSError:
+                pass
 
         # Gather all candidate IMG sources
         img_candidates   = []   # IMGFile objects
@@ -11461,6 +11486,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # 1. current_img on workshop or main_window
         ci = getattr(self, 'current_img', None) or (
              getattr(mw, 'current_img', None) if mw else None)
+        # Diagnostic: log what we actually got, to help pin down the
+        # docked-mode "TXD not found" regression Keith reported - this
+        # tier used to work, but nothing in this function was touched
+        # recently, so the cause isn't confirmed yet.
+        if mw and hasattr(mw, 'log_message'):
+            mw.log_message(
+                f"[TXD lookup] looking for '{txd_filename}' - "
+                f"self.current_img={getattr(self, 'current_img', None)!r}, "
+                f"mw.current_img={getattr(mw, 'current_img', None)!r}, "
+                f"entries={len(getattr(ci, 'entries', []) or [])}")
         if ci:
             img_candidates.append(ci)
 
