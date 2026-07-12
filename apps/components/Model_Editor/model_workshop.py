@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 171
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 172
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -3173,7 +3173,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._apply_theme()
 
 
-    def setup_ui(self): #vers 11
+    def setup_ui(self): #vers 12
         """Setup the main UI layout.
 
         EXPERIMENTAL (Jul 2026): three independent QMainWindows, nested:
@@ -3231,6 +3231,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._left_dock = QDockWidget("Files", self)
             self._left_dock.setObjectName("Files")
             self._left_dock.setWidget(left_panel)
+            self._left_dock.setMinimumWidth(150)
             self._left_dock.setFeatures(
                 QDockWidget.DockWidgetFeature.DockWidgetMovable |
                 QDockWidget.DockWidgetFeature.DockWidgetFloatable)
@@ -3239,6 +3240,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._middle_dock = QDockWidget("Models", self)
         self._middle_dock.setObjectName("Models")
         self._middle_dock.setWidget(middle_panel)
+        # Set explicit here, not just on the inner panel - with nested
+        # QMainWindows (outer_mw -> this dock -> _middle_mw -> panel), a
+        # minimum width set only on the innermost panel doesn't reliably
+        # propagate up through multiple layers to the outer dock-resize
+        # logic. Without this, dragging the divider could shrink the dock
+        # to fully hidden but not grow it back past a point - reported bug.
+        self._middle_dock.setMinimumWidth(250)
         self._middle_dock.setFeatures(
             QDockWidget.DockWidgetFeature.DockWidgetMovable |
             QDockWidget.DockWidgetFeature.DockWidgetFloatable)
