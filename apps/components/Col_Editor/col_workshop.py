@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 86
+#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 87
 # X-Seti - August10 2025 - Converted col editor using gui base template.
 
 """
@@ -2198,8 +2198,10 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
     # Bump whenever the set of ribbon toolbars changes (added/removed/
     # renamed) so a saved layout from an older structure is cleanly
     # rejected by _restore_toolbar_state instead of Qt silently failing
-    # to restore it. History: 1 = Transform/Navigation/Render ribbons.
-    _RIBBON_LAYOUT_VERSION = 1
+    # to restore it. History: 1 = Transform/Navigation/Render ribbons,
+    # 2 = added Name/Format/Shadow Mesh ribbons (replacing the old
+    # dual text/icon bottom info panel).
+    _RIBBON_LAYOUT_VERSION = 2
 
     def __init__(self, parent=None, main_window=None): #vers 10
         """initialize_features"""
@@ -4641,23 +4643,12 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
         except Exception:
             pass
 
-    def _update_transform_text_panel_visibility(self): #vers 3
-        """DockableToolbar version — toolbars manage their own visibility.
-        Only handles bottom panel rows for backward compat."""
-        # DockableToolbar manages its own dock/float/collapse state — don't touch it
-        btr = getattr(self, '_bottom_text_row', None)
-        bir = getattr(self, '_bottom_icon_row', None)
-        if btr or bir:
-            rp = getattr(self, '_right_panel_ref', None)
-            ref_w = rp.width() if rp else self.width()
-            try:
-                from apps.methods.imgfactory_ui_settings import get_collapse_threshold
-                threshold = get_collapse_threshold(getattr(self, 'main_window', None))
-            except Exception:
-                threshold = 550
-            wide = ref_w >= threshold
-            if btr: btr.setVisible(wide)
-            if bir: bir.setVisible(not wide)
+    def _update_transform_text_panel_visibility(self): #vers 4
+        """No-op now - the old dual text/icon bottom rows were replaced by
+        real QToolBar ribbons (Name/Format/Shadow Mesh), which manage their
+        own layout/compacting natively. Kept as a safe no-op since
+        resizeEvent still calls it."""
+        pass
 
     def resizeEvent(self, event): #vers 5
         """Keep resize grip in corner; auto-collapse panels; adaptive button display."""
@@ -5325,7 +5316,7 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
         return panel
 
 
-    def _create_right_panel(self): #vers 14
+    def _create_right_panel(self): #vers 15
         """Right panel using QMainWindow + QToolBar for native docking.
         Same system as Model Workshop (Build 388+) - QMainWindow handles
         toolbar placement, row stacking, floating, and save/restore
@@ -5379,128 +5370,13 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
         # Save on close
         self.window_closed.connect(self._save_toolbar_state)
 
-        # Information group below
-        info_group = QFrame()
-        info_group.setFrameStyle(QFrame.Shape.StyledPanel)
-        info_layout = QVBoxLayout(info_group)
-        info_group.setMaximumHeight(180)  # extra 40px for paint row
-
-        # === LINE 1: collision name ===
-        name_layout = QHBoxLayout()
-        name_label = QLabel("COL Name:")
-        name_label.setFont(self.panel_font)
-        name_layout.addWidget(name_label)
-
-        self.info_name = QLineEdit()
-        self.info_name.setText("Click to edit...")
-        self.info_name.setFont(self.panel_font)
-        self.info_name.setReadOnly(True)
-        self.info_name.setStyleSheet("padding: 2px; border: 1px solid palette(mid);")
-        #self.info_name.returnPressed.connect(self._save_surface_name)
-        #self.info_name.editingFinished.connect(self._save_surface_name)
-        self.info_name.mousePressEvent = lambda e: self._enable_name_edit(e, False)
-        name_layout.addWidget(self.info_name, stretch=1)
-        info_layout.addLayout(name_layout)
-
-        # === LINES 2 & 3: Build BOTH rows, show/hide based on panel width ===
-        #    Text+label row (wide)                                         
-        self._bottom_text_row = QWidget()
-        tr_lay = QVBoxLayout(self._bottom_text_row)
-        tr_lay.setContentsMargins(0, 0, 0, 0)
-        tr_lay.setSpacing(2)
-
-        fmt_lay = QHBoxLayout()
-        fmt_lay.setSpacing(5)
-        self.format_combo = QComboBox()
-        self.format_combo.setFont(self.panel_font)
-        self.format_combo.addItems(["COL", "COL2", "COL3", "COL4"])
-        self.format_combo.currentTextChanged.connect(self._change_format)
-        self.format_combo.setMaximumWidth(100)
-        fmt_lay.addWidget(self.format_combo)
-        fmt_lay.addStretch()
-        for attr, label, icon_fn, tip, slot in [
-            ('switch_btn',     'Mesh',       'flip_vert_icon',  'Cycle render mode',   'switch_surface_view'),
-            ('convert_btn',    'Convert',    'convert_icon',    'Convert format',      '_convert_surface'),
-            ('compress_btn',   'Compress',   'compress_icon',   'Compress',            '_compress_surface'),
-            ('uncompress_btn', 'Uncompress', 'uncompress_icon', 'Uncompress',          '_uncompress_surface'),
-            ('import_btn',     'Import',     'import_icon',     'Import col/cst/3ds',  '_import_selected'),
-            ('export_btn',     'Export',     'export_icon',     'Export col/cst/3ds',  'export_selected'),
-        ]:
-            b = QPushButton(label)
-            b.setFont(self.button_font)
-            b.setIcon(getattr(self.icon_factory, icon_fn)(color=icon_color))
-            b.setIconSize(QSize(20, 20))
-            b.setToolTip(tip)
-            b.clicked.connect(getattr(self, slot))
-            b.setEnabled(False)
-            setattr(self, attr, b)
-            fmt_lay.addWidget(b)
-        tr_lay.addLayout(fmt_lay)
-
-        shd_lay = QHBoxLayout()
-        shd_lay.setSpacing(5)
-        self.info_format = QLabel("Shadow Mesh: ")
-        self.info_format.setFont(self.panel_font)
-        self.info_format.setMinimumWidth(100)
-        shd_lay.addWidget(self.info_format)
-        for attr, label, icon_fn, tip, slot in [
-            ('show_shadow_btn',   'View',   'view_icon',   'View Shadow Mesh',   '_open_mipmap_manager'),
-            ('create_shadow_btn', 'Create', 'add_icon',    'Create Shadow Mesh', 'shadow_dialog'),
-            ('remove_shadow_btn', 'Remove', 'delete_icon', 'Remove Shadow Mesh', '_remove_shadow'),
-        ]:
-            b = QPushButton(label)
-            b.setFont(self.button_font)
-            b.setIcon(getattr(self.icon_factory, icon_fn)(color=icon_color))
-            b.setIconSize(QSize(20, 20))
-            b.setToolTip(tip)
-            b.clicked.connect(getattr(self, slot))
-            b.setEnabled(False)
-            setattr(self, attr, b)
-            shd_lay.addWidget(b)
-        tr_lay.addLayout(shd_lay)
-        info_layout.addWidget(self._bottom_text_row)
-
-        #    Icon-only row (narrow)                                          
-        self._bottom_icon_row = QWidget()
-        ir_lay = QHBoxLayout(self._bottom_icon_row)
-        ir_lay.setContentsMargins(0, 0, 0, 0)
-        ir_lay.setSpacing(2)
-        fmt_ico = QComboBox()
-        fmt_ico.addItems(["COL","COL2","COL3","COL4"])
-        fmt_ico.currentTextChanged.connect(self._change_format)
-        fmt_ico.setMaximumWidth(65)
-        ir_lay.addWidget(fmt_ico)
-        for icon_fn, tip, slot in [
-            ('flip_vert_icon',  'Cycle render mode',  'switch_surface_view'),
-            ('convert_icon',    'Convert',            '_convert_surface'),
-            ('compress_icon',   'Compress',           '_compress_surface'),
-            ('uncompress_icon', 'Uncompress',         '_uncompress_surface'),
-            ('import_icon',     'Import',             '_import_selected'),
-            ('export_icon',     'Export',             'export_selected'),
-            ('view_icon',       'View Shadow',        '_open_mipmap_manager'),
-            ('add_icon',        'Create Shadow',      'shadow_dialog'),
-            ('delete_icon',     'Remove Shadow',      '_remove_shadow'),
-        ]:
-            b = QPushButton()
-            b.setIcon(getattr(self.icon_factory, icon_fn)(color=icon_color))
-            b.setIconSize(QSize(18, 18))
-            b.setFixedSize(30, 30)
-            b.setToolTip(tip)
-            b.clicked.connect(getattr(self, slot))
-            b.setEnabled(False)
-            ir_lay.addWidget(b)
-        ir_lay.addStretch()
-        info_layout.addWidget(self._bottom_icon_row)
-        self._bottom_icon_row.setVisible(False)
-
-        #    Paint mode row (hidden until paint mode active)                
-        outer_layout.addWidget(info_group, stretch=0)
+        return panel
         return panel
 
 
 
 
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 2
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 3
         """Build all QToolBar instances using QAction (Model Workshop pattern,
         Build 388+). Replaces the old DockableToolbar-based
         _create_transform_icon_panel/_create_preview_controls panels."""
@@ -5624,10 +5500,61 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
         self.backface_btn     = _act(tb_rend, "Toggle Backface",self.icon_factory.backface_icon,
              lambda v: pw.set_backface(v),     checkable=True, checked=False, attr='_backface_act')
 
+        # ── Ribbon 4: Name ────────────────────────────────────────────────
+        # Replaces the old bottom info_group QFrame (COL name field + format/
+        # switch/convert/compress/shadow buttons, duplicated between a wide
+        # text+icon row and a narrow icon-only row that only showed below a
+        # width threshold). One set of widgets now, real QToolBars.
+        tb_name = _tb("Name", Qt.ToolBarArea.RightToolBarArea)
+        self.info_name = QLineEdit()
+        self.info_name.setText("Click to edit...")
+        self.info_name.setReadOnly(True)
+        self.info_name.setMinimumWidth(140)
+        self.info_name.setStyleSheet("padding: 2px; border: 1px solid palette(mid);")
+        self.info_name.mousePressEvent = lambda e: self._enable_name_edit(e, False)
+        tb_name.addWidget(self.info_name)
+
+        # ── Ribbon 5: Format ──────────────────────────────────────────────
+        tb_format = _tb("Format", Qt.ToolBarArea.RightToolBarArea)
+        self.format_combo = QComboBox()
+        self.format_combo.addItems(["COL", "COL2", "COL3", "COL4"])
+        self.format_combo.currentTextChanged.connect(self._change_format)
+        self.format_combo.setMaximumWidth(100)
+        tb_format.addWidget(self.format_combo)
+        tb_format.addSeparator()
+        _act(tb_format, "Cycle Render Mode", self.icon_factory.flip_vert_icon,
+             self.switch_surface_view,  enabled=False, attr='switch_btn')
+        _act(tb_format, "Convert Format",    self.icon_factory.convert_icon,
+             self._convert_surface,     enabled=False, attr='convert_btn')
+        _act(tb_format, "Compress",          self.icon_factory.compress_icon,
+             self._compress_surface,    enabled=False, attr='compress_btn')
+        _act(tb_format, "Uncompress",        self.icon_factory.uncompress_icon,
+             self._uncompress_surface,  enabled=False, attr='uncompress_btn')
+        tb_format.addSeparator()
+        _act(tb_format, "Import",            self.icon_factory.import_icon,
+             self._import_selected,     enabled=False, attr='import_btn')
+        _act(tb_format, "Export",            self.icon_factory.export_icon,
+             self.export_selected,      enabled=False, attr='export_btn')
+
+        # ── Ribbon 6: Shadow Mesh ─────────────────────────────────────────
+        tb_shadow = _tb("Shadow Mesh", Qt.ToolBarArea.RightToolBarArea)
+        self.info_format = QLabel("Shadow Mesh:")
+        self.info_format.setMinimumWidth(90)
+        tb_shadow.addWidget(self.info_format)
+        _act(tb_shadow, "View Shadow Mesh",   self.icon_factory.view_icon,
+             self._open_mipmap_manager, enabled=False, attr='show_shadow_btn')
+        _act(tb_shadow, "Create Shadow Mesh", self.icon_factory.add_icon,
+             self.shadow_dialog,        enabled=False, attr='create_shadow_btn')
+        _act(tb_shadow, "Remove Shadow Mesh", self.icon_factory.delete_icon,
+             self._remove_shadow,       enabled=False, attr='remove_shadow_btn')
+
         # Store toolbar refs
         self._tb_transform = tb_xform
         self._tb_nav       = tb_nav
         self._tb_render     = tb_rend
+        self._tb_name        = tb_name
+        self._tb_format      = tb_format
+        self._tb_shadow      = tb_shadow
 
         # Collision-loaded-only actions - disabled until a COL model is loaded.
         # (Actual enable/disable on file load still goes through the existing
@@ -5741,7 +5668,7 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
         except Exception as _e:
             print(f"[COLWorkshop] _save_toolbar_state error: {_e}")
 
-    def _restore_toolbar_state(self): #vers 2
+    def _restore_toolbar_state(self): #vers 3
         """Restore QMainWindow toolbar state from col_workshop.json.
         Uses an explicit layout version - bumped whenever ribbons are
         added/removed/renamed - so a stale save from an older ribbon
@@ -5786,7 +5713,10 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
             # affected by the saved state, never full visibility.
             for tb in (getattr(self, '_tb_transform', None),
                        getattr(self, '_tb_nav', None),
-                       getattr(self, '_tb_render', None)):
+                       getattr(self, '_tb_render', None),
+                       getattr(self, '_tb_name', None),
+                       getattr(self, '_tb_format', None),
+                       getattr(self, '_tb_shadow', None)):
                 if tb is not None:
                     tb.setVisible(True)
                     tb.toggleViewAction().setChecked(True)
