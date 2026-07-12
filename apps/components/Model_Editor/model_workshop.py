@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 170
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 171
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -5410,18 +5410,28 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # Sync mini toolbar visibility with current dock state
         self._sync_middle_btn_row_visibility()
 
-    def _sync_middle_btn_row_visibility(self): #vers 1
+    def _sync_middle_btn_row_visibility(self): #vers 2
         """Show/hide the mini toolbar's action icons (Open/Save/Import/
-        Export/Undo/3D View) based on dock state - the row itself and its
-        view-toggle button always stay visible regardless."""
+        Export/Undo/3D View) based on dock state AND collapse state - the
+        row itself and its view-toggle/collapse buttons always stay
+        visible regardless."""
         if not hasattr(self, '_middle_btn_row'):
             return
         docked_only = self.is_docked and not self.standalone_mode
+        collapsed = getattr(self, '_mid_btn_row_collapsed', False)
+        show = docked_only and not collapsed
         for attr in ('open_col_btn', 'save_col_btn', 'import_btn',
                      'export_col_btn', 'undo_col_btn', '_mini_3d_btn'):
             b = getattr(self, attr, None)
             if b:
-                b.setVisible(docked_only)
+                b.setVisible(show)
+
+    def _toggle_mid_btn_row_collapsed(self): #vers 1
+        """Collapse/expand the mini toolbar's action icons via the -/+
+        button, independent of the icon-only/icon+text adaptive display."""
+        self._mid_btn_row_collapsed = not getattr(self, '_mid_btn_row_collapsed', False)
+        self.mid_btn_collapse_btn.setText("+" if self._mid_btn_row_collapsed else "−")
+        self._sync_middle_btn_row_visibility()
 
     def _on_menu_btn_clicked(self): #vers 1
         from PyQt6.QtWidgets import QMenu
@@ -6537,6 +6547,18 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             apply_compact_buttons(meta, panel.width())
         except Exception:
             pass
+
+    def _toggle_tex_btn_row_collapsed(self): #vers 1
+        """Collapse/expand the texture panel's Load/Texlist/WShop/Save
+        buttons via the -/+ button, independent of the icon-only/icon+text
+        adaptive display."""
+        self._tex_btn_row_collapsed = not getattr(self, '_tex_btn_row_collapsed', False)
+        self.tex_btn_collapse_btn.setText("+" if self._tex_btn_row_collapsed else "−")
+        show = not self._tex_btn_row_collapsed
+        for attr, _label, _icon in getattr(self, '_tex_btns_meta', []):
+            b = getattr(self, attr, None)
+            if b:
+                b.setVisible(show)
 
 
     def mouseDoubleClickEvent(self, event): #vers 2
@@ -8190,7 +8212,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         return panel
 
 
-    def _create_middle_panel(self): #vers 9
+    def _create_middle_panel(self): #vers 10
         """Create middle panel with COL models table — mini toolbar + view toggle."""
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -8212,11 +8234,21 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         btn_layout.setContentsMargins(0, 0, 0, 0)
         btn_layout.setSpacing(3)
 
-        def _icon_btn(icon, tooltip, slot, enabled=True):  #vers 1
+        # Collapse/expand toggle - hides the action icons below to reclaim
+        # space, independent of the icon-only/icon+text compacting.
+        self._mid_btn_row_collapsed = False
+        self.mid_btn_collapse_btn = QPushButton("−")
+        self.mid_btn_collapse_btn.setFixedSize(18, 28)
+        self.mid_btn_collapse_btn.setToolTip("Collapse/expand this toolbar")
+        self.mid_btn_collapse_btn.clicked.connect(self._toggle_mid_btn_row_collapsed)
+        btn_layout.addWidget(self.mid_btn_collapse_btn)
+
+        def _icon_btn(icon, tooltip, slot, enabled=True):  #vers 2
             b = QPushButton()
             b.setIcon(icon)
             b.setIconSize(QSize(20, 20))
-            b.setFixedSize(28, 28)
+            b.setFixedHeight(28)
+            b.setMinimumWidth(28)
             b.setToolTip(tooltip)
             b.clicked.connect(slot)
             b.setEnabled(enabled)
@@ -10995,7 +11027,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     # - Texture management
 
-    def _create_texture_panel(self): #vers 2
+    def _create_texture_panel(self): #vers 3
         """Collapsible texture panel in middle column.
         Shows textures loaded from TXD files.
         Toggle between List view (table) and Thumbnail view (64x64 grid).
@@ -11033,6 +11065,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # - Button row
         btn_row = QHBoxLayout()
         btn_row.setSpacing(3)
+
+        # Collapse/expand toggle - hides Load/Texlist/WShop/Save to
+        # reclaim space, independent of the icon-only/icon+text compacting.
+        self._tex_btn_row_collapsed = False
+        self.tex_btn_collapse_btn = QPushButton("−")
+        self.tex_btn_collapse_btn.setFixedSize(18, 26)
+        self.tex_btn_collapse_btn.setToolTip("Collapse/expand this toolbar")
+        self.tex_btn_collapse_btn.clicked.connect(self._toggle_tex_btn_row_collapsed)
+        btn_row.addWidget(self.tex_btn_collapse_btn)
 
         # tex buttons: adaptive — show label when panel wide enough, icon-only when narrow
         self._tex_btns_meta = []   # [(attr, label, icon_method)] for compact update
