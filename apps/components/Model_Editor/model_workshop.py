@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 163
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 164
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -8181,7 +8181,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         return panel
 
 
-    def _create_middle_panel(self): #vers 7
+    def _create_middle_panel(self): #vers 8
         """Create middle panel with COL models table — mini toolbar + view toggle."""
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -8192,11 +8192,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         layout.setSpacing(4)
         self._middle_panel_layout = layout
 
-        # - Header row: title + [T] view-toggle
+        # - Header row: just the [=] view-toggle now - the QDockWidget's own
+        # native title bar already shows "Models", so a second "Models"
+        # label here was pure duplication (reported bug).
         hdr_row = QHBoxLayout()
-        header = QLabel("Models")
-        header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        hdr_row.addWidget(header)
         hdr_row.addStretch()
 
         self._col_view_mode = 'detail'   # start in compact thumbnail view
@@ -10829,7 +10828,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             import traceback; traceback.print_exc()
             self._set_status(f"GL Viewer error: {e}")
 
-    def _open_dff_standalone(self): #vers 3
+    def _open_dff_standalone(self): #vers 4
         """Open DFF + optionally TXD. Remembers last directory."""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
                                      QLabel, QLineEdit, QPushButton, QCheckBox)
@@ -10903,9 +10902,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return
 
         setattr(self, _settings_key, os.path.dirname(dff_path))
-        self.open_dff_file(dff_path)
+        self.open_dff_file(dff_path)   # also runs _lookup_ide_for_dff internally
         if txd_path and os.path.isfile(txd_path):
             self._load_txd_file(txd_path)
+        elif auto_txd_cb.isChecked():
+            # No same-folder-same-name TXD was found/specified - fall back
+            # to _open_txd_smart's cascading search (IDE-linked name first,
+            # via _current_ide_obj which open_dff_file's _lookup_ide_for_dff
+            # call just populated, then same folder, then game_root, then
+            # ask the user).
+            self._open_txd_smart()
 
     def _open_txd_standalone(self): #vers 2
         """Open a TXD file — loads textures into Model Workshop AND opens TXD Workshop."""
@@ -10937,7 +10943,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             except Exception as e:
                 QMessageBox.critical(self, "TXD Error", f"Failed to open TXD:\n{e}")
 
-    def _open_file(self): #vers 2
+    def _open_file(self): #vers 3
         """Open file dialog — supports DFF (model), COL (collision), and
         TXD (texture dictionary) files."""
         try:
@@ -10954,6 +10960,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             ext = os.path.splitext(file_path)[1].lower()
             if ext == '.dff':
                 self.open_dff_file(file_path)
+                # Auto-load matching TXD: _open_txd_smart already checks
+                # IDE-linked name (via _current_ide_obj, just populated by
+                # open_dff_file's internal _lookup_ide_for_dff call), then
+                # same-folder-same-name, then game_root, before asking.
+                self._open_txd_smart()
             elif ext == '.txd':
                 mw = getattr(self, 'main_window', None)
                 if mw and hasattr(mw, 'open_txd_workshop_docked'):
