@@ -8266,10 +8266,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._open_gl_viewer)
         btn_layout.addWidget(self._mini_3d_btn)
 
-        btn_layout.addStretch()
-
         # View-toggle button - always visible regardless of dock state,
-        # unlike the action icons above it.
+        # unlike the action icons above it. No stretch before it - with
+        # a stretch, hiding the action icons (standalone mode) left the
+        # toggle pinned far right with a large empty gap, which is the
+        # exact isolated-button look this was meant to fix.
         self._col_view_mode = 'detail'   # start in compact thumbnail view
         self.col_view_toggle_btn = QPushButton("[=]")
         self.col_view_toggle_btn.setFont(self.button_font)
@@ -8279,6 +8280,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "Toggle view: compact list ↔ full details table")
         self.col_view_toggle_btn.clicked.connect(self._toggle_col_view)
         btn_layout.addWidget(self.col_view_toggle_btn)
+        btn_layout.addStretch()
 
         layout.addWidget(self._middle_btn_row)
         self._middle_btn_row.setVisible(True)   # row itself always shown -
