@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 160
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 161
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -408,6 +408,7 @@ except ImportError:
 # _rename_shadow_shortcut
 # _render_collision_preview
 # _reset_hotkeys_to_defaults
+# _restore_outer_layout
 # _restore_toolbar_state
 # _rotate_ccw_all
 # _rotate_cw_all
@@ -415,6 +416,7 @@ except ImportError:
 # _save_col_file
 # _save_file
 # _save_file_as
+# _save_outer_layout
 # _save_quad_layout
 # _save_settings
 # _save_surface_name
@@ -492,6 +494,7 @@ except ImportError:
 # _update_transform_text_panel_visibility
 # _wire_col_buttons
 # _wire_dff_buttons
+# _wrap_middle_panel_with_own_dock_areas
 # closeEvent
 # export_all
 # export_all_surfaces
@@ -3169,17 +3172,25 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._apply_theme()
 
 
-    def setup_ui(self): #vers 9
+    def setup_ui(self): #vers 10
         """Setup the main UI layout.
 
-        EXPERIMENTAL (Jul 2026): left/middle panels are now QDockWidgets
-        living in the same QMainWindow (_inner_mw) that already hosts the
-        ribbons and viewport, instead of being QSplitter items. This gives
-        native drag-to-anywhere/float/tab-together for every panel, not
-        just the ribbons - the user can drag the Models panel to the right
-        side, tab it with another dock, float it, etc, exactly like the
-        ribbons already could. Rollback point: commit 8b950b9 (the last
-        commit before this change) has the old QSplitter-based layout.
+        EXPERIMENTAL (Jul 2026): three independent QMainWindows, nested:
+          - _outer_mw: hosts Files/Models as QDockWidgets, with the
+            Viewport panel as its central widget. Dragging Files/Models
+            anywhere (including onto/around the viewport) uses this one.
+          - _inner_mw (built in _create_right_panel, unchanged): hosts
+            just the viewport + its own ribbons (Selection/Snap/Geometry/
+            Navigation/Render) - clean 4-sided docking around the
+            viewport, independent of where Files/Models currently sit.
+          - _middle_mw (built in _create_middle_panel): hosts the Models
+            table + the Model Info ribbon - same idea, one level down.
+        Earlier attempt put Files/Models directly into _inner_mw, which
+        meant the viewport's own ribbon edges and the outer panel edges
+        were the same areas - dragging a ribbon towards the middle panel
+        could end up spanning the whole window instead of just that panel.
+        Rollback points: 8b950b9 (original QSplitter), cb81f7f
+        (Files/Models as docks inside _inner_mw, before this change).
         """
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(5, 5, 5, 5)
@@ -3192,16 +3203,25 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             toolbar.setVisible(False)
         main_layout.addWidget(toolbar)
 
-        # Right panel first - this builds self._inner_mw (the QMainWindow
-        # that owns the viewport + ribbons), which the left/middle panel
-        # dock widgets below need to already exist.
+        # Build all three panels - right panel builds self._inner_mw
+        # (viewport + its own ribbons), fully self-contained.
         right_panel = self._create_right_panel()
-        mw = self._inner_mw
-
         left_panel = self._create_left_panel()
-        middle_panel = self._create_middle_panel()
+        middle_panel = self._create_middle_panel()   # is self._middle_mw
 
-        from PyQt6.QtWidgets import QDockWidget
+        from PyQt6.QtWidgets import QDockWidget, QMainWindow
+        outer_mw = QMainWindow()
+        outer_mw.setWindowFlags(Qt.WindowType.Widget)
+        outer_mw.setDockOptions(
+            QMainWindow.DockOption.AllowNestedDocks |
+            QMainWindow.DockOption.AllowTabbedDocks)
+        self._outer_mw = outer_mw
+
+        # Viewport (right_panel, wrapping _inner_mw) is the central widget -
+        # always visible, never accidentally closed/floated away entirely.
+        # Files/Models dock around it and can go to any of its 4 edges.
+        outer_mw.setCentralWidget(right_panel)
+
         self._left_dock = None
         self._middle_dock = None
 
@@ -3212,7 +3232,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._left_dock.setFeatures(
                 QDockWidget.DockWidgetFeature.DockWidgetMovable |
                 QDockWidget.DockWidgetFeature.DockWidgetFloatable)
-            mw.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self._left_dock)
+            outer_mw.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self._left_dock)
 
         self._middle_dock = QDockWidget("Models", self)
         self._middle_dock.setObjectName("Models")
@@ -3220,16 +3240,23 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._middle_dock.setFeatures(
             QDockWidget.DockWidgetFeature.DockWidgetMovable |
             QDockWidget.DockWidgetFeature.DockWidgetFloatable)
-        mw.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self._middle_dock)
+        outer_mw.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self._middle_dock)
 
         if self._left_dock is not None:
             # Side-by-side by default (Files | Models), matching the old
             # splitter's left-to-right order - user can still drag them
-            # apart, tab together, or float from here.
-            mw.splitDockWidget(self._left_dock, self._middle_dock,
-                                Qt.Orientation.Horizontal)
+            # apart, tab together, float, or move either beside/around
+            # the viewport from here.
+            outer_mw.splitDockWidget(self._left_dock, self._middle_dock,
+                                      Qt.Orientation.Horizontal)
 
-        main_layout.addWidget(right_panel)
+        main_layout.addWidget(outer_mw)
+
+        # Restore saved outer layout (Files/Models positions around the
+        # viewport) - separate from _inner_mw's own ribbon state.
+        from PyQt6.QtCore import QTimer as _QTOuter
+        _QTOuter.singleShot(400, self._restore_outer_layout)
+        self.window_closed.connect(self._save_outer_layout)
 
         # Status indicators - hidden when embedded in main window tab
         if hasattr(self, '_setup_status_indicators'):
@@ -8912,7 +8939,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         except Exception as _e:
             print(f"[ModelWorkshop] _save_toolbar_state error: {_e}")
 
-    def _restore_toolbar_state(self): #vers 4
+    def _restore_toolbar_state(self): #vers 5
         """Restore QMainWindow toolbar state from model_workshop.json.
         Uses an explicit layout version - bumped whenever ribbons are
         added/removed/renamed - so a stale save from an older ribbon
@@ -8963,6 +8990,52 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 if tb is not None:
                     tb.setVisible(True)
                     tb.toggleViewAction().setChecked(True)
+
+    # Outer layout (Files/Models dock widgets around the viewport) - a
+    # separate QMainWindow from _inner_mw, so it gets its own save/restore
+    # with its own version constant.
+    _OUTER_LAYOUT_VERSION = 1
+
+    def _save_outer_layout(self): #vers 1
+        """Save _outer_mw's dock layout (Files/Models around the viewport)."""
+        mw = getattr(self, '_outer_mw', None)
+        if mw is None:
+            return
+        try:
+            import json
+            from pathlib import Path
+            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            try:
+                data = json.loads(path.read_text())
+            except Exception:
+                data = {}
+            data['outer_layout_state'] = mw.saveState(self._OUTER_LAYOUT_VERSION).toHex().data().decode()
+            data['outer_layout_version'] = self._OUTER_LAYOUT_VERSION
+            path.write_text(json.dumps(data, indent=2))
+        except Exception as _e:
+            print(f"[ModelWorkshop] _save_outer_layout error: {_e}")
+
+    def _restore_outer_layout(self): #vers 1
+        """Restore _outer_mw's dock layout, with the same version-check +
+        force-visible safety net pattern as _restore_toolbar_state."""
+        mw = getattr(self, '_outer_mw', None)
+        if mw is None:
+            return
+        try:
+            import json
+            from pathlib import Path
+            from PyQt6.QtCore import QByteArray
+            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            if path.exists():
+                data = json.loads(path.read_text())
+                state_hex = data.get('outer_layout_state')
+                saved_version = data.get('outer_layout_version')
+                if state_hex and saved_version == self._OUTER_LAYOUT_VERSION:
+                    mw.restoreState(QByteArray.fromHex(state_hex.encode()),
+                                     self._OUTER_LAYOUT_VERSION)
+        except Exception as _e:
+            print(f"[ModelWorkshop] _restore_outer_layout error: {_e}")
+        finally:
             for dock in (getattr(self, '_left_dock', None),
                          getattr(self, '_middle_dock', None)):
                 if dock is not None:
