@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 172
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 173
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -8220,7 +8220,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         return panel
 
 
-    def _create_middle_panel(self): #vers 10
+    def _create_middle_panel(self): #vers 11
         """Create middle panel with COL models table — mini toolbar + view toggle."""
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -8333,6 +8333,26 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             (getattr(self, 'export_col_btn',None), "Export"),
             (getattr(self, 'undo_col_btn',  None), "Undo"),
         ]
+
+        # Hook the row's own resize event directly - self.resizeEvent()
+        # only fires when the whole ModelWorkshop widget's outer bounding
+        # box changes, but dragging the Models/viewport dock divider only
+        # changes this row's own width (the outer tab doesn't resize at
+        # all), so relying solely on self.resizeEvent() left the compact
+        # check stuck at whatever it computed on first layout - possibly
+        # wrong, and never re-evaluated afterwards.
+        from PyQt6.QtWidgets import QFrame as _QFrameForResize
+        _orig_mid_resize = self._middle_btn_row.resizeEvent
+        def _mid_btn_row_resize(event, _orig=_orig_mid_resize):  #vers 1
+            _orig(event)
+            try:
+                from apps.methods.imgfactory_ui_settings import apply_compact_buttons
+                apply_compact_buttons(self._mid_compact_btns,
+                                      self._middle_btn_row.width(),
+                                      compact_threshold=320)
+            except Exception:
+                pass
+        self._middle_btn_row.resizeEvent = _mid_btn_row_resize
 
         # - Model table (detail view)
         self.collision_list = QTableWidget()
@@ -11035,7 +11055,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     # - Texture management
 
-    def _create_texture_panel(self): #vers 3
+    def _create_texture_panel(self): #vers 4
         """Collapsible texture panel in middle column.
         Shows textures loaded from TXD files.
         Toggle between List view (table) and Thumbnail view (64x64 grid).
@@ -11160,6 +11180,18 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # Internal storage
         self._mod_textures = []
         self._texlist_path = ''
+
+        # Hook the panel's own resize event directly - self.resizeEvent()
+        # only fires when the whole ModelWorkshop widget's outer bounding
+        # box changes, but dragging the Models/viewport dock divider only
+        # changes this panel's own width, so relying solely on
+        # self.resizeEvent() left the compact check stuck at whatever it
+        # computed on first layout and never re-evaluated afterwards.
+        _orig_tex_resize = self._tex_panel.resizeEvent
+        def _tex_panel_resize(event, _orig=_orig_tex_resize):  #vers 1
+            _orig(event)
+            self._update_tex_btn_compact()
+        self._tex_panel.resizeEvent = _tex_panel_resize
 
         return self._tex_panel
 
