@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 28
+#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 29
 # X-Seti - October10 2025 - Img Factory 1.5 - TXD Workshop Header Update
 
 """
@@ -1271,7 +1271,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         vm = parent_menu.addMenu("View")
         vm.addAction("TXD Info",             self._show_txd_info)
 
-    def setup_ui(self): #vers 8
+    def setup_ui(self): #vers 9
         """Setup the main UI layout"""
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(5, 5, 5, 5)
@@ -1334,10 +1334,11 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         #self.status_bar = self._create_status_bar()
         #main_layout.addWidget(self.status_bar)
 
-        # Status indicators - hidden when embedded in main window tab
+        # Status indicators - hidden when embedded in main window tab, or
+        # if the user has turned off "Show TXD Workshop status bar"
         if hasattr(self, '_setup_status_indicators'):
             status_frame = self._setup_status_indicators()
-            if not self.standalone_mode:
+            if not self.standalone_mode or not getattr(self, 'show_status_bar', True):
                 status_frame.setVisible(False)
             main_layout.addWidget(status_frame)
 
@@ -3964,7 +3965,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         return settings_btn
 
 
-    def _show_settings_dialog(self): #vers 5
+    def _show_settings_dialog(self): #vers 6
         """Show comprehensive settings dialog with all tabs including hotkeys"""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTabWidget,
                                     QWidget, QLabel, QPushButton, QGroupBox,
@@ -4024,6 +4025,27 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         table_group.setLayout(table_layout)
         display_layout.addWidget(table_group)
+
+        # Status bar settings
+        status_group = QGroupBox("Status Bar")
+        status_layout = QVBoxLayout()
+
+        show_status_bar_check = QCheckBox("Show TXD Workshop status bar")
+        show_status_bar_check.setChecked(getattr(self, 'show_status_bar', True))
+        show_status_bar_check.setToolTip(
+            "The bottom row showing texture count, selection, and size")
+        status_layout.addWidget(show_status_bar_check)
+
+        relay_status_check = QCheckBox("Relay status to IMG Factory status bar when docked")
+        relay_status_check.setChecked(getattr(self, 'relay_status_to_img_factory', True))
+        relay_status_check.setToolTip(
+            "Pushes texture count/selection/size into IMG Factory's own\n"
+            "status bar - useful on its own, and worth keeping on if you\n"
+            "turn off this workshop's own status bar above")
+        status_layout.addWidget(relay_status_check)
+
+        status_group.setLayout(status_layout)
+        display_layout.addWidget(status_group)
 
         display_layout.addStretch()
         tabs.addTab(display_tab, "Display")
@@ -4425,12 +4447,19 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         cancel_btn.clicked.connect(dialog.reject)
         button_layout.addWidget(cancel_btn)
 
-        def apply_settings(close_dialog=False):  #vers 1
+        def apply_settings(close_dialog=False):  #vers 2
             """Apply all settings"""
             # Apply display settings
             self.thumbnail_size = thumb_size_spin.value()
             self.table_row_height = row_height_spin.value()
             self.show_grid_lines = show_grid_check.isChecked()
+
+            self.show_status_bar = show_status_bar_check.isChecked()
+            self.relay_status_to_img_factory = relay_status_check.isChecked()
+            if hasattr(self, 'status_frame'):
+                self.status_frame.setVisible(
+                    self.show_status_bar and self.standalone_mode)
+            self._push_status_to_img_factory()
 
             # Apply preview settings
             self.show_preview_default = show_preview_check.isChecked()
@@ -6144,7 +6173,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             QMessageBox.critical(self, "Error", f"Batch export failed: {str(e)}")
 
 
-    def _update_status_indicators(self): #vers 2
+    def _update_status_indicators(self): #vers 3
         """Update status indicators"""
         if hasattr(self, 'status_textures'):
             self.status_textures.setText(f"Textures: {len(self.texture_list)}")
@@ -6176,6 +6205,30 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
                 self.status_modified.setText("")
                 self.status_modified.setStyleSheet("")
 
+        self._push_status_to_img_factory()
+
+    def _push_status_to_img_factory(self): #vers 1
+        """Relay this workshop's status bar text to IMG Factory's own status
+        bar when docked. Controlled by the 'Relay status to IMG Factory'
+        setting - useful on its own, and doubly so when 'Show status bar'
+        is turned off, since the info still needs to surface somewhere."""
+        if self.standalone_mode:
+            return
+        if not getattr(self, 'relay_status_to_img_factory', True):
+            return
+        mw = getattr(self, 'main_window', None)
+        if not mw or not hasattr(mw, 'show_status'):
+            return
+        parts = []
+        for attr in ('status_textures', 'status_selected', 'status_size'):
+            lbl = getattr(self, attr, None)
+            if lbl:
+                parts.append(lbl.text())
+        if parts:
+            try:
+                mw.show_status("TXD Workshop - " + "  |  ".join(parts))
+            except Exception:
+                pass
 
     def _import_normal_texture(self): #vers 1
         """Import normal texture (RGB/RGBA)"""
