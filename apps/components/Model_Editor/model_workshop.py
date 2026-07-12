@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 180
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 181
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -8498,7 +8498,30 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         return self._frame_tree_panel
 
-    def _make_dock_collapsible(self, dock, title): #vers 1
+    def _toggle_dock_floating(self, dock): #vers 1
+        """Toggle a dock's floating state, explicitly positioning/sizing
+        and raising the resulting floating window. Plain setFloating()
+        alone can leave a dock with a custom title bar at an odd,
+        overlapping, or effectively invisible position/size - looking
+        like nothing happened to the target dock, while its neighbours
+        still visibly resize to fill the space it vacated (which is
+        what actually tipped this off - the dock genuinely was floating,
+        just not anywhere the user could see it)."""
+        was_floating = dock.isFloating()
+        dock.setFloating(not was_floating)
+        if not was_floating:
+            # Just floated - make sure it's a reasonable size and visibly
+            # placed near this workshop's own window, then bring it to front.
+            if dock.width() < 200 or dock.height() < 150:
+                dock.resize(320, 400)
+            anchor = self.mapToGlobal(self.rect().center())
+            dock.move(anchor.x() - dock.width() // 2,
+                      anchor.y() - dock.height() // 2)
+            dock.show()
+            dock.raise_()
+            dock.activateWindow()
+
+    def _make_dock_collapsible(self, dock, title): #vers 2
         """Custom title bar for a QDockWidget: double-click anywhere on the
         title (label or empty bar area) to collapse the dock down to just
         this title bar, hiding its content; double-click again to restore.
@@ -8524,7 +8547,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         float_btn.setToolTip("Float/dock")
         float_btn.setFixedSize(20, 20)
         float_btn.setAutoRaise(True)
-        float_btn.clicked.connect(lambda: dock.setFloating(not dock.isFloating()))
+        float_btn.clicked.connect(lambda: self._toggle_dock_floating(dock))
         lay.addWidget(float_btn)
 
         close_btn = _QTB()
