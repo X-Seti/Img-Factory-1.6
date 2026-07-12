@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 166
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 167
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -8186,7 +8186,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         return panel
 
 
-    def _create_middle_panel(self): #vers 10
+    def _create_middle_panel(self): #vers 11
         """Create middle panel with COL models table — mini toolbar + view toggle."""
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -8208,11 +8208,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         btn_layout.setContentsMargins(0, 0, 0, 0)
         btn_layout.setSpacing(3)
 
-        def _icon_btn(icon, tooltip, slot, enabled=True):  #vers 1
+        def _icon_btn(icon, tooltip, slot, enabled=True):  #vers 2
             b = QPushButton()
             b.setIcon(icon)
             b.setIconSize(QSize(20, 20))
-            b.setFixedSize(28, 28)
+            b.setFixedHeight(28)
+            b.setMinimumWidth(28)
             b.setToolTip(tooltip)
             b.clicked.connect(slot)
             b.setEnabled(enabled)
