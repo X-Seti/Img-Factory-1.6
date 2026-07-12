@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 88
+#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 89
 # X-Seti - August10 2025 - Converted col editor using gui base template.
 
 """
@@ -332,6 +332,7 @@ DEBUG_STANDALONE = False
 # COLWorkshop._update_dock_button_visibility
 # COLWorkshop._update_status_indicators
 # COLWorkshop._update_transform_text_panel_visibility
+# COLWorkshop._wrap_middle_panel_with_surface_tab
 # COLWorkshop.closeEvent
 # COLWorkshop.export_all
 # COLWorkshop.export_all_surfaces
@@ -400,7 +401,6 @@ DEBUG_STANDALONE = False
 # _SurfaceParser._detect_game
 # _SurfaceParser.load
 # _SurfaceParser.save
-# Build information
 App_name = "Col Workshop"
 App_build = "83"
 
@@ -2319,7 +2319,7 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
         self._apply_theme()
 
 
-    def setup_ui(self): #vers 9
+    def setup_ui(self): #vers 10
         """Setup the main UI layout"""
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(5, 5, 5, 5)
@@ -2368,18 +2368,12 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
             self._main_splitter.setStretchFactor(0, 1)
             self._main_splitter.setStretchFactor(1, 1)
 
-        # Top-level tab widget: COL Models | Surface Data
-        self._workshop_tabs = QTabWidget()
-        # documentMode removes the default pane border/padding Qt draws
-        # around a QTabWidget's content - without this, the ribbon+viewport
-        # sat inside a padded frame, showing as empty space between the
-        # tab labels and the ribbon that TXD Workshop (no tab wrapper at
-        # all) never had.
-        self._workshop_tabs.setDocumentMode(True)
-        self._workshop_tabs.addTab(self._main_splitter, "COL Models")
-        self._surface_tab = self._create_surface_tab()
-        self._workshop_tabs.addTab(self._surface_tab, "Surface Data")
-        main_layout.addWidget(self._workshop_tabs)
+        # Splitter goes straight into main_layout - no top-level tab wrapper.
+        # COL Models/Surface Data switching is now local to the middle
+        # panel only (see _wrap_middle_panel_with_surface_tab), so the left
+        # panel (file list) and right panel (ribbons + viewport) are never
+        # nested inside a QTabWidget's padded content pane.
+        main_layout.addWidget(self._main_splitter)
         self._main_splitter.splitterMoved.connect(self._on_splitter_moved)
 
         # Status indicators - hidden when embedded in main window tab
@@ -5196,7 +5190,7 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
         return panel
 
 
-    def _create_middle_panel(self): #vers 6
+    def _create_middle_panel(self): #vers 7
         """Create middle panel with COL models table — mini toolbar + view toggle."""
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -5319,7 +5313,22 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
         self.col_compact_list.setItemDelegate(_ColListDelegate(self.col_compact_list))
         layout.addWidget(self.col_compact_list)
 
-        return panel
+        return self._wrap_middle_panel_with_surface_tab(panel)
+
+    def _wrap_middle_panel_with_surface_tab(self, models_panel): #vers 1
+        """Wrap the COL Models content in a local tab widget alongside
+        Surface Data, so only the middle panel switches when the user picks
+        a tab - the left panel (file list) and right panel (ribbons +
+        viewport) stay visible and unaffected either way. Previously the
+        whole 3-panel splitter was wrapped in one QTabWidget, which put the
+        ribbons inside a padded tab pane and pushed them down with extra
+        space below the title bar."""
+        middle_tabs = QTabWidget()
+        middle_tabs.setDocumentMode(True)
+        middle_tabs.addTab(models_panel, "COL Models")
+        self._surface_tab = self._create_surface_tab()
+        middle_tabs.addTab(self._surface_tab, "Surface Data")
+        return middle_tabs
 
 
     def _create_right_panel(self): #vers 15
