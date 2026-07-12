@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 164
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 165
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -5408,9 +5408,20 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 # - Settings Reusable
 
         # Sync mini toolbar visibility with current dock state
-        if hasattr(self, '_middle_btn_row'):
-            self._middle_btn_row.setVisible(
-                self.is_docked and not self.standalone_mode)
+        self._sync_middle_btn_row_visibility()
+
+    def _sync_middle_btn_row_visibility(self): #vers 1
+        """Show/hide the mini toolbar's action icons (Open/Save/Import/
+        Export/Undo/3D View) based on dock state - the row itself and its
+        view-toggle button always stay visible regardless."""
+        if not hasattr(self, '_middle_btn_row'):
+            return
+        docked_only = self.is_docked and not self.standalone_mode
+        for attr in ('open_col_btn', 'save_col_btn', 'import_btn',
+                     'export_col_btn', 'undo_col_btn', '_mini_3d_btn'):
+            b = getattr(self, attr, None)
+            if b:
+                b.setVisible(docked_only)
 
     def _on_menu_btn_clicked(self): #vers 1
         from PyQt6.QtWidgets import QMenu
@@ -6018,7 +6029,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._update_dock_button_visibility()
 
 
-    def _dock_to_main(self): #vers 9
+    def _dock_to_main(self): #vers 10
         """Dock handled by overlay system in imgfactory - IMPROVED"""
         try:
             if hasattr(self, 'is_overlay') and self.is_overlay:
@@ -6039,8 +6050,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             # Update dock state
             self.is_docked = True
             self._update_dock_button_visibility()
-            if hasattr(self, '_middle_btn_row'):
-                self._middle_btn_row.setVisible(True)
+            self._sync_middle_btn_row_visibility()
 
             if hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"{App_name} docked to main window")
@@ -6051,7 +6061,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.show()
 
 
-    def _undock_from_main(self): #vers 4
+    def _undock_from_main(self): #vers 5
         """Undock from overlay mode to standalone window - IMPROVED"""
         try:
             if hasattr(self, 'is_overlay') and self.is_overlay:
@@ -6071,8 +6081,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 
             self.is_docked = False
             self._update_dock_button_visibility()
-            if hasattr(self, '_middle_btn_row'):
-                self._middle_btn_row.setVisible(False)
+            self._sync_middle_btn_row_visibility()
 
             self.show()
             self.raise_()
@@ -8181,7 +8190,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         return panel
 
 
-    def _create_middle_panel(self): #vers 8
+    def _create_middle_panel(self): #vers 9
         """Create middle panel with COL models table — mini toolbar + view toggle."""
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -8192,24 +8201,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         layout.setSpacing(4)
         self._middle_panel_layout = layout
 
-        # - Header row: just the [=] view-toggle now - the QDockWidget's own
-        # native title bar already shows "Models", so a second "Models"
-        # label here was pure duplication (reported bug).
-        hdr_row = QHBoxLayout()
-        hdr_row.addStretch()
-
-        self._col_view_mode = 'detail'   # start in compact thumbnail view
-        self.col_view_toggle_btn = QPushButton("[=]")
-        self.col_view_toggle_btn.setFont(self.button_font)
-        self.col_view_toggle_btn.setFixedWidth(32)
-        self.col_view_toggle_btn.setFixedHeight(22)
-        self.col_view_toggle_btn.setToolTip(
-            "Toggle view: compact list ↔ full details table")
-        self.col_view_toggle_btn.clicked.connect(self._toggle_col_view)
-        hdr_row.addWidget(self.col_view_toggle_btn)
-        layout.addLayout(hdr_row)
-
-        # - Mini toolbar: Open / Save / Extract / Undo
+        # - Mini toolbar row: Open / Save / Import / Export / Undo / 3D View
+        # (docked mode only) + the view-toggle button (always visible).
+        # Previously the toggle had its own dedicated row above this one,
+        # wasting a full row of height on just one small button - merged
+        # into a single row instead.
         icon_color = self._get_icon_color()
         self._middle_btn_row = QFrame()
         btn_layout = QHBoxLayout(self._middle_btn_row)
@@ -8271,8 +8267,24 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         btn_layout.addWidget(self._mini_3d_btn)
 
         btn_layout.addStretch()
+
+        # View-toggle button - always visible regardless of dock state,
+        # unlike the action icons above it.
+        self._col_view_mode = 'detail'   # start in compact thumbnail view
+        self.col_view_toggle_btn = QPushButton("[=]")
+        self.col_view_toggle_btn.setFont(self.button_font)
+        self.col_view_toggle_btn.setFixedWidth(32)
+        self.col_view_toggle_btn.setFixedHeight(22)
+        self.col_view_toggle_btn.setToolTip(
+            "Toggle view: compact list ↔ full details table")
+        self.col_view_toggle_btn.clicked.connect(self._toggle_col_view)
+        btn_layout.addWidget(self.col_view_toggle_btn)
+
         layout.addWidget(self._middle_btn_row)
-        self._middle_btn_row.setVisible(self.is_docked and not self.standalone_mode)
+        self._middle_btn_row.setVisible(True)   # row itself always shown -
+        # the toggle button lives here now, only the action icons below
+        # are conditionally hidden when not docked.
+        self._sync_middle_btn_row_visibility()
         # Register for adaptive compact display
         self._mid_compact_btns = [
             (getattr(self, 'open_col_btn',  None), "Open"),
