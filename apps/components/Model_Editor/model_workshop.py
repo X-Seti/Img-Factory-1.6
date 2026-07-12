@@ -3224,6 +3224,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         self._left_dock = None
         self._middle_dock = None
+        icon_color = self._get_icon_color()
 
         if left_panel is not None:  # IMG Factory mode
             self._left_dock = QDockWidget("Files", self)
@@ -3234,13 +3235,63 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 QDockWidget.DockWidgetFeature.DockWidgetFloatable)
             outer_mw.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self._left_dock)
 
-        self._middle_dock = QDockWidget("Models", self)
+        samerow_layout = QHBoxLayout()
+        samerow_label = QLabel("")
+        self.load_txd_btn = QPushButton("TXD") #TODO; This needs to be added to load dff, on standalone and docked.
+
+        # both looking for the same name "not matter the letter case.txd or Case.TXD, if not found ask for it, or skip.
+        self.load_txd_btn.setFont(self.button_font)
+        self.load_txd_btn.setIcon(self.icon_factory.open_icon(color=icon_color))
+        self.load_txd_btn.setIconSize(QSize(16, 16))
+        self.load_txd_btn.setFixedHeight(26)
+        self.load_txd_btn.setMinimumWidth(80)
+        self.load_txd_btn.setToolTip("Open TXD — uses IDE link if available, else browse")
+        self.load_txd_btn.clicked.connect(self._open_txd_smart)
+
+        self.export_ojs_btn = QPushButton("Export")
+        self.export_ojs_btn.setFont(self.button_font)
+        self.export_ojs_btn.setFixedHeight(26)
+        self.export_ojs_btn.setToolTip("Export geometry / COL (multiple formats)")
+        self.export_ojs_btn.clicked.connect(self._export_model_menu)
+        try:
+            self.export_ojs_btn.setIcon(self.icon_factory.multi_export_icon(color=icon_color))
+            self.export_ojs_btn.setIconSize(QSize(14, 14))
+        except Exception: pass
+
+        self.gl_viewer_btn = QPushButton("3D View")
+        self.gl_viewer_btn.setFont(self.button_font)
+        self.gl_viewer_btn.setFixedHeight(26)
+        self.gl_viewer_btn.setToolTip("Open GL Model Viewer")
+        self.gl_viewer_btn.clicked.connect(self._open_gl_viewer)
+        try:
+            self.gl_viewer_btn.setIcon(self.icon_factory.viewport_icon(color=icon_color))
+            self.gl_viewer_btn.setIconSize(QSize(14, 14))
+        except Exception: pass
+
+        samerow_layout.addWidget(self.gl_viewer_btn)
+        samerow_layout.addWidget(self.export_ojs_btn)
+        samerow_layout.addWidget(self.load_txd_btn)
+
+        self._middle_dock = QDockWidget("", self)
+
+        titlebar = QWidget()
+        layout = QHBoxLayout(titlebar)
+        layout.setContentsMargins(2, 2, 2, 2)
+
+        layout.addWidget(self.gl_viewer_btn)
+        layout.addWidget(self.export_ojs_btn)
+        layout.addWidget(self.load_txd_btn)
+        layout.addStretch()
+
+        self._middle_dock.setTitleBarWidget(titlebar)
+
         self._middle_dock.setObjectName("Models")
         self._middle_dock.setWidget(middle_panel)
         self._middle_dock.setFeatures(
             QDockWidget.DockWidgetFeature.DockWidgetMovable |
             QDockWidget.DockWidgetFeature.DockWidgetFloatable)
         outer_mw.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self._middle_dock)
+
 
         if self._left_dock is not None:
             # Side-by-side by default (Files | Models), matching the old
@@ -3341,6 +3392,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._populate_collision_list()
         self._populate_compact_col_list()
         self._set_status(f"Deleted {len(indices)} model(s).")
+
 
     def _duplicate_selected_model(self): #vers 1
         rows = self.collision_list.selectionModel().selectedRows()
@@ -8277,43 +8329,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.mod_compact_list.setWordWrap(True)
         self.mod_compact_list.setItemDelegate(_ModelListDelegate(self.mod_compact_list))
         layout.addWidget(self.mod_compact_list)
-
-        samerow_layout = QHBoxLayout()
-        samerow_label = QLabel("")
-        self.load_txd_btn = QPushButton("TXD") #TODO; This needs to be added to load dff, on standalone and docked.
-                                               #      both looking for the same name "not matter the letter case.txd or Case.TXD, if not found ask for it, or skip.
-        self.load_txd_btn.setFont(self.button_font)
-        self.load_txd_btn.setIcon(self.icon_factory.open_icon(color=icon_color))
-        self.load_txd_btn.setIconSize(QSize(16, 16))
-        self.load_txd_btn.setFixedHeight(26)
-        self.load_txd_btn.setMinimumWidth(80)
-        self.load_txd_btn.setToolTip("Open TXD — uses IDE link if available, else browse")
-        self.load_txd_btn.clicked.connect(self._open_txd_smart)
-
-        self.export_ojs_btn = QPushButton("Export")
-        self.export_ojs_btn.setFont(self.button_font)
-        self.export_ojs_btn.setFixedHeight(26)
-        self.export_ojs_btn.setToolTip("Export geometry / COL (multiple formats)")
-        self.export_ojs_btn.clicked.connect(self._export_model_menu)
-        try:
-            self.export_ojs_btn.setIcon(self.icon_factory.multi_export_icon(color=icon_color))
-            self.export_ojs_btn.setIconSize(QSize(14, 14))
-        except Exception: pass
-
-        self.gl_viewer_btn = QPushButton("3D View")
-        self.gl_viewer_btn.setFont(self.button_font)
-        self.gl_viewer_btn.setFixedHeight(26)
-        self.gl_viewer_btn.setToolTip("Open GL Model Viewer")
-        self.gl_viewer_btn.clicked.connect(self._open_gl_viewer)
-        try:
-            self.gl_viewer_btn.setIcon(self.icon_factory.viewport_icon(color=icon_color))
-            self.gl_viewer_btn.setIconSize(QSize(14, 14))
-        except Exception: pass
-        samerow_layout.addWidget(self.gl_viewer_btn)
-        samerow_layout.addWidget(self.export_ojs_btn)
-        samerow_layout.addWidget(self.load_txd_btn)
-        samerow_layout.addStretch()
-        layout.addLayout(samerow_layout)   # was never added — fixed
 
         # - Frame / Bone hierarchy tree (DFF only)
         from PyQt6.QtWidgets import QTreeWidget
