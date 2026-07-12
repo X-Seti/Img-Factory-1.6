@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 159
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 160
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -8100,7 +8100,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         return panel
 
 
-    def _create_middle_panel(self): #vers 6
+    def _create_middle_panel(self): #vers 7
         """Create middle panel with COL models table — mini toolbar + view toggle."""
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -8327,12 +8327,34 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # - Texture panel (shown when TXD loaded)
         layout.addWidget(self._create_texture_panel())
 
-        # Information group below model info group
+        # Model Info ribbon (Name/IDE/TXD) - built here but docked into the
+        # middle panel's own nested QMainWindow below, not added to this
+        # layout directly.
         self._model_info_toolbar = self._build_model_info_toolbar(icon_color)
         self._model_info_location = 'middle'
-        layout.addWidget(self._model_info_toolbar)
 
-        return panel
+        return self._wrap_middle_panel_with_own_dock_areas(panel)
+
+    def _wrap_middle_panel_with_own_dock_areas(self, content_panel): #vers 1
+        """Give the middle panel its own nested QMainWindow (same pattern
+        the right panel already uses for the viewport), so ribbons like
+        Model Info have real Left/Right toolbar dock areas specifically
+        flanking the middle panel's own content - not just the option of
+        living inside it as a plain widget, or all the way over on the
+        far-right ribbon stack. Model Info defaults to the bottom (closest
+        to its old position), but can be dragged to either side natively
+        within this mini QMainWindow, or moved to the main right panel via
+        the existing right-click action."""
+        from PyQt6.QtWidgets import QMainWindow
+        middle_mw = QMainWindow()
+        middle_mw.setWindowFlags(Qt.WindowType.Widget)
+        middle_mw.setDockOptions(
+            QMainWindow.DockOption.AllowNestedDocks |
+            QMainWindow.DockOption.AllowTabbedDocks)
+        middle_mw.setCentralWidget(content_panel)
+        middle_mw.addToolBar(Qt.ToolBarArea.BottomToolBarArea, self._model_info_toolbar)
+        self._middle_mw = middle_mw
+        return middle_mw
 
     def _build_model_info_toolbar(self, icon_color): #vers 1
         """Build the Model Name/IDE/TXD ribbon as a real QToolBar (was plain
@@ -8402,18 +8424,19 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                             lambda: self._move_model_info_ribbon('middle'))
         menu.exec(tb.mapToGlobal(pos))
 
-    def _move_model_info_ribbon(self, location: str): #vers 1
-        """Reparent the Model Info toolbar between the middle panel (plain
-        widget in its QVBoxLayout) and the right panel's QMainWindow (a
-        real dockable/floatable toolbar there, like Selection/Navigation/
+    def _move_model_info_ribbon(self, location: str): #vers 2
+        """Reparent the Model Info toolbar between the middle panel's own
+        nested QMainWindow (a real dockable/floatable toolbar there, on
+        whichever edge the user drags it to) and the right panel's
+        QMainWindow (dockable there too, alongside Selection/Navigation/
         Render etc). Persists the choice to model_workshop.json."""
         tb = getattr(self, '_model_info_toolbar', None)
         if tb is None or location == self._model_info_location:
             return
         if location == 'right':
-            mid_layout = getattr(self, '_middle_panel_layout', None)
-            if mid_layout:
-                mid_layout.removeWidget(tb)
+            mid_mw = getattr(self, '_middle_mw', None)
+            if mid_mw:
+                mid_mw.removeToolBar(tb)
             tb.setParent(None)
             mw = getattr(self, '_inner_mw', None)
             if mw:
@@ -8424,9 +8447,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if mw:
                 mw.removeToolBar(tb)
             tb.setParent(None)
-            mid_layout = getattr(self, '_middle_panel_layout', None)
-            if mid_layout:
-                mid_layout.addWidget(tb)
+            mid_mw = getattr(self, '_middle_mw', None)
+            if mid_mw:
+                mid_mw.addToolBar(Qt.ToolBarArea.BottomToolBarArea, tb)
                 tb.setVisible(True)
         self._model_info_location = location
         try:
