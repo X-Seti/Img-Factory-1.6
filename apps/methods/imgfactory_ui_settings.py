@@ -1,4 +1,4 @@
-#this belongs in methods/imgfactory_ui_settings.py - Version: 6
+#this belongs in methods/imgfactory_ui_settings.py - Version: 7
 # X-Seti - February04 2026 - IMG Factory 1.6 - IMG Factory Settings Dialog
 
 """
@@ -1025,26 +1025,30 @@ def show_imgfactory_settings_dialog(main_window): #vers 2
 
 
 def apply_compact_buttons(buttons_meta: list, available_width: int,
-                           compact_threshold: int = 260): #vers 1
+                           compact_threshold: int = None): #vers 2
     """Global adaptive button helper — icon-only when width < compact_threshold.
     buttons_meta: list of (widget, full_label) tuples.
-    compact_threshold: pixel width below which text is hidden (default 260).
+    compact_threshold: pixel width below which text is hidden. If not given
+    (or if the actual content needs more), it's computed from the real
+    icon+text width of every button via font metrics, so it scales with
+    however many buttons are in the row instead of a flat guessed number -
+    a too-low fixed threshold was causing text to be shown before there
+    was genuinely enough room, so Qt squeezed/clipped it.
     Called from resizeEvent or splitter moves in any workshop."""
-    compact = available_width < compact_threshold
+    from PyQt6.QtGui import QFontMetrics
+    needed = 0
     for btn, label in buttons_meta:
-        if btn is None:
+        if btn is None or not label:
             continue
-        btn.setText("" if compact else label)
-        btn.setMinimumWidth(26 if compact else 52)
-        btn.setMaximumWidth(26 if compact else 16777215)
+        fm = QFontMetrics(btn.font())
+        icon_w = btn.iconSize().width() if not btn.icon().isNull() else 0
+        needed += fm.horizontalAdvance(label) + icon_w + 24   # padding/margins
+    needed += 4 * max(0, len([b for b, _ in buttons_meta if b is not None]) - 1)
+    if compact_threshold is None:
+        compact_threshold = needed
+    else:
+        compact_threshold = max(compact_threshold, needed)
 
-
-def apply_compact_buttons(buttons_meta: list, available_width: int,
-                           compact_threshold: int = 260): #vers 1
-    """Global adaptive button helper — icon-only when width < compact_threshold.
-    buttons_meta: list of (widget, full_label) tuples.
-    compact_threshold: pixel width below which text is hidden (default 260).
-    Called from resizeEvent or splitter moves in any workshop."""
     compact = available_width < compact_threshold
     for btn, label in buttons_meta:
         if btn is None:
