@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 175
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 176
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -245,10 +245,11 @@ except ImportError:
 # _copy_text_to_clipboard
 # _create_action_section
 # _create_col_from_dff    generate COL1/2/3 binary from DFF geometry #vers 1
+# _create_frame_hierarchy_panel
 # _create_info_section
 # _create_left_panel
 # _create_level_card
-# _create_middle_panel
+# _create_models_table_panel
 # _create_new_model
 # _create_new_surface
 # _create_paint_bar
@@ -463,6 +464,7 @@ except ImportError:
 # _start_thumbnail_spin
 # _stop_thumbnail_spin
 # _switch_icon_set
+# _sync_middle_btn_row_visibility
 # _sync_quad_from_main
 # _sync_selection_to_other_viewports
 # _tbl_item
@@ -474,10 +476,12 @@ except ImportError:
 # _toggle_front_only_paint
 # _toggle_maximize
 # _toggle_mesh
+# _toggle_mid_btn_row_collapsed
 # _toggle_pin_selected
 # _toggle_quad_view
 # _toggle_spheres
 # _toggle_tearoff
+# _toggle_tex_btn_row_collapsed
 # _toggle_tex_view    switch texture panel list/thumbnail view #vers 1
 # _toggle_upscale_native
 # _toggle_viewport_shading    toggle Lambertian shading on/off #vers 1
@@ -3086,6 +3090,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.panel_font = QFont("Arial", 10)
         self.button_font = QFont("Arial", 10)
         self.infobar_font = QFont("Courier New", 9)
+        # Section titles (Models/Frame Hierarchy/Textures/Files dock
+        # titles, panel headers) - one consistent size, slightly larger
+        # than panel_font, instead of the mix of ad-hoc sizes (9/10/11)
+        # scattered across different panels previously.
+        self.section_title_font = QFont("Arial", 11, QFont.Weight.Bold)
         self.standalone_mode = (main_window is None)
 
         if main_window and hasattr(main_window, 'app_settings'):
@@ -3184,8 +3193,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             just the viewport + its own ribbons (Selection/Snap/Geometry/
             Navigation/Render) - clean 4-sided docking around the
             viewport, independent of where Files/Models currently sit.
-          - _middle_mw (built in _create_middle_panel): hosts the Models
-            table + the Model Info ribbon - same idea, one level down.
+          - _middle_mw (built in _create_models_table_panel): hosts the
+            Models table + the Model Name/IDE ribbons - same idea, one
+            level down. Frame Hierarchy and Textures are now separate
+            top-level dock widgets of their own, not nested here.
         Earlier attempt put Files/Models directly into _inner_mw, which
         meant the viewport's own ribbon edges and the outer panel edges
         were the same areas - dragging a ribbon towards the middle panel
@@ -3204,11 +3215,17 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             toolbar.setVisible(False)
         main_layout.addWidget(toolbar)
 
-        # Build all three panels - right panel builds self._inner_mw
-        # (viewport + its own ribbons), fully self-contained.
+        # Build all panels - right panel builds self._inner_mw (viewport +
+        # its own ribbons), fully self-contained. Models table, Frame
+        # Hierarchy, and Textures are now three independent sections
+        # instead of being stacked into one combined middle panel - every
+        # one of them can be dragged/floated/docked on its own, same as
+        # Files already could.
         right_panel = self._create_right_panel()
         left_panel = self._create_left_panel()
-        middle_panel = self._create_middle_panel()   # is self._middle_mw
+        models_table_panel = self._create_models_table_panel()   # is self._middle_mw
+        frame_hierarchy_panel = self._create_frame_hierarchy_panel()
+        texture_panel = self._create_texture_panel()
 
         from PyQt6.QtWidgets import QDockWidget, QMainWindow
         outer_mw = QMainWindow()
@@ -3220,11 +3237,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         # Viewport (right_panel, wrapping _inner_mw) is the central widget -
         # always visible, never accidentally closed/floated away entirely.
-        # Files/Models dock around it and can go to any of its 4 edges.
+        # Every dock can go to any of its 4 edges.
         outer_mw.setCentralWidget(right_panel)
 
         self._left_dock = None
         self._middle_dock = None
+        self._frame_hierarchy_dock = None
+        self._texture_dock = None
         icon_color = self._get_icon_color()
 
         if left_panel is not None:  # IMG Factory mode
@@ -3239,7 +3258,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         self._middle_dock = QDockWidget("Models", self)
         self._middle_dock.setObjectName("Models")
-        self._middle_dock.setWidget(middle_panel)
+        self._middle_dock.setWidget(models_table_panel)
         # Set explicit here, not just on the inner panel - with nested
         # QMainWindows (outer_mw -> this dock -> _middle_mw -> panel), a
         # minimum width set only on the innermost panel doesn't reliably
@@ -3252,6 +3271,23 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             QDockWidget.DockWidgetFeature.DockWidgetFloatable)
         outer_mw.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self._middle_dock)
 
+        self._frame_hierarchy_dock = QDockWidget("Frame Hierarchy", self)
+        self._frame_hierarchy_dock.setObjectName("Frame Hierarchy")
+        self._frame_hierarchy_dock.setWidget(frame_hierarchy_panel)
+        self._frame_hierarchy_dock.setMinimumWidth(200)
+        self._frame_hierarchy_dock.setFeatures(
+            QDockWidget.DockWidgetFeature.DockWidgetMovable |
+            QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+        outer_mw.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self._frame_hierarchy_dock)
+
+        self._texture_dock = QDockWidget("Textures", self)
+        self._texture_dock.setObjectName("Textures")
+        self._texture_dock.setWidget(texture_panel)
+        self._texture_dock.setMinimumWidth(200)
+        self._texture_dock.setFeatures(
+            QDockWidget.DockWidgetFeature.DockWidgetMovable |
+            QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+        outer_mw.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self._texture_dock)
 
         if self._left_dock is not None:
             # Side-by-side by default (Files | Models), matching the old
@@ -3260,6 +3296,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             # the viewport from here.
             outer_mw.splitDockWidget(self._left_dock, self._middle_dock,
                                       Qt.Orientation.Horizontal)
+        # Frame Hierarchy and Textures default to stacking below Models -
+        # a sensible starting point, freely rearrangeable afterwards.
+        outer_mw.splitDockWidget(self._middle_dock, self._frame_hierarchy_dock,
+                                  Qt.Orientation.Vertical)
+        outer_mw.splitDockWidget(self._frame_hierarchy_dock, self._texture_dock,
+                                  Qt.Orientation.Vertical)
 
         main_layout.addWidget(outer_mw)
 
@@ -8189,7 +8231,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # Header row with search button
         hdr_row = QHBoxLayout()
         self._left_panel_header = QLabel("Model Files")
-        self._left_panel_header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        self._left_panel_header.setFont(self.section_title_font)
         hdr_row.addWidget(self._left_panel_header)
         hdr_row.addStretch()
 
@@ -8220,8 +8262,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         return panel
 
 
-    def _create_middle_panel(self): #vers 11
-        """Create middle panel with COL models table — mini toolbar + view toggle."""
+    def _create_models_table_panel(self): #vers 1
+        """Create the Models table panel - mini toolbar + view toggle +
+        model table only. Frame Hierarchy and Textures are now separate
+        top-level dock widgets (see _create_frame_hierarchy_panel,
+        _create_texture_panel), not stacked into this same panel -
+        every section can be independently dragged/floated/docked now,
+        same as Files already could."""
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
         panel.setMinimumWidth(250)
@@ -8403,7 +8450,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.mod_compact_list.setItemDelegate(_ModelListDelegate(self.mod_compact_list))
         layout.addWidget(self.mod_compact_list)
 
-        # - Frame / Bone hierarchy tree (DFF only)
+        return self._wrap_middle_panel_with_own_dock_areas(panel)
+
+    def _create_frame_hierarchy_panel(self): #vers 1
+        """Create the Frame Hierarchy panel on its own - previously stacked
+        inside the same panel as the model table/textures, now a separate
+        top-level dock widget so it can be independently dragged/floated."""
         from PyQt6.QtWidgets import QTreeWidget
         self._frame_tree_panel = QFrame()
         self._frame_tree_panel.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -8413,7 +8465,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         ft_hdr = QHBoxLayout()
         ft_lbl = QLabel("Frame Hierarchy")
-        ft_lbl.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        ft_lbl.setFont(self.section_title_font)
         ft_hdr.addWidget(ft_lbl)
         ft_hdr.addStretch()
         ft_collapse = QPushButton("▾")
@@ -8430,29 +8482,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._frame_tree = QTreeWidget()
         self._frame_tree.setHeaderLabels(["Frame", "Parent", "Position"])
         self._frame_tree.setAlternatingRowColors(True)
-        self._frame_tree.setMaximumHeight(180)
-        self._frame_tree.setMinimumHeight(60)
         self._frame_tree.setFont(self.panel_font)
         self._frame_tree.itemClicked.connect(self._on_frame_tree_clicked)
         ft_lay.addWidget(self._frame_tree)
 
-        self._frame_tree_panel.setVisible(False)  # hidden until DFF loaded
-        layout.addWidget(self._frame_tree_panel)
-
-        # - Texture panel (shown when TXD loaded)
-        layout.addWidget(self._create_texture_panel())
-
-        # Model Name / IDE-TXD ribbons - built here but docked into the
-        # middle panel's own nested QMainWindow below, not added to this
-        # layout directly. Split into two so they can be moved
-        # independently of each other.
-        self._info_ribbons = {
-            'name': self._build_model_name_toolbar(),
-            'ide':  self._build_model_ide_toolbar(icon_color),
-        }
-        self._info_ribbon_location = {'name': 'middle', 'ide': 'middle'}
-
-        return self._wrap_middle_panel_with_own_dock_areas(panel)
+        return self._frame_tree_panel
 
     def _wrap_middle_panel_with_own_dock_areas(self, content_panel): #vers 3
         """Give the middle panel its own nested QMainWindow (same pattern
@@ -9103,10 +9137,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     tb.setVisible(True)
                     tb.toggleViewAction().setChecked(True)
 
-    # Outer layout (Files/Models dock widgets around the viewport) - a
-    # separate QMainWindow from _inner_mw, so it gets its own save/restore
-    # with its own version constant.
-    _OUTER_LAYOUT_VERSION = 1
+    # Outer layout (Files/Models/Frame Hierarchy/Textures dock widgets
+    # around the viewport) - a separate QMainWindow from _inner_mw, so it
+    # gets its own save/restore with its own version constant. History:
+    # 1 = Files/Models only. 2 = Frame Hierarchy and Textures split out
+    # into their own top-level dock widgets too, same as Files.
+    _OUTER_LAYOUT_VERSION = 2
 
     def _save_outer_layout(self): #vers 1
         """Save _outer_mw's dock layout (Files/Models around the viewport)."""
@@ -9149,7 +9185,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             print(f"[ModelWorkshop] _restore_outer_layout error: {_e}")
         finally:
             for dock in (getattr(self, '_left_dock', None),
-                         getattr(self, '_middle_dock', None)):
+                         getattr(self, '_middle_dock', None),
+                         getattr(self, '_frame_hierarchy_dock', None),
+                         getattr(self, '_texture_dock', None)):
                 if dock is not None:
                     dock.setVisible(True)
                     dock.toggleViewAction().setChecked(True)
@@ -11075,7 +11113,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # - Header row
         hdr = QHBoxLayout()
         lbl = QLabel("Textures")
-        lbl.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        lbl.setFont(self.section_title_font)
         hdr.addWidget(lbl)
         hdr.addStretch()
         self._tex_count_lbl = QLabel("0 textures")
