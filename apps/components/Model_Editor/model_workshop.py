@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 177
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 178
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -3182,7 +3182,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._apply_theme()
 
 
-    def setup_ui(self): #vers 12
+    def setup_ui(self): #vers 13
         """Setup the main UI layout.
 
         EXPERIMENTAL (Jul 2026): three independent QMainWindows, nested:
@@ -3302,6 +3302,18 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                                   Qt.Orientation.Vertical)
         outer_mw.splitDockWidget(self._frame_hierarchy_dock, self._texture_dock,
                                   Qt.Orientation.Vertical)
+
+        # Double-click any dock's title bar to collapse it down to just the
+        # title (content hidden), double-click again to restore - replaces
+        # the ad-hoc per-panel collapse buttons that used to live inside
+        # Models/Frame Hierarchy/Textures with one consistent interaction
+        # across every dock, including Files.
+        for _dock, _title in ((self._left_dock, "Files"),
+                               (self._middle_dock, "Models"),
+                               (self._frame_hierarchy_dock, "Frame Hierarchy"),
+                               (self._texture_dock, "Textures")):
+            if _dock is not None:
+                self._make_dock_collapsible(_dock, _title)
 
         main_layout.addWidget(outer_mw)
 
@@ -8462,32 +8474,20 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         return self._wrap_middle_panel_with_own_dock_areas(panel)
 
-    def _create_frame_hierarchy_panel(self): #vers 1
+    def _create_frame_hierarchy_panel(self): #vers 2
         """Create the Frame Hierarchy panel on its own - previously stacked
         inside the same panel as the model table/textures, now a separate
-        top-level dock widget so it can be independently dragged/floated."""
+        top-level dock widget so it can be independently dragged/floated.
+        No internal header row - the dock's own title bar already shows
+        'Frame Hierarchy', and collapsing is now done by double-clicking
+        that title bar (see _make_dock_collapsible) instead of a per-panel
+        toggle button."""
         from PyQt6.QtWidgets import QTreeWidget
         self._frame_tree_panel = QFrame()
         self._frame_tree_panel.setFrameStyle(QFrame.Shape.StyledPanel)
         ft_lay = QVBoxLayout(self._frame_tree_panel)
         ft_lay.setContentsMargins(2, 2, 2, 2)
         ft_lay.setSpacing(2)
-
-        ft_hdr = QHBoxLayout()
-        ft_lbl = QLabel("Frame Hierarchy")
-        ft_lbl.setFont(self.section_title_font)
-        ft_hdr.addWidget(ft_lbl)
-        ft_hdr.addStretch()
-        ft_collapse = QPushButton("▾")
-        ft_collapse.setFixedSize(20, 18)
-        ft_collapse.setFlat(True)
-        ft_collapse.setToolTip("Collapse/expand frame tree")
-        ft_collapse.clicked.connect(lambda: (
-            self._frame_tree.setVisible(not self._frame_tree.isVisible()),
-            ft_collapse.setText("▸" if not self._frame_tree.isVisible() else "▾")
-        ))
-        ft_hdr.addWidget(ft_collapse)
-        ft_lay.addLayout(ft_hdr)
 
         self._frame_tree = QTreeWidget()
         self._frame_tree.setHeaderLabels(["Frame", "Parent", "Position"])
@@ -8497,6 +8497,53 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         ft_lay.addWidget(self._frame_tree)
 
         return self._frame_tree_panel
+
+    def _make_dock_collapsible(self, dock, title): #vers 1
+        """Custom title bar for a QDockWidget: double-click anywhere on the
+        title (label or empty bar area) to collapse the dock down to just
+        this title bar, hiding its content; double-click again to restore.
+        Keeps float/close buttons so nothing is lost versus Qt's native
+        title bar - only mouseDoubleClickEvent is overridden, so single-
+        click-and-drag (moving the dock) still works exactly as before,
+        since that's handled by mousePressEvent/mouseMoveEvent, untouched
+        here."""
+        from PyQt6.QtWidgets import QWidget as _QW, QToolButton as _QTB
+
+        bar = _QW()
+        lay = QHBoxLayout(bar)
+        lay.setContentsMargins(6, 2, 2, 2)
+        lay.setSpacing(2)
+
+        lbl = QLabel(title)
+        lbl.setFont(self.section_title_font)
+        lay.addWidget(lbl)
+        lay.addStretch()
+
+        float_btn = _QTB()
+        float_btn.setText("⧉")
+        float_btn.setToolTip("Float/dock")
+        float_btn.setFixedSize(20, 20)
+        float_btn.setAutoRaise(True)
+        float_btn.clicked.connect(lambda: dock.setFloating(not dock.isFloating()))
+        lay.addWidget(float_btn)
+
+        close_btn = _QTB()
+        close_btn.setText("×")
+        close_btn.setToolTip("Close (use the View menu or another dock's "
+                              "right-click menu to bring it back)")
+        close_btn.setFixedSize(20, 20)
+        close_btn.setAutoRaise(True)
+        close_btn.clicked.connect(dock.close)
+        lay.addWidget(close_btn)
+
+        def _dbl_click(event, d=dock):  #vers 1
+            content = d.widget()
+            if content:
+                content.setVisible(not content.isVisible())
+        bar.mouseDoubleClickEvent = _dbl_click
+        lbl.mouseDoubleClickEvent = _dbl_click
+
+        dock.setTitleBarWidget(bar)
 
     def _wrap_middle_panel_with_own_dock_areas(self, content_panel): #vers 3
         """Give the middle panel its own nested QMainWindow (same pattern
