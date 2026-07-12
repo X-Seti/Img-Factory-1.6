@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 161
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 162
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -227,7 +227,8 @@ except ImportError:
 # _browse_texlist_folder    open texlist/ browser dialog
 # _build_col_from_txd
 # _build_menus_into_qmenu
-# _build_model_info_toolbar
+# _build_model_ide_toolbar
+# _build_model_name_toolbar
 # _build_primitive    generate vertices+triangles for Box/Sphere/Cylinder/Plane
 # _build_toolbars
 # _build_txd_from_textures
@@ -323,6 +324,7 @@ except ImportError:
 # _import_selected
 # _import_surface
 # _import_via_ide
+# _info_ribbon_menu
 # _initialize_features
 # _invert_selection
 # _is_model_pinned
@@ -341,8 +343,7 @@ except ImportError:
 # _lookup_ide_for_dff    find IDE entry via xref or IDEDatabase #vers 2
 # _lookup_ide_from_db
 # _mirror_dialog
-# _model_info_toolbar_menu
-# _move_model_info_ribbon
+# _move_info_ribbon
 # _on_col_selected
 # _on_collision_selected
 # _on_compact_col_selected
@@ -8369,24 +8370,28 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # - Texture panel (shown when TXD loaded)
         layout.addWidget(self._create_texture_panel())
 
-        # Model Info ribbon (Name/IDE/TXD) - built here but docked into the
+        # Model Name / IDE-TXD ribbons - built here but docked into the
         # middle panel's own nested QMainWindow below, not added to this
-        # layout directly.
-        self._model_info_toolbar = self._build_model_info_toolbar(icon_color)
-        self._model_info_location = 'middle'
+        # layout directly. Split into two so they can be moved
+        # independently of each other.
+        self._info_ribbons = {
+            'name': self._build_model_name_toolbar(),
+            'ide':  self._build_model_ide_toolbar(icon_color),
+        }
+        self._info_ribbon_location = {'name': 'middle', 'ide': 'middle'}
 
         return self._wrap_middle_panel_with_own_dock_areas(panel)
 
-    def _wrap_middle_panel_with_own_dock_areas(self, content_panel): #vers 1
+    def _wrap_middle_panel_with_own_dock_areas(self, content_panel): #vers 2
         """Give the middle panel its own nested QMainWindow (same pattern
-        the right panel already uses for the viewport), so ribbons like
-        Model Info have real Left/Right toolbar dock areas specifically
+        the right panel already uses for the viewport), so the Name and
+        IDE/TXD ribbons have real Left/Right toolbar dock areas specifically
         flanking the middle panel's own content - not just the option of
         living inside it as a plain widget, or all the way over on the
-        far-right ribbon stack. Model Info defaults to the bottom (closest
-        to its old position), but can be dragged to either side natively
-        within this mini QMainWindow, or moved to the main right panel via
-        the existing right-click action."""
+        far-right ribbon stack. Both default to the bottom (closest to
+        their old combined position), but can be dragged to either side
+        independently within this mini QMainWindow, or moved to the main
+        right panel via the existing right-click action."""
         from PyQt6.QtWidgets import QMainWindow
         middle_mw = QMainWindow()
         middle_mw.setWindowFlags(Qt.WindowType.Widget)
@@ -8394,25 +8399,22 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             QMainWindow.DockOption.AllowNestedDocks |
             QMainWindow.DockOption.AllowTabbedDocks)
         middle_mw.setCentralWidget(content_panel)
-        middle_mw.addToolBar(Qt.ToolBarArea.BottomToolBarArea, self._model_info_toolbar)
+        middle_mw.addToolBar(Qt.ToolBarArea.BottomToolBarArea, self._info_ribbons['name'])
+        middle_mw.addToolBar(Qt.ToolBarArea.BottomToolBarArea, self._info_ribbons['ide'])
         self._middle_mw = middle_mw
         return middle_mw
 
-    def _build_model_info_toolbar(self, icon_color): #vers 1
-        """Build the Model Name/IDE/TXD ribbon as a real QToolBar (was plain
-        QHBoxLayout rows). Defaults to living in the middle panel as a plain
-        widget (no dock/float there - the middle panel isn't a QMainWindow),
-        but can be relocated into the right panel's ribbon stack via
-        _move_model_info_ribbon(), where it becomes a real dockable/
-        floatable toolbar like the others. Right-click for that option."""
+    def _build_model_name_toolbar(self): #vers 1
+        """Build the 'Model Name: Click to edit...' ribbon on its own,
+        split out from the combined Model Info ribbon so it can be
+        independently docked/moved from the IDE/TXD one."""
         from PyQt6.QtWidgets import QToolBar
-        from PyQt6.QtGui import QAction
-        tb = QToolBar("Model Info")
-        tb.setObjectName("Model Info")
+        tb = QToolBar("Model Name")
+        tb.setObjectName("Model Name")
         tb.setIconSize(QSize(18, 18))
         tb.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         tb.customContextMenuRequested.connect(
-            lambda pos, t=tb: self._model_info_toolbar_menu(t, pos))
+            lambda pos, t=tb, key='name': self._info_ribbon_menu(t, pos, key))
 
         name_label = QLabel("Model Name:")
         name_label.setFont(self.panel_font)
@@ -8426,7 +8428,21 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.info_name.setStyleSheet("padding: 2px; border: 1px solid palette(mid);")
         self.info_name.mousePressEvent = lambda e: self._enable_name_edit(e, False)
         tb.addWidget(self.info_name)
-        tb.addSeparator()
+
+        return tb
+
+    def _build_model_ide_toolbar(self, icon_color): #vers 1
+        """Build the 'IDE: -- ID: -- TXD: --' ribbon on its own, split out
+        from the combined Model Info ribbon so it can be independently
+        docked/moved from the Name one."""
+        from PyQt6.QtWidgets import QToolBar
+        from PyQt6.QtGui import QAction
+        tb = QToolBar("Model IDE / TXD")
+        tb.setObjectName("Model IDE / TXD")
+        tb.setIconSize(QSize(18, 18))
+        tb.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        tb.customContextMenuRequested.connect(
+            lambda pos, t=tb, key='ide': self._info_ribbon_menu(t, pos, key))
 
         ide_lbl = QLabel("IDE:")
         ide_lbl.setFont(self.panel_font)
@@ -8451,29 +8467,29 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         return tb
 
-    def _model_info_toolbar_menu(self, tb, pos): #vers 1
-        """Right-click menu on the Model Info ribbon - lets the user move it
-        between the middle panel (default) and the right panel's ribbon
-        stack. A plain QToolBar can't natively drag-and-dock between two
-        separate QMainWindows, so this is a deliberate action instead."""
+    def _info_ribbon_menu(self, tb, pos, key): #vers 1
+        """Right-click menu on the Model Name / IDE-TXD ribbons - lets the
+        user move either one independently between the middle panel
+        (default) and the right panel's ribbon stack. A plain QToolBar
+        can't natively drag-and-dock between two separate QMainWindows,
+        so this is a deliberate action instead."""
         from PyQt6.QtWidgets import QMenu
         menu = QMenu(self)
-        if self._model_info_location == 'middle':
+        if self._info_ribbon_location.get(key, 'middle') == 'middle':
             menu.addAction("Move to Right Panel Ribbons",
-                            lambda: self._move_model_info_ribbon('right'))
+                            lambda: self._move_info_ribbon(key, 'right'))
         else:
             menu.addAction("Move to Middle Panel",
-                            lambda: self._move_model_info_ribbon('middle'))
+                            lambda: self._move_info_ribbon(key, 'middle'))
         menu.exec(tb.mapToGlobal(pos))
 
-    def _move_model_info_ribbon(self, location: str): #vers 2
-        """Reparent the Model Info toolbar between the middle panel's own
-        nested QMainWindow (a real dockable/floatable toolbar there, on
-        whichever edge the user drags it to) and the right panel's
-        QMainWindow (dockable there too, alongside Selection/Navigation/
-        Render etc). Persists the choice to model_workshop.json."""
-        tb = getattr(self, '_model_info_toolbar', None)
-        if tb is None or location == self._model_info_location:
+    def _move_info_ribbon(self, key: str, location: str): #vers 1
+        """Reparent one of the Name/IDE-TXD toolbars (identified by key,
+        'name' or 'ide') between the middle panel's own nested QMainWindow
+        and the right panel's QMainWindow - dockable/floatable in both
+        places. Persists the choice per-ribbon to model_workshop.json."""
+        tb = self._info_ribbons.get(key)
+        if tb is None or location == self._info_ribbon_location.get(key):
             return
         if location == 'right':
             mid_mw = getattr(self, '_middle_mw', None)
@@ -8493,7 +8509,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if mid_mw:
                 mid_mw.addToolBar(Qt.ToolBarArea.BottomToolBarArea, tb)
                 tb.setVisible(True)
-        self._model_info_location = location
+        self._info_ribbon_location[key] = location
         try:
             import json
             from pathlib import Path
@@ -8502,7 +8518,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 data = json.loads(path.read_text())
             except Exception:
                 data = {}
-            data['model_info_location'] = location
+            locations = data.get('info_ribbon_locations', {})
+            locations[key] = location
+            data['info_ribbon_locations'] = locations
             path.write_text(json.dumps(data, indent=2))
         except Exception:
             pass
@@ -9057,20 +9075,22 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     dock.setVisible(True)
                     dock.toggleViewAction().setChecked(True)
 
-        # Restore Model Info ribbon location (middle panel vs right panel
-        # ribbon stack) - separate from the QMainWindow toolbar state above
-        # since this toolbar isn't always parented to _inner_mw.
+        # Restore Model Name / IDE-TXD ribbon locations (middle panel vs
+        # right panel ribbon stack) - separate from the QMainWindow toolbar
+        # state above since these toolbars aren't always parented to
+        # _inner_mw.
         try:
             import json
             from pathlib import Path
             path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
             if path.exists():
                 data = json.loads(path.read_text())
-                saved_location = data.get('model_info_location', 'middle')
-                if saved_location != self._model_info_location:
-                    self._move_model_info_ribbon(saved_location)
+                saved_locations = data.get('info_ribbon_locations', {})
+                for key, saved_location in saved_locations.items():
+                    if saved_location != self._info_ribbon_location.get(key):
+                        self._move_info_ribbon(key, saved_location)
         except Exception as _e:
-            print(f"[ModelWorkshop] Model Info ribbon location restore error: {_e}")
+            print(f"[ModelWorkshop] Info ribbon location restore error: {_e}")
 
     def _create_paint_bar(self): #vers 3
         """Floating paint bar — QWidget child of preview_widget, sits at top of viewport.
