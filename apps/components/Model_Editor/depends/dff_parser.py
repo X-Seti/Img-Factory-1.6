@@ -1,4 +1,4 @@
-#this belongs in apps/methods/dff_parser.py - Version: 6
+#this belongs in apps/methods/dff_parser.py - Version: 7
 # X-Seti - May08 2026 - Model Workshop - RenderWare DFF Parser
 """
 Parser for GTA RenderWare DFF (Clump) model files.
@@ -28,6 +28,7 @@ from apps.methods.dff_classes import (
 # DFFParser._parse_atomic
 # detect_dff
 # load_dff
+# DFFWriter.write
 
 
 def read_chunk(data: bytes, pos: int):
@@ -498,4 +499,26 @@ def load_dff(path: str) -> Optional[DFFModel]:
         return None
 
 
-__all__ = ['DFFParser', 'detect_dff', 'load_dff', 'read_chunk']
+class DFFWriter:
+    """Placeholder for DFF round-trip writing - not yet implemented.
+
+    model_workshop.py's _save_file() imports this expecting write() to
+    either work or raise NotImplementedError (it already has a specific
+    except NotImplementedError handler showing a friendly 'not yet
+    implemented, use Export -> OBJ' message) - but this class never
+    actually existed, so the import itself failed with a raw ImportError
+    instead. This stub restores the intended behaviour until DFF writing
+    is actually implemented."""
+
+    @staticmethod
+    def write(dff_model) -> bytes:
+        """Serialize a DFFModel back to raw DFF bytes. Not yet implemented -
+        writing a correct RenderWare clump (frame list, geometry list with
+        binmesh/triangle data, materials, atomics, extensions) is a
+        substantial undertaking distinct from parsing one."""
+        raise NotImplementedError(
+            "DFF round-trip save is not yet implemented - use Export -> OBJ "
+            "or another format for now.")
+
+
+__all__ = ['DFFParser', 'DFFWriter', 'detect_dff', 'load_dff', 'read_chunk']
