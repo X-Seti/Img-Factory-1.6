@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#This goes in root/apps/utils/app_settings_system.py - version 70
+#This goes in root/apps/utils/app_settings_system.py - version 71
 # $vers" X-Seti - June26, 2025 - App Factory - Package theme settings
 
 """
@@ -3189,6 +3189,17 @@ class AppPanelEffect: #vers 1
 
         effect = cs.get('panel_effect_type', 'none')
         if effect == 'none' or not effect:
+            return
+
+        # Guard against painting a widget that isn't currently paintable -
+        # e.g. mid-scroll/resize reflow can transiently leave a widget with
+        # zero size or not visible. Qt prints "paintEngine == 0" warnings
+        # from its C++ layer the moment QPainter.begin() is attempted on
+        # such a widget, before our Python-level check on begin()'s return
+        # value even runs - checking these conditions first avoids the
+        # warning being printed at all, not just handling the failure
+        # after the fact.
+        if not widget.isVisible() or widget.width() <= 0 or widget.height() <= 0:
             return
 
         p = QPainter()
