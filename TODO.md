@@ -1,4 +1,24 @@
-#this belongs in root /TODO.md - Version: 8
+#this belongs in root /TODO.md - Version: 9
+
+## July 2026 - Next up: DP5 Workshop
+
+### DP5 Workshop - ribbon rebuild + sidebar sectioning
+**Status**: PLANNED
+Apply the same treatment Model Workshop just went through:
+- Keep all existing functionality intact - this is a UI/layout pass, not
+  a feature change.
+- Add proper ribbon areas (QToolBar-based, matching the Model/COL/TXD
+  Workshop pattern - movable, floatable, collapsible via the dock-title
+  double-click, adaptive icon-only when space is limited).
+- Split the side panel into independent, dockable sections (same as
+  Model Workshop's Files/Models/Frame Hierarchy/Textures split) instead
+  of one combined panel.
+- Note from the Model Workshop pass: the "dotted grip handle" splitter
+  look (the old style, before the current flat separator) should ideally
+  be restored consistently across all tools (DP5, COL, TXD, Model
+  Workshop) and IMG Factory itself in one pass, rather than one-off per
+  tool - hold off on that specific piece until it can be done cleanly
+  everywhere at once.
 
 ## May 2026 - Model Workshop TODOs
 
