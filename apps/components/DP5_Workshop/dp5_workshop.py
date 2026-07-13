@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 22 (Build 341)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 23 (Build 342)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -4125,16 +4125,28 @@ class ColorPalPresetsMixin:
 
         GROUPS = [
             ("Amiga", [
-                ("Amiga OCS", "Amiga OCS", 'amiga'),
-                ("Amiga ECS", "Amiga ECS", 'amiga_ecs'),
-                ("Amiga AGA", "Amiga AGA", 'amiga_aga'),
-                ("Amiga AGA WB", "Amiga AGA WB", 'amiga_rtg_800'),
+                ("Amiga OCS PAL LowRes (320×256, 32col)", "Amiga OCS", 'amiga'),
+                ("Amiga OCS NTSC LowRes (320×200, 32col)", "Amiga OCS", 'amiga_ntsc'),
+                ("Amiga OCS PAL HiRes (640×256, 32col)", "Amiga OCS", 'amiga_hi'),
+                ("Amiga OCS LoRes interlace (320×512)", "Amiga OCS", 'amiga_lace'),
+                ("Amiga OCS HAM6 (320×256, 4096col)", "Amiga OCS", 'amiga_ham'),
+                ("Amiga ECS (320×256, 64col)", "Amiga ECS", 'amiga_ecs'),
+                ("Amiga ECS HiRes (640×256, 64col)", "Amiga ECS", 'amiga_ecs_hi'),
+                ("Amiga AGA (320×256, 256col)", "Amiga AGA", 'amiga_aga'),
+                ("Amiga AGA HiRes (640×256, 256col)", "Amiga AGA", 'amiga_aga_hi'),
+                ("Amiga AGA HAM8 (320×256, 16.7Mcol)", "Amiga AGA", 'amiga_ham8'),
+                ("Amiga AGA WB RTG 640×480", "Amiga AGA WB", 'amiga_rtg'),
+                ("Amiga AGA WB RTG 800×600", "Amiga AGA WB", 'amiga_rtg_800'),
+                ("Amiga AGA WB RTG 1024×768", "Amiga AGA WB", 'amiga_rtg_1024'),
+                ("Amiga AGA WB RTG 720×576 PAL", "Amiga AGA WB", 'amiga_rtg_pal'),
+                ("Amiga AGA WB RTG 720×480 NTSC", "Amiga AGA WB", 'amiga_rtg_ntsc'),
             ]),
             ("Commodore", [
                 ("C64 Hi-Res (320×200, 2col/cell)", "C64", 'c64'),
                 ("C64 Multicolor (160×200, 4col/cell)", "C64", 'c64m'),
                 ("VIC-20", "VIC-20", 'vic20'),
-                ("Plus/4", "Plus/4", 'plus4'),
+                ("Plus/4 Hi-Res (320×200)", "Plus/4", 'plus4'),
+                ("Plus/4 Multicolor (160×200, 4col)", "Plus/4", 'plus4m'),
             ]),
             ("Sinclair / ZX", [
                 ("ZX Spectrum", "ZX Spectrum", 'spectrum'),
@@ -4152,9 +4164,12 @@ class ColorPalPresetsMixin:
             ("Atari", [
                 ("Atari 2600 NTSC", "Atari 2600 NTSC", 'atari_2600'),
                 ("Atari 2600 PAL", "Atari 2600 PAL", 'atari_2600_pal'),
-                ("Atari 800 GTIA", "Atari 800 GTIA", 'atari_800'),
-                ("Atari 5200", "Atari 5200", 'atari_5200'),
-                ("Atari 7800", "Atari 7800", 'atari_7800'),
+                ("Atari 800 Hi-Res (320×192, 2col)", "Atari 800 GTIA", 'atari_800'),
+                ("Atari 800 GR.7 (160×192, 4col)", "Atari 800 GTIA", 'atari_800_lo'),
+                ("Atari 5200 Hi-Res (320×192, 2col)", "Atari 5200", 'atari_5200'),
+                ("Atari 5200 GR.7 (160×192, 4col)", "Atari 5200", 'atari_5200_lo'),
+                ("Atari 7800 Hi-Res (160×240, 2col)", "Atari 7800", 'atari_7800'),
+                ("Atari 7800 GR.7 (160×192, 4col)", "Atari 7800", 'atari_7800_lo'),
                 ("Atari ST", "Atari ST", 'atari_st'),
                 ("Atari STe", "Atari STe", 'atari_ste'),
                 ("Atari Falcon", "Atari Falcon", 'atari_falcon'),
@@ -5332,7 +5347,8 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             ("C64 Hires    320×200  2col/cell", 'c64'),
             ("C64 Multicolor 160×200 4col",     'c64m'),
             ("VIC-20       176×184",             'vic20'),
-            ("Plus/4       320×200",             'plus4'),
+            ("Plus/4 Hires 320×200",             'plus4'),
+            ("Plus/4 Multicolor 160×200 4col",   'plus4m'),
         ])
         _pm("Sinclair / ZX", [
             ("Spectrum 48K   256×192  2col/cell", 'spectrum'),
@@ -5352,9 +5368,12 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         _pm("Atari", [
             ("2600 NTSC    160×192",              'atari_2600'),
             ("2600 PAL     160×228",              'atari_2600_pal'),
-            ("800/XL/XE    320×192  GTIA 256col",'atari_800'),
-            ("5200         320×192  GTIA",       'atari_5200'),
-            ("7800         320×200  GTIA",       'atari_7800'),
+            ("800/XL/XE Hi-Res  320×192  2col",  'atari_800'),
+            ("800/XL/XE GR.7    160×192  4col",  'atari_800_lo'),
+            ("5200 Hi-Res       320×192  2col",  'atari_5200'),
+            ("5200 GR.7         160×192  4col",  'atari_5200_lo'),
+            ("7800 Hi-Res       160×240  2col",  'atari_7800'),
+            ("7800 GR.7         160×192  4col",  'atari_7800_lo'),
             ("ST           320×200  16col",      'atari_st'),
             ("STe          320×200  16col 12bit",'atari_ste'),
             ("Lynx         160×102  16col",      'atari_lynx'),
@@ -6245,12 +6264,16 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         'atari_st':    (16, 1,   16),
         'atari_ste':   (16, 1,   16),
         'atari_800':   (2,  1,   4),
+        'atari_800_lo':  (4,  1,   4),
         'atari_5200':  (2,  1,   4),
+        'atari_5200_lo': (4,  1,   4),
         'atari_7800':  (2,  1,   4),
+        'atari_7800_lo': (4,  1,   4),
         'atari_lynx':  (1,  1,   16),
         'atari_falcon':(1,  1,   65536),
         'atari_jaguar':(1,  1,   16777216),
         'plus4':       (8,  8,   2),
+        'plus4m':      (4,  8,   4),
         'vic20':       (8,  8,   2),
         'nimbus':      (4,  4,   16),
         'nimbus_hi':   (4,  4,   16),   # Nimbus 640×250
@@ -6325,7 +6348,9 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         'atari_2600':  (160, 192),  # NTSC standard kernel
         'atari_st':    (320, 200),
         'atari_ste':   (320, 200), 'atari_800':   (320, 192),
-        'atari_5200':  (320, 192), 'atari_7800':  (160, 240),  # 160×240 NTSC most common
+        'atari_800_lo':  (160, 192),  # ANTIC GR.7-style 4col mode
+        'atari_5200':  (320, 192), 'atari_5200_lo': (160, 192),
+        'atari_7800':  (160, 240), 'atari_7800_lo': (160, 192),  # 160×240 NTSC most common
         'atari_lynx':  (160, 102), 'atari_falcon': (320, 200), 'atari_falcon_hi': (640, 480),
         'atari_jaguar': (320, 240),
         'amiga':       (320, 256), 'amiga_ntsc':  (320, 200),
@@ -6336,7 +6361,8 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         'amiga_rtg_pal':  (720, 576), 'amiga_rtg_ntsc': (720, 480),
         'amiga_aga':   (320, 256), 'amiga_ham':   (320, 256),
         'amiga_ham8':  (320, 256), 'amiga_rtg':   (640, 480),
-        'plus4':       (320, 200), 'vic20':       (176, 184),
+        'plus4':       (320, 200), 'plus4m':      (160, 200),  # TED multicolor, like C64m
+        'vic20':       (176, 184),
         'nes':         (256, 240), 'snes':        (256, 224),
         'game_boy':    (160, 144), 'game_boy_pocket': (160, 144),
         'game_boy_color': (160, 144), 'game_boy_advance': (240, 160),
@@ -6384,9 +6410,9 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             'nc':   'Amstrad NC100/200',
             'atari_2600': 'Atari 2600 NTSC',
             'atari_st': 'Atari ST', 'atari_ste': 'Atari STe',
-            'atari_800': 'Atari 800 GTIA',
-            'atari_5200': 'Atari 5200',
-            'atari_7800': 'Atari 7800',
+            'atari_800': 'Atari 800 GTIA', 'atari_800_lo': 'Atari 800 GTIA',
+            'atari_5200': 'Atari 5200', 'atari_5200_lo': 'Atari 5200',
+            'atari_7800': 'Atari 7800', 'atari_7800_lo': 'Atari 7800',
             'atari_lynx': 'Atari Lynx',
             'atari_falcon': 'Atari Falcon',
             'atari_jaguar': 'Atari Jaguar',
@@ -6400,7 +6426,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             'amiga_ham': 'Amiga OCS',
             'amiga_ham8': 'Amiga AGA',
             'amiga_rtg': 'Amiga AGA WB',
-            'plus4': 'Plus/4', 'vic20': 'VIC-20',
+            'plus4': 'Plus/4', 'plus4m': 'Plus/4', 'vic20': 'VIC-20',
             'nimbus': 'RM Nimbus',
             'bbc0': 'BBC Micro', 'bbc1': 'BBC Micro', 'bbc2': 'BBC Micro',
             'electron0': 'Acorn Electron', 'electron1': 'Acorn Electron',
