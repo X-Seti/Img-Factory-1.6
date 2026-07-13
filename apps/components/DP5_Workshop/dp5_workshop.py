@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 37 (Build 356)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 38 (Build 357)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -2993,12 +2993,22 @@ class PaletteGrid(QWidget):
             return max(1, w // self._cell)
         return max(1, self._cols_hint)
 
-    def _recalc_height(self):  #vers 1
-        cols = self._effective_cols()
-        rows = max(1, (len(self._colors) + cols - 1) // cols)
-        self.setFixedHeight(rows * self._cell + 1)
+    def _recalc_height(self):  #vers 2
+        # Same re-entrancy guard as _AutoCellPaletteGrid - setFixedHeight()
+        # below can trigger another resizeEvent before this returns.
+        if getattr(self, '_recalc_guard', False):
+            return
+        self._recalc_guard = True
+        try:
+            cols = self._effective_cols()
+            rows = max(1, (len(self._colors) + cols - 1) // cols)
+            new_h = rows * self._cell + 1
+            if new_h != self.height():
+                self.setFixedHeight(new_h)
+        finally:
+            self._recalc_guard = False
 
-    def resizeEvent(self, event):  #vers 1
+    def resizeEvent(self, event):  #vers 2
         super().resizeEvent(event)
         self._recalc_height()
 
@@ -3138,15 +3148,27 @@ class _AutoCellPaletteGrid(PaletteGrid):
     def set_palette_raw(self, palette_data):  #vers 1
         super().set_palette_raw(palette_data)
 
-    def _recalc_height(self):  #vers 1
-        cs   = self._cell_size()
-        cols = self._fixed_cols
-        rows = max(1, (len(self._colors) + cols - 1) // cols)
-        self.setFixedHeight(rows * cs + 1)
+    def _recalc_height(self):  #vers 2
+        # Re-entrancy guard: setFixedHeight() below can trigger another
+        # resizeEvent before this call returns (e.g. a scrollbar toggling
+        # based on the new height, which changes available width, which
+        # changes cell size, which changes height again...) - without this
+        # guard that loop recurses until Python's stack limit crashes it.
+        if getattr(self, '_recalc_guard', False):
+            return
+        self._recalc_guard = True
+        try:
+            cs   = self._cell_size()
+            cols = self._fixed_cols
+            rows = max(1, (len(self._colors) + cols - 1) // cols)
+            new_h = rows * cs + 1
+            if new_h != self.height():
+                self.setFixedHeight(new_h)
+        finally:
+            self._recalc_guard = False
 
-    def resizeEvent(self, event):  #vers 1
-        super().resizeEvent(event)
-        self._recalc_height()
+    def resizeEvent(self, event):  #vers 2
+        super().resizeEvent(event)   # already calls self._recalc_height() via polymorphism
         self.update()
 
     def paintEvent(self, event):  #vers 1
@@ -5272,14 +5294,6 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(5, 5, 5, 5)
         layout.setSpacing(4)
-
-        # Header
-        hdr = QHBoxLayout()
-        header = QLabel("Bitmaps")
-        header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        hdr.addWidget(header)
-        hdr.addStretch()
-        layout.addLayout(hdr)
 
         # Bitmap list
         self._bitmap_lw = QListWidget()
