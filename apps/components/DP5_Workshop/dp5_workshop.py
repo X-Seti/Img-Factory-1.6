@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 31 (Build 350)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 32 (Build 351)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -2151,11 +2151,36 @@ class DP5Canvas(QWidget):
                        TOOL_RECT,     TOOL_FILLED_RECT,
                        TOOL_CIRCLE,   TOOL_FILLED_CIRCLE,
                        TOOL_TRIANGLE, TOOL_FILLED_TRIANGLE,
-                       TOOL_STAR,     TOOL_FILLED_STAR,
-                       TOOL_SELECT,   TOOL_SELECT_COPY)
+                       TOOL_STAR,     TOOL_FILLED_STAR)
         # Also draw box-zoom preview
         is_box_zoom = (self.tool == TOOL_ZOOM and self._zoom_mode == 'box')
         if self._preview_start and self._preview_end and \
+                self.tool in (TOOL_SELECT, TOOL_SELECT_COPY):
+            # Dedicated marching-ants-style preview - NOT tied to the
+            # current paint colour (self.color), which could blend
+            # invisibly into the canvas depending on what's selected.
+            # Same two-pass technique as the committed selection outline.
+            s = self._tex_to_widget(*self._preview_start)
+            e = self._tex_to_widget(*self._preview_end)
+            rect = QRect(s, e).normalized()
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            if self.marching_ants_enabled:
+                dash = [1, 2] if self.marching_ants_style == 'dots' else [4, 4]
+                pen_bg = QPen(self.marching_ants_bg, 1, Qt.PenStyle.CustomDashLine)
+                pen_bg.setDashPattern(dash)
+                pen_bg.setDashOffset(self._marching_ants_offset + sum(dash) / 2)
+                painter.setPen(pen_bg)
+                painter.drawRect(rect)
+                pen_fg = QPen(self.marching_ants_fg, 1, Qt.PenStyle.CustomDashLine)
+                pen_fg.setDashPattern(dash)
+                pen_fg.setDashOffset(self._marching_ants_offset)
+                painter.setPen(pen_fg)
+                painter.drawRect(rect)
+            else:
+                painter.setPen(QPen(QColor(0, 180, 255), 1, Qt.PenStyle.DashLine))
+                painter.drawRect(rect)
+
+        elif self._preview_start and self._preview_end and \
                 (self.tool in shape_tools or is_box_zoom):
             pen = QPen(QColor(0,200,255) if is_box_zoom else self.color,
                        1, Qt.PenStyle.DashLine)
@@ -2165,7 +2190,7 @@ class DP5Canvas(QWidget):
             e = self._tex_to_widget(*self._preview_end)
             if self.tool == TOOL_LINE:
                 painter.drawLine(s.x(), s.y(), e.x(), e.y())
-            elif self.tool in (TOOL_RECT, TOOL_FILLED_RECT, TOOL_SELECT, TOOL_SELECT_COPY):
+            elif self.tool in (TOOL_RECT, TOOL_FILLED_RECT):
                 painter.drawRect(QRect(s, e).normalized())
             elif self.tool in (TOOL_CIRCLE, TOOL_FILLED_CIRCLE):
                 painter.drawEllipse(QRect(s, e).normalized())
@@ -8843,7 +8868,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._set_status(f"New canvas: {w}\u00d7{h}  {depth_combo.currentText()}  [{mode_labels[tab_mode]}]")
 
 
-    def _crop_to_selection(self): #vers 1
+    def _crop_to_selection(self): #vers 2
         """Crop canvas to the current selection rect."""
         if not self.dp5_canvas: return
         c = self.dp5_canvas
@@ -8855,6 +8880,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         if w <= 0 or h <= 0: return
         try:
             from PIL import Image
+            self._push_undo()
             img = Image.frombytes('RGBA', (c.tex_w, c.tex_h), bytes(c.rgba))
             cropped = img.crop((x, y, x + w, y + h))
             c.tex_w, c.tex_h = w, h
@@ -8862,6 +8888,15 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             c.rgba = bytearray(cropped.tobytes())
             c._sel_active = False
             c._selection_rect = None
+            # If a platform mode was locked, the cropped size won't match
+            # it anymore - staying "locked" to a stale platform after a
+            # manual crop doesn't make sense, so release it back to free.
+            if self._mode_locked and self._canvas_mode == 'platform':
+                target = self._PLATFORM_RES.get(self._platform_mode)
+                if target != (w, h):
+                    self._canvas_mode = 'free'
+                    self._mode_locked = False
+                    c.pixel_aspect_x = 1.0
             c.update()
             self._fit_canvas_to_viewport()
             self._set_status(f"Cropped to {w}×{h}")
