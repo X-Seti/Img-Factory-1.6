@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 36 (Build 355)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 37 (Build 356)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -1209,6 +1209,12 @@ class DP5Settings:
         'ribbon_padding_vert':    3,
         'ribbon_padding_horz':    3,
         'ribbon_opacity':         100,   # 0-100, 100 = fully opaque
+        # Internal padding between the icon and the button's own edge -
+        # distinct from ribbon_padding_* above, which is the gap BETWEEN
+        # buttons. QToolButton has its own built-in padding from the Qt
+        # style even when the toolbar's inter-item spacing is 0.
+        'ribbon_button_padding_vert': 2,
+        'ribbon_button_padding_horz': 2,
     }
 
     def __init__(self): #vers 1
@@ -1392,7 +1398,13 @@ class DP5SettingsDialog(QDialog):
         self._ribbon_pad_vert_spin = QSpinBox()
         self._ribbon_pad_vert_spin.setRange(0, 20)
         self._ribbon_pad_vert_spin.setValue(self.s.get('ribbon_padding_vert'))
-        rl.addRow("Padding:", self._ribbon_pad_vert_spin)
+        self._ribbon_pad_vert_spin.setToolTip("Gap between buttons")
+        rl.addRow("Button spacing:", self._ribbon_pad_vert_spin)
+        self._ribbon_btn_pad_vert_spin = QSpinBox()
+        self._ribbon_btn_pad_vert_spin.setRange(0, 20)
+        self._ribbon_btn_pad_vert_spin.setValue(self.s.get('ribbon_button_padding_vert'))
+        self._ribbon_btn_pad_vert_spin.setToolTip("Gap between the icon and the button's own edge")
+        rl.addRow("Button edge padding:", self._ribbon_btn_pad_vert_spin)
 
         rl.addRow(QLabel("—  Horizontal  (docked top/bottom)  —"))
         self._ribbon_icon_horz_spin = QSpinBox()
@@ -1402,7 +1414,13 @@ class DP5SettingsDialog(QDialog):
         self._ribbon_pad_horz_spin = QSpinBox()
         self._ribbon_pad_horz_spin.setRange(0, 20)
         self._ribbon_pad_horz_spin.setValue(self.s.get('ribbon_padding_horz'))
-        rl.addRow("Padding:", self._ribbon_pad_horz_spin)
+        self._ribbon_pad_horz_spin.setToolTip("Gap between buttons")
+        rl.addRow("Button spacing:", self._ribbon_pad_horz_spin)
+        self._ribbon_btn_pad_horz_spin = QSpinBox()
+        self._ribbon_btn_pad_horz_spin.setRange(0, 20)
+        self._ribbon_btn_pad_horz_spin.setValue(self.s.get('ribbon_button_padding_horz'))
+        self._ribbon_btn_pad_horz_spin.setToolTip("Gap between the icon and the button's own edge")
+        rl.addRow("Button edge padding:", self._ribbon_btn_pad_horz_spin)
 
         rl.addRow(QLabel("—  Appearance  —"))
         self._ribbon_opacity_spin = QSpinBox()
@@ -1582,6 +1600,8 @@ class DP5SettingsDialog(QDialog):
         self.s.set('ribbon_padding_vert',   self._ribbon_pad_vert_spin.value())
         self.s.set('ribbon_icon_size_horz', self._ribbon_icon_horz_spin.value())
         self.s.set('ribbon_padding_horz',   self._ribbon_pad_horz_spin.value())
+        self.s.set('ribbon_button_padding_vert', self._ribbon_btn_pad_vert_spin.value())
+        self.s.set('ribbon_button_padding_horz', self._ribbon_btn_pad_horz_spin.value())
         self.s.set('ribbon_opacity',        self._ribbon_opacity_spin.value())
         self.s.set('show_bitmap_list', self._bitmap_chk.isChecked())
         self.s.set('show_statusbar',   self._statusbar_chk.isChecked())
@@ -5957,7 +5977,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         tb.orientationChanged.connect(lambda _o, t=tb: self._apply_ribbon_style(t))
         return tb
 
-    def _apply_ribbon_style(self, toolbar): #vers 1
+    def _apply_ribbon_style(self, toolbar): #vers 2
         """Apply icon size / padding / opacity to a ribbon, using whichever
         of the vertical or horizontal settings match its current
         orientation. Called on creation and again whenever the ribbon is
@@ -5968,6 +5988,8 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             'ribbon_icon_size_vert' if vertical else 'ribbon_icon_size_horz')
         padding = self.dp5_settings.get(
             'ribbon_padding_vert' if vertical else 'ribbon_padding_horz')
+        btn_padding = self.dp5_settings.get(
+            'ribbon_button_padding_vert' if vertical else 'ribbon_button_padding_horz')
         opacity = self.dp5_settings.get('ribbon_opacity')
 
         toolbar.setIconSize(QSize(icon_sz, icon_sz))
@@ -5976,7 +5998,8 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         alpha = max(0, min(255, round(opacity / 100 * 255)))
         toolbar.setStyleSheet(
             f"QToolBar {{ background: rgba(40, 40, 45, {alpha}); "
-            f"spacing: {max(0, int(padding))}px; }}")
+            f"spacing: {max(0, int(padding))}px; }} "
+            f"QToolButton {{ padding: {max(0, int(btn_padding))}px; }}")
 
     def _create_image_ops_ribbon(self): #vers 1
         """Image Ops ribbon - Colour Adjustments/Seamless/Snow/Zoom Lens/
