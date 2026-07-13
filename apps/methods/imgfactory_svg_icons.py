@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 15
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 16
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -1352,27 +1352,62 @@ class SVGIconFactory: #vers 8
     #Paint Icons
 
     @staticmethod
-    def dp_pencil_icon(size: int = 20, color: str = None) -> QIcon: #vers 3
-        """Classic pencil — angled body, eraser cap, sharp tip"""
+    def dp_pencil_icon(size: int = 20, color: str = None) -> QIcon: #vers 4
+        """Classic pencil - coloured segments (wood body, metal ferrule,
+        graphite tip, pink eraser cap) instead of a single flat fill,
+        moving toward the lifelike multi-colour icon style."""
         return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z" fill="currentColor"/>
-            <path d="M20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" fill="currentColor"/>
+            <defs>
+                <linearGradient id="dpPencilWood" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0" stop-color="#e8c878"/>
+                    <stop offset="1" stop-color="#c9a256"/>
+                </linearGradient>
+            </defs>
+            <!-- Wood body -->
+            <path d="M5.4 15.6 14.9 6.1l3.0 3.0-9.5 9.5-3.8.8z" fill="url(#dpPencilWood)" stroke="#8a6b2e" stroke-width="0.4"/>
+            <!-- Graphite tip -->
+            <path d="M5.4 15.6 3 21l5.4-2.4 1.1-1.1z" fill="#4a4a4a"/>
+            <path d="M3 21l1.6-3.7 2.1 2.1z" fill="#2a2a2a"/>
+            <!-- Metal ferrule -->
+            <rect x="16.2" y="4.3" width="3.0" height="3.0" rx="0.4"
+                transform="rotate(45 17.7 5.8)" fill="#b9bec6" stroke="#7d828a" stroke-width="0.3"/>
+            <!-- Eraser cap -->
+            <path d="M20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-.62.62 3.75 3.75.62-.62z" fill="#e88fa8"/>
         </svg>''', size, color)
 
     @staticmethod
-    def dp_eraser_icon(size: int = 20, color: str = None) -> QIcon: #vers 3
-        """Wide rectangular eraser on a baseline"""
+    def dp_eraser_icon(size: int = 20, color: str = None) -> QIcon: #vers 4
+        """Classic pink block eraser - gradient body for a rounded-rubber
+        look instead of a single flat fill."""
         return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path d="M15.14 3 21 8.86 12.7 17.16H7.83L3 12.33 10.34 5l4.8-2z" fill="currentColor"/>
-            <path d="M3 19h18v2H3z" fill="currentColor"/>
+            <defs>
+                <linearGradient id="dpEraserGrad" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0" stop-color="#f0a0b8"/>
+                    <stop offset="0.6" stop-color="#e07898"/>
+                    <stop offset="1" stop-color="#c85878"/>
+                </linearGradient>
+            </defs>
+            <path d="M15.14 3 21 8.86 12.7 17.16H7.83L3 12.33 10.34 5l4.8-2z"
+                fill="url(#dpEraserGrad)" stroke="#a8425f" stroke-width="0.4"/>
+            <path d="M10.34 5 3 12.33l2 2 8.1-8.1z" fill="#f8c0d0" opacity="0.55"/>
+            <path d="M3 19h18v2H3z" fill="#7a5240"/>
         </svg>''', size, color)
 
     @staticmethod
-    def dp_bucket_icon(size: int = 20, color: str = None) -> QIcon: #vers 3
-        """Paint bucket with handle and paint drip"""
+    def dp_bucket_icon(size: int = 20, color: str = None) -> QIcon: #vers 4
+        """Paint bucket - metallic gradient body with a colourful paint
+        drip accent, instead of a single flat fill."""
         return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path d="M16.56 8.94L7.62 0 6.21 1.41l2.38 2.38-5.15 5.15a1.49 1.49 0 0 0 0 2.12l5.5 5.5c.29.29.68.44 1.06.44s.77-.15 1.06-.44l5.5-5.5c.59-.58.59-1.53 0-2.12zM5.21 10L10 5.21 14.79 10H5.21z" fill="currentColor"/>
-            <path d="M19 11.5s-2 2.17-2 3.5c0 1.1.9 2 2 2s2-.9 2-2c0-1.33-2-3.5-2-3.5z" fill="currentColor"/>
+            <defs>
+                <linearGradient id="dpBucketGrad" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0" stop-color="#d8dbe2"/>
+                    <stop offset="1" stop-color="#9a9ea6"/>
+                </linearGradient>
+            </defs>
+            <path d="M16.56 8.94L7.62 0 6.21 1.41l2.38 2.38-5.15 5.15a1.49 1.49 0 0 0 0 2.12l5.5 5.5c.29.29.68.44 1.06.44s.77-.15 1.06-.44l5.5-5.5c.59-.58.59-1.53 0-2.12zM5.21 10L10 5.21 14.79 10H5.21z"
+                fill="url(#dpBucketGrad)" stroke="#6f7278" stroke-width="0.3"/>
+            <path d="M5.21 10 10 5.21 14.79 10z" fill="#e05050"/>
+            <path d="M19 11.5s-2 2.17-2 3.5c0 1.1.9 2 2 2s2-.9 2-2c0-1.33-2-3.5-2-3.5z" fill="#e05050" stroke="#a83c3c" stroke-width="0.3"/>
         </svg>''', size, color)
 
     @staticmethod
@@ -1404,11 +1439,20 @@ class SVGIconFactory: #vers 8
         </svg>''', size, color)
 
     @staticmethod
-    def dp_magnify_icon(size: int = 20, color: str = None) -> QIcon: #vers 3
-        """Magnifying glass with + inside lens"""
+    def dp_magnify_icon(size: int = 20, color: str = None) -> QIcon: #vers 4
+        """Magnifying glass with + inside lens - glass-tinted lens and a
+        gold/brass rim, instead of a single flat fill."""
         return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <radialGradient id="dpMagnifyLens" cx="0.35" cy="0.35" r="0.75">
+                    <stop offset="0" stop-color="#dceefc" stop-opacity="0.55"/>
+                    <stop offset="1" stop-color="#9fd4ee" stop-opacity="0.25"/>
+                </radialGradient>
+            </defs>
+            <circle cx="10" cy="10" r="6.3" fill="url(#dpMagnifyLens)"/>
             <path fill-rule="evenodd" clip-rule="evenodd"
-                d="M10 3a7 7 0 1 0 4.39 12.476l4.567 4.567 1.414-1.414-4.567-4.567A7 7 0 0 0 10 3zm-5 7a5 5 0 1 1 10 0 5 5 0 0 1-10 0z" fill="currentColor"/>
+                d="M10 3a7 7 0 1 0 4.39 12.476l4.567 4.567 1.414-1.414-4.567-4.567A7 7 0 0 0 10 3zm-5 7a5 5 0 1 1 10 0 5 5 0 0 1-10 0z"
+                fill="#d0a030"/>
             <rect x="9" y="7" width="2" height="6" rx="1" fill="currentColor"/>
             <rect x="7" y="9" width="6" height="2" rx="1" fill="currentColor"/>
         </svg>''', size, color)
@@ -1424,10 +1468,19 @@ class SVGIconFactory: #vers 8
         </svg>''', size, color)
 
     @staticmethod
-    def dp_color_picker_icon(size: int = 20, color: str = None) -> QIcon: #vers 3
-        """Eyedropper / colour picker"""
+    def dp_color_picker_icon(size: int = 20, color: str = None) -> QIcon: #vers 4
+        """Eyedropper / colour picker - metal tip and coloured liquid
+        accent inside the shaft, instead of a single flat fill."""
         return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path d="M20.71 5.63l-2.34-2.34a1 1 0 0 0-1.41 0l-3.12 3.12-1.41-1.41-1.42 1.41 1.41 1.42-6.6 6.6A2 2 0 0 0 5 16v3h3a2 2 0 0 0 1.42-.59l6.6-6.6 1.41 1.42 1.42-1.42-1.42-1.41 3.12-3.12a1 1 0 0 0 0-1.65z" fill="currentColor"/>
+            <defs>
+                <linearGradient id="dpPickerMetal" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0" stop-color="#d8dbe2"/>
+                    <stop offset="1" stop-color="#9a9ea6"/>
+                </linearGradient>
+            </defs>
+            <path d="M20.71 5.63l-2.34-2.34a1 1 0 0 0-1.41 0l-3.12 3.12-1.41-1.41-1.42 1.41 1.41 1.42-6.6 6.6A2 2 0 0 0 5 16v3h3a2 2 0 0 0 1.42-.59l6.6-6.6 1.41 1.42 1.42-1.42-1.42-1.41 3.12-3.12a1 1 0 0 0 0-1.65z"
+                fill="url(#dpPickerMetal)" stroke="#6f7278" stroke-width="0.3"/>
+            <path d="M9.6 11.98l-4.18 4.18A1 1 0 0 0 5 16.7V19h2.3a1 1 0 0 0 .54-.42l4.18-4.18-2.42-2.42z" fill="#e05050"/>
         </svg>''', size, color)
 
     @staticmethod
@@ -1536,10 +1589,18 @@ class SVGIconFactory: #vers 8
         </svg>''', size, color)
 
     @staticmethod
-    def dp_text_icon(size: int = 20, color: str = None) -> QIcon: #vers 3
-        """Bold T with I-beam cursor"""
+    def dp_text_icon(size: int = 20, color: str = None) -> QIcon: #vers 4
+        """Bold T with I-beam cursor - coloured gradient T for visual
+        identity, cursor stays theme-tinted since it's a UI element,
+        not part of the 'object' the tool represents."""
         return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <text x="2" y="20" font-family="serif" font-size="22" font-weight="bold" fill="currentColor">T</text>
+            <defs>
+                <linearGradient id="dpTextGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#5090e8"/>
+                    <stop offset="1" stop-color="#3060b0"/>
+                </linearGradient>
+            </defs>
+            <text x="2" y="20" font-family="serif" font-size="22" font-weight="bold" fill="url(#dpTextGrad)">T</text>
             <line x1="18" y1="8" x2="18" y2="20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
             <line x1="16" y1="8" x2="20" y2="8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
             <line x1="16" y1="20" x2="20" y2="20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
