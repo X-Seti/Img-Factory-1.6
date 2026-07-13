@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 14
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 15
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -1376,17 +1376,31 @@ class SVGIconFactory: #vers 8
         </svg>''', size, color)
 
     @staticmethod
-    def dp_brush_icon(size: int = 20, color: str = None) -> QIcon: #vers 3
-        """Spray can / airbrush with nozzle and paint dots"""
+    def dp_brush_icon(size: int = 20, color: str = None) -> QIcon: #vers 4
+        """Airbrush - 45° tilted spray can, gradient metallic body, fixed
+        colour label band and trigger cap, light sparse mist. Nozzle
+        points straight up (before the 45° rotation) rather than
+        sideways from the can body - the previous sideways-nozzle
+        silhouette read as an unfortunate shape at small size."""
         return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <rect x="13" y="6" width="8" height="13" rx="2.5" fill="currentColor"/>
-            <rect x="5" y="8" width="10" height="4" rx="1.5" fill="currentColor"/>
-            <rect x="15" y="3" width="4" height="4" rx="1" fill="currentColor"/>
-            <circle cx="3" cy="10" r="1.2" fill="currentColor"/>
-            <circle cx="2" cy="14" r="1" fill="currentColor"/>
-            <circle cx="4" cy="17" r="1.2" fill="currentColor"/>
-            <circle cx="7" cy="19" r="0.9" fill="currentColor"/>
-            <circle cx="3" cy="19" r="0.8" fill="currentColor"/>
+            <defs>
+                <linearGradient id="dpBrushCanGrad" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0" stop-color="#8b8f98"/>
+                    <stop offset="0.5" stop-color="#d8dbe2"/>
+                    <stop offset="1" stop-color="#9a9ea6"/>
+                </linearGradient>
+            </defs>
+            <g transform="rotate(45 12 12)">
+                <rect x="8" y="10" width="8" height="11" rx="1.5" fill="url(#dpBrushCanGrad)"/>
+                <rect x="8" y="15" width="8" height="3" fill="#3f8fd8" stroke="#2f6fb0" stroke-width="0.3"/>
+                <rect x="10.5" y="6" width="3" height="4.5" rx="0.6" fill="url(#dpBrushCanGrad)"/>
+                <circle cx="12" cy="5" r="2" fill="#d05050"/>
+            </g>
+            <circle cx="18" cy="4" r="0.8" fill="#9fd4ee"/>
+            <circle cx="16" cy="2" r="0.6" fill="#9fd4ee"/>
+            <circle cx="20" cy="6" r="0.6" fill="#9fd4ee"/>
+            <circle cx="22" cy="3" r="0.5" fill="#9fd4ee"/>
+            <circle cx="19" cy="7.5" r="0.5" fill="#9fd4ee"/>
         </svg>''', size, color)
 
     @staticmethod
