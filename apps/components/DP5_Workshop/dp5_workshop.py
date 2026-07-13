@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 15 (Build 334)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 16 (Build 335)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -50,499 +50,466 @@ from PyQt6.QtGui import (
 # _load_tool_icon
 # _make_tool_icon
 # open_dp5_workshop
-
-##class DP5Settings: -
-# __init__
-# _load
-# get
-# save
-# set
-
-##class DP5SettingsDialog: -
-# __init__
-# _accept
-
-##class DP5Canvas: -
-# __init__
-# _do_blur_brush
-# _do_dodge_burn
-# _do_smudge
-# _do_spray
-# _get_scroll_area
-# _lift_selection
-# _point_in_sel_rect
-# _push_undo_canvas
-# _scroll_by
-# _stamp_selection
-# _tex_to_widget
-# _widget_to_tex
-# cancel_sel_move
-# copy_selection
-# cut_selection
-# draw_bezier_curve
-# draw_circle
-# draw_filled_circle
-# draw_filled_rect
-# draw_line
-# draw_rect
-# draw_regular_polygon
-# draw_star
-# draw_triangle
-# flood_fill
-# get_pixel
-# keyPressEvent
-# keyReleaseEvent
-# mouseDoubleClickEvent
-# mouseMoveEvent
-# mousePressEvent
-# mouseReleaseEvent
-# nudge_float
-# paintEvent
-# paste_selection
-# set_pixel
-# set_pixel_brush
-# sizeHint
-# wheelEvent
-
-##class PaletteGrid: -
-# __init__
-# _effective_cols
-# _get_ui_color
-# _recalc_height
-# mousePressEvent
-# paintEvent
-# resizeEvent
-# set_colors
-# set_palette
-# set_palette_raw
-# set_selection_by_color
-
-##class _AutoCellPaletteGrid: -
-# __init__
-# _cell_size
-# _effective_cols
-# _get_ui_color
-# _recalc_height
-# mousePressEvent
-# paintEvent
-# resizeEvent
-# set_colors
-# set_palette_raw
-
-##class ColorPickerWidget: -
-# __init__
-# _pick
-# current_color
-
-##class FGBGSwatch: -
-# __init__
-# _bg_rect
-# _fg_rect
-# _get_ui_color
-# _pick_bg
-# _pick_fg
-# bg
-# fg
-# heightForWidth
-# mouseDoubleClickEvent
-# mousePressEvent
-# paintEvent
-# set_bg
-# set_fg
-# sizeHint
-# swap
-
-##class _CanvasTextOverlay: -
-# __init__
-# _commit
-# keyPressEvent
-
-##class BrushManager: -
-# __init__
-# _brush_dir
-# _delete_brush
-# _import_brush
-# _on_brush_selected
-# _refresh
-# _save_brush
-# _setup_ui
-# save_current_buffer
-
-##class BrushThumbnail: -
-# __init__
-# mousePressEvent
-# paintEvent
-# set_active
-# set_buffer
-
-##class ColorPalPresetsMixin: -
-# _apply_retro_palette
-# _apply_user_palette_dither
-# _build_retro_palettes
-# _cycle_pal_dither
-# _get_retro_colors
-# _show_retro_menu
-
-##class _CornerOverlay: -
-# __init__
-# _update_mask
-# paintEvent
-# resizeEvent
-# setGeometry
-# update_state
-
-##class DP5Workshop: -
-# __init__
-# _9bit_to_rgb
-# _activate_stamp_mode
-# _adjust
-# _anim_add_frame
-# _anim_del_frame
-# _anim_dup_frame
-# _anim_export_gif
-# _anim_export_png_seq
-# _anim_first
-# _anim_highlight_thumb
-# _anim_init_frames
-# _anim_last
-# _anim_load_frame
-# _anim_next
-# _anim_prev
-# _anim_refresh_thumbs
-# _anim_save_current_frame
-# _anim_tick
-# _anim_toggle_play
-# _anim_update_label
-# _apply_atari_st_constraint
-# _apply_bit_depth
-# _apply_cell_constraint
-# _apply_generic_constraint
-# _apply_ham_constraint
-# _apply_menu_bar_style
-# _apply_mode_to_canvas
-# _apply_msx_constraint
-# _apply_palette0_alpha
-# _apply_pending_constraint
-# _apply_selection_rotation
-# _apply_spectrum_clash
-# _apply_theme
-# _apply_zx8x_dither
-# _batch_convert_icons
-# _batch_convert_textures
-# _build_canvas_menus
-# _build_load_menu
-# _build_menus_into_qmenu
-# _canvas_to_256colour_indexed
-# _clear_brush
-# _clear_canvas
-# _copy_selection
-# _create_anim_strip
-# _create_centre_panel
-# _create_docked_bar
-# _create_left_panel
-# _create_right_panel
-# _create_toolbar
-# _crop_to_selection
-# _cut_selection
-# _decode_amiga_info
-# _decode_iff_ilbm
-# _decode_newicon_im1
-# _delete_bitmap
-# _deselect
-# _dither_bayer_canvas
-# _dither_checker_canvas
-# _dither_floyd_steinberg
-# _dp5_blur
-# _dp5_edge_detect
-# _dp5_emboss
-# _dp5_sharpen
-# _export_amiga_icon
-# _export_art_studio
-# _export_bitmap
-# _export_c64mprg
-# _export_c64prg
-# _export_dds
-# _export_icns
-# _export_ico
-# _export_iff
-# _export_iff_ham
-# _export_koala
-# _export_msxcom
-# _export_nex
-# _export_nxi
-# _export_pal
-# _export_pcx
-# _export_pi1
-# _export_plus4prg
-# _export_sc2
-# _export_scr
-# _export_svg_icon
-# _export_tap
-# _export_texture_bmp
-# _export_texture_png
-# _export_tga
-# _export_vicprg
-# _fill_canvas
-# _fit_canvas_to_viewport
-# _fit_img_pal_height
-# _flip_h
-# _flip_v
-# _get_canvas_pil
-# _get_icon_color
-# _get_resize_corner
-# _get_resize_direction
-# _get_tool_menu_style
-# _get_user_palette_rgb
-# _group_palette
-# _handle_corner_resize
-# _handle_resize
-# _iff_find_chunk
-# _iff_unpack_body
-# _import_amiga_info
-# _import_art_studio
-# _import_bitmap
-# _import_bitmap_path
-# _import_bitmap_snap_canvas_size
-# _import_bitmap_snap_canvas_size_dither
-# _import_bitmap_snap_dither
-# _import_bitmap_snap_user_pal
-# _import_dds
-# _import_gif
-# _import_icns
-# _import_ico
-# _import_iff
-# _import_koala
-# _import_nxi
-# _import_pal
-# _import_pcx
-# _import_pi1
-# _import_psd
-# _import_sc2
-# _import_scr
-# _import_svg
-# _import_tga
-# _import_tiff
-# _invert
-# _is_on_draggable_area
-# _launch_theme_settings
-# _limit_cell_colours
-# _load_btn_context_menu
-# _load_rgba
-# _make_checkerboard
-# _mirror_h
-# _mirror_v
-# _nearest_in_palette
-# _nearest_zx_colour
-# _new_btn_context_menu
-# _new_canvas
-# _on_bg_changed
-# _on_bitmap_selected
-# _on_brush_mgr_selected
-# _on_canvas_changed
-# _on_fg_changed
-# _on_image_palette_color
-# _on_menu_btn_clicked
-# _on_splitter_moved
-# _on_user_palette_color
-# _open_char_editor
-# _open_dp5_colour_adjust
-# _open_dp5_seamless
-# _open_dp5_snow
-# _open_icon_browser
-# _open_icon_editor
-# _open_sprite_editor
-# _open_zoom_lens
-# _paste_selection
-# _pil_transform
-# _place_text_at
-# _push_color_history
-# _push_undo
-# _rebuild_right_panel
-# _redo_canvas
-# _refresh_corner_overlay
-# _refresh_icons
-# _render_as_ansi
-# _render_as_ascii
-# _render_as_petscii
-# _render_as_teletext
-# _resize_canvas_dialog
-# _rgb_to_9bit
-# _rotate_180
-# _rotate_90_ccw
-# _rotate_90_cw
-# _rotate_arbitrary
-# _rotate_selection_dialog
-# _scale_canvas
-# _select_all
-# _select_tool
-# _set_brush_size
-# _set_canvas_mode
-# _set_opacity
-# _set_platform
-# _set_polygon_sides
-# _set_show_grid
-# _set_snap_grid
-# _set_status
-# _set_zoom
-# _set_zoom_mode
-# _setup_corner_overlay
-# _show_dropdown_menu
-# _show_load_menu
-# _show_load_menu_at
-# _show_workshop_settings
-# _snap_canvas_to_user_palette
-# _snap_canvas_to_user_palette_dither
-# _snap_cell_to_palette
-# _snap_image_to_platform_palette
-# _snap_image_to_user_palette
-# _sync_brush_thumb
-# _toggle_anim_strip
-# _toggle_brush_manager
-# _toggle_cell_grid
-# _toggle_clash_visualiser
-# _toggle_colour_constraints
-# _toggle_dither_mode
-# _toggle_maximize
-# _toggle_menubar
-# _toggle_onion_skin
-# _toggle_shape_fill
-# _toggle_statusbar
-# _toggle_symmetry_mode
-# _undo_canvas
-# _update_color_swatches
-# _update_cursor
-# _update_mode_buttons
-# _update_status
-# _update_transform_text_panel_visibility
-# _update_zoom_label
-# _write_amiga_info
-# _write_icns
-# _zoom_mode_menu
-# closeEvent
-# get_menu_title
-# keyPressEvent
-# mouseMoveEvent
-# mousePressEvent
-# mouseReleaseEvent
-# paintEvent
-# resizeEvent
-# set_menu_orientation
-# setup_ui
-# showEvent
-
-##class _DockablePanelMixin: -
-# _add_dock_button
-# _dmp_float
-# _dmp_reposition
-# _dmp_save
-# _dmp_snap
-# _dmp_toggle_dock
-# _init_dock
-
-##class _CharFontEditor: -
-# __init__
-# _browse_font_folder
-# _build_ui
-# _clear_char
-# _export_asm
-# _export_c
-# _filter_fonts
-# _invert_char
-# _load_binary
-# _load_font_file
-# _load_system_font
-# _on_bit_toggle
-# _on_char_select
-# _on_size_change
-# _populate_font_list
-# _refresh_char_list
-# _refresh_grid
-# _refresh_hex
-# _refresh_preview
-# _save_binary
-# _scan_font_folder
-# _shift_d
-# _shift_l
-# _shift_r
-# _shift_u
-# _stamp_to_canvas
-
-##class _CharGrid: -
-# __init__
-# _cell
-# _get_ui_color
-# mouseMoveEvent
-# mousePressEvent
-# mouseReleaseEvent
-# paintEvent
-# set_data
-# set_size
-
-##class _SpriteEditor: -
-# __init__
-# _browse_font_folder
-# _browse_sprite_folder
-# _build_ui
-# _export_sheet
-# _filter_fonts
-# _load_font_file
-# _load_sprite_file
-# _load_system_font
-# _on_frame_select
-# _on_size_change
-# _on_zoom
-# _populate_font_list
-# _refresh_frames
-# _scan_font_folder
-# _scan_sprite_folder
-# _set_sprite_size
-
-##class _IconEditor: -
-# __init__
-# _alpha_swatch_context
-# _amiga_pal_to_mode
-# _browse_folder
-# _browse_open
-# _build_ui
-# _clipboard_copy
-# _clipboard_paste
-# _export_all
-# _export_rgba
-# _export_single
-# _float_panel
-# _fmt_ext
-# _get_export_rgba
-# _icon_context_menu
-# _load_file
-# _load_raster
-# _load_svg
-# _make_thumbnail
-# _on_folder_icon_open
-# _on_folder_icon_selected
-# _on_format_changed
-# _on_variant_select
-# _open_folder_in_fm
-# _open_in_canvas
-# _pick_alpha
-# _populate_icon_list
-# _populate_variants
-# _refresh_alpha_swatch
-# _reposition_overlay
-# _save_settings
-# _scan_folder
-# _search_icons
-# _snap_to_overlay
-# _sort_icons
-# _toggle_dock
-# closeEvent
-
-##class _SpriteView: -
-# __init__
-# paintEvent
-# set_sprite
-# set_zoom
-
-# Build information
+# BrushManager.__init__
+# BrushManager._brush_dir
+# BrushManager._delete_brush
+# BrushManager._import_brush
+# BrushManager._on_brush_selected
+# BrushManager._refresh
+# BrushManager._save_brush
+# BrushManager._setup_ui
+# BrushManager.save_current_buffer
+# BrushThumbnail.__init__
+# BrushThumbnail.mousePressEvent
+# BrushThumbnail.paintEvent
+# BrushThumbnail.set_active
+# BrushThumbnail.set_buffer
+# ColorPalPresetsMixin._apply_retro_palette
+# ColorPalPresetsMixin._apply_user_palette_dither
+# ColorPalPresetsMixin._build_retro_palettes
+# ColorPalPresetsMixin._cycle_pal_dither
+# ColorPalPresetsMixin._get_retro_colors
+# ColorPalPresetsMixin._show_retro_menu
+# ColorPickerWidget.__init__
+# ColorPickerWidget._pick
+# ColorPickerWidget.current_color
+# DP5Canvas.__init__
+# DP5Canvas._do_blur_brush
+# DP5Canvas._do_dodge_burn
+# DP5Canvas._do_smudge
+# DP5Canvas._do_spray
+# DP5Canvas._get_scroll_area
+# DP5Canvas._lift_selection
+# DP5Canvas._point_in_sel_rect
+# DP5Canvas._push_undo_canvas
+# DP5Canvas._scroll_by
+# DP5Canvas._stamp_selection
+# DP5Canvas._tex_to_widget
+# DP5Canvas._widget_to_tex
+# DP5Canvas.cancel_sel_move
+# DP5Canvas.copy_selection
+# DP5Canvas.cut_selection
+# DP5Canvas.draw_bezier_curve
+# DP5Canvas.draw_circle
+# DP5Canvas.draw_filled_circle
+# DP5Canvas.draw_filled_rect
+# DP5Canvas.draw_line
+# DP5Canvas.draw_rect
+# DP5Canvas.draw_regular_polygon
+# DP5Canvas.draw_star
+# DP5Canvas.draw_triangle
+# DP5Canvas.flood_fill
+# DP5Canvas.get_pixel
+# DP5Canvas.keyPressEvent
+# DP5Canvas.keyReleaseEvent
+# DP5Canvas.mouseDoubleClickEvent
+# DP5Canvas.mouseMoveEvent
+# DP5Canvas.mousePressEvent
+# DP5Canvas.mouseReleaseEvent
+# DP5Canvas.nudge_float
+# DP5Canvas.paintEvent
+# DP5Canvas.paste_selection
+# DP5Canvas.set_pixel
+# DP5Canvas.set_pixel_brush
+# DP5Canvas.sizeHint
+# DP5Canvas.wheelEvent
+# DP5Settings.__init__
+# DP5Settings._load
+# DP5Settings.get
+# DP5Settings.save
+# DP5Settings.set
+# DP5SettingsDialog.__init__
+# DP5SettingsDialog._accept
+# DP5Workshop._9bit_to_rgb
+# DP5Workshop.__init__
+# DP5Workshop._activate_stamp_mode
+# DP5Workshop._adjust
+# DP5Workshop._anim_add_frame
+# DP5Workshop._anim_del_frame
+# DP5Workshop._anim_dup_frame
+# DP5Workshop._anim_export_gif
+# DP5Workshop._anim_export_png_seq
+# DP5Workshop._anim_first
+# DP5Workshop._anim_highlight_thumb
+# DP5Workshop._anim_init_frames
+# DP5Workshop._anim_last
+# DP5Workshop._anim_load_frame
+# DP5Workshop._anim_next
+# DP5Workshop._anim_prev
+# DP5Workshop._anim_refresh_thumbs
+# DP5Workshop._anim_save_current_frame
+# DP5Workshop._anim_tick
+# DP5Workshop._anim_toggle_play
+# DP5Workshop._anim_update_label
+# DP5Workshop._apply_atari_st_constraint
+# DP5Workshop._apply_bit_depth
+# DP5Workshop._apply_cell_constraint
+# DP5Workshop._apply_generic_constraint
+# DP5Workshop._apply_ham_constraint
+# DP5Workshop._apply_menu_bar_style
+# DP5Workshop._apply_mode_to_canvas
+# DP5Workshop._apply_msx_constraint
+# DP5Workshop._apply_palette0_alpha
+# DP5Workshop._apply_pending_constraint
+# DP5Workshop._apply_selection_rotation
+# DP5Workshop._apply_spectrum_clash
+# DP5Workshop._apply_theme
+# DP5Workshop._apply_zx8x_dither
+# DP5Workshop._batch_convert_icons
+# DP5Workshop._batch_convert_textures
+# DP5Workshop._build_canvas_menus
+# DP5Workshop._build_load_menu
+# DP5Workshop._build_menus_into_qmenu
+# DP5Workshop._canvas_to_256colour_indexed
+# DP5Workshop._clear_brush
+# DP5Workshop._clear_canvas
+# DP5Workshop._copy_selection
+# DP5Workshop._create_anim_strip
+# DP5Workshop._create_brush_colors_panel
+# DP5Workshop._create_centre_panel
+# DP5Workshop._create_docked_bar
+# DP5Workshop._create_image_ops_ribbon
+# DP5Workshop._create_image_palette_panel
+# DP5Workshop._create_left_panel
+# DP5Workshop._create_toolbar
+# DP5Workshop._create_tools_ribbon
+# DP5Workshop._create_user_palette_panel
+# DP5Workshop._crop_to_selection
+# DP5Workshop._cut_selection
+# DP5Workshop._decode_amiga_info
+# DP5Workshop._decode_iff_ilbm
+# DP5Workshop._decode_newicon_im1
+# DP5Workshop._delete_bitmap
+# DP5Workshop._deselect
+# DP5Workshop._dither_bayer_canvas
+# DP5Workshop._dither_checker_canvas
+# DP5Workshop._dither_floyd_steinberg
+# DP5Workshop._dp5_blur
+# DP5Workshop._dp5_edge_detect
+# DP5Workshop._dp5_emboss
+# DP5Workshop._dp5_sharpen
+# DP5Workshop._export_amiga_icon
+# DP5Workshop._export_art_studio
+# DP5Workshop._export_bitmap
+# DP5Workshop._export_c64mprg
+# DP5Workshop._export_c64prg
+# DP5Workshop._export_dds
+# DP5Workshop._export_icns
+# DP5Workshop._export_ico
+# DP5Workshop._export_iff
+# DP5Workshop._export_iff_ham
+# DP5Workshop._export_koala
+# DP5Workshop._export_msxcom
+# DP5Workshop._export_nex
+# DP5Workshop._export_nxi
+# DP5Workshop._export_pal
+# DP5Workshop._export_pcx
+# DP5Workshop._export_pi1
+# DP5Workshop._export_plus4prg
+# DP5Workshop._export_sc2
+# DP5Workshop._export_scr
+# DP5Workshop._export_svg_icon
+# DP5Workshop._export_tap
+# DP5Workshop._export_texture_bmp
+# DP5Workshop._export_texture_png
+# DP5Workshop._export_tga
+# DP5Workshop._export_vicprg
+# DP5Workshop._fill_canvas
+# DP5Workshop._fit_canvas_to_viewport
+# DP5Workshop._fit_img_pal_height
+# DP5Workshop._flip_h
+# DP5Workshop._flip_v
+# DP5Workshop._get_canvas_pil
+# DP5Workshop._get_icon_color
+# DP5Workshop._get_resize_corner
+# DP5Workshop._get_resize_direction
+# DP5Workshop._get_tool_menu_style
+# DP5Workshop._get_user_palette_rgb
+# DP5Workshop._group_palette
+# DP5Workshop._handle_corner_resize
+# DP5Workshop._handle_resize
+# DP5Workshop._iff_find_chunk
+# DP5Workshop._iff_unpack_body
+# DP5Workshop._import_amiga_info
+# DP5Workshop._import_art_studio
+# DP5Workshop._import_bitmap
+# DP5Workshop._import_bitmap_path
+# DP5Workshop._import_bitmap_snap_canvas_size
+# DP5Workshop._import_bitmap_snap_canvas_size_dither
+# DP5Workshop._import_bitmap_snap_dither
+# DP5Workshop._import_bitmap_snap_user_pal
+# DP5Workshop._import_dds
+# DP5Workshop._import_gif
+# DP5Workshop._import_icns
+# DP5Workshop._import_ico
+# DP5Workshop._import_iff
+# DP5Workshop._import_koala
+# DP5Workshop._import_nxi
+# DP5Workshop._import_pal
+# DP5Workshop._import_pcx
+# DP5Workshop._import_pi1
+# DP5Workshop._import_psd
+# DP5Workshop._import_sc2
+# DP5Workshop._import_scr
+# DP5Workshop._import_svg
+# DP5Workshop._import_tga
+# DP5Workshop._import_tiff
+# DP5Workshop._invert
+# DP5Workshop._is_on_draggable_area
+# DP5Workshop._launch_theme_settings
+# DP5Workshop._limit_cell_colours
+# DP5Workshop._load_btn_context_menu
+# DP5Workshop._load_rgba
+# DP5Workshop._make_checkerboard
+# DP5Workshop._make_dock_collapsible
+# DP5Workshop._mirror_h
+# DP5Workshop._mirror_v
+# DP5Workshop._nearest_in_palette
+# DP5Workshop._nearest_zx_colour
+# DP5Workshop._new_btn_context_menu
+# DP5Workshop._new_canvas
+# DP5Workshop._on_bg_changed
+# DP5Workshop._on_bitmap_selected
+# DP5Workshop._on_brush_mgr_selected
+# DP5Workshop._on_canvas_changed
+# DP5Workshop._on_fg_changed
+# DP5Workshop._on_image_palette_color
+# DP5Workshop._on_menu_btn_clicked
+# DP5Workshop._on_splitter_moved
+# DP5Workshop._on_user_palette_color
+# DP5Workshop._open_char_editor
+# DP5Workshop._open_dp5_colour_adjust
+# DP5Workshop._open_dp5_seamless
+# DP5Workshop._open_dp5_snow
+# DP5Workshop._open_icon_browser
+# DP5Workshop._open_icon_editor
+# DP5Workshop._open_sprite_editor
+# DP5Workshop._open_zoom_lens
+# DP5Workshop._paste_selection
+# DP5Workshop._pil_transform
+# DP5Workshop._place_text_at
+# DP5Workshop._push_color_history
+# DP5Workshop._push_undo
+# DP5Workshop._rebuild_right_panel
+# DP5Workshop._redo_canvas
+# DP5Workshop._refresh_corner_overlay
+# DP5Workshop._refresh_icons
+# DP5Workshop._render_as_ansi
+# DP5Workshop._render_as_ascii
+# DP5Workshop._render_as_petscii
+# DP5Workshop._render_as_teletext
+# DP5Workshop._resize_canvas_dialog
+# DP5Workshop._restore_outer_layout
+# DP5Workshop._rgb_to_9bit
+# DP5Workshop._rotate_180
+# DP5Workshop._rotate_90_ccw
+# DP5Workshop._rotate_90_cw
+# DP5Workshop._rotate_arbitrary
+# DP5Workshop._rotate_selection_dialog
+# DP5Workshop._scale_canvas
+# DP5Workshop._select_all
+# DP5Workshop._select_tool
+# DP5Workshop._set_brush_size
+# DP5Workshop._set_canvas_mode
+# DP5Workshop._set_opacity
+# DP5Workshop._set_platform
+# DP5Workshop._set_polygon_sides
+# DP5Workshop._set_show_grid
+# DP5Workshop._set_snap_grid
+# DP5Workshop._set_status
+# DP5Workshop._set_zoom
+# DP5Workshop._set_zoom_mode
+# DP5Workshop._setup_corner_overlay
+# DP5Workshop._show_dropdown_menu
+# DP5Workshop._show_load_menu
+# DP5Workshop._show_load_menu_at
+# DP5Workshop._show_workshop_settings
+# DP5Workshop._snap_canvas_to_user_palette
+# DP5Workshop._snap_canvas_to_user_palette_dither
+# DP5Workshop._snap_cell_to_palette
+# DP5Workshop._snap_image_to_platform_palette
+# DP5Workshop._snap_image_to_user_palette
+# DP5Workshop._sync_brush_thumb
+# DP5Workshop._toggle_anim_strip
+# DP5Workshop._toggle_brush_manager
+# DP5Workshop._toggle_cell_grid
+# DP5Workshop._toggle_clash_visualiser
+# DP5Workshop._toggle_colour_constraints
+# DP5Workshop._toggle_dither_mode
+# DP5Workshop._toggle_dock_floating
+# DP5Workshop._toggle_maximize
+# DP5Workshop._toggle_menubar
+# DP5Workshop._toggle_onion_skin
+# DP5Workshop._toggle_shape_fill
+# DP5Workshop._toggle_statusbar
+# DP5Workshop._toggle_symmetry_mode
+# DP5Workshop._undo_canvas
+# DP5Workshop._update_color_swatches
+# DP5Workshop._update_cursor
+# DP5Workshop._update_mode_buttons
+# DP5Workshop._update_status
+# DP5Workshop._update_transform_text_panel_visibility
+# DP5Workshop._update_zoom_label
+# DP5Workshop._write_amiga_info
+# DP5Workshop._write_icns
+# DP5Workshop._zoom_mode_menu
+# DP5Workshop.closeEvent
+# DP5Workshop.get_menu_title
+# DP5Workshop.keyPressEvent
+# DP5Workshop.mouseMoveEvent
+# DP5Workshop.mousePressEvent
+# DP5Workshop.mouseReleaseEvent
+# DP5Workshop.paintEvent
+# DP5Workshop.resizeEvent
+# DP5Workshop.set_menu_orientation
+# DP5Workshop.setup_ui
+# DP5Workshop.showEvent
+# FGBGSwatch.__init__
+# FGBGSwatch._bg_rect
+# FGBGSwatch._fg_rect
+# FGBGSwatch._get_ui_color
+# FGBGSwatch._pick_bg
+# FGBGSwatch._pick_fg
+# FGBGSwatch.bg
+# FGBGSwatch.fg
+# FGBGSwatch.heightForWidth
+# FGBGSwatch.mouseDoubleClickEvent
+# FGBGSwatch.mousePressEvent
+# FGBGSwatch.paintEvent
+# FGBGSwatch.set_bg
+# FGBGSwatch.set_fg
+# FGBGSwatch.sizeHint
+# FGBGSwatch.swap
+# PaletteGrid.__init__
+# PaletteGrid._effective_cols
+# PaletteGrid._get_ui_color
+# PaletteGrid._recalc_height
+# PaletteGrid.mousePressEvent
+# PaletteGrid.paintEvent
+# PaletteGrid.resizeEvent
+# PaletteGrid.set_colors
+# PaletteGrid.set_palette
+# PaletteGrid.set_palette_raw
+# PaletteGrid.set_selection_by_color
+# _AutoCellPaletteGrid.__init__
+# _AutoCellPaletteGrid._cell_size
+# _AutoCellPaletteGrid._effective_cols
+# _AutoCellPaletteGrid._get_ui_color
+# _AutoCellPaletteGrid._recalc_height
+# _AutoCellPaletteGrid.mousePressEvent
+# _AutoCellPaletteGrid.paintEvent
+# _AutoCellPaletteGrid.resizeEvent
+# _AutoCellPaletteGrid.set_colors
+# _AutoCellPaletteGrid.set_palette_raw
+# _CanvasTextOverlay.__init__
+# _CanvasTextOverlay._commit
+# _CanvasTextOverlay.keyPressEvent
+# _CharFontEditor.__init__
+# _CharFontEditor._browse_font_folder
+# _CharFontEditor._build_ui
+# _CharFontEditor._clear_char
+# _CharFontEditor._export_asm
+# _CharFontEditor._export_c
+# _CharFontEditor._filter_fonts
+# _CharFontEditor._invert_char
+# _CharFontEditor._load_binary
+# _CharFontEditor._load_font_file
+# _CharFontEditor._load_system_font
+# _CharFontEditor._on_bit_toggle
+# _CharFontEditor._on_char_select
+# _CharFontEditor._on_size_change
+# _CharFontEditor._populate_font_list
+# _CharFontEditor._refresh_char_list
+# _CharFontEditor._refresh_grid
+# _CharFontEditor._refresh_hex
+# _CharFontEditor._refresh_preview
+# _CharFontEditor._save_binary
+# _CharFontEditor._scan_font_folder
+# _CharFontEditor._shift_d
+# _CharFontEditor._shift_l
+# _CharFontEditor._shift_r
+# _CharFontEditor._shift_u
+# _CharFontEditor._stamp_to_canvas
+# _CharGrid.__init__
+# _CharGrid._cell
+# _CharGrid._get_ui_color
+# _CharGrid.mouseMoveEvent
+# _CharGrid.mousePressEvent
+# _CharGrid.mouseReleaseEvent
+# _CharGrid.paintEvent
+# _CharGrid.set_data
+# _CharGrid.set_size
+# _CornerOverlay.__init__
+# _CornerOverlay._update_mask
+# _CornerOverlay.paintEvent
+# _CornerOverlay.resizeEvent
+# _CornerOverlay.setGeometry
+# _CornerOverlay.update_state
+# _DockablePanelMixin._add_dock_button
+# _DockablePanelMixin._dmp_float
+# _DockablePanelMixin._dmp_reposition
+# _DockablePanelMixin._dmp_save
+# _DockablePanelMixin._dmp_snap
+# _DockablePanelMixin._dmp_toggle_dock
+# _DockablePanelMixin._init_dock
+# _IconEditor.__init__
+# _IconEditor._alpha_swatch_context
+# _IconEditor._amiga_pal_to_mode
+# _IconEditor._browse_folder
+# _IconEditor._browse_open
+# _IconEditor._build_ui
+# _IconEditor._clipboard_copy
+# _IconEditor._clipboard_paste
+# _IconEditor._export_all
+# _IconEditor._export_rgba
+# _IconEditor._export_single
+# _IconEditor._float_panel
+# _IconEditor._fmt_ext
+# _IconEditor._get_export_rgba
+# _IconEditor._icon_context_menu
+# _IconEditor._load_file
+# _IconEditor._load_raster
+# _IconEditor._load_svg
+# _IconEditor._make_thumbnail
+# _IconEditor._on_folder_icon_open
+# _IconEditor._on_folder_icon_selected
+# _IconEditor._on_format_changed
+# _IconEditor._on_variant_select
+# _IconEditor._open_folder_in_fm
+# _IconEditor._open_in_canvas
+# _IconEditor._pick_alpha
+# _IconEditor._populate_icon_list
+# _IconEditor._populate_variants
+# _IconEditor._refresh_alpha_swatch
+# _IconEditor._reposition_overlay
+# _IconEditor._save_settings
+# _IconEditor._scan_folder
+# _IconEditor._search_icons
+# _IconEditor._snap_to_overlay
+# _IconEditor._sort_icons
+# _IconEditor._toggle_dock
+# _IconEditor.closeEvent
+# _SpriteEditor.__init__
+# _SpriteEditor._browse_font_folder
+# _SpriteEditor._browse_sprite_folder
+# _SpriteEditor._build_ui
+# _SpriteEditor._export_sheet
+# _SpriteEditor._filter_fonts
+# _SpriteEditor._load_font_file
+# _SpriteEditor._load_sprite_file
+# _SpriteEditor._load_system_font
+# _SpriteEditor._on_frame_select
+# _SpriteEditor._on_size_change
+# _SpriteEditor._on_zoom
+# _SpriteEditor._populate_font_list
+# _SpriteEditor._refresh_frames
+# _SpriteEditor._scan_font_folder
+# _SpriteEditor._scan_sprite_folder
+# _SpriteEditor._set_sprite_size
+# _SpriteView.__init__
+# _SpriteView.paintEvent
+# _SpriteView.set_sprite
+# _SpriteView.set_zoom
 App_name = "DP5 Workshop"
 App_build = "July 07 26 (334) Vers 15"
 DEBUG_STANDALONE = False
@@ -1153,7 +1120,8 @@ class DP5Settings:
         'menu_bar_font_size':  9,         # topbar menubar font size (pt)
         'menu_bar_height':     22,        # topbar menubar height (px)
         'menu_dropdown_font_size': 9,     # dropdown menu item font size (pt)
-        'splitter_sizes':    [],             # [left, canvas, right] — saved on close
+        'outer_layout_state':   '',            # QMainWindow.saveState() hex - dock/ribbon layout
+        'outer_layout_version': 0,             # must match _OUTER_LAYOUT_VERSION to restore
         # Icon editor
         'char_editor_docked':  False,  # _CharFontEditor dock state
         'sprite_editor_docked': False, # _SpriteEditor dock state
@@ -4280,6 +4248,13 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
     workshop_closed = pyqtSignal()
     window_closed   = pyqtSignal()
 
+    # Bump whenever the set of ribbons/dock widgets changes (added/
+    # removed/renamed) so a saved layout from an older structure is
+    # cleanly rejected instead of Qt silently failing to restore it.
+    # History: 1 = Tools/Image Ops ribbons + Bitmaps/Brush & Colors/
+    # Image Palette/User Palette dock widgets (initial ribbon rebuild).
+    _OUTER_LAYOUT_VERSION = 1
+
     #    Init                                                                   
 
     def __init__(self, parent=None, main_window=None): #vers 1
@@ -4442,33 +4417,106 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             # Titlebar [DP5] button is the menu entry point when docked
             self._register_titlebar_tool_btn()
 
-        self._splitter = QSplitter(Qt.Orientation.Horizontal)
-        self._splitter.splitterMoved.connect(self._on_splitter_moved)
+        # QMainWindow + QDockWidget + QToolBar, matching the pattern used
+        # for Model Workshop: canvas is the central widget (always visible,
+        # never accidentally closed/floated away), Tools and Image Ops are
+        # QToolBar ribbons (movable/floatable/collapsible), and Bitmaps/
+        # Brush & Colors/Image Palette/User Palette are independent
+        # QDockWidgets - every section can be dragged, floated, tabbed
+        # with any other, or collapsed via double-clicking its title bar.
+        from PyQt6.QtWidgets import QDockWidget, QMainWindow
+        outer_mw = QMainWindow()
+        outer_mw.setWindowFlags(Qt.WindowType.Widget)
+        outer_mw.setDockOptions(
+            QMainWindow.DockOption.AllowNestedDocks |
+            QMainWindow.DockOption.AllowTabbedDocks)
+        # Explicit separator styling - a nested QMainWindow embedded inside
+        # IMG Factory's own tab widget inherits its theme stylesheet
+        # cascading down, which can zero out the dock separator's
+        # visibility entirely (found and fixed for Model Workshop). A
+        # locally-set stylesheet takes precedence over anything inherited.
+        outer_mw.setStyleSheet(
+            "QMainWindow::separator { "
+            "background: palette(mid); width: 5px; height: 5px; } "
+            "QMainWindow::separator:hover { background: palette(highlight); }")
+        self._outer_mw = outer_mw
 
-        self._left_panel  = self._create_left_panel()
-        centre            = self._create_centre_panel()
-        right             = self._create_right_panel()
+        centre = self._create_centre_panel()
+        outer_mw.setCentralWidget(centre)
 
-        self._splitter.addWidget(self._left_panel)
-        self._splitter.addWidget(centre)
-        self._splitter.addWidget(right)
-        self._splitter.setStretchFactor(0, 0)   # bitmap list
-        self._splitter.setStretchFactor(1, 1)   # canvas — stretches
-        self._splitter.setStretchFactor(2, 0)   # tools / palette
-        self._splitter.setCollapsible(2, False)
-        right.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
-        # No setMaximumWidth — splitter controls the width freely
+        bitmaps_panel      = self._create_left_panel()
+        brush_colors_panel = self._create_brush_colors_panel()
+        img_palette_panel  = self._create_image_palette_panel()
+        user_palette_panel = self._create_user_palette_panel()
 
-        # Restore saved splitter sizes (if any)
-        from PyQt6.QtCore import QTimer
-        _saved_sizes = self.dp5_settings.get('splitter_sizes')
-        if _saved_sizes and len(_saved_sizes) == self._splitter.count():
-            QTimer.singleShot(0, lambda s=list(_saved_sizes): self._splitter.setSizes(s))
+        self._bitmaps_dock = QDockWidget("Bitmaps", self)
+        self._bitmaps_dock.setObjectName("Bitmaps")
+        self._bitmaps_dock.setWidget(bitmaps_panel)
+        self._bitmaps_dock.setMinimumWidth(150)
+        self._bitmaps_dock.setFeatures(
+            QDockWidget.DockWidgetFeature.DockWidgetMovable |
+            QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+        outer_mw.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self._bitmaps_dock)
 
-        # Left panel: hidden by default — toggle via DP5 Settings
-        self._left_panel.setVisible(self.dp5_settings.get('show_bitmap_list'))
+        self._brush_colors_dock = QDockWidget("Brush & Colors", self)
+        self._brush_colors_dock.setObjectName("Brush & Colors")
+        self._brush_colors_dock.setWidget(brush_colors_panel)
+        self._brush_colors_dock.setMinimumWidth(180)
+        self._brush_colors_dock.setFeatures(
+            QDockWidget.DockWidgetFeature.DockWidgetMovable |
+            QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+        outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self._brush_colors_dock)
 
-        main_layout.addWidget(self._splitter)
+        self._img_palette_dock = QDockWidget("Image Palette", self)
+        self._img_palette_dock.setObjectName("Image Palette")
+        self._img_palette_dock.setWidget(img_palette_panel)
+        self._img_palette_dock.setMinimumWidth(180)
+        self._img_palette_dock.setFeatures(
+            QDockWidget.DockWidgetFeature.DockWidgetMovable |
+            QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+        outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self._img_palette_dock)
+
+        self._user_palette_dock = QDockWidget("User Palette", self)
+        self._user_palette_dock.setObjectName("User Palette")
+        self._user_palette_dock.setWidget(user_palette_panel)
+        self._user_palette_dock.setMinimumWidth(180)
+        self._user_palette_dock.setFeatures(
+            QDockWidget.DockWidgetFeature.DockWidgetMovable |
+            QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+        outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self._user_palette_dock)
+
+        # Brush & Colors / Image Palette / User Palette default to stacking
+        # top-to-bottom on the right - a sensible starting point, freely
+        # rearrangeable afterwards.
+        outer_mw.splitDockWidget(self._brush_colors_dock, self._img_palette_dock,
+                                  Qt.Orientation.Vertical)
+        outer_mw.splitDockWidget(self._img_palette_dock, self._user_palette_dock,
+                                  Qt.Orientation.Vertical)
+
+        # Tools and Image Ops are ribbons (QToolBar), not dock widgets -
+        # linear rows of actions, not panels with complex widget content.
+        tools_ribbon    = self._create_tools_ribbon()
+        image_ops_ribbon = self._create_image_ops_ribbon()
+        outer_mw.addToolBar(Qt.ToolBarArea.LeftToolBarArea, tools_ribbon)
+        outer_mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, image_ops_ribbon)
+
+        # Double-click any dock's title bar to collapse it down to just the
+        # title (content hidden), double-click again to restore.
+        for _dock, _title in ((self._bitmaps_dock, "Bitmaps"),
+                               (self._brush_colors_dock, "Brush & Colors"),
+                               (self._img_palette_dock, "Image Palette"),
+                               (self._user_palette_dock, "User Palette")):
+            if _dock is not None:
+                self._make_dock_collapsible(_dock, _title)
+
+        # Bitmaps panel: hidden by default — toggle via DP5 Settings
+        self._bitmaps_dock.setVisible(self.dp5_settings.get('show_bitmap_list'))
+        self._left_panel = bitmaps_panel   # kept for any code still checking this attr
+
+        main_layout.addWidget(outer_mw)
+
+        # Restore saved ribbon/dock layout, if any
+        QTimer.singleShot(0, self._restore_outer_layout)
 
         self._set_status(f"Canvas: {self._canvas_width}×{self._canvas_height}")
 
@@ -4480,6 +4528,96 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             QTimer.singleShot(0, self._setup_corner_overlay)
 
     # - Toolbar (standalone titlebar)
+
+    def _restore_outer_layout(self): #vers 1
+        """Restore outer_mw's dock/ribbon layout, saved on last close.
+        Version-checked so a stale save from an older ribbon/dock
+        structure is cleanly rejected instead of Qt silently failing to
+        restore anything, with a force-visible safety net afterwards -
+        restoreState() can leave a dock fully hidden with no user-facing
+        way to have meant that intentionally."""
+        mw = getattr(self, '_outer_mw', None)
+        if mw is None:
+            return
+        try:
+            from PyQt6.QtCore import QByteArray
+            state_hex = self.dp5_settings.get('outer_layout_state')
+            saved_version = self.dp5_settings.get('outer_layout_version')
+            if state_hex and saved_version == self._OUTER_LAYOUT_VERSION:
+                mw.restoreState(QByteArray.fromHex(state_hex.encode()),
+                                 self._OUTER_LAYOUT_VERSION)
+        except Exception as _e:
+            print(f"[DP5Workshop] _restore_outer_layout error: {_e}")
+        finally:
+            for dock in (getattr(self, '_bitmaps_dock', None),
+                         getattr(self, '_brush_colors_dock', None),
+                         getattr(self, '_img_palette_dock', None),
+                         getattr(self, '_user_palette_dock', None)):
+                if dock is not None:
+                    dock.setVisible(True)
+                    dock.toggleViewAction().setChecked(True)
+
+    def _toggle_dock_floating(self, dock): #vers 1
+        """Toggle a dock's floating state, explicitly positioning/sizing
+        and raising the resulting floating window. Plain setFloating()
+        alone can leave a dock with a custom title bar at an odd,
+        overlapping, or effectively invisible position/size."""
+        was_floating = dock.isFloating()
+        dock.setFloating(not was_floating)
+        if not was_floating:
+            if dock.width() < 200 or dock.height() < 150:
+                dock.resize(320, 400)
+            anchor = self.mapToGlobal(self.rect().center())
+            dock.move(anchor.x() - dock.width() // 2,
+                      anchor.y() - dock.height() // 2)
+            dock.show()
+            dock.raise_()
+            dock.activateWindow()
+
+    def _make_dock_collapsible(self, dock, title): #vers 1
+        """Custom title bar for a QDockWidget: double-click anywhere on the
+        title (label or empty bar area) to collapse the dock down to just
+        this title bar, hiding its content; double-click again to restore.
+        Keeps float/close buttons so nothing is lost versus Qt's native
+        title bar - only mouseDoubleClickEvent is overridden, so single-
+        click-and-drag (moving the dock) still works exactly as before."""
+        from PyQt6.QtWidgets import QWidget as _QW, QToolButton as _QTB
+
+        bar = _QW()
+        lay = QHBoxLayout(bar)
+        lay.setContentsMargins(6, 2, 2, 2)
+        lay.setSpacing(2)
+
+        lbl = QLabel(title)
+        lbl.setFont(self.button_font)
+        lay.addWidget(lbl)
+        lay.addStretch()
+
+        float_btn = _QTB()
+        float_btn.setText("⧉")
+        float_btn.setToolTip("Float/dock")
+        float_btn.setFixedSize(20, 20)
+        float_btn.setAutoRaise(True)
+        float_btn.clicked.connect(lambda: self._toggle_dock_floating(dock))
+        lay.addWidget(float_btn)
+
+        close_btn = _QTB()
+        close_btn.setText("×")
+        close_btn.setToolTip("Close (use the View menu or another dock's "
+                              "right-click menu to bring it back)")
+        close_btn.setFixedSize(20, 20)
+        close_btn.setAutoRaise(True)
+        close_btn.clicked.connect(dock.close)
+        lay.addWidget(close_btn)
+
+        def _dbl_click(event, d=dock):  #vers 1
+            content = d.widget()
+            if content:
+                content.setVisible(not content.isVisible())
+        bar.mouseDoubleClickEvent = _dbl_click
+        lbl.mouseDoubleClickEvent = _dbl_click
+
+        dock.setTitleBarWidget(bar)
 
 
     def _create_toolbar(self): #vers 2
@@ -5251,55 +5389,17 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                     mw.menu_bar_system._remove_tool_menu()
 
 
-    def _create_right_panel(self): #vers 2
-        """Right panel: adaptive-column gadget bar, FGBGSwatch, palettes."""
-        panel = QFrame()
-        panel.setFrameStyle(QFrame.Shape.StyledPanel)
-
+    def _create_tools_ribbon(self): #vers 1
+        """Tools ribbon - the 24-tool grid converted to a QToolBar with
+        QActions per Keith's request (was an adaptive-column custom grid
+        of QPushButtons). Right-click behaviour (shape fill toggle, zoom
+        mode menu) is preserved by reaching into the actual QToolButton
+        Qt creates for each QAction via toolbar.widgetForAction()."""
+        from PyQt6.QtWidgets import QToolBar
+        from PyQt6.QtGui import QAction
         icon_color = self._get_icon_color()
+        icon_sz = self.dp5_settings.get('tool_icon_size')
 
-        #    Column count: fill available width                            
-        icon_sz   = self.dp5_settings.get('tool_icon_size')   # 16–64 px
-        btn_sz    = icon_sz + 6   # button size = icon + padding
-        gap       = 2             # grid spacing
-
-        # Minimum columns from settings — floor, not ceiling
-        min_cols = max(2, self.dp5_settings.get('tool_columns'))
-
-        # Available width: read the actual splitter size if possible.
-        available_w = 0
-        if hasattr(self, '_splitter') and self._splitter:
-            sizes = self._splitter.sizes()
-            if sizes:
-                available_w = sizes[-1]
-        if available_w < 60:
-            try:
-                from PyQt6.QtWidgets import QApplication as _QApp
-                sw = (_QApp.primaryScreen().availableSize().width()
-                      if _QApp.primaryScreen() else 1400)
-            except Exception:
-                sw = 1400
-            available_w = max(180, sw // 5)
-
-        # Columns that fit in available_w
-        usable = max(btn_sz, available_w - 20)
-        n_cols = max(min_cols, usable // (btn_sz + gap))
-
-        # Do NOT setFixedWidth — let the splitter control panel width freely.
-        # Only set a minimum so it can't collapse to nothing.
-        min_panel_w = min_cols * (btn_sz + gap) - gap + 20
-        panel.setMinimumWidth(min_panel_w)
-        panel.setMaximumWidth(16777215)   # unconstrained
-
-        layout = QVBoxLayout(panel)
-        layout.setContentsMargins(4, 4, 4, 4)
-        layout.setSpacing(3)
-
-        #    Flat ordered tool list (no row/col — computed below)            
-        # Order: pencil, eraser, fill, spray, picker, curve,
-        #        line, rect, circle, polygon, triangle, star,
-        #        select, lasso, move, zoom, text
-        # Shapes with fill toggle (right-click): rect, circle, triangle, polygon, star
         TOOL_ORDER = [
             (TOOL_PENCIL,   'pencil',   'Pencil — freehand (P)'),
             (TOOL_ERASER,   'eraser',   'Eraser (E)'),
@@ -5329,33 +5429,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         hidden_tools = self.dp5_settings.get('hidden_tools') or []
         TOOL_ORDER = [(t, s, tip) for t, s, tip in TOOL_ORDER if t not in hidden_tools]
 
-        #    Build gadget grid                                               
-        gadget_grid = QGridLayout()
-        gadget_grid.setSpacing(gap)
-        gadget_grid.setContentsMargins(0, 0, 0, 0)
-        for c in range(n_cols):
-            gadget_grid.setColumnMinimumWidth(c, btn_sz)
-
-        self._tool_btns    = {}
-        self._tool_icon_sz = icon_sz
-        self._n_cols       = n_cols
-        _ws = self   # workshop ref for closure
-
-        # Tiny subclass to capture right-click on shape toggle buttons
-        class ShapeToolButton(QPushButton):
-            def __init__(self, tool_id, shape_key, **kw):  #vers 1
-                super().__init__(**kw)
-                self._tool_id  = tool_id
-                self._shape_key = shape_key
-            def mousePressEvent(self, ev):  #vers 1
-                if ev.button() == Qt.MouseButton.RightButton:
-                    _ws._toggle_shape_fill(self._tool_id)
-                else:
-                    super().mousePressEvent(ev)
-
-        # Determine tile/icon colours from theme for initial render
-        _icon_col = self._get_icon_color()
-        _tile_bg  = ''
+        _tile_bg = ''
         try:
             if self.app_settings:
                 _tc = self.app_settings.get_theme_colors() or {}
@@ -5365,39 +5439,97 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         except Exception:
             pass
 
-        for idx, (tool_id, shape, tip) in enumerate(TOOL_ORDER):
-            row = idx // n_cols
-            col = idx %  n_cols
+        tb = QToolBar("Tools")
+        tb.setObjectName("Tools")
+        tb.setIconSize(QSize(icon_sz, icon_sz))
+        tb.setMovable(True)
+        tb.setFloatable(True)
 
-            if tool_id in SHAPE_FILL_PAIRS:
-                btn = ShapeToolButton(tool_id, shape)
-            else:
-                btn = QPushButton()
+        self._tool_btns    = {}
+        self._tool_icon_sz = icon_sz
 
-            btn.setFixedSize(btn_sz, btn_sz)
-            btn.setCheckable(True)
-            btn.setToolTip(tip)
+        for tool_id, shape, tip in TOOL_ORDER:
             ico = _load_tool_icon(shape, icon_sz, active=False,
-                                  tile_bg=_tile_bg, icon_col=_icon_col)
-            btn.setIcon(ico)
-            btn.setIconSize(QSize(icon_sz, icon_sz))
-            btn.clicked.connect(lambda _, t=tool_id: self._select_tool(t))
-            self._tool_btns[tool_id] = btn
-            gadget_grid.addWidget(btn, row, col)
-            # Zoom button gets right-click mode selector
-            if tool_id == TOOL_ZOOM:
-                btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-                btn.customContextMenuRequested.connect(self._zoom_mode_menu)
-                btn.setToolTip("Zoom — left-click to zoom in\nRight-click to select zoom mode")
+                                  tile_bg=_tile_bg, icon_col=icon_color)
+            act = QAction(ico, tip, tb)
+            act.setCheckable(True)
+            act.setToolTip(tip)
+            act.triggered.connect(lambda _, t=tool_id: self._select_tool(t))
+            tb.addAction(act)
+            self._tool_btns[tool_id] = act
 
-        layout.addLayout(gadget_grid)
+            # Right-click handling needs the real QToolButton Qt made for
+            # this action - QAction itself has no mouse-event API.
+            w = tb.widgetForAction(act)
+            if w is not None:
+                if tool_id in SHAPE_FILL_PAIRS:
+                    def _mpe(ev, t=tool_id, _orig=w.mousePressEvent):  #vers 1
+                        if ev.button() == Qt.MouseButton.RightButton:
+                            self._toggle_shape_fill(t)
+                        else:
+                            _orig(ev)
+                    w.mousePressEvent = _mpe
+                elif tool_id == TOOL_ZOOM:
+                    w.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+                    w.customContextMenuRequested.connect(self._zoom_mode_menu)
+                    act.setToolTip("Zoom — left-click to zoom in\nRight-click to select zoom mode")
 
-        layout.addSpacing(4)
+        self._tools_ribbon = tb
+        return tb
 
-        #    Brush size slider + value label                                
+    def _create_image_ops_ribbon(self): #vers 1
+        """Image Ops ribbon - Colour Adjustments/Seamless/Snow/Zoom Lens/
+        Icon Browser/Icon Editor, converted from plain icon buttons to a
+        QToolBar of QActions."""
+        from PyQt6.QtWidgets import QToolBar
+        from PyQt6.QtGui import QAction
+        icon_color = self._get_icon_color()
+
+        tb = QToolBar("Image Ops")
+        tb.setObjectName("Image Ops")
+        tb.setIconSize(QSize(20, 20))
+        tb.setMovable(True)
+        tb.setFloatable(True)
+
+        def _op_act(icon_method, tip, slot):  #vers 1
+            try:
+                ico = getattr(SVGIconFactory, icon_method)(20, icon_color)
+            except Exception:
+                ico = QIcon()
+            act = QAction(ico, tip, tb)
+            act.setToolTip(tip)
+            act.triggered.connect(slot)
+            tb.addAction(act)
+            return act
+
+        _op_act('dp_colour_correct_icon', 'Colour Adjustments…', self._open_dp5_colour_adjust)
+        _op_act('dp_seamless_op_icon',    'Seamless Tool…',       self._open_dp5_seamless)
+        _op_act('snow_icon',              'Snow Effect…',         self._open_dp5_snow)
+        _op_act('zoom_in_icon',           'Zoom Lens…',           self._open_zoom_lens)
+        _op_act('svg_edit_icon',          'SVG Icon Browser…',    self._open_icon_browser)
+        _op_act('folder_icon',            'Icon Editor…',         self._open_icon_editor)
+
+        self._image_ops_ribbon = tb
+        return tb
+
+    def _create_brush_colors_panel(self): #vers 1
+        """Brush & Colors dock panel - brush size, snap/grid toggles,
+        FG/BG swatch + brush thumbnail, zoom in/out, opacity, colour
+        history. Split out from the old combined right panel so it can
+        be independently dragged/floated, same as Files/Models/etc in
+        Model Workshop."""
+        panel = QFrame()
+        panel.setFrameStyle(QFrame.Shape.StyledPanel)
+        icon_color = self._get_icon_color()
+
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(3)
+
+        #    Brush size slider + value label
         size_hdr = QHBoxLayout()
         size_lbl = QLabel("Size")
-        size_lbl.setFont(QFont("Arial", self.fonthsize, QFont.Weight.Bold))
+        size_lbl.setFont(self.panel_font)
         size_hdr.addWidget(size_lbl)
         self._size_sl = QSlider(Qt.Orientation.Horizontal)
         self._size_sl.setRange(1, 20)
@@ -5408,25 +5540,25 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._size_val_lbl = QLabel("1")
         self._size_val_lbl.setAlignment(Qt.AlignmentFlag.AlignRight |
                                         Qt.AlignmentFlag.AlignVCenter)
-        self._size_val_lbl.setFont(QFont("Arial", self.fonthsize, QFont.Weight.Bold))
+        self._size_val_lbl.setFont(self.panel_font)
         self._size_val_lbl.setFixedWidth(28)
         size_hdr.addWidget(self._size_val_lbl)
         layout.addLayout(size_hdr)
 
-        #    Snap to grid toggle                                            
+        #    Snap to grid toggle
         snap_row = QHBoxLayout()
         self._snap_chk = QCheckBox("Snap to grid")
-        self._snap_chk.setFont(QFont("Arial", self.fonthsize, QFont.Weight.Bold))
+        self._snap_chk.setFont(self.panel_font)
         self._snap_chk.setChecked(False)
         self._snap_chk.setToolTip("Snap drawing to pixel grid")
         self._snap_chk.toggled.connect(self._set_snap_grid)
         self._grid_chk2 = QCheckBox("Show grid")
-        self._grid_chk2.setFont(QFont("Arial", self.fonthsize, QFont.Weight.Bold))
+        self._grid_chk2.setFont(self.panel_font)
         self._grid_chk2.setChecked(self.dp5_settings.get('show_pixel_grid'))
         self._grid_chk2.toggled.connect(self._set_show_grid)
         self._zoom_lbl = QLabel(f"{self._canvas_zoom}×")
         self._zoom_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        self._zoom_lbl.setFont(QFont("Arial", self.fonthsize))
+        self._zoom_lbl.setFont(self.panel_font)
         snap_row.addWidget(self._snap_chk)
         snap_row.addWidget(self._grid_chk2)
         snap_row.addWidget(self._zoom_lbl)
@@ -5434,13 +5566,13 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         layout.addSpacing(4)
 
-        #    FG / BG swatch  +  brush thumbnail                            
+        #    FG / BG swatch  +  brush thumbnail
         fgbg_row_lbl = QHBoxLayout()
         fgbg_lbl = QLabel("FG / BG")
-        fgbg_lbl.setFont(QFont("Arial", self.fonthsize, QFont.Weight.Bold))
+        fgbg_lbl.setFont(self.panel_font)
         fgbg_row_lbl.addWidget(fgbg_lbl)
         brush_lbl = QLabel("Brush")
-        brush_lbl.setFont(QFont("Arial", self.fonthsize, QFont.Weight.Bold))
+        brush_lbl.setFont(self.panel_font)
         fgbg_row_lbl.addWidget(brush_lbl)
         layout.addLayout(fgbg_row_lbl)
 
@@ -5485,10 +5617,10 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         layout.addLayout(fgbg_row)
 
-        #    Opacity                                                        
+        #    Opacity
         op_row = QHBoxLayout()
         op_lbl = QLabel("Opacity")
-        op_lbl.setFont(QFont("Arial", self.fonthsize, QFont.Weight.Bold))
+        op_lbl.setFont(self.panel_font)
         op_row.addWidget(op_lbl)
         self._opacity_sl = QSlider(Qt.Orientation.Horizontal)
         self._opacity_sl.setRange(0, 100)
@@ -5497,15 +5629,15 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._opacity_sl.valueChanged.connect(self._set_opacity)
         op_row.addWidget(self._opacity_sl)
         self._opacity_val_lbl = QLabel("100%")
-        self._opacity_val_lbl.setFont(QFont("Arial", self.fonthsize, QFont.Weight.Bold))
+        self._opacity_val_lbl.setFont(self.panel_font)
         self._opacity_val_lbl.setFixedWidth(34)
         self._opacity_val_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         op_row.addWidget(self._opacity_val_lbl)
         layout.addLayout(op_row)
 
-        #    Colour history                                                 
+        #    Colour history
         hist_lbl = QLabel("Recent")
-        hist_lbl.setFont(QFont("Arial", self.fonthsize, QFont.Weight.Bold))
+        hist_lbl.setFont(self.panel_font)
         layout.addWidget(hist_lbl)
         hist_row = QHBoxLayout()
         hist_row.setSpacing(2)
@@ -5519,30 +5651,36 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             hist_row.addWidget(b)
             self._color_hist_btns.append(b)
         layout.addLayout(hist_row)
+        layout.addStretch()
 
-        layout.addSpacing(4)
+        return panel
 
-        #    IMAGE palette                                                  
-        img_pal_lbl = QLabel("Image Palette:")
-        img_pal_lbl.setFont(QFont("Arial", self.fonthsize, QFont.Weight.Bold))
-        layout.addWidget(img_pal_lbl)
+    def _create_image_palette_panel(self): #vers 1
+        """Image Palette dock panel - bit depth quantization + palette
+        grid. Split out from the old combined right panel."""
+        panel = QFrame()
+        panel.setFrameStyle(QFrame.Shape.StyledPanel)
+
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(3)
 
         img_pal_ctrl = QHBoxLayout()
         self._bit_depth_combo = QComboBox()
-        self._bit_depth_combo.setFont(QFont("Arial", self.fonthsize, QFont.Weight.Bold))
+        self._bit_depth_combo.setFont(self.panel_font)
         self._bit_depth_combo.addItems(["32bit", "24bit", "16bit", "8bit"])
         self._bit_depth_combo.setFixedHeight(24)
         self._bit_depth_combo.setFixedWidth(40)
         self._bit_depth_combo.setToolTip("Colour depth for quantization")
         img_pal_ctrl.addWidget(self._bit_depth_combo)
         img_pal_apply_btn = QPushButton("Apply")
-        img_pal_apply_btn.setFont(QFont("Arial", self.fonthsize))
+        img_pal_apply_btn.setFont(self.button_font)
         img_pal_apply_btn.setFixedHeight(24)
         img_pal_apply_btn.setToolTip("Quantize canvas to selected bit depth")
         img_pal_apply_btn.clicked.connect(self._apply_bit_depth)
         img_pal_ctrl.addWidget(img_pal_apply_btn)
         self._img_pal_group_btn = QPushButton("Group")
-        self._img_pal_group_btn.setFont(QFont("Arial", self.fonthsize))
+        self._img_pal_group_btn.setFont(self.button_font)
         self._img_pal_group_btn.setFixedHeight(24)
         self._img_pal_group_btn.setToolTip("Sort palette by hue — click to toggle asc/desc")
         self._img_pal_group_btn.clicked.connect(self._group_palette)
@@ -5550,32 +5688,32 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._group_palette_asc = True
         layout.addLayout(img_pal_ctrl)
 
-        # Image palette — auto-wraps columns to fill available panel width.
-        # Height is uncapped (scroll area grows with colour count); vertical
-        # scrollbar appears if it would exceed the panel. PaletteGrid recalculates
-        # columns from its own width on every resize, so no manual col setting needed.
         img_cols = self.dp5_settings.get('img_pal_cols')
         self.pal_bar = PaletteGrid(cols=img_cols, cell=12)
         self.pal_bar.color_picked.connect(self._on_image_palette_color)
         self._img_pal_scroll = QScrollArea()
         self._img_pal_scroll.setWidget(self.pal_bar)
-        self._img_pal_scroll.setWidgetResizable(True)   # lets pal_bar fill width
+        self._img_pal_scroll.setWidgetResizable(True)
         self._img_pal_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._img_pal_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self._img_pal_scroll.setMinimumHeight(12)
-        # Max height: up to ~half the screen, so it never dominates the panel
-        from PyQt6.QtWidgets import QApplication as _QApp
-        _sh = _QApp.primaryScreen().availableSize().height() if _QApp.primaryScreen() else 800
-        self._img_pal_scroll.setMaximumHeight(_sh // 3)
         layout.addWidget(self._img_pal_scroll, stretch=1)
 
-        #    USER palette (retro presets)                                   
+        return panel
+
+    def _create_user_palette_panel(self): #vers 1
+        """User Palette dock panel - retro presets + grid. Split out from
+        the old combined right panel."""
+        panel = QFrame()
+        panel.setFrameStyle(QFrame.Shape.StyledPanel)
+
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(3)
+
         user_pal_hdr = QHBoxLayout()
-        user_pal_lbl = QLabel("User Palette:")
-        user_pal_lbl.setFont(QFont("Arial", self.fonthsize, QFont.Weight.Bold))
-        user_pal_hdr.addWidget(user_pal_lbl)
         self._retro_btn = QPushButton("Amiga AGA WB")
-        self._retro_btn.setFont(QFont("Arial", self.fonthsize, QFont.Weight.Bold))
+        self._retro_btn.setFont(self.button_font)
         self._retro_btn.setFixedHeight(24)
         self._retro_btn.setToolTip("User palette — choose retro preset")
         self._retro_btn.clicked.connect(self._show_retro_menu)
@@ -5586,9 +5724,6 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         user_rows = self.dp5_settings.get('user_pal_rows')
         user_pal_max_h = max(user_rows * 12 + 2, 130)
-        # User palette: cell size computed to fill panel width.
-        # We use a ResizingPaletteGrid that recalculates cell on resize
-        # so swatches always fill the available width cleanly.
         self._user_pal_grid = _AutoCellPaletteGrid()
         self._user_pal_grid.color_picked.connect(self._on_user_palette_color)
         user_pal_scroll = QScrollArea()
@@ -5600,36 +5735,6 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         user_pal_scroll.setMinimumHeight(12)
         self._user_pal_scroll = user_pal_scroll
         layout.addWidget(user_pal_scroll, stretch=1)
-
-        #    Image operation quick buttons                                 
-        imgop_lbl = QLabel("Image Ops:")
-        imgop_lbl.setFont(QFont("Arial", self.fonthsize, QFont.Weight.Bold))
-        layout.addWidget(imgop_lbl)
-
-        imgop_row = QHBoxLayout()
-        imgop_row.setSpacing(3)
-
-        def _imgop_btn(icon_method, tip, slot):  #vers 1
-            b = QPushButton()
-            b.setFixedSize(32, 32)
-            b.setToolTip(tip)
-            try:
-                b.setIcon(getattr(SVGIconFactory, icon_method)(20, icon_color))
-                b.setIconSize(QSize(20, 20))
-            except Exception:
-                b.setText(tip[:3])
-            b.clicked.connect(slot)
-            imgop_row.addWidget(b)
-            return b
-
-        _imgop_btn('dp_colour_correct_icon', 'Colour Adjustments…', self._open_dp5_colour_adjust)
-        _imgop_btn('dp_seamless_op_icon',    'Seamless Tool…',       self._open_dp5_seamless)
-        _imgop_btn('snow_icon',              'Snow Effect…',         self._open_dp5_snow)
-        _imgop_btn('zoom_in_icon',           'Zoom Lens…',           self._open_zoom_lens)
-        _imgop_btn('svg_edit_icon',          'SVG Icon Browser…',    self._open_icon_browser)
-        _imgop_btn('folder_icon',            'Icon Editor…',         self._open_icon_editor)
-        imgop_row.addStretch()
-        layout.addLayout(imgop_row)
 
         # Load default retro palette
         self._apply_retro_palette(self.dp5_settings.get('retro_palette'))
@@ -6305,8 +6410,10 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             a.setCheckable(True)
             a.setChecked(mode_id == current)
             a.triggered.connect(lambda _, m=mode_id: self._set_zoom_mode(m))
-        btn = self._tool_btns.get(TOOL_ZOOM)
-        menu.exec(btn.mapToGlobal(pos) if btn else self.cursor().pos())
+        w = self.sender()   # the actual QToolButton (customContextMenuRequested
+                             # sender) - _tool_btns now holds QActions, which
+                             # have no mapToGlobal().
+        menu.exec(w.mapToGlobal(pos) if w else self.cursor().pos())
 
 
     def _set_zoom_mode(self, mode: str): #vers 1
@@ -9308,7 +9415,6 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
     def _show_workshop_settings(self): #vers 1
         """Open DP5-specific settings dialog (NOT the global theme dialog)."""
         old_icon_sz = self.dp5_settings.get('tool_icon_size')
-        old_cols    = self.dp5_settings.get('tool_columns')
 
         dlg = DP5SettingsDialog(self.dp5_settings, self)
         if dlg.exec():
@@ -9319,8 +9425,8 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
             # Apply changed settings live
             show_left = self.dp5_settings.get('show_bitmap_list')
-            if hasattr(self, '_left_panel'):
-                self._left_panel.setVisible(show_left)
+            if hasattr(self, '_bitmaps_dock'):
+                self._bitmaps_dock.setVisible(show_left)
             if hasattr(self, '_status_bar'):
                 self._status_bar.setVisible(self.dp5_settings.get('show_statusbar'))
 
@@ -9341,52 +9447,41 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 c.setMaximumHeight(16777215 if show_mb else 0)
                 c.setVisible(show_mb)
 
-            # If icon size or column count changed, rebuild the right panel
+            # If icon size changed, update the Tools ribbon. Column count
+            # no longer applies - Tools is a QToolBar now, which handles
+            # its own layout/wrapping natively.
             new_icon_sz = self.dp5_settings.get('tool_icon_size')
-            new_cols    = self.dp5_settings.get('tool_columns')
-            if new_icon_sz != old_icon_sz or new_cols != old_cols:
+            if new_icon_sz != old_icon_sz:
                 self._rebuild_right_panel()
 
             self._set_status("Settings saved.")
 
 
-    def _rebuild_right_panel(self): #vers 2
-        """Tear down and reconstruct the right panel in-place.
-        Called after settings change or splitter resize."""
-        if not hasattr(self, '_splitter'): return
-        old_panel = self._splitter.widget(2)
-        if old_panel is None: return
-        new_panel = self._create_right_panel()
-        self._splitter.replaceWidget(2, new_panel)
-        old_panel.deleteLater()
+    def _rebuild_right_panel(self): #vers 3
+        """Update the Tools ribbon's icon size in place - was a full
+        teardown/rebuild of the adaptive-column gadget grid, but Tools is
+        now a QToolBar (no column concept - QToolBar handles its own
+        layout/wrapping natively), so just updating setIconSize() and
+        refreshing the action icons is all that's needed."""
+        tb = getattr(self, '_tools_ribbon', None)
+        if tb is None:
+            return
+        icon_sz = self.dp5_settings.get('tool_icon_size')
+        tb.setIconSize(QSize(icon_sz, icon_sz))
+        self._tool_icon_sz = icon_sz
+        self._refresh_icons()   # redraws all action icons at the new size
         # Re-select current tool so icons reflect active state
         if self.dp5_canvas:
             self._select_tool(self.dp5_canvas.tool)
         self._update_color_swatches()
         self._sync_brush_thumb()   # restore thumbnail after rebuild
 
-    def _on_splitter_moved(self, pos: int, index: int): #vers 2
-        """Reflow gadget grid columns when splitter is dragged.
-        Reads the panel's actual width, computes how many columns fit,
-        and rebuilds only when the column count changes."""
-        if not hasattr(self, '_splitter'): return
-        # Get actual panel width from the widget itself (not splitter sizes,
-        # which can be stale mid-drag)
-        right_panel = self._splitter.widget(self._splitter.count() - 1)
-        if right_panel is None: return
-        new_w = right_panel.width()
-
-        icon_sz  = self.dp5_settings.get('tool_icon_size')
-        btn_sz   = icon_sz + 6
-        gap      = 2
-        min_cols = max(2, self.dp5_settings.get('tool_columns'))
-        usable   = max(btn_sz, new_w - 20)
-        new_cols = max(min_cols, usable // (btn_sz + gap))
-        old_cols = getattr(self, '_n_cols', 0)
-
-        # Only rebuild when column count actually changes
-        if new_cols != old_cols:
-            self._rebuild_right_panel()
+    def _on_splitter_moved(self, pos: int, index: int): #vers 3
+        """No-op now - Tools is a QToolBar (no adaptive column count to
+        reflow), and there's no splitter anymore (QDockWidget/QMainWindow
+        instead). Kept as a safe no-op in case anything still references
+        it."""
+        pass
 
 
     def _export_bitmap(self): #vers 1
@@ -11851,7 +11946,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 getattr(self, attr).setIcon(
                     getattr(SVGIconFactory, method)(20, icon_col))
 
-        # Tool grid buttons — redraw with theme colours
+        # Tool grid actions — redraw with theme colours
         icon_sz = self.dp5_settings.get('tool_icon_size', 22)
         for tool_id, btn in getattr(self, '_tool_btns', {}).items():
             from apps.components.DP5_Workshop.dp5_workshop import _load_tool_icon
@@ -11859,7 +11954,6 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             ico = _load_tool_icon(tool_id, icon_sz, active=active,
                                   tile_bg=tile_bg, icon_col=icon_col)
             btn.setIcon(ico)
-            btn.setIconSize(QSize(icon_sz, icon_sz))
 
         # Brush manager button if present
         if hasattr(self, 'brush_mgr_btn'):
@@ -12060,11 +12154,17 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             super().keyPressEvent(e)
 
 
-    def closeEvent(self, event): #vers 2
-        # Save splitter positions so they restore on next open
-        if hasattr(self, '_splitter') and self._splitter:
-            self.dp5_settings.set('splitter_sizes', self._splitter.sizes())
-            self.dp5_settings.save()
+    def closeEvent(self, event): #vers 3
+        # Save dock/ribbon layout so it restores on next open
+        if hasattr(self, '_outer_mw') and self._outer_mw:
+            try:
+                self.dp5_settings.set(
+                    'outer_layout_state',
+                    self._outer_mw.saveState(self._OUTER_LAYOUT_VERSION).toHex().data().decode())
+                self.dp5_settings.set('outer_layout_version', self._OUTER_LAYOUT_VERSION)
+                self.dp5_settings.save()
+            except Exception:
+                pass
         # Remove injected tool menu from imgfactory menubar
         try:
             mw = getattr(self, 'main_window', None) or getattr(self, '_imgfactory', None)
