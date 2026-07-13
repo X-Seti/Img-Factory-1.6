@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 33 (Build 352)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 34 (Build 353)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -823,23 +823,38 @@ def _make_tool_icon(shape: str, size: int = 42,
         p.drawEllipse(QPoint(24, 44), 3, 3)
 
     elif shape == 'spray':
-        # Spray can / airbrush — body + nozzle + spray dots
-        # Can body
-        p.setPen(mk_pen(0))
-        p.setBrush(solid_brush())
-        p.drawRoundedRect(20, 10, 18, 30, 4, 4)
-        # Nozzle spout (left side)
-        p.drawRoundedRect(8, 14, 14, 6, 2, 2)
-        # Spray cloud of dots (scattered left)
-        import random as _rng
-        _rng.seed(42)
-        for _ in range(12):
-            dx = int(_rng.gauss(6, 5))
-            dy = int(_rng.gauss(24, 8))
-            r  = max(1, int(_rng.uniform(1, 2.5)))
-            p.drawEllipse(QPoint(max(2,min(18,dx)), max(6,min(42,dy))), r, r)
-        # Button on top of can
-        p.drawRoundedRect(26, 6, 8, 6, 2, 2)
+        # Airbrush / spray can - redesigned for a clean, unambiguous
+        # silhouette (nozzle straight up from the can's top-centre, not
+        # protruding sideways) and a light, sparse mist pattern (this
+        # tool is the airbrush - light spray; a separate heavier "spray
+        # can" effect would use a denser cloud, not this icon). First
+        # tool icon moved toward the multi-colour style used by the
+        # XY/XZ view icons, rather than a single theme-tinted fill.
+        can_fill = QColor('#b8bcc4') if not active else QColor('#e8eaee')
+        cap_fill = QColor('#d05050')   # red trigger cap - fixed accent colour
+        mist_col = QColor('#9fd4ee') if not active else QColor('#cdeaf8')
+
+        # Can body - vertical, centred
+        p.setPen(mk_pen(2.0))
+        p.setBrush(QBrush(can_fill))
+        p.drawRoundedRect(16, 20, 16, 22, 3, 3)
+        # Base rim
+        p.drawLine(QPoint(16, 26), QPoint(32, 26))
+        # Nozzle stem, straight up from top-centre
+        p.drawRoundedRect(21, 12, 6, 9, 1, 1)
+        # Trigger cap - fixed red accent, on top of the nozzle
+        p.setPen(mk_pen(1.5))
+        p.setBrush(QBrush(cap_fill))
+        p.drawEllipse(QPoint(24, 10), 4, 4)
+
+        # Light, sparse mist - fans upward from the nozzle, airbrush-light
+        # rather than a dense spray-can cloud
+        p.setPen(QPen(mist_col, 0))
+        p.setBrush(QBrush(mist_col))
+        mist_pts = [(24, 3, 1.4), (18, 5, 1.1), (30, 5, 1.1),
+                    (14, 8, 1.0), (34, 8, 1.0), (24, 6, 1.2)]
+        for mx, my, mr in mist_pts:
+            p.drawEllipse(QPoint(mx, my), mr, mr)
 
     elif shape == 'picker':
         # Eyedropper — long body, round glass bulb top-right, pointed tip bottom-left
@@ -5793,7 +5808,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             (TOOL_PENCIL,   'pencil',   'Pencil — freehand (P)'),
             (TOOL_ERASER,   'eraser',   'Eraser (E)'),
             (TOOL_FILL,     'fill',     'Flood fill (F)'),
-            (TOOL_SPRAY,    'spray',    'Airbrush / spray (S)'),
+            (TOOL_SPRAY,    'spray',    'Airbrush — light spray (S)'),
             (TOOL_PICKER,   'picker',   'Colour picker (K)'),
             (TOOL_CURVE,    'curve',    'Bézier curve — click pts, dbl to commit (Q)'),
             (TOOL_LINE,     'line',     'Straight line (L)'),
