@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 35 (Build 354)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 36 (Build 355)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -154,6 +154,7 @@ from PyQt6.QtGui import (
 # DP5Workshop._apply_msx_constraint
 # DP5Workshop._apply_palette0_alpha
 # DP5Workshop._apply_pending_constraint
+# DP5Workshop._apply_ribbon_style
 # DP5Workshop._apply_selection_rotation
 # DP5Workshop._apply_spectrum_clash
 # DP5Workshop._apply_theme
@@ -1198,6 +1199,16 @@ class DP5Settings:
         'marching_ants_bg':      '#ffffff',  # background colour (hex)
         'marching_ants_style':   'dashes',   # 'dashes' | 'dots'
         'marching_ants_speed':   150,        # animation step interval, ms
+        # Ribbon appearance - applies to every ribbon (Tools, Image Ops,
+        # any added later), independently for whichever orientation the
+        # ribbon is currently docked at (vertical = left/right dock area,
+        # horizontal = top/bottom), re-applied live when a ribbon is
+        # dragged between them.
+        'ribbon_icon_size_vert':  22,
+        'ribbon_icon_size_horz':  22,
+        'ribbon_padding_vert':    3,
+        'ribbon_padding_horz':    3,
+        'ribbon_opacity':         100,   # 0-100, 100 = fully opaque
     }
 
     def __init__(self): #vers 1
@@ -1369,6 +1380,41 @@ class DP5SettingsDialog(QDialog):
 
         tabs.addTab(canvas_tab, "Canvas")
 
+        # - Ribbons tab (icon size / padding per orientation, opacity)
+        ribbons_tab = QWidget()
+        rl = QFormLayout(ribbons_tab)
+
+        rl.addRow(QLabel("—  Vertical  (docked left/right)  —"))
+        self._ribbon_icon_vert_spin = QSpinBox()
+        self._ribbon_icon_vert_spin.setRange(12, 64)
+        self._ribbon_icon_vert_spin.setValue(self.s.get('ribbon_icon_size_vert'))
+        rl.addRow("Icon size:", self._ribbon_icon_vert_spin)
+        self._ribbon_pad_vert_spin = QSpinBox()
+        self._ribbon_pad_vert_spin.setRange(0, 20)
+        self._ribbon_pad_vert_spin.setValue(self.s.get('ribbon_padding_vert'))
+        rl.addRow("Padding:", self._ribbon_pad_vert_spin)
+
+        rl.addRow(QLabel("—  Horizontal  (docked top/bottom)  —"))
+        self._ribbon_icon_horz_spin = QSpinBox()
+        self._ribbon_icon_horz_spin.setRange(12, 64)
+        self._ribbon_icon_horz_spin.setValue(self.s.get('ribbon_icon_size_horz'))
+        rl.addRow("Icon size:", self._ribbon_icon_horz_spin)
+        self._ribbon_pad_horz_spin = QSpinBox()
+        self._ribbon_pad_horz_spin.setRange(0, 20)
+        self._ribbon_pad_horz_spin.setValue(self.s.get('ribbon_padding_horz'))
+        rl.addRow("Padding:", self._ribbon_pad_horz_spin)
+
+        rl.addRow(QLabel("—  Appearance  —"))
+        self._ribbon_opacity_spin = QSpinBox()
+        self._ribbon_opacity_spin.setRange(10, 100)
+        self._ribbon_opacity_spin.setSuffix(" %")
+        self._ribbon_opacity_spin.setValue(self.s.get('ribbon_opacity'))
+        self._ribbon_opacity_spin.setToolTip("Ribbon background translucency - "
+                                             "lower = more see-through")
+        rl.addRow("Opacity:", self._ribbon_opacity_spin)
+
+        tabs.addTab(ribbons_tab, "Ribbons")
+
         # - Interface tab
         ui_tab = QWidget()
         ul = QFormLayout(ui_tab)
@@ -1532,6 +1578,11 @@ class DP5SettingsDialog(QDialog):
         self.s.set('marching_ants_fg',      self._ants_fg_btn._chosen)
         self.s.set('marching_ants_bg',      self._ants_bg_btn._chosen)
         self.s.set('marching_ants_speed',   self._ants_speed_spin.value())
+        self.s.set('ribbon_icon_size_vert', self._ribbon_icon_vert_spin.value())
+        self.s.set('ribbon_padding_vert',   self._ribbon_pad_vert_spin.value())
+        self.s.set('ribbon_icon_size_horz', self._ribbon_icon_horz_spin.value())
+        self.s.set('ribbon_padding_horz',   self._ribbon_pad_horz_spin.value())
+        self.s.set('ribbon_opacity',        self._ribbon_opacity_spin.value())
         self.s.set('show_bitmap_list', self._bitmap_chk.isChecked())
         self.s.set('show_statusbar',   self._statusbar_chk.isChecked())
         self.s.set('ui_font_size',     self._font_size_spin.value())
@@ -5902,7 +5953,30 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                     act.setToolTip("Zoom — left-click to zoom in\nRight-click to select zoom mode")
 
         self._tools_ribbon = tb
+        self._apply_ribbon_style(tb)
+        tb.orientationChanged.connect(lambda _o, t=tb: self._apply_ribbon_style(t))
         return tb
+
+    def _apply_ribbon_style(self, toolbar): #vers 1
+        """Apply icon size / padding / opacity to a ribbon, using whichever
+        of the vertical or horizontal settings match its current
+        orientation. Called on creation and again whenever the ribbon is
+        dragged to a dock area of the other orientation (orientationChanged),
+        so settings stay correct no matter where the user puts it."""
+        vertical = (toolbar.orientation() == Qt.Orientation.Vertical)
+        icon_sz = self.dp5_settings.get(
+            'ribbon_icon_size_vert' if vertical else 'ribbon_icon_size_horz')
+        padding = self.dp5_settings.get(
+            'ribbon_padding_vert' if vertical else 'ribbon_padding_horz')
+        opacity = self.dp5_settings.get('ribbon_opacity')
+
+        toolbar.setIconSize(QSize(icon_sz, icon_sz))
+        toolbar.layout().setSpacing(max(0, int(padding)))
+
+        alpha = max(0, min(255, round(opacity / 100 * 255)))
+        toolbar.setStyleSheet(
+            f"QToolBar {{ background: rgba(40, 40, 45, {alpha}); "
+            f"spacing: {max(0, int(padding))}px; }}")
 
     def _create_image_ops_ribbon(self): #vers 1
         """Image Ops ribbon - Colour Adjustments/Seamless/Snow/Zoom Lens/
@@ -5911,16 +5985,17 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         from PyQt6.QtWidgets import QToolBar
         from PyQt6.QtGui import QAction
         icon_color = self._get_icon_color()
+        _render_sz = max(self.dp5_settings.get('ribbon_icon_size_vert'),
+                        self.dp5_settings.get('ribbon_icon_size_horz'))
 
         tb = QToolBar("Image Ops")
         tb.setObjectName("Image Ops")
-        tb.setIconSize(QSize(20, 20))
         tb.setMovable(True)
         tb.setFloatable(True)
 
-        def _op_act(icon_method, tip, slot):  #vers 1
+        def _op_act(icon_method, tip, slot):  #vers 2
             try:
-                ico = getattr(SVGIconFactory, icon_method)(20, icon_color)
+                ico = getattr(SVGIconFactory, icon_method)(_render_sz, icon_color)
             except Exception:
                 ico = QIcon()
             act = QAction(ico, tip, tb)
@@ -5937,6 +6012,8 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         _op_act('folder_icon',            'Icon Editor…',         self._open_icon_editor)
 
         self._image_ops_ribbon = tb
+        self._apply_ribbon_style(tb)
+        tb.orientationChanged.connect(lambda _o, t=tb: self._apply_ribbon_style(t))
         return tb
 
     def _create_brush_colors_panel(self): #vers 1
@@ -10054,6 +10131,10 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 self.dp5_canvas.update()
                 if self.dp5_settings.get('zoom_to_fit_resize'):
                     self._fit_canvas_to_viewport()
+            for _tb in (getattr(self, '_tools_ribbon', None),
+                        getattr(self, '_image_ops_ribbon', None)):
+                if _tb is not None:
+                    self._apply_ribbon_style(_tb)
             self._set_platform(self.dp5_settings.get('platform_mode'))
 
             show_mb = (self.dp5_settings.get('show_menubar') and
@@ -10074,18 +10155,22 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             self._set_status("Settings saved.")
 
 
-    def _rebuild_right_panel(self): #vers 3
+    def _rebuild_right_panel(self): #vers 4
         """Update the Tools ribbon's icon size in place - was a full
         teardown/rebuild of the adaptive-column gadget grid, but Tools is
         now a QToolBar (no column concept - QToolBar handles its own
         layout/wrapping natively), so just updating setIconSize() and
-        refreshing the action icons is all that's needed."""
+        refreshing the action icons is all that's needed. Uses whichever
+        of the vertical/horizontal ribbon icon size settings matches the
+        ribbon's current orientation, rather than the old single
+        tool_icon_size setting."""
         tb = getattr(self, '_tools_ribbon', None)
         if tb is None:
             return
-        icon_sz = self.dp5_settings.get('tool_icon_size')
-        tb.setIconSize(QSize(icon_sz, icon_sz))
-        self._tool_icon_sz = icon_sz
+        self._apply_ribbon_style(tb)
+        vertical = (tb.orientation() == Qt.Orientation.Vertical)
+        self._tool_icon_sz = self.dp5_settings.get(
+            'ribbon_icon_size_vert' if vertical else 'ribbon_icon_size_horz')
         self._refresh_icons()   # redraws all action icons at the new size
         # Re-select current tool so icons reflect active state
         if self.dp5_canvas:
