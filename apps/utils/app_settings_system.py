@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#This goes in root/apps/utils/app_settings_system.py - version 69
+#This goes in root/apps/utils/app_settings_system.py - version 70
 # $vers" X-Seti - June26, 2025 - App Factory - Package theme settings
 
 """
@@ -3211,30 +3211,34 @@ class AppPanelEffect: #vers 1
                 p.end()
 
     @staticmethod
-    def _paint_fill(p, r, cs): #vers 3
+    def _paint_fill(p, r, cs): #vers 4
         from PyQt6.QtGui import QColor, QLinearGradient
         from PyQt6.QtCore import QPointF
-        ca = QColor(cs.get('panel_fill_a', '#1a1a2e'))
-        cb = QColor(cs.get('panel_fill_b', '#16213e'))
+
+        has_explicit_a = 'panel_fill_a' in cs
+        has_explicit_b = 'panel_fill_b' in cs
 
         # panel_bg lives in theme JSON, not in current_settings -- fetch properly
         panel_bg = cs.get('panel_bg') or cs.get('bg_primary', '')
         if not panel_bg:
-            # Try to get from app_settings theme colors
             try:
                 from PyQt6.QtWidgets import QApplication
                 app = QApplication.instance()
                 if app:
                     win_col = app.palette().color(app.palette().ColorRole.Window)
-                    if win_col.lightness() > 128:
-                        panel_bg = win_col.name()
+                    panel_bg = win_col.name()
             except Exception:
                 pass
 
-        if panel_bg:
-            theme_col = QColor(panel_bg)
-            if theme_col.lightness() > 128 and ca.lightness() < 64:
-                ca = cb = theme_col
+        # Fallback priority: explicit user setting > theme's own panel/window
+        # colour (any lightness, not just light themes) > neutral grey. The
+        # old hardcoded '#1a1a2e'/'#16213e' defaults were a fixed navy-purple
+        # tint that showed through on any dark theme that hadn't explicitly
+        # set panel_fill_a/b, regardless of what that theme's actual colours
+        # were - this now matches whatever theme is active instead.
+        default_col = QColor(panel_bg) if panel_bg else QColor('#2a2a2e')
+        ca = QColor(cs.get('panel_fill_a')) if has_explicit_a else default_col
+        cb = QColor(cs.get('panel_fill_b')) if has_explicit_b else default_col
 
         d = cs.get('panel_fill_dir', 0)
         if d == 0:
@@ -3254,12 +3258,13 @@ class AppPanelEffect: #vers 1
         p.fillRect(r, g)
 
     @staticmethod
-    def _paint_gradient(p, r, cs): #vers 3
+    def _paint_gradient(p, r, cs): #vers 4
         from PyQt6.QtGui import QColor, QLinearGradient
         from PyQt6.QtCore import QPointF
-        s1 = QColor(cs.get('panel_grad_stop1', '#1a1a2e'))
-        s2 = QColor(cs.get('panel_grad_stop2', '#2d1b4e'))
-        s3 = QColor(cs.get('panel_grad_stop3', '#16213e'))
+
+        has_s1 = 'panel_grad_stop1' in cs
+        has_s2 = 'panel_grad_stop2' in cs
+        has_s3 = 'panel_grad_stop3' in cs
 
         # Fetch theme window color from QApplication palette as fallback
         panel_bg = cs.get('panel_bg') or cs.get('bg_primary', '')
@@ -3269,15 +3274,16 @@ class AppPanelEffect: #vers 1
                 app = QApplication.instance()
                 if app:
                     win_col = app.palette().color(app.palette().ColorRole.Window)
-                    if win_col.lightness() > 128:
-                        panel_bg = win_col.name()
+                    panel_bg = win_col.name()
             except Exception:
                 pass
 
-        if panel_bg:
-            theme_col = QColor(panel_bg)
-            if theme_col.lightness() > 128 and s1.lightness() < 64:
-                s1 = s2 = s3 = theme_col
+        # Same fallback priority fix as _paint_fill - theme colour at any
+        # lightness beats the old hardcoded purple-tinted defaults.
+        default_col = QColor(panel_bg) if panel_bg else QColor('#2a2a2e')
+        s1 = QColor(cs.get('panel_grad_stop1')) if has_s1 else default_col
+        s2 = QColor(cs.get('panel_grad_stop2')) if has_s2 else default_col
+        s3 = QColor(cs.get('panel_grad_stop3')) if has_s3 else default_col
 
         d  = cs.get('panel_grad_dir', 1)
         pts = {
