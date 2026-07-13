@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 19 (Build 338)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 20 (Build 339)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -343,7 +343,6 @@ from PyQt6.QtGui import (
 # DP5Workshop._toggle_maximize
 # DP5Workshop._toggle_menubar
 # DP5Workshop._toggle_onion_skin
-# DP5Workshop._toggle_shape_fill
 # DP5Workshop._toggle_statusbar
 # DP5Workshop._toggle_symmetry_mode
 # DP5Workshop._undo_canvas
@@ -541,6 +540,7 @@ TOOL_LASSO         = 'lasso'
 TOOL_FILLED_LASSO  = 'filled_lasso'   # right-click fill toggle
 TOOL_PICKER        = 'picker'
 TOOL_SELECT        = 'select'
+TOOL_SELECT_COPY   = 'select_copy'
 TOOL_MOVE          = 'move'
 TOOL_ZOOM          = 'zoom'
 TOOL_TEXT          = 'text'
@@ -553,16 +553,6 @@ TOOL_BLUR_BRUSH    = 'blur_brush'     # blur brush (gaussian soften under cursor
 TOOL_SMUDGE        = 'smudge'        # smudge/blend pixels under cursor
 TOOL_LIGHTEN       = 'lighten'       # dodge — lighten pixels under cursor
 TOOL_DARKEN        = 'darken'        # burn  — darken pixels under cursor
-
-# Shape tools that have an outline/fill toggle via right-click
-SHAPE_FILL_PAIRS = {
-    TOOL_RECT:     TOOL_FILLED_RECT,
-    TOOL_CIRCLE:   TOOL_FILLED_CIRCLE,
-    TOOL_TRIANGLE: TOOL_FILLED_TRIANGLE,
-    TOOL_POLYGON:  TOOL_FILLED_POLYGON,
-    TOOL_STAR:     TOOL_FILLED_STAR,
-    TOOL_LASSO:    TOOL_FILLED_LASSO,
-}
 
 # - Try importing shared infrastructure
 try:
@@ -989,6 +979,24 @@ def _make_tool_icon(shape: str, size: int = 42,
         p.setBrush(solid_brush())
         for hx, hy in [(6,6),(38,6),(6,38),(38,38),(22,6),(22,38),(6,22),(38,22)]:
             p.drawRect(hx-2, hy-2, 4, 4)
+
+    elif shape == 'select_copy':
+        # Same marquee as 'select', plus a small "+" badge (bottom-right)
+        # to indicate copy/duplicate rather than cut/move.
+        pen_dash = QPen(ink, 2.0, Qt.PenStyle.DashLine,
+                        Qt.PenCapStyle.SquareCap, Qt.PenJoinStyle.MiterJoin)
+        pen_dash.setDashPattern([3, 2])
+        p.setPen(pen_dash)
+        p.setBrush(QBrush(Qt.BrushStyle.NoBrush))
+        p.drawRect(6, 6, 28, 28)
+        p.setPen(mk_pen(0))
+        p.setBrush(solid_brush())
+        for hx, hy in [(4,4),(34,4),(4,34),(34,34)]:
+            p.drawRect(hx-2, hy-2, 4, 4)
+        # "+" badge
+        p.setPen(mk_pen(3.5))
+        p.drawLine(QPoint(34, 26), QPoint(34, 42))
+        p.drawLine(QPoint(26, 34), QPoint(42, 34))
 
     elif shape == 'lasso':
         # Freehand lasso — kidney-bean loop, open at bottom-right, dashed
@@ -1793,18 +1801,25 @@ class DP5Canvas(QWidget):
         r = self._selection_rect
         return r.x() <= tx < r.x() + r.width() and r.y() <= ty < r.y() + r.height()
 
-    def _lift_selection(self):  #vers 1
+    def _lift_selection(self, keep_source: bool = False):  #vers 2
         """
-        Lift the selected pixels off the canvas into _sel_buffer and clear the
-        source area to transparent.  Saves a full canvas backup in _sel_float_orig
-        so Escape can cancel the move.
+        Lift the selected pixels off the canvas into _sel_buffer. Saves a
+        full canvas backup in _sel_float_orig so Escape can cancel the
+        move. If keep_source is False (default, TOOL_SELECT/"cut"), the
+        source area is cleared to transparent. If True (TOOL_SELECT_COPY),
+        the source is left untouched - the floating buffer becomes an
+        independent copy.
         """
         if not self._sel_active or not self._selection_rect: return
         # Backup whole canvas for cancel
         self._sel_float_orig = bytearray(self.rgba)
         # Copy selected region
         self.copy_selection()
-        # Clear source region (lift leaves a hole)
+        if keep_source:
+            self._sel_floating  = True
+            self._sel_float_pos = (self._selection_rect.x(), self._selection_rect.y())
+            return
+        # Clear source region (lift leaves a hole) - cut behaviour only
         r = self._selection_rect
         x0 = max(0, r.x()); y0 = max(0, r.y())
         x1 = min(self.tex_w, r.x() + r.width())
@@ -2032,7 +2047,7 @@ class DP5Canvas(QWidget):
                        TOOL_CIRCLE,   TOOL_FILLED_CIRCLE,
                        TOOL_TRIANGLE, TOOL_FILLED_TRIANGLE,
                        TOOL_STAR,     TOOL_FILLED_STAR,
-                       TOOL_SELECT)
+                       TOOL_SELECT,   TOOL_SELECT_COPY)
         # Also draw box-zoom preview
         is_box_zoom = (self.tool == TOOL_ZOOM and self._zoom_mode == 'box')
         if self._preview_start and self._preview_end and \
@@ -2045,7 +2060,7 @@ class DP5Canvas(QWidget):
             e = self._tex_to_widget(*self._preview_end)
             if self.tool == TOOL_LINE:
                 painter.drawLine(s.x(), s.y(), e.x(), e.y())
-            elif self.tool in (TOOL_RECT, TOOL_FILLED_RECT, TOOL_SELECT):
+            elif self.tool in (TOOL_RECT, TOOL_FILLED_RECT, TOOL_SELECT, TOOL_SELECT_COPY):
                 painter.drawRect(QRect(s, e).normalized())
             elif self.tool in (TOOL_CIRCLE, TOOL_FILLED_CIRCLE):
                 painter.drawEllipse(QRect(s, e).normalized())
@@ -2314,14 +2329,16 @@ class DP5Canvas(QWidget):
                            TOOL_CIRCLE,   TOOL_FILLED_CIRCLE,
                            TOOL_TRIANGLE, TOOL_FILLED_TRIANGLE,
                            TOOL_STAR,     TOOL_FILLED_STAR,
-                           TOOL_SELECT):
+                           TOOL_SELECT,   TOOL_SELECT_COPY):
 
-            if self.tool == TOOL_SELECT and self._sel_active and \
+            if self.tool in (TOOL_SELECT, TOOL_SELECT_COPY) and self._sel_active and \
                self._point_in_sel_rect(tx, ty):
-                #    Click INSIDE committed selection → lift and start move   
+                #    Click INSIDE committed selection → lift and start move.
+                #    TOOL_SELECT clears the source (cut); TOOL_SELECT_COPY
+                #    keeps it intact (copy).
                 if not self._sel_floating:
                     self._push_undo_canvas()
-                    self._lift_selection()
+                    self._lift_selection(keep_source=(self.tool == TOOL_SELECT_COPY))
                 self._sel_drag_start = (tx, ty)
                 self._drawing = True
             else:
@@ -2462,7 +2479,7 @@ class DP5Canvas(QWidget):
                 self._scroll_by(-delta.x(), -delta.y())
                 self._pan_start = e.position().toPoint()
 
-        elif self.tool == TOOL_SELECT and self._sel_floating and self._sel_drag_start:
+        elif self.tool in (TOOL_SELECT, TOOL_SELECT_COPY) and self._sel_floating and self._sel_drag_start:
             #    Dragging a floating selection   
             dx = tx - self._sel_drag_start[0]
             dy = ty - self._sel_drag_start[1]
@@ -2480,7 +2497,7 @@ class DP5Canvas(QWidget):
                            TOOL_CIRCLE,   TOOL_FILLED_CIRCLE,
                            TOOL_TRIANGLE, TOOL_FILLED_TRIANGLE,
                            TOOL_STAR,     TOOL_FILLED_STAR,
-                           TOOL_SELECT,
+                           TOOL_SELECT,   TOOL_SELECT_COPY,
                            TOOL_POLYGON,  TOOL_FILLED_POLYGON):
             self._preview_end = (tx, ty); self.update()
 
@@ -2591,7 +2608,7 @@ class DP5Canvas(QWidget):
             self.draw_star(ps[0], ps[1], r_outer, r_outer//2, 5, self.color)
             self.flood_fill(ps[0], ps[1], self.color)
 
-        elif self.tool == TOOL_SELECT:
+        elif self.tool in (TOOL_SELECT, TOOL_SELECT_COPY):
             if self._sel_floating and self._sel_drag_start:
                 #    End of floating drag — stamp non-destructively and stay floating   
                 # (User can drag again; clicking outside will stamp permanently)
@@ -4338,17 +4355,6 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         # Retro palette data (from mixin)
         self._build_retro_palettes()
 
-        # Fill-mode state for shape tools — False=outline, True=filled
-        # Right-clicking the button toggles this
-        self._shape_fill_state: dict = {
-            TOOL_RECT:     False,
-            TOOL_CIRCLE:   False,
-            TOOL_TRIANGLE: False,
-            TOOL_POLYGON:  False,
-            TOOL_STAR:     False,
-            TOOL_LASSO:    False,
-        }
-
         self.setWindowTitle(App_name)
         self.resize(1400, 800)
         self.setMinimumSize(900, 560)
@@ -5396,12 +5402,16 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                     mw.menu_bar_system._remove_tool_menu()
 
 
-    def _create_tools_ribbon(self): #vers 1
+    def _create_tools_ribbon(self): #vers 2
         """Tools ribbon - the 24-tool grid converted to a QToolBar with
-        QActions per Keith's request (was an adaptive-column custom grid
-        of QPushButtons). Right-click behaviour (shape fill toggle, zoom
-        mode menu) is preserved by reaching into the actual QToolButton
-        Qt creates for each QAction via toolbar.widgetForAction()."""
+        QActions. Outline and filled/solid shapes are now separate,
+        explicit icons (Rect / Filled Rect, Circle / Filled Circle, etc.)
+        instead of one icon with a right-click toggle - Select Copy is
+        likewise a separate icon from Select, rather than a modifier-key
+        variant: it lifts the selection into a floating copy without
+        clearing the source (Select/"cut" clears it). Zoom keeps its
+        right-click mode menu, reached via the actual QToolButton Qt
+        creates for its QAction via toolbar.widgetForAction()."""
         from PyQt6.QtWidgets import QToolBar
         from PyQt6.QtGui import QAction
         icon_color = self._get_icon_color()
@@ -5415,13 +5425,20 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             (TOOL_PICKER,   'picker',   'Colour picker (K)'),
             (TOOL_CURVE,    'curve',    'Bézier curve — click pts, dbl to commit (Q)'),
             (TOOL_LINE,     'line',     'Straight line (L)'),
-            (TOOL_RECT,     'rect',     'Rectangle  (R) — right-click to toggle fill'),
-            (TOOL_CIRCLE,   'circle',   'Ellipse  (C) — right-click to toggle fill'),
-            (TOOL_TRIANGLE, 'triangle', 'Triangle  (T) — right-click to toggle fill'),
-            (TOOL_POLYGON,  'polygon',  'Polygon  (O) — click verts, dbl to close, right-click fills'),
-            (TOOL_STAR,     'star',     'Star  (*) — right-click to toggle fill'),
-            (TOOL_SELECT,   'select',   'Select (M) — drag to select, drag inside to move'),
-            (TOOL_LASSO,    'lasso',    'Lasso  (G) — right-click to fill shape'),
+            (TOOL_RECT,        'rect',            'Rectangle — outline (R)'),
+            (TOOL_FILLED_RECT, 'filled_rect',     'Rectangle — filled/solid'),
+            (TOOL_CIRCLE,        'circle',        'Ellipse — outline (C)'),
+            (TOOL_FILLED_CIRCLE, 'filled_circle', 'Ellipse — filled/solid'),
+            (TOOL_TRIANGLE,        'triangle',        'Triangle — outline (T)'),
+            (TOOL_FILLED_TRIANGLE, 'filled_triangle', 'Triangle — filled/solid'),
+            (TOOL_POLYGON,        'polygon',        'Polygon — outline (O) — click verts, dbl to close'),
+            (TOOL_FILLED_POLYGON, 'filled_polygon', 'Polygon — filled/solid — click verts, dbl to close'),
+            (TOOL_STAR,        'star',        'Star — outline (*)'),
+            (TOOL_FILLED_STAR, 'filled_star', 'Star — filled/solid'),
+            (TOOL_SELECT,      'select',      'Select (M) — drag to select, drag inside to cut/move'),
+            (TOOL_SELECT_COPY, 'select_copy', 'Select Copy — drag inside to lift a copy, leaving the original intact'),
+            (TOOL_LASSO,        'lasso',        'Lasso — outline (G)'),
+            (TOOL_FILLED_LASSO, 'filled_lasso', 'Lasso — filled/solid'),
             (TOOL_ZOOM,     'zoom',     'Zoom — click in, right-click out (Z)'),
             (TOOL_TEXT,     'text',     'Place text on canvas (I)'),
             (TOOL_CROP,     'crop',     'Crop canvas to selection (X)'),
@@ -5465,18 +5482,12 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             tb.addAction(act)
             self._tool_btns[tool_id] = act
 
-            # Right-click handling needs the real QToolButton Qt made for
-            # this action - QAction itself has no mouse-event API.
-            w = tb.widgetForAction(act)
-            if w is not None:
-                if tool_id in SHAPE_FILL_PAIRS:
-                    def _mpe(ev, t=tool_id, _orig=w.mousePressEvent):  #vers 1
-                        if ev.button() == Qt.MouseButton.RightButton:
-                            self._toggle_shape_fill(t)
-                        else:
-                            _orig(ev)
-                    w.mousePressEvent = _mpe
-                elif tool_id == TOOL_ZOOM:
+            # Zoom keeps its right-click mode menu - needs the real
+            # QToolButton Qt made for this action, QAction itself has no
+            # mouse-event API.
+            if tool_id == TOOL_ZOOM:
+                w = tb.widgetForAction(act)
+                if w is not None:
                     w.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
                     w.customContextMenuRequested.connect(self._zoom_mode_menu)
                     act.setToolTip("Zoom — left-click to zoom in\nRight-click to select zoom mode")
@@ -5750,42 +5761,10 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
     #    Tool / colour helpers                                                  
 
-    def _toggle_shape_fill(self, primary_tool_id: str): #vers 2
-        """Right-click handler — flip fill mode and update button icon + canvas tool."""
-        if primary_tool_id not in self._shape_fill_state:
-            return
-        # Toggle
-        self._shape_fill_state[primary_tool_id] = not self._shape_fill_state[primary_tool_id]
-        filled = self._shape_fill_state[primary_tool_id]
-
-        # Shape key for icon: e.g. 'rect' → 'filled_rect'
-        outline_shape = primary_tool_id          # e.g. 'rect'
-        filled_shape  = f'filled_{primary_tool_id}'  # e.g. 'filled_rect'
-
-        icon_sz  = self.dp5_settings.get('tool_icon_size')
-        btn      = self._tool_btns.get(primary_tool_id)
-
-        # Determine whether this tool is currently active
-        is_active = (self.dp5_canvas and
-                     self.dp5_canvas.tool in (primary_tool_id,
-                                               SHAPE_FILL_PAIRS[primary_tool_id]))
-
-        # Update icon to show new mode
-        shape_key = filled_shape if filled else outline_shape
-        if btn:
-            btn.setIcon(_make_tool_icon(shape_key, icon_sz, active=is_active))
-            mode_str = 'filled' if filled else 'outline'
-            btn.setToolTip(f'{primary_tool_id.capitalize()}  [{mode_str}]  — right-click to toggle')
-
-        # If this tool is currently active, switch canvas tool immediately
-        if is_active:
-            actual = SHAPE_FILL_PAIRS[primary_tool_id] if filled else primary_tool_id
-            if self.dp5_canvas:
-                self.dp5_canvas.tool = actual
-
-
-    def _select_tool(self, tool_id: str): #vers 2
-        """Select a tool, resolving fill state for shape tools."""
+    def _select_tool(self, tool_id: str): #vers 3
+        """Select a tool. Outline/filled shape variants and Select/Select
+        Copy are now separate explicit tool IDs (own icons), so no fill-
+        state remapping is needed - tool_id is used as-is."""
         # Crop and resize are immediate actions, not persistent tools
         if tool_id == TOOL_CROP:
             self._crop_to_selection()
@@ -5802,13 +5781,11 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             return
 
         actual_tool = tool_id
-        if tool_id in self._shape_fill_state:
-            if self._shape_fill_state[tool_id]:
-                actual_tool = SHAPE_FILL_PAIRS[tool_id]
 
         if self.dp5_canvas:
             # Clear selection marching-ants when leaving SELECT tool
-            if self.dp5_canvas.tool in (TOOL_SELECT, 'lasso') and actual_tool not in (TOOL_SELECT, 'lasso'):
+            if self.dp5_canvas.tool in (TOOL_SELECT, TOOL_SELECT_COPY, 'lasso') and \
+               actual_tool not in (TOOL_SELECT, TOOL_SELECT_COPY, 'lasso'):
                 self.dp5_canvas._sel_active    = False
                 self.dp5_canvas._selection_rect = None
                 self.dp5_canvas._sel_floating   = False
@@ -5852,7 +5829,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             TOOL_TRIANGLE: 'triangle', TOOL_FILLED_TRIANGLE: 'filled_triangle',
             TOOL_POLYGON:  'polygon',  TOOL_FILLED_POLYGON:  'filled_polygon',
             TOOL_STAR:     'star',     TOOL_FILLED_STAR:     'filled_star',
-            TOOL_SELECT: 'select', TOOL_LASSO: 'lasso',
+            TOOL_SELECT: 'select', TOOL_SELECT_COPY: 'select_copy', TOOL_LASSO: 'lasso',
             TOOL_FILLED_LASSO: 'filled_lasso',
             TOOL_MOVE: 'move', TOOL_ZOOM: 'zoom', TOOL_TEXT: 'text',
             TOOL_STAMP: 'stamp',
@@ -5861,12 +5838,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         for tid, btn in getattr(self, '_tool_btns', {}).items():
             is_active = (tid == tool_id)
             btn.setChecked(is_active)
-            # For shape buttons show current fill-mode icon when active
-            if tid in self._shape_fill_state and is_active:
-                filled    = self._shape_fill_state[tid]
-                shape_key = f'filled_{tid}' if filled else tid
-            else:
-                shape_key = _shape_map.get(tid, tid)
+            shape_key = _shape_map.get(tid, tid)
             btn.setIcon(_make_tool_icon(shape_key, icon_sz, active=is_active))
 
         # Sync brush thumbnail active border
