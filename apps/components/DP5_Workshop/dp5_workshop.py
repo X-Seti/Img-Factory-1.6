@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 42 (Build 361)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 43 (Build 362)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -6011,11 +6011,26 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         toolbar.layout().setSpacing(max(0, int(padding)))
 
         alpha = max(0, min(255, round(opacity / 100 * 255)))
-        # Base colour comes from the active theme's own window/panel colour,
-        # not a fixed value - previously hardcoded to rgba(40,40,45,...)
-        # regardless of theme, which is why the ribbon stayed a fixed dark
-        # tint even after switching to a light or differently-coloured theme.
-        base_col = toolbar.palette().color(toolbar.palette().ColorRole.Window)
+        # Base colour must come from the theme's own panel_bg/bg_primary via
+        # app_settings.get_theme_colors() - NOT toolbar.palette(), which
+        # doesn't reflect a stylesheet-only theme (Qt stylesheets can repaint
+        # a widget's appearance without touching its underlying QPalette, so
+        # .palette().color(Window) kept returning the same default regardless
+        # of the active theme - that was the real bug, not the previous
+        # hardcoded rgba(40,40,45,...) value itself).
+        base_col = QColor('#3c3c3c')  # neutral fallback, not purple
+        try:
+            app_settings = getattr(self, 'app_settings', None)
+            if not app_settings:
+                mw = getattr(self, 'main_window', None)
+                app_settings = getattr(mw, 'app_settings', None) if mw else None
+            if app_settings and hasattr(app_settings, 'get_theme_colors'):
+                tc = app_settings.get_theme_colors()
+                hexval = tc.get('panel_bg') or tc.get('bg_primary')
+                if hexval:
+                    base_col = QColor(hexval)
+        except Exception:
+            pass
         toolbar.setStyleSheet(
             f"QToolBar {{ background: rgba({base_col.red()}, {base_col.green()}, "
             f"{base_col.blue()}, {alpha}); "
