@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 40 (Build 359)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 41 (Build 360)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -12663,6 +12663,29 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 pass
             # Clear any widget-level override so we inherit from QApplication
             self.setStyleSheet("")
+
+            # Force a style re-polish on the dock widgets and their custom
+            # title bars (set via setTitleBarWidget in
+            # _make_dock_collapsible) - Qt doesn't always refresh already-
+            # created child widgets' cached styling on a global stylesheet
+            # change without this, which is why switching themes could
+            # leave dock title bars/content showing stale colours from
+            # the previous theme.
+            def _repolish(w): #vers 1
+                if w is None:
+                    return
+                w.style().unpolish(w)
+                w.style().polish(w)
+                w.update()
+                for child in w.findChildren(QWidget):
+                    child.style().unpolish(child)
+                    child.style().polish(child)
+                    child.update()
+
+            for _dock_name in ('_bitmaps_dock', '_brush_colors_dock',
+                                '_img_palette_dock', '_user_palette_dock'):
+                _repolish(getattr(self, _dock_name, None))
+
             # gadgetbar_bg applied via QFrame#titlebar in global stylesheet — no manual refresh needed
             # Refresh icons so they contrast correctly with new theme
             self._refresh_icons()
