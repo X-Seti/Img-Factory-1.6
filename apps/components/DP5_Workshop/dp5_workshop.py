@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 28 (Build 347)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 29 (Build 348)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -4153,6 +4153,20 @@ class ColorPalPresetsMixin:
                 ("Amiga AGA WB RTG 720×576 PAL", "Amiga AGA WB", 'amiga_rtg_pal'),
                 ("Amiga AGA WB RTG 720×480 NTSC", "Amiga AGA WB", 'amiga_rtg_ntsc'),
             ]),
+            ("Modern / RTG", [
+                ("1024×640", "Amiga AGA WB", 'rtg_1024_640'),
+                ("1280×720 (720p)", "Amiga AGA WB", 'rtg_1280_720'),
+                ("1280×800", "Amiga AGA WB", 'rtg_1280_800'),
+                ("1280×1024", "Amiga AGA WB", 'rtg_1280_1024'),
+                ("1366×768", "Amiga AGA WB", 'rtg_1366_768'),
+                ("1440×900", "Amiga AGA WB", 'rtg_1440_900'),
+                ("1600×900", "Amiga AGA WB", 'rtg_1600_900'),
+                ("1680×1050", "Amiga AGA WB", 'rtg_1680_1050'),
+                ("1920×1080 (1080p)", "Amiga AGA WB", 'rtg_1920_1080'),
+                ("1920×1200", "Amiga AGA WB", 'rtg_1920_1200'),
+                ("2560×1440 (1440p)", "Amiga AGA WB", 'rtg_2560_1440'),
+                ("3840×2160 (4K UHD)", "Amiga AGA WB", 'rtg_3840_2160'),
+            ]),
             ("Commodore", [
                 ("C64 Hi-Res (320×200, 2col/cell)", "C64", 'c64'),
                 ("C64 Multicolor (160×200, 4col/cell)", "C64", 'c64m'),
@@ -5373,6 +5387,20 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             ("RTG 720×576 PAL broadcast",        'amiga_rtg_pal'),
             ("RTG 720×480 NTSC broadcast",       'amiga_rtg_ntsc'),
         ])
+        _pm("Modern / RTG", [
+            ("1024×640",  'rtg_1024_640'),
+            ("1280×720  (720p)",  'rtg_1280_720'),
+            ("1280×800",  'rtg_1280_800'),
+            ("1280×1024", 'rtg_1280_1024'),
+            ("1366×768",  'rtg_1366_768'),
+            ("1440×900",  'rtg_1440_900'),
+            ("1600×900",  'rtg_1600_900'),
+            ("1680×1050", 'rtg_1680_1050'),
+            ("1920×1080  (1080p)", 'rtg_1920_1080'),
+            ("1920×1200", 'rtg_1920_1200'),
+            ("2560×1440  (1440p)", 'rtg_2560_1440'),
+            ("3840×2160  (4K UHD)", 'rtg_3840_2160'),
+        ])
         _pm("Commodore", [
             ("C64 Hires    320×200  2col/cell", 'c64'),
             ("C64 Multicolor 160×200 4col",     'c64m'),
@@ -6277,6 +6305,18 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         'amiga_rtg_ntsc': (1,1,  256),   # RTG 720×480 NTSC
         'amiga_overscan_pal':  (8,1,  32),   # native chipset overscan 720×576 PAL
         'amiga_overscan_ntsc': (8,1,  32),   # native chipset overscan 720×480 NTSC
+        'rtg_1024_640':  (1,1, 16777216),
+        'rtg_1280_720':  (1,1, 16777216),
+        'rtg_1280_800':  (1,1, 16777216),
+        'rtg_1280_1024': (1,1, 16777216),
+        'rtg_1366_768':  (1,1, 16777216),
+        'rtg_1440_900':  (1,1, 16777216),
+        'rtg_1600_900':  (1,1, 16777216),
+        'rtg_1680_1050': (1,1, 16777216),
+        'rtg_1920_1080': (1,1, 16777216),
+        'rtg_1920_1200': (1,1, 16777216),
+        'rtg_2560_1440': (1,1, 16777216),
+        'rtg_3840_2160': (1,1, 16777216),
         'c64':         (8,  8,   2),
         'c64m':        (4,  8,   4),
         'spectrum':    (8,  8,   2),
@@ -6410,6 +6450,20 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         'amiga_overscan_ntsc': (720, 480),
         'amiga_rtg_800':  (800, 600), 'amiga_rtg_1024': (1024, 768),
         'amiga_rtg_pal':  (720, 576), 'amiga_rtg_ntsc': (720, 480),
+        # Modern / RTG - generic standard display resolutions, not tied
+        # to any specific retro machine (truecolor, no fixed palette).
+        'rtg_1024_640':  (1024, 640),
+        'rtg_1280_720':  (1280, 720),   # 720p
+        'rtg_1280_800':  (1280, 800),
+        'rtg_1280_1024': (1280, 1024),
+        'rtg_1366_768':  (1366, 768),
+        'rtg_1440_900':  (1440, 900),
+        'rtg_1600_900':  (1600, 900),
+        'rtg_1680_1050': (1680, 1050),
+        'rtg_1920_1080': (1920, 1080),  # 1080p
+        'rtg_1920_1200': (1920, 1200),
+        'rtg_2560_1440': (2560, 1440),  # 1440p
+        'rtg_3840_2160': (3840, 2160),  # 4K UHD
         'amiga_aga':   (320, 256), 'amiga_ham':   (320, 256),
         'amiga_ham8':  (320, 256), 'amiga_rtg':   (640, 480),
         'plus4':       (320, 200), 'plus4m':      (160, 200),  # TED multicolor, like C64m
@@ -6497,6 +6551,12 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             'amiga_aga_hi': 'Amiga AGA',
             'amiga_rtg_800': 'Amiga AGA WB', 'amiga_rtg_1024': 'Amiga AGA WB',
             'amiga_rtg_pal': 'Amiga AGA WB', 'amiga_rtg_ntsc': 'Amiga AGA WB',
+            'rtg_1024_640': 'Amiga AGA WB', 'rtg_1280_720': 'Amiga AGA WB',
+            'rtg_1280_800': 'Amiga AGA WB', 'rtg_1280_1024': 'Amiga AGA WB',
+            'rtg_1366_768': 'Amiga AGA WB', 'rtg_1440_900': 'Amiga AGA WB',
+            'rtg_1600_900': 'Amiga AGA WB', 'rtg_1680_1050': 'Amiga AGA WB',
+            'rtg_1920_1080': 'Amiga AGA WB', 'rtg_1920_1200': 'Amiga AGA WB',
+            'rtg_2560_1440': 'Amiga AGA WB', 'rtg_3840_2160': 'Amiga AGA WB',
             'amiga_aga': 'Amiga AGA',
             'amiga_ham': 'Amiga OCS',
             'amiga_ham8': 'Amiga AGA',
