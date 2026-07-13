@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 21 (Build 340)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 22 (Build 341)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -4112,91 +4112,136 @@ class ColorPalPresetsMixin:
             # No dither — hard snap
             return self._snap_image_to_user_palette(img)
 
-    def _show_retro_menu(self): #vers 2
+    def _show_retro_menu(self): #vers 3
         """Show user palette picker as hierarchical platform submenus.
-        Each entry now also carries its platform resolution code (where
-        one exists in _PLATFORM_RES) so picking a machine here resizes
-        the canvas to match, same as the Platform mode dropdown does -
-        previously this only changed the palette colours, leaving canvas
-        size untouched."""
+        Each entry carries (display_label, palette_name, plat_mode) -
+        machines with more than one historical screen mode (BBC Micro,
+        Acorn Electron/Archimedes, CoCo 1/2/3, Dragon, SAM Coupé, Apple
+        II, Sinclair QL) get one menu entry per mode, all sharing that
+        machine's single underlying palette but each with its own
+        resolution/colour-depth. Picking any entry resizes the canvas to
+        match, same as the Platform mode dropdown does."""
         menu = QMenu(self)
 
         GROUPS = [
             ("Amiga", [
-                ("Amiga OCS", 'amiga'), ("Amiga ECS", 'amiga_ecs'),
-                ("Amiga AGA", 'amiga_aga'), ("Amiga AGA WB", 'amiga_rtg_800'),
+                ("Amiga OCS", "Amiga OCS", 'amiga'),
+                ("Amiga ECS", "Amiga ECS", 'amiga_ecs'),
+                ("Amiga AGA", "Amiga AGA", 'amiga_aga'),
+                ("Amiga AGA WB", "Amiga AGA WB", 'amiga_rtg_800'),
             ]),
             ("Commodore", [
-                ("C64", 'c64'), ("VIC-20", 'vic20'), ("Plus/4", 'plus4'),
+                ("C64 Hi-Res (320×200, 2col/cell)", "C64", 'c64'),
+                ("C64 Multicolor (160×200, 4col/cell)", "C64", 'c64m'),
+                ("VIC-20", "VIC-20", 'vic20'),
+                ("Plus/4", "Plus/4", 'plus4'),
             ]),
             ("Sinclair / ZX", [
-                ("ZX Spectrum", 'spectrum'), ("ZX Spectrum 128K", 'spectrum128'),
-                ("ZX80", 'zx80'), ("ZX81", 'zx81'), ("ULA Plus", None),
-                ("ZX Spectrum Next", 'specnext'),
-                ("Timex TS2068", 'timex'), ("Timex HiRes", 'timex_hi'),
-                ("Pentagon", 'pentagon'), ("Jupiter Ace", 'jupiter'),
-                ("Sinclair QL", None),
+                ("ZX Spectrum", "ZX Spectrum", 'spectrum'),
+                ("ZX Spectrum 128K", "ZX Spectrum 128K", 'spectrum128'),
+                ("ZX80", "ZX80", 'zx80'), ("ZX81", "ZX81", 'zx81'),
+                ("ULA Plus", "ULA Plus", 'ula_plus'),
+                ("ZX Spectrum Next", "ZX Spectrum Next", 'specnext'),
+                ("Timex TS2068", "Timex TS2068", 'timex'),
+                ("Timex HiRes", "Timex HiRes", 'timex_hi'),
+                ("Pentagon", "Pentagon", 'pentagon'),
+                ("Jupiter Ace", "Jupiter Ace", 'jupiter'),
+                ("Sinclair QL MODE 4 (512×256, 4col)", "Sinclair QL", 'ql_4c'),
+                ("Sinclair QL MODE 8 (256×256, 8col)", "Sinclair QL", 'ql_8c'),
             ]),
             ("Atari", [
-                ("Atari 2600 NTSC", 'atari_2600'), ("Atari 2600 PAL", 'atari_2600'),
-                ("Atari 800 GTIA", 'atari_800'), ("Atari 5200", 'atari_5200'),
-                ("Atari 7800", 'atari_7800'),
-                ("Atari ST", 'atari_st'), ("Atari STe", 'atari_ste'),
-                ("Atari Falcon", 'atari_falcon'),
-                ("Atari Lynx", 'atari_lynx'), ("Atari Jaguar", 'atari_jaguar'),
+                ("Atari 2600 NTSC", "Atari 2600 NTSC", 'atari_2600'),
+                ("Atari 2600 PAL", "Atari 2600 PAL", 'atari_2600_pal'),
+                ("Atari 800 GTIA", "Atari 800 GTIA", 'atari_800'),
+                ("Atari 5200", "Atari 5200", 'atari_5200'),
+                ("Atari 7800", "Atari 7800", 'atari_7800'),
+                ("Atari ST", "Atari ST", 'atari_st'),
+                ("Atari STe", "Atari STe", 'atari_ste'),
+                ("Atari Falcon", "Atari Falcon", 'atari_falcon'),
+                ("Atari Lynx", "Atari Lynx", 'atari_lynx'),
+                ("Atari Jaguar", "Atari Jaguar", 'atari_jaguar'),
             ]),
             ("Amstrad", [
-                ("Amstrad CPC", 'cpc1'), ("Amstrad CPC+", 'cpc_plus'),
-                ("Amstrad PCW", 'pcw'), ("Amstrad NC100/200", 'nc'),
+                ("Amstrad CPC", "Amstrad CPC", 'cpc1'),
+                ("Amstrad CPC+", "Amstrad CPC+", 'cpc_plus'),
+                ("Amstrad PCW", "Amstrad PCW", 'pcw'),
+                ("Amstrad NC100/200", "Amstrad NC100/200", 'nc'),
             ]),
             ("Acorn", [
-                ("BBC Micro", None), ("Acorn Electron", None), ("Acorn Archimedes", None),
+                ("BBC Micro MODE 0 (640×256, mono)", "BBC Micro", 'bbc0'),
+                ("BBC Micro MODE 1 (320×256, 4col)", "BBC Micro", 'bbc1'),
+                ("BBC Micro MODE 2 (160×256, 16col)", "BBC Micro", 'bbc2'),
+                ("Acorn Electron MODE 0 (640×256, mono)", "Acorn Electron", 'electron0'),
+                ("Acorn Electron MODE 1 (320×256, 4col)", "Acorn Electron", 'electron1'),
+                ("Acorn Electron MODE 2 (160×256, 16col)", "Acorn Electron", 'electron2'),
+                ("Acorn Archimedes MODE 12 (640×256, 16col)", "Acorn Archimedes", 'archimedes12'),
+                ("Acorn Archimedes Desktop (640×480, 256col)", "Acorn Archimedes", 'archimedes_hi'),
             ]),
             ("Tandy / Dragon", [
-                ("CoCo 1/2", None), ("CoCo 3", None), ("Dragon 32/64", None),
+                ("CoCo 1/2 CG2 (128×192, 4col)", "CoCo 1/2", 'coco12_lo'),
+                ("CoCo 1/2 RG6 (256×192, mono)", "CoCo 1/2", 'coco12_hi'),
+                ("CoCo 3 (320×192, 16col)", "CoCo 3", 'coco3'),
+                ("CoCo 3 Hi-Res (640×225, mono)", "CoCo 3", 'coco3_hi'),
+                ("Dragon 32/64 (128×192, 4col)", "Dragon 32/64", 'dragon_lo'),
+                ("Dragon 32/64 Hi-Res (256×192, mono)", "Dragon 32/64", 'dragon_hi'),
             ]),
             ("MSX", [
-                ("MSX1", 'msx'), ("MSX2", 'msx2'),
+                ("MSX1", "MSX1", 'msx'), ("MSX2", "MSX2", 'msx2'),
             ]),
             ("Nintendo", [
-                ("NES", 'nes'), ("SNES", 'snes'),
-                ("Game Boy", 'game_boy'), ("Game Boy Pocket", 'game_boy_pocket'),
-                ("Game Boy Color", 'game_boy_color'), ("Game Boy Advance", 'game_boy_advance'),
+                ("NES", "NES", 'nes'), ("SNES", "SNES", 'snes'),
+                ("Game Boy", "Game Boy", 'game_boy'),
+                ("Game Boy Pocket", "Game Boy Pocket", 'game_boy_pocket'),
+                ("Game Boy Color", "Game Boy Color", 'game_boy_color'),
+                ("Game Boy Advance", "Game Boy Advance", 'game_boy_advance'),
             ]),
             ("Sega", [
-                ("Sega SG-1000", 'sg1000'), ("Sega Master System", 'master_sys'),
-                ("Sega Mega Drive", 'mega_drive'), ("Sega Game Gear", 'game_gear'),
+                ("Sega SG-1000", "Sega SG-1000", 'sg1000'),
+                ("Sega Master System", "Sega Master System", 'master_sys'),
+                ("Sega Mega Drive", "Sega Mega Drive", 'mega_drive'),
+                ("Sega Game Gear", "Sega Game Gear", 'game_gear'),
             ]),
             ("NEC / Hudson", [
-                ("PC Engine", 'pc_engine'),
+                ("PC Engine", "PC Engine", 'pc_engine'),
             ]),
             ("Other", [
-                ("SAM Coupé", None), ("Apple II Lo-Res", None), ("Apple II Hi-Res", None),
-                ("RM Nimbus", 'nimbus'),
+                ("SAM Coupé MODE 1 (256×192, 16col)", "SAM Coupé", 'samcoupe1'),
+                ("SAM Coupé MODE 4 (512×192, 16col)", "SAM Coupé", 'samcoupe4'),
+                ("Apple II Lo-Res (40×48, 16col)", "Apple II Lo-Res", 'apple2_lo'),
+                ("Apple II Hi-Res (280×192, 6col)", "Apple II Hi-Res", 'apple2_hi'),
+                ("RM Nimbus", "RM Nimbus", 'nimbus'),
             ]),
         ]
 
         for group_name, entries in GROUPS:
             sub = menu.addMenu(group_name)
-            for name, plat_mode in entries:
-                if name in self.retro_palettes:
-                    act = sub.addAction(name)
+            for label, palette_name, plat_mode in entries:
+                if palette_name in self.retro_palettes:
+                    act = sub.addAction(label)
                     act.triggered.connect(
-                        lambda _, n=name, m=plat_mode: self._apply_retro_palette_and_resize(n, m))
+                        lambda _, lbl=label, pal=palette_name, m=plat_mode:
+                            self._apply_retro_palette_and_resize(pal, m, lbl))
 
         if hasattr(self, '_retro_btn'):
             menu.exec(self._retro_btn.mapToGlobal(
                 self._retro_btn.rect().bottomLeft()))
 
-    def _apply_retro_palette_and_resize(self, name: str, plat_mode: str = None): #vers 1
+    def _apply_retro_palette_and_resize(self, palette_name: str, plat_mode: str = None,
+                                        display_label: str = None): #vers 2
         """Apply a retro palette and, if it has a known platform
         resolution, resize the canvas to match - so picking 'C64' here
         gives you the C64 palette AND 320x200, not just the palette.
         Also locks canvas mode to 'platform' (same as the Platform mode
         dropdown does), so images loaded afterwards are automatically
         converted to this resolution + palette instead of needing a
-        separate mode-switch step first."""
-        self._apply_retro_palette(name)
+        separate mode-switch step first. display_label (e.g. 'BBC Micro
+        MODE 1 (320×256, 4col)') is what's shown in the status bar and
+        the retro button, distinct from palette_name when several modes
+        share one underlying palette."""
+        self._apply_retro_palette(palette_name)
+        label = display_label or palette_name
+        if hasattr(self, '_retro_btn'):
+            self._retro_btn.setText(label)
         if plat_mode and plat_mode in self._PLATFORM_RES and self.dp5_canvas:
             pw, ph = self._PLATFORM_RES[plat_mode]
             if (pw, ph) != (self._canvas_width, self._canvas_height):
@@ -4219,9 +4264,9 @@ class ColorPalPresetsMixin:
             self.dp5_settings.set('platform_mode', plat_mode)
             if hasattr(self, '_update_mode_buttons'):
                 self._update_mode_buttons()
-            self._set_status(f"Palette + resolution: {name}  {pw}×{ph}  (locked)")
+            self._set_status(f"{label}  {pw}×{ph}  (locked)")
         else:
-            self._set_status(f"Palette: {name}")
+            self._set_status(f"Palette: {label}")
 
 
 
@@ -5300,9 +5345,13 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             ("Timex HiRes    512×192  B&W",       'timex_hi'),
             ("Pentagon       256×192  like Spec", 'pentagon'),
             ("Jupiter Ace    256×192  B&W Forth", 'jupiter'),
+            ("ULA Plus       256×192  64col",     'ula_plus'),
+            ("Sinclair QL MODE 4  512×256  4col", 'ql_4c'),
+            ("Sinclair QL MODE 8  256×256  8col", 'ql_8c'),
         ])
         _pm("Atari", [
-            ("2600 NTSC    160×96",              'atari_2600'),
+            ("2600 NTSC    160×192",              'atari_2600'),
+            ("2600 PAL     160×228",              'atari_2600_pal'),
             ("800/XL/XE    320×192  GTIA 256col",'atari_800'),
             ("5200         320×192  GTIA",       'atari_5200'),
             ("7800         320×200  GTIA",       'atari_7800'),
@@ -5319,11 +5368,33 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             ("PCW           720×256  2col", 'pcw'),
             ("NC100/200    480×128  4col",  'nc'),
         ])
+        _pm("Acorn", [
+            ("BBC Micro MODE 0  640×256  mono",  'bbc0'),
+            ("BBC Micro MODE 1  320×256  4col",  'bbc1'),
+            ("BBC Micro MODE 2  160×256  16col", 'bbc2'),
+            ("Electron MODE 0   640×256  mono",  'electron0'),
+            ("Electron MODE 1   320×256  4col",  'electron1'),
+            ("Electron MODE 2   160×256  16col", 'electron2'),
+            ("Archimedes MODE 12  640×256  16col",  'archimedes12'),
+            ("Archimedes Desktop  640×480  256col", 'archimedes_hi'),
+        ])
+        _pm("Tandy / Dragon", [
+            ("CoCo 1/2 CG2   128×192  4col",  'coco12_lo'),
+            ("CoCo 1/2 RG6   256×192  mono",  'coco12_hi'),
+            ("CoCo 3         320×192  16col", 'coco3'),
+            ("CoCo 3 Hi-Res  640×225  mono",  'coco3_hi'),
+            ("Dragon 32/64   128×192  4col",  'dragon_lo'),
+            ("Dragon 32/64 Hi-Res  256×192  mono", 'dragon_hi'),
+        ])
         _pm("MSX", [
             ("MSX1         256×192  16col", 'msx'),
             ("MSX2         256×212  512col",'msx2'),
         ])
         _pm("Other", [
+            ("SAM Coupé MODE 1  256×192  16col", 'samcoupe1'),
+            ("SAM Coupé MODE 4  512×192  16col", 'samcoupe4'),
+            ("Apple II Lo-Res   40×48    16col", 'apple2_lo'),
+            ("Apple II Hi-Res   280×192  6col",  'apple2_hi'),
             ("RM Nimbus    320×250  16col", 'nimbus'),
         ])
         plm.addSeparator()
@@ -6194,6 +6265,47 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         'mega_drive':  (8,  8,   16),   # Mega Drive 320×224
         'game_gear':   (8,  8,   16),   # Game Gear 160×144
         'pc_engine':   (8,  8,   16),   # PC Engine 256×240
+        # BBC Micro / Electron (6845 CRTC + ULA) - MODE 1 is the common
+        # default graphics mode; 0 and 2 are the other bitmap modes.
+        'bbc0':        (8,  8,   2),    # MODE 0 640×256 mono
+        'bbc1':        (8,  8,   4),    # MODE 1 320×256 4col (default)
+        'bbc2':        (8,  8,   16),   # MODE 2 160×256 16col
+        'electron0':   (8,  8,   2),    # same modes, software ULA
+        'electron1':   (8,  8,   4),
+        'electron2':   (8,  8,   16),
+        # Acorn Archimedes (VIDC) - MODE 12 was the classic desktop
+        # 16-colour mode; later RISC OS used higher-res 256-colour modes.
+        'archimedes12':  (1,  1,  16),   # MODE 12 640×256 16col
+        'archimedes_hi': (1,  1,  256),  # MODE 21-ish 640×480 256col
+        # Tandy CoCo 1/2 and Dragon (shared Motorola 6847 VDG) - RG6
+        # (256×192 2col) and CG2 (128×192 4col) are the two common
+        # graphics modes.
+        'coco12_hi':   (8,  8,   2),    # RG6 256×192 mono
+        'coco12_lo':   (8,  8,   4),    # CG2 128×192 4col (default)
+        'dragon_hi':   (8,  8,   2),
+        'dragon_lo':   (8,  8,   4),
+        # CoCo 3 (GIME) - much more flexible; 320×192 16col was the
+        # common "high colour" mode, 640×225 the mono hi-res mode.
+        'coco3':       (1,  1,   16),   # 320×192 16col (default)
+        'coco3_hi':    (1,  1,   2),    # 640×225 mono
+        # SAM Coupé - MODE 1 (Spectrum-compatible attribute clash,
+        # 256×192 16col) is the common default; MODE 4 is the higher-
+        # res 512×192 16col per-pixel mode.
+        'samcoupe1':   (8,  8,   16),   # MODE 1 256×192 (default)
+        'samcoupe4':   (1,  1,   16),   # MODE 4 512×192
+        # Apple II - Lo-Res (chunky 40×48 blocks) and Hi-Res (280×192,
+        # 6 NTSC artifact colours) are the two classic graphics modes.
+        'apple2_lo':   (1,  1,   16),   # Lo-Res 40×48
+        'apple2_hi':   (1,  1,   6),    # Hi-Res 280×192
+        # Sinclair QL (ZX8301 "Master Chip") - MODE 4 (512×256 4col) and
+        # MODE 8 (256×256 8col).
+        'ql_4c':       (1,  1,   4),    # MODE 4 512×256 (default)
+        'ql_8c':       (1,  1,   8),    # MODE 8 256×256
+        # ULA Plus - same 256×192 resolution as standard Spectrum, just
+        # a larger 64-colour palette via attribute remapping.
+        'ula_plus':    (8,  8,   16),
+        # Atari 2600 PAL - taller frame than NTSC (more active scanlines).
+        'atari_2600_pal': (2, 1, 4),
     }
 
     # Platform native resolution, keyed the same as _PLATFORM_CELLS -
@@ -6232,6 +6344,17 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         'sg1000':      (256, 192), 'master_sys':  (256, 192),
         'mega_drive':  (320, 224), 'game_gear':   (160, 144),
         'pc_engine':   (256, 240),
+        'bbc0':      (640, 256), 'bbc1':      (320, 256), 'bbc2':      (160, 256),
+        'electron0': (640, 256), 'electron1': (320, 256), 'electron2': (160, 256),
+        'archimedes12': (640, 256), 'archimedes_hi': (640, 480),
+        'coco12_hi': (256, 192), 'coco12_lo': (128, 192),
+        'dragon_hi': (256, 192), 'dragon_lo': (128, 192),
+        'coco3':     (320, 192), 'coco3_hi':  (640, 225),
+        'samcoupe1': (256, 192), 'samcoupe4': (512, 192),
+        'apple2_lo': (40, 48),   'apple2_hi': (280, 192),
+        'ql_4c':     (512, 256), 'ql_8c':     (256, 256),
+        'ula_plus':  (256, 192),
+        'atari_2600_pal': (160, 228),
     }
 
 
@@ -6279,6 +6402,18 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             'amiga_rtg': 'Amiga AGA WB',
             'plus4': 'Plus/4', 'vic20': 'VIC-20',
             'nimbus': 'RM Nimbus',
+            'bbc0': 'BBC Micro', 'bbc1': 'BBC Micro', 'bbc2': 'BBC Micro',
+            'electron0': 'Acorn Electron', 'electron1': 'Acorn Electron',
+            'electron2': 'Acorn Electron',
+            'archimedes12': 'Acorn Archimedes', 'archimedes_hi': 'Acorn Archimedes',
+            'coco12_hi': 'CoCo 1/2', 'coco12_lo': 'CoCo 1/2',
+            'coco3': 'CoCo 3', 'coco3_hi': 'CoCo 3',
+            'dragon_hi': 'Dragon 32/64', 'dragon_lo': 'Dragon 32/64',
+            'samcoupe1': 'SAM Coupé', 'samcoupe4': 'SAM Coupé',
+            'apple2_lo': 'Apple II Lo-Res', 'apple2_hi': 'Apple II Hi-Res',
+            'ql_4c': 'Sinclair QL', 'ql_8c': 'Sinclair QL',
+            'ula_plus': 'ULA Plus',
+            'atari_2600_pal': 'Atari 2600 PAL',
         }
         if mode in _pal_map:
             self._apply_retro_palette(_pal_map[mode])
