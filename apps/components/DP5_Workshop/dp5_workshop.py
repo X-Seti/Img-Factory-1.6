@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 24 (Build 343)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 25 (Build 344)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -7968,10 +7968,11 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self.dp5_canvas.update()
 
 
-    def _update_status(self, x: int, y: int, colour: QColor): #vers 1
+    def _update_status(self, x: int, y: int, colour: QColor): #vers 2
         zoom = self._canvas_zoom
         tool = getattr(self.dp5_canvas, 'tool', '?') if self.dp5_canvas else '?'
         self._set_status(
+            f"Canvas: {self._canvas_width}×{self._canvas_height}  |  "
             f"Pos: {x},{y}  |  "
             f"RGBA({colour.red()},{colour.green()},{colour.blue()},{colour.alpha()})  |  "
             f"Zoom: {zoom}×  |  Tool: {tool}")
