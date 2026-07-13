@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 26 (Build 345)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 27 (Build 346)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -7995,24 +7995,41 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
     #    Canvas operations                                                      
 
 
-    def _push_undo(self):  #vers 1
+    def _push_undo(self):  #vers 2
         if self.dp5_canvas: #vers 1
-            self._undo_stack.append(bytes(self.dp5_canvas.rgba))
+            self._undo_stack.append(
+                (bytes(self.dp5_canvas.rgba), self._canvas_width, self._canvas_height))
             self._redo_stack.clear()
 
 
-    def _undo_canvas(self): #vers 1
+    def _undo_canvas(self): #vers 2
         if self.dp5_canvas and self._undo_stack:
-            self._redo_stack.append(bytes(self.dp5_canvas.rgba))
-            self.dp5_canvas.rgba[:] = self._undo_stack.pop()
+            self._redo_stack.append(
+                (bytes(self.dp5_canvas.rgba), self._canvas_width, self._canvas_height))
+            rgba, w, h = self._undo_stack.pop()
+            size_changed = (w, h) != (self._canvas_width, self._canvas_height)
+            self._canvas_width, self._canvas_height = w, h
+            self.dp5_canvas.tex_w, self.dp5_canvas.tex_h = w, h
+            self.dp5_canvas.rgba[:] = rgba
             self.dp5_canvas.update()
+            if size_changed:
+                self._fit_canvas_to_viewport()
+            self._set_status(f"Undo  ({w}×{h})")
 
 
-    def _redo_canvas(self): #vers 1
+    def _redo_canvas(self): #vers 2
         if self.dp5_canvas and self._redo_stack:
-            self._undo_stack.append(bytes(self.dp5_canvas.rgba))
-            self.dp5_canvas.rgba[:] = self._redo_stack.pop()
+            self._undo_stack.append(
+                (bytes(self.dp5_canvas.rgba), self._canvas_width, self._canvas_height))
+            rgba, w, h = self._redo_stack.pop()
+            size_changed = (w, h) != (self._canvas_width, self._canvas_height)
+            self._canvas_width, self._canvas_height = w, h
+            self.dp5_canvas.tex_w, self.dp5_canvas.tex_h = w, h
+            self.dp5_canvas.rgba[:] = rgba
             self.dp5_canvas.update()
+            if size_changed:
+                self._fit_canvas_to_viewport()
+            self._set_status(f"Redo  ({w}×{h})")
 
 
     def _clear_canvas(self): #vers 1
