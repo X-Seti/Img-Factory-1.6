@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 43 (Build 362)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 44 (Build 363)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -6014,28 +6014,32 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         # Base colour must come from the theme's own panel_bg/bg_primary via
         # app_settings.get_theme_colors() - NOT toolbar.palette(), which
         # doesn't reflect a stylesheet-only theme (Qt stylesheets can repaint
-        # a widget's appearance without touching its underlying QPalette, so
-        # .palette().color(Window) kept returning the same default regardless
-        # of the active theme - that was the real bug, not the previous
-        # hardcoded rgba(40,40,45,...) value itself).
-        base_col = QColor('#3c3c3c')  # neutral fallback, not purple
-        try:
-            app_settings = getattr(self, 'app_settings', None)
-            if not app_settings:
-                mw = getattr(self, 'main_window', None)
-                app_settings = getattr(mw, 'app_settings', None) if mw else None
-            if app_settings and hasattr(app_settings, 'get_theme_colors'):
-                tc = app_settings.get_theme_colors()
-                hexval = tc.get('panel_bg') or tc.get('bg_primary')
-                if hexval:
-                    base_col = QColor(hexval)
-        except Exception:
-            pass
-        toolbar.setStyleSheet(
-            f"QToolBar {{ background: rgba({base_col.red()}, {base_col.green()}, "
-            f"{base_col.blue()}, {alpha}); "
-            f"spacing: {max(0, int(padding))}px; }} "
-            f"QToolButton {{ padding: {max(0, int(btn_padding))}px; }}")
+        # a widget's appearance without touching its underlying QPalette).
+        # No fallback colour here on purpose: if the real theme colour can't
+        # be found, we skip the background rule entirely rather than invent
+        # one - a fabricated fallback just hides whether the lookup actually
+        # worked, which is exactly how the previous two attempts went wrong
+        # unnoticed.
+        base_col = None
+        app_settings = getattr(self, 'app_settings', None)
+        if not app_settings:
+            mw = getattr(self, 'main_window', None)
+            app_settings = getattr(mw, 'app_settings', None) if mw else None
+        if app_settings and hasattr(app_settings, 'get_theme_colors'):
+            tc = app_settings.get_theme_colors()
+            hexval = tc.get('panel_bg') or tc.get('bg_primary')
+            if hexval:
+                base_col = QColor(hexval)
+
+        btn_rule = f"QToolButton {{ padding: {max(0, int(btn_padding))}px; }}"
+        if base_col is not None:
+            toolbar.setStyleSheet(
+                f"QToolBar {{ background: rgba({base_col.red()}, {base_col.green()}, "
+                f"{base_col.blue()}, {alpha}); "
+                f"spacing: {max(0, int(padding))}px; }} " + btn_rule)
+        else:
+            toolbar.setStyleSheet(
+                f"QToolBar {{ spacing: {max(0, int(padding))}px; }} " + btn_rule)
 
     def _create_image_ops_ribbon(self): #vers 1
         """Image Ops ribbon - Colour Adjustments/Seamless/Snow/Zoom Lens/
