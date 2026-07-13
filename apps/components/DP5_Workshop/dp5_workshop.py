@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 34 (Build 353)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 35 (Build 354)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -823,36 +823,58 @@ def _make_tool_icon(shape: str, size: int = 42,
         p.drawEllipse(QPoint(24, 44), 3, 3)
 
     elif shape == 'spray':
-        # Airbrush / spray can - redesigned for a clean, unambiguous
-        # silhouette (nozzle straight up from the can's top-centre, not
-        # protruding sideways) and a light, sparse mist pattern (this
-        # tool is the airbrush - light spray; a separate heavier "spray
-        # can" effect would use a denser cloud, not this icon). First
-        # tool icon moved toward the multi-colour style used by the
-        # XY/XZ view icons, rather than a single theme-tinted fill.
-        can_fill = QColor('#b8bcc4') if not active else QColor('#e8eaee')
-        cap_fill = QColor('#d05050')   # red trigger cap - fixed accent colour
-        mist_col = QColor('#9fd4ee') if not active else QColor('#cdeaf8')
+        # Airbrush / spray can - tilted 45°, gradient-shaded metallic body
+        # for a more lifelike/dimensional look (rather than a flat single
+        # fill), plus a colour accent label band and red trigger cap.
+        # Light, sparse mist (airbrush = light spray, not a heavy cloud).
+        from PyQt6.QtGui import QLinearGradient
 
-        # Can body - vertical, centred
-        p.setPen(mk_pen(2.0))
-        p.setBrush(QBrush(can_fill))
+        p.save()
+        p.translate(24, 24)
+        p.rotate(45)
+        p.translate(-24, -24)
+
+        # Can body - metallic gradient (light-mid-light) simulating a
+        # cylindrical highlight, rather than one flat colour
+        body_grad = QLinearGradient(16, 0, 32, 0)
+        if not active:
+            body_grad.setColorAt(0.0, QColor('#8b8f98'))
+            body_grad.setColorAt(0.5, QColor('#d8dbe2'))
+            body_grad.setColorAt(1.0, QColor('#9a9ea6'))
+        else:
+            body_grad.setColorAt(0.0, QColor('#b8bcc4'))
+            body_grad.setColorAt(0.5, QColor('#f2f4f8'))
+            body_grad.setColorAt(1.0, QColor('#c4c8d0'))
+        p.setPen(mk_pen(1.8))
+        p.setBrush(QBrush(body_grad))
         p.drawRoundedRect(16, 20, 16, 22, 3, 3)
-        # Base rim
-        p.drawLine(QPoint(16, 26), QPoint(32, 26))
-        # Nozzle stem, straight up from top-centre
+
+        # Colour accent label band - fixed blue, gives the can visual
+        # identity rather than being uniformly metallic
+        p.setPen(QPen(QColor('#2f6fb0'), 0.5))
+        p.setBrush(QBrush(QColor('#3f8fd8')))
+        p.drawRect(16, 30, 16, 6)
+
+        # Nozzle stem, straight up from top-centre (before rotation this
+        # is "up"; after the 45° rotation it points up-and-right)
+        p.setPen(mk_pen(1.8))
+        p.setBrush(QBrush(body_grad))
         p.drawRoundedRect(21, 12, 6, 9, 1, 1)
-        # Trigger cap - fixed red accent, on top of the nozzle
-        p.setPen(mk_pen(1.5))
-        p.setBrush(QBrush(cap_fill))
+
+        # Trigger cap - fixed red accent
+        p.setPen(mk_pen(1.3))
+        p.setBrush(QBrush(QColor('#d05050')))
         p.drawEllipse(QPoint(24, 10), 4, 4)
 
-        # Light, sparse mist - fans upward from the nozzle, airbrush-light
-        # rather than a dense spray-can cloud
+        p.restore()
+
+        # Light, sparse mist - drawn after restoring rotation so it fans
+        # out from the can's actual (now-diagonal) nozzle direction
+        mist_col = QColor('#9fd4ee') if not active else QColor('#cdeaf8')
         p.setPen(QPen(mist_col, 0))
         p.setBrush(QBrush(mist_col))
-        mist_pts = [(24, 3, 1.4), (18, 5, 1.1), (30, 5, 1.1),
-                    (14, 8, 1.0), (34, 8, 1.0), (24, 6, 1.2)]
+        mist_pts = [(36, 8, 1.5), (32, 4, 1.2), (40, 12, 1.2),
+                    (44, 6, 1.0), (38, 15, 1.0), (43, 16, 1.1)]
         for mx, my, mr in mist_pts:
             p.drawEllipse(QPoint(mx, my), mr, mr)
 
