@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 18 (Build 337)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 19 (Build 338)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -163,6 +163,7 @@ from PyQt6.QtGui import (
 # DP5Workshop._canvas_to_256colour_indexed
 # DP5Workshop._clear_brush
 # DP5Workshop._clear_canvas
+# DP5Workshop._convert_canvas_to_platform
 # DP5Workshop._copy_selection
 # DP5Workshop._create_anim_strip
 # DP5Workshop._create_brush_colors_panel
@@ -6177,6 +6178,44 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         'pc_engine':   (8,  8,   16),   # PC Engine 256×240
     }
 
+    # Platform native resolution, keyed the same as _PLATFORM_CELLS -
+    # single source of truth, used by _set_platform and the drag-and-drop
+    # auto-convert-to-platform feature.
+    _PLATFORM_RES = {
+        'c64':         (320, 200), 'c64m':        (160, 200),
+        'spectrum':    (256, 192), 'spectrum128': (256, 192),
+        'zx80':        (256, 192), 'zx81':        (256, 192),
+        'specnext':    (320, 256), 'specnext_ul': (256, 192),
+        'timex':       (256, 192), 'timex_hi':    (512, 192),
+        'pentagon':    (256, 192), 'jupiter':     (256,  192),
+        'msx':         (256, 192), 'msx2':        (256, 212),
+        'cpc':         (160, 200), 'cpc1':        (320, 200),
+        'cpc_plus':    (320, 200), 'pcw':         (720, 256),
+        'nc':          (480, 128),
+        'atari_2600':  (160, 192),  # NTSC standard kernel
+        'atari_st':    (320, 200),
+        'atari_ste':   (320, 200), 'atari_800':   (320, 192),
+        'atari_5200':  (320, 192), 'atari_7800':  (160, 240),  # 160×240 NTSC most common
+        'atari_lynx':  (160, 102), 'atari_falcon': (320, 200), 'atari_falcon_hi': (640, 480),
+        'atari_jaguar': (320, 240),
+        'amiga':       (320, 256), 'amiga_ntsc':  (320, 200),
+        'amiga_hi':    (640, 256), 'amiga_lace':  (320, 512),
+        'amiga_ecs':   (320, 256), 'amiga_ecs_hi':(640, 256),
+        'amiga_aga_hi':(640, 256),
+        'amiga_rtg_800':  (800, 600), 'amiga_rtg_1024': (1024, 768),
+        'amiga_rtg_pal':  (720, 576), 'amiga_rtg_ntsc': (720, 480),
+        'amiga_aga':   (320, 256), 'amiga_ham':   (320, 256),
+        'amiga_ham8':  (320, 256), 'amiga_rtg':   (640, 480),
+        'plus4':       (320, 200), 'vic20':       (176, 184),
+        'nes':         (256, 240), 'snes':        (256, 224),
+        'game_boy':    (160, 144), 'game_boy_pocket': (160, 144),
+        'game_boy_color': (160, 144), 'game_boy_advance': (240, 160),
+        'nimbus':      (320, 250), 'nimbus_hi':   (640, 250),
+        'sg1000':      (256, 192), 'master_sys':  (256, 192),
+        'mega_drive':  (320, 224), 'game_gear':   (160, 144),
+        'pc_engine':   (256, 240),
+    }
+
 
     def _set_platform(self, mode: str): #vers 4
         """Set platform mode — cell grid, auto-load palette, resize canvas, fit zoom."""
@@ -6227,42 +6266,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             self._apply_retro_palette(_pal_map[mode])
 
         # Resize canvas to platform native resolution
-        _plat_res = {
-            'c64':         (320, 200), 'c64m':        (160, 200),
-            'spectrum':    (256, 192), 'spectrum128': (256, 192),
-            'zx80':        (256, 192), 'zx81':        (256, 192),
-            'specnext':    (320, 256), 'specnext_ul': (256, 192),
-            'timex':       (256, 192), 'timex_hi':    (512, 192),
-            'pentagon':    (256, 192), 'jupiter':     (256,  192),
-            'msx':         (256, 192), 'msx2':        (256, 212),
-            'cpc':         (160, 200), 'cpc1':        (320, 200),
-            'cpc_plus':    (320, 200), 'pcw':         (720, 256),
-            'nc':          (480, 128),
-            'atari_2600':  (160, 192),  # NTSC standard kernel 'atari_st':    (320, 200),
-            'atari_ste':   (320, 200), 'atari_800':   (320, 192),
-            'atari_5200':  (320, 192), 'atari_7800':  (160, 240),  # 160×240 NTSC most common
-            'atari_lynx':  (160, 102), 'atari_falcon': (320, 200), 'atari_falcon_hi': (640, 480),
-            'atari_jaguar': (320, 240),
-            'amiga':       (320, 256), 'amiga_ntsc':  (320, 200),
-            'amiga_hi':    (640, 256), 'amiga_lace':  (320, 512),
-            'amiga_ecs':   (320, 256), 'amiga_ecs_hi':(640, 256),
-            'amiga_aga_hi':(640, 256),
-            'amiga_rtg_800':  (800, 600), 'amiga_rtg_1024': (1024, 768),
-            'amiga_rtg_pal':  (720, 576), 'amiga_rtg_ntsc': (720, 480),
-            'amiga_aga':   (320, 256), 'amiga_ham':   (320, 256),
-            'amiga_ham8':  (320, 256), 'amiga_rtg':   (640, 480),
-            'plus4':       (320, 200), 'vic20':       (176, 184),
-            'nes':         (256, 240), 'snes':        (256, 224),
-            'game_boy':    (160, 144), 'game_boy_pocket': (160, 144),
-            'game_boy_color': (160, 144), 'game_boy_advance': (240, 160),
-            'nimbus':      (320, 250), 'nimbus_hi':   (640, 250),
-            'nes':         (256, 240), 'snes':        (256, 224),
-            'game_boy':    (160, 144), 'game_boy_pocket': (160, 144),
-            'game_boy_color': (160, 144), 'game_boy_advance': (240, 160),
-            'sg1000':      (256, 192), 'master_sys':  (256, 192),
-            'mega_drive':  (320, 224), 'game_gear':   (160, 144),
-            'pc_engine':   (256, 240), 'nimbus_hi': (640, 250),
-        }
+        _plat_res = self._PLATFORM_RES
         if mode in _plat_res and self.dp5_canvas:
             pw, ph = _plat_res[mode]
             if (pw, ph) != (self._canvas_width, self._canvas_height):
@@ -12232,12 +12236,18 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                        '.pcx', '.dds', '.psd', '.psb',
                        '.iff', '.lbm', '.ilbm')
 
-    def _import_dropped_file(self, path: str): #vers 1
+    def _import_dropped_file(self, path: str): #vers 2
         """Dispatch a dropped file to whichever importer handles its
         format best - the same specialised importers the Import menu
         uses (TIFF page handling, animated GIF frames, IFF ILBM decoding,
         DDS/PSD fallback libraries), each now accepting an optional path
-        so they skip their own file dialog when one is already known."""
+        so they skip their own file dialog when one is already known.
+        If a platform mode is locked, the loaded image is then resized to
+        that platform's native resolution and snapped to whichever
+        palette/bit depth are currently set (User Palette panel, bit
+        depth combo) - the same settings the rest of the UI already
+        exposes, so the conversion respects whatever the user has
+        configured rather than a hardcoded platform default."""
         ext = os.path.splitext(path)[1].lower()
         dispatch = {
             '.tif': self._import_tiff, '.tiff': self._import_tiff,
@@ -12250,7 +12260,47 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         }
         importer = dispatch.get(ext, self._import_bitmap)
         importer(path)
-        self._set_status(f"Loaded (drag & drop): {os.path.basename(path)}")
+
+        if (getattr(self, '_mode_locked', False) and
+                getattr(self, '_canvas_mode', 'free') == 'platform'):
+            self._convert_canvas_to_platform()
+            self._set_status(
+                f"Loaded + converted to {getattr(self, '_platform_mode', '?')}: "
+                f"{os.path.basename(path)}")
+        else:
+            self._set_status(f"Loaded (drag & drop): {os.path.basename(path)}")
+
+    def _convert_canvas_to_platform(self, use_user_palette: bool = True): #vers 1
+        """Resize the current canvas content to the active platform's
+        native resolution and snap every pixel to a palette - the current
+        User Palette by default (whatever's loaded in that panel), or the
+        platform's own built-in palette if use_user_palette=False or no
+        user palette is loaded."""
+        if not self.dp5_canvas:
+            return
+        plat = getattr(self, '_platform_mode', 'none')
+        target = self._PLATFORM_RES.get(plat)
+        if not target:
+            return
+        pw, ph = target
+        from PIL import Image
+        img = Image.frombytes('RGBA', (self._canvas_width, self._canvas_height),
+                              bytes(self.dp5_canvas.rgba))
+        if (pw, ph) != (self._canvas_width, self._canvas_height):
+            img = img.resize((pw, ph), Image.LANCZOS)
+
+        palette = self._get_user_palette_rgb() if use_user_palette else None
+        if palette:
+            img = self._snap_image_to_user_palette(img)
+        else:
+            img = self._snap_image_to_platform_palette(img)
+
+        self._push_undo()
+        self._canvas_width, self._canvas_height = pw, ph
+        self.dp5_canvas.tex_w, self.dp5_canvas.tex_h = pw, ph
+        self.dp5_canvas.rgba = bytearray(img.tobytes())
+        self.dp5_canvas.update()
+        self._fit_canvas_to_viewport()
 
 
     #    Corner resize + dragging (COL Workshop pattern)                        
