@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 29 (Build 348)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 30 (Build 349)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -4154,18 +4154,26 @@ class ColorPalPresetsMixin:
                 ("Amiga AGA WB RTG 720×480 NTSC", "Amiga AGA WB", 'amiga_rtg_ntsc'),
             ]),
             ("Modern / RTG", [
-                ("1024×640", "Amiga AGA WB", 'rtg_1024_640'),
-                ("1280×720 (720p)", "Amiga AGA WB", 'rtg_1280_720'),
-                ("1280×800", "Amiga AGA WB", 'rtg_1280_800'),
-                ("1280×1024", "Amiga AGA WB", 'rtg_1280_1024'),
-                ("1366×768", "Amiga AGA WB", 'rtg_1366_768'),
-                ("1440×900", "Amiga AGA WB", 'rtg_1440_900'),
-                ("1600×900", "Amiga AGA WB", 'rtg_1600_900'),
-                ("1680×1050", "Amiga AGA WB", 'rtg_1680_1050'),
-                ("1920×1080 (1080p)", "Amiga AGA WB", 'rtg_1920_1080'),
-                ("1920×1200", "Amiga AGA WB", 'rtg_1920_1200'),
-                ("2560×1440 (1440p)", "Amiga AGA WB", 'rtg_2560_1440'),
-                ("3840×2160 (4K UHD)", "Amiga AGA WB", 'rtg_3840_2160'),
+                entry
+                for label, base in (
+                    ("1024×640", 'rtg_1024_640'),
+                    ("1280×720 (720p)", 'rtg_1280_720'),
+                    ("1280×800", 'rtg_1280_800'),
+                    ("1280×1024", 'rtg_1280_1024'),
+                    ("1366×768", 'rtg_1366_768'),
+                    ("1440×900", 'rtg_1440_900'),
+                    ("1600×900", 'rtg_1600_900'),
+                    ("1680×1050", 'rtg_1680_1050'),
+                    ("1920×1080 (1080p)", 'rtg_1920_1080'),
+                    ("1920×1200", 'rtg_1920_1200'),
+                    ("2560×1440 (1440p)", 'rtg_2560_1440'),
+                    ("3840×2160 (4K UHD)", 'rtg_3840_2160'),
+                )
+                for entry in (
+                    (f"{label}  32-bit", "Amiga AGA WB", base),
+                    (f"{label}  24-bit", "Amiga AGA WB", base + '_24'),
+                    (f"{label}  16-bit", "Amiga AGA WB", base + '_16'),
+                )
             ]),
             ("Commodore", [
                 ("C64 Hi-Res (320×200, 2col/cell)", "C64", 'c64'),
@@ -4292,6 +4300,10 @@ class ColorPalPresetsMixin:
             new_aspect = self._PLATFORM_PIXEL_ASPECT.get(plat_mode, 1.0)
             aspect_changed = new_aspect != getattr(self.dp5_canvas, 'pixel_aspect_x', 1.0)
             self.dp5_canvas.pixel_aspect_x = new_aspect
+            if plat_mode in self._PLATFORM_BIT_DEPTH:
+                self._canvas_bit_depth = self._PLATFORM_BIT_DEPTH[plat_mode]
+                if hasattr(self, '_bit_depth_combo'):
+                    self._bit_depth_combo.setCurrentIndex(self._canvas_bit_depth)
             if (pw, ph) != (self._canvas_width, self._canvas_height):
                 from PIL import Image
                 img = Image.frombytes('RGBA',
@@ -5387,7 +5399,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             ("RTG 720×576 PAL broadcast",        'amiga_rtg_pal'),
             ("RTG 720×480 NTSC broadcast",       'amiga_rtg_ntsc'),
         ])
-        _pm("Modern / RTG", [
+        _rtg_res_labels = [
             ("1024×640",  'rtg_1024_640'),
             ("1280×720  (720p)",  'rtg_1280_720'),
             ("1280×800",  'rtg_1280_800'),
@@ -5400,7 +5412,13 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             ("1920×1200", 'rtg_1920_1200'),
             ("2560×1440  (1440p)", 'rtg_2560_1440'),
             ("3840×2160  (4K UHD)", 'rtg_3840_2160'),
-        ])
+        ]
+        _rtg_entries = []
+        for _label, _base_mode in _rtg_res_labels:
+            _rtg_entries.append((f"{_label}  32-bit", _base_mode))
+            _rtg_entries.append((f"{_label}  24-bit", _base_mode + '_24'))
+            _rtg_entries.append((f"{_label}  16-bit", _base_mode + '_16'))
+        _pm("Modern / RTG", _rtg_entries)
         _pm("Commodore", [
             ("C64 Hires    320×200  2col/cell", 'c64'),
             ("C64 Multicolor 160×200 4col",     'c64m'),
@@ -6509,6 +6527,27 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         'ql_8c': 2.0,        # vs ql_4c (512×256) baseline
     }
 
+    # Modern/RTG resolutions each get 16-bit and 24-bit variants alongside
+    # their base (32-bit) code, generated here rather than hand-typing 24
+    # more dict entries - _PLATFORM_BIT_DEPTH maps a mode code to the
+    # _bit_depth_combo index it should apply (0=32-bit RGBA, 1=24-bit RGB,
+    # 2=16-bit R5G6B5), read by _set_platform.
+    _PLATFORM_BIT_DEPTH = {}
+    for _base in ('rtg_1024_640', 'rtg_1280_720', 'rtg_1280_800',
+                   'rtg_1280_1024', 'rtg_1366_768', 'rtg_1440_900',
+                   'rtg_1600_900', 'rtg_1680_1050', 'rtg_1920_1080',
+                   'rtg_1920_1200', 'rtg_2560_1440', 'rtg_3840_2160'):
+        _PLATFORM_BIT_DEPTH[_base] = 0   # base code = 32-bit
+        _w, _h = _PLATFORM_RES[_base]
+        _cw, _ch, _ = _PLATFORM_CELLS[_base]
+        _PLATFORM_RES[_base + '_24']   = (_w, _h)
+        _PLATFORM_CELLS[_base + '_24'] = (_cw, _ch, 16777216)
+        _PLATFORM_BIT_DEPTH[_base + '_24'] = 1
+        _PLATFORM_RES[_base + '_16']   = (_w, _h)
+        _PLATFORM_CELLS[_base + '_16'] = (_cw, _ch, 65536)
+        _PLATFORM_BIT_DEPTH[_base + '_16'] = 2
+    del _base, _w, _h, _cw, _ch
+
 
     def _set_platform(self, mode: str): #vers 5
         """Set platform mode — cell grid, auto-load palette, resize canvas, fit zoom."""
@@ -6576,8 +6615,17 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             'ula_plus': 'ULA Plus',
             'atari_2600_pal': 'Atari 2600 PAL',
         }
-        if mode in _pal_map:
-            self._apply_retro_palette(_pal_map[mode])
+        # Depth-suffixed Modern/RTG codes (rtg_X_16/_24) share their base
+        # code's palette entry - avoids duplicating 24 more _pal_map lines.
+        _pal_lookup_mode = mode[:-3] if mode.endswith(('_16', '_24')) else mode
+        if _pal_lookup_mode in _pal_map:
+            self._apply_retro_palette(_pal_map[_pal_lookup_mode])
+
+        # Apply bit depth for Modern/RTG modes (32/24/16-bit variants)
+        if mode in self._PLATFORM_BIT_DEPTH:
+            self._canvas_bit_depth = self._PLATFORM_BIT_DEPTH[mode]
+            if hasattr(self, '_bit_depth_combo'):
+                self._bit_depth_combo.setCurrentIndex(self._canvas_bit_depth)
 
         # Resize canvas to platform native resolution
         _plat_res = self._PLATFORM_RES
