@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 25 (Build 344)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 26 (Build 345)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -4568,6 +4568,8 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         centre = self._create_centre_panel()
         outer_mw.setCentralWidget(centre)
+        if hasattr(self, '_status_bar'):
+            outer_mw.setStatusBar(self._status_bar)
 
         bitmaps_panel      = self._create_left_panel()
         brush_colors_panel = self._create_brush_colors_panel()
@@ -5064,7 +5066,13 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._anim_strip.setVisible(self.dp5_settings.get('show_anim_strip', False))
         layout.addWidget(self._anim_strip)
 
-        # Status bar — canvas-wide only, 22px fixed height
+        # Status bar - built here (needs canvas context) but NOT added to
+        # this panel's own layout. It becomes outer_mw's native status
+        # bar instead (see setup_ui) - QMainWindow's built-in status bar
+        # always spans the full window width, whereas embedding it in
+        # this panel meant it only got whatever width was left after the
+        # right-side dock widgets (Brush & Colors etc.) took their share,
+        # squeezing/covering its right-aligned permanent widgets.
         self._status_bar = QStatusBar()
         self._status_bar.setSizeGripEnabled(False)
         self._status_bar.setFixedHeight(22)
@@ -5076,7 +5084,6 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._status_depth_lbl.setStyleSheet("padding: 0 6px; color: palette(mid);")
         self._status_bar.addPermanentWidget(self._status_depth_lbl)
         self._status_bar.addPermanentWidget(self._status_size_lbl)
-        layout.addWidget(self._status_bar)
 
         return panel
 
