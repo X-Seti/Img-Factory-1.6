@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 192
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 193
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -572,7 +572,7 @@ except ImportError:
 
 # Build information
 App_name = "Model Workshop"
-App_build = "192"
+App_build = "193"
 
 #TODO some gta3 dff files show as unknown format, effects standalone and docked versions, loading files from the img files.
 
@@ -3184,7 +3184,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._apply_theme()
 
 
-    def setup_ui(self): #vers 13
+    def setup_ui(self): #vers 14
         """Setup the main UI layout.
 
         EXPERIMENTAL (Jul 2026): three independent QMainWindows, nested:
@@ -3235,6 +3235,17 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         outer_mw.setDockOptions(
             QMainWindow.DockOption.AllowNestedDocks |
             QMainWindow.DockOption.AllowTabbedDocks)
+        # Explicit separator styling - when docked inside IMG Factory,
+        # this nested QMainWindow inherits the main app's theme stylesheet
+        # cascading down through the tab widget (standalone has no parent
+        # stylesheet to inherit), which was zeroing out the dock separator
+        # entirely - no visible line/handle between panels, reported bug.
+        # A locally-set stylesheet rule takes precedence over anything
+        # inherited from a parent, so this holds regardless of theme.
+        outer_mw.setStyleSheet(
+            "QMainWindow::separator { "
+            "background: palette(mid); width: 5px; height: 5px; } "
+            "QMainWindow::separator:hover { background: palette(highlight); }")
         self._outer_mw = outer_mw
 
         # Viewport (right_panel, wrapping _inner_mw) is the central widget -
@@ -8578,7 +8589,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         dock.setTitleBarWidget(bar)
 
-    def _wrap_middle_panel_with_own_dock_areas(self, content_panel): #vers 3
+    def _wrap_middle_panel_with_own_dock_areas(self, content_panel): #vers 4
         """Give the middle panel its own nested QMainWindow (same pattern
         the right panel already uses for the viewport), so the Name and
         IDE/TXD ribbons have real Left/Right toolbar dock areas specifically
@@ -8594,6 +8605,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         middle_mw.setDockOptions(
             QMainWindow.DockOption.AllowNestedDocks |
             QMainWindow.DockOption.AllowTabbedDocks)
+        # Same explicit separator styling as outer_mw - prevents the
+        # docked-mode theme-cascade issue that zeroed out separator
+        # visibility from affecting this nested QMainWindow too.
+        middle_mw.setStyleSheet(
+            "QMainWindow::separator { "
+            "background: palette(mid); width: 5px; height: 5px; } "
+            "QMainWindow::separator:hover { background: palette(highlight); }")
         middle_mw.setCentralWidget(content_panel)
         middle_mw.addToolBar(Qt.ToolBarArea.BottomToolBarArea, self._info_ribbons['name'])
         # Explicit break so IDE always sits on its own row below Name,
@@ -8729,7 +8747,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             pass
         self._set_status(f"Model Info ribbon moved to {location} panel")
 
-    def _create_right_panel(self): #vers 14
+    def _create_right_panel(self): #vers 15
         """Right panel using QMainWindow + QToolBar for native docking.
         QMainWindow handles toolbar placement, row stacking, floating, and
         save/restore natively — same system Gwenview/KDE apps use."""
@@ -8751,6 +8769,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         inner_mw.setDockOptions(
             QMainWindow.DockOption.AllowNestedDocks |
             QMainWindow.DockOption.AllowTabbedDocks)
+        # Same explicit separator styling as outer_mw/middle_mw - guards
+        # against the same docked-mode theme-cascade issue, in case any
+        # dock widgets get added here in future.
+        inner_mw.setStyleSheet(
+            "QMainWindow::separator { "
+            "background: palette(mid); width: 5px; height: 5px; } "
+            "QMainWindow::separator:hover { background: palette(highlight); }")
         self._inner_mw = inner_mw
 
         # Central widget — the 3D viewport, wrapped in a stack so the
