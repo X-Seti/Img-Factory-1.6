@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 27 (Build 346)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 28 (Build 347)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -1459,6 +1459,11 @@ class DP5Canvas(QWidget):
         self.tex_h      = height
         self.rgba       = rgba
         self.zoom       = 4        # can be float < 1 for zoom-out
+        self.pixel_aspect_x = 1.0  # width-per-height stretch for non-square
+                                    # pixel modes (e.g. 2.0 for C64
+                                    # multicolor's double-wide pixels) -
+                                    # set via _set_platform/etc, not stored
+                                    # per-pixel, applies to the whole canvas
         self.offset     = QPoint(0, 0)
         self.tool       = TOOL_PENCIL
         self.color      = QColor(255, 0, 0, 255)
@@ -1512,17 +1517,19 @@ class DP5Canvas(QWidget):
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.setMinimumSize(200, 200)
 
-    def sizeHint(self): #vers 1
+    def sizeHint(self): #vers 2
         """Tell the scroll area exactly how big the zoomed canvas is."""
         z = max(0.01, self.zoom)
-        return QSize(max(200, int(self.tex_w * z)),
+        zx = z * self.pixel_aspect_x
+        return QSize(max(200, int(self.tex_w * zx)),
                      max(200, int(self.tex_h * z)))
 
     #    Coordinate helpers                                                     
 
-    def _widget_to_tex(self, p: QPoint) -> Tuple[int, int]: #vers 1
+    def _widget_to_tex(self, p: QPoint) -> Tuple[int, int]: #vers 2
         z = max(0.01, self.zoom)
-        x = int(p.x() / z)
+        zx = z * self.pixel_aspect_x
+        x = int(p.x() / zx)
         y = int(p.y() / z)
         if self.snap_grid and self.brush_size > 1:
             snap = self.brush_size
@@ -1530,9 +1537,10 @@ class DP5Canvas(QWidget):
             y = (y // snap) * snap
         return x, y
 
-    def _tex_to_widget(self, tx: int, ty: int) -> QPoint: #vers 1
+    def _tex_to_widget(self, tx: int, ty: int) -> QPoint: #vers 2
         z = max(0.01, self.zoom)
-        return QPoint(int(tx * z), int(ty * z))
+        zx = z * self.pixel_aspect_x
+        return QPoint(int(tx * zx), int(ty * z))
 
     #    Pixel access                                                           
 
@@ -1980,7 +1988,8 @@ class DP5Canvas(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
 
         z  = max(0.01, self.zoom)
-        sw = max(1, int(self.tex_w * z))
+        zx = z * self.pixel_aspect_x
+        sw = max(1, int(self.tex_w * zx))
         sh = max(1, int(self.tex_h * z))
 
         img = QImage(bytes(self.rgba), self.tex_w, self.tex_h,
@@ -2003,17 +2012,18 @@ class DP5Canvas(QWidget):
 
         # Pixel grid (visible at zoom ≥2)
         if self.show_grid and z >= 2:
-            iz = max(1, int(z))
+            izx = max(1, int(zx))
+            izy = max(1, int(z))
             pen = QPen(self.grid_color, 1)
             painter.setPen(pen)
-            for x in range(0, sw, iz):
+            for x in range(0, sw, izx):
                 painter.drawLine(x, 0, x, sh)
-            for y in range(0, sh, iz):
+            for y in range(0, sh, izy):
                 painter.drawLine(0, y, sw, y)
 
         # Platform cell grid
         if self.show_cell_grid:
-            cw = max(1, int(self.cell_w * z))
+            cw = max(1, int(self.cell_w * zx))
             ch = max(1, int(self.cell_h * z))
             pen = QPen(QColor(255, 100, 0, 120), 1, Qt.PenStyle.DashLine)
             painter.setPen(pen)
@@ -2037,8 +2047,8 @@ class DP5Canvas(QWidget):
                             if a > 0:
                                 colours.add((r>>5, g>>5, b>>5))
                     if len(colours) > 2:
-                        x0 = int(cx*8*z); y0 = int(cy*8*z)
-                        cw2 = max(1,int(8*z)); ch2 = max(1,int(8*z))
+                        x0 = int(cx*8*zx); y0 = int(cy*8*z)
+                        cw2 = max(1,int(8*zx)); ch2 = max(1,int(8*z))
                         painter.fillRect(x0, y0, cw2, ch2, QColor(255,0,0,160))
             painter.setOpacity(1.0)
 
@@ -2134,9 +2144,9 @@ class DP5Canvas(QWidget):
             painter.setPen(pen)
             painter.setBrush(Qt.BrushStyle.NoBrush)
             r   = self._selection_rect
-            sx  = int(r.x()      * z)
+            sx  = int(r.x()      * zx)
             sy  = int(r.y()      * z)
-            sw2 = int(r.width()  * z)
+            sw2 = int(r.width()  * zx)
             sh2 = int(r.height() * z)
             painter.drawRect(QRect(sx, sy, sw2, sh2))
 
@@ -2146,11 +2156,11 @@ class DP5Canvas(QWidget):
             w2, h2 = self._sel_buf_w, self._sel_buf_h
             fimg = QImage(bytes(self._sel_buffer), w2, h2,
                           w2 * 4, QImage.Format.Format_RGBA8888)
-            fw = max(1, int(w2 * z)); fh = max(1, int(h2 * z))
+            fw = max(1, int(w2 * zx)); fh = max(1, int(h2 * z))
             scaled_f = fimg.scaled(fw, fh,
                                    Qt.AspectRatioMode.IgnoreAspectRatio,
                                    Qt.TransformationMode.FastTransformation)
-            fx = int(ox * z)
+            fx = int(ox * zx)
             fy = int(oy * z)
             painter.setOpacity(0.85)
             painter.drawImage(fx, fy, scaled_f)
@@ -2163,7 +2173,7 @@ class DP5Canvas(QWidget):
         # Text cursor indicator
         if self.tool == TOOL_TEXT and hasattr(self, '_text_cursor_pos'):
             tc = self._text_cursor_pos
-            wx = int(tc[0] * z)
+            wx = int(tc[0] * zx)
             wy = int(tc[1] * z)
             painter.setPen(QPen(self.color, 1))
             painter.drawLine(wx, wy, wx, wy + max(8, int(12 * z)))
@@ -2172,7 +2182,7 @@ class DP5Canvas(QWidget):
         if self.tool == TOOL_STAMP and self._sel_buffer and self._sel_buf_w > 0:
             if hasattr(self, '_stamp_cursor_pos'):
                 scx, scy = self._stamp_cursor_pos
-                sw2 = max(1, int(self._sel_buf_w * z))
+                sw2 = max(1, int(self._sel_buf_w * zx))
                 sh2 = max(1, int(self._sel_buf_h * z))
                 simg = QImage(bytes(self._sel_buffer),
                               self._sel_buf_w, self._sel_buf_h,
@@ -2181,12 +2191,12 @@ class DP5Canvas(QWidget):
                                       Qt.AspectRatioMode.IgnoreAspectRatio,
                                       Qt.TransformationMode.FastTransformation)
                 painter.setOpacity(0.55)
-                painter.drawImage(int(scx * z), int(scy * z), sscaled)
+                painter.drawImage(int(scx * zx), int(scy * z), sscaled)
                 painter.setOpacity(1.0)
                 # Dashed border
                 painter.setPen(QPen(QColor('#00e5ff'), 1, Qt.PenStyle.DashLine))
                 painter.setBrush(Qt.BrushStyle.NoBrush)
-                painter.drawRect(int(scx*z), int(scy*z), sw2, sh2)
+                painter.drawRect(int(scx*zx), int(scy*z), sw2, sh2)
 
     #    Mouse events                                                           
 
@@ -4265,6 +4275,9 @@ class ColorPalPresetsMixin:
             self._retro_btn.setText(label)
         if plat_mode and plat_mode in self._PLATFORM_RES and self.dp5_canvas:
             pw, ph = self._PLATFORM_RES[plat_mode]
+            new_aspect = self._PLATFORM_PIXEL_ASPECT.get(plat_mode, 1.0)
+            aspect_changed = new_aspect != getattr(self.dp5_canvas, 'pixel_aspect_x', 1.0)
+            self.dp5_canvas.pixel_aspect_x = new_aspect
             if (pw, ph) != (self._canvas_width, self._canvas_height):
                 from PIL import Image
                 img = Image.frombytes('RGBA',
@@ -4277,6 +4290,8 @@ class ColorPalPresetsMixin:
                 self.dp5_canvas.tex_h = ph
                 self.dp5_canvas.rgba  = bytearray(img.tobytes())
                 self.dp5_canvas.update()
+                self._fit_canvas_to_viewport()
+            elif aspect_changed:
                 self._fit_canvas_to_viewport()
             self._platform_mode = plat_mode
             self._canvas_mode   = 'platform'
@@ -6419,8 +6434,29 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         'atari_2600_pal': (160, 228),
     }
 
+    # Pixel aspect ratio (width-per-height) for modes whose pixel grid
+    # isn't square - e.g. C64 multicolor packs 160 double-wide pixels
+    # across the same physical screen width as hi-res's 320 pixels, so
+    # each multicolor pixel renders twice as wide as it is tall. Modes
+    # not listed here default to 1.0 (square). This only corrects the
+    # horizontal stretch for modes that trade horizontal resolution for
+    # colour depth at the same vertical resolution - interlace modes
+    # (which instead double vertical resolution, e.g. amiga_lace) aren't
+    # covered by this and default to 1.0.
+    _PLATFORM_PIXEL_ASPECT = {
+        'c64m': 2.0,
+        'plus4m': 2.0,
+        'cpc': 2.0,          # CPC Mode 0 160×200 vs Mode 1 'cpc1' 320×200
+        'bbc0': 0.5, 'bbc2': 2.0,             # vs bbc1 (320×256) baseline
+        'electron0': 0.5, 'electron2': 2.0,   # vs electron1 baseline
+        'atari_800_lo': 2.0, 'atari_5200_lo': 2.0, 'atari_7800_lo': 2.0,
+        'amiga_hi': 0.5, 'amiga_ecs_hi': 0.5, 'amiga_aga_hi': 0.5,
+        'samcoupe4': 0.5,    # vs samcoupe1 (256×192) baseline
+        'ql_8c': 2.0,        # vs ql_4c (512×256) baseline
+    }
 
-    def _set_platform(self, mode: str): #vers 4
+
+    def _set_platform(self, mode: str): #vers 5
         """Set platform mode — cell grid, auto-load palette, resize canvas, fit zoom."""
         self._platform_mode = mode
         cw, ch, _ = self._PLATFORM_CELLS.get(mode, (1,1,256))
@@ -6429,6 +6465,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             self.dp5_canvas.cell_h = ch
             if mode != 'none':
                 self.dp5_canvas.show_cell_grid = True
+            self.dp5_canvas.pixel_aspect_x = self._PLATFORM_PIXEL_ASPECT.get(mode, 1.0)
             self.dp5_canvas.update()
         self.dp5_settings.set('platform_mode', mode)
 
@@ -6737,11 +6774,12 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._enforce_constraints = not getattr(self, '_enforce_constraints', False)
         self._set_status(f"Colour constraints: {'ON' if self._enforce_constraints else 'OFF'}")
 
-    def _place_text_at(self, tx: int, ty: int): #vers 2
+    def _place_text_at(self, tx: int, ty: int): #vers 3
         """Show inline text input overlay on canvas at click position."""
         if not self.dp5_canvas: return
         ed = self
         z = self.dp5_canvas.zoom
+        zx = z * getattr(self.dp5_canvas, 'pixel_aspect_x', 1.0)
 
         # Create floating text entry if not already visible
         if hasattr(self, '_text_overlay') and self._text_overlay and \
@@ -6752,7 +6790,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._text_overlay = overlay
         # Position the overlay widget over the canvas at the click point
         canvas_widget = self.dp5_canvas
-        px = int(tx * z)
+        px = int(tx * zx)
         py = int(ty * z)
         # Map to scroll area viewport coords
         sa = getattr(self, '_canvas_scroll', None)
@@ -7995,21 +8033,25 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
     #    Canvas operations                                                      
 
 
-    def _push_undo(self):  #vers 2
+    def _push_undo(self):  #vers 3
         if self.dp5_canvas: #vers 1
             self._undo_stack.append(
-                (bytes(self.dp5_canvas.rgba), self._canvas_width, self._canvas_height))
+                (bytes(self.dp5_canvas.rgba), self._canvas_width, self._canvas_height,
+                 self.dp5_canvas.pixel_aspect_x))
             self._redo_stack.clear()
 
 
-    def _undo_canvas(self): #vers 2
+    def _undo_canvas(self): #vers 3
         if self.dp5_canvas and self._undo_stack:
             self._redo_stack.append(
-                (bytes(self.dp5_canvas.rgba), self._canvas_width, self._canvas_height))
-            rgba, w, h = self._undo_stack.pop()
-            size_changed = (w, h) != (self._canvas_width, self._canvas_height)
+                (bytes(self.dp5_canvas.rgba), self._canvas_width, self._canvas_height,
+                 self.dp5_canvas.pixel_aspect_x))
+            rgba, w, h, pa = self._undo_stack.pop()
+            size_changed = (w, h) != (self._canvas_width, self._canvas_height) or \
+                           pa != self.dp5_canvas.pixel_aspect_x
             self._canvas_width, self._canvas_height = w, h
             self.dp5_canvas.tex_w, self.dp5_canvas.tex_h = w, h
+            self.dp5_canvas.pixel_aspect_x = pa
             self.dp5_canvas.rgba[:] = rgba
             self.dp5_canvas.update()
             if size_changed:
@@ -8017,14 +8059,17 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             self._set_status(f"Undo  ({w}×{h})")
 
 
-    def _redo_canvas(self): #vers 2
+    def _redo_canvas(self): #vers 3
         if self.dp5_canvas and self._redo_stack:
             self._undo_stack.append(
-                (bytes(self.dp5_canvas.rgba), self._canvas_width, self._canvas_height))
-            rgba, w, h = self._redo_stack.pop()
-            size_changed = (w, h) != (self._canvas_width, self._canvas_height)
+                (bytes(self.dp5_canvas.rgba), self._canvas_width, self._canvas_height,
+                 self.dp5_canvas.pixel_aspect_x))
+            rgba, w, h, pa = self._redo_stack.pop()
+            size_changed = (w, h) != (self._canvas_width, self._canvas_height) or \
+                           pa != self.dp5_canvas.pixel_aspect_x
             self._canvas_width, self._canvas_height = w, h
             self.dp5_canvas.tex_w, self.dp5_canvas.tex_h = w, h
+            self.dp5_canvas.pixel_aspect_x = pa
             self.dp5_canvas.rgba[:] = rgba
             self.dp5_canvas.update()
             if size_changed:
@@ -8048,14 +8093,15 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self.dp5_canvas.update()
 
 
-    def _fit_canvas_to_viewport(self): #vers 1
+    def _fit_canvas_to_viewport(self): #vers 2
         if not self.dp5_canvas: return
         sa = getattr(self, '_canvas_scroll', None)
         vw = sa.viewport().width()  if sa else self.width()
         vh = sa.viewport().height() if sa else self.height()
         w = max(1, self.dp5_canvas.tex_w)
         h = max(1, self.dp5_canvas.tex_h)
-        fit_z = min(vw / w, vh / h)
+        pa = getattr(self.dp5_canvas, 'pixel_aspect_x', 1.0)
+        fit_z = min(vw / (w * pa), vh / h)
         for snap in (16, 8, 4, 2, 1):
             if fit_z >= snap:
                 fit_z = snap; break
@@ -8082,7 +8128,8 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._update_zoom_label()
 
         # Resize canvas widget to match new zoom
-        new_w = max(200, int(self.dp5_canvas.tex_w * z))
+        zx = z * getattr(self.dp5_canvas, 'pixel_aspect_x', 1.0)
+        new_w = max(200, int(self.dp5_canvas.tex_w * zx))
         new_h = max(200, int(self.dp5_canvas.tex_h * z))
         self.dp5_canvas.resize(new_w, new_h)
         self.dp5_canvas.updateGeometry()
@@ -8548,6 +8595,8 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             'VIC-20': 'vic20',
         }
         plat = next((v for k,v in _preset_platform.items() if k in preset_name), 'none')
+        if self.dp5_canvas:
+            self.dp5_canvas.pixel_aspect_x = 1.0
         if tab_mode == 'platform' and plat != 'none':
             self._set_platform(plat)
             self._enforce_constraints = True
@@ -9728,7 +9777,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         pass
 
 
-    def _export_bitmap(self): #vers 1
+    def _export_bitmap(self): #vers 2
         if not self.dp5_canvas: return
         path, _ = QFileDialog.getSaveFileName(
             self, "Save PNG", "untitled.png", "PNG (*.png);;BMP (*.bmp)")
@@ -9737,6 +9786,14 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             from PIL import Image
             img = Image.frombytes('RGBA', (self._canvas_width, self._canvas_height),
                                   bytes(self.dp5_canvas.rgba))
+            # Stretch by pixel_aspect_x so non-square-pixel modes (e.g. C64
+            # multicolor) display correctly in normal image viewers - this
+            # is a generic-format export, unlike native retro-format
+            # exporters (IFF etc.) which intentionally keep the raw
+            # hardware pixel grid unstretched.
+            pa = getattr(self.dp5_canvas, 'pixel_aspect_x', 1.0)
+            if pa != 1.0:
+                img = img.resize((int(round(img.width * pa)), img.height), Image.NEAREST)
             img.save(path)
             self._set_status(f"Saved: {os.path.basename(path)}")
         except Exception as e:
@@ -12518,6 +12575,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         if not target:
             return
         pw, ph = target
+        self.dp5_canvas.pixel_aspect_x = self._PLATFORM_PIXEL_ASPECT.get(plat, 1.0)
         from PIL import Image
         img = Image.frombytes('RGBA', (self._canvas_width, self._canvas_height),
                               bytes(self.dp5_canvas.rgba))
