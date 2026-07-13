@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 17
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 18
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -1458,13 +1458,15 @@ class SVGIconFactory: #vers 8
         </svg>''', size, color)
 
     @staticmethod
-    def dp_line_icon(size: int = 20, color: str = None) -> QIcon: #vers 3
-        """Diagonal line with round endpoints"""
+    def dp_line_icon(size: int = 20, color: str = None) -> QIcon: #vers 4
+        """Diagonal line with round endpoints - fixed accent colour
+        (green) for the line/endpoints, distinguishing it visually from
+        the blue used for shape-drawing tools."""
         return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="5" cy="19" r="2.5" fill="currentColor"/>
-            <circle cx="19" cy="5" r="2.5" fill="currentColor"/>
+            <circle cx="5" cy="19" r="2.5" fill="#50b070"/>
+            <circle cx="19" cy="5" r="2.5" fill="#50b070"/>
             <rect x="4" y="11" width="16" height="2.5" rx="1.25"
-                transform="rotate(-45 12 12)" fill="currentColor"/>
+                transform="rotate(-45 12 12)" fill="#50b070"/>
         </svg>''', size, color)
 
     @staticmethod
@@ -1484,16 +1486,18 @@ class SVGIconFactory: #vers 8
         </svg>''', size, color)
 
     @staticmethod
-    def dp_curve_icon(size: int = 20, color: str = None) -> QIcon: #vers 3
-        """Bézier curve — S-curve with visible control point handles"""
+    def dp_curve_icon(size: int = 20, color: str = None) -> QIcon: #vers 4
+        """Bezier curve - green curve stroke matching the line tool,
+        orange control handles/points for visual distinction from the
+        curve itself."""
         return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path d="M4 20 C4 8 20 16 20 4" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-            <line x1="4" y1="20" x2="4" y2="10" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2 1.5" stroke-linecap="round"/>
-            <line x1="20" y1="4" x2="20" y2="14" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2 1.5" stroke-linecap="round"/>
-            <rect x="2" y="8" width="4" height="4" fill="currentColor"/>
-            <rect x="18" y="12" width="4" height="4" fill="currentColor"/>
-            <circle cx="4" cy="20" r="2" fill="currentColor"/>
-            <circle cx="20" cy="4" r="2" fill="currentColor"/>
+            <path d="M4 20 C4 8 20 16 20 4" fill="none" stroke="#50b070" stroke-width="2.5" stroke-linecap="round"/>
+            <line x1="4" y1="20" x2="4" y2="10" stroke="#e8a840" stroke-width="1.5" stroke-dasharray="2 1.5" stroke-linecap="round"/>
+            <line x1="20" y1="4" x2="20" y2="14" stroke="#e8a840" stroke-width="1.5" stroke-dasharray="2 1.5" stroke-linecap="round"/>
+            <rect x="2" y="8" width="4" height="4" fill="#e8a840"/>
+            <rect x="18" y="12" width="4" height="4" fill="#e8a840"/>
+            <circle cx="4" cy="20" r="2" fill="#50b070"/>
+            <circle cx="20" cy="4" r="2" fill="#50b070"/>
         </svg>''', size, color)
 
     @staticmethod
@@ -1542,71 +1546,109 @@ class SVGIconFactory: #vers 8
         </svg>''', size, color)
 
     @staticmethod
-    def dp_triangle_icon(size: int = 20, color: str = None) -> QIcon: #vers 3
+    def dp_triangle_icon(size: int = 20, color: str = None) -> QIcon: #vers 4
+        """Triangle outline - matches the Rect/Circle blue-stroke +
+        tinted-fill treatment."""
         return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <polygon points="12,2 22,22 2,22" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>
+            <polygon points="12,2 22,22 2,22" fill="#5090e8" fill-opacity="0.15" stroke="#5090e8" stroke-width="3" stroke-linejoin="round"/>
         </svg>''', size, color)
 
     @staticmethod
-    def dp_filled_triangle_icon(size: int = 20, color: str = None) -> QIcon: #vers 3
+    def dp_filled_triangle_icon(size: int = 20, color: str = None) -> QIcon: #vers 4
+        """Filled triangle - gradient fill matching Filled Rect/Circle."""
         return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <polygon points="12,2 22,22 2,22" fill="currentColor"/>
+            <defs>
+                <linearGradient id="dpTriFillGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#7ab0f0"/>
+                    <stop offset="1" stop-color="#3060b0"/>
+                </linearGradient>
+            </defs>
+            <polygon points="12,2 22,22 2,22" fill="url(#dpTriFillGrad)"/>
         </svg>''', size, color)
 
     @staticmethod
-    def dp_polygon_icon(size: int = 20, color: str = None) -> QIcon: #vers 3
+    def dp_polygon_icon(size: int = 20, color: str = None) -> QIcon: #vers 4
+        """Hexagon outline - matches Rect/Circle/Triangle treatment."""
         return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <polygon points="12,2 22,7 22,17 12,22 2,17 2,7"
-                fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>
+                fill="#5090e8" fill-opacity="0.15" stroke="#5090e8" stroke-width="3" stroke-linejoin="round"/>
         </svg>''', size, color)
 
     @staticmethod
-    def dp_filled_polygon_icon(size: int = 20, color: str = None) -> QIcon: #vers 3
+    def dp_filled_polygon_icon(size: int = 20, color: str = None) -> QIcon: #vers 4
+        """Filled hexagon - gradient fill matching the other filled shapes."""
         return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <polygon points="12,2 22,7 22,17 12,22 2,17 2,7" fill="currentColor"/>
+            <defs>
+                <linearGradient id="dpPolyFillGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#7ab0f0"/>
+                    <stop offset="1" stop-color="#3060b0"/>
+                </linearGradient>
+            </defs>
+            <polygon points="12,2 22,7 22,17 12,22 2,17 2,7" fill="url(#dpPolyFillGrad)"/>
         </svg>''', size, color)
 
     @staticmethod
-    def dp_star_icon(size: int = 20, color: str = None) -> QIcon: #vers 3
+    def dp_star_icon(size: int = 20, color: str = None) -> QIcon: #vers 4
+        """Star outline - matches the other outline shapes' treatment."""
         return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <polygon points="12,1 15.09,8.26 23,9.27 17.5,14.14 18.18,22.02 12,18.77 5.82,22.02 6.5,14.14 1,9.27 8.91,8.26"
-                fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+                fill="#5090e8" fill-opacity="0.15" stroke="#5090e8" stroke-width="2" stroke-linejoin="round"/>
         </svg>''', size, color)
 
     @staticmethod
-    def dp_filled_star_icon(size: int = 20, color: str = None) -> QIcon: #vers 3
+    def dp_filled_star_icon(size: int = 20, color: str = None) -> QIcon: #vers 4
+        """Filled star - gold gradient, distinguishing it from the blue
+        used for rect/circle/triangle/polygon (a filled star reads more
+        naturally as gold than blue)."""
         return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <linearGradient id="dpStarFillGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#f4d060"/>
+                    <stop offset="1" stop-color="#c8941f"/>
+                </linearGradient>
+            </defs>
             <polygon points="12,1 15.09,8.26 23,9.27 17.5,14.14 18.18,22.02 12,18.77 5.82,22.02 6.5,14.14 1,9.27 8.91,8.26"
-                fill="currentColor"/>
+                fill="url(#dpStarFillGrad)"/>
         </svg>''', size, color)
 
     @staticmethod
-    def dp_select_icon(size: int = 20, color: str = None) -> QIcon: #vers 3
-        """Marquee select — dashed rectangle with solid corner handles"""
+    def dp_select_icon(size: int = 20, color: str = None) -> QIcon: #vers 4
+        """Marquee select - cyan dashed rectangle with solid corner
+        handles, matching the marching-ants selection colour family
+        rather than currentColor, so selection tools read as their own
+        visual group distinct from shape-drawing tools."""
         return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <rect x="2" y="2" width="20" height="20"
-                fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="4 3"/>
-            <rect x="0.5" y="0.5" width="4" height="4" fill="currentColor"/>
-            <rect x="19.5" y="0.5" width="4" height="4" fill="currentColor"/>
-            <rect x="0.5" y="19.5" width="4" height="4" fill="currentColor"/>
-            <rect x="19.5" y="19.5" width="4" height="4" fill="currentColor"/>
+                fill="none" stroke="#40c8d8" stroke-width="2" stroke-dasharray="4 3"/>
+            <rect x="0.5" y="0.5" width="4" height="4" fill="#40c8d8"/>
+            <rect x="19.5" y="0.5" width="4" height="4" fill="#40c8d8"/>
+            <rect x="0.5" y="19.5" width="4" height="4" fill="#40c8d8"/>
+            <rect x="19.5" y="19.5" width="4" height="4" fill="#40c8d8"/>
         </svg>''', size, color)
 
     @staticmethod
-    def dp_lasso_icon(size: int = 20, color: str = None) -> QIcon: #vers 3
-        """Freehand lasso with tail"""
+    def dp_lasso_icon(size: int = 20, color: str = None) -> QIcon: #vers 4
+        """Freehand lasso with tail - matches the select tool's cyan
+        selection-family colour."""
         return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <path d="M12 3C6 3 3 7 3 11s3 6 6 6c2 0 3-1 3-2s-1-2-3-2c-1.7 0-3-1.3-3-3s1.3-4 6-4 6 2.3 6 4-1.3 3-3 3"
-                fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-dasharray="3.5 2"/>
-            <line x1="15" y1="16" x2="21" y2="22" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+                fill="none" stroke="#40c8d8" stroke-width="2.2" stroke-linecap="round" stroke-dasharray="3.5 2"/>
+            <line x1="15" y1="16" x2="21" y2="22" stroke="#40c8d8" stroke-width="2.5" stroke-linecap="round"/>
         </svg>''', size, color)
 
     @staticmethod
-    def dp_filled_lasso_icon(size: int = 20, color: str = None) -> QIcon: #vers 3
-        """Filled lasso — solid closed shape"""
+    def dp_filled_lasso_icon(size: int = 20, color: str = None) -> QIcon: #vers 4
+        """Filled lasso - solid closed shape, gradient fill in the same
+        cyan selection family as the outline lasso/select tools."""
         return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <linearGradient id="dpLassoFillGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#70dce8"/>
+                    <stop offset="1" stop-color="#1898a8"/>
+                </linearGradient>
+            </defs>
             <path d="M12 3C6 3 3 7 3 11s3 6 6 6c2 0 3-1 3-2s-1-2-3-2c-1.7 0-3-1.3-3-3s1.3-4 6-4 6 2.3 6 4-1.3 3-3 3 Z"
-                fill="currentColor"/>
+                fill="url(#dpLassoFillGrad)"/>
         </svg>''', size, color)
 
     @staticmethod
@@ -1660,41 +1702,45 @@ class SVGIconFactory: #vers 8
         </svg>''', size, color)
 
     @staticmethod
-    def dp_resize_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
-        """Resize — corner arrows expanding outward"""
+    def dp_resize_icon(size: int = 20, color: str = None) -> QIcon: #vers 2
+        """Resize - orange corner arrows expanding outward, distinct
+        accent colour from the shape-drawing/selection tool families."""
         return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path d="M2 2h7v2H4v5H2z" fill="currentColor"/>
-            <path d="M22 2v7h-2V4h-5V2z" fill="currentColor"/>
-            <path d="M2 22v-7h2v5h5v2z" fill="currentColor"/>
-            <path d="M22 22h-7v-2h5v-5h2z" fill="currentColor"/>
-            <line x1="2" y1="2" x2="9" y2="9" stroke="currentColor" stroke-width="1.5"/>
-            <line x1="22" y1="2" x2="15" y2="9" stroke="currentColor" stroke-width="1.5"/>
-            <line x1="2" y1="22" x2="9" y2="15" stroke="currentColor" stroke-width="1.5"/>
-            <line x1="22" y1="22" x2="15" y2="15" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M2 2h7v2H4v5H2z" fill="#e8a840"/>
+            <path d="M22 2v7h-2V4h-5V2z" fill="#e8a840"/>
+            <path d="M2 22v-7h2v5h5v2z" fill="#e8a840"/>
+            <path d="M22 22h-7v-2h5v-5h2z" fill="#e8a840"/>
+            <line x1="2" y1="2" x2="9" y2="9" stroke="#e8a840" stroke-width="1.5"/>
+            <line x1="22" y1="2" x2="15" y2="9" stroke="#e8a840" stroke-width="1.5"/>
+            <line x1="2" y1="22" x2="9" y2="15" stroke="#e8a840" stroke-width="1.5"/>
+            <line x1="22" y1="22" x2="15" y2="15" stroke="#e8a840" stroke-width="1.5"/>
         </svg>''', size, color)
 
     @staticmethod
-    def dp_dither_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
-        """Dither — checkerboard pattern"""
+    def dp_dither_icon(size: int = 20, color: str = None) -> QIcon: #vers 2
+        """Dither - true two-colour checkerboard (black/white) instead of
+        one colour at varying opacity, more clearly showing the concept
+        of dithering between two distinct colours."""
         return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <rect x="2"  y="2"  width="5" height="5" fill="currentColor"/>
-            <rect x="9"  y="2"  width="5" height="5" fill="currentColor" opacity="0.3"/>
-            <rect x="16" y="2"  width="6" height="5" fill="currentColor"/>
-            <rect x="2"  y="9"  width="5" height="5" fill="currentColor" opacity="0.3"/>
-            <rect x="9"  y="9"  width="5" height="5" fill="currentColor"/>
-            <rect x="16" y="9"  width="6" height="5" fill="currentColor" opacity="0.3"/>
-            <rect x="2"  y="16" width="5" height="6" fill="currentColor"/>
-            <rect x="9"  y="16" width="5" height="6" fill="currentColor" opacity="0.3"/>
-            <rect x="16" y="16" width="6" height="6" fill="currentColor"/>
+            <rect x="2"  y="2"  width="5" height="5" fill="#1a1a1a"/>
+            <rect x="9"  y="2"  width="5" height="5" fill="#f0f0f0"/>
+            <rect x="16" y="2"  width="6" height="5" fill="#1a1a1a"/>
+            <rect x="2"  y="9"  width="5" height="5" fill="#f0f0f0"/>
+            <rect x="9"  y="9"  width="5" height="5" fill="#1a1a1a"/>
+            <rect x="16" y="9"  width="6" height="5" fill="#f0f0f0"/>
+            <rect x="2"  y="16" width="5" height="6" fill="#1a1a1a"/>
+            <rect x="9"  y="16" width="5" height="6" fill="#f0f0f0"/>
+            <rect x="16" y="16" width="6" height="6" fill="#1a1a1a"/>
         </svg>''', size, color)
 
     @staticmethod
-    def dp_symmetry_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
-        """Symmetry — mirrored pencil strokes"""
+    def dp_symmetry_icon(size: int = 20, color: str = None) -> QIcon: #vers 2
+        """Symmetry - red dashed mirror axis, blue mirrored strokes on
+        each side to visually show the mirroring concept."""
         return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <line x1="12" y1="2" x2="12" y2="22" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2,2"/>
-            <path d="M3 6 Q6 4 8 10 Q9 14 7 18" stroke="currentColor" stroke-width="2" fill="none"/>
-            <path d="M21 6 Q18 4 16 10 Q15 14 17 18" stroke="currentColor" stroke-width="2" fill="none"/>
+            <line x1="12" y1="2" x2="12" y2="22" stroke="#d05050" stroke-width="1.5" stroke-dasharray="2,2"/>
+            <path d="M3 6 Q6 4 8 10 Q9 14 7 18" stroke="#5090e8" stroke-width="2" fill="none"/>
+            <path d="M21 6 Q18 4 16 10 Q15 14 17 18" stroke="#5090e8" stroke-width="2" fill="none"/>
         </svg>''', size, color)
     @staticmethod
     def dropper_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
@@ -3399,8 +3445,10 @@ class SVGIconFactory: #vers 8
 
     @staticmethod
     def dp_blur_brush_icon(size: int = 42, color: str = None, bg_color: str = None) -> 'QIcon':
-        """Blur brush — concentric softening circles."""
-        c = color or '#f0f0f4'
+        """Blur brush - concentric softening circles in a soft blue tint,
+        suggesting a gentle/soft-focus effect rather than a neutral
+        theme-tinted colour."""
+        c = '#9fd4ee'
         return SVGIconFactory._create_icon(
             f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">'
             f'<circle cx="10" cy="10" r="7" fill="none" stroke="{c}" stroke-width="1.2" opacity="0.4"/>'
@@ -3411,8 +3459,9 @@ class SVGIconFactory: #vers 8
 
     @staticmethod
     def dp_smudge_icon(size: int = 42, color: str = None, bg_color: str = None) -> 'QIcon':
-        """Smudge — curved drag trail."""
-        c = color or '#f0f0f4'
+        """Smudge - curved drag trail in a warm orange/brown tone,
+        suggesting a physical push/drag effect."""
+        c = '#d89050'
         return SVGIconFactory._create_icon(
             f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">'
             f'<path d="M4 16 Q6 10 10 8 Q14 6 16 4" fill="none" stroke="{c}"'
@@ -3471,11 +3520,12 @@ class SVGIconFactory: #vers 8
 
     @staticmethod
     def dp_lighten_icon(size: int = 42, color: str = None, bg_color: str = None) -> 'QIcon':
-        """Lighten / Dodge — sun with rays."""
-        c = color or '#f0f0f4'
+        """Lighten / Dodge - golden sun with rays, classic sun colouring
+        instead of a neutral theme tint."""
+        c = '#f4d060'
         return SVGIconFactory._create_icon(
             f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">'
-            f'<circle cx="10" cy="10" r="4" fill="{c}" opacity="0.9"/>'
+            f'<circle cx="10" cy="10" r="4" fill="{c}" opacity="0.95"/>'
             f'<line x1="10" y1="2" x2="10" y2="4.5" stroke="{c}" stroke-width="1.5" stroke-linecap="round"/>'
             f'<line x1="10" y1="15.5" x2="10" y2="18" stroke="{c}" stroke-width="1.5" stroke-linecap="round"/>'
             f'<line x1="2" y1="10" x2="4.5" y2="10" stroke="{c}" stroke-width="1.5" stroke-linecap="round"/>'
@@ -3488,8 +3538,9 @@ class SVGIconFactory: #vers 8
 
     @staticmethod
     def dp_darken_icon(size: int = 42, color: str = None, bg_color: str = None) -> 'QIcon':
-        """Darken / Burn — crescent moon."""
-        c = color or '#f0f0f4'
+        """Darken / Burn - navy/purple crescent moon, pairing naturally
+        with the golden sun used for Lighten."""
+        c = '#6858c8'
         return SVGIconFactory._create_icon(
             f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">'
             f'<path d="M12 4 A7 7 0 1 0 12 16 A5 5 0 1 1 12 4 Z" fill="{c}"/>'
