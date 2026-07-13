@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 17 (Build 336)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 18 (Build 337)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -239,6 +239,7 @@ from PyQt6.QtGui import (
 # DP5Workshop._import_bitmap_snap_dither
 # DP5Workshop._import_bitmap_snap_user_pal
 # DP5Workshop._import_dds
+# DP5Workshop._import_dropped_file
 # DP5Workshop._import_gif
 # DP5Workshop._import_icns
 # DP5Workshop._import_ico
@@ -255,6 +256,7 @@ from PyQt6.QtGui import (
 # DP5Workshop._import_tga
 # DP5Workshop._import_tiff
 # DP5Workshop._invert
+# DP5Workshop._is_importable_ext
 # DP5Workshop._is_on_draggable_area
 # DP5Workshop._launch_theme_settings
 # DP5Workshop._limit_cell_colours
@@ -354,6 +356,9 @@ from PyQt6.QtGui import (
 # DP5Workshop._write_icns
 # DP5Workshop._zoom_mode_menu
 # DP5Workshop.closeEvent
+# DP5Workshop.dragEnterEvent
+# DP5Workshop.dragMoveEvent
+# DP5Workshop.dropEvent
 # DP5Workshop.get_menu_title
 # DP5Workshop.keyPressEvent
 # DP5Workshop.mouseMoveEvent
@@ -4263,6 +4268,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self.main_window     = main_window
         self.standalone_mode = (main_window is None)
         self.is_docked       = not self.standalone_mode
+        self.setAcceptDrops(True)   # drag image files anywhere on the workshop to load them
 
         # DP5-specific settings (JSON, separate from global theme)
         self.dp5_settings = DP5Settings()
@@ -8403,10 +8409,11 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
     #    File I/O                                                               
 
-    def _import_bitmap(self): #vers 1
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Open Image", "",
-            "Images (*.png *.bmp *.jpg *.jpeg *.iff *.lbm *.iff);;All Files (*)")
+    def _import_bitmap(self, path: str = None): #vers 2
+        if not path:
+            path, _ = QFileDialog.getOpenFileName(
+                self, "Open Image", "",
+                "Images (*.png *.bmp *.jpg *.jpeg *.iff *.lbm *.iff);;All Files (*)")
         if not path or not self.dp5_canvas: return
         self._import_bitmap_path(path)
 
@@ -10539,12 +10546,13 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
     #    Extended format imports / exports                                      
 
-    def _import_iff(self): #vers 2
+    def _import_iff(self, path: str = None): #vers 3
         """Import Amiga IFF ILBM — supports 8-bit indexed, 24-bit true colour,
         HAM6/HAM8, with or without palette, PackBits or uncompressed BODY."""
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Import IFF ILBM", "",
-            "IFF (*.iff *.lbm *.ilbm);;All Files (*)")
+        if not path:
+            path, _ = QFileDialog.getOpenFileName(
+                self, "Import IFF ILBM", "",
+                "IFF (*.iff *.lbm *.ilbm);;All Files (*)")
         if not path: return
         try:
             data = open(path, 'rb').read()
@@ -10710,11 +10718,12 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         return rgba
 
 
-    def _import_tiff(self): #vers 1
+    def _import_tiff(self, path: str = None): #vers 2
         """Import TIFF (single or multi-page — loads first page)."""
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Import TIFF", "",
-            "TIFF (*.tif *.tiff);;All Files (*)")
+        if not path:
+            path, _ = QFileDialog.getOpenFileName(
+                self, "Import TIFF", "",
+                "TIFF (*.tif *.tiff);;All Files (*)")
         if not path: return
         try:
             from PIL import Image
@@ -10727,11 +10736,12 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             QMessageBox.warning(self, "TIFF Import Error", str(e))
 
 
-    def _import_gif(self): #vers 1
+    def _import_gif(self, path: str = None): #vers 2
         """Import GIF — animated GIF loads all frames into animation timeline."""
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Import GIF", "",
-            "GIF (*.gif);;All Files (*)")
+        if not path:
+            path, _ = QFileDialog.getOpenFileName(
+                self, "Import GIF", "",
+                "GIF (*.gif);;All Files (*)")
         if not path: return
         try:
             from PIL import Image
@@ -10771,29 +10781,32 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             QMessageBox.warning(self, "GIF Import Error", str(e))
 
 
-    def _import_tga(self): #vers 1
+    def _import_tga(self, path: str = None): #vers 2
         """Import TGA (Targa) — common in game textures."""
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Import TGA", "",
-            "TGA (*.tga *.targa);;All Files (*)")
+        if not path:
+            path, _ = QFileDialog.getOpenFileName(
+                self, "Import TGA", "",
+                "TGA (*.tga *.targa);;All Files (*)")
         if not path: return
         self._import_bitmap_path(path)
 
 
-    def _import_pcx(self): #vers 1
+    def _import_pcx(self, path: str = None): #vers 2
         """Import PCX — classic DOS bitmap format."""
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Import PCX", "",
-            "PCX (*.pcx);;All Files (*)")
+        if not path:
+            path, _ = QFileDialog.getOpenFileName(
+                self, "Import PCX", "",
+                "PCX (*.pcx);;All Files (*)")
         if not path: return
         self._import_bitmap_path(path)
 
 
-    def _import_dds(self): #vers 1
+    def _import_dds(self, path: str = None): #vers 2
         """Import DDS (DirectDraw Surface) — GTA and game engine textures."""
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Import DDS", "",
-            "DDS (*.dds);;All Files (*)")
+        if not path:
+            path, _ = QFileDialog.getOpenFileName(
+                self, "Import DDS", "",
+                "DDS (*.dds);;All Files (*)")
         if not path: return
         try:
             from PIL import Image
@@ -10813,11 +10826,12 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 f"{e}\n\nFor DDS support install: pip install pillow-dds")
 
 
-    def _import_psd(self): #vers 1
+    def _import_psd(self, path: str = None): #vers 2
         """Import PSD (Photoshop) — reads merged composite layer."""
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Import PSD", "",
-            "PSD (*.psd *.psb);;All Files (*)")
+        if not path:
+            path, _ = QFileDialog.getOpenFileName(
+                self, "Import PSD", "",
+                "PSD (*.psd *.psb);;All Files (*)")
         if not path: return
         try:
             from PIL import Image
@@ -12172,6 +12186,71 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             pass
         self.window_closed.emit()
         event.accept()
+
+    #    Drag and drop loading                                                  
+
+    def dragEnterEvent(self, event): #vers 1
+        """Accept drags that carry at least one local file with a
+        recognised image extension."""
+        if event.mimeData().hasUrls():
+            for url in event.mimeData().urls():
+                if url.isLocalFile() and self._is_importable_ext(url.toLocalFile()):
+                    event.acceptProposedAction()
+                    return
+        event.ignore()
+
+    def dragMoveEvent(self, event): #vers 1
+        """Qt requires this alongside dragEnterEvent for the drop to be
+        accepted on some platforms/widget stacks."""
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event): #vers 1
+        """Load the first recognised image file dropped onto the workshop -
+        anywhere on the window, not just the canvas, so dropping onto a
+        dock/ribbon still works."""
+        if not event.mimeData().hasUrls():
+            event.ignore()
+            return
+        for url in event.mimeData().urls():
+            if not url.isLocalFile():
+                continue
+            path = url.toLocalFile()
+            if self._is_importable_ext(path):
+                event.acceptProposedAction()
+                self._import_dropped_file(path)
+                return
+        event.ignore()
+
+    def _is_importable_ext(self, path: str) -> bool: #vers 1
+        """Extensions _import_dropped_file knows how to dispatch."""
+        ext = os.path.splitext(path)[1].lower()
+        return ext in ('.png', '.bmp', '.jpg', '.jpeg', '.webp',
+                       '.tif', '.tiff', '.gif', '.tga', '.targa',
+                       '.pcx', '.dds', '.psd', '.psb',
+                       '.iff', '.lbm', '.ilbm')
+
+    def _import_dropped_file(self, path: str): #vers 1
+        """Dispatch a dropped file to whichever importer handles its
+        format best - the same specialised importers the Import menu
+        uses (TIFF page handling, animated GIF frames, IFF ILBM decoding,
+        DDS/PSD fallback libraries), each now accepting an optional path
+        so they skip their own file dialog when one is already known."""
+        ext = os.path.splitext(path)[1].lower()
+        dispatch = {
+            '.tif': self._import_tiff, '.tiff': self._import_tiff,
+            '.gif': self._import_gif,
+            '.tga': self._import_tga, '.targa': self._import_tga,
+            '.pcx': self._import_pcx,
+            '.dds': self._import_dds,
+            '.psd': self._import_psd, '.psb': self._import_psd,
+            '.iff': self._import_iff, '.lbm': self._import_iff, '.ilbm': self._import_iff,
+        }
+        importer = dispatch.get(ext, self._import_bitmap)
+        importer(path)
+        self._set_status(f"Loaded (drag & drop): {os.path.basename(path)}")
 
 
     #    Corner resize + dragging (COL Workshop pattern)                        
