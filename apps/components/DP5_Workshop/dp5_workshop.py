@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 16 (Build 335)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 17 (Build 336)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -5767,7 +5767,6 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         shape_key = filled_shape if filled else outline_shape
         if btn:
             btn.setIcon(_make_tool_icon(shape_key, icon_sz, active=is_active))
-            btn.setIconSize(QSize(icon_sz, icon_sz))
             mode_str = 'filled' if filled else 'outline'
             btn.setToolTip(f'{primary_tool_id.capitalize()}  [{mode_str}]  — right-click to toggle')
 
@@ -5862,7 +5861,6 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             else:
                 shape_key = _shape_map.get(tid, tid)
             btn.setIcon(_make_tool_icon(shape_key, icon_sz, active=is_active))
-            btn.setIconSize(QSize(icon_sz, icon_sz))
 
         # Sync brush thumbnail active border
         if hasattr(self, '_brush_thumb'):
