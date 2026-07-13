@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 39 (Build 358)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 40 (Build 359)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -516,6 +516,7 @@ from PyQt6.QtGui import (
 # _SpriteEditor._scan_sprite_folder
 # _SpriteEditor._set_sprite_size
 # _SpriteView.__init__
+# _SpriteView._qt_message_filter
 # _SpriteView.paintEvent
 # _SpriteView.set_sprite
 # _SpriteView.set_zoom
@@ -15372,6 +15373,25 @@ class _SpriteView(QWidget):
 #  Standalone entry point
 if __name__ == "__main__": #vers 1
     import traceback
+
+    # Filter known-benign Qt warnings from AppPanelEffect's monkey-patched
+    # paint pattern (a second, independent QPainter opened on a widget from
+    # inside its own wrapped paintEvent - can transiently fail Qt's paint-
+    # device validity check, especially under Wayland). Not a fix for that
+    # underlying fragile architecture, just silencing console spam for
+    # diagnostics that are non-fatal (Qt already skips the paint attempt
+    # when this happens).
+    def _qt_message_filter(mode, context, message): #vers 1
+        _benign = ("QWidget::paintEngine: Should no longer be called",
+                   "QPainter::begin: Paint device returned engine == 0")
+        if any(b in message for b in _benign):
+            return
+        print(message)
+    try:
+        from PyQt6.QtCore import qInstallMessageHandler
+        qInstallMessageHandler(_qt_message_filter)
+    except Exception:
+        pass
 
     print(f"{App_name} starting…")
     try:
