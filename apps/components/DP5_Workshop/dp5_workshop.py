@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 41 (Build 360)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 42 (Build 361)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -6011,8 +6011,14 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         toolbar.layout().setSpacing(max(0, int(padding)))
 
         alpha = max(0, min(255, round(opacity / 100 * 255)))
+        # Base colour comes from the active theme's own window/panel colour,
+        # not a fixed value - previously hardcoded to rgba(40,40,45,...)
+        # regardless of theme, which is why the ribbon stayed a fixed dark
+        # tint even after switching to a light or differently-coloured theme.
+        base_col = toolbar.palette().color(toolbar.palette().ColorRole.Window)
         toolbar.setStyleSheet(
-            f"QToolBar {{ background: rgba(40, 40, 45, {alpha}); "
+            f"QToolBar {{ background: rgba({base_col.red()}, {base_col.green()}, "
+            f"{base_col.blue()}, {alpha}); "
             f"spacing: {max(0, int(padding))}px; }} "
             f"QToolButton {{ padding: {max(0, int(btn_padding))}px; }}")
 
@@ -12685,6 +12691,14 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             for _dock_name in ('_bitmaps_dock', '_brush_colors_dock',
                                 '_img_palette_dock', '_user_palette_dock'):
                 _repolish(getattr(self, _dock_name, None))
+
+            # Re-apply ribbon style so its background picks up the new
+            # theme's window colour (was previously reading a stale/
+            # hardcoded value regardless of theme).
+            for _tb in (getattr(self, '_tools_ribbon', None),
+                        getattr(self, '_image_ops_ribbon', None)):
+                if _tb is not None:
+                    self._apply_ribbon_style(_tb)
 
             # gadgetbar_bg applied via QFrame#titlebar in global stylesheet — no manual refresh needed
             # Refresh icons so they contrast correctly with new theme
