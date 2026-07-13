@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 30 (Build 349)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 31 (Build 350)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -85,7 +85,9 @@ from PyQt6.QtGui import (
 # DP5Canvas._push_undo_canvas
 # DP5Canvas._scroll_by
 # DP5Canvas._stamp_selection
+# DP5Canvas._sync_marching_ants_timer
 # DP5Canvas._tex_to_widget
+# DP5Canvas._tick_marching_ants
 # DP5Canvas._widget_to_tex
 # DP5Canvas.cancel_sel_move
 # DP5Canvas.copy_selection
@@ -1153,6 +1155,12 @@ class DP5Settings:
         'icon_editor_alpha_b': 0,      # alpha colour B
         'icon_editor_amiga_pal':'AGA Workbench (WB3.9)',
         'icon_editor_folder':   '',   # last source icon folder
+        # Marching ants (animated selection outline)
+        'marching_ants_enabled': True,
+        'marching_ants_fg':      '#000000',  # foreground colour (hex)
+        'marching_ants_bg':      '#ffffff',  # background colour (hex)
+        'marching_ants_style':   'dashes',   # 'dashes' | 'dots'
+        'marching_ants_speed':   150,        # animation step interval, ms
     }
 
     def __init__(self): #vers 1
@@ -1272,6 +1280,55 @@ class DP5SettingsDialog(QDialog):
         self._grid_color_btn._chosen = self.s.get('grid_color')
         self._grid_color_btn.clicked.connect(_pick_grid_color)
         cl.addRow("Pixel grid colour:", self._grid_color_btn)
+
+        cl.addRow(QLabel("—  Marching Ants  —"))
+
+        self._ants_chk = QCheckBox()
+        self._ants_chk.setChecked(self.s.get('marching_ants_enabled'))
+        cl.addRow("Animate selection outline:", self._ants_chk)
+
+        self._ants_style_combo = QComboBox()
+        self._ants_style_combo.addItems(["dashes", "dots"])
+        self._ants_style_combo.setCurrentText(self.s.get('marching_ants_style'))
+        cl.addRow("Style:", self._ants_style_combo)
+
+        self._ants_fg_btn = QPushButton()
+        afg = QColor(self.s.get('marching_ants_fg'))
+        self._ants_fg_btn.setStyleSheet(f"background:{afg.name()};")
+        self._ants_fg_btn.setFixedHeight(22)
+        self._ants_fg_btn.setToolTip("Click to pick foreground colour")
+        def _pick_ants_fg():  #vers 1
+            c = QColorDialog.getColor(QColor(self.s.get('marching_ants_fg')), self,
+                                      "Marching Ants Foreground")
+            if c.isValid():
+                self._ants_fg_btn.setStyleSheet(f"background:{c.name()};")
+                self._ants_fg_btn._chosen = c.name()
+        self._ants_fg_btn._chosen = self.s.get('marching_ants_fg')
+        self._ants_fg_btn.clicked.connect(_pick_ants_fg)
+        cl.addRow("Foreground colour:", self._ants_fg_btn)
+
+        self._ants_bg_btn = QPushButton()
+        abg = QColor(self.s.get('marching_ants_bg'))
+        self._ants_bg_btn.setStyleSheet(f"background:{abg.name()};")
+        self._ants_bg_btn.setFixedHeight(22)
+        self._ants_bg_btn.setToolTip("Click to pick background colour")
+        def _pick_ants_bg():  #vers 1
+            c = QColorDialog.getColor(QColor(self.s.get('marching_ants_bg')), self,
+                                      "Marching Ants Background")
+            if c.isValid():
+                self._ants_bg_btn.setStyleSheet(f"background:{c.name()};")
+                self._ants_bg_btn._chosen = c.name()
+        self._ants_bg_btn._chosen = self.s.get('marching_ants_bg')
+        self._ants_bg_btn.clicked.connect(_pick_ants_bg)
+        cl.addRow("Background colour:", self._ants_bg_btn)
+
+        self._ants_speed_spin = QSpinBox()
+        self._ants_speed_spin.setRange(30, 1000)
+        self._ants_speed_spin.setSingleStep(10)
+        self._ants_speed_spin.setSuffix(" ms")
+        self._ants_speed_spin.setValue(self.s.get('marching_ants_speed'))
+        self._ants_speed_spin.setToolTip("Lower = faster animation")
+        cl.addRow("Animation speed:", self._ants_speed_spin)
 
         tabs.addTab(canvas_tab, "Canvas")
 
@@ -1433,6 +1490,11 @@ class DP5SettingsDialog(QDialog):
         self.s.set('platform_mode',      self._platform_combo.currentText())
         self.s.set('show_cell_grid',     self._cell_grid_chk.isChecked())
         self.s.set('grid_color',         self._grid_color_btn._chosen)
+        self.s.set('marching_ants_enabled', self._ants_chk.isChecked())
+        self.s.set('marching_ants_style',   self._ants_style_combo.currentText())
+        self.s.set('marching_ants_fg',      self._ants_fg_btn._chosen)
+        self.s.set('marching_ants_bg',      self._ants_bg_btn._chosen)
+        self.s.set('marching_ants_speed',   self._ants_speed_spin.value())
         self.s.set('show_bitmap_list', self._bitmap_chk.isChecked())
         self.s.set('show_statusbar',   self._statusbar_chk.isChecked())
         self.s.set('ui_font_size',     self._font_size_spin.value())
@@ -1491,6 +1553,19 @@ class DP5Canvas(QWidget):
         self.snap_grid      = False    # snap drawing coords to pixel grid
         self._editor    = None   # set by DP5Workshop after creation
 
+        # Marching ants - animated selection outline. Settings-driven
+        # (colours/style/speed/enabled) via _create_centre_panel and the
+        # settings-apply handler; _marching_ants_offset animates the dash
+        # pattern, only ticking while a selection is actually active.
+        self.marching_ants_enabled = True
+        self.marching_ants_fg = QColor('#000000')
+        self.marching_ants_bg = QColor('#ffffff')
+        self.marching_ants_style = 'dashes'   # 'dashes' | 'dots'
+        self.marching_ants_speed = 150         # ms per animation step
+        self._marching_ants_offset = 0.0
+        self._marching_ants_timer = QTimer(self)
+        self._marching_ants_timer.timeout.connect(self._tick_marching_ants)
+
         # Curve tool state
         self._curve_pts: List[QPoint] = []   # control points being placed
         # Polygon tool state
@@ -1516,6 +1591,24 @@ class DP5Canvas(QWidget):
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.setMinimumSize(200, 200)
+
+    def _tick_marching_ants(self): #vers 1
+        """Advance the marching-ants dash offset and repaint. Only ticks
+        while the timer is running - _sync_marching_ants_timer starts/
+        stops it based on whether a selection is actually active, so it
+        doesn't burn CPU with nothing selected."""
+        self._marching_ants_offset = (self._marching_ants_offset + 1.0) % 8.0
+        self.update()
+
+    def _sync_marching_ants_timer(self): #vers 1
+        """Start the animation timer while a selection is active and
+        marching ants are enabled in settings; stop it otherwise."""
+        should_run = (self.marching_ants_enabled and
+                      (self._sel_active or self._sel_floating))
+        if should_run and not self._marching_ants_timer.isActive():
+            self._marching_ants_timer.start(max(30, int(self.marching_ants_speed)))
+        elif not should_run and self._marching_ants_timer.isActive():
+            self._marching_ants_timer.stop()
 
     def sizeHint(self): #vers 2
         """Tell the scroll area exactly how big the zoomed canvas is."""
@@ -1983,7 +2076,8 @@ class DP5Canvas(QWidget):
                 buf[i+2] = max(0, min(255, buf[i+2] + adj))
 
 
-    def paintEvent(self, event):  #vers 1
+    def paintEvent(self, event):  #vers 2
+        self._sync_marching_ants_timer()
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
 
@@ -2140,15 +2234,33 @@ class DP5Canvas(QWidget):
 
         # Committed selection rect (marching ants)
         if self._sel_active and self._selection_rect:
-            pen = QPen(QColor(0, 180, 255), 1, Qt.PenStyle.DashLine)
-            painter.setPen(pen)
-            painter.setBrush(Qt.BrushStyle.NoBrush)
             r   = self._selection_rect
             sx  = int(r.x()      * zx)
             sy  = int(r.y()      * z)
             sw2 = int(r.width()  * zx)
             sh2 = int(r.height() * z)
-            painter.drawRect(QRect(sx, sy, sw2, sh2))
+            rect = QRect(sx, sy, sw2, sh2)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            if self.marching_ants_enabled:
+                dash = [1, 2] if self.marching_ants_style == 'dots' else [4, 4]
+                # Background pass, offset half a dash-cycle so it fills
+                # the gaps left by the foreground pass below - together
+                # this is what produces the alternating look.
+                pen_bg = QPen(self.marching_ants_bg, 1, Qt.PenStyle.CustomDashLine)
+                pen_bg.setDashPattern(dash)
+                pen_bg.setDashOffset(self._marching_ants_offset + sum(dash) / 2)
+                painter.setPen(pen_bg)
+                painter.drawRect(rect)
+                # Foreground pass - this offset is what animates each tick.
+                pen_fg = QPen(self.marching_ants_fg, 1, Qt.PenStyle.CustomDashLine)
+                pen_fg.setDashPattern(dash)
+                pen_fg.setDashOffset(self._marching_ants_offset)
+                painter.setPen(pen_fg)
+                painter.drawRect(rect)
+            else:
+                pen = QPen(QColor(0, 180, 255), 1, Qt.PenStyle.DashLine)
+                painter.setPen(pen)
+                painter.drawRect(rect)
 
         # Floating selection — render buffer at current drag position
         if self._sel_floating and self._sel_buffer and self._sel_float_pos:
@@ -5091,6 +5203,11 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             self.dp5_canvas.pixel_changed.connect(self._on_canvas_changed)
             self.dp5_canvas.show_grid  = self.dp5_settings.get('show_pixel_grid')
             self.dp5_canvas.grid_color = QColor(self.dp5_settings.get('grid_color'))
+            self.dp5_canvas.marching_ants_enabled = self.dp5_settings.get('marching_ants_enabled')
+            self.dp5_canvas.marching_ants_fg = QColor(self.dp5_settings.get('marching_ants_fg'))
+            self.dp5_canvas.marching_ants_bg = QColor(self.dp5_settings.get('marching_ants_bg'))
+            self.dp5_canvas.marching_ants_style = self.dp5_settings.get('marching_ants_style')
+            self.dp5_canvas.marching_ants_speed = self.dp5_settings.get('marching_ants_speed')
             scroll = QScrollArea()
             scroll.setWidget(self.dp5_canvas)
             scroll.setWidgetResizable(False)
@@ -9835,6 +9952,12 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 self.dp5_canvas.show_grid = self.dp5_settings.get('show_pixel_grid')
                 self.dp5_canvas.grid_color = QColor(self.dp5_settings.get('grid_color'))
                 self.dp5_canvas.show_cell_grid = self.dp5_settings.get('show_cell_grid')
+                self.dp5_canvas.marching_ants_enabled = self.dp5_settings.get('marching_ants_enabled')
+                self.dp5_canvas.marching_ants_fg = QColor(self.dp5_settings.get('marching_ants_fg'))
+                self.dp5_canvas.marching_ants_bg = QColor(self.dp5_settings.get('marching_ants_bg'))
+                self.dp5_canvas.marching_ants_style = self.dp5_settings.get('marching_ants_style')
+                self.dp5_canvas.marching_ants_speed = self.dp5_settings.get('marching_ants_speed')
+                self.dp5_canvas._sync_marching_ants_timer()
                 self.dp5_canvas.update()
                 if self.dp5_settings.get('zoom_to_fit_resize'):
                     self._fit_canvas_to_viewport()
