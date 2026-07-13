@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 20 (Build 339)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 21 (Build 340)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -65,6 +65,7 @@ from PyQt6.QtGui import (
 # BrushThumbnail.set_active
 # BrushThumbnail.set_buffer
 # ColorPalPresetsMixin._apply_retro_palette
+# ColorPalPresetsMixin._apply_retro_palette_and_resize
 # ColorPalPresetsMixin._apply_user_palette_dither
 # ColorPalPresetsMixin._build_retro_palettes
 # ColorPalPresetsMixin._cycle_pal_dither
@@ -4111,71 +4112,116 @@ class ColorPalPresetsMixin:
             # No dither — hard snap
             return self._snap_image_to_user_palette(img)
 
-    def _show_retro_menu(self): #vers 1
-        """Show user palette picker as hierarchical platform submenus."""
+    def _show_retro_menu(self): #vers 2
+        """Show user palette picker as hierarchical platform submenus.
+        Each entry now also carries its platform resolution code (where
+        one exists in _PLATFORM_RES) so picking a machine here resizes
+        the canvas to match, same as the Platform mode dropdown does -
+        previously this only changed the palette colours, leaving canvas
+        size untouched."""
         menu = QMenu(self)
 
         GROUPS = [
             ("Amiga", [
-                "Amiga OCS", "Amiga ECS", "Amiga AGA", "Amiga AGA WB",
+                ("Amiga OCS", 'amiga'), ("Amiga ECS", 'amiga_ecs'),
+                ("Amiga AGA", 'amiga_aga'), ("Amiga AGA WB", 'amiga_rtg_800'),
             ]),
             ("Commodore", [
-                "C64", "VIC-20", "Plus/4",
+                ("C64", 'c64'), ("VIC-20", 'vic20'), ("Plus/4", 'plus4'),
             ]),
             ("Sinclair / ZX", [
-                "ZX Spectrum", "ZX Spectrum 128K",
-                "ZX80", "ZX81", "ULA Plus",
-                "ZX Spectrum Next",
-                "Timex TS2068", "Timex HiRes",
-                "Pentagon", "Jupiter Ace",
-                "Sinclair QL",
+                ("ZX Spectrum", 'spectrum'), ("ZX Spectrum 128K", 'spectrum128'),
+                ("ZX80", 'zx80'), ("ZX81", 'zx81'), ("ULA Plus", None),
+                ("ZX Spectrum Next", 'specnext'),
+                ("Timex TS2068", 'timex'), ("Timex HiRes", 'timex_hi'),
+                ("Pentagon", 'pentagon'), ("Jupiter Ace", 'jupiter'),
+                ("Sinclair QL", None),
             ]),
             ("Atari", [
-                "Atari 2600 NTSC", "Atari 2600 PAL",
-                "Atari 800 GTIA", "Atari 5200", "Atari 7800",
-                "Atari ST", "Atari STe", "Atari Falcon",
-                "Atari Lynx", "Atari Jaguar",
+                ("Atari 2600 NTSC", 'atari_2600'), ("Atari 2600 PAL", 'atari_2600'),
+                ("Atari 800 GTIA", 'atari_800'), ("Atari 5200", 'atari_5200'),
+                ("Atari 7800", 'atari_7800'),
+                ("Atari ST", 'atari_st'), ("Atari STe", 'atari_ste'),
+                ("Atari Falcon", 'atari_falcon'),
+                ("Atari Lynx", 'atari_lynx'), ("Atari Jaguar", 'atari_jaguar'),
             ]),
             ("Amstrad", [
-                "Amstrad CPC", "Amstrad CPC+",
-                "Amstrad PCW", "Amstrad NC100/200",
+                ("Amstrad CPC", 'cpc1'), ("Amstrad CPC+", 'cpc_plus'),
+                ("Amstrad PCW", 'pcw'), ("Amstrad NC100/200", 'nc'),
             ]),
             ("Acorn", [
-                "BBC Micro", "Acorn Electron", "Acorn Archimedes",
+                ("BBC Micro", None), ("Acorn Electron", None), ("Acorn Archimedes", None),
             ]),
             ("Tandy / Dragon", [
-                "CoCo 1/2", "CoCo 3", "Dragon 32/64",
+                ("CoCo 1/2", None), ("CoCo 3", None), ("Dragon 32/64", None),
             ]),
             ("MSX", [
-                "MSX1", "MSX2",
+                ("MSX1", 'msx'), ("MSX2", 'msx2'),
             ]),
             ("Nintendo", [
-                "NES", "SNES",
-                "Game Boy", "Game Boy Pocket", "Game Boy Color", "Game Boy Advance",
+                ("NES", 'nes'), ("SNES", 'snes'),
+                ("Game Boy", 'game_boy'), ("Game Boy Pocket", 'game_boy_pocket'),
+                ("Game Boy Color", 'game_boy_color'), ("Game Boy Advance", 'game_boy_advance'),
             ]),
             ("Sega", [
-                "Sega SG-1000", "Sega Master System",
-                "Sega Mega Drive", "Sega Game Gear",
+                ("Sega SG-1000", 'sg1000'), ("Sega Master System", 'master_sys'),
+                ("Sega Mega Drive", 'mega_drive'), ("Sega Game Gear", 'game_gear'),
             ]),
             ("NEC / Hudson", [
-                "PC Engine",
+                ("PC Engine", 'pc_engine'),
             ]),
             ("Other", [
-                "SAM Coupé", "Apple II Lo-Res", "Apple II Hi-Res",
-                "RM Nimbus",
+                ("SAM Coupé", None), ("Apple II Lo-Res", None), ("Apple II Hi-Res", None),
+                ("RM Nimbus", 'nimbus'),
             ]),
         ]
 
-        for group_name, palette_names in GROUPS:
+        for group_name, entries in GROUPS:
             sub = menu.addMenu(group_name)
-            for name in palette_names:
+            for name, plat_mode in entries:
                 if name in self.retro_palettes:
                     act = sub.addAction(name)
-                    act.triggered.connect(lambda _, n=name: self._apply_retro_palette(n))
+                    act.triggered.connect(
+                        lambda _, n=name, m=plat_mode: self._apply_retro_palette_and_resize(n, m))
 
         if hasattr(self, '_retro_btn'):
             menu.exec(self._retro_btn.mapToGlobal(
                 self._retro_btn.rect().bottomLeft()))
+
+    def _apply_retro_palette_and_resize(self, name: str, plat_mode: str = None): #vers 1
+        """Apply a retro palette and, if it has a known platform
+        resolution, resize the canvas to match - so picking 'C64' here
+        gives you the C64 palette AND 320x200, not just the palette.
+        Also locks canvas mode to 'platform' (same as the Platform mode
+        dropdown does), so images loaded afterwards are automatically
+        converted to this resolution + palette instead of needing a
+        separate mode-switch step first."""
+        self._apply_retro_palette(name)
+        if plat_mode and plat_mode in self._PLATFORM_RES and self.dp5_canvas:
+            pw, ph = self._PLATFORM_RES[plat_mode]
+            if (pw, ph) != (self._canvas_width, self._canvas_height):
+                from PIL import Image
+                img = Image.frombytes('RGBA',
+                    (self._canvas_width, self._canvas_height),
+                    bytes(self.dp5_canvas.rgba))
+                img = img.resize((pw, ph), Image.LANCZOS)
+                self._canvas_width  = pw
+                self._canvas_height = ph
+                self.dp5_canvas.tex_w = pw
+                self.dp5_canvas.tex_h = ph
+                self.dp5_canvas.rgba  = bytearray(img.tobytes())
+                self.dp5_canvas.update()
+                self._fit_canvas_to_viewport()
+            self._platform_mode = plat_mode
+            self._canvas_mode   = 'platform'
+            self._mode_locked   = True
+            self.dp5_settings.set('canvas_mode', 'platform')
+            self.dp5_settings.set('platform_mode', plat_mode)
+            if hasattr(self, '_update_mode_buttons'):
+                self._update_mode_buttons()
+            self._set_status(f"Palette + resolution: {name}  {pw}×{ph}  (locked)")
+        else:
+            self._set_status(f"Palette: {name}")
 
 
 
@@ -8573,17 +8619,17 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             if locked and mode == 'platform':
                 # 1. Resize to platform resolution
                 plat = getattr(self, '_platform_mode', 'none')
-                plat_res = {
-                    'c64':(320,200),'c64m':(160,200),'spectrum':(256,192),'zx80':(256,192),'zx81':(256,192),
-                    'specnext':(320,256),'msx':(256,192),'cpc':(160,200),
-                    'cpc1':(320,200),'atari_st':(320,200),'amiga':(320,256),
-                    'amiga_aga':(320,256),'plus4':(320,200),'vic20':(176,184),
-                }
-                if plat in plat_res:
-                    w, h = plat_res[plat]
+                if plat in self._PLATFORM_RES:
+                    w, h = self._PLATFORM_RES[plat]
                     img = img.resize((w, h), Image.LANCZOS)
-                # 2. Snap every pixel to nearest platform palette colour
-                img = self._snap_image_to_platform_palette(img)
+                # 2. Snap every pixel - prefer the current User Palette
+                #    (whatever's loaded in that panel), fall back to the
+                #    platform's own built-in palette if none is loaded.
+                user_pal = self._get_user_palette_rgb()
+                if user_pal:
+                    img = self._snap_image_to_user_palette(img)
+                else:
+                    img = self._snap_image_to_platform_palette(img)
                 self._canvas_bit_depth = 3
 
             elif locked and mode == 'texture':
