@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 32 (Build 351)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 33 (Build 352)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -4443,9 +4443,23 @@ class ColorPalPresetsMixin:
                     self._bit_depth_combo.setCurrentIndex(self._canvas_bit_depth)
             if (pw, ph) != (self._canvas_width, self._canvas_height):
                 from PIL import Image
-                img = Image.frombytes('RGBA',
-                    (self._canvas_width, self._canvas_height),
-                    bytes(self.dp5_canvas.rgba))
+                # Use the canvas's own tracked size (tex_w/tex_h), not the
+                # workshop-level _canvas_width/_canvas_height - those two
+                # can drift out of sync (this crashed here when they did),
+                # whereas tex_w/tex_h should always match the canvas's own
+                # rgba buffer by construction.
+                src_w, src_h = self.dp5_canvas.tex_w, self.dp5_canvas.tex_h
+                src_bytes = bytes(self.dp5_canvas.rgba)
+                expected = src_w * src_h * 4
+                if len(src_bytes) != expected:
+                    # Still mismatched - fall back to what the buffer
+                    # actually contains rather than crashing.
+                    self._set_status(
+                        f"Canvas size mismatch detected ({src_w}×{src_h} "
+                        f"expected {expected}B, got {len(src_bytes)}B) - "
+                        f"resize skipped, please report this")
+                    return
+                img = Image.frombytes('RGBA', (src_w, src_h), src_bytes)
                 img = img.resize((pw, ph), Image.LANCZOS)
                 self._canvas_width  = pw
                 self._canvas_height = ph
@@ -6775,9 +6789,16 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             pw, ph = _plat_res[mode]
             if (pw, ph) != (self._canvas_width, self._canvas_height):
                 from PIL import Image
-                img = Image.frombytes('RGBA',
-                    (self._canvas_width, self._canvas_height),
-                    bytes(self.dp5_canvas.rgba))
+                src_w, src_h = self.dp5_canvas.tex_w, self.dp5_canvas.tex_h
+                src_bytes = bytes(self.dp5_canvas.rgba)
+                expected = src_w * src_h * 4
+                if len(src_bytes) != expected:
+                    self._set_status(
+                        f"Canvas size mismatch detected ({src_w}×{src_h} "
+                        f"expected {expected}B, got {len(src_bytes)}B) - "
+                        f"resize skipped, please report this")
+                    return
+                img = Image.frombytes('RGBA', (src_w, src_h), src_bytes)
                 img = img.resize((pw, ph), Image.LANCZOS)
                 self._canvas_width  = pw
                 self._canvas_height = ph
@@ -12843,9 +12864,17 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         pw, ph = target
         self.dp5_canvas.pixel_aspect_x = self._PLATFORM_PIXEL_ASPECT.get(plat, 1.0)
         from PIL import Image
-        img = Image.frombytes('RGBA', (self._canvas_width, self._canvas_height),
-                              bytes(self.dp5_canvas.rgba))
-        if (pw, ph) != (self._canvas_width, self._canvas_height):
+        src_w, src_h = self.dp5_canvas.tex_w, self.dp5_canvas.tex_h
+        src_bytes = bytes(self.dp5_canvas.rgba)
+        expected = src_w * src_h * 4
+        if len(src_bytes) != expected:
+            self._set_status(
+                f"Canvas size mismatch detected ({src_w}×{src_h} "
+                f"expected {expected}B, got {len(src_bytes)}B) - "
+                f"conversion skipped, please report this")
+            return
+        img = Image.frombytes('RGBA', (src_w, src_h), src_bytes)
+        if (pw, ph) != (src_w, src_h):
             img = img.resize((pw, ph), Image.LANCZOS)
 
         palette = self._get_user_palette_rgb() if use_user_palette else None
