@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 16
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 17
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -1497,27 +1497,48 @@ class SVGIconFactory: #vers 8
         </svg>''', size, color)
 
     @staticmethod
-    def dp_rect_icon(size: int = 20, color: str = None) -> QIcon: #vers 3
+    def dp_rect_icon(size: int = 20, color: str = None) -> QIcon: #vers 4
+        """Rectangle outline - blue stroke with a subtle tinted fill,
+        instead of a plain currentColor stroke, so outline vs filled
+        mode reads clearly via colour, not just via fill-or-not."""
         return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <rect x="2.5" y="2.5" width="19" height="19" fill="none" stroke="currentColor" stroke-width="3"/>
+            <rect x="2.5" y="2.5" width="19" height="19" fill="#5090e8" fill-opacity="0.15" stroke="#5090e8" stroke-width="3"/>
         </svg>''', size, color)
 
     @staticmethod
-    def dp_filled_rect_icon(size: int = 20, color: str = None) -> QIcon: #vers 3
+    def dp_filled_rect_icon(size: int = 20, color: str = None) -> QIcon: #vers 4
+        """Filled rectangle - gradient fill for a glossy/dimensional chip
+        look, instead of one flat currentColor fill."""
         return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <rect x="2" y="2" width="20" height="20" fill="currentColor"/>
+            <defs>
+                <linearGradient id="dpRectFillGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#7ab0f0"/>
+                    <stop offset="1" stop-color="#3060b0"/>
+                </linearGradient>
+            </defs>
+            <rect x="2" y="2" width="20" height="20" fill="url(#dpRectFillGrad)"/>
         </svg>''', size, color)
 
     @staticmethod
-    def dp_circle_icon(size: int = 20, color: str = None) -> QIcon: #vers 3
+    def dp_circle_icon(size: int = 20, color: str = None) -> QIcon: #vers 4
+        """Ellipse outline - blue stroke with a subtle tinted fill,
+        matching the rectangle outline treatment."""
         return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="3"/>
+            <circle cx="12" cy="12" r="9.5" fill="#5090e8" fill-opacity="0.15" stroke="#5090e8" stroke-width="3"/>
         </svg>''', size, color)
 
     @staticmethod
-    def dp_filled_circle_icon(size: int = 20, color: str = None) -> QIcon: #vers 3
+    def dp_filled_circle_icon(size: int = 20, color: str = None) -> QIcon: #vers 4
+        """Filled ellipse - radial gradient for a glossy sphere look,
+        instead of one flat currentColor fill."""
         return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="12" cy="12" r="10" fill="currentColor"/>
+            <defs>
+                <radialGradient id="dpCircleFillGrad" cx="0.35" cy="0.3" r="0.75">
+                    <stop offset="0" stop-color="#9ac4f4"/>
+                    <stop offset="1" stop-color="#3060b0"/>
+                </radialGradient>
+            </defs>
+            <circle cx="12" cy="12" r="10" fill="url(#dpCircleFillGrad)"/>
         </svg>''', size, color)
 
     @staticmethod
@@ -1607,21 +1628,35 @@ class SVGIconFactory: #vers 8
         </svg>''', size, color)
 
     @staticmethod
-    def dp_stamp_icon(size: int = 20, color: str = None) -> QIcon: #vers 3
-        """Rubber stamp — handle, pad, ink line"""
+    def dp_stamp_icon(size: int = 20, color: str = None) -> QIcon: #vers 4
+        """Rubber stamp - dark handle, grey body, red ink line, instead
+        of a single flat currentColor fill throughout."""
         return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <rect x="8" y="2" width="8" height="7" rx="2" fill="currentColor"/>
-            <rect x="10" y="9" width="4" height="4" fill="currentColor"/>
-            <rect x="2" y="13" width="20" height="6" rx="2" fill="currentColor"/>
-            <rect x="2" y="21" width="20" height="2" rx="1" fill="currentColor"/>
+            <defs>
+                <linearGradient id="dpStampHandle" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#5a5a5a"/>
+                    <stop offset="1" stop-color="#2a2a2a"/>
+                </linearGradient>
+                <linearGradient id="dpStampBody" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#d8dbe2"/>
+                    <stop offset="1" stop-color="#9a9ea6"/>
+                </linearGradient>
+            </defs>
+            <rect x="8" y="2" width="8" height="7" rx="2" fill="url(#dpStampHandle)"/>
+            <rect x="10" y="9" width="4" height="4" fill="#7d828a"/>
+            <rect x="2" y="13" width="20" height="6" rx="2" fill="url(#dpStampBody)" stroke="#6f7278" stroke-width="0.3"/>
+            <rect x="2" y="21" width="20" height="2" rx="1" fill="#d05050"/>
         </svg>''', size, color)
 
     @staticmethod
-    def dp_crop_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
-        """Crop — two L-shaped corner brackets"""
+    def dp_crop_icon(size: int = 20, color: str = None) -> QIcon: #vers 2
+        """Crop - two L-shaped corner brackets in a fixed accent colour
+        with a subtle tinted guide frame between them, instead of a
+        single flat currentColor fill."""
         return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path d="M2 6h4v2H4v10h10v-2h2v4H2z" fill="currentColor"/>
-            <path d="M22 18h-4v-2h2V6H10v2H8V2h14z" fill="currentColor"/>
+            <rect x="6" y="6" width="12" height="12" fill="#e8c840" fill-opacity="0.12" stroke="#e8c840" stroke-width="0.75" stroke-dasharray="2 1.5"/>
+            <path d="M2 6h4v2H4v10h10v-2h2v4H2z" fill="#e8c840"/>
+            <path d="M22 18h-4v-2h2V6H10v2H8V2h14z" fill="#e8c840"/>
         </svg>''', size, color)
 
     @staticmethod
