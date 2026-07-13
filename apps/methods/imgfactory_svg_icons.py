@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 18
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 19
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -3324,8 +3324,10 @@ class SVGIconFactory: #vers 8
 
     @staticmethod
     def snow_icon(size: int = 20, color: str = None) -> 'QIcon':
-        """Snowflake — Snow effect."""
-        c = color or '#cccccc'
+        """Snowflake - Snow effect. Fixed ice-blue colour instead of
+        defaulting to the theme's monochrome icon colour, since a
+        snowflake reads naturally as icy blue/white regardless of theme."""
+        c = '#bce4f5'
         return SVGIconFactory._create_icon(
             f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">'
             f'<line x1="10" y1="1" x2="10" y2="19" stroke="{c}" stroke-width="1.5" stroke-linecap="round"/>'
@@ -3548,15 +3550,18 @@ class SVGIconFactory: #vers 8
 
     @staticmethod
     def dp_seamless_op_icon(size: int = 42, color: str = None, bg_color: str = None) -> 'QIcon':
-        """Seamless image op — 4-tile grid with wave."""
-        c = color or '#f0f0f4'
+        """Seamless image op - 4-tile grid with wave, blue tile borders
+        and a green wave for visual identity instead of a single
+        neutral theme tint."""
+        tile_c = '#5090e8'
+        wave_c = '#50c880'
         return SVGIconFactory._create_icon(
             f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">'
-            f'<rect x="1" y="1" width="8" height="8" fill="none" stroke="{c}" stroke-width="1" rx="1"/>'
-            f'<rect x="11" y="1" width="8" height="8" fill="none" stroke="{c}" stroke-width="1" rx="1"/>'
-            f'<rect x="1" y="11" width="8" height="8" fill="none" stroke="{c}" stroke-width="1" rx="1"/>'
-            f'<rect x="11" y="11" width="8" height="8" fill="none" stroke="{c}" stroke-width="1" rx="1"/>'
-            f'<path d="M2 10 Q6 6 10 10 Q14 14 18 10" fill="none" stroke="{c}" stroke-width="1.5" stroke-linecap="round"/>'
+            f'<rect x="1" y="1" width="8" height="8" fill="none" stroke="{tile_c}" stroke-width="1" rx="1"/>'
+            f'<rect x="11" y="1" width="8" height="8" fill="none" stroke="{tile_c}" stroke-width="1" rx="1"/>'
+            f'<rect x="1" y="11" width="8" height="8" fill="none" stroke="{tile_c}" stroke-width="1" rx="1"/>'
+            f'<rect x="11" y="11" width="8" height="8" fill="none" stroke="{tile_c}" stroke-width="1" rx="1"/>'
+            f'<path d="M2 10 Q6 6 10 10 Q14 14 18 10" fill="none" stroke="{wave_c}" stroke-width="1.5" stroke-linecap="round"/>'
             f'</svg>', size, color, bg_color)
 
     @staticmethod
@@ -3572,6 +3577,42 @@ class SVGIconFactory: #vers 8
             f'<line x1="2" y1="15" x2="18" y2="15" stroke="#6688ff" stroke-width="1.5" stroke-linecap="round"/>'
             f'<circle cx="14" cy="15" r="2.2" fill="#6688ff"/>'
             f'</svg>', size, color, bg_color)
+
+    @staticmethod
+    def dp_zoom_lens_icon(size: int = 42, color: str = None, bg_color: str = None) -> 'QIcon':
+        """DP5 Zoom Lens - glass-tinted lens with a gold rim, DP5-specific
+        so it can be coloured without affecting the 50 other places the
+        shared zoom_in_icon is used across the suite."""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <radialGradient id="dpZoomLensGrad" cx="0.35" cy="0.35" r="0.75">
+                    <stop offset="0" stop-color="#dceefc" stop-opacity="0.55"/>
+                    <stop offset="1" stop-color="#9fd4ee" stop-opacity="0.25"/>
+                </radialGradient>
+            </defs>
+            <circle cx="10" cy="10" r="6.3" fill="url(#dpZoomLensGrad)"/>
+            <path fill-rule="evenodd" clip-rule="evenodd"
+                d="M10 3a7 7 0 1 0 4.39 12.476l4.567 4.567 1.414-1.414-4.567-4.567A7 7 0 0 0 10 3zm-5 7a5 5 0 1 1 10 0 5 5 0 0 1-10 0z"
+                fill="#d0a030"/>
+        </svg>''', size, color, bg_color)
+
+    @staticmethod
+    def dp_icon_editor_icon(size: int = 42, color: str = None, bg_color: str = None) -> 'QIcon':
+        """DP5 Icon Editor - folder with a pencil badge, DP5-specific so
+        it can be coloured without affecting the 110 other places the
+        shared folder_icon is used across the suite."""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <linearGradient id="dpIconEditFolder" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#f0c860"/>
+                    <stop offset="1" stop-color="#d0a030"/>
+                </linearGradient>
+            </defs>
+            <path d="M2 5.5A1.5 1.5 0 0 1 3.5 4H9l2 2h9.5A1.5 1.5 0 0 1 22 7.5v11A1.5 1.5 0 0 1 20.5 20h-17A1.5 1.5 0 0 1 2 18.5z"
+                fill="url(#dpIconEditFolder)" stroke="#a87a1f" stroke-width="0.4"/>
+            <path d="M17.5 10.3 20 12.8 14.2 18.6 11 19.4l0.8-3.2z" fill="#e8c878" stroke="#8a6b2e" stroke-width="0.4"/>
+            <path d="M20 12.8 21.3 11.5a1 1 0 0 0 0-1.4l-1-1a1 1 0 0 0-1.4 0L17.5 10.3z" fill="#e88fa8"/>
+        </svg>''', size, color, bg_color)
 
 
 def get_extract_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
@@ -4777,17 +4818,38 @@ def get_ide_editor_icon(size: int = 24, color: str = None, bg_color: str = None)
 #  DP5 Workshop icons — paint editor suite
 #                                                                              
 
-def get_dp5_workshop_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 4
-    """DP5 Workshop — colourful paint palette icon, visible on any background."""
+def get_dp5_workshop_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 5
+    """DP5 Workshop - classic artist's palette (clean oval with a
+    thumb-hole) plus three primary-colour paint dabs and a single
+    paintbrush crossing diagonally. Simplified from the previous design,
+    which used a complex bezier palette outline plus a separately
+    angled brush handle that read as cluttered at small icon sizes -
+    this uses fewer, cleaner shapes for a more recognisable silhouette."""
     svg = '''<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-        <path d="M24 4C13 4 4 13 4 24c0 5 1.8 9.5 4.8 13 1 1.2 2.8 1.2 4 .2 2.2-1.8 5.4-2 7.8-.4 1.2.8 2.6 1.2 4.2 1.2 1.6 0 3.2-.5 4.4-1.4 3-2.2 4.8-6 4.8-10C44 12.9 34.9 4 24 4z" fill="#1a1a2e" stroke="#000" stroke-width="1"/>
-        <circle cx="16" cy="18" r="4.5" fill="#FF4444" stroke="#fff" stroke-width="1.2"/>
-        <circle cx="24" cy="13" r="4.5" fill="#44BB44" stroke="#fff" stroke-width="1.2"/>
-        <circle cx="32" cy="18" r="4.5" fill="#4444FF" stroke="#fff" stroke-width="1.2"/>
-        <circle cx="32" cy="27" r="4.5" fill="#FFCC00" stroke="#fff" stroke-width="1.2"/>
-        <line x1="36" y1="6" x2="44" y2="14" stroke="#eeeeee" stroke-width="5" stroke-linecap="round"/>
-        <line x1="30" y1="12" x2="36" y2="6" stroke="#cccccc" stroke-width="4" stroke-linecap="round"/>
-        <ellipse cx="31.5" cy="13.5" rx="3" ry="2" fill="#8B4513" stroke="#5C2D0A" stroke-width="1" transform="rotate(-45 31.5 13.5)"/>
+        <defs>
+            <linearGradient id="dp5PaletteWood" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="#d8a860"/>
+                <stop offset="1" stop-color="#a8763a"/>
+            </linearGradient>
+        </defs>
+        <!-- Palette body: clean oval with a thumb-hole cutout -->
+        <path fill-rule="evenodd" clip-rule="evenodd"
+            d="M24 5C12.4 5 3 13.5 3 24s9.4 19 21 19c3.3 0 6-2.4 6-5.4
+               0-1.4-.6-2.6-1.5-3.6-.6-.7-.9-1.5-.9-2.4 0-2 1.7-3.6 3.8-3.6H33
+               c6.6 0 12-4.8 12-10.7C45 10.9 35.6 5 24 5z
+               M9 26a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"
+            fill="url(#dp5PaletteWood)" stroke="#7a5228" stroke-width="1"/>
+        <!-- Paint dabs -->
+        <circle cx="15" cy="15" r="4.2" fill="#e05050" stroke="#fff" stroke-width="1"/>
+        <circle cx="26" cy="12" r="4.2" fill="#4a90d8" stroke="#fff" stroke-width="1"/>
+        <circle cx="35" cy="17" r="4.2" fill="#f0c840" stroke="#fff" stroke-width="1"/>
+        <!-- Paintbrush crossing diagonally -->
+        <rect x="26" y="27" width="4.2" height="16" rx="1.5"
+            transform="rotate(35 28.1 35)" fill="#e8c878" stroke="#8a6b2e" stroke-width="0.8"/>
+        <rect x="24.5" y="24.5" width="7.2" height="5" rx="1"
+            transform="rotate(35 28.1 27)" fill="#b9bec6" stroke="#7d828a" stroke-width="0.6"/>
+        <ellipse cx="30.5" cy="21.5" rx="3.6" ry="2.4"
+            transform="rotate(35 30.5 21.5)" fill="#3868b8" stroke="#284888" stroke-width="0.8"/>
     </svg>'''
     px = QPixmap(size, size)
     px.fill(Qt.GlobalColor.transparent)

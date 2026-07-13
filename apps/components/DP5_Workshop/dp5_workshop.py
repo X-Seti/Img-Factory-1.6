@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 38 (Build 357)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 39 (Build 358)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -6044,9 +6044,9 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         _op_act('dp_colour_correct_icon', 'Colour Adjustments…', self._open_dp5_colour_adjust)
         _op_act('dp_seamless_op_icon',    'Seamless Tool…',       self._open_dp5_seamless)
         _op_act('snow_icon',              'Snow Effect…',         self._open_dp5_snow)
-        _op_act('zoom_in_icon',           'Zoom Lens…',           self._open_zoom_lens)
+        _op_act('dp_zoom_lens_icon',       'Zoom Lens…',           self._open_zoom_lens)
         _op_act('svg_edit_icon',          'SVG Icon Browser…',    self._open_icon_browser)
-        _op_act('folder_icon',            'Icon Editor…',         self._open_icon_editor)
+        _op_act('dp_icon_editor_icon',     'Icon Editor…',         self._open_icon_editor)
 
         self._image_ops_ribbon = tb
         self._apply_ribbon_style(tb)
