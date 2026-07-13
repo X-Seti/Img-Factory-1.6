@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 23 (Build 342)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 24 (Build 343)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -4129,6 +4129,8 @@ class ColorPalPresetsMixin:
                 ("Amiga OCS NTSC LowRes (320×200, 32col)", "Amiga OCS", 'amiga_ntsc'),
                 ("Amiga OCS PAL HiRes (640×256, 32col)", "Amiga OCS", 'amiga_hi'),
                 ("Amiga OCS LoRes interlace (320×512)", "Amiga OCS", 'amiga_lace'),
+                ("Amiga OCS PAL Overscan (720×576, 32col)", "Amiga OCS", 'amiga_overscan_pal'),
+                ("Amiga OCS NTSC Overscan (720×480, 32col)", "Amiga OCS", 'amiga_overscan_ntsc'),
                 ("Amiga OCS HAM6 (320×256, 4096col)", "Amiga OCS", 'amiga_ham'),
                 ("Amiga ECS (320×256, 64col)", "Amiga ECS", 'amiga_ecs'),
                 ("Amiga ECS HiRes (640×256, 64col)", "Amiga ECS", 'amiga_ecs_hi'),
@@ -4170,8 +4172,12 @@ class ColorPalPresetsMixin:
                 ("Atari 5200 GR.7 (160×192, 4col)", "Atari 5200", 'atari_5200_lo'),
                 ("Atari 7800 Hi-Res (160×240, 2col)", "Atari 7800", 'atari_7800'),
                 ("Atari 7800 GR.7 (160×192, 4col)", "Atari 7800", 'atari_7800_lo'),
-                ("Atari ST", "Atari ST", 'atari_st'),
-                ("Atari STe", "Atari STe", 'atari_ste'),
+                ("Atari ST Low res (320×200, 16col)", "Atari ST", 'atari_st'),
+                ("Atari ST Medium res (640×200, 4col)", "Atari ST", 'atari_st_med'),
+                ("Atari ST High res (640×400, mono)", "Atari ST", 'atari_st_hi'),
+                ("Atari STe Low res (320×200, 16col 12bit)", "Atari STe", 'atari_ste'),
+                ("Atari STe Medium res (640×200, 4col 12bit)", "Atari STe", 'atari_ste_med'),
+                ("Atari STe High res (640×400, mono)", "Atari STe", 'atari_ste_hi'),
                 ("Atari Falcon", "Atari Falcon", 'atari_falcon'),
                 ("Atari Lynx", "Atari Lynx", 'atari_lynx'),
                 ("Atari Jaguar", "Atari Jaguar", 'atari_jaguar'),
@@ -5331,6 +5337,8 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             ("OCS NTSC LowRes 320×200  32col",  'amiga_ntsc'),
             ("OCS PAL HiRes   640×256  32col",  'amiga_hi'),
             ("OCS PAL LoRes interlace 320×512", 'amiga_lace'),
+            ("OCS PAL Overscan  720×576  32col",  'amiga_overscan_pal'),
+            ("OCS NTSC Overscan 720×480  32col",  'amiga_overscan_ntsc'),
             ("ECS PAL          320×256  64col", 'amiga_ecs'),
             ("ECS PAL HiRes    640×256  64col", 'amiga_ecs_hi'),
             ("AGA PAL          320×256  256col",'amiga_aga'),
@@ -5374,8 +5382,12 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             ("5200 GR.7         160×192  4col",  'atari_5200_lo'),
             ("7800 Hi-Res       160×240  2col",  'atari_7800'),
             ("7800 GR.7         160×192  4col",  'atari_7800_lo'),
-            ("ST           320×200  16col",      'atari_st'),
-            ("STe          320×200  16col 12bit",'atari_ste'),
+            ("ST Low res    320×200  16col",      'atari_st'),
+            ("ST Medium res 640×200  4col",       'atari_st_med'),
+            ("ST High res   640×400  mono",       'atari_st_hi'),
+            ("STe Low res    320×200  16col 12bit",'atari_ste'),
+            ("STe Medium res 640×200  4col 12bit", 'atari_ste_med'),
+            ("STe High res   640×400  mono",       'atari_ste_hi'),
             ("Lynx         160×102  16col",      'atari_lynx'),
             ("Falcon       320×200  16bit",      'atari_falcon'),
             ("Jaguar       320×240  24bit",      'atari_jaguar'),
@@ -6241,6 +6253,8 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         'amiga_rtg_1024': (1,1,  256),   # RTG 1024×768
         'amiga_rtg_pal':  (1,1,  256),   # RTG 720×576 PAL
         'amiga_rtg_ntsc': (1,1,  256),   # RTG 720×480 NTSC
+        'amiga_overscan_pal':  (8,1,  32),   # native chipset overscan 720×576 PAL
+        'amiga_overscan_ntsc': (8,1,  32),   # native chipset overscan 720×480 NTSC
         'c64':         (8,  8,   2),
         'c64m':        (4,  8,   4),
         'spectrum':    (8,  8,   2),
@@ -6262,7 +6276,11 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         'nc':          (8,  8,   4),
         'atari_2600':  (2,  1,   4),
         'atari_st':    (16, 1,   16),
+        'atari_st_med':(8,  1,   4),
+        'atari_st_hi': (1,  1,   2),
         'atari_ste':   (16, 1,   16),
+        'atari_ste_med':(8, 1,   4),
+        'atari_ste_hi': (1, 1,   2),
         'atari_800':   (2,  1,   4),
         'atari_800_lo':  (4,  1,   4),
         'atari_5200':  (2,  1,   4),
@@ -6346,8 +6364,13 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         'cpc_plus':    (320, 200), 'pcw':         (720, 256),
         'nc':          (480, 128),
         'atari_2600':  (160, 192),  # NTSC standard kernel
-        'atari_st':    (320, 200),
-        'atari_ste':   (320, 200), 'atari_800':   (320, 192),
+        'atari_st':    (320, 200),  # Low res, 16col
+        'atari_st_med': (640, 200),  # Medium res, 4col
+        'atari_st_hi':  (640, 400),  # High res, mono (needs mono monitor)
+        'atari_ste':   (320, 200),  # Low res, 16col (4096-col palette)
+        'atari_ste_med': (640, 200), # Medium res, 4col
+        'atari_ste_hi':  (640, 400), # High res, mono
+        'atari_800':   (320, 192),
         'atari_800_lo':  (160, 192),  # ANTIC GR.7-style 4col mode
         'atari_5200':  (320, 192), 'atari_5200_lo': (160, 192),
         'atari_7800':  (160, 240), 'atari_7800_lo': (160, 192),  # 160×240 NTSC most common
@@ -6357,6 +6380,12 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         'amiga_hi':    (640, 256), 'amiga_lace':  (320, 512),
         'amiga_ecs':   (320, 256), 'amiga_ecs_hi':(640, 256),
         'amiga_aga_hi':(640, 256),
+        # Native chipset overscan (extends the normal display area using
+        # the same OCS/ECS/AGA hardware) - distinct from the RTG entries
+        # below, which are a separate Zorro graphics card, not the native
+        # chipset.
+        'amiga_overscan_pal':  (720, 576),
+        'amiga_overscan_ntsc': (720, 480),
         'amiga_rtg_800':  (800, 600), 'amiga_rtg_1024': (1024, 768),
         'amiga_rtg_pal':  (720, 576), 'amiga_rtg_ntsc': (720, 480),
         'amiga_aga':   (320, 256), 'amiga_ham':   (320, 256),
@@ -6409,7 +6438,8 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             'pcw':  'Amstrad PCW',
             'nc':   'Amstrad NC100/200',
             'atari_2600': 'Atari 2600 NTSC',
-            'atari_st': 'Atari ST', 'atari_ste': 'Atari STe',
+            'atari_st': 'Atari ST', 'atari_st_med': 'Atari ST', 'atari_st_hi': 'Atari ST',
+            'atari_ste': 'Atari STe', 'atari_ste_med': 'Atari STe', 'atari_ste_hi': 'Atari STe',
             'atari_800': 'Atari 800 GTIA', 'atari_800_lo': 'Atari 800 GTIA',
             'atari_5200': 'Atari 5200', 'atari_5200_lo': 'Atari 5200',
             'atari_7800': 'Atari 7800', 'atari_7800_lo': 'Atari 7800',
@@ -6417,6 +6447,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             'atari_falcon': 'Atari Falcon',
             'atari_jaguar': 'Atari Jaguar',
             'amiga': 'Amiga OCS', 'amiga_ntsc': 'Amiga OCS',
+            'amiga_overscan_pal': 'Amiga OCS', 'amiga_overscan_ntsc': 'Amiga OCS',
             'amiga_hi': 'Amiga OCS', 'amiga_lace': 'Amiga OCS',
             'amiga_ecs': 'Amiga ECS', 'amiga_ecs_hi': 'Amiga ECS',
             'amiga_aga_hi': 'Amiga AGA',
