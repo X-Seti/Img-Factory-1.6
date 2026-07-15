@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 45 (Build 364)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 46 (Build 365)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -6003,17 +6003,12 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             app_settings = getattr(mw, 'app_settings', None) if mw else None
         mid_col = None
         hi_col = None
-        _dbg_theme_name = None
         if app_settings and hasattr(app_settings, 'get_theme_colors'):
-            _dbg_theme_name = getattr(app_settings, 'current_settings', {}).get('theme')
             tc = app_settings.get_theme_colors()
             if tc.get('border'):
                 mid_col = QColor(tc['border'])
             if tc.get('accent_primary'):
                 hi_col = QColor(tc['accent_primary'])
-        print(f"[separator-style] app_settings={'found' if app_settings else 'MISSING'} "
-              f"theme={_dbg_theme_name!r} mid={mid_col.name() if mid_col else 'None'} "
-              f"hi={hi_col.name() if hi_col else 'None'}")
         if mid_col is not None:
             hover_rule = (f"QMainWindow::separator:hover {{ background: {hi_col.name()}; }}"
                           if hi_col is not None else "")
@@ -6057,15 +6052,11 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         if not app_settings:
             mw = getattr(self, 'main_window', None)
             app_settings = getattr(mw, 'app_settings', None) if mw else None
-        _dbg_theme_name = None
         if app_settings and hasattr(app_settings, 'get_theme_colors'):
-            _dbg_theme_name = getattr(app_settings, 'current_settings', {}).get('theme')
             tc = app_settings.get_theme_colors()
             hexval = tc.get('panel_bg') or tc.get('bg_primary')
             if hexval:
                 base_col = QColor(hexval)
-        print(f"[ribbon-style] app_settings={'found' if app_settings else 'MISSING'} "
-              f"theme={_dbg_theme_name!r} base_col={base_col.name() if base_col else 'None (background skipped)'}")
 
         btn_rule = f"QToolButton {{ padding: {max(0, int(btn_padding))}px; }}"
         if base_col is not None:
