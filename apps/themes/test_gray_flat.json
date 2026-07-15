@@ -1,6 +1,6 @@
 {
-  "theme": "test_grey_flat",
-  "name": "TEST Grey Flat",
+  "theme": "test_gray_flat",
+  "name": "TEST Gray Flat",
   "description": "DIAGNOSTIC: every color is #c0c0c0 mid-grey. Any black = widget not reading theme.",
   "category": "Test",
   "author": "Claudia",
