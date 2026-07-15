@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#This goes in root/apps/utils/app_settings_system.py - version 72
+#This goes in root/apps/utils/app_settings_system.py - version 73
 # $vers" X-Seti - June26, 2025 - App Factory - Package theme settings
 
 """
@@ -3188,8 +3188,6 @@ class AppPanelEffect: #vers 1
             cs = getattr(cs, 'current_settings', {})
 
         effect = cs.get('panel_effect_type', 'none')
-        print(f"[panel-effect] widget={widget.__class__.__name__} "
-              f"objectName={widget.objectName()!r} effect_type={effect!r}")
         if effect == 'none' or not effect:
             return
 
