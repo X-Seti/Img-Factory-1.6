@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 48 (Build 367)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 40 (Build 359)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -156,7 +156,6 @@ from PyQt6.QtGui import (
 # DP5Workshop._apply_pending_constraint
 # DP5Workshop._apply_ribbon_style
 # DP5Workshop._apply_selection_rotation
-# DP5Workshop._apply_separator_style
 # DP5Workshop._apply_spectrum_clash
 # DP5Workshop._apply_theme
 # DP5Workshop._apply_zx8x_dither
@@ -337,7 +336,6 @@ from PyQt6.QtGui import (
 # DP5Workshop._snap_cell_to_palette
 # DP5Workshop._snap_image_to_platform_palette
 # DP5Workshop._snap_image_to_user_palette
-# DP5Workshop._style_empty_history_slot
 # DP5Workshop._sync_brush_thumb
 # DP5Workshop._toggle_anim_strip
 # DP5Workshop._toggle_brush_manager
@@ -4885,7 +4883,10 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         # cascading down, which can zero out the dock separator's
         # visibility entirely (found and fixed for Model Workshop). A
         # locally-set stylesheet takes precedence over anything inherited.
-        self._apply_separator_style(outer_mw)
+        outer_mw.setStyleSheet(
+            "QMainWindow::separator { "
+            "background: palette(mid); width: 5px; height: 5px; } "
+            "QMainWindow::separator:hover { background: palette(highlight); }")
         self._outer_mw = outer_mw
 
         centre = self._create_centre_panel()
@@ -5991,59 +5992,6 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         tb.orientationChanged.connect(lambda _o, t=tb: self._apply_ribbon_style(t))
         return tb
 
-    def _apply_separator_style(self, outer_mw): #vers 1
-        """Style the outer QMainWindow's dock separators from the active
-        theme's border/mid colour, same lookup as _apply_ribbon_style -
-        was previously palette(mid) (a QSS function reading the widget's
-        underlying QPalette, which this stylesheet-based theme system
-        doesn't update) set once at setup_ui time and never refreshed on
-        a later theme switch. Called at setup and again from _apply_theme."""
-        app_settings = getattr(self, 'app_settings', None)
-        if not app_settings:
-            mw = getattr(self, 'main_window', None)
-            app_settings = getattr(mw, 'app_settings', None) if mw else None
-        mid_col = None
-        hi_col = None
-        if app_settings and hasattr(app_settings, 'get_theme_colors'):
-            tc = app_settings.get_theme_colors()
-            if tc.get('border'):
-                mid_col = QColor(tc['border'])
-            if tc.get('accent_primary'):
-                hi_col = QColor(tc['accent_primary'])
-        if mid_col is not None:
-            hover_rule = (f"QMainWindow::separator:hover {{ background: {hi_col.name()}; }}"
-                          if hi_col is not None else "")
-            outer_mw.setStyleSheet(
-                f"QMainWindow::separator {{ background: {mid_col.name()}; "
-                f"width: 5px; height: 5px; }} " + hover_rule)
-        else:
-            outer_mw.setStyleSheet(
-                "QMainWindow::separator { width: 5px; height: 5px; }")
-
-    def _style_empty_history_slot(self, btn): #vers 2
-        """Style an empty colour-history slot from the theme's own
-        colours - matches the fallback chain _refresh_icons() uses for
-        the same buttons (bg_secondary/panel_primary + border), so both
-        places that touch these buttons stay consistent. Was previously
-        background:palette(base); border:1px solid palette(mid) /
-        background:#222 - both non-theme-aware."""
-        app_settings = getattr(self, 'app_settings', None)
-        if not app_settings:
-            mw = getattr(self, 'main_window', None)
-            app_settings = getattr(mw, 'app_settings', None) if mw else None
-        bg_col = None
-        border_col = None
-        if app_settings and hasattr(app_settings, 'get_theme_colors'):
-            tc = app_settings.get_theme_colors() or {}
-            hexval = tc.get('bg_secondary') or tc.get('panel_primary')
-            if hexval:
-                bg_col = hexval
-            if tc.get('border'):
-                border_col = tc['border']
-        border_rule = f"1px solid {border_col}" if border_col else "1px solid palette(mid)"
-        if bg_col is not None:
-            btn.setStyleSheet(f"background:{bg_col}; border:{border_rule};")
-
     def _apply_ribbon_style(self, toolbar): #vers 2
         """Apply icon size / padding / opacity to a ribbon, using whichever
         of the vertical or horizontal settings match its current
@@ -6063,35 +6011,10 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         toolbar.layout().setSpacing(max(0, int(padding)))
 
         alpha = max(0, min(255, round(opacity / 100 * 255)))
-        # Base colour must come from the theme's own panel_bg/bg_primary via
-        # app_settings.get_theme_colors() - NOT toolbar.palette(), which
-        # doesn't reflect a stylesheet-only theme (Qt stylesheets can repaint
-        # a widget's appearance without touching its underlying QPalette).
-        # No fallback colour here on purpose: if the real theme colour can't
-        # be found, we skip the background rule entirely rather than invent
-        # one - a fabricated fallback just hides whether the lookup actually
-        # worked, which is exactly how the previous two attempts went wrong
-        # unnoticed.
-        base_col = None
-        app_settings = getattr(self, 'app_settings', None)
-        if not app_settings:
-            mw = getattr(self, 'main_window', None)
-            app_settings = getattr(mw, 'app_settings', None) if mw else None
-        if app_settings and hasattr(app_settings, 'get_theme_colors'):
-            tc = app_settings.get_theme_colors()
-            hexval = tc.get('toolbar_bg') or tc.get('panel_bg') or tc.get('bg_primary')
-            if hexval:
-                base_col = QColor(hexval)
-
-        btn_rule = f"QToolButton {{ padding: {max(0, int(btn_padding))}px; }}"
-        if base_col is not None:
-            toolbar.setStyleSheet(
-                f"QToolBar {{ background: rgba({base_col.red()}, {base_col.green()}, "
-                f"{base_col.blue()}, {alpha}); "
-                f"spacing: {max(0, int(padding))}px; }} " + btn_rule)
-        else:
-            toolbar.setStyleSheet(
-                f"QToolBar {{ spacing: {max(0, int(padding))}px; }} " + btn_rule)
+        toolbar.setStyleSheet(
+            f"QToolBar {{ background: rgba(40, 40, 45, {alpha}); "
+            f"spacing: {max(0, int(padding))}px; }} "
+            f"QToolButton {{ padding: {max(0, int(btn_padding))}px; }}")
 
     def _create_image_ops_ribbon(self): #vers 1
         """Image Ops ribbon - Colour Adjustments/Seamless/Snow/Zoom Lens/
@@ -6265,8 +6188,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         for _ in range(12):
             b = QPushButton()
             b.setFixedSize(12, 12)
-            b.setObjectName("color_history_empty_slot")
-            self._style_empty_history_slot(b)
+            b.setStyleSheet("background:palette(base); border:1px solid palette(mid);")
             b.setEnabled(False)
             hist_row.addWidget(b)
             self._color_hist_btns.append(b)
@@ -6511,7 +6433,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 btn.clicked.disconnect() if btn.receivers(btn.clicked) > 0 else None
                 btn.clicked.connect(lambda _, hc=col: self._fgbg_swatch.set_fg(QColor(hc)))
             else:
-                self._style_empty_history_slot(btn)
+                btn.setStyleSheet("background:#222; border:1px solid palette(mid);")
                 btn.setEnabled(False)
 
     def _on_bg_changed(self, c: QColor):  #vers 1
@@ -12440,18 +12362,12 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         hl.setSpacing(4)
 
         # Transport buttons
-        _tc = self.app_settings.get_theme_colors() if self.app_settings else {}
-        _border_col = _tc.get('border', '') if _tc else ''
-        _text_col   = _tc.get('text_primary', '') if _tc else ''
-        _border_rule = f"1px solid {_border_col}" if _border_col else "1px solid palette(mid)"
-        _text_rule   = _text_col if _text_col else "palette(windowText)"
-
         def tbtn(label, tip, slot):  #vers 1
             b = QPushButton(label)
             b.setFixedSize(28, 28)
             b.setToolTip(tip)
             b.clicked.connect(slot)
-            b.setStyleSheet(f"QPushButton{{background:#333;color:{_text_rule};border:{_border_rule};border-radius:3px;}}"
+            b.setStyleSheet("QPushButton{background:#333;color:palette(windowText);border:1px solid palette(mid);border-radius:3px;}"
                             "QPushButton:hover{background:palette(mid);}")
             return b
 
@@ -12474,8 +12390,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._anim_fps_spin.setRange(1, 60)
         self._anim_fps_spin.setValue(self.dp5_settings.get('anim_fps'))
         self._anim_fps_spin.setFixedWidth(52)
-        self._anim_fps_spin.setStyleSheet(
-            f"background:#333;color:{_text_rule};border:{_border_rule};")
+        self._anim_fps_spin.setStyleSheet("background:#333;color:palette(windowText);border:1px solid palette(mid);")
         hl.addWidget(fps_lbl)
         hl.addWidget(self._anim_fps_spin)
         hl.addSpacing(6)
@@ -12748,43 +12663,8 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 pass
             # Clear any widget-level override so we inherit from QApplication
             self.setStyleSheet("")
-
-            # Force a style re-polish on the dock widgets and their custom
-            # title bars (set via setTitleBarWidget in
-            # _make_dock_collapsible) - Qt doesn't always refresh already-
-            # created child widgets' cached styling on a global stylesheet
-            # change without this, which is why switching themes could
-            # leave dock title bars/content showing stale colours from
-            # the previous theme.
-            def _repolish(w): #vers 1
-                if w is None:
-                    return
-                w.style().unpolish(w)
-                w.style().polish(w)
-                w.update()
-                for child in w.findChildren(QWidget):
-                    child.style().unpolish(child)
-                    child.style().polish(child)
-                    child.update()
-
-            for _dock_name in ('_bitmaps_dock', '_brush_colors_dock',
-                                '_img_palette_dock', '_user_palette_dock'):
-                _repolish(getattr(self, _dock_name, None))
-
-            # Re-apply ribbon style so its background picks up the new
-            # theme's window colour (was previously reading a stale/
-            # hardcoded value regardless of theme).
-            for _tb in (getattr(self, '_tools_ribbon', None),
-                        getattr(self, '_image_ops_ribbon', None)):
-                if _tb is not None:
-                    self._apply_ribbon_style(_tb)
-
-            if getattr(self, '_outer_mw', None) is not None:
-                self._apply_separator_style(self._outer_mw)
-
             # gadgetbar_bg applied via QFrame#titlebar in global stylesheet — no manual refresh needed
-            # Refresh icons so they contrast correctly with new theme -
-            # this also re-styles the Recent colour history buttons.
+            # Refresh icons so they contrast correctly with new theme
             self._refresh_icons()
         except Exception as e:
             print(f"Theme application error: {e}")
@@ -12843,21 +12723,17 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             if self.app_settings:
                 tc = self.app_settings.get_theme_colors() or {}
                 empty_bg = tc.get('bg_secondary', tc.get('panel_primary', ''))
-                border_col = tc.get('border', '')
             else:
                 empty_bg = ''
-                border_col = ''
         except Exception:
             empty_bg = ''
-            border_col = ''
-        border_rule = f"1px solid {border_col}" if border_col else "1px solid palette(mid)"
         for i, btn in enumerate(getattr(self, '_color_hist_btns', [])):
             if i < len(getattr(self, '_color_history', [])):
                 h = self._color_history[i]
-                btn.setStyleSheet(f"background:{h}; border:{border_rule};")
+                btn.setStyleSheet(f"background:{h}; border:1px solid palette(mid);")
             else:
                 bg = empty_bg if empty_bg else 'palette(base)'
-                btn.setStyleSheet(f"background:{bg}; border:{border_rule};")
+                btn.setStyleSheet(f"background:{bg}; border:1px solid palette(mid);")
 
 
     def _launch_theme_settings(self): #vers 1
@@ -14631,10 +14507,8 @@ class _IconEditor(QWidget): #vers 1
             "Treat palette colour 0 as transparent\n(Amiga default)")
         self._alpha_swatch = QPushButton()
         self._alpha_swatch.setFixedSize(20, 20)
-        _alpha_tc = self.app_settings.get_theme_colors() if self.app_settings else {}
-        _alpha_border = (_alpha_tc.get('border', '') if _alpha_tc else '') or 'palette(mid)'
         self._alpha_swatch.setStyleSheet(
-            f"background:#000000; border:1px solid {_alpha_border};")
+            "background:#000000; border:1px solid palette(mid);")
         self._alpha_swatch.setToolTip(
             "Left-click: colour dialog\nRight-click: pick from user palette")
         self._alpha_swatch.clicked.connect(self._pick_alpha)
@@ -15207,12 +15081,10 @@ class _IconEditor(QWidget): #vers 1
         menu.addAction("Colour dialog…", self._pick_alpha)
         menu.exec(self._alpha_swatch.mapToGlobal(pos))
 
-    def _refresh_alpha_swatch(self): #vers 2
+    def _refresh_alpha_swatch(self): #vers 1
         r, g, b = self._alpha_color
-        _tc = self.app_settings.get_theme_colors() if self.app_settings else {}
-        _border = (_tc.get('border', '') if _tc else '') or 'palette(mid)'
         self._alpha_swatch.setStyleSheet(
-            f"background:#{r:02x}{g:02x}{b:02x}; border:1px solid {_border};")
+            f"background:#{r:02x}{g:02x}{b:02x}; border:1px solid palette(mid);")
 
     def _pick_alpha(self): #vers 2
         from PyQt6.QtWidgets import QColorDialog
