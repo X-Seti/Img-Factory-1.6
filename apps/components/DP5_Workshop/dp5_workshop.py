@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 40 (Build 359)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 41 (Build 368)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -390,6 +390,7 @@ from PyQt6.QtGui import (
 # FGBGSwatch.sizeHint
 # FGBGSwatch.swap
 # PaletteGrid.__init__
+# PaletteGrid._do_recalc_height
 # PaletteGrid._effective_cols
 # PaletteGrid._get_ui_color
 # PaletteGrid._recalc_height
@@ -402,6 +403,7 @@ from PyQt6.QtGui import (
 # PaletteGrid.set_selection_by_color
 # _AutoCellPaletteGrid.__init__
 # _AutoCellPaletteGrid._cell_size
+# _AutoCellPaletteGrid._do_recalc_height
 # _AutoCellPaletteGrid._effective_cols
 # _AutoCellPaletteGrid._get_ui_color
 # _AutoCellPaletteGrid._recalc_height
@@ -2957,7 +2959,7 @@ class PaletteGrid(QWidget):
         (50,100,200),(200,50,100),(100,50,200),(50,200,100),
     ]
 
-    def __init__(self, cols: int = 16, cell: int = 13, parent=None):  #vers 1
+    def __init__(self, cols: int = 16, cell: int = 13, parent=None):  #vers 2
         super().__init__(parent)
         self._cols_hint = cols   # used only when widget has no width yet
         self._cell      = cell
@@ -2965,7 +2967,16 @@ class PaletteGrid(QWidget):
         self._selected  = -1
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.setToolTip("Click to select colour — right-click to copy hex")
-        self._recalc_height()
+        # Debounce timer for _recalc_height - coalesces rapid-fire resize
+        # events (e.g. a scrollbar toggling width, which changes column
+        # count, which changes height, which re-toggles the scrollbar)
+        # into one settled recalculation instead of reacting synchronously
+        # to every single resize event, which is what produced visible
+        # flickering between two sizes even with the re-entrancy guard.
+        self._recalc_timer = QTimer(self)
+        self._recalc_timer.setSingleShot(True)
+        self._recalc_timer.timeout.connect(self._do_recalc_height)
+        self._do_recalc_height()
 
 
     def _get_ui_color(self, key): #vers 1
@@ -2994,9 +3005,17 @@ class PaletteGrid(QWidget):
             return max(1, w // self._cell)
         return max(1, self._cols_hint)
 
-    def _recalc_height(self):  #vers 2
-        # Same re-entrancy guard as _AutoCellPaletteGrid - setFixedHeight()
-        # below can trigger another resizeEvent before this returns.
+    def _recalc_height(self):  #vers 3
+        # Debounced - restart the settle timer instead of recalculating
+        # synchronously. See __init__ for why.
+        self._recalc_timer.start(50)
+
+    def _do_recalc_height(self):  #vers 1
+        # Re-entrancy guard: setFixedHeight() below can trigger another
+        # resizeEvent before this call returns (e.g. a scrollbar toggling
+        # based on the new height, which changes available width, which
+        # changes cell size, which changes height again...) - without this
+        # guard that loop recurses until Python's stack limit crashes it.
         if getattr(self, '_recalc_guard', False):
             return
         self._recalc_guard = True
@@ -3149,7 +3168,12 @@ class _AutoCellPaletteGrid(PaletteGrid):
     def set_palette_raw(self, palette_data):  #vers 1
         super().set_palette_raw(palette_data)
 
-    def _recalc_height(self):  #vers 2
+    def _recalc_height(self):  #vers 3
+        # Debounced - restart the settle timer instead of recalculating
+        # synchronously. See PaletteGrid.__init__ for why.
+        self._recalc_timer.start(50)
+
+    def _do_recalc_height(self):  #vers 1
         # Re-entrancy guard: setFixedHeight() below can trigger another
         # resizeEvent before this call returns (e.g. a scrollbar toggling
         # based on the new height, which changes available width, which
