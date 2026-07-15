@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 46 (Build 365)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 47 (Build 366)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -337,6 +337,7 @@ from PyQt6.QtGui import (
 # DP5Workshop._snap_cell_to_palette
 # DP5Workshop._snap_image_to_platform_palette
 # DP5Workshop._snap_image_to_user_palette
+# DP5Workshop._style_empty_history_slot
 # DP5Workshop._sync_brush_thumb
 # DP5Workshop._toggle_anim_strip
 # DP5Workshop._toggle_brush_manager
@@ -6019,6 +6020,30 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             outer_mw.setStyleSheet(
                 "QMainWindow::separator { width: 5px; height: 5px; }")
 
+    def _style_empty_history_slot(self, btn): #vers 2
+        """Style an empty colour-history slot from the theme's own
+        colours - matches the fallback chain _refresh_icons() uses for
+        the same buttons (bg_secondary/panel_primary + border), so both
+        places that touch these buttons stay consistent. Was previously
+        background:palette(base); border:1px solid palette(mid) /
+        background:#222 - both non-theme-aware."""
+        app_settings = getattr(self, 'app_settings', None)
+        if not app_settings:
+            mw = getattr(self, 'main_window', None)
+            app_settings = getattr(mw, 'app_settings', None) if mw else None
+        bg_col = None
+        border_col = None
+        if app_settings and hasattr(app_settings, 'get_theme_colors'):
+            tc = app_settings.get_theme_colors() or {}
+            hexval = tc.get('bg_secondary') or tc.get('panel_primary')
+            if hexval:
+                bg_col = hexval
+            if tc.get('border'):
+                border_col = tc['border']
+        border_rule = f"1px solid {border_col}" if border_col else "1px solid palette(mid)"
+        if bg_col is not None:
+            btn.setStyleSheet(f"background:{bg_col}; border:{border_rule};")
+
     def _apply_ribbon_style(self, toolbar): #vers 2
         """Apply icon size / padding / opacity to a ribbon, using whichever
         of the vertical or horizontal settings match its current
@@ -6054,7 +6079,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             app_settings = getattr(mw, 'app_settings', None) if mw else None
         if app_settings and hasattr(app_settings, 'get_theme_colors'):
             tc = app_settings.get_theme_colors()
-            hexval = tc.get('panel_bg') or tc.get('bg_primary')
+            hexval = tc.get('toolbar_bg') or tc.get('panel_bg') or tc.get('bg_primary')
             if hexval:
                 base_col = QColor(hexval)
 
@@ -6240,7 +6265,8 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         for _ in range(12):
             b = QPushButton()
             b.setFixedSize(12, 12)
-            b.setStyleSheet("background:palette(base); border:1px solid palette(mid);")
+            b.setObjectName("color_history_empty_slot")
+            self._style_empty_history_slot(b)
             b.setEnabled(False)
             hist_row.addWidget(b)
             self._color_hist_btns.append(b)
@@ -6485,7 +6511,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 btn.clicked.disconnect() if btn.receivers(btn.clicked) > 0 else None
                 btn.clicked.connect(lambda _, hc=col: self._fgbg_swatch.set_fg(QColor(hc)))
             else:
-                btn.setStyleSheet("background:#222; border:1px solid palette(mid);")
+                self._style_empty_history_slot(btn)
                 btn.setEnabled(False)
 
     def _on_bg_changed(self, c: QColor):  #vers 1
@@ -12750,7 +12776,8 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 self._apply_separator_style(self._outer_mw)
 
             # gadgetbar_bg applied via QFrame#titlebar in global stylesheet — no manual refresh needed
-            # Refresh icons so they contrast correctly with new theme
+            # Refresh icons so they contrast correctly with new theme -
+            # this also re-styles the Recent colour history buttons.
             self._refresh_icons()
         except Exception as e:
             print(f"Theme application error: {e}")
@@ -12809,17 +12836,21 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             if self.app_settings:
                 tc = self.app_settings.get_theme_colors() or {}
                 empty_bg = tc.get('bg_secondary', tc.get('panel_primary', ''))
+                border_col = tc.get('border', '')
             else:
                 empty_bg = ''
+                border_col = ''
         except Exception:
             empty_bg = ''
+            border_col = ''
+        border_rule = f"1px solid {border_col}" if border_col else "1px solid palette(mid)"
         for i, btn in enumerate(getattr(self, '_color_hist_btns', [])):
             if i < len(getattr(self, '_color_history', [])):
                 h = self._color_history[i]
-                btn.setStyleSheet(f"background:{h}; border:1px solid palette(mid);")
+                btn.setStyleSheet(f"background:{h}; border:{border_rule};")
             else:
                 bg = empty_bg if empty_bg else 'palette(base)'
-                btn.setStyleSheet(f"background:{bg}; border:1px solid palette(mid);")
+                btn.setStyleSheet(f"background:{bg}; border:{border_rule};")
 
 
     def _launch_theme_settings(self): #vers 1
