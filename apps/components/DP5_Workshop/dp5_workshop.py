@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 44 (Build 363)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 45 (Build 364)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -156,6 +156,7 @@ from PyQt6.QtGui import (
 # DP5Workshop._apply_pending_constraint
 # DP5Workshop._apply_ribbon_style
 # DP5Workshop._apply_selection_rotation
+# DP5Workshop._apply_separator_style
 # DP5Workshop._apply_spectrum_clash
 # DP5Workshop._apply_theme
 # DP5Workshop._apply_zx8x_dither
@@ -4883,10 +4884,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         # cascading down, which can zero out the dock separator's
         # visibility entirely (found and fixed for Model Workshop). A
         # locally-set stylesheet takes precedence over anything inherited.
-        outer_mw.setStyleSheet(
-            "QMainWindow::separator { "
-            "background: palette(mid); width: 5px; height: 5px; } "
-            "QMainWindow::separator:hover { background: palette(highlight); }")
+        self._apply_separator_style(outer_mw)
         self._outer_mw = outer_mw
 
         centre = self._create_centre_panel()
@@ -5992,6 +5990,40 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         tb.orientationChanged.connect(lambda _o, t=tb: self._apply_ribbon_style(t))
         return tb
 
+    def _apply_separator_style(self, outer_mw): #vers 1
+        """Style the outer QMainWindow's dock separators from the active
+        theme's border/mid colour, same lookup as _apply_ribbon_style -
+        was previously palette(mid) (a QSS function reading the widget's
+        underlying QPalette, which this stylesheet-based theme system
+        doesn't update) set once at setup_ui time and never refreshed on
+        a later theme switch. Called at setup and again from _apply_theme."""
+        app_settings = getattr(self, 'app_settings', None)
+        if not app_settings:
+            mw = getattr(self, 'main_window', None)
+            app_settings = getattr(mw, 'app_settings', None) if mw else None
+        mid_col = None
+        hi_col = None
+        _dbg_theme_name = None
+        if app_settings and hasattr(app_settings, 'get_theme_colors'):
+            _dbg_theme_name = getattr(app_settings, 'current_settings', {}).get('theme')
+            tc = app_settings.get_theme_colors()
+            if tc.get('border'):
+                mid_col = QColor(tc['border'])
+            if tc.get('accent_primary'):
+                hi_col = QColor(tc['accent_primary'])
+        print(f"[separator-style] app_settings={'found' if app_settings else 'MISSING'} "
+              f"theme={_dbg_theme_name!r} mid={mid_col.name() if mid_col else 'None'} "
+              f"hi={hi_col.name() if hi_col else 'None'}")
+        if mid_col is not None:
+            hover_rule = (f"QMainWindow::separator:hover {{ background: {hi_col.name()}; }}"
+                          if hi_col is not None else "")
+            outer_mw.setStyleSheet(
+                f"QMainWindow::separator {{ background: {mid_col.name()}; "
+                f"width: 5px; height: 5px; }} " + hover_rule)
+        else:
+            outer_mw.setStyleSheet(
+                "QMainWindow::separator { width: 5px; height: 5px; }")
+
     def _apply_ribbon_style(self, toolbar): #vers 2
         """Apply icon size / padding / opacity to a ribbon, using whichever
         of the vertical or horizontal settings match its current
@@ -6025,11 +6057,15 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         if not app_settings:
             mw = getattr(self, 'main_window', None)
             app_settings = getattr(mw, 'app_settings', None) if mw else None
+        _dbg_theme_name = None
         if app_settings and hasattr(app_settings, 'get_theme_colors'):
+            _dbg_theme_name = getattr(app_settings, 'current_settings', {}).get('theme')
             tc = app_settings.get_theme_colors()
             hexval = tc.get('panel_bg') or tc.get('bg_primary')
             if hexval:
                 base_col = QColor(hexval)
+        print(f"[ribbon-style] app_settings={'found' if app_settings else 'MISSING'} "
+              f"theme={_dbg_theme_name!r} base_col={base_col.name() if base_col else 'None (background skipped)'}")
 
         btn_rule = f"QToolButton {{ padding: {max(0, int(btn_padding))}px; }}"
         if base_col is not None:
@@ -12718,6 +12754,9 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                         getattr(self, '_image_ops_ribbon', None)):
                 if _tb is not None:
                     self._apply_ribbon_style(_tb)
+
+            if getattr(self, '_outer_mw', None) is not None:
+                self._apply_separator_style(self._outer_mw)
 
             # gadgetbar_bg applied via QFrame#titlebar in global stylesheet — no manual refresh needed
             # Refresh icons so they contrast correctly with new theme
