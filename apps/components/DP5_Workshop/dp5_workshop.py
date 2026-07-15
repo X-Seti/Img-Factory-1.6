@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 47 (Build 366)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 48 (Build 367)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -12440,12 +12440,18 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         hl.setSpacing(4)
 
         # Transport buttons
+        _tc = self.app_settings.get_theme_colors() if self.app_settings else {}
+        _border_col = _tc.get('border', '') if _tc else ''
+        _text_col   = _tc.get('text_primary', '') if _tc else ''
+        _border_rule = f"1px solid {_border_col}" if _border_col else "1px solid palette(mid)"
+        _text_rule   = _text_col if _text_col else "palette(windowText)"
+
         def tbtn(label, tip, slot):  #vers 1
             b = QPushButton(label)
             b.setFixedSize(28, 28)
             b.setToolTip(tip)
             b.clicked.connect(slot)
-            b.setStyleSheet("QPushButton{background:#333;color:palette(windowText);border:1px solid palette(mid);border-radius:3px;}"
+            b.setStyleSheet(f"QPushButton{{background:#333;color:{_text_rule};border:{_border_rule};border-radius:3px;}}"
                             "QPushButton:hover{background:palette(mid);}")
             return b
 
@@ -12468,7 +12474,8 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._anim_fps_spin.setRange(1, 60)
         self._anim_fps_spin.setValue(self.dp5_settings.get('anim_fps'))
         self._anim_fps_spin.setFixedWidth(52)
-        self._anim_fps_spin.setStyleSheet("background:#333;color:palette(windowText);border:1px solid palette(mid);")
+        self._anim_fps_spin.setStyleSheet(
+            f"background:#333;color:{_text_rule};border:{_border_rule};")
         hl.addWidget(fps_lbl)
         hl.addWidget(self._anim_fps_spin)
         hl.addSpacing(6)
@@ -14624,8 +14631,10 @@ class _IconEditor(QWidget): #vers 1
             "Treat palette colour 0 as transparent\n(Amiga default)")
         self._alpha_swatch = QPushButton()
         self._alpha_swatch.setFixedSize(20, 20)
+        _alpha_tc = self.app_settings.get_theme_colors() if self.app_settings else {}
+        _alpha_border = (_alpha_tc.get('border', '') if _alpha_tc else '') or 'palette(mid)'
         self._alpha_swatch.setStyleSheet(
-            "background:#000000; border:1px solid palette(mid);")
+            f"background:#000000; border:1px solid {_alpha_border};")
         self._alpha_swatch.setToolTip(
             "Left-click: colour dialog\nRight-click: pick from user palette")
         self._alpha_swatch.clicked.connect(self._pick_alpha)
@@ -15198,10 +15207,12 @@ class _IconEditor(QWidget): #vers 1
         menu.addAction("Colour dialog…", self._pick_alpha)
         menu.exec(self._alpha_swatch.mapToGlobal(pos))
 
-    def _refresh_alpha_swatch(self): #vers 1
+    def _refresh_alpha_swatch(self): #vers 2
         r, g, b = self._alpha_color
+        _tc = self.app_settings.get_theme_colors() if self.app_settings else {}
+        _border = (_tc.get('border', '') if _tc else '') or 'palette(mid)'
         self._alpha_swatch.setStyleSheet(
-            f"background:#{r:02x}{g:02x}{b:02x}; border:1px solid palette(mid);")
+            f"background:#{r:02x}{g:02x}{b:02x}; border:1px solid {_border};")
 
     def _pick_alpha(self): #vers 2
         from PyQt6.QtWidgets import QColorDialog
