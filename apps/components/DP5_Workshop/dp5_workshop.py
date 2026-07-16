@@ -518,8 +518,9 @@ from PyQt6.QtGui import (
 # _SpriteView.paintEvent
 # _SpriteView.set_sprite
 # _SpriteView.set_zoom
+
 App_name = "DP5 Workshop"
-App_build = "July 07 26 (334) Vers 15"
+App_build = "July 16 26 50 (Build 377) Vers 59"
 DEBUG_STANDALONE = False
 
 # - Tool IDs
@@ -636,7 +637,12 @@ def _make_tool_icon(shape: str, size: int = 42,
     tile_bg / icon_col override theme defaults — pass from _get_icon_color().
     Normal:  panel_bg tile + text_primary icon (from theme)
     Active:  accent tile + inverted icon
-    """
+    """        # AppSettings (global theme only)
+
+    if APPSETTINGS_AVAILABLE:
+        app_settings = AppSettings()
+
+
     #    SVG icon map: shape → SVGIconFactory method name                      
     # Add entries here as you create new dp_*_icon() methods in
     # imgfactory_svg_icons.py — they'll be picked up automatically.
@@ -678,11 +684,23 @@ def _make_tool_icon(shape: str, size: int = 42,
         method_name = _SVG_MAP[shape]
         fn = getattr(SVGIconFactory, method_name, None)
         if fn is not None:
-            # Use passed colours or fall back to safe defaults
-            if not tile_bg:
-                tile_bg  = '#d8d8e0' if active else '#1e1e24'
-            if not icon_col:
-                icon_col = '#101014' if active else '#f0f0f4'
+            # Use passed colours or fall back to safe defaults #TODO: there should be no fallbacks.
+
+            themecol = self.app_settings.get_theme_colors()
+            hexval_panel_bg = themecol.get('panel_bg')
+            hexval_bg_primary = themecol.get('bg_primary')
+            hexval_bg_secondary = themecol.get('bg_secondary')
+            hexval_bg_tertiary = themecol.get('bg_tertiary')
+            hexval_textprimary = themecol.get('text_primary')
+            hexval_text_secondary = themecol.get('text_secondary')
+            hexval_text_accent = themecol.get('text_accent')
+
+            if tile_bg is None:
+                tile_bg = hexval_panel_bg if active else hexval_bg_secondary
+
+            if icon_col is None:     #if not icon_col:
+                icon_col = hexval_textprimary if active else hexval_text_secondary
+
             try:
                 # Get the icon rendered transparent (no bg_color — avoids SVG corruption)
                 ico = fn(size, color=icon_col)
@@ -700,8 +718,12 @@ def _make_tool_icon(shape: str, size: int = 42,
     # - QPainter fallback (shapes, lasso, select, text, etc.)
     import math as _m
 
-    _tbg = tile_bg if tile_bg else ('#d8d8e0' if active else '#1e1e24')
-    _ink = icon_col if icon_col else ('#101014' if active else '#f0f0f4')
+    _tbg = tile_bg if tile_bg else (
+        hexval_panel_bg if active else hexval_bg_secondary
+        )
+    _ink = icon_col if icon_col else (
+        hexval_textprimary if active else hexval_text_secondary
+        )
     tile_bg_c = QColor(_tbg)
     ink     = QColor(_ink)
 
@@ -1531,7 +1553,7 @@ class DP5SettingsDialog(QDialog):
             btn.setToolTip(label)
             # Use parent workshop's icon colour if available
             _ws  = parent if hasattr(parent, '_get_icon_color') else None
-            _col = _ws._get_icon_color() if _ws else '#eeeeee'
+            _col = _ws._get_icon_color()
             _tbg = ''
             if _ws and _ws.app_settings:
                 _tc = _ws.app_settings.get_theme_colors() or {}
@@ -3293,8 +3315,7 @@ class ColorPickerWidget(QWidget):
                                    QColorDialog.ColorDialogOption.ShowAlphaChannel)
         if c.isValid():
             self._color = c
-            self._swatch.setStyleSheet(
-                f"background:{c.name()}; border:1px solid #888;")
+            self._swatch.setStyleSheet(f"background:{c.name()}; border:1px solid #888;")
             self.color_picked.emit(c)
 
     def current_color(self) -> QColor:  #vers 1
@@ -6068,7 +6089,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         base_col = None
         if self.app_settings and hasattr(self.app_settings, 'get_theme_colors'):
             tc = self.app_settings.get_theme_colors()
-            hexval = tc.get('toolbar_bg') or tc.get('panel_bg') or tc.get('bg_primary')
+            hexval = tc.get('panel_bg')
             if hexval:
                 base_col = QColor(hexval)
 
@@ -13775,11 +13796,23 @@ class _CharGrid(QWidget):
             'viewport_bg':   pal.ColorRole.Base,
             'viewport_text': pal.ColorRole.PlaceholderText,
             'border':        pal.ColorRole.Mid,
+            'panel_bg':      pal.ColorRole.panelbg,
             'bg_primary':    pal.ColorRole.Window,
             'bg_secondary':  pal.ColorRole.AlternateBase,
             'text_primary':  pal.ColorRole.WindowText,
+            'text_secondary':  pal.ColorRole.WindowTesco,
             'accent_primary':pal.ColorRole.Highlight,
+            'text_accent':pal.ColorRole.TexHighlight,
         }
+           # themecol = app_settings.get_theme_colors(self)
+           # hexval_panel_bg = themecol.get('panel_bg')
+           # hexval_bg_primary = themecol.get('bg_primary')
+           # hexval_bg_secondary = themecol.get('bg_secondary')
+           # hexval_bg_tertiary = themecol.get('bg_tertiary')
+           # hexval_textprimary = themecol.get('text_primary')
+           # hexval_text_secondary = themecol.get('text_secondary')
+           # hexval_text_accent = themecol.get('text_accent')
+
         return pal.color(_map.get(key, pal.ColorRole.WindowText))
 
     def __init__(self, parent=None): #vers 1
