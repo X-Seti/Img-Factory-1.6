@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 43 (Build 370)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 44 (Build 371)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -4911,11 +4911,14 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         # locally-set stylesheet takes precedence over anything inherited.
         themecol = self.app_settings.get_theme_colors()
         hexval = themecol.get('panel_bg')
+        accentval = themecol.get('accent_primary')
+        sep_bg_rule = f"background: {accentval}; " if accentval else ""
 
-        outer_mw.setStyleSheet(f"QMainWindow {{ background: {hexval}; }} "
-                                "QMainWindow::separator { "
-                                "width: 1px; height: 1px; } "
-                                "QMainWindow::separator:hover { background: palette(highlight); }")
+        outer_mw.setStyleSheet(
+            f"QMainWindow {{ background: {hexval}; }} "
+            f"QMainWindow::separator {{ {sep_bg_rule}"
+            "width: 1px; height: 1px; } "
+            "QMainWindow::separator:hover { background: palette(highlight); }")
         self._outer_mw = outer_mw
 
         centre = self._create_centre_panel()
@@ -12730,10 +12733,12 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             if getattr(self, '_outer_mw', None) is not None and app_settings:
                 _tc = app_settings.get_theme_colors()
                 _hexval = _tc.get('panel_bg')
+                _accentval = _tc.get('accent_primary')
+                _sep_bg_rule = f"background: {_accentval}; " if _accentval else ""
                 if _hexval:
                     self._outer_mw.setStyleSheet(
                         f"QMainWindow {{ background: {_hexval}; }} "
-                        "QMainWindow::separator { "
+                        f"QMainWindow::separator {{ {_sep_bg_rule}"
                         "width: 1px; height: 1px; } "
                         "QMainWindow::separator:hover { background: palette(highlight); }")
 
