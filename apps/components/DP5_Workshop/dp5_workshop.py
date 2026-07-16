@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 42 (Build 369)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 43 (Build 370)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -5053,7 +5053,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             dock.raise_()
             dock.activateWindow()
 
-    def _make_dock_collapsible(self, dock, title): #vers 1
+    def _make_dock_collapsible(self, dock, title): #vers 2
         """Custom title bar for a QDockWidget: double-click anywhere on the
         title (label or empty bar area) to collapse the dock down to just
         this title bar, hiding its content; double-click again to restore.
@@ -5063,6 +5063,18 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         from PyQt6.QtWidgets import QWidget as _QW, QToolButton as _QTB
 
         bar = _QW()
+        bar.setObjectName("dp5_dock_titlebar")
+        # This is a plain QWidget, not a QFrame, so apply_panel_effects
+        # (which only walks QFrame/QGroupBox) never touches it - it was
+        # fully transparent, letting whatever's behind the dock bleed
+        # through and create a visible seam against the content panel
+        # below. Give it its own explicit background matching the same
+        # theme colour the content panel uses, so there's no seam.
+        if self.app_settings and hasattr(self.app_settings, 'get_theme_colors'):
+            tc = self.app_settings.get_theme_colors()
+            hexval = tc.get('panel_bg') or tc.get('bg_primary')
+            if hexval:
+                bar.setStyleSheet(f"QWidget#dp5_dock_titlebar {{ background: {hexval}; }}")
         lay = QHBoxLayout(bar)
         lay.setContentsMargins(6, 2, 2, 2)
         lay.setSpacing(2)
@@ -12724,6 +12736,16 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                         "QMainWindow::separator { "
                         "width: 1px; height: 1px; } "
                         "QMainWindow::separator:hover { background: palette(highlight); }")
+
+            # Re-apply dock title bar backgrounds too - same "set once,
+            # never refreshed" gap as the ribbon/outer_mw above.
+            if app_settings:
+                _tc2 = app_settings.get_theme_colors()
+                _hexval2 = _tc2.get('panel_bg') or _tc2.get('bg_primary')
+                if _hexval2:
+                    for _bar in self.findChildren(QWidget, "dp5_dock_titlebar"):
+                        _bar.setStyleSheet(
+                            f"QWidget#dp5_dock_titlebar {{ background: {_hexval2}; }}")
 
             # gadgetbar_bg applied via QFrame#titlebar in global stylesheet — no manual refresh needed
             # Refresh icons so they contrast correctly with new theme
