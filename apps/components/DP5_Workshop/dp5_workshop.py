@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 48 (Build 375)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 49 (Build 376)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -4769,6 +4769,41 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
     # Image Palette/User Palette dock widgets (initial ribbon rebuild).
     _OUTER_LAYOUT_VERSION = 1
 
+    # Widget registry - each entry describes one dock widget module under
+    # depends/. setup_ui() loops over this instead of hardcoding each
+    # dock's creation, so adding a new widget, removing one, or swapping
+    # one for an alternative implementation only means editing this list.
+    # 'enabled_setting': the dp5_settings key controlling visibility, or
+    # None if visibility is handled separately (Bitmaps combines its
+    # enabled_setting with the older show_bitmap_list preference right
+    # after this loop runs, rather than a single setting here).
+    _WIDGET_REGISTRY = [
+        {'key': 'bitmaps',
+         'module': 'apps.components.DP5_Workshop.depends.bitmaps_widget',
+         'create_fn': 'create_bitmaps_dock',
+         'dock_attr': '_bitmaps_dock',
+         'area': Qt.DockWidgetArea.LeftDockWidgetArea,
+         'enabled_setting': None},
+        {'key': 'brushcolors',
+         'module': 'apps.components.DP5_Workshop.depends.brushcolors_widget',
+         'create_fn': 'create_brush_colors_dock',
+         'dock_attr': '_brush_colors_dock',
+         'area': Qt.DockWidgetArea.RightDockWidgetArea,
+         'enabled_setting': 'widget_brushcolors_enabled'},
+        {'key': 'imagepalette',
+         'module': 'apps.components.DP5_Workshop.depends.imagepalette_widget',
+         'create_fn': 'create_image_palette_dock',
+         'dock_attr': '_img_palette_dock',
+         'area': Qt.DockWidgetArea.RightDockWidgetArea,
+         'enabled_setting': 'widget_imagepalette_enabled'},
+        {'key': 'userpalette',
+         'module': 'apps.components.DP5_Workshop.depends.userpalette_widget',
+         'create_fn': 'create_user_palette_dock',
+         'dock_attr': '_user_palette_dock',
+         'area': Qt.DockWidgetArea.RightDockWidgetArea,
+         'enabled_setting': 'widget_userpalette_enabled'},
+    ]
+
     #    Init                                                                   
 
     def __init__(self, parent=None, main_window=None): #vers 1
@@ -4963,32 +4998,17 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         if hasattr(self, '_status_bar'):
             outer_mw.setStatusBar(self._status_bar)
 
-        # Bitmaps - extracted to depends/bitmaps_widget.py
-        from apps.components.DP5_Workshop.depends.bitmaps_widget import (
-            create_bitmaps_dock)
-        bitmaps_dock = create_bitmaps_dock(self)
-        outer_mw.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, bitmaps_dock)
-
-        # Brush & Colors - extracted to depends/brushcolors_widget.py so
-        # it can be built/maintained independently of the rest of this
-        # method; builds its own dock, title bar (theme-aware background),
-        # and content panel, and sets self._brush_colors_dock itself.
-        from apps.components.DP5_Workshop.depends.brushcolors_widget import (
-            create_brush_colors_dock)
-        brush_colors_dock = create_brush_colors_dock(self)
-        outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, brush_colors_dock)
-
-        # Image Palette - extracted to depends/imagepalette_widget.py
-        from apps.components.DP5_Workshop.depends.imagepalette_widget import (
-            create_image_palette_dock)
-        img_palette_dock = create_image_palette_dock(self)
-        outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, img_palette_dock)
-
-        # User Palette - extracted to depends/userpalette_widget.py
-        from apps.components.DP5_Workshop.depends.userpalette_widget import (
-            create_user_palette_dock)
-        user_palette_dock = create_user_palette_dock(self)
-        outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, user_palette_dock)
+        # Widget registry - each entry is a self-contained dock module
+        # under depends/. Adding, removing, or swapping a widget for an
+        # alternative implementation only means editing this list, not
+        # touching the loop below or any other part of setup_ui().
+        for entry in self._WIDGET_REGISTRY:
+            module = __import__(entry['module'], fromlist=[entry['create_fn']])
+            create_fn = getattr(module, entry['create_fn'])
+            dock = create_fn(self)
+            outer_mw.addDockWidget(entry['area'], dock)
+            if entry['enabled_setting']:
+                dock.setVisible(self.dp5_settings.get(entry['enabled_setting']))
 
         # Brush & Colors / Image Palette / User Palette default to stacking
         # top-to-bottom on the right - a sensible starting point, freely
@@ -5011,18 +5031,13 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         # Bitmaps panel: hidden by default — toggle via DP5 Settings.
         # Combines the existing show_bitmap_list preference with the new
-        # widget-manager enable/disable toggle - both must be true.
+        # widget-manager enable/disable toggle - both must be true. (The
+        # other three docks' visibility is already set by the registry
+        # loop above, via each entry's enabled_setting.)
         self._bitmaps_dock.setVisible(
             self.dp5_settings.get('show_bitmap_list') and
             self.dp5_settings.get('widget_bitmaps_enabled'))
         self._left_panel = self._bitmaps_dock.widget()   # kept for any code still checking this attr
-
-        # Widget manager enable/disable for the other three docks - always
-        # built (so every attribute the rest of the app references still
-        # exists), just hidden when disabled rather than skipping creation.
-        self._brush_colors_dock.setVisible(self.dp5_settings.get('widget_brushcolors_enabled'))
-        self._img_palette_dock.setVisible(self.dp5_settings.get('widget_imagepalette_enabled'))
-        self._user_palette_dock.setVisible(self.dp5_settings.get('widget_userpalette_enabled'))
 
         main_layout.addWidget(outer_mw)
 
@@ -9974,15 +9989,12 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                         self.dp5_settings.get('widget_bitmaps_enabled'))
             if hasattr(self, '_bitmaps_dock'):
                 self._bitmaps_dock.setVisible(show_left)
-            if hasattr(self, '_brush_colors_dock'):
-                self._brush_colors_dock.setVisible(
-                    self.dp5_settings.get('widget_brushcolors_enabled'))
-            if hasattr(self, '_img_palette_dock'):
-                self._img_palette_dock.setVisible(
-                    self.dp5_settings.get('widget_imagepalette_enabled'))
-            if hasattr(self, '_user_palette_dock'):
-                self._user_palette_dock.setVisible(
-                    self.dp5_settings.get('widget_userpalette_enabled'))
+            for entry in self._WIDGET_REGISTRY:
+                if not entry['enabled_setting']:
+                    continue   # Bitmaps - handled above, combines two settings
+                dock = getattr(self, entry['dock_attr'], None)
+                if dock is not None:
+                    dock.setVisible(self.dp5_settings.get(entry['enabled_setting']))
             if hasattr(self, '_status_bar'):
                 self._status_bar.setVisible(self.dp5_settings.get('show_statusbar'))
 
@@ -12524,30 +12536,15 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                         _bar.setStyleSheet(
                             f"QWidget#dp5_dock_titlebar {{ background: {_hexval2}; }}")
 
-            try:
-                from apps.components.DP5_Workshop.depends.brushcolors_widget import (
-                    refresh_theme as _refresh_brushcolors_theme)
-                _refresh_brushcolors_theme(self)
-            except Exception:
-                pass
-            try:
-                from apps.components.DP5_Workshop.depends.bitmaps_widget import (
-                    refresh_theme as _refresh_bitmaps_theme)
-                _refresh_bitmaps_theme(self)
-            except Exception:
-                pass
-            try:
-                from apps.components.DP5_Workshop.depends.imagepalette_widget import (
-                    refresh_theme as _refresh_imgpalette_theme)
-                _refresh_imgpalette_theme(self)
-            except Exception:
-                pass
-            try:
-                from apps.components.DP5_Workshop.depends.userpalette_widget import (
-                    refresh_theme as _refresh_userpalette_theme)
-                _refresh_userpalette_theme(self)
-            except Exception:
-                pass
+            # Registry-driven theme refresh - same list setup_ui() uses to
+            # build the docks, so a widget swapped/added there is
+            # automatically covered here too.
+            for entry in self._WIDGET_REGISTRY:
+                try:
+                    module = __import__(entry['module'], fromlist=['refresh_theme'])
+                    module.refresh_theme(self)
+                except Exception:
+                    pass
 
             # gadgetbar_bg applied via QFrame#titlebar in global stylesheet — no manual refresh needed
             # Refresh icons so they contrast correctly with new theme
