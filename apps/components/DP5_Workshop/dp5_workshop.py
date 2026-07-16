@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 41 (Build 368)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 42 (Build 369)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -4912,7 +4912,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         themecol = self.app_settings.get_theme_colors()
         hexval = themecol.get('panel_bg')
 
-        outer_mw.setStyleSheet(f"background: {hexval};"
+        outer_mw.setStyleSheet(f"QMainWindow {{ background: {hexval}; }} "
                                 "QMainWindow::separator { "
                                 "width: 1px; height: 1px; } "
                                 "QMainWindow::separator:hover { background: palette(highlight); }")
@@ -6040,10 +6040,22 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         toolbar.layout().setSpacing(max(0, int(padding)))
 
         alpha = max(0, min(255, round(opacity / 100 * 255)))
-        toolbar.setStyleSheet(
-            f"QToolBar {{ background: rgba(, , , {alpha}); "
-            f"spacing: {max(0, int(padding))}px; }} "
-            f"QToolButton {{ padding: {max(0, int(btn_padding))}px; }}")
+        base_col = None
+        if self.app_settings and hasattr(self.app_settings, 'get_theme_colors'):
+            tc = self.app_settings.get_theme_colors()
+            hexval = tc.get('toolbar_bg') or tc.get('panel_bg') or tc.get('bg_primary')
+            if hexval:
+                base_col = QColor(hexval)
+
+        btn_rule = f"QToolButton {{ padding: {max(0, int(btn_padding))}px; }}"
+        if base_col is not None:
+            toolbar.setStyleSheet(
+                f"QToolBar {{ background: rgba({base_col.red()}, {base_col.green()}, "
+                f"{base_col.blue()}, {alpha}); "
+                f"spacing: {max(0, int(padding))}px; }} " + btn_rule)
+        else:
+            toolbar.setStyleSheet(
+                f"QToolBar {{ spacing: {max(0, int(padding))}px; }} " + btn_rule)
 
     def _create_image_ops_ribbon(self): #vers 1
         """Image Ops ribbon - Colour Adjustments/Seamless/Snow/Zoom Lens/
@@ -12694,6 +12706,25 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 pass
             # Clear any widget-level override so we inherit from QApplication
             self.setStyleSheet("")
+
+            # Re-apply ribbon backgrounds and the outer window/separator
+            # styling so they pick up the new theme's colours - both are
+            # set once at creation time and otherwise never refresh on a
+            # later theme switch.
+            for _tb in (getattr(self, '_tools_ribbon', None),
+                        getattr(self, '_image_ops_ribbon', None)):
+                if _tb is not None:
+                    self._apply_ribbon_style(_tb)
+            if getattr(self, '_outer_mw', None) is not None and app_settings:
+                _tc = app_settings.get_theme_colors()
+                _hexval = _tc.get('panel_bg')
+                if _hexval:
+                    self._outer_mw.setStyleSheet(
+                        f"QMainWindow {{ background: {_hexval}; }} "
+                        "QMainWindow::separator { "
+                        "width: 1px; height: 1px; } "
+                        "QMainWindow::separator:hover { background: palette(highlight); }")
+
             # gadgetbar_bg applied via QFrame#titlebar in global stylesheet — no manual refresh needed
             # Refresh icons so they contrast correctly with new theme
             self._refresh_icons()
