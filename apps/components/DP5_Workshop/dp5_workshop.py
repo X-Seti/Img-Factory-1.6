@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 44 (Build 371)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 45 (Build 372)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -4808,7 +4808,14 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             self.app_settings = None
 
         if self.app_settings and hasattr(self.app_settings, 'theme_changed'):
-            self.app_settings.theme_changed.connect(self._refresh_icons)
+            # Was connected to _refresh_icons only - _apply_theme() (which
+            # calls _refresh_icons() itself at the end, plus re-styles the
+            # ribbon/separator/dock title bars/splitter) was never actually
+            # triggered by a live theme switch, only at initial startup and
+            # from DP5's own theme dialog. That's why none of tonight's
+            # theme-colour fixes appeared to change anything when switching
+            # themes through the embedding app's own settings.
+            self.app_settings.theme_changed.connect(self._apply_theme)
 
         # Icon factory
         self.icon_factory = SVGIconFactory()
