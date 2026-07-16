@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 51 (Build 378)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 52 (Build 379)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -518,7 +518,6 @@ from PyQt6.QtGui import (
 # _SpriteView.paintEvent
 # _SpriteView.set_sprite
 # _SpriteView.set_zoom
-
 App_name = "DP5 Workshop"
 App_build = "July 16 26 50 (Build 377) Vers 59"
 DEBUG_STANDALONE = False
@@ -631,18 +630,16 @@ def _load_tool_icon(shape: str, size: int = 42, active: bool = False,
 
 def _make_tool_icon(shape: str, size: int = 42,
                     active: bool = False,
-                    tile_bg: str = '', icon_col: str = '') -> QIcon: #vers 3
+                    tile_bg: str = '', icon_col: str = '') -> QIcon: #vers 4
     """
     Render a tool icon.  Uses SVGIconFactory.dp_*_icon() when available.
-    tile_bg / icon_col override theme defaults — pass from _get_icon_color().
-    Normal:  panel_bg tile + text_primary icon (from theme)
-    Active:  accent tile + inverted icon
-    """        # AppSettings (global theme only)
-
-    if APPSETTINGS_AVAILABLE:
-        app_settings = AppSettings()
-
-
+    tile_bg / icon_col MUST be passed in from the caller's
+    _get_icon_color() call - this is a module-level function with no
+    access to self/app_settings, so it can't look up theme colours
+    itself. No fallback colour here: if the caller doesn't provide one,
+    that's the caller's responsibility to fix, not this function's job
+    to invent a value for.
+    """
     #    SVG icon map: shape → SVGIconFactory method name                      
     # Add entries here as you create new dp_*_icon() methods in
     # imgfactory_svg_icons.py — they'll be picked up automatically.
@@ -684,23 +681,6 @@ def _make_tool_icon(shape: str, size: int = 42,
         method_name = _SVG_MAP[shape]
         fn = getattr(SVGIconFactory, method_name, None)
         if fn is not None:
-            # Use passed colours or fall back to safe defaults #TODO: there should be no fallbacks.
-
-            themecol = self.app_settings.get_theme_colors()
-            hexval_panel_bg = themecol.get('panel_bg')
-            hexval_bg_primary = themecol.get('bg_primary')
-            hexval_bg_secondary = themecol.get('bg_secondary')
-            hexval_bg_tertiary = themecol.get('bg_tertiary')
-            hexval_textprimary = themecol.get('text_primary')
-            hexval_text_secondary = themecol.get('text_secondary')
-            hexval_text_accent = themecol.get('text_accent')
-
-            if tile_bg is None:
-                tile_bg = hexval_panel_bg if active else hexval_bg_secondary
-
-            if icon_col is None:     #if not icon_col:
-                icon_col = hexval_textprimary if active else hexval_text_secondary
-
             try:
                 # Get the icon rendered transparent (no bg_color — avoids SVG corruption)
                 ico = fn(size, color=icon_col)
@@ -718,14 +698,8 @@ def _make_tool_icon(shape: str, size: int = 42,
     # - QPainter fallback (shapes, lasso, select, text, etc.)
     import math as _m
 
-    _tbg = tile_bg if tile_bg else (
-        hexval_panel_bg if active else hexval_bg_secondary
-        )
-    _ink = icon_col if icon_col else (
-        hexval_textprimary if active else hexval_text_secondary
-        )
-    tile_bg_c = QColor(_tbg)
-    ink     = QColor(_ink)
+    tile_bg_c = QColor(tile_bg)
+    ink     = QColor(icon_col)
 
     px = QPixmap(size, size)
     px.fill(tile_bg_c)
@@ -6200,6 +6174,18 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                     c.update()
 
         icon_sz = self.dp5_settings.get('tool_icon_size')
+        icon_color = self._get_icon_color()
+        _tile_bg = ''
+        _active_tile_bg = ''
+        try:
+            if self.app_settings:
+                _tc = self.app_settings.get_theme_colors() or {}
+                _tile_bg = _tc.get('gadgetbar_bg',
+                               _tc.get('toolbar_bg',
+                                   _tc.get('bg_secondary', '')))
+                _active_tile_bg = _tc.get('accent_primary', _tile_bg)
+        except Exception:
+            pass
 
         # Shape key map — includes all variants
         _shape_map = {
@@ -6221,7 +6207,10 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             is_active = (tid == tool_id)
             btn.setChecked(is_active)
             shape_key = _shape_map.get(tid, tid)
-            btn.setIcon(_make_tool_icon(shape_key, icon_sz, active=is_active))
+            btn.setIcon(_make_tool_icon(
+                shape_key, icon_sz, active=is_active,
+                tile_bg=(_active_tile_bg if is_active else _tile_bg),
+                icon_col=icon_color))
 
         # Sync brush thumbnail active border
         if hasattr(self, '_brush_thumb'):
