@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 47 (Build 374)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 48 (Build 375)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -1146,6 +1146,13 @@ class DP5Settings:
 
     DEFAULTS = {
         'show_bitmap_list':  False,    # left panel visible
+        # Widget manager - enable/disable each dock independently of its
+        # current show/hide state (this controls whether the dock exists
+        # at all / is offered in the UI, not just its visibility).
+        'widget_bitmaps_enabled':      True,
+        'widget_brushcolors_enabled':  True,
+        'widget_imagepalette_enabled': True,
+        'widget_userpalette_enabled':  True,
         'tool_icon_size':    24,       # tool button pixel size (20–64)
         'tool_icon_color':   'color',  # 'color' | 'white' | 'dark'
         'tool_columns':      3,        # 3, 4, 5, or 6
@@ -1468,6 +1475,29 @@ class DP5SettingsDialog(QDialog):
 
         tabs.addTab(ui_tab, "Interface")
 
+        # - Widgets tab (enable/disable each dock)
+        widgets_tab = QWidget()
+        wl = QFormLayout(widgets_tab)
+        wl.setSpacing(8)
+
+        self._widget_bitmaps_chk = QCheckBox()
+        self._widget_bitmaps_chk.setChecked(self.s.get('widget_bitmaps_enabled'))
+        wl.addRow("Bitmaps:", self._widget_bitmaps_chk)
+
+        self._widget_brushcolors_chk = QCheckBox()
+        self._widget_brushcolors_chk.setChecked(self.s.get('widget_brushcolors_enabled'))
+        wl.addRow("Brush & Colors:", self._widget_brushcolors_chk)
+
+        self._widget_imagepalette_chk = QCheckBox()
+        self._widget_imagepalette_chk.setChecked(self.s.get('widget_imagepalette_enabled'))
+        wl.addRow("Image Palette:", self._widget_imagepalette_chk)
+
+        self._widget_userpalette_chk = QCheckBox()
+        self._widget_userpalette_chk.setChecked(self.s.get('widget_userpalette_enabled'))
+        wl.addRow("User Palette:", self._widget_userpalette_chk)
+
+        tabs.addTab(widgets_tab, "Widgets")
+
         # - Gadgets tab
         gadgets_tab = QWidget()
         gl = QVBoxLayout(gadgets_tab)
@@ -1603,6 +1633,10 @@ class DP5SettingsDialog(QDialog):
         self.s.set('ribbon_button_padding_horz', self._ribbon_btn_pad_horz_spin.value())
         self.s.set('ribbon_opacity',        self._ribbon_opacity_spin.value())
         self.s.set('show_bitmap_list', self._bitmap_chk.isChecked())
+        self.s.set('widget_bitmaps_enabled',      self._widget_bitmaps_chk.isChecked())
+        self.s.set('widget_brushcolors_enabled',  self._widget_brushcolors_chk.isChecked())
+        self.s.set('widget_imagepalette_enabled', self._widget_imagepalette_chk.isChecked())
+        self.s.set('widget_userpalette_enabled',  self._widget_userpalette_chk.isChecked())
         self.s.set('show_statusbar',   self._statusbar_chk.isChecked())
         self.s.set('ui_font_size',     self._font_size_spin.value())
         self.s.set('tool_icon_size',   self._icon_size_spin.value())
@@ -4975,9 +5009,20 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         # their respective depends/*_widget.py modules, each with a
         # theme-aware background - this shared loop is no longer needed.)
 
-        # Bitmaps panel: hidden by default — toggle via DP5 Settings
-        self._bitmaps_dock.setVisible(self.dp5_settings.get('show_bitmap_list'))
+        # Bitmaps panel: hidden by default — toggle via DP5 Settings.
+        # Combines the existing show_bitmap_list preference with the new
+        # widget-manager enable/disable toggle - both must be true.
+        self._bitmaps_dock.setVisible(
+            self.dp5_settings.get('show_bitmap_list') and
+            self.dp5_settings.get('widget_bitmaps_enabled'))
         self._left_panel = self._bitmaps_dock.widget()   # kept for any code still checking this attr
+
+        # Widget manager enable/disable for the other three docks - always
+        # built (so every attribute the rest of the app references still
+        # exists), just hidden when disabled rather than skipping creation.
+        self._brush_colors_dock.setVisible(self.dp5_settings.get('widget_brushcolors_enabled'))
+        self._img_palette_dock.setVisible(self.dp5_settings.get('widget_imagepalette_enabled'))
+        self._user_palette_dock.setVisible(self.dp5_settings.get('widget_userpalette_enabled'))
 
         main_layout.addWidget(outer_mw)
 
@@ -9925,9 +9970,19 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             self.set_menu_orientation(self.dp5_settings.get('menu_style', 'topbar'))
 
             # Apply changed settings live
-            show_left = self.dp5_settings.get('show_bitmap_list')
+            show_left = (self.dp5_settings.get('show_bitmap_list') and
+                        self.dp5_settings.get('widget_bitmaps_enabled'))
             if hasattr(self, '_bitmaps_dock'):
                 self._bitmaps_dock.setVisible(show_left)
+            if hasattr(self, '_brush_colors_dock'):
+                self._brush_colors_dock.setVisible(
+                    self.dp5_settings.get('widget_brushcolors_enabled'))
+            if hasattr(self, '_img_palette_dock'):
+                self._img_palette_dock.setVisible(
+                    self.dp5_settings.get('widget_imagepalette_enabled'))
+            if hasattr(self, '_user_palette_dock'):
+                self._user_palette_dock.setVisible(
+                    self.dp5_settings.get('widget_userpalette_enabled'))
             if hasattr(self, '_status_bar'):
                 self._status_bar.setVisible(self.dp5_settings.get('show_statusbar'))
 
