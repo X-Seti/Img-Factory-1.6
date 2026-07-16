@@ -1,4 +1,4 @@
-#this belongs in apps/components/DP5_Workshop/depends/brushcolors_widget.py - Version: 1
+#this belongs in apps/components/DP5_Workshop/depends/brushcolors_widget.py - Version: 2
 # X-Seti - Jul 2026 - DP5 Workshop - Brush & Colors dock widget
 """
 Self-contained Brush & Colors dock widget: dock container, collapsible
@@ -49,6 +49,75 @@ def create_brush_colors_dock(owner): #vers 1
     return dock
 
 
+def _apply_panel_stylesheet(owner, panel): #vers 1
+    """Build and apply a theme-aware stylesheet for the whole panel -
+    background, border, label/checkbox text, slider groove/handle, and
+    button states - all scoped to #dp5_brushcolors_panel specifically via
+    descendant selectors, so this doesn't leak onto QLabel/QSlider/etc
+    elsewhere in the app. No fallback colours: if the theme lookup
+    fails, the stylesheet is skipped entirely rather than invented."""
+    if not (owner.app_settings and hasattr(owner.app_settings, 'get_theme_colors')):
+        return
+    tc = owner.app_settings.get_theme_colors()
+    panel_bg   = tc.get('panel_bg') or tc.get('bg_primary')
+    border     = tc.get('border')
+    text_col   = tc.get('text_primary')
+    accent     = tc.get('accent_primary')
+    btn_normal = tc.get('button_normal')
+    btn_hover  = tc.get('button_hover')
+    btn_press  = tc.get('button_pressed')
+    btn_text   = tc.get('button_text_color') or text_col
+    alt_base   = tc.get('alternate_base')
+    if not (panel_bg and border and text_col):
+        return   # not enough of the theme defined to build a coherent style
+
+    radius = tc.get('button_border_radius', 4)
+    ss = f"""
+        QFrame#dp5_brushcolors_panel {{
+            background: {panel_bg};
+            border: 1px solid {border};
+        }}
+        QFrame#dp5_brushcolors_panel QLabel {{
+            color: {text_col};
+            background: transparent;
+        }}
+        QFrame#dp5_brushcolors_panel QCheckBox {{
+            color: {text_col};
+            background: transparent;
+        }}
+    """
+    if accent and alt_base:
+        ss += f"""
+        QFrame#dp5_brushcolors_panel QSlider::groove:horizontal {{
+            background: {alt_base};
+            height: 4px;
+            border-radius: 2px;
+        }}
+        QFrame#dp5_brushcolors_panel QSlider::handle:horizontal {{
+            background: {accent};
+            width: 12px;
+            margin: -5px 0;
+            border-radius: 6px;
+        }}
+        """
+    if btn_normal and btn_hover and btn_press and btn_text:
+        ss += f"""
+        QFrame#dp5_brushcolors_panel QPushButton {{
+            background: {btn_normal};
+            color: {btn_text};
+            border: 1px solid {border};
+            border-radius: {radius}px;
+        }}
+        QFrame#dp5_brushcolors_panel QPushButton:hover {{
+            background: {btn_hover};
+        }}
+        QFrame#dp5_brushcolors_panel QPushButton:pressed {{
+            background: {btn_press};
+        }}
+        """
+    panel.setStyleSheet(ss)
+
+
 def _create_content_panel(owner): #vers 1
     """Brush & Colors dock content - brush size, snap/grid toggles,
     FG/BG swatch + brush thumbnail, zoom in/out, opacity, colour
@@ -57,7 +126,9 @@ def _create_content_panel(owner): #vers 1
         FGBGSwatch, BrushThumbnail, SVGIconFactory)
 
     panel = QFrame()
+    panel.setObjectName("dp5_brushcolors_panel")
     panel.setFrameStyle(QFrame.Shape.StyledPanel)
+    _apply_panel_stylesheet(owner, panel)
     icon_color = owner._get_icon_color()
 
     layout = QVBoxLayout(panel)
@@ -272,11 +343,14 @@ def _refresh_titlebar_color(owner, bar): #vers 1
                 f"QWidget#dp5_brushcolors_titlebar {{ background: {hexval}; }}")
 
 
-def refresh_theme(owner): #vers 1
-    """Re-apply theme-aware colours to the title bar and the Recent
-    colour history's empty slots. Call from DP5Workshop._apply_theme()
-    on every theme switch - both are set once at creation and won't
-    pick up a later theme change on their own otherwise."""
+def refresh_theme(owner): #vers 2
+    """Re-apply theme-aware colours to the panel stylesheet, title bar,
+    and the Recent colour history's empty slots. Call from DP5Workshop.
+    _apply_theme() on every theme switch - all are set once at creation
+    and won't pick up a later theme change on their own otherwise."""
+    dock = getattr(owner, '_brush_colors_dock', None)
+    if dock is not None and dock.widget() is not None:
+        _apply_panel_stylesheet(owner, dock.widget())
     bar = getattr(owner, '_brush_colors_titlebar', None)
     if bar is not None:
         _refresh_titlebar_color(owner, bar)
