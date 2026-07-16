@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 50 (Build 377)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 51 (Build 378)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -1553,7 +1553,7 @@ class DP5SettingsDialog(QDialog):
             btn.setToolTip(label)
             # Use parent workshop's icon colour if available
             _ws  = parent if hasattr(parent, '_get_icon_color') else None
-            _col = _ws._get_icon_color()
+            _col = _ws._get_icon_color() if _ws else ''
             _tbg = ''
             if _ws and _ws.app_settings:
                 _tc = _ws.app_settings.get_theme_colors() or {}
