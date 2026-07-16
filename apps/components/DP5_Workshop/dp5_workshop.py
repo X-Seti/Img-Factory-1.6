@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 45 (Build 372)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 46 (Build 373)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -170,7 +170,6 @@ from PyQt6.QtGui import (
 # DP5Workshop._convert_canvas_to_platform
 # DP5Workshop._copy_selection
 # DP5Workshop._create_anim_strip
-# DP5Workshop._create_brush_colors_panel
 # DP5Workshop._create_centre_panel
 # DP5Workshop._create_docked_bar
 # DP5Workshop._create_image_ops_ribbon
@@ -4934,7 +4933,6 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             outer_mw.setStatusBar(self._status_bar)
 
         bitmaps_panel      = self._create_left_panel()
-        brush_colors_panel = self._create_brush_colors_panel()
         img_palette_panel  = self._create_image_palette_panel()
         user_palette_panel = self._create_user_palette_panel()
 
@@ -4947,14 +4945,14 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             QDockWidget.DockWidgetFeature.DockWidgetFloatable)
         outer_mw.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self._bitmaps_dock)
 
-        self._brush_colors_dock = QDockWidget("Brush & Colors", self)
-        self._brush_colors_dock.setObjectName("Brush & Colors")
-        self._brush_colors_dock.setWidget(brush_colors_panel)
-        self._brush_colors_dock.setMinimumWidth(180)
-        self._brush_colors_dock.setFeatures(
-            QDockWidget.DockWidgetFeature.DockWidgetMovable |
-            QDockWidget.DockWidgetFeature.DockWidgetFloatable)
-        outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self._brush_colors_dock)
+        # Brush & Colors - extracted to depends/brushcolors_widget.py so
+        # it can be built/maintained independently of the rest of this
+        # method; builds its own dock, title bar (theme-aware background),
+        # and content panel, and sets self._brush_colors_dock itself.
+        from apps.components.DP5_Workshop.depends.brushcolors_widget import (
+            create_brush_colors_dock)
+        brush_colors_dock = create_brush_colors_dock(self)
+        outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, brush_colors_dock)
 
         self._img_palette_dock = QDockWidget("Image Palette", self)
         self._img_palette_dock.setObjectName("Image Palette")
@@ -4991,8 +4989,9 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         # Double-click any dock's title bar to collapse it down to just the
         # title (content hidden), double-click again to restore.
+        # (Brush & Colors builds its own collapsible title bar in
+        # depends/brushcolors_widget.py, so it's not in this loop.)
         for _dock, _title in ((self._bitmaps_dock, "Bitmaps"),
-                               (self._brush_colors_dock, "Brush & Colors"),
                                (self._img_palette_dock, "Image Palette"),
                                (self._user_palette_dock, "User Palette")):
             if _dock is not None:
@@ -6117,149 +6116,6 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         tb.orientationChanged.connect(lambda _o, t=tb: self._apply_ribbon_style(t))
         return tb
 
-    def _create_brush_colors_panel(self): #vers 1
-        """Brush & Colors dock panel - brush size, snap/grid toggles,
-        FG/BG swatch + brush thumbnail, zoom in/out, opacity, colour
-        history. Split out from the old combined right panel so it can
-        be independently dragged/floated, same as Files/Models/etc in
-        Model Workshop."""
-        panel = QFrame()
-        panel.setFrameStyle(QFrame.Shape.StyledPanel)
-        icon_color = self._get_icon_color()
-
-        layout = QVBoxLayout(panel)
-        layout.setContentsMargins(4, 4, 4, 4)
-        layout.setSpacing(3)
-
-        #    Brush size slider + value label
-        size_hdr = QHBoxLayout()
-        size_lbl = QLabel("Size")
-        size_lbl.setFont(self.panel_font)
-        size_hdr.addWidget(size_lbl)
-        self._size_sl = QSlider(Qt.Orientation.Horizontal)
-        self._size_sl.setRange(1, 20)
-        self._size_sl.setValue(1)
-        self._size_sl.setMinimumHeight(24)
-        self._size_sl.valueChanged.connect(self._set_brush_size)
-        size_hdr.addWidget(self._size_sl)
-        self._size_val_lbl = QLabel("1")
-        self._size_val_lbl.setAlignment(Qt.AlignmentFlag.AlignRight |
-                                        Qt.AlignmentFlag.AlignVCenter)
-        self._size_val_lbl.setFont(self.panel_font)
-        self._size_val_lbl.setFixedWidth(28)
-        size_hdr.addWidget(self._size_val_lbl)
-        layout.addLayout(size_hdr)
-
-        #    Snap to grid toggle
-        snap_row = QHBoxLayout()
-        self._snap_chk = QCheckBox("Snap to grid")
-        self._snap_chk.setFont(self.panel_font)
-        self._snap_chk.setChecked(False)
-        self._snap_chk.setToolTip("Snap drawing to pixel grid")
-        self._snap_chk.toggled.connect(self._set_snap_grid)
-        self._grid_chk2 = QCheckBox("Show grid")
-        self._grid_chk2.setFont(self.panel_font)
-        self._grid_chk2.setChecked(self.dp5_settings.get('show_pixel_grid'))
-        self._grid_chk2.toggled.connect(self._set_show_grid)
-        self._zoom_lbl = QLabel(f"{self._canvas_zoom}×")
-        self._zoom_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        self._zoom_lbl.setFont(self.panel_font)
-        snap_row.addWidget(self._snap_chk)
-        snap_row.addWidget(self._grid_chk2)
-        snap_row.addWidget(self._zoom_lbl)
-        layout.addLayout(snap_row)
-
-        layout.addSpacing(4)
-
-        #    FG / BG swatch  +  brush thumbnail
-        fgbg_row_lbl = QHBoxLayout()
-        fgbg_lbl = QLabel("FG / BG")
-        fgbg_lbl.setFont(self.panel_font)
-        fgbg_row_lbl.addWidget(fgbg_lbl)
-        brush_lbl = QLabel("Brush")
-        brush_lbl.setFont(self.panel_font)
-        fgbg_row_lbl.addWidget(brush_lbl)
-        layout.addLayout(fgbg_row_lbl)
-
-        fgbg_row = QHBoxLayout()
-        fgbg_row.setSpacing(4)
-
-        self._fgbg_swatch = FGBGSwatch()
-        self._fgbg_swatch.fg_changed.connect(self._on_fg_changed)
-        self._fgbg_swatch.bg_changed.connect(self._on_bg_changed)
-        fgbg_row.addWidget(self._fgbg_swatch)
-
-        self._brush_thumb = BrushThumbnail()
-        self._brush_thumb.stamp_requested.connect(self._activate_stamp_mode)
-        self._brush_thumb.clear_requested.connect(self._clear_brush)
-        fgbg_row.addWidget(self._brush_thumb)
-
-        zoom_stack = QVBoxLayout()
-        zoom_stack.setSpacing(2)
-        zoom_in_btn = QPushButton()
-        zoom_in_btn.setFixedSize(24, 24)
-        zoom_in_btn.setToolTip("Zoom in")
-        zoom_in_btn.clicked.connect(lambda: self._set_zoom(
-            self._canvas_zoom * 1.25 if self._canvas_zoom < 1 else min(64, self._canvas_zoom + 1)))
-        try:
-            zoom_in_btn.setIcon(SVGIconFactory.zoom_in_icon(14, icon_color))
-            zoom_in_btn.setIconSize(QSize(14, 14))
-        except Exception:
-            zoom_in_btn.setText("+")
-        zoom_out_btn = QPushButton()
-        zoom_out_btn.setFixedSize(24, 24)
-        zoom_out_btn.setToolTip("Zoom out")
-        zoom_out_btn.clicked.connect(lambda: self._set_zoom(
-            max(0.05, self._canvas_zoom * 0.8 if self._canvas_zoom <= 1 else self._canvas_zoom - 1)))
-        try:
-            zoom_out_btn.setIcon(SVGIconFactory.zoom_out_icon(14, icon_color))
-            zoom_out_btn.setIconSize(QSize(14, 14))
-        except Exception:
-            zoom_out_btn.setText("-")
-        zoom_stack.addWidget(zoom_in_btn)
-        zoom_stack.addWidget(zoom_out_btn)
-        fgbg_row.addLayout(zoom_stack)
-
-        layout.addLayout(fgbg_row)
-
-        #    Opacity
-        op_row = QHBoxLayout()
-        op_lbl = QLabel("Opacity")
-        op_lbl.setFont(self.panel_font)
-        op_row.addWidget(op_lbl)
-        self._opacity_sl = QSlider(Qt.Orientation.Horizontal)
-        self._opacity_sl.setRange(0, 100)
-        self._opacity_sl.setValue(100)
-        self._opacity_sl.setMinimumHeight(24)
-        self._opacity_sl.valueChanged.connect(self._set_opacity)
-        op_row.addWidget(self._opacity_sl)
-        self._opacity_val_lbl = QLabel("100%")
-        self._opacity_val_lbl.setFont(self.panel_font)
-        self._opacity_val_lbl.setFixedWidth(34)
-        self._opacity_val_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        op_row.addWidget(self._opacity_val_lbl)
-        layout.addLayout(op_row)
-
-        #    Colour history
-        hist_lbl = QLabel("Recent")
-        hist_lbl.setFont(self.panel_font)
-        layout.addWidget(hist_lbl)
-        hist_row = QHBoxLayout()
-        hist_row.setSpacing(2)
-        self._color_history = []
-        self._color_hist_btns = []
-        for _ in range(12):
-            b = QPushButton()
-            b.setFixedSize(12, 12)
-            b.setStyleSheet("background:palette(base); border:1px solid palette(mid);")
-            b.setEnabled(False)
-            hist_row.addWidget(b)
-            self._color_hist_btns.append(b)
-        layout.addLayout(hist_row)
-        layout.addStretch()
-
-        return panel
-
     def _create_image_palette_panel(self): #vers 1
         """Image Palette dock panel - bit depth quantization + palette
         grid. Split out from the old combined right panel."""
@@ -6490,15 +6346,19 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         for i, btn in enumerate(self._color_hist_btns):
             if i < len(self._color_history):
                 col = self._color_history[i]
-                btn.setStyleSheet(f"background:{col}; border:1px solid palette(mid);")
+                border = 'palette(mid)'
+                if self.app_settings and hasattr(self.app_settings, 'get_theme_colors'):
+                    tc = self.app_settings.get_theme_colors()
+                    border = tc.get('border') or border
+                btn.setStyleSheet(f"background:{col}; border:1px solid {border};")
                 btn.setEnabled(True)
                 btn.setToolTip(col)
                 btn.clicked.disconnect() if btn.receivers(btn.clicked) > 0 else None
                 btn.clicked.connect(lambda _, hc=col: self._fgbg_swatch.set_fg(QColor(hc)))
             else:
-                themecol = self.app_settings.get_theme_colors()
-                hexval = themecol.get('text_primary')
-                btn.setStyleSheet(f"background: {hexval}; border:1px solid palette(mid);")
+                from apps.components.DP5_Workshop.depends.brushcolors_widget import (
+                    _style_empty_history_slot)
+                _style_empty_history_slot(self, btn)
                 btn.setEnabled(False)
 
     def _on_bg_changed(self, c: QColor):  #vers 1
@@ -12759,6 +12619,12 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                         _bar.setStyleSheet(
                             f"QWidget#dp5_dock_titlebar {{ background: {_hexval2}; }}")
 
+            try:
+                from apps.components.DP5_Workshop.depends.brushcolors_widget import refresh_theme
+                refresh_theme(self)
+            except Exception:
+                pass
+
             # gadgetbar_bg applied via QFrame#titlebar in global stylesheet — no manual refresh needed
             # Refresh icons so they contrast correctly with new theme
             self._refresh_icons()
@@ -12814,22 +12680,19 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             except Exception:
                 pass
 
-        # Recent colour buttons — update background to theme base
-        try:
-            if self.app_settings:
-                tc = self.app_settings.get_theme_colors() or {}
-                empty_bg = tc.get('bg_secondary', tc.get('panel_primary', ''))
-            else:
-                empty_bg = ''
-        except Exception:
-            empty_bg = ''
+        # Recent colour buttons — theme-aware via the shared helper
+        from apps.components.DP5_Workshop.depends.brushcolors_widget import (
+            _style_empty_history_slot)
         for i, btn in enumerate(getattr(self, '_color_hist_btns', [])):
             if i < len(getattr(self, '_color_history', [])):
                 h = self._color_history[i]
-                btn.setStyleSheet(f"background:{h}; border:1px solid palette(mid);")
+                border = 'palette(mid)'
+                if self.app_settings and hasattr(self.app_settings, 'get_theme_colors'):
+                    tc = self.app_settings.get_theme_colors()
+                    border = tc.get('border') or border
+                btn.setStyleSheet(f"background:{h}; border:1px solid {border};")
             else:
-                bg = empty_bg if empty_bg else 'palette(base)'
-                btn.setStyleSheet(f"background:{bg}; border:1px solid palette(mid);")
+                _style_empty_history_slot(self, btn)
 
 
     def _launch_theme_settings(self): #vers 1
