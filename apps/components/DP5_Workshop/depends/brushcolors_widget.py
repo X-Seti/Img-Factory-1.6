@@ -1,4 +1,4 @@
-#this belongs in apps/components/DP5_Workshop/depends/brushcolors_widget.py - Version: 2
+#this belongs in apps/components/DP5_Workshop/depends/brushcolors_widget.py - Version: 3
 # X-Seti - Jul 2026 - DP5 Workshop - Brush & Colors dock widget
 """
 Self-contained Brush & Colors dock widget: dock container, collapsible
@@ -69,7 +69,11 @@ def _apply_panel_stylesheet(owner, panel): #vers 1
     btn_text   = tc.get('button_text_color') or text_col
     alt_base   = tc.get('alternate_base')
     if not (panel_bg and border and text_col):
+        print(f"[brushcolors-style] SKIPPED - panel_bg={panel_bg!r} "
+              f"border={border!r} text_col={text_col!r}")
         return   # not enough of the theme defined to build a coherent style
+    print(f"[brushcolors-style] applying panel_bg={panel_bg} border={border} "
+          f"text_col={text_col} accent={accent}")
 
     radius = tc.get('button_border_radius', 4)
     ss = f"""
