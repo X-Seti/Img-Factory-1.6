@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 49 (Build 376)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 50 (Build 377)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -1258,9 +1258,10 @@ class DP5Settings:
 class DP5SettingsDialog(QDialog):
     """Settings dialog for DP5 Workshop — does NOT touch global AppSettings."""
 
-    def __init__(self, dp5_settings: DP5Settings, parent=None): #vers 3
+    def __init__(self, dp5_settings: DP5Settings, parent=None): #vers 4
         super().__init__(parent)
         self.s = dp5_settings
+        self._workshop = parent   # DP5Workshop instance - gives access to _WIDGET_REGISTRY
         self.setWindowTitle(App_name + " - Settings")
         self.setMinimumWidth(380)
         self.setModal(True)
@@ -1475,26 +1476,27 @@ class DP5SettingsDialog(QDialog):
 
         tabs.addTab(ui_tab, "Interface")
 
-        # - Widgets tab (enable/disable each dock)
+        # - Widgets tab (enable/disable each dock) - generated from
+        # DP5Workshop._WIDGET_REGISTRY rather than one hardcoded checkbox
+        # per widget, so adding a new widget to the registry (e.g. an
+        # alternative colour-widget implementation) automatically gets a
+        # toggle here too, with no dialog code changes needed.
         widgets_tab = QWidget()
         wl = QFormLayout(widgets_tab)
         wl.setSpacing(8)
 
-        self._widget_bitmaps_chk = QCheckBox()
-        self._widget_bitmaps_chk.setChecked(self.s.get('widget_bitmaps_enabled'))
-        wl.addRow("Bitmaps:", self._widget_bitmaps_chk)
-
-        self._widget_brushcolors_chk = QCheckBox()
-        self._widget_brushcolors_chk.setChecked(self.s.get('widget_brushcolors_enabled'))
-        wl.addRow("Brush & Colors:", self._widget_brushcolors_chk)
-
-        self._widget_imagepalette_chk = QCheckBox()
-        self._widget_imagepalette_chk.setChecked(self.s.get('widget_imagepalette_enabled'))
-        wl.addRow("Image Palette:", self._widget_imagepalette_chk)
-
-        self._widget_userpalette_chk = QCheckBox()
-        self._widget_userpalette_chk.setChecked(self.s.get('widget_userpalette_enabled'))
-        wl.addRow("User Palette:", self._widget_userpalette_chk)
+        self._widget_chks = {}   # key -> QCheckBox, for generic save logic
+        registry = getattr(self._workshop, '_WIDGET_REGISTRY', [])
+        for entry in registry:
+            # Entries with enabled_setting=None (Bitmaps) have their
+            # visibility combined with another setting elsewhere, but
+            # still get a checkbox here using the conventional settings
+            # key, which already exists.
+            setting_key = entry.get('enabled_setting') or f"widget_{entry['key']}_enabled"
+            chk = QCheckBox()
+            chk.setChecked(self.s.get(setting_key))
+            wl.addRow(f"{entry.get('label', entry['key'])}:", chk)
+            self._widget_chks[entry['key']] = chk
 
         tabs.addTab(widgets_tab, "Widgets")
 
@@ -1633,10 +1635,12 @@ class DP5SettingsDialog(QDialog):
         self.s.set('ribbon_button_padding_horz', self._ribbon_btn_pad_horz_spin.value())
         self.s.set('ribbon_opacity',        self._ribbon_opacity_spin.value())
         self.s.set('show_bitmap_list', self._bitmap_chk.isChecked())
-        self.s.set('widget_bitmaps_enabled',      self._widget_bitmaps_chk.isChecked())
-        self.s.set('widget_brushcolors_enabled',  self._widget_brushcolors_chk.isChecked())
-        self.s.set('widget_imagepalette_enabled', self._widget_imagepalette_chk.isChecked())
-        self.s.set('widget_userpalette_enabled',  self._widget_userpalette_chk.isChecked())
+        registry = getattr(self._workshop, '_WIDGET_REGISTRY', [])
+        for entry in registry:
+            setting_key = entry.get('enabled_setting') or f"widget_{entry['key']}_enabled"
+            chk = self._widget_chks.get(entry['key'])
+            if chk is not None:
+                self.s.set(setting_key, chk.isChecked())
         self.s.set('show_statusbar',   self._statusbar_chk.isChecked())
         self.s.set('ui_font_size',     self._font_size_spin.value())
         self.s.set('tool_icon_size',   self._icon_size_spin.value())
@@ -4779,24 +4783,28 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
     # after this loop runs, rather than a single setting here).
     _WIDGET_REGISTRY = [
         {'key': 'bitmaps',
+         'label': 'Bitmaps',
          'module': 'apps.components.DP5_Workshop.depends.bitmaps_widget',
          'create_fn': 'create_bitmaps_dock',
          'dock_attr': '_bitmaps_dock',
          'area': Qt.DockWidgetArea.LeftDockWidgetArea,
          'enabled_setting': None},
         {'key': 'brushcolors',
+         'label': 'Brush & Colors',
          'module': 'apps.components.DP5_Workshop.depends.brushcolors_widget',
          'create_fn': 'create_brush_colors_dock',
          'dock_attr': '_brush_colors_dock',
          'area': Qt.DockWidgetArea.RightDockWidgetArea,
          'enabled_setting': 'widget_brushcolors_enabled'},
         {'key': 'imagepalette',
+         'label': 'Image Palette',
          'module': 'apps.components.DP5_Workshop.depends.imagepalette_widget',
          'create_fn': 'create_image_palette_dock',
          'dock_attr': '_img_palette_dock',
          'area': Qt.DockWidgetArea.RightDockWidgetArea,
          'enabled_setting': 'widget_imagepalette_enabled'},
         {'key': 'userpalette',
+         'label': 'User Palette',
          'module': 'apps.components.DP5_Workshop.depends.userpalette_widget',
          'create_fn': 'create_user_palette_dock',
          'dock_attr': '_user_palette_dock',
