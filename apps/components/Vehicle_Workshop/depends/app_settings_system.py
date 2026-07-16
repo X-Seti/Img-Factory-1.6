@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#This goes in root/apps/utils/app_settings_system.py - version 73
+#This goes in root/apps/utils/app_settings_system.py - version 74
 # $vers" X-Seti - June26, 2025 - App Factory - Package theme settings
 
 """
@@ -3393,7 +3393,9 @@ def apply_panel_effects(window, app_settings): #vers 3
         widget.update()
 
     for widget in window.findChildren(QFrame):
-        if widget.objectName() in ('titlebar', 'gadgetbar'):
+        if widget.objectName() in ('titlebar', 'gadgetbar',
+                                    'dp5_bitmaps_panel', 'dp5_brushcolors_panel',
+                                    'dp5_imagepalette_panel', 'dp5_userpalette_panel'):
             continue
         if widget.frameStyle() & QFrame.Shape.StyledPanel.value:
             widget._app_settings_ref = cs
