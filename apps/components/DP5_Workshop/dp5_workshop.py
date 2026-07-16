@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 46 (Build 373)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 47 (Build 374)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -173,11 +173,8 @@ from PyQt6.QtGui import (
 # DP5Workshop._create_centre_panel
 # DP5Workshop._create_docked_bar
 # DP5Workshop._create_image_ops_ribbon
-# DP5Workshop._create_image_palette_panel
-# DP5Workshop._create_left_panel
 # DP5Workshop._create_toolbar
 # DP5Workshop._create_tools_ribbon
-# DP5Workshop._create_user_palette_panel
 # DP5Workshop._crop_to_selection
 # DP5Workshop._cut_selection
 # DP5Workshop._decode_amiga_info
@@ -4932,18 +4929,11 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         if hasattr(self, '_status_bar'):
             outer_mw.setStatusBar(self._status_bar)
 
-        bitmaps_panel      = self._create_left_panel()
-        img_palette_panel  = self._create_image_palette_panel()
-        user_palette_panel = self._create_user_palette_panel()
-
-        self._bitmaps_dock = QDockWidget("Bitmaps", self)
-        self._bitmaps_dock.setObjectName("Bitmaps")
-        self._bitmaps_dock.setWidget(bitmaps_panel)
-        self._bitmaps_dock.setMinimumWidth(150)
-        self._bitmaps_dock.setFeatures(
-            QDockWidget.DockWidgetFeature.DockWidgetMovable |
-            QDockWidget.DockWidgetFeature.DockWidgetFloatable)
-        outer_mw.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self._bitmaps_dock)
+        # Bitmaps - extracted to depends/bitmaps_widget.py
+        from apps.components.DP5_Workshop.depends.bitmaps_widget import (
+            create_bitmaps_dock)
+        bitmaps_dock = create_bitmaps_dock(self)
+        outer_mw.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, bitmaps_dock)
 
         # Brush & Colors - extracted to depends/brushcolors_widget.py so
         # it can be built/maintained independently of the rest of this
@@ -4954,23 +4944,17 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         brush_colors_dock = create_brush_colors_dock(self)
         outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, brush_colors_dock)
 
-        self._img_palette_dock = QDockWidget("Image Palette", self)
-        self._img_palette_dock.setObjectName("Image Palette")
-        self._img_palette_dock.setWidget(img_palette_panel)
-        self._img_palette_dock.setMinimumWidth(180)
-        self._img_palette_dock.setFeatures(
-            QDockWidget.DockWidgetFeature.DockWidgetMovable |
-            QDockWidget.DockWidgetFeature.DockWidgetFloatable)
-        outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self._img_palette_dock)
+        # Image Palette - extracted to depends/imagepalette_widget.py
+        from apps.components.DP5_Workshop.depends.imagepalette_widget import (
+            create_image_palette_dock)
+        img_palette_dock = create_image_palette_dock(self)
+        outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, img_palette_dock)
 
-        self._user_palette_dock = QDockWidget("User Palette", self)
-        self._user_palette_dock.setObjectName("User Palette")
-        self._user_palette_dock.setWidget(user_palette_panel)
-        self._user_palette_dock.setMinimumWidth(180)
-        self._user_palette_dock.setFeatures(
-            QDockWidget.DockWidgetFeature.DockWidgetMovable |
-            QDockWidget.DockWidgetFeature.DockWidgetFloatable)
-        outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self._user_palette_dock)
+        # User Palette - extracted to depends/userpalette_widget.py
+        from apps.components.DP5_Workshop.depends.userpalette_widget import (
+            create_user_palette_dock)
+        user_palette_dock = create_user_palette_dock(self)
+        outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, user_palette_dock)
 
         # Brush & Colors / Image Palette / User Palette default to stacking
         # top-to-bottom on the right - a sensible starting point, freely
@@ -4987,19 +4971,13 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         outer_mw.addToolBar(Qt.ToolBarArea.LeftToolBarArea, tools_ribbon)
         outer_mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, image_ops_ribbon)
 
-        # Double-click any dock's title bar to collapse it down to just the
-        # title (content hidden), double-click again to restore.
-        # (Brush & Colors builds its own collapsible title bar in
-        # depends/brushcolors_widget.py, so it's not in this loop.)
-        for _dock, _title in ((self._bitmaps_dock, "Bitmaps"),
-                               (self._img_palette_dock, "Image Palette"),
-                               (self._user_palette_dock, "User Palette")):
-            if _dock is not None:
-                self._make_dock_collapsible(_dock, _title)
+        # (All four docks now build their own collapsible title bars in
+        # their respective depends/*_widget.py modules, each with a
+        # theme-aware background - this shared loop is no longer needed.)
 
         # Bitmaps panel: hidden by default — toggle via DP5 Settings
         self._bitmaps_dock.setVisible(self.dp5_settings.get('show_bitmap_list'))
-        self._left_panel = bitmaps_panel   # kept for any code still checking this attr
+        self._left_panel = self._bitmaps_dock.widget()   # kept for any code still checking this attr
 
         main_layout.addWidget(outer_mw)
 
@@ -5335,48 +5313,6 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         return bar
 
         #    Left panel: bitmap list                                                
-
-    def _create_left_panel(self): #vers 1
-        panel = QFrame()
-        panel.setFrameStyle(QFrame.Shape.StyledPanel)
-        panel.setMinimumWidth(150)
-        panel.setMaximumWidth(240)
-
-        layout = QVBoxLayout(panel)
-        layout.setContentsMargins(5, 5, 5, 5)
-        layout.setSpacing(4)
-
-        # Bitmap list
-        self._bitmap_lw = QListWidget()
-        self._bitmap_lw.setObjectName("bitmap_list")
-        self._bitmap_lw.currentRowChanged.connect(self._on_bitmap_selected)
-        layout.addWidget(self._bitmap_lw, 1)
-
-        # Bottom button row — define all buttons BEFORE connecting signals
-        import_btn = QPushButton("Import")
-        import_btn.setFont(self.button_font)
-        import_btn.setToolTip("Import Bitmap")
-
-        export_btn = QPushButton("Export")
-        export_btn.setFont(self.button_font)
-        export_btn.setToolTip("Export current bitmap")
-
-        del_btn = QPushButton("Delete")
-        del_btn.setFont(self.button_font)
-        del_btn.setToolTip("Remove from list")
-
-        # Connect signals after all three are defined
-        import_btn.clicked.connect(self._import_bitmap)
-        export_btn.clicked.connect(self._export_bitmap)
-        del_btn.clicked.connect(self._delete_bitmap)
-
-        btn_row = QHBoxLayout()
-        btn_row.addWidget(import_btn)
-        btn_row.addWidget(export_btn)
-        btn_row.addWidget(del_btn)
-        layout.addLayout(btn_row)
-
-        return panel
 
     def _on_bitmap_selected(self, row: int): #vers 1
         if 0 <= row < len(self._bitmap_list):
@@ -6115,92 +6051,6 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._apply_ribbon_style(tb)
         tb.orientationChanged.connect(lambda _o, t=tb: self._apply_ribbon_style(t))
         return tb
-
-    def _create_image_palette_panel(self): #vers 1
-        """Image Palette dock panel - bit depth quantization + palette
-        grid. Split out from the old combined right panel."""
-        panel = QFrame()
-        panel.setFrameStyle(QFrame.Shape.StyledPanel)
-
-        layout = QVBoxLayout(panel)
-        layout.setContentsMargins(4, 4, 4, 4)
-        layout.setSpacing(3)
-
-        img_pal_ctrl = QHBoxLayout()
-        self._bit_depth_combo = QComboBox()
-        self._bit_depth_combo.setFont(self.panel_font)
-        self._bit_depth_combo.addItems(["32bit", "24bit", "16bit", "8bit"])
-        self._bit_depth_combo.setFixedHeight(24)
-        self._bit_depth_combo.setFixedWidth(40)
-        self._bit_depth_combo.setToolTip("Colour depth for quantization")
-        img_pal_ctrl.addWidget(self._bit_depth_combo)
-        img_pal_apply_btn = QPushButton("Apply")
-        img_pal_apply_btn.setFont(self.button_font)
-        img_pal_apply_btn.setFixedHeight(24)
-        img_pal_apply_btn.setToolTip("Quantize canvas to selected bit depth")
-        img_pal_apply_btn.clicked.connect(self._apply_bit_depth)
-        img_pal_ctrl.addWidget(img_pal_apply_btn)
-        self._img_pal_group_btn = QPushButton("Group")
-        self._img_pal_group_btn.setFont(self.button_font)
-        self._img_pal_group_btn.setFixedHeight(24)
-        self._img_pal_group_btn.setToolTip("Sort palette by hue — click to toggle asc/desc")
-        self._img_pal_group_btn.clicked.connect(self._group_palette)
-        img_pal_ctrl.addWidget(self._img_pal_group_btn)
-        self._group_palette_asc = True
-        layout.addLayout(img_pal_ctrl)
-
-        img_cols = self.dp5_settings.get('img_pal_cols')
-        self.pal_bar = PaletteGrid(cols=img_cols, cell=12)
-        self.pal_bar.color_picked.connect(self._on_image_palette_color)
-        self._img_pal_scroll = QScrollArea()
-        self._img_pal_scroll.setWidget(self.pal_bar)
-        self._img_pal_scroll.setWidgetResizable(True)
-        self._img_pal_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self._img_pal_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        self._img_pal_scroll.setMinimumHeight(12)
-        layout.addWidget(self._img_pal_scroll, stretch=1)
-
-        return panel
-
-    def _create_user_palette_panel(self): #vers 1
-        """User Palette dock panel - retro presets + grid. Split out from
-        the old combined right panel."""
-        panel = QFrame()
-        panel.setFrameStyle(QFrame.Shape.StyledPanel)
-
-        layout = QVBoxLayout(panel)
-        layout.setContentsMargins(4, 4, 4, 4)
-        layout.setSpacing(3)
-
-        user_pal_hdr = QHBoxLayout()
-        self._retro_btn = QPushButton("Amiga AGA WB")
-        self._retro_btn.setFont(self.button_font)
-        self._retro_btn.setFixedHeight(24)
-        self._retro_btn.setToolTip("User palette — choose retro preset")
-        self._retro_btn.clicked.connect(self._show_retro_menu)
-        user_pal_hdr.addWidget(self._retro_btn)
-        self._pal_dither_btn = QPushButton("Dith")
-        self._pal_dither_btn.setVisible(False)  # dither via File menu instead
-        layout.addLayout(user_pal_hdr)
-
-        user_rows = self.dp5_settings.get('user_pal_rows')
-        user_pal_max_h = max(user_rows * 12 + 2, 130)
-        self._user_pal_grid = _AutoCellPaletteGrid()
-        self._user_pal_grid.color_picked.connect(self._on_user_palette_color)
-        user_pal_scroll = QScrollArea()
-        user_pal_scroll.setWidget(self._user_pal_grid)
-        user_pal_scroll.setWidgetResizable(True)
-        user_pal_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        user_pal_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        user_pal_scroll.setMaximumHeight(user_pal_max_h)
-        user_pal_scroll.setMinimumHeight(12)
-        self._user_pal_scroll = user_pal_scroll
-        layout.addWidget(user_pal_scroll, stretch=1)
-
-        # Load default retro palette
-        self._apply_retro_palette(self.dp5_settings.get('retro_palette'))
-
-        return panel
 
     #    Tool / colour helpers                                                  
 
@@ -12620,8 +12470,27 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                             f"QWidget#dp5_dock_titlebar {{ background: {_hexval2}; }}")
 
             try:
-                from apps.components.DP5_Workshop.depends.brushcolors_widget import refresh_theme
-                refresh_theme(self)
+                from apps.components.DP5_Workshop.depends.brushcolors_widget import (
+                    refresh_theme as _refresh_brushcolors_theme)
+                _refresh_brushcolors_theme(self)
+            except Exception:
+                pass
+            try:
+                from apps.components.DP5_Workshop.depends.bitmaps_widget import (
+                    refresh_theme as _refresh_bitmaps_theme)
+                _refresh_bitmaps_theme(self)
+            except Exception:
+                pass
+            try:
+                from apps.components.DP5_Workshop.depends.imagepalette_widget import (
+                    refresh_theme as _refresh_imgpalette_theme)
+                _refresh_imgpalette_theme(self)
+            except Exception:
+                pass
+            try:
+                from apps.components.DP5_Workshop.depends.userpalette_widget import (
+                    refresh_theme as _refresh_userpalette_theme)
+                _refresh_userpalette_theme(self)
             except Exception:
                 pass
 
