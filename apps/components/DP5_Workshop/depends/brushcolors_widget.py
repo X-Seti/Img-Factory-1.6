@@ -1,4 +1,4 @@
-#this belongs in apps/components/DP5_Workshop/depends/brushcolors_widget.py - Version: 3
+#this belongs in apps/components/DP5_Workshop/depends/brushcolors_widget.py - Version: 4
 # X-Seti - Jul 2026 - DP5 Workshop - Brush & Colors dock widget
 """
 Self-contained Brush & Colors dock widget: dock container, collapsible
@@ -49,77 +49,16 @@ def create_brush_colors_dock(owner): #vers 1
     return dock
 
 
-def _apply_panel_stylesheet(owner, panel): #vers 1
-    """Build and apply a theme-aware stylesheet for the whole panel -
-    background, border, label/checkbox text, slider groove/handle, and
-    button states - all scoped to #dp5_brushcolors_panel specifically via
-    descendant selectors, so this doesn't leak onto QLabel/QSlider/etc
-    elsewhere in the app. No fallback colours: if the theme lookup
+def _apply_panel_stylesheet(owner, panel): #vers 2
+    """Apply a theme-aware stylesheet to the panel via the shared
+    depends/theme_style_helper.py builder, scoped to
+    #dp5_brushcolors_panel. No fallback colours: if the theme lookup
     fails, the stylesheet is skipped entirely rather than invented."""
-    if not (owner.app_settings and hasattr(owner.app_settings, 'get_theme_colors')):
-        return
-    tc = owner.app_settings.get_theme_colors()
-    panel_bg   = tc.get('panel_bg') or tc.get('bg_primary')
-    border     = tc.get('border')
-    text_col   = tc.get('text_primary')
-    accent     = tc.get('accent_primary')
-    btn_normal = tc.get('button_normal')
-    btn_hover  = tc.get('button_hover')
-    btn_press  = tc.get('button_pressed')
-    btn_text   = tc.get('button_text_color') or text_col
-    alt_base   = tc.get('alternate_base')
-    if not (panel_bg and border and text_col):
-        print(f"[brushcolors-style] SKIPPED - panel_bg={panel_bg!r} "
-              f"border={border!r} text_col={text_col!r}")
-        return   # not enough of the theme defined to build a coherent style
-    print(f"[brushcolors-style] applying panel_bg={panel_bg} border={border} "
-          f"text_col={text_col} accent={accent}")
-
-    radius = tc.get('button_border_radius', 4)
-    ss = f"""
-        QFrame#dp5_brushcolors_panel {{
-            background: {panel_bg};
-            border: 1px solid {border};
-        }}
-        QFrame#dp5_brushcolors_panel QLabel {{
-            color: {text_col};
-            background: transparent;
-        }}
-        QFrame#dp5_brushcolors_panel QCheckBox {{
-            color: {text_col};
-            background: transparent;
-        }}
-    """
-    if accent and alt_base:
-        ss += f"""
-        QFrame#dp5_brushcolors_panel QSlider::groove:horizontal {{
-            background: {alt_base};
-            height: 4px;
-            border-radius: 2px;
-        }}
-        QFrame#dp5_brushcolors_panel QSlider::handle:horizontal {{
-            background: {accent};
-            width: 12px;
-            margin: -5px 0;
-            border-radius: 6px;
-        }}
-        """
-    if btn_normal and btn_hover and btn_press and btn_text:
-        ss += f"""
-        QFrame#dp5_brushcolors_panel QPushButton {{
-            background: {btn_normal};
-            color: {btn_text};
-            border: 1px solid {border};
-            border-radius: {radius}px;
-        }}
-        QFrame#dp5_brushcolors_panel QPushButton:hover {{
-            background: {btn_hover};
-        }}
-        QFrame#dp5_brushcolors_panel QPushButton:pressed {{
-            background: {btn_press};
-        }}
-        """
-    panel.setStyleSheet(ss)
+    from apps.components.DP5_Workshop.depends.theme_style_helper import (
+        build_panel_stylesheet)
+    ss = build_panel_stylesheet(owner, 'dp5_brushcolors_panel')
+    if ss:
+        panel.setStyleSheet(ss)
 
 
 def _create_content_panel(owner): #vers 1

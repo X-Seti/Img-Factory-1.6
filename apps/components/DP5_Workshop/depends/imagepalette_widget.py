@@ -1,4 +1,4 @@
-#this belongs in apps/components/DP5_Workshop/depends/imagepalette_widget.py - Version: 1
+#this belongs in apps/components/DP5_Workshop/depends/imagepalette_widget.py - Version: 2
 # X-Seti - Jul 2026 - DP5 Workshop - Image Palette dock widget
 """
 Self-contained Image Palette dock widget: dock container, collapsible
@@ -39,12 +39,26 @@ def create_image_palette_dock(owner): #vers 1
     return dock
 
 
-def _create_content_panel(owner): #vers 1
+def _apply_panel_stylesheet(owner, panel): #vers 1
+    """Apply a theme-aware stylesheet via the shared
+    depends/theme_style_helper.py builder, scoped to
+    #dp5_imagepalette_panel. No fallback colours: if the theme lookup
+    fails, the stylesheet is skipped entirely rather than invented."""
+    from apps.components.DP5_Workshop.depends.theme_style_helper import (
+        build_panel_stylesheet)
+    ss = build_panel_stylesheet(owner, 'dp5_imagepalette_panel')
+    if ss:
+        panel.setStyleSheet(ss)
+
+
+def _create_content_panel(owner): #vers 2
     """Bit depth quantization + palette grid."""
     from apps.components.DP5_Workshop.dp5_workshop import PaletteGrid
 
     panel = QFrame()
+    panel.setObjectName("dp5_imagepalette_panel")
     panel.setFrameStyle(QFrame.Shape.StyledPanel)
+    _apply_panel_stylesheet(owner, panel)
 
     layout = QVBoxLayout(panel)
     layout.setContentsMargins(4, 4, 4, 4)
@@ -141,9 +155,13 @@ def _refresh_titlebar_color(owner, bar): #vers 1
                 f"QWidget#dp5_imgpalette_titlebar {{ background: {hexval}; }}")
 
 
-def refresh_theme(owner): #vers 1
-    """Re-apply the theme-aware title bar background on a live theme
-    switch. Call from DP5Workshop._apply_theme()."""
+def refresh_theme(owner): #vers 2
+    """Re-apply the theme-aware panel stylesheet and title bar
+    background on a live theme switch. Call from DP5Workshop.
+    _apply_theme()."""
+    dock = getattr(owner, '_img_palette_dock', None)
+    if dock is not None and dock.widget() is not None:
+        _apply_panel_stylesheet(owner, dock.widget())
     bar = getattr(owner, '_img_palette_titlebar', None)
     if bar is not None:
         _refresh_titlebar_color(owner, bar)
