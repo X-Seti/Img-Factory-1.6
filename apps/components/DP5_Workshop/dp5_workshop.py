@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 59 (Build 386)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 60 (Build 387)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -6415,11 +6415,11 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._refresh_canvas_tabs_ribbon()
         return tb
 
-    def _create_annotate_ribbon(self): #vers 1
-        """Annotate ribbon - Arrow, Line, Curve, Highlighter, Blur,
-        Sharpen, Stickers (emoji). Line/Curve/Blur reuse the existing
-        tools already in the main Tools ribbon rather than duplicating
-        them; only Arrow/Highlighter/Sharpen/Sticker are genuinely new."""
+    def _create_annotate_ribbon(self): #vers 2
+        """Annotate ribbon - Arrow, Highlighter, Blur, Sharpen, Stickers
+        (emoji). Line/Curve already exist in the main Tools ribbon so
+        aren't duplicated here; Blur is reused, Arrow/Highlighter/
+        Sharpen/Sticker are genuinely new."""
         from PyQt6.QtWidgets import QToolBar
         from PyQt6.QtGui import QAction
         icon_color = self._get_icon_color()
@@ -6455,8 +6455,6 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             return act
 
         _text_act('\u2197', 'Arrow (annotation)',            TOOL_ARROW)
-        _tool_act('dp_line_icon',       'Line (L)',           TOOL_LINE)
-        _tool_act('dp_curve_icon',      'Curve',              TOOL_CURVE)
         _text_act('\U0001F58C', 'Highlighter (semi-transparent marker)',
                    TOOL_HIGHLIGHTER)
         _tool_act('dp_blur_brush_icon', 'Blur brush',         TOOL_BLUR_BRUSH)
