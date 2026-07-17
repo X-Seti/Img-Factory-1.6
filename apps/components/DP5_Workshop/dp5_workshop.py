@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 57 (Build 384)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 58 (Build 385)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -126,6 +126,7 @@ from PyQt6.QtGui import (
 # DP5Workshop._9bit_to_rgb
 # DP5Workshop.__init__
 # DP5Workshop._activate_stamp_mode
+# DP5Workshop._add_canvas_tab
 # DP5Workshop._adjust
 # DP5Workshop._anim_add_frame
 # DP5Workshop._anim_del_frame
@@ -165,11 +166,13 @@ from PyQt6.QtGui import (
 # DP5Workshop._build_load_menu
 # DP5Workshop._build_menus_into_qmenu
 # DP5Workshop._canvas_to_256colour_indexed
+# DP5Workshop._capture_canvas_tab_state
 # DP5Workshop._clear_brush
 # DP5Workshop._clear_canvas
 # DP5Workshop._convert_canvas_to_platform
 # DP5Workshop._copy_selection
 # DP5Workshop._create_anim_strip
+# DP5Workshop._create_canvas_tabs_ribbon
 # DP5Workshop._create_centre_panel
 # DP5Workshop._create_docked_bar
 # DP5Workshop._create_image_ops_ribbon
@@ -295,6 +298,7 @@ from PyQt6.QtGui import (
 # DP5Workshop._push_undo
 # DP5Workshop._rebuild_right_panel
 # DP5Workshop._redo_canvas
+# DP5Workshop._refresh_canvas_tabs_ribbon
 # DP5Workshop._refresh_corner_overlay
 # DP5Workshop._refresh_icons
 # DP5Workshop._render_as_ansi
@@ -302,6 +306,7 @@ from PyQt6.QtGui import (
 # DP5Workshop._render_as_petscii
 # DP5Workshop._render_as_teletext
 # DP5Workshop._resize_canvas_dialog
+# DP5Workshop._restore_canvas_tab_state
 # DP5Workshop._restore_outer_layout
 # DP5Workshop._rgb_to_9bit
 # DP5Workshop._rotate_180
@@ -309,6 +314,7 @@ from PyQt6.QtGui import (
 # DP5Workshop._rotate_90_cw
 # DP5Workshop._rotate_arbitrary
 # DP5Workshop._rotate_selection_dialog
+# DP5Workshop._save_current_canvas_tab
 # DP5Workshop._scale_canvas
 # DP5Workshop._select_all
 # DP5Workshop._select_tool
@@ -332,6 +338,7 @@ from PyQt6.QtGui import (
 # DP5Workshop._snap_cell_to_palette
 # DP5Workshop._snap_image_to_platform_palette
 # DP5Workshop._snap_image_to_user_palette
+# DP5Workshop._switch_canvas_tab
 # DP5Workshop._sync_brush_thumb
 # DP5Workshop._toggle_anim_strip
 # DP5Workshop._toggle_brush_manager
@@ -4960,6 +4967,17 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._redo_stack    = deque(maxlen=self.dp5_settings.get('undo_levels'))
         self.dp5_canvas     = None   # set by _create_centre_panel
 
+        # Multi-canvas tabs - each entry is a full state snapshot (image
+        # data, dimensions, undo/redo stacks) saved when switching away
+        # from it. dp5_canvas/the-per-workshop undo/redo stacks always
+        # hold whichever tab is currently active; there's no separate
+        # DP5Canvas widget per tab, since that attribute is referenced
+        # throughout this file - switching tabs saves the outgoing
+        # state into its slot and loads the incoming tab's saved state
+        # into the same canvas widget/attributes instead.
+        self._canvas_tabs = []
+        self._active_canvas_tab_idx = 0
+
         # Bitmap list (left panel)
         self._bitmap_list: List[dict] = []   # [{name, rgba, w, h}]
         self._current_bitmap = -1
@@ -5100,6 +5118,12 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         if hasattr(self, '_status_bar'):
             outer_mw.setStatusBar(self._status_bar)
 
+        # Register the initial canvas as tab 1
+        if self.dp5_canvas and not self._canvas_tabs:
+            self._canvas_tabs.append(
+                {'label': '1', 'state': self._capture_canvas_tab_state()})
+            self._active_canvas_tab_idx = 0
+
         # Widget registry - each entry is a self-contained dock module
         # under depends/. Adding, removing, or swapping a widget for an
         # alternative implementation only means editing this list, not
@@ -5124,8 +5148,10 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         # linear rows of actions, not panels with complex widget content.
         tools_ribbon    = self._create_tools_ribbon()
         image_ops_ribbon = self._create_image_ops_ribbon()
+        canvas_tabs_ribbon = self._create_canvas_tabs_ribbon()
         outer_mw.addToolBar(Qt.ToolBarArea.LeftToolBarArea, tools_ribbon)
         outer_mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, image_ops_ribbon)
+        outer_mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, canvas_tabs_ribbon)
 
         # (All four docks now build their own collapsible title bars in
         # their respective depends/*_widget.py modules, each with a
@@ -6214,6 +6240,27 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._image_ops_ribbon = tb
         self._apply_ribbon_style(tb)
         tb.orientationChanged.connect(lambda _o, t=tb: self._apply_ribbon_style(t))
+        return tb
+
+    def _create_canvas_tabs_ribbon(self): #vers 1
+        """Canvas tabs ribbon - one numbered button per open canvas
+        document (New Canvas creates a new one), positioned top-right
+        above the right-side dock widgets. Click a number to switch to
+        that canvas; the whole state (image data, undo/redo) is saved/
+        restored via _switch_canvas_tab()."""
+        from PyQt6.QtWidgets import QToolBar
+        from PyQt6.QtGui import QAction
+
+        tb = QToolBar("Canvas Tabs")
+        tb.setObjectName("Canvas Tabs")
+        tb.setMovable(True)
+        tb.setFloatable(True)
+
+        self._canvas_tabs_ribbon = tb
+        self._canvas_tab_btns = []
+        self._apply_ribbon_style(tb)
+        tb.orientationChanged.connect(lambda _o, t=tb: self._apply_ribbon_style(t))
+        self._refresh_canvas_tabs_ribbon()
         return tb
 
     #    Tool / colour helpers                                                  
@@ -8454,6 +8501,123 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             self._set_status(f"Redo  ({w}×{h})")
 
 
+    #    Multi-canvas tabs                                                       
+
+    def _capture_canvas_tab_state(self): #vers 1
+        """Snapshot everything needed to fully restore the currently
+        active canvas later: image data, dimensions, pixel aspect, and
+        this workshop's undo/redo stacks (which are shared/global, not
+        per-canvas-widget, so they must travel with the tab)."""
+        if not self.dp5_canvas:
+            return None
+        return {
+            'rgba': bytearray(self.dp5_canvas.rgba),
+            'tex_w': self.dp5_canvas.tex_w,
+            'tex_h': self.dp5_canvas.tex_h,
+            'pixel_aspect_x': self.dp5_canvas.pixel_aspect_x,
+            'canvas_width': self._canvas_width,
+            'canvas_height': self._canvas_height,
+            'undo_stack': deque(self._undo_stack, maxlen=self._undo_stack.maxlen),
+            'redo_stack': deque(self._redo_stack, maxlen=self._redo_stack.maxlen),
+        }
+
+    def _restore_canvas_tab_state(self, state): #vers 1
+        """Apply a previously captured tab state back onto the active
+        canvas widget/workshop attributes. Also clears transient,
+        tab-independent UI state (selection, marching ants, in-progress
+        curve/polygon points) since none of that carries meaning across
+        a different image - matches how switching documents in most
+        paint programs drops any in-progress interaction."""
+        if not self.dp5_canvas or state is None:
+            return
+        c = self.dp5_canvas
+        c.tex_w, c.tex_h = state['tex_w'], state['tex_h']
+        c.pixel_aspect_x = state['pixel_aspect_x']
+        c.rgba = bytearray(state['rgba'])
+        self._canvas_width  = state['canvas_width']
+        self._canvas_height = state['canvas_height']
+        self._undo_stack = deque(state['undo_stack'], maxlen=self._undo_stack.maxlen)
+        self._redo_stack = deque(state['redo_stack'], maxlen=self._redo_stack.maxlen)
+
+        # Clear transient state that doesn't carry across documents
+        c._sel_active = False
+        c._selection_rect = None
+        c._sel_floating = False
+        c._lasso_pts = []
+        c._curve_pts = []
+        c._poly_pts = []
+        c._drawing = False
+        c._last_pt = None
+        c._preview_start = c._preview_end = None
+
+        c.update()
+        self._fit_canvas_to_viewport()
+        if hasattr(self, '_status_size_lbl'):
+            self._status_size_lbl.setText(f"{c.tex_w}×{c.tex_h}")
+
+    def _switch_canvas_tab(self, idx: int): #vers 1
+        """Switch to canvas tab idx - saves the current tab's state into
+        its own slot first, then loads the target tab's saved state."""
+        if idx == self._active_canvas_tab_idx:
+            return
+        if not (0 <= idx < len(self._canvas_tabs)):
+            return
+        current_state = self._capture_canvas_tab_state()
+        if current_state is not None and 0 <= self._active_canvas_tab_idx < len(self._canvas_tabs):
+            self._canvas_tabs[self._active_canvas_tab_idx]['state'] = current_state
+        self._active_canvas_tab_idx = idx
+        self._restore_canvas_tab_state(self._canvas_tabs[idx]['state'])
+        self._refresh_canvas_tabs_ribbon()
+
+    def _save_current_canvas_tab(self): #vers 1
+        """Call this BEFORE overwriting dp5_canvas's contents (New
+        Canvas, Load, etc.) so the outgoing tab's state is captured
+        correctly - capturing it any later would see the new data
+        instead of what's being replaced. Handles the very first call
+        (no tabs registered yet) by registering the current canvas as
+        tab 1 first."""
+        state = self._capture_canvas_tab_state()
+        if state is None:
+            return
+        if not self._canvas_tabs:
+            self._canvas_tabs.append({'label': '1', 'state': state})
+            self._active_canvas_tab_idx = 0
+        else:
+            self._canvas_tabs[self._active_canvas_tab_idx]['state'] = state
+
+    def _add_canvas_tab(self, label=None): #vers 2
+        """Register the CURRENT canvas contents (already written by New
+        Canvas/Load) as a brand new tab and switch to it. The caller
+        must have already saved the outgoing tab's state - via
+        _capture_canvas_tab_state() called BEFORE overwriting
+        dp5_canvas - into self._canvas_tabs[self._active_canvas_tab_idx]
+        ['state'] (or appended it as tab 1 if this is the very first
+        tab). Capturing the outgoing state here instead would be wrong,
+        since dp5_canvas already holds the NEW data by the time this
+        runs."""
+        new_idx = len(self._canvas_tabs)
+        new_label = label or str(new_idx + 1)
+        new_state = self._capture_canvas_tab_state()
+        self._canvas_tabs.append({'label': new_label, 'state': new_state})
+        self._active_canvas_tab_idx = new_idx
+        self._refresh_canvas_tabs_ribbon()
+
+    def _refresh_canvas_tabs_ribbon(self): #vers 1
+        """Rebuild the numbered tab buttons to match self._canvas_tabs,
+        with the active tab's button checked."""
+        ribbon = getattr(self, '_canvas_tabs_ribbon', None)
+        if ribbon is None:
+            return
+        ribbon.clear()
+        self._canvas_tab_btns = []
+        for i, tab in enumerate(self._canvas_tabs):
+            act = QAction(tab['label'], ribbon)
+            act.setCheckable(True)
+            act.setChecked(i == self._active_canvas_tab_idx)
+            act.triggered.connect(lambda _, idx=i: self._switch_canvas_tab(idx))
+            ribbon.addAction(act)
+            self._canvas_tab_btns.append(act)
+
     def _clear_canvas(self): #vers 1
         if not self.dp5_canvas: return
         self._push_undo()
@@ -8956,6 +9120,10 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         elif fill_idx == 2: fill = b'\xff\xff\xff\xff'
         else:               fill = b'\x00\x00\x00\x00'
 
+        # Save the outgoing canvas as its own tab BEFORE any of the new
+        # canvas data below overwrites dp5_canvas/self._canvas_width etc.
+        self._save_current_canvas_tab()
+
         self._canvas_width  = w
         self._canvas_height = h
         self._canvas_bit_depth = depth_combo.currentIndex()
@@ -8996,6 +9164,8 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         mode_labels = {'platform':'Platform','texture':'Texture','icon':'Icon','free':'Free'}
         self._set_status(f"New canvas: {w}\u00d7{h}  {depth_combo.currentText()}  [{mode_labels[tab_mode]}]")
+
+        self._add_canvas_tab()
 
 
     def _crop_to_selection(self): #vers 2
