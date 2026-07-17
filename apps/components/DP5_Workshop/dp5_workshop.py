@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 60 (Build 387)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 61 (Build 388)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -166,6 +166,7 @@ from PyQt6.QtGui import (
 # DP5Workshop._apply_zx8x_dither
 # DP5Workshop._batch_convert_icons
 # DP5Workshop._batch_convert_textures
+# DP5Workshop._blend_palette_colors
 # DP5Workshop._build_canvas_menus
 # DP5Workshop._build_load_menu
 # DP5Workshop._build_menus_into_qmenu
@@ -6686,8 +6687,11 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             self.dp5_canvas.color = c
         self._fgbg_swatch.set_fg(c)
 
-    def _apply_bit_depth(self): #vers 3
-        """Quantize canvas RGBA to selected bit depth and update palette grid."""
+    def _apply_bit_depth(self): #vers 4
+        """Reduce the canvas to the selected bit depth and render the
+        change - a real colour-depth reduction, not the palette-display
+        blending step (see _blend_palette_colors for that, kept as its
+        own separate, explicit function per Keith's decision)."""
         if not self.dp5_canvas: return
         depth = self._bit_depth_combo.currentText()
         try:
@@ -6716,14 +6720,44 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
             self.dp5_canvas.rgba = bytearray(out_img.tobytes())
             self.dp5_canvas.update()
-
-            p_img = out_img.convert('RGB').quantize(colors=256)
-            pal_flat = p_img.getpalette()
-            palette = [(pal_flat[i*3], pal_flat[i*3+1], pal_flat[i*3+2]) for i in range(256)]
-            self.pal_bar.set_palette_raw(palette)
-            self._set_status(f"Applied {depth} quantization")
+            self._set_status(f"Applied {depth} colour depth reduction")
         except Exception as e:
             QMessageBox.warning(self, "Bit Depth Error", str(e))
+
+    def _blend_palette_colors(self): #vers 1
+        """Quantize the canvas into an averaged palette (median-cut
+        colour clustering) and apply that blend back onto the canvas,
+        updating the palette grid to match. This is the behaviour that
+        used to run unconditionally inside bit-depth Apply - Keith found
+        it an interesting effect worth keeping, so it's now its own
+        explicit button rather than a side effect of Apply.
+
+        Fixes the 'out of range' crash the old code had: getpalette()
+        doesn't always return exactly 256*3 values - if the canvas has
+        fewer unique colours than requested (very likely for a fresh
+        solid-fill canvas), PIL's returned palette can be shorter, and
+        indexing past its actual length raised IndexError. Uses the
+        real returned length instead of assuming 256 throughout."""
+        if not self.dp5_canvas: return
+        try:
+            from PIL import Image
+            w, h = self.dp5_canvas.tex_w, self.dp5_canvas.tex_h
+            img = Image.frombytes('RGBA', (w, h), bytes(self.dp5_canvas.rgba))
+
+            q_img = img.convert('RGB').quantize(colors=256)
+            pal_flat = q_img.getpalette() or []
+            n_colors = len(pal_flat) // 3   # real count, not assumed 256
+            palette = [(pal_flat[i*3], pal_flat[i*3+1], pal_flat[i*3+2])
+                       for i in range(n_colors)]
+
+            out_img = q_img.convert('RGB').convert('RGBA')
+            self.dp5_canvas.rgba = bytearray(out_img.tobytes())
+            self.dp5_canvas.update()
+
+            self.pal_bar.set_palette_raw(palette)
+            self._set_status(f"Blended palette to {n_colors} colours")
+        except Exception as e:
+            QMessageBox.warning(self, "Palette Blend Error", str(e))
 
     def _apply_palette0_alpha(self, img): #vers 2
         """Make palette index 0 (or first colour) transparent.

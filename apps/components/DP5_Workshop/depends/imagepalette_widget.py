@@ -1,4 +1,4 @@
-#this belongs in apps/components/DP5_Workshop/depends/imagepalette_widget.py - Version: 2
+#this belongs in apps/components/DP5_Workshop/depends/imagepalette_widget.py - Version: 3
 # X-Seti - Jul 2026 - DP5 Workshop - Image Palette dock widget
 """
 Self-contained Image Palette dock widget: dock container, collapsible
@@ -72,6 +72,15 @@ def _create_content_panel(owner): #vers 2
     owner._bit_depth_combo.setFixedWidth(40)
     owner._bit_depth_combo.setToolTip("Colour depth for quantization")
     img_pal_ctrl.addWidget(owner._bit_depth_combo)
+    owner._img_pal_blend_btn = QPushButton("Blend")
+    owner._img_pal_blend_btn.setFont(owner.button_font)
+    owner._img_pal_blend_btn.setFixedHeight(24)
+    owner._img_pal_blend_btn.setToolTip(
+        "Blend canvas colours into an averaged palette (quantize-cluster\n"
+        "colour averaging) and update the palette grid - a creative effect,\n"
+        "not the same as a correct bit-depth reduction (use Apply for that)")
+    owner._img_pal_blend_btn.clicked.connect(owner._blend_palette_colors)
+    img_pal_ctrl.addWidget(owner._img_pal_blend_btn)
     img_pal_apply_btn = QPushButton("Apply")
     img_pal_apply_btn.setFont(owner.button_font)
     img_pal_apply_btn.setFixedHeight(24)
