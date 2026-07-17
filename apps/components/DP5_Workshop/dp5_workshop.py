@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 64 (Build 391)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 65 (Build 392)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -2389,18 +2389,26 @@ class DP5Canvas(QWidget):
                 buf[i+2] = max(0, min(255, buf[i+2] + adj))
 
 
-    def _blend_pixel(self, x: int, y: int, c: QColor, strength: float = 0.35): #vers 1
-        """Alpha-blend c into the pixel at (x,y) rather than replacing
-        it outright - shared by the Marker Rectangle/Ellipse shape
-        tools (Highlighter brush has its own inline copy of this same
-        logic, left as-is since it's already tested)."""
+    def _blend_pixel(self, x: int, y: int, c: QColor, strength: float = 0.35): #vers 2
+        """Multiply-blend c into the pixel at (x,y) rather than plain
+        alpha-blending - shared by the Marker Rectangle/Ellipse shape
+        tools. A real highlighter darkens based on both the underlying
+        colour and the marker colour (multiply), so black text stays
+        black underneath instead of being lightened toward the marker
+        colour the way a plain alpha blend would - that was the bug:
+        strength*highlight + (1-strength)*black still significantly
+        lightens black. Multiply of two dark values stays dark."""
         if not (0 <= x < self.tex_w and 0 <= y < self.tex_h):
             return
         i = (y * self.tex_w + x) * 4
         cr, cg, cb = c.red(), c.green(), c.blue()
-        self.rgba[i]   = int(self.rgba[i]   * (1 - strength) + cr * strength)
-        self.rgba[i+1] = int(self.rgba[i+1] * (1 - strength) + cg * strength)
-        self.rgba[i+2] = int(self.rgba[i+2] * (1 - strength) + cb * strength)
+        orig_r, orig_g, orig_b = self.rgba[i], self.rgba[i+1], self.rgba[i+2]
+        mult_r = (orig_r * cr) // 255
+        mult_g = (orig_g * cg) // 255
+        mult_b = (orig_b * cb) // 255
+        self.rgba[i]   = int(orig_r * (1 - strength) + mult_r * strength)
+        self.rgba[i+1] = int(orig_g * (1 - strength) + mult_g * strength)
+        self.rgba[i+2] = int(orig_b * (1 - strength) + mult_b * strength)
 
     def draw_marker_rect(self, x0, y0, x1, y1, c: QColor, thickness: int = 4): #vers 1
         """Highlighter-style rectangle outline - traces the perimeter
@@ -2446,24 +2454,32 @@ class DP5Canvas(QWidget):
             if d2 > 0: dy -= 2*rx*rx; d2 += rx*rx-dy; y -= 1
             else: dx += 2*ry*ry; dy -= 2*rx*rx; d2 += dx-dy+rx*rx; x += 1; y -= 1
 
-    def _do_highlighter(self, cx: int, cy: int): #vers 1
-        """Semi-transparent marker - alpha-blends self.color into pixels
-        within brush radius rather than replacing them outright, so
-        strokes layer and underlying content stays visible through the
-        highlight, like a real highlighter pen."""
+    def _do_highlighter(self, cx: int, cy: int): #vers 2
+        """Semi-transparent marker - multiply-blends self.color into
+        pixels within brush radius rather than replacing them outright
+        (or plain alpha-blending, which was the bug: it significantly
+        lightened black/dark text toward the marker colour instead of
+        leaving it visible underneath). Multiply darkens based on both
+        the underlying pixel and the marker colour, so black stays
+        black - matches how a real highlighter pen looks over dark
+        marks, and still tints a light background with the colour."""
         r = max(2, self.brush_size * 3)
         w, h = self.tex_w, self.tex_h
         buf = self.rgba
-        strength = 0.35   # how much of self.color blends in per stroke pass
+        strength = 0.45   # how much of the multiply result blends in per pass
         cr, cg, cb = self.color.red(), self.color.green(), self.color.blue()
         for y in range(max(0, cy - r), min(h, cy + r + 1)):
             for x in range(max(0, cx - r), min(w, cx + r + 1)):
                 if (x - cx) ** 2 + (y - cy) ** 2 > r * r:
                     continue
                 i = (y * w + x) * 4
-                buf[i]   = int(buf[i]   * (1 - strength) + cr * strength)
-                buf[i+1] = int(buf[i+1] * (1 - strength) + cg * strength)
-                buf[i+2] = int(buf[i+2] * (1 - strength) + cb * strength)
+                orig_r, orig_g, orig_b = buf[i], buf[i+1], buf[i+2]
+                mult_r = (orig_r * cr) // 255
+                mult_g = (orig_g * cg) // 255
+                mult_b = (orig_b * cb) // 255
+                buf[i]   = int(orig_r * (1 - strength) + mult_r * strength)
+                buf[i+1] = int(orig_g * (1 - strength) + mult_g * strength)
+                buf[i+2] = int(orig_b * (1 - strength) + mult_b * strength)
 
     def _do_sharpen(self, cx: int, cy: int): #vers 1
         """Unsharp-mask brush - pushes each pixel away from its local
