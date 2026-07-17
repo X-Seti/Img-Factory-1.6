@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 52 (Build 379)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 53 (Build 380)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -3338,6 +3338,7 @@ class FGBGSwatch(QWidget):
             "FG (inner) / BG (outer)\n"
             "Click inner area → pick FG\n"
             "Click outer area → pick BG\n"
+            "Right-click anywhere → pick BG\n"
             "Double-click → swap FG↔BG")
 
     def sizeHint(self):  #vers 1
@@ -3367,41 +3368,47 @@ class FGBGSwatch(QWidget):
 
     #    Paint                                                                  
 
-    def paintEvent(self, _):  #vers 1
-        p  = QPainter(self)
-        w, h = self.width(), self.height()
-        pad, gap = 4, 8    # outer border, FG offset from BG rect
+    def paintEvent(self, _):  #vers 2
+        p = QPainter(self)
 
-        # BG rect (outer, slightly offset toward bottom-right)
-        bg_r = QRect(gap, gap, w - gap - pad, h - gap - pad)
+        # BG rect - fills almost the whole widget
+        bg_r = self._bg_rect()
         p.fillRect(bg_r, self._bg)
         p.setPen(QPen(self._get_ui_color('viewport_text'), 1))
         p.drawRect(bg_r)
 
-        # FG rect (inner, offset toward top-left)
-        fg_r = QRect(pad, pad, w - gap - pad, h - gap - pad)
+        # FG rect - smaller, anchored at the same top-left corner as BG,
+        # leaving BG visible as an L-shaped border along the bottom/right
+        fg_r = self._fg_rect()
         p.fillRect(fg_r, self._fg)
         p.setPen(QPen(self._get_ui_color('border'), 1))
         p.drawRect(fg_r)
 
-    def _fg_rect(self) -> QRect:  #vers 1
+    def _fg_rect(self) -> QRect:  #vers 2
         w, h = self.width(), self.height()
-        pad, gap = 4, 8
-        return QRect(pad, pad, w - gap - pad, h - gap - pad)
+        pad = 4
+        fg_scale = 0.62
+        bg_w, bg_h = w - 2 * pad, h - 2 * pad
+        return QRect(pad, pad, int(bg_w * fg_scale), int(bg_h * fg_scale))
 
-    def _bg_rect(self) -> QRect:  #vers 1
+    def _bg_rect(self) -> QRect:  #vers 2
         w, h = self.width(), self.height()
-        pad, gap = 4, 8
-        return QRect(gap, gap, w - gap - pad, h - gap - pad)
+        pad = 4
+        return QRect(pad, pad, w - 2 * pad, h - 2 * pad)
 
     #    Mouse                                                                  
 
-    def mousePressEvent(self, e: QMouseEvent):  #vers 1
+    def mousePressEvent(self, e: QMouseEvent):  #vers 2
         if e.button() == Qt.MouseButton.LeftButton:
             if self._fg_rect().contains(e.position().toPoint()):
                 self._pick_fg()
             else:
                 self._pick_bg()
+        elif e.button() == Qt.MouseButton.RightButton:
+            # Right-click picks BG regardless of where on the widget it
+            # lands - matches the common paint-program convention
+            # (left = foreground/primary, right = background/secondary)
+            self._pick_bg()
 
     def mouseDoubleClickEvent(self, e: QMouseEvent):  #vers 1
         if e.button() == Qt.MouseButton.LeftButton:
