@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 58 (Build 385)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 59 (Build 386)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -77,6 +77,8 @@ from PyQt6.QtGui import (
 # DP5Canvas.__init__
 # DP5Canvas._do_blur_brush
 # DP5Canvas._do_dodge_burn
+# DP5Canvas._do_highlighter
+# DP5Canvas._do_sharpen
 # DP5Canvas._do_smudge
 # DP5Canvas._do_spray
 # DP5Canvas._get_scroll_area
@@ -85,6 +87,7 @@ from PyQt6.QtGui import (
 # DP5Canvas._push_undo_canvas
 # DP5Canvas._scroll_by
 # DP5Canvas._stamp_selection
+# DP5Canvas._stamp_sticker
 # DP5Canvas._sync_marching_ants_timer
 # DP5Canvas._tex_to_widget
 # DP5Canvas._tick_marching_ants
@@ -92,6 +95,7 @@ from PyQt6.QtGui import (
 # DP5Canvas.cancel_sel_move
 # DP5Canvas.copy_selection
 # DP5Canvas.cut_selection
+# DP5Canvas.draw_arrow
 # DP5Canvas.draw_bezier_curve
 # DP5Canvas.draw_circle
 # DP5Canvas.draw_filled_circle
@@ -172,6 +176,7 @@ from PyQt6.QtGui import (
 # DP5Workshop._convert_canvas_to_platform
 # DP5Workshop._copy_selection
 # DP5Workshop._create_anim_strip
+# DP5Workshop._create_annotate_ribbon
 # DP5Workshop._create_canvas_tabs_ribbon
 # DP5Workshop._create_centre_panel
 # DP5Workshop._create_docked_bar
@@ -292,6 +297,7 @@ from PyQt6.QtGui import (
 # DP5Workshop._open_sprite_editor
 # DP5Workshop._open_zoom_lens
 # DP5Workshop._paste_selection
+# DP5Workshop._pick_sticker
 # DP5Workshop._pil_transform
 # DP5Workshop._place_text_at
 # DP5Workshop._push_color_history
@@ -332,6 +338,7 @@ from PyQt6.QtGui import (
 # DP5Workshop._show_dropdown_menu
 # DP5Workshop._show_load_menu
 # DP5Workshop._show_load_menu_at
+# DP5Workshop._show_sticker_picker
 # DP5Workshop._show_workshop_settings
 # DP5Workshop._snap_canvas_to_user_palette
 # DP5Workshop._snap_canvas_to_user_palette_dither
@@ -565,6 +572,10 @@ TOOL_BLUR_BRUSH    = 'blur_brush'     # blur brush (gaussian soften under cursor
 TOOL_SMUDGE        = 'smudge'        # smudge/blend pixels under cursor
 TOOL_LIGHTEN       = 'lighten'       # dodge — lighten pixels under cursor
 TOOL_DARKEN        = 'darken'        # burn  — darken pixels under cursor
+TOOL_ARROW         = 'arrow'         # annotation arrow (line + arrowhead)
+TOOL_HIGHLIGHTER   = 'highlighter'   # semi-transparent marker, alpha-blends
+TOOL_SHARPEN       = 'sharpen'       # unsharp-mask brush (opposite of blur)
+TOOL_STICKER       = 'sticker'       # stamp an emoji glyph onto the canvas
 
 # - Try importing shared infrastructure
 try:
@@ -1901,6 +1912,22 @@ class DP5Canvas(QWidget):
             if e2 > -dy: err -= dy; x0 += sx
             if e2 <  dx: err += dx; y0 += sy
 
+    def draw_arrow(self, x0, y0, x1, y1, c: QColor): #vers 1
+        """Draw a line with an arrowhead at the (x1, y1) end - used by
+        the Annotate ribbon's Arrow tool."""
+        import math
+        self.draw_line(x0, y0, x1, y1, c)
+        dx, dy = x1 - x0, y1 - y0
+        length = math.hypot(dx, dy)
+        if length < 1:
+            return
+        angle = math.atan2(dy, dx)
+        head_len = max(4, min(20, int(length * 0.25)))
+        for wing_angle in (angle + math.radians(150), angle - math.radians(150)):
+            wx = x1 + head_len * math.cos(wing_angle)
+            wy = y1 + head_len * math.sin(wing_angle)
+            self.draw_line(x1, y1, int(round(wx)), int(round(wy)), c)
+
     def draw_rect(self, x0, y0, x1, y1, c: QColor):  #vers 1
         if x0 > x1: x0,x1 = x1,x0
         if y0 > y1: y0,y1 = y1,y0
@@ -2237,6 +2264,100 @@ class DP5Canvas(QWidget):
                 buf[i+2] = max(0, min(255, buf[i+2] + adj))
 
 
+    def _do_highlighter(self, cx: int, cy: int): #vers 1
+        """Semi-transparent marker - alpha-blends self.color into pixels
+        within brush radius rather than replacing them outright, so
+        strokes layer and underlying content stays visible through the
+        highlight, like a real highlighter pen."""
+        r = max(2, self.brush_size * 3)
+        w, h = self.tex_w, self.tex_h
+        buf = self.rgba
+        strength = 0.35   # how much of self.color blends in per stroke pass
+        cr, cg, cb = self.color.red(), self.color.green(), self.color.blue()
+        for y in range(max(0, cy - r), min(h, cy + r + 1)):
+            for x in range(max(0, cx - r), min(w, cx + r + 1)):
+                if (x - cx) ** 2 + (y - cy) ** 2 > r * r:
+                    continue
+                i = (y * w + x) * 4
+                buf[i]   = int(buf[i]   * (1 - strength) + cr * strength)
+                buf[i+1] = int(buf[i+1] * (1 - strength) + cg * strength)
+                buf[i+2] = int(buf[i+2] * (1 - strength) + cb * strength)
+
+    def _do_sharpen(self, cx: int, cy: int): #vers 1
+        """Unsharp-mask brush - pushes each pixel away from its local
+        blurred average (opposite of _do_blur_brush), increasing local
+        contrast/edge definition within brush radius."""
+        r = max(1, self.brush_size * 3)
+        w, h = self.tex_w, self.tex_h
+        buf = self.rgba
+        amount = 1.0   # sharpening strength
+        x0 = max(0, cx - r); x1 = min(w, cx + r + 1)
+        y0 = max(0, cy - r); y1 = min(h, cy + r + 1)
+        if x1 - x0 <= 0 or y1 - y0 <= 0:
+            return
+        orig = bytes(buf)  # snapshot so the blur average uses pre-sharpen values
+        for y in range(y0, y1):
+            for x in range(x0, x1):
+                if (x - cx) ** 2 + (y - cy) ** 2 > r * r:
+                    continue
+                rc = gc = bc = cnt = 0
+                for dy in (-1, 0, 1):
+                    for dx in (-1, 0, 1):
+                        nx, ny = x + dx, y + dy
+                        if 0 <= nx < w and 0 <= ny < h:
+                            i = (ny * w + nx) * 4
+                            rc += orig[i]; gc += orig[i+1]; bc += orig[i+2]
+                            cnt += 1
+                if cnt:
+                    i = (y * w + x) * 4
+                    avg_r, avg_g, avg_b = rc / cnt, gc / cnt, bc / cnt
+                    buf[i]   = max(0, min(255, int(orig[i]   + amount * (orig[i]   - avg_r))))
+                    buf[i+1] = max(0, min(255, int(orig[i+1] + amount * (orig[i+1] - avg_g))))
+                    buf[i+2] = max(0, min(255, int(orig[i+2] + amount * (orig[i+2] - avg_b))))
+
+    def _stamp_sticker(self, cx: int, cy: int): #vers 1
+        """Stamp an emoji glyph onto the canvas, centred at (cx, cy).
+        Renders the glyph to an offscreen QImage via the system font
+        (most desktop Linux/Windows/Mac fonts include at least basic
+        emoji coverage) then alpha-composites it pixel-by-pixel onto
+        the canvas - this is the only place in DP5 emoji are rendered,
+        since everywhere else uses SVG icons/plain text, not glyph
+        rendering with colour-emoji font fallback."""
+        ed = self._editor
+        emoji = getattr(ed, '_current_sticker', '\U0001F600') if ed else '\U0001F600'
+        size = max(8, self.brush_size * 8)
+        img = QImage(size, size, QImage.Format.Format_ARGB32)
+        img.fill(Qt.GlobalColor.transparent)
+        p = QPainter(img)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        font = QFont()
+        font.setPixelSize(int(size * 0.85))
+        p.setFont(font)
+        p.drawText(img.rect(), Qt.AlignmentFlag.AlignCenter, emoji)
+        p.end()
+
+        half = size // 2
+        w, h = self.tex_w, self.tex_h
+        for y in range(size):
+            ny = cy - half + y
+            if not (0 <= ny < h):
+                continue
+            for x in range(size):
+                nx = cx - half + x
+                if not (0 <= nx < w):
+                    continue
+                px = img.pixelColor(x, y)
+                a = px.alpha()
+                if a == 0:
+                    continue
+                i = (ny * w + nx) * 4
+                af = a / 255.0
+                self.rgba[i]   = int(self.rgba[i]   * (1 - af) + px.red()   * af)
+                self.rgba[i+1] = int(self.rgba[i+1] * (1 - af) + px.green() * af)
+                self.rgba[i+2] = int(self.rgba[i+2] * (1 - af) + px.blue()  * af)
+                self.rgba[i+3] = max(self.rgba[i+3], a)
+
+
     def paintEvent(self, event):  #vers 2
         self._sync_marching_ants_timer()
         painter = QPainter(self)
@@ -2308,7 +2429,7 @@ class DP5Canvas(QWidget):
             painter.setOpacity(1.0)
 
         # Shape / selection preview overlay (drag-to-draw tools only)
-        shape_tools = (TOOL_LINE,
+        shape_tools = (TOOL_LINE,     TOOL_ARROW,
                        TOOL_RECT,     TOOL_FILLED_RECT,
                        TOOL_CIRCLE,   TOOL_FILLED_CIRCLE,
                        TOOL_TRIANGLE, TOOL_FILLED_TRIANGLE,
@@ -2350,6 +2471,8 @@ class DP5Canvas(QWidget):
             s = self._tex_to_widget(*self._preview_start)
             e = self._tex_to_widget(*self._preview_end)
             if self.tool == TOOL_LINE:
+                painter.drawLine(s.x(), s.y(), e.x(), e.y())
+            elif self.tool == TOOL_ARROW:
                 painter.drawLine(s.x(), s.y(), e.x(), e.y())
             elif self.tool in (TOOL_RECT, TOOL_FILLED_RECT):
                 painter.drawRect(QRect(s, e).normalized())
@@ -2554,6 +2677,14 @@ class DP5Canvas(QWidget):
             self._push_undo_canvas()
             self._do_blur_brush(tx, ty); self.update()
 
+        elif self.tool == TOOL_HIGHLIGHTER:
+            self._push_undo_canvas()
+            self._do_highlighter(tx, ty); self.update()
+
+        elif self.tool == TOOL_SHARPEN:
+            self._push_undo_canvas()
+            self._do_sharpen(tx, ty); self.update()
+
         elif self.tool == TOOL_SMUDGE:
             self._push_undo_canvas()
             self._smudge_last = (tx, ty)
@@ -2642,6 +2773,11 @@ class DP5Canvas(QWidget):
                                 self.rgba[di:di+4] = self._sel_buffer[si:si+4]
                 self.update()
 
+        elif self.tool == TOOL_STICKER:
+            self._push_undo_canvas()
+            self._stamp_sticker(tx, ty)
+            self.update()
+
         elif self.tool == TOOL_CURVE:
             # Accumulate control points; double-click or Enter commits
             self._curve_pts.append(e.position().toPoint())
@@ -2652,7 +2788,7 @@ class DP5Canvas(QWidget):
             self._poly_pts.append((tx, ty))
             self.update()
 
-        elif self.tool in (TOOL_LINE,
+        elif self.tool in (TOOL_LINE,     TOOL_ARROW,
                            TOOL_RECT,     TOOL_FILLED_RECT,
                            TOOL_CIRCLE,   TOOL_FILLED_CIRCLE,
                            TOOL_TRIANGLE, TOOL_FILLED_TRIANGLE,
@@ -2776,6 +2912,12 @@ class DP5Canvas(QWidget):
         elif self.tool == TOOL_BLUR_BRUSH:
             self._do_blur_brush(tx, ty); self.update()
 
+        elif self.tool == TOOL_HIGHLIGHTER:
+            self._do_highlighter(tx, ty); self.update()
+
+        elif self.tool == TOOL_SHARPEN:
+            self._do_sharpen(tx, ty); self.update()
+
         elif self.tool == TOOL_LIGHTEN:
             self._do_dodge_burn(tx, ty, 30); self.update()
 
@@ -2820,7 +2962,7 @@ class DP5Canvas(QWidget):
                 self._sel_drag_start = (tx, ty)   # update for smooth incremental move
             self.update()
 
-        elif self.tool in (TOOL_LINE,
+        elif self.tool in (TOOL_LINE,     TOOL_ARROW,
                            TOOL_RECT,     TOOL_FILLED_RECT,
                            TOOL_CIRCLE,   TOOL_FILLED_CIRCLE,
                            TOOL_TRIANGLE, TOOL_FILLED_TRIANGLE,
@@ -2885,6 +3027,10 @@ class DP5Canvas(QWidget):
         elif self.tool == TOOL_LINE and ps:
             self._push_undo_canvas()
             self.draw_line(ps[0], ps[1], tx, ty, self.color)
+
+        elif self.tool == TOOL_ARROW and ps:
+            self._push_undo_canvas()
+            self.draw_arrow(ps[0], ps[1], tx, ty, self.color)
 
         elif self.tool == TOOL_RECT and ps:
             self._push_undo_canvas()
@@ -4978,6 +5124,10 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._canvas_tabs = []
         self._active_canvas_tab_idx = 0
 
+        # Sticker/emoji tool - currently selected emoji to stamp, set
+        # via the Annotate ribbon's sticker picker.
+        self._current_sticker = '\U0001F600'   # 😀
+
         # Bitmap list (left panel)
         self._bitmap_list: List[dict] = []   # [{name, rgba, w, h}]
         self._current_bitmap = -1
@@ -5148,9 +5298,11 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         # linear rows of actions, not panels with complex widget content.
         tools_ribbon    = self._create_tools_ribbon()
         image_ops_ribbon = self._create_image_ops_ribbon()
+        annotate_ribbon = self._create_annotate_ribbon()
         canvas_tabs_ribbon = self._create_canvas_tabs_ribbon()
         outer_mw.addToolBar(Qt.ToolBarArea.LeftToolBarArea, tools_ribbon)
         outer_mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, image_ops_ribbon)
+        outer_mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, annotate_ribbon)
         outer_mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, canvas_tabs_ribbon)
 
         # (All four docks now build their own collapsible title bars in
@@ -6263,7 +6415,87 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._refresh_canvas_tabs_ribbon()
         return tb
 
+    def _create_annotate_ribbon(self): #vers 1
+        """Annotate ribbon - Arrow, Line, Curve, Highlighter, Blur,
+        Sharpen, Stickers (emoji). Line/Curve/Blur reuse the existing
+        tools already in the main Tools ribbon rather than duplicating
+        them; only Arrow/Highlighter/Sharpen/Sticker are genuinely new."""
+        from PyQt6.QtWidgets import QToolBar
+        from PyQt6.QtGui import QAction
+        icon_color = self._get_icon_color()
+        _render_sz = max(self.dp5_settings.get('ribbon_icon_size_vert'),
+                        self.dp5_settings.get('ribbon_icon_size_horz'))
+
+        tb = QToolBar("Annotate")
+        tb.setObjectName("Annotate")
+        tb.setMovable(True)
+        tb.setFloatable(True)
+        self._annotate_tool_btns = {}
+
+        def _tool_act(icon_method, tip, tool_id):  #vers 1
+            try:
+                ico = getattr(SVGIconFactory, icon_method)(_render_sz, icon_color)
+            except Exception:
+                ico = QIcon()
+            act = QAction(ico, tip, tb)
+            act.setToolTip(tip)
+            act.setCheckable(True)
+            act.triggered.connect(lambda: self._select_tool(tool_id))
+            tb.addAction(act)
+            self._annotate_tool_btns[tool_id] = act
+            return act
+
+        def _text_act(label, tip, tool_id):  #vers 1
+            act = QAction(label, tb)
+            act.setToolTip(tip)
+            act.setCheckable(True)
+            act.triggered.connect(lambda: self._select_tool(tool_id))
+            tb.addAction(act)
+            self._annotate_tool_btns[tool_id] = act
+            return act
+
+        _text_act('\u2197', 'Arrow (annotation)',            TOOL_ARROW)
+        _tool_act('dp_line_icon',       'Line (L)',           TOOL_LINE)
+        _tool_act('dp_curve_icon',      'Curve',              TOOL_CURVE)
+        _text_act('\U0001F58C', 'Highlighter (semi-transparent marker)',
+                   TOOL_HIGHLIGHTER)
+        _tool_act('dp_blur_brush_icon', 'Blur brush',         TOOL_BLUR_BRUSH)
+        _text_act('\u25C6', 'Sharpen brush',                  TOOL_SHARPEN)
+
+        sticker_btn = QAction('\U0001F600', tb)
+        sticker_btn.setToolTip('Stickers (emoji) - click to choose one')
+        tb.addAction(sticker_btn)
+        # Grab the underlying toolbutton so the picker menu can position
+        # itself under it (QAction alone has no widget/geometry)
+        sticker_btn.triggered.connect(
+            lambda: self._show_sticker_picker(tb.widgetForAction(sticker_btn)))
+
+        self._annotate_ribbon = tb
+        self._apply_ribbon_style(tb)
+        tb.orientationChanged.connect(lambda _o, t=tb: self._apply_ribbon_style(t))
+        return tb
+
     #    Tool / colour helpers                                                  
+
+    def _show_sticker_picker(self, btn): #vers 1
+        """Show a flat popup menu of common emojis - picking one sets
+        it as the current sticker and switches to the Sticker tool.
+        A small fixed starter set, easy to extend later."""
+        STICKERS = [
+            '\U0001F600', '\U0001F602', '\U0001F60D', '\U0001F914',
+            '\U0001F44D', '\U0001F44E', '\U0001F525', '\U00002764',
+            '\U00002B50', '\U0001F389', '\U0001F4A9', '\U0001F480',
+            '\U0001F47D', '\U0001F436', '\U0001F431', '\U0001F337',
+        ]
+        menu = QMenu(self)
+        for s in STICKERS:
+            act = menu.addAction(s)
+            act.triggered.connect(lambda _, ch=s: self._pick_sticker(ch))
+        menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
+
+    def _pick_sticker(self, emoji: str): #vers 1
+        self._current_sticker = emoji
+        self._select_tool(TOOL_STICKER)
 
     def _select_tool(self, tool_id: str): #vers 3
         """Select a tool. Outline/filled shape variants and Select/Select
@@ -6359,6 +6591,11 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 shape_key, icon_sz, active=is_active,
                 tile_bg=(_active_tile_bg if is_active else _tile_bg),
                 icon_col=icon_color))
+
+        # Sync Annotate ribbon's tool buttons too (Line/Curve/Blur appear
+        # in both ribbons as separate QAction instances)
+        for tid, act in getattr(self, '_annotate_tool_btns', {}).items():
+            act.setChecked(tid == tool_id)
 
         # Sync brush thumbnail active border
         if hasattr(self, '_brush_thumb'):
