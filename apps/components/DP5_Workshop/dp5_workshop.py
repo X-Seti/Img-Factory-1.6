@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 55 (Build 382)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 56 (Build 383)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -1144,6 +1144,11 @@ class DP5Settings:
 
     DEFAULTS = {
         'show_bitmap_list':  False,    # left panel visible
+        # Persistent default fill colour for new canvases - replaces the
+        # New Canvas dialog's hardcoded Grey(128,128,128) with a
+        # user-adjustable colour, set via the Canvas swatch in
+        # Brush & Colors.
+        'canvas_fill_color': '#808080',
         # Widget manager - enable/disable each dock independently of its
         # current show/hide state (this controls whether the dock exists
         # at all / is offered in the UI, not just its visibility).
@@ -8710,7 +8715,8 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             fl.addRow("Height:",    hs)
             fl.addRow("Bit depth:", dc)
             fc = QComboBox()
-            fc.addItems(["Grey (128,128,128)","Black","White","Transparent"])
+            fc.addItems([f"Canvas Colour ({self.dp5_settings.get('canvas_fill_color')})",
+                         "Black", "White", "Transparent"])
             fl.addRow("Fill:", fc)
             def on_preset(idx):  #vers 1
                 data = pc.itemData(idx)
@@ -8898,7 +8904,9 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         w = w_spin.value(); h = h_spin.value()
         fill_idx = fill_combo.currentIndex()
-        if   fill_idx == 0: fill = b'\x80\x80\x80\xff'
+        if   fill_idx == 0:
+            _cc = QColor(self.dp5_settings.get('canvas_fill_color'))
+            fill = bytes([_cc.red(), _cc.green(), _cc.blue(), 255])
         elif fill_idx == 1: fill = b'\x00\x00\x00\xff'
         elif fill_idx == 2: fill = b'\xff\xff\xff\xff'
         else:               fill = b'\x00\x00\x00\x00'

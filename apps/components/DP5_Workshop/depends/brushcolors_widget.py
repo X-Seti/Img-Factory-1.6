@@ -1,4 +1,4 @@
-#this belongs in apps/components/DP5_Workshop/depends/brushcolors_widget.py - Version: 4
+#this belongs in apps/components/DP5_Workshop/depends/brushcolors_widget.py - Version: 5
 # X-Seti - Jul 2026 - DP5 Workshop - Brush & Colors dock widget
 """
 Self-contained Brush & Colors dock widget: dock container, collapsible
@@ -22,7 +22,7 @@ since dp5_workshop.py imports this module too.
 
 from PyQt6.QtWidgets import (
     QDockWidget, QWidget, QFrame, QVBoxLayout, QHBoxLayout,
-    QLabel, QSlider, QCheckBox, QPushButton, QToolButton,
+    QLabel, QSlider, QCheckBox, QPushButton, QToolButton, QColorDialog,
 )
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QColor
@@ -118,11 +118,14 @@ def _create_content_panel(owner): #vers 1
 
     layout.addSpacing(4)
 
-    #    FG / BG swatch  +  brush thumbnail
+    #    FG / BG swatch  +  Canvas colour  +  brush thumbnail
     fgbg_row_lbl = QHBoxLayout()
     fgbg_lbl = QLabel("FG / BG")
     fgbg_lbl.setFont(owner.panel_font)
     fgbg_row_lbl.addWidget(fgbg_lbl)
+    canvas_lbl = QLabel("Canvas")
+    canvas_lbl.setFont(owner.panel_font)
+    fgbg_row_lbl.addWidget(canvas_lbl)
     brush_lbl = QLabel("Brush")
     brush_lbl.setFont(owner.panel_font)
     fgbg_row_lbl.addWidget(brush_lbl)
@@ -135,6 +138,14 @@ def _create_content_panel(owner): #vers 1
     owner._fgbg_swatch.fg_changed.connect(owner._on_fg_changed)
     owner._fgbg_swatch.bg_changed.connect(owner._on_bg_changed)
     fgbg_row.addWidget(owner._fgbg_swatch)
+
+    owner._canvas_color_swatch = QPushButton()
+    owner._canvas_color_swatch.setToolTip(
+        "Default canvas colour\nClick to change (used for new canvases)")
+    _refresh_canvas_color_swatch(owner)
+    owner._canvas_color_swatch.clicked.connect(
+        lambda: _pick_canvas_color(owner))
+    fgbg_row.addWidget(owner._canvas_color_swatch)
 
     owner._brush_thumb = BrushThumbnail()
     owner._brush_thumb.stamp_requested.connect(owner._activate_stamp_mode)
@@ -207,6 +218,31 @@ def _create_content_panel(owner): #vers 1
     layout.addStretch()
 
     return panel
+
+
+def _refresh_canvas_color_swatch(owner): #vers 1
+    """Style the canvas-colour swatch button to show the current
+    canvas_fill_color setting as its background."""
+    hexval = owner.dp5_settings.get('canvas_fill_color')
+    border = 'palette(mid)'
+    if owner.app_settings and hasattr(owner.app_settings, 'get_theme_colors'):
+        tc = owner.app_settings.get_theme_colors()
+        border = tc.get('border') or border
+    swatch = getattr(owner, '_canvas_color_swatch', None)
+    if swatch is not None:
+        swatch.setFixedSize(28, 28)
+        swatch.setStyleSheet(f"background:{hexval}; border:1px solid {border};")
+
+
+def _pick_canvas_color(owner): #vers 1
+    """Open a colour dialog to change the persistent default canvas
+    fill colour, used by the New Canvas dialog's first Fill option."""
+    current = QColor(owner.dp5_settings.get('canvas_fill_color'))
+    c = QColorDialog.getColor(current, owner._canvas_color_swatch,
+                               "Default Canvas Colour")
+    if c.isValid():
+        owner.dp5_settings.set('canvas_fill_color', c.name())
+        _refresh_canvas_color_swatch(owner)
 
 
 def _style_empty_history_slot(owner, btn): #vers 1
@@ -286,17 +322,19 @@ def _refresh_titlebar_color(owner, bar): #vers 1
                 f"QWidget#dp5_brushcolors_titlebar {{ background: {hexval}; }}")
 
 
-def refresh_theme(owner): #vers 2
+def refresh_theme(owner): #vers 3
     """Re-apply theme-aware colours to the panel stylesheet, title bar,
-    and the Recent colour history's empty slots. Call from DP5Workshop.
-    _apply_theme() on every theme switch - all are set once at creation
-    and won't pick up a later theme change on their own otherwise."""
+    the Recent colour history's empty slots, and the canvas colour
+    swatch's border. Call from DP5Workshop._apply_theme() on every
+    theme switch - all are set once at creation and won't pick up a
+    later theme change on their own otherwise."""
     dock = getattr(owner, '_brush_colors_dock', None)
     if dock is not None and dock.widget() is not None:
         _apply_panel_stylesheet(owner, dock.widget())
     bar = getattr(owner, '_brush_colors_titlebar', None)
     if bar is not None:
         _refresh_titlebar_color(owner, bar)
+    _refresh_canvas_color_swatch(owner)
     for i, btn in enumerate(getattr(owner, '_color_hist_btns', [])):
         if i >= len(getattr(owner, '_color_history', [])):
             _style_empty_history_slot(owner, btn)
