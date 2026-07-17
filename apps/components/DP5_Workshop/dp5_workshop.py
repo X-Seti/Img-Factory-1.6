@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 65 (Build 392)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 66 (Build 393)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -438,6 +438,7 @@ from PyQt6.QtGui import (
 # _AutoCellPaletteGrid.set_palette_raw
 # _CanvasTextOverlay.__init__
 # _CanvasTextOverlay._commit
+# _CanvasTextOverlay._refresh_preview_style
 # _CanvasTextOverlay.keyPressEvent
 # _CharFontEditor.__init__
 # _CharFontEditor._browse_font_folder
@@ -546,6 +547,11 @@ from PyQt6.QtGui import (
 # _SpriteView.paintEvent
 # _SpriteView.set_sprite
 # _SpriteView.set_zoom
+# _TextToolCornerPanel.__init__
+# _TextToolCornerPanel._pick_color
+# _TextToolCornerPanel._refresh_swatch
+# _TextToolCornerPanel.current_color
+# _TextToolCornerPanel.current_font
 App_name = "DP5 Workshop"
 App_build = "July 16 26 50 (Build 377) Vers 59"
 DEBUG_STANDALONE = False
@@ -2410,49 +2416,32 @@ class DP5Canvas(QWidget):
         self.rgba[i+1] = int(orig_g * (1 - strength) + mult_g * strength)
         self.rgba[i+2] = int(orig_b * (1 - strength) + mult_b * strength)
 
-    def draw_marker_rect(self, x0, y0, x1, y1, c: QColor, thickness: int = 4): #vers 1
-        """Highlighter-style rectangle outline - traces the perimeter
-        with alpha-blended pixels (same blend as the Highlighter brush)
-        instead of a hard-edged opaque line, so it reads as a semi-
-        transparent marker stroke constrained to a clean rectangle."""
+    def draw_marker_rect(self, x0, y0, x1, y1, c: QColor, thickness: int = 4): #vers 2
+        """Highlighter-style FILLED rectangle - covers the whole area
+        with multiply-blended pixels (same blend as the Highlighter
+        brush), matching how a real highlighter covers a whole word/
+        line rather than just outlining it. thickness kept as a
+        parameter for call-site compatibility but no longer used -
+        this fills solid rather than drawing a hollow border."""
         if x0 > x1: x0, x1 = x1, x0
         if y0 > y1: y0, y1 = y1, y0
-        half = max(1, thickness // 2)
-        for xx in range(x0, x1 + 1):
-            for t in range(-half, half + 1):
-                self._blend_pixel(xx, y0 + t, c)
-                self._blend_pixel(xx, y1 + t, c)
         for yy in range(y0, y1 + 1):
-            for t in range(-half, half + 1):
-                self._blend_pixel(x0 + t, yy, c)
-                self._blend_pixel(x1 + t, yy, c)
+            for xx in range(x0, x1 + 1):
+                self._blend_pixel(xx, yy, c)
 
-    def draw_marker_ellipse(self, cx, cy, rx, ry, c: QColor, thickness: int = 4): #vers 1
-        """Highlighter-style ellipse outline - reuses draw_circle's
-        midpoint algorithm to find perimeter points, but blends them
-        (thickened) instead of hard-replacing, matching the Marker
-        tool family's semi-transparent look."""
-        half = max(1, thickness // 2)
-
-        def _blend_thick(px, py):
-            for tx in range(-half, half + 1):
-                for ty in range(-half, half + 1):
-                    self._blend_pixel(px + tx, py + ty, c)
-
-        x, y = 0, ry
-        d1 = ry*ry - rx*rx*ry + 0.25*rx*rx
-        dx, dy = 2*ry*ry*x, 2*rx*rx*y
-        while dx < dy:
-            for px, py in [(cx+x,cy+y),(cx-x,cy+y),(cx+x,cy-y),(cx-x,cy-y)]:
-                _blend_thick(px, py)
-            if d1 < 0: dx += 2*ry*ry; d1 += dx+ry*ry; x += 1
-            else: dx += 2*ry*ry; dy -= 2*rx*rx; d1 += dx-dy+ry*ry; x += 1; y -= 1
-        d2 = ry*ry*(x+0.5)**2 + rx*rx*(y-1)**2 - rx*rx*ry*ry
-        while y >= 0:
-            for px, py in [(cx+x,cy+y),(cx-x,cy+y),(cx+x,cy-y),(cx-x,cy-y)]:
-                _blend_thick(px, py)
-            if d2 > 0: dy -= 2*rx*rx; d2 += rx*rx-dy; y -= 1
-            else: dx += 2*ry*ry; dy -= 2*rx*rx; d2 += dx-dy+rx*rx; x += 1; y -= 1
+    def draw_marker_ellipse(self, cx, cy, rx, ry, c: QColor, thickness: int = 4): #vers 2
+        """Highlighter-style FILLED ellipse - scanline fill using the
+        standard ellipse membership test per row, multiply-blended the
+        same way as the rectangle variant and the Highlighter brush."""
+        rx = max(1, rx); ry = max(1, ry)
+        for yy in range(cy - ry, cy + ry + 1):
+            dy = yy - cy
+            inside = 1 - (dy * dy) / (ry * ry)
+            if inside < 0:
+                continue
+            dx = int(rx * (inside ** 0.5))
+            for xx in range(cx - dx, cx + dx + 1):
+                self._blend_pixel(xx, yy, c)
 
     def _do_highlighter(self, cx: int, cy: int): #vers 2
         """Semi-transparent marker - multiply-blends self.color into
@@ -2772,9 +2761,17 @@ class DP5Canvas(QWidget):
             elif self.tool in (TOOL_STAR, TOOL_FILLED_STAR):
                 painter.drawEllipse(QRect(s, e).normalized())
             elif self.tool == TOOL_MARKER_RECT:
+                preview_c = QColor(self.color)
+                preview_c.setAlpha(100)
+                painter.setBrush(preview_c)
                 painter.drawRect(QRect(s, e).normalized())
+                painter.setBrush(Qt.BrushStyle.NoBrush)
             elif self.tool == TOOL_MARKER_ELLIPSE:
+                preview_c = QColor(self.color)
+                preview_c.setAlpha(100)
+                painter.setBrush(preview_c)
                 painter.drawEllipse(QRect(s, e).normalized())
+                painter.setBrush(Qt.BrushStyle.NoBrush)
             elif self.tool in (TOOL_TEXT_POINTER, TOOL_TEXT_ARROW,
                                TOOL_NUMBER_POINTER, TOOL_NUMBER_ARROW):
                 painter.drawLine(s.x(), s.y(), e.x(), e.y())
@@ -4034,15 +4031,96 @@ class FGBGSwatch(QWidget):
 #  BrushManager — panel listing saved brushes, load/save/delete
 
 
-class _CanvasTextOverlay(QWidget):
-    """Inline text input that floats over the canvas — no dialog needed.
-    User types directly; Enter commits to canvas, Escape cancels."""
+class _TextToolCornerPanel(QWidget):
+    """Floating panel in a corner of the canvas viewport with font
+    family, size, and colour controls for the Text tool, plus a Close
+    button that ends the current text-writing session (commits
+    whatever's been typed). Kept separate from the text input itself
+    (_CanvasTextOverlay), which stays positioned directly at the click
+    point on the canvas rather than bundling these controls into that
+    same small floating box."""
 
-    def __init__(self, editor, tx: int, ty: int, zoom: float, canvas, parent=None):  #vers 1
+    changed = pyqtSignal()   # font/size/colour changed - live-update the overlay
+    closed  = pyqtSignal()   # Close clicked - commit and end writing
+
+    def __init__(self, parent=None):  #vers 1
+        super().__init__(parent)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(6, 4, 6, 4)
+        lay.setSpacing(4)
+        self.setStyleSheet(
+            "QWidget { background: palette(window); border: 1px solid palette(mid); }")
+
+        self.font_combo = QFontComboBox()
+        self.font_combo.setFixedWidth(130)
+        self.font_combo.setCurrentFont(QFont("Arial"))
+        self.font_combo.currentFontChanged.connect(lambda _: self.changed.emit())
+
+        self.size_spin = QSpinBox()
+        self.size_spin.setRange(4, 200)
+        self.size_spin.setValue(16)
+        self.size_spin.setFixedWidth(50)
+        self.size_spin.setToolTip("Font size (px)")
+        self.size_spin.valueChanged.connect(lambda _: self.changed.emit())
+
+        self.color_swatch = QPushButton()
+        self.color_swatch.setFixedSize(24, 24)
+        self._color = QColor(255, 0, 0)
+        self._refresh_swatch()
+        self.color_swatch.setToolTip("Text colour")
+        self.color_swatch.clicked.connect(self._pick_color)
+
+        close_btn = QPushButton("Close")
+        close_btn.setToolTip("Finish writing and commit the text to the canvas")
+        close_btn.clicked.connect(self.closed.emit)
+
+        lay.addWidget(QLabel("Font:"))
+        lay.addWidget(self.font_combo)
+        lay.addWidget(QLabel("Size:"))
+        lay.addWidget(self.size_spin)
+        lay.addWidget(self.color_swatch)
+        lay.addWidget(close_btn)
+        self.adjustSize()
+
+    def _refresh_swatch(self): #vers 1
+        self.color_swatch.setStyleSheet(
+            f"background:{self._color.name()}; border:1px solid palette(mid);")
+
+    def _pick_color(self): #vers 1
+        c = QColorDialog.getColor(self._color, self, "Text Colour")
+        if c.isValid():
+            self._color = c
+            self._refresh_swatch()
+            self.changed.emit()
+
+    def current_font(self) -> QFont: #vers 1
+        f = QFont(self.font_combo.currentFont())
+        f.setPixelSize(self.size_spin.value())
+        return f
+
+    def current_color(self) -> QColor: #vers 1
+        return QColor(self._color)
+
+
+class _CanvasTextOverlay(QWidget):
+    """Inline text input that floats over the canvas at the exact click
+    position - no dialog needed. Font/size/colour controls and the
+    finish-writing button live on a separate _TextToolCornerPanel
+    (passed in), not bundled into this small box, so typing happens
+    directly in place while adjusting style doesn't require reaching
+    across to the text position itself. Escape still cancels without
+    committing; the panel's Close button (or Enter) commits."""
+
+    def __init__(self, editor, tx: int, ty: int, zoom: float, canvas,
+                 panel: '_TextToolCornerPanel', parent=None):  #vers 2
         super().__init__(parent or editor)
         self._editor = editor
         self._tx = tx; self._ty = ty
         self._zoom = zoom; self._canvas = canvas
+        self._panel = panel
 
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint |
                             Qt.WindowType.Tool)
@@ -4051,39 +4129,33 @@ class _CanvasTextOverlay(QWidget):
 
         lay = QHBoxLayout(self)
         lay.setContentsMargins(2, 2, 2, 2)
-        lay.setSpacing(4)
+        lay.setSpacing(0)
 
         self._edit = QLineEdit()
         self._edit.setPlaceholderText("Type text…")
-        self._edit.setMinimumWidth(120)
+        self._edit.setMinimumWidth(160)
         self._edit.returnPressed.connect(self._commit)
         self._edit.setStyleSheet(
-            "QLineEdit { background:palette(base); color:palette(buttonText); border:1px solid #00aaff;"
-            " padding:2px 4px; font-size:11px; }")
-
-        self._size_spin = QSpinBox()
-        self._size_spin.setRange(4, 200)
-        self._size_spin.setValue(12)
-        self._size_spin.setFixedWidth(44)
-        self._size_spin.setToolTip("Font size (px)")
-        self._size_spin.setStyleSheet("QSpinBox { background:palette(base); color:#fff; border:1px solid palette(mid); }")
-
-        ok_btn = QPushButton("✓")
-        ok_btn.setFixedSize(22, 22)
-        ok_btn.clicked.connect(self._commit)
-        ok_btn.setStyleSheet("QPushButton { background:palette(highlight); color:#fff; border:none; }"
-                             "QPushButton:hover { background:palette(highlight); }")
-        esc_btn = QPushButton("✕")
-        esc_btn.setFixedSize(22, 22)
-        esc_btn.clicked.connect(self.close)
-        esc_btn.setStyleSheet("QPushButton { background:#440000; color:#fff; border:none; }"
-                              "QPushButton:hover { background:#880000; }")
+            "QLineEdit { background: transparent; border: 1px dashed #00aaff;"
+            " padding: 2px 4px; }")
+        self._refresh_preview_style()
 
         lay.addWidget(self._edit)
-        lay.addWidget(self._size_spin)
-        lay.addWidget(ok_btn)
-        lay.addWidget(esc_btn)
         self.adjustSize()
+
+        panel.changed.connect(self._refresh_preview_style)
+        panel.closed.connect(self._commit)
+
+    def _refresh_preview_style(self): #vers 1
+        """Update the text input's own font/colour to match the panel's
+        current settings, so what's typed previews in roughly the
+        actual style it'll be committed with."""
+        f = self._panel.current_font()
+        self._edit.setFont(f)
+        c = self._panel.current_color()
+        self._edit.setStyleSheet(
+            f"QLineEdit {{ background: transparent; border: 1px dashed #00aaff;"
+            f" padding: 2px 4px; color: {c.name()}; }}")
 
     def keyPressEvent(self, e):  #vers 1
         if e.key() == Qt.Key.Key_Escape:
@@ -4091,24 +4163,26 @@ class _CanvasTextOverlay(QWidget):
         else:
             super().keyPressEvent(e)
 
-    def _commit(self): #vers 1
-        """Blit the typed text onto the canvas at (tx, ty)."""
+    def _commit(self): #vers 2
+        """Blit the typed text onto the canvas at (tx, ty), using the
+        corner panel's current font/size/colour rather than a fixed
+        Arial/canvas-fg-colour default."""
         text = self._edit.text().strip()
         if not text:
             self.close(); return
-        fs = self._size_spin.value()
         ed = self._editor
         if not ed.dp5_canvas:
             self.close(); return
+        font = self._panel.current_font()
+        color = self._panel.current_color()
         ed._push_undo()
         tmp = QImage(ed._canvas_width, ed._canvas_height,
                      QImage.Format.Format_RGBA8888)
         tmp.fill(Qt.GlobalColor.transparent)
         p = QPainter(tmp)
-        font = QFont("Arial", fs)
         p.setFont(font)
-        p.setPen(ed.dp5_canvas.color)
-        p.drawText(self._tx, self._ty + fs, text)
+        p.setPen(color)
+        p.drawText(self._tx, self._ty + font.pixelSize(), text)
         p.end()
         for row in range(ed._canvas_height):
             for col in range(ed._canvas_width):
@@ -6880,30 +6954,30 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         # Line group
         self._make_dropdown_tool_button(tb, [
-            (None, None, 'Arrow (annotation)', TOOL_ARROW),
-            (None, None, 'Double Arrow',        TOOL_DOUBLE_ARROW),
+            ('\u2197', None, 'Arrow (annotation)', TOOL_ARROW),
+            ('\u2194', None, 'Double Arrow',        TOOL_DOUBLE_ARROW),
             (None, 'dp_line_icon', 'Line',      TOOL_LINE),
         ])
 
         # Marker group
         self._make_dropdown_tool_button(tb, [
-            (None, None, 'Marker Pen (semi-transparent highlighter)', TOOL_HIGHLIGHTER),
-            (None, None, 'Marker Rectangle',    TOOL_MARKER_RECT),
-            (None, None, 'Marker Ellipse',      TOOL_MARKER_ELLIPSE),
+            ('\u270E', None, 'Marker Pen (semi-transparent highlighter)', TOOL_HIGHLIGHTER),
+            ('\u25AD', None, 'Marker Rectangle', TOOL_MARKER_RECT),
+            ('\u25EF', None, 'Marker Ellipse',   TOOL_MARKER_ELLIPSE),
         ])
 
         # Text group
         self._make_dropdown_tool_button(tb, [
             (None, 'dp_text_icon', 'Text',      TOOL_TEXT),
-            (None, None, 'Text Pointer',        TOOL_TEXT_POINTER),
-            (None, None, 'Text Arrow',          TOOL_TEXT_ARROW),
+            ('A\u2192', None, 'Text Pointer',   TOOL_TEXT_POINTER),
+            ('A\u2197', None, 'Text Arrow',     TOOL_TEXT_ARROW),
         ])
 
         # Number group (+ reset numbering)
         self._make_dropdown_tool_button(tb, [
-            (None, None, 'Number',              TOOL_NUMBER),
-            (None, None, 'Number Pointer',       TOOL_NUMBER_POINTER),
-            (None, None, 'Number Arrow',         TOOL_NUMBER_ARROW),
+            ('\u2460', None, 'Number',           TOOL_NUMBER),
+            ('\u2460\u2192', None, 'Number Pointer', TOOL_NUMBER_POINTER),
+            ('\u2460\u2197', None, 'Number Arrow',   TOOL_NUMBER_ARROW),
         ], extra_menu_items=[
             ('Reset numbering to 1', lambda: setattr(self, '_next_annotation_number', 1)),
         ])
@@ -6911,7 +6985,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         # Blur/Pixelate group
         self._make_dropdown_tool_button(tb, [
             (None, 'dp_blur_brush_icon', 'Blur brush', TOOL_BLUR_BRUSH),
-            (None, None, 'Pixelate',     TOOL_PIXELATE),
+            ('\u25A6', None, 'Pixelate',     TOOL_PIXELATE),
         ])
 
         # Standalone Sharpen
@@ -8003,8 +8077,11 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._enforce_constraints = not getattr(self, '_enforce_constraints', False)
         self._set_status(f"Colour constraints: {'ON' if self._enforce_constraints else 'OFF'}")
 
-    def _place_text_at(self, tx: int, ty: int): #vers 3
-        """Show inline text input overlay on canvas at click position."""
+    def _place_text_at(self, tx: int, ty: int): #vers 4
+        """Show inline text input overlay on canvas at click position,
+        plus (if not already shown) a corner panel with font/size/
+        colour controls and a Close button that ends the writing
+        session."""
         if not self.dp5_canvas: return
         ed = self
         z = self.dp5_canvas.zoom
@@ -8015,7 +8092,16 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 self._text_overlay.isVisible():
             self._text_overlay.close()
 
-        overlay = _CanvasTextOverlay(self, tx, ty, z, self.dp5_canvas)
+        # Reuse the corner panel across multiple text placements rather
+        # than rebuilding it each time - its font/size/colour settings
+        # persist for the next piece of text too.
+        if not hasattr(self, '_text_corner_panel') or self._text_corner_panel is None:
+            panel = _TextToolCornerPanel(self)
+            panel.closed.connect(lambda: panel.hide())
+            self._text_corner_panel = panel
+        panel = self._text_corner_panel
+
+        overlay = _CanvasTextOverlay(self, tx, ty, z, self.dp5_canvas, panel)
         self._text_overlay = overlay
         # Position the overlay widget over the canvas at the click point
         canvas_widget = self.dp5_canvas
@@ -8030,6 +8116,16 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         overlay.move(pos.x() + px, pos.y() + py)
         overlay.show()
         overlay.setFocus()
+
+        # Position the corner panel at the top-right of the canvas
+        # viewport, not at the text click position - stays put across
+        # multiple text placements so the controls don't jump around.
+        viewport = sa.viewport() if sa else canvas_widget
+        vp_top_right = viewport.mapTo(self, QPoint(viewport.width(), 0))
+        panel.adjustSize()
+        panel.move(vp_top_right.x() - panel.width() - 8, vp_top_right.y() + 8)
+        panel.show()
+        panel.raise_()
 
     def _toggle_brush_manager(self): #vers 1
         """Show/hide the brush manager as a floating panel."""
