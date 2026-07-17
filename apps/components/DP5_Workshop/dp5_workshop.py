@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 61 (Build 388)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 62 (Build 389)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -47,6 +47,8 @@ from PyQt6.QtGui import (
 
 
 ##Methods list -
+# _list_stickers
+# _load_sticker_rgba
 # _load_tool_icon
 # _make_tool_icon
 # open_dp5_workshop
@@ -615,6 +617,55 @@ except ImportError:
     APPSETTINGS_AVAILABLE = False
     AppSettings   = None
     SettingsDialog = None
+
+
+# - Sticker/emoji assets — real image files (GIF/JPG etc), not font
+# glyphs. apps/emojis/ sits three levels up from this file
+# (apps/components/DP5_Workshop/dp5_workshop.py -> apps/).
+_STICKER_DIR = Path(__file__).resolve().parent.parent.parent / "emojis"
+_sticker_cache = {}   # filename -> (rgba_bytearray, w, h)
+
+
+def _list_stickers(): #vers 1
+    """Return sorted list of available sticker filenames in
+    apps/emojis/, or an empty list if the folder doesn't exist."""
+    if not _STICKER_DIR.exists():
+        return []
+    exts = ('.gif', '.png', '.jpg', '.jpeg', '.bmp')
+    return sorted(f.name for f in _STICKER_DIR.iterdir()
+                  if f.is_file() and f.suffix.lower() in exts)
+
+
+def _load_sticker_rgba(filename: str): #vers 1
+    """Load a sticker image file, return (rgba_bytearray, w, h) with
+    transparency resolved and cached. Uses the image's own alpha info
+    if the source already has any transparent pixels (real GIF
+    transparency); otherwise treats the top-left corner pixel's colour
+    as the background and makes matching pixels transparent, since most
+    of this set are old-style solid-background icon GIFs without real
+    alpha. Returns (None, 0, 0) if the file can't be loaded."""
+    if filename in _sticker_cache:
+        return _sticker_cache[filename]
+    path = _STICKER_DIR / filename
+    try:
+        from PIL import Image
+        img = Image.open(path).convert('RGBA')
+        w, h = img.size
+        px = img.load()
+        has_alpha = any(px[x, y][3] < 255
+                        for x in (0, w - 1) for y in (0, h - 1))
+        if not has_alpha:
+            bg = px[0, 0]
+            for y in range(h):
+                for x in range(w):
+                    r, g, b, a = px[x, y]
+                    if (r, g, b) == bg[:3]:
+                        px[x, y] = (r, g, b, 0)
+        rgba = bytearray(img.tobytes())
+        _sticker_cache[filename] = (rgba, w, h)
+        return rgba, w, h
+    except Exception:
+        return None, 0, 0
 
 
 # - Tool icon renderer — Photoshop-style white silhouettes on dark tile
@@ -2316,26 +2367,27 @@ class DP5Canvas(QWidget):
                     buf[i+1] = max(0, min(255, int(orig[i+1] + amount * (orig[i+1] - avg_g))))
                     buf[i+2] = max(0, min(255, int(orig[i+2] + amount * (orig[i+2] - avg_b))))
 
-    def _stamp_sticker(self, cx: int, cy: int): #vers 1
-        """Stamp an emoji glyph onto the canvas, centred at (cx, cy).
-        Renders the glyph to an offscreen QImage via the system font
-        (most desktop Linux/Windows/Mac fonts include at least basic
-        emoji coverage) then alpha-composites it pixel-by-pixel onto
-        the canvas - this is the only place in DP5 emoji are rendered,
-        since everywhere else uses SVG icons/plain text, not glyph
-        rendering with colour-emoji font fallback."""
+    def _stamp_sticker(self, cx: int, cy: int): #vers 2
+        """Stamp a sticker image (from apps/emojis/) onto the canvas,
+        centred at (cx, cy). Loads the file via _load_sticker_rgba
+        (cached, transparency-resolved), scales it to the desired
+        stamp size with a QImage, then alpha-composites pixel-by-pixel
+        onto the canvas - this is the only place in DP5 that stamps
+        sticker/emoji images, using real picture files rather than
+        rendering a font glyph (which depends on the system having a
+        colour-emoji font installed)."""
         ed = self._editor
-        emoji = getattr(ed, '_current_sticker', '\U0001F600') if ed else '\U0001F600'
+        filename = getattr(ed, '_current_sticker', None) if ed else None
+        if not filename:
+            return
+        src_rgba, sw, sh = _load_sticker_rgba(filename)
+        if src_rgba is None:
+            return
+
         size = max(8, self.brush_size * 8)
-        img = QImage(size, size, QImage.Format.Format_ARGB32)
-        img.fill(Qt.GlobalColor.transparent)
-        p = QPainter(img)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        font = QFont()
-        font.setPixelSize(int(size * 0.85))
-        p.setFont(font)
-        p.drawText(img.rect(), Qt.AlignmentFlag.AlignCenter, emoji)
-        p.end()
+        src_img = QImage(bytes(src_rgba), sw, sh, sw * 4, QImage.Format.Format_RGBA8888)
+        img = src_img.scaled(size, size, Qt.AspectRatioMode.IgnoreAspectRatio,
+                              Qt.TransformationMode.SmoothTransformation)
 
         half = size // 2
         w, h = self.tex_w, self.tex_h
@@ -5125,9 +5177,11 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._canvas_tabs = []
         self._active_canvas_tab_idx = 0
 
-        # Sticker/emoji tool - currently selected emoji to stamp, set
-        # via the Annotate ribbon's sticker picker.
-        self._current_sticker = '\U0001F600'   # 😀
+        # Sticker tool - currently selected sticker filename (from
+        # apps/emojis/) to stamp, set via the Annotate ribbon's sticker
+        # picker. None if no stickers are available.
+        _stickers = _list_stickers()
+        self._current_sticker = _stickers[0] if _stickers else None
 
         # Bitmap list (left panel)
         self._bitmap_list: List[dict] = []   # [{name, rgba, w, h}]
@@ -6461,8 +6515,17 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         _tool_act('dp_blur_brush_icon', 'Blur brush',         TOOL_BLUR_BRUSH)
         _text_act('\u25C6', 'Sharpen brush',                  TOOL_SHARPEN)
 
-        sticker_btn = QAction('\U0001F600', tb)
-        sticker_btn.setToolTip('Stickers (emoji) - click to choose one')
+        _stickers_preview = _list_stickers()
+        if _stickers_preview:
+            _rgba, _sw, _sh = _load_sticker_rgba(_stickers_preview[0])
+            _simg = QImage(bytes(_rgba), _sw, _sh, _sw * 4, QImage.Format.Format_RGBA8888)
+            _spix = QPixmap.fromImage(_simg).scaled(
+                _render_sz, _render_sz, Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation)
+            sticker_btn = QAction(QIcon(_spix), '', tb)
+        else:
+            sticker_btn = QAction('\U0001F600', tb)
+        sticker_btn.setToolTip('Stickers - click to choose one from apps/emojis/')
         tb.addAction(sticker_btn)
         # Grab the underlying toolbutton so the picker menu can position
         # itself under it (QAction alone has no widget/geometry)
@@ -6476,25 +6539,53 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
     #    Tool / colour helpers                                                  
 
-    def _show_sticker_picker(self, btn): #vers 1
-        """Show a flat popup menu of common emojis - picking one sets
-        it as the current sticker and switches to the Sticker tool.
-        A small fixed starter set, easy to extend later."""
-        STICKERS = [
-            '\U0001F600', '\U0001F602', '\U0001F60D', '\U0001F914',
-            '\U0001F44D', '\U0001F44E', '\U0001F525', '\U00002764',
-            '\U00002B50', '\U0001F389', '\U0001F4A9', '\U0001F480',
-            '\U0001F47D', '\U0001F436', '\U0001F431', '\U0001F337',
-        ]
-        menu = QMenu(self)
-        for s in STICKERS:
-            act = menu.addAction(s)
-            act.triggered.connect(lambda _, ch=s: self._pick_sticker(ch))
-        menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
+    def _show_sticker_picker(self, btn): #vers 2
+        """Show a scrollable grid of sticker thumbnails loaded from
+        apps/emojis/ - picking one sets it as the current sticker and
+        switches to the Sticker tool."""
+        stickers = _list_stickers()
+        if not stickers:
+            QMessageBox.information(self, "Stickers",
+                "No sticker images found in apps/emojis/.")
+            return
 
-    def _pick_sticker(self, emoji: str): #vers 1
-        self._current_sticker = emoji
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Choose a Sticker ({len(stickers)} available)")
+        dlg.setMinimumSize(420, 360)
+        root = QVBoxLayout(dlg)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        grid_widget = QWidget()
+        grid = QGridLayout(grid_widget)
+        grid.setSpacing(2)
+
+        cols = 12
+        for idx, filename in enumerate(stickers):
+            rgba, w, h = _load_sticker_rgba(filename)
+            thumb_btn = QToolButton()
+            thumb_btn.setFixedSize(28, 28)
+            thumb_btn.setToolTip(filename)
+            if rgba is not None:
+                img = QImage(bytes(rgba), w, h, w * 4, QImage.Format.Format_RGBA8888)
+                pix = QPixmap.fromImage(img).scaled(
+                    24, 24, Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation)
+                thumb_btn.setIcon(QIcon(pix))
+                thumb_btn.setIconSize(QSize(24, 24))
+            thumb_btn.clicked.connect(
+                lambda _, f=filename: self._pick_sticker(f, dlg))
+            grid.addWidget(thumb_btn, idx // cols, idx % cols)
+
+        scroll.setWidget(grid_widget)
+        root.addWidget(scroll)
+        dlg.exec()
+
+    def _pick_sticker(self, filename: str, dlg=None): #vers 2
+        self._current_sticker = filename
         self._select_tool(TOOL_STICKER)
+        if dlg is not None:
+            dlg.accept()
 
     def _select_tool(self, tool_id: str): #vers 3
         """Select a tool. Outline/filled shape variants and Select/Select
