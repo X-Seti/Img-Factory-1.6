@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 56 (Build 383)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 57 (Build 384)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -1677,6 +1677,12 @@ class DP5Canvas(QWidget):
         self.offset     = QPoint(0, 0)
         self.tool       = TOOL_PENCIL
         self.color      = QColor(255, 0, 0, 255)
+        self.bg_color   = QColor(0,   0, 0, 255)
+        # Set to the real FG colour during a right-click stroke (which
+        # temporarily swaps self.color to bg_color so every tool draws
+        # with BG without needing its own FG/BG branch), then restored
+        # on mouse release. None means no swap is currently active.
+        self._fg_color_backup = None
         self.brush_size    = 1
         self.opacity       = 1.0
         self.dither_mode   = 'off'  # 'off' | 'checker' | 'bayer' | 'floyd'
@@ -2506,8 +2512,17 @@ class DP5Canvas(QWidget):
             if ed: ed._set_zoom(max(0.05, self._editor._canvas_zoom * 0.5))
             return
 
-        if btn != Qt.MouseButton.LeftButton:
+        if btn not in (Qt.MouseButton.LeftButton, Qt.MouseButton.RightButton):
             return
+
+        # Right-click draws with BG colour instead of FG, matching
+        # Deluxe Paint 5 - temporarily swap self.color for the stroke's
+        # duration so every tool below (and _do_spray/_do_blur_brush/
+        # etc, which read self.color internally) draws with BG without
+        # needing its own separate FG/BG branch. Restored on release.
+        if btn == Qt.MouseButton.RightButton:
+            self._fg_color_backup = self.color
+            self.color = self.bg_color
 
         self._drawing = True
         self._last_pt = (tx, ty)
@@ -2548,9 +2563,19 @@ class DP5Canvas(QWidget):
         elif self.tool == TOOL_PICKER:
             c = self.get_pixel(tx, ty)
             if c.isValid():
-                self.color = c
                 ed = self._editor
-                if ed: ed._update_color_swatches()
+                if btn == Qt.MouseButton.RightButton:
+                    # Right-click picks into BG, not FG - this tool
+                    # doesn't draw, so undo the generic BG-draw colour
+                    # swap from above rather than letting release
+                    # "restore" over a colour we never actually used.
+                    if self._fg_color_backup is not None:
+                        self.color = self._fg_color_backup
+                        self._fg_color_backup = None
+                    if ed: ed._fgbg_swatch.set_bg(c)
+                else:
+                    self.color = c
+                    if ed: ed._update_color_swatches()
 
         elif self.tool == TOOL_ZOOM:
             ed = self._editor
@@ -2724,7 +2749,7 @@ class DP5Canvas(QWidget):
                 self.setCursor(Qt.CursorShape.ClosedHandCursor)
             return
 
-        if not (e.buttons() & Qt.MouseButton.LeftButton) or not self._drawing:
+        if not (e.buttons() & (Qt.MouseButton.LeftButton | Qt.MouseButton.RightButton)) or not self._drawing:
             if self.tool == TOOL_CURVE and self._curve_pts:
                 self.update()   # live preview tracks mouse
             return
@@ -2815,7 +2840,7 @@ class DP5Canvas(QWidget):
             self.setCursor(Qt.CursorShape.OpenHandCursor)
             return
 
-        if e.button() != Qt.MouseButton.LeftButton:
+        if e.button() not in (Qt.MouseButton.LeftButton, Qt.MouseButton.RightButton):
             return
 
         tx, ty = self._widget_to_tex(e.position().toPoint())
@@ -2935,6 +2960,13 @@ class DP5Canvas(QWidget):
                 self.flood_fill(cx, cy, self.color)
             self._lasso_pts  = []
             self._sel_active = False
+
+        # Restore the real FG colour after a right-click (BG) stroke -
+        # runs last so shape tools above finalize with the swapped
+        # colour first.
+        if self._fg_color_backup is not None:
+            self.color = self._fg_color_backup
+            self._fg_color_backup = None
 
         self._drawing = False
         self._preview_start = self._preview_end = None
@@ -3394,14 +3426,27 @@ class FGBGSwatch(QWidget):
 
         self._draw_swap_icon(p)
 
-    def _draw_swap_icon(self, p: QPainter):  #vers 1
+    def _draw_swap_icon(self, p: QPainter):  #vers 2
         r = self._swap_rect()
-        p.setBrush(self._get_ui_color('viewport_bg'))
+        # Natural blend of FG and BG (simple average) rather than a
+        # fixed theme colour, so the swap icon relates to the actual
+        # colours it swaps between.
+        merge = QColor(
+            (self._fg.red()   + self._bg.red())   // 2,
+            (self._fg.green() + self._bg.green()) // 2,
+            (self._fg.blue()  + self._bg.blue())  // 2,
+        )
+        p.setBrush(merge)
         p.setPen(QPen(self._get_ui_color('border'), 1))
         p.drawEllipse(r)
         cx, cy = r.center().x(), r.center().y()
         half = r.width() // 2 - 3
-        pen = QPen(self._get_ui_color('text_primary'), 2)
+        # Arrow colour contrasts against the merge's own luminance, so
+        # they stay visible whatever FG/BG blend to (a dark merge gets
+        # light arrows, a light merge gets dark arrows).
+        luminance = (merge.red() * 299 + merge.green() * 587 + merge.blue() * 114) // 1000
+        arrow_col = QColor(0, 0, 0) if luminance > 128 else QColor(255, 255, 255)
+        pen = QPen(arrow_col, 2)
         p.setPen(pen)
         # Two opposing arrow lines suggesting swap
         p.drawLine(cx - half, cy - 2, cx + half, cy - 2)
@@ -6345,9 +6390,9 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 _style_empty_history_slot(self, btn)
                 btn.setEnabled(False)
 
-    def _on_bg_changed(self, c: QColor):  #vers 1
-        # Background colour stored in swatch; eraser uses it in future
-        pass
+    def _on_bg_changed(self, c: QColor):  #vers 2
+        if self.dp5_canvas:
+            self.dp5_canvas.bg_color = c
 
     def _on_image_palette_color(self, c: QColor): #vers 1
         if self.dp5_canvas:

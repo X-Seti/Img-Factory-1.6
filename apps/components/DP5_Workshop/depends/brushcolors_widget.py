@@ -1,4 +1,4 @@
-#this belongs in apps/components/DP5_Workshop/depends/brushcolors_widget.py - Version: 5
+#this belongs in apps/components/DP5_Workshop/depends/brushcolors_widget.py - Version: 6
 # X-Seti - Jul 2026 - DP5 Workshop - Brush & Colors dock widget
 """
 Self-contained Brush & Colors dock widget: dock container, collapsible
@@ -230,7 +230,7 @@ def _refresh_canvas_color_swatch(owner): #vers 1
         border = tc.get('border') or border
     swatch = getattr(owner, '_canvas_color_swatch', None)
     if swatch is not None:
-        swatch.setFixedSize(28, 28)
+        swatch.setFixedSize(64, 48)
         swatch.setStyleSheet(f"background:{hexval}; border:1px solid {border};")
 
 
