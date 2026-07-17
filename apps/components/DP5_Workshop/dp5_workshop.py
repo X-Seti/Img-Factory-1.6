@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 53 (Build 380)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 54 (Build 381)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -371,10 +371,12 @@ from PyQt6.QtGui import (
 # DP5Workshop.showEvent
 # FGBGSwatch.__init__
 # FGBGSwatch._bg_rect
+# FGBGSwatch._draw_swap_icon
 # FGBGSwatch._fg_rect
 # FGBGSwatch._get_ui_color
 # FGBGSwatch._pick_bg
 # FGBGSwatch._pick_fg
+# FGBGSwatch._swap_rect
 # FGBGSwatch.bg
 # FGBGSwatch.fg
 # FGBGSwatch.heightForWidth
@@ -3302,10 +3304,11 @@ class ColorPickerWidget(QWidget):
 
 class FGBGSwatch(QWidget):
     """
-    Classic DPaint5 nested colour swatch:
-      - outer rect = Background colour  (click outer area to pick BG)
-      - inner rect = Foreground colour  (click inner area to pick FG)
-    Swap button (S key / double-click) swaps FG ↔ BG.
+    Classic FG/BG colour swatch (GIMP-style layout):
+      - FG square top-left, BG square bottom-right, diagonally
+        overlapping at the corner.
+      - Small swap-icon circle at the overlap point - click it to swap
+        FG ↔ BG directly (double-click anywhere also swaps).
     """
 
     fg_changed = pyqtSignal(QColor)
@@ -3335,11 +3338,11 @@ class FGBGSwatch(QWidget):
         self.setMinimumSize(40, 30)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         self.setToolTip(
-            "FG (inner) / BG (outer)\n"
-            "Click inner area → pick FG\n"
-            "Click outer area → pick BG\n"
+            "FG (top-left) / BG (bottom-right)\n"
+            "Click FG square → pick FG\n"
+            "Click BG square → pick BG\n"
             "Right-click anywhere → pick BG\n"
-            "Double-click → swap FG↔BG")
+            "Click centre swap icon or double-click → swap FG↔BG")
 
     def sizeHint(self):  #vers 1
         from PyQt6.QtCore import QSize
@@ -3368,39 +3371,72 @@ class FGBGSwatch(QWidget):
 
     #    Paint                                                                  
 
-    def paintEvent(self, _):  #vers 2
+    def paintEvent(self, _):  #vers 3
         p = QPainter(self)
 
-        # BG rect - fills almost the whole widget
-        bg_r = self._bg_rect()
-        p.fillRect(bg_r, self._bg)
-        p.setPen(QPen(self._get_ui_color('viewport_text'), 1))
-        p.drawRect(bg_r)
-
-        # FG rect - smaller, anchored at the same top-left corner as BG,
-        # leaving BG visible as an L-shaped border along the bottom/right
+        # FG square (top-left), BG square (bottom-right) - BG paints
+        # second so it's on top at the diagonal overlap, matching the
+        # reference layout.
         fg_r = self._fg_rect()
         p.fillRect(fg_r, self._fg)
         p.setPen(QPen(self._get_ui_color('border'), 1))
         p.drawRect(fg_r)
 
-    def _fg_rect(self) -> QRect:  #vers 2
-        w, h = self.width(), self.height()
-        pad = 4
-        fg_scale = 0.62
-        bg_w, bg_h = w - 2 * pad, h - 2 * pad
-        return QRect(pad, pad, int(bg_w * fg_scale), int(bg_h * fg_scale))
+        bg_r = self._bg_rect()
+        p.fillRect(bg_r, self._bg)
+        p.setPen(QPen(self._get_ui_color('viewport_text'), 1))
+        p.drawRect(bg_r)
 
-    def _bg_rect(self) -> QRect:  #vers 2
+        self._draw_swap_icon(p)
+
+    def _draw_swap_icon(self, p: QPainter):  #vers 1
+        r = self._swap_rect()
+        p.setBrush(self._get_ui_color('viewport_bg'))
+        p.setPen(QPen(self._get_ui_color('border'), 1))
+        p.drawEllipse(r)
+        cx, cy = r.center().x(), r.center().y()
+        half = r.width() // 2 - 3
+        pen = QPen(self._get_ui_color('text_primary'), 2)
+        p.setPen(pen)
+        # Two opposing arrow lines suggesting swap
+        p.drawLine(cx - half, cy - 2, cx + half, cy - 2)
+        p.drawLine(cx + half - 3, cy - 2 - 3, cx + half, cy - 2)
+        p.drawLine(cx + half - 3, cy - 2 + 3, cx + half, cy - 2)
+        p.drawLine(cx - half, cy + 2, cx + half, cy + 2)
+        p.drawLine(cx - half + 3, cy + 2 - 3, cx - half, cy + 2)
+        p.drawLine(cx - half + 3, cy + 2 + 3, cx - half, cy + 2)
+
+    def _fg_rect(self) -> QRect:  #vers 3
         w, h = self.width(), self.height()
-        pad = 4
-        return QRect(pad, pad, w - 2 * pad, h - 2 * pad)
+        pad = 2
+        sq = int(min(w, h) * 0.72)
+        return QRect(pad, pad, sq, sq)
+
+    def _bg_rect(self) -> QRect:  #vers 3
+        w, h = self.width(), self.height()
+        pad = 2
+        sq = int(min(w, h) * 0.72)
+        return QRect(w - pad - sq, h - pad - sq, sq, sq)
+
+    def _swap_rect(self) -> QRect:  #vers 1
+        """Small circle centred on where fg_rect and bg_rect overlap."""
+        fg_r, bg_r = self._fg_rect(), self._bg_rect()
+        overlap = fg_r.intersected(bg_r)
+        if overlap.isEmpty():
+            cx, cy = fg_r.right(), fg_r.bottom()
+        else:
+            cx, cy = overlap.center().x(), overlap.center().y()
+        s = max(12, min(18, min(self.width(), self.height()) // 4))
+        return QRect(cx - s // 2, cy - s // 2, s, s)
 
     #    Mouse                                                                  
 
-    def mousePressEvent(self, e: QMouseEvent):  #vers 2
+    def mousePressEvent(self, e: QMouseEvent):  #vers 3
+        pos = e.position().toPoint()
         if e.button() == Qt.MouseButton.LeftButton:
-            if self._fg_rect().contains(e.position().toPoint()):
+            if self._swap_rect().contains(pos):
+                self.swap()
+            elif self._fg_rect().contains(pos):
                 self._pick_fg()
             else:
                 self._pick_bg()
