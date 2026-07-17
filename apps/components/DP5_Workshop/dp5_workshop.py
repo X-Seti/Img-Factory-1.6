@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 62 (Build 389)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 63 (Build 390)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -6539,10 +6539,11 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
     #    Tool / colour helpers                                                  
 
-    def _show_sticker_picker(self, btn): #vers 2
+    def _show_sticker_picker(self, btn): #vers 3
         """Show a scrollable grid of sticker thumbnails loaded from
         apps/emojis/ - picking one sets it as the current sticker and
         switches to the Sticker tool."""
+        from PyQt6.QtWidgets import QToolButton
         stickers = _list_stickers()
         if not stickers:
             QMessageBox.information(self, "Stickers",
