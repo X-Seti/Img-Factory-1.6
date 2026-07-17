@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 54 (Build 381)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 55 (Build 382)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -3406,17 +3406,23 @@ class FGBGSwatch(QWidget):
         p.drawLine(cx - half + 3, cy + 2 - 3, cx - half, cy + 2)
         p.drawLine(cx - half + 3, cy + 2 + 3, cx - half, cy + 2)
 
-    def _fg_rect(self) -> QRect:  #vers 3
+    def _fg_rect(self) -> QRect:  #vers 4
         w, h = self.width(), self.height()
         pad = 2
         sq = int(min(w, h) * 0.72)
         return QRect(pad, pad, sq, sq)
 
-    def _bg_rect(self) -> QRect:  #vers 3
-        w, h = self.width(), self.height()
-        pad = 2
-        sq = int(min(w, h) * 0.72)
-        return QRect(w - pad - sq, h - pad - sq, sq, sq)
+    def _bg_rect(self) -> QRect:  #vers 4
+        # Anchored relative to FG's own position/size, not the widget's
+        # full width - keeps BG close to FG with a modest diagonal
+        # offset regardless of how wide the widget grows (it can be much
+        # wider than tall in a narrow side panel), rather than pulling
+        # BG all the way out to the far bottom-right corner and leaving
+        # a large empty gap between the two squares.
+        fg_r = self._fg_rect()
+        offset = int(fg_r.width() * 0.35)
+        return QRect(fg_r.x() + offset, fg_r.y() + offset,
+                     fg_r.width(), fg_r.height())
 
     def _swap_rect(self) -> QRect:  #vers 1
         """Small circle centred on where fg_rect and bg_rect overlap."""
