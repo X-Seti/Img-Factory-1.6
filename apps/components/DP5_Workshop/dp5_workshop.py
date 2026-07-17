@@ -6063,7 +6063,9 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         base_col = None
         if self.app_settings and hasattr(self.app_settings, 'get_theme_colors'):
             tc = self.app_settings.get_theme_colors()
-            hexval = tc.get('panel_bg')
+            #hexval = tc.get('panel_bg')
+            hexval = tc.get('bg_primary')
+            #hexval = tc.get('bg_secondary')
             if hexval:
                 base_col = QColor(hexval)
 
