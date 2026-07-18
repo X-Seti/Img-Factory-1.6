@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 72 (Build 399)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 73 (Build 400)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -183,6 +183,7 @@ from PyQt6.QtGui import (
 # DP5Workshop._build_menus_into_qmenu
 # DP5Workshop._canvas_to_256colour_indexed
 # DP5Workshop._capture_canvas_tab_state
+# DP5Workshop._center_view_on
 # DP5Workshop._clear_brush
 # DP5Workshop._clear_canvas
 # DP5Workshop._convert_canvas_to_platform
@@ -365,6 +366,7 @@ from PyQt6.QtGui import (
 # DP5Workshop._snap_image_to_user_palette
 # DP5Workshop._switch_canvas_tab
 # DP5Workshop._sync_brush_thumb
+# DP5Workshop._toggle_active_zoom
 # DP5Workshop._toggle_anim_strip
 # DP5Workshop._toggle_brush_manager
 # DP5Workshop._toggle_cell_grid
@@ -1804,6 +1806,12 @@ class DP5Canvas(QWidget):
         self.sharpen_amount   = 1.0    # unsharp-mask strength
         self.spray_density    = 5      # airbrush: particles per radius unit
         self.spraycan_density = 12     # spraycan: heavier/messier than airbrush
+        # Active Zoom - toggled follow-cursor mode where the main
+        # viewport itself pans to keep the cursor centred at a high
+        # zoom level (distinct from the read-only corner Zoom Lens
+        # preview widget) so detail work / rotoscoping-style pixel
+        # editing can happen directly in the zoomed view.
+        self._active_zoom_follow = False
         self.dither_mode   = 'off'  # 'off' | 'checker' | 'bayer' | 'floyd'
         self.symmetry_mode = 'off'  # 'off' | 'H' | 'V' | 'quad'
         self._dither_toggle = False  # alternates per pixel in dither mode
@@ -3269,6 +3277,10 @@ class DP5Canvas(QWidget):
             ed._update_status(tx, ty, self.get_pixel(tx, ty))
         # Store for zoom lens tracking
         self._zoom_lens_pos = (tx, ty)
+
+        # Active Zoom - pan the viewport to keep the cursor centred
+        if self._active_zoom_follow and ed and hasattr(ed, '_center_view_on'):
+            ed._center_view_on(tx, ty)
 
         # Stamp ghost always tracks mouse when stamp tool active
         if self.tool == TOOL_STAMP:
@@ -6987,6 +6999,18 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                         lambda pos, t=tool_id: self._show_tool_settings_menu(pos, t))
                     act.setToolTip(tip + "\nRight-click for settings")
 
+        # Active Zoom - toggle button for follow-cursor high-zoom mode
+        # (distinct from the Zoom tool's click-to-zoom and the
+        # read-only corner Zoom Lens preview)
+        _az_icon = self._render_variant_icon('active_zoom', None, icon_sz,
+                                             icon_color, has_menu=False)
+        az_act = QAction(_az_icon, '', tb)
+        az_act.setToolTip("Active Zoom - toggle high zoom that follows\nthe cursor, for detail/pixel work")
+        az_act.setCheckable(True)
+        az_act.triggered.connect(self._toggle_active_zoom)
+        tb.addAction(az_act)
+        self._active_zoom_btn = az_act
+
         self._tools_ribbon = tb
         self._apply_ribbon_style(tb)
         tb.orientationChanged.connect(lambda _o, t=tb: self._apply_ribbon_style(t))
@@ -7168,6 +7192,15 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             sq = size - m - off
             p.drawRect(m, m, sq - m, sq - m)
             p.drawRect(m + off, m + off, sq - m, sq - m)
+        elif kind == 'active_zoom':
+            p.setPen(QPen(qc, pen_w)); p.setBrush(Qt.BrushStyle.NoBrush)
+            lens_d = int(size * 0.55)
+            p.drawEllipse(m, m, lens_d, lens_d)
+            p.drawLine(m + int(lens_d*0.85), m + int(lens_d*0.85), size - m, size - m)
+            # Crosshair inside the lens to suggest cursor-follow
+            cx, cy = m + lens_d // 2, m + lens_d // 2
+            p.drawLine(cx - lens_d//4, cy, cx + lens_d//4, cy)
+            p.drawLine(cx, cy - lens_d//4, cx, cy + lens_d//4)
 
     def _render_variant_icon(self, icon_kind, icon_method, size, icon_color,
                               has_menu: bool = False) -> QIcon: #vers 2
@@ -10021,6 +10054,47 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         self.dp5_canvas.update()
 
+    def _center_view_on(self, tx: int, ty: int): #vers 1
+        """Pan the scroll area so texture point (tx, ty) sits at the
+        centre of the viewport - used by Active Zoom's follow-cursor
+        mode. Unlike _scroll_by (relative pan), this is an absolute
+        scroll calculation since the cursor can jump any distance
+        between mouse-move events."""
+        c = self.dp5_canvas
+        sa = getattr(self, '_canvas_scroll', None)
+        if not c or not sa:
+            return
+        z  = c.zoom
+        zx = z * getattr(c, 'pixel_aspect_x', 1.0)
+        vp = sa.viewport()
+        target_x = int(tx * zx) - vp.width() // 2
+        target_y = int(ty * z) - vp.height() // 2
+        sa.horizontalScrollBar().setValue(max(0, target_x))
+        sa.verticalScrollBar().setValue(max(0, target_y))
+
+    def _toggle_active_zoom(self): #vers 1
+        """Active Zoom toggle - jumps to a high zoom level and enables
+        follow-cursor viewport panning (see _center_view_on), so detail/
+        pixel work can happen directly in the zoomed main view rather
+        than the separate read-only Zoom Lens corner preview. Toggling
+        off restores the zoom level from before it was enabled."""
+        c = self.dp5_canvas
+        if not c:
+            return
+        if not c._active_zoom_follow:
+            self._active_zoom_prev_level = c.zoom
+            c._active_zoom_follow = True
+            self._set_zoom(8.0)
+            self._set_status("Active Zoom on - viewport follows cursor")
+        else:
+            c._active_zoom_follow = False
+            prev = getattr(self, '_active_zoom_prev_level', None)
+            if prev:
+                self._set_zoom(prev)
+            self._set_status("Active Zoom off")
+        btn = getattr(self, '_active_zoom_btn', None)
+        if btn:
+            btn.setChecked(c._active_zoom_follow)
 
     def _flip_h(self):   self._mirror_h()   # legacy alias  #vers 1
     def _flip_v(self):   self._mirror_v()   # legacy alias  #vers 1
