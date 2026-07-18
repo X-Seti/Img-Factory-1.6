@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 73 (Build 400)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 74 (Build 401)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -4356,24 +4356,21 @@ class _CanvasTextOverlay(QWidget):
         panel.changed.connect(self._refresh_preview_style)
         panel.closed.connect(self._commit)
 
-    def _sync_tx_ty_from_pos(self): #vers 1
+    def _sync_tx_ty_from_pos(self): #vers 2
         """After dragging the overlay to a new screen position, work
         out the corresponding canvas texture coordinates (tx, ty) so
-        the eventual commit lands where the text visually is now."""
+        the eventual commit lands where the text visually is now.
+        canvas_widget.mapFrom(ed, point) is the correct inverse of the
+        mapTo() used in _place_text_at to position the overlay in the
+        first place - handles scroll offset and widget hierarchy
+        together, rather than manually reconstructing it."""
         ed = self._editor
         canvas_widget = self._canvas
         z = canvas_widget.zoom
         zx = z * getattr(canvas_widget, 'pixel_aspect_x', 1.0)
-        sa = getattr(ed, '_canvas_scroll', None)
-        pos = canvas_widget.mapTo(ed, canvas_widget.pos())
-        my_pos = self.pos()
-        px = my_pos.x() - pos.x()
-        py = my_pos.y() - pos.y()
-        if sa:
-            px += sa.horizontalScrollBar().value()
-            py += sa.verticalScrollBar().value()
-        self._tx = int(px / zx) if zx else px
-        self._ty = int(py / z) if z else py
+        local_pos = canvas_widget.mapFrom(ed, self.pos())
+        self._tx = int(local_pos.x() / zx) if zx else local_pos.x()
+        self._ty = int(local_pos.y() / z) if z else local_pos.y()
 
     def _refresh_preview_style(self): #vers 1
         """Update the text input's own font/colour to match the panel's
@@ -8555,17 +8552,18 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         overlay = _CanvasTextOverlay(self, tx, ty, z, self.dp5_canvas, panel)
         self._text_overlay = overlay
-        # Position the overlay widget over the canvas at the click point
+        # Position the overlay widget over the canvas at the click point.
+        # canvas_widget.mapTo(self, local_point) converts a point in
+        # canvas_widget's OWN coordinate space to self's coordinate
+        # space, correctly accounting for both the widget hierarchy and
+        # any scroll offset (a QScrollArea's content widget's actual Qt
+        # position already reflects scrolling) - no need to separately
+        # query/subtract the scrollbars.
         canvas_widget = self.dp5_canvas
         px = int(tx * zx)
         py = int(ty * z)
-        # Map to scroll area viewport coords
-        sa = getattr(self, '_canvas_scroll', None)
-        if sa:
-            px -= sa.horizontalScrollBar().value()
-            py -= sa.verticalScrollBar().value()
-        pos = canvas_widget.mapTo(self, canvas_widget.pos())
-        overlay.move(pos.x() + px, pos.y() + py)
+        global_point = canvas_widget.mapTo(self, QPoint(px, py))
+        overlay.move(global_point)
         overlay.show()
         overlay.activateWindow()
         overlay._edit.setFocus()
@@ -8573,6 +8571,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         # Position the corner panel at the top-right of the canvas
         # viewport, not at the text click position - stays put across
         # multiple text placements so the controls don't jump around.
+        sa = getattr(self, '_canvas_scroll', None)
         viewport = sa.viewport() if sa else canvas_widget
         vp_top_right = viewport.mapTo(self, QPoint(viewport.width(), 0))
         panel.adjustSize()
