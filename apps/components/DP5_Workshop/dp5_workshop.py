@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 77 (Build 404)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 78 (Build 405)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -574,6 +574,7 @@ from PyQt6.QtGui import (
 # _TextToolCornerPanel._pick_color
 # _TextToolCornerPanel._refresh_swatch
 # _TextToolCornerPanel.current_color
+# _TextToolCornerPanel.current_effect
 # _TextToolCornerPanel.current_font
 App_name = "DP5 Workshop"
 App_build = "July 16 26 50 (Build 377) Vers 59"
@@ -4224,6 +4225,19 @@ class _TextToolCornerPanel(QWidget):
         self.color_swatch.setToolTip("Text colour")
         self.color_swatch.clicked.connect(self._pick_color)
 
+        self.alpha_spin = QSpinBox()
+        self.alpha_spin.setRange(10, 100)
+        self.alpha_spin.setValue(100)
+        self.alpha_spin.setSuffix("%")
+        self.alpha_spin.setFixedWidth(60)
+        self.alpha_spin.setToolTip("Text transparency")
+        self.alpha_spin.valueChanged.connect(lambda _: self.changed.emit())
+
+        self.effect_combo = QComboBox()
+        self.effect_combo.addItems(["None", "Shadow", "Ghost", "3D"])
+        self.effect_combo.setToolTip("Text effect")
+        self.effect_combo.currentTextChanged.connect(lambda _: self.changed.emit())
+
         close_btn = QPushButton("Close")
         close_btn.setToolTip("Finish writing and commit the text to the canvas")
         close_btn.clicked.connect(self.closed.emit)
@@ -4233,6 +4247,10 @@ class _TextToolCornerPanel(QWidget):
         lay.addWidget(QLabel("Size:"))
         lay.addWidget(self.size_spin)
         lay.addWidget(self.color_swatch)
+        lay.addWidget(QLabel("Alpha:"))
+        lay.addWidget(self.alpha_spin)
+        lay.addWidget(QLabel("Effect:"))
+        lay.addWidget(self.effect_combo)
         lay.addWidget(close_btn)
         self.adjustSize()
 
@@ -4252,8 +4270,13 @@ class _TextToolCornerPanel(QWidget):
         f.setPixelSize(self.size_spin.value())
         return f
 
-    def current_color(self) -> QColor: #vers 1
-        return QColor(self._color)
+    def current_color(self) -> QColor: #vers 2
+        c = QColor(self._color)
+        c.setAlpha(int(255 * self.alpha_spin.value() / 100))
+        return c
+
+    def current_effect(self) -> str: #vers 1
+        return self.effect_combo.currentText()
 
 
 class _TextDragHandle(QWidget):
@@ -4391,16 +4414,16 @@ class _CanvasTextOverlay(QWidget):
         self._tx = int(local_pos.x() / zx) if zx else local_pos.x()
         self._ty = int(local_pos.y() / z) if z else local_pos.y()
 
-    def _refresh_preview_style(self): #vers 1
-        """Update the text input's own font/colour to match the panel's
-        current settings, so what's typed previews in roughly the
-        actual style it'll be committed with."""
+    def _refresh_preview_style(self): #vers 2
+        """Update the text input's own font/colour (including alpha) to
+        match the panel's current settings, so what's typed previews in
+        roughly the actual style it'll be committed with."""
         f = self._panel.current_font()
         self._edit.setFont(f)
         c = self._panel.current_color()
         self._edit.setStyleSheet(
             f"QLineEdit {{ background: transparent; border: 1px dashed #00aaff;"
-            f" padding: 2px 4px; color: {c.name()}; }}")
+            f" padding: 2px 4px; color: rgba({c.red()},{c.green()},{c.blue()},{c.alpha()}); }}")
 
     def keyPressEvent(self, e):  #vers 1
         if e.key() == Qt.Key.Key_Escape:
@@ -4408,10 +4431,12 @@ class _CanvasTextOverlay(QWidget):
         else:
             super().keyPressEvent(e)
 
-    def _commit(self): #vers 2
+    def _commit(self): #vers 3
         """Blit the typed text onto the canvas at (tx, ty), using the
-        corner panel's current font/size/colour rather than a fixed
-        Arial/canvas-fg-colour default."""
+        corner panel's current font/size/colour/transparency/effect.
+        Shadow/Ghost/3D are rendered as extra offset/shaded copies drawn
+        into the same offscreen buffer before the main text, so they
+        composite together in one alpha-blended pass onto the canvas."""
         text = self._edit.text().strip()
         if not text:
             self.close(); return
@@ -4420,25 +4445,54 @@ class _CanvasTextOverlay(QWidget):
             self.close(); return
         font = self._panel.current_font()
         color = self._panel.current_color()
+        effect = self._panel.current_effect()
         ed._push_undo()
         tmp = QImage(ed._canvas_width, ed._canvas_height,
                      QImage.Format.Format_RGBA8888)
         tmp.fill(Qt.GlobalColor.transparent)
         p = QPainter(tmp)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
         p.setFont(font)
-        p.setPen(color)
-        p.drawText(self._tx, self._ty + font.pixelSize(), text)
+        baseline_y = self._ty + font.pixelSize()
+
+        if effect == "Shadow":
+            shadow_c = QColor(0, 0, 0, min(200, color.alpha()))
+            p.setPen(shadow_c)
+            p.drawText(self._tx + 3, baseline_y + 3, text)
+            p.setPen(color)
+            p.drawText(self._tx, baseline_y, text)
+        elif effect == "Ghost":
+            ghost_c = QColor(color)
+            ghost_c.setAlpha(int(color.alpha() * 0.35))
+            p.setPen(ghost_c)
+            p.drawText(self._tx, baseline_y, text)
+        elif effect == "3D":
+            depth = 4
+            for i in range(depth, 0, -1):
+                shade = QColor(color).darker(100 + i * 30)
+                shade.setAlpha(color.alpha())
+                p.setPen(shade)
+                p.drawText(self._tx + i, baseline_y + i, text)
+            p.setPen(color)
+            p.drawText(self._tx, baseline_y, text)
+        else:
+            p.setPen(color)
+            p.drawText(self._tx, baseline_y, text)
         p.end()
+
+        canvas = ed.dp5_canvas
         for row in range(ed._canvas_height):
             for col in range(ed._canvas_width):
                 pix = tmp.pixel(col, row)
                 a = (pix >> 24) & 0xFF
-                if a > 0:
-                    i = (row * ed._canvas_width + col) * 4
-                    ed.dp5_canvas.rgba[i]   = (pix >> 16) & 0xFF
-                    ed.dp5_canvas.rgba[i+1] = (pix >>  8) & 0xFF
-                    ed.dp5_canvas.rgba[i+2] =  pix        & 0xFF
-                    ed.dp5_canvas.rgba[i+3] = a
+                if a == 0:
+                    continue
+                i = (row * ed._canvas_width + col) * 4
+                af = a / 255.0
+                canvas.rgba[i]   = int(canvas.rgba[i]   * (1 - af) + ((pix >> 16) & 0xFF) * af)
+                canvas.rgba[i+1] = int(canvas.rgba[i+1] * (1 - af) + ((pix >>  8) & 0xFF) * af)
+                canvas.rgba[i+2] = int(canvas.rgba[i+2] * (1 - af) + ( pix        & 0xFF) * af)
+                canvas.rgba[i+3] = max(canvas.rgba[i+3], a)
         ed.dp5_canvas.update()
         ed._set_status(f"Text: '{text}' at {self._tx},{self._ty}")
         self.close()
