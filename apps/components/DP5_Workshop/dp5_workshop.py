@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 68 (Build 395)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 69 (Build 396)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -8337,7 +8337,8 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         pos = canvas_widget.mapTo(self, canvas_widget.pos())
         overlay.move(pos.x() + px, pos.y() + py)
         overlay.show()
-        overlay.setFocus()
+        overlay.activateWindow()
+        overlay._edit.setFocus()
 
         # Position the corner panel at the top-right of the canvas
         # viewport, not at the text click position - stays put across
