@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 70 (Build 397)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 71 (Build 398)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -85,6 +85,7 @@ from PyQt6.QtGui import (
 # DP5Canvas._do_sharpen
 # DP5Canvas._do_smudge
 # DP5Canvas._do_spray
+# DP5Canvas._do_spraycan
 # DP5Canvas._fill_triangle
 # DP5Canvas._get_scroll_area
 # DP5Canvas._lift_selection
@@ -354,6 +355,7 @@ from PyQt6.QtGui import (
 # DP5Workshop._show_load_menu
 # DP5Workshop._show_load_menu_at
 # DP5Workshop._show_sticker_picker
+# DP5Workshop._show_tool_settings_menu
 # DP5Workshop._show_workshop_settings
 # DP5Workshop._snap_canvas_to_user_palette
 # DP5Workshop._snap_canvas_to_user_palette_dither
@@ -615,6 +617,7 @@ TOOL_NUMBER        = 'number'        # auto-incrementing numbered badge
 TOOL_NUMBER_POINTER= 'number_pointer'# numbered badge + leader line
 TOOL_NUMBER_ARROW  = 'number_arrow'  # numbered badge + arrow
 TOOL_PIXELATE      = 'pixelate'      # mosaic/pixelation brush
+TOOL_SPRAYCAN      = 'spraycan'      # heavy/messy spray, distinct from the finer Airbrush (TOOL_SPRAY)
 
 # - Try importing shared infrastructure
 try:
@@ -1791,6 +1794,15 @@ class DP5Canvas(QWidget):
         self._fg_color_backup = None
         self.brush_size    = 1
         self.opacity       = 1.0
+        # Per-tool adjustable strength/intensity - previously hardcoded
+        # constants inside each tool's _do_* method, now exposed via
+        # right-click popups on their ribbon buttons.
+        self.blur_intensity   = 3      # box-blur pass count
+        self.smudge_strength  = 0.4    # 0.0-0.9 blend toward source pixel
+        self.dodge_burn_amount = 30    # lighten/darken strength per click
+        self.sharpen_amount   = 1.0    # unsharp-mask strength
+        self.spray_density    = 5      # airbrush: particles per radius unit
+        self.spraycan_density = 12     # spraycan: heavier/messier than airbrush
         self.dither_mode   = 'off'  # 'off' | 'checker' | 'bayer' | 'floyd'
         self.symmetry_mode = 'off'  # 'off' | 'H' | 'V' | 'quad'
         self._dither_toggle = False  # alternates per pixel in dither mode
@@ -2351,18 +2363,41 @@ class DP5Canvas(QWidget):
             hb.setValue(hb.value() + dx)
             vb.setValue(vb.value() + dy)
 
-    def _do_spray(self, cx: int, cy: int):  #vers 1
-        """Spray paint random pixels in a circle around (cx, cy)."""
+    def _do_spray(self, cx: int, cy: int):  #vers 2
+        """Airbrush - fine, controlled spray of random pixels in a
+        circle around (cx, cy). spray_density (particles per radius
+        unit) is right-click adjustable."""
         r = self.brush_size * 5
-        for _ in range(max(1, r)):
+        density = max(1, int(self.spray_density))
+        for _ in range(max(1, r * density // 5)):
             ddx, ddy = random.randint(-r, r), random.randint(-r, r)
             if ddx*ddx + ddy*ddy <= r*r:
                 self.set_pixel(cx + ddx, cy + ddy, self.color)
 
+    def _do_spraycan(self, cx: int, cy: int): #vers 1
+        """Spraycan - a heavier, messier spray than Airbrush: wider
+        spread, denser particle count, and each dot has a small random
+        size (1-2px) rather than single pixels, giving a coarser,
+        splattered look. spraycan_density is right-click adjustable."""
+        r = self.brush_size * 6
+        density = max(1, int(self.spraycan_density))
+        for _ in range(max(1, r * density // 5)):
+            ddx, ddy = random.randint(-r, r), random.randint(-r, r)
+            if ddx*ddx + ddy*ddy <= r*r:
+                dot = random.randint(1, 2)
+                px, py = cx + ddx, cy + ddy
+                if dot == 1:
+                    self.set_pixel(px, py, self.color)
+                else:
+                    for oy in range(2):
+                        for ox in range(2):
+                            self.set_pixel(px + ox, py + oy, self.color)
+
     #    Paint                                                                  
 
-    def _do_blur_brush(self, cx: int, cy: int): #vers 1
-        """Gaussian-soften the pixels within brush_size radius of (cx, cy)."""
+    def _do_blur_brush(self, cx: int, cy: int): #vers 2
+        """Gaussian-soften the pixels within brush_size radius of (cx, cy).
+        blur_intensity (box-blur pass count) is right-click adjustable."""
         r = max(1, self.brush_size * 3)
         w, h = self.tex_w, self.tex_h
         buf = self.rgba
@@ -2371,8 +2406,8 @@ class DP5Canvas(QWidget):
         bw, bh = x1 - x0, y1 - y0
         if bw <= 0 or bh <= 0:
             return
-        # Simple box blur (3 passes) as fast approximation
-        for _ in range(3):
+        # Simple box blur (N passes = blur_intensity) as fast approximation
+        for _ in range(max(1, int(self.blur_intensity))):
             for y in range(y0, y1):
                 for x in range(x0, x1):
                     # skip pixels outside circular brush
@@ -2392,8 +2427,9 @@ class DP5Canvas(QWidget):
                         buf[i]   = rc // cnt; buf[i+1] = gc // cnt
                         buf[i+2] = bc // cnt; buf[i+3] = ac // cnt
 
-    def _do_smudge(self, x0: int, y0: int, x1: int, y1: int): #vers 1
-        """Drag/smear pixels from (x0,y0) toward (x1,y1) within brush_size radius."""
+    def _do_smudge(self, x0: int, y0: int, x1: int, y1: int): #vers 2
+        """Drag/smear pixels from (x0,y0) toward (x1,y1) within brush_size
+        radius. smudge_strength is right-click adjustable."""
         r   = max(1, self.brush_size * 2)
         w, h = self.tex_w, self.tex_h
         buf = self.rgba
@@ -2401,7 +2437,7 @@ class DP5Canvas(QWidget):
         if dx == 0 and dy == 0:
             return
         # Smear: blend each pixel with its neighbour in the drag direction
-        strength = 0.4
+        strength = self.smudge_strength
         px0 = max(0, min(x0, x1) - r); px1 = min(w, max(x0, x1) + r + 1)
         py0 = max(0, min(y0, y1) - r); py1 = min(h, max(y0, y1) + r + 1)
         for y in range(py0, py1):
@@ -2510,14 +2546,15 @@ class DP5Canvas(QWidget):
                 buf[i+1] = int(orig_g * (1 - strength) + mult_g * strength)
                 buf[i+2] = int(orig_b * (1 - strength) + mult_b * strength)
 
-    def _do_sharpen(self, cx: int, cy: int): #vers 1
+    def _do_sharpen(self, cx: int, cy: int): #vers 2
         """Unsharp-mask brush - pushes each pixel away from its local
         blurred average (opposite of _do_blur_brush), increasing local
-        contrast/edge definition within brush radius."""
+        contrast/edge definition within brush radius. sharpen_amount is
+        right-click adjustable."""
         r = max(1, self.brush_size * 3)
         w, h = self.tex_w, self.tex_h
         buf = self.rgba
-        amount = 1.0   # sharpening strength
+        amount = self.sharpen_amount
         x0 = max(0, cx - r); x1 = min(w, cx + r + 1)
         y0 = max(0, cy - r); y1 = min(h, cy + r + 1)
         if x1 - x0 <= 0 or y1 - y0 <= 0:
@@ -3003,6 +3040,10 @@ class DP5Canvas(QWidget):
             self._push_undo_canvas()
             self._do_spray(tx, ty); self.update()
 
+        elif self.tool == TOOL_SPRAYCAN:
+            self._push_undo_canvas()
+            self._do_spraycan(tx, ty); self.update()
+
         elif self.tool == TOOL_BLUR_BRUSH:
             self._push_undo_canvas()
             self._do_blur_brush(tx, ty); self.update()
@@ -3026,11 +3067,11 @@ class DP5Canvas(QWidget):
 
         elif self.tool == TOOL_LIGHTEN:
             self._push_undo_canvas()
-            self._do_dodge_burn(tx, ty, 30); self.update()
+            self._do_dodge_burn(tx, ty, self.dodge_burn_amount); self.update()
 
         elif self.tool == TOOL_DARKEN:
             self._push_undo_canvas()
-            self._do_dodge_burn(tx, ty, -30); self.update()
+            self._do_dodge_burn(tx, ty, -self.dodge_burn_amount); self.update()
 
         elif self.tool == TOOL_PICKER:
             c = self.get_pixel(tx, ty)
@@ -3277,6 +3318,9 @@ class DP5Canvas(QWidget):
         elif self.tool == TOOL_SPRAY:
             self._do_spray(tx, ty); self.update()
 
+        elif self.tool == TOOL_SPRAYCAN:
+            self._do_spraycan(tx, ty); self.update()
+
         elif self.tool == TOOL_BLUR_BRUSH:
             self._do_blur_brush(tx, ty); self.update()
 
@@ -3290,10 +3334,10 @@ class DP5Canvas(QWidget):
             self._do_pixelate(tx, ty); self.update()
 
         elif self.tool == TOOL_LIGHTEN:
-            self._do_dodge_burn(tx, ty, 30); self.update()
+            self._do_dodge_burn(tx, ty, self.dodge_burn_amount); self.update()
 
         elif self.tool == TOOL_DARKEN:
-            self._do_dodge_burn(tx, ty, -30); self.update()
+            self._do_dodge_burn(tx, ty, -self.dodge_burn_amount); self.update()
 
         elif self.tool == TOOL_SMUDGE:
             lp = getattr(self, '_smudge_last', None)
@@ -6858,6 +6902,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             (TOOL_ERASER,   'eraser',   'Eraser (E)'),
             (TOOL_FILL,     'fill',     'Flood fill (F)'),
             (TOOL_SPRAY,    'spray',    'Airbrush — light spray (S)'),
+            (TOOL_SPRAYCAN, 'spraycan', 'Spraycan — heavier, messier spray'),
             (TOOL_PICKER,   'picker',   'Colour picker (K)'),
             (TOOL_CURVE,    'curve',    'Bézier curve — click pts, dbl to commit (Q)'),
             (TOOL_LINE,     'line',     'Straight line (L)'),
@@ -6926,6 +6971,19 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                     w.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
                     w.customContextMenuRequested.connect(self._zoom_mode_menu)
                     act.setToolTip("Zoom — left-click to zoom in\nRight-click to select zoom mode")
+
+            # Brush-parameter tools get a right-click settings menu
+            # (brush size plus intensity/strength/density) - the "brush
+            # settings" chunk Keith asked for.
+            elif tool_id in (TOOL_BLUR_BRUSH, TOOL_SMUDGE, TOOL_LINE,
+                             TOOL_ERASER, TOOL_SPRAY, TOOL_SPRAYCAN,
+                             TOOL_LIGHTEN, TOOL_DARKEN):
+                w = tb.widgetForAction(act)
+                if w is not None:
+                    w.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+                    w.customContextMenuRequested.connect(
+                        lambda pos, t=tool_id: self._show_tool_settings_menu(pos, t))
+                    act.setToolTip(tip + "\nRight-click for settings")
 
         self._tools_ribbon = tb
         self._apply_ribbon_style(tb)
@@ -7273,11 +7331,16 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         sharpen_icon = self._render_variant_icon('sharpen', None, _render_sz,
                                                   icon_color, has_menu=False)
         sharpen_act = QAction(sharpen_icon, '', tb)
-        sharpen_act.setToolTip('Sharpen brush')
+        sharpen_act.setToolTip('Sharpen brush\nRight-click for settings')
         sharpen_act.setCheckable(True)
         sharpen_act.triggered.connect(lambda: self._select_tool(TOOL_SHARPEN))
         tb.addAction(sharpen_act)
         self._annotate_tool_btns[TOOL_SHARPEN] = sharpen_act
+        sharpen_btn_w = tb.widgetForAction(sharpen_act)
+        if sharpen_btn_w is not None:
+            sharpen_btn_w.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            sharpen_btn_w.customContextMenuRequested.connect(
+                lambda pos: self._show_tool_settings_menu(pos, TOOL_SHARPEN))
 
         # Standalone Stickers (opens the image picker dialog)
         _stickers_preview = _list_stickers()
@@ -8288,6 +8351,70 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._set_status(f"Zoom mode: {labels[mode]}")
         # Also activate the zoom tool
         self._select_tool(TOOL_ZOOM)
+
+    def _show_tool_settings_menu(self, pos, tool_id): #vers 1
+        """Right-click context menu on a tool's ribbon button - shows
+        adjustable spinboxes for that tool's per-tool parameters
+        (brush size plus whichever intensity/strength/density setting
+        applies). Follows the same context-menu-on-toolbutton pattern
+        as _zoom_mode_menu. Covers Blur/Smudge/Line/Eraser/Airbrush/
+        Spraycan/Lighten/Darken/Sharpen - the brush settings Keith
+        asked for."""
+        from PyQt6.QtWidgets import QWidgetAction, QDoubleSpinBox
+        c = self.dp5_canvas
+        if not c:
+            return
+        menu = QMenu(self)
+
+        def _add_spin_row(label, get_fn, set_fn, minv, maxv,
+                          is_float=False, step=1, decimals=2):
+            row_w = QWidget()
+            row = QHBoxLayout(row_w)
+            row.setContentsMargins(8, 3, 8, 3)
+            row.addWidget(QLabel(label))
+            if is_float:
+                spin = QDoubleSpinBox()
+                spin.setSingleStep(step)
+                spin.setDecimals(decimals)
+            else:
+                spin = QSpinBox()
+            spin.setRange(minv, maxv)
+            spin.setValue(get_fn())
+            spin.setFixedWidth(70)
+            spin.valueChanged.connect(set_fn)
+            row.addWidget(spin)
+            wa = QWidgetAction(menu)
+            wa.setDefaultWidget(row_w)
+            menu.addAction(wa)
+
+        # Brush size applies to nearly all of these (radius, line
+        # thickness, eraser size)
+        _add_spin_row("Brush Size:", lambda: c.brush_size,
+                     lambda v: setattr(c, 'brush_size', v), 1, 50)
+
+        if tool_id == TOOL_BLUR_BRUSH:
+            _add_spin_row("Intensity:", lambda: c.blur_intensity,
+                         lambda v: setattr(c, 'blur_intensity', v), 1, 10)
+        elif tool_id == TOOL_SMUDGE:
+            _add_spin_row("Strength:", lambda: c.smudge_strength,
+                         lambda v: setattr(c, 'smudge_strength', v),
+                         0.1, 0.9, is_float=True, step=0.05)
+        elif tool_id in (TOOL_LIGHTEN, TOOL_DARKEN):
+            _add_spin_row("Strength:", lambda: c.dodge_burn_amount,
+                         lambda v: setattr(c, 'dodge_burn_amount', v), 5, 100)
+        elif tool_id == TOOL_SHARPEN:
+            _add_spin_row("Amount:", lambda: c.sharpen_amount,
+                         lambda v: setattr(c, 'sharpen_amount', v),
+                         0.1, 3.0, is_float=True, step=0.1)
+        elif tool_id == TOOL_SPRAY:
+            _add_spin_row("Density:", lambda: c.spray_density,
+                         lambda v: setattr(c, 'spray_density', v), 1, 30)
+        elif tool_id == TOOL_SPRAYCAN:
+            _add_spin_row("Density:", lambda: c.spraycan_density,
+                         lambda v: setattr(c, 'spraycan_density', v), 1, 30)
+
+        w = self.sender()
+        menu.exec(w.mapToGlobal(pos) if w else self.cursor().pos())
 
 
     #    Colour Clash Visualiser                                                
