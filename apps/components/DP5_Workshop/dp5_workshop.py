@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 71 (Build 398)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 72 (Build 399)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -197,6 +197,7 @@ from PyQt6.QtGui import (
 # DP5Workshop._create_tools_ribbon
 # DP5Workshop._crop_to_selection
 # DP5Workshop._cut_selection
+# DP5Workshop._cut_to_canvas
 # DP5Workshop._decode_amiga_info
 # DP5Workshop._decode_iff_ilbm
 # DP5Workshop._decode_newicon_im1
@@ -6513,6 +6514,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         em.addAction("Deselect\tEsc",      self._deselect)
         em.addSeparator()
         em.addAction("Rotate Selection…",  self._rotate_selection_dialog)
+        em.addAction("Cut to Canvas…",     self._cut_to_canvas)
         em.addSeparator()
         em.addAction("Clear canvas",       self._clear_canvas)
         em.addAction("Fill with colour",   self._fill_canvas)
@@ -10490,6 +10492,59 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         self._add_canvas_tab()
 
+
+    def _cut_to_canvas(self): #vers 1
+        """Cut to Canvas - crop the current selection, then ask whether
+        to send it to a brand new canvas tab or replace the current
+        canvas (the existing crop-to-selection behaviour). Reuses
+        _crop_to_selection() for the 'replace' branch rather than
+        duplicating that logic."""
+        if not self.dp5_canvas: return
+        c = self.dp5_canvas
+        if not c._sel_active or not c._selection_rect:
+            self._set_status("No selection to cut to canvas")
+            return
+        r = c._selection_rect
+        x, y, w, h = r.x(), r.y(), r.width(), r.height()
+        if w <= 0 or h <= 0: return
+
+        box = QMessageBox(self)
+        box.setWindowTitle("Cut to Canvas")
+        box.setText(f"Send the {w}\u00d7{h} selection to a new canvas tab,\n"
+                    f"or replace the current canvas with it?")
+        new_btn = box.addButton("New Canvas", QMessageBox.ButtonRole.AcceptRole)
+        replace_btn = box.addButton("Replace Existing", QMessageBox.ButtonRole.DestructiveRole)
+        box.addButton(QMessageBox.StandardButton.Cancel)
+        box.exec()
+        clicked = box.clickedButton()
+
+        if clicked is replace_btn:
+            self._crop_to_selection()
+            return
+        if clicked is not new_btn:
+            return   # Cancel
+
+        try:
+            from PIL import Image
+            img = Image.frombytes('RGBA', (c.tex_w, c.tex_h), bytes(c.rgba))
+            cropped = img.crop((x, y, x + w, y + h))
+
+            # Save the outgoing canvas as its own tab before overwriting
+            # dp5_canvas, matching how _new_canvas() does it.
+            self._save_current_canvas_tab()
+
+            self._canvas_width, self._canvas_height = w, h
+            c.tex_w, c.tex_h = w, h
+            c.rgba = bytearray(cropped.tobytes())
+            c._sel_active = False
+            c._selection_rect = None
+            c.update()
+
+            self._add_canvas_tab()
+            self._fit_canvas_to_viewport()
+            self._set_status(f"Cut {w}\u00d7{h} selection to new canvas tab")
+        except Exception as e:
+            QMessageBox.warning(self, "Cut to Canvas Error", str(e))
 
     def _crop_to_selection(self): #vers 2
         """Crop canvas to the current selection rect."""
