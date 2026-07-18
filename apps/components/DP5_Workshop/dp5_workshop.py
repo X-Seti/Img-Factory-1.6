@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 78 (Build 405)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 79 (Build 406)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -1954,8 +1954,16 @@ class DP5Canvas(QWidget):
             i = (y * self.tex_w + x) * 4
             self.rgba[i:i+4] = [c.red(), c.green(), c.blue(), c.alpha()]
 
-    def set_pixel_brush(self, cx: int, cy: int, c: QColor): #vers 2
-        """Paint brush with optional dither and symmetry."""
+    def set_pixel_brush(self, cx: int, cy: int, c: QColor): #vers 4
+        """Paint brush with optional dither and symmetry. Brush size s
+        maps directly to an s-pixel-wide/tall stamp (previously the
+        loop bounds gave a 2s-1 diameter, so size 2 painted a 3x3 area
+        instead of 2x2). Small sizes (<=4) paint a clean full square -
+        a circular mask at that resolution just excludes corner pixels
+        inconsistently (e.g. size 2's mask included 3 of 4 cells, an
+        L-shape rather than a clean 2x2 square) without looking round
+        at all. Larger sizes keep the circular mask for a proper round
+        brush shape."""
         s = self.brush_size
         BAYER4 = [[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]]
         if self.dither_mode != 'off':
@@ -1963,9 +1971,13 @@ class DP5Canvas(QWidget):
             bg_color = swatch._bg if swatch else QColor(0,0,0,255)
         else:
             bg_color = c
-        for dy in range(-s+1, s):
-            for dx in range(-s+1, s):
-                if s == 1 or (dx*dx + dy*dy) < s*s:
+        lo = -(s // 2)
+        hi = s - s // 2   # lo..hi-1 spans exactly s values for both even/odd s
+        radius = s / 2.0
+        square = s <= 4
+        for dy in range(lo, hi):
+            for dx in range(lo, hi):
+                if square or (dx*dx + dy*dy) < radius*radius + 0.25:
                     if self.dither_mode == 'checker':
                         px_c = bg_color if (cx+dx+cy+dy) % 2 == 0 else c
                     elif self.dither_mode == 'bayer':
@@ -7239,32 +7251,42 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         tb.setMovable(True)
         tb.setFloatable(True)
 
+        _ROW_H = 22   # compact height matching the other ribbons' thin profile
+
         container = QWidget()
         row = QHBoxLayout(container)
-        row.setContentsMargins(6, 2, 6, 2)
+        row.setContentsMargins(6, 1, 6, 1)
         row.setSpacing(6)
 
         self._ts_size_label = QLabel("Size:")
+        self._ts_size_label.setFixedHeight(_ROW_H)
         self._ts_size_spin = QSpinBox()
         self._ts_size_spin.setRange(1, 200)
-        self._ts_size_spin.setFixedWidth(60)
+        self._ts_size_spin.setFixedWidth(55)
+        self._ts_size_spin.setFixedHeight(_ROW_H)
         self._ts_size_spin.valueChanged.connect(self._on_ts_size_changed)
 
         self._ts_strength_label = QLabel("Strength:")
+        self._ts_strength_label.setFixedHeight(_ROW_H)
         self._ts_strength_spin = QDoubleSpinBox()
-        self._ts_strength_spin.setFixedWidth(70)
+        self._ts_strength_spin.setFixedWidth(65)
+        self._ts_strength_spin.setFixedHeight(_ROW_H)
         self._ts_strength_spin.valueChanged.connect(self._on_ts_strength_changed)
 
         self._ts_font_btn = QPushButton(self._default_text_font_family)
+        self._ts_font_btn.setFixedHeight(_ROW_H)
         self._ts_font_btn.setToolTip("Click to choose the text font")
         self._ts_font_btn.clicked.connect(self._pick_ts_font)
         self._ts_font_size_spin = QSpinBox()
         self._ts_font_size_spin.setRange(4, 200)
         self._ts_font_size_spin.setValue(self._default_text_font_size)
-        self._ts_font_size_spin.setFixedWidth(60)
+        self._ts_font_size_spin.setFixedWidth(55)
+        self._ts_font_size_spin.setFixedHeight(_ROW_H)
         self._ts_font_size_spin.valueChanged.connect(self._on_ts_font_size_changed)
         self._ts_font_label = QLabel("Font:")
+        self._ts_font_label.setFixedHeight(_ROW_H)
         self._ts_font_size_label = QLabel("Size:")
+        self._ts_font_size_label.setFixedHeight(_ROW_H)
 
         row.addWidget(self._ts_size_label)
         row.addWidget(self._ts_size_spin)
@@ -7274,6 +7296,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         row.addWidget(self._ts_font_btn)
         row.addWidget(self._ts_font_size_label)
         row.addWidget(self._ts_font_size_spin)
+        container.setFixedHeight(_ROW_H + 4)
 
         wa = QWidgetAction(tb)
         wa.setDefaultWidget(container)
