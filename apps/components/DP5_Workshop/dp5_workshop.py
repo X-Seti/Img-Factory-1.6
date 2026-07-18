@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 76 (Build 403)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 77 (Build 404)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -2642,7 +2642,7 @@ class DP5Canvas(QWidget):
                         i = (yy * w + xx) * 4
                         buf[i] = avg_r; buf[i+1] = avg_g; buf[i+2] = avg_b
 
-    def _stamp_sticker(self, cx: int, cy: int): #vers 2
+    def _stamp_sticker(self, cx: int, cy: int): #vers 3
         """Stamp a sticker image (from apps/emojis/) onto the canvas,
         centred at (cx, cy). Loads the file via _load_sticker_rgba
         (cached, transparency-resolved), scales it to the desired
@@ -2650,7 +2650,12 @@ class DP5Canvas(QWidget):
         onto the canvas - this is the only place in DP5 that stamps
         sticker/emoji images, using real picture files rather than
         rendering a font glyph (which depends on the system having a
-        colour-emoji font installed)."""
+        colour-emoji font installed). Stamp size is based on the
+        source sticker's own natural dimensions scaled by brush_size,
+        rather than a fixed formula - the previous version forced an
+        8px stamp at the default brush_size=1 regardless of source
+        size, severely downscaling the ~19x19 source stickers and
+        losing most of their detail."""
         ed = self._editor
         filename = getattr(ed, '_current_sticker', None) if ed else None
         if not filename:
@@ -2659,7 +2664,7 @@ class DP5Canvas(QWidget):
         if src_rgba is None:
             return
 
-        size = max(8, self.brush_size * 8)
+        size = max(sw, sh) * max(1, self.brush_size)
         src_img = QImage(bytes(src_rgba), sw, sh, sw * 4, QImage.Format.Format_RGBA8888)
         img = src_img.scaled(size, size, Qt.AspectRatioMode.IgnoreAspectRatio,
                               Qt.TransformationMode.SmoothTransformation)
