@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 67 (Build 394)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 68 (Build 395)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -441,6 +441,7 @@ from PyQt6.QtGui import (
 # _CanvasTextOverlay.__init__
 # _CanvasTextOverlay._commit
 # _CanvasTextOverlay._refresh_preview_style
+# _CanvasTextOverlay._sync_tx_ty_from_pos
 # _CanvasTextOverlay.keyPressEvent
 # _CharFontEditor.__init__
 # _CharFontEditor._browse_font_folder
@@ -549,6 +550,14 @@ from PyQt6.QtGui import (
 # _SpriteView.paintEvent
 # _SpriteView.set_sprite
 # _SpriteView.set_zoom
+# _TextDragHandle.__init__
+# _TextDragHandle.mouseMoveEvent
+# _TextDragHandle.mousePressEvent
+# _TextDragHandle.mouseReleaseEvent
+# _TextResizeHandle.__init__
+# _TextResizeHandle.mouseMoveEvent
+# _TextResizeHandle.mousePressEvent
+# _TextResizeHandle.mouseReleaseEvent
 # _TextToolCornerPanel.__init__
 # _TextToolCornerPanel._pick_color
 # _TextToolCornerPanel._refresh_swatch
@@ -4107,17 +4116,87 @@ class _TextToolCornerPanel(QWidget):
         return QColor(self._color)
 
 
+class _TextDragHandle(QWidget):
+    """Small grip bar at the top of the text overlay - the QLineEdit
+    itself needs mouse events for cursor placement/text selection, so
+    it can't double as a drag target; this thin separate strip is
+    click+drag to reposition the whole overlay (and, on release, the
+    text's commit position moves with it)."""
+
+    def __init__(self, overlay, parent=None):  #vers 1
+        super().__init__(parent)
+        self._overlay = overlay
+        self._drag_start = None
+        self._overlay_start = None
+        self.setFixedHeight(9)
+        self.setCursor(Qt.CursorShape.SizeAllCursor)
+        self.setToolTip("Drag to move the text")
+        self.setStyleSheet(
+            "background: #00aaff; border-top-left-radius: 2px;"
+            " border-top-right-radius: 2px;")
+
+    def mousePressEvent(self, e):  #vers 1
+        if e.button() == Qt.MouseButton.LeftButton:
+            self._drag_start = e.globalPosition().toPoint()
+            self._overlay_start = self._overlay.pos()
+
+    def mouseMoveEvent(self, e):  #vers 1
+        if self._drag_start is not None:
+            delta = e.globalPosition().toPoint() - self._drag_start
+            self._overlay.move(self._overlay_start + delta)
+
+    def mouseReleaseEvent(self, e):  #vers 1
+        if self._drag_start is not None:
+            self._drag_start = None
+            self._overlay._sync_tx_ty_from_pos()
+
+
+class _TextResizeHandle(QWidget):
+    """Small grip in the bottom-right corner of the text overlay - drag
+    diagonally to scale the font size up/down (not the widget's own
+    box dimensions), syncing the corner panel's size spinbox so both
+    stay consistent."""
+
+    def __init__(self, overlay, parent=None):  #vers 1
+        super().__init__(parent)
+        self._overlay = overlay
+        self._drag_start = None
+        self._start_size = None
+        self.setFixedSize(11, 11)
+        self.setCursor(Qt.CursorShape.SizeFDiagCursor)
+        self.setToolTip("Drag to resize the text")
+        self.setStyleSheet(
+            "background: #00aaff; border-bottom-right-radius: 2px;")
+
+    def mousePressEvent(self, e):  #vers 1
+        if e.button() == Qt.MouseButton.LeftButton:
+            self._drag_start = e.globalPosition().toPoint()
+            self._start_size = self._overlay._panel.size_spin.value()
+
+    def mouseMoveEvent(self, e):  #vers 1
+        if self._drag_start is not None:
+            delta = e.globalPosition().toPoint() - self._drag_start
+            change = int((delta.x() + delta.y()) / 2)
+            new_size = max(4, min(200, self._start_size + change))
+            self._overlay._panel.size_spin.setValue(new_size)
+
+    def mouseReleaseEvent(self, e):  #vers 1
+        self._drag_start = None
+
+
 class _CanvasTextOverlay(QWidget):
     """Inline text input that floats over the canvas at the exact click
     position - no dialog needed. Font/size/colour controls and the
     finish-writing button live on a separate _TextToolCornerPanel
     (passed in), not bundled into this small box, so typing happens
     directly in place while adjusting style doesn't require reaching
-    across to the text position itself. Escape still cancels without
+    across to the text position itself. A drag handle above the input
+    and a resize grip at its corner let the text be moved/resized like
+    a floating layer before committing. Escape still cancels without
     committing; the panel's Close button (or Enter) commits."""
 
     def __init__(self, editor, tx: int, ty: int, zoom: float, canvas,
-                 panel: '_TextToolCornerPanel', parent=None):  #vers 2
+                 panel: '_TextToolCornerPanel', parent=None):  #vers 3
         super().__init__(parent or editor)
         self._editor = editor
         self._tx = tx; self._ty = ty
@@ -4129,24 +4208,51 @@ class _CanvasTextOverlay(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAutoFillBackground(False)
 
-        lay = QHBoxLayout(self)
-        lay.setContentsMargins(2, 2, 2, 2)
-        lay.setSpacing(0)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        self._drag_handle = _TextDragHandle(self)
+        outer.addWidget(self._drag_handle)
+
+        row = QHBoxLayout()
+        row.setContentsMargins(2, 2, 2, 2)
+        row.setSpacing(0)
 
         self._edit = QLineEdit()
         self._edit.setPlaceholderText("Type text…")
         self._edit.setMinimumWidth(160)
         self._edit.returnPressed.connect(self._commit)
-        self._edit.setStyleSheet(
-            "QLineEdit { background: transparent; border: 1px dashed #00aaff;"
-            " padding: 2px 4px; }")
         self._refresh_preview_style()
+        row.addWidget(self._edit)
 
-        lay.addWidget(self._edit)
+        self._resize_handle = _TextResizeHandle(self)
+        row.addWidget(self._resize_handle, 0, Qt.AlignmentFlag.AlignBottom)
+
+        outer.addLayout(row)
         self.adjustSize()
 
         panel.changed.connect(self._refresh_preview_style)
         panel.closed.connect(self._commit)
+
+    def _sync_tx_ty_from_pos(self): #vers 1
+        """After dragging the overlay to a new screen position, work
+        out the corresponding canvas texture coordinates (tx, ty) so
+        the eventual commit lands where the text visually is now."""
+        ed = self._editor
+        canvas_widget = self._canvas
+        z = canvas_widget.zoom
+        zx = z * getattr(canvas_widget, 'pixel_aspect_x', 1.0)
+        sa = getattr(ed, '_canvas_scroll', None)
+        pos = canvas_widget.mapTo(ed, canvas_widget.pos())
+        my_pos = self.pos()
+        px = my_pos.x() - pos.x()
+        py = my_pos.y() - pos.y()
+        if sa:
+            px += sa.horizontalScrollBar().value()
+            py += sa.verticalScrollBar().value()
+        self._tx = int(px / zx) if zx else px
+        self._ty = int(py / z) if z else py
 
     def _refresh_preview_style(self): #vers 1
         """Update the text input's own font/colour to match the panel's
@@ -6706,7 +6812,6 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             (TOOL_LASSO,        'lasso',        'Lasso — outline (G)'),
             (TOOL_FILLED_LASSO, 'filled_lasso', 'Lasso — filled/solid'),
             (TOOL_ZOOM,     'zoom',     'Zoom — click in, right-click out (Z)'),
-            (TOOL_TEXT,     'text',     'Place text on canvas (I)'),
             (TOOL_CROP,     'crop',     'Crop canvas to selection (X)'),
             (TOOL_RESIZE,   'resize',   'Resize canvas (V)'),
             (TOOL_DITHER,   'dither',     'Dither brush — checkerboard FG/BG pattern (D)'),
@@ -7128,12 +7233,13 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         # Standalone Duplicate (U) - duplicates the current stamp/copy
         # buffer immediately, offset slightly, matching the reference
-        # tool's keyboard-shortcut duplicate action.
+        # tool's keyboard-shortcut duplicate action. Note: 'U' is
+        # already bound to TOOL_SMUDGE in this app's own key scheme, so
+        # no keyboard shortcut is bound here to avoid the conflict.
         dup_icon = self._render_variant_icon('duplicate', None, _render_sz,
                                               icon_color, has_menu=False)
         dup_act = QAction(dup_icon, '', tb)
-        dup_act.setToolTip('Duplicate (U)')
-        dup_act.setShortcut('U')
+        dup_act.setToolTip('Duplicate')
         dup_act.triggered.connect(self._duplicate_last_stamp)
         tb.addAction(dup_act)
 
