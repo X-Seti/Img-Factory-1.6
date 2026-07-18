@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 75 (Build 402)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 76 (Build 403)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -7675,11 +7675,11 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
     def _pick_sticker(self, filename: str, dlg=None): #vers 2
         self._current_sticker = filename
-        self._select_tool(TOOL_STICKER)
+        self._select_tool(TOOL_STICKER, from_button_click=False)
         if dlg is not None:
             dlg.accept()
 
-    def _select_tool(self, tool_id: str): #vers 3
+    def _select_tool(self, tool_id: str, from_button_click: bool = True): #vers 4
         """Select a tool. Outline/filled shape variants and Select/Select
         Copy are now separate explicit tool IDs (own icons), so no fill-
         state remapping is needed - tool_id is used as-is."""
@@ -7697,6 +7697,17 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         if tool_id == TOOL_SYMMETRY:
             self._toggle_symmetry_mode()
             return
+
+        # Toggle-off: clicking the already-active tool's button again
+        # deselects it, reverting to Pencil (the neutral default tool)
+        # rather than leaving it "stuck" selected. Only applies to
+        # actual button clicks - internal callers re-selecting the
+        # current tool just to refresh icons/state (from_button_click=
+        # False) should not trigger this.
+        if from_button_click and self.dp5_canvas and self.dp5_canvas.tool == tool_id:
+            if tool_id == TOOL_PENCIL:
+                return   # already on the fallback tool, nothing to toggle to
+            tool_id = TOOL_PENCIL
 
         actual_tool = tool_id
 
@@ -8583,7 +8594,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             btn.setToolTip(tips[mode])
         self._set_status(f"Zoom mode: {labels[mode]}")
         # Also activate the zoom tool
-        self._select_tool(TOOL_ZOOM)
+        self._select_tool(TOOL_ZOOM, from_button_click=False)
 
     def _show_tool_settings_menu(self, pos, tool_id): #vers 1
         """Right-click context menu on a tool's ribbon button - shows
@@ -8821,7 +8832,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         """Switch to stamp tool so user clicks anywhere to place the buffer."""
         if not self.dp5_canvas or not self.dp5_canvas._sel_buffer:
             return
-        self._select_tool(TOOL_STAMP)
+        self._select_tool(TOOL_STAMP, from_button_click=False)
         self._set_status("Stamp mode — click to place, press Esc to exit")
 
     def _clear_brush(self): #vers 1
@@ -8873,7 +8884,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                                                 self._canvas_height)
         self.dp5_canvas._sel_active = True
         self.dp5_canvas.update()
-        self._select_tool(TOOL_SELECT)
+        self._select_tool(TOOL_SELECT, from_button_click=False)
         self._set_status("All selected")
 
     def _rotate_selection_dialog(self): #vers 2
@@ -11998,7 +12009,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._refresh_icons()   # redraws all action icons at the new size
         # Re-select current tool so icons reflect active state
         if self.dp5_canvas:
-            self._select_tool(self.dp5_canvas.tool)
+            self._select_tool(self.dp5_canvas.tool, from_button_click=False)
         self._update_color_swatches()
         self._sync_brush_thumb()   # restore thumbnail after rebuild
 
