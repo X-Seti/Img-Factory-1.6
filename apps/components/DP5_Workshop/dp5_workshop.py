@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 74 (Build 401)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 75 (Build 402)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -194,6 +194,7 @@ from PyQt6.QtGui import (
 # DP5Workshop._create_centre_panel
 # DP5Workshop._create_docked_bar
 # DP5Workshop._create_image_ops_ribbon
+# DP5Workshop._create_tool_settings_ribbon
 # DP5Workshop._create_toolbar
 # DP5Workshop._create_tools_ribbon
 # DP5Workshop._crop_to_selection
@@ -303,6 +304,9 @@ from PyQt6.QtGui import (
 # DP5Workshop._on_image_palette_color
 # DP5Workshop._on_menu_btn_clicked
 # DP5Workshop._on_splitter_moved
+# DP5Workshop._on_ts_font_size_changed
+# DP5Workshop._on_ts_size_changed
+# DP5Workshop._on_ts_strength_changed
 # DP5Workshop._on_user_palette_color
 # DP5Workshop._open_char_editor
 # DP5Workshop._open_dp5_colour_adjust
@@ -315,6 +319,7 @@ from PyQt6.QtGui import (
 # DP5Workshop._paint_variant_shape
 # DP5Workshop._paste_selection
 # DP5Workshop._pick_sticker
+# DP5Workshop._pick_ts_font
 # DP5Workshop._pil_transform
 # DP5Workshop._place_text_at
 # DP5Workshop._push_color_history
@@ -324,6 +329,7 @@ from PyQt6.QtGui import (
 # DP5Workshop._refresh_canvas_tabs_ribbon
 # DP5Workshop._refresh_corner_overlay
 # DP5Workshop._refresh_icons
+# DP5Workshop._refresh_tool_settings_ribbon
 # DP5Workshop._render_as_ansi
 # DP5Workshop._render_as_ascii
 # DP5Workshop._render_as_petscii
@@ -1812,6 +1818,13 @@ class DP5Canvas(QWidget):
         # preview widget) so detail work / rotoscoping-style pixel
         # editing can happen directly in the zoomed view.
         self._active_zoom_follow = False
+        # Per-tool brush size - each tool remembers its own size rather
+        # than sharing one global value. brush_size itself stays as the
+        # single "currently active" value all drawing code reads (no
+        # need to touch every _do_*/draw_* method), but _select_tool
+        # saves the outgoing tool's value here and restores the
+        # incoming tool's remembered value on every switch.
+        self._tool_brush_sizes = {}
         self.dither_mode   = 'off'  # 'off' | 'checker' | 'bayer' | 'floyd'
         self.symmetry_mode = 'off'  # 'off' | 'H' | 'V' | 'quad'
         self._dither_toggle = False  # alternates per pixel in dither mode
@@ -4188,12 +4201,13 @@ class _TextToolCornerPanel(QWidget):
 
         self.font_combo = QFontComboBox()
         self.font_combo.setFixedWidth(130)
-        self.font_combo.setCurrentFont(QFont("Arial"))
+        _default_family = getattr(parent, '_default_text_font_family', 'Arial')
+        self.font_combo.setCurrentFont(QFont(_default_family))
         self.font_combo.currentFontChanged.connect(lambda _: self.changed.emit())
 
         self.size_spin = QSpinBox()
         self.size_spin.setRange(4, 200)
-        self.size_spin.setValue(16)
+        self.size_spin.setValue(getattr(parent, '_default_text_font_size', 16))
         self.size_spin.setFixedWidth(50)
         self.size_spin.setToolTip("Font size (px)")
         self.size_spin.valueChanged.connect(lambda _: self.changed.emit())
@@ -5797,6 +5811,13 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         # exactly on top of each other.
         self._last_stamp_pos = None
 
+        # Shared default text font/size - read by the Tool Settings
+        # ribbon's Font button and by _TextToolCornerPanel when first
+        # created, so both stay in sync rather than each having their
+        # own hardcoded Arial/16 default.
+        self._default_text_font_family = "Arial"
+        self._default_text_font_size = 16
+
         # Bitmap list (left panel)
         self._bitmap_list: List[dict] = []   # [{name, rgba, w, h}]
         self._current_bitmap = -1
@@ -5969,10 +5990,12 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         image_ops_ribbon = self._create_image_ops_ribbon()
         annotate_ribbon = self._create_annotate_ribbon()
         canvas_tabs_ribbon = self._create_canvas_tabs_ribbon()
+        tool_settings_ribbon = self._create_tool_settings_ribbon()
         outer_mw.addToolBar(Qt.ToolBarArea.LeftToolBarArea, tools_ribbon)
         outer_mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, image_ops_ribbon)
         outer_mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, annotate_ribbon)
         outer_mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, canvas_tabs_ribbon)
+        outer_mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, tool_settings_ribbon)
 
         # (All four docks now build their own collapsible title bars in
         # their respective depends/*_widget.py modules, each with a
@@ -7110,6 +7133,175 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._refresh_canvas_tabs_ribbon()
         return tb
 
+    # Per-tool "Size" field label - a generic tool falls back to plain
+    # "Size:" if not listed here.
+    _TOOL_SIZE_LABELS = {
+        TOOL_PENCIL: 'Pen Size:', TOOL_LINE: 'Line Size:',
+        TOOL_ERASER: 'Eraser Size:', TOOL_ARROW: 'Line Size:',
+        TOOL_DOUBLE_ARROW: 'Line Size:', TOOL_SPRAY: 'Particle Size:',
+        TOOL_SPRAYCAN: 'Particle Size:', TOOL_BLUR_BRUSH: 'Brush Size:',
+        TOOL_SMUDGE: 'Brush Size:', TOOL_SHARPEN: 'Brush Size:',
+        TOOL_PIXELATE: 'Brush Size:', TOOL_LIGHTEN: 'Brush Size:',
+        TOOL_DARKEN: 'Brush Size:', TOOL_HIGHLIGHTER: 'Marker Size:',
+        TOOL_MARKER_RECT: 'Marker Size:', TOOL_MARKER_ELLIPSE: 'Marker Size:',
+        TOOL_STICKER: 'Sticker Size:', TOOL_NUMBER: 'Badge Size:',
+        TOOL_NUMBER_POINTER: 'Badge Size:', TOOL_NUMBER_ARROW: 'Badge Size:',
+    }
+    # Tools with no meaningful "size" at all - hide the field entirely
+    _TOOL_NO_SIZE = {TOOL_FILL, TOOL_PICKER, TOOL_SELECT, TOOL_SELECT_COPY,
+                    TOOL_ZOOM, TOOL_LASSO, TOOL_FILLED_LASSO, TOOL_CURVE,
+                    TOOL_POLYGON, TOOL_FILLED_POLYGON}
+    # Per-tool strength/intensity: tool_id -> (attr, label, min, max, is_float, step)
+    _TOOL_STRENGTH_MAP = {
+        TOOL_BLUR_BRUSH:  ('blur_intensity',    'Intensity:', 1,   10,  False, 1),
+        TOOL_SMUDGE:      ('smudge_strength',    'Strength:',  0.1, 0.9, True,  0.05),
+        TOOL_LIGHTEN:     ('dodge_burn_amount',  'Strength:',  5,   100, False, 1),
+        TOOL_DARKEN:      ('dodge_burn_amount',  'Strength:',  5,   100, False, 1),
+        TOOL_SHARPEN:     ('sharpen_amount',     'Amount:',    0.1, 3.0, True,  0.1),
+        TOOL_SPRAY:       ('spray_density',      'Density:',   1,   30,  False, 1),
+        TOOL_SPRAYCAN:    ('spraycan_density',   'Density:',   1,   30,  False, 1),
+    }
+    _TEXT_TOOLS = {TOOL_TEXT, TOOL_TEXT_POINTER, TOOL_TEXT_ARROW}
+
+    def _create_tool_settings_ribbon(self): #vers 1
+        """Tool Settings ribbon - always-visible, top-right (per Keith's
+        request), showing the CURRENTLY SELECTED tool's Size (GIMP-style
+        plain numeric field, label changes per tool - 'Pen Size',
+        'Line Size', 'Eraser Size', etc), Strength/Intensity where that
+        tool has one, or Font name + size for the Text tool family.
+        Updates live via _refresh_tool_settings_ribbon(), called from
+        _select_tool on every switch. The right-click popup menus
+        (_show_tool_settings_menu) still exist as a secondary path, but
+        this ribbon is the primary always-visible one Keith asked for."""
+        from PyQt6.QtWidgets import QToolBar, QWidgetAction, QDoubleSpinBox
+
+        tb = QToolBar("Tool Settings")
+        tb.setObjectName("Tool Settings")
+        tb.setMovable(True)
+        tb.setFloatable(True)
+
+        container = QWidget()
+        row = QHBoxLayout(container)
+        row.setContentsMargins(6, 2, 6, 2)
+        row.setSpacing(6)
+
+        self._ts_size_label = QLabel("Size:")
+        self._ts_size_spin = QSpinBox()
+        self._ts_size_spin.setRange(1, 200)
+        self._ts_size_spin.setFixedWidth(60)
+        self._ts_size_spin.valueChanged.connect(self._on_ts_size_changed)
+
+        self._ts_strength_label = QLabel("Strength:")
+        self._ts_strength_spin = QDoubleSpinBox()
+        self._ts_strength_spin.setFixedWidth(70)
+        self._ts_strength_spin.valueChanged.connect(self._on_ts_strength_changed)
+
+        self._ts_font_btn = QPushButton(self._default_text_font_family)
+        self._ts_font_btn.setToolTip("Click to choose the text font")
+        self._ts_font_btn.clicked.connect(self._pick_ts_font)
+        self._ts_font_size_spin = QSpinBox()
+        self._ts_font_size_spin.setRange(4, 200)
+        self._ts_font_size_spin.setValue(self._default_text_font_size)
+        self._ts_font_size_spin.setFixedWidth(60)
+        self._ts_font_size_spin.valueChanged.connect(self._on_ts_font_size_changed)
+        self._ts_font_label = QLabel("Font:")
+        self._ts_font_size_label = QLabel("Size:")
+
+        row.addWidget(self._ts_size_label)
+        row.addWidget(self._ts_size_spin)
+        row.addWidget(self._ts_strength_label)
+        row.addWidget(self._ts_strength_spin)
+        row.addWidget(self._ts_font_label)
+        row.addWidget(self._ts_font_btn)
+        row.addWidget(self._ts_font_size_label)
+        row.addWidget(self._ts_font_size_spin)
+
+        wa = QWidgetAction(tb)
+        wa.setDefaultWidget(container)
+        tb.addAction(wa)
+
+        self._tool_settings_ribbon = tb
+        self._apply_ribbon_style(tb)
+        self._refresh_tool_settings_ribbon()
+        return tb
+
+    def _refresh_tool_settings_ribbon(self): #vers 1
+        """Update the Tool Settings ribbon's visible fields and values
+        for whichever tool is currently active. Called from
+        _select_tool on every tool switch."""
+        if not hasattr(self, '_ts_size_spin'):
+            return   # ribbon not built yet
+        c = self.dp5_canvas
+        tool = c.tool if c else None
+        is_text = tool in self._TEXT_TOOLS
+
+        # Font fields - text tools only
+        for wdg in (self._ts_font_label, self._ts_font_btn,
+                    self._ts_font_size_label, self._ts_font_size_spin):
+            wdg.setVisible(is_text)
+        if is_text:
+            self._ts_font_btn.setText(self._default_text_font_family)
+            self._ts_font_size_spin.blockSignals(True)
+            self._ts_font_size_spin.setValue(self._default_text_font_size)
+            self._ts_font_size_spin.blockSignals(False)
+
+        # Size field - hidden for tools with no meaningful size, plain
+        # numeric GIMP-style field otherwise with a per-tool label
+        show_size = (not is_text) and (tool not in self._TOOL_NO_SIZE) and c is not None
+        self._ts_size_label.setVisible(show_size)
+        self._ts_size_spin.setVisible(show_size)
+        if show_size:
+            self._ts_size_label.setText(self._TOOL_SIZE_LABELS.get(tool, 'Size:'))
+            self._ts_size_spin.blockSignals(True)
+            self._ts_size_spin.setValue(c.brush_size)
+            self._ts_size_spin.blockSignals(False)
+
+        # Strength field - only for tools with a mapped attribute
+        strength_info = self._TOOL_STRENGTH_MAP.get(tool)
+        show_strength = (not is_text) and strength_info is not None and c is not None
+        self._ts_strength_label.setVisible(show_strength)
+        self._ts_strength_spin.setVisible(show_strength)
+        if show_strength:
+            attr, label, minv, maxv, is_float, step = strength_info
+            self._ts_strength_label.setText(label)
+            self._ts_strength_spin.blockSignals(True)
+            self._ts_strength_spin.setDecimals(2 if is_float else 0)
+            self._ts_strength_spin.setSingleStep(step)
+            self._ts_strength_spin.setRange(minv, maxv)
+            self._ts_strength_spin.setValue(getattr(c, attr))
+            self._ts_strength_spin.blockSignals(False)
+
+    def _on_ts_size_changed(self, v: int): #vers 1
+        if self.dp5_canvas:
+            self.dp5_canvas.brush_size = v
+
+    def _on_ts_strength_changed(self, v): #vers 1
+        c = self.dp5_canvas
+        if not c: return
+        info = self._TOOL_STRENGTH_MAP.get(c.tool)
+        if info:
+            attr = info[0]
+            setattr(c, attr, v)
+
+    def _pick_ts_font(self): #vers 1
+        """Font button clicked - open a font picker, matching Keith's
+        'font type, when you click on the font shown' request."""
+        from PyQt6.QtGui import QFontDialog
+        current = QFont(self._default_text_font_family)
+        font, ok = QFontDialog.getFont(current, self, "Choose Text Font")
+        if ok:
+            self._default_text_font_family = font.family()
+            self._ts_font_btn.setText(font.family())
+            panel = getattr(self, '_text_corner_panel', None)
+            if panel:
+                panel.font_combo.setCurrentFont(font)
+
+    def _on_ts_font_size_changed(self, v: int): #vers 1
+        self._default_text_font_size = v
+        panel = getattr(self, '_text_corner_panel', None)
+        if panel:
+            panel.size_spin.setValue(v)
+
     def _paint_variant_shape(self, p, kind, size, color): #vers 2
         """Draw a simple, reliable shape for an Annotate-ribbon variant
         that has no existing SVG icon - avoids depending on the system
@@ -7509,6 +7701,13 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         actual_tool = tool_id
 
         if self.dp5_canvas:
+            c = self.dp5_canvas
+            # Per-tool brush size: remember the outgoing tool's value,
+            # restore the incoming tool's own remembered value (default
+            # 1 for a tool switched to for the first time).
+            if c.tool != actual_tool:
+                c._tool_brush_sizes[c.tool] = c.brush_size
+                c.brush_size = c._tool_brush_sizes.get(actual_tool, 1)
             # Clear selection marching-ants when leaving SELECT tool
             if self.dp5_canvas.tool in (TOOL_SELECT, TOOL_SELECT_COPY, 'lasso') and \
                actual_tool not in (TOOL_SELECT, TOOL_SELECT_COPY, 'lasso'):
@@ -7594,6 +7793,8 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         # Sync brush thumbnail active border
         if hasattr(self, '_brush_thumb'):
             self._brush_thumb.set_active(tool_id == TOOL_STAMP)
+
+        self._refresh_tool_settings_ribbon()
 
 
     def _set_brush_size(self, v: int):  #vers 2
