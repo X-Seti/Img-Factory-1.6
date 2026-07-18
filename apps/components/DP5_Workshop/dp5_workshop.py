@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 69 (Build 396)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 70 (Build 397)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -110,6 +110,7 @@ from PyQt6.QtGui import (
 # DP5Canvas.draw_line
 # DP5Canvas.draw_marker_ellipse
 # DP5Canvas.draw_marker_rect
+# DP5Canvas.draw_quadratic_curve
 # DP5Canvas.draw_rect
 # DP5Canvas.draw_regular_polygon
 # DP5Canvas.draw_star
@@ -1825,8 +1826,18 @@ class DP5Canvas(QWidget):
         self._marching_ants_timer = QTimer(self)
         self._marching_ants_timer.timeout.connect(self._tick_marching_ants)
 
-        # Curve tool state
-        self._curve_pts: List[QPoint] = []   # control points being placed
+        # Curve tool state - redesigned as draw-a-line-then-warp-it:
+        # phase None -> 'line' (dragging the initial straight line) ->
+        # 'warp' (line placed, click+drag anywhere to bend it via a
+        # single quadratic-bezier control point) -> commit on double-
+        # click or Enter. Kept as tex-space tuples (tx,ty), not widget
+        # QPoints, since they need to survive zoom/scroll between the
+        # line-drag and the warp-drag.
+        self._curve_phase = None             # None / 'line' / 'warp'
+        self._curve_p0 = None                # line start (tex coords)
+        self._curve_p1 = None                # line end (tex coords)
+        self._curve_control = None           # warp control point (tex coords)
+        self._curve_dragging_warp = False
         # Polygon tool state
         self._polygon_sides = 6              # configurable N
         self._poly_pts: List[tuple] = []     # tex-coords being clicked
@@ -2150,6 +2161,24 @@ class DP5Canvas(QWidget):
                     3*mt*t2*tp[2][0] + t3*tp[3][0])
             y = int(mt3*tp[0][1] + 3*mt2*t*tp[1][1] +
                     3*mt*t2*tp[2][1] + t3*tp[3][1])
+            if prev:
+                self.draw_line(prev[0], prev[1], x, y, c)
+            prev = (x, y)
+
+    def draw_quadratic_curve(self, p0, control, p1, c: QColor): #vers 1
+        """Draw a quadratic Bezier (start, one control point, end) -
+        used by the redesigned Curve tool: p0/p1 are the original
+        straight line's endpoints, control is wherever the user dragged
+        a point to bend it. Takes tex-space tuples directly (unlike
+        draw_bezier_curve, which takes widget-space QPoints and does
+        its own conversion) since the caller already has tex coords."""
+        steps = 256
+        prev = None
+        for i in range(steps + 1):
+            t = i / steps
+            mt = 1 - t
+            x = int(mt*mt*p0[0] + 2*mt*t*control[0] + t*t*p1[0])
+            y = int(mt*mt*p0[1] + 2*mt*t*control[1] + t*t*p1[1])
             if prev:
                 self.draw_line(prev[0], prev[1], x, y, c)
             prev = (x, y)
@@ -2807,26 +2836,26 @@ class DP5Canvas(QWidget):
             for pt in pts_w:
                 painter.drawEllipse(pt, 3, 3)
 
-        # Curve tool — live preview of control points + curve
-        if self.tool == TOOL_CURVE and self._curve_pts:
+        # Curve tool - live preview: straight line while dragging the
+        # initial line, quadratic bezier + draggable handle once warping
+        if self.tool == TOOL_CURVE and self._curve_phase in ('line', 'warp'):
+            s = self._tex_to_widget(*self._curve_p0)
+            e_pt = self._tex_to_widget(*self._curve_p1)
             pen = QPen(self.color, 1, Qt.PenStyle.DashLine)
             painter.setPen(pen)
-            if len(self._curve_pts) >= 2:
+            if self._curve_phase == 'line':
+                painter.drawLine(s, e_pt)
+            else:
+                ctrl = self._tex_to_widget(*self._curve_control)
                 path = QPainterPath()
-                path.moveTo(float(self._curve_pts[0].x()),
-                            float(self._curve_pts[0].y()))
-                cps = list(self._curve_pts)
-                while len(cps) < 4:
-                    cps = [cps[0]] + cps + [cps[-1]]
-                path.cubicTo(float(cps[1].x()), float(cps[1].y()),
-                             float(cps[2].x()), float(cps[2].y()),
-                             float(cps[3].x()), float(cps[3].y()))
+                path.moveTo(float(s.x()), float(s.y()))
+                path.quadTo(float(ctrl.x()), float(ctrl.y()),
+                            float(e_pt.x()), float(e_pt.y()))
                 painter.drawPath(path)
-            # Draw control point handles
-            painter.setPen(QPen(QColor(255, 200, 0), 1))
-            painter.setBrush(QBrush(QColor(255, 200, 0, 120)))
-            for pt in self._curve_pts:
-                painter.drawEllipse(QPoint(pt.x(), pt.y()), 4, 4)
+                # Draggable control-point handle
+                painter.setPen(QPen(QColor(255, 200, 0), 1))
+                painter.setBrush(QBrush(QColor(255, 200, 0, 160)))
+                painter.drawEllipse(ctrl, 5, 5)
 
         # Lasso preview
         if self.tool in (TOOL_LASSO, TOOL_FILLED_LASSO) and len(self._lasso_pts) > 1:
@@ -3093,8 +3122,17 @@ class DP5Canvas(QWidget):
             self.update()
 
         elif self.tool == TOOL_CURVE:
-            # Accumulate control points; double-click or Enter commits
-            self._curve_pts.append(e.position().toPoint())
+            # New workflow: first click starts dragging a straight
+            # line (phase 'line'); once that's released, a second
+            # click+drag anywhere bends it via a quadratic control
+            # point (phase 'warp'). Commit via double-click or Enter.
+            if self._curve_phase is None:
+                self._curve_phase = 'line'
+                self._curve_p0 = (tx, ty)
+                self._curve_p1 = (tx, ty)
+            elif self._curve_phase == 'warp':
+                self._curve_control = (tx, ty)
+                self._curve_dragging_warp = True
             self.update()
 
         elif self.tool in (TOOL_FILLED_POLYGON, TOOL_POLYGON):
@@ -3139,10 +3177,13 @@ class DP5Canvas(QWidget):
         """Double-click commits curve/polygon."""
         if e.button() != Qt.MouseButton.LeftButton: return
 
-        if self.tool == TOOL_CURVE and len(self._curve_pts) >= 2:
+        if self.tool == TOOL_CURVE and self._curve_phase == 'warp':
             self._push_undo_canvas()
-            self.draw_bezier_curve(self._curve_pts, self.color)
-            self._curve_pts = []
+            self.draw_quadratic_curve(self._curve_p0, self._curve_control,
+                                       self._curve_p1, self.color)
+            self._curve_phase = None
+            self._curve_p0 = self._curve_p1 = self._curve_control = None
+            self._curve_dragging_warp = False
             self.update()
 
         elif self.tool in (TOOL_POLYGON, TOOL_FILLED_POLYGON) and len(self._poly_pts) >= 3:
@@ -3192,6 +3233,18 @@ class DP5Canvas(QWidget):
             self._stamp_cursor_pos = (tx, ty)
             self.update()
 
+        # Curve tool - live preview tracks mouse during line-drag or
+        # warp-drag, independent of the generic _drawing flag other
+        # tools use
+        if self.tool == TOOL_CURVE:
+            if self._curve_phase == 'line' and (e.buttons() & Qt.MouseButton.LeftButton):
+                self._curve_p1 = (tx, ty)
+                self.update()
+            elif self._curve_phase == 'warp' and self._curve_dragging_warp:
+                self._curve_control = (tx, ty)
+                self.update()
+            return
+
         # Middle-button pan
         if e.buttons() & Qt.MouseButton.MiddleButton:
             if self._pan_start:
@@ -3210,8 +3263,6 @@ class DP5Canvas(QWidget):
             return
 
         if not (e.buttons() & (Qt.MouseButton.LeftButton | Qt.MouseButton.RightButton)) or not self._drawing:
-            if self.tool == TOOL_CURVE and self._curve_pts:
-                self.update()   # live preview tracks mouse
             return
 
         if self.tool == TOOL_PENCIL:
@@ -3317,6 +3368,19 @@ class DP5Canvas(QWidget):
 
         tx, ty = self._widget_to_tex(e.position().toPoint())
         ps = self._preview_start
+
+        if self.tool == TOOL_CURVE:
+            if self._curve_phase == 'line':
+                self._curve_p1 = (tx, ty)
+                # Default control = midpoint (straight line, no bend
+                # yet) - stays open for the user to warp it next
+                self._curve_control = ((self._curve_p0[0] + self._curve_p1[0]) // 2,
+                                        (self._curve_p0[1] + self._curve_p1[1]) // 2)
+                self._curve_phase = 'warp'
+            elif self._curve_phase == 'warp':
+                self._curve_dragging_warp = False
+            self.update()
+            return
 
         if self.tool == TOOL_MOVE:
             if self._sel_floating and self._sel_drag_start:
@@ -7358,7 +7422,11 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 self.dp5_canvas._sel_floating   = False
                 self.dp5_canvas.update()
             self.dp5_canvas.tool = actual_tool
-            self.dp5_canvas._curve_pts = []
+            self.dp5_canvas._curve_phase = None
+            self.dp5_canvas._curve_p0 = None
+            self.dp5_canvas._curve_p1 = None
+            self.dp5_canvas._curve_control = None
+            self.dp5_canvas._curve_dragging_warp = False
             self.dp5_canvas._poly_pts  = []
             # Set cursor for zoom mode
             if tool_id == TOOL_ZOOM:
@@ -9668,7 +9736,11 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         c._selection_rect = None
         c._sel_floating = False
         c._lasso_pts = []
-        c._curve_pts = []
+        c._curve_phase = None
+        c._curve_p0 = None
+        c._curve_p1 = None
+        c._curve_control = None
+        c._curve_dragging_warp = False
         c._poly_pts = []
         c._drawing = False
         c._last_pt = None
@@ -14124,7 +14196,11 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             else:
                 self._deselect()
             if self.dp5_canvas:
-                self.dp5_canvas._curve_pts = []
+                self.dp5_canvas._curve_phase = None
+                self.dp5_canvas._curve_p0 = None
+                self.dp5_canvas._curve_p1 = None
+                self.dp5_canvas._curve_control = None
+                self.dp5_canvas._curve_dragging_warp = False
                 self.dp5_canvas._poly_pts  = []
                 self.dp5_canvas.update()
             return
@@ -14165,6 +14241,17 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 self.dp5_canvas._sel_float_pos = None
                 self.dp5_canvas.update()
                 self._set_status("Object stamped")
+            elif self.dp5_canvas and self.dp5_canvas.tool == TOOL_CURVE and \
+                    self.dp5_canvas._curve_phase == 'warp':
+                c = self.dp5_canvas
+                c._push_undo_canvas()
+                c.draw_quadratic_curve(c._curve_p0, c._curve_control,
+                                        c._curve_p1, c.color)
+                c._curve_phase = None
+                c._curve_p0 = c._curve_p1 = c._curve_control = None
+                c._curve_dragging_warp = False
+                c.update()
+                self._set_status("Curve committed")
             return
         tool_keys = {
             Qt.Key.Key_P: TOOL_PENCIL,
