@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 81 (Build 408)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 82 (Build 409)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -7794,9 +7794,10 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             ('Reset numbering to 1', lambda: setattr(self, '_next_annotation_number', 1)),
         ])
 
-        # Blur/Pixelate group
+        # Blur/Smudge/Pixelate group
         self._make_dropdown_tool_button(tb, [
             (None, 'dp_blur_brush_icon', 'Blur brush', TOOL_BLUR_BRUSH),
+            (None, 'dp_smudge_icon',    'Smudge',      TOOL_SMUDGE),
             ('pixelate', None, 'Pixelate',       TOOL_PIXELATE),
         ])
 
