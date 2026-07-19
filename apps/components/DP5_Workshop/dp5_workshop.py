@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 80 (Build 407)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 81 (Build 408)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -78,6 +78,7 @@ from PyQt6.QtGui import (
 # ColorPickerWidget.current_color
 # DP5Canvas.__init__
 # DP5Canvas._blend_pixel
+# DP5Canvas._blit_qimage_alpha
 # DP5Canvas._do_blur_brush
 # DP5Canvas._do_dodge_burn
 # DP5Canvas._do_highlighter
@@ -92,6 +93,8 @@ from PyQt6.QtGui import (
 # DP5Canvas._point_in_sel_rect
 # DP5Canvas._push_undo_canvas
 # DP5Canvas._scroll_by
+# DP5Canvas._stamp_bullet
+# DP5Canvas._stamp_dot
 # DP5Canvas._stamp_number_badge
 # DP5Canvas._stamp_selection
 # DP5Canvas._stamp_sticker
@@ -629,6 +632,8 @@ TOOL_NUMBER_POINTER= 'number_pointer'# numbered badge + leader line
 TOOL_NUMBER_ARROW  = 'number_arrow'  # numbered badge + arrow
 TOOL_PIXELATE      = 'pixelate'      # mosaic/pixelation brush
 TOOL_SPRAYCAN      = 'spraycan'      # heavy/messy spray, distinct from the finer Airbrush (TOOL_SPRAY)
+TOOL_DOT           = 'dot'           # plain filled dot stamp, no digit (Number group variant)
+TOOL_BULLET        = 'bullet'        # small fixed-size bullet-point marker (Number group variant)
 
 # - Try importing shared infrastructure
 try:
@@ -2806,7 +2811,47 @@ class DP5Canvas(QWidget):
         p.setFont(font)
         p.drawText(img.rect(), Qt.AlignmentFlag.AlignCenter, str(number))
         p.end()
+        self._blit_qimage_alpha(img, cx, cy)
 
+    def _stamp_dot(self, cx: int, cy: int, color: QColor = None): #vers 1
+        """Stamp a plain filled dot (no digit, no border) onto the
+        canvas, centred at (cx, cy) - a Number-group variant for simply
+        marking a point without numbering it. Size scales with
+        brush_size like the other Number variants."""
+        size = max(6, self.brush_size * 6)
+        img = QImage(size, size, QImage.Format.Format_ARGB32)
+        img.fill(Qt.GlobalColor.transparent)
+        p = QPainter(img)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(color or self.color)
+        p.drawEllipse(0, 0, size, size)
+        p.end()
+        self._blit_qimage_alpha(img, cx, cy)
+
+    def _stamp_bullet(self, cx: int, cy: int, color: QColor = None): #vers 1
+        """Stamp a small, fixed-size bullet-point marker onto the
+        canvas, centred at (cx, cy) - matches a classic text-bullet (•)
+        look rather than scaling with brush_size like Dots does, since
+        bullet points in a list are conventionally a consistent small
+        size regardless of brush settings."""
+        size = 10
+        img = QImage(size, size, QImage.Format.Format_ARGB32)
+        img.fill(Qt.GlobalColor.transparent)
+        p = QPainter(img)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(color or self.color)
+        p.drawEllipse(1, 1, size - 2, size - 2)
+        p.end()
+        self._blit_qimage_alpha(img, cx, cy)
+
+    def _blit_qimage_alpha(self, img: QImage, cx: int, cy: int): #vers 1
+        """Shared alpha-blit helper - composites a small offscreen
+        QImage onto the canvas centred at (cx, cy). Factored out of
+        _stamp_number_badge/_stamp_dot/_stamp_bullet since all three
+        do the exact same per-pixel alpha-blend loop."""
+        size = img.width()
         half = size // 2
         w, h = self.tex_w, self.tex_h
         for y in range(size):
@@ -3282,6 +3327,16 @@ class DP5Canvas(QWidget):
             self._stamp_number_badge(tx, ty, n)
             if ed:
                 ed._next_annotation_number = n + 1
+            self.update()
+
+        elif self.tool == TOOL_DOT:
+            self._push_undo_canvas()
+            self._stamp_dot(tx, ty)
+            self.update()
+
+        elif self.tool == TOOL_BULLET:
+            self._push_undo_canvas()
+            self._stamp_bullet(tx, ty)
             self.update()
 
         elif self.tool == TOOL_CURVE:
@@ -7314,11 +7369,14 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         TOOL_MARKER_RECT: 'Marker Size:', TOOL_MARKER_ELLIPSE: 'Marker Size:',
         TOOL_STICKER: 'Sticker Size:', TOOL_NUMBER: 'Badge Size:',
         TOOL_NUMBER_POINTER: 'Badge Size:', TOOL_NUMBER_ARROW: 'Badge Size:',
+        TOOL_DOT: 'Dot Size:',
     }
-    # Tools with no meaningful "size" at all - hide the field entirely
+    # Tools with no meaningful "size" at all - hide the field entirely.
+    # TOOL_BULLET is fixed-size (a consistent small marker, like a text
+    # bullet character) so its size isn't user-adjustable.
     _TOOL_NO_SIZE = {TOOL_FILL, TOOL_PICKER, TOOL_SELECT, TOOL_SELECT_COPY,
                     TOOL_ZOOM, TOOL_LASSO, TOOL_FILLED_LASSO, TOOL_CURVE,
-                    TOOL_POLYGON, TOOL_FILLED_POLYGON}
+                    TOOL_POLYGON, TOOL_FILLED_POLYGON, TOOL_BULLET}
     # Per-tool strength/intensity: tool_id -> (attr, label, min, max, is_float, step)
     _TOOL_STRENGTH_MAP = {
         TOOL_BLUR_BRUSH:  ('blur_intensity',    'Intensity:', 1,   10,  False, 1),
@@ -7560,6 +7618,16 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             sq = size - m - off
             p.drawRect(m, m, sq - m, sq - m)
             p.drawRect(m + off, m + off, sq - m, sq - m)
+        elif kind == 'dot':
+            p.setPen(Qt.PenStyle.NoPen); p.setBrush(qc)
+            d = int(size * 0.6)
+            off = (size - d) // 2
+            p.drawEllipse(off, off, d, d)
+        elif kind == 'bullet':
+            p.setPen(Qt.PenStyle.NoPen); p.setBrush(qc)
+            d = int(size * 0.35)
+            off = (size - d) // 2
+            p.drawEllipse(off, off, d, d)
         elif kind == 'active_zoom':
             p.setPen(QPen(qc, pen_w)); p.setBrush(Qt.BrushStyle.NoBrush)
             lens_d = int(size * 0.55)
@@ -7715,11 +7783,13 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             ('text_arrow', None, 'Text Arrow',   TOOL_TEXT_ARROW),
         ])
 
-        # Number group (+ reset numbering)
+        # Number group (+ Dots/Bullet Points variants, + reset numbering)
         self._make_dropdown_tool_button(tb, [
             ('number', None, 'Number',           TOOL_NUMBER),
             ('number_pointer', None, 'Number Pointer', TOOL_NUMBER_POINTER),
             ('number_arrow', None, 'Number Arrow',     TOOL_NUMBER_ARROW),
+            ('dot', None, 'Dots (plain marker, no number)', TOOL_DOT),
+            ('bullet', None, 'Bullet Point',     TOOL_BULLET),
         ], extra_menu_items=[
             ('Reset numbering to 1', lambda: setattr(self, '_next_annotation_number', 1)),
         ])
