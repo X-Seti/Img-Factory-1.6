@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 79 (Build 406)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 80 (Build 407)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -38,7 +38,7 @@ from PyQt6.QtWidgets import (
     QAbstractItemView, QMenu, QMenuBar, QStatusBar,
     QFileDialog, QColorDialog, QGridLayout, QInputDialog
 )
-from PyQt6.QtCore import Qt, QPoint, QRect, pyqtSignal, QSize, QTimer
+from PyQt6.QtCore import Qt, QPoint, QPointF, QRect, pyqtSignal, QSize, QTimer
 from PyQt6.QtGui import (
     QImage, QPixmap, QPainter, QColor, QCursor, QAction,
     QMouseEvent, QWheelEvent, QFont, QIcon, QPen, QBrush,
@@ -359,6 +359,7 @@ from PyQt6.QtGui import (
 # DP5Workshop._set_zoom
 # DP5Workshop._set_zoom_mode
 # DP5Workshop._setup_corner_overlay
+# DP5Workshop._show_active_zoom_sensitivity_menu
 # DP5Workshop._show_dropdown_menu
 # DP5Workshop._show_load_menu
 # DP5Workshop._show_load_menu_at
@@ -945,6 +946,7 @@ def _make_tool_icon(shape: str, size: int = 42,
         # fill), plus a colour accent label band and red trigger cap.
         # Light, sparse mist (airbrush = light spray, not a heavy cloud).
         from PyQt6.QtGui import QLinearGradient
+        from PyQt6.QtCore import QPointF
 
         p.save()
         p.translate(24, 24)
@@ -993,7 +995,61 @@ def _make_tool_icon(shape: str, size: int = 42,
         mist_pts = [(36, 8, 1.5), (32, 4, 1.2), (40, 12, 1.2),
                     (44, 6, 1.0), (38, 15, 1.0), (43, 16, 1.1)]
         for mx, my, mr in mist_pts:
-            p.drawEllipse(QPoint(mx, my), mr, mr)
+            p.drawEllipse(QPointF(mx, my), mr, mr)
+
+    elif shape == 'spraycan':
+        # Spraycan - same can-body construction as Airbrush ('spray')
+        # since they're visually related tools, but with an orange/red
+        # accent band (vs Airbrush's blue) and a much denser, messier
+        # mist of varied dot sizes to visually read as the "heavier,
+        # coarser" spray tool rather than Airbrush's light mist.
+        from PyQt6.QtGui import QLinearGradient
+        from PyQt6.QtCore import QPointF
+
+        p.save()
+        p.translate(24, 24)
+        p.rotate(45)
+        p.translate(-24, -24)
+
+        body_grad = QLinearGradient(16, 0, 32, 0)
+        if not active:
+            body_grad.setColorAt(0.0, QColor('#8b8f98'))
+            body_grad.setColorAt(0.5, QColor('#d8dbe2'))
+            body_grad.setColorAt(1.0, QColor('#9a9ea6'))
+        else:
+            body_grad.setColorAt(0.0, QColor('#b8bcc4'))
+            body_grad.setColorAt(0.5, QColor('#f2f4f8'))
+            body_grad.setColorAt(1.0, QColor('#c4c8d0'))
+        p.setPen(mk_pen(1.8))
+        p.setBrush(QBrush(body_grad))
+        p.drawRoundedRect(16, 20, 16, 22, 3, 3)
+
+        # Orange/red accent band - distinct from Airbrush's blue
+        p.setPen(QPen(QColor('#b05a20'), 0.5))
+        p.setBrush(QBrush(QColor('#e08040')))
+        p.drawRect(16, 30, 16, 6)
+
+        p.setPen(mk_pen(1.8))
+        p.setBrush(QBrush(body_grad))
+        p.drawRoundedRect(21, 12, 6, 9, 1, 1)
+
+        p.setPen(mk_pen(1.3))
+        p.setBrush(QBrush(QColor('#d05050')))
+        p.drawEllipse(QPoint(24, 10), 4, 4)
+
+        p.restore()
+
+        # Dense, messy mist - many more, size-varied dots than Airbrush's
+        # sparse pattern, spreading wider from the nozzle
+        mist_col = QColor('#f0c090') if not active else QColor('#fadfc0')
+        p.setPen(QPen(mist_col, 0))
+        p.setBrush(QBrush(mist_col))
+        mist_pts = [(36, 8, 1.6), (31, 3, 1.1), (41, 11, 1.8),
+                    (45, 5, 1.0), (37, 16, 1.3), (44, 17, 1.5),
+                    (34, 9, 0.8), (39, 4, 1.2), (46, 12, 0.9),
+                    (42, 20, 1.1), (30, 14, 0.9), (47, 8, 1.3)]
+        for mx, my, mr in mist_pts:
+            p.drawEllipse(QPointF(mx, my), mr, mr)
 
     elif shape == 'picker':
         # Eyedropper — long body, round glass bulb top-right, pointed tip bottom-left
@@ -1813,12 +1869,24 @@ class DP5Canvas(QWidget):
         self.sharpen_amount   = 1.0    # unsharp-mask strength
         self.spray_density    = 5      # airbrush: particles per radius unit
         self.spraycan_density = 12     # spraycan: heavier/messier than airbrush
+        self.spraycan_particle_size = 2   # max dot size per particle (1 to this, random)
+        self.spraycan_hardness = 70    # 0-100% - how strongly each particle blends
+                                        # with the pixel underneath it (100 = opaque)
         # Active Zoom - toggled follow-cursor mode where the main
         # viewport itself pans to keep the cursor centred at a high
         # zoom level (distinct from the read-only corner Zoom Lens
         # preview widget) so detail work / rotoscoping-style pixel
         # editing can happen directly in the zoomed view.
         self._active_zoom_follow = False
+        # Sensitivity: minimum texture-pixel distance the cursor must
+        # move before the viewport recenters again. Recentering on
+        # every single mouse-move event (which can fire very
+        # frequently) forces a scroll + full repaint each time,
+        # causing visible lag - this threshold batches small, jittery
+        # movements so the view only pans when it meaningfully needs
+        # to. Right-click adjustable on the Active Zoom button.
+        self._active_zoom_sensitivity = 6
+        self._active_zoom_last_center = None
         # Per-tool brush size - each tool remembers its own size rather
         # than sharing one global value. brush_size itself stays as the
         # single "currently active" value all drawing code reads (no
@@ -2409,24 +2477,38 @@ class DP5Canvas(QWidget):
             if ddx*ddx + ddy*ddy <= r*r:
                 self.set_pixel(cx + ddx, cy + ddy, self.color)
 
-    def _do_spraycan(self, cx: int, cy: int): #vers 1
+    def _do_spraycan(self, cx: int, cy: int): #vers 3
         """Spraycan - a heavier, messier spray than Airbrush: wider
-        spread, denser particle count, and each dot has a small random
-        size (1-2px) rather than single pixels, giving a coarser,
-        splattered look. spraycan_density is right-click adjustable."""
+        spread, denser particle count, and each dot has a random size
+        up to spraycan_particle_size (vs Airbrush's single pixels),
+        giving a coarser, splattered look. spraycan_density (particle
+        count), spraycan_particle_size (dot size), and spraycan_hardness
+        (how strongly each dot blends with the pixel underneath it, 0-
+        100%) are all right-click adjustable. Uses a direct alpha blend
+        (not _blend_pixel's multiply blend, which is correct for the
+        Highlighter's dark-text-preservation but would mean spray paint
+        could never show up over a dark/black background, since
+        multiplying by black always stays black)."""
         r = self.brush_size * 6
+        w, h = self.tex_w, self.tex_h
+        buf = self.rgba
         density = max(1, int(self.spraycan_density))
+        max_dot = max(1, int(self.spraycan_particle_size))
+        strength = max(0, min(100, self.spraycan_hardness)) / 100.0
+        cr, cg, cb = self.color.red(), self.color.green(), self.color.blue()
         for _ in range(max(1, r * density // 5)):
             ddx, ddy = random.randint(-r, r), random.randint(-r, r)
             if ddx*ddx + ddy*ddy <= r*r:
-                dot = random.randint(1, 2)
+                dot = random.randint(1, max_dot)
                 px, py = cx + ddx, cy + ddy
-                if dot == 1:
-                    self.set_pixel(px, py, self.color)
-                else:
-                    for oy in range(2):
-                        for ox in range(2):
-                            self.set_pixel(px + ox, py + oy, self.color)
+                for oy in range(dot):
+                    for ox in range(dot):
+                        nx, ny = px + ox, py + oy
+                        if 0 <= nx < w and 0 <= ny < h:
+                            i = (ny * w + nx) * 4
+                            buf[i]   = int(buf[i]   * (1 - strength) + cr * strength)
+                            buf[i+1] = int(buf[i+1] * (1 - strength) + cg * strength)
+                            buf[i+2] = int(buf[i+2] * (1 - strength) + cb * strength)
 
     #    Paint                                                                  
 
@@ -3309,9 +3391,17 @@ class DP5Canvas(QWidget):
         # Store for zoom lens tracking
         self._zoom_lens_pos = (tx, ty)
 
-        # Active Zoom - pan the viewport to keep the cursor centred
+        # Active Zoom - pan the viewport to keep the cursor centred,
+        # but only when the cursor has moved far enough (sensitivity
+        # threshold) since the last recenter - recentering on every
+        # single mouse-move event forces a scroll + full repaint each
+        # time, which is what caused the reported lag.
         if self._active_zoom_follow and ed and hasattr(ed, '_center_view_on'):
-            ed._center_view_on(tx, ty)
+            last = self._active_zoom_last_center
+            sens = max(1, self._active_zoom_sensitivity)
+            if last is None or (tx - last[0])**2 + (ty - last[1])**2 >= sens*sens:
+                ed._center_view_on(tx, ty)
+                self._active_zoom_last_center = (tx, ty)
 
         # Stamp ghost always tracks mouse when stamp tool active
         if self.tool == TOOL_STAMP:
@@ -7096,11 +7186,18 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         _az_icon = self._render_variant_icon('active_zoom', None, icon_sz,
                                              icon_color, has_menu=False)
         az_act = QAction(_az_icon, '', tb)
-        az_act.setToolTip("Active Zoom - toggle high zoom that follows\nthe cursor, for detail/pixel work")
+        az_act.setToolTip("Active Zoom - toggle high zoom that follows\n"
+                          "the cursor, for detail/pixel work\n"
+                          "Right-click for sensitivity")
         az_act.setCheckable(True)
         az_act.triggered.connect(self._toggle_active_zoom)
         tb.addAction(az_act)
         self._active_zoom_btn = az_act
+        az_btn_w = tb.widgetForAction(az_act)
+        if az_btn_w is not None:
+            az_btn_w.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            az_btn_w.customContextMenuRequested.connect(
+                self._show_active_zoom_sensitivity_menu)
 
         self._tools_ribbon = tb
         self._apply_ribbon_style(tb)
@@ -8738,6 +8835,10 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         elif tool_id == TOOL_SPRAYCAN:
             _add_spin_row("Density:", lambda: c.spraycan_density,
                          lambda v: setattr(c, 'spraycan_density', v), 1, 30)
+            _add_spin_row("Particle Size:", lambda: c.spraycan_particle_size,
+                         lambda v: setattr(c, 'spraycan_particle_size', v), 1, 8)
+            _add_spin_row("Hardness:", lambda: c.spraycan_hardness,
+                         lambda v: setattr(c, 'spraycan_hardness', v), 5, 100)
 
         w = self.sender()
         menu.exec(w.mapToGlobal(pos) if w else self.cursor().pos())
@@ -10377,6 +10478,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         if not c._active_zoom_follow:
             self._active_zoom_prev_level = c.zoom
             c._active_zoom_follow = True
+            c._active_zoom_last_center = None
             self._set_zoom(8.0)
             self._set_status("Active Zoom on - viewport follows cursor")
         else:
@@ -10388,6 +10490,36 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         btn = getattr(self, '_active_zoom_btn', None)
         if btn:
             btn.setChecked(c._active_zoom_follow)
+
+    def _show_active_zoom_sensitivity_menu(self, pos): #vers 1
+        """Right-click on the Active Zoom button - adjust how far the
+        cursor must move (in texture pixels) before the viewport
+        recenters again. Lower values recenter more eagerly (more
+        precise tracking, more scroll/repaint work); higher values
+        recenter less often (smoother, less laggy, slightly less
+        tightly centred)."""
+        from PyQt6.QtWidgets import QWidgetAction
+        c = self.dp5_canvas
+        if not c:
+            return
+        menu = QMenu(self)
+        row_w = QWidget()
+        row = QHBoxLayout(row_w)
+        row.setContentsMargins(8, 3, 8, 3)
+        row.addWidget(QLabel("Sensitivity:"))
+        spin = QSpinBox()
+        spin.setRange(1, 50)
+        spin.setValue(c._active_zoom_sensitivity)
+        spin.setToolTip("Lower = tracks the cursor more tightly (may lag).\n"
+                        "Higher = smoother panning, less precise centring.")
+        spin.setFixedWidth(60)
+        spin.valueChanged.connect(lambda v: setattr(c, '_active_zoom_sensitivity', v))
+        row.addWidget(spin)
+        wa = QWidgetAction(menu)
+        wa.setDefaultWidget(row_w)
+        menu.addAction(wa)
+        w = self.sender()
+        menu.exec(w.mapToGlobal(pos) if w else self.cursor().pos())
 
     def _flip_h(self):   self._mirror_h()   # legacy alias  #vers 1
     def _flip_v(self):   self._mirror_v()   # legacy alias  #vers 1
