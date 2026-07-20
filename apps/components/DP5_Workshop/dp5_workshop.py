@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 85 (Build 412)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 86 (Build 413)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -187,6 +187,7 @@ from PyQt6.QtGui import (
 # DP5Workshop._build_canvas_menus
 # DP5Workshop._build_load_menu
 # DP5Workshop._build_menus_into_qmenu
+# DP5Workshop._build_ribbons_from_assignment
 # DP5Workshop._build_tool_ribbon
 # DP5Workshop._canvas_to_256colour_indexed
 # DP5Workshop._capture_canvas_tab_state
@@ -201,10 +202,8 @@ from PyQt6.QtGui import (
 # DP5Workshop._create_centre_panel
 # DP5Workshop._create_docked_bar
 # DP5Workshop._create_image_ops_ribbon
-# DP5Workshop._create_shapes_ribbon
 # DP5Workshop._create_tool_settings_ribbon
 # DP5Workshop._create_toolbar
-# DP5Workshop._create_tools_ribbon
 # DP5Workshop._crop_to_selection
 # DP5Workshop._cut_selection
 # DP5Workshop._cut_to_canvas
@@ -256,6 +255,7 @@ from PyQt6.QtGui import (
 # DP5Workshop._get_icon_color
 # DP5Workshop._get_resize_corner
 # DP5Workshop._get_resize_direction
+# DP5Workshop._get_ribbon_assignment
 # DP5Workshop._get_ribbon_tile_bg
 # DP5Workshop._get_tool_menu_style
 # DP5Workshop._get_user_palette_rgb
@@ -334,6 +334,7 @@ from PyQt6.QtGui import (
 # DP5Workshop._push_color_history
 # DP5Workshop._push_undo
 # DP5Workshop._rebuild_right_panel
+# DP5Workshop._rebuild_tool_ribbons
 # DP5Workshop._redo_canvas
 # DP5Workshop._refresh_canvas_tabs_ribbon
 # DP5Workshop._refresh_corner_overlay
@@ -362,6 +363,7 @@ from PyQt6.QtGui import (
 # DP5Workshop._set_opacity
 # DP5Workshop._set_platform
 # DP5Workshop._set_polygon_sides
+# DP5Workshop._set_ribbon_assignment
 # DP5Workshop._set_show_grid
 # DP5Workshop._set_snap_grid
 # DP5Workshop._set_status
@@ -1425,6 +1427,11 @@ class DP5Settings:
         # style even when the toolbar's inter-item spacing is 0.
         'ribbon_button_padding_vert': 2,
         'ribbon_button_padding_horz': 2,
+        # Ribbon Manager - persisted tool_id -> ribbon_name assignment,
+        # letting tools be moved freely between ribbons (including new
+        # custom ribbons the user creates). Empty dict means "use each
+        # tool's default_ribbon from _RIBBON_TOOL_REGISTRY".
+        'ribbon_tool_assignment': {},
     }
 
     def __init__(self): #vers 1
@@ -6233,14 +6240,16 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         # Tools and Image Ops are ribbons (QToolBar), not dock widgets -
         # linear rows of actions, not panels with complex widget content.
-        tools_ribbon    = self._create_tools_ribbon()
-        shapes_ribbon   = self._create_shapes_ribbon()
+        # Plotting/Shapes (and any custom ribbons from the Ribbon
+        # Manager) are built together, data-driven from the current
+        # tool->ribbon assignment.
+        dynamic_ribbons = self._build_ribbons_from_assignment()
         image_ops_ribbon = self._create_image_ops_ribbon()
         annotate_ribbon = self._create_annotate_ribbon()
         canvas_tabs_ribbon = self._create_canvas_tabs_ribbon()
         tool_settings_ribbon = self._create_tool_settings_ribbon()
-        outer_mw.addToolBar(Qt.ToolBarArea.LeftToolBarArea, tools_ribbon)
-        outer_mw.addToolBar(Qt.ToolBarArea.LeftToolBarArea, shapes_ribbon)
+        for tb in dynamic_ribbons.values():
+            outer_mw.addToolBar(Qt.ToolBarArea.LeftToolBarArea, tb)
         outer_mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, image_ops_ribbon)
         outer_mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, annotate_ribbon)
         outer_mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, canvas_tabs_ribbon)
@@ -7166,6 +7175,64 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                     mw.menu_bar_system._remove_tool_menu()
 
 
+    # Ribbon Manager: master registry of every reassignable tool -
+    # (tool_id, icon_shape, tooltip, default_ribbon_name). Replaces the
+    # old hardcoded TOOL_ORDER/SHAPE_ORDER lists - _get_ribbon_assignment()
+    # reads/writes which ribbon each tool_id currently lives in (starting
+    # from these defaults), and _build_ribbons_from_assignment() builds
+    # whichever ribbons that assignment calls for.
+    _RIBBON_TOOL_REGISTRY = [
+        (TOOL_PENCIL,   'pencil',   'Pencil — freehand (P)',                  'Plotting'),
+        (TOOL_ERASER,   'eraser',   'Eraser (E)',                             'Plotting'),
+        (TOOL_ALPHA_BRUSH, 'alpha_brush', 'Alpha Brush — paint transparency for masking (left erases, right restores)', 'Plotting'),
+        (TOOL_FILL,     'fill',     'Flood fill (F)',                         'Plotting'),
+        (TOOL_SPRAY,    'spray',    'Airbrush — light spray (S)',             'Plotting'),
+        (TOOL_SPRAYCAN, 'spraycan', 'Spraycan — heavier, messier spray',      'Plotting'),
+        (TOOL_PICKER,   'picker',   'Colour picker (K)',                      'Plotting'),
+        (TOOL_SELECT,      'select',      'Select (M) — drag to select, drag inside to cut/move', 'Plotting'),
+        (TOOL_SELECT_COPY, 'select_copy', 'Select Copy — drag inside to lift a copy, leaving the original intact', 'Plotting'),
+        (TOOL_LASSO,        'lasso',        'Lasso — outline (G)',            'Plotting'),
+        (TOOL_FILLED_LASSO, 'filled_lasso', 'Lasso — filled/solid',           'Plotting'),
+        (TOOL_ZOOM,     'zoom',     'Zoom — click in, right-click out (Z)',   'Plotting'),
+        (TOOL_CROP,     'crop',     'Crop canvas to selection (X)',           'Plotting'),
+        (TOOL_RESIZE,   'resize',   'Resize canvas (V)',                      'Plotting'),
+        (TOOL_DITHER,   'dither',     'Dither brush — checkerboard FG/BG pattern (D)', 'Plotting'),
+        (TOOL_SYMMETRY, 'symmetry',   'Symmetry — click to cycle: H / V / Quad / Off (Y)', 'Plotting'),
+        (TOOL_BLUR_BRUSH,'blur_brush', 'Blur brush — soften under cursor (B)', 'Plotting'),
+        (TOOL_SMUDGE,   'smudge',     'Smudge — blend/drag pixels (U)',       'Plotting'),
+        (TOOL_LIGHTEN,  'lighten',    'Lighten (Dodge) — brighten under cursor (,)', 'Plotting'),
+        (TOOL_DARKEN,   'darken',     'Darken (Burn) — darken under cursor (.)', 'Plotting'),
+        (TOOL_LINE,     'line',     'Straight line (L)',                      'Shapes'),
+        (TOOL_CURVE,    'curve',    'Curve — drag a line, then drag anywhere on it to warp (Q)', 'Shapes'),
+        (TOOL_RECT,        'rect',            'Rectangle — outline (R)',      'Shapes'),
+        (TOOL_FILLED_RECT, 'filled_rect',     'Rectangle — filled/solid',     'Shapes'),
+        (TOOL_CIRCLE,        'circle',        'Ellipse — outline (C)',        'Shapes'),
+        (TOOL_FILLED_CIRCLE, 'filled_circle', 'Ellipse — filled/solid',       'Shapes'),
+        (TOOL_TRIANGLE,        'triangle',        'Triangle — outline (T)',   'Shapes'),
+        (TOOL_FILLED_TRIANGLE, 'filled_triangle', 'Triangle — filled/solid',  'Shapes'),
+        (TOOL_POLYGON,        'polygon',        'Polygon — outline (O) — click verts, dbl to close', 'Shapes'),
+        (TOOL_FILLED_POLYGON, 'filled_polygon', 'Polygon — filled/solid — click verts, dbl to close', 'Shapes'),
+        (TOOL_STAR,        'star',        'Star — outline (*)',               'Shapes'),
+        (TOOL_FILLED_STAR, 'filled_star', 'Star — filled/solid',              'Shapes'),
+    ]
+
+    def _get_ribbon_assignment(self): #vers 1
+        """Return the current tool_id -> ribbon_name assignment, reading
+        from saved settings if present and falling back to each tool's
+        default_ribbon from _RIBBON_TOOL_REGISTRY otherwise. Always
+        returns an assignment for every registered tool, even if the
+        saved settings only cover a subset (e.g. after a new tool was
+        added since the setting was last saved)."""
+        saved = self.dp5_settings.get('ribbon_tool_assignment') or {}
+        assignment = {}
+        for tool_id, _shape, _tip, default_ribbon in self._RIBBON_TOOL_REGISTRY:
+            assignment[tool_id] = saved.get(tool_id, default_ribbon)
+        return assignment
+
+    def _set_ribbon_assignment(self, assignment: dict): #vers 1
+        """Persist a full tool_id -> ribbon_name assignment to settings."""
+        self.dp5_settings.set('ribbon_tool_assignment', dict(assignment))
+
     def _build_tool_ribbon(self, tb, tool_order, icon_sz, icon_color, tile_bg): #vers 1
         """Shared button-creation loop for a ribbon of persistent-tool
         buttons, including the right-click zoom-mode/settings menus -
@@ -7223,124 +7290,101 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             pass
         return _tile_bg
 
-    def _create_shapes_ribbon(self): #vers 1
-        """Shapes ribbon - all geometric shape-drawing tools grouped
-        together (Line, Curve, Rectangle, Circle, Triangle, Polygon,
-        Star and their filled variants), separated out of the combined
-        Tools ribbon per Keith's request to group all shapes in one
-        ribbon."""
-        from PyQt6.QtWidgets import QToolBar
-        icon_color = self._get_icon_color()
-        icon_sz = self.dp5_settings.get('tool_icon_size')
-        _tile_bg = self._get_ribbon_tile_bg()
-
-        SHAPE_ORDER = [
-            (TOOL_LINE,     'line',     'Straight line (L)'),
-            (TOOL_CURVE,    'curve',    'Curve — drag a line, then drag anywhere on it to warp (Q)'),
-            (TOOL_RECT,        'rect',            'Rectangle — outline (R)'),
-            (TOOL_FILLED_RECT, 'filled_rect',     'Rectangle — filled/solid'),
-            (TOOL_CIRCLE,        'circle',        'Ellipse — outline (C)'),
-            (TOOL_FILLED_CIRCLE, 'filled_circle', 'Ellipse — filled/solid'),
-            (TOOL_TRIANGLE,        'triangle',        'Triangle — outline (T)'),
-            (TOOL_FILLED_TRIANGLE, 'filled_triangle', 'Triangle — filled/solid'),
-            (TOOL_POLYGON,        'polygon',        'Polygon — outline (O) — click verts, dbl to close'),
-            (TOOL_FILLED_POLYGON, 'filled_polygon', 'Polygon — filled/solid — click verts, dbl to close'),
-            (TOOL_STAR,        'star',        'Star — outline (*)'),
-            (TOOL_FILLED_STAR, 'filled_star', 'Star — filled/solid'),
-        ]
-        hidden_tools = self.dp5_settings.get('hidden_tools') or []
-        SHAPE_ORDER = [(t, s, tip) for t, s, tip in SHAPE_ORDER if t not in hidden_tools]
-
-        tb = QToolBar("Shapes")
-        tb.setObjectName("Shapes")
-        tb.setIconSize(QSize(icon_sz, icon_sz))
-        tb.setMovable(True)
-        tb.setFloatable(True)
-
-        self._build_tool_ribbon(tb, SHAPE_ORDER, icon_sz, icon_color, _tile_bg)
-
-        self._shapes_ribbon = tb
-        self._apply_ribbon_style(tb)
-        tb.orientationChanged.connect(lambda _o, t=tb: self._apply_ribbon_style(t))
-        return tb
-
-    def _create_tools_ribbon(self): #vers 3
-        """Plotting ribbon (was the combined Tools ribbon) - pixel-level
-        drawing/editing/selection/utility tools. Shape-drawing tools
-        (Line, Curve, Rectangle, Circle, Triangle, Polygon, Star) have
-        moved to the dedicated Shapes ribbon per Keith's request to
-        group all shapes together. Select Copy is a separate icon from
-        Select rather than a modifier-key variant: it lifts the
-        selection into a floating copy without clearing the source
-        (Select/"cut" clears it). Zoom keeps its right-click mode menu,
-        reached via the actual QToolButton Qt creates for its QAction
-        via toolbar.widgetForAction()."""
+    def _build_ribbons_from_assignment(self): #vers 1
+        """Build every ribbon called for by the current tool->ribbon
+        assignment (_get_ribbon_assignment) - replaces the old hardcoded
+        _create_shapes_ribbon/_create_tools_ribbon pair. Returns a dict
+        of {ribbon_name: QToolBar}. self._dynamic_ribbons keeps this
+        same dict for later rebuilds (Ribbon Manager applying a new
+        assignment or preset). Active Zoom always attaches to whichever
+        ribbon TOOL_ZOOM currently lives in, since they're closely
+        related (both zoom-adjacent)."""
         from PyQt6.QtWidgets import QToolBar
         from PyQt6.QtGui import QAction
         icon_color = self._get_icon_color()
         icon_sz = self.dp5_settings.get('tool_icon_size')
-
-        TOOL_ORDER = [
-            (TOOL_PENCIL,   'pencil',   'Pencil — freehand (P)'),
-            (TOOL_ERASER,   'eraser',   'Eraser (E)'),
-            (TOOL_ALPHA_BRUSH, 'alpha_brush', 'Alpha Brush — paint transparency for masking (left erases, right restores)'),
-            (TOOL_FILL,     'fill',     'Flood fill (F)'),
-            (TOOL_SPRAY,    'spray',    'Airbrush — light spray (S)'),
-            (TOOL_SPRAYCAN, 'spraycan', 'Spraycan — heavier, messier spray'),
-            (TOOL_PICKER,   'picker',   'Colour picker (K)'),
-            (TOOL_SELECT,      'select',      'Select (M) — drag to select, drag inside to cut/move'),
-            (TOOL_SELECT_COPY, 'select_copy', 'Select Copy — drag inside to lift a copy, leaving the original intact'),
-            (TOOL_LASSO,        'lasso',        'Lasso — outline (G)'),
-            (TOOL_FILLED_LASSO, 'filled_lasso', 'Lasso — filled/solid'),
-            (TOOL_ZOOM,     'zoom',     'Zoom — click in, right-click out (Z)'),
-            (TOOL_CROP,     'crop',     'Crop canvas to selection (X)'),
-            (TOOL_RESIZE,   'resize',   'Resize canvas (V)'),
-            (TOOL_DITHER,   'dither',     'Dither brush — checkerboard FG/BG pattern (D)'),
-            (TOOL_SYMMETRY, 'symmetry',   'Symmetry — click to cycle: H / V / Quad / Off (Y)'),
-            (TOOL_BLUR_BRUSH,'blur_brush', 'Blur brush — soften under cursor (B)'),
-            (TOOL_SMUDGE,   'smudge',     'Smudge — blend/drag pixels (U)'),
-            (TOOL_LIGHTEN,  'lighten',    'Lighten (Dodge) — brighten under cursor (,)'),
-            (TOOL_DARKEN,   'darken',     'Darken (Burn) — darken under cursor (.)'),
-        ]
-        hidden_tools = self.dp5_settings.get('hidden_tools') or []
-        TOOL_ORDER = [(t, s, tip) for t, s, tip in TOOL_ORDER if t not in hidden_tools]
-
         _tile_bg = self._get_ribbon_tile_bg()
+        hidden_tools = self.dp5_settings.get('hidden_tools') or []
+        assignment = self._get_ribbon_assignment()
 
-        tb = QToolBar("Plotting")
-        tb.setObjectName("Plotting")
-        tb.setIconSize(QSize(icon_sz, icon_sz))
-        tb.setMovable(True)
-        tb.setFloatable(True)
+        # Group registry entries by their currently-assigned ribbon,
+        # preserving each tool's registry order within its ribbon
+        by_ribbon = {}
+        for tool_id, shape, tip, _default in self._RIBBON_TOOL_REGISTRY:
+            if tool_id in hidden_tools:
+                continue
+            ribbon_name = assignment.get(tool_id, _default)
+            by_ribbon.setdefault(ribbon_name, []).append((tool_id, shape, tip))
 
-        self._tool_btns    = {}
+        self._tool_btns = {}
         self._tool_icon_sz = icon_sz
+        ribbons = {}
 
-        self._build_tool_ribbon(tb, TOOL_ORDER, icon_sz, icon_color, _tile_bg)
+        for ribbon_name, tool_order in by_ribbon.items():
+            tb = QToolBar(ribbon_name)
+            tb.setObjectName(ribbon_name)
+            tb.setIconSize(QSize(icon_sz, icon_sz))
+            tb.setMovable(True)
+            tb.setFloatable(True)
+            self._build_tool_ribbon(tb, tool_order, icon_sz, icon_color, _tile_bg)
+            ribbons[ribbon_name] = tb
 
-        # Active Zoom - toggle button for follow-cursor high-zoom mode
-        # (distinct from the Zoom tool's click-to-zoom and the
-        # read-only corner Zoom Lens preview)
-        _az_icon = self._render_variant_icon('active_zoom', None, icon_sz,
-                                             icon_color, has_menu=False)
-        az_act = QAction(_az_icon, '', tb)
-        az_act.setToolTip("Active Zoom - toggle high zoom that follows\n"
-                          "the cursor, for detail/pixel work\n"
-                          "Right-click for sensitivity")
-        az_act.setCheckable(True)
-        az_act.triggered.connect(self._toggle_active_zoom)
-        tb.addAction(az_act)
-        self._active_zoom_btn = az_act
-        az_btn_w = tb.widgetForAction(az_act)
-        if az_btn_w is not None:
-            az_btn_w.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-            az_btn_w.customContextMenuRequested.connect(
-                self._show_active_zoom_sensitivity_menu)
+        # Active Zoom - toggle button for follow-cursor high-zoom mode,
+        # attached to whichever ribbon Zoom itself ended up in
+        zoom_ribbon_name = assignment.get(TOOL_ZOOM, 'Plotting')
+        tb = ribbons.get(zoom_ribbon_name)
+        if tb is not None:
+            _az_icon = self._render_variant_icon('active_zoom', None, icon_sz,
+                                                 icon_color, has_menu=False)
+            az_act = QAction(_az_icon, '', tb)
+            az_act.setToolTip("Active Zoom - toggle high zoom that follows\n"
+                              "the cursor, for detail/pixel work\n"
+                              "Right-click for sensitivity")
+            az_act.setCheckable(True)
+            az_act.triggered.connect(self._toggle_active_zoom)
+            tb.addAction(az_act)
+            self._active_zoom_btn = az_act
+            az_btn_w = tb.widgetForAction(az_act)
+            if az_btn_w is not None:
+                az_btn_w.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+                az_btn_w.customContextMenuRequested.connect(
+                    self._show_active_zoom_sensitivity_menu)
 
-        self._tools_ribbon = tb
-        self._apply_ribbon_style(tb)
-        tb.orientationChanged.connect(lambda _o, t=tb: self._apply_ribbon_style(t))
-        return tb
+        for tb in ribbons.values():
+            self._apply_ribbon_style(tb)
+            tb.orientationChanged.connect(lambda _o, t=tb: self._apply_ribbon_style(t))
+
+        self._dynamic_ribbons = ribbons
+        # Back-compat aliases - a couple of places still refer to these
+        # two ribbons by name directly
+        self._tools_ribbon  = ribbons.get('Plotting')
+        self._shapes_ribbon = ribbons.get('Shapes')
+        return ribbons
+
+    def _rebuild_tool_ribbons(self): #vers 1
+        """Tear down and rebuild every dynamic tool ribbon from the
+        current assignment - called by the Ribbon Manager whenever the
+        user moves a tool to a different ribbon, resizes icons, or
+        loads a preset. Removes the old QToolBars from the main window
+        first (Qt doesn't like two toolbars with the same objectName
+        coexisting) before re-adding the freshly built ones."""
+        outer_mw = getattr(self, '_outer_mw', None)
+        if outer_mw is None:
+            return
+        old_ribbons = getattr(self, '_dynamic_ribbons', {})
+        for tb in old_ribbons.values():
+            outer_mw.removeToolBar(tb)
+            tb.deleteLater()
+
+        new_ribbons = self._build_ribbons_from_assignment()
+        for tb in new_ribbons.values():
+            outer_mw.addToolBar(Qt.ToolBarArea.LeftToolBarArea, tb)
+            tb.show()
+
+        # Re-select the current tool so the new buttons' checked state
+        # matches, and refresh the always-visible settings ribbon
+        if self.dp5_canvas:
+            self._select_tool(self.dp5_canvas.tool, from_button_click=False)
 
     def _apply_ribbon_style(self, toolbar): #vers 2
         """Apply icon size / padding / opacity to a ribbon, using whichever
