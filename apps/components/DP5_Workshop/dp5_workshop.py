@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 82 (Build 409)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 83 (Build 410)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -184,6 +184,7 @@ from PyQt6.QtGui import (
 # DP5Workshop._build_canvas_menus
 # DP5Workshop._build_load_menu
 # DP5Workshop._build_menus_into_qmenu
+# DP5Workshop._build_tool_ribbon
 # DP5Workshop._canvas_to_256colour_indexed
 # DP5Workshop._capture_canvas_tab_state
 # DP5Workshop._center_view_on
@@ -197,6 +198,7 @@ from PyQt6.QtGui import (
 # DP5Workshop._create_centre_panel
 # DP5Workshop._create_docked_bar
 # DP5Workshop._create_image_ops_ribbon
+# DP5Workshop._create_shapes_ribbon
 # DP5Workshop._create_tool_settings_ribbon
 # DP5Workshop._create_toolbar
 # DP5Workshop._create_tools_ribbon
@@ -251,6 +253,7 @@ from PyQt6.QtGui import (
 # DP5Workshop._get_icon_color
 # DP5Workshop._get_resize_corner
 # DP5Workshop._get_resize_direction
+# DP5Workshop._get_ribbon_tile_bg
 # DP5Workshop._get_tool_menu_style
 # DP5Workshop._get_user_palette_rgb
 # DP5Workshop._group_palette
@@ -6203,11 +6206,13 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         # Tools and Image Ops are ribbons (QToolBar), not dock widgets -
         # linear rows of actions, not panels with complex widget content.
         tools_ribbon    = self._create_tools_ribbon()
+        shapes_ribbon   = self._create_shapes_ribbon()
         image_ops_ribbon = self._create_image_ops_ribbon()
         annotate_ribbon = self._create_annotate_ribbon()
         canvas_tabs_ribbon = self._create_canvas_tabs_ribbon()
         tool_settings_ribbon = self._create_tool_settings_ribbon()
         outer_mw.addToolBar(Qt.ToolBarArea.LeftToolBarArea, tools_ribbon)
+        outer_mw.addToolBar(Qt.ToolBarArea.LeftToolBarArea, shapes_ribbon)
         outer_mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, image_ops_ribbon)
         outer_mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, annotate_ribbon)
         outer_mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, canvas_tabs_ribbon)
@@ -7132,79 +7137,19 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                     mw.menu_bar_system._remove_tool_menu()
 
 
-    def _create_tools_ribbon(self): #vers 2
-        """Tools ribbon - the 24-tool grid converted to a QToolBar with
-        QActions. Outline and filled/solid shapes are now separate,
-        explicit icons (Rect / Filled Rect, Circle / Filled Circle, etc.)
-        instead of one icon with a right-click toggle - Select Copy is
-        likewise a separate icon from Select, rather than a modifier-key
-        variant: it lifts the selection into a floating copy without
-        clearing the source (Select/"cut" clears it). Zoom keeps its
-        right-click mode menu, reached via the actual QToolButton Qt
-        creates for its QAction via toolbar.widgetForAction()."""
-        from PyQt6.QtWidgets import QToolBar
+    def _build_tool_ribbon(self, tb, tool_order, icon_sz, icon_color, tile_bg): #vers 1
+        """Shared button-creation loop for a ribbon of persistent-tool
+        buttons, including the right-click zoom-mode/settings menus -
+        used by both the Shapes ribbon and the Plotting ribbon (the
+        former combined Tools ribbon) so this logic isn't duplicated
+        between them. All buttons register into the single shared
+        self._tool_btns dict regardless of which ribbon they're on, so
+        _select_tool's existing checked-state sync keeps working across
+        both ribbons transparently."""
         from PyQt6.QtGui import QAction
-        icon_color = self._get_icon_color()
-        icon_sz = self.dp5_settings.get('tool_icon_size')
-
-        TOOL_ORDER = [
-            (TOOL_PENCIL,   'pencil',   'Pencil — freehand (P)'),
-            (TOOL_ERASER,   'eraser',   'Eraser (E)'),
-            (TOOL_FILL,     'fill',     'Flood fill (F)'),
-            (TOOL_SPRAY,    'spray',    'Airbrush — light spray (S)'),
-            (TOOL_SPRAYCAN, 'spraycan', 'Spraycan — heavier, messier spray'),
-            (TOOL_PICKER,   'picker',   'Colour picker (K)'),
-            (TOOL_CURVE,    'curve',    'Bézier curve — click pts, dbl to commit (Q)'),
-            (TOOL_LINE,     'line',     'Straight line (L)'),
-            (TOOL_RECT,        'rect',            'Rectangle — outline (R)'),
-            (TOOL_FILLED_RECT, 'filled_rect',     'Rectangle — filled/solid'),
-            (TOOL_CIRCLE,        'circle',        'Ellipse — outline (C)'),
-            (TOOL_FILLED_CIRCLE, 'filled_circle', 'Ellipse — filled/solid'),
-            (TOOL_TRIANGLE,        'triangle',        'Triangle — outline (T)'),
-            (TOOL_FILLED_TRIANGLE, 'filled_triangle', 'Triangle — filled/solid'),
-            (TOOL_POLYGON,        'polygon',        'Polygon — outline (O) — click verts, dbl to close'),
-            (TOOL_FILLED_POLYGON, 'filled_polygon', 'Polygon — filled/solid — click verts, dbl to close'),
-            (TOOL_STAR,        'star',        'Star — outline (*)'),
-            (TOOL_FILLED_STAR, 'filled_star', 'Star — filled/solid'),
-            (TOOL_SELECT,      'select',      'Select (M) — drag to select, drag inside to cut/move'),
-            (TOOL_SELECT_COPY, 'select_copy', 'Select Copy — drag inside to lift a copy, leaving the original intact'),
-            (TOOL_LASSO,        'lasso',        'Lasso — outline (G)'),
-            (TOOL_FILLED_LASSO, 'filled_lasso', 'Lasso — filled/solid'),
-            (TOOL_ZOOM,     'zoom',     'Zoom — click in, right-click out (Z)'),
-            (TOOL_CROP,     'crop',     'Crop canvas to selection (X)'),
-            (TOOL_RESIZE,   'resize',   'Resize canvas (V)'),
-            (TOOL_DITHER,   'dither',     'Dither brush — checkerboard FG/BG pattern (D)'),
-            (TOOL_SYMMETRY, 'symmetry',   'Symmetry — click to cycle: H / V / Quad / Off (Y)'),
-            (TOOL_BLUR_BRUSH,'blur_brush', 'Blur brush — soften under cursor (B)'),
-            (TOOL_SMUDGE,   'smudge',     'Smudge — blend/drag pixels (U)'),
-            (TOOL_LIGHTEN,  'lighten',    'Lighten (Dodge) — brighten under cursor (,)'),
-            (TOOL_DARKEN,   'darken',     'Darken (Burn) — darken under cursor (.)'),
-        ]
-        hidden_tools = self.dp5_settings.get('hidden_tools') or []
-        TOOL_ORDER = [(t, s, tip) for t, s, tip in TOOL_ORDER if t not in hidden_tools]
-
-        _tile_bg = ''
-        try:
-            if self.app_settings:
-                _tc = self.app_settings.get_theme_colors() or {}
-                _tile_bg = _tc.get('gadgetbar_bg',
-                               _tc.get('toolbar_bg',
-                                   _tc.get('bg_secondary', '')))
-        except Exception:
-            pass
-
-        tb = QToolBar("Tools")
-        tb.setObjectName("Tools")
-        tb.setIconSize(QSize(icon_sz, icon_sz))
-        tb.setMovable(True)
-        tb.setFloatable(True)
-
-        self._tool_btns    = {}
-        self._tool_icon_sz = icon_sz
-
-        for tool_id, shape, tip in TOOL_ORDER:
+        for tool_id, shape, tip in tool_order:
             ico = _load_tool_icon(shape, icon_sz, active=False,
-                                  tile_bg=_tile_bg, icon_col=icon_color)
+                                  tile_bg=tile_bg, icon_col=icon_color)
             act = QAction(ico, tip, tb)
             act.setCheckable(True)
             act.setToolTip(tip)
@@ -7234,6 +7179,114 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                     w.customContextMenuRequested.connect(
                         lambda pos, t=tool_id: self._show_tool_settings_menu(pos, t))
                     act.setToolTip(tip + "\nRight-click for settings")
+
+    def _get_ribbon_tile_bg(self): #vers 1
+        """Shared theme-colour lookup for a ribbon's icon tile
+        background - used by both Shapes and Plotting ribbon builders."""
+        _tile_bg = ''
+        try:
+            if self.app_settings:
+                _tc = self.app_settings.get_theme_colors() or {}
+                _tile_bg = _tc.get('gadgetbar_bg',
+                               _tc.get('toolbar_bg',
+                                   _tc.get('bg_secondary', '')))
+        except Exception:
+            pass
+        return _tile_bg
+
+    def _create_shapes_ribbon(self): #vers 1
+        """Shapes ribbon - all geometric shape-drawing tools grouped
+        together (Line, Curve, Rectangle, Circle, Triangle, Polygon,
+        Star and their filled variants), separated out of the combined
+        Tools ribbon per Keith's request to group all shapes in one
+        ribbon."""
+        from PyQt6.QtWidgets import QToolBar
+        icon_color = self._get_icon_color()
+        icon_sz = self.dp5_settings.get('tool_icon_size')
+        _tile_bg = self._get_ribbon_tile_bg()
+
+        SHAPE_ORDER = [
+            (TOOL_LINE,     'line',     'Straight line (L)'),
+            (TOOL_CURVE,    'curve',    'Curve — drag a line, then drag anywhere on it to warp (Q)'),
+            (TOOL_RECT,        'rect',            'Rectangle — outline (R)'),
+            (TOOL_FILLED_RECT, 'filled_rect',     'Rectangle — filled/solid'),
+            (TOOL_CIRCLE,        'circle',        'Ellipse — outline (C)'),
+            (TOOL_FILLED_CIRCLE, 'filled_circle', 'Ellipse — filled/solid'),
+            (TOOL_TRIANGLE,        'triangle',        'Triangle — outline (T)'),
+            (TOOL_FILLED_TRIANGLE, 'filled_triangle', 'Triangle — filled/solid'),
+            (TOOL_POLYGON,        'polygon',        'Polygon — outline (O) — click verts, dbl to close'),
+            (TOOL_FILLED_POLYGON, 'filled_polygon', 'Polygon — filled/solid — click verts, dbl to close'),
+            (TOOL_STAR,        'star',        'Star — outline (*)'),
+            (TOOL_FILLED_STAR, 'filled_star', 'Star — filled/solid'),
+        ]
+        hidden_tools = self.dp5_settings.get('hidden_tools') or []
+        SHAPE_ORDER = [(t, s, tip) for t, s, tip in SHAPE_ORDER if t not in hidden_tools]
+
+        tb = QToolBar("Shapes")
+        tb.setObjectName("Shapes")
+        tb.setIconSize(QSize(icon_sz, icon_sz))
+        tb.setMovable(True)
+        tb.setFloatable(True)
+
+        self._build_tool_ribbon(tb, SHAPE_ORDER, icon_sz, icon_color, _tile_bg)
+
+        self._shapes_ribbon = tb
+        self._apply_ribbon_style(tb)
+        tb.orientationChanged.connect(lambda _o, t=tb: self._apply_ribbon_style(t))
+        return tb
+
+    def _create_tools_ribbon(self): #vers 3
+        """Plotting ribbon (was the combined Tools ribbon) - pixel-level
+        drawing/editing/selection/utility tools. Shape-drawing tools
+        (Line, Curve, Rectangle, Circle, Triangle, Polygon, Star) have
+        moved to the dedicated Shapes ribbon per Keith's request to
+        group all shapes together. Select Copy is a separate icon from
+        Select rather than a modifier-key variant: it lifts the
+        selection into a floating copy without clearing the source
+        (Select/"cut" clears it). Zoom keeps its right-click mode menu,
+        reached via the actual QToolButton Qt creates for its QAction
+        via toolbar.widgetForAction()."""
+        from PyQt6.QtWidgets import QToolBar
+        from PyQt6.QtGui import QAction
+        icon_color = self._get_icon_color()
+        icon_sz = self.dp5_settings.get('tool_icon_size')
+
+        TOOL_ORDER = [
+            (TOOL_PENCIL,   'pencil',   'Pencil — freehand (P)'),
+            (TOOL_ERASER,   'eraser',   'Eraser (E)'),
+            (TOOL_FILL,     'fill',     'Flood fill (F)'),
+            (TOOL_SPRAY,    'spray',    'Airbrush — light spray (S)'),
+            (TOOL_SPRAYCAN, 'spraycan', 'Spraycan — heavier, messier spray'),
+            (TOOL_PICKER,   'picker',   'Colour picker (K)'),
+            (TOOL_SELECT,      'select',      'Select (M) — drag to select, drag inside to cut/move'),
+            (TOOL_SELECT_COPY, 'select_copy', 'Select Copy — drag inside to lift a copy, leaving the original intact'),
+            (TOOL_LASSO,        'lasso',        'Lasso — outline (G)'),
+            (TOOL_FILLED_LASSO, 'filled_lasso', 'Lasso — filled/solid'),
+            (TOOL_ZOOM,     'zoom',     'Zoom — click in, right-click out (Z)'),
+            (TOOL_CROP,     'crop',     'Crop canvas to selection (X)'),
+            (TOOL_RESIZE,   'resize',   'Resize canvas (V)'),
+            (TOOL_DITHER,   'dither',     'Dither brush — checkerboard FG/BG pattern (D)'),
+            (TOOL_SYMMETRY, 'symmetry',   'Symmetry — click to cycle: H / V / Quad / Off (Y)'),
+            (TOOL_BLUR_BRUSH,'blur_brush', 'Blur brush — soften under cursor (B)'),
+            (TOOL_SMUDGE,   'smudge',     'Smudge — blend/drag pixels (U)'),
+            (TOOL_LIGHTEN,  'lighten',    'Lighten (Dodge) — brighten under cursor (,)'),
+            (TOOL_DARKEN,   'darken',     'Darken (Burn) — darken under cursor (.)'),
+        ]
+        hidden_tools = self.dp5_settings.get('hidden_tools') or []
+        TOOL_ORDER = [(t, s, tip) for t, s, tip in TOOL_ORDER if t not in hidden_tools]
+
+        _tile_bg = self._get_ribbon_tile_bg()
+
+        tb = QToolBar("Plotting")
+        tb.setObjectName("Plotting")
+        tb.setIconSize(QSize(icon_sz, icon_sz))
+        tb.setMovable(True)
+        tb.setFloatable(True)
+
+        self._tool_btns    = {}
+        self._tool_icon_sz = icon_sz
+
+        self._build_tool_ribbon(tb, TOOL_ORDER, icon_sz, icon_color, _tile_bg)
 
         # Active Zoom - toggle button for follow-cursor high-zoom mode
         # (distinct from the Zoom tool's click-to-zoom and the
@@ -7406,7 +7459,12 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         tb.setMovable(True)
         tb.setFloatable(True)
 
-        _ROW_H = 22   # compact height matching the other ribbons' thin profile
+        # Row height tracks the same global setting the other ribbons'
+        # icon sizing already responds to (Settings > Ribbons > Icon
+        # size, horizontal) - previously hardcoded to 22, disconnected
+        # from that setting entirely. _refresh_tool_settings_ribbon_size()
+        # re-applies this if the setting changes later.
+        _ROW_H = self.dp5_settings.get('ribbon_icon_size_horz')
 
         container = QWidget()
         row = QHBoxLayout(container)
