@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 86 (Build 413)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 87 (Build 414)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -323,6 +323,7 @@ from PyQt6.QtGui import (
 # DP5Workshop._open_dp5_snow
 # DP5Workshop._open_icon_browser
 # DP5Workshop._open_icon_editor
+# DP5Workshop._open_ribbon_manager
 # DP5Workshop._open_sprite_editor
 # DP5Workshop._open_zoom_lens
 # DP5Workshop._paint_variant_shape
@@ -349,6 +350,7 @@ from PyQt6.QtGui import (
 # DP5Workshop._restore_canvas_tab_state
 # DP5Workshop._restore_outer_layout
 # DP5Workshop._rgb_to_9bit
+# DP5Workshop._ribbon_presets_dir
 # DP5Workshop._rotate_180
 # DP5Workshop._rotate_90_ccw
 # DP5Workshop._rotate_90_cw
@@ -1607,6 +1609,13 @@ class DP5SettingsDialog(QDialog):
         # - Ribbons tab (icon size / padding per orientation, opacity)
         ribbons_tab = QWidget()
         rl = QFormLayout(ribbons_tab)
+
+        ribbon_mgr_btn = QPushButton("Ribbon Manager…")
+        ribbon_mgr_btn.setToolTip("Move tools between ribbons, save/load layout presets")
+        if self._workshop is not None:
+            ribbon_mgr_btn.clicked.connect(self._workshop._open_ribbon_manager)
+        rl.addRow(ribbon_mgr_btn)
+        rl.addRow(QLabel(""))
 
         rl.addRow(QLabel("—  Vertical  (docked left/right)  —"))
         self._ribbon_icon_vert_spin = QSpinBox()
@@ -7385,6 +7394,143 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         # matches, and refresh the always-visible settings ribbon
         if self.dp5_canvas:
             self._select_tool(self.dp5_canvas.tool, from_button_click=False)
+
+    def _ribbon_presets_dir(self): #vers 1
+        """Folder where Ribbon Manager presets are saved/loaded from."""
+        d = Path.home() / '.config' / 'imgfactory' / 'ribbon_presets'
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    def _open_ribbon_manager(self): #vers 1
+        """Ribbon Manager dialog - move any tool to any ribbon (existing
+        or a brand new one typed directly into the combo box), adjust
+        icon sizing, and save/load the whole layout as a named preset.
+        Changes only take effect on Apply, so browsing around doesn't
+        commit anything until the user is ready."""
+        from PyQt6.QtWidgets import QTableWidget, QTableWidgetItem, QHeaderView
+
+        assignment = self._get_ribbon_assignment()
+        existing_ribbons = sorted(set(assignment.values()))
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Ribbon Manager")
+        dlg.resize(480, 560)
+        lay = QVBoxLayout(dlg)
+
+        lay.addWidget(QLabel(
+            "Move a tool to a different ribbon by picking one from its "
+            "dropdown, or type a new ribbon name to create it."))
+
+        table = QTableWidget(len(self._RIBBON_TOOL_REGISTRY), 2)
+        table.setHorizontalHeaderLabels(["Tool", "Ribbon"])
+        table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        table.verticalHeader().setVisible(False)
+        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+
+        combos = {}  # tool_id -> QComboBox
+        for row, (tool_id, _shape, tip, _default) in enumerate(self._RIBBON_TOOL_REGISTRY):
+            name = tip.split(' — ')[0].split(' (')[0].strip()
+            name_item = QTableWidgetItem(name)
+            name_item.setFlags(Qt.ItemFlag.ItemIsEnabled)
+            table.setItem(row, 0, name_item)
+
+            combo = QComboBox()
+            combo.setEditable(True)
+            combo.addItems(existing_ribbons)
+            combo.setCurrentText(assignment.get(tool_id, _default))
+            table.setCellWidget(row, 1, combo)
+            combos[tool_id] = combo
+        lay.addWidget(table)
+
+        size_row = QHBoxLayout()
+        size_row.addWidget(QLabel("Icon size (px):"))
+        size_spin = QSpinBox()
+        size_spin.setRange(12, 64)
+        size_spin.setValue(max(self.dp5_settings.get('ribbon_icon_size_horz'),
+                               self.dp5_settings.get('ribbon_icon_size_vert')))
+        size_spin.setToolTip("Applies to both vertical and horizontal ribbons")
+        size_row.addWidget(size_spin)
+        size_row.addStretch()
+        lay.addLayout(size_row)
+
+        def _collect_assignment():
+            new_assignment = {}
+            for tool_id, combo in combos.items():
+                ribbon_name = combo.currentText().strip()
+                new_assignment[tool_id] = ribbon_name or 'Plotting'
+            return new_assignment
+
+        def _apply():
+            self._set_ribbon_assignment(_collect_assignment())
+            self.dp5_settings.set('ribbon_icon_size_horz', size_spin.value())
+            self.dp5_settings.set('ribbon_icon_size_vert', size_spin.value())
+            self.dp5_settings.save()
+            self._rebuild_tool_ribbons()
+
+        def _save_preset():
+            name, ok = QInputDialog.getText(dlg, "Save Preset", "Preset name:")
+            if not ok or not name.strip():
+                return
+            data = {
+                'assignment': _collect_assignment(),
+                'icon_size': size_spin.value(),
+            }
+            path = self._ribbon_presets_dir() / f"{name.strip()}.json"
+            try:
+                path.write_text(json.dumps(data, indent=2))
+                self._set_status(f"Saved ribbon preset '{name.strip()}'")
+            except Exception as e:
+                QMessageBox.warning(dlg, "Save Preset Error", str(e))
+
+        def _load_preset():
+            presets_dir = self._ribbon_presets_dir()
+            files = sorted(p.stem for p in presets_dir.glob('*.json'))
+            if not files:
+                QMessageBox.information(dlg, "Load Preset", "No saved presets found.")
+                return
+            name, ok = QInputDialog.getItem(dlg, "Load Preset", "Preset:", files, 0, False)
+            if not ok:
+                return
+            path = presets_dir / f"{name}.json"
+            try:
+                data = json.loads(path.read_text())
+            except Exception as e:
+                QMessageBox.warning(dlg, "Load Preset Error", str(e))
+                return
+            loaded_assignment = data.get('assignment', {})
+            loaded_size = data.get('icon_size')
+            # Refresh the dialog's own widgets to reflect the loaded
+            # preset, so the user sees what they're about to Apply
+            loaded_ribbons = sorted(set(loaded_assignment.values()) | set(existing_ribbons))
+            for tool_id, combo in combos.items():
+                combo.blockSignals(True)
+                combo.clear()
+                combo.addItems(loaded_ribbons)
+                combo.setCurrentText(loaded_assignment.get(tool_id,
+                    assignment.get(tool_id, 'Plotting')))
+                combo.blockSignals(False)
+            if loaded_size:
+                size_spin.setValue(loaded_size)
+            self._set_status(f"Loaded ribbon preset '{name}' - click Apply to use it")
+
+        btn_row = QHBoxLayout()
+        save_btn = QPushButton("Save Preset…")
+        save_btn.clicked.connect(_save_preset)
+        load_btn = QPushButton("Load Preset…")
+        load_btn.clicked.connect(_load_preset)
+        btn_row.addWidget(save_btn)
+        btn_row.addWidget(load_btn)
+        btn_row.addStretch()
+        apply_btn = QPushButton("Apply")
+        apply_btn.clicked.connect(_apply)
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(dlg.accept)
+        btn_row.addWidget(apply_btn)
+        btn_row.addWidget(close_btn)
+        lay.addLayout(btn_row)
+
+        self._ribbon_manager_dlg = dlg
+        dlg.exec()
 
     def _apply_ribbon_style(self, toolbar): #vers 2
         """Apply icon size / padding / opacity to a ribbon, using whichever
