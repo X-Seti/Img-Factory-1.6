@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 83 (Build 410)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 84 (Build 411)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -413,6 +413,7 @@ from PyQt6.QtGui import (
 # DP5Workshop.mouseReleaseEvent
 # DP5Workshop.paintEvent
 # DP5Workshop.resizeEvent
+# DP5Workshop.resizeEvent
 # DP5Workshop.set_menu_orientation
 # DP5Workshop.setup_ui
 # DP5Workshop.showEvent
@@ -565,7 +566,6 @@ from PyQt6.QtGui import (
 # _SpriteEditor._scan_sprite_folder
 # _SpriteEditor._set_sprite_size
 # _SpriteView.__init__
-# _SpriteView._qt_message_filter
 # _SpriteView.paintEvent
 # _SpriteView.set_sprite
 # _SpriteView.set_zoom
@@ -631,8 +631,6 @@ TOOL_MARKER_ELLIPSE= 'marker_ellipse'# highlighter-style ellipse outline
 TOOL_TEXT_POINTER  = 'text_pointer'  # text + leader line to a point
 TOOL_TEXT_ARROW    = 'text_arrow'    # text + arrow to a point
 TOOL_NUMBER        = 'number'        # auto-incrementing numbered badge
-TOOL_NUMBER_POINTER= 'number_pointer'# numbered badge + leader line
-TOOL_NUMBER_ARROW  = 'number_arrow'  # numbered badge + arrow
 TOOL_PIXELATE      = 'pixelate'      # mosaic/pixelation brush
 TOOL_SPRAYCAN      = 'spraycan'      # heavy/messy spray, distinct from the finer Airbrush (TOOL_SPRAY)
 TOOL_DOT           = 'dot'           # plain filled dot stamp, no digit (Number group variant)
@@ -2954,8 +2952,7 @@ class DP5Canvas(QWidget):
                        TOOL_TRIANGLE, TOOL_FILLED_TRIANGLE,
                        TOOL_STAR,     TOOL_FILLED_STAR,
                        TOOL_MARKER_RECT, TOOL_MARKER_ELLIPSE,
-                       TOOL_TEXT_POINTER, TOOL_TEXT_ARROW,
-                       TOOL_NUMBER_POINTER, TOOL_NUMBER_ARROW)
+                       TOOL_TEXT_POINTER, TOOL_TEXT_ARROW)
         # Also draw box-zoom preview
         is_box_zoom = (self.tool == TOOL_ZOOM and self._zoom_mode == 'box')
         if self._preview_start and self._preview_end and \
@@ -3019,8 +3016,7 @@ class DP5Canvas(QWidget):
                 painter.setBrush(preview_c)
                 painter.drawEllipse(QRect(s, e).normalized())
                 painter.setBrush(Qt.BrushStyle.NoBrush)
-            elif self.tool in (TOOL_TEXT_POINTER, TOOL_TEXT_ARROW,
-                               TOOL_NUMBER_POINTER, TOOL_NUMBER_ARROW):
+            elif self.tool in (TOOL_TEXT_POINTER, TOOL_TEXT_ARROW):
                 painter.drawLine(s.x(), s.y(), e.x(), e.y())
 
         # Polygon tool — draw committed edges + line to current mouse position
@@ -3368,7 +3364,6 @@ class DP5Canvas(QWidget):
                            TOOL_STAR,     TOOL_FILLED_STAR,
                            TOOL_MARKER_RECT, TOOL_MARKER_ELLIPSE,
                            TOOL_TEXT_POINTER, TOOL_TEXT_ARROW,
-                           TOOL_NUMBER_POINTER, TOOL_NUMBER_ARROW,
                            TOOL_SELECT,   TOOL_SELECT_COPY):
 
             if self.tool in (TOOL_SELECT, TOOL_SELECT_COPY) and self._sel_active and \
@@ -3576,7 +3571,6 @@ class DP5Canvas(QWidget):
                            TOOL_STAR,     TOOL_FILLED_STAR,
                            TOOL_MARKER_RECT, TOOL_MARKER_ELLIPSE,
                            TOOL_TEXT_POINTER, TOOL_TEXT_ARROW,
-                           TOOL_NUMBER_POINTER, TOOL_NUMBER_ARROW,
                            TOOL_SELECT,   TOOL_SELECT_COPY,
                            TOOL_POLYGON,  TOOL_FILLED_POLYGON):
             self._preview_end = (tx, ty); self.update()
@@ -3699,22 +3693,6 @@ class DP5Canvas(QWidget):
             self.draw_arrow(ps[0], ps[1], tx, ty, self.color, thickness=self.brush_size)
             ed = self._editor
             if ed: ed._place_text_at(tx, ty)
-
-        elif self.tool == TOOL_NUMBER_POINTER and ps:
-            self._push_undo_canvas()
-            self.draw_line(ps[0], ps[1], tx, ty, self.color)
-            ed = self._editor
-            n = getattr(ed, '_next_annotation_number', 1) if ed else 1
-            self._stamp_number_badge(tx, ty, n)
-            if ed: ed._next_annotation_number = n + 1
-
-        elif self.tool == TOOL_NUMBER_ARROW and ps:
-            self._push_undo_canvas()
-            self.draw_arrow(ps[0], ps[1], tx, ty, self.color, thickness=self.brush_size)
-            ed = self._editor
-            n = getattr(ed, '_next_annotation_number', 1) if ed else 1
-            self._stamp_number_badge(tx, ty, n)
-            if ed: ed._next_annotation_number = n + 1
 
         elif self.tool == TOOL_TRIANGLE and ps:
             self._push_undo_canvas()
@@ -7421,7 +7399,6 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         TOOL_DARKEN: 'Brush Size:', TOOL_HIGHLIGHTER: 'Marker Size:',
         TOOL_MARKER_RECT: 'Marker Size:', TOOL_MARKER_ELLIPSE: 'Marker Size:',
         TOOL_STICKER: 'Sticker Size:', TOOL_NUMBER: 'Badge Size:',
-        TOOL_NUMBER_POINTER: 'Badge Size:', TOOL_NUMBER_ARROW: 'Badge Size:',
         TOOL_DOT: 'Dot Size:',
     }
     # Tools with no meaningful "size" at all - hide the field entirely.
@@ -7842,10 +7819,9 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         ])
 
         # Number group (+ Dots/Bullet Points variants, + reset numbering)
+        # Number Pointer/Number Arrow removed per Keith - didn't work right.
         self._make_dropdown_tool_button(tb, [
             ('number', None, 'Number',           TOOL_NUMBER),
-            ('number_pointer', None, 'Number Pointer', TOOL_NUMBER_POINTER),
-            ('number_arrow', None, 'Number Arrow',     TOOL_NUMBER_ARROW),
             ('dot', None, 'Dots (plain marker, no number)', TOOL_DOT),
             ('bullet', None, 'Bullet Point',     TOOL_BULLET),
         ], extra_menu_items=[
