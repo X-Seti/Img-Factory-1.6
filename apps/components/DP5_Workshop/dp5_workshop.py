@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 84 (Build 411)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 85 (Build 412)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -79,6 +79,7 @@ from PyQt6.QtGui import (
 # DP5Canvas.__init__
 # DP5Canvas._blend_pixel
 # DP5Canvas._blit_qimage_alpha
+# DP5Canvas._do_alpha_brush
 # DP5Canvas._do_blur_brush
 # DP5Canvas._do_dodge_burn
 # DP5Canvas._do_highlighter
@@ -178,6 +179,8 @@ from PyQt6.QtGui import (
 # DP5Workshop._apply_spectrum_clash
 # DP5Workshop._apply_theme
 # DP5Workshop._apply_zx8x_dither
+# DP5Workshop._background_to_alpha
+# DP5Workshop._background_to_alpha_dialog
 # DP5Workshop._batch_convert_icons
 # DP5Workshop._batch_convert_textures
 # DP5Workshop._blend_palette_colors
@@ -635,6 +638,7 @@ TOOL_PIXELATE      = 'pixelate'      # mosaic/pixelation brush
 TOOL_SPRAYCAN      = 'spraycan'      # heavy/messy spray, distinct from the finer Airbrush (TOOL_SPRAY)
 TOOL_DOT           = 'dot'           # plain filled dot stamp, no digit (Number group variant)
 TOOL_BULLET        = 'bullet'        # small fixed-size bullet-point marker (Number group variant)
+TOOL_ALPHA_BRUSH   = 'alpha_brush'   # paint transparency directly - left erases to alpha 0, right restores to alpha 255
 
 # - Try importing shared infrastructure
 try:
@@ -922,6 +926,22 @@ def _make_tool_icon(shape: str, size: int = 42,
         p.setPen(mk_pen(1.5))
         p.setBrush(QBrush(Qt.BrushStyle.NoBrush))
         p.drawLine(QPoint(6,38), QPoint(42,38))
+
+    elif shape == 'alpha_brush':
+        # Checkerboard pattern (the universal transparency symbol in
+        # image editors) inside a rounded outline - distinguishes this
+        # from the plain Eraser by clearly communicating "paints
+        # transparency" rather than "erases to background".
+        p.setPen(mk_pen(1.8))
+        p.setBrush(QBrush(Qt.BrushStyle.NoBrush))
+        p.drawRoundedRect(8, 8, 32, 32, 4, 4)
+        cell = 8
+        for row in range(4):
+            for col in range(4):
+                if (row + col) % 2 == 0:
+                    p.setPen(Qt.PenStyle.NoPen)
+                    p.setBrush(solid_brush())
+                    p.drawRect(8 + col*cell, 8 + row*cell, cell, cell)
 
     elif shape == 'fill':
         # Paint bucket — bucket body + handle arc + small drop below spout
@@ -1893,6 +1913,10 @@ class DP5Canvas(QWidget):
         # to. Right-click adjustable on the Active Zoom button.
         self._active_zoom_sensitivity = 6
         self._active_zoom_last_center = None
+        # Alpha Brush - tracks whether the current drag is erasing
+        # (left, alpha->0) or restoring (right, alpha->255), set at
+        # mousePressEvent and read during mouseMoveEvent's drag.
+        self._alpha_brush_erasing = True
         # Per-tool brush size - each tool remembers its own size rather
         # than sharing one global value. brush_size itself stays as the
         # single "currently active" value all drawing code reads (no
@@ -2594,6 +2618,22 @@ class DP5Canvas(QWidget):
                 buf[i+2] = max(0, min(255, buf[i+2] + adj))
 
 
+    def _do_alpha_brush(self, cx: int, cy: int, erase: bool = True): #vers 1
+        """Alpha Brush - paint transparency directly onto the canvas
+        for masking icons/images. erase=True sets alpha to 0 within
+        brush radius (left-click); erase=False restores alpha to 255
+        (right-click), for touching up over-erased areas."""
+        r  = max(1, self.brush_size * 3)
+        w, h = self.tex_w, self.tex_h
+        buf = self.rgba
+        new_alpha = 0 if erase else 255
+        for y in range(max(0, cy - r), min(h, cy + r + 1)):
+            for x in range(max(0, cx - r), min(w, cx + r + 1)):
+                if (x - cx) ** 2 + (y - cy) ** 2 > r * r:
+                    continue
+                i = (y * w + x) * 4
+                buf[i+3] = new_alpha
+
     def _blend_pixel(self, x: int, y: int, c: QColor, strength: float = 0.35): #vers 2
         """Multiply-blend c into the pixel at (x,y) rather than plain
         alpha-blending - shared by the Marker Rectangle/Ellipse shape
@@ -3198,6 +3238,12 @@ class DP5Canvas(QWidget):
             self._push_undo_canvas()
             self.set_pixel_brush(tx, ty, QColor(0,0,0,0)); self.update()
 
+        elif self.tool == TOOL_ALPHA_BRUSH:
+            self._push_undo_canvas()
+            self._alpha_brush_erasing = (btn != Qt.MouseButton.RightButton)
+            self._do_alpha_brush(tx, ty, erase=self._alpha_brush_erasing)
+            self.update()
+
         elif self.tool == TOOL_FILL:
             self._push_undo_canvas()
             self.flood_fill(tx, ty, self.color); self.update()
@@ -3500,6 +3546,10 @@ class DP5Canvas(QWidget):
 
         elif self.tool == TOOL_ERASER:
             self.set_pixel_brush(tx, ty, QColor(0,0,0,0))
+            self._last_pt = (tx, ty); self.update()
+
+        elif self.tool == TOOL_ALPHA_BRUSH:
+            self._do_alpha_brush(tx, ty, erase=getattr(self, '_alpha_brush_erasing', True))
             self._last_pt = (tx, ty); self.update()
 
         elif self.tool == TOOL_SPRAY:
@@ -6773,6 +6823,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         pm.addAction("Invert colours",      self._invert)
         pm.addAction("Brighten +25",        lambda: self._adjust(25))
         pm.addAction("Darken -25",          lambda: self._adjust(-25))
+        pm.addAction("Background to Alpha…", self._background_to_alpha_dialog)
         pm.addSeparator()
         pm.addAction("Colour Adjustments…", self._open_dp5_colour_adjust)
         pm.addAction("Seamless Tool…",      self._open_dp5_seamless)
@@ -7232,6 +7283,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         TOOL_ORDER = [
             (TOOL_PENCIL,   'pencil',   'Pencil — freehand (P)'),
             (TOOL_ERASER,   'eraser',   'Eraser (E)'),
+            (TOOL_ALPHA_BRUSH, 'alpha_brush', 'Alpha Brush — paint transparency for masking (left erases, right restores)'),
             (TOOL_FILL,     'fill',     'Flood fill (F)'),
             (TOOL_SPRAY,    'spray',    'Airbrush — light spray (S)'),
             (TOOL_SPRAYCAN, 'spraycan', 'Spraycan — heavier, messier spray'),
@@ -7391,7 +7443,8 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
     # "Size:" if not listed here.
     _TOOL_SIZE_LABELS = {
         TOOL_PENCIL: 'Pen Size:', TOOL_LINE: 'Line Size:',
-        TOOL_ERASER: 'Eraser Size:', TOOL_ARROW: 'Line Size:',
+        TOOL_ERASER: 'Eraser Size:', TOOL_ALPHA_BRUSH: 'Alpha Brush Size:',
+        TOOL_ARROW: 'Line Size:',
         TOOL_DOUBLE_ARROW: 'Line Size:', TOOL_SPRAY: 'Particle Size:',
         TOOL_SPRAYCAN: 'Particle Size:', TOOL_BLUR_BRUSH: 'Brush Size:',
         TOOL_SMUDGE: 'Brush Size:', TOOL_SHARPEN: 'Brush Size:',
@@ -10629,6 +10682,93 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
     def _flip_h(self):   self._mirror_h()   # legacy alias  #vers 1
     def _flip_v(self):   self._mirror_v()   # legacy alias  #vers 1
 
+
+    def _background_to_alpha_dialog(self): #vers 1
+        """Background to Alpha - convert a background colour to full
+        transparency, for masking icons/images (e.g. turning a solid-
+        background sprite into one with a transparent background).
+        Defaults to sampling the canvas's own corner pixel as the
+        target colour, with a Pick Colour button to choose a different
+        one and a tolerance slider for near-matching (anti-aliased)
+        edge pixels."""
+        c = self.dp5_canvas
+        if not c:
+            return
+        corner = QColor(c.rgba[0], c.rgba[1], c.rgba[2])
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Background to Alpha")
+        lay = QVBoxLayout(dlg)
+
+        row = QHBoxLayout()
+        row.addWidget(QLabel("Colour to key out:"))
+        swatch = QPushButton()
+        swatch.setFixedSize(28, 24)
+        state = {'color': corner}
+
+        def _refresh_swatch():
+            swatch.setStyleSheet(
+                f"background:{state['color'].name()}; border:1px solid palette(mid);")
+        _refresh_swatch()
+
+        def _pick():
+            picked = QColorDialog.getColor(state['color'], dlg, "Colour to key out")
+            if picked.isValid():
+                state['color'] = picked
+                _refresh_swatch()
+        swatch.clicked.connect(_pick)
+        row.addWidget(swatch)
+        pick_btn = QPushButton("Pick Colour…")
+        pick_btn.clicked.connect(_pick)
+        row.addWidget(pick_btn)
+        lay.addLayout(row)
+
+        tol_row = QHBoxLayout()
+        tol_row.addWidget(QLabel("Tolerance:"))
+        tol_spin = QSpinBox()
+        tol_spin.setRange(0, 100)
+        tol_spin.setValue(10)
+        tol_spin.setToolTip("How close a pixel's colour must be to match -\n"
+                            "0 = exact match only, higher catches anti-aliased\n"
+                            "edge pixels too")
+        tol_row.addWidget(tol_spin)
+        lay.addLayout(tol_row)
+
+        btn_row = QHBoxLayout()
+        apply_btn = QPushButton("Apply")
+        cancel_btn = QPushButton("Cancel")
+        btn_row.addWidget(apply_btn)
+        btn_row.addWidget(cancel_btn)
+        lay.addLayout(btn_row)
+        cancel_btn.clicked.connect(dlg.reject)
+
+        def _apply():
+            self._background_to_alpha(state['color'], tol_spin.value())
+            dlg.accept()
+        apply_btn.clicked.connect(_apply)
+
+        dlg.exec()
+
+    def _background_to_alpha(self, target: QColor, tolerance: int): #vers 1
+        """Set alpha to 0 for every pixel within `tolerance` of
+        `target` (simple Euclidean RGB distance, scaled 0-100 to the
+        0-441 max possible distance so the slider reads intuitively)."""
+        c = self.dp5_canvas
+        if not c:
+            return
+        self._push_undo()
+        buf = c.rgba
+        tr, tg, tb = target.red(), target.green(), target.blue()
+        max_dist = tolerance / 100.0 * (255 * 3) ** 0.5
+        max_dist_sq = max_dist * max_dist
+        changed = 0
+        for i in range(0, len(buf), 4):
+            dr = buf[i] - tr; dg = buf[i+1] - tg; db = buf[i+2] - tb
+            if dr*dr + dg*dg + db*db <= max_dist_sq:
+                buf[i+3] = 0
+                changed += 1
+        c.update()
+        self._set_status(f"Background to Alpha: {changed} pixels made transparent")
 
     def _invert(self): #vers 1
         from PIL import Image, ImageOps
