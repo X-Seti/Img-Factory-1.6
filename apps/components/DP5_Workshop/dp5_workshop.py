@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 88 (Build 415)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 89 (Build 416)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -636,8 +636,6 @@ TOOL_STICKER       = 'sticker'       # stamp an emoji glyph onto the canvas
 TOOL_DOUBLE_ARROW  = 'double_arrow'  # arrowheads at both ends
 TOOL_MARKER_RECT   = 'marker_rect'   # highlighter-style rectangle outline
 TOOL_MARKER_ELLIPSE= 'marker_ellipse'# highlighter-style ellipse outline
-TOOL_TEXT_POINTER  = 'text_pointer'  # text + leader line to a point
-TOOL_TEXT_ARROW    = 'text_arrow'    # text + arrow to a point
 TOOL_NUMBER        = 'number'        # auto-incrementing numbered badge
 TOOL_PIXELATE      = 'pixelate'      # mosaic/pixelation brush
 TOOL_SPRAYCAN      = 'spraycan'      # heavy/messy spray, distinct from the finer Airbrush (TOOL_SPRAY)
@@ -3013,8 +3011,7 @@ class DP5Canvas(QWidget):
                        TOOL_CIRCLE,   TOOL_FILLED_CIRCLE,
                        TOOL_TRIANGLE, TOOL_FILLED_TRIANGLE,
                        TOOL_STAR,     TOOL_FILLED_STAR,
-                       TOOL_MARKER_RECT, TOOL_MARKER_ELLIPSE,
-                       TOOL_TEXT_POINTER, TOOL_TEXT_ARROW)
+                       TOOL_MARKER_RECT, TOOL_MARKER_ELLIPSE)
         # Also draw box-zoom preview
         is_box_zoom = (self.tool == TOOL_ZOOM and self._zoom_mode == 'box')
         if self._preview_start and self._preview_end and \
@@ -3078,8 +3075,6 @@ class DP5Canvas(QWidget):
                 painter.setBrush(preview_c)
                 painter.drawEllipse(QRect(s, e).normalized())
                 painter.setBrush(Qt.BrushStyle.NoBrush)
-            elif self.tool in (TOOL_TEXT_POINTER, TOOL_TEXT_ARROW):
-                painter.drawLine(s.x(), s.y(), e.x(), e.y())
 
         # Polygon tool — draw committed edges + line to current mouse position
         if self.tool in (TOOL_POLYGON, TOOL_FILLED_POLYGON) and self._poly_pts:
@@ -3431,7 +3426,6 @@ class DP5Canvas(QWidget):
                            TOOL_TRIANGLE, TOOL_FILLED_TRIANGLE,
                            TOOL_STAR,     TOOL_FILLED_STAR,
                            TOOL_MARKER_RECT, TOOL_MARKER_ELLIPSE,
-                           TOOL_TEXT_POINTER, TOOL_TEXT_ARROW,
                            TOOL_SELECT,   TOOL_SELECT_COPY):
 
             if self.tool in (TOOL_SELECT, TOOL_SELECT_COPY) and self._sel_active and \
@@ -3642,7 +3636,6 @@ class DP5Canvas(QWidget):
                            TOOL_TRIANGLE, TOOL_FILLED_TRIANGLE,
                            TOOL_STAR,     TOOL_FILLED_STAR,
                            TOOL_MARKER_RECT, TOOL_MARKER_ELLIPSE,
-                           TOOL_TEXT_POINTER, TOOL_TEXT_ARROW,
                            TOOL_SELECT,   TOOL_SELECT_COPY,
                            TOOL_POLYGON,  TOOL_FILLED_POLYGON):
             self._preview_end = (tx, ty); self.update()
@@ -3753,18 +3746,6 @@ class DP5Canvas(QWidget):
             rx = abs(tx - ps[0]); ry = abs(ty - ps[1])
             self.draw_marker_ellipse(ps[0], ps[1], max(1,rx), max(1,ry), self.color,
                                       thickness=max(2, self.brush_size))
-
-        elif self.tool == TOOL_TEXT_POINTER and ps:
-            self._push_undo_canvas()
-            self.draw_line(ps[0], ps[1], tx, ty, self.color)
-            ed = self._editor
-            if ed: ed._place_text_at(tx, ty)
-
-        elif self.tool == TOOL_TEXT_ARROW and ps:
-            self._push_undo_canvas()
-            self.draw_arrow(ps[0], ps[1], tx, ty, self.color, thickness=self.brush_size)
-            ed = self._editor
-            if ed: ed._place_text_at(tx, ty)
 
         elif self.tool == TOOL_TRIANGLE and ps:
             self._push_undo_canvas()
@@ -4608,19 +4589,22 @@ class _CanvasTextOverlay(QWidget):
         panel.changed.connect(self._refresh_preview_style)
         panel.closed.connect(self._commit)
 
-    def _sync_tx_ty_from_pos(self): #vers 2
+    def _sync_tx_ty_from_pos(self): #vers 3
         """After dragging the overlay to a new screen position, work
         out the corresponding canvas texture coordinates (tx, ty) so
         the eventual commit lands where the text visually is now.
-        canvas_widget.mapFrom(ed, point) is the correct inverse of the
-        mapTo() used in _place_text_at to position the overlay in the
-        first place - handles scroll offset and widget hierarchy
-        together, rather than manually reconstructing it."""
+        self.pos() is a GLOBAL screen position (this widget is a real
+        top-level window via Qt.WindowType.Tool), so it has to go
+        through ed.mapFromGlobal() first to become a point in ed's
+        local space before canvas_widget.mapFrom(ed, ...) - the correct
+        inverse of the mapTo()+mapToGlobal() used in _place_text_at -
+        can make sense of it."""
         ed = self._editor
         canvas_widget = self._canvas
         z = canvas_widget.zoom
         zx = z * getattr(canvas_widget, 'pixel_aspect_x', 1.0)
-        local_pos = canvas_widget.mapFrom(ed, self.pos())
+        local_to_ed = ed.mapFromGlobal(self.pos())
+        local_pos = canvas_widget.mapFrom(ed, local_to_ed)
         self._tx = int(local_pos.x() / zx) if zx else local_pos.x()
         self._ty = int(local_pos.y() / z) if z else local_pos.y()
 
@@ -7878,7 +7862,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         TOOL_SPRAY:       ('spray_density',      'Density:',   1,   30,  False, 1),
         TOOL_SPRAYCAN:    ('spraycan_density',   'Density:',   1,   30,  False, 1),
     }
-    _TEXT_TOOLS = {TOOL_TEXT, TOOL_TEXT_POINTER, TOOL_TEXT_ARROW}
+    _TEXT_TOOLS = {TOOL_TEXT}
 
     def _create_tool_settings_ribbon(self): #vers 1
         """Tool Settings ribbon - always-visible, top-right (per Keith's
@@ -8272,11 +8256,10 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             ('marker_ellipse', None, 'Marker Ellipse', TOOL_MARKER_ELLIPSE),
         ])
 
-        # Text group
+        # Text group - Text Pointer/Text Arrow removed per Keith
+        # (buggy leader-line/arrow variants), plain Text only now
         self._make_dropdown_tool_button(tb, [
             (None, 'dp_text_icon', 'Text',      TOOL_TEXT),
-            ('text_pointer', None, 'Text Pointer', TOOL_TEXT_POINTER),
-            ('text_arrow', None, 'Text Arrow',   TOOL_TEXT_ARROW),
         ])
 
         # Number group (+ Dots/Bullet Points variants, + reset numbering)
@@ -9487,7 +9470,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._enforce_constraints = not getattr(self, '_enforce_constraints', False)
         self._set_status(f"Colour constraints: {'ON' if self._enforce_constraints else 'OFF'}")
 
-    def _place_text_at(self, tx: int, ty: int): #vers 4
+    def _place_text_at(self, tx: int, ty: int): #vers 5
         """Show inline text input overlay on canvas at click position,
         plus (if not already shown) a corner panel with font/size/
         colour controls and a Close button that ends the writing
@@ -9514,17 +9497,22 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         overlay = _CanvasTextOverlay(self, tx, ty, z, self.dp5_canvas, panel)
         self._text_overlay = overlay
         # Position the overlay widget over the canvas at the click point.
-        # canvas_widget.mapTo(self, local_point) converts a point in
-        # canvas_widget's OWN coordinate space to self's coordinate
-        # space, correctly accounting for both the widget hierarchy and
-        # any scroll offset (a QScrollArea's content widget's actual Qt
-        # position already reflects scrolling) - no need to separately
-        # query/subtract the scrollbars.
+        # _CanvasTextOverlay sets Qt.WindowType.Tool, making it a real
+        # top-level window even though it has a parent - its .move()
+        # therefore expects GLOBAL screen coordinates, not coordinates
+        # relative to self (the main window). canvas_widget.mapTo(self,
+        # local_point) only gets us as far as self's own local space, so
+        # that has to go through self.mapToGlobal() too before it's a
+        # valid position to pass to a top-level window's move(). This
+        # was the actual bug: passing a self-local point straight to
+        # move() only looked correct when the main window happened to
+        # sit at screen (0,0) - anywhere else, the overlay appeared
+        # offset by exactly the main window's own screen position.
         canvas_widget = self.dp5_canvas
         px = int(tx * zx)
         py = int(ty * z)
-        global_point = canvas_widget.mapTo(self, QPoint(px, py))
-        overlay.move(global_point)
+        local_point = canvas_widget.mapTo(self, QPoint(px, py))
+        overlay.move(self.mapToGlobal(local_point))
         overlay.show()
         overlay.activateWindow()
         overlay._edit.setFocus()
@@ -9532,9 +9520,11 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         # Position the corner panel at the top-right of the canvas
         # viewport, not at the text click position - stays put across
         # multiple text placements so the controls don't jump around.
+        # Same global-coordinate fix applies here (also Qt.WindowType.Tool).
         sa = getattr(self, '_canvas_scroll', None)
         viewport = sa.viewport() if sa else canvas_widget
-        vp_top_right = viewport.mapTo(self, QPoint(viewport.width(), 0))
+        vp_top_right_local = viewport.mapTo(self, QPoint(viewport.width(), 0))
+        vp_top_right = self.mapToGlobal(vp_top_right_local)
         panel.adjustSize()
         panel.move(vp_top_right.x() - panel.width() - 8, vp_top_right.y() + 8)
         panel.show()
