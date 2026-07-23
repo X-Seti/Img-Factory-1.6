@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 87 (Build 414)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 88 (Build 415)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -350,6 +350,7 @@ from PyQt6.QtGui import (
 # DP5Workshop._restore_canvas_tab_state
 # DP5Workshop._restore_outer_layout
 # DP5Workshop._rgb_to_9bit
+# DP5Workshop._ribbon_context_menu
 # DP5Workshop._ribbon_presets_dir
 # DP5Workshop._rotate_180
 # DP5Workshop._rotate_90_ccw
@@ -1434,6 +1435,11 @@ class DP5Settings:
         # custom ribbons the user creates). Empty dict means "use each
         # tool's default_ribbon from _RIBBON_TOOL_REGISTRY".
         'ribbon_tool_assignment': {},
+        # Ribbon Manager - explicit display order for all reassignable
+        # tools, updated by drag-reordering within a ribbon in the
+        # manager dialog. Empty list means "use each tool's natural
+        # order from _RIBBON_TOOL_REGISTRY".
+        'ribbon_tool_order': [],
     }
 
     def __init__(self): #vers 1
@@ -7317,12 +7323,21 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         assignment = self._get_ribbon_assignment()
 
         # Group registry entries by their currently-assigned ribbon,
-        # preserving each tool's registry order within its ribbon
+        # respecting a saved display order if one exists (from drag-
+        # reordering in the Ribbon Manager), otherwise each tool's
+        # natural registry order
+        registry_by_id = {t: (t, s, tip, d) for t, s, tip, d in self._RIBBON_TOOL_REGISTRY}
+        saved_order = self.dp5_settings.get('ribbon_tool_order') or []
+        ordered_ids = [t for t in saved_order if t in registry_by_id]
+        ordered_ids += [t for t, _s, _tip, _d in self._RIBBON_TOOL_REGISTRY
+                        if t not in ordered_ids]
+
         by_ribbon = {}
-        for tool_id, shape, tip, _default in self._RIBBON_TOOL_REGISTRY:
+        for tool_id in ordered_ids:
             if tool_id in hidden_tools:
                 continue
-            ribbon_name = assignment.get(tool_id, _default)
+            _t, shape, tip, default_ribbon = registry_by_id[tool_id]
+            ribbon_name = assignment.get(tool_id, default_ribbon)
             by_ribbon.setdefault(ribbon_name, []).append((tool_id, shape, tip))
 
         self._tool_btns = {}
@@ -7401,79 +7416,257 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         d.mkdir(parents=True, exist_ok=True)
         return d
 
-    def _open_ribbon_manager(self): #vers 1
-        """Ribbon Manager dialog - move any tool to any ribbon (existing
-        or a brand new one typed directly into the combo box), adjust
-        icon sizing, and save/load the whole layout as a named preset.
-        Changes only take effect on Apply, so browsing around doesn't
-        commit anything until the user is ready."""
-        from PyQt6.QtWidgets import QTableWidget, QTableWidgetItem, QHeaderView
+    def _open_ribbon_manager(self): #vers 2
+        """Ribbon Manager dialog - two-pane layout matching Model
+        Workshop's richer style: left pane lists ribbons (with an icon
+        preview of their first tool), right pane shows the selected
+        ribbon's tools with icons and names, drag-reorderable within the
+        ribbon. Explicit +New Ribbon/Delete buttons, a Move-to-ribbon
+        control, icon size slider, and Save/Load Preset. Changes apply
+        live as you go (each move/reorder immediately rebuilds the real
+        ribbons) - Cancel reverts to a snapshot taken when the dialog
+        opened; OK just keeps whatever's already been applied."""
+        from PyQt6.QtWidgets import (QListWidget, QListWidgetItem, QSplitter,
+            QAbstractItemView, QSlider, QDialogButtonBox)
 
-        assignment = self._get_ribbon_assignment()
-        existing_ribbons = sorted(set(assignment.values()))
+        snapshot_assignment = dict(self._get_ribbon_assignment())
+        snapshot_order = list(self.dp5_settings.get('ribbon_tool_order') or [])
+        snapshot_icon_horz = self.dp5_settings.get('ribbon_icon_size_horz')
+        snapshot_icon_vert = self.dp5_settings.get('ribbon_icon_size_vert')
+        registry_by_id = {t: (t, s, tip, d) for t, s, tip, d in self._RIBBON_TOOL_REGISTRY}
+        icon_color = self._get_icon_color()
+        icon_sz_preview = 20
+
+        def _tool_name(tool_id):
+            tip = registry_by_id[tool_id][2]
+            return tip.split(' — ')[0].split(' (')[0].strip()
+
+        def _tool_icon(tool_id):
+            shape = registry_by_id[tool_id][1]
+            return _load_tool_icon(shape, icon_sz_preview, active=False,
+                                   tile_bg='', icon_col=icon_color)
 
         dlg = QDialog(self)
         dlg.setWindowTitle("Ribbon Manager")
-        dlg.resize(480, 560)
-        lay = QVBoxLayout(dlg)
+        dlg.setMinimumSize(660, 440)
+        outer = QVBoxLayout(dlg)
 
-        lay.addWidget(QLabel(
-            "Move a tool to a different ribbon by picking one from its "
-            "dropdown, or type a new ribbon name to create it."))
+        # New/Delete ribbon row
+        tb_row = QHBoxLayout()
+        new_btn = QPushButton("+ New Ribbon")
+        del_btn = QPushButton("Delete")
+        save_preset_btn = QPushButton("Save Preset…")
+        load_preset_btn = QPushButton("Load Preset…")
+        for b in (new_btn, del_btn, save_preset_btn, load_preset_btn):
+            tb_row.addWidget(b)
+        tb_row.addStretch()
+        outer.addLayout(tb_row)
 
-        table = QTableWidget(len(self._RIBBON_TOOL_REGISTRY), 2)
-        table.setHorizontalHeaderLabels(["Tool", "Ribbon"])
-        table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        table.verticalHeader().setVisible(False)
-        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-
-        combos = {}  # tool_id -> QComboBox
-        for row, (tool_id, _shape, tip, _default) in enumerate(self._RIBBON_TOOL_REGISTRY):
-            name = tip.split(' — ')[0].split(' (')[0].strip()
-            name_item = QTableWidgetItem(name)
-            name_item.setFlags(Qt.ItemFlag.ItemIsEnabled)
-            table.setItem(row, 0, name_item)
-
-            combo = QComboBox()
-            combo.setEditable(True)
-            combo.addItems(existing_ribbons)
-            combo.setCurrentText(assignment.get(tool_id, _default))
-            table.setCellWidget(row, 1, combo)
-            combos[tool_id] = combo
-        lay.addWidget(table)
-
+        # Icon size row
         size_row = QHBoxLayout()
-        size_row.addWidget(QLabel("Icon size (px):"))
-        size_spin = QSpinBox()
-        size_spin.setRange(12, 64)
-        size_spin.setValue(max(self.dp5_settings.get('ribbon_icon_size_horz'),
-                               self.dp5_settings.get('ribbon_icon_size_vert')))
-        size_spin.setToolTip("Applies to both vertical and horizontal ribbons")
-        size_row.addWidget(size_spin)
-        size_row.addStretch()
-        lay.addLayout(size_row)
+        size_row.addWidget(QLabel("Ribbon Icon Size:"))
+        size_slider = QSlider(Qt.Orientation.Horizontal)
+        size_slider.setRange(12, 64)
+        size_slider.setSingleStep(2)
+        size_slider.setValue(max(self.dp5_settings.get('ribbon_icon_size_horz'),
+                                 self.dp5_settings.get('ribbon_icon_size_vert')))
+        size_label = QLabel(f"{size_slider.value()}px")
+        size_label.setMinimumWidth(36)
+        size_row.addWidget(size_slider, 1)
+        size_row.addWidget(size_label)
+        outer.addLayout(size_row)
 
-        def _collect_assignment():
-            new_assignment = {}
-            for tool_id, combo in combos.items():
-                ribbon_name = combo.currentText().strip()
-                new_assignment[tool_id] = ribbon_name or 'Plotting'
-            return new_assignment
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        outer.addWidget(splitter, 1)
 
-        def _apply():
-            self._set_ribbon_assignment(_collect_assignment())
-            self.dp5_settings.set('ribbon_icon_size_horz', size_spin.value())
-            self.dp5_settings.set('ribbon_icon_size_vert', size_spin.value())
+        left = QWidget()
+        ll = QVBoxLayout(left); ll.setSpacing(4)
+        ll.addWidget(QLabel("Ribbons"))
+        ribbon_list = QListWidget()
+        ll.addWidget(ribbon_list)
+        splitter.addWidget(left)
+
+        right = QWidget()
+        rl = QVBoxLayout(right); rl.setSpacing(4)
+        tool_label = QLabel("Select a ribbon")
+        rl.addWidget(tool_label)
+        tool_list = QListWidget()
+        tool_list.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+        tool_list.setDefaultDropAction(Qt.DropAction.MoveAction)
+        tool_list.setIconSize(QSize(icon_sz_preview, icon_sz_preview))
+        rl.addWidget(tool_list)
+
+        move_row = QHBoxLayout()
+        move_row.addWidget(QLabel("Move selected to:"))
+        move_combo = QComboBox()
+        move_row.addWidget(move_combo, 1)
+        move_btn = QPushButton("Move →")
+        move_row.addWidget(move_btn)
+        rl.addLayout(move_row)
+        splitter.addWidget(right)
+        splitter.setSizes([200, 460])
+
+        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                QDialogButtonBox.StandardButton.Cancel)
+        outer.addWidget(btns)
+
+        state = {'selected_ribbon': None}
+
+        def _current_assignment():
+            return self._get_ribbon_assignment()
+
+        def _refresh_ribbon_list():
+            ribbon_list.blockSignals(True)
+            prev = state['selected_ribbon']
+            ribbon_list.clear()
+            move_combo.clear()
+            assignment = _current_assignment()
+            by_ribbon = {}
+            for tool_id in assignment:
+                by_ribbon.setdefault(assignment[tool_id], []).append(tool_id)
+            for name in sorted(by_ribbon.keys()):
+                item = QListWidgetItem(name)
+                tools_here = by_ribbon[name]
+                if tools_here:
+                    item.setIcon(_tool_icon(tools_here[0]))
+                ribbon_list.addItem(item)
+                move_combo.addItem(name)
+            ribbon_list.blockSignals(False)
+            # Reselect the previously-selected ribbon if it still exists
+            if prev is not None:
+                matches = ribbon_list.findItems(prev, Qt.MatchFlag.MatchExactly)
+                if matches:
+                    ribbon_list.setCurrentItem(matches[0])
+                    return
+            if ribbon_list.count():
+                ribbon_list.setCurrentRow(0)
+
+        def _refresh_tool_list():
+            tool_list.blockSignals(True)
+            tool_list.clear()
+            name = state['selected_ribbon']
+            if not name:
+                tool_list.blockSignals(False)
+                return
+            tool_label.setText(f"{name} — tools")
+            assignment = _current_assignment()
+            order = self.dp5_settings.get('ribbon_tool_order') or []
+            ordered_ids = [t for t in order if t in registry_by_id]
+            ordered_ids += [t for t in registry_by_id if t not in ordered_ids]
+            for tool_id in ordered_ids:
+                if assignment.get(tool_id) != name:
+                    continue
+                item = QListWidgetItem(_tool_icon(tool_id), _tool_name(tool_id))
+                item.setData(Qt.ItemDataRole.UserRole, tool_id)
+                tool_list.addItem(item)
+            tool_list.blockSignals(False)
+
+        def _on_ribbon_selected(row):
+            item = ribbon_list.item(row)
+            state['selected_ribbon'] = item.text() if item else None
+            _refresh_tool_list()
+        ribbon_list.currentRowChanged.connect(_on_ribbon_selected)
+
+        def _on_tools_reordered():
+            # Rebuild ribbon_tool_order from the current combined order:
+            # this ribbon's tools in their new order, all other tools
+            # keeping their existing relative order
+            name = state['selected_ribbon']
+            if not name:
+                return
+            new_local_order = []
+            for i in range(tool_list.count()):
+                tid = tool_list.item(i).data(Qt.ItemDataRole.UserRole)
+                if tid:
+                    new_local_order.append(tid)
+            old_order = self.dp5_settings.get('ribbon_tool_order') or []
+            old_order = [t for t in old_order if t in registry_by_id]
+            old_order += [t for t in registry_by_id if t not in old_order]
+            merged = []
+            it = iter(new_local_order)
+            for tid in old_order:
+                if tid in new_local_order:
+                    merged.append(next(it))
+                else:
+                    merged.append(tid)
+            self.dp5_settings.set('ribbon_tool_order', merged)
             self.dp5_settings.save()
             self._rebuild_tool_ribbons()
+        tool_list.model().rowsMoved.connect(_on_tools_reordered)
+
+        def _new_ribbon():
+            name, ok = QInputDialog.getText(dlg, "New Ribbon", "Ribbon name:")
+            if not ok or not name.strip():
+                return
+            name = name.strip()
+            # An empty ribbon has no tools yet - it'll only actually
+            # appear once a tool is moved into it, since ribbons here
+            # are derived from the assignment rather than being
+            # independent objects. Remember the intent so the list
+            # shows it immediately as a hint of where to move things.
+            state['pending_new_ribbon'] = name
+            item = QListWidgetItem(name)
+            ribbon_list.addItem(item)
+            move_combo.addItem(name)
+            ribbon_list.setCurrentItem(item)
+            self._set_status(f"New ribbon '{name}' created - move a tool into it")
+        new_btn.clicked.connect(_new_ribbon)
+
+        def _delete_ribbon():
+            name = state['selected_ribbon']
+            if not name:
+                return
+            assignment = _current_assignment()
+            affected = [t for t, r in assignment.items() if r == name]
+            if affected:
+                ans = QMessageBox.question(
+                    dlg, "Delete Ribbon",
+                    f"'{name}' has {len(affected)} tool(s).\n"
+                    "They will move to Plotting.\nContinue?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel)
+                if ans != QMessageBox.StandardButton.Yes:
+                    return
+                for t in affected:
+                    assignment[t] = 'Plotting'
+                self._set_ribbon_assignment(assignment)
+                self.dp5_settings.save()
+                self._rebuild_tool_ribbons()
+            state['selected_ribbon'] = None
+            _refresh_ribbon_list()
+        del_btn.clicked.connect(_delete_ribbon)
+
+        def _move_selected():
+            item = tool_list.currentItem()
+            if not item:
+                return
+            tool_id = item.data(Qt.ItemDataRole.UserRole)
+            target = move_combo.currentText().strip()
+            if not tool_id or not target or target == state['selected_ribbon']:
+                return
+            assignment = _current_assignment()
+            assignment[tool_id] = target
+            self._set_ribbon_assignment(assignment)
+            self.dp5_settings.save()
+            self._rebuild_tool_ribbons()
+            _refresh_ribbon_list()
+        move_btn.clicked.connect(_move_selected)
+
+        def _on_size_changed(px):
+            size_label.setText(f"{px}px")
+            self.dp5_settings.set('ribbon_icon_size_horz', px)
+            self.dp5_settings.set('ribbon_icon_size_vert', px)
+            self.dp5_settings.save()
+            self._rebuild_tool_ribbons()
+        size_slider.valueChanged.connect(_on_size_changed)
 
         def _save_preset():
             name, ok = QInputDialog.getText(dlg, "Save Preset", "Preset name:")
             if not ok or not name.strip():
                 return
             data = {
-                'assignment': _collect_assignment(),
-                'icon_size': size_spin.value(),
+                'assignment': _current_assignment(),
+                'order': self.dp5_settings.get('ribbon_tool_order') or [],
+                'icon_size': size_slider.value(),
             }
             path = self._ribbon_presets_dir() / f"{name.strip()}.json"
             try:
@@ -7481,6 +7674,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 self._set_status(f"Saved ribbon preset '{name.strip()}'")
             except Exception as e:
                 QMessageBox.warning(dlg, "Save Preset Error", str(e))
+        save_preset_btn.clicked.connect(_save_preset)
 
         def _load_preset():
             presets_dir = self._ribbon_presets_dir()
@@ -7497,38 +7691,35 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             except Exception as e:
                 QMessageBox.warning(dlg, "Load Preset Error", str(e))
                 return
-            loaded_assignment = data.get('assignment', {})
+            self._set_ribbon_assignment(data.get('assignment', {}))
+            self.dp5_settings.set('ribbon_tool_order', data.get('order', []))
             loaded_size = data.get('icon_size')
-            # Refresh the dialog's own widgets to reflect the loaded
-            # preset, so the user sees what they're about to Apply
-            loaded_ribbons = sorted(set(loaded_assignment.values()) | set(existing_ribbons))
-            for tool_id, combo in combos.items():
-                combo.blockSignals(True)
-                combo.clear()
-                combo.addItems(loaded_ribbons)
-                combo.setCurrentText(loaded_assignment.get(tool_id,
-                    assignment.get(tool_id, 'Plotting')))
-                combo.blockSignals(False)
             if loaded_size:
-                size_spin.setValue(loaded_size)
-            self._set_status(f"Loaded ribbon preset '{name}' - click Apply to use it")
+                self.dp5_settings.set('ribbon_icon_size_horz', loaded_size)
+                self.dp5_settings.set('ribbon_icon_size_vert', loaded_size)
+                size_slider.setValue(loaded_size)
+            self.dp5_settings.save()
+            self._rebuild_tool_ribbons()
+            state['selected_ribbon'] = None
+            _refresh_ribbon_list()
+            self._set_status(f"Loaded ribbon preset '{name}'")
+        load_preset_btn.clicked.connect(_load_preset)
 
-        btn_row = QHBoxLayout()
-        save_btn = QPushButton("Save Preset…")
-        save_btn.clicked.connect(_save_preset)
-        load_btn = QPushButton("Load Preset…")
-        load_btn.clicked.connect(_load_preset)
-        btn_row.addWidget(save_btn)
-        btn_row.addWidget(load_btn)
-        btn_row.addStretch()
-        apply_btn = QPushButton("Apply")
-        apply_btn.clicked.connect(_apply)
-        close_btn = QPushButton("Close")
-        close_btn.clicked.connect(dlg.accept)
-        btn_row.addWidget(apply_btn)
-        btn_row.addWidget(close_btn)
-        lay.addLayout(btn_row)
+        def _on_accept():
+            dlg.accept()
 
+        def _on_cancel():
+            self._set_ribbon_assignment(snapshot_assignment)
+            self.dp5_settings.set('ribbon_tool_order', snapshot_order)
+            self.dp5_settings.set('ribbon_icon_size_horz', snapshot_icon_horz)
+            self.dp5_settings.set('ribbon_icon_size_vert', snapshot_icon_vert)
+            self.dp5_settings.save()
+            self._rebuild_tool_ribbons()
+            dlg.reject()
+        btns.accepted.connect(_on_accept)
+        btns.rejected.connect(_on_cancel)
+
+        _refresh_ribbon_list()
         self._ribbon_manager_dlg = dlg
         dlg.exec()
 
@@ -7569,6 +7760,33 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         else:
             toolbar.setStyleSheet(
                 f"QToolBar {{ spacing: {max(0, int(padding))}px; }} " + btn_rule)
+
+        # Right-click anywhere on the ribbon's empty background opens a
+        # menu with Ribbon Manager access (per Keith's request) - only
+        # wire this once per toolbar, since _apply_ribbon_style also
+        # re-runs on every orientationChanged
+        if not getattr(toolbar, '_ribbon_ctx_menu_wired', False):
+            toolbar.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            toolbar.customContextMenuRequested.connect(
+                lambda pos, t=toolbar: self._ribbon_context_menu(t, pos))
+            toolbar._ribbon_ctx_menu_wired = True
+
+    def _ribbon_context_menu(self, toolbar, pos): #vers 1
+        """Right-click context menu on any ribbon's empty background -
+        gives access to the Ribbon Manager without needing to dig
+        through Settings, plus quick lock/unlock for all ribbons at
+        once."""
+        from PyQt6.QtWidgets import QMenu, QToolBar
+        menu = QMenu(self)
+        menu.addAction("Ribbon Manager…", self._open_ribbon_manager)
+        menu.addSeparator()
+        outer_mw = getattr(self, '_outer_mw', None)
+        if outer_mw is not None:
+            menu.addAction("Lock All Ribbons",
+                lambda: [tb.setMovable(False) for tb in outer_mw.findChildren(QToolBar)])
+            menu.addAction("Unlock All Ribbons",
+                lambda: [tb.setMovable(True) for tb in outer_mw.findChildren(QToolBar)])
+        menu.exec(toolbar.mapToGlobal(pos))
 
     def _create_image_ops_ribbon(self): #vers 1
         """Image Ops ribbon - Colour Adjustments/Seamless/Snow/Zoom Lens/
