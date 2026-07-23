@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 89 (Build 416)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 90 (Build 417)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -4385,7 +4385,7 @@ class _TextToolCornerPanel(QWidget):
     changed = pyqtSignal()   # font/size/colour changed - live-update the overlay
     closed  = pyqtSignal()   # Close clicked - commit and end writing
 
-    def __init__(self, parent=None):  #vers 1
+    def __init__(self, parent=None):  #vers 2
         super().__init__(parent)
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
@@ -4396,51 +4396,67 @@ class _TextToolCornerPanel(QWidget):
         self.setStyleSheet(
             "QWidget { background: palette(window); border: 1px solid palette(mid); }")
 
+        _ROW_H = 26   # every control in this panel shares this exact height
+
+        font_label = QLabel("Font:")
+        font_label.setFixedHeight(_ROW_H)
         self.font_combo = QFontComboBox()
-        self.font_combo.setFixedWidth(130)
+        self.font_combo.setFixedWidth(170)
+        self.font_combo.setFixedHeight(_ROW_H)
         _default_family = getattr(parent, '_default_text_font_family', 'Arial')
         self.font_combo.setCurrentFont(QFont(_default_family))
         self.font_combo.currentFontChanged.connect(lambda _: self.changed.emit())
 
+        size_label = QLabel("Size:")
+        size_label.setFixedHeight(_ROW_H)
         self.size_spin = QSpinBox()
         self.size_spin.setRange(4, 200)
         self.size_spin.setValue(getattr(parent, '_default_text_font_size', 16))
-        self.size_spin.setFixedWidth(50)
+        self.size_spin.setFixedWidth(55)
+        self.size_spin.setFixedHeight(_ROW_H)
         self.size_spin.setToolTip("Font size (px)")
         self.size_spin.valueChanged.connect(lambda _: self.changed.emit())
 
         self.color_swatch = QPushButton()
-        self.color_swatch.setFixedSize(24, 24)
+        self.color_swatch.setFixedSize(_ROW_H, _ROW_H)
         self._color = QColor(255, 0, 0)
         self._refresh_swatch()
         self.color_swatch.setToolTip("Text colour")
         self.color_swatch.clicked.connect(self._pick_color)
 
+        alpha_label = QLabel("Alpha:")
+        alpha_label.setFixedHeight(_ROW_H)
         self.alpha_spin = QSpinBox()
         self.alpha_spin.setRange(10, 100)
         self.alpha_spin.setValue(100)
         self.alpha_spin.setSuffix("%")
-        self.alpha_spin.setFixedWidth(60)
+        self.alpha_spin.setFixedWidth(65)
+        self.alpha_spin.setFixedHeight(_ROW_H)
         self.alpha_spin.setToolTip("Text transparency")
         self.alpha_spin.valueChanged.connect(lambda _: self.changed.emit())
 
+        effect_label = QLabel("Effect:")
+        effect_label.setFixedHeight(_ROW_H)
         self.effect_combo = QComboBox()
         self.effect_combo.addItems(["None", "Shadow", "Ghost", "3D"])
+        self.effect_combo.setFixedWidth(90)
+        self.effect_combo.setFixedHeight(_ROW_H)
         self.effect_combo.setToolTip("Text effect")
         self.effect_combo.currentTextChanged.connect(lambda _: self.changed.emit())
 
         close_btn = QPushButton("Close")
+        close_btn.setFixedHeight(_ROW_H)
         close_btn.setToolTip("Finish writing and commit the text to the canvas")
         close_btn.clicked.connect(self.closed.emit)
 
-        lay.addWidget(QLabel("Font:"))
+        lay.addWidget(font_label)
         lay.addWidget(self.font_combo)
-        lay.addWidget(QLabel("Size:"))
+        lay.addWidget(size_label)
         lay.addWidget(self.size_spin)
         lay.addWidget(self.color_swatch)
-        lay.addWidget(QLabel("Alpha:"))
+        lay.addWidget(alpha_label)
         lay.addWidget(self.alpha_spin)
-        lay.addWidget(QLabel("Effect:"))
+        lay.addWidget(effect_label)
         lay.addWidget(self.effect_combo)
         lay.addWidget(close_btn)
         self.adjustSize()
