@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 90 (Build 417)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 91 (Build 418)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -4624,16 +4624,45 @@ class _CanvasTextOverlay(QWidget):
         self._tx = int(local_pos.x() / zx) if zx else local_pos.x()
         self._ty = int(local_pos.y() / z) if z else local_pos.y()
 
-    def _refresh_preview_style(self): #vers 2
-        """Update the text input's own font/colour (including alpha) to
-        match the panel's current settings, so what's typed previews in
-        roughly the actual style it'll be committed with."""
+    def _refresh_preview_style(self): #vers 3
+        """Update the text input's own font/colour/effect to match the
+        panel's current settings, so what's typed previews closely to
+        the actual style it'll be committed with - including the
+        selected Effect, which previously wasn't reflected here at all
+        (typing always looked like plain text regardless of Shadow/
+        Ghost/3D being selected, so the committed result could look
+        very different from what was just typed with no warning)."""
+        from PyQt6.QtWidgets import QGraphicsDropShadowEffect
         f = self._panel.current_font()
         self._edit.setFont(f)
         c = self._panel.current_color()
+        effect = self._panel.current_effect()
+
+        preview_alpha = c.alpha()
+        if effect == "Ghost":
+            # Matches _commit's ~35% alpha reduction for Ghost
+            preview_alpha = int(c.alpha() * 0.35)
+
         self._edit.setStyleSheet(
             f"QLineEdit {{ background: transparent; border: 1px dashed #00aaff;"
-            f" padding: 2px 4px; color: rgba({c.red()},{c.green()},{c.blue()},{c.alpha()}); }}")
+            f" padding: 2px 4px; color: rgba({c.red()},{c.green()},{c.blue()},{preview_alpha}); }}")
+
+        if effect == "Shadow":
+            shadow = QGraphicsDropShadowEffect(self._edit)
+            shadow.setBlurRadius(4)
+            shadow.setOffset(2, 2)
+            shadow.setColor(QColor(0, 0, 0, min(200, c.alpha())))
+            self._edit.setGraphicsEffect(shadow)
+        elif effect == "3D":
+            # No blur, just an offset dark copy - approximates the
+            # extruded/beveled look of the real multi-copy 3D render
+            shadow = QGraphicsDropShadowEffect(self._edit)
+            shadow.setBlurRadius(0)
+            shadow.setOffset(3, 3)
+            shadow.setColor(c.darker(160))
+            self._edit.setGraphicsEffect(shadow)
+        else:
+            self._edit.setGraphicsEffect(None)
 
     def keyPressEvent(self, e):  #vers 1
         if e.key() == Qt.Key.Key_Escape:
