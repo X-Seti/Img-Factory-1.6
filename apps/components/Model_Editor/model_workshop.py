@@ -9312,6 +9312,29 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     dock.setVisible(True)
                     dock.toggleViewAction().setChecked(True)
 
+            # Safety net: restoreState() reapplies whatever dock
+            # proportions were saved, regardless of whether they fit the
+            # current window/screen - if that state was saved from a
+            # wider session (or a different, wider screen), combined with
+            # each dock's hard setMinimumWidth() floor, restoring it can
+            # force the whole top-level window wider than the current
+            # screen. Clamp back down rather than leaving it oversized -
+            # this doesn't touch the dock proportions themselves, so the
+            # user's saved layout still applies, just bounded to what
+            # actually fits.
+            try:
+                top_level = self.window()
+                screen = top_level.screen() if hasattr(top_level, 'screen') else None
+                if screen is None:
+                    from PyQt6.QtWidgets import QApplication
+                    screen = QApplication.primaryScreen()
+                if screen is not None:
+                    avail = screen.availableGeometry()
+                    if top_level.width() > avail.width():
+                        top_level.resize(avail.width(), top_level.height())
+            except Exception as _e:
+                print(f"[ModelWorkshop] outer layout width clamp error: {_e}")
+
         # Restore Model Name / IDE-TXD ribbon locations (middle panel vs
         # right panel ribbon stack) - separate from the QMainWindow toolbar
         # state above since these toolbars aren't always parented to
