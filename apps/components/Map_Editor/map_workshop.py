@@ -11570,11 +11570,17 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             return True
         return super().eventFilter(obj, event)
 
-    def _toggle_world_pane_maximize(self, pane): #vers 1
+    def _toggle_world_pane_maximize(self, pane): #vers 2
         """Maximize the given world-view pane to fill the whole dock
         (hiding its siblings), or restore all 3 if already maximized.
         Simpler than Model Workshop's version - one flat splitter here,
-        not a nested 2x2 grid, so just hiding the other panes is enough."""
+        not a nested 2x2 grid, so just hiding the other panes is enough.
+
+        Switches the maximized pane's label to 'Full View' - that label
+        is also the pane's exclusive right-click-menu trigger (see
+        _create_world_viewport_dock), so without it there'd be no
+        labelled target to right-click while maximized. Restores the
+        original view-name label (Top/Side/3D) when un-maximized."""
         panes = getattr(self, '_world_panes', None)
         if not panes:
             return
@@ -11582,10 +11588,16 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             for p in panes:
                 p.setVisible(True)
             self._maximized_world_pane = None
+            restore_label = getattr(pane, '_pre_maximize_label', None) or pane._view_label
+            pane._label_widget.setText(restore_label)
+            pane._label_widget.adjustSize()
             return
         for p in panes:
             p.setVisible(p is pane)
         self._maximized_world_pane = pane
+        pane._pre_maximize_label = pane._view_label
+        pane._label_widget.setText("Full View")
+        pane._label_widget.adjustSize()
 
     def _show_world_pane_menu(self, pane, global_pos): #vers 3
         """Right-click a world-view pane's LABEL to reassign its view -
@@ -11604,13 +11616,26 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             act = menu.addAction(label)
             act.triggered.connect(
                 lambda checked=False, l=label, y=yaw, p=pitch, pr=proj:
-                    pane.set_view_lock(pr == 'ortho', l, yaw=y, pitch=p, projection=pr))
+                    self._assign_world_pane_view(pane, l, y, p, pr))
         menu.addSeparator()
         is_max = getattr(self, '_maximized_world_pane', None) is pane
         max_act = menu.addAction("Restore All Panes" if is_max else "Maximize This Pane")
         max_act.triggered.connect(
             lambda checked=False, p=pane: self._toggle_world_pane_maximize(p))
         menu.exec(global_pos)
+
+    def _assign_world_pane_view(self, pane, label, yaw, pitch, projection): #vers 1
+        """Apply a user-chosen preset to one world-view pane. If this
+        pane is currently maximized, re-apply the 'Full View' label
+        afterward - set_view_lock always writes the new view name into
+        the label, which would otherwise silently drop the full-view
+        indication while still actually maximized."""
+        pane.set_view_lock(projection == 'ortho', label, yaw=yaw, pitch=pitch,
+                            projection=projection)
+        if getattr(self, '_maximized_world_pane', None) is pane:
+            pane._pre_maximize_label = label
+            pane._label_widget.setText("Full View")
+            pane._label_widget.adjustSize()
 
     def _new_canvas(self): #vers 4
         """New canvas dialog — tabbed: Platform / Texture / Icon / Custom."""

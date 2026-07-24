@@ -9512,12 +9512,20 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 return True
         return super().eventFilter(obj, event)
 
-    def _toggle_pane_maximize(self, pane): #vers 1
+    def _toggle_pane_maximize(self, pane): #vers 2
         """Maximize the given quad pane to fill the whole quad area
         (hiding the other 3), or restore all 4 if this pane is already
         maximized. Hiding a widget inside a QSplitter lets its siblings
         take the freed space automatically - hiding one pane per row
-        plus the whole opposite row covers both nesting levels."""
+        plus the whole opposite row covers both nesting levels.
+
+        The maximized pane's label switches to 'Full View' - that label
+        is also the pane's exclusive right-click-menu trigger (see
+        _create_quad_viewport), so without it there'd be no labelled
+        target to right-click while maximized, and right-click-drag
+        rotation elsewhere on the pane would have nothing to contrast
+        against. Restores the pane's original view-name label
+        (Top/Front/Side/Perspective) when un-maximized."""
         panes = getattr(self, '_quad_panes', None)
         top_row = getattr(self, '_quad_top_row', None)
         bottom_row = getattr(self, '_quad_bottom_row', None)
@@ -9531,6 +9539,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             top_row.setVisible(True)
             bottom_row.setVisible(True)
             self._maximized_pane = None
+            restore_label = getattr(pane, '_pre_maximize_label', None) or pane._view_label
+            pane._label_widget.setText(restore_label)
+            pane._label_widget.adjustSize()
             return
 
         idx = panes.index(pane)
@@ -9543,6 +9554,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             top_row.setVisible(False)
             bottom_row.setVisible(True)
         self._maximized_pane = pane
+        pane._pre_maximize_label = pane._view_label
+        pane._label_widget.setText("Full View")
+        pane._label_widget.adjustSize()
 
     def _show_quad_pane_menu(self, pane, global_pos): #vers 3
         """Right-click a pane's LABEL to reassign its view, user-defined,
@@ -9573,11 +9587,19 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         max_act.triggered.connect(lambda checked=False, p=pane: self._toggle_pane_maximize(p))
         menu.exec(global_pos)
 
-    def _assign_quad_pane_view(self, pane, label, yaw, pitch, projection): #vers 1
-        """Apply a user-chosen preset to one quad pane and persist it."""
+    def _assign_quad_pane_view(self, pane, label, yaw, pitch, projection): #vers 2
+        """Apply a user-chosen preset to one quad pane and persist it.
+        If this pane is currently maximized, re-apply the 'Full View'
+        label afterward - set_view_lock always writes the new view name
+        into the label, which would otherwise silently drop the full-
+        view indication while still actually maximized."""
         pane.set_view_lock(projection == 'ortho', label, yaw=yaw, pitch=pitch,
                             projection=projection)
         pane._quad_preset_name = label
+        if getattr(self, '_maximized_pane', None) is pane:
+            pane._pre_maximize_label = label
+            pane._label_widget.setText("Full View")
+            pane._label_widget.adjustSize()
         self._save_quad_layout()
 
     def _toggle_quad_view(self, checked): #vers 2
