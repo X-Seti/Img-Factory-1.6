@@ -9470,6 +9470,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             pane.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
             pane.customContextMenuRequested.connect(
                 lambda pos, p=pane: self._show_quad_pane_menu(p, pos))
+            # Double-click to maximize/restore - via an event filter rather
+            # than overriding DFFViewport's own mouseDoubleClickEvent, since
+            # that class is shared by Model Viewer/Vehicle Workshop/etc with
+            # no quad-specific behaviour needed there.
+            pane.installEventFilter(self)
             self._quad_panes.append(pane)
 
         top_row = QSplitter(Qt.Orientation.Horizontal)
@@ -9486,14 +9491,62 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._quad_container  = quad
         self._quad_top_row    = top_row
         self._quad_bottom_row = bottom_row
+        self._maximized_pane  = None
         self._viewport_stack.addWidget(quad)
 
         self._load_quad_layout()
         return quad
 
-    def _show_quad_pane_menu(self, pane, pos): #vers 1
+    def eventFilter(self, obj, event): #vers 1
+        """Double-click on a quad pane maximizes/restores it - previously
+        there was no way to view just one of the 4 panes full-size; the
+        '4-Pane View' toggle only ever swapped between the whole quad
+        grid and the single original preview_widget (never any specific
+        quad pane), reported as feeling 'locked to one full pane'."""
+        from PyQt6.QtCore import QEvent
+        if event.type() == QEvent.Type.MouseButtonDblClick:
+            panes = getattr(self, '_quad_panes', None)
+            if panes and obj in panes:
+                self._toggle_pane_maximize(obj)
+                return True
+        return super().eventFilter(obj, event)
+
+    def _toggle_pane_maximize(self, pane): #vers 1
+        """Maximize the given quad pane to fill the whole quad area
+        (hiding the other 3), or restore all 4 if this pane is already
+        maximized. Hiding a widget inside a QSplitter lets its siblings
+        take the freed space automatically - hiding one pane per row
+        plus the whole opposite row covers both nesting levels."""
+        panes = getattr(self, '_quad_panes', None)
+        top_row = getattr(self, '_quad_top_row', None)
+        bottom_row = getattr(self, '_quad_bottom_row', None)
+        if not panes or top_row is None or bottom_row is None:
+            return
+
+        if getattr(self, '_maximized_pane', None) is pane:
+            # Restore all 4
+            for p in panes:
+                p.setVisible(True)
+            top_row.setVisible(True)
+            bottom_row.setVisible(True)
+            self._maximized_pane = None
+            return
+
+        idx = panes.index(pane)
+        for i, p in enumerate(panes):
+            p.setVisible(i == idx)
+        if idx in (0, 1):
+            top_row.setVisible(True)
+            bottom_row.setVisible(False)
+        else:
+            top_row.setVisible(False)
+            bottom_row.setVisible(True)
+        self._maximized_pane = pane
+
+    def _show_quad_pane_menu(self, pane, pos): #vers 2
         """Right-click a pane's corner to reassign its view, user-defined,
-        same idea as 3ds Max viewport labels."""
+        same idea as 3ds Max viewport labels - plus Maximize/Restore,
+        for discoverability alongside the double-click shortcut."""
         options = [
             ("Top",         0,   0, 'ortho'),
             ("Front",       0,  90, 'ortho'),
@@ -9508,6 +9561,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             act.triggered.connect(
                 lambda checked=False, l=label, y=yaw, p=pitch, pr=proj:
                     self._assign_quad_pane_view(pane, l, y, p, pr))
+        menu.addSeparator()
+        is_max = getattr(self, '_maximized_pane', None) is pane
+        max_act = menu.addAction("Restore 4-Pane View" if is_max else "Maximize This Pane")
+        max_act.triggered.connect(lambda checked=False, p=pane: self._toggle_pane_maximize(p))
         menu.exec(pane.mapToGlobal(pos))
 
     def _assign_quad_pane_view(self, pane, label, yaw, pitch, projection): #vers 1
@@ -9517,7 +9574,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         pane._quad_preset_name = label
         self._save_quad_layout()
 
-    def _toggle_quad_view(self, checked): #vers 1
+    def _toggle_quad_view(self, checked): #vers 2
         """Swap the central-widget stack between the single viewport and the
         4-pane view."""
         if checked:
@@ -9529,6 +9586,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         else:
             if hasattr(self, '_quad_container'):
                 self._save_quad_layout()
+                if getattr(self, '_maximized_pane', None) is not None:
+                    self._toggle_pane_maximize(self._maximized_pane)  # restore all 4
             self._viewport_stack.setCurrentWidget(self.preview_widget)
 
     def _sync_quad_from_main(self): #vers 2

@@ -11463,11 +11463,17 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             pane.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
             pane.customContextMenuRequested.connect(
                 lambda pos, p=pane: self._show_world_pane_menu(p, pos))
+            # Double-click to maximize/restore - same pattern as Model
+            # Workshop's quad viewport, via event filter rather than
+            # touching MapViewport's own mouse handlers.
+            pane.installEventFilter(self)
             self._world_panes.append(pane)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
         for pane in self._world_panes:
             splitter.addWidget(pane)
+        self._world_splitter = splitter
+        self._maximized_world_pane = None
 
         dock = QDockWidget("World View", self)
         dock.setObjectName("World View")
@@ -11477,9 +11483,39 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._world_view_dock = dock
         return dock
 
-    def _show_world_pane_menu(self, pane, pos): #vers 1
+    def eventFilter(self, obj, event): #vers 1
+        """Double-click on a world-view pane maximizes/restores it -
+        same fix as Model Workshop's quad viewport, applied here so the
+        3-pane Top/Side/3D layout isn't locked to always showing all 3
+        with no way to focus on just one."""
+        from PyQt6.QtCore import QEvent
+        panes = getattr(self, '_world_panes', None)
+        if event.type() == QEvent.Type.MouseButtonDblClick and panes and obj in panes:
+            self._toggle_world_pane_maximize(obj)
+            return True
+        return super().eventFilter(obj, event)
+
+    def _toggle_world_pane_maximize(self, pane): #vers 1
+        """Maximize the given world-view pane to fill the whole dock
+        (hiding its siblings), or restore all 3 if already maximized.
+        Simpler than Model Workshop's version - one flat splitter here,
+        not a nested 2x2 grid, so just hiding the other panes is enough."""
+        panes = getattr(self, '_world_panes', None)
+        if not panes:
+            return
+        if getattr(self, '_maximized_world_pane', None) is pane:
+            for p in panes:
+                p.setVisible(True)
+            self._maximized_world_pane = None
+            return
+        for p in panes:
+            p.setVisible(p is pane)
+        self._maximized_world_pane = pane
+
+    def _show_world_pane_menu(self, pane, pos): #vers 2
         """Right-click a world-view pane to reassign its view - same
-        idea as Model Workshop's quad-pane menu."""
+        idea as Model Workshop's quad-pane menu - plus Maximize/Restore,
+        for discoverability alongside the double-click shortcut."""
         options = [("Top", 0, 0, 'ortho'),
                    ("Side", 90, 0, 'ortho'),
                    ("Front", 0, 90, 'ortho'),
@@ -11490,6 +11526,11 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             act.triggered.connect(
                 lambda checked=False, l=label, y=yaw, p=pitch, pr=proj:
                     pane.set_view_lock(pr == 'ortho', l, yaw=y, pitch=p, projection=pr))
+        menu.addSeparator()
+        is_max = getattr(self, '_maximized_world_pane', None) is pane
+        max_act = menu.addAction("Restore All Panes" if is_max else "Maximize This Pane")
+        max_act.triggered.connect(
+            lambda checked=False, p=pane: self._toggle_world_pane_maximize(p))
         menu.exec(pane.mapToGlobal(pos))
 
     def _new_canvas(self): #vers 4

@@ -1115,7 +1115,11 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._label_widget.show()
         else:
             self._label_widget.hide()
-        self.resizeGL(self.width(), self.height())
+        try:
+            if not hasattr(self, 'isValid') or self.isValid():
+                self.resizeGL(self.width(), self.height())
+        except Exception:
+            pass
         self.update()
 
     def mousePressEvent(self, event): #vers 2
@@ -1156,24 +1160,31 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
     def mouseReleaseEvent(self, event): #vers 1
         self._last_pos = event.pos()
 
-    def wheelEvent(self, event): #vers 2
+    def wheelEvent(self, event): #vers 3
         f = 0.85 if event.angleDelta().y() > 0 else 1.15
         self._dist = max(0.1, min(50000.0, self._dist*f))
         if self._projection == 'ortho':
-            self.resizeGL(self.width(), self.height())
+            try:
+                self.resizeGL(self.width(), self.height())
+            except Exception:
+                pass
         self.update()
 
     # - Model Workshop compatibility methods
     # These map COL3DViewport API onto DFFViewport equivalents
 
-    def zoom_in(self): #vers 2
+    def zoom_in(self): #vers 3
         self._dist = max(0.1, self._dist * 0.8)
-        if self._projection == 'ortho': self.resizeGL(self.width(), self.height())
+        if self._projection == 'ortho':
+            try: self.resizeGL(self.width(), self.height())
+            except Exception: pass
         self.update()
 
-    def zoom_out(self): #vers 2
+    def zoom_out(self): #vers 3
         self._dist = min(50000.0, self._dist * 1.25)
-        if self._projection == 'ortho': self.resizeGL(self.width(), self.height())
+        if self._projection == 'ortho':
+            try: self.resizeGL(self.width(), self.height())
+            except Exception: pass
         self.update()
 
     def reset_view(self): #vers 1
