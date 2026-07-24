@@ -1389,6 +1389,7 @@ class MapSettings:
         'platform_mode':     'none',   # 'none'|'c64'|'c64m'|'spectrum'|'msx'|'cpc'|'atari_st'|'amiga'
         'show_cell_grid':    False,    # show platform cell boundaries
         'show_statusbar':    True,     # show bottom status bar
+        'show_paint_canvas': False,    # forked-in paint canvas - hidden by default, toggleable
         'ui_font_size':      10,       # toolbar/button font size
         'canvas_mode':       'free',   # 'free'|'platform'|'texture'|'icon'
         'show_anim_strip':   False,    # show animation timeline strip
@@ -6680,6 +6681,7 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             scroll.setWidget(self.map_canvas)
             scroll.setWidgetResizable(False)
             scroll.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            scroll.setVisible(self.map_settings.get('show_paint_canvas'))
             self._canvas_scroll = scroll
             layout.addWidget(scroll, 1)
         except Exception as e:
@@ -7857,12 +7859,36 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         tb.setMovable(True)
         tb.setFloatable(True)
 
+        icon_color = self._get_icon_color()
+        icon_sz = self.map_settings.get('ribbon_icon_size_horz')
+        canvas_icon = self._render_variant_icon('canvas_toggle', None, icon_sz,
+                                                icon_color, has_menu=False)
+        canvas_act = QAction(canvas_icon, "Show Canvas", tb)
+        canvas_act.setCheckable(True)
+        canvas_act.setChecked(self.map_settings.get('show_paint_canvas'))
+        canvas_act.setToolTip("Show/hide the paint canvas (hidden by default -\n"
+                              "not part of normal map editing workflow)")
+        canvas_act.triggered.connect(self._toggle_paint_canvas)
+        tb.addAction(canvas_act)
+        self._canvas_toggle_act = canvas_act
+        tb.addSeparator()
+
         self._canvas_tabs_ribbon = tb
         self._canvas_tab_btns = []
         self._apply_ribbon_style(tb)
         tb.orientationChanged.connect(lambda _o, t=tb: self._apply_ribbon_style(t))
         self._refresh_canvas_tabs_ribbon()
         return tb
+
+    def _toggle_paint_canvas(self, checked): #vers 1
+        """Show/hide the forked-in paint canvas - hidden by default
+        since it isn't part of normal map editing, but kept toggleable
+        rather than removed outright."""
+        scroll = getattr(self, '_canvas_scroll', None)
+        if scroll is not None:
+            scroll.setVisible(checked)
+        self.map_settings.set('show_paint_canvas', checked)
+        self.map_settings.save()
 
     # Per-tool "Size" field label - a generic tool falls back to plain
     # "Size:" if not listed here.
@@ -8150,6 +8176,10 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             cx, cy = m + lens_d // 2, m + lens_d // 2
             p.drawLine(cx - lens_d//4, cy, cx + lens_d//4, cy)
             p.drawLine(cx, cy - lens_d//4, cx, cy + lens_d//4)
+        elif kind == 'canvas_toggle':
+            p.setPen(QPen(qc, pen_w)); p.setBrush(Qt.BrushStyle.NoBrush)
+            p.drawRect(m, m + 2, size - 2*m, size - 2*m - 4)
+            p.drawLine(m, size - m - 2, size - m, m + 2)
 
     def _render_variant_icon(self, icon_kind, icon_method, size, icon_color,
                               has_menu: bool = False) -> QIcon: #vers 2
