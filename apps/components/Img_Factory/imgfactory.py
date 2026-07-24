@@ -1682,6 +1682,16 @@ class IMGFactory(QMainWindow):
         except Exception as e:
             self.log_message(f"Model Workshop error: {str(e)}")
 
+    def open_map_workshop_docked(self, game_root=None): #vers 1
+        """Open Map Workshop in its own tab with icon - game_root, if
+        given, is auto-loaded (e.g. passed in from Dat Browser's
+        currently-loaded game root)."""
+        try:
+            from apps.components.Map_Editor.map_workshop import open_map_workshop
+            open_map_workshop(self, game_root=game_root)
+        except Exception as e:
+            self.log_message(f"Map Workshop error: {str(e)}")
+
     def setup_unified_signals(self): #vers 6
         """Setup unified signal handler for all table interactions"""
         from apps.components.unified_signal_handler import connect_table_signals

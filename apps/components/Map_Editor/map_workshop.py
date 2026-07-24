@@ -11383,18 +11383,27 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         btn = getattr(self, 'tb_new_btn', None)
         menu.exec(btn.mapToGlobal(pos) if btn else self.cursor().pos())
 
-    def _load_game_folder(self): #vers 1
+    def _load_game_folder(self, preset_root: str = None): #vers 2
         """Load a GTA game's world data (DAT -> IDE -> IPL, full engine-
         order two-phase load) via the existing GTAWorldLoader - this is
         the Map Editor's actual data layer, already handling multi-game
         detection (GTA3/VC/SA/SOL) and object/instance cross-referencing;
-        nothing new needed here beyond wiring it into the UI."""
+        nothing new needed here beyond wiring it into the UI.
+
+        preset_root: when given (e.g. passed in from Dat Browser, which
+        already has a game root loaded), skip the folder picker and load
+        directly - the same underlying load either way, just two ways to
+        reach it, matching how Model/TXD/COL Workshop can be opened either
+        via an explicit path or by picking up whatever's already open."""
         from PyQt6.QtWidgets import QFileDialog
         from apps.methods.gta_dat_parser import detect_game, GTAWorldLoader
 
-        folder = QFileDialog.getExistingDirectory(self, "Select GTA game folder")
-        if not folder:
-            return
+        if preset_root:
+            folder = preset_root
+        else:
+            folder = QFileDialog.getExistingDirectory(self, "Select GTA game folder")
+            if not folder:
+                return
 
         game = detect_game(folder)
         if not game:
@@ -16076,22 +16085,55 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
 #  Public factory function
 
-def open_map_workshop(main_window=None) -> MapWorkshop: #vers 1
-    """Open DP5 Workshop standalone or embedded."""
+def open_map_workshop(main_window=None, game_root: str = None) -> MapWorkshop: #vers 2
+    """Open Map Workshop - embedded in a tab if main_window has one,
+    standalone window otherwise. game_root: if given (e.g. passed in
+    from Dat Browser, which already has a game root loaded), auto-loads
+    that game's world data immediately - same underlying load either
+    way, matching how Model/TXD/COL Workshop can be opened either via
+    an explicit path or by picking up whatever's already open."""
     try:
-        workshop = MapWorkshop(None, main_window)
-        workshop.setWindowFlags(Qt.WindowType.Window)
-        workshop.setWindowTitle(App_name)
-        workshop.resize(1400, 800)
-        try:
-            from apps.methods.imgfactory_svg_icons import get_map_workshop_icon
-            workshop.setWindowIcon(get_map_workshop_icon(64))
-        except Exception:
-            pass
-        workshop.show()
+        if main_window and hasattr(main_window, 'main_tab_widget'):
+            import os as _os
+            from PyQt6.QtWidgets import QWidget, QVBoxLayout
+            container = QWidget()
+            layout = QVBoxLayout(container)
+            layout.setContentsMargins(0, 0, 0, 0)
+            workshop = MapWorkshop(container, main_window)
+            workshop.setWindowFlags(Qt.WindowType.Widget)
+            layout.addWidget(workshop)
+            tab_label = _os.path.basename(game_root.rstrip('/\\')) if game_root else "Map Workshop"
+            try:
+                from apps.methods.imgfactory_svg_icons import get_map_workshop_icon
+                icon = get_map_workshop_icon(24)
+                idx = main_window.main_tab_widget.addTab(container, icon, tab_label)
+            except Exception:
+                idx = main_window.main_tab_widget.addTab(container, tab_label)
+            main_window.main_tab_widget.setCurrentIndex(idx)
+            if hasattr(main_window, '_ensure_tab_area_visible'):
+                main_window._ensure_tab_area_visible()
+            workshop.show()
+        else:
+            workshop = MapWorkshop(None, main_window)
+            workshop.setWindowFlags(Qt.WindowType.Window)
+            workshop.setWindowTitle(App_name)
+            workshop.resize(1400, 800)
+            try:
+                from apps.methods.imgfactory_svg_icons import get_map_workshop_icon
+                workshop.setWindowIcon(get_map_workshop_icon(64))
+            except Exception:
+                pass
+            workshop.show()
+
+        if game_root:
+            workshop._load_game_folder(preset_root=game_root)
+
         return workshop
     except Exception as e:
-        if main_window:
+        import traceback; traceback.print_exc()
+        if main_window and hasattr(main_window, 'log_message'):
+            main_window.log_message(f"Map Workshop error: {e}")
+        elif main_window:
             QMessageBox.critical(main_window, App_name + " Error", str(e))
         return None
 
