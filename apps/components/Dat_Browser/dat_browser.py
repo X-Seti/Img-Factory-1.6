@@ -2364,6 +2364,32 @@ class DATBrowserWidget(QWidget): #vers 3
             if hasattr(self, 'main_window') and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Model Workshop error: {e}")
 
+    def _open_img_in_txd_workshop(self, abs_path: str): #vers 1
+        """Open IMG file in TXD Workshop — workshop browses entries internally."""
+        try:
+            mw = self.main_window
+            if not mw: return
+            if hasattr(mw, 'open_txd_workshop_docked'):
+                mw.open_txd_workshop_docked(file_path=abs_path)
+            elif hasattr(mw, 'log_message'):
+                mw.log_message("TXD Workshop not available")
+        except Exception as e:
+            if hasattr(self, 'main_window') and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"TXD Workshop error: {e}")
+
+    def _open_img_in_col_workshop(self, abs_path: str): #vers 1
+        """Open IMG file in COL Workshop — workshop browses entries internally."""
+        try:
+            mw = self.main_window
+            if not mw: return
+            if hasattr(mw, 'open_col_workshop_docked'):
+                mw.open_col_workshop_docked(file_path=abs_path)
+            elif hasattr(mw, 'log_message'):
+                mw.log_message("COL Workshop not available")
+        except Exception as e:
+            if hasattr(self, 'main_window') and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"COL Workshop error: {e}")
+
     def _open_img_in_model_viewer(self, abs_path: str): #vers 1
         """Open IMG file in Model Viewer — viewer browses entries internally."""
         try:
@@ -3616,6 +3642,12 @@ class DATBrowserWidget(QWidget): #vers 3
                 mw_act = menu.addAction("🔧  Open in Model Workshop")
                 mw_act.triggered.connect(
                     lambda _=False, p=abs_path: self._open_img_in_model_workshop(p))
+                txw_act = menu.addAction("🖼  Open in TXD Workshop")
+                txw_act.triggered.connect(
+                    lambda _=False, p=abs_path: self._open_img_in_txd_workshop(p))
+                cw_act = menu.addAction("🧱  Open in COL Workshop")
+                cw_act.triggered.connect(
+                    lambda _=False, p=abs_path: self._open_img_in_col_workshop(p))
                 mv_act = menu.addAction("👁  Open in Model Viewer")
                 mv_act.triggered.connect(
                     lambda _=False, p=abs_path: self._open_img_in_model_viewer(p))

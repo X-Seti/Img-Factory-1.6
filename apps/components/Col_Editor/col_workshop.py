@@ -10610,11 +10610,23 @@ def open_col_workshop(main_window, img_path=None): #vers 2
         if not main_window or not hasattr(main_window, 'main_tab_widget'):
             workshop = COLWorkshop(None, main_window)
             workshop.setWindowFlags(Qt.WindowType.Window)
-            if img_path and img_path.lower().endswith('.col'):
-                if hasattr(workshop, 'open_col_file'):
-                    workshop.open_col_file(img_path)
-                elif hasattr(workshop, 'load_col_file'):
-                    workshop.load_col_file(img_path)
+            if img_path:
+                ext = img_path.lower()
+                if ext.endswith('.col'):
+                    if hasattr(workshop, 'open_col_file'):
+                        workshop.open_col_file(img_path)
+                    elif hasattr(workshop, 'load_col_file'):
+                        workshop.load_col_file(img_path)
+                elif ext.endswith('.img'):
+                    workshop.load_from_img_archive(img_path)
+            elif main_window:
+                # No explicit file - load from current IMG if available,
+                # matching embedded mode's fallback below.
+                img = getattr(main_window, 'current_img', None)
+                if img:
+                    fp = getattr(img, 'file_path', '') or ''
+                    if fp and os.path.isfile(fp):
+                        workshop.load_from_img_archive(fp)
             workshop.setWindowTitle(f"COL Workshop - {App_name}")
             workshop.resize(1200, 800)
             workshop.show()

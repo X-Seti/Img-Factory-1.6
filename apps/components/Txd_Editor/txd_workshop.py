@@ -19274,6 +19274,15 @@ def open_txd_workshop(main_window, img_path=None): #vers 5
                     workshop.open_txd_file(img_path)
                 else:
                     workshop.load_from_img_archive(img_path)
+            elif main_window:
+                # No explicit file - load from current IMG if available, so
+                # opening TXD Workshop with an IMG already open picks it up
+                # automatically, same as when a path is given explicitly.
+                img = getattr(main_window, 'current_img', None)
+                if img:
+                    fp = getattr(img, 'file_path', '') or ''
+                    if fp and os.path.isfile(fp):
+                        workshop.load_from_img_archive(fp)
             workshop.resize(1200, 800)
             workshop.show()
             return workshop
@@ -19293,6 +19302,13 @@ def open_txd_workshop(main_window, img_path=None): #vers 5
                 workshop.open_txd_file(img_path)
             else:
                 workshop.load_from_img_archive(img_path)
+        elif main_window:
+            # No explicit file - load from current IMG if available
+            img = getattr(main_window, 'current_img', None)
+            if img:
+                fp = getattr(img, 'file_path', '') or ''
+                if fp and os.path.isfile(fp):
+                    workshop.load_from_img_archive(fp)
 
         tab_label = os.path.splitext(os.path.basename(img_path))[0] if img_path else "TXD Workshop"
         # Strip GTA streaming suffix (e.g. barracks_hli9ksta -> barracks)
