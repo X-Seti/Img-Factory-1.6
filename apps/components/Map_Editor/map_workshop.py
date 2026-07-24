@@ -46,7 +46,8 @@ from PyQt6.QtWidgets import (
     QSpinBox, QTabWidget, QScrollArea, QCheckBox, QDialog,
     QFormLayout, QFontComboBox, QSlider, QSizePolicy,
     QAbstractItemView, QMenu, QMenuBar, QStatusBar,
-    QFileDialog, QColorDialog, QGridLayout, QInputDialog, QDockWidget
+    QFileDialog, QColorDialog, QGridLayout, QInputDialog, QDockWidget,
+    QTableWidget, QTableWidgetItem, QHeaderView
 )
 from PyQt6.QtCore import Qt, QPoint, QPointF, QRect, pyqtSignal, QSize, QTimer
 from PyQt6.QtGui import (
@@ -6257,6 +6258,13 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         if world_dock is not None:
             outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, world_dock)
 
+        # Instance List dock - browsable table of loaded world
+        # placements, click a row to centre the world-view cameras on it.
+        instance_dock = self._create_instance_list_dock()
+        outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, instance_dock)
+        if world_dock is not None:
+            outer_mw.splitDockWidget(world_dock, instance_dock, Qt.Orientation.Vertical)
+
         # Widget registry - each entry is a self-contained dock module
         # under depends/. Adding, removing, or swapping a widget for an
         # alternative implementation only means editing this list, not
@@ -11437,7 +11445,73 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             f"{len(loader.instances)} instances, {loader.stats.ipl_files} IPL files")
         for pane in getattr(self, '_world_panes', []):
             pane.set_instances(loader.instances)
+        self._populate_instance_list(loader)
         QMessageBox.information(self, "Load Game Folder", loader.get_summary())
+
+    def _create_instance_list_dock(self): #vers 1
+        """Instance List dock - a browsable table of every loaded world
+        placement (model, resolved TXD via the IDE cross-reference,
+        position, interior, source IPL file). Selecting a row centres
+        the camera in all three world-view panes on that instance, so
+        the loaded data is actually navigable rather than just a wall
+        of anonymous marker cubes in the viewport."""
+        table = QTableWidget(0, 5)
+        table.setHorizontalHeaderLabels(
+            ["Model", "TXD", "Position", "Interior", "Source IPL"])
+        table.horizontalHeader().setSectionResizeMode(
+            0, QHeaderView.ResizeMode.Stretch)
+        table.verticalHeader().setVisible(False)
+        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        table.itemSelectionChanged.connect(
+            lambda: self._on_instance_row_selected(table))
+        self._instance_table = table
+
+        dock = QDockWidget("Instance List", self)
+        dock.setObjectName("Instance List")
+        dock.setWidget(table)
+        dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
+                        QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+        self._instance_list_dock = dock
+        return dock
+
+    def _populate_instance_list(self, loader): #vers 1
+        """Fill the Instance List table from a completed GTAWorldLoader
+        load - resolves each instance's TXD name via the loader's own
+        object cross-reference (get_object), same lookup the viewport/
+        future DFF+TXD loading will use."""
+        table = getattr(self, '_instance_table', None)
+        if table is None:
+            return
+        table.setRowCount(len(loader.instances))
+        for row, inst in enumerate(loader.instances):
+            obj = loader.get_object(inst.model_id)
+            txd_name = obj.txd_name if obj else ""
+            pos_text = f"{inst.pos_x:.1f}, {inst.pos_y:.1f}, {inst.pos_z:.1f}"
+            item_model = QTableWidgetItem(inst.model_name)
+            item_model.setData(Qt.ItemDataRole.UserRole, inst)
+            table.setItem(row, 0, item_model)
+            table.setItem(row, 1, QTableWidgetItem(txd_name))
+            table.setItem(row, 2, QTableWidgetItem(pos_text))
+            table.setItem(row, 3, QTableWidgetItem(str(inst.interior)))
+            table.setItem(row, 4, QTableWidgetItem(inst.source_ipl))
+
+    def _on_instance_row_selected(self, table): #vers 1
+        """Centre all three world-view panes' cameras on the selected
+        instance's position."""
+        row = table.currentRow()
+        if row < 0:
+            return
+        item = table.item(row, 0)
+        if item is None:
+            return
+        inst = item.data(Qt.ItemDataRole.UserRole)
+        if inst is None:
+            return
+        for pane in getattr(self, '_world_panes', []):
+            pane._pan_x = -inst.pos_x
+            pane._pan_y = -inst.pos_y
+            pane.update()
 
     def _create_world_viewport_dock(self): #vers 1
         """Top/Side/3D triple-pane world viewport, in its own dock so it
