@@ -99,6 +99,51 @@ tile grid. Addition needed:
 
 ## Model Workshop TODOs
 
+### Model Workshop - Opened models should keep a tab/reopen affordance instead of closing automatically
+**Status**: PENDING
+**Priority**: Medium
+
+Currently switching to a different model in the files list appears to just
+replace the current one - no way back except reopening from scratch.
+
+- [ ] Give each opened model its own tab, OR (Keith's preferred simpler
+  alternative) show an "opened" SVG icon next to already-opened models in
+  the files list, so clicking it swaps back to that model instead of the
+  app silently discarding it
+- [ ] Per-model close affordance - a small [x] next to the opened
+  indicator/tab
+- [ ] On close, if the model has unsaved changes, prompt with
+  [Save] / [Cancel] / [Close] rather than silently discarding
+
+### Model Workshop - Progressive lag/freeze when switching between many loaded models
+**Status**: PENDING - partially investigated, root cause not confirmed
+**Priority**: High (freezes the app)
+
+Reported: lag builds up the more you switch between models (with many
+loaded), eventually freezing the app. Keith's question was whether this is
+a Python/memory issue from handling too much data.
+
+Investigated (static code reading, not live profiling) in
+apps/methods/dff_viewport.py and apps/components/Model_Editor/model_workshop.py:
+- GL texture upload/cleanup (`_upload_textures`/`clear_textures`) is
+  correctly paired (old textures deleted before new ones uploaded) - but
+  that path only runs on TXD file load, not on model switch, so it's not
+  a per-switch texture leak.
+- `on_model_selected` -> `set_current_model` -> `load_geometry` only
+  rebuilds plain Python lists (vertices/normals/UVs/triangles) each
+  switch - no GL calls at all in that path.
+- Found one confirmed inefficiency: both `model_list.model_selected` and
+  `viewer_3d.model_selected` are connected to the same `on_model_selected`
+  handler. That handler calls `model_list.setCurrentRow(...)` when the
+  row doesn't match, which likely re-fires the list's own selection
+  signal and re-enters the handler a second time (guarded against
+  infinite recursion, but still doing the geometry/properties work twice
+  per viewer-originated switch).
+- Could not confirm or rule out an actual accumulating leak (old geometry
+  arrays, list widget items, or cached references not being released)
+  without live profiling - needs `tracemalloc` or RSS/VRAM monitoring
+  while reproducing, next time this is picked up.
+
 ### Model Workshop - Stub buttons in viewport toolbar (do nothing)
 **Status**: PENDING
 The following buttons in the bottom viewport toolbar are stubs (setEnabled(False)

@@ -2357,7 +2357,7 @@ class DATBrowserWidget(QWidget): #vers 3
             if not mw: return
             img = IMGFile(abs_path)
             if hasattr(mw, 'open_model_workshop_docked'):
-                mw.open_model_workshop_docked(img_path=abs_path)
+                mw.open_model_workshop_docked(file_path=abs_path)
             elif hasattr(mw, 'log_message'):
                 mw.log_message("Model Workshop not available")
         except Exception as e:
