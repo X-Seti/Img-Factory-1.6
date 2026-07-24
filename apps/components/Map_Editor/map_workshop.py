@@ -46,7 +46,7 @@ from PyQt6.QtWidgets import (
     QSpinBox, QTabWidget, QScrollArea, QCheckBox, QDialog,
     QFormLayout, QFontComboBox, QSlider, QSizePolicy,
     QAbstractItemView, QMenu, QMenuBar, QStatusBar,
-    QFileDialog, QColorDialog, QGridLayout, QInputDialog
+    QFileDialog, QColorDialog, QGridLayout, QInputDialog, QDockWidget
 )
 from PyQt6.QtCore import Qt, QPoint, QPointF, QRect, pyqtSignal, QSize, QTimer
 from PyQt6.QtGui import (
@@ -6248,6 +6248,15 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 {'label': '1', 'state': self._capture_canvas_tab_state()})
             self._active_canvas_tab_idx = 0
 
+        # World viewport dock - Top/Side/3D triple-pane, per Keith's
+        # request ("would be interesting to also add viewports, side
+        # view, top view, 3d view"). Same camera/pane-lock architecture
+        # as Model Workshop's existing 4-pane DFFViewport quad, applied
+        # here to MapViewport (world instance markers) instead.
+        world_dock = self._create_world_viewport_dock()
+        if world_dock is not None:
+            outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, world_dock)
+
         # Widget registry - each entry is a self-contained dock module
         # under depends/. Adding, removing, or swapping a widget for an
         # alternative implementation only means editing this list, not
@@ -11426,7 +11435,62 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._set_status(
             f"Loaded {game.upper()} world: {len(loader.objects)} objects, "
             f"{len(loader.instances)} instances, {loader.stats.ipl_files} IPL files")
+        for pane in getattr(self, '_world_panes', []):
+            pane.set_instances(loader.instances)
         QMessageBox.information(self, "Load Game Folder", loader.get_summary())
+
+    def _create_world_viewport_dock(self): #vers 1
+        """Top/Side/3D triple-pane world viewport, in its own dock so it
+        can sit alongside the still-present paint canvas rather than
+        replacing it outright. Same MapViewport class, camera/pane-lock
+        contract, and right-click-to-reassign pattern as Model
+        Workshop's existing DFFViewport quad viewport - reused here
+        rather than inventing a new multi-pane scheme."""
+        try:
+            from apps.components.Map_Editor.depends.map_viewport import MapViewport
+        except Exception as e:
+            print(f"[MapWorkshop] MapViewport unavailable: {e}")
+            return None
+
+        presets = [("Top", 0, 0, 'ortho'),
+                   ("Side", 90, 0, 'ortho'),
+                   ("3D", 45, 25, 'perspective')]
+        self._world_panes = []
+        for label, yaw, pitch, proj in presets:
+            pane = MapViewport()
+            pane.set_view_lock(proj == 'ortho', label, yaw=yaw, pitch=pitch,
+                               projection=proj)
+            pane.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            pane.customContextMenuRequested.connect(
+                lambda pos, p=pane: self._show_world_pane_menu(p, pos))
+            self._world_panes.append(pane)
+
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        for pane in self._world_panes:
+            splitter.addWidget(pane)
+
+        dock = QDockWidget("World View", self)
+        dock.setObjectName("World View")
+        dock.setWidget(splitter)
+        dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
+                        QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+        self._world_view_dock = dock
+        return dock
+
+    def _show_world_pane_menu(self, pane, pos): #vers 1
+        """Right-click a world-view pane to reassign its view - same
+        idea as Model Workshop's quad-pane menu."""
+        options = [("Top", 0, 0, 'ortho'),
+                   ("Side", 90, 0, 'ortho'),
+                   ("Front", 0, 90, 'ortho'),
+                   ("3D", 45, 25, 'perspective')]
+        menu = QMenu(pane)
+        for label, yaw, pitch, proj in options:
+            act = menu.addAction(label)
+            act.triggered.connect(
+                lambda checked=False, l=label, y=yaw, p=pitch, pr=proj:
+                    pane.set_view_lock(pr == 'ortho', l, yaw=y, pitch=p, projection=pr))
+        menu.exec(pane.mapToGlobal(pos))
 
     def _new_canvas(self): #vers 4
         """New canvas dialog — tabbed: Platform / Texture / Icon / Custom."""
