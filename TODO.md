@@ -1,4 +1,109 @@
-#this belongs in root /TODO.md - Version: 9
+#this belongs in root /TODO.md - Version: 10
+
+## July 2026 - Map Editor (Map Workshop) - status and plan
+
+**Status**: IN PROGRESS - UI shell + data layer + viewport foundation
+built and tested; real per-instance rendering and editing still to come.
+
+### What's done so far (apps/components/Map_Editor/)
+- `map_workshop.py` forked from DP5_Workshop's UI shell (ribbons,
+  Ribbon Manager with move/save-load presets/right-click access,
+  docking, settings dialog) - rebranded MapWorkshop/MapCanvas/
+  MapSettings, own settings file (map_workshop.json) and ribbon
+  presets folder (map_ribbon_presets/), separate from DP5's.
+- Data layer wired up via the EXISTING apps/methods/gta_dat_parser.py
+  (GTAWorldLoader/detect_game/IDEObject/IPLInstance) - already does the
+  full engine-accurate two-phase load (default.dat -> base IDEs, then
+  main .dat -> map IDEs+IPLs), multi-game detection (GTA3/VC/SA/SOL),
+  and object/instance cross-referencing. Nothing new needed to parse
+  DAT/IDE/IPL - just wiring. "Load Game Folder..." in the File menu
+  runs it and reports a summary.
+- `depends/map_viewport.py` - MapViewport, an OpenGL widget reusing
+  DFFViewport's camera/projection architecture (yaw/pitch/pan/dist,
+  ortho vs perspective, set_view_lock for pane presets). Currently
+  renders a placeholder marker cube per instance + a ground grid, not
+  real per-instance geometry yet.
+- World View dock - Top/Side/3D triple-pane (one horizontal splitter,
+  NOT a 2x2 quad - confirmed this explicitly per Keith), each pane
+  right-click-on-LABEL-only reassignable (Top/Side/Front/3D), double-
+  click or menu to maximize/restore any pane to fill the whole dock
+  (shows a "Full View" label while maximized, which is also the
+  exclusive right-click target so drag-rotate works everywhere else).
+- Instance List dock - browsable table (Model/TXD/Position/Interior/
+  Source IPL) of every loaded placement, click a row to centre all
+  three World View cameras on it.
+- Paint canvas (forked in from DP5, not relevant to map editing) is
+  hidden by default, toggleable via a "Show Canvas" icon in the
+  Canvas Tabs ribbon.
+- Recovered real KED/MooMapper Delphi source (`ked_reference_source/`)
+  for UX/feature reference - not directly portable (Pascal), but a
+  good checklist: Item/Item-Instance/Object-Definition/Archive editors,
+  radar calibration, path editing, file validation, multiple render
+  toggles, Vice City mode support.
+- Along the way, fixed several real bugs in shared code this surfaced:
+  a DFFViewport GL-context-guard bug (resizeGL called before a context
+  existed), the quad-pane maximize feature not existing at all in
+  Model Workshop, and the pane context menu covering the whole pane
+  instead of just its label (which broke right-click-drag rotate).
+
+### Next up, in priority order
+
+1. **Real per-instance DFF/TXD geometry** (the big one) - replace
+   MapViewport's placeholder marker cubes with actual model rendering:
+   - Resolve each IPLInstance's model_name -> its DFF file, via the
+     IMG(s) GTAWorldLoader's load_log already identified as involved
+     (or from a user-selected/detected set of game IMGs) - reuse
+     apps/methods/img_core_classes.py (IMGEntry) rather than writing
+     new IMG-reading code.
+   - Load geometry via apps/methods/dff_parser.py (load_dff) and
+     textures via apps/methods/txd_parser.py (load_txd/parse_txd) -
+     both already handle this well, including DXT decompression and
+     multiple platforms.
+   - Cache loaded geometry/textures by model/TXD name - many instances
+     share the same model, don't reload per-instance.
+   - Apply each instance's position + quaternion rotation (already
+     parsed into IPLInstance) as the per-instance world transform when
+     drawing - conceptually close to VehicleViewport's
+     load_all_geometries, which already does per-part world transforms
+     from a frame hierarchy; here the transform comes from the IPL
+     instance instead.
+   - Do this incrementally - start with just the FIRST few loaded
+     instances rendering correctly before trying to handle a whole
+     city's worth at once (performance/culling is a separate concern
+     to tackle after correctness).
+
+2. **2D top-down map view** - was in the original phased plan but got
+   skipped over jumping straight to the 3D viewport. Ipl_Editor's
+   existing IPLMapView (apps/components/Ipl_Editor/ipl_workshop.py)
+   already has world<->screen coordinate transforms, grid drawing, and
+   radar-image-as-background support - reuse/adapt rather than
+   rebuilding. Useful as a lighter-weight, faster-to-navigate
+   alternative to the 3D view once real geometry loading (item 1) makes
+   the 3D view heavier.
+
+3. **Object palette** - a category tree (lamps, posts, etc.) plus a
+   Favourites panel, per Keith's original requirements list. IDE files
+   don't inherently carry categories, so this likely needs a curated
+   name-pattern-based categorisation scheme (or a small user-editable
+   mapping file) rather than anything derivable purely from parsed data.
+
+4. **Editing + editor shortcuts** - actually moving/adding/deleting
+   placements and writing back to the IPL (currently everything is
+   read-only/view-only); "shortcuts to edit TXDs, COLs, or DFF files"
+   - buttons that jump into Txd_Editor/Col_Editor/Model_Editor for
+   the currently-selected instance's model, reusing the same
+   open_txd_workshop_docked/open_col_workshop_docked/
+   open_model_workshop_docked entry points DAT Browser already uses.
+
+5. **COL collision loading** - apps/methods/col_core_classes.py/
+   col_loader.py already parse this fully; not yet wired into the
+   world view at all (no visualisation, no use in placement/collision
+   checks).
+
+6. Icon sets/styles (light theme, mono theme) - explicitly deferred
+   earlier pending the UI work being further along; Model Workshop's
+   existing per-ribbon context menu already has an "Icon Set" submenu
+   pattern (Default/3ds Max style) worth referencing when this comes up.
 
 ## July 2026 - Next up: DP5 Workshop
 
