@@ -9467,9 +9467,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             pane._workshop_ref = self
             pane.set_view_lock(proj == 'ortho', label, yaw=yaw, pitch=pitch, projection=proj)
             pane._quad_preset_name = label
-            pane.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-            pane.customContextMenuRequested.connect(
-                lambda pos, p=pane: self._show_quad_pane_menu(p, pos))
+            pane.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
+            pane._label_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            pane._label_widget.customContextMenuRequested.connect(
+                lambda pos, p=pane: self._show_quad_pane_menu(p, p._label_widget.mapToGlobal(pos)))
             # Double-click to maximize/restore - via an event filter rather
             # than overriding DFFViewport's own mouseDoubleClickEvent, since
             # that class is shared by Model Viewer/Vehicle Workshop/etc with
@@ -9543,10 +9544,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             bottom_row.setVisible(True)
         self._maximized_pane = pane
 
-    def _show_quad_pane_menu(self, pane, pos): #vers 2
-        """Right-click a pane's corner to reassign its view, user-defined,
+    def _show_quad_pane_menu(self, pane, global_pos): #vers 3
+        """Right-click a pane's LABEL to reassign its view, user-defined,
         same idea as 3ds Max viewport labels - plus Maximize/Restore,
-        for discoverability alongside the double-click shortcut."""
+        for discoverability alongside the double-click shortcut.
+        Right-clicking anywhere else on the pane does the normal
+        rotate-drag instead (see the label-only context menu wiring in
+        _create_quad_viewport) - global_pos is already in screen
+        coordinates, mapped by the caller from the label widget it was
+        actually clicked on, not the pane itself."""
         options = [
             ("Top",         0,   0, 'ortho'),
             ("Front",       0,  90, 'ortho'),
@@ -9565,7 +9571,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         is_max = getattr(self, '_maximized_pane', None) is pane
         max_act = menu.addAction("Restore 4-Pane View" if is_max else "Maximize This Pane")
         max_act.triggered.connect(lambda checked=False, p=pane: self._toggle_pane_maximize(p))
-        menu.exec(pane.mapToGlobal(pos))
+        menu.exec(global_pos)
 
     def _assign_quad_pane_view(self, pane, label, yaw, pitch, projection): #vers 1
         """Apply a user-chosen preset to one quad pane and persist it."""

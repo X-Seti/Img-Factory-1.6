@@ -11534,9 +11534,10 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             pane = MapViewport()
             pane.set_view_lock(proj == 'ortho', label, yaw=yaw, pitch=pitch,
                                projection=proj)
-            pane.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-            pane.customContextMenuRequested.connect(
-                lambda pos, p=pane: self._show_world_pane_menu(p, pos))
+            pane.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
+            pane._label_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            pane._label_widget.customContextMenuRequested.connect(
+                lambda pos, p=pane: self._show_world_pane_menu(p, p._label_widget.mapToGlobal(pos)))
             # Double-click to maximize/restore - same pattern as Model
             # Workshop's quad viewport, via event filter rather than
             # touching MapViewport's own mouse handlers.
@@ -11586,10 +11587,14 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             p.setVisible(p is pane)
         self._maximized_world_pane = pane
 
-    def _show_world_pane_menu(self, pane, pos): #vers 2
-        """Right-click a world-view pane to reassign its view - same
-        idea as Model Workshop's quad-pane menu - plus Maximize/Restore,
-        for discoverability alongside the double-click shortcut."""
+    def _show_world_pane_menu(self, pane, global_pos): #vers 3
+        """Right-click a world-view pane's LABEL to reassign its view -
+        same idea as Model Workshop's quad-pane menu - plus Maximize/
+        Restore, for discoverability alongside the double-click
+        shortcut. Right-clicking anywhere else on the pane does the
+        normal rotate-drag instead. global_pos is already in screen
+        coordinates, mapped by the caller from the label widget it was
+        actually clicked on, not the pane itself."""
         options = [("Top", 0, 0, 'ortho'),
                    ("Side", 90, 0, 'ortho'),
                    ("Front", 0, 90, 'ortho'),
@@ -11605,7 +11610,7 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         max_act = menu.addAction("Restore All Panes" if is_max else "Maximize This Pane")
         max_act.triggered.connect(
             lambda checked=False, p=pane: self._toggle_world_pane_maximize(p))
-        menu.exec(pane.mapToGlobal(pos))
+        menu.exec(global_pos)
 
     def _new_canvas(self): #vers 4
         """New canvas dialog — tabbed: Platform / Texture / Icon / Custom."""
