@@ -6701,6 +6701,8 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         Both share the same addMenu()/addAction() API so one method serves all cases."""
         # File
         fm = mb.addMenu("File")
+        fm.addAction("Load Game Folder…", self._load_game_folder)
+        fm.addSeparator()
         fm.addAction("New canvas…",    self._new_canvas)
         fm.addSeparator()
         fm.addAction("Open image…",                           self._import_bitmap)
@@ -11380,6 +11382,42 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         menu.addAction("New — Icon canvas",     lambda: (self._set_canvas_mode('icon',     confirm=False, apply=False), self._new_canvas()))
         btn = getattr(self, 'tb_new_btn', None)
         menu.exec(btn.mapToGlobal(pos) if btn else self.cursor().pos())
+
+    def _load_game_folder(self): #vers 1
+        """Load a GTA game's world data (DAT -> IDE -> IPL, full engine-
+        order two-phase load) via the existing GTAWorldLoader - this is
+        the Map Editor's actual data layer, already handling multi-game
+        detection (GTA3/VC/SA/SOL) and object/instance cross-referencing;
+        nothing new needed here beyond wiring it into the UI."""
+        from PyQt6.QtWidgets import QFileDialog
+        from apps.methods.gta_dat_parser import detect_game, GTAWorldLoader
+
+        folder = QFileDialog.getExistingDirectory(self, "Select GTA game folder")
+        if not folder:
+            return
+
+        game = detect_game(folder)
+        if not game:
+            QMessageBox.warning(self, "Load Game Folder",
+                f"Couldn't detect a supported GTA game in:\n{folder}\n\n"
+                "Expected a 'data' folder containing gta3.dat, gta_vc.dat, "
+                "or gta.dat.")
+            return
+
+        loader = GTAWorldLoader(game)
+        ok = loader.load(folder)
+        self._world_loader = loader
+        self._game_root = folder
+
+        if not ok:
+            QMessageBox.warning(self, "Load Game Folder",
+                f"Load failed:\n" + "\n".join(loader.stats.errors[:10]))
+            return
+
+        self._set_status(
+            f"Loaded {game.upper()} world: {len(loader.objects)} objects, "
+            f"{len(loader.instances)} instances, {loader.stats.ipl_files} IPL files")
+        QMessageBox.information(self, "Load Game Folder", loader.get_summary())
 
     def _new_canvas(self): #vers 4
         """New canvas dialog — tabbed: Platform / Texture / Icon / Custom."""
