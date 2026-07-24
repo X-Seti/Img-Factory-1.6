@@ -713,6 +713,7 @@ class DATBrowserWidget(QWidget): #vers 3
         self.xref:       Optional[GTAWorldXRef] = None
         self._thread:    Optional[_LoadThread]  = None
         self._asset_db   = None   # AssetDB for current profile
+        self.game_root   = ''     # set once a load succeeds - see _on_load_done
         self._setup_ui()
 
     #    UI construction                                                     
@@ -801,6 +802,13 @@ class DATBrowserWidget(QWidget): #vers 3
         self._dump_txd_btn.setEnabled(False)
         self._dump_txd_btn.clicked.connect(self._dump_all_game_txds)
         toolbar.addWidget(self._dump_txd_btn)
+
+        self._map_editor_btn = QPushButton("Map Editor")
+        self._map_editor_btn.setToolTip(
+            "Open Map Editor with this game's already-loaded root")
+        self._map_editor_btn.setEnabled(False)
+        self._map_editor_btn.clicked.connect(self._open_map_editor)
+        toolbar.addWidget(self._map_editor_btn)
 
         self._db_btn = QPushButton()
         self._db_btn.setFixedSize(28, 24)
@@ -1690,6 +1698,9 @@ class DATBrowserWidget(QWidget): #vers 3
             # Build cross-reference index and notify listeners
             try:
                 game_root = getattr(self._thread, "game_root", "")
+                self.game_root = game_root   # clean accessor for other code
+                                              # (e.g. opening Map Editor with
+                                              # the currently-loaded root)
                 self.xref = build_xref(self.loader, game_root)
                 self.xref.game_root = game_root   # tag xref with its game root
                 self.xref_ready.emit(self.xref)
@@ -1791,6 +1802,7 @@ class DATBrowserWidget(QWidget): #vers 3
         self._type_filter.setEnabled(True)
         if hasattr(self, '_dump_txd_btn'):
             self._dump_txd_btn.setEnabled(bool(self.loader and self.loader.objects))
+            self._map_editor_btn.setEnabled(bool(self.loader and self.loader.objects))
         self._log_text.setPlainText(self._build_log_text())
         # Enable DB Build button now we have a game root
         if hasattr(self, '_db_build_btn'):
@@ -3434,6 +3446,26 @@ class DATBrowserWidget(QWidget): #vers 3
         except Exception as e:
             print(f"IMG read error: {e}")
             return []
+
+    def _open_map_editor(self): #vers 1
+        """Open Map Editor with this browser's currently-loaded game root -
+        the same root already parsed here, so Map Editor doesn't need to
+        redo the DAT/IDE/IPL load from scratch."""
+        try:
+            mw = self.main_window
+            if not mw: return
+            root = getattr(self, 'game_root', '') or ''
+            if not root:
+                if hasattr(mw, 'log_message'):
+                    mw.log_message("Map Editor: no game root loaded yet")
+                return
+            if hasattr(mw, 'open_map_workshop_docked'):
+                mw.open_map_workshop_docked(game_root=root)
+            elif hasattr(mw, 'log_message'):
+                mw.log_message("Map Editor not available")
+        except Exception as e:
+            if hasattr(self, 'main_window') and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Map Editor error: {e}")
 
     def _dump_all_game_txds(self): #vers 2
         """Open the TXD Dump dialog."""
