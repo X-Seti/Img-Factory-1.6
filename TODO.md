@@ -252,14 +252,36 @@ side format confirmed empirically, not from documentation:
      hidden entirely for single-instance models) through the rest.
      Right-click Add/Remove Favourites added to the merged panel.
 
-   - **Still not built**: Add/Delete/Rename SVG icons above the merged
-     panel, and the adaptive row layout that collapses those icons plus
-     the All/Most Used/Favourites/Generic filter buttons onto one row
-     when there's enough width (icon-only when there isn't). Smaller,
-     more mechanical pieces than the merge itself - worth picking up
-     next.
+   - **IPL Sections reordering + column width persistence**: DONE -
+     explicit Move Up/Down context menu (not drag-and-drop, which is a
+     known source of data-splitting bugs for multi-column QTableWidget
+     rows), with the display order persisted (new/unrecognised names
+     from a different loaded world get appended alphabetically rather
+     than losing the saved order). Column widths for both IPL Sections
+     and Object Browser now persist too (found and fixed a real bug
+     restoring Object Browser's - was attempting it before setModel()
+     attached the header's columns, silently a no-op). Both verified
+     across separate processes, not just in-memory.
 
-   - **Add**: browse the desktop for new DFF/TXD/COL files and import
+   - **Add/Delete/Rename**: a working IN-MEMORY subset now exists,
+     right-click on an Object Browser row - Rename Object (updates the
+     object definition + every existing instance), Add Instance Here
+     (places another copy of an already-loaded model at the origin),
+     Delete All Instances (removes every placement of a model, with a
+     confirm prompt - the simpler "just remove from IPL" case, not the
+     "purge everything and free the ID" alternative). All three are
+     explicit in their UI text and status messages that nothing is
+     written back to disk yet. STILL NOT BUILT: SVG icons for these
+     (currently text-only context menu entries), the adaptive row
+     layout collapsing icons + All/Most Used/Favourites/Generic onto
+     one row when space allows, and everything below that needs real
+     file-writing (importing genuinely new models from the desktop,
+     writing renames/deletes back to actual IPL/IDE files, ID
+     management, and the map-section transform tools) - see the
+     original, still-accurate scope in the items directly below.
+
+   - **Add** (full scope, not yet built): browse the desktop for new
+     DFF/TXD/COL files and import
      them into the game's canonical archive - gta3.img for GTA3/VC/SA
      (matches the engine's own always-loaded archive, already tracked
      via GTAWorldLoader._inject_enforced_imgs); for SOL specifically
@@ -270,14 +292,17 @@ side format confirmed empirically, not from documentation:
      an ID-collision check against the loaded ID database before
      committing.
 
-   - **Del**: user choice each time (needs a small confirm dialog) -
-     remove just the IPL placement, or fully purge the object from
-     IPL+IDE+COL+IMG and free the model_id for reuse.
+   - **Del** (full scope, not yet built): the in-memory "just remove
+     from IPL" case above is done; still needed: writing that removal
+     back to the actual IPL file on disk, and the "fully purge the
+     object from IPL+IDE+COL+IMG and free the model_id for reuse"
+     alternative.
 
-   - **Rename**: propagates the new name across IDE, IPL (for GTA3/VC's
-     text format, which redundantly stores the model name per
-     placement - SA's format doesn't), COL, and the actual filenames
-     inside the IMG archive. A true global rename, not per-instance.
+   - **Rename** (full scope, not yet built): the in-memory rename
+     above is done; still needed: propagating the new name to the
+     actual IDE file on disk, GTA3/VC's text-format IPL lines (which
+     redundantly store the model name per placement - SA's format
+     doesn't), COL, and the actual filenames inside the IMG archive.
 
    - **Undo/redo** across all of the above, with ID-safe restoration
      (undoing a delete should be able to restore the exact ID rather
