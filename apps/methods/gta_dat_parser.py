@@ -910,6 +910,18 @@ class GTAWorldLoader: #vers 3
         for entry in dat.col_entries():
             ok = os.path.isfile(entry.abs_path)
             self.load_log.append((phase, "COLFILE", entry.abs_path, ok))
+        # Log standalone TEXDICTION/MODELFILE entries too - these are TXD/
+        # DFF files referenced directly (not via an IMG archive), most
+        # commonly in default.dat for VC's "generic" wheels/aircraft
+        # models. Previously silently dropped entirely (parsed into
+        # dat.entries but never surfaced by _process_dat at all) - not
+        # loading their actual content yet (that's part of the real
+        # per-instance DFF/TXD geometry work), but at least visible/
+        # trackable now rather than vanishing without a trace.
+        for entry in dat.entries:
+            if entry.directive in ("TEXDICTION", "MODELFILE"):
+                self.load_log.append((phase, entry.directive, entry.abs_path,
+                                      os.path.isfile(entry.abs_path)))
         self.stats.ide_files += len(ide_list)
         self.stats.ipl_files += len(ipl_list)
         self.stats.col_files += len(dat.col_entries())

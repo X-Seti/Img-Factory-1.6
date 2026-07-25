@@ -71,6 +71,19 @@ built and tested; real per-instance rendering and editing still to come.
      instances rendering correctly before trying to handle a whole
      city's worth at once (performance/culling is a separate concern
      to tackle after correctness).
+   - **VC-specific gotcha, confirmed against Keith's real default.dat/
+     gta_vc.dat**: default.dat references some TXD/DFF files directly
+     via TEXDICTION/MODELFILE directives (generic wheel/aircraft
+     models+textures), not through an IMG archive at all - these are
+     genuinely not present anywhere in gta_vc.dat itself, loaded only
+     once at engine startup from default.dat before the main .dat.
+     GTAWorldLoader now tracks these entries in load_log (previously
+     silently dropped entirely - parsed but never surfaced), but
+     doesn't load their actual TXD/DFF content yet - when building the
+     real model-loading step above, these standalone-referenced files
+     need their own resolution path (direct file load) alongside the
+     IMG-archive-based one, or any model built from generic.txd/
+     wheels.txd will silently fail to find its textures for VC.
 
 2. **2D top-down map view** - was in the original phased plan but got
    skipped over jumping straight to the 3D viewport. Ipl_Editor's
