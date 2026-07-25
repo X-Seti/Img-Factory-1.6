@@ -12243,9 +12243,12 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         table = QTableWidget(0, 2)
         table.setHorizontalHeaderLabels(["IPL File", ""])
         header = table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
+        header.setStretchLastSection(False)
+        table.setColumnWidth(1, 30)
         table.verticalHeader().setVisible(False)
+        table.verticalHeader().setDefaultSectionSize(24)
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         lay.addWidget(table)
         self._ipl_sections_table = table
@@ -12289,25 +12292,17 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             table.setItem(row, 0, name_item)
             btn = QPushButton()
             btn.setCheckable(True)
-            btn.setFixedWidth(28)
+            btn.setFixedSize(24, 20)
             btn.setIcon(eye_open_icon)
+            btn.setIconSize(eye_open_icon.actualSize(btn.size()))
+            btn.setStyleSheet("QPushButton { padding: 0px; border: none; }")
             btn.setToolTip(f"Hide {ipl_name}")
             btn.toggled.connect(
                 lambda checked, n=ipl_name: self._toggle_ipl_section(n, checked))
             btn.toggled.connect(
                 lambda checked, b=btn, n=ipl_name: self._update_eye_button(
                     b, checked, n, eye_open_icon, eye_closed_icon))
-            # Wrap in a centering container - the column now stretches
-            # to fill remaining space (rather than a fixed width, which
-            # left a dead-space gap after it), so the fixed-size button
-            # needs its own layout to stay centred within that wider cell.
-            cell = QWidget()
-            cell_lay = QHBoxLayout(cell)
-            cell_lay.setContentsMargins(0, 0, 0, 0)
-            cell_lay.addStretch()
-            cell_lay.addWidget(btn)
-            cell_lay.addStretch()
-            table.setCellWidget(row, 1, cell)
+            table.setCellWidget(row, 1, btn)
 
         if placeholder is not None:
             placeholder.setVisible(False)
@@ -12577,10 +12572,13 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         propagate until this re-applies the current filter)."""
         self._apply_ipl_visibility_filter()
 
-    def _on_instance_list_context_menu(self, pos): #vers 1
-        """Right-click a row for a per-instance LOD override - only
-        shown/enabled for instances that actually have a resolved LOD
-        pair (see resolve_lod_pairs)."""
+    def _on_instance_list_context_menu(self, pos): #vers 2
+        """Right-click a row - Add/Remove Favourites always available
+        (reusing the same favourite_objects setting Object Browser
+        uses, so favouriting stays in sync between both panels);
+        per-instance LOD override options only added when this
+        instance actually has a resolved LOD pair (see
+        resolve_lod_pairs)."""
         view = self._instance_table
         index = view.indexAt(pos)
         if not index.isValid():
@@ -12589,25 +12587,48 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         inst = model.instance_at(index.row())
         if inst is None:
             return
-        primary_key = self._find_lod_primary_key(inst)
-        if primary_key is None:
-            return  # no LOD pair for this instance - nothing to offer
 
         menu = QMenu(view)
-        current = getattr(self, '_lod_overrides', {}).get(primary_key)
-        for mode, label in (('normal', "Show Normal"), ('lod', "Show LOD"),
-                            ('both', "Show Both")):
-            act = menu.addAction(label)
-            act.setCheckable(True)
-            act.setChecked(current == mode)
-            act.triggered.connect(
-                lambda checked=False, k=primary_key, m=mode: self._set_lod_override(k, m))
-        menu.addSeparator()
-        clear_act = menu.addAction("Use Global Setting")
-        clear_act.setEnabled(current is not None)
-        clear_act.triggered.connect(
-            lambda checked=False, k=primary_key: self._set_lod_override(k, None))
+        favourites = self.map_settings.get('favourite_objects') or []
+        is_fav = inst.model_id in favourites
+        fav_act = menu.addAction("Remove from Favourites" if is_fav else "Add to Favourites")
+        fav_act.triggered.connect(
+            lambda checked=False, mid=inst.model_id: self._toggle_instance_favourite(mid))
+
+        primary_key = self._find_lod_primary_key(inst)
+        if primary_key is not None:
+            menu.addSeparator()
+            current = getattr(self, '_lod_overrides', {}).get(primary_key)
+            for mode, label in (('normal', "Show Normal"), ('lod', "Show LOD"),
+                                ('both', "Show Both")):
+                act = menu.addAction(label)
+                act.setCheckable(True)
+                act.setChecked(current == mode)
+                act.triggered.connect(
+                    lambda checked=False, k=primary_key, m=mode: self._set_lod_override(k, m))
+            clear_act = menu.addAction("Use Global Setting")
+            clear_act.setEnabled(current is not None)
+            clear_act.triggered.connect(
+                lambda checked=False, k=primary_key: self._set_lod_override(k, None))
+
         menu.exec(view.viewport().mapToGlobal(pos))
+
+    def _toggle_instance_favourite(self, model_id): #vers 1
+        """Add/remove a model_id from favourite_objects - shared with
+        Object Browser's own favourite toggle, so favouriting an object
+        from either panel stays in sync. Refreshes Object Browser's
+        model if it's currently showing the Favourites filter."""
+        favourites = set(self.map_settings.get('favourite_objects') or [])
+        if model_id in favourites:
+            favourites.discard(model_id)
+        else:
+            favourites.add(model_id)
+        self.map_settings.set('favourite_objects', sorted(favourites))
+        self.map_settings.save()
+        ob_model = getattr(self, '_object_browser_model', None)
+        if ob_model is not None:
+            ob_model._favourites = favourites
+            ob_model._recompute()
 
     def _set_lod_override(self, primary_key, mode): #vers 1
         """Set (or clear, if mode is None) a per-instance LOD override
