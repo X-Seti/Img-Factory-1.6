@@ -12252,26 +12252,33 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._populate_object_browser(loader)
         QMessageBox.information(self, source_desc, loader.get_summary())
 
-    def _create_ipl_sections_panel(self): #vers 2
+    def _create_ipl_sections_panel(self): #vers 3
         """IPL Sections panel - lists every IPL file that contributed
         instances to the currently loaded world, each with a Show/Hide
         toggle. Occupies the central layout space the canvas leaves
         empty when hidden. Small row count in practice (dozens to a
         few hundred IPL files even for a large mod like GTASOL, versus
         tens of thousands of instances), so a plain QTableWidget is
-        fine here - no need for the Instance List's lazy model."""
+        fine here - no need for the Instance List's lazy model.
+
+        Column order is eye-icon first, then name (per Keith's
+        request) - previously name then icon. Panel width is capped
+        at roughly half its previous footprint, also per Keith's
+        request, since this panel doesn't need to compete with World
+        View/Object Browser for space."""
         panel = QWidget()
+        panel.setMaximumWidth(200)
         lay = QVBoxLayout(panel)
         lay.setContentsMargins(6, 6, 6, 6)
         lay.addWidget(QLabel("IPL Sections - toggle which placements are shown"))
 
         table = QTableWidget(0, 2)
-        table.setHorizontalHeaderLabels(["IPL File", ""])
+        table.setHorizontalHeaderLabels(["", "IPL File"])
         header = table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         header.setStretchLastSection(False)
-        table.setColumnWidth(1, 22)
+        table.setColumnWidth(0, 22)
         table.verticalHeader().setVisible(False)
         table.verticalHeader().setDefaultSectionSize(20)
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -12289,16 +12296,13 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         return panel
 
-    def _populate_ipl_sections(self, loader): #vers 3
+    def _populate_ipl_sections(self, loader): #vers 4
         """Fill the IPL Sections panel from a completed load - one row
-        per unique source_ipl across all loaded instances, each with an
-        eye / eye-with-strike icon (a plain icon on a QTableWidgetItem,
-        not a QPushButton - avoids fighting the button's own internal
-        chrome/padding, which was the likely remaining source of extra
-        space around the icon after earlier attempts to tighten it via
-        button size/stylesheet). Keeps the full unfiltered instance
-        list on self._all_instances so toggling can recompute the
-        visible subset without needing to reload."""
+        per unique source_ipl across all loaded instances: eye icon in
+        column 0, name in column 1 (per Keith's request - icon first).
+        Keeps the full unfiltered instance list on self._all_instances
+        so toggling can recompute the visible subset without needing
+        to reload."""
         table = getattr(self, '_ipl_sections_table', None)
         placeholder = getattr(self, '_ipl_sections_placeholder', None)
         if table is None:
@@ -12317,27 +12321,28 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         ipl_names = sorted({inst.source_ipl for inst in loader.instances})
         table.setRowCount(len(ipl_names))
         for row, ipl_name in enumerate(ipl_names):
-            name_item = QTableWidgetItem(ipl_name)
-            table.setItem(row, 0, name_item)
             eye_item = QTableWidgetItem()
             eye_item.setIcon(self._eye_open_icon)
             eye_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             eye_item.setToolTip(f"Hide {ipl_name}")
             eye_item.setData(Qt.ItemDataRole.UserRole, ipl_name)
-            table.setItem(row, 1, eye_item)
+            table.setItem(row, 0, eye_item)
+            name_item = QTableWidgetItem(ipl_name)
+            self._style_ipl_name_item(name_item, False)
+            table.setItem(row, 1, name_item)
 
         if placeholder is not None:
             placeholder.setVisible(False)
         table.setVisible(True)
 
-    def _on_ipl_section_cell_clicked(self, row, col): #vers 1
+    def _on_ipl_section_cell_clicked(self, row, col): #vers 2
         """Clicking the eye-icon cell toggles that IPL's visibility -
         plain item click rather than a button, so there's no button
-        widget/chrome to size or pad."""
-        if col != 1:
+        widget/chrome to size or pad. Icon is now column 0 (was 1)."""
+        if col != 0:
             return
         table = self._ipl_sections_table
-        item = table.item(row, 1)
+        item = table.item(row, 0)
         if item is None:
             return
         ipl_name = item.data(Qt.ItemDataRole.UserRole)
@@ -12345,7 +12350,35 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         new_hidden = not hidden
         item.setIcon(self._eye_closed_icon if new_hidden else self._eye_open_icon)
         item.setToolTip(f"Show {ipl_name}" if new_hidden else f"Hide {ipl_name}")
+        name_item = table.item(row, 1)
+        if name_item is not None:
+            self._style_ipl_name_item(name_item, new_hidden)
         self._toggle_ipl_section(ipl_name, new_hidden)
+
+    def _style_ipl_name_item(self, name_item, hidden): #vers 3
+        """Grey out a disabled/hidden IPL's name text, per Keith's
+        request, so a hidden entry is visually distinct at a glance,
+        not just via its eye icon.
+
+        Doesn't rely on QPalette's Disabled colour group - confirmed
+        that resolves incorrectly here (this app's dark theme is
+        applied via QSS stylesheet, which leaves the underlying
+        QPalette's Active and Disabled Text roles both reporting white -
+        a known Qt quirk where stylesheet-driven theming doesn't keep
+        the palette object itself in sync). Instead blends the active
+        text colour 50% toward the window background colour
+        programmatically, which dims correctly under any theme."""
+        pal = self.palette()
+        text_color = pal.color(pal.ColorGroup.Active, pal.ColorRole.Text)
+        if hidden:
+            bg_color = pal.color(pal.ColorGroup.Active, pal.ColorRole.Window)
+            color = QColor(
+                (text_color.red()   + bg_color.red())   // 2,
+                (text_color.green() + bg_color.green()) // 2,
+                (text_color.blue()  + bg_color.blue())  // 2)
+        else:
+            color = text_color
+        name_item.setForeground(QBrush(color))
 
     def _toggle_ipl_section(self, ipl_name, hidden): #vers 1
         """Show/hide all instances from one IPL file - recomputes the
