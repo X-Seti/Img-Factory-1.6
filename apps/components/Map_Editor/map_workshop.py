@@ -12227,7 +12227,7 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._populate_object_browser(loader)
         QMessageBox.information(self, source_desc, loader.get_summary())
 
-    def _create_ipl_sections_panel(self): #vers 1
+    def _create_ipl_sections_panel(self): #vers 2
         """IPL Sections panel - lists every IPL file that contributed
         instances to the currently loaded world, each with a Show/Hide
         toggle. Occupies the central layout space the canvas leaves
@@ -12246,10 +12246,12 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
         header.setStretchLastSection(False)
-        table.setColumnWidth(1, 30)
+        table.setColumnWidth(1, 22)
         table.verticalHeader().setVisible(False)
-        table.verticalHeader().setDefaultSectionSize(24)
+        table.verticalHeader().setDefaultSectionSize(20)
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        table.setShowGrid(False)
+        table.cellClicked.connect(self._on_ipl_section_cell_clicked)
         lay.addWidget(table)
         self._ipl_sections_table = table
 
@@ -12262,14 +12264,16 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         return panel
 
-    def _populate_ipl_sections(self, loader): #vers 2
+    def _populate_ipl_sections(self, loader): #vers 3
         """Fill the IPL Sections panel from a completed load - one row
         per unique source_ipl across all loaded instances, each with an
-        eye / eye-with-strike icon toggle (icon-only, so it stays
-        compact regardless of available panel width - no text label to
-        collapse in the first place). Keeps the full unfiltered
-        instance list on self._all_instances so toggling can recompute
-        the visible subset without needing to reload."""
+        eye / eye-with-strike icon (a plain icon on a QTableWidgetItem,
+        not a QPushButton - avoids fighting the button's own internal
+        chrome/padding, which was the likely remaining source of extra
+        space around the icon after earlier attempts to tighten it via
+        button size/stylesheet). Keeps the full unfiltered instance
+        list on self._all_instances so toggling can recompute the
+        visible subset without needing to reload."""
         table = getattr(self, '_ipl_sections_table', None)
         placeholder = getattr(self, '_ipl_sections_placeholder', None)
         if table is None:
@@ -12279,40 +12283,44 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._hidden_ipls = set()
 
         icon_color = self._get_icon_color()
-        icon_sz = 18
-        eye_open_icon = self._render_variant_icon('eye_visible', None, icon_sz,
-                                                   icon_color, has_menu=False)
-        eye_closed_icon = self._render_variant_icon('eye_hidden', None, icon_sz,
-                                                     icon_color, has_menu=False)
+        icon_sz = 16
+        self._eye_open_icon = self._render_variant_icon('eye_visible', None, icon_sz,
+                                                         icon_color, has_menu=False)
+        self._eye_closed_icon = self._render_variant_icon('eye_hidden', None, icon_sz,
+                                                           icon_color, has_menu=False)
 
         ipl_names = sorted({inst.source_ipl for inst in loader.instances})
         table.setRowCount(len(ipl_names))
         for row, ipl_name in enumerate(ipl_names):
             name_item = QTableWidgetItem(ipl_name)
             table.setItem(row, 0, name_item)
-            btn = QPushButton()
-            btn.setCheckable(True)
-            btn.setFixedSize(24, 20)
-            btn.setIcon(eye_open_icon)
-            btn.setIconSize(eye_open_icon.actualSize(btn.size()))
-            btn.setStyleSheet("QPushButton { padding: 0px; border: none; }")
-            btn.setToolTip(f"Hide {ipl_name}")
-            btn.toggled.connect(
-                lambda checked, n=ipl_name: self._toggle_ipl_section(n, checked))
-            btn.toggled.connect(
-                lambda checked, b=btn, n=ipl_name: self._update_eye_button(
-                    b, checked, n, eye_open_icon, eye_closed_icon))
-            table.setCellWidget(row, 1, btn)
+            eye_item = QTableWidgetItem()
+            eye_item.setIcon(self._eye_open_icon)
+            eye_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            eye_item.setToolTip(f"Hide {ipl_name}")
+            eye_item.setData(Qt.ItemDataRole.UserRole, ipl_name)
+            table.setItem(row, 1, eye_item)
 
         if placeholder is not None:
             placeholder.setVisible(False)
         table.setVisible(True)
 
-    def _update_eye_button(self, btn, hidden, ipl_name, open_icon, closed_icon): #vers 1
-        """Swap an IPL Sections row's eye icon and tooltip to match its
-        current hidden/visible state."""
-        btn.setIcon(closed_icon if hidden else open_icon)
-        btn.setToolTip(f"Show {ipl_name}" if hidden else f"Hide {ipl_name}")
+    def _on_ipl_section_cell_clicked(self, row, col): #vers 1
+        """Clicking the eye-icon cell toggles that IPL's visibility -
+        plain item click rather than a button, so there's no button
+        widget/chrome to size or pad."""
+        if col != 1:
+            return
+        table = self._ipl_sections_table
+        item = table.item(row, 1)
+        if item is None:
+            return
+        ipl_name = item.data(Qt.ItemDataRole.UserRole)
+        hidden = ipl_name in getattr(self, '_hidden_ipls', set())
+        new_hidden = not hidden
+        item.setIcon(self._eye_closed_icon if new_hidden else self._eye_open_icon)
+        item.setToolTip(f"Show {ipl_name}" if new_hidden else f"Hide {ipl_name}")
+        self._toggle_ipl_section(ipl_name, new_hidden)
 
     def _toggle_ipl_section(self, ipl_name, hidden): #vers 1
         """Show/hide all instances from one IPL file - recomputes the
