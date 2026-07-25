@@ -6369,12 +6369,14 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         image_ops_ribbon = self._create_image_ops_ribbon()
         annotate_ribbon = self._create_annotate_ribbon()
         canvas_tabs_ribbon = self._create_canvas_tabs_ribbon()
+        panels_ribbon = self._create_panels_ribbon()
         tool_settings_ribbon = self._create_tool_settings_ribbon()
         for tb in dynamic_ribbons.values():
             outer_mw.addToolBar(Qt.ToolBarArea.LeftToolBarArea, tb)
         outer_mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, image_ops_ribbon)
         outer_mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, annotate_ribbon)
         outer_mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, canvas_tabs_ribbon)
+        outer_mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, panels_ribbon)
         outer_mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, tool_settings_ribbon)
 
         # (All four paint-specific docks that used to be here - Bitmaps,
@@ -7938,17 +7940,19 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         tb.orientationChanged.connect(lambda _o, t=tb: self._apply_ribbon_style(t))
         return tb
 
-    def _create_canvas_tabs_ribbon(self): #vers 1
-        """Canvas tabs ribbon - one numbered button per open canvas
-        document (New Canvas creates a new one), positioned top-right
-        above the right-side dock widgets. Click a number to switch to
-        that canvas; the whole state (image data, undo/redo) is saved/
-        restored via _switch_canvas_tab()."""
+    def _create_panels_ribbon(self): #vers 1
+        """Panel/canvas show-hide toggles, in their own dedicated ribbon
+        - deliberately NOT the Canvas Tabs ribbon, since
+        _refresh_canvas_tabs_ribbon() calls ribbon.clear() every time a
+        canvas tab is added/removed, which would wipe these out (this
+        was a real, previously-unnoticed bug: the canvas toggle added in
+        an earlier session lived in that ribbon and was being silently
+        cleared the same way)."""
         from PyQt6.QtWidgets import QToolBar
         from PyQt6.QtGui import QAction
 
-        tb = QToolBar("Canvas Tabs")
-        tb.setObjectName("Canvas Tabs")
+        tb = QToolBar("Panels")
+        tb.setObjectName("Panels")
         tb.setMovable(True)
         tb.setFloatable(True)
 
@@ -7965,6 +7969,43 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         tb.addAction(canvas_act)
         self._canvas_toggle_act = canvas_act
         tb.addSeparator()
+
+        # Panel show/hide toggles - each QDockWidget's own toggleViewAction()
+        # rather than custom toggle logic, since it auto-syncs its checked
+        # state with the dock's actual visibility (including if the user
+        # closes it via its own [x] button, not just via this action).
+        for dock, label in ((getattr(self, '_world_view_dock', None), "World View"),
+                            (getattr(self, '_instance_list_dock', None), "Instance List")):
+            if dock is None:
+                continue
+            act = dock.toggleViewAction()
+            act.setText(f"Show {label}")
+            tb.addAction(act)
+
+        self._panels_ribbon = tb
+        self._apply_ribbon_style(tb)
+        tb.orientationChanged.connect(lambda _o, t=tb: self._apply_ribbon_style(t))
+        return tb
+
+    def _create_canvas_tabs_ribbon(self): #vers 2
+        """Canvas tabs ribbon - one numbered button per open canvas
+        document (New Canvas creates a new one), positioned top-right
+        above the right-side dock widgets. Click a number to switch to
+        that canvas; the whole state (image data, undo/redo) is saved/
+        restored via _switch_canvas_tab().
+
+        Only builds the numbered tab buttons - _refresh_canvas_tabs_
+        ribbon() calls ribbon.clear() every time tabs change, so nothing
+        else can safely live in this toolbar (see _create_panels_ribbon,
+        which is where the canvas/panel toggles live instead - a
+        previous version of this method put them here, which meant they
+        were being silently wiped out on every tab change)."""
+        from PyQt6.QtWidgets import QToolBar
+
+        tb = QToolBar("Canvas Tabs")
+        tb.setObjectName("Canvas Tabs")
+        tb.setMovable(True)
+        tb.setFloatable(True)
 
         self._canvas_tabs_ribbon = tb
         self._canvas_tab_btns = []
