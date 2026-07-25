@@ -1390,6 +1390,7 @@ class MapSettings:
         'show_cell_grid':    False,    # show platform cell boundaries
         'show_statusbar':    True,     # show bottom status bar
         'show_paint_canvas': False,    # forked-in paint canvas - hidden by default, toggleable
+        'favourite_objects': [],       # list of favourited model_ids, Object Browser panel
         'ui_font_size':      10,       # toolbar/button font size
         'canvas_mode':       'free',   # 'free'|'platform'|'texture'|'icon'
         'show_anim_strip':   False,    # show animation timeline strip
@@ -6007,6 +6008,111 @@ class _FilteredLoaderStub:
         return self._real_loader.get_object(model_id)
 
 
+class _ObjectBrowserModel(QAbstractTableModel):
+    """Backs the Object Browser QTableView - shows the loaded object
+    catalog (IDEObject definitions from GTAWorldLoader.objects), each
+    row's instance count (how many placements in the currently loaded
+    world use that model) and favourite status. Supports four view
+    modes and live search filtering, applied in set_filter()/
+    set_search() by recomputing self._rows (the currently visible,
+    sorted/filtered subset) rather than the model touching the full
+    object catalog on every repaint."""
+
+    _HEADERS = ["★", "Model", "TXD", "Type", "Instances"]
+
+    def __init__(self, parent=None): #vers 1
+        super().__init__(parent)
+        self._all_objects: list = []       # every IDEObject, set once per load
+        self._instance_counts: dict = {}   # model_id -> instance count
+        self._favourites: set = set()      # favourited model_ids
+        self._mode = 'all'                 # 'all' | 'most_used' | 'favourites' | 'generic'
+        self._search = ''
+        self._rows: list = []              # currently visible IDEObjects
+
+    def set_objects(self, objects, instance_counts, favourites): #vers 1
+        self._all_objects = objects
+        self._instance_counts = instance_counts
+        self._favourites = set(favourites)
+        self._recompute()
+
+    def set_mode(self, mode): #vers 1
+        self._mode = mode
+        self._recompute()
+
+    def set_search(self, text): #vers 1
+        self._search = text.lower().strip()
+        self._recompute()
+
+    def toggle_favourite(self, model_id): #vers 1
+        if model_id in self._favourites:
+            self._favourites.discard(model_id)
+        else:
+            self._favourites.add(model_id)
+        self._recompute()
+        return sorted(self._favourites)
+
+    def _is_generic(self, obj): #vers 1
+        """Heuristic for 'generic' objects - matches the real naming
+        convention seen in GTA3/VC/SA .dat files and IDE data (e.g.
+        MODELS\\GENERIC\\WHEELS.DFF, GENERIC.TXD): model or TXD name
+        containing 'generic'."""
+        return 'generic' in obj.model_name.lower() or 'generic' in obj.txd_name.lower()
+
+    def _recompute(self): #vers 1
+        self.beginResetModel()
+        rows = self._all_objects
+        if self._mode == 'favourites':
+            rows = [o for o in rows if o.model_id in self._favourites]
+        elif self._mode == 'generic':
+            rows = [o for o in rows if self._is_generic(o)]
+        if self._search:
+            rows = [o for o in rows if self._search in o.model_name.lower()
+                    or self._search in o.txd_name.lower()]
+        if self._mode == 'most_used':
+            rows = sorted(rows, key=lambda o: self._instance_counts.get(o.model_id, 0),
+                          reverse=True)
+        else:
+            rows = sorted(rows, key=lambda o: o.model_name.lower())
+        self._rows = rows
+        self.endResetModel()
+
+    def rowCount(self, parent=None): #vers 1
+        return len(self._rows)
+
+    def columnCount(self, parent=None): #vers 1
+        return len(self._HEADERS)
+
+    def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole): #vers 1
+        if role != Qt.ItemDataRole.DisplayRole:
+            return None
+        if orientation == Qt.Orientation.Horizontal:
+            return self._HEADERS[section]
+        return str(section + 1)
+
+    def data(self, index, role=Qt.ItemDataRole.DisplayRole): #vers 1
+        if not index.isValid():
+            return None
+        obj = self._rows[index.row()]
+        col = index.column()
+        if role == Qt.ItemDataRole.DisplayRole:
+            if col == 0:
+                return "★" if obj.model_id in self._favourites else ""
+            if col == 1:
+                return obj.model_name
+            if col == 2:
+                return obj.txd_name
+            if col == 3:
+                return obj.obj_type
+            if col == 4:
+                return str(self._instance_counts.get(obj.model_id, 0))
+        return None
+
+    def object_at(self, row): #vers 1
+        if 0 <= row < len(self._rows):
+            return self._rows[row]
+        return None
+
+
 class _InstanceTableModel(QAbstractTableModel):
     """Backs the Instance List QTableView - resolves/formats each row's
     display data on demand via data(), rather than eagerly building a
@@ -6347,6 +6453,12 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, instance_dock)
         if world_dock is not None:
             outer_mw.splitDockWidget(world_dock, instance_dock, Qt.Orientation.Vertical)
+
+        # Object Browser dock - search + filter (All/Most Used/
+        # Favourites/Generic) over the loaded object catalog.
+        object_browser_dock = self._create_object_browser_dock()
+        outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, object_browser_dock)
+        outer_mw.splitDockWidget(instance_dock, object_browser_dock, Qt.Orientation.Vertical)
 
         # Widget registry - each entry is a self-contained dock module
         # under depends/. Adding, removing, or swapping a widget for an
@@ -7975,7 +8087,8 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         # state with the dock's actual visibility (including if the user
         # closes it via its own [x] button, not just via this action).
         for dock, label in ((getattr(self, '_world_view_dock', None), "World View"),
-                            (getattr(self, '_instance_list_dock', None), "Instance List")):
+                            (getattr(self, '_instance_list_dock', None), "Instance List"),
+                            (getattr(self, '_object_browser_dock', None), "Object Browser")):
             if dock is None:
                 continue
             act = dock.toggleViewAction()
@@ -11665,6 +11778,7 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             pane.set_instances(loader.instances)
         self._populate_instance_list(loader)
         self._populate_ipl_sections(loader)
+        self._populate_object_browser(loader)
         QMessageBox.information(self, source_desc, loader.get_summary())
 
     def _create_ipl_sections_panel(self): #vers 1
@@ -11754,6 +11868,92 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             pane.set_instances(visible)
         loader_stub = _FilteredLoaderStub(visible, getattr(self, '_world_loader', None))
         self._populate_instance_list(loader_stub)
+
+    def _create_object_browser_dock(self): #vers 1
+        """Object Browser dock - search + filter (All/Most Used/
+        Favourites/Generic) over the loaded object catalog. Double-
+        click a row to toggle its favourite status (persisted to
+        map_settings)."""
+        from PyQt6.QtWidgets import QTableView, QLineEdit, QPushButton, QButtonGroup
+
+        panel = QWidget()
+        lay = QVBoxLayout(panel)
+        lay.setContentsMargins(4, 4, 4, 4)
+
+        search = QLineEdit()
+        search.setPlaceholderText("Search objects…")
+        search.textChanged.connect(self._on_object_search_changed)
+        lay.addWidget(search)
+        self._object_search_edit = search
+
+        btn_row = QHBoxLayout()
+        group = QButtonGroup(panel)
+        group.setExclusive(True)
+        self._object_mode_buttons = {}
+        for mode, label in (('all', "All"), ('most_used', "Most Used"),
+                            ('favourites', "Favourites"), ('generic', "Generic")):
+            btn = QPushButton(label)
+            btn.setCheckable(True)
+            btn.setChecked(mode == 'all')
+            btn.clicked.connect(lambda checked, m=mode: self._on_object_mode_changed(m))
+            group.addButton(btn)
+            btn_row.addWidget(btn)
+            self._object_mode_buttons[mode] = btn
+        lay.addLayout(btn_row)
+
+        view = QTableView()
+        view.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        view.verticalHeader().setVisible(False)
+        view.setEditTriggers(QTableView.EditTrigger.NoEditTriggers)
+        view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        view.doubleClicked.connect(self._on_object_row_double_clicked)
+        model = _ObjectBrowserModel()
+        view.setModel(model)
+        lay.addWidget(view)
+        self._object_browser_view = view
+        self._object_browser_model = model
+
+        dock = QDockWidget("Object Browser", self)
+        dock.setObjectName("Object Browser")
+        dock.setWidget(panel)
+        dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
+                        QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+        self._object_browser_dock = dock
+        return dock
+
+    def _populate_object_browser(self, loader): #vers 1
+        """Fill the Object Browser from a completed load - instance
+        counts per model (for Most Used) computed once here, not
+        recomputed on every filter change."""
+        model = getattr(self, '_object_browser_model', None)
+        if model is None:
+            return
+        from collections import Counter
+        counts = Counter(inst.model_id for inst in loader.instances)
+        favourites = self.map_settings.get('favourite_objects') or []
+        model.set_objects(list(loader.objects.values()), counts, favourites)
+
+    def _on_object_search_changed(self, text): #vers 1
+        model = getattr(self, '_object_browser_model', None)
+        if model is not None:
+            model.set_search(text)
+
+    def _on_object_mode_changed(self, mode): #vers 1
+        model = getattr(self, '_object_browser_model', None)
+        if model is not None:
+            model.set_mode(mode)
+
+    def _on_object_row_double_clicked(self, index): #vers 1
+        """Double-click a row to toggle its favourite status."""
+        model = getattr(self, '_object_browser_model', None)
+        if model is None:
+            return
+        obj = model.object_at(index.row())
+        if obj is None:
+            return
+        new_favourites = model.toggle_favourite(obj.model_id)
+        self.map_settings.set('favourite_objects', new_favourites)
+        self.map_settings.save()
 
     def _create_instance_list_dock(self): #vers 2
         """Instance List dock - a browsable table of every loaded world
