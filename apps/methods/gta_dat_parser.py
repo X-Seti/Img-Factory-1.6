@@ -45,6 +45,7 @@ Field formats per game (verified from real .ide files):
 
 import os
 import re
+import struct
 from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass, field
 
@@ -517,21 +518,46 @@ def detect_ipl_format(data: bytes) -> str: #vers 1
     return 'binary'
 
 
-class BinaryIPLParser: #vers 1
+class BinaryIPLParser: #vers 2
     """Parser for binary-format IPL data (see detect_ipl_format).
 
-    NOT YET VERIFIED against a real sample file or official
-    documentation - the exact byte layout (header structure, field
-    order/sizes, section counts) is not something this project has
-    confirmed with certainty. Treat this class as a placeholder that
-    correctly identifies/tracks binary IPL entries as present-but-
-    unparsed, rather than a working parser - implementing the real
-    byte-level parsing needs either a real sample binary .ipl (e.g.
-    extracted from a real gta3.img) to verify against, or a citable
-    reference for the exact struct layout. Silently guessing at an
-    unverified format risks producing plausible-looking but wrong
-    position/rotation data, which is worse than clearly refusing to
-    guess."""
+    Verified empirically against two real sample files Keith provided
+    (crack.ipl: 60 instances, countn2_stream1.ipl: 355 instances) -
+    not from official documentation, but cross-checked several
+    independent ways: quaternion magnitude is exactly 1.0 for every
+    single instance across both files (415 total, not a coincidence);
+    world positions cluster in plausible SA coordinate ranges; model
+    IDs fall within SA's valid ID range; and the header's own internal
+    fields correctly predict the actual computed offset where instance
+    data ends (76 + inst_count*40) in both files independently.
+
+    Confirmed structure:
+    - Magic: b"bnry" (4 bytes)
+    - Header: 18 x int32 LE (72 bytes) immediately after the magic -
+      total header is 76 bytes. Only two fields' meaning is confirmed:
+      index 0 = inst_count, index 6 = 76 (constant - the header size/
+      offset where inst data begins). The other 16 header fields are
+      presumably counts/offsets for other sections (cull, zone, etc,
+      per the text-format IPL_SECTIONS list) but which index maps to
+      which section, and their exact record formats, are NOT yet
+      confirmed - only the inst section is parsed here.
+    - Each inst record is 40 bytes, starting right after the header:
+      7x float32 LE (pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, rot_w),
+      then 3x int32 LE (model_id, a second field, lod_index). The
+      second field is NOT interior (an earlier guess) - its observed
+      values are almost all exact powers of 2 (0/256/512/1024) with
+      one outlier (18), strongly suggesting a per-instance flags
+      bitmask rather than an interior number; exposed as-is without
+      inventing bit meanings that aren't confirmed.
+
+    Cull/zone/other sections are NOT parsed yet - the header fields
+    that likely locate them haven't been confirmed the way inst_count/
+    inst_offset have. Write-back is not implemented at all yet -
+    round-tripping needs the read side proven reliable first."""
+
+    _MAGIC = b"bnry"
+    _HEADER_SIZE = 76
+    _INST_STRIDE = 40
 
     def __init__(self, game: str = GTAGame.SA):
         self.game = game
@@ -540,12 +566,45 @@ class BinaryIPLParser: #vers 1
         self.culls: List[Dict] = []
         self.stats = ParseStats()
 
-    def parse(self, data: bytes, source_name: str = "") -> bool: #vers 1
+    def parse(self, data: bytes, source_name: str = "") -> bool: #vers 2
+        if len(data) < self._HEADER_SIZE or data[:4] != self._MAGIC:
+            self.stats.errors.append(
+                f"Not a recognised binary IPL ({source_name or 'unnamed'})")
+            return False
+        try:
+            inst_count = struct.unpack_from('<i', data, 4)[0]
+        except struct.error:
+            self.stats.errors.append(
+                f"Binary IPL header too short ({source_name or 'unnamed'})")
+            return False
+
+        needed = self._HEADER_SIZE + inst_count * self._INST_STRIDE
+        if inst_count < 0 or needed > len(data):
+            self.stats.errors.append(
+                f"Binary IPL inst_count ({inst_count}) doesn't fit the "
+                f"file size ({source_name or 'unnamed'})")
+            return False
+
+        for i in range(inst_count):
+            rec_off = self._HEADER_SIZE + i * self._INST_STRIDE
+            try:
+                px, py, pz, rx, ry, rz, rw = struct.unpack_from('<7f', data, rec_off)
+                model_id, _flags, lod = struct.unpack_from('<3i', data, rec_off + 28)
+            except struct.error:
+                self.stats.warnings.append(
+                    f"Skipped truncated inst record {i} ({source_name})")
+                continue
+            self.instances.append(IPLInstance(
+                model_id=model_id, model_name="", interior=0,
+                pos_x=px, pos_y=py, pos_z=pz,
+                rot_x=rx, rot_y=ry, rot_z=rz, rot_w=rw,
+                lod_index=lod, source_ipl=source_name, line_no=i))
+        self.stats.instances = len(self.instances)
+        # Cull/zone/other sections not parsed yet - see class docstring.
         self.stats.warnings.append(
-            f"Binary IPL format detected ({source_name or 'unnamed'}) - "
-            f"not yet parsed, byte layout unverified. See BinaryIPLParser "
-            f"docstring.")
-        return False
+            f"Binary IPL ({source_name or 'unnamed'}): parsed {len(self.instances)} "
+            f"inst entries; cull/zone/other sections not yet supported.")
+        return True
 
 
 class IPLParser: #vers 2

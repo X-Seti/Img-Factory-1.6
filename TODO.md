@@ -106,19 +106,39 @@ built and tested; real per-instance rendering and editing still to come.
 
 ### Needs Keith's input / real data to proceed safely
 
-- **Binary IPL parsing** - detection works, but the actual byte-level
-  format (header structure, field order/sizes/counts) isn't something
-  this project has verified with confidence. Guessing at an unverified
-  binary layout risks silently producing plausible-looking but wrong
-  position/rotation/model data, which is worse than not parsing it at
-  all. Would help enormously: a real sample binary .ipl file (e.g.
-  extracted from an actual gta3.img) to reverse-engineer/verify against
-  empirically, or a citable reference for the exact layout.
 - **LOD pairing semantics** - the interpretation above (lod_index as a
   0-based position among a file's own inst entries) produced correct
   results against synthetic test data built to match it, but hasn't
   been checked against a real SA .ipl with known LOD pairs. Worth
   spot-checking once real data/an in-game reference is available.
+
+### Binary IPL - RESOLVED (read side), verified against real data
+
+Keith provided 165 real binary .ipl files (crack.ipl, countn2_stream*,
+vegasw_stream*, etc, all standard SA "streaming" IPL naming). Read-
+side format confirmed empirically, not from documentation:
+- Magic b"bnry" + 76-byte header (18 x int32 LE) - only inst_count
+  (index 0) and a constant 76 (index 6, the header size itself) are
+  confirmed; the other 16 fields likely locate cull/zone/other
+  sections but aren't identified yet.
+- Each inst record: 40 bytes - 7 float32 (pos xyz + quaternion xyzw),
+  then 3 int32 (model_id, a flags-like field, lod_index).
+- Verified across all 164 binary files in the sample (1 crack.ipl-style
+  file plus 163 stream files): 36,569 total instances, zero parse
+  failures, zero quaternion-magnitude sanity failures (every single
+  instance's rotation is a valid unit quaternion), and world positions
+  fall exactly within San Andreas' known map bounds (X/Y roughly
+  ±3000, Z -76 to 1382) across the whole dataset. The "flags" field
+  (previously guessed as "interior") shows a clean bitmask pattern
+  (0, then powers of 2, then their OR'd combinations) confirming it's
+  some kind of per-instance flags, not an interior number.
+- BinaryIPLParser in gta_dat_parser.py now actually parses inst data
+  (previously a stub). Cull/zone/other binary sections and write-back
+  are NOT done yet - the next steps once this is wired into the actual
+  loading pipeline (GTAWorldLoader currently only reads text-format
+  .ipl files directly off disk; reading these binary ones out of an
+  actual gta3.img still needs the IMG-extraction + detect_ipl_format +
+  BinaryIPLParser pieces connected together).
 
 ### Next up, in priority order
 
