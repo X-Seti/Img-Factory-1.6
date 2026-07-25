@@ -4491,6 +4491,19 @@ def get_txd_workshop_icon(size: int = 24, color: str = None, bg_color: str = Non
         <path d="M16 16h2v2h-2z" stroke="currentColor" stroke-width="1.5" fill="currentColor" fill-opacity="0.4"/>
     </svg>''', size, color, bg_color)
 
+def get_map_workshop_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
+    """Map Workshop - folded map panels with a location marker -
+    handdrawn outline, matching the same style as COL/TXD Workshop's
+    icons above. Was referenced (wrapped in try/except) in Map
+    Workshop's own titlebar/tab-icon code from early on, but never
+    actually existed until now - every call site was silently falling
+    through to a generic fallback icon this whole time."""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M8 4L3 6v14l5-2 8 2 5-2V4l-5 2-8-2z" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M8 4v14M16 6v14" stroke="currentColor" stroke-width="1.4" fill="none" stroke-opacity="0.6"/>
+        <circle cx="12" cy="12" r="2.3" stroke="currentColor" stroke-width="1.8" fill="currentColor" fill-opacity="0.35"/>
+    </svg>''', size, color, bg_color)
+
 def get_hybrid_load_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
     """Hybrid Load — IMG archive merged with COL shield, two overlapping documents"""
     return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
