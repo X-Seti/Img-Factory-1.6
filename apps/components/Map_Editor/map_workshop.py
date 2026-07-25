@@ -6044,22 +6044,24 @@ class _InstanceEditPanel(QWidget):
     _ROT_SMALL_STEP = 1.0
     _ROT_LARGE_STEP = 15.0
 
-    def __init__(self, workshop, parent=None): #vers 1
+    def __init__(self, workshop, parent=None): #vers 2
         super().__init__(parent, Qt.WindowType.Tool)
         self._workshop = workshop
         self._inst = None
         self._loader = None
+        self._nudge_wide = None   # current reflow state, None forces first layout
         self.setWindowTitle("Object Info")
+        self.setMinimumWidth(180)
 
         self._lay = QVBoxLayout(self)
         self._identity_box = self._add_section("Identity")
         self._ide_box = self._add_section("IDE Info")
-        self._pos_box, self._pos_spins = self._add_nudge_section(
-            "Position", self._POS_SMALL_STEP, self._POS_LARGE_STEP,
-            self._on_position_nudged)
-        self._rot_box, self._rot_spins = self._add_nudge_section(
-            "Rotation (degrees)", self._ROT_SMALL_STEP, self._ROT_LARGE_STEP,
-            self._on_rotation_nudged)
+        self._pos_box, self._pos_spins, self._pos_grid, self._pos_rows = \
+            self._add_nudge_section("Position", self._POS_SMALL_STEP,
+                                    self._POS_LARGE_STEP, self._on_position_nudged)
+        self._rot_box, self._rot_spins, self._rot_grid, self._rot_rows = \
+            self._add_nudge_section("Rotation (degrees)", self._ROT_SMALL_STEP,
+                                    self._ROT_LARGE_STEP, self._on_rotation_nudged)
         self._meta_box = self._add_section("Placement Info")
         self._2dfx_box = self._add_section("2DFX Effects")
         self._tobj_box = self._add_section("TOBJ (Timed Object) Variants")
@@ -6067,6 +6069,47 @@ class _InstanceEditPanel(QWidget):
         close_btn = QPushButton("Close")
         close_btn.clicked.connect(self.hide)
         self._lay.addWidget(close_btn)
+
+        self._reflow_nudge_rows(wide=True)
+
+    def resizeEvent(self, event): #vers 1
+        """Wrap the nudge rows' arrow buttons onto a second line when
+        the panel is too narrow for everything on one row, rather than
+        clipping/squeezing them (per Keith's request - 'wrapping is
+        needed depending on the popup dialog width')."""
+        super().resizeEvent(event)
+        wide = self.width() >= 260
+        if wide != self._nudge_wide:
+            self._reflow_nudge_rows(wide)
+
+    def _reflow_nudge_rows(self, wide): #vers 1
+        """Rebuild both nudge sections' grids for the given width mode -
+        wide: label, <<, <, value, >, >> all in one row per axis.
+        narrow: label+value on one row, the 4 arrow buttons on the row
+        beneath, per axis."""
+        for grid, rows_info in ((self._pos_grid, self._pos_rows),
+                                (self._rot_grid, self._rot_rows)):
+            # Clear all positions (widgets stay alive, just get re-added)
+            while grid.count():
+                grid.takeAt(0)
+            for i, (label, btn_ll, btn_l, spin, btn_r, btn_rr) in enumerate(rows_info):
+                if wide:
+                    r = i
+                    grid.addWidget(label, r, 0)
+                    grid.addWidget(btn_ll, r, 1)
+                    grid.addWidget(btn_l, r, 2)
+                    grid.addWidget(spin, r, 3)
+                    grid.addWidget(btn_r, r, 4)
+                    grid.addWidget(btn_rr, r, 5)
+                else:
+                    r = i * 2
+                    grid.addWidget(label, r, 0)
+                    grid.addWidget(spin, r, 1, 1, 4)
+                    grid.addWidget(btn_ll, r + 1, 0)
+                    grid.addWidget(btn_l, r + 1, 1)
+                    grid.addWidget(btn_r, r + 1, 2)
+                    grid.addWidget(btn_rr, r + 1, 3)
+        self._nudge_wide = wide
 
     def _add_section(self, title): #vers 1
         box = QGroupBox(title)
@@ -6088,34 +6131,50 @@ class _InstanceEditPanel(QWidget):
             empty.setStyleSheet("color: palette(mid);")
             lay.addWidget(empty)
 
-    def _add_nudge_section(self, title, small_step, large_step, on_nudge): #vers 1
-        """One << < [value] > >> row per axis (X/Y/Z)."""
+    def _add_nudge_section(self, title, small_step, large_step, on_nudge): #vers 2
+        """One label + << < [value] > >> row per axis (X/Y/Z), using
+        real chevron icons rather than text, laid out in a QGridLayout
+        so _reflow_nudge_rows can wrap the arrow buttons onto a second
+        row when the panel is too narrow to fit everything on one
+        line (rather than clipping/squeezing, which a plain QHBoxLayout
+        would do with no wrapping at all)."""
         box = QGroupBox(title)
-        box_lay = QVBoxLayout(box)
+        grid = QGridLayout(box)
+        wf = self._workshop
+        icon_sz = 14
+        icon_color = wf._get_icon_color()
+        icons = {
+            'll': wf._render_variant_icon('chevron_left2', None, icon_sz, icon_color, has_menu=False),
+            'l':  wf._render_variant_icon('chevron_left',  None, icon_sz, icon_color, has_menu=False),
+            'r':  wf._render_variant_icon('chevron_right', None, icon_sz, icon_color, has_menu=False),
+            'rr': wf._render_variant_icon('chevron_right2',None, icon_sz, icon_color, has_menu=False),
+        }
         spins = {}
+        rows_info = []   # per-axis widget refs, for _reflow_nudge_rows
         for axis in ('x', 'y', 'z'):
-            row = QHBoxLayout()
-            row.addWidget(QLabel(axis.upper() + ":"))
-            btn_ll = QPushButton("<<"); btn_ll.setFixedWidth(28)
-            btn_l  = QPushButton("<");  btn_l.setFixedWidth(22)
+            label = QLabel(axis.upper() + ":")
+            btn_ll = QPushButton(); btn_ll.setIcon(icons['ll']); btn_ll.setFixedWidth(28)
+            btn_l  = QPushButton(); btn_l.setIcon(icons['l']);   btn_l.setFixedWidth(22)
             spin = QDoubleSpinBox()
             spin.setRange(-100000.0, 100000.0)
             spin.setDecimals(2)
             spin.setFixedWidth(80)
-            btn_r  = QPushButton(">");  btn_r.setFixedWidth(22)
-            btn_rr = QPushButton(">>"); btn_rr.setFixedWidth(28)
+            btn_r  = QPushButton(); btn_r.setIcon(icons['r']);   btn_r.setFixedWidth(22)
+            btn_rr = QPushButton(); btn_rr.setIcon(icons['rr']); btn_rr.setFixedWidth(28)
+            btn_ll.setToolTip(f"-{large_step:g}")
+            btn_l.setToolTip(f"-{small_step:g}")
+            btn_r.setToolTip(f"+{small_step:g}")
+            btn_rr.setToolTip(f"+{large_step:g}")
             btn_ll.clicked.connect(lambda _=False, a=axis: on_nudge(a, -large_step))
             btn_l.clicked.connect(lambda _=False, a=axis: on_nudge(a, -small_step))
             btn_r.clicked.connect(lambda _=False, a=axis: on_nudge(a, small_step))
             btn_rr.clicked.connect(lambda _=False, a=axis: on_nudge(a, large_step))
             spin.editingFinished.connect(
                 lambda a=axis, s=spin: on_nudge(a, None, absolute=s.value()))
-            row.addWidget(btn_ll); row.addWidget(btn_l)
-            row.addWidget(spin)
-            row.addWidget(btn_r); row.addWidget(btn_rr)
-            box_lay.addLayout(row)
             spins[axis] = spin
+            rows_info.append((label, btn_ll, btn_l, spin, btn_r, btn_rr))
         self._lay.addWidget(box)
+        return box, spins, grid, rows_info
         return box, spins
 
     def show_for_instance(self, inst, loader): #vers 1
@@ -6704,6 +6763,46 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         # Restore saved ribbon/dock layout, if any
         QTimer.singleShot(0, self._restore_outer_layout)
+
+        # Save the layout reliably, not just on this widget's own
+        # closeEvent (which likely never fires at all when embedded as
+        # a tab - see _save_outer_layout's docstring): once when the
+        # whole application quits, and debounced whenever any of the
+        # map-specific docks actually change location/float state, so
+        # rearranging docks gets saved even if the app is never
+        # cleanly quit afterward.
+        try:
+            from PyQt6.QtWidgets import QApplication as _QApp
+            app_inst = _QApp.instance()
+            if app_inst is not None:
+                app_inst.aboutToQuit.connect(self._save_outer_layout)
+        except Exception:
+            pass
+
+        self._layout_save_timer = QTimer(self)
+        self._layout_save_timer.setSingleShot(True)
+        self._layout_save_timer.timeout.connect(self._save_outer_layout)
+        for dock in (getattr(self, '_world_view_dock', None),
+                     getattr(self, '_instance_list_dock', None),
+                     getattr(self, '_object_browser_dock', None)):
+            if dock is None:
+                continue
+            dock.dockLocationChanged.connect(
+                lambda _area: self._layout_save_timer.start(1000))
+            dock.topLevelChanged.connect(
+                lambda _floating: self._layout_save_timer.start(1000))
+
+        # Periodic safety net - dockLocationChanged only fires when a
+        # dock's AREA changes (left<->right), not when it's restacked
+        # within the same area via splitter rearrangement (e.g.
+        # dragging Object Browser to sit under Instance List, both
+        # staying in the right dock area - exactly the scenario that
+        # wasn't being saved at all). A cheap periodic save while the
+        # workshop is open guarantees rearrangements get persisted soon
+        # regardless of which specific Qt signal would or wouldn't fire.
+        self._layout_periodic_timer = QTimer(self)
+        self._layout_periodic_timer.timeout.connect(self._save_outer_layout)
+        self._layout_periodic_timer.start(15000)
 
         self._set_status(f"Canvas: {self._canvas_width}×{self._canvas_height}")
 
@@ -8685,6 +8784,27 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             if kind == 'eye_hidden':
                 p.setBrush(Qt.BrushStyle.NoBrush)
                 p.drawLine(m, m, size - m, size - m)
+        elif kind in ('chevron_left', 'chevron_left2', 'chevron_right', 'chevron_right2'):
+            p.setPen(QPen(qc, max(2, pen_w))); p.setBrush(Qt.BrushStyle.NoBrush)
+            cy = size // 2
+            half_h = (size - 2*m) // 2
+            is_right = kind.startswith('chevron_right')
+            is_double = kind.endswith('2')
+
+            def _draw_chevron(cx): #vers 1
+                if is_right:
+                    p.drawLine(cx - half_h//2, cy - half_h, cx + half_h//2, cy)
+                    p.drawLine(cx + half_h//2, cy, cx - half_h//2, cy + half_h)
+                else:
+                    p.drawLine(cx + half_h//2, cy - half_h, cx - half_h//2, cy)
+                    p.drawLine(cx - half_h//2, cy, cx + half_h//2, cy + half_h)
+
+            if is_double:
+                offset = max(2, size // 5)
+                _draw_chevron(size//2 - offset)
+                _draw_chevron(size//2 + offset)
+            else:
+                _draw_chevron(size // 2)
 
     def _render_variant_icon(self, icon_kind, icon_method, size, icon_color,
                               has_menu: bool = False) -> QIcon: #vers 2
@@ -12056,9 +12176,7 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         table.setHorizontalHeaderLabels(["IPL File", ""])
         header = table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
-        header.setStretchLastSection(False)
-        table.setColumnWidth(1, 32)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         table.verticalHeader().setVisible(False)
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         lay.addWidget(table)
@@ -12111,7 +12229,17 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             btn.toggled.connect(
                 lambda checked, b=btn, n=ipl_name: self._update_eye_button(
                     b, checked, n, eye_open_icon, eye_closed_icon))
-            table.setCellWidget(row, 1, btn)
+            # Wrap in a centering container - the column now stretches
+            # to fill remaining space (rather than a fixed width, which
+            # left a dead-space gap after it), so the fixed-size button
+            # needs its own layout to stay centred within that wider cell.
+            cell = QWidget()
+            cell_lay = QHBoxLayout(cell)
+            cell_lay.setContentsMargins(0, 0, 0, 0)
+            cell_lay.addStretch()
+            cell_lay.addWidget(btn)
+            cell_lay.addStretch()
+            table.setCellWidget(row, 1, cell)
 
         if placeholder is not None:
             placeholder.setVisible(False)
@@ -16817,17 +16945,30 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             super().keyPressEvent(e)
 
 
-    def closeEvent(self, event): #vers 3
+    def _save_outer_layout(self): #vers 1
+        """Save outer_mw's current dock/ribbon layout - factored out of
+        closeEvent so it can also be triggered reliably when the
+        workshop is embedded as a tab (the common case via
+        open_map_workshop), where closeEvent likely never fires at all
+        - it's a QWidget-level event that only triggers when .close()
+        is actually called on this widget specifically, not when the
+        whole app quits or a tab is closed/switched away from while
+        this widget stays alive as a child of main_tab_widget."""
+        if not (hasattr(self, '_outer_mw') and self._outer_mw):
+            return
+        try:
+            from PyQt6.QtCore import QByteArray
+            self.map_settings.set(
+                'outer_layout_state',
+                self._outer_mw.saveState(self._OUTER_LAYOUT_VERSION).toHex().data().decode())
+            self.map_settings.set('outer_layout_version', self._OUTER_LAYOUT_VERSION)
+            self.map_settings.save()
+        except Exception:
+            pass
+
+    def closeEvent(self, event): #vers 4
         # Save dock/ribbon layout so it restores on next open
-        if hasattr(self, '_outer_mw') and self._outer_mw:
-            try:
-                self.map_settings.set(
-                    'outer_layout_state',
-                    self._outer_mw.saveState(self._OUTER_LAYOUT_VERSION).toHex().data().decode())
-                self.map_settings.set('outer_layout_version', self._OUTER_LAYOUT_VERSION)
-                self.map_settings.save()
-            except Exception:
-                pass
+        self._save_outer_layout()
         # Remove injected tool menu from imgfactory menubar
         try:
             mw = getattr(self, 'main_window', None) or getattr(self, '_imgfactory', None)
