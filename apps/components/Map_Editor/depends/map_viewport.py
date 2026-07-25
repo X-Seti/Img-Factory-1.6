@@ -223,30 +223,39 @@ class MapViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             glVertex3f(-size, 0, i); glVertex3f(size, 0, i)
         glEnd()
 
-    def _draw_instances(self): #vers 2
-        """Draw all loaded instance positions in a single GL call via
-        the precomputed vertex array (see set_instances), instead of
-        looping in Python drawing a full 6-quad cube per instance - the
-        latter meant over 1.2 million individual glVertex3f calls per
-        frame at 51,711 instances, which is what actually caused the
-        reported slowness. Renders as points rather than cubes for now -
-        real per-instance DFF/TXD geometry is the proper long-term
-        replacement for this whole method, once that's built."""
+    def _draw_instances(self): #vers 3
+        """Draw all loaded instance positions as points, via a single
+        glBegin(GL_POINTS)/glEnd block - not full 6-quad cubes, which
+        at 51,711 instances meant over 1.2 million individual
+        glVertex3f calls per frame and was the original cause of the
+        reported slowness. Real per-instance DFF/TXD geometry is the
+        proper long-term replacement for this whole method, once
+        that's built.
+
+        Deliberately NOT using glVertexPointer/glDrawArrays/
+        glEnableClientState (client-side vertex arrays) here, even
+        though they'd be faster still - a real crash report showed
+        glVertexPointer returning None from PyOpenGL's late-binding on
+        actual hardware (that specific legacy client-array API not
+        exposed by the driver/context), which cascaded into a second
+        exception inside PyOpenGL's own error handling and a full
+        process abort/core dump - not something a try/except around
+        the call can safely catch, since the failure escalates past
+        normal Python exception handling. Plain glBegin/glEnd immediate
+        mode is already used elsewhere in this codebase (dff_viewport.py)
+        without issue, so it's the safer, more portable choice here even
+        at some cost to raw draw-call count."""
         glColor3f(0.9, 0.5, 0.2)
         glPointSize(max(1.0, min(8.0, self._marker_size)))
 
         va = getattr(self, '_vertex_array', None)
         if va is not None and len(va):
-            glEnableClientState(GL_VERTEX_ARRAY)
-            glVertexPointer(3, GL_FLOAT, 0, va)
-            glDrawArrays(GL_POINTS, 0, len(va))
-            glDisableClientState(GL_VERTEX_ARRAY)
+            glBegin(GL_POINTS)
+            for x, y, z in va.tolist():
+                glVertex3f(x, y, z)
+            glEnd()
             return
 
-        # Fallback with no numpy/vertex array available - still correct,
-        # just slow at large instance counts (matches the old behaviour,
-        # minus the cube geometry, so at least the per-vertex cost is
-        # 1 point instead of 24 cube vertices per instance).
         if self._instances:
             glBegin(GL_POINTS)
             for x, y, z, _name in self._instances:
