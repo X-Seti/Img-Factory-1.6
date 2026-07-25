@@ -209,19 +209,27 @@ side format confirmed empirically, not from documentation:
      tune each mode's feel directly through the UI. Applies immediately
      on save, no restart needed.
 
-   - **IPL Sections eye icons**: DONE - Show/Hide per IPL file is now
-     an icon-only eye / eye-with-strike toggle instead of a text
-     button, inherently compact at any panel width. Fixed a real
-     regression noticed via screenshot this session: the icon column
-     had been accidentally changed back to Stretch resize mode at some
-     point (reintroducing padding around the icon, the opposite
-     problem from what an earlier fix addressed) - reverted to a tight
-     Fixed width, with the IPL File name column taking Stretch instead
-     (the more standard file-list pattern).
+   - **IPL Sections eye icons**: FULLY DONE - went through several
+     iterations before landing on something solid. Final approach:
+     replaced the QPushButton toggle entirely with a plain icon on a
+     QTableWidgetItem (toggled via cellClicked) - eliminates button
+     chrome/padding as a source of unwanted space entirely, rather than
+     continuing to fight it via size/stylesheet tweaks. Column order is
+     icon-first, name-second (was reversed); hidden entries grey out
+     their name text (had to blend the active text colour toward the
+     background programmatically, since this app's QSS-based dark
+     theme leaves QPalette's Disabled colour group reporting the same
+     white as Active - a real Qt/stylesheet interaction quirk, not
+     just picking the "wrong" role name); panel capped at 200px max
+     width (was unconstrained, competing with World View/Object
+     Browser for space). Also discovered and reverted a genuine
+     regression from a parallel session's earlier work - the icon
+     column had been changed back to Stretch to fix a *different*
+     padding complaint, which reintroduced this one.
 
-   - **Right-click Add/Remove Favourites on Instance List**: DONE -
-     shares the same favourite_objects setting as Object Browser's own
-     toggle, staying in sync between both panels.
+   - **Right-click Add/Remove Favourites**: DONE - available on the
+     merged panel (see below), sharing the same favourite_objects
+     setting throughout.
 
    - **Map Workshop SVG icon**: DONE - found while investigating that
      get_map_workshop_icon had never actually been implemented despite
@@ -230,23 +238,26 @@ side format confirmed empirically, not from documentation:
      Editor work - added a proper folded-map icon matching the
      established COL/TXD Workshop icon style.
 
-   - **Bigger UI redesign, proposed but NOT built yet**: Keith
-     suggested (screenshot: "addtofav.png") adding Add/Delete/Rename
-     SVG icons above the Instance List, an adaptive row layout that
-     collapses the All/Most Used/Favourites/Generic filter buttons
-     onto the same row as those icons when there's space (icon-only
-     when there isn't), and - the biggest piece - merging Object
-     Browser into Instance List entirely, showing a single list of
-     [Star] ID / Model / TXD / Instances (i.e. Object Browser's own
-     column layout) rather than two separate docks. This wasn't
-     attempted this session - it's a genuine architectural question
-     (once merged, a row represents a MODEL with potentially many
-     placements, not a single instance - what should single-/double-
-     click centre the camera on then? First instance? Does per-
-     instance LOD override still make sense from this view, or only
-     from a still-separate "show instances of this model" drill-down?)
-     that deserves deliberate design rather than a rushed merge. Worth
-     picking up as its own dedicated piece of work.
+   - **Object Browser + Instance List merge**: DONE. Design decisions
+     made (Keith said "continue" without answering the open questions
+     from the previous write-up, so proceeded with documented,
+     reasonable choices rather than blocking): the merged panel is
+     Object Browser's UI (search + All/Most Used/Favourites/Generic),
+     now showing Star/ID/Model/TXD/Instances per Keith's exact spec;
+     the standalone Instance List dock is retired (code left in place,
+     unused, not deleted, for reversibility). Since a row now
+     represents a MODEL that may have zero, one, or many placements,
+     selecting a row centres the camera + edit panel on that model's
+     FIRST instance, with Prev/Next cycling (shown in the edit panel,
+     hidden entirely for single-instance models) through the rest.
+     Right-click Add/Remove Favourites added to the merged panel.
+
+   - **Still not built**: Add/Delete/Rename SVG icons above the merged
+     panel, and the adaptive row layout that collapses those icons plus
+     the All/Most Used/Favourites/Generic filter buttons onto one row
+     when there's enough width (icon-only when there isn't). Smaller,
+     more mechanical pieces than the merge itself - worth picking up
+     next.
 
    - **Add**: browse the desktop for new DFF/TXD/COL files and import
      them into the game's canonical archive - gta3.img for GTA3/VC/SA
