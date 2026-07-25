@@ -6123,6 +6123,17 @@ class _InstanceEditPanel(QWidget):
 
         self._lay = QVBoxLayout(self)
         self._identity_box = self._add_section("Identity")
+        self._nav_row = QHBoxLayout()
+        self._nav_label = QLabel("")
+        self._nav_prev_btn = QPushButton("< Prev")
+        self._nav_next_btn = QPushButton("Next >")
+        self._nav_prev_btn.clicked.connect(lambda: self._workshop._cycle_model_instance(-1))
+        self._nav_next_btn.clicked.connect(lambda: self._workshop._cycle_model_instance(1))
+        self._nav_row.addWidget(self._nav_prev_btn)
+        self._nav_row.addWidget(self._nav_label)
+        self._nav_row.addWidget(self._nav_next_btn)
+        self._lay.addLayout(self._nav_row)
+        self._set_nav_visible(False)
         self._ide_box = self._add_section("IDE Info")
         self._pos_box, self._pos_spins, self._pos_grid, self._pos_rows = \
             self._add_nudge_section("Position", self._POS_SMALL_STEP,
@@ -6245,13 +6256,29 @@ class _InstanceEditPanel(QWidget):
         return box, spins, grid, rows_info
         return box, spins
 
-    def show_for_instance(self, inst, loader): #vers 1
+    def _set_nav_visible(self, visible): #vers 1
+        self._nav_label.setVisible(visible)
+        self._nav_prev_btn.setVisible(visible)
+        self._nav_next_btn.setVisible(visible)
+
+    def show_for_instance(self, inst, loader, nav_info=None): #vers 2
         """Refresh every section for a (possibly new) instance - called
-        both when first opening the panel and whenever the Instance
-        List selection changes, so the same panel stays open and
-        up to date rather than needing to be reopened."""
+        both when first opening the panel and whenever the selection
+        changes (Instance List, or the merged Object Browser), so the
+        same panel stays open and up to date rather than needing to be
+        reopened. nav_info, if given, is (current_index, total_count)
+        for a model with multiple placements - shows Prev/Next
+        cycling, per Keith's request that clicking a merged Object
+        Browser row (one row per model, not per placement) still be
+        able to reach every instance of that model."""
         self._inst = inst
         self._loader = loader
+        if nav_info is not None:
+            idx, total = nav_info
+            self._set_nav_visible(total > 1)
+            self._nav_label.setText(f"Instance {idx + 1} of {total}")
+        else:
+            self._set_nav_visible(False)
         obj = loader.get_object(inst.model_id) if loader else None
         effects = loader.get_2dfx_for_model(inst.model_id) if loader else []
         tobjs = loader.get_tobj_for_model(inst.model_id) if loader else []
@@ -6351,7 +6378,7 @@ class _ObjectBrowserModel(QAbstractTableModel):
     sorted/filtered subset) rather than the model touching the full
     object catalog on every repaint."""
 
-    _HEADERS = ["★", "Model", "TXD", "Type", "Instances"]
+    _HEADERS = ["★", "ID", "Model", "TXD", "Instances"]
 
     def __init__(self, parent=None): #vers 1
         super().__init__(parent)
@@ -6422,7 +6449,7 @@ class _ObjectBrowserModel(QAbstractTableModel):
             return self._HEADERS[section]
         return str(section + 1)
 
-    def data(self, index, role=Qt.ItemDataRole.DisplayRole): #vers 1
+    def data(self, index, role=Qt.ItemDataRole.DisplayRole): #vers 2
         if not index.isValid():
             return None
         obj = self._rows[index.row()]
@@ -6431,11 +6458,11 @@ class _ObjectBrowserModel(QAbstractTableModel):
             if col == 0:
                 return "★" if obj.model_id in self._favourites else ""
             if col == 1:
-                return obj.model_name
+                return str(obj.model_id)
             if col == 2:
-                return obj.txd_name
+                return obj.model_name
             if col == 3:
-                return obj.obj_type
+                return obj.txd_name
             if col == 4:
                 return str(self._instance_counts.get(obj.model_id, 0))
         return None
@@ -6778,18 +6805,17 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         if world_dock is not None:
             outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, world_dock)
 
-        # Instance List dock - browsable table of loaded world
-        # placements, click a row to centre the world-view cameras on it.
-        instance_dock = self._create_instance_list_dock()
-        outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, instance_dock)
-        if world_dock is not None:
-            outer_mw.splitDockWidget(world_dock, instance_dock, Qt.Orientation.Vertical)
-
         # Object Browser dock - search + filter (All/Most Used/
-        # Favourites/Generic) over the loaded object catalog.
+        # Favourites/Generic) over the loaded object catalog, one row
+        # per model (not per placement) - merged with what used to be
+        # a separate Instance List dock, per Keith's request. Selecting
+        # a row centres the camera on that model's first placement
+        # (with Prev/Next cycling shown in the edit panel if it has
+        # more than one), right-click for Add/Remove Favourites.
         object_browser_dock = self._create_object_browser_dock()
         outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, object_browser_dock)
-        outer_mw.splitDockWidget(instance_dock, object_browser_dock, Qt.Orientation.Vertical)
+        if world_dock is not None:
+            outer_mw.splitDockWidget(world_dock, object_browser_dock, Qt.Orientation.Vertical)
 
         # Widget registry - each entry is a self-contained dock module
         # under depends/. Adding, removing, or swapping a widget for an
@@ -8458,7 +8484,6 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         # state with the dock's actual visibility (including if the user
         # closes it via its own [x] button, not just via this action).
         for dock, label in ((getattr(self, '_world_view_dock', None), "World View"),
-                            (getattr(self, '_instance_list_dock', None), "Instance List"),
                             (getattr(self, '_object_browser_dock', None), "Object Browser")):
             if dock is None:
                 continue
@@ -12425,13 +12450,19 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         lay.addLayout(btn_row)
 
         view = QTableView()
-        view.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        view.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         view.verticalHeader().setVisible(False)
         view.setEditTriggers(QTableView.EditTrigger.NoEditTriggers)
         view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         view.doubleClicked.connect(self._on_object_row_double_clicked)
+        view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        view.customContextMenuRequested.connect(self._on_object_browser_context_menu)
         model = _ObjectBrowserModel()
         view.setModel(model)
+        sel_model = view.selectionModel()
+        if sel_model is not None:
+            sel_model.currentRowChanged.connect(
+                lambda cur, prev: self._on_object_row_selected(cur.row()))
         lay.addWidget(view)
         self._object_browser_view = view
         self._object_browser_model = model
@@ -12465,6 +12496,59 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         model = getattr(self, '_object_browser_model', None)
         if model is not None:
             model.set_mode(mode)
+
+    def _on_object_row_selected(self, row): #vers 1
+        """Selecting a model row in the (now merged) Object Browser
+        centres the camera + shows the edit panel on that model's
+        FIRST placement, if it has any - with Prev/Next cycling stored
+        for models with multiple instances. Models with zero instances
+        (defined in the IDE but never placed) show identity/IDE/2DFX/
+        TOBJ info in the panel without any placement-specific data,
+        since there's no instance to show it for."""
+        if row < 0:
+            return
+        model = self._object_browser_model
+        obj = model.object_at(row)
+        if obj is None:
+            return
+        loader = getattr(self, '_world_loader', None)
+        instances = loader.get_instances_for_model(obj.model_id) if loader else []
+        if not instances:
+            self._current_model_instances = []
+            self._current_instance_index = 0
+            return
+        self._current_model_instances = instances
+        self._current_instance_index = 0
+        self._center_on_instance(instances[0], nav_info=(0, len(instances)))
+
+    def _cycle_model_instance(self, direction): #vers 1
+        """Prev (-1) / Next (+1) through the currently-selected model's
+        placements, wrapping around at either end."""
+        instances = getattr(self, '_current_model_instances', [])
+        if not instances:
+            return
+        idx = (getattr(self, '_current_instance_index', 0) + direction) % len(instances)
+        self._current_instance_index = idx
+        self._center_on_instance(instances[idx], nav_info=(idx, len(instances)))
+
+    def _on_object_browser_context_menu(self, pos): #vers 1
+        """Right-click a row for Add/Remove Favourites - matches the
+        same interaction Instance List already offers, for consistency
+        now that Object Browser is the merged, primary panel."""
+        view = self._object_browser_view
+        index = view.indexAt(pos)
+        if not index.isValid():
+            return
+        model = self._object_browser_model
+        obj = model.object_at(index.row())
+        if obj is None:
+            return
+        menu = QMenu(view)
+        is_fav = obj.model_id in model._favourites
+        act = menu.addAction("Remove from Favourites" if is_fav else "Add to Favourites")
+        act.triggered.connect(lambda checked=False, mid=obj.model_id:
+                              self._toggle_instance_favourite(mid))
+        menu.exec(view.viewport().mapToGlobal(pos))
 
     def _on_object_row_double_clicked(self, index): #vers 1
         """Double-click a row to toggle its favourite status."""
@@ -12542,19 +12626,21 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             return
         self._center_on_instance(inst)
 
-    def _center_on_instance(self, inst): #vers 1
+    def _center_on_instance(self, inst, nav_info=None): #vers 2
         """Centre all three World View panes' cameras on an instance,
         show an XYZ gizmo at its position, and show/update its edit
         panel - the shared behaviour for both single- and double-
-        clicking an Instance List row (and, once built, double-
-        clicking the rendered marker directly in a World View pane)."""
+        clicking an Instance List row, and (since the Object Browser
+        merge) selecting a model row with one or more placements.
+        nav_info, if given, is (current_index, total_count) for
+        Prev/Next cycling through a model's other placements."""
         for pane in getattr(self, '_world_panes', []):
             pane._pan_x = -inst.pos_x
             pane._pan_y = -inst.pos_y
             pane.set_gizmo_position((inst.pos_x, inst.pos_y, inst.pos_z))
-        self._show_instance_edit_panel(inst)
+        self._show_instance_edit_panel(inst, nav_info)
 
-    def _show_instance_edit_panel(self, inst): #vers 1
+    def _show_instance_edit_panel(self, inst, nav_info=None): #vers 2
         """Show (creating on first use) the non-modal object edit panel
         for one instance, positioned in the top-left corner of the
         window - stays open and gets its content refreshed for
@@ -12564,7 +12650,7 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         if panel is None:
             panel = _InstanceEditPanel(self)
             self._instance_edit_panel = panel
-        panel.show_for_instance(inst, getattr(self, '_world_loader', None))
+        panel.show_for_instance(inst, getattr(self, '_world_loader', None), nav_info)
         top_level = self.window()
         panel.move(top_level.mapToGlobal(top_level.rect().topLeft()) +
                    QPoint(8, 8))
