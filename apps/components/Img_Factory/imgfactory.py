@@ -1682,13 +1682,15 @@ class IMGFactory(QMainWindow):
         except Exception as e:
             self.log_message(f"Model Workshop error: {str(e)}")
 
-    def open_map_workshop_docked(self, game_root=None): #vers 1
+    def open_map_workshop_docked(self, game_root=None, dat_path=None): #vers 2
         """Open Map Workshop in its own tab with icon - game_root, if
         given, is auto-loaded (e.g. passed in from Dat Browser's
-        currently-loaded game root)."""
+        currently-loaded game root). dat_path, if given instead, loads
+        from that specific .dat file directly (e.g. right-clicking a
+        .dat entry in the DAT Browser tree)."""
         try:
             from apps.components.Map_Editor.map_workshop import open_map_workshop
-            open_map_workshop(self, game_root=game_root)
+            open_map_workshop(self, game_root=game_root, dat_path=dat_path)
         except Exception as e:
             self.log_message(f"Map Workshop error: {str(e)}")
 

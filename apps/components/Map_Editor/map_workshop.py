@@ -6813,6 +6813,7 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         # File
         fm = mb.addMenu("File")
         fm.addAction("Load Game Folder…", self._load_game_folder)
+        fm.addAction("Load Game DAT File…", self._load_game_dat_file)
         fm.addSeparator()
         fm.addAction("New canvas…",    self._new_canvas)
         fm.addSeparator()
@@ -11558,11 +11559,61 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         loader = GTAWorldLoader(game)
         ok = loader.load(folder)
-        self._world_loader = loader
         self._game_root = folder
+        self._apply_loaded_world(loader, game, ok, "Load Game Folder")
+
+    def _load_game_dat_file(self, preset_dat_path: str = None): #vers 1
+        """Load a GTA game's world data starting from one specific .dat
+        file, rather than a whole game folder - per Keith's request
+        that the standalone flow ask for the actual gta_xx.dat/
+        default.dat file path directly. Also the entry point for the
+        DAT Browser tree's 'Load with Map Workshop' right-click on a
+        specific .dat entry, via preset_dat_path.
+
+        The game is detected purely from the .dat file's own basename
+        (detect_game_from_dat_filename) rather than scanning a folder -
+        deliberately doesn't accept an ambiguous bare 'default.dat'
+        (shared across gta3/vc/sa), since there'd be no way to tell
+        which game it belongs to from the filename alone; the user
+        picks the actual main .dat (gta3.dat, gta_vc.dat, gta.dat, or
+        gta_sol.dat)."""
+        from PyQt6.QtWidgets import QFileDialog
+        from apps.methods.gta_dat_parser import detect_game_from_dat_filename, GTAWorldLoader
+
+        if preset_dat_path:
+            dat_path = preset_dat_path
+        else:
+            dat_path, _ = QFileDialog.getOpenFileName(
+                self, "Select GTA .dat file", "",
+                "GTA DAT files (gta3.dat gta_vc.dat gta.dat gta_sol.dat gtasol.dat gta_quick.dat);;All files (*.dat)")
+            if not dat_path:
+                return
+
+        game = detect_game_from_dat_filename(dat_path)
+        if not game:
+            QMessageBox.warning(self, "Load Game DAT File",
+                f"Couldn't identify the game from:\n{dat_path}\n\n"
+                "Expected the game's main .dat file (gta3.dat, gta_vc.dat, "
+                "gta.dat, or gta_sol.dat) - not default.dat, which is "
+                "shared across games and can't be identified by name alone.")
+            return
+
+        game_root = os.path.normpath(os.path.join(os.path.dirname(dat_path), ".."))
+        loader = GTAWorldLoader(game)
+        ok = loader.load_from_dat(dat_path, game_root)
+        self._game_root = game_root
+        self._apply_loaded_world(loader, game, ok, "Load Game DAT File")
+
+    def _apply_loaded_world(self, loader, game, ok, source_desc): #vers 1
+        """Shared post-load handling for both _load_game_folder and
+        _load_game_dat_file - status message, populating the World View
+        panes/Instance List/IPL Sections panel, and the summary/error
+        dialog. Factored out so both loading paths (folder-based, or a
+        specific .dat file) share exactly the same result handling."""
+        self._world_loader = loader
 
         if not ok:
-            QMessageBox.warning(self, "Load Game Folder",
+            QMessageBox.warning(self, source_desc,
                 f"Load failed:\n" + "\n".join(loader.stats.errors[:10]))
             return
 
@@ -11573,7 +11624,7 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             pane.set_instances(loader.instances)
         self._populate_instance_list(loader)
         self._populate_ipl_sections(loader)
-        QMessageBox.information(self, "Load Game Folder", loader.get_summary())
+        QMessageBox.information(self, source_desc, loader.get_summary())
 
     def _create_ipl_sections_panel(self): #vers 1
         """IPL Sections panel - lists every IPL file that contributed
@@ -16505,13 +16556,16 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
 #  Public factory function
 
-def open_map_workshop(main_window=None, game_root: str = None) -> MapWorkshop: #vers 2
+def open_map_workshop(main_window=None, game_root: str = None,
+                      dat_path: str = None) -> MapWorkshop: #vers 3
     """Open Map Workshop - embedded in a tab if main_window has one,
     standalone window otherwise. game_root: if given (e.g. passed in
     from Dat Browser, which already has a game root loaded), auto-loads
     that game's world data immediately - same underlying load either
     way, matching how Model/TXD/COL Workshop can be opened either via
-    an explicit path or by picking up whatever's already open."""
+    an explicit path or by picking up whatever's already open. dat_path:
+    if given instead, loads from that specific .dat file directly
+    (e.g. right-clicking a .dat entry in the DAT Browser tree)."""
     try:
         if main_window and hasattr(main_window, 'main_tab_widget'):
             import os as _os
@@ -16522,7 +16576,12 @@ def open_map_workshop(main_window=None, game_root: str = None) -> MapWorkshop: #
             workshop = MapWorkshop(container, main_window)
             workshop.setWindowFlags(Qt.WindowType.Widget)
             layout.addWidget(workshop)
-            tab_label = _os.path.basename(game_root.rstrip('/\\')) if game_root else "Map Workshop"
+            if game_root:
+                tab_label = _os.path.basename(game_root.rstrip('/\\'))
+            elif dat_path:
+                tab_label = _os.path.basename(dat_path)
+            else:
+                tab_label = "Map Workshop"
             try:
                 from apps.methods.imgfactory_svg_icons import get_map_workshop_icon
                 icon = get_map_workshop_icon(24)
@@ -16547,6 +16606,8 @@ def open_map_workshop(main_window=None, game_root: str = None) -> MapWorkshop: #
 
         if game_root:
             workshop._load_game_folder(preset_root=game_root)
+        elif dat_path:
+            workshop._load_game_dat_file(preset_dat_path=dat_path)
 
         return workshop
     except Exception as e:

@@ -838,10 +838,6 @@ class GTAWorldLoader: #vers 3
         # Build sets for fast dedup: normalised full path + basename
         seen_abs   = {os.path.normcase(p) for _, _, p, _ in self.load_log}
         seen_stems = {os.path.splitext(os.path.basename(p))[0].lower()
-                      for _, _, p, _ in self.load_log
-                      if _.lower() in ('img', 'cdimage')
-                      for _ in ('')}  # dummy — rebuild below
-        seen_stems = {os.path.splitext(os.path.basename(p))[0].lower()
                       for _, et, p, _ in self.load_log
                       if et in ('IMG', 'CDIMAGE')}
 
@@ -1000,6 +996,26 @@ def _find_sol_dir(game_root: str) -> Optional[str]:
         candidate = os.path.join(game_root, name)
         if os.path.isdir(candidate):
             return candidate
+    return None
+
+
+def detect_game_from_dat_filename(dat_path: str) -> Optional[str]: #vers 1
+    """Detect which game a specific .dat file belongs to, purely from
+    its own basename - for loading directly from an explicit .dat path
+    (e.g. right-clicking one in the DAT Browser tree, or the standalone
+    'ask for a .dat file' flow) rather than scanning a game_root folder
+    the way detect_game() does. Only matches the unique main-.dat
+    filenames (gta3.dat/gta_vc.dat/gta.dat/gta_sol.dat and their alt
+    names) - deliberately NOT 'default.dat', since gta3/vc/sa all share
+    that exact filename and matching it would risk guessing the wrong
+    game."""
+    name = os.path.basename(dat_path).lower()
+    for game, fname in GTAGame.DAT_FILE.items():
+        if name == fname.lower():
+            return game
+    for game, fname in GTAGame.ALT_DAT_FILE.items():
+        if name == fname.lower():
+            return game
     return None
 
 

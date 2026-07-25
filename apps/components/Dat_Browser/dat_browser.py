@@ -803,13 +803,6 @@ class DATBrowserWidget(QWidget): #vers 3
         self._dump_txd_btn.clicked.connect(self._dump_all_game_txds)
         toolbar.addWidget(self._dump_txd_btn)
 
-        self._map_editor_btn = QPushButton("Map Editor")
-        self._map_editor_btn.setToolTip(
-            "Open Map Editor with this game's already-loaded root")
-        self._map_editor_btn.setEnabled(False)
-        self._map_editor_btn.clicked.connect(self._open_map_editor)
-        toolbar.addWidget(self._map_editor_btn)
-
         self._db_btn = QPushButton()
         self._db_btn.setFixedSize(28, 24)
         self._db_btn.setIconSize(QSize(18, 18))
@@ -1802,7 +1795,6 @@ class DATBrowserWidget(QWidget): #vers 3
         self._type_filter.setEnabled(True)
         if hasattr(self, '_dump_txd_btn'):
             self._dump_txd_btn.setEnabled(bool(self.loader and self.loader.objects))
-            self._map_editor_btn.setEnabled(bool(self.loader and self.loader.objects))
         self._log_text.setPlainText(self._build_log_text())
         # Enable DB Build button now we have a game root
         if hasattr(self, '_db_build_btn'):
@@ -2360,6 +2352,21 @@ class DATBrowserWidget(QWidget): #vers 3
         except Exception as e:
             if hasattr(self, 'main_window') and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Vehicle Workshop error: {e}")
+
+    def _load_dat_in_map_workshop(self, dat_path: str): #vers 1
+        """Load a specific .dat file's whole world (DAT->IDE->IPL) into
+        Map Workshop - the DAT Browser tree's 'Load with Map Workshop'
+        right-click action on the main .dat entry."""
+        try:
+            mw = self.main_window
+            if not mw: return
+            if hasattr(mw, 'open_map_workshop_docked'):
+                mw.open_map_workshop_docked(dat_path=dat_path)
+            elif hasattr(mw, 'log_message'):
+                mw.log_message("Map Workshop not available")
+        except Exception as e:
+            if hasattr(self, 'main_window') and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Map Workshop error: {e}")
 
     def _open_img_in_model_workshop(self, abs_path: str): #vers 1
         """Open IMG file in Model Workshop — workshop browses entries internally."""
@@ -3447,26 +3454,6 @@ class DATBrowserWidget(QWidget): #vers 3
             print(f"IMG read error: {e}")
             return []
 
-    def _open_map_editor(self): #vers 1
-        """Open Map Editor with this browser's currently-loaded game root -
-        the same root already parsed here, so Map Editor doesn't need to
-        redo the DAT/IDE/IPL load from scratch."""
-        try:
-            mw = self.main_window
-            if not mw: return
-            root = getattr(self, 'game_root', '') or ''
-            if not root:
-                if hasattr(mw, 'log_message'):
-                    mw.log_message("Map Editor: no game root loaded yet")
-                return
-            if hasattr(mw, 'open_map_workshop_docked'):
-                mw.open_map_workshop_docked(game_root=root)
-            elif hasattr(mw, 'log_message'):
-                mw.log_message("Map Editor not available")
-        except Exception as e:
-            if hasattr(self, 'main_window') and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Map Editor error: {e}")
-
     def _dump_all_game_txds(self): #vers 2
         """Open the TXD Dump dialog."""
         if not self.loader or not self.loader.objects:
@@ -3659,6 +3646,18 @@ class DATBrowserWidget(QWidget): #vers 3
                     break
 
         menu = QMenu(self)
+
+        #    Main .dat file - load the whole world in Map Workshop      
+        if entry_type == "DAT":
+            dat_abs_path = getattr(self.loader.main_dat, "dat_path", "") if self.loader else ""
+            mw = self.main_window
+            load_map_act = menu.addAction("🗺  Load with Map Workshop…")
+            if dat_abs_path and os.path.isfile(dat_abs_path) and mw:
+                load_map_act.triggered.connect(
+                    lambda _=False, p=dat_abs_path: self._load_dat_in_map_workshop(p))
+            else:
+                load_map_act.setEnabled(False)
+            menu.addSeparator()
 
         #    IMG / CDIMAGE specific options                                
         if entry_type in ("IMG", "CDIMAGE"):
