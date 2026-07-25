@@ -5989,6 +5989,24 @@ class _CornerOverlay(QWidget):
         painter.end()
 
 
+class _FilteredLoaderStub:
+    """Minimal loader-shaped wrapper so _populate_instance_list (which
+    expects .instances and .get_object()) can be fed a filtered subset
+    of instances (from the IPL Sections panel's Show/Hide toggles)
+    without needing a second, real GTAWorldLoader - object definitions
+    don't change when filtering by IPL, only which instances are
+    visible, so get_object() just delegates to the original loader."""
+
+    def __init__(self, instances, real_loader):
+        self.instances = instances
+        self._real_loader = real_loader
+
+    def get_object(self, model_id):
+        if self._real_loader is None:
+            return None
+        return self._real_loader.get_object(model_id)
+
+
 class _InstanceTableModel(QAbstractTableModel):
     """Backs the Instance List QTableView - resolves/formats each row's
     display data on demand via data(), rather than eagerly building a
@@ -6752,6 +6770,16 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             err = QLabel(f"Canvas error: {e}")
             layout.addWidget(err)
             self.map_canvas = None
+
+        # IPL Sections panel - occupies the same central-widget space the
+        # canvas leaves empty when hidden (the "empty area left over from
+        # canvas" Keith flagged), repurposed per his own suggestion: list
+        # every IPL file that contributed instances, each with a Show/Hide
+        # toggle, rather than wasted blank space. Visible exactly when the
+        # canvas isn't (see _toggle_paint_canvas).
+        self._ipl_sections_panel = self._create_ipl_sections_panel()
+        self._ipl_sections_panel.setVisible(not self.map_settings.get('show_paint_canvas'))
+        layout.addWidget(self._ipl_sections_panel, 1)
 
         # Animation timeline strip
         self._anim_strip = self._create_anim_strip()
@@ -7944,13 +7972,17 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._refresh_canvas_tabs_ribbon()
         return tb
 
-    def _toggle_paint_canvas(self, checked): #vers 1
+    def _toggle_paint_canvas(self, checked): #vers 2
         """Show/hide the forked-in paint canvas - hidden by default
         since it isn't part of normal map editing, but kept toggleable
-        rather than removed outright."""
+        rather than removed outright. Mutually exclusive with the IPL
+        Sections panel, which occupies the same central layout space."""
         scroll = getattr(self, '_canvas_scroll', None)
         if scroll is not None:
             scroll.setVisible(checked)
+        panel = getattr(self, '_ipl_sections_panel', None)
+        if panel is not None:
+            panel.setVisible(not checked)
         self.map_settings.set('show_paint_canvas', checked)
         self.map_settings.save()
 
@@ -11540,7 +11572,96 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         for pane in getattr(self, '_world_panes', []):
             pane.set_instances(loader.instances)
         self._populate_instance_list(loader)
+        self._populate_ipl_sections(loader)
         QMessageBox.information(self, "Load Game Folder", loader.get_summary())
+
+    def _create_ipl_sections_panel(self): #vers 1
+        """IPL Sections panel - lists every IPL file that contributed
+        instances to the currently loaded world, each with a Show/Hide
+        toggle. Occupies the central layout space the canvas leaves
+        empty when hidden. Small row count in practice (dozens to a
+        few hundred IPL files even for a large mod like GTASOL, versus
+        tens of thousands of instances), so a plain QTableWidget is
+        fine here - no need for the Instance List's lazy model."""
+        panel = QWidget()
+        lay = QVBoxLayout(panel)
+        lay.setContentsMargins(6, 6, 6, 6)
+        lay.addWidget(QLabel("IPL Sections - toggle which placements are shown"))
+
+        table = QTableWidget(0, 2)
+        table.setHorizontalHeaderLabels(["IPL File", ""])
+        table.horizontalHeader().setSectionResizeMode(
+            0, QHeaderView.ResizeMode.Stretch)
+        table.verticalHeader().setVisible(False)
+        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        lay.addWidget(table)
+        self._ipl_sections_table = table
+
+        placeholder = QLabel("No world loaded yet - use File > Load Game Folder…")
+        placeholder.setStyleSheet("color: palette(mid);")
+        lay.addWidget(placeholder)
+        self._ipl_sections_placeholder = placeholder
+        placeholder.setVisible(True)
+        table.setVisible(False)
+
+        return panel
+
+    def _populate_ipl_sections(self, loader): #vers 1
+        """Fill the IPL Sections panel from a completed load - one row
+        per unique source_ipl across all loaded instances, each with a
+        Show/Hide toggle button. Keeps the full unfiltered instance list
+        on self._all_instances so toggling can recompute the visible
+        subset without needing to reload."""
+        table = getattr(self, '_ipl_sections_table', None)
+        placeholder = getattr(self, '_ipl_sections_placeholder', None)
+        if table is None:
+            return
+
+        self._all_instances = list(loader.instances)
+        self._hidden_ipls = set()
+
+        ipl_names = sorted({inst.source_ipl for inst in loader.instances})
+        table.setRowCount(len(ipl_names))
+        for row, ipl_name in enumerate(ipl_names):
+            name_item = QTableWidgetItem(ipl_name)
+            table.setItem(row, 0, name_item)
+            btn = QPushButton("Hide")
+            btn.setCheckable(True)
+            btn.setFixedWidth(60)
+            btn.toggled.connect(
+                lambda checked, n=ipl_name, b=None: self._toggle_ipl_section(n, checked))
+            btn.toggled.connect(
+                lambda checked, b=btn: b.setText("Show" if checked else "Hide"))
+            table.setCellWidget(row, 1, btn)
+
+        if placeholder is not None:
+            placeholder.setVisible(False)
+        table.setVisible(True)
+
+    def _toggle_ipl_section(self, ipl_name, hidden): #vers 1
+        """Show/hide all instances from one IPL file - recomputes the
+        visible instance subset from the full loaded set and re-feeds
+        it to the world-view panes and Instance List, without needing
+        to reload from disk."""
+        if hidden:
+            self._hidden_ipls.add(ipl_name)
+        else:
+            self._hidden_ipls.discard(ipl_name)
+        self._apply_ipl_visibility_filter()
+
+    def _apply_ipl_visibility_filter(self): #vers 1
+        """Recompute which instances are currently visible (every loaded
+        instance whose source_ipl isn't in self._hidden_ipls) and push
+        that subset to the world-view panes and Instance List."""
+        all_inst = getattr(self, '_all_instances', None)
+        if all_inst is None:
+            return
+        hidden = getattr(self, '_hidden_ipls', set())
+        visible = [i for i in all_inst if i.source_ipl not in hidden] if hidden else all_inst
+        for pane in getattr(self, '_world_panes', []):
+            pane.set_instances(visible)
+        loader_stub = _FilteredLoaderStub(visible, getattr(self, '_world_loader', None))
+        self._populate_instance_list(loader_stub)
 
     def _create_instance_list_dock(self): #vers 2
         """Instance List dock - a browsable table of every loaded world

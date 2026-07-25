@@ -779,6 +779,12 @@ class GTAWorldLoader: #vers 3
         self.load_log:   List[Tuple[str, str, str, bool]] = []
         self.stats       = ParseStats()
         self.progress_cb = None
+        # Optional set of IPL basenames (lowercase, no extension) to
+        # restrict loading to - None means load every IPL the .dat(s)
+        # reference, the existing/default behaviour. Set before calling
+        # load()/load_from_dat() - _reset() doesn't touch this, so it
+        # survives across those calls.
+        self.ipl_filter: Optional[set] = None
 
     def load(self, game_root: str, progress_cb=None) -> bool: #vers 5
         """Full load from a game root directory.
@@ -878,9 +884,17 @@ class GTAWorldLoader: #vers 3
         self.stats.instances      = len(self.instances)
         return True
 
-    def _process_dat(self, dat: DATParser, phase: str): #vers 3
+    def _process_dat(self, dat: DATParser, phase: str): #vers 4
         ide_list = [e for e in dat.entries if e.directive == "IDE"]
         ipl_list = [e for e in dat.entries if e.directive == "IPL"]
+        if self.ipl_filter is not None:
+            allowed = self.ipl_filter
+            skipped = [e for e in ipl_list
+                      if os.path.splitext(os.path.basename(e.path))[0].lower() not in allowed]
+            ipl_list = [e for e in ipl_list
+                       if os.path.splitext(os.path.basename(e.path))[0].lower() in allowed]
+            for entry in skipped:
+                self.load_log.append((phase, "IPL-skipped", entry.abs_path, True))
         img_list = dat.img_entries()   # IMG + CDIMAGE entries
         total = len(ide_list) + len(ipl_list)
         done  = 0
@@ -1003,6 +1017,20 @@ def detect_game(game_root: str) -> Optional[str]: #vers 4
     if os.path.isfile(os.path.join(data, "gta_vc.dat")):    return GTAGame.VC
     if os.path.isfile(os.path.join(data, "gta3.dat")):      return GTAGame.GTA3
     return None
+
+
+def prescan_dat_ipls(dat_path: str, game_root: str = "", game: str = GTAGame.GTA3): #vers 1
+    """Quickly parse a single .dat file's own IPL directives, without
+    loading the referenced IDE/IPL files' actual contents - for a pre-
+    load selection dialog (DAT Browser's 'Load with Map Workshop',
+    listing sections/IPLs to enable or disable before a potentially
+    slow full load of everything). Returns a list of DATEntry (path,
+    abs_path, exists) for each IPL directive found."""
+    if not game_root:
+        game_root = os.path.normpath(os.path.join(os.path.dirname(dat_path), ".."))
+    dat = DATParser(game)
+    dat.parse(dat_path, game_root)
+    return [e for e in dat.entries if e.directive == "IPL"]
 
 
 def find_dat_file(game_root: str, game: str) -> Optional[str]: #vers 3
