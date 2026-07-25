@@ -45,6 +45,43 @@ built and tested; real per-instance rendering and editing still to come.
   existed), the quad-pane maximize feature not existing at all in
   Model Workshop, and the pane context menu covering the whole pane
   instead of just its label (which broke right-click-drag rotate).
+- Rendering fixed for real-world scale (tested against Keith's actual
+  GTASOL data: 13,178 objects, 51,711 instances, 106 IPL files) -
+  first pass used glVertexPointer/glDrawArrays (client-side vertex
+  arrays) for a single fast draw call, which crashed hard (process
+  abort/core dump) on Keith's actual hardware since that legacy API
+  isn't exposed by his driver. Reverted to glBegin(GL_POINTS)/
+  glVertex3f/glEnd (confirmed working elsewhere in this codebase,
+  e.g. Model Workshop) - still points not cubes (24x fewer vertices
+  per instance than the original approach), just without the
+  crash-prone upload step. Instance List also switched from
+  QTableWidget (2.6s UI freeze at 51,711 rows) to QTableView + a lazy
+  QAbstractTableModel (0.002s) - both confirmed at Keith's real scale.
+- IPL Sections panel - repurposes the central-widget area the canvas
+  leaves empty when hidden (Keith's own suggestion from a screenshot):
+  lists every IPL that contributed instances, each with a Show/Hide
+  toggle, filtering both World View and Instance List in-memory
+  without reloading.
+- Load Game DAT File (standalone "ask for a specific gta_xx.dat" flow)
+  and DAT Browser's tree "Load with Map Workshop" right-click, both
+  going through GTAWorldLoader.load_from_dat - the old top-level "Map
+  Editor" button in DAT Browser was removed as redundant.
+- Panels ribbon - show/hide toggles (using each QDockWidget's own
+  toggleViewAction()) for World View, Instance List, and Object
+  Browser, plus the paint-canvas toggle. Found and fixed a real,
+  previously-unnoticed bug here: the canvas toggle had been living in
+  the Canvas Tabs ribbon, which calls ribbon.clear() on every tab
+  switch - silently wiping the toggle out. Moved to its own ribbon
+  that nothing else touches.
+- Object Browser dock - search box + four filter modes (All/Most
+  Used/Favourites/Generic) over the loaded object catalog, with
+  per-model instance counts and persisted favourites.
+- Confirmed, via Keith's real default.dat/gta_vc.dat/gta3.dat/gta.dat/
+  gta_quick.dat files, that every .dat directive the engine actually
+  uses across GTA3/VC/SA is now handled (IDE/IPL/MAPZONE/COLFILE/IMG/
+  TEXDICTION/MODELFILE/SPLASH) - see the two gotchas below for what
+  that surfaced. SOL specifically still rests on inference (same
+  engine as SA) rather than a directly verified real file.
 
 ### Next up, in priority order
 
@@ -112,13 +149,21 @@ built and tested; real per-instance rendering and editing still to come.
    alternative to the 3D view once real geometry loading (item 1) makes
    the 3D view heavier.
 
-3. **Object palette** - a category tree (lamps, posts, etc.) plus a
-   Favourites panel, per Keith's original requirements list. IDE files
+3. **Object Browser deeper integration** (smaller follow-up) - rows
+   currently only support favouriting; a natural next step is wiring
+   row selection/double-click (once a non-favourite-toggle interaction
+   is free) to filter Instance List / World View down to just that
+   model's placements, and/or a right-click "jump to editor" shortcut
+   once item 5 below (editor shortcuts) exists.
+
+4. **Object palette - category tree** - Favourites and search are now
+   covered by the Object Browser dock; what's left from the original
+   requirements list is a category tree (lamps, posts, etc.). IDE files
    don't inherently carry categories, so this likely needs a curated
    name-pattern-based categorisation scheme (or a small user-editable
    mapping file) rather than anything derivable purely from parsed data.
 
-4. **Editing + editor shortcuts** - actually moving/adding/deleting
+5. **Editing + editor shortcuts** - actually moving/adding/deleting
    placements and writing back to the IPL (currently everything is
    read-only/view-only); "shortcuts to edit TXDs, COLs, or DFF files"
    - buttons that jump into Txd_Editor/Col_Editor/Model_Editor for
@@ -126,12 +171,12 @@ built and tested; real per-instance rendering and editing still to come.
    open_txd_workshop_docked/open_col_workshop_docked/
    open_model_workshop_docked entry points DAT Browser already uses.
 
-5. **COL collision loading** - apps/methods/col_core_classes.py/
+6. **COL collision loading** - apps/methods/col_core_classes.py/
    col_loader.py already parse this fully; not yet wired into the
    world view at all (no visualisation, no use in placement/collision
    checks).
 
-6. Icon sets/styles (light theme, mono theme) - explicitly deferred
+7. Icon sets/styles (light theme, mono theme) - explicitly deferred
    earlier pending the UI work being further along; Model Workshop's
    existing per-ribbon context menu already has an "Icon Set" submenu
    pattern (Default/3ds Max style) worth referencing when this comes up.
