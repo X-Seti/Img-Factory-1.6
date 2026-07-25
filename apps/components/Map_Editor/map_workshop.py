@@ -27,6 +27,38 @@
 
 
 import os, sys, random, json
+import math
+
+
+def quat_to_euler_degrees(x, y, z, w): #vers 1
+    """Convert a quaternion to (roll, pitch, yaw) euler angles in
+    degrees - standard formula, round-trip verified against
+    euler_degrees_to_quat. Used to present an IPLInstance's rotation
+    (stored as a quaternion) as editable X/Y/Z degree values."""
+    sinr_cosp = 2 * (w * x + y * z)
+    cosr_cosp = 1 - 2 * (x * x + y * y)
+    roll = math.atan2(sinr_cosp, cosr_cosp)
+    sinp = 2 * (w * y - z * x)
+    pitch = math.copysign(math.pi / 2, sinp) if abs(sinp) >= 1 else math.asin(sinp)
+    siny_cosp = 2 * (w * z + x * y)
+    cosy_cosp = 1 - 2 * (y * y + z * z)
+    yaw = math.atan2(siny_cosp, cosy_cosp)
+    return math.degrees(roll), math.degrees(pitch), math.degrees(yaw)
+
+
+def euler_degrees_to_quat(roll_deg, pitch_deg, yaw_deg): #vers 1
+    """Convert (roll, pitch, yaw) euler angles in degrees back to a
+    quaternion (x, y, z, w) - inverse of quat_to_euler_degrees."""
+    roll, pitch, yaw = (math.radians(roll_deg), math.radians(pitch_deg),
+                       math.radians(yaw_deg))
+    cr, sr = math.cos(roll * 0.5), math.sin(roll * 0.5)
+    cp, sp = math.cos(pitch * 0.5), math.sin(pitch * 0.5)
+    cy, sy = math.cos(yaw * 0.5), math.sin(yaw * 0.5)
+    w = cr * cp * cy + sr * sp * sy
+    x = sr * cp * cy - cr * sp * sy
+    y = cr * sp * cy + sr * cp * sy
+    z = cr * cp * sy - sr * sp * cy
+    return x, y, z, w
 from collections import deque
 from pathlib import Path
 from typing import Optional, List, Tuple
@@ -47,7 +79,7 @@ from PyQt6.QtWidgets import (
     QFormLayout, QFontComboBox, QSlider, QSizePolicy,
     QAbstractItemView, QMenu, QMenuBar, QStatusBar,
     QFileDialog, QColorDialog, QGridLayout, QInputDialog, QDockWidget,
-    QTableWidget, QTableWidgetItem, QHeaderView
+    QTableWidget, QTableWidgetItem, QHeaderView, QDoubleSpinBox
 )
 from PyQt6.QtCore import Qt, QPoint, QPointF, QRect, pyqtSignal, QSize, QTimer, QAbstractTableModel
 from PyQt6.QtGui import (
@@ -5992,6 +6024,178 @@ class _CornerOverlay(QWidget):
         painter.end()
 
 
+class _InstanceEditPanel(QWidget):
+    """Non-modal, persistent object info/edit panel - shown in the top-
+    left corner (per Keith's request for a 'pop-out dialog or embedded
+    window' rather than a blocking modal dialog). Shows Identity/IDE/
+    IPL/2DFX/TOBJ info like the earlier modal version, plus live
+    position and rotation nudge controls (small/large step buttons
+    either side of a directly-editable spinbox per axis) that actually
+    modify the underlying IPLInstance in memory and refresh the World
+    View/Instance List to match.
+
+    Rotation is stored on IPLInstance as a quaternion but edited here
+    as X/Y/Z degrees (quat_to_euler_degrees/euler_degrees_to_quat) -
+    standard, round-trip-verified conversion, not GTA-format-specific
+    guessing."""
+
+    _POS_SMALL_STEP = 0.5
+    _POS_LARGE_STEP = 10.0
+    _ROT_SMALL_STEP = 1.0
+    _ROT_LARGE_STEP = 15.0
+
+    def __init__(self, workshop, parent=None): #vers 1
+        super().__init__(parent, Qt.WindowType.Tool)
+        self._workshop = workshop
+        self._inst = None
+        self._loader = None
+        self.setWindowTitle("Object Info")
+
+        self._lay = QVBoxLayout(self)
+        self._identity_box = self._add_section("Identity")
+        self._ide_box = self._add_section("IDE Info")
+        self._pos_box, self._pos_spins = self._add_nudge_section(
+            "Position", self._POS_SMALL_STEP, self._POS_LARGE_STEP,
+            self._on_position_nudged)
+        self._rot_box, self._rot_spins = self._add_nudge_section(
+            "Rotation (degrees)", self._ROT_SMALL_STEP, self._ROT_LARGE_STEP,
+            self._on_rotation_nudged)
+        self._meta_box = self._add_section("Placement Info")
+        self._2dfx_box = self._add_section("2DFX Effects")
+        self._tobj_box = self._add_section("TOBJ (Timed Object) Variants")
+
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(self.hide)
+        self._lay.addWidget(close_btn)
+
+    def _add_section(self, title): #vers 1
+        box = QGroupBox(title)
+        QVBoxLayout(box)
+        self._lay.addWidget(box)
+        return box
+
+    def _set_section_lines(self, box, lines): #vers 1
+        lay = box.layout()
+        while lay.count():
+            item = lay.takeAt(0)
+            w = item.widget()
+            if w: w.deleteLater()
+        if lines:
+            for line in lines:
+                lay.addWidget(QLabel(line))
+        else:
+            empty = QLabel("(none)")
+            empty.setStyleSheet("color: palette(mid);")
+            lay.addWidget(empty)
+
+    def _add_nudge_section(self, title, small_step, large_step, on_nudge): #vers 1
+        """One << < [value] > >> row per axis (X/Y/Z)."""
+        box = QGroupBox(title)
+        box_lay = QVBoxLayout(box)
+        spins = {}
+        for axis in ('x', 'y', 'z'):
+            row = QHBoxLayout()
+            row.addWidget(QLabel(axis.upper() + ":"))
+            btn_ll = QPushButton("<<"); btn_ll.setFixedWidth(28)
+            btn_l  = QPushButton("<");  btn_l.setFixedWidth(22)
+            spin = QDoubleSpinBox()
+            spin.setRange(-100000.0, 100000.0)
+            spin.setDecimals(2)
+            spin.setFixedWidth(80)
+            btn_r  = QPushButton(">");  btn_r.setFixedWidth(22)
+            btn_rr = QPushButton(">>"); btn_rr.setFixedWidth(28)
+            btn_ll.clicked.connect(lambda _=False, a=axis: on_nudge(a, -large_step))
+            btn_l.clicked.connect(lambda _=False, a=axis: on_nudge(a, -small_step))
+            btn_r.clicked.connect(lambda _=False, a=axis: on_nudge(a, small_step))
+            btn_rr.clicked.connect(lambda _=False, a=axis: on_nudge(a, large_step))
+            spin.editingFinished.connect(
+                lambda a=axis, s=spin: on_nudge(a, None, absolute=s.value()))
+            row.addWidget(btn_ll); row.addWidget(btn_l)
+            row.addWidget(spin)
+            row.addWidget(btn_r); row.addWidget(btn_rr)
+            box_lay.addLayout(row)
+            spins[axis] = spin
+        self._lay.addWidget(box)
+        return box, spins
+
+    def show_for_instance(self, inst, loader): #vers 1
+        """Refresh every section for a (possibly new) instance - called
+        both when first opening the panel and whenever the Instance
+        List selection changes, so the same panel stays open and
+        up to date rather than needing to be reopened."""
+        self._inst = inst
+        self._loader = loader
+        obj = loader.get_object(inst.model_id) if loader else None
+        effects = loader.get_2dfx_for_model(inst.model_id) if loader else []
+        tobjs = loader.get_tobj_for_model(inst.model_id) if loader else []
+
+        self.setWindowTitle(f"Object Info - {inst.model_name} (ID {inst.model_id})")
+        self._set_section_lines(self._identity_box, [
+            f"ID: {inst.model_id}",
+            f"Name: {inst.model_name}",
+            f"Texture (TXD): {obj.txd_name if obj else '(unresolved - no IDE match)'}",
+        ])
+        if obj:
+            ide_lines = [f"Type: {obj.obj_type}   Section: {obj.section}",
+                        f"Source: {obj.source_ide}  (line {obj.line_no})"]
+            ide_lines += [f"{k}: {v}" for k, v in obj.extra.items()]
+            self._set_section_lines(self._ide_box, ide_lines)
+        else:
+            self._set_section_lines(self._ide_box, None)
+
+        self._refresh_position_spins()
+        self._refresh_rotation_spins()
+
+        self._set_section_lines(self._meta_box, [
+            f"Interior: {inst.interior}   LOD index: {inst.lod_index}",
+            f"Source IPL: {inst.source_ipl}  (line {inst.line_no})",
+        ])
+        self._set_section_lines(self._2dfx_box, [
+            f"#{i+1}: {e.obj_type} (line {e.line_no}, {e.source_ide})"
+            for i, e in enumerate(effects)] or None)
+        self._set_section_lines(self._tobj_box, [
+            f"{t.model_name} (ID {t.model_id}, {t.source_ide} line {t.line_no})"
+            for t in tobjs] or None)
+
+    def _refresh_position_spins(self): #vers 1
+        inst = self._inst
+        for axis, spin in self._pos_spins.items():
+            spin.blockSignals(True)
+            spin.setValue(getattr(inst, f"pos_{axis}"))
+            spin.blockSignals(False)
+
+    def _refresh_rotation_spins(self): #vers 1
+        inst = self._inst
+        roll, pitch, yaw = quat_to_euler_degrees(
+            inst.rot_x, inst.rot_y, inst.rot_z, inst.rot_w)
+        for axis, val in zip(('x', 'y', 'z'), (roll, pitch, yaw)):
+            spin = self._rot_spins[axis]
+            spin.blockSignals(True)
+            spin.setValue(val)
+            spin.blockSignals(False)
+
+    def _on_position_nudged(self, axis, delta, absolute=None): #vers 1
+        if self._inst is None:
+            return
+        attr = f"pos_{axis}"
+        new_val = absolute if absolute is not None else getattr(self._inst, attr) + delta
+        setattr(self._inst, attr, new_val)
+        self._refresh_position_spins()
+        self._workshop._on_instance_edited(self._inst)
+
+    def _on_rotation_nudged(self, axis, delta, absolute=None): #vers 1
+        if self._inst is None:
+            return
+        roll, pitch, yaw = quat_to_euler_degrees(
+            self._inst.rot_x, self._inst.rot_y, self._inst.rot_z, self._inst.rot_w)
+        current = {'x': roll, 'y': pitch, 'z': yaw}
+        current[axis] = absolute if absolute is not None else current[axis] + delta
+        x, y, z, w = euler_degrees_to_quat(current['x'], current['y'], current['z'])
+        self._inst.rot_x, self._inst.rot_y, self._inst.rot_z, self._inst.rot_w = x, y, z, w
+        self._refresh_rotation_spins()
+        self._workshop._on_instance_edited(self._inst)
+
+
 class _FilteredLoaderStub:
     """Minimal loader-shaped wrapper so _populate_instance_list (which
     expects .instances and .get_object()) can be fed a filtered subset
@@ -6122,11 +6326,15 @@ class _InstanceTableModel(QAbstractTableModel):
     QTableWidget approach, timed at 2.6s of UI freeze for 51,711
     instances - two thirds of which was resolving every single
     instance's TXD name immediately regardless of whether that row
-    would ever actually be scrolled into view)."""
+    would ever actually be scrolled into view).
 
-    _HEADERS = ["Model", "TXD", "Position", "Interior", "Source IPL"]
+    Just ID + Model columns - TXD/Position/Interior/Source IPL are
+    still available (via the object detail panel opened from a row),
+    just not shown as default columns any more."""
 
-    def __init__(self, instances, loader, parent=None): #vers 1
+    _HEADERS = ["ID", "Model"]
+
+    def __init__(self, instances, loader, parent=None): #vers 2
         super().__init__(parent)
         self._instances = instances
         self._loader = loader
@@ -6154,21 +6362,15 @@ class _InstanceTableModel(QAbstractTableModel):
         self._txd_cache[inst.model_id] = name
         return name
 
-    def data(self, index, role=Qt.ItemDataRole.DisplayRole): #vers 1
+    def data(self, index, role=Qt.ItemDataRole.DisplayRole): #vers 2
         if role != Qt.ItemDataRole.DisplayRole or not index.isValid():
             return None
         inst = self._instances[index.row()]
         col = index.column()
         if col == 0:
-            return inst.model_name
+            return str(inst.model_id)
         if col == 1:
-            return self._resolve_txd(inst)
-        if col == 2:
-            return f"{inst.pos_x:.1f}, {inst.pos_y:.1f}, {inst.pos_z:.1f}"
-        if col == 3:
-            return str(inst.interior)
-        if col == 4:
-            return inst.source_ipl
+            return inst.model_name
         return None
 
     def instance_at(self, row): #vers 1
@@ -12077,13 +12279,12 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self.map_settings.set('favourite_objects', new_favourites)
         self.map_settings.save()
 
-    def _create_instance_list_dock(self): #vers 2
-        """Instance List dock - a browsable table of every loaded world
-        placement (model, resolved TXD via the IDE cross-reference,
-        position, interior, source IPL file). Selecting a row centres
-        the camera in all three world-view panes on that instance, so
-        the loaded data is actually navigable rather than just a wall
-        of anonymous marker cubes in the viewport.
+    def _create_instance_list_dock(self): #vers 3
+        """Instance List dock - a browsable table (ID + Model only) of
+        every loaded world placement. Single-click (or keyboard
+        navigation) shows/updates the non-modal object edit panel for
+        that instance; double-click additionally centres the camera in
+        all three World View panes on it.
 
         QTableView + a lazy model (_InstanceTableModel) rather than
         QTableWidget - the old QTableWidget approach eagerly created a
@@ -12095,7 +12296,9 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         view = QTableView()
         view.horizontalHeader().setSectionResizeMode(
-            0, QHeaderView.ResizeMode.Stretch)
+            0, QHeaderView.ResizeMode.ResizeToContents)
+        view.horizontalHeader().setSectionResizeMode(
+            1, QHeaderView.ResizeMode.Stretch)
         view.verticalHeader().setVisible(False)
         view.setEditTriggers(QTableView.EditTrigger.NoEditTriggers)
         view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -12129,83 +12332,45 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 return primary_id
         return None
 
-    def _on_instance_row_double_clicked(self, index): #vers 1
-        """Double-click an Instance List row to open its detail dialog -
-        ID, Name, Texture, full IDE info, full IPL/placement info, any
-        2DFX effects and TOBJ (timed) variants for that model_id."""
+    def _on_instance_row_double_clicked(self, index): #vers 2
+        """Double-click centres the camera on the instance (in addition
+        to the edit panel already showing/updating via single-click
+        selection) and ensures the row stays highlighted/selected."""
         model = self._instance_table.model()
         inst = model.instance_at(index.row()) if model else None
         if inst is None:
             return
-        self._show_instance_detail_dialog(inst)
+        for pane in getattr(self, '_world_panes', []):
+            pane._pan_x = -inst.pos_x
+            pane._pan_y = -inst.pos_y
+            pane.update()
+        self._show_instance_edit_panel(inst)
 
-    def _show_instance_detail_dialog(self, inst): #vers 1
-        """Build and show the detail dialog for one instance - cross-
-        references the loaded IDE object definition, 2DFX effects, and
-        TOBJ variants by model_id (get_2dfx_for_model/get_tobj_for_model,
-        both added this session specifically so this cross-referencing
-        actually works - they used to silently overwrite each other)."""
-        loader = getattr(self, '_world_loader', None)
-        obj = loader.get_object(inst.model_id) if loader else None
-        effects = loader.get_2dfx_for_model(inst.model_id) if loader else []
-        tobjs = loader.get_tobj_for_model(inst.model_id) if loader else []
+    def _show_instance_edit_panel(self, inst): #vers 1
+        """Show (creating on first use) the non-modal object edit panel
+        for one instance, positioned in the top-left corner of the
+        window - stays open and gets its content refreshed for
+        whichever instance is currently selected, rather than a modal
+        dialog that blocks interaction and needs reopening each time."""
+        panel = getattr(self, '_instance_edit_panel', None)
+        if panel is None:
+            panel = _InstanceEditPanel(self)
+            self._instance_edit_panel = panel
+        panel.show_for_instance(inst, getattr(self, '_world_loader', None))
+        top_level = self.window()
+        panel.move(top_level.mapToGlobal(top_level.rect().topLeft()) +
+                   QPoint(8, 8))
+        panel.show()
+        panel.raise_()
 
-        dlg = QDialog(self)
-        dlg.setWindowTitle(f"Object Detail - {inst.model_name} (ID {inst.model_id})")
-        dlg.setMinimumWidth(420)
-        lay = QVBoxLayout(dlg)
-
-        def add_section(title, lines): #vers 1
-            box = QGroupBox(title)
-            box_lay = QVBoxLayout(box)
-            if lines:
-                for line in lines:
-                    box_lay.addWidget(QLabel(line))
-            else:
-                empty = QLabel("(none)")
-                empty.setStyleSheet("color: palette(mid);")
-                box_lay.addWidget(empty)
-            lay.addWidget(box)
-
-        add_section("Identity", [
-            f"ID: {inst.model_id}",
-            f"Name: {inst.model_name}",
-            f"Texture (TXD): {obj.txd_name if obj else '(unresolved - no IDE match)'}",
-        ])
-
-        if obj:
-            ide_lines = [
-                f"Type: {obj.obj_type}   Section: {obj.section}",
-                f"Source: {obj.source_ide}  (line {obj.line_no})",
-            ]
-            for k, v in obj.extra.items():
-                ide_lines.append(f"{k}: {v}")
-            add_section("IDE Info", ide_lines)
-        else:
-            add_section("IDE Info", None)
-
-        add_section("IPL / Placement Info", [
-            f"Position: {inst.pos_x:.2f}, {inst.pos_y:.2f}, {inst.pos_z:.2f}",
-            f"Rotation (quat): {inst.rot_x:.3f}, {inst.rot_y:.3f}, "
-            f"{inst.rot_z:.3f}, {inst.rot_w:.3f}",
-            f"Interior: {inst.interior}   LOD index: {inst.lod_index}",
-            f"Source IPL: {inst.source_ipl}  (line {inst.line_no})",
-        ])
-
-        add_section("2DFX Effects", [
-            f"#{i+1}: {e.obj_type} (line {e.line_no}, {e.source_ide})"
-            for i, e in enumerate(effects)
-        ] or None)
-
-        add_section("TOBJ (Timed Object) Variants", [
-            f"{t.model_name} (ID {t.model_id}, {t.source_ide} line {t.line_no})"
-            for t in tobjs
-        ] or None)
-
-        close_btn = QPushButton("Close")
-        close_btn.clicked.connect(dlg.accept)
-        lay.addWidget(close_btn)
-        dlg.exec()
+    def _on_instance_edited(self, inst): #vers 1
+        """Called by _InstanceEditPanel whenever a position/rotation
+        nudge changes an instance in memory - refreshes the World View
+        panes to reflect the new position (they cache instance data as
+        plain tuples for fast rendering, built at the last filter
+        application, so mutating the IPLInstance alone doesn't
+        propagate until this re-applies the current filter)."""
+        self._apply_ipl_visibility_filter()
 
     def _on_instance_list_context_menu(self, pos): #vers 1
         """Right-click a row for a per-instance LOD override - only
@@ -12267,18 +12432,17 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             sel_model.currentRowChanged.connect(
                 lambda cur, prev: self._on_instance_row_selected(model, cur.row()))
 
-    def _on_instance_row_selected(self, model, row): #vers 2
-        """Centre all three world-view panes' cameras on the selected
-        instance's position."""
+    def _on_instance_row_selected(self, model, row): #vers 3
+        """Single-click (or keyboard navigation) shows/updates the
+        object edit panel for the newly-selected instance. Camera-
+        centring moved to double-click (_on_instance_row_double_
+        clicked) per Keith's request."""
         if row < 0:
             return
         inst = model.instance_at(row)
         if inst is None:
             return
-        for pane in getattr(self, '_world_panes', []):
-            pane._pan_x = -inst.pos_x
-            pane._pan_y = -inst.pos_y
-            pane.update()
+        self._show_instance_edit_panel(inst)
 
     def _create_world_viewport_dock(self): #vers 1
         """Top/Side/3D triple-pane world viewport, in its own dock so it
