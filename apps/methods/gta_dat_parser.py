@@ -980,6 +980,39 @@ class GTAWorldLoader: #vers 3
     def get_instances_for_model(self, model_id: int) -> List[IPLInstance]:
         return [i for i in self.instances if i.model_id == model_id]
 
+    def resolve_lod_pairs(self) -> Dict[int, IPLInstance]:
+        """Resolve each instance's paired LOD counterpart, where one
+        exists. Only meaningful for SA/SOL - GTA3/VC's inst format has
+        no lod_index field at all (IPLParser never sets it for those,
+        staying at the -1 default), so this returns nothing for those
+        games.
+
+        Interpretation (best-effort, based on community-documented GTA
+        SA .ipl format - not verified against official documentation,
+        so treat this as a reasonable starting point rather than
+        certain): a positive lod_index is the 0-based position, among
+        just the "inst" entries of that SAME source .ipl file, of this
+        instance's paired counterpart (typically a lower-detail
+        replacement model at the same position). -1 means no LOD pair.
+
+        Returns a dict mapping id(instance) -> its paired IPLInstance,
+        for every instance that resolves to a valid pair. Keyed by
+        id() rather than model_id/position, since multiple instances
+        can share a model_id and this is about a specific placement's
+        specific pairing, not anything model-level."""
+        if self.game not in (GTAGame.SA, GTAGame.SOL):
+            return {}
+        pairs: Dict[int, IPLInstance] = {}
+        by_file: Dict[str, list] = {}
+        for inst in self.instances:
+            by_file.setdefault(inst.source_ipl, []).append(inst)
+        for file_instances in by_file.values():
+            for inst in file_instances:
+                if inst.lod_index is not None and inst.lod_index >= 0 \
+                        and inst.lod_index < len(file_instances):
+                    pairs[id(inst)] = file_instances[inst.lod_index]
+        return pairs
+
     def get_objects_by_type(self, obj_type: str) -> List[IDEObject]:
         t = obj_type.lower()
         return [o for o in self.objects.values() if o.obj_type == t]

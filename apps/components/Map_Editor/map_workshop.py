@@ -8096,6 +8096,35 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             act = dock.toggleViewAction()
             act.setText(f"Show {label}")
             tb.addAction(act)
+        tb.addSeparator()
+
+        # LOD display mode dropdown - Normal (default) / LOD / Both.
+        # Only meaningful for SA/SOL worlds (GTA3/VC have no lod_index
+        # concept at all - see resolve_lod_pairs), but harmless to show
+        # regardless since it's a no-op when there are no resolved pairs.
+        from PyQt6.QtWidgets import QToolButton
+        from PyQt6.QtGui import QActionGroup
+        lod_icon = self._render_variant_icon('lod_toggle', None, icon_sz,
+                                             icon_color, has_menu=True)
+        lod_btn = QToolButton()
+        lod_btn.setIcon(lod_icon)
+        lod_btn.setText("LOD")
+        lod_btn.setToolTip("Global LOD display mode for paired objects\n"
+                           "(a specific object can still be overridden\n"
+                           "individually via the Instance List)")
+        lod_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        lod_menu = QMenu(lod_btn)
+        lod_group = QActionGroup(lod_btn)
+        lod_group.setExclusive(True)
+        for mode, label in (('normal', "Normal"), ('lod', "LOD"), ('both', "Both")):
+            act = lod_menu.addAction(label)
+            act.setCheckable(True)
+            act.setChecked(mode == 'normal')
+            lod_group.addAction(act)
+            act.triggered.connect(lambda checked=False, m=mode: self._set_lod_display_mode(m))
+        lod_btn.setMenu(lod_menu)
+        tb.addWidget(lod_btn)
+        self._lod_mode_button = lod_btn
 
         self._panels_ribbon = tb
         self._apply_ribbon_style(tb)
@@ -8433,6 +8462,12 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             p.setPen(QPen(qc, pen_w)); p.setBrush(Qt.BrushStyle.NoBrush)
             p.drawRect(m, m + 2, size - 2*m, size - 2*m - 4)
             p.drawLine(m, size - m - 2, size - m, m + 2)
+        elif kind == 'lod_toggle':
+            p.setPen(QPen(qc, pen_w)); p.setBrush(Qt.BrushStyle.NoBrush)
+            big = int(size * 0.65)
+            small = int(size * 0.4)
+            p.drawRect(m, m, big, big)
+            p.drawRect(size - m - small, size - m - small, small, small)
 
     def _render_variant_icon(self, icon_kind, icon_method, size, icon_color,
                               has_menu: bool = False) -> QIcon: #vers 2
@@ -11776,9 +11811,13 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._set_status(
             f"Loaded {game.upper()} world: {len(loader.objects)} objects, "
             f"{len(loader.instances)} instances, {loader.stats.ipl_files} IPL files")
+        self._lod_pairs = loader.resolve_lod_pairs()
+        self._lod_overrides = {}
+        self._lod_display_mode = 'normal'
+        visible = self._apply_lod_filter(loader.instances)
         for pane in getattr(self, '_world_panes', []):
-            pane.set_instances(loader.instances)
-        self._populate_instance_list(loader)
+            pane.set_instances(visible)
+        self._populate_instance_list(_FilteredLoaderStub(visible, loader))
         self._populate_ipl_sections(loader)
         self._populate_object_browser(loader)
         QMessageBox.information(self, source_desc, loader.get_summary())
@@ -11857,19 +11896,64 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             self._hidden_ipls.discard(ipl_name)
         self._apply_ipl_visibility_filter()
 
-    def _apply_ipl_visibility_filter(self): #vers 1
-        """Recompute which instances are currently visible (every loaded
-        instance whose source_ipl isn't in self._hidden_ipls) and push
-        that subset to the world-view panes and Instance List."""
+    def _apply_ipl_visibility_filter(self): #vers 2
+        """Recompute which instances are currently visible: every
+        loaded instance whose source_ipl isn't in self._hidden_ipls,
+        then layer LOD show/hide on top (global toggle + any per-
+        instance overrides) - push the final result to the world-view
+        panes and Instance List."""
         all_inst = getattr(self, '_all_instances', None)
         if all_inst is None:
             return
         hidden = getattr(self, '_hidden_ipls', set())
         visible = [i for i in all_inst if i.source_ipl not in hidden] if hidden else all_inst
+        visible = self._apply_lod_filter(visible)
         for pane in getattr(self, '_world_panes', []):
             pane.set_instances(visible)
         loader_stub = _FilteredLoaderStub(visible, getattr(self, '_world_loader', None))
         self._populate_instance_list(loader_stub)
+
+    def _apply_lod_filter(self, instances): #vers 2
+        """Given an already-IPL-filtered instance list, decide for each
+        LOD-paired primary instance which version(s) to keep - per-
+        instance override (self._lod_overrides, keyed by id(primary
+        instance), one of 'normal'/'lod'/'both'/None) takes precedence
+        over the global mode (self._lod_display_mode). Instances with
+        no LOD pair at all pass through unchanged."""
+        pairs = getattr(self, '_lod_pairs', None)
+        if not pairs:
+            return instances
+        overrides = getattr(self, '_lod_overrides', {})
+        global_mode = getattr(self, '_lod_display_mode', 'normal')
+        paired_target_ids = {id(v) for v in pairs.values()}
+        result = []
+        for inst in instances:
+            iid = id(inst)
+            if iid in pairs:
+                mode = overrides.get(iid) or global_mode
+                if mode == 'lod':
+                    result.append(pairs[iid])
+                elif mode == 'both':
+                    result.append(inst)
+                    result.append(pairs[iid])
+                else:  # 'normal'
+                    result.append(inst)
+            elif iid in paired_target_ids:
+                # This instance IS someone's LOD target - it's only
+                # included via its primary above (in 'lod'/'both' mode),
+                # to avoid duplicates when both members of a pair pass
+                # the IPL filter.
+                continue
+            else:
+                result.append(inst)
+        return result
+
+    def _set_lod_display_mode(self, mode): #vers 1
+        """Global LOD display mode - 'normal' (default), 'lod', or
+        'both'. Per-instance overrides (set via the Instance List)
+        still take precedence over this for any instance they cover."""
+        self._lod_display_mode = mode
+        self._apply_ipl_visibility_filter()
 
     def _create_object_browser_dock(self): #vers 1
         """Object Browser dock - search + filter (All/Most Used/
@@ -11979,6 +12063,8 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         view.verticalHeader().setVisible(False)
         view.setEditTriggers(QTableView.EditTrigger.NoEditTriggers)
         view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        view.customContextMenuRequested.connect(self._on_instance_list_context_menu)
         self._instance_table = view
 
         dock = QDockWidget("Instance List", self)
@@ -11988,6 +12074,67 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                         QDockWidget.DockWidgetFeature.DockWidgetFloatable)
         self._instance_list_dock = dock
         return dock
+
+    def _find_lod_primary_key(self, instance): #vers 1
+        """Given an instance currently displayed in a row (which may be
+        either the 'primary' or its LOD-paired counterpart, depending
+        on the current global/override mode), find the id() key to use
+        with self._lod_overrides - always the primary's id(), whichever
+        member is actually showing right now."""
+        pairs = getattr(self, '_lod_pairs', None)
+        if not pairs:
+            return None
+        iid = id(instance)
+        if iid in pairs:
+            return iid
+        for primary_id, target in pairs.items():
+            if target is instance:
+                return primary_id
+        return None
+
+    def _on_instance_list_context_menu(self, pos): #vers 1
+        """Right-click a row for a per-instance LOD override - only
+        shown/enabled for instances that actually have a resolved LOD
+        pair (see resolve_lod_pairs)."""
+        view = self._instance_table
+        index = view.indexAt(pos)
+        if not index.isValid():
+            return
+        model = view.model()
+        inst = model.instance_at(index.row())
+        if inst is None:
+            return
+        primary_key = self._find_lod_primary_key(inst)
+        if primary_key is None:
+            return  # no LOD pair for this instance - nothing to offer
+
+        menu = QMenu(view)
+        current = getattr(self, '_lod_overrides', {}).get(primary_key)
+        for mode, label in (('normal', "Show Normal"), ('lod', "Show LOD"),
+                            ('both', "Show Both")):
+            act = menu.addAction(label)
+            act.setCheckable(True)
+            act.setChecked(current == mode)
+            act.triggered.connect(
+                lambda checked=False, k=primary_key, m=mode: self._set_lod_override(k, m))
+        menu.addSeparator()
+        clear_act = menu.addAction("Use Global Setting")
+        clear_act.setEnabled(current is not None)
+        clear_act.triggered.connect(
+            lambda checked=False, k=primary_key: self._set_lod_override(k, None))
+        menu.exec(view.viewport().mapToGlobal(pos))
+
+    def _set_lod_override(self, primary_key, mode): #vers 1
+        """Set (or clear, if mode is None) a per-instance LOD override
+        for one specific pair, keyed by the primary instance's id()."""
+        overrides = getattr(self, '_lod_overrides', None)
+        if overrides is None:
+            return
+        if mode is None:
+            overrides.pop(primary_key, None)
+        else:
+            overrides[primary_key] = mode
+        self._apply_ipl_visibility_filter()
 
     def _populate_instance_list(self, loader): #vers 2
         """Point the Instance List view at a completed GTAWorldLoader
