@@ -84,6 +84,24 @@ built and tested; real per-instance rendering and editing still to come.
      need their own resolution path (direct file load) alongside the
      IMG-archive-based one, or any model built from generic.txd/
      wheels.txd will silently fail to find its textures for VC.
+   - **GTA3-specific gotcha, found and FIXED, confirmed against Keith's
+     real gta3.dat**: GTA3 loads its zone file (MAP.ZON) via a
+     different directive keyword entirely - MAPZONE, not IPL (VC/SA
+     both use IPL DATA\MAP.ZON for the equivalent file). This was a
+     genuine functional bug, not just a visibility gap: MAPZONE entries
+     were parsed into dat.entries by the generic directive fallback but
+     _process_dat only ever iterated entries with directive == "IPL",
+     so MAP.ZON never got processed at all for GTA3 - self.zones would
+     have silently stayed empty even with a valid MAP.ZON file present.
+     Fixed by including MAPZONE alongside IPL in _process_dat's
+     processing loop (both go through the same _load_ipl/IPLParser path,
+     which already handles zone/cull sections correctly regardless of
+     which directive pointed at the file) - load_log still tags these
+     as "IPL" type (not "MAPZONE") for compatibility with DAT Browser's
+     existing tree-building code, which specifically checks for
+     entry_type == "IPL" at several points. Verified end-to-end with a
+     synthetic MAP.ZON containing a real zone entry - correctly parsed
+     into self.zones after the fix (was 0 zones, always, before it).
 
 2. **2D top-down map view** - was in the original phased plan but got
    skipped over jumping straight to the 3D viewport. Ipl_Editor's

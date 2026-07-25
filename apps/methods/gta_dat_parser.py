@@ -880,9 +880,15 @@ class GTAWorldLoader: #vers 3
         self.stats.instances      = len(self.instances)
         return True
 
-    def _process_dat(self, dat: DATParser, phase: str): #vers 4
+    def _process_dat(self, dat: DATParser, phase: str): #vers 5
         ide_list = [e for e in dat.entries if e.directive == "IDE"]
-        ipl_list = [e for e in dat.entries if e.directive == "IPL"]
+        # GTA3 uses a different directive keyword (MAPZONE) specifically
+        # for its zone file (MAP.ZON), while VC/SA load the equivalent
+        # file via the ordinary IPL directive - functionally identical
+        # (IPLParser handles zone/cull sections the same way regardless
+        # of which directive pointed at the file), so both are processed
+        # together here rather than MAPZONE being silently ignored.
+        ipl_list = [e for e in dat.entries if e.directive in ("IPL", "MAPZONE")]
         if self.ipl_filter is not None:
             allowed = self.ipl_filter
             skipped = [e for e in ipl_list
