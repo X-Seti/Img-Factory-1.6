@@ -883,6 +883,14 @@ class GTAWorldLoader: #vers 3
         self.default_dat = DATParser(game)
         self.main_dat    = DATParser(game)
         self.objects:    Dict[int, IDEObject] = {}
+        # 2dfx entries share their base object's model_id (e.g. multiple
+        # lights/particle effects on one building all use that building's
+        # ID) - kept separate from self.objects rather than folded in,
+        # since IDEObject entries are looked up by model_id there and a
+        # 2dfx "stub" entry (see IDEParser._parse_line) would otherwise
+        # silently overwrite the real object definition for any ID that
+        # also has an attached effect.
+        self.effects_2dfx: Dict[int, List[IDEObject]] = {}
         self.instances:  List[IPLInstance]    = []
         self.zones:      List[Dict]           = []
         self.culls:      List[Dict]           = []
@@ -1044,7 +1052,7 @@ class GTAWorldLoader: #vers 3
         self.stats.col_files += len(dat.col_entries())
         self.stats.img_files += len(img_list)
 
-    def _load_ide(self, entry: DATEntry, phase: str): #vers 2
+    def _load_ide(self, entry: DATEntry, phase: str): #vers 3
         if not entry.exists:
             self.stats.warnings.append(f"[{phase}] IDE missing: {entry.path}")
             self.load_log.append((phase, "IDE", entry.abs_path, False))
@@ -1053,7 +1061,10 @@ class GTAWorldLoader: #vers 3
         ok     = parser.parse(entry.abs_path)
         self.load_log.append((phase, "IDE", entry.abs_path, ok))
         for obj in parser.objects:
-            self.objects[obj.model_id] = obj   # later overrides earlier
+            if obj.section == "2dfx":
+                self.effects_2dfx.setdefault(obj.model_id, []).append(obj)
+            else:
+                self.objects[obj.model_id] = obj   # later overrides earlier
         self.stats.errors   += parser.stats.errors
         self.stats.warnings += parser.stats.warnings
 
@@ -1071,8 +1082,8 @@ class GTAWorldLoader: #vers 3
         self.stats.errors   += parser.stats.errors
         self.stats.warnings += parser.stats.warnings
 
-    def _reset(self): #vers 1
-        self.objects.clear(); self.instances.clear()
+    def _reset(self): #vers 2
+        self.objects.clear(); self.effects_2dfx.clear(); self.instances.clear()
         self.zones.clear();   self.culls.clear()
         self.load_log.clear(); self.stats = ParseStats()
 
@@ -1090,6 +1101,12 @@ class GTAWorldLoader: #vers 3
 
     def get_instances_for_model(self, model_id: int) -> List[IPLInstance]:
         return [i for i in self.instances if i.model_id == model_id]
+
+    def get_2dfx_for_model(self, model_id: int) -> List[IDEObject]:
+        """2DFX effects (lights, particles, etc) attached to a model,
+        matched by model_id - see effects_2dfx for why these are kept
+        separate from self.objects."""
+        return self.effects_2dfx.get(model_id, [])
 
     def resolve_lod_pairs(self) -> Dict[int, IPLInstance]:
         """Resolve each instance's paired LOD counterpart, where one
