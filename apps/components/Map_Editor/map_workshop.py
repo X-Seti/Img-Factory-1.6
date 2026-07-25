@@ -8468,6 +8468,21 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             small = int(size * 0.4)
             p.drawRect(m, m, big, big)
             p.drawRect(size - m - small, size - m - small, small, small)
+        elif kind in ('eye_visible', 'eye_hidden'):
+            p.setPen(QPen(qc, pen_w)); p.setBrush(Qt.BrushStyle.NoBrush)
+            cx, cy = size // 2, size // 2
+            eye_w = size - 2*m
+            eye_h = int(eye_w * 0.55)
+            rect_x, rect_y = m, cy - eye_h // 2
+            # Eye outline as an ellipse (approximated with drawArc-style
+            # via drawEllipse, simplest reliable cross-Qt-version option)
+            p.drawEllipse(rect_x, rect_y, eye_w, eye_h)
+            pupil_d = max(2, int(eye_h * 0.5))
+            p.setBrush(QBrush(qc))
+            p.drawEllipse(cx - pupil_d//2, cy - pupil_d//2, pupil_d, pupil_d)
+            if kind == 'eye_hidden':
+                p.setBrush(Qt.BrushStyle.NoBrush)
+                p.drawLine(m, m, size - m, size - m)
 
     def _render_variant_icon(self, icon_kind, icon_method, size, icon_color,
                               has_menu: bool = False) -> QIcon: #vers 2
@@ -11853,12 +11868,14 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         return panel
 
-    def _populate_ipl_sections(self, loader): #vers 1
+    def _populate_ipl_sections(self, loader): #vers 2
         """Fill the IPL Sections panel from a completed load - one row
-        per unique source_ipl across all loaded instances, each with a
-        Show/Hide toggle button. Keeps the full unfiltered instance list
-        on self._all_instances so toggling can recompute the visible
-        subset without needing to reload."""
+        per unique source_ipl across all loaded instances, each with an
+        eye / eye-with-strike icon toggle (icon-only, so it stays
+        compact regardless of available panel width - no text label to
+        collapse in the first place). Keeps the full unfiltered
+        instance list on self._all_instances so toggling can recompute
+        the visible subset without needing to reload."""
         table = getattr(self, '_ipl_sections_table', None)
         placeholder = getattr(self, '_ipl_sections_placeholder', None)
         if table is None:
@@ -11867,23 +11884,39 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._all_instances = list(loader.instances)
         self._hidden_ipls = set()
 
+        icon_color = self._get_icon_color()
+        icon_sz = 18
+        eye_open_icon = self._render_variant_icon('eye_visible', None, icon_sz,
+                                                   icon_color, has_menu=False)
+        eye_closed_icon = self._render_variant_icon('eye_hidden', None, icon_sz,
+                                                     icon_color, has_menu=False)
+
         ipl_names = sorted({inst.source_ipl for inst in loader.instances})
         table.setRowCount(len(ipl_names))
         for row, ipl_name in enumerate(ipl_names):
             name_item = QTableWidgetItem(ipl_name)
             table.setItem(row, 0, name_item)
-            btn = QPushButton("Hide")
+            btn = QPushButton()
             btn.setCheckable(True)
-            btn.setFixedWidth(60)
+            btn.setFixedWidth(28)
+            btn.setIcon(eye_open_icon)
+            btn.setToolTip(f"Hide {ipl_name}")
             btn.toggled.connect(
-                lambda checked, n=ipl_name, b=None: self._toggle_ipl_section(n, checked))
+                lambda checked, n=ipl_name: self._toggle_ipl_section(n, checked))
             btn.toggled.connect(
-                lambda checked, b=btn: b.setText("Show" if checked else "Hide"))
+                lambda checked, b=btn, n=ipl_name: self._update_eye_button(
+                    b, checked, n, eye_open_icon, eye_closed_icon))
             table.setCellWidget(row, 1, btn)
 
         if placeholder is not None:
             placeholder.setVisible(False)
         table.setVisible(True)
+
+    def _update_eye_button(self, btn, hidden, ipl_name, open_icon, closed_icon): #vers 1
+        """Swap an IPL Sections row's eye icon and tooltip to match its
+        current hidden/visible state."""
+        btn.setIcon(closed_icon if hidden else open_icon)
+        btn.setToolTip(f"Show {ipl_name}" if hidden else f"Hide {ipl_name}")
 
     def _toggle_ipl_section(self, ipl_name, hidden): #vers 1
         """Show/hide all instances from one IPL file - recomputes the
@@ -12065,6 +12098,7 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         view.customContextMenuRequested.connect(self._on_instance_list_context_menu)
+        view.doubleClicked.connect(self._on_instance_row_double_clicked)
         self._instance_table = view
 
         dock = QDockWidget("Instance List", self)
@@ -12091,6 +12125,84 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             if target is instance:
                 return primary_id
         return None
+
+    def _on_instance_row_double_clicked(self, index): #vers 1
+        """Double-click an Instance List row to open its detail dialog -
+        ID, Name, Texture, full IDE info, full IPL/placement info, any
+        2DFX effects and TOBJ (timed) variants for that model_id."""
+        model = self._instance_table.model()
+        inst = model.instance_at(index.row()) if model else None
+        if inst is None:
+            return
+        self._show_instance_detail_dialog(inst)
+
+    def _show_instance_detail_dialog(self, inst): #vers 1
+        """Build and show the detail dialog for one instance - cross-
+        references the loaded IDE object definition, 2DFX effects, and
+        TOBJ variants by model_id (get_2dfx_for_model/get_tobj_for_model,
+        both added this session specifically so this cross-referencing
+        actually works - they used to silently overwrite each other)."""
+        loader = getattr(self, '_world_loader', None)
+        obj = loader.get_object(inst.model_id) if loader else None
+        effects = loader.get_2dfx_for_model(inst.model_id) if loader else []
+        tobjs = loader.get_tobj_for_model(inst.model_id) if loader else []
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Object Detail - {inst.model_name} (ID {inst.model_id})")
+        dlg.setMinimumWidth(420)
+        lay = QVBoxLayout(dlg)
+
+        def add_section(title, lines): #vers 1
+            box = QGroupBox(title)
+            box_lay = QVBoxLayout(box)
+            if lines:
+                for line in lines:
+                    box_lay.addWidget(QLabel(line))
+            else:
+                empty = QLabel("(none)")
+                empty.setStyleSheet("color: palette(mid);")
+                box_lay.addWidget(empty)
+            lay.addWidget(box)
+
+        add_section("Identity", [
+            f"ID: {inst.model_id}",
+            f"Name: {inst.model_name}",
+            f"Texture (TXD): {obj.txd_name if obj else '(unresolved - no IDE match)'}",
+        ])
+
+        if obj:
+            ide_lines = [
+                f"Type: {obj.obj_type}   Section: {obj.section}",
+                f"Source: {obj.source_ide}  (line {obj.line_no})",
+            ]
+            for k, v in obj.extra.items():
+                ide_lines.append(f"{k}: {v}")
+            add_section("IDE Info", ide_lines)
+        else:
+            add_section("IDE Info", None)
+
+        add_section("IPL / Placement Info", [
+            f"Position: {inst.pos_x:.2f}, {inst.pos_y:.2f}, {inst.pos_z:.2f}",
+            f"Rotation (quat): {inst.rot_x:.3f}, {inst.rot_y:.3f}, "
+            f"{inst.rot_z:.3f}, {inst.rot_w:.3f}",
+            f"Interior: {inst.interior}   LOD index: {inst.lod_index}",
+            f"Source IPL: {inst.source_ipl}  (line {inst.line_no})",
+        ])
+
+        add_section("2DFX Effects", [
+            f"#{i+1}: {e.obj_type} (line {e.line_no}, {e.source_ide})"
+            for i, e in enumerate(effects)
+        ] or None)
+
+        add_section("TOBJ (Timed Object) Variants", [
+            f"{t.model_name} (ID {t.model_id}, {t.source_ide} line {t.line_no})"
+            for t in tobjs
+        ] or None)
+
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(dlg.accept)
+        lay.addWidget(close_btn)
+        dlg.exec()
 
     def _on_instance_list_context_menu(self, pos): #vers 1
         """Right-click a row for a per-instance LOD override - only
