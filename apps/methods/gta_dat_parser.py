@@ -891,6 +891,14 @@ class GTAWorldLoader: #vers 3
         # silently overwrite the real object definition for any ID that
         # also has an attached effect.
         self.effects_2dfx: Dict[int, List[IDEObject]] = {}
+        # tobj (timed/day-night object variants) are tracked separately
+        # too, for showing tobj info as part of an object's detail view
+        # (matched by ID) - but unlike 2dfx's placeholder stubs, tobj
+        # entries carry real model/txd data, so they're ALSO still kept
+        # in self.objects as before (preserving existing TXD/Object
+        # Browser lookups for tobj-only objects) rather than being
+        # removed from it.
+        self.timed_objects: Dict[int, List[IDEObject]] = {}
         self.instances:  List[IPLInstance]    = []
         self.zones:      List[Dict]           = []
         self.culls:      List[Dict]           = []
@@ -1063,8 +1071,10 @@ class GTAWorldLoader: #vers 3
         for obj in parser.objects:
             if obj.section == "2dfx":
                 self.effects_2dfx.setdefault(obj.model_id, []).append(obj)
-            else:
-                self.objects[obj.model_id] = obj   # later overrides earlier
+                continue
+            if obj.section == "tobj":
+                self.timed_objects.setdefault(obj.model_id, []).append(obj)
+            self.objects[obj.model_id] = obj   # later overrides earlier
         self.stats.errors   += parser.stats.errors
         self.stats.warnings += parser.stats.warnings
 
@@ -1082,8 +1092,9 @@ class GTAWorldLoader: #vers 3
         self.stats.errors   += parser.stats.errors
         self.stats.warnings += parser.stats.warnings
 
-    def _reset(self): #vers 2
-        self.objects.clear(); self.effects_2dfx.clear(); self.instances.clear()
+    def _reset(self): #vers 3
+        self.objects.clear(); self.effects_2dfx.clear()
+        self.timed_objects.clear(); self.instances.clear()
         self.zones.clear();   self.culls.clear()
         self.load_log.clear(); self.stats = ParseStats()
 
@@ -1107,6 +1118,11 @@ class GTAWorldLoader: #vers 3
         matched by model_id - see effects_2dfx for why these are kept
         separate from self.objects."""
         return self.effects_2dfx.get(model_id, [])
+
+    def get_tobj_for_model(self, model_id: int) -> List[IDEObject]:
+        """Timed/day-night object variants for a model, matched by
+        model_id - see timed_objects."""
+        return self.timed_objects.get(model_id, [])
 
     def resolve_lod_pairs(self) -> Dict[int, IPLInstance]:
         """Resolve each instance's paired LOD counterpart, where one
