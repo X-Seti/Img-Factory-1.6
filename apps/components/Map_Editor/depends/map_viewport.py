@@ -57,6 +57,7 @@ class MapViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         # anything about gta_dat_parser's data classes directly.
         self._instances: List[tuple] = []
         self._vertex_array = None   # numpy array, built by set_instances
+        self._gizmo_pos = None      # (x, y, z) world position, or None
         self._marker_size = 1.0
 
         # Camera - identical scheme to DFFViewport
@@ -214,6 +215,40 @@ class MapViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         if self._show_grid:
             self._draw_grid()
         self._draw_instances()
+        if self._gizmo_pos is not None:
+            self._draw_gizmo()
+
+    def set_gizmo_position(self, pos): #vers 1
+        """Show (or hide, if pos is None) an XYZ axis gizmo at a world
+        position - used to mark the currently-selected instance from
+        Instance List."""
+        self._gizmo_pos = pos
+        self.update()
+
+    def _draw_gizmo(self, size: float = 3.0): #vers 2
+        """Draw a simple 3-axis (red=world X, green=world Y, blue=
+        world Z) gizmo at self._gizmo_pos, marking the currently-
+        selected instance - not an interactive manipulation handle
+        yet, just a visual marker, drawn on top of the instance
+        points.
+
+        Axis lines are drawn in this viewport's own OpenGL-local space
+        (Y-up), but coloured/labelled by GTA's world axes (Z-up) - so
+        green (world Y) draws along local Z, and blue (world Z) draws
+        along local Y (straight up), matching the same swap already
+        applied to every instance position elsewhere in this class."""
+        x, y, z = self._gizmo_pos
+        gx, gy, gz = x, z, y   # same Z-up (GTA) -> Y-up (this viewport) swap as instances
+        glPushMatrix()
+        glTranslatef(gx, gy, gz)
+        glLineWidth(2.0)
+        glBegin(GL_LINES)
+        glColor3f(1.0, 0.2, 0.2); glVertex3f(0, 0, 0); glVertex3f(size, 0, 0)   # world X
+        glColor3f(0.2, 1.0, 0.2); glVertex3f(0, 0, 0); glVertex3f(0, 0, size)   # world Y -> local Z
+        glColor3f(0.3, 0.5, 1.0); glVertex3f(0, 0, 0); glVertex3f(0, size, 0)   # world Z -> local Y
+        glEnd()
+        glLineWidth(1.0)
+        glPopMatrix()
 
     def _draw_grid(self, size: int = 500, step: int = 50): #vers 1
         glColor3f(0.4, 0.4, 0.4)
@@ -279,16 +314,38 @@ class MapViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
     def mousePressEvent(self, event): #vers 1
         self._last_pos = event.pos()
 
-    def mouseMoveEvent(self, event): #vers 1
+    def configure_movement(self, pan_button='middle', rotate_button='right',
+                           invert_x=False, invert_y=False): #vers 1
+        """Set which mouse button pans vs rotates this pane, and
+        whether pan direction is inverted per axis - lets the Map
+        Editor settings expose per-viewport-mode adjustment, since a
+        single hardcoded mapping doesn't feel consistent across Top/
+        Side/Front/3D's different camera orientations."""
+        self._pan_button = pan_button
+        self._rotate_button = rotate_button
+        self._pan_invert_x = invert_x
+        self._pan_invert_y = invert_y
+
+    def _button_matches(self, buttons, name): #vers 1
+        mapping = {'left': Qt.MouseButton.LeftButton,
+                  'middle': Qt.MouseButton.MiddleButton,
+                  'right': Qt.MouseButton.RightButton}
+        return bool(buttons & mapping.get(name, Qt.MouseButton.MiddleButton))
+
+    def mouseMoveEvent(self, event): #vers 2
         dx = event.pos().x() - self._last_pos.x()
         dy = event.pos().y() - self._last_pos.y()
-        if event.buttons() & Qt.MouseButton.RightButton and not self._view_locked:
+        pan_button = getattr(self, '_pan_button', 'middle')
+        rotate_button = getattr(self, '_rotate_button', 'right')
+        invert_x = getattr(self, '_pan_invert_x', False)
+        invert_y = getattr(self, '_pan_invert_y', False)
+        if self._button_matches(event.buttons(), rotate_button) and not self._view_locked:
             self._yaw   += dx * 0.5
             self._pitch += dy * 0.5
-        elif event.buttons() & Qt.MouseButton.MiddleButton:
+        elif self._button_matches(event.buttons(), pan_button):
             scale = self._dist * 0.002
-            self._pan_x += dx * scale
-            self._pan_y -= dy * scale
+            self._pan_x += (-dx if invert_x else dx) * scale
+            self._pan_y -= (-dy if invert_y else dy) * scale
         self._last_pos = event.pos(); self.update()
 
     def mouseReleaseEvent(self, event): #vers 1

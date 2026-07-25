@@ -1425,6 +1425,25 @@ class MapSettings:
         'show_statusbar':    True,     # show bottom status bar
         'show_paint_canvas': False,    # forked-in paint canvas - hidden by default, toggleable
         'favourite_objects': [],       # list of favourited model_ids, Object Browser panel
+        # Per-view-mode pan direction inversion (World View: Top/Side/
+        # Front/3D each have a different camera orientation, so the
+        # same raw mouse delta needs different sign handling per mode
+        # to feel consistent - Keith reported Top view's left/right
+        # was inverted and other views' up/down was inverted; exposed
+        # here as user-adjustable rather than a single hardcoded guess,
+        # since without a real GPU to test against directly, giving
+        # direct control is safer than a blind sign-flip.
+        'viewport_pan_invert': {
+            'Top':   {'x': False, 'y': False},
+            'Side':  {'x': False, 'y': False},
+            'Front': {'x': False, 'y': False},
+            '3D':    {'x': False, 'y': False},
+        },
+        # Mouse button assignment for World View pane interaction -
+        # which button pans vs rotates (rotate only applies to
+        # unlocked/3D panes; locked ortho panes only ever pan).
+        'viewport_pan_button': 'middle',     # 'middle' | 'left' | 'right'
+        'viewport_rotate_button': 'right',   # 'middle' | 'left' | 'right'
         'ui_font_size':      10,       # toolbar/button font size
         'canvas_mode':       'free',   # 'free'|'platform'|'texture'|'icon'
         'show_anim_strip':   False,    # show animation timeline strip
@@ -1862,6 +1881,42 @@ class MapSettingsDialog(QDialog):
 
         tabs.addTab(gadgets_tab, "Gadgets")
 
+        # - Viewport tab (World View movement settings)
+        viewport_tab = QWidget()
+        vp_lay = QVBoxLayout(viewport_tab)
+        vp_form = QFormLayout()
+        vp_form.setSpacing(8)
+
+        self._pan_button_combo = QComboBox()
+        self._pan_button_combo.addItems(["left", "middle", "right"])
+        self._pan_button_combo.setCurrentText(self.s.get('viewport_pan_button'))
+        vp_form.addRow("Pan button:", self._pan_button_combo)
+
+        self._rotate_button_combo = QComboBox()
+        self._rotate_button_combo.addItems(["left", "middle", "right"])
+        self._rotate_button_combo.setCurrentText(self.s.get('viewport_rotate_button'))
+        vp_form.addRow("Rotate button (3D only):", self._rotate_button_combo)
+        vp_lay.addLayout(vp_form)
+
+        vp_lay.addWidget(QLabel(
+            "Invert pan direction per viewport - Top/Side/Front/3D each\n"
+            "have a different camera orientation, so correct this per\n"
+            "mode if panning feels backwards in one but not another."))
+
+        self._pan_invert_checks = {}
+        invert_cfg = self.s.get('viewport_pan_invert') or {}
+        for mode in ("Top", "Side", "Front", "3D"):
+            box = QGroupBox(mode)
+            box_lay = QHBoxLayout(box)
+            axis_cfg = invert_cfg.get(mode, {'x': False, 'y': False})
+            chk_x = QCheckBox("Invert X"); chk_x.setChecked(axis_cfg.get('x', False))
+            chk_y = QCheckBox("Invert Y"); chk_y.setChecked(axis_cfg.get('y', False))
+            box_lay.addWidget(chk_x); box_lay.addWidget(chk_y)
+            vp_lay.addWidget(box)
+            self._pan_invert_checks[mode] = (chk_x, chk_y)
+        vp_lay.addStretch()
+        tabs.addTab(viewport_tab, "Viewport")
+
         root.addWidget(tabs)
 
         # OK / Cancel
@@ -1919,12 +1974,25 @@ class MapSettingsDialog(QDialog):
         self.s.set('tool_columns',     [3, 4, 5, 6][self._cols_combo.currentIndex()])
         hidden = [tid for tid, chk in self._gadget_chks.items() if not chk.isChecked()]
         self.s.set('hidden_tools',     hidden)
+
+        self.s.set('viewport_pan_button',    self._pan_button_combo.currentText())
+        self.s.set('viewport_rotate_button', self._rotate_button_combo.currentText())
+        invert_cfg = {}
+        for mode, (chk_x, chk_y) in self._pan_invert_checks.items():
+            invert_cfg[mode] = {'x': chk_x.isChecked(), 'y': chk_y.isChecked()}
+        self.s.set('viewport_pan_invert', invert_cfg)
+
         self.s.save()
+        # Re-apply immediately to any already-open World View panes, so
+        # the change takes effect without needing to reopen/restart.
+        if self._workshop is not None:
+            for pane in getattr(self._workshop, '_world_panes', []):
+                self._workshop._apply_viewport_movement_settings(pane, pane._view_label)
         self.accept()
 
 
 
-#  DP5 Canvas — pixel-accurate zoomable paint surface
+#  Map Canvas — pixel-accurate zoomable paint surface
 
 class MapCanvas(QWidget):
     """Zoomable pixel-accurate paint canvas (inlined from dp5_functions.py)."""
@@ -12460,18 +12528,27 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 return primary_id
         return None
 
-    def _on_instance_row_double_clicked(self, index): #vers 2
-        """Double-click centres the camera on the instance (in addition
-        to the edit panel already showing/updating via single-click
-        selection) and ensures the row stays highlighted/selected."""
+    def _on_instance_row_double_clicked(self, index): #vers 3
+        """Double-click does the same as single-click (centre camera +
+        gizmo + edit panel) - kept as a separate handler since it's
+        also the natural place to land double-click-on-the-rendered-
+        marker-in-the-viewport picking, once that's built."""
         model = self._instance_table.model()
         inst = model.instance_at(index.row()) if model else None
         if inst is None:
             return
+        self._center_on_instance(inst)
+
+    def _center_on_instance(self, inst): #vers 1
+        """Centre all three World View panes' cameras on an instance,
+        show an XYZ gizmo at its position, and show/update its edit
+        panel - the shared behaviour for both single- and double-
+        clicking an Instance List row (and, once built, double-
+        clicking the rendered marker directly in a World View pane)."""
         for pane in getattr(self, '_world_panes', []):
             pane._pan_x = -inst.pos_x
             pane._pan_y = -inst.pos_y
-            pane.update()
+            pane.set_gizmo_position((inst.pos_x, inst.pos_y, inst.pos_z))
         self._show_instance_edit_panel(inst)
 
     def _show_instance_edit_panel(self, inst): #vers 1
@@ -12560,17 +12637,31 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             sel_model.currentRowChanged.connect(
                 lambda cur, prev: self._on_instance_row_selected(model, cur.row()))
 
-    def _on_instance_row_selected(self, model, row): #vers 3
-        """Single-click (or keyboard navigation) shows/updates the
-        object edit panel for the newly-selected instance. Camera-
-        centring moved to double-click (_on_instance_row_double_
-        clicked) per Keith's request."""
+    def _on_instance_row_selected(self, model, row): #vers 4
+        """Single-click (or keyboard navigation) centres the camera,
+        shows an XYZ gizmo, and shows/updates the object edit panel for
+        the newly-selected instance - same as double-click; both share
+        _center_on_instance()."""
         if row < 0:
             return
         inst = model.instance_at(row)
         if inst is None:
             return
-        self._show_instance_edit_panel(inst)
+        self._center_on_instance(inst)
+
+    def _apply_viewport_movement_settings(self, pane, label): #vers 1
+        """Apply the configured pan-button/rotate-button/invert-axis
+        settings for one World View pane, based on its current view
+        label (Top/Side/Front/3D each get their own invert settings,
+        since their different camera orientations don't necessarily
+        need the same correction)."""
+        invert = self.map_settings.get('viewport_pan_invert') or {}
+        axis = invert.get(label, {'x': False, 'y': False})
+        pane.configure_movement(
+            pan_button=self.map_settings.get('viewport_pan_button'),
+            rotate_button=self.map_settings.get('viewport_rotate_button'),
+            invert_x=axis.get('x', False),
+            invert_y=axis.get('y', False))
 
     def _create_world_viewport_dock(self): #vers 1
         """Top/Side/3D triple-pane world viewport, in its own dock so it
@@ -12593,6 +12684,7 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             pane = MapViewport()
             pane.set_view_lock(proj == 'ortho', label, yaw=yaw, pitch=pitch,
                                projection=proj)
+            self._apply_viewport_movement_settings(pane, label)
             pane.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
             pane._label_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
             pane._label_widget.customContextMenuRequested.connect(
@@ -12683,14 +12775,17 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             lambda checked=False, p=pane: self._toggle_world_pane_maximize(p))
         menu.exec(global_pos)
 
-    def _assign_world_pane_view(self, pane, label, yaw, pitch, projection): #vers 1
+    def _assign_world_pane_view(self, pane, label, yaw, pitch, projection): #vers 2
         """Apply a user-chosen preset to one world-view pane. If this
         pane is currently maximized, re-apply the 'Full View' label
         afterward - set_view_lock always writes the new view name into
         the label, which would otherwise silently drop the full-view
-        indication while still actually maximized."""
+        indication while still actually maximized. Also re-applies
+        movement settings for the new label, since Top/Side/Front/3D
+        can each have their own pan-invert configuration."""
         pane.set_view_lock(projection == 'ortho', label, yaw=yaw, pitch=pitch,
                             projection=projection)
+        self._apply_viewport_movement_settings(pane, label)
         if getattr(self, '_maximized_world_pane', None) is pane:
             pane._pre_maximize_label = label
             pane._label_widget.setText("Full View")
