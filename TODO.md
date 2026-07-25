@@ -171,20 +171,43 @@ side format confirmed empirically, not from documentation:
    so each piece can be picked up independently:
 
    - **Instance List redesign**: FULLY DONE - table simplified to just
-     ID + Model columns; single-click shows/updates a non-modal edit
-     panel (top-left corner, Qt.WindowType.Tool - not a blocking modal)
-     with Identity/IDE/2DFX/TOBJ/Placement info, cross-referenced by
-     model_id via get_2dfx_for_model()/get_tobj_for_model(); double-
-     click additionally centres the World View camera on the instance.
-     Position and rotation are live-editable via small/large-step
-     nudge buttons either side of a directly-editable value per axis
-     (X/Y/Z) - rotation edited as degrees, converted to/from the
-     underlying quaternion via new, round-trip-verified quat_to_euler_
-     degrees()/euler_degrees_to_quat() utilities. Edits mutate the
-     IPLInstance in memory and refresh World View immediately. NOT yet
-     done: writing edits back to the actual IPL file on disk (this is
-     in-memory only for now) - that's part of the bigger Editing +
-     editor shortcuts / undo item below.
+     ID + Model columns; single-click AND double-click both centre the
+     World View camera, show a red/green/blue XYZ gizmo at the
+     instance's position, and show/update a non-modal edit panel (top-
+     left corner, Qt.WindowType.Tool - not a blocking modal) with
+     Identity/IDE/2DFX/TOBJ/Placement info, cross-referenced by
+     model_id via get_2dfx_for_model()/get_tobj_for_model(). Position
+     and rotation are live-editable via small/large-step nudge buttons
+     either side of a directly-editable value per axis (X/Y/Z) -
+     rotation edited as degrees, converted to/from the underlying
+     quaternion via new, round-trip-verified quat_to_euler_degrees()/
+     euler_degrees_to_quat() utilities. Edits mutate the IPLInstance in
+     memory and refresh World View immediately. NOT yet done: writing
+     edits back to the actual IPL file on disk (this is in-memory only
+     for now) - that's part of the bigger Editing + editor shortcuts /
+     undo item below; ALSO NOT yet done - double-clicking the rendered
+     marker directly in a World View pane (as opposed to the Instance
+     List row) to open the same edit panel. This needs CPU-side
+     projection/picking matching each pane's exact camera transform
+     (view + projection matrices) - the underlying matrix math (gluLookAt/
+     gluPerspective/glOrtho-equivalent) was verified correct via
+     targeted numeric tests during this session, but the full picking
+     implementation (projecting every visible instance to screen space,
+     finding the closest one to a click within a pixel threshold, for
+     all of Top/Side/Front/3D) wasn't completed - configurable movement
+     settings (below) took priority as the more directly actionable
+     item once a real, reported bug came up.
+
+   - **Configurable per-viewport movement settings**: DONE - new
+     "Viewport" tab in the settings dialog lets pan/rotate mouse button
+     assignment and per-mode (Top/Side/Front/3D) pan-axis inversion be
+     adjusted directly, rather than guessing at the correct sign
+     blindly (this sandbox has no real GPU to visually verify camera
+     behaviour against). Added in response to a real reported bug (Top
+     view's left/right felt switched, other views' up/down felt
+     switched) - defaults are unchanged/non-inverted; Keith can now
+     tune each mode's feel directly through the UI. Applies immediately
+     on save, no restart needed.
 
    - **IPL Sections eye icons**: DONE - Show/Hide per IPL file is now
      an icon-only eye / eye-with-strike toggle instead of a text
