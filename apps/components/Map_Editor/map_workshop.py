@@ -748,7 +748,7 @@ def _load_tool_icon(shape: str, size: int = 42, active: bool = False,
     """
     Load tool icon — checks in order:
     1. apps/icons/{shape}.svg or .png  (shared icons folder)
-    2. DP5_Workshop/icons/{shape}.svg or .png  (DP5-specific overrides)
+    2. This module's own icons/ subfolder (Map_Editor/icons/) for local overrides
     3. _make_tool_icon SVG/QPainter renderer  (built-in fallback)
     """
     import os
@@ -760,7 +760,9 @@ def _load_tool_icon(shape: str, size: int = 42, active: bool = False,
             return icon
     except Exception:
         pass
-    # 2. DP5-local icons folder
+    # 2. This module's own icons/ subfolder (__file__ already resolves to
+    # Map_Editor/map_workshop.py, so this was already correct - just a
+    # misleadingly-worded comment, not an actual wrong path)
     local_dir = os.path.join(os.path.dirname(__file__), 'icons')
     for ext in ('svg', 'png'):
         fpath = os.path.join(local_dir, f'{shape}.{ext}')
@@ -1486,7 +1488,7 @@ class MapSettings:
 
 
 class MapSettingsDialog(QDialog):
-    """Settings dialog for DP5 Workshop — does NOT touch global AppSettings."""
+    """Settings dialog for Map Workshop — does NOT touch global AppSettings."""
 
     def __init__(self, map_settings: MapSettings, parent=None): #vers 4
         super().__init__(parent)
@@ -6686,19 +6688,19 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         layout.addStretch()
 
-        # - Title with DP5 icon
+        # - Title with Map Workshop icon
         title_row = QHBoxLayout()
         title_row.setSpacing(6)
-        dp5_icon_lbl = QLabel()
+        title_icon_lbl = QLabel()
         try:
             from apps.methods.imgfactory_svg_icons import get_map_workshop_icon
             pix = get_map_workshop_icon(22, icon_color).pixmap(22, 22)
-            dp5_icon_lbl.setPixmap(pix)
+            title_icon_lbl.setPixmap(pix)
         except Exception:
             if ICONS_AVAILABLE:
-                pix = SVGIconFactory.paint_icon(20, icon_color).pixmap(20, 20)
-                dp5_icon_lbl.setPixmap(pix)
-        title_row.addWidget(dp5_icon_lbl)
+                pix = SVGIconFactory.folder_icon(20, icon_color).pixmap(20, 20)
+                title_icon_lbl.setPixmap(pix)
+        title_row.addWidget(title_icon_lbl)
         self.title_label = QLabel(App_name)
         self.title_label.setFont(self.title_font)
         self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -6823,8 +6825,8 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         hl.addWidget(_btn("Clear", "Clear canvas",        self._clear_canvas,   SVGIconFactory.new_icon))
         hl.addStretch()
 
-        # IFF round-trip save (native DP5 format)
-        iff_btn = _btn("IFF", "Save as IFF ILBM (native DP5)", self._export_iff, SVGIconFactory.save_icon)
+        # IFF round-trip save (Amiga ILBM format)
+        iff_btn = _btn("IFF", "Save as IFF ILBM", self._export_iff, SVGIconFactory.save_icon)
         hl.addWidget(iff_btn)
 
         return bar
@@ -7299,9 +7301,9 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
     #    Right panel: gadget bar + palettes                                     
 
-    def get_menu_title(self) -> str: #vers 1
+    def get_menu_title(self) -> str: #vers 2
         """Short label for imgfactory titlebar button."""
-        return "DP5"
+        return "MAP"
 
     def _get_tool_menu_style(self) -> str: #vers 1
         """Read menu_style from map_settings."""
@@ -18711,7 +18713,7 @@ class _IconEditor(QWidget): #vers 1
         if not self._variants or not self._editor:
             return
         if not hasattr(self._editor, 'map_canvas') or not self._editor.map_canvas:
-            self._status.setText("DP5 canvas not ready")
+            self._status.setText("Canvas not ready")
             return
         w, h, rgba = self._variants[self._current]
         try:
