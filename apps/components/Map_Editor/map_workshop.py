@@ -12669,10 +12669,14 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._current_instance_index = idx
         self._center_on_instance(instances[idx], nav_info=(idx, len(instances)))
 
-    def _on_object_browser_context_menu(self, pos): #vers 1
-        """Right-click a row for Add/Remove Favourites - matches the
-        same interaction Instance List already offers, for consistency
-        now that Object Browser is the merged, primary panel."""
+    def _on_object_browser_context_menu(self, pos): #vers 2
+        """Right-click a row for Favourites, Rename, Add Instance, and
+        Delete All Instances - the Add/Del/Rename functions Keith asked
+        to continue. These are in-memory operations for now (mutating
+        self._all_instances and the loader's own instances list, kept
+        consistent with each other) - writing changes back to the
+        actual IPL/IDE files on disk isn't built yet, tracked
+        separately in TODO.md."""
         view = self._object_browser_view
         index = view.indexAt(pos)
         if not index.isValid():
@@ -12681,12 +12685,117 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         obj = model.object_at(index.row())
         if obj is None:
             return
+
         menu = QMenu(view)
         is_fav = obj.model_id in model._favourites
-        act = menu.addAction("Remove from Favourites" if is_fav else "Add to Favourites")
-        act.triggered.connect(lambda checked=False, mid=obj.model_id:
-                              self._toggle_instance_favourite(mid))
+        fav_act = menu.addAction("Remove from Favourites" if is_fav else "Add to Favourites")
+        fav_act.triggered.connect(lambda checked=False, mid=obj.model_id:
+                                  self._toggle_instance_favourite(mid))
+        menu.addSeparator()
+        rename_act = menu.addAction("Rename Object…")
+        rename_act.triggered.connect(lambda checked=False, mid=obj.model_id:
+                                     self._rename_object(mid))
+        add_act = menu.addAction("Add Instance Here…")
+        add_act.triggered.connect(lambda checked=False, mid=obj.model_id:
+                                  self._add_instance_of_model(mid))
+        instance_count = model._instance_counts.get(obj.model_id, 0)
+        del_act = menu.addAction(f"Delete All Instances ({instance_count})")
+        del_act.setEnabled(instance_count > 0)
+        del_act.triggered.connect(lambda checked=False, mid=obj.model_id:
+                                  self._delete_all_instances_of_model(mid))
         menu.exec(view.viewport().mapToGlobal(pos))
+
+    def _rename_object(self, model_id): #vers 1
+        """Rename an object's model_name - IN MEMORY ONLY for now
+        (updates the IDEObject held by the current GTAWorldLoader and
+        refreshes Object Browser's display). Does NOT yet write the
+        new name back to the actual IDE file, or update GTA3/VC's
+        text-format IPL lines that redundantly store the name (SA's
+        format doesn't) - that needs real file-writing infrastructure,
+        tracked separately."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            return
+        obj = loader.get_object(model_id)
+        if obj is None:
+            return
+        new_name, ok = QInputDialog.getText(
+            self, "Rename Object", "New name:", text=obj.model_name)
+        if not ok or not new_name.strip():
+            return
+        obj.model_name = new_name.strip()
+        for inst in getattr(self, '_all_instances', []):
+            if inst.model_id == model_id:
+                inst.model_name = obj.model_name
+        self._object_browser_model._recompute()
+        self._set_status(f"Renamed object {model_id} to '{obj.model_name}' "
+                         f"(in memory only - not yet written to disk)")
+
+    def _add_instance_of_model(self, model_id): #vers 1
+        """Add a new placement of an existing model - IN MEMORY ONLY
+        for now, at a default position (origin, identity rotation).
+        Does NOT yet write the new inst line back to the actual IPL
+        file - that needs real file-writing infrastructure, tracked
+        separately. Keith's fuller Add request (importing new DFF/TXD/
+        COL from the desktop into the game's IMG for models that don't
+        exist at all yet) is a bigger, separate piece - this covers
+        placing another copy of a model that's already loaded."""
+        loader = getattr(self, '_world_loader', None)
+        obj = loader.get_object(model_id) if loader else None
+        if obj is None:
+            return
+        from apps.methods.gta_dat_parser import IPLInstance
+        new_inst = IPLInstance(
+            model_id=model_id, model_name=obj.model_name, interior=0,
+            pos_x=0.0, pos_y=0.0, pos_z=0.0,
+            rot_x=0.0, rot_y=0.0, rot_z=0.0, rot_w=1.0,
+            lod_index=-1, source_ipl="(added this session)", line_no=0)
+        self._all_instances = getattr(self, '_all_instances', [])
+        self._all_instances.append(new_inst)
+        if loader is not None:
+            loader.instances.append(new_inst)
+        counts = getattr(self._object_browser_model, '_instance_counts', {})
+        counts[model_id] = counts.get(model_id, 0) + 1
+        self._object_browser_model._recompute()
+        self._apply_ipl_visibility_filter()
+        self._center_on_instance(new_inst)
+        self._set_status(f"Added a new instance of '{obj.model_name}' at the origin "
+                         f"(in memory only - not yet written to disk)")
+
+    def _delete_all_instances_of_model(self, model_id): #vers 1
+        """Remove every placement of a model - the simpler 'just
+        remove from IPL' case Keith described (leaves the IDE
+        definition, COL, and IMG-packed DFF/TXD untouched, so other
+        references to the same model_id, if any, stay valid). IN
+        MEMORY ONLY for now - doesn't yet rewrite the actual IPL
+        file(s) on disk, or offer the 'purge everything and free the
+        ID' alternative Keith also described (that needs IDE/COL/IMG
+        write support this project doesn't have yet)."""
+        loader = getattr(self, '_world_loader', None)
+        all_inst = getattr(self, '_all_instances', [])
+        removed = sum(1 for i in all_inst if i.model_id == model_id)
+        if removed == 0:
+            return
+        confirm = QMessageBox.question(
+            self, "Delete All Instances",
+            f"Remove all {removed} placement(s) of this model from the "
+            f"currently loaded world?\n\n"
+            f"This only removes the placements - the object definition, "
+            f"collision, and model/texture files are left untouched.\n\n"
+            f"(In-memory only for now - not yet written back to the "
+            f"actual IPL file(s) on disk.)",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+        self._all_instances = [i for i in all_inst if i.model_id != model_id]
+        if loader is not None:
+            loader.instances[:] = [i for i in loader.instances if i.model_id != model_id]
+        counts = getattr(self._object_browser_model, '_instance_counts', {})
+        counts.pop(model_id, None)
+        self._object_browser_model._recompute()
+        self._apply_ipl_visibility_filter()
+        self._set_status(f"Removed {removed} placement(s) "
+                         f"(in memory only - not yet written to disk)")
 
     def _on_object_row_double_clicked(self, index): #vers 1
         """Double-click a row to toggle its favourite status."""
