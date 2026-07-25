@@ -211,7 +211,42 @@ side format confirmed empirically, not from documentation:
 
    - **IPL Sections eye icons**: DONE - Show/Hide per IPL file is now
      an icon-only eye / eye-with-strike toggle instead of a text
-     button, inherently compact at any panel width.
+     button, inherently compact at any panel width. Fixed a real
+     regression noticed via screenshot this session: the icon column
+     had been accidentally changed back to Stretch resize mode at some
+     point (reintroducing padding around the icon, the opposite
+     problem from what an earlier fix addressed) - reverted to a tight
+     Fixed width, with the IPL File name column taking Stretch instead
+     (the more standard file-list pattern).
+
+   - **Right-click Add/Remove Favourites on Instance List**: DONE -
+     shares the same favourite_objects setting as Object Browser's own
+     toggle, staying in sync between both panels.
+
+   - **Map Workshop SVG icon**: DONE - found while investigating that
+     get_map_workshop_icon had never actually been implemented despite
+     being referenced (wrapped in try/except, silently falling through
+     to a generic fallback) in several places since early in the Map
+     Editor work - added a proper folded-map icon matching the
+     established COL/TXD Workshop icon style.
+
+   - **Bigger UI redesign, proposed but NOT built yet**: Keith
+     suggested (screenshot: "addtofav.png") adding Add/Delete/Rename
+     SVG icons above the Instance List, an adaptive row layout that
+     collapses the All/Most Used/Favourites/Generic filter buttons
+     onto the same row as those icons when there's space (icon-only
+     when there isn't), and - the biggest piece - merging Object
+     Browser into Instance List entirely, showing a single list of
+     [Star] ID / Model / TXD / Instances (i.e. Object Browser's own
+     column layout) rather than two separate docks. This wasn't
+     attempted this session - it's a genuine architectural question
+     (once merged, a row represents a MODEL with potentially many
+     placements, not a single instance - what should single-/double-
+     click centre the camera on then? First instance? Does per-
+     instance LOD override still make sense from this view, or only
+     from a still-separate "show instances of this model" drill-down?)
+     that deserves deliberate design rather than a rushed merge. Worth
+     picking up as its own dedicated piece of work.
 
    - **Add**: browse the desktop for new DFF/TXD/COL files and import
      them into the game's canonical archive - gta3.img for GTA3/VC/SA
