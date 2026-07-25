@@ -56,6 +56,7 @@ class MapViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         # own IPLInstance objects, so this viewport doesn't need to know
         # anything about gta_dat_parser's data classes directly.
         self._instances: List[tuple] = []
+        self._vertex_array = None   # numpy array, built by set_instances
         self._marker_size = 1.0
 
         # Camera - identical scheme to DFFViewport
@@ -80,10 +81,22 @@ class MapViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             "color: palette(text); background: transparent; font-weight: bold;")
         self._label_widget.hide()
 
-    def set_instances(self, instances): #vers 1
+    def set_instances(self, instances): #vers 2
         """Feed in world placements to render - accepts a list of
         IPLInstance-like objects (anything with pos_x/pos_y/pos_z and
-        model_name attributes) or plain (x,y,z,name) tuples."""
+        model_name attributes) or plain (x,y,z,name) tuples.
+
+        Precomputes a flat numpy vertex array ONCE here, rather than
+        rebuilding per-instance Python-side data on every paintGL call -
+        the array feeds a single glDrawArrays call (see _draw_instances),
+        which is what actually fixes the reported slowness: the old
+        approach looped in Python calling glVertex3f per vertex of a
+        full 6-quad cube for every instance (over 1.2 million individual
+        GL calls per frame at 51,711 instances) - this reduces that to
+        one draw call for the whole set, at the cost of a simpler point-
+        based visual instead of cubes (real per-instance DFF/TXD
+        geometry is the actual long-term fix - this keeps the same
+        'plot x,y,z' concept Keith described, just fast)."""
         out = []
         for inst in instances:
             if hasattr(inst, 'pos_x'):
@@ -92,6 +105,16 @@ class MapViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             else:
                 out.append(tuple(inst))
         self._instances = out
+
+        # GTA is Z-up; this viewport's OpenGL space is Y-up (matches the
+        # old per-cube glTranslatef(x, z, y) convention)
+        try:
+            import numpy as np
+            self._vertex_array = (np.array([(x, z, y) for x, y, z, _n in out],
+                                           dtype=np.float32) if out else None)
+        except Exception:
+            self._vertex_array = None
+
         self._auto_fit()
         self.update()
 
@@ -200,17 +223,35 @@ class MapViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             glVertex3f(-size, 0, i); glVertex3f(size, 0, i)
         glEnd()
 
-    def _draw_instances(self): #vers 1
-        """Placeholder rendering - a small coloured cube per instance
-        position. Real per-instance DFF/TXD geometry comes later; this
-        proves the camera/pane/world-data pipeline end to end first."""
-        s = self._marker_size
+    def _draw_instances(self): #vers 2
+        """Draw all loaded instance positions in a single GL call via
+        the precomputed vertex array (see set_instances), instead of
+        looping in Python drawing a full 6-quad cube per instance - the
+        latter meant over 1.2 million individual glVertex3f calls per
+        frame at 51,711 instances, which is what actually caused the
+        reported slowness. Renders as points rather than cubes for now -
+        real per-instance DFF/TXD geometry is the proper long-term
+        replacement for this whole method, once that's built."""
         glColor3f(0.9, 0.5, 0.2)
-        for x, y, z, _name in self._instances:
-            glPushMatrix()
-            glTranslatef(x, z, y)   # GTA is Z-up; OpenGL here is Y-up
-            self._draw_cube(s)
-            glPopMatrix()
+        glPointSize(max(1.0, min(8.0, self._marker_size)))
+
+        va = getattr(self, '_vertex_array', None)
+        if va is not None and len(va):
+            glEnableClientState(GL_VERTEX_ARRAY)
+            glVertexPointer(3, GL_FLOAT, 0, va)
+            glDrawArrays(GL_POINTS, 0, len(va))
+            glDisableClientState(GL_VERTEX_ARRAY)
+            return
+
+        # Fallback with no numpy/vertex array available - still correct,
+        # just slow at large instance counts (matches the old behaviour,
+        # minus the cube geometry, so at least the per-vertex cost is
+        # 1 point instead of 24 cube vertices per instance).
+        if self._instances:
+            glBegin(GL_POINTS)
+            for x, y, z, _name in self._instances:
+                glVertex3f(x, z, y)
+            glEnd()
 
     def _draw_cube(self, s): #vers 1
         h = s / 2.0

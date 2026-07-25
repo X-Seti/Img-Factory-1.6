@@ -49,7 +49,7 @@ from PyQt6.QtWidgets import (
     QFileDialog, QColorDialog, QGridLayout, QInputDialog, QDockWidget,
     QTableWidget, QTableWidgetItem, QHeaderView
 )
-from PyQt6.QtCore import Qt, QPoint, QPointF, QRect, pyqtSignal, QSize, QTimer
+from PyQt6.QtCore import Qt, QPoint, QPointF, QRect, pyqtSignal, QSize, QTimer, QAbstractTableModel
 from PyQt6.QtGui import (
     QImage, QPixmap, QPainter, QColor, QCursor, QAction,
     QMouseEvent, QWheelEvent, QFont, QIcon, QPen, QBrush,
@@ -5989,6 +5989,70 @@ class _CornerOverlay(QWidget):
         painter.end()
 
 
+class _InstanceTableModel(QAbstractTableModel):
+    """Backs the Instance List QTableView - resolves/formats each row's
+    display data on demand via data(), rather than eagerly building a
+    QTableWidgetItem per cell for every instance up front (the old
+    QTableWidget approach, timed at 2.6s of UI freeze for 51,711
+    instances - two thirds of which was resolving every single
+    instance's TXD name immediately regardless of whether that row
+    would ever actually be scrolled into view)."""
+
+    _HEADERS = ["Model", "TXD", "Position", "Interior", "Source IPL"]
+
+    def __init__(self, instances, loader, parent=None): #vers 1
+        super().__init__(parent)
+        self._instances = instances
+        self._loader = loader
+        self._txd_cache = {}   # model_id -> resolved TXD name, filled lazily
+
+    def rowCount(self, parent=None): #vers 1
+        return len(self._instances)
+
+    def columnCount(self, parent=None): #vers 1
+        return len(self._HEADERS)
+
+    def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole): #vers 1
+        if role != Qt.ItemDataRole.DisplayRole:
+            return None
+        if orientation == Qt.Orientation.Horizontal:
+            return self._HEADERS[section]
+        return str(section + 1)
+
+    def _resolve_txd(self, inst): #vers 1
+        cached = self._txd_cache.get(inst.model_id)
+        if cached is not None:
+            return cached
+        obj = self._loader.get_object(inst.model_id)
+        name = obj.txd_name if obj else ""
+        self._txd_cache[inst.model_id] = name
+        return name
+
+    def data(self, index, role=Qt.ItemDataRole.DisplayRole): #vers 1
+        if role != Qt.ItemDataRole.DisplayRole or not index.isValid():
+            return None
+        inst = self._instances[index.row()]
+        col = index.column()
+        if col == 0:
+            return inst.model_name
+        if col == 1:
+            return self._resolve_txd(inst)
+        if col == 2:
+            return f"{inst.pos_x:.1f}, {inst.pos_y:.1f}, {inst.pos_z:.1f}"
+        if col == 3:
+            return str(inst.interior)
+        if col == 4:
+            return inst.source_ipl
+        return None
+
+    def instance_at(self, row): #vers 1
+        """Look up the raw IPLInstance for a given row - used by the
+        row-selection handler to centre the world-view cameras."""
+        if 0 <= row < len(self._instances):
+            return self._instances[row]
+        return None
+
+
 class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
     """Deluxe Paint 5 inspired bitmap editor — standalone + embeddable."""
 
@@ -11478,64 +11542,60 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._populate_instance_list(loader)
         QMessageBox.information(self, "Load Game Folder", loader.get_summary())
 
-    def _create_instance_list_dock(self): #vers 1
+    def _create_instance_list_dock(self): #vers 2
         """Instance List dock - a browsable table of every loaded world
         placement (model, resolved TXD via the IDE cross-reference,
         position, interior, source IPL file). Selecting a row centres
         the camera in all three world-view panes on that instance, so
         the loaded data is actually navigable rather than just a wall
-        of anonymous marker cubes in the viewport."""
-        table = QTableWidget(0, 5)
-        table.setHorizontalHeaderLabels(
-            ["Model", "TXD", "Position", "Interior", "Source IPL"])
-        table.horizontalHeader().setSectionResizeMode(
+        of anonymous marker cubes in the viewport.
+
+        QTableView + a lazy model (_InstanceTableModel) rather than
+        QTableWidget - the old QTableWidget approach eagerly created a
+        QTableWidgetItem per cell (5 per instance) and resolved every
+        instance's TXD name immediately, timed at 2.6s of UI freeze for
+        51,711 instances. The model defers both to data() calls for
+        whatever's actually visible."""
+        from PyQt6.QtWidgets import QTableView
+
+        view = QTableView()
+        view.horizontalHeader().setSectionResizeMode(
             0, QHeaderView.ResizeMode.Stretch)
-        table.verticalHeader().setVisible(False)
-        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        table.itemSelectionChanged.connect(
-            lambda: self._on_instance_row_selected(table))
-        self._instance_table = table
+        view.verticalHeader().setVisible(False)
+        view.setEditTriggers(QTableView.EditTrigger.NoEditTriggers)
+        view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self._instance_table = view
 
         dock = QDockWidget("Instance List", self)
         dock.setObjectName("Instance List")
-        dock.setWidget(table)
+        dock.setWidget(view)
         dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
                         QDockWidget.DockWidgetFeature.DockWidgetFloatable)
         self._instance_list_dock = dock
         return dock
 
-    def _populate_instance_list(self, loader): #vers 1
-        """Fill the Instance List table from a completed GTAWorldLoader
-        load - resolves each instance's TXD name via the loader's own
-        object cross-reference (get_object), same lookup the viewport/
-        future DFF+TXD loading will use."""
-        table = getattr(self, '_instance_table', None)
-        if table is None:
+    def _populate_instance_list(self, loader): #vers 2
+        """Point the Instance List view at a completed GTAWorldLoader
+        load's instances - the model resolves each instance's TXD name
+        (via loader.get_object) lazily, per-cell, rather than all up
+        front for every row regardless of whether it's ever scrolled
+        into view."""
+        view = getattr(self, '_instance_table', None)
+        if view is None:
             return
-        table.setRowCount(len(loader.instances))
-        for row, inst in enumerate(loader.instances):
-            obj = loader.get_object(inst.model_id)
-            txd_name = obj.txd_name if obj else ""
-            pos_text = f"{inst.pos_x:.1f}, {inst.pos_y:.1f}, {inst.pos_z:.1f}"
-            item_model = QTableWidgetItem(inst.model_name)
-            item_model.setData(Qt.ItemDataRole.UserRole, inst)
-            table.setItem(row, 0, item_model)
-            table.setItem(row, 1, QTableWidgetItem(txd_name))
-            table.setItem(row, 2, QTableWidgetItem(pos_text))
-            table.setItem(row, 3, QTableWidgetItem(str(inst.interior)))
-            table.setItem(row, 4, QTableWidgetItem(inst.source_ipl))
+        model = _InstanceTableModel(loader.instances, loader)
+        view.setModel(model)
+        sel_model = view.selectionModel()
+        if sel_model is not None:
+            sel_model.currentRowChanged.connect(
+                lambda cur, prev: self._on_instance_row_selected(model, cur.row()))
 
-    def _on_instance_row_selected(self, table): #vers 1
+    def _on_instance_row_selected(self, model, row): #vers 2
         """Centre all three world-view panes' cameras on the selected
         instance's position."""
-        row = table.currentRow()
         if row < 0:
             return
-        item = table.item(row, 0)
-        if item is None:
-            return
-        inst = item.data(Qt.ItemDataRole.UserRole)
+        inst = model.instance_at(row)
         if inst is None:
             return
         for pane in getattr(self, '_world_panes', []):
