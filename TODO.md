@@ -170,14 +170,19 @@ side format confirmed empirically, not from documentation:
    built yet.** This is a big, multi-part feature; breaking it out here
    so each piece can be picked up independently:
 
-   - **Instance List redesign**: simplify the table to just ID + Name
-     columns (currently Model/TXD/Position/Interior/Source IPL - all 5
-     still useful, just not as the default view). Clicking a name opens
-     a detail view showing: ID, Name, Texture, full IDE info, full IPL/
-     placement info, any 2DFX effects attached to that model_id (now
-     correctly retrievable via GTAWorldLoader.get_2dfx_for_model(), not
-     silently lost - see the two bug fixes from this session), and any
-     TOBJ (timed/day-night) variant info (get_tobj_for_model()).
+   - **Instance List redesign**: DONE - the detail dialog (double-
+     click a row) showing ID, Name, Texture, full IDE info, full IPL/
+     placement info, 2DFX effects, and TOBJ variants is built and
+     verified, cross-referenced by model_id via get_2dfx_for_model()/
+     get_tobj_for_model(). STILL TO DO: simplify the table's default
+     columns down to just ID + Name (currently still shows all 5 -
+     Model/TXD/Position/Interior/Source IPL - the detail dialog makes
+     the wider columns redundant as the default view, per Keith's
+     "just show ID, Name only" request).
+
+   - **IPL Sections eye icons**: DONE - Show/Hide per IPL file is now
+     an icon-only eye / eye-with-strike toggle instead of a text
+     button, inherently compact at any panel width.
 
    - **Add**: browse the desktop for new DFF/TXD/COL files and import
      them into the game's canonical archive - gta3.img for GTA3/VC/SA
