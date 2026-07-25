@@ -1444,6 +1444,15 @@ class MapSettings:
         # unlocked/3D panes; locked ortho panes only ever pan).
         'viewport_pan_button': 'middle',     # 'middle' | 'left' | 'right'
         'viewport_rotate_button': 'right',   # 'middle' | 'left' | 'right'
+        # Persisted display order for IPL Sections rows - a list of
+        # ipl_name strings; any names not in this list (a different
+        # world/mod was loaded) get appended alphabetically after the
+        # known ones, rather than the order being lost entirely.
+        'ipl_sections_order': [],
+        # Persisted column widths (user-resized), keyed by panel -
+        # restored on next open rather than resetting to defaults.
+        'ipl_sections_column_widths': [],
+        'object_browser_column_widths': [],
         'ui_font_size':      10,       # toolbar/button font size
         'canvas_mode':       'free',   # 'free'|'platform'|'texture'|'icon'
         'show_anim_strip':   False,    # show animation timeline strip
@@ -12276,14 +12285,22 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         table.setHorizontalHeaderLabels(["", "IPL File"])
         header = table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
         header.setStretchLastSection(False)
         table.setColumnWidth(0, 22)
+        saved_widths = self.map_settings.get('ipl_sections_column_widths') or []
+        if len(saved_widths) >= 2:
+            table.setColumnWidth(1, saved_widths[1])
+        else:
+            header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        header.sectionResized.connect(self._on_ipl_sections_column_resized)
         table.verticalHeader().setVisible(False)
         table.verticalHeader().setDefaultSectionSize(20)
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         table.setShowGrid(False)
         table.cellClicked.connect(self._on_ipl_section_cell_clicked)
+        table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        table.customContextMenuRequested.connect(self._on_ipl_sections_context_menu)
         lay.addWidget(table)
         self._ipl_sections_table = table
 
@@ -12296,13 +12313,15 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         return panel
 
-    def _populate_ipl_sections(self, loader): #vers 4
+    def _populate_ipl_sections(self, loader): #vers 5
         """Fill the IPL Sections panel from a completed load - one row
-        per unique source_ipl across all loaded instances: eye icon in
-        column 0, name in column 1 (per Keith's request - icon first).
-        Keeps the full unfiltered instance list on self._all_instances
-        so toggling can recompute the visible subset without needing
-        to reload."""
+        per unique source_ipl across all loaded instances, in the
+        user's saved display order (ipl_sections_order) if any, with
+        new/unrecognised names (a different world/mod) appended
+        alphabetically after the known ones rather than losing the
+        saved order entirely. Keeps the full unfiltered instance list
+        on self._all_instances so toggling can recompute the visible
+        subset without needing to reload."""
         table = getattr(self, '_ipl_sections_table', None)
         placeholder = getattr(self, '_ipl_sections_placeholder', None)
         if table is None:
@@ -12318,22 +12337,101 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._eye_closed_icon = self._render_variant_icon('eye_hidden', None, icon_sz,
                                                            icon_color, has_menu=False)
 
-        ipl_names = sorted({inst.source_ipl for inst in loader.instances})
-        table.setRowCount(len(ipl_names))
-        for row, ipl_name in enumerate(ipl_names):
-            eye_item = QTableWidgetItem()
-            eye_item.setIcon(self._eye_open_icon)
-            eye_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            eye_item.setToolTip(f"Hide {ipl_name}")
-            eye_item.setData(Qt.ItemDataRole.UserRole, ipl_name)
-            table.setItem(row, 0, eye_item)
-            name_item = QTableWidgetItem(ipl_name)
-            self._style_ipl_name_item(name_item, False)
-            table.setItem(row, 1, name_item)
+        current_names = {inst.source_ipl for inst in loader.instances}
+        saved_order = self.map_settings.get('ipl_sections_order') or []
+        ordered = [n for n in saved_order if n in current_names]
+        remaining = sorted(current_names - set(ordered))
+        self._ipl_display_order = ordered + remaining
+
+        self._rebuild_ipl_sections_rows()
 
         if placeholder is not None:
             placeholder.setVisible(False)
         table.setVisible(True)
+
+    def _rebuild_ipl_sections_rows(self): #vers 1
+        """(Re)build every row from self._ipl_display_order - shared by
+        the initial populate and by _move_ipl_section, so reordering
+        doesn't duplicate the row-construction logic."""
+        table = self._ipl_sections_table
+        table.setRowCount(len(self._ipl_display_order))
+        hidden = getattr(self, '_hidden_ipls', set())
+        for row, ipl_name in enumerate(self._ipl_display_order):
+            is_hidden = ipl_name in hidden
+            eye_item = QTableWidgetItem()
+            eye_item.setIcon(self._eye_closed_icon if is_hidden else self._eye_open_icon)
+            eye_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            eye_item.setToolTip(f"Show {ipl_name}" if is_hidden else f"Hide {ipl_name}")
+            eye_item.setData(Qt.ItemDataRole.UserRole, ipl_name)
+            table.setItem(row, 0, eye_item)
+            name_item = QTableWidgetItem(ipl_name)
+            self._style_ipl_name_item(name_item, is_hidden)
+            table.setItem(row, 1, name_item)
+
+    def _move_ipl_section(self, ipl_name, direction): #vers 1
+        """Move one IPL section up (-1) or down (+1) in the display
+        order, persisting the new order so it survives reloads."""
+        order = getattr(self, '_ipl_display_order', None)
+        if not order or ipl_name not in order:
+            return
+        idx = order.index(ipl_name)
+        new_idx = idx + direction
+        if not (0 <= new_idx < len(order)):
+            return  # already at that end
+        order[idx], order[new_idx] = order[new_idx], order[idx]
+        self._rebuild_ipl_sections_rows()
+        self.map_settings.set('ipl_sections_order', order)
+        self.map_settings.save()
+
+    def _on_ipl_sections_context_menu(self, pos): #vers 1
+        """Right-click a row for Move Up/Down - explicit menu actions
+        rather than drag-and-drop, since QTableWidget's built-in
+        InternalMove drag-drop is a known source of subtle bugs with
+        multi-column rows (data can end up split across the wrong
+        rows/columns) - explicit actions are simple and reliable."""
+        table = self._ipl_sections_table
+        index = table.indexAt(pos)
+        if not index.isValid():
+            return
+        item = table.item(index.row(), 0)
+        if item is None:
+            return
+        ipl_name = item.data(Qt.ItemDataRole.UserRole)
+        order = getattr(self, '_ipl_display_order', [])
+        idx = order.index(ipl_name) if ipl_name in order else -1
+
+        menu = QMenu(table)
+        up_act = menu.addAction("Move Up")
+        up_act.setEnabled(idx > 0)
+        up_act.triggered.connect(lambda checked=False, n=ipl_name: self._move_ipl_section(n, -1))
+        down_act = menu.addAction("Move Down")
+        down_act.setEnabled(0 <= idx < len(order) - 1)
+        down_act.triggered.connect(lambda checked=False, n=ipl_name: self._move_ipl_section(n, 1))
+        menu.exec(table.viewport().mapToGlobal(pos))
+
+    def _on_ipl_sections_column_resized(self, logical_index, old_size, new_size): #vers 1
+        """Persist the user's column widths for the IPL Sections table
+        whenever they resize a column, so it doesn't reset to defaults
+        on next open."""
+        table = getattr(self, '_ipl_sections_table', None)
+        if table is None:
+            return
+        widths = [table.columnWidth(c) for c in range(table.columnCount())]
+        self.map_settings.set('ipl_sections_column_widths', widths)
+        self.map_settings.save()
+
+    def _on_object_browser_column_resized(self, logical_index, old_size, new_size): #vers 1
+        """Persist the user's column widths for Object Browser whenever
+        they resize a column, so it doesn't reset to defaults on next
+        open. Column 2 (Model) is captured too even though it stays
+        Stretch-managed and isn't restored on the next load - harmless
+        to store, simpler than special-casing it out."""
+        view = getattr(self, '_object_browser_view', None)
+        if view is None:
+            return
+        widths = [view.columnWidth(c) for c in range(view.model().columnCount())]
+        self.map_settings.set('object_browser_column_widths', widths)
+        self.map_settings.save()
 
     def _on_ipl_section_cell_clicked(self, row, col): #vers 2
         """Clicking the eye-icon cell toggles that IPL's visibility -
@@ -12483,7 +12581,9 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         lay.addLayout(btn_row)
 
         view = QTableView()
-        view.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        header = view.horizontalHeader()
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        header.sectionResized.connect(self._on_object_browser_column_resized)
         view.verticalHeader().setVisible(False)
         view.setEditTriggers(QTableView.EditTrigger.NoEditTriggers)
         view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -12492,6 +12592,11 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         view.customContextMenuRequested.connect(self._on_object_browser_context_menu)
         model = _ObjectBrowserModel()
         view.setModel(model)
+        saved_widths = self.map_settings.get('object_browser_column_widths') or []
+        for col, width in enumerate(saved_widths):
+            if col < model.columnCount() and col != 2:   # 2 (Model) stays Stretch
+                header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
+                view.setColumnWidth(col, width)
         sel_model = view.selectionModel()
         if sel_model is not None:
             sel_model.currentRowChanged.connect(
