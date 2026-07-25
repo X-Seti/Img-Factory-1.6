@@ -82,8 +82,69 @@ built and tested; real per-instance rendering and editing still to come.
   TEXDICTION/MODELFILE/SPLASH) - see the two gotchas below for what
   that surfaced. SOL specifically still rests on inference (same
   engine as SA) rather than a directly verified real file.
+- LOD support - GTAWorldLoader.resolve_lod_pairs() (SA/SOL only, GTA3/
+  VC's inst format has no lod_index field) resolves each instance's
+  paired LOD counterpart. Global "Normal | LOD | Both" dropdown in the
+  Panels ribbon, plus a per-instance override via Instance List right-
+  click (correctly resolves back to the right pair whichever member is
+  currently displayed). **Caveat**: the exact lod_index semantics are
+  a best-effort interpretation of community-documented format, not
+  verified against official docs or a real sample - see the item below
+  for what would help confirm this.
+- Removed user-visible DP5 branding: the actual literal "[DP5]"
+  titlebar button (get_menu_title() -> now "MAP", matching the DFF/
+  TXD/COL convention other editors use), a few tooltips/status
+  messages, a stale comment. Left the paint-tool ribbon contents
+  themselves (Pencil/Eraser/etc) and some internal-only references
+  (comments, private method names, a backward-compat alias) alone -
+  whether those should also go is a separate scope question.
+- Binary IPL detection (detect_ipl_format) - some SA ports pack IPL
+  data in binary form inside IMG archives (e.g. gta3.img) rather than
+  as loose text files; this distinguishes the two without needing to
+  know the exact binary struct layout. A BinaryIPLParser stub exists
+  but deliberately does NOT attempt real parsing yet - see below.
+
+### Needs Keith's input / real data to proceed safely
+
+- **Binary IPL parsing** - detection works, but the actual byte-level
+  format (header structure, field order/sizes/counts) isn't something
+  this project has verified with confidence. Guessing at an unverified
+  binary layout risks silently producing plausible-looking but wrong
+  position/rotation/model data, which is worse than not parsing it at
+  all. Would help enormously: a real sample binary .ipl file (e.g.
+  extracted from an actual gta3.img) to reverse-engineer/verify against
+  empirically, or a citable reference for the exact layout.
+- **LOD pairing semantics** - the interpretation above (lod_index as a
+  0-based position among a file's own inst entries) produced correct
+  results against synthetic test data built to match it, but hasn't
+  been checked against a real SA .ipl with known LOD pairs. Worth
+  spot-checking once real data/an in-game reference is available.
 
 ### Next up, in priority order
+
+0. **Requested ribbon features not yet built** (Keith's own list, for
+   a "new icons for one of the ribbons" pass once real geometry exists
+   enough to make some of these meaningful):
+   - Search icon - a quick-access icon/shortcut to the Object Browser's
+     existing search box (currently only reachable by opening that
+     dock), or a dedicated search-everything (objects+instances+IPLs)
+     entry point.
+   - Show cull boxes - GTAWorldLoader.culls is already parsed (position/
+     size from the IPL's cull section) but nothing visualises it yet;
+     needs a toggle + rendering the box bounds in World View.
+   - Overlay collision boxes - apps/methods/col_core_classes.py/
+     col_loader.py already parse COL data fully (item 6 below covers
+     wiring COL loading in at all) - once that exists, an overlay
+     toggle showing collision bounds alongside/instead of instance
+     markers.
+   - Shift map sections / rotate map sections - moving or rotating a
+     whole IPL's worth of instances together (not per-instance editing,
+     which is item 5's "Editing + editor shortcuts" - this is closer to
+     a bulk transform tool, e.g. for repositioning an entire imported
+     map section). Needs its own design: selection model (which IPL/
+     instances count as "the section"), a transform gizmo or numeric
+     input, and how this interacts with LOD-paired instances (moving
+     one member of a pair presumably needs to move both).
 
 1. **Real per-instance DFF/TXD geometry** (the big one) - replace
    MapViewport's placeholder marker cubes with actual model rendering:

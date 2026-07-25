@@ -496,6 +496,58 @@ class IDEParser: #vers 2
         return None
 
 
+def detect_ipl_format(data: bytes) -> str: #vers 1
+    """Detect whether raw IPL bytes (read from disk, or extracted from
+    an IMG archive like gta3.img) are plain-text or binary format.
+    Binary IPL is used in some GTA SA ports (packed inside IMG archives
+    for faster loading, rather than loose text files) - this doesn't
+    require knowing the exact binary struct layout, just distinguishing
+    'this looks like readable text' from 'this looks like packed
+    binary data', which is enough to at least flag binary IPLs
+    correctly rather than silently mis-parsing or crashing on them."""
+    if not data:
+        return 'text'
+    head = data[:64]
+    try:
+        text = head.decode('ascii')
+        if all(32 <= ord(c) < 127 or c in '\r\n\t' for c in text):
+            return 'text'
+    except UnicodeDecodeError:
+        pass
+    return 'binary'
+
+
+class BinaryIPLParser: #vers 1
+    """Parser for binary-format IPL data (see detect_ipl_format).
+
+    NOT YET VERIFIED against a real sample file or official
+    documentation - the exact byte layout (header structure, field
+    order/sizes, section counts) is not something this project has
+    confirmed with certainty. Treat this class as a placeholder that
+    correctly identifies/tracks binary IPL entries as present-but-
+    unparsed, rather than a working parser - implementing the real
+    byte-level parsing needs either a real sample binary .ipl (e.g.
+    extracted from a real gta3.img) to verify against, or a citable
+    reference for the exact struct layout. Silently guessing at an
+    unverified format risks producing plausible-looking but wrong
+    position/rotation data, which is worse than clearly refusing to
+    guess."""
+
+    def __init__(self, game: str = GTAGame.SA):
+        self.game = game
+        self.instances: List[IPLInstance] = []
+        self.zones: List[Dict] = []
+        self.culls: List[Dict] = []
+        self.stats = ParseStats()
+
+    def parse(self, data: bytes, source_name: str = "") -> bool: #vers 1
+        self.stats.warnings.append(
+            f"Binary IPL format detected ({source_name or 'unnamed'}) - "
+            f"not yet parsed, byte layout unverified. See BinaryIPLParser "
+            f"docstring.")
+        return False
+
+
 class IPLParser: #vers 2
     """
     Parses a single GTA3/VC/SA .ipl file.
