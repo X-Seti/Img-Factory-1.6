@@ -166,6 +166,63 @@ side format confirmed empirically, not from documentation:
      input, and how this interacts with LOD-paired instances (moving
      one member of a pair presumably needs to move both).
 
+0.5 **Inst editing suite - fully scoped/confirmed with Keith, nothing
+   built yet.** This is a big, multi-part feature; breaking it out here
+   so each piece can be picked up independently:
+
+   - **Instance List redesign**: simplify the table to just ID + Name
+     columns (currently Model/TXD/Position/Interior/Source IPL - all 5
+     still useful, just not as the default view). Clicking a name opens
+     a detail view showing: ID, Name, Texture, full IDE info, full IPL/
+     placement info, any 2DFX effects attached to that model_id (now
+     correctly retrievable via GTAWorldLoader.get_2dfx_for_model(), not
+     silently lost - see the two bug fixes from this session), and any
+     TOBJ (timed/day-night) variant info (get_tobj_for_model()).
+
+   - **Add**: browse the desktop for new DFF/TXD/COL files and import
+     them into the game's canonical archive - gta3.img for GTA3/VC/SA
+     (matches the engine's own always-loaded archive, already tracked
+     via GTAWorldLoader._inject_enforced_imgs); for SOL specifically
+     (multi-city, no single canonical IMG) let the user choose which
+     IMG file to target instead. Needs new IMG-writing capability
+     (apps/methods/img_core_classes.py currently reads IMG archives;
+     adding/writing entries into one is a separate piece of work) plus
+     an ID-collision check against the loaded ID database before
+     committing.
+
+   - **Del**: user choice each time (needs a small confirm dialog) -
+     remove just the IPL placement, or fully purge the object from
+     IPL+IDE+COL+IMG and free the model_id for reuse.
+
+   - **Rename**: propagates the new name across IDE, IPL (for GTA3/VC's
+     text format, which redundantly stores the model name per
+     placement - SA's format doesn't), COL, and the actual filenames
+     inside the IMG archive. A true global rename, not per-instance.
+
+   - **Undo/redo** across all of the above, with ID-safe restoration
+     (undoing a delete should be able to restore the exact ID rather
+     than risk it having been reused meanwhile).
+
+   - **"Find a free ID" icon**: scan the current game's valid ID range
+     (GTAGame.ID_RANGES already defines per-game bounds) against every
+     currently-loaded ID and suggest the next unused one.
+
+   - **"Shift IDs +2000/-2000" icon**: bulk-renumber selected entities'
+     IDs by a fixed offset, for merging maps or avoiding collisions.
+     Confirmed with Keith: this needs to renumber the whole chain
+     consistently (the IDE object definition too, and every instance/
+     reference using that ID) - not just the IPL instance's own
+     reference, or model lookups would break.
+
+   - **Rotate map sections (90°/180°/arbitrary degrees)** and **shift/
+     rotate selected IPLs including linked vehicle paths, cull zones,
+     and other connected .zon data**, with a per-operation checklist of
+     what to include. Rotation pivot point (section origin? bounding-
+     box centre? user-specified?) is still an open question - wasn't
+     answered in the confirmation round, so default to something
+     reasonable (bounding-box centre is the least surprising choice)
+     and let Keith redirect if that's wrong once this is actually built.
+
 1. **Real per-instance DFF/TXD geometry** (the big one) - replace
    MapViewport's placeholder marker cubes with actual model rendering:
    - Resolve each IPLInstance's model_name -> its DFF file, via the
