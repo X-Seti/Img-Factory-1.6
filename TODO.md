@@ -170,15 +170,21 @@ side format confirmed empirically, not from documentation:
    built yet.** This is a big, multi-part feature; breaking it out here
    so each piece can be picked up independently:
 
-   - **Instance List redesign**: DONE - the detail dialog (double-
-     click a row) showing ID, Name, Texture, full IDE info, full IPL/
-     placement info, 2DFX effects, and TOBJ variants is built and
-     verified, cross-referenced by model_id via get_2dfx_for_model()/
-     get_tobj_for_model(). STILL TO DO: simplify the table's default
-     columns down to just ID + Name (currently still shows all 5 -
-     Model/TXD/Position/Interior/Source IPL - the detail dialog makes
-     the wider columns redundant as the default view, per Keith's
-     "just show ID, Name only" request).
+   - **Instance List redesign**: FULLY DONE - table simplified to just
+     ID + Model columns; single-click shows/updates a non-modal edit
+     panel (top-left corner, Qt.WindowType.Tool - not a blocking modal)
+     with Identity/IDE/2DFX/TOBJ/Placement info, cross-referenced by
+     model_id via get_2dfx_for_model()/get_tobj_for_model(); double-
+     click additionally centres the World View camera on the instance.
+     Position and rotation are live-editable via small/large-step
+     nudge buttons either side of a directly-editable value per axis
+     (X/Y/Z) - rotation edited as degrees, converted to/from the
+     underlying quaternion via new, round-trip-verified quat_to_euler_
+     degrees()/euler_degrees_to_quat() utilities. Edits mutate the
+     IPLInstance in memory and refresh World View immediately. NOT yet
+     done: writing edits back to the actual IPL file on disk (this is
+     in-memory only for now) - that's part of the bigger Editing +
+     editor shortcuts / undo item below.
 
    - **IPL Sections eye icons**: DONE - Show/Hide per IPL file is now
      an icon-only eye / eye-with-strike toggle instead of a text
