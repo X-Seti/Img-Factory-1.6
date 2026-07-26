@@ -142,6 +142,9 @@ class IPLInstance:
     rot_z:       float
     rot_w:       float
     lod_index:   int  = -1
+    scale_x:     float = 1.0
+    scale_y:     float = 1.0
+    scale_z:     float = 1.0
     source_ipl:  str  = ""
     line_no:     int  = 0
 
@@ -679,13 +682,41 @@ class IPLParser: #vers 2
                     rot_z=float(parts[8]), rot_w=float(parts[9]),
                     lod_index=int(parts[10]) if len(parts) > 10 else -1,
                     source_ipl=source, line_no=lineno)
+            elif self.game == GTAGame.VC:
+                # VC: id, model, interior, px,py,pz, sx,sy,sz, rx,ry,rz,rw -
+                # confirmed empirically (not guessed) against a real line
+                # Keith provided: 429, mlamppost, 0, -686.7186279,
+                # 593.7156982, 14.58199501, 1, 1, 1, 0, 0, -0.999048233,
+                # 0.0436193347 - the last 4 values form a valid unit
+                # quaternion (magnitude^2 = 1.0000000182), and MooMapper's
+                # own Item Editor labels the field at index 2 "Interior"
+                # for a real islandsf.ipl instance. This was previously
+                # folded into the same branch as GTA3 with NO interior/
+                # scale fields at all, silently reading the interior
+                # value as pos_x for every VC instance.
+                if len(parts) < 13:
+                    return None
+                return IPLInstance(
+                    model_id=int(parts[0]), model_name=parts[1], interior=int(parts[2]),
+                    pos_x=float(parts[3]), pos_y=float(parts[4]), pos_z=float(parts[5]),
+                    scale_x=float(parts[6]), scale_y=float(parts[7]), scale_z=float(parts[8]),
+                    rot_x=float(parts[9]), rot_y=float(parts[10]),
+                    rot_z=float(parts[11]), rot_w=float(parts[12]),
+                    source_ipl=source, line_no=lineno)
             else:
-                # GTA3/VC: id, model, px, py, pz, sx, sy, sz, rx, ry, rz, rw
+                # GTA3: id, model, px, py, pz, sx, sy, sz, rx, ry, rz, rw -
+                # NOT yet empirically verified the way VC now is (best-
+                # effort recollection: GTA3's simpler/older format has no
+                # interior field, unlike VC's confirmed one) - needs its
+                # own real sample line to confirm or correct, the same
+                # way VC's format just got fixed. Don't assume this is
+                # right just because VC turned out to need a similar fix.
                 if len(parts) < 12:
                     return None
                 return IPLInstance(
                     model_id=int(parts[0]), model_name=parts[1], interior=0,
                     pos_x=float(parts[2]), pos_y=float(parts[3]), pos_z=float(parts[4]),
+                    scale_x=float(parts[5]), scale_y=float(parts[6]), scale_z=float(parts[7]),
                     rot_x=float(parts[8]), rot_y=float(parts[9]),
                     rot_z=float(parts[10]), rot_w=float(parts[11]),
                     source_ipl=source, line_no=lineno)
