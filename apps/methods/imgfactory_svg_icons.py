@@ -2942,6 +2942,16 @@ class SVGIconFactory: #vers 8
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
+    @staticmethod
+    def hamburger_menu_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+        """Standard 3-line hamburger menu icon - menu_m_icon above is a
+        circled 'M' branding mark, not a generic menu icon."""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor"
+                stroke-width="2.2" fill="none" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
 
     @staticmethod
     def app_icon_cube(size: int = 24, color: str = None) -> QIcon: #vers 1

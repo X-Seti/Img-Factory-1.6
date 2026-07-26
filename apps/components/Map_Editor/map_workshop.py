@@ -6826,6 +6826,18 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         if world_dock is not None:
             outer_mw.splitDockWidget(world_dock, object_browser_dock, Qt.Orientation.Vertical)
 
+        # IPL Sections dock - tabbed with Object Browser rather than
+        # split alongside it (only one visible at a time via the tab
+        # strip) - per Keith's "compact, use the area logically"
+        # request, and now a real QDockWidget with its own tear-off/
+        # float affordance (was previously a plain widget embedded in
+        # the central canvas layout, which is why it had lost that
+        # capability - it structurally couldn't have it there).
+        ipl_sections_dock = self._create_ipl_sections_panel()
+        outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, ipl_sections_dock)
+        outer_mw.tabifyDockWidget(object_browser_dock, ipl_sections_dock)
+        object_browser_dock.raise_()
+
         # Widget registry - each entry is a self-contained dock module
         # under depends/. Adding, removing, or swapping a widget for an
         # alternative implementation only means editing this list, not
@@ -7053,13 +7065,15 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         icon_color = self._get_icon_color()
 
-        # -_tb helper — adds button to layout with optional SVG icon
-        def _tb(text, tip, slot, icon_fn=None):  #vers 1
-            btn = QPushButton(text)
-            btn.setFont(self.button_font)
+        # -_tb helper — icon-only button (no text label), tooltip carries
+        # the label. Per Keith's spec: standalone titlebar buttons are
+        # SVG icons only, not icon+text.
+        def _tb(text, tip, slot, icon_fn=None):  #vers 2
+            btn = QPushButton()
             btn.setToolTip(tip)
             btn.setMinimumHeight(28)
             btn.setMaximumHeight(28)
+            btn.setFixedWidth(32)
             if icon_fn:
                 try:
                     btn.setIcon(icon_fn(18, icon_color))
@@ -7071,20 +7085,21 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             return btn
 
         # - Cog / Settings (standalone only)
-        self.menu_toggle_btn = QPushButton("Menu")
-        self.menu_toggle_btn.setFont(self.button_font)
+        self.menu_toggle_btn = QPushButton()
+        self.menu_toggle_btn.setIcon(SVGIconFactory.hamburger_menu_icon(20, icon_color))
+        self.menu_toggle_btn.setIconSize(QSize(_ICO_SZ, _ICO_SZ))
         self.menu_toggle_btn.setToolTip("Show menu (topbar or dropdown — set in Settings)")
         self.menu_toggle_btn.setMinimumHeight(28)
         self.menu_toggle_btn.setMaximumHeight(28)
+        self.menu_toggle_btn.setFixedWidth(32)
         self.menu_toggle_btn.clicked.connect(self._on_menu_btn_clicked)
         self.menu_toggle_btn.setVisible(self.standalone_mode)
         layout.addWidget(self.menu_toggle_btn)
 
         self.settings_btn = QPushButton()
-        self.settings_btn.setFont(self.button_font)
         self.settings_btn.setIcon(SVGIconFactory.settings_icon(20, icon_color))
-        self.settings_btn.setText("Settings")
         self.settings_btn.setIconSize(QSize(_ICO_SZ, _ICO_SZ))
+        self.settings_btn.setFixedWidth(32)
         self.settings_btn.clicked.connect(self._show_workshop_settings)
         self.settings_btn.setToolTip(App_name + " Settings")
         self.settings_btn.setVisible(self.standalone_mode)
@@ -7113,12 +7128,9 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         layout.addStretch()
 
-        # - [New][Load][Save][Undo][Clear][Brushes] after title
-        self.tb_new_btn    = _tb("New",    "New canvas… (right-click to set mode)",
-                                  self._new_canvas,
-                                  SVGIconFactory.new_icon)
-        self.tb_new_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.tb_new_btn.customContextMenuRequested.connect(self._new_btn_context_menu)
+        # - [Load][Save][Add][Del][Rename][Undo] after title - per
+        # Keith's exact spec. Dropped New/Clear/Brushes entirely (paint-
+        # tool leftovers that don't belong in a map editor's titlebar).
         self.tb_load_btn = _tb("Load", "Click for load options",
                                 self._show_load_menu,
                                 SVGIconFactory.open_icon)
@@ -7127,42 +7139,27 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self.tb_save_btn   = _tb("Save",   "Save canvas as PNG",
                                   self._export_bitmap,
                                   SVGIconFactory.save_icon)
-        # self.tb_import_btn = _tb("Import", "Import image (IFF, BMP, older formats)",
-        #                           self._import_bitmap,
-        #                           SVGIconFactory.import_icon)
-        # self.tb_export_btn = _tb("Export", "Export canvas (IFF, BMP, older formats)",
-        #                           self._export_bitmap,
-        #                           SVGIconFactory.export_icon)
+        from apps.methods.imgfactory_svg_icons import get_add_icon, get_trash_icon, get_rename_icon
+        self.tb_add_btn = _tb("Add", "Add Instance Here - place another copy of the\n"
+                              "selected model at the origin",
+                              lambda: self._on_object_browser_add_clicked(),
+                              lambda sz, col: get_add_icon(sz, col))
+        self.tb_del_btn = _tb("Del", "Delete All Instances of the selected model",
+                              lambda: self._on_object_browser_delete_clicked(),
+                              lambda sz, col: get_trash_icon(sz, col))
+        self.tb_rename_btn = _tb("Rename", "Rename the selected object",
+                                 lambda: self._on_object_browser_rename_clicked(),
+                                 lambda sz, col: get_rename_icon(sz, col))
         self.tb_undo_btn   = _tb("Undo",   "Undo last action  (Ctrl+Z)",
                                   self._undo_canvas,
                                   SVGIconFactory.undo_icon)
-        try:
-            from apps.methods.imgfactory_svg_icons import get_clear_canvas_icon
-            self.tb_clr_btn = _tb("Clear", "Clear canvas",
-                                   self._clear_canvas,
-                                   lambda sz, col: get_clear_canvas_icon(sz, col))
-        except Exception:
-            self.tb_clr_btn = _tb("Clear", "Clear canvas", self._clear_canvas)
-
-        #    Brush Manager button                                            
-        self.brush_mgr_btn = QPushButton("Brushes")
-        self.brush_mgr_btn.setFont(self.button_font)
-        self.brush_mgr_btn.setToolTip("Open brush manager panel")
-        self.brush_mgr_btn.setMinimumHeight(28)
-        self.brush_mgr_btn.setMaximumHeight(28)
-        self.brush_mgr_btn.clicked.connect(self._toggle_brush_manager)
-        try:
-            from apps.methods.imgfactory_svg_icons import get_brushes_icon
-            self.brush_mgr_btn.setIcon(get_brushes_icon(18, icon_color))
-            self.brush_mgr_btn.setIconSize(QSize(18, 18))
-        except Exception:
-            pass
-        layout.addWidget(self.brush_mgr_btn)
 
         self.properties_btn = QPushButton()
         self.properties_btn.setIcon(SVGIconFactory.properties_icon(20, icon_color))
-        self.properties_btn.setIconSize(QSize(20, 20))
-        self.properties_btn.setFixedSize(35, 35)
+        self.properties_btn.setIconSize(QSize(18, 18))
+        self.properties_btn.setFixedWidth(32)
+        self.properties_btn.setMinimumHeight(28)
+        self.properties_btn.setMaximumHeight(28)
         self.properties_btn.setToolTip("Theme Settings")
         self.properties_btn.clicked.connect(self._launch_theme_settings)
         layout.addWidget(self.properties_btn)
@@ -7174,9 +7171,10 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 ('close_btn',    'close_icon',    self.close,            "Close"),
             ]:
                 btn = QPushButton()
-                btn.setIcon(getattr(SVGIconFactory, icon_method)(20, icon_color))
-                btn.setIconSize(QSize(20, 20))
-                btn.setMinimumWidth(40); btn.setMaximumWidth(40); btn.setMinimumHeight(30)
+                btn.setIcon(getattr(SVGIconFactory, icon_method)(18, icon_color))
+                btn.setIconSize(QSize(18, 18))
+                btn.setFixedWidth(36)
+                btn.setMinimumHeight(28); btn.setMaximumHeight(28)
                 btn.clicked.connect(slot)
                 btn.setToolTip(tip)
                 setattr(self, attr, btn)
@@ -7290,16 +7288,6 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             err = QLabel(f"Canvas error: {e}")
             layout.addWidget(err)
             self.map_canvas = None
-
-        # IPL Sections panel - occupies the same central-widget space the
-        # canvas leaves empty when hidden (the "empty area left over from
-        # canvas" Keith flagged), repurposed per his own suggestion: list
-        # every IPL file that contributed instances, each with a Show/Hide
-        # toggle, rather than wasted blank space. Visible exactly when the
-        # canvas isn't (see _toggle_paint_canvas).
-        self._ipl_sections_panel = self._create_ipl_sections_panel()
-        self._ipl_sections_panel.setVisible(not self.map_settings.get('show_paint_canvas'))
-        layout.addWidget(self._ipl_sections_panel, 1)
 
         # Animation timeline strip
         self._anim_strip = self._create_anim_strip()
@@ -8488,18 +8476,11 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._canvas_toggle_act = canvas_act
         tb.addSeparator()
 
-        # Panel show/hide toggles - each QDockWidget's own toggleViewAction()
-        # rather than custom toggle logic, since it auto-syncs its checked
-        # state with the dock's actual visibility (including if the user
-        # closes it via its own [x] button, not just via this action).
-        for dock, label in ((getattr(self, '_world_view_dock', None), "World View"),
-                            (getattr(self, '_object_browser_dock', None), "Object Browser")):
-            if dock is None:
-                continue
-            act = dock.toggleViewAction()
-            act.setText(f"Show {label}")
-            tb.addAction(act)
-        tb.addSeparator()
+        # Per Keith: "Show world view + Show object browser buttons are
+        # pointless since the panels already exist" - removed. Both
+        # docks remain closeable/reopenable via their own [x] and
+        # right-click title bar menu, the standard Qt dock convention,
+        # without needing dedicated ribbon buttons for it.
 
         # LOD display mode dropdown - Normal (default) / LOD / Both.
         # Only meaningful for SA/SOL worlds (GTA3/VC have no lod_index
@@ -8561,17 +8542,15 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._refresh_canvas_tabs_ribbon()
         return tb
 
-    def _toggle_paint_canvas(self, checked): #vers 2
+    def _toggle_paint_canvas(self, checked): #vers 3
         """Show/hide the forked-in paint canvas - hidden by default
         since it isn't part of normal map editing, but kept toggleable
-        rather than removed outright. Mutually exclusive with the IPL
-        Sections panel, which occupies the same central layout space."""
+        rather than removed outright. IPL Sections is now an
+        independent dock (was previously sharing this same central
+        layout space), so no longer coupled to this toggle."""
         scroll = getattr(self, '_canvas_scroll', None)
         if scroll is not None:
             scroll.setVisible(checked)
-        panel = getattr(self, '_ipl_sections_panel', None)
-        if panel is not None:
-            panel.setVisible(not checked)
         self.map_settings.set('show_paint_canvas', checked)
         self.map_settings.save()
 
@@ -12261,25 +12240,27 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._populate_object_browser(loader)
         QMessageBox.information(self, source_desc, loader.get_summary())
 
-    def _create_ipl_sections_panel(self): #vers 3
+    def _create_ipl_sections_panel(self): #vers 4
         """IPL Sections panel - lists every IPL file that contributed
         instances to the currently loaded world, each with a Show/Hide
-        toggle. Occupies the central layout space the canvas leaves
-        empty when hidden. Small row count in practice (dozens to a
-        few hundred IPL files even for a large mod like GTASOL, versus
-        tens of thousands of instances), so a plain QTableWidget is
-        fine here - no need for the Instance List's lazy model.
+        toggle. Small row count in practice (dozens to a few hundred
+        IPL files even for a large mod like GTASOL, versus tens of
+        thousands of instances), so a plain QTableWidget is fine here -
+        no need for the Instance List's lazy model.
+
+        Now a proper QDockWidget (was a plain QWidget embedded in the
+        central canvas layout) - per Keith's report that it had lost
+        its tear-off/float ability, which every other panel has. That
+        embedding also meant it could only ever occupy the exact space
+        the canvas left empty, which is why it previously had an
+        artificial 200px width cap and truncated its own labels - both
+        removed now that it's a real, independently-sized dock.
 
         Column order is eye-icon first, then name (per Keith's
-        request) - previously name then icon. Panel width is capped
-        at roughly half its previous footprint, also per Keith's
-        request, since this panel doesn't need to compete with World
-        View/Object Browser for space."""
+        request) - previously name then icon."""
         panel = QWidget()
-        panel.setMaximumWidth(200)
         lay = QVBoxLayout(panel)
         lay.setContentsMargins(6, 6, 6, 6)
-        lay.addWidget(QLabel("IPL Sections - toggle which placements are shown"))
 
         table = QTableWidget(0, 2)
         table.setHorizontalHeaderLabels(["", "IPL File"])
@@ -12298,20 +12279,27 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         table.verticalHeader().setDefaultSectionSize(20)
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         table.setShowGrid(False)
+        table.setToolTip("Toggle which IPL files' placements are shown in World View")
         table.cellClicked.connect(self._on_ipl_section_cell_clicked)
         table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         table.customContextMenuRequested.connect(self._on_ipl_sections_context_menu)
         lay.addWidget(table)
         self._ipl_sections_table = table
 
-        placeholder = QLabel("No world loaded yet - use File > Load Game Folder…")
+        placeholder = QLabel("No world loaded yet")
         placeholder.setStyleSheet("color: palette(mid);")
         lay.addWidget(placeholder)
         self._ipl_sections_placeholder = placeholder
         placeholder.setVisible(True)
         table.setVisible(False)
 
-        return panel
+        dock = QDockWidget("IPL Sections", self)
+        dock.setObjectName("IPL Sections")
+        dock.setWidget(panel)
+        dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
+                        QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+        self._ipl_sections_dock = dock
+        return dock
 
     def _populate_ipl_sections(self, loader): #vers 5
         """Fill the IPL Sections panel from a completed load - one row
@@ -12567,7 +12555,9 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         # SVG icon buttons now, operating on whichever row is currently
         # selected; disabled entirely when nothing is selected.
         icon_color = self._get_icon_color()
-        action_row = QHBoxLayout()
+        action_row_widget = QWidget()
+        action_row = QHBoxLayout(action_row_widget)
+        action_row.setContentsMargins(0, 0, 0, 0)
         self._ob_add_btn = QPushButton(get_add_icon(18, icon_color), "")
         self._ob_add_btn.setToolTip("Add Instance Here - place another copy of the\n"
                                     "selected model at the origin")
@@ -12583,7 +12573,12 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             btn.setEnabled(False)
             action_row.addWidget(btn)
         action_row.addStretch()
-        lay.addLayout(action_row)
+        # Only shown when docked - in standalone mode the titlebar's own
+        # Add/Del/Rename icons cover this, so showing both would be
+        # redundant (per Keith's explicit request).
+        action_row_widget.setVisible(not self.standalone_mode)
+        self._ob_action_row_widget = action_row_widget
+        lay.addWidget(action_row_widget)
 
         search = QLineEdit()
         search.setPlaceholderText("Search objects…")
@@ -13134,6 +13129,16 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
                         QDockWidget.DockWidgetFeature.DockWidgetFloatable)
         self._world_view_dock = dock
+
+        # Default to showing only 3D, per Keith's request ("I suggest
+        # showing 3d only, unless the user wants to change the
+        # viewpoint") - reuses the existing maximize/restore mechanism
+        # (previously only reachable by double-clicking a pane) rather
+        # than inventing a separate "default view" concept. Double-
+        # click any pane to restore all 3; right-click a pane's label
+        # to reassign which view it shows.
+        self._toggle_world_pane_maximize(self._world_panes[2])   # index 2 = "3D"
+
         return dock
 
     def eventFilter(self, obj, event): #vers 1
