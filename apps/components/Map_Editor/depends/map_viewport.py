@@ -58,6 +58,8 @@ class MapViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._instances: List[tuple] = []
         self._vertex_array = None   # numpy array, built by set_instances
         self._gizmo_pos = None      # (x, y, z) world position, or None
+        self._culls = []            # list of cull dicts (center_x/y/z, width, height)
+        self._show_culls = False
         self._marker_size = 1.0
 
         # Camera - identical scheme to DFFViewport
@@ -217,6 +219,8 @@ class MapViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._draw_instances()
         if self._gizmo_pos is not None:
             self._draw_gizmo()
+        if self._show_culls and self._culls:
+            self._draw_cull_boxes()
 
     def set_gizmo_position(self, pos): #vers 1
         """Show (or hide, if pos is None) an XYZ axis gizmo at a world
@@ -224,6 +228,49 @@ class MapViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         Instance List."""
         self._gizmo_pos = pos
         self.update()
+
+    def set_cull_boxes(self, culls, visible): #vers 1
+        """Set the loaded cull zone data and whether to draw it -
+        culls is a list of dicts with center_x/y/z, width, height (see
+        GTAWorldLoader.culls / gta_dat_parser._parse_cull)."""
+        self._culls = culls or []
+        self._show_culls = visible
+        self.update()
+
+    def _draw_cull_boxes(self): #vers 1
+        """Draw a wireframe box for every loaded cull zone.
+
+        Interpretation of the parsed fields (center_x/y/z, width,
+        height) is an assumption, not verified against real behaviour
+        (unlike the binary IPL work elsewhere in this project, which
+        was empirically checked against real sample data) - treats
+        'width' as the full horizontal (X and Y) extent and 'height'
+        as the full vertical (Z) extent, centred at (center_x,
+        center_y, center_z). The two 'unknown' fields _parse_cull
+        also captures aren't used here at all."""
+        glColor3f(1.0, 0.85, 0.2)
+        glLineWidth(1.5)
+        for c in self._culls:
+            cx, cy, cz = c.get('center_x', 0.0), c.get('center_y', 0.0), c.get('center_z', 0.0)
+            hw = c.get('width', 0.0) / 2.0
+            hh = c.get('height', 0.0) / 2.0
+            gx, gy, gz = cx, cz, cy   # same Z-up (GTA) -> Y-up swap as instances
+            glPushMatrix()
+            glTranslatef(gx, gy, gz)
+            glBegin(GL_LINE_LOOP)
+            glVertex3f(-hw, -hh, -hw); glVertex3f(hw, -hh, -hw)
+            glVertex3f(hw, -hh, hw);  glVertex3f(-hw, -hh, hw)
+            glEnd()
+            glBegin(GL_LINE_LOOP)
+            glVertex3f(-hw, hh, -hw); glVertex3f(hw, hh, -hw)
+            glVertex3f(hw, hh, hw);  glVertex3f(-hw, hh, hw)
+            glEnd()
+            glBegin(GL_LINES)
+            for dx, dz in ((-hw, -hw), (hw, -hw), (hw, hw), (-hw, hw)):
+                glVertex3f(dx, -hh, dz); glVertex3f(dx, hh, dz)
+            glEnd()
+            glPopMatrix()
+        glLineWidth(1.0)
 
     def _draw_gizmo(self, size: float = 3.0): #vers 2
         """Draw a simple 3-axis (red=world X, green=world Y, blue=

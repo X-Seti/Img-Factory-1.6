@@ -678,6 +678,7 @@ TOOL_SHARPEN       = 'sharpen'       # unsharp-mask brush (opposite of blur)
 TOOL_STICKER       = 'sticker'       # stamp an emoji glyph onto the canvas
 TOOL_DOUBLE_ARROW  = 'double_arrow'  # arrowheads at both ends
 TOOL_MARKER_RECT   = 'marker_rect'   # highlighter-style rectangle outline
+TOOL_CULL_BOXES    = 'cull_boxes'    # map editor: toggle IPL cull zone box display
 TOOL_MARKER_ELLIPSE= 'marker_ellipse'# highlighter-style ellipse outline
 TOOL_NUMBER        = 'number'        # auto-incrementing numbered badge
 TOOL_PIXELATE      = 'pixelate'      # mosaic/pixelation brush
@@ -7817,38 +7818,20 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
     # from these defaults), and _build_ribbons_from_assignment() builds
     # whichever ribbons that assignment calls for.
     _RIBBON_TOOL_REGISTRY = [
-        (TOOL_PENCIL,   'pencil',   'Pencil — freehand (P)',                  'Plotting'),
-        (TOOL_ERASER,   'eraser',   'Eraser (E)',                             'Plotting'),
-        (TOOL_ALPHA_BRUSH, 'alpha_brush', 'Alpha Brush — paint transparency for masking (left erases, right restores)', 'Plotting'),
-        (TOOL_FILL,     'fill',     'Flood fill (F)',                         'Plotting'),
-        (TOOL_SPRAY,    'spray',    'Airbrush — light spray (S)',             'Plotting'),
-        (TOOL_SPRAYCAN, 'spraycan', 'Spraycan — heavier, messier spray',      'Plotting'),
-        (TOOL_PICKER,   'picker',   'Colour picker (K)',                      'Plotting'),
-        (TOOL_SELECT,      'select',      'Select (M) — drag to select, drag inside to cut/move', 'Plotting'),
-        (TOOL_SELECT_COPY, 'select_copy', 'Select Copy — drag inside to lift a copy, leaving the original intact', 'Plotting'),
-        (TOOL_LASSO,        'lasso',        'Lasso — outline (G)',            'Plotting'),
-        (TOOL_FILLED_LASSO, 'filled_lasso', 'Lasso — filled/solid',           'Plotting'),
-        (TOOL_ZOOM,     'zoom',     'Zoom — click in, right-click out (Z)',   'Plotting'),
-        (TOOL_CROP,     'crop',     'Crop canvas to selection (X)',           'Plotting'),
-        (TOOL_RESIZE,   'resize',   'Resize canvas (V)',                      'Plotting'),
-        (TOOL_DITHER,   'dither',     'Dither brush — checkerboard FG/BG pattern (D)', 'Plotting'),
-        (TOOL_SYMMETRY, 'symmetry',   'Symmetry — click to cycle: H / V / Quad / Off (Y)', 'Plotting'),
-        (TOOL_BLUR_BRUSH,'blur_brush', 'Blur brush — soften under cursor (B)', 'Plotting'),
-        (TOOL_SMUDGE,   'smudge',     'Smudge — blend/drag pixels (U)',       'Plotting'),
-        (TOOL_LIGHTEN,  'lighten',    'Lighten (Dodge) — brighten under cursor (,)', 'Plotting'),
-        (TOOL_DARKEN,   'darken',     'Darken (Burn) — darken under cursor (.)', 'Plotting'),
-        (TOOL_LINE,     'line',     'Straight line (L)',                      'Shapes'),
-        (TOOL_CURVE,    'curve',    'Curve — drag a line, then drag anywhere on it to warp (Q)', 'Shapes'),
-        (TOOL_RECT,        'rect',            'Rectangle — outline (R)',      'Shapes'),
-        (TOOL_FILLED_RECT, 'filled_rect',     'Rectangle — filled/solid',     'Shapes'),
-        (TOOL_CIRCLE,        'circle',        'Ellipse — outline (C)',        'Shapes'),
-        (TOOL_FILLED_CIRCLE, 'filled_circle', 'Ellipse — filled/solid',       'Shapes'),
-        (TOOL_TRIANGLE,        'triangle',        'Triangle — outline (T)',   'Shapes'),
-        (TOOL_FILLED_TRIANGLE, 'filled_triangle', 'Triangle — filled/solid',  'Shapes'),
-        (TOOL_POLYGON,        'polygon',        'Polygon — outline (O) — click verts, dbl to close', 'Shapes'),
-        (TOOL_FILLED_POLYGON, 'filled_polygon', 'Polygon — filled/solid — click verts, dbl to close', 'Shapes'),
-        (TOOL_STAR,        'star',        'Star — outline (*)',               'Shapes'),
-        (TOOL_FILLED_STAR, 'filled_star', 'Star — filled/solid',              'Shapes'),
+        # Paint tools removed per Keith's request ("lets remove the
+        # plotting, shapes, like you suggest") - this registry drove
+        # the Plotting/Shapes ribbons' contents (Pencil/Eraser/Fill/
+        # Line/Rectangle/etc, all inherited from the DP5 fork this
+        # editor started from). The registry mechanism itself (Ribbon
+        # Manager, drag-reordering, per-tool ribbon assignment,
+        # persistence) is untouched and still generic for any future
+        # single-selection tool. Empty for now - LOD display mode and
+        # Cull Boxes are added directly in _build_ribbons_from_assignment
+        # instead (like the existing Active Zoom button), since neither
+        # fits this registry's "one mutually-exclusive drawing tool
+        # active at a time" model - LOD is a 3-way dropdown, Cull Boxes
+        # is an independent show/hide toggle, not exclusive with
+        # anything else.
     ]
 
     def _get_ribbon_assignment(self): #vers 1
@@ -7972,6 +7955,65 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             tb.setFloatable(True)
             self._build_tool_ribbon(tb, tool_order, icon_sz, icon_color, _tile_bg)
             ribbons[ribbon_name] = tb
+
+        # 'Plotting' ribbon now holds map-editing tools instead of paint
+        # tools, per Keith's request - the registry above is empty, so
+        # explicitly create it here (it won't appear in by_ribbon with
+        # nothing registered to it) as a home for these.
+        if 'Plotting' not in ribbons:
+            tb = QToolBar('Plotting')
+            tb.setObjectName('Plotting')
+            tb.setIconSize(QSize(icon_sz, icon_sz))
+            tb.setMovable(True)
+            tb.setFloatable(True)
+            ribbons['Plotting'] = tb
+        map_tools_ribbon = ribbons['Plotting']
+
+        # LOD display mode dropdown - moved here from the Panels ribbon,
+        # since it's a map-editing tool, not a panel-visibility toggle.
+        # Normal (default) / LOD / Both. Only meaningful for SA/SOL
+        # worlds (GTA3/VC have no lod_index concept - see resolve_lod_
+        # pairs), but harmless to show regardless since it's a no-op
+        # when there are no resolved pairs.
+        from PyQt6.QtWidgets import QToolButton
+        from PyQt6.QtGui import QActionGroup
+        lod_icon = self._render_variant_icon('lod_toggle', None, icon_sz,
+                                             icon_color, has_menu=True)
+        lod_btn = QToolButton()
+        lod_btn.setIcon(lod_icon)
+        lod_btn.setText("LOD")
+        lod_btn.setToolTip("Global LOD display mode for paired objects\n"
+                           "(a specific object can still be overridden\n"
+                           "individually via Object Browser)")
+        lod_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        lod_menu = QMenu(lod_btn)
+        lod_group = QActionGroup(lod_btn)
+        lod_group.setExclusive(True)
+        for mode, label in (('normal', "Normal"), ('lod', "LOD"), ('both', "Both")):
+            act = lod_menu.addAction(label)
+            act.setCheckable(True)
+            act.setChecked(mode == 'normal')
+            lod_group.addAction(act)
+            act.triggered.connect(lambda checked=False, m=mode: self._set_lod_display_mode(m))
+        lod_btn.setMenu(lod_menu)
+        map_tools_ribbon.addWidget(lod_btn)
+        self._lod_mode_button = lod_btn
+        map_tools_ribbon.addSeparator()
+
+        # Cull Boxes toggle - real, working feature (not a stub): shows/
+        # hides wireframe boxes for every loaded IPL cull zone in World
+        # View. An independent show/hide toggle, not a mutually-
+        # exclusive "active drawing tool" - added directly rather than
+        # through the tool registry above, which doesn't fit this shape.
+        cull_icon = self._render_variant_icon('cull_boxes', None, icon_sz,
+                                              icon_color, has_menu=False)
+        cull_act = QAction(cull_icon, "Show Cull Boxes", map_tools_ribbon)
+        cull_act.setCheckable(True)
+        cull_act.setToolTip("Show/hide wireframe boxes for every loaded\n"
+                            "IPL cull zone")
+        cull_act.triggered.connect(self._toggle_cull_boxes)
+        map_tools_ribbon.addAction(cull_act)
+        self._cull_boxes_act = cull_act
 
         # Active Zoom - toggle button for follow-cursor high-zoom mode,
         # attached to whichever ribbon Zoom itself ended up in
@@ -8482,33 +8524,9 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         # right-click title bar menu, the standard Qt dock convention,
         # without needing dedicated ribbon buttons for it.
 
-        # LOD display mode dropdown - Normal (default) / LOD / Both.
-        # Only meaningful for SA/SOL worlds (GTA3/VC have no lod_index
-        # concept at all - see resolve_lod_pairs), but harmless to show
-        # regardless since it's a no-op when there are no resolved pairs.
-        from PyQt6.QtWidgets import QToolButton
-        from PyQt6.QtGui import QActionGroup
-        lod_icon = self._render_variant_icon('lod_toggle', None, icon_sz,
-                                             icon_color, has_menu=True)
-        lod_btn = QToolButton()
-        lod_btn.setIcon(lod_icon)
-        lod_btn.setText("LOD")
-        lod_btn.setToolTip("Global LOD display mode for paired objects\n"
-                           "(a specific object can still be overridden\n"
-                           "individually via the Instance List)")
-        lod_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-        lod_menu = QMenu(lod_btn)
-        lod_group = QActionGroup(lod_btn)
-        lod_group.setExclusive(True)
-        for mode, label in (('normal', "Normal"), ('lod', "LOD"), ('both', "Both")):
-            act = lod_menu.addAction(label)
-            act.setCheckable(True)
-            act.setChecked(mode == 'normal')
-            lod_group.addAction(act)
-            act.triggered.connect(lambda checked=False, m=mode: self._set_lod_display_mode(m))
-        lod_btn.setMenu(lod_menu)
-        tb.addWidget(lod_btn)
-        self._lod_mode_button = lod_btn
+        # LOD display mode dropdown moved to the map-tools ribbon (see
+        # _build_ribbons_from_assignment) - it's a map-editing tool,
+        # not a panel-visibility toggle, so it belongs there instead.
 
         self._panels_ribbon = tb
         self._apply_ribbon_style(tb)
@@ -8865,6 +8883,16 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             if kind == 'eye_hidden':
                 p.setBrush(Qt.BrushStyle.NoBrush)
                 p.drawLine(m, m, size - m, size - m)
+        elif kind == 'cull_boxes':
+            p.setPen(QPen(qc, pen_w)); p.setBrush(Qt.BrushStyle.NoBrush)
+            front = int(size * 0.6)
+            offset = int(size * 0.22)
+            fx, fy = m, size - m - front
+            p.drawRect(fx, fy, front, front)
+            bx, by = fx + offset, fy - offset
+            p.drawRect(bx, by, front, front)
+            for dx, dy in ((0, 0), (front, 0), (0, front), (front, front)):
+                p.drawLine(fx + dx, fy + dy, bx + dx, by + dy)
         elif kind in ('chevron_left', 'chevron_left2', 'chevron_right', 'chevron_right2'):
             p.setPen(QPen(qc, max(2, pen_w))); p.setBrush(Qt.BrushStyle.NoBrush)
             cy = size // 2
@@ -12235,10 +12263,22 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         visible = self._apply_lod_filter(loader.instances)
         for pane in getattr(self, '_world_panes', []):
             pane.set_instances(visible)
+            pane.set_cull_boxes(loader.culls, getattr(self, '_cull_boxes_act', None) and
+                                self._cull_boxes_act.isChecked())
         self._populate_instance_list(_FilteredLoaderStub(visible, loader))
         self._populate_ipl_sections(loader)
         self._populate_object_browser(loader)
         QMessageBox.information(self, source_desc, loader.get_summary())
+
+    def _toggle_cull_boxes(self, checked): #vers 1
+        """Show/hide wireframe cull zone boxes across all World View
+        panes - real, working feature using GTAWorldLoader.culls (see
+        MapViewport._draw_cull_boxes for the honest caveat on the
+        field-interpretation assumption)."""
+        loader = getattr(self, '_world_loader', None)
+        culls = loader.culls if loader is not None else []
+        for pane in getattr(self, '_world_panes', []):
+            pane.set_cull_boxes(culls, checked)
 
     def _create_ipl_sections_panel(self): #vers 4
         """IPL Sections panel - lists every IPL file that contributed
