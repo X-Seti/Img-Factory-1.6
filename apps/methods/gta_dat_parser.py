@@ -1113,6 +1113,23 @@ class GTAWorldLoader: #vers 3
     def get_instances_for_model(self, model_id: int) -> List[IPLInstance]:
         return [i for i in self.instances if i.model_id == model_id]
 
+    def get_img_paths(self) -> List[str]:
+        """Every IMG archive path referenced by the loaded .dat(s),
+        that actually exists on disk - already tracked in load_log
+        (appended during _inject_enforced_imgs and the main IMG-
+        directive processing), just exposed here as a convenience
+        accessor rather than callers needing to filter load_log
+        themselves. Useful for future features that need to know where
+        to write new models/textures (e.g. Add), not just where the
+        world data was read from."""
+        seen = set()
+        paths = []
+        for phase, entry_type, abs_path, exists in self.load_log:
+            if entry_type == "IMG" and exists and abs_path not in seen:
+                seen.add(abs_path)
+                paths.append(abs_path)
+        return paths
+
     def get_2dfx_for_model(self, model_id: int) -> List[IDEObject]:
         """2DFX effects (lights, particles, etc) attached to a model,
         matched by model_id - see effects_2dfx for why these are kept

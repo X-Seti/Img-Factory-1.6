@@ -7132,14 +7132,17 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         # - [Load][Save][Add][Del][Rename][Undo] after title - per
         # Keith's exact spec. Dropped New/Clear/Brushes entirely (paint-
         # tool leftovers that don't belong in a map editor's titlebar).
-        self.tb_load_btn = _tb("Load", "Click for load options",
-                                self._show_load_menu,
-                                SVGIconFactory.open_icon)
-        self.tb_load_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.tb_load_btn.customContextMenuRequested.connect(self._show_load_menu_at)
-        self.tb_save_btn   = _tb("Save",   "Save canvas as PNG",
-                                  self._export_bitmap,
-                                  SVGIconFactory.save_icon)
+        self.tb_load_btn = _tb("Load", "Load a GTA game - click for\n"
+                              "Load Game Folder… / Load Game DAT File…",
+                              self._show_map_load_menu,
+                              SVGIconFactory.open_icon)
+        self.tb_save_btn = _tb("Save", "Not yet available - writing changes\n"
+                               "(Add/Delete/Rename, position/rotation edits)\n"
+                               "back to disk isn't built yet; they're\n"
+                               "in-memory only for the current session",
+                               None,
+                               SVGIconFactory.save_icon)
+        self.tb_save_btn.setEnabled(False)
         from apps.methods.imgfactory_svg_icons import get_add_icon, get_trash_icon, get_rename_icon
         self.tb_add_btn = _tb("Add", "Add Instance Here - place another copy of the\n"
                               "selected model at the origin",
@@ -12226,6 +12229,18 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         ok = loader.load(folder)
         self._game_root = folder
         self._apply_loaded_world(loader, game, ok, "Load Game Folder")
+
+    def _show_map_load_menu(self): #vers 1
+        """Menu shown from the titlebar's Load button - the same two
+        load paths already in the File menu (Load Game Folder / Load
+        Game DAT File), surfaced here since Keith wants Load on the
+        titlebar to actually load a map, not the paint canvas's old
+        image-load menu."""
+        menu = QMenu(self)
+        menu.addAction("Load Game Folder…", self._load_game_folder)
+        menu.addAction("Load Game DAT File…", self._load_game_dat_file)
+        menu.exec(self.tb_load_btn.mapToGlobal(
+            self.tb_load_btn.rect().bottomLeft()))
 
     def _load_game_dat_file(self, preset_dat_path: str = None): #vers 1
         """Load a GTA game's world data starting from one specific .dat
