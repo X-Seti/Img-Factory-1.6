@@ -108,6 +108,12 @@ class MapViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             else:
                 out.append(tuple(inst))
         self._instances = out
+        # Full original instances (or None per-entry for plain tuples
+        # with no real object behind them), index-aligned with
+        # self._instances/self._vertex_array - lets picking map a hit
+        # back to a complete IPLInstance for opening the object handler.
+        self._full_instances = [inst if hasattr(inst, 'pos_x') else None
+                                for inst in instances]
 
         # GTA is Z-up; this viewport's OpenGL space is Y-up (matches the
         # old per-cube glTranslatef(x, z, y) convention)
@@ -121,16 +127,27 @@ class MapViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._auto_fit()
         self.update()
 
-    def _auto_fit(self): #vers 1
-        """Frame the camera distance/pan to cover all loaded instances."""
+    def _auto_fit(self): #vers 2
+        """Frame the camera distance/pan to cover all loaded instances.
+
+        Was diag * 0.6 (the full 3D bounding-box diagonal, scaled
+        down) - found via testing that this can undershoot the actual
+        half-extent needed whenever one axis span is much larger than
+        another (a real test dataset spanning 45 units in X and 55 in
+        Y produced an ortho half_h smaller than half the Y span,
+        pushing instances outside the frustum entirely - this was also
+        why real-data viewport picking initially appeared broken, when
+        the actual issue was objects being auto-framed out of view).
+        Using the largest single-axis span with a safety margin
+        guarantees the full bounding box fits regardless of aspect
+        ratio skew."""
         if not self._instances:
             return
         xs = [i[0] for i in self._instances]
         ys = [i[1] for i in self._instances]
         zs = [i[2] for i in self._instances]
-        diag = math.sqrt((max(xs)-min(xs))**2 + (max(ys)-min(ys))**2 +
-                         (max(zs)-min(zs))**2)
-        self._dist  = max(diag * 0.6, 5.0)
+        max_span = max(max(xs) - min(xs), max(ys) - min(ys), max(zs) - min(zs))
+        self._dist  = max(max_span * 1.1, 5.0)
         self._pan_x = -(max(xs)+min(xs))/2
         self._pan_y = -(max(ys)+min(ys))/2
         try:
@@ -185,6 +202,7 @@ class MapViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             half_h = max(0.01, self._dist * 0.5)
             glOrtho(-half_h*aspect, half_h*aspect, -half_h, half_h,
                     -100000.0, 100000.0)
+            self._ortho_half_h = half_h
         else:
             gluPerspective(45.0, aspect, 0.1, 100000.0)
         glMatrixMode(GL_MODELVIEW)
@@ -199,15 +217,25 @@ class MapViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
         if self._projection == 'ortho':
             # Top: look straight down; Side: look along X; Front: along Y
+            # pan_x/pan_y are consistently "negative of the desired
+            # centre" everywhere else (perspective's glTranslatef,
+            # _auto_fit, MapWorkshop._center_on_instance) - negate back
+            # here since gluLookAt's target parameter needs the actual
+            # (positive) world position, not the negated pan value.
+            # Found via viewport-picking testing: without this negation,
+            # a real dataset spanning non-trivial distance from the
+            # origin projected completely outside the visible frustum,
+            # since the camera was actually centred on the mirror-image
+            # location of where the instances really were.
             if self._view_label == 'Top':
-                gluLookAt(self._pan_x, self._dist, self._pan_y,
-                          self._pan_x, 0, self._pan_y, 0, 0, -1)
+                gluLookAt(-self._pan_x, self._dist, -self._pan_y,
+                          -self._pan_x, 0, -self._pan_y, 0, 0, -1)
             elif self._view_label == 'Side':
-                gluLookAt(self._dist, self._pan_y, self._pan_x,
-                          0, self._pan_y, self._pan_x, 0, 1, 0)
+                gluLookAt(self._dist, -self._pan_y, -self._pan_x,
+                          0, -self._pan_y, -self._pan_x, 0, 1, 0)
             else:  # Front
-                gluLookAt(self._pan_x, self._pan_y, self._dist,
-                          self._pan_x, self._pan_y, 0, 0, 1, 0)
+                gluLookAt(-self._pan_x, -self._pan_y, self._dist,
+                          -self._pan_x, -self._pan_y, 0, 0, 1, 0)
         else:
             glTranslatef(0, 0, -self._dist)
             glRotatef(self._pitch, 1, 0, 0)
@@ -358,8 +386,142 @@ class MapViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glVertex3f(h, -h, -h); glVertex3f(h, h, -h); glVertex3f(h, h, h); glVertex3f(h, -h, h)
         glEnd()
 
-    def mousePressEvent(self, event): #vers 1
+    def _view_matrix(self): #vers 1
+        """Replicate the exact camera transform paintGL applies, as a
+        4x4 numpy matrix - standard gluLookAt-equivalent math for ortho
+        views, standard translate/rotate composition for perspective.
+        Verified via standalone numeric tests against known cases
+        (centred point projects to NDC origin, offset points land on
+        the expected side) earlier this session."""
+        import numpy as np
+
+        def look_at(eye, center, up):
+            eye, center, up = (np.array(eye, dtype=float), np.array(center, dtype=float),
+                              np.array(up, dtype=float))
+            f = center - eye; f = f / np.linalg.norm(f)
+            s = np.cross(f, up); s = s / np.linalg.norm(s)
+            u = np.cross(s, f)
+            m = np.identity(4)
+            m[0, 0:3] = s; m[1, 0:3] = u; m[2, 0:3] = -f
+            m[0, 3] = -np.dot(s, eye); m[1, 3] = -np.dot(u, eye); m[2, 3] = np.dot(f, eye)
+            return m
+
+        if self._projection == 'ortho':
+            # Same negation as paintGL's corrected ortho gluLookAt calls -
+            # pan_x/pan_y are "negative of desired centre" everywhere
+            # else in this class, so negate back here too for the
+            # actual world-space look-at target.
+            if self._view_label == 'Top':
+                eye = (-self._pan_x, self._dist, -self._pan_y)
+                center = (-self._pan_x, 0, -self._pan_y)
+                up = (0, 0, -1)
+            elif self._view_label == 'Side':
+                eye = (self._dist, -self._pan_y, -self._pan_x)
+                center = (0, -self._pan_y, -self._pan_x)
+                up = (0, 1, 0)
+            else:  # Front
+                eye = (-self._pan_x, -self._pan_y, self._dist)
+                center = (-self._pan_x, -self._pan_y, 0)
+                up = (0, 1, 0)
+            return look_at(eye, center, up)
+
+        def rot_x(deg):
+            r = math.radians(deg); c, s = math.cos(r), math.sin(r)
+            m = np.identity(4); m[1, 1] = c; m[1, 2] = -s; m[2, 1] = s; m[2, 2] = c
+            return m
+
+        def rot_y(deg):
+            r = math.radians(deg); c, s = math.cos(r), math.sin(r)
+            m = np.identity(4); m[0, 0] = c; m[0, 2] = s; m[2, 0] = -s; m[2, 2] = c
+            return m
+
+        def translate(x, y, z):
+            m = np.identity(4); m[0, 3] = x; m[1, 3] = y; m[2, 3] = z
+            return m
+
+        return (translate(0, 0, -self._dist) @ rot_x(self._pitch) @ rot_y(self._yaw) @
+               translate(self._pan_x, 0, self._pan_y))
+
+    def _projection_matrix(self): #vers 1
+        """Replicate the exact projection resizeGL sets up - same
+        parameters (fovy/near/far for perspective, or the last-used
+        ortho half_h) so picking math matches what's actually
+        rendered."""
+        import numpy as np
+        w, h = max(1, self.width()), max(1, self.height())
+        aspect = w / h
+        if self._projection == 'ortho':
+            half_h = getattr(self, '_ortho_half_h', max(0.01, self._dist * 0.5))
+            l, r = -half_h * aspect, half_h * aspect
+            b, t = -half_h, half_h
+            n, f = -100000.0, 100000.0
+            m = np.identity(4)
+            m[0, 0] = 2 / (r - l); m[1, 1] = 2 / (t - b); m[2, 2] = -2 / (f - n)
+            m[0, 3] = -(r + l) / (r - l); m[1, 3] = -(t + b) / (t - b); m[2, 3] = -(f + n) / (f - n)
+            return m
+        fovy, near, far = 45.0, 0.1, 100000.0
+        f_ = 1.0 / math.tan(math.radians(fovy) / 2)
+        m = np.zeros((4, 4))
+        m[0, 0] = f_ / aspect; m[1, 1] = f_
+        m[2, 2] = (far + near) / (near - far); m[2, 3] = (2 * far * near) / (near - far)
+        m[3, 2] = -1
+        return m
+
+    def _project_point(self, gx, gy, gz): #vers 1
+        """Project a world point (already in this viewport's own Y-up
+        local space, matching the vertex array) to screen pixel
+        coordinates - None if behind the camera or wildly outside the
+        viewport (early-out for picking, not a hard clip)."""
+        import numpy as np
+        view = self._view_matrix()
+        proj = self._projection_matrix()
+        p = np.array([gx, gy, gz, 1.0])
+        clip = proj @ view @ p
+        if clip[3] <= 1e-6:
+            return None
+        ndc = clip[:3] / clip[3]
+        if not (-1.2 <= ndc[0] <= 1.2 and -1.2 <= ndc[1] <= 1.2):
+            return None
+        screen_x = (ndc[0] + 1) / 2 * self.width()
+        screen_y = (1 - ndc[1]) / 2 * self.height()   # NDC y-up -> Qt y-down
+        return screen_x, screen_y
+
+    def pick_instance_at(self, click_x, click_y, threshold_px=12): #vers 1
+        """Find the loaded instance whose projected screen position is
+        closest to a click, within threshold_px - returns the full
+        IPLInstance (via self._full_instances, index-aligned with the
+        vertex array) or None if nothing is close enough / this pane
+        has no real instances (plain tuples with no object behind
+        them, e.g. from a caller that only passed x/y/z/name)."""
+        if self._vertex_array is None or len(self._vertex_array) == 0:
+            return None
+        best_idx = None
+        best_dist = threshold_px
+        for idx, (gx, gy, gz) in enumerate(self._vertex_array):
+            proj = self._project_point(float(gx), float(gy), float(gz))
+            if proj is None:
+                continue
+            sx, sy = proj
+            d = ((sx - click_x) ** 2 + (sy - click_y) ** 2) ** 0.5
+            if d < best_dist:
+                best_dist = d
+                best_idx = idx
+        if best_idx is None:
+            return None
+        full = getattr(self, '_full_instances', [])
+        return full[best_idx] if best_idx < len(full) else None
+
+    def mousePressEvent(self, event): #vers 2
         self._last_pos = event.pos()
+        self._press_pos = event.pos()
+
+    def set_pick_callback(self, callback): #vers 1
+        """Set a function to call with the picked IPLInstance whenever
+        the user clicks (not drags) directly on a rendered marker in
+        this pane - lets MapWorkshop wire this to opening the object
+        edit panel without MapViewport needing any reference back to
+        the workshop itself."""
+        self._pick_callback = callback
 
     def configure_movement(self, pan_button='middle', rotate_button='right',
                            invert_x=False, invert_y=False): #vers 1
@@ -395,7 +557,17 @@ class MapViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._pan_y -= (-dy if invert_y else dy) * scale
         self._last_pos = event.pos(); self.update()
 
-    def mouseReleaseEvent(self, event): #vers 1
+    def mouseReleaseEvent(self, event): #vers 2
+        press_pos = getattr(self, '_press_pos', None)
+        if press_pos is not None:
+            dx = event.pos().x() - press_pos.x()
+            dy = event.pos().y() - press_pos.y()
+            if (dx * dx + dy * dy) <= 16:   # ~4px - a click, not a drag
+                callback = getattr(self, '_pick_callback', None)
+                if callback is not None:
+                    picked = self.pick_instance_at(event.pos().x(), event.pos().y())
+                    if picked is not None:
+                        callback(picked)
         self._last_pos = event.pos()
 
     def wheelEvent(self, event): #vers 1

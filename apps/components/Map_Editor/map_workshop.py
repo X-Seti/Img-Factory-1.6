@@ -7258,8 +7258,9 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
     #    Centre panel: canvas                                                   
 
-    def _create_centre_panel(self): #vers 2
+    def _create_centre_panel(self): #vers 3
         panel = QWidget()
+        self._centre_panel = panel
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -7313,6 +7314,15 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._status_depth_lbl.setStyleSheet("padding: 0 6px; color: palette(mid);")
         self._status_bar.addPermanentWidget(self._status_depth_lbl)
         self._status_bar.addPermanentWidget(self._status_size_lbl)
+
+        # Initial collapse state - matches the same logic
+        # _toggle_paint_canvas applies dynamically. Canvas is hidden by
+        # default, so without this the central widget area reserves
+        # space for nothing, leaving a visible empty gap (IPL Sections
+        # used to fill this same space as a fallback before it became
+        # its own dock).
+        if not self.map_settings.get('show_paint_canvas'):
+            panel.setMaximumSize(0, 0)
 
         return panel
 
@@ -8560,15 +8570,33 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._refresh_canvas_tabs_ribbon()
         return tb
 
-    def _toggle_paint_canvas(self, checked): #vers 3
+    def _toggle_paint_canvas(self, checked): #vers 4
         """Show/hide the forked-in paint canvas - hidden by default
         since it isn't part of normal map editing, but kept toggleable
         rather than removed outright. IPL Sections is now an
         independent dock (was previously sharing this same central
-        layout space), so no longer coupled to this toggle."""
+        layout space), so no longer coupled to this toggle.
+
+        Explicitly collapses the central panel's own footprint when
+        hidden - per Keith's report that a visible gap remained even
+        with the canvas hidden. Root cause: IPL Sections used to fill
+        this same central layout space as a fallback when the canvas
+        was hidden; now that it's its own dock, hiding the canvas alone
+        leaves the central widget area with nothing in it, but
+        QMainWindow's central widget doesn't automatically collapse to
+        zero just because its one child is hidden - it still reserves
+        space based on its own size hint/policy. Setting an explicit
+        maximum size when hidden (and clearing it when shown) forces
+        that collapse rather than leaving Qt to infer it."""
         scroll = getattr(self, '_canvas_scroll', None)
         if scroll is not None:
             scroll.setVisible(checked)
+        panel = getattr(self, '_centre_panel', None)
+        if panel is not None:
+            if checked:
+                panel.setMaximumSize(16777215, 16777215)   # Qt's QWIDGETSIZE_MAX - clear the cap
+            else:
+                panel.setMaximumSize(0, 0)
         self.map_settings.set('show_paint_canvas', checked)
         self.map_settings.save()
 
@@ -12973,6 +13001,17 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             return
         self._center_on_instance(inst)
 
+    def _on_viewport_instance_picked(self, inst): #vers 1
+        """Called when the user clicks directly on a rendered marker in
+        any World View pane (Top/Side/3D) - opens the edit panel for
+        that instance, same as clicking its row in Object Browser
+        would. Addresses Keith's reported bug: clicking a map object
+        previously did nothing useful (the only thing wired to clicks
+        near a pane at all was the view-selection menu, but that's
+        only reachable via right-clicking the pane's label
+        specifically, not the rendered content)."""
+        self._center_on_instance(inst)
+
     def _center_on_instance(self, inst, nav_info=None): #vers 2
         """Centre all three World View panes' cameras on an instance,
         show an XYZ gizmo at its position, and show/update its edit
@@ -13147,6 +13186,7 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             pane.set_view_lock(proj == 'ortho', label, yaw=yaw, pitch=pitch,
                                projection=proj)
             self._apply_viewport_movement_settings(pane, label)
+            pane.set_pick_callback(self._on_viewport_instance_picked)
             pane.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
             pane._label_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
             pane._label_widget.customContextMenuRequested.connect(
