@@ -6856,19 +6856,22 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         # Plotting/Shapes (and any custom ribbons from the Ribbon
         # Manager) are built together, data-driven from the current
         # tool->ribbon assignment.
+        # Per Keith: "script out the rest of the dp5 icons and buttons" -
+        # Image Ops (Colour Adjustments/Seamless/Snow/Zoom Lens/Icon
+        # Browser/Icon Editor), Annotate (Arrow/Marker/Text/Number/Blur/
+        # Stickers), and Tool Settings (Pen Size/Strength - for tools
+        # that no longer exist since Plotting/Shapes were emptied) are
+        # all fully paint/image-editing specific with nothing left to
+        # do in a map editor - no longer created/added. The method
+        # definitions are left in place, unused, for safety/
+        # reversibility rather than a riskier full removal.
         dynamic_ribbons = self._build_ribbons_from_assignment()
-        image_ops_ribbon = self._create_image_ops_ribbon()
-        annotate_ribbon = self._create_annotate_ribbon()
         canvas_tabs_ribbon = self._create_canvas_tabs_ribbon()
         panels_ribbon = self._create_panels_ribbon()
-        tool_settings_ribbon = self._create_tool_settings_ribbon()
         for tb in dynamic_ribbons.values():
             outer_mw.addToolBar(Qt.ToolBarArea.LeftToolBarArea, tb)
-        outer_mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, image_ops_ribbon)
-        outer_mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, annotate_ribbon)
         outer_mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, canvas_tabs_ribbon)
         outer_mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, panels_ribbon)
-        outer_mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, tool_settings_ribbon)
 
         # (All four paint-specific docks that used to be here - Bitmaps,
         # Brush & Colors, Image Palette, User Palette - have been removed;
