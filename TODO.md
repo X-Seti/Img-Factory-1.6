@@ -465,6 +465,33 @@ side format confirmed empirically, not from documentation:
   in the ortho gluLookAt calls, meaning Top/Side/Front never correctly
   auto-framed instances for any dataset not near the origin).
 
+### Still not addressed - instance position/rotation nudge ribbon
+
+Keith asked (a few turns back): "the toolbar for inst [xyz] and xyz
+rotate could be a horizotll ribbon?" - converting the Instance Edit
+Panel's position/rotation nudge controls (currently only in the
+floating, non-modal panel - see the "Instance List redesign" item
+above) into a horizontal ribbon, so they're available as a ribbon
+alongside Plotting/Panels rather than only in the floating panel.
+Followed up later: "the IPL entries should also be allowed to show
+vertically, as it doesnt work horz, I get confused with the object
+manipulation tool" - suggesting the ribbon (or the nudge controls
+within it) needs to support both horizontal and vertical layouts, not
+just horizontal, since horizontal-only was apparently confusing
+alongside the object manipulation controls.
+
+Not started - genuine open design questions before building it:
+does this ribbon replace the floating panel's nudge section entirely,
+or supplement it (both available)? What does the ribbon show when no
+instance is selected? For vertical orientation support, does the
+whole ribbon need to reflow (X/Y/Z position and rotation stacked
+differently), or is a fixed layout that just relocates acceptable?
+Worth confirming with Keith before implementing, given the ribbon
+system already supports drag-to-reorient (orientationChanged is
+already wired for the other ribbons) - the harder part is likely the
+nudge controls' own internal layout adapting to whichever orientation
+the ribbon ends up in.
+
 ## July 2026 - Next up: DP5 Workshop
 
 ### DP5 Workshop - ribbon rebuild + sidebar sectioning
