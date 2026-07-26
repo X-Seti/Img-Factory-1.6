@@ -13236,16 +13236,15 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         return dock
 
-    def eventFilter(self, obj, event): #vers 1
-        """Double-click on a world-view pane maximizes/restores it -
-        same fix as Model Workshop's quad viewport, applied here so the
-        3-pane Top/Side/3D layout isn't locked to always showing all 3
-        with no way to focus on just one."""
-        from PyQt6.QtCore import QEvent
-        panes = getattr(self, '_world_panes', None)
-        if event.type() == QEvent.Type.MouseButtonDblClick and panes and obj in panes:
-            self._toggle_world_pane_maximize(obj)
-            return True
+    def eventFilter(self, obj, event): #vers 2
+        """No longer triggers maximize/restore on double-click - that
+        conflicted with click-to-pick (Keith reported clicking to pick
+        an object was reverting the view to all 3 panes, which is
+        exactly what an accidental or perceived double-click during a
+        pick attempt would do via the old trigger here). Maximize/
+        Restore remains available via the right-click menu on a
+        pane's label (_show_world_pane_menu), so no functionality is
+        lost - just the ambiguous, easily-mistaken gesture."""
         return super().eventFilter(obj, event)
 
     def _toggle_world_pane_maximize(self, pane): #vers 2
