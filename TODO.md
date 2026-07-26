@@ -435,6 +435,36 @@ side format confirmed empirically, not from documentation:
    existing per-ribbon context menu already has an "Icon Set" submenu
    pattern (Default/3ds Max style) worth referencing when this comes up.
 
+### Later update - standalone titlebar Load/Save rewire + remaining DP5 ribbon sweep
+
+- **Titlebar Load/Save rewired**: Load now shows a menu (Load Game
+  Folder…/Load Game DAT File…) instead of the old paint-canvas PNG/BMP
+  image-load menu. Save is honestly disabled (with an explanatory
+  tooltip) rather than wired to anything misleading, since no
+  capability exists yet to write changes back to disk.
+- **GTAWorldLoader.get_img_paths()** added - IMG archive paths were
+  already tracked in load_log, just not exposed as an easy accessor;
+  useful now and for future features (Add) that need to know where to
+  write new content.
+- **Three more orphaned paint-tool ribbons removed**: Image Ops
+  (Colour Adjustments/Seamless/Snow/Zoom Lens), Annotate (Arrow/
+  Marker/Text/Number/Blur/Stickers), and Tool Settings (the "Pen Size:
+  1" field visible in an earlier screenshot - already fully orphaned
+  once Plotting/Shapes' tools were removed, but nothing had stopped
+  it from still being created). Same safe approach as before -
+  stopped creating/adding them in setup_ui, method bodies left in
+  place unused rather than deleted outright.
+- Also fixed this session: the double-click-to-maximize/restore
+  World View gesture was removed entirely (conflicted with click-to-
+  pick - an accidental double-click while picking an object would
+  revert the view to all 3 panes); viewport click-to-pick now
+  correctly scopes its camera change to just the clicked pane and
+  actually zooms in close, rather than recentring all 3 panes without
+  zooming; a major pre-existing sign bug in every ortho view's camera
+  centring was found and fixed (pan_x/pan_y were being used backwards
+  in the ortho gluLookAt calls, meaning Top/Side/Front never correctly
+  auto-framed instances for any dataset not near the origin).
+
 ## July 2026 - Next up: DP5 Workshop
 
 ### DP5 Workshop - ribbon rebuild + sidebar sectioning
