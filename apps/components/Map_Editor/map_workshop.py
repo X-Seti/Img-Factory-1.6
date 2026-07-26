@@ -13001,16 +13001,31 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             return
         self._center_on_instance(inst)
 
-    def _on_viewport_instance_picked(self, inst): #vers 1
+    def _on_viewport_instance_picked(self, inst, pane): #vers 2
         """Called when the user clicks directly on a rendered marker in
-        any World View pane (Top/Side/3D) - opens the edit panel for
-        that instance, same as clicking its row in Object Browser
-        would. Addresses Keith's reported bug: clicking a map object
-        previously did nothing useful (the only thing wired to clicks
-        near a pane at all was the view-selection menu, but that's
-        only reachable via right-clicking the pane's label
-        specifically, not the rendered content)."""
-        self._center_on_instance(inst)
+        one specific World View pane - zooms in close on that instance
+        WITHIN THAT PANE ONLY, and shows the edit panel.
+
+        Fixes two things Keith reported: clicking an object was
+        repositioning all 3 views (the previous version called
+        _center_on_instance, which loops over every pane in
+        self._world_panes) instead of responding to just the pane that
+        was actually clicked; and it wasn't zooming in at all, only
+        panning to centre while leaving distance/zoom completely
+        untouched, so the object could still appear small/far away
+        after being 'centred'."""
+        pane._pan_x = -inst.pos_x
+        pane._pan_y = -inst.pos_y
+        pane._dist = 15.0   # close-up distance - a reasonable default,
+                            # not tuned against real object sizes
+        if pane._projection == 'ortho':
+            try:
+                pane.resizeGL(pane.width(), pane.height())   # refresh ortho half_h for the new dist
+            except Exception:
+                pass
+        pane.set_gizmo_position((inst.pos_x, inst.pos_y, inst.pos_z))
+        pane.update()
+        self._show_instance_edit_panel(inst)
 
     def _center_on_instance(self, inst, nav_info=None): #vers 2
         """Centre all three World View panes' cameras on an instance,

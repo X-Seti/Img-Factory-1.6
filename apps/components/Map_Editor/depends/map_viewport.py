@@ -515,12 +515,16 @@ class MapViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._last_pos = event.pos()
         self._press_pos = event.pos()
 
-    def set_pick_callback(self, callback): #vers 1
-        """Set a function to call with the picked IPLInstance whenever
+    def set_pick_callback(self, callback): #vers 2
+        """Set a function to call as callback(instance, pane) whenever
         the user clicks (not drags) directly on a rendered marker in
         this pane - lets MapWorkshop wire this to opening the object
         edit panel without MapViewport needing any reference back to
-        the workshop itself."""
+        the workshop itself. Passing the pane itself (not just the
+        instance) lets the callback scope its response to just this
+        one pane, rather than needing to guess or affect all panes -
+        per Keith's report that clicking an object was repositioning
+        all 3 views instead of just responding to the one clicked."""
         self._pick_callback = callback
 
     def configure_movement(self, pan_button='middle', rotate_button='right',
@@ -557,7 +561,7 @@ class MapViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._pan_y -= (-dy if invert_y else dy) * scale
         self._last_pos = event.pos(); self.update()
 
-    def mouseReleaseEvent(self, event): #vers 2
+    def mouseReleaseEvent(self, event): #vers 3
         press_pos = getattr(self, '_press_pos', None)
         if press_pos is not None:
             dx = event.pos().x() - press_pos.x()
@@ -567,7 +571,7 @@ class MapViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 if callback is not None:
                     picked = self.pick_instance_at(event.pos().x(), event.pos().y())
                     if picked is not None:
-                        callback(picked)
+                        callback(picked, self)
         self._last_pos = event.pos()
 
     def wheelEvent(self, event): #vers 1
