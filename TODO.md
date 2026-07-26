@@ -263,22 +263,33 @@ side format confirmed empirically, not from documentation:
      attached the header's columns, silently a no-op). Both verified
      across separate processes, not just in-memory.
 
-   - **Add/Delete/Rename**: a working IN-MEMORY subset now exists,
-     right-click on an Object Browser row - Rename Object (updates the
-     object definition + every existing instance), Add Instance Here
-     (places another copy of an already-loaded model at the origin),
-     Delete All Instances (removes every placement of a model, with a
-     confirm prompt - the simpler "just remove from IPL" case, not the
-     "purge everything and free the ID" alternative). All three are
-     explicit in their UI text and status messages that nothing is
-     written back to disk yet. STILL NOT BUILT: SVG icons for these
-     (currently text-only context menu entries), the adaptive row
-     layout collapsing icons + All/Most Used/Favourites/Generic onto
-     one row when space allows, and everything below that needs real
-     file-writing (importing genuinely new models from the desktop,
-     writing renames/deletes back to actual IPL/IDE files, ID
-     management, and the map-section transform tools) - see the
-     original, still-accurate scope in the items directly below.
+   - **Add/Delete/Rename**: a working IN-MEMORY subset now exists -
+     Rename Object (updates the object definition + every existing
+     instance), Add Instance Here (places another copy of an already-
+     loaded model at the origin), Delete All Instances (removes every
+     placement of a model, with a confirm prompt - the simpler "just
+     remove from IPL" case, not the "purge everything and free the ID"
+     alternative). All three are explicit in their UI text and status
+     messages that nothing is written back to disk yet.
+
+     Initially these only existed as right-click context menu entries -
+     Keith rightly caught via screenshot that they weren't discoverable
+     at all (no visible icon/button/affordance hinting they existed).
+     Fixed: real Add/Delete/Rename SVG icon buttons now sit above
+     Object Browser's search box (get_add_icon/get_trash_icon/get_
+     rename_icon, all already existed in imgfactory_svg_icons.py),
+     operating on whichever row is selected, disabled with no
+     selection (Delete additionally disabled at zero instances). The
+     right-click entries are still there too as a second entry point,
+     not replaced.
+
+     STILL NOT BUILT: the adaptive row layout collapsing the icon row
+     plus All/Most Used/Favourites/Generic onto one row when space
+     allows, and everything below that needs real file-writing
+     (importing genuinely new models from the desktop, writing
+     renames/deletes back to actual IPL/IDE files, ID management, and
+     the map-section transform tools) - see the original, still-
+     accurate scope in the items directly below.
 
    - **Add** (full scope, not yet built): browse the desktop for new
      DFF/TXD/COL files and import
