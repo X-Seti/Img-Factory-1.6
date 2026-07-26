@@ -435,7 +435,77 @@ side format confirmed empirically, not from documentation:
    existing per-ribbon context menu already has an "Icon Set" submenu
    pattern (Default/3ds Max style) worth referencing when this comes up.
 
-### Later update - standalone titlebar Load/Save rewire + remaining DP5 ribbon sweep
+### MooMapper comparison (Keith got it running for reference) - notes, not yet acted on
+
+Keith shared screenshots of MooMapper (the established GTA III/VC
+reference map editor) running via Wine, both its main window and its
+Item Editor Dialog for a real instance from islandsf.ipl. Comparing
+against what's built here:
+
+**POSSIBLE REAL BUG - needs verification before fixing:**
+MooMapper's Item Editor shows the raw IPL line
+`2608, cdseabed08, 0, -272.208, 194.538, -143.231, 1, 1, 1, 0, 0, 0, 1`
+and labels it explicitly: ID 2608, Model cdseabed08, **Interior 0**,
+Position (-272.208, 194.538, -143.231), Scale (1,1,1), Rotation
+(0,0,0 - converted from the trailing quaternion). That's 13 comma-
+separated values: id+model+interior+pos(3)+scale(3)+quat(4)=13.
+
+Our current GTA3/VC parser (_parse_inst, gta_dat_parser.py) assumes
+NO interior field and NO scale field at all - it reads pos_x directly
+from parts[2] (comment: "GTA3/VC: id, model, px, py, pz, sx, sy, sz,
+rx, ry, rz, rw"). Against the real line above, parts[2] is "0" (the
+interior value MooMapper shows), not a real X coordinate - meaning if
+this format is representative, every GTA3/VC instance's position and
+rotation has been parsed shifted by one field this whole project,
+with pos_x silently holding the interior number instead.
+
+NOT fixed yet - the real .ipl files from Keith's original upload
+aren't in this session's temp folder any more (only the .dat files
+survived), so this couldn't be cross-checked against multiple real
+examples before acting on it. Needs either a fresh real GTA3/VC .ipl
+sample to verify against properly (the same empirical approach that
+worked well for the binary IPL format), or Keith's own confirmation
+this format is representative before changing _parse_inst.
+
+**Feature/UX comparison, not yet built:**
+- Direct position type-in with a "Move There" button (jump the
+  camera to typed X/Y/Z) - we only have nudge buttons + the value
+  spinbox, no explicit "go here" action.
+- "Center On Object" as its own explicit button in the item editor -
+  we do this automatically on selection, but a manual re-centre
+  button could still be useful if the camera has since been moved.
+- Time-of-day control (MooMapper shows "Time: 09:00") - relevant to
+  TOBJ/timed objects rendering correctly; we don't have any time
+  simulation.
+- Separate INST/CULL/ZONE/PATH view-mode radio buttons - MooMapper
+  treats these as different data types you switch between, not just
+  INST. We've only built INST (placements) and just added Cull Boxes
+  as an overlay toggle - ZONE and PATH (ped/car paths, Vice-specific)
+  aren't touched at all.
+- Validation panel per-item: "Associated Object Definition Found",
+  "Correct Model Name Found", "Model Exists in Archive Found",
+  "Texture Exists in Archive Found" - a per-instance sanity-check
+  feature we don't have; would be a natural fit for the object detail
+  panel.
+- "Duplicate" as a distinct action from "Add Item" - copying an
+  existing placement to a new location, vs placing a fresh instance
+  of a model. We only have "Add Instance Here" (always at the origin).
+- Real per-instance geometry rendering (buildings visible, not just
+  points) with Wireframe Mode toggle - confirms real DFF/TXD geometry
+  rendering (already the #1 item in this file) is genuinely the gap
+  that matters most for visual parity.
+- Direct-manipulation object dragging in the 3D view (Ctrl+drag moves
+  XY, Ctrl+Shift+drag constrains to a single axis) - we only support
+  moving via the nudge buttons/typed value, not dragging the object
+  itself in the viewport.
+- Double-click to select + zoom in (their convention) vs our single-
+  click - just a difference worth being aware of, not necessarily
+  something to change.
+- "Visible Files" list mixes ZON and IPL files together in one
+  checklist (not separated by type) - our IPL Sections panel only
+  lists IPL files.
+
+
 
 - **Titlebar Load/Save rewired**: Load now shows a menu (Load Game
   Folder…/Load Game DAT File…) instead of the old paint-canvas PNG/BMP
