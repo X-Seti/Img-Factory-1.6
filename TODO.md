@@ -462,13 +462,22 @@ for every VC instance). Added scale_x/y/z to IPLInstance (default
 against Keith's exact real line, plus full regression across existing
 GTA3/SA/VC test data.
 
-GTA3 is deliberately UNCHANGED and still just a best-effort guess (12
-fields, no interior) - Keith asked to check SA and GTA3 too, but the
-fix above is based on evidence specific to VC. SA's existing parsing
-already had interior at index 2 (matching the same pattern now
-confirmed for VC), so it was likely already correct. GTA3 still needs
-its own real sample line before its format can be confirmed the same
-rigorous way - don't assume VC's fix carries over.
+GTA3 and SA now CONFIRMED CORRECT too - Keith provided two more real
+lines to check directly: `2813, landpart88, -858.571, -853.626,
+9.01985, 1, 1, 1, 0, 0, 0, 1` (12 fields, id+model+pos(3)+scale(3)+
+quat(4), quat magnitude^2 = 1.0 exactly - identity rotation) and
+`705, sm_veg_tree7vbig, 0, -2381.046875, 40.546875, 34.25, 0, 0,
+-0.9998751879, 0.01579819433, -1` (11 fields, id+model+interior+
+pos(3)+quat(4)+lod, quat magnitude^2 = 0.9999999743 - and the
+trailing -1 matching lod_index). Ran both directly through the actual
+_parse_inst code (GTA3 branch for the first, SA branch for the
+second, since the second's structure - interior field + trailing lod
+index - matches SA/SOL's format exactly, not GTA3's, regardless of
+which file it was pulled from) - every field extracted correctly
+against both. Keith's own summary matches exactly what both lines
+show: "only VC, and SA, SOL has the 0" (interior field) - GTA3 has
+none. No code changes needed for either - both were already right;
+the confirmed, actually-broken case was specifically VC.
 
 **Feature/UX comparison, not yet built:**
 - Direct position type-in with a "Move There" button (jump the
