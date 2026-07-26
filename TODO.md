@@ -479,6 +479,16 @@ show: "only VC, and SA, SOL has the 0" (interior field) - GTA3 has
 none. No code changes needed for either - both were already right;
 the confirmed, actually-broken case was specifically VC.
 
+Keith then provided a further batch of 12 real SA lines (sm_veg_
+tree7vbig/sm_veg_tree4_vbig at various positions/rotations, a 13th cut
+off mid-paste and not usable) - ran all 12 through the actual SA
+parser: every single one's quaternion magnitude^2 came out to exactly
+1.000000, across varied positions and rotations, not just one lucky
+example. This is a much broader confirmation than the single earlier
+line and closes out the IPL field-alignment investigation with real
+confidence: VC was the one genuinely broken case (fixed), GTA3 and SA
+were already correct.
+
 **Feature/UX comparison, not yet built:**
 - Direct position type-in with a "Move There" button (jump the
   camera to typed X/Y/Z) - we only have nudge buttons + the value
