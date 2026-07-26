@@ -442,30 +442,33 @@ reference map editor) running via Wine, both its main window and its
 Item Editor Dialog for a real instance from islandsf.ipl. Comparing
 against what's built here:
 
-**POSSIBLE REAL BUG - needs verification before fixing:**
-MooMapper's Item Editor shows the raw IPL line
+**VC CONFIRMED AND FIXED; GTA3 still open:**
+MooMapper's Item Editor showed the raw IPL line
 `2608, cdseabed08, 0, -272.208, 194.538, -143.231, 1, 1, 1, 0, 0, 0, 1`
-and labels it explicitly: ID 2608, Model cdseabed08, **Interior 0**,
-Position (-272.208, 194.538, -143.231), Scale (1,1,1), Rotation
-(0,0,0 - converted from the trailing quaternion). That's 13 comma-
-separated values: id+model+interior+pos(3)+scale(3)+quat(4)=13.
+labeled: ID 2608, Model cdseabed08, **Interior 0**, Position
+(-272.208, 194.538, -143.231), Scale (1,1,1), Rotation (converted
+from the trailing quaternion). Keith then provided a second real line
+to check directly: `429, mlamppost, 0, -686.7186279, 593.7156982,
+14.58199501, 1, 1, 1, 0, 0, -0.999048233, 0.0436193347` - the last 4
+values form a valid unit quaternion (magnitude^2 = 1.0000000182),
+definitively confirming the 13-field layout: id, model, interior,
+pos(3), scale(3), quat(4).
 
-Our current GTA3/VC parser (_parse_inst, gta_dat_parser.py) assumes
-NO interior field and NO scale field at all - it reads pos_x directly
-from parts[2] (comment: "GTA3/VC: id, model, px, py, pz, sx, sy, sz,
-rx, ry, rz, rw"). Against the real line above, parts[2] is "0" (the
-interior value MooMapper shows), not a real X coordinate - meaning if
-this format is representative, every GTA3/VC instance's position and
-rotation has been parsed shifted by one field this whole project,
-with pos_x silently holding the interior number instead.
+FIXED: _parse_inst's VC branch now uses this confirmed 13-field
+layout (previously folded into the same code as GTA3, assuming NO
+interior/scale at all, silently reading the interior value as pos_x
+for every VC instance). Added scale_x/y/z to IPLInstance (default
+1.0) so VC's real scale data isn't discarded either. Verified directly
+against Keith's exact real line, plus full regression across existing
+GTA3/SA/VC test data.
 
-NOT fixed yet - the real .ipl files from Keith's original upload
-aren't in this session's temp folder any more (only the .dat files
-survived), so this couldn't be cross-checked against multiple real
-examples before acting on it. Needs either a fresh real GTA3/VC .ipl
-sample to verify against properly (the same empirical approach that
-worked well for the binary IPL format), or Keith's own confirmation
-this format is representative before changing _parse_inst.
+GTA3 is deliberately UNCHANGED and still just a best-effort guess (12
+fields, no interior) - Keith asked to check SA and GTA3 too, but the
+fix above is based on evidence specific to VC. SA's existing parsing
+already had interior at index 2 (matching the same pattern now
+confirmed for VC), so it was likely already correct. GTA3 still needs
+its own real sample line before its format can be confirmed the same
+rigorous way - don't assume VC's fix carries over.
 
 **Feature/UX comparison, not yet built:**
 - Direct position type-in with a "Move There" button (jump the
