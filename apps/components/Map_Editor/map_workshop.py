@@ -12548,16 +12548,42 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._lod_display_mode = mode
         self._apply_ipl_visibility_filter()
 
-    def _create_object_browser_dock(self): #vers 1
-        """Object Browser dock - search + filter (All/Most Used/
-        Favourites/Generic) over the loaded object catalog. Double-
-        click a row to toggle its favourite status (persisted to
-        map_settings)."""
+    def _create_object_browser_dock(self): #vers 2
+        """Object Browser dock - Add/Delete/Rename icon row, search +
+        filter (All/Most Used/Favourites/Generic) over the loaded
+        object catalog. Double-click a row to toggle its favourite
+        status (persisted to map_settings)."""
         from PyQt6.QtWidgets import QTableView, QLineEdit, QPushButton, QButtonGroup
+        from apps.methods.imgfactory_svg_icons import get_add_icon, get_trash_icon, get_rename_icon
 
         panel = QWidget()
         lay = QVBoxLayout(panel)
         lay.setContentsMargins(4, 4, 4, 4)
+
+        # Add/Delete/Rename icon row - previously these actions only
+        # existed as right-click context menu entries with no visible
+        # affordance at all (Keith couldn't find them in a screenshot -
+        # rightly so, since nothing hinted they existed). Real, visible
+        # SVG icon buttons now, operating on whichever row is currently
+        # selected; disabled entirely when nothing is selected.
+        icon_color = self._get_icon_color()
+        action_row = QHBoxLayout()
+        self._ob_add_btn = QPushButton(get_add_icon(18, icon_color), "")
+        self._ob_add_btn.setToolTip("Add Instance Here - place another copy of the\n"
+                                    "selected model at the origin")
+        self._ob_add_btn.clicked.connect(self._on_object_browser_add_clicked)
+        self._ob_del_btn = QPushButton(get_trash_icon(18, icon_color), "")
+        self._ob_del_btn.setToolTip("Delete All Instances of the selected model")
+        self._ob_del_btn.clicked.connect(self._on_object_browser_delete_clicked)
+        self._ob_rename_btn = QPushButton(get_rename_icon(18, icon_color), "")
+        self._ob_rename_btn.setToolTip("Rename the selected object")
+        self._ob_rename_btn.clicked.connect(self._on_object_browser_rename_clicked)
+        for btn in (self._ob_add_btn, self._ob_del_btn, self._ob_rename_btn):
+            btn.setFixedSize(28, 24)
+            btn.setEnabled(False)
+            action_row.addWidget(btn)
+        action_row.addStretch()
+        lay.addLayout(action_row)
 
         search = QLineEdit()
         search.setPlaceholderText("Search objects…")
@@ -12635,20 +12661,27 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         if model is not None:
             model.set_mode(mode)
 
-    def _on_object_row_selected(self, row): #vers 1
+    def _on_object_row_selected(self, row): #vers 2
         """Selecting a model row in the (now merged) Object Browser
         centres the camera + shows the edit panel on that model's
         FIRST placement, if it has any - with Prev/Next cycling stored
         for models with multiple instances. Models with zero instances
         (defined in the IDE but never placed) show identity/IDE/2DFX/
         TOBJ info in the panel without any placement-specific data,
-        since there's no instance to show it for."""
+        since there's no instance to show it for. Also enables/disables
+        the Add/Delete/Rename icon row based on selection state."""
         if row < 0:
+            self._selected_object_model_id = None
+            self._update_object_browser_action_buttons()
             return
         model = self._object_browser_model
         obj = model.object_at(row)
         if obj is None:
+            self._selected_object_model_id = None
+            self._update_object_browser_action_buttons()
             return
+        self._selected_object_model_id = obj.model_id
+        self._update_object_browser_action_buttons()
         loader = getattr(self, '_world_loader', None)
         instances = loader.get_instances_for_model(obj.model_id) if loader else []
         if not instances:
@@ -12658,6 +12691,38 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._current_model_instances = instances
         self._current_instance_index = 0
         self._center_on_instance(instances[0], nav_info=(0, len(instances)))
+
+    def _update_object_browser_action_buttons(self): #vers 1
+        """Enable/disable the Add/Delete/Rename icon buttons to match
+        the current selection - Add and Rename work regardless of
+        instance count, Delete additionally needs at least one
+        instance to remove."""
+        mid = getattr(self, '_selected_object_model_id', None)
+        has_selection = mid is not None
+        self._ob_add_btn.setEnabled(has_selection)
+        self._ob_rename_btn.setEnabled(has_selection)
+        instance_count = 0
+        if has_selection:
+            model = self._object_browser_model
+            instance_count = model._instance_counts.get(mid, 0)
+        self._ob_del_btn.setEnabled(has_selection and instance_count > 0)
+
+    def _on_object_browser_add_clicked(self): #vers 1
+        mid = getattr(self, '_selected_object_model_id', None)
+        if mid is not None:
+            self._add_instance_of_model(mid)
+            self._update_object_browser_action_buttons()
+
+    def _on_object_browser_delete_clicked(self): #vers 1
+        mid = getattr(self, '_selected_object_model_id', None)
+        if mid is not None:
+            self._delete_all_instances_of_model(mid)
+            self._update_object_browser_action_buttons()
+
+    def _on_object_browser_rename_clicked(self): #vers 1
+        mid = getattr(self, '_selected_object_model_id', None)
+        if mid is not None:
+            self._rename_object(mid)
 
     def _cycle_model_instance(self, direction): #vers 1
         """Prev (-1) / Next (+1) through the currently-selected model's
