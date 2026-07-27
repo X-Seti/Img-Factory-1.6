@@ -150,6 +150,22 @@ class IPLInstance:
 
 
 @dataclass
+class IPLLoadResult:
+    """Result of one on-demand IPL load (GTAWorldLoader.load_ipl_by_
+    name) - per Keith's request for per-IPL success/error reporting
+    ("path/airport.ipl loaded - no errors" / "path/airportN.ipl loaded
+    - 4 errors found, check log added to the maps folder"), rather
+    than just a bare bool."""
+    success:       bool = False
+    abs_path:      str = ""
+    instance_count: int = 0
+    error_count:   int = 0
+    warning_count: int = 0
+    errors:        List[str] = field(default_factory=list)
+    warnings:      List[str] = field(default_factory=list)
+
+
+@dataclass
 class ParseStats:
     total_lines:     int = 0
     ide_files:       int = 0
@@ -1129,7 +1145,7 @@ class GTAWorldLoader: #vers 3
         self.stats.errors   += parser.stats.errors
         self.stats.warnings += parser.stats.warnings
 
-    def load_ipl_by_name(self, ipl_stem: str) -> bool: #vers 1
+    def load_ipl_by_name(self, ipl_stem: str) -> IPLLoadResult: #vers 2
         """Actually parse and load one specific IPL's content, given its
         lowercase stem (no extension) as it appears in available_ipls -
         the on-demand counterpart to lazy_ipl_loading's discovery-only
@@ -1138,16 +1154,22 @@ class GTAWorldLoader: #vers 3
         Browser, World View, LOD pairing, etc - sees them exactly as if
         they'd been loaded eagerly), and records the stem in
         loaded_ipls so it isn't reloaded (or double-counted) if
-        requested again. Returns False if the stem isn't in
-        available_ipls at all, or its file doesn't exist on disk."""
+        requested again.
+
+        Returns an IPLLoadResult (not a bare bool) with per-IPL error/
+        warning counts and messages - per Keith's request for per-IPL
+        success/error reporting during loading, which needs to know
+        specifically what went wrong with THIS one IPL, not just the
+        loader's overall accumulated stats."""
         if ipl_stem in self.loaded_ipls:
-            return True   # already loaded, nothing to do
+            return IPLLoadResult(success=True)   # already loaded, nothing to do
         entry = self.available_ipls.get(ipl_stem)
         if entry is None:
-            return False
+            return IPLLoadResult(success=False, errors=[f"Unknown IPL: {ipl_stem}"])
         if not entry.exists:
-            self.stats.warnings.append(f"IPL missing: {entry.path}")
-            return False
+            msg = f"IPL missing: {entry.path}"
+            self.stats.warnings.append(msg)
+            return IPLLoadResult(success=False, abs_path=entry.abs_path, errors=[msg])
         parser = IPLParser(self.game)
         ok = parser.parse(entry.abs_path)
         self.load_log.append(("on-demand", "IPL", entry.abs_path, ok))
@@ -1157,7 +1179,13 @@ class GTAWorldLoader: #vers 3
         self.stats.errors   += parser.stats.errors
         self.stats.warnings += parser.stats.warnings
         self.loaded_ipls.add(ipl_stem)
-        return ok
+        return IPLLoadResult(
+            success=ok, abs_path=entry.abs_path,
+            instance_count=len(parser.instances),
+            error_count=len(parser.stats.errors),
+            warning_count=len(parser.stats.warnings),
+            errors=list(parser.stats.errors),
+            warnings=list(parser.stats.warnings))
 
     def _load_ipl(self, entry: DATEntry, phase: str): #vers 2
         if not entry.exists:

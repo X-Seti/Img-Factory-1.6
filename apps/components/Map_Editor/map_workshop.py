@@ -12860,7 +12860,7 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             self._style_ipl_name_item(name_item, new_hidden)
         self._toggle_ipl_section(ipl_name, new_hidden)
 
-    def _ensure_ipl_loaded(self, display_name): #vers 1
+    def _ensure_ipl_loaded(self, display_name): #vers 2
         """Actually load one IPL's content on demand, the first time
         it's toggled visible - parses its instances (GTAWorldLoader.
         load_ipl_by_name), refreshes self._all_instances/Object Browser
@@ -12868,7 +12868,14 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         dialog scoped to just this IPL's models, not the whole world)
         the geometry/textures those new instances reference. A no-op
         if this IPL was already loaded (or lazy loading isn't active
-        at all, e.g. a non-Map-Workshop caller)."""
+        at all, e.g. a non-Map-Workshop caller).
+
+        Reports per-IPL success/error status matching Keith's requested
+        format ("path/airport.ipl loaded - no errors" / "path/
+        airportN.ipl loaded - N errors found, check log added to the
+        maps folder") - writes an actual .log file alongside the IPL
+        itself when there are errors, rather than only showing a
+        transient status message."""
         loader = getattr(self, '_world_loader', None)
         if loader is None or not getattr(loader, 'lazy_ipl_loading', False):
             return
@@ -12877,10 +12884,23 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             return   # not a lazily-tracked IPL, or already loaded
 
         before_count = len(loader.instances)
-        ok = loader.load_ipl_by_name(stem)
-        if not ok:
-            self._set_status(f"Failed to load {display_name}")
+        result = loader.load_ipl_by_name(stem)
+        if not result.success:
+            self._set_status(f"{display_name} failed to load"
+                             + (f" - {result.errors[0]}" if result.errors else ""))
             return
+
+        problem_count = result.error_count + result.warning_count
+        if problem_count:
+            log_path = self._write_ipl_error_log(result)
+            self._set_status(
+                f"{display_name} loaded - {problem_count} issue(s) found"
+                + (f", check {os.path.basename(log_path)} added to the maps folder"
+                   if log_path else ""))
+        else:
+            self._set_status(f"{display_name} loaded - no errors "
+                             f"({result.instance_count} instances)")
+
         new_instances = loader.instances[before_count:]
 
         self._all_instances = list(loader.instances)
@@ -12891,6 +12911,35 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             self._preload_world_assets(
                 loader, model_cache, instances=new_instances,
                 title=f"Loading {display_name}…")
+
+    def _write_ipl_error_log(self, result): #vers 1
+        """Write a plain-text log of one IPL's parse errors/warnings
+        alongside the IPL file itself (same folder), per Keith's
+        request ("check log added to the maps folder"). Returns the
+        written path, or None if writing failed (in which case the
+        errors are still visible via the status message and the
+        loader's own accumulated stats - this is a convenience, not the
+        only place the information lives)."""
+        if not result.abs_path:
+            return None
+        try:
+            folder = os.path.dirname(result.abs_path)
+            base = os.path.splitext(os.path.basename(result.abs_path))[0]
+            log_path = os.path.join(folder, f"{base}_load_errors.log")
+            with open(log_path, 'w', encoding='utf-8') as f:
+                f.write(f"Load errors for {result.abs_path}\n")
+                f.write(f"{result.error_count} error(s), {result.warning_count} warning(s)\n\n")
+                if result.errors:
+                    f.write("Errors:\n")
+                    for e in result.errors:
+                        f.write(f"  - {e}\n")
+                if result.warnings:
+                    f.write("\nWarnings:\n")
+                    for w in result.warnings:
+                        f.write(f"  - {w}\n")
+            return log_path
+        except Exception:
+            return None
 
     def _style_ipl_name_item(self, name_item, hidden): #vers 3
         """Grey out a disabled/hidden IPL's name text, per Keith's
