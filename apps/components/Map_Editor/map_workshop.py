@@ -12266,6 +12266,12 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             return
 
         loader = GTAWorldLoader(game)
+        loader.lazy_ipl_loading = True   # per Keith: don't load/scan any
+                                         # IPL's content (or its models'
+                                         # geometry/textures) until the
+                                         # user actually asks for that
+                                         # specific IPL, not the whole
+                                         # world eagerly at load time
         ok = loader.load(folder)
         self._game_root = folder
         self._apply_loaded_world(loader, game, ok, "Load Game Folder")
@@ -12320,6 +12326,7 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         game_root = os.path.normpath(os.path.join(os.path.dirname(dat_path), ".."))
         loader = GTAWorldLoader(game)
+        loader.lazy_ipl_loading = True
         ok = loader.load_from_dat(dat_path, game_root)
         self._game_root = game_root
         self._apply_loaded_world(loader, game, ok, "Load Game DAT File")
@@ -12350,7 +12357,13 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             model_cache = ModelCache()
             self._model_cache = model_cache
         model_cache.index_img_files(loader.get_img_paths())
-        self._preload_world_assets(loader, model_cache)
+        # Per Keith: model/texture scanning should happen when a
+        # specific IPL is actually loaded, not for the whole world at
+        # startup - with lazy_ipl_loading enabled above, loader.
+        # instances is empty at this point anyway (nothing parsed
+        # yet), so pre-loading here would be a no-op regardless. The
+        # real pre-load now happens per-IPL in _on_ipl_section_cell_
+        # clicked, scoped to just that IPL's newly-loaded instances.
 
         visible = self._apply_lod_filter(loader.instances)
         for pane in getattr(self, '_world_panes', []):
@@ -12370,25 +12383,28 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         for pane in getattr(self, '_world_panes', []):
             pane.set_render_mode(mode)
 
-    def _preload_world_assets(self, loader, model_cache): #vers 1
+    def _preload_world_assets(self, loader, model_cache, instances=None, title=None): #vers 2
         """Eagerly load+parse (and cache) geometry and textures for
-        every distinct model referenced by any loaded instance, with a
-        progress dialog showing what's currently being processed.
+        every distinct model referenced by the given instances (or
+        every loaded instance, if none given), with a progress dialog
+        showing what's currently being processed.
 
-        Per Keith's report: the app "seems to hang" loading game data -
-        the actual cause was that geometry/texture loading was fully
-        lazy (see ModelCache/_draw_instances), meaning the FIRST render
-        frame after a world loads could synchronously load and parse
-        potentially thousands of distinct models with zero feedback,
-        which looks exactly like a freeze even though it's genuinely
-        just working. This makes that loading an explicit, visible,
-        cancellable phase instead - QProgressDialog processes Qt events
-        internally on setValue(), so the UI stays responsive throughout
-        rather than a single long blocking call."""
+        Originally ran across the whole world at load time - per
+        Keith's follow-up report ("very slow scanning... it should be
+        showing model/texture when loading the selected .ipl, not at
+        map mapper startup"), this is now called scoped to one
+        specific IPL's newly-loaded instances instead (see
+        _ensure_ipl_loaded), matching MooMapper's own model of not
+        touching an IPL's content - or its models' geometry/textures -
+        until the user actually asks for that specific IPL.
+        QProgressDialog processes Qt events internally on setValue(),
+        so the UI stays responsive throughout rather than a single
+        long blocking call."""
+        instances = instances if instances is not None else loader.instances
         # Deduplicate by model_name - many instances share one model,
         # no need to load it more than once.
         seen_models = {}
-        for inst in loader.instances:
+        for inst in instances:
             if inst.model_name not in seen_models:
                 obj = loader.get_object(inst.model_id)
                 txd_name = obj.txd_name if obj else ""
@@ -12398,7 +12414,7 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         items = list(seen_models.items())
         progress = QProgressDialog(
-            "Loading world assets…", "Cancel", 0, len(items), self)
+            title or "Loading assets…", "Cancel", 0, len(items), self)
         progress.setWindowTitle("Loading Meshes and Textures")
         progress.setMinimumDuration(500)   # don't flash up for fast loads
         progress.setWindowModality(Qt.WindowModality.WindowModal)
@@ -12407,7 +12423,7 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         for i, (model_name, (txd_name, source_ipl)) in enumerate(items):
             if progress.wasCanceled():
                 self._set_status(
-                    f"World asset loading cancelled after {i} of {len(items)} models "
+                    f"Asset loading cancelled after {i} of {len(items)} models "
                     f"- remaining models will still load on demand while browsing")
                 break
             progress.setLabelText(
@@ -12677,22 +12693,27 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._ipl_sections_dock = dock
         return dock
 
-    def _populate_ipl_sections(self, loader): #vers 5
+    def _populate_ipl_sections(self, loader): #vers 6
         """Fill the IPL Sections panel from a completed load - one row
-        per unique source_ipl across all loaded instances, in the
-        user's saved display order (ipl_sections_order) if any, with
-        new/unrecognised names (a different world/mod) appended
-        alphabetically after the known ones rather than losing the
-        saved order entirely. Keeps the full unfiltered instance list
-        on self._all_instances so toggling can recompute the visible
-        subset without needing to reload."""
+        per IPL, in the user's saved display order (ipl_sections_order)
+        if any, with new/unrecognised names (a different world/mod)
+        appended alphabetically after the known ones rather than losing
+        the saved order entirely.
+
+        With lazy_ipl_loading enabled (the default for Map Workshop's
+        own load paths), every IPL the .dat(s) reference is listed
+        immediately from loader.available_ipls - matching MooMapper's
+        own behaviour of listing every IPL path upfront without loading
+        any of their content - rather than only showing IPLs that
+        already have instances loaded. Falls back to the older
+        instances-based derivation for any caller that doesn't use lazy
+        loading."""
         table = getattr(self, '_ipl_sections_table', None)
         placeholder = getattr(self, '_ipl_sections_placeholder', None)
         if table is None:
             return
 
         self._all_instances = list(loader.instances)
-        self._hidden_ipls = set()
 
         icon_color = self._get_icon_color()
         icon_sz = 16
@@ -12701,7 +12722,22 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._eye_closed_icon = self._render_variant_icon('eye_hidden', None, icon_sz,
                                                            icon_color, has_menu=False)
 
-        current_names = {inst.source_ipl for inst in loader.instances}
+        # display name (as it'll appear in the table / match inst.source_ipl
+        # once loaded) -> lowercase stem (the key load_ipl_by_name expects)
+        self._ipl_display_to_stem = {}
+        if getattr(loader, 'lazy_ipl_loading', False):
+            for stem, entry in loader.available_ipls.items():
+                display_name = os.path.basename(entry.abs_path)
+                self._ipl_display_to_stem[display_name] = stem
+            current_names = set(self._ipl_display_to_stem.keys())
+            # Nothing is actually loaded yet - every IPL starts hidden/
+            # unloaded, matching MooMapper's own default state, rather
+            # than showing everything as already visible.
+            self._hidden_ipls = set(current_names)
+        else:
+            current_names = {inst.source_ipl for inst in loader.instances}
+            self._hidden_ipls = set()
+
         saved_order = self.map_settings.get('ipl_sections_order') or []
         ordered = [n for n in saved_order if n in current_names]
         remaining = sorted(current_names - set(ordered))
@@ -12797,10 +12833,15 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self.map_settings.set('object_browser_column_widths', widths)
         self.map_settings.save()
 
-    def _on_ipl_section_cell_clicked(self, row, col): #vers 2
+    def _on_ipl_section_cell_clicked(self, row, col): #vers 3
         """Clicking the eye-icon cell toggles that IPL's visibility -
         plain item click rather than a button, so there's no button
-        widget/chrome to size or pad. Icon is now column 0 (was 1)."""
+        widget/chrome to size or pad. Icon is now column 0 (was 1).
+
+        With lazy IPL loading, toggling to visible for the first time
+        also triggers the actual on-demand load of that IPL's content
+        (_ensure_ipl_loaded) - matching MooMapper's model of not
+        touching an IPL until the user asks for it."""
         if col != 0:
             return
         table = self._ipl_sections_table
@@ -12810,12 +12851,46 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         ipl_name = item.data(Qt.ItemDataRole.UserRole)
         hidden = ipl_name in getattr(self, '_hidden_ipls', set())
         new_hidden = not hidden
+        if not new_hidden:
+            self._ensure_ipl_loaded(ipl_name)
         item.setIcon(self._eye_closed_icon if new_hidden else self._eye_open_icon)
         item.setToolTip(f"Show {ipl_name}" if new_hidden else f"Hide {ipl_name}")
         name_item = table.item(row, 1)
         if name_item is not None:
             self._style_ipl_name_item(name_item, new_hidden)
         self._toggle_ipl_section(ipl_name, new_hidden)
+
+    def _ensure_ipl_loaded(self, display_name): #vers 1
+        """Actually load one IPL's content on demand, the first time
+        it's toggled visible - parses its instances (GTAWorldLoader.
+        load_ipl_by_name), refreshes self._all_instances/Object Browser
+        with the newly-added data, and pre-loads (with a progress
+        dialog scoped to just this IPL's models, not the whole world)
+        the geometry/textures those new instances reference. A no-op
+        if this IPL was already loaded (or lazy loading isn't active
+        at all, e.g. a non-Map-Workshop caller)."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None or not getattr(loader, 'lazy_ipl_loading', False):
+            return
+        stem = getattr(self, '_ipl_display_to_stem', {}).get(display_name)
+        if stem is None or stem in loader.loaded_ipls:
+            return   # not a lazily-tracked IPL, or already loaded
+
+        before_count = len(loader.instances)
+        ok = loader.load_ipl_by_name(stem)
+        if not ok:
+            self._set_status(f"Failed to load {display_name}")
+            return
+        new_instances = loader.instances[before_count:]
+
+        self._all_instances = list(loader.instances)
+        self._populate_object_browser(loader)
+
+        model_cache = getattr(self, '_model_cache', None)
+        if model_cache is not None and new_instances:
+            self._preload_world_assets(
+                loader, model_cache, instances=new_instances,
+                title=f"Loading {display_name}…")
 
     def _style_ipl_name_item(self, name_item, hidden): #vers 3
         """Grey out a disabled/hidden IPL's name text, per Keith's
