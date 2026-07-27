@@ -634,6 +634,36 @@ already wired for the other ribbons) - the harder part is likely the
 nudge controls' own internal layout adapting to whichever orientation
 the ribbon ends up in.
 
+### Control Panel dock - replicates MooMapper's layout, foundation to build on
+
+Per Keith: "can we mimic the show / hide control panel, as a panel in
+map editor, i think if we replicate all the functions, get this
+working, then we can build on this later." New dock (Object Browser/
+IPL Sections group, split below rather than tabbed - MooMapper itself
+shows it as a separate area). Section by section against MooMapper's
+own Control Panel:
+
+REAL/working: Position (X,Y,Z) + Move There (direct type-in camera
+jump - also closes the gap noted in the earlier MooMapper comparison
+below); Reset View (MapViewport.reset_view() already existed, had no
+UI trigger); Zoom +/-; Wireframe Mode checkbox (mirrors the Render
+Mode ribbon dropdown, kept in sync both ways rather than being a
+second independent control); Background colour dropdown (added
+MapViewport.set_bg_color_override() - the state already existed,
+had no setter); Dragging Controls legend (reflects actual current
+controls).
+
+STUB (tooltips say so explicitly, no silent pretending): Time dropdown
+(no day/night simulation - would matter for TOBJ rendering); Enable
+Textures checkbox (texture binding for mesh rendering isn't wired up
+yet - see the real DFF/TXD geometry item above); Alpha Blending
+checkbox; First Person checkbox (no first-person nav mode, only
+orbit/pan); Background Map checkbox (no reference map image support);
+"Normal Mode" dropdown (MooMapper shows this but its exact purpose
+wasn't confirmed from the reference screenshot alone - worth asking
+Keith what it actually does in the original before building anything
+for it).
+
 ## July 2026 - Next up: DP5 Workshop
 
 ### DP5 Workshop - ribbon rebuild + sidebar sectioning
