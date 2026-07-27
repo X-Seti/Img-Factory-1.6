@@ -356,13 +356,24 @@ side format confirmed empirically, not from documentation:
    - **Textures** - ModelCache.get_textures() exists and is tested,
      but isn't wired to actual GL texture creation/binding yet; meshes
      currently render untextured (flat grey) regardless of mode.
-   - **Performance/culling** - flagged honestly in the code: per-
-     instance draw calls for real geometry are meaningfully more
-     expensive than the old single-batch point rendering. Not an
-     issue yet since no real IMG archives have been tested at GTASOL's
-     full ~50k instance scale, but worth watching - distance/frustum-
-     based visibility culling would be the next step if it comes up
-     in practice.
+   - **Performance/culling** - the "not an issue yet" concern flagged
+     here turned out to matter sooner than expected: Keith reported the
+     app "seems to hang loading game data" - the lazy-loading design
+     meant the first render frame after a world load could
+     synchronously load+parse potentially thousands of distinct models
+     in one blocking call with zero feedback. FIXED (not just worked
+     around): geometry/texture loading for every distinct referenced
+     model now happens eagerly right after a world loads, via a real
+     QProgressDialog showing the current model/texture/IPL name live
+     (MapWorkshop._preload_world_assets), cancellable, and only shows
+     up at all past a 500ms minimum duration so genuinely fast loads
+     aren't interrupted by a flashing dialog. Cancelling only skips
+     pre-loading - the world's own data is unaffected, and any model
+     not pre-loaded still loads lazily on first actual render (the
+     original fallback behaviour). Distance/frustum-based visibility
+     culling (per-frame cost, not one-time load cost) is still an open
+     question if it comes up in practice at full GTASOL scale, but the
+     specific "looks like a hang" symptom is resolved.
    - Found and isolated a separate, real bug along the way (not
      fixed, out of scope): IMGFile.create_new()/add_entry() for
      VERSION_2 archives don't round-trip correctly on re-open
