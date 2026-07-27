@@ -943,6 +943,20 @@ class GTAWorldLoader: #vers 3
         # load()/load_from_dat() - _reset() doesn't touch this, so it
         # survives across those calls.
         self.ipl_filter: Optional[set] = None
+        # Per Keith's MooMapper comparison: it lists every available IPL
+        # path immediately but doesn't actually parse/load an IPL's
+        # content until the user asks for it. Opt-in (default False,
+        # existing eager-load-everything behaviour unchanged) since
+        # other callers (DAT Browser, Dump TXDs) may depend on every
+        # instance actually being loaded after load()/load_from_dat()
+        # returns - only Map Workshop sets this True. When True,
+        # _process_dat only discovers/records available IPLs (into
+        # available_ipls) instead of parsing them; load_ipl_by_name()
+        # then does the actual, real load for one specific IPL on
+        # demand, exactly matching MooMapper's model.
+        self.lazy_ipl_loading: bool = False
+        self.available_ipls: Dict[str, DATEntry] = {}   # lowercase stem -> DATEntry
+        self.loaded_ipls: set = set()   # lowercase stems already loaded on demand
 
     def load(self, game_root: str, progress_cb=None) -> bool: #vers 5
         """Full load from a game root directory.
@@ -1068,8 +1082,14 @@ class GTAWorldLoader: #vers 3
             self._load_ide(entry, phase)
         for entry in ipl_list:
             done += 1
-            self._progress(done, total, f"IPL: {os.path.basename(entry.path)}")
-            self._load_ipl(entry, phase)
+            stem = os.path.splitext(os.path.basename(entry.abs_path))[0].lower()
+            if self.lazy_ipl_loading:
+                self._progress(done, total, f"Found IPL: {os.path.basename(entry.path)}")
+                self.available_ipls[stem] = entry
+                self.load_log.append((phase, "IPL-available", entry.abs_path, entry.exists))
+            else:
+                self._progress(done, total, f"IPL: {os.path.basename(entry.path)}")
+                self._load_ipl(entry, phase)
         # Log COLFILE entries so DAT Browser tree can display and open them
         for entry in dat.col_entries():
             ok = os.path.isfile(entry.abs_path)
@@ -1109,6 +1129,36 @@ class GTAWorldLoader: #vers 3
         self.stats.errors   += parser.stats.errors
         self.stats.warnings += parser.stats.warnings
 
+    def load_ipl_by_name(self, ipl_stem: str) -> bool: #vers 1
+        """Actually parse and load one specific IPL's content, given its
+        lowercase stem (no extension) as it appears in available_ipls -
+        the on-demand counterpart to lazy_ipl_loading's discovery-only
+        _process_dat pass. Adds the resulting instances/zones/culls to
+        this loader's own lists (so everything downstream - Object
+        Browser, World View, LOD pairing, etc - sees them exactly as if
+        they'd been loaded eagerly), and records the stem in
+        loaded_ipls so it isn't reloaded (or double-counted) if
+        requested again. Returns False if the stem isn't in
+        available_ipls at all, or its file doesn't exist on disk."""
+        if ipl_stem in self.loaded_ipls:
+            return True   # already loaded, nothing to do
+        entry = self.available_ipls.get(ipl_stem)
+        if entry is None:
+            return False
+        if not entry.exists:
+            self.stats.warnings.append(f"IPL missing: {entry.path}")
+            return False
+        parser = IPLParser(self.game)
+        ok = parser.parse(entry.abs_path)
+        self.load_log.append(("on-demand", "IPL", entry.abs_path, ok))
+        self.instances += parser.instances
+        self.zones     += parser.zones
+        self.culls     += parser.culls
+        self.stats.errors   += parser.stats.errors
+        self.stats.warnings += parser.stats.warnings
+        self.loaded_ipls.add(ipl_stem)
+        return ok
+
     def _load_ipl(self, entry: DATEntry, phase: str): #vers 2
         if not entry.exists:
             self.stats.warnings.append(f"[{phase}] IPL missing: {entry.path}")
@@ -1123,10 +1173,11 @@ class GTAWorldLoader: #vers 3
         self.stats.errors   += parser.stats.errors
         self.stats.warnings += parser.stats.warnings
 
-    def _reset(self): #vers 3
+    def _reset(self): #vers 4
         self.objects.clear(); self.effects_2dfx.clear()
         self.timed_objects.clear(); self.instances.clear()
         self.zones.clear();   self.culls.clear()
+        self.available_ipls.clear(); self.loaded_ipls.clear()
         self.load_log.clear(); self.stats = ParseStats()
 
     def _progress(self, cur: int, total: int, msg: str): #vers 1
