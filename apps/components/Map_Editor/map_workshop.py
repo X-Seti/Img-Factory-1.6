@@ -79,7 +79,7 @@ from PyQt6.QtWidgets import (
     QFormLayout, QFontComboBox, QSlider, QSizePolicy,
     QAbstractItemView, QMenu, QMenuBar, QStatusBar,
     QFileDialog, QColorDialog, QGridLayout, QInputDialog, QDockWidget,
-    QTableWidget, QTableWidgetItem, QHeaderView, QDoubleSpinBox
+    QTableWidget, QTableWidgetItem, QHeaderView, QDoubleSpinBox, QProgressDialog
 )
 from PyQt6.QtCore import Qt, QPoint, QPointF, QRect, pyqtSignal, QSize, QTimer, QAbstractTableModel
 from PyQt6.QtGui import (
@@ -12339,6 +12339,7 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             model_cache = ModelCache()
             self._model_cache = model_cache
         model_cache.index_img_files(loader.get_img_paths())
+        self._preload_world_assets(loader, model_cache)
 
         visible = self._apply_lod_filter(loader.instances)
         for pane in getattr(self, '_world_panes', []):
@@ -12357,6 +12358,55 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         per MapViewport.set_render_mode's own docstring."""
         for pane in getattr(self, '_world_panes', []):
             pane.set_render_mode(mode)
+
+    def _preload_world_assets(self, loader, model_cache): #vers 1
+        """Eagerly load+parse (and cache) geometry and textures for
+        every distinct model referenced by any loaded instance, with a
+        progress dialog showing what's currently being processed.
+
+        Per Keith's report: the app "seems to hang" loading game data -
+        the actual cause was that geometry/texture loading was fully
+        lazy (see ModelCache/_draw_instances), meaning the FIRST render
+        frame after a world loads could synchronously load and parse
+        potentially thousands of distinct models with zero feedback,
+        which looks exactly like a freeze even though it's genuinely
+        just working. This makes that loading an explicit, visible,
+        cancellable phase instead - QProgressDialog processes Qt events
+        internally on setValue(), so the UI stays responsive throughout
+        rather than a single long blocking call."""
+        # Deduplicate by model_name - many instances share one model,
+        # no need to load it more than once.
+        seen_models = {}
+        for inst in loader.instances:
+            if inst.model_name not in seen_models:
+                obj = loader.get_object(inst.model_id)
+                txd_name = obj.txd_name if obj else ""
+                seen_models[inst.model_name] = (txd_name, inst.source_ipl)
+        if not seen_models:
+            return
+
+        items = list(seen_models.items())
+        progress = QProgressDialog(
+            "Loading world assets…", "Cancel", 0, len(items), self)
+        progress.setWindowTitle("Loading Meshes and Textures")
+        progress.setMinimumDuration(500)   # don't flash up for fast loads
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+
+        loaded_txds = set()
+        for i, (model_name, (txd_name, source_ipl)) in enumerate(items):
+            if progress.wasCanceled():
+                self._set_status(
+                    f"World asset loading cancelled after {i} of {len(items)} models "
+                    f"- remaining models will still load on demand while browsing")
+                break
+            progress.setLabelText(
+                f"Model: {model_name}\nTexture: {txd_name or '(none)'}\nIPL: {source_ipl}")
+            progress.setValue(i)
+            model_cache.get_geometry(model_name)
+            if txd_name and txd_name not in loaded_txds:
+                model_cache.get_textures(txd_name)
+                loaded_txds.add(txd_name)
+        progress.setValue(len(items))
 
     def _toggle_cull_boxes(self, checked): #vers 1
         """Show/hide wireframe cull zone boxes across all World View
