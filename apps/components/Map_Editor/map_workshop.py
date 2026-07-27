@@ -12306,9 +12306,18 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._lod_pairs = loader.resolve_lod_pairs()
         self._lod_overrides = {}
         self._lod_display_mode = 'normal'
+
+        model_cache = getattr(self, '_model_cache', None)
+        if model_cache is None:
+            from apps.components.Map_Editor.depends.model_cache import ModelCache
+            model_cache = ModelCache()
+            self._model_cache = model_cache
+        model_cache.index_img_files(loader.get_img_paths())
+
         visible = self._apply_lod_filter(loader.instances)
         for pane in getattr(self, '_world_panes', []):
             pane.set_instances(visible)
+            pane.set_model_cache(model_cache)
             pane.set_cull_boxes(loader.culls, getattr(self, '_cull_boxes_act', None) and
                                 self._cull_boxes_act.isChecked())
         self._populate_instance_list(_FilteredLoaderStub(visible, loader))

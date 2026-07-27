@@ -60,6 +60,10 @@ class MapViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._gizmo_pos = None      # (x, y, z) world position, or None
         self._culls = []            # list of cull dicts (center_x/y/z, width, height)
         self._show_culls = False
+        self._model_cache = None    # ModelCache, set via set_model_cache()
+        self._render_mode = 'solid' # 'solid' | 'semi' | 'wireframe' - only affects
+                                    # instances with real loaded geometry; instances
+                                    # falling back to point rendering are unaffected
         self._marker_size = 1.0
 
         # Camera - identical scheme to DFFViewport
@@ -333,44 +337,144 @@ class MapViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             glVertex3f(-size, 0, i); glVertex3f(size, 0, i)
         glEnd()
 
-    def _draw_instances(self): #vers 3
-        """Draw all loaded instance positions as points, via a single
-        glBegin(GL_POINTS)/glEnd block - not full 6-quad cubes, which
-        at 51,711 instances meant over 1.2 million individual
-        glVertex3f calls per frame and was the original cause of the
-        reported slowness. Real per-instance DFF/TXD geometry is the
-        proper long-term replacement for this whole method, once
-        that's built.
+    def set_model_cache(self, cache): #vers 1
+        """Set the ModelCache used to resolve real DFF/TXD geometry for
+        instances - without this, every instance falls back to point
+        rendering (the previous, only behaviour)."""
+        self._model_cache = cache
+        self.update()
 
-        Deliberately NOT using glVertexPointer/glDrawArrays/
-        glEnableClientState (client-side vertex arrays) here, even
-        though they'd be faster still - a real crash report showed
-        glVertexPointer returning None from PyOpenGL's late-binding on
-        actual hardware (that specific legacy client-array API not
-        exposed by the driver/context), which cascaded into a second
-        exception inside PyOpenGL's own error handling and a full
-        process abort/core dump - not something a try/except around
-        the call can safely catch, since the failure escalates past
-        normal Python exception handling. Plain glBegin/glEnd immediate
-        mode is already used elsewhere in this codebase (dff_viewport.py)
-        without issue, so it's the safer, more portable choice here even
-        at some cost to raw draw-call count."""
+    def set_render_mode(self, mode): #vers 1
+        """'solid' (default) | 'semi' (alpha-blended) | 'wireframe' -
+        only affects instances with real loaded geometry; instances
+        falling back to point rendering are unaffected by this."""
+        self._render_mode = mode
+        self.update()
+
+    def _draw_instances(self): #vers 4
+        """Draw every loaded instance - real DFF geometry (via
+        self._model_cache) where a model is available and loadable,
+        falling back to the existing batched point rendering (see the
+        long-standing note on _draw_instances vers 3 about why plain
+        glBegin/glEnd points, not glVertexPointer/glDrawArrays) for
+        everything else - unindexed models, parse failures, or no
+        ModelCache set at all.
+
+        Known limitation, not solved here: real geometry is drawn with
+        one glPushMatrix/transform/draw/glPopMatrix sequence PER
+        INSTANCE, which is far more expensive per-object than the
+        single batched glBegin/glEnd block point rendering uses. For a
+        world where most instances have loadable geometry (the common
+        case once a real IMG set is indexed), this could get slow at
+        GTASOL's ~50k instance scale - proper visibility culling
+        (distance/frustum-based) would be the next step if that
+        happens in practice, not attempted yet."""
+        cache = getattr(self, '_model_cache', None)
+        full_instances = getattr(self, '_full_instances', None)
+
+        if cache is None or not full_instances:
+            # No cache set, or this pane's instances aren't real
+            # IPLInstance objects (plain tuples with nothing to look
+            # up geometry for) - same behaviour as before.
+            self._draw_instances_as_points(getattr(self, '_vertex_array', None))
+            return
+
+        fallback_points = []   # (gx, gy, gz) for instances with no usable geometry
+        any_mesh_drawn = False
+        for inst in full_instances:
+            if inst is None:
+                continue
+            geo = cache.get_geometry(inst.model_name)
+            if geo is None or not geo.geometries:
+                fallback_points.append((inst.pos_x, inst.pos_z, inst.pos_y))
+                continue
+            self._draw_instance_mesh(inst, geo)
+            any_mesh_drawn = True
+
+        if fallback_points:
+            glColor3f(0.9, 0.5, 0.2)
+            glPointSize(max(1.0, min(8.0, self._marker_size)))
+            glBegin(GL_POINTS)
+            for gx, gy, gz in fallback_points:
+                glVertex3f(gx, gy, gz)
+            glEnd()
+
+    def _draw_instances_as_points(self, va): #vers 1
+        """The pre-mesh-rendering fallback path, unchanged - draws
+        every instance as a single batched point (see _draw_instances'
+        docstring for why glBegin/glEnd, not client-side arrays)."""
         glColor3f(0.9, 0.5, 0.2)
         glPointSize(max(1.0, min(8.0, self._marker_size)))
-
-        va = getattr(self, '_vertex_array', None)
         if va is not None and len(va):
             glBegin(GL_POINTS)
             for x, y, z in va.tolist():
                 glVertex3f(x, y, z)
             glEnd()
             return
-
         if self._instances:
             glBegin(GL_POINTS)
             for x, y, z, _name in self._instances:
                 glVertex3f(x, z, y)
             glEnd()
+
+    def _draw_instance_mesh(self, inst, geo): #vers 1
+        """Draw one instance's real DFF geometry, transformed by its
+        position/rotation(quaternion)/scale, respecting the current
+        render mode (solid/semi/wireframe). Untextured (flat grey) for
+        now - texture binding via self._model_cache.get_textures() is
+        the next piece, not done yet."""
+        import numpy as np
+        gx, gy, gz = inst.pos_x, inst.pos_z, inst.pos_y   # same Z-up->Y-up swap as points
+
+        x, y, z, w = inst.rot_x, inst.rot_y, inst.rot_z, inst.rot_w
+        xx, yy, zz = x*x, y*y, z*z
+        xy, xz, yz = x*y, x*z, y*z
+        wx, wy, wz = w*x, w*y, w*z
+        rot3 = np.array([
+            [1-2*(yy+zz), 2*(xy-wz),   2*(xz+wy)],
+            [2*(xy+wz),   1-2*(xx+zz), 2*(yz-wx)],
+            [2*(xz-wy),   2*(yz+wx),   1-2*(xx+yy)],
+        ])
+        # Embed the 3x3 rotation into a 4x4 matrix, column-major (OpenGL's
+        # own convention for glMultMatrixf) - column i of rot3 becomes
+        # the first 3 entries of column i here.
+        mat = np.identity(4, dtype=np.float32)
+        mat[0:3, 0:3] = rot3
+        gl_matrix = mat.flatten(order='F')   # column-major flattening
+
+        glPushMatrix()
+        glTranslatef(gx, gy, gz)
+        glMultMatrixf(gl_matrix)
+        glScalef(inst.scale_x, inst.scale_z, inst.scale_y)   # same axis swap as position
+
+        if self._render_mode == 'wireframe':
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
+            glDisable(GL_BLEND)
+        elif self._render_mode == 'semi':
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
+            glEnable(GL_BLEND)
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        else:  # solid
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
+            glDisable(GL_BLEND)
+
+        alpha = 0.45 if self._render_mode == 'semi' else 1.0
+        glColor4f(0.65, 0.65, 0.7, alpha)
+
+        for geometry in geo.geometries:
+            if not geometry.triangles or not geometry.vertices:
+                continue
+            glBegin(GL_TRIANGLES)
+            for tri in geometry.triangles:
+                for vi in (tri.v1, tri.v2, tri.v3):
+                    if 0 <= vi < len(geometry.vertices):
+                        v = geometry.vertices[vi]
+                        glVertex3f(v.x, v.y, v.z)
+            glEnd()
+
+        if self._render_mode == 'wireframe':
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)   # restore default
+        glPopMatrix()
 
     def _draw_cube(self, s): #vers 1
         h = s / 2.0
