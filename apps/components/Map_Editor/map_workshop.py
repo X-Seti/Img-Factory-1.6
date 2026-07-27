@@ -8030,6 +8030,32 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         cull_act.triggered.connect(self._toggle_cull_boxes)
         map_tools_ribbon.addAction(cull_act)
         self._cull_boxes_act = cull_act
+        map_tools_ribbon.addSeparator()
+
+        # Render Mode dropdown - Solid (default) / Semi / Wireframe -
+        # only affects instances with real loaded geometry (see
+        # MapViewport._draw_instance_mesh); instances falling back to
+        # point rendering are unaffected regardless of this setting.
+        render_mode_icon = self._render_variant_icon('cull_boxes', None, icon_sz,
+                                                      icon_color, has_menu=True)
+        render_mode_btn = QToolButton()
+        render_mode_btn.setIcon(render_mode_icon)
+        render_mode_btn.setText("Render")
+        render_mode_btn.setToolTip("Render mode for instances with real loaded\n"
+                                   "geometry - Solid / Semi(-transparent) / Wireframe")
+        render_mode_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        render_mode_menu = QMenu(render_mode_btn)
+        render_mode_group = QActionGroup(render_mode_btn)
+        render_mode_group.setExclusive(True)
+        for mode, label in (('solid', "Solid"), ('semi', "Semi"), ('wireframe', "Wireframe")):
+            act = render_mode_menu.addAction(label)
+            act.setCheckable(True)
+            act.setChecked(mode == 'solid')
+            render_mode_group.addAction(act)
+            act.triggered.connect(lambda checked=False, m=mode: self._set_render_mode(m))
+        render_mode_btn.setMenu(render_mode_menu)
+        map_tools_ribbon.addWidget(render_mode_btn)
+        self._render_mode_button = render_mode_btn
 
         # Active Zoom - toggle button for follow-cursor high-zoom mode,
         # attached to whichever ribbon Zoom itself ended up in
@@ -12324,6 +12350,13 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._populate_ipl_sections(loader)
         self._populate_object_browser(loader)
         QMessageBox.information(self, source_desc, loader.get_summary())
+
+    def _set_render_mode(self, mode): #vers 1
+        """Set the Solid/Semi/Wireframe render mode across all World
+        View panes - only affects instances with real loaded geometry,
+        per MapViewport.set_render_mode's own docstring."""
+        for pane in getattr(self, '_world_panes', []):
+            pane.set_render_mode(mode)
 
     def _toggle_cull_boxes(self, checked): #vers 1
         """Show/hide wireframe cull zone boxes across all World View
