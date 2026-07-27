@@ -13287,6 +13287,7 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         if obj is None:
             return
 
+        #TODO; Sizing settings for inst and object browser and spacing.
         menu = QMenu(view)
         is_fav = obj.model_id in model._favourites
         fav_act = menu.addAction("Remove from Favourites" if is_fav else "Add to Favourites")
