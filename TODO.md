@@ -356,24 +356,35 @@ side format confirmed empirically, not from documentation:
    - **Textures** - ModelCache.get_textures() exists and is tested,
      but isn't wired to actual GL texture creation/binding yet; meshes
      currently render untextured (flat grey) regardless of mode.
-   - **Performance/culling** - the "not an issue yet" concern flagged
-     here turned out to matter sooner than expected: Keith reported the
-     app "seems to hang loading game data" - the lazy-loading design
-     meant the first render frame after a world load could
-     synchronously load+parse potentially thousands of distinct models
-     in one blocking call with zero feedback. FIXED (not just worked
-     around): geometry/texture loading for every distinct referenced
-     model now happens eagerly right after a world loads, via a real
-     QProgressDialog showing the current model/texture/IPL name live
-     (MapWorkshop._preload_world_assets), cancellable, and only shows
-     up at all past a 500ms minimum duration so genuinely fast loads
-     aren't interrupted by a flashing dialog. Cancelling only skips
-     pre-loading - the world's own data is unaffected, and any model
-     not pre-loaded still loads lazily on first actual render (the
-     original fallback behaviour). Distance/frustum-based visibility
-     culling (per-frame cost, not one-time load cost) is still an open
-     question if it comes up in practice at full GTASOL scale, but the
-     specific "looks like a hang" symptom is resolved.
+   - **Performance/culling** - went through two iterations before
+     landing on the right approach. First attempt: geometry/texture
+     loading for every distinct referenced model happened eagerly
+     right after a world loaded, via a QProgressDialog (MapWorkshop.
+     _preload_world_assets) - this fixed the original reported hang
+     (a silent, unexplained freeze) but Keith then reported it as
+     "very slow scanning" and pointed out it should only scan a
+     specific IPL's models when that IPL is actually loaded, not the
+     whole world at startup - exactly matching how MooMapper itself
+     behaves (lists every IPL path immediately, loads nothing until
+     the user clicks one). FIXED PROPERLY: GTAWorldLoader gained opt-
+     in lazy_ipl_loading (default off, so DAT Browser/Dump TXDs and
+     other callers depending on eager loading are unaffected) -
+     Map Workshop's own load paths now discover every IPL upfront
+     (available_ipls) without parsing any of their content, IPL
+     Sections lists them all immediately (all starting unloaded/
+     hidden, matching MooMapper's default), and toggling one visible
+     for the first time (_ensure_ipl_loaded) triggers the actual
+     on-demand parse (load_ipl_by_name) plus the same progress-dialog
+     asset pre-load, now correctly scoped to just that IPL's own
+     models instead of the whole world. Verified end to end against
+     real test data: loading a world now starts with zero instances
+     parsed at all; toggling one IPL visible loads exactly its own
+     instances and pre-loads exactly its own models, while every other
+     discovered IPL remains completely untouched. Per-frame rendering
+     cost (as opposed to one-time load cost) at full GTASOL scale is
+     still an open question if it comes up in practice, but the
+     loading-time concern is now resolved at its root rather than
+     patched over.
    - Found and isolated a separate, real bug along the way (not
      fixed, out of scope): IMGFile.create_new()/add_entry() for
      VERSION_2 archives don't round-trip correctly on re-open
