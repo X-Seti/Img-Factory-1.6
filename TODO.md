@@ -339,30 +339,69 @@ side format confirmed empirically, not from documentation:
      reasonable (bounding-box centre is the least surprising choice)
      and let Keith redirect if that's wrong once this is actually built.
 
-1. **Real per-instance DFF/TXD geometry** (the big one) - replace
-   MapViewport's placeholder marker cubes with actual model rendering:
+1. **Real per-instance DFF/TXD geometry** (the big one) - MAJOR
+   PROGRESS this session: ModelCache (apps/components/Map_Editor/
+   depends/model_cache.py) indexes IMG archives and lazily loads/
+   caches DFF geometry + TXD textures by name; MapViewport now renders
+   real meshes (transformed by position/quaternion rotation/scale)
+   with Solid/Semi/Wireframe modes (a real ribbon dropdown, not a
+   stub), falling back to the existing point/dot rendering for any
+   instance whose model isn't indexed or fails to parse - exactly what
+   Keith asked for ("render meshes and textures, show them as solid,
+   semi, wireframe, by centre pivot (dot) like it is now" for the
+   fallback case). Verified against a real, hand-crafted, byte-valid
+   IMG archive through the full real load pipeline, not just mocks.
+
+   STILL NOT DONE:
+   - **Textures** - ModelCache.get_textures() exists and is tested,
+     but isn't wired to actual GL texture creation/binding yet; meshes
+     currently render untextured (flat grey) regardless of mode.
+   - **Performance/culling** - flagged honestly in the code: per-
+     instance draw calls for real geometry are meaningfully more
+     expensive than the old single-batch point rendering. Not an
+     issue yet since no real IMG archives have been tested at GTASOL's
+     full ~50k instance scale, but worth watching - distance/frustum-
+     based visibility culling would be the next step if it comes up
+     in practice.
+   - Found and isolated a separate, real bug along the way (not
+     fixed, out of scope): IMGFile.create_new()/add_entry() for
+     VERSION_2 archives don't round-trip correctly on re-open
+     (misdetected as VERSION_1, or found a single entry with an
+     absurd multi-terabyte size when forced to VERSION_2) - only the
+     reading path was needed and confirmed correct here, via a hand-
+     crafted file bypassing the creator entirely.
+
+   Original plan items below, several now done/superseded by the above:
    - Resolve each IPLInstance's model_name -> its DFF file, via the
      IMG(s) GTAWorldLoader's load_log already identified as involved
      (or from a user-selected/detected set of game IMGs) - reuse
      apps/methods/img_core_classes.py (IMGEntry) rather than writing
-     new IMG-reading code.
+     new IMG-reading code. DONE - GTAWorldLoader.get_img_paths() feeds
+     ModelCache.index_img_files().
    - Load geometry via apps/methods/dff_parser.py (load_dff) and
      textures via apps/methods/txd_parser.py (load_txd/parse_txd) -
      both already handle this well, including DXT decompression and
-     multiple platforms.
+     multiple platforms. DONE for geometry (via DFFParser directly on
+     extracted bytes, not load_dff which expects a standalone file
+     path); texture parsing (parse_txd) is wired into ModelCache but
+     not yet used for actual rendering.
    - Cache loaded geometry/textures by model/TXD name - many instances
-     share the same model, don't reload per-instance.
+     share the same model, don't reload per-instance. DONE.
    - Apply each instance's position + quaternion rotation (already
      parsed into IPLInstance) as the per-instance world transform when
      drawing - conceptually close to VehicleViewport's
      load_all_geometries, which already does per-part world transforms
      from a frame hierarchy; here the transform comes from the IPL
-     instance instead.
+     instance instead. DONE, including scale (added scale_x/y/z to
+     IPLInstance this session too, for VC's confirmed 13-field format).
    - Do this incrementally - start with just the FIRST few loaded
      instances rendering correctly before trying to handle a whole
      city's worth at once (performance/culling is a separate concern
-     to tackle after correctness).
+     to tackle after correctness). Followed - correctness confirmed
+     first via a single hand-crafted test model before considering
+     the scale/culling question above.
    - **VC-specific gotcha, confirmed against Keith's real default.dat/
+
      gta_vc.dat**: default.dat references some TXD/DFF files directly
      via TEXDICTION/MODELFILE directives (generic wheel/aircraft
      models+textures), not through an IMG archive at all - these are
