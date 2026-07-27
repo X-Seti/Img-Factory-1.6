@@ -12660,7 +12660,7 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
         header.setStretchLastSection(False)
-        table.setColumnWidth(0, 22)
+        table.setColumnWidth(0, 18)
         saved_widths = self.map_settings.get('ipl_sections_column_widths') or []
         if len(saved_widths) >= 2:
             table.setColumnWidth(1, saved_widths[1])
@@ -12668,7 +12668,12 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         header.sectionResized.connect(self._on_ipl_sections_column_resized)
         table.verticalHeader().setVisible(False)
-        table.verticalHeader().setDefaultSectionSize(20)
+        #table.verticalHeader().setDefaultSectionSize(20) # TODO; need value for height.
+        IPL_SECTION_ROW_HEIGHT = 20 # Idea one.
+
+        table.verticalHeader().setDefaultSectionSize(
+            IPL_SECTION_ROW_HEIGHT
+        )
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         table.setShowGrid(False)
         table.setToolTip("Toggle which IPL files' placements are shown in World View")
@@ -12717,6 +12722,9 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         icon_color = self._get_icon_color()
         icon_sz = 16
+
+        icon_cell_sz = 18 # TODO; Box for eye slightly wider then icon.
+
         self._eye_open_icon = self._render_variant_icon('eye_visible', None, icon_sz,
                                                          icon_color, has_menu=False)
         self._eye_closed_icon = self._render_variant_icon('eye_hidden', None, icon_sz,
@@ -13044,9 +13052,32 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         from PyQt6.QtWidgets import QTableView, QLineEdit, QPushButton, QButtonGroup
         from apps.methods.imgfactory_svg_icons import get_add_icon, get_trash_icon, get_rename_icon
 
+        OBJECT_BROWSER_ROW_HEIGHT = 18
+        OBJECT_BROWSER_ICON_SIZE = 18
+        OBJECT_BROWSER_BUTTON_W = 18
+        OBJECT_BROWSER_BUTTON_H = 18
         panel = QWidget()
-        lay = QVBoxLayout(panel)
-        lay.setContentsMargins(4, 4, 4, 4)
+        #lay = QVBoxLayout(panel) # TODO; Testing
+
+        main_layout = QHBoxLayout(panel)
+        main_layout.setContentsMargins(4, 4, 4, 4)
+
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+
+        left_panel = QWidget()
+        left_layout = QVBoxLayout(left_panel)
+        left_layout.setContentsMargins(0,0,0,0)
+
+        right_panel = QWidget()
+        right_layout = QVBoxLayout(right_panel)
+        right_layout.setContentsMargins(0,0,0,0)
+
+        splitter.addWidget(left_panel)
+        splitter.addWidget(right_panel)
+
+        main_layout.addWidget(splitter)
+
+        left_layout.setContentsMargins(4, 4, 4, 4)
 
         # Add/Delete/Rename icon row - previously these actions only
         # existed as right-click context menu entries with no visible
@@ -13055,10 +13086,18 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         # SVG icon buttons now, operating on whichever row is currently
         # selected; disabled entirely when nothing is selected.
         icon_color = self._get_icon_color()
+        #
+
+        search = QLineEdit() # TODO; search should be on the same row as Object Browser [Search] to save space.
+        search.setPlaceholderText("Search objects…")
+        search.textChanged.connect(self._on_object_search_changed)
+        left_layout.addWidget(search)
+
+        self._object_search_edit = search
         action_row_widget = QWidget()
         action_row = QHBoxLayout(action_row_widget)
         action_row.setContentsMargins(0, 0, 0, 0)
-        self._ob_add_btn = QPushButton(get_add_icon(18, icon_color), "")
+        self._ob_add_btn = QPushButton(get_add_icon(OBJECT_BROWSER_ICON_SIZE, icon_color), "")
         self._ob_add_btn.setToolTip("Add Instance Here - place another copy of the\n"
                                     "selected model at the origin")
         self._ob_add_btn.clicked.connect(self._on_object_browser_add_clicked)
@@ -13069,29 +13108,28 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._ob_rename_btn.setToolTip("Rename the selected object")
         self._ob_rename_btn.clicked.connect(self._on_object_browser_rename_clicked)
         for btn in (self._ob_add_btn, self._ob_del_btn, self._ob_rename_btn):
-            btn.setFixedSize(28, 24)
+            btn.setFixedSize(
+            OBJECT_BROWSER_BUTTON_W, OBJECT_BROWSER_BUTTON_H
+            )
             btn.setEnabled(False)
             action_row.addWidget(btn)
+
         action_row.addStretch()
         # Only shown when docked - in standalone mode the titlebar's own
         # Add/Del/Rename icons cover this, so showing both would be
         # redundant (per Keith's explicit request).
         action_row_widget.setVisible(not self.standalone_mode)
         self._ob_action_row_widget = action_row_widget
-        lay.addWidget(action_row_widget)
-
-        search = QLineEdit()
-        search.setPlaceholderText("Search objects…")
-        search.textChanged.connect(self._on_object_search_changed)
-        lay.addWidget(search)
-        self._object_search_edit = search
+        left_layout.addWidget(action_row_widget)
 
         btn_row = QHBoxLayout()
+
         group = QButtonGroup(panel)
         group.setExclusive(True)
         self._object_mode_buttons = {}
-        for mode, label in (('all', "All"), ('most_used', "Most Used"),
-                            ('favourites', "Favourites"), ('generic', "Generic")):
+        for mode, label in (('all', "All"), ('most_used', "Most Used"), ('favourites', "Favourites"), ('generic', "Generic")):
+        #TODO; these buttons should be on the same line as [add] [del] [rename] as icons, with tooltips.
+        #But these buttons only remain visible.
             btn = QPushButton(label)
             btn.setCheckable(True)
             btn.setChecked(mode == 'all')
@@ -13099,9 +13137,12 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             group.addButton(btn)
             btn_row.addWidget(btn)
             self._object_mode_buttons[mode] = btn
-        lay.addLayout(btn_row)
+        left_layout.addLayout(btn_row)
 
         view = QTableView()
+        view.verticalHeader().setDefaultSectionSize(
+            OBJECT_BROWSER_ROW_HEIGHT
+        )
         header = view.horizontalHeader()
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         header.sectionResized.connect(self._on_object_browser_column_resized)
@@ -13122,11 +13163,11 @@ class MapWorkshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         if sel_model is not None:
             sel_model.currentRowChanged.connect(
                 lambda cur, prev: self._on_object_row_selected(cur.row()))
-        lay.addWidget(view)
+        left_layout.addWidget(view)
         self._object_browser_view = view
         self._object_browser_model = model
 
-        dock = QDockWidget("Object Browser", self)
+        dock = QDockWidget("Object Browser", self) # TODO; need height value and a way to adjust cell size
         dock.setObjectName("Object Browser")
         dock.setWidget(panel)
         dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
