@@ -191,6 +191,13 @@ class MapViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         pal = self.palette()
         return pal.color(pal.ColorRole.Base)
 
+    def set_bg_color_override(self, rgb_or_none): #vers 1
+        """Set (or clear, if None) a background colour override -
+        rgb_or_none is an (r,g,b) 0-255 tuple, or None to use the
+        palette default. Existed as bare state with no setter before."""
+        self._bg_color_override = rgb_or_none
+        self.update()
+
     def initializeGL(self): #vers 1
         if not OPENGL_AVAILABLE: return
         bg = self._get_bg_color()
