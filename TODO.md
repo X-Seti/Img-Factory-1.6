@@ -385,6 +385,26 @@ side format confirmed empirically, not from documentation:
      still an open question if it comes up in practice, but the
      loading-time concern is now resolved at its root rather than
      patched over.
+   - **Per-IPL loading result reporting**: follow-up to the above -
+     Keith described the exact format he wanted ("path/airport.ipl
+     loaded - no errors" / "path/airportN.ipl loaded - 4 errors found,
+     check log added to the maps folder"). load_ipl_by_name now
+     returns a real IPLLoadResult (error/warning counts and messages
+     specific to that one IPL) instead of a bare bool; _ensure_ipl_
+     loaded reports this per-IPL and writes an actual .log file
+     alongside the IPL when there's anything to report (combining
+     errors AND warnings for this check - a skipped/malformed line is
+     tracked as a warning by the parser, not a hard error, but is still
+     worth surfacing to the user). Verified against a genuinely
+     malformed test line, not just success-path assumptions.
+   - **STILL NOT DONE**: the upfront "Load Options" dialog Keith also
+     described as part of the same idea - a mesh-only vs mesh+textures
+     choice, plus a checklist of the root .dat file's contents (every
+     discovered IPL, matching MooMapper's own "select which files to
+     load" pattern) shown BEFORE any loading begins, with a Continue
+     button to actually start. This session covered the per-IPL
+     feedback/logging half; the pre-load selection screen itself is a
+     separate, additional piece not started.
    - Found and isolated a separate, real bug along the way (not
      fixed, out of scope): IMGFile.create_new()/add_entry() for
      VERSION_2 archives don't round-trip correctly on re-open
