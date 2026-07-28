@@ -8325,10 +8325,11 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         table = QTableWidget(0, 2)
         table.setHorizontalHeaderLabels(["", "IPL File"])
         header = table.horizontalHeader()
+        header.setMinimumSectionSize(16)
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
         header.setStretchLastSection(False)
-        table.setColumnWidth(0, 22)
+        table.setColumnWidth(0, 18)
         saved_widths = self.map_settings.get('ipl_sections_column_widths') or []
         if len(saved_widths) >= 2:
             table.setColumnWidth(1, saved_widths[1])
@@ -8336,11 +8337,15 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
             header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         header.sectionResized.connect(self._on_ipl_sections_column_resized)
         table.verticalHeader().setVisible(False)
-        IPL_SECTION_ROW_HEIGHT = 18   # matches Object Browser's row height for consistency
+        from PyQt6.QtGui import QFontMetrics
+        text_h = QFontMetrics(table.font()).height()
+        IPL_SECTION_ROW_HEIGHT = text_h + 2   # per Keith: row height = text height + 2px
+        table.verticalHeader().setMinimumSectionSize(IPL_SECTION_ROW_HEIGHT)
 
         table.verticalHeader().setDefaultSectionSize(
             IPL_SECTION_ROW_HEIGHT
         )
+        header.setFixedHeight(QFontMetrics(header.font()).height() + 2)
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         table.setShowGrid(False)
         table.setToolTip("Toggle which IPL files' placements are shown in World View")
@@ -8473,6 +8478,11 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         idx = order.index(ipl_name) if ipl_name in order else -1
 
         menu = QMenu(table)
+        is_hidden = ipl_name in getattr(self, '_hidden_ipls', set())
+        vis_act = menu.addAction("Show" if is_hidden else "Hide")
+        vis_act.triggered.connect(
+            lambda checked=False, r=index.row(): self._on_ipl_section_cell_clicked(r, 0))
+        menu.addSeparator()
         up_act = menu.addAction("Move Up")
         up_act.setEnabled(idx > 0)
         up_act.triggered.connect(lambda checked=False, n=ipl_name: self._move_ipl_section(n, -1))
@@ -8716,7 +8726,6 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         from PyQt6.QtWidgets import QTableView, QLineEdit, QPushButton, QButtonGroup
         from apps.methods.imgfactory_svg_icons import get_add_icon, get_trash_icon, get_rename_icon
 
-        OBJECT_BROWSER_ROW_HEIGHT = 18
         OBJECT_BROWSER_ICON_SIZE = 18
         OBJECT_BROWSER_BUTTON_W = 18
         OBJECT_BROWSER_BUTTON_H = 18
@@ -8815,10 +8824,17 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         left_layout.addWidget(top_row_widget)
 
         view = QTableView()
+        from PyQt6.QtGui import QFontMetrics
+        OBJECT_BROWSER_ROW_HEIGHT = QFontMetrics(view.font()).height() + 2   # text height + 2px
+        view.verticalHeader().setMinimumSectionSize(OBJECT_BROWSER_ROW_HEIGHT)
         view.verticalHeader().setDefaultSectionSize(
             OBJECT_BROWSER_ROW_HEIGHT
         )
         header = view.horizontalHeader()
+        header.setFixedHeight(QFontMetrics(header.font()).height() + 2)
+        header.setMinimumSectionSize(16)   # Qt's own default was silently clamping the narrow ★/ID widths upward
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         header.sectionResized.connect(self._on_object_browser_column_resized)
         view.verticalHeader().setVisible(False)
@@ -8829,6 +8845,13 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         view.customContextMenuRequested.connect(self._on_object_browser_context_menu)
         model = _ObjectBrowserModel()
         view.setModel(model)
+        # Narrow defaults for ★/ID (per Keith: "Fav * cell needs to be
+        # narrow, 5px of the ID, Model should fit the name") - just
+        # enough to show a star glyph and a typical 4-5 digit model ID,
+        # freeing the rest of the row width for the Stretch-mode Model
+        # column. Saved widths (if any) override these below.
+        view.setColumnWidth(0, 20)
+        view.setColumnWidth(1, 45)
         saved_widths = self.map_settings.get('object_browser_column_widths') or []
         for col, width in enumerate(saved_widths):
             if col < model.columnCount() and col != 2:   # 2 (Model) stays Stretch
