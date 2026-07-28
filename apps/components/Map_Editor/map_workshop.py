@@ -2579,28 +2579,35 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         if world_dock is not None:
             outer_mw.splitDockWidget(world_dock, object_browser_dock, Qt.Orientation.Vertical)
 
-        # IPL Sections dock - tabbed with Object Browser rather than
+        # Editing Panel dock (IDE/IPL/DAT/IMG tabs) - replaces the
+        # previous standalone IPL Sections dock, which is now the
+        # [IPL] tab inside this. Tabbed with Object Browser rather than
         # split alongside it (only one visible at a time via the tab
         # strip) - per Keith's "compact, use the area logically"
-        # request, and now a real QDockWidget with its own tear-off/
-        # float affordance (was previously a plain widget embedded in
-        # the central canvas layout, which is why it had lost that
-        # capability - it structurally couldn't have it there).
-        ipl_sections_dock = self._create_ipl_sections_panel()
-        outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, ipl_sections_dock)
-        outer_mw.tabifyDockWidget(object_browser_dock, ipl_sections_dock)
+        # request, matching the same arrangement the old IPL Sections
+        # dock had.
+        editing_panel_dock = self._create_editing_panel_dock()
+        outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, editing_panel_dock)
+        outer_mw.tabifyDockWidget(object_browser_dock, editing_panel_dock)
         object_browser_dock.raise_()
+
+        # IPL Inst File dock - new, takes the old IPL Sections dock's
+        # former physical location (stacked below Object Browser/
+        # Editing Panel) - shows the real raw content of whichever IPL
+        # is currently selected in the [IPL] tab, per Keith's request.
+        ipl_inst_file_dock = self._create_ipl_inst_file_panel()
+        outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, ipl_inst_file_dock)
+        outer_mw.splitDockWidget(editing_panel_dock, ipl_inst_file_dock, Qt.Orientation.Vertical)
 
         # Control Panel dock - replicates MooMapper's own "Hide/Show
         # Control Panel" area (see _create_control_panel_dock's own
-        # docstring for what's real vs stubbed). Stacked below the
-        # tabbed Object Browser/IPL Sections group rather than tabbed
-        # with them - MooMapper itself shows this as its own separate
+        # docstring for what's real vs stubbed). Stacked below rather
+        # than tabbed - MooMapper itself shows this as its own separate
         # area, and this panel has enough content to be awkward
         # competing for tab space with Object Browser's table.
         control_panel_dock = self._create_control_panel_dock()
         outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, control_panel_dock)
-        outer_mw.splitDockWidget(ipl_sections_dock, control_panel_dock, Qt.Orientation.Vertical)
+        outer_mw.splitDockWidget(ipl_inst_file_dock, control_panel_dock, Qt.Orientation.Vertical)
 
         # Widget registry - each entry is a self-contained dock module
         # under depends/. Adding, removing, or swapping a widget for an
@@ -2667,7 +2674,8 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         for dock in (getattr(self, '_world_view_dock', None),
                      getattr(self, '_instance_list_dock', None),
                      getattr(self, '_object_browser_dock', None),
-                     getattr(self, '_ipl_sections_dock', None),
+                     getattr(self, '_editing_panel_dock', None),
+                     getattr(self, '_ipl_inst_file_dock', None),
                      getattr(self, '_control_panel_dock', None)):
             if dock is None:
                 continue
@@ -4418,6 +4426,50 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
             box = size - 2*m
             p.drawRect(m, m, box, box)
             p.drawLine(m, m + box//3, size - m, m + box//3)
+        elif kind == 'tab_ide':
+            from PyQt6.QtGui import QPolygonF
+            p.setPen(QPen(qc, pen_w)); p.setBrush(Qt.BrushStyle.NoBrush)
+            fold = int(size * 0.28)
+            pts = [QPointF(m, m), QPointF(size - m - fold, m), QPointF(size - m, m + fold),
+                   QPointF(size - m, size - m), QPointF(m, size - m)]
+            p.drawPolygon(QPolygonF(pts))
+            p.drawLine(size - m - fold, m, size - m - fold, m + fold)
+            p.drawLine(size - m - fold, m + fold, size - m, m + fold)
+            step = (size - 2*m) / 3.5
+            for i in range(2):
+                y = int(m + fold + step * (i + 1))
+                p.drawLine(m + 2, y, size - m - 2, y)
+        elif kind == 'tab_ipl':
+            p.setPen(QPen(qc, pen_w)); p.setBrush(Qt.BrushStyle.NoBrush)
+            cx = size / 2.0
+            top = m
+            tip_y = size - m
+            r = (size - 2*m) * 0.32
+            cy = top + r + 1
+            p.drawEllipse(QPointF(cx, cy), r, r)
+            from PyQt6.QtGui import QPolygonF
+            pts = [QPointF(cx - r * 0.6, cy + r * 0.6), QPointF(cx, tip_y),
+                   QPointF(cx + r * 0.6, cy + r * 0.6)]
+            p.drawPolygon(QPolygonF(pts))
+            p.setBrush(QBrush(qc))
+            p.drawEllipse(QPointF(cx, cy), r * 0.35, r * 0.35)
+        elif kind == 'tab_dat':
+            p.setPen(QPen(qc, pen_w)); p.setBrush(Qt.BrushStyle.NoBrush)
+            step = (size - 2*m) / 2.5
+            knob_x = (0.3, 0.65, 0.4)
+            for i in range(3):
+                y = int(m + step * i + step * 0.5)
+                p.drawLine(m, y, size - m, y)
+                kx = int(m + (size - 2*m) * knob_x[i])
+                p.setBrush(QBrush(qc))
+                p.drawEllipse(QPointF(kx, y), 2, 2)
+                p.setBrush(Qt.BrushStyle.NoBrush)
+        elif kind == 'tab_img':
+            p.setPen(QPen(qc, pen_w)); p.setBrush(Qt.BrushStyle.NoBrush)
+            band_h = (size - 2*m) / 3.2
+            for i in range(3):
+                y = int(m + i * (band_h + 2))
+                p.drawRect(m, y, size - 2*m, int(band_h))
         elif kind in ('chevron_left', 'chevron_left2', 'chevron_right', 'chevron_right2'):
             p.setPen(QPen(qc, max(2, pen_w))); p.setBrush(Qt.BrushStyle.NoBrush)
             cy = size // 2
@@ -7792,6 +7844,7 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         dialog. Factored out so both loading paths (folder-based, or a
         specific .dat file) share exactly the same result handling."""
         self._world_loader = loader
+        self._loaded_dat_path = getattr(loader.main_dat, 'dat_path', '') if hasattr(loader, 'main_dat') else ''
 
         if not ok:
             QMessageBox.warning(self, source_desc,
@@ -7828,6 +7881,10 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         self._populate_instance_list(_FilteredLoaderStub(visible, loader))
         self._populate_ipl_sections(loader)
         self._populate_object_browser(loader)
+        self._refresh_ide_tab(loader)
+        self._refresh_dat_tab()
+        self._refresh_img_tab(loader)
+        self._refresh_ipl_inst_file_panel()
         QMessageBox.information(self, source_desc, loader.get_summary())
 
         # Per Keith: "we could have load from .dat file with no IPL
@@ -8303,27 +8360,50 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         for pane in getattr(self, '_world_panes', []):
             pane.set_bg_color_override(rgb)
 
-    def _create_ipl_sections_panel(self): #vers 4
-        """IPL Sections panel - lists every IPL file that contributed
-        instances to the currently loaded world, each with a Show/Hide
-        toggle. Small row count in practice (dozens to a few hundred
-        IPL files even for a large mod like GTASOL, versus tens of
-        thousands of instances), so a plain QTableWidget is fine here -
-        no need for the Instance List's lazy model.
-
-        Now a proper QDockWidget (was a plain QWidget embedded in the
-        central canvas layout) - per Keith's report that it had lost
-        its tear-off/float ability, which every other panel has. That
-        embedding also meant it could only ever occupy the exact space
-        the canvas left empty, which is why it previously had an
-        artificial 200px width cap and truncated its own labels - both
-        removed now that it's a real, independently-sized dock.
+    def _create_ipl_tab(self): #vers 1
+        """[IPL] tab content, matching MooMapper's own "Item Placement"
+        tab - the former standalone IPL Sections dock's table moves
+        here unchanged, plus an Open/Close/New/Delete button row and
+        INST/CULL/ZONE/PATH radio buttons at the bottom (only INST/
+        CULL/ZONE are real - PATH isn't parsed anywhere in this
+        project yet, honestly stubbed rather than guessed at without
+        real sample data to verify against, the same caution applied
+        to the VC/GTA3 inst-format work earlier).
 
         Column order is eye-icon first, then name (per Keith's
         request) - previously name then icon."""
         panel = QWidget()
         lay = QVBoxLayout(panel)
         lay.setContentsMargins(6, 6, 6, 6)
+        from apps.methods.imgfactory_svg_icons import get_add_icon, get_trash_icon
+        from PyQt6.QtWidgets import QButtonGroup
+        label = QLabel("IPL Sections")
+        label.setStyleSheet("font-weight: bold;")
+        lay.addWidget(label)
+
+        icon_color = self._get_icon_color()
+        btn_row = QHBoxLayout()
+        open_btn = QPushButton(get_add_icon(18, icon_color), "Open")
+        open_btn.setToolTip("Load the selected IPL's content on demand -\n"
+                            "same as clicking its eye icon to show it")
+        open_btn.clicked.connect(self._on_ipl_tab_open_clicked)
+        close_btn = QPushButton(get_trash_icon(18, icon_color), "Close")
+        close_btn.setToolTip("Hide the selected IPL - same as clicking\n"
+                             "its eye icon to hide it (its data stays\n"
+                             "loaded, just not shown)")
+        close_btn.clicked.connect(self._on_ipl_tab_close_clicked)
+        new_btn = QPushButton("New")
+        new_btn.setToolTip("STUB - creating a brand new, empty IPL file\n"
+                           "on disk isn't built yet")
+        new_btn.setEnabled(False)
+        delete_btn = QPushButton("Delete")
+        delete_btn.setToolTip("STUB - deleting an IPL file from disk isn't\n"
+                              "built yet (no write-back infrastructure exists\n"
+                              "for any file type in Map Workshop yet)")
+        delete_btn.setEnabled(False)
+        for b in (open_btn, close_btn, new_btn, delete_btn):
+            btn_row.addWidget(b)
+        lay.addLayout(btn_row)
 
         table = QTableWidget(0, 2)
         table.setHorizontalHeaderLabels(["", "IPL File"])
@@ -8365,13 +8445,38 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         placeholder.setVisible(True)
         table.setVisible(False)
 
-        dock = QDockWidget("IPL Sections", self)
-        dock.setObjectName("IPL Sections")
-        dock.setWidget(panel)
-        dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
-                        QDockWidget.DockWidgetFeature.DockWidgetFloatable)
-        self._ipl_sections_dock = dock
-        return dock
+        # INST/CULL/ZONE/PATH data-type selector - switches which kind
+        # of IPL content the "IPL Inst File" panel shows for the
+        # currently selected IPL. INST/CULL/ZONE are real (all three
+        # are already parsed - GTAWorldLoader.instances/culls/zones);
+        # PATH is an honest stub, disabled with a tooltip explaining
+        # why, rather than a guess at an unverified format.
+        type_box = QGroupBox()
+        type_lay = QVBoxLayout(type_box)
+        self._ipl_type_group = QButtonGroup(panel)
+        self._ipl_type_group.setExclusive(True)
+        type_specs = [
+            ('inst', "INST - Item Instances", True),
+            ('cull', "CULL - Object Culling", True),
+            ('zone', "ZONE - Map Zones", True),
+            ('path', "PATH - Pedestrian / Vehicle Paths", False),
+        ]
+        for key, text, enabled in type_specs:
+            radio = QRadioButton(text)
+            radio.setChecked(key == 'inst')
+            radio.setEnabled(enabled)
+            if not enabled:
+                radio.setToolTip("STUB - path node data isn't parsed anywhere\n"
+                                 "in this project yet, no real sample data has\n"
+                                 "been verified against yet to build this on")
+            radio.toggled.connect(
+                lambda checked, k=key: self._on_ipl_data_type_changed(k) if checked else None)
+            self._ipl_type_group.addButton(radio)
+            type_lay.addWidget(radio)
+        lay.addWidget(type_box)
+        self._ipl_data_type = 'inst'
+
+        return panel
 
     def _populate_ipl_sections(self, loader): #vers 6
         """Fill the IPL Sections panel from a completed load - one row
@@ -8572,32 +8677,341 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         model_width = max(80, available - other_width)
         view.setColumnWidth(2, model_width)
 
-    def _on_ipl_section_cell_clicked(self, row, col): #vers 3
-        """Clicking the eye-icon cell toggles that IPL's visibility -
-        plain item click rather than a button, so there's no button
-        widget/chrome to size or pad. Icon is now column 0 (was 1).
+    def _on_ipl_tab_open_clicked(self): #vers 1
+        """Open button - loads the currently selected IPL's content on
+        demand, same as clicking its eye icon to show it."""
+        table = getattr(self, '_ipl_sections_table', None)
+        if table is None or table.currentRow() < 0:
+            return
+        self._on_ipl_section_cell_clicked(table.currentRow(), 0)
+
+    def _on_ipl_tab_close_clicked(self): #vers 1
+        """Close button - hides the currently selected IPL, same as
+        clicking its eye icon to hide it. Its data stays loaded (not
+        re-parsed if reopened), only its instances stop being shown."""
+        table = getattr(self, '_ipl_sections_table', None)
+        if table is None or table.currentRow() < 0:
+            return
+        row = table.currentRow()
+        item = table.item(row, 0)
+        if item is None:
+            return
+        ipl_name = item.data(Qt.ItemDataRole.UserRole)
+        if ipl_name not in getattr(self, '_hidden_ipls', set()):
+            self._on_ipl_section_cell_clicked(row, 0)
+
+    def _on_ipl_data_type_changed(self, data_type): #vers 1
+        """INST/CULL/ZONE/PATH radio changed - updates which kind of
+        data the IPL Inst File panel shows for the currently selected
+        IPL. Only called for the real, enabled options (INST/CULL/
+        ZONE) - PATH is disabled at the widget level since it isn't
+        parsed anywhere in this project yet."""
+        self._ipl_data_type = data_type
+        self._refresh_ipl_inst_file_panel()
+
+    def _create_ipl_inst_file_panel(self): #vers 1
+        """New panel replacing the old standalone IPL Sections dock's
+        physical location - shows the real, raw text content of
+        whichever IPL is currently selected in the [IPL] tab, filtered
+        to whichever data type (INST/CULL/ZONE) is selected there.
+        Updates live as different IPL files are clicked, per Keith's
+        request ("each ipl file we press changes the contents in the
+        IPL inst file"). Re-reads the actual file from disk each time
+        rather than reconstructing from parsed IPLInstance data, so
+        it's always faithful to the real file (comments, exact
+        formatting, sections not otherwise surfaced anywhere)."""
+        panel = QWidget()
+        lay = QVBoxLayout(panel)
+        lay.setContentsMargins(6, 6, 6, 6)
+        label = QLabel("IPL Inst File")
+        label.setStyleSheet("font-weight: bold;")
+        lay.addWidget(label)
+        from PyQt6.QtWidgets import QTextEdit
+        text = QTextEdit()
+        text.setReadOnly(True)
+        font = text.font(); font.setFamily("monospace"); text.setFont(font)
+        text.setPlaceholderText("Select an IPL file in the IPL tab to preview its contents here")
+        lay.addWidget(text)
+        self._ipl_inst_file_text = text
+
+        dock = QDockWidget("IPL Inst File", self)
+        dock.setObjectName("IPL Inst File")
+        dock.setWidget(panel)
+        dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
+                        QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+        self._ipl_inst_file_dock = dock
+        return dock
+
+    def _refresh_ipl_inst_file_panel(self): #vers 1
+        """Re-read and display the currently selected IPL's raw file
+        content, filtered to the currently selected data type (INST/
+        CULL/ZONE - PATH is stubbed, never reachable here since its
+        radio button is disabled)."""
+        text_widget = getattr(self, '_ipl_inst_file_text', None)
+        table = getattr(self, '_ipl_sections_table', None)
+        loader = getattr(self, '_world_loader', None)
+        if text_widget is None or table is None or loader is None:
+            return
+        row = table.currentRow()
+        if row < 0:
+            text_widget.clear()
+            return
+        item = table.item(row, 0)
+        if item is None:
+            text_widget.clear()
+            return
+        display_name = item.data(Qt.ItemDataRole.UserRole)
+        stem = getattr(self, '_ipl_display_to_stem', {}).get(display_name)
+        entry = loader.available_ipls.get(stem) if stem else None
+        if entry is None or not entry.exists:
+            text_widget.setPlainText(f"({display_name} - file not found on disk)")
+            return
+        try:
+            with open(entry.abs_path, 'r', encoding='ascii', errors='ignore') as f:
+                raw_text = f.read()
+        except Exception as e:
+            text_widget.setPlainText(f"(could not read {display_name}: {e})")
+            return
+
+        data_type = getattr(self, '_ipl_data_type', 'inst')
+        section_text = self._extract_ipl_section_text(raw_text, data_type)
+        text_widget.setPlainText(section_text if section_text is not None else raw_text)
+
+    def _extract_ipl_section_text(self, raw_text, section_name): #vers 1
+        """Extract just one named section's lines (between the section
+        keyword and its "end") from a raw IPL file's text - returns
+        None if that section isn't present at all (falls back to
+        showing the whole file), rather than an empty/misleading
+        result."""
+        lines = raw_text.splitlines()
+        out = []
+        in_section = False
+        found = False
+        for raw in lines:
+            line = raw.split("#")[0].strip()
+            low = line.lower()
+            if not in_section and low == section_name:
+                in_section = True
+                found = True
+                out.append(raw)
+                continue
+            if in_section:
+                out.append(raw)
+                if low == "end":
+                    in_section = False
+        return "\n".join(out) if found else None
+
+    def _create_ide_tab(self): #vers 1
+        """[IDE] tab content, matching MooMapper's own "Object
+        Definition" tab - lists every IDE file the .dat references
+        (real data, drawn from GTAWorldLoader.load_log, which already
+        tracks every IDE path encountered during loading). Edit/Save
+        are honest stubs - no write-back infrastructure exists for any
+        file type in Map Workshop yet."""
+        panel = QWidget()
+        lay = QVBoxLayout(panel)
+        lay.setContentsMargins(6, 6, 6, 6)
+        label = QLabel("IDE Definitions")
+        label.setStyleSheet("font-weight: bold;")
+        lay.addWidget(label)
+        btn_row = QHBoxLayout()
+        edit_btn = QPushButton("Edit")
+        edit_btn.setToolTip("STUB - no IDE editing built yet")
+        edit_btn.setEnabled(False)
+        save_btn = QPushButton("Save")
+        save_btn.setToolTip("STUB - no write-back to disk exists for any\n"
+                            "file type in Map Workshop yet")
+        save_btn.setEnabled(False)
+        btn_row.addWidget(edit_btn)
+        btn_row.addWidget(save_btn)
+        lay.addLayout(btn_row)
+        table = QTableWidget(0, 2)
+        table.setHorizontalHeaderLabels(["Ind.", "Filename"])
+        table.verticalHeader().setVisible(False)
+        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        lay.addWidget(table)
+        self._ide_tab_table = table
+        return panel
+
+    def _refresh_ide_tab(self, loader): #vers 1
+        table = getattr(self, '_ide_tab_table', None)
+        if table is None:
+            return
+        ide_paths = [abs_path for phase, entry_type, abs_path, ok in loader.load_log
+                    if entry_type == "IDE" and ok]
+        table.setRowCount(len(ide_paths))
+        for i, path in enumerate(ide_paths):
+            table.setItem(i, 0, QTableWidgetItem(str(i)))
+            table.setItem(i, 1, QTableWidgetItem(path))
+
+    def _create_dat_tab(self): #vers 1
+        """[DAT] tab content, matching MooMapper's own "DAT Editor" -
+        shows the real raw text of the loaded .dat file (comments,
+        directive order, exactly as it appears on disk), re-read
+        directly rather than reconstructed from parsed data. Edit/Save
+        are honest stubs, same reasoning as the IDE tab."""
+        panel = QWidget()
+        lay = QVBoxLayout(panel)
+        lay.setContentsMargins(6, 6, 6, 6)
+        label = QLabel("Dat Editor")
+        label.setStyleSheet("font-weight: bold;")
+        lay.addWidget(label)
+        btn_row = QHBoxLayout()
+        edit_btn = QPushButton("Edit")
+        edit_btn.setToolTip("STUB - no .dat editing built yet")
+        edit_btn.setEnabled(False)
+        save_btn = QPushButton("Save")
+        save_btn.setToolTip("STUB - no write-back to disk exists for any\n"
+                            "file type in Map Workshop yet")
+        save_btn.setEnabled(False)
+        btn_row.addWidget(edit_btn)
+        btn_row.addWidget(save_btn)
+        lay.addLayout(btn_row)
+        from PyQt6.QtWidgets import QTextEdit
+        text = QTextEdit()
+        text.setReadOnly(True)
+        font = text.font(); font.setFamily("monospace"); text.setFont(font)
+        text.setPlaceholderText("Load a game folder/DAT file to see its contents here")
+        lay.addWidget(text)
+        self._dat_tab_text = text
+        return panel
+
+    def _refresh_dat_tab(self): #vers 1
+        text_widget = getattr(self, '_dat_tab_text', None)
+        dat_path = getattr(self, '_loaded_dat_path', None)
+        if text_widget is None:
+            return
+        if not dat_path:
+            text_widget.clear()
+            return
+        try:
+            with open(dat_path, 'r', encoding='ascii', errors='ignore') as f:
+                text_widget.setPlainText(f.read())
+        except Exception as e:
+            text_widget.setPlainText(f"(could not read {dat_path}: {e})")
+
+    def _create_img_tab(self): #vers 1
+        """[IMG] tab content, matching MooMapper's own "IMG Archive"
+        tab - numbered sub-tabs (one per loaded IMG archive), each
+        showing that archive's real entry list (name/type/size) via
+        the already-built ModelCache index. Extract/Add/Del/Rename are
+        honest stubs - these are real file-writing operations, and no
+        write-back infrastructure exists for any file type in Map
+        Workshop yet, IMG included."""
+        panel = QWidget()
+        lay = QVBoxLayout(panel)
+        lay.setContentsMargins(6, 6, 6, 6)
+        label = QLabel("IMG File")
+        label.setStyleSheet("font-weight: bold;")
+        lay.addWidget(label)
+        btn_row = QHBoxLayout()
+        for name in ("Extract", "Add", "Del", "Rename"):
+            b = QPushButton(name)
+            b.setToolTip(f"STUB - {name} isn't built yet - no write-back to\n"
+                        "disk exists for any file type in Map Workshop yet")
+            b.setEnabled(False)
+            btn_row.addWidget(b)
+        lay.addLayout(btn_row)
+        img_tabs = QTabWidget()
+        img_tabs.setTabPosition(QTabWidget.TabPosition.North)
+        lay.addWidget(img_tabs)
+        self._img_tab_tabs = img_tabs
+        return panel
+
+    def _refresh_img_tab(self, loader): #vers 1
+        """Rebuild the numbered IMG sub-tabs from the loaded world's
+        actual IMG archives (loader.get_img_paths()) - one table per
+        archive, listing every entry's real name/type/size read
+        directly from the archive itself."""
+        img_tabs = getattr(self, '_img_tab_tabs', None)
+        if img_tabs is None:
+            return
+        img_tabs.clear()
+        from apps.methods.img_core_classes import IMGFile
+        for i, img_path in enumerate(loader.get_img_paths(), 1):
+            table = QTableWidget(0, 4)
+            table.setHorizontalHeaderLabels(["Ind.", "Filename", "Type", "Size"])
+            table.verticalHeader().setVisible(False)
+            table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+            table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+            try:
+                img = IMGFile(img_path)
+                if img.open():
+                    table.setRowCount(len(img.entries))
+                    for row, entry in enumerate(img.entries):
+                        table.setItem(row, 0, QTableWidgetItem(str(row)))
+                        table.setItem(row, 1, QTableWidgetItem(entry.name))
+                        table.setItem(row, 2, QTableWidgetItem(entry.extension.upper() + " File"
+                                                                if entry.extension else "File"))
+                        size_kb = max(1, entry.size // 1024)
+                        table.setItem(row, 3, QTableWidgetItem(f"{size_kb} kB"))
+            except Exception:
+                pass
+            img_tabs.addTab(table, str(i))
+
+    def _create_editing_panel_dock(self): #vers 1
+        """New tabbed "Editing Panel" dock - IDE/IPL/DAT/IMG, matching
+        MooMapper's own tabbed IMG Archive/Object Definition/Item
+        Placement structure - replaces the previous standalone IPL
+        Sections dock (its content now lives in the [IPL] tab, moved
+        rather than duplicated). [IPL] is the only fully real,
+        interactive tab so far; [IDE] and [DAT] show real data
+        (IDE file list, raw .dat text) but can't edit/save yet;
+        [IMG] shows real per-archive entry lists but can't
+        Extract/Add/Del/Rename yet - none of this project has any
+        write-back-to-disk infrastructure yet, for any file type."""
+        icon_color = self._get_icon_color()
+        tabs = QTabWidget()
+        tabs.addTab(self._create_ide_tab(),
+                   self._render_variant_icon('tab_ide', None, 24, icon_color, has_menu=False), "IDE")
+        tabs.addTab(self._create_ipl_tab(),
+                   self._render_variant_icon('tab_ipl', None, 24, icon_color, has_menu=False), "IPL")
+        tabs.addTab(self._create_dat_tab(),
+                   self._render_variant_icon('tab_dat', None, 24, icon_color, has_menu=False), "DAT")
+        tabs.addTab(self._create_img_tab(),
+                   self._render_variant_icon('tab_img', None, 24, icon_color, has_menu=False), "IMG")
+        tabs.setCurrentIndex(1)   # [IPL] is the main working tab so far
+
+        dock = QDockWidget("Editing Panel", self)
+        dock.setObjectName("Editing Panel")
+        dock.setWidget(tabs)
+        dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
+                        QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+        self._editing_panel_dock = dock
+        self._editing_panel_tabs = tabs
+        return dock
+
+    def _on_ipl_section_cell_clicked(self, row, col): #vers 4
+        """Clicking the eye-icon cell (col 0) toggles that IPL's
+        visibility - plain item click rather than a button, so there's
+        no button widget/chrome to size or pad. Clicking anywhere else
+        on the row just selects it, which is enough to refresh the IPL
+        Inst File panel below (per Keith's request that pressing any
+        IPL file updates that panel's content, independent of
+        toggling visibility).
 
         With lazy IPL loading, toggling to visible for the first time
         also triggers the actual on-demand load of that IPL's content
         (_ensure_ipl_loaded) - matching MooMapper's model of not
         touching an IPL until the user asks for it."""
-        if col != 0:
-            return
         table = self._ipl_sections_table
         item = table.item(row, 0)
         if item is None:
             return
-        ipl_name = item.data(Qt.ItemDataRole.UserRole)
-        hidden = ipl_name in getattr(self, '_hidden_ipls', set())
-        new_hidden = not hidden
-        if not new_hidden:
-            self._ensure_ipl_loaded(ipl_name)
-        item.setIcon(self._eye_closed_icon if new_hidden else self._eye_open_icon)
-        item.setToolTip(f"Show {ipl_name}" if new_hidden else f"Hide {ipl_name}")
-        name_item = table.item(row, 1)
-        if name_item is not None:
-            self._style_ipl_name_item(name_item, new_hidden)
-        self._toggle_ipl_section(ipl_name, new_hidden)
+        if col == 0:
+            ipl_name = item.data(Qt.ItemDataRole.UserRole)
+            hidden = ipl_name in getattr(self, '_hidden_ipls', set())
+            new_hidden = not hidden
+            if not new_hidden:
+                self._ensure_ipl_loaded(ipl_name)
+            item.setIcon(self._eye_closed_icon if new_hidden else self._eye_open_icon)
+            item.setToolTip(f"Show {ipl_name}" if new_hidden else f"Hide {ipl_name}")
+            name_item = table.item(row, 1)
+            if name_item is not None:
+                self._style_ipl_name_item(name_item, new_hidden)
+            self._toggle_ipl_section(ipl_name, new_hidden)
+        self._refresh_ipl_inst_file_panel()
 
     def _ensure_ipl_loaded(self, display_name): #vers 2
         """Actually load one IPL's content on demand, the first time
