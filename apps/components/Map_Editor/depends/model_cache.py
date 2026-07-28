@@ -29,6 +29,7 @@ class ModelCache:
         # lowercase model/txd name -> parsed result, or None if loading/
         # parsing failed (cached as None so it's not retried every time)
         self._geometry_cache: Dict[str, Optional[DFFModel]] = {}
+        self._dimensions_cache: Dict[str, Optional[Tuple[float, float, float]]] = {}
         self._texture_cache: Dict[str, Optional[Dict[str, dict]]] = {}
         self.indexed_img_paths: List[str] = []
         self.index_errors: List[str] = []
@@ -78,6 +79,7 @@ class ModelCache:
         self._txd_index.clear()
         self._geometry_cache.clear()
         self._texture_cache.clear()
+        self._dimensions_cache.clear()
         self.indexed_img_paths = []
         self.index_errors = []
 
@@ -105,6 +107,37 @@ class ModelCache:
                 result = None
         self._geometry_cache[key] = result
         return result
+
+    def get_dimensions(self, model_name: str) -> Optional[Tuple[float, float, float]]:
+        """(width, depth, height) in GTA's native local-space axes -
+        width=X extent, depth=Y extent, height=Z extent - computed as a
+        real axis-aligned bounding box from the model's own vertex data
+        (not just the single bounding-sphere radius the parser already
+        extracts, which can't give separate per-axis values). Returns
+        None if geometry isn't available (same fallback contract as
+        get_geometry - not an error to surface, just nothing to show
+        yet). Result is cached alongside the geometry itself, so this
+        is cheap to call repeatedly once a model's been loaded once."""
+        key = model_name.lower()
+        if key in self._dimensions_cache:
+            return self._dimensions_cache[key]
+
+        model = self.get_geometry(model_name)
+        dims = None
+        if model is not None and model.geometries:
+            min_x = min_y = min_z = float('inf')
+            max_x = max_y = max_z = float('-inf')
+            found_any = False
+            for geom in model.geometries:
+                for v in geom.vertices:
+                    found_any = True
+                    min_x = min(min_x, v.x); max_x = max(max_x, v.x)
+                    min_y = min(min_y, v.y); max_y = max(max_y, v.y)
+                    min_z = min(min_z, v.z); max_z = max(max_z, v.z)
+            if found_any:
+                dims = (max_x - min_x, max_y - min_y, max_z - min_z)
+        self._dimensions_cache[key] = dims
+        return dims
 
     def get_textures(self, txd_name: str) -> Optional[Dict[str, dict]]:
         """Get the parsed textures for a TXD name, as a dict keyed by

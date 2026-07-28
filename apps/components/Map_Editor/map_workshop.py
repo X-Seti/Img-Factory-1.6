@@ -1998,7 +1998,7 @@ class _InstanceEditPanel(QWidget):
         self._nav_prev_btn.setVisible(visible)
         self._nav_next_btn.setVisible(visible)
 
-    def show_for_instance(self, inst, loader, nav_info=None): #vers 2
+    def show_for_instance(self, inst, loader, nav_info=None, model_cache=None): #vers 3
         """Refresh every section for a (possibly new) instance - called
         both when first opening the panel and whenever the selection
         changes (Instance List, or the merged Object Browser), so the
@@ -2007,7 +2007,11 @@ class _InstanceEditPanel(QWidget):
         for a model with multiple placements - shows Prev/Next
         cycling, per Keith's request that clicking a merged Object
         Browser row (one row per model, not per placement) still be
-        able to reach every instance of that model."""
+        able to reach every instance of that model. model_cache, if
+        given, is used to show the model's real width/height (from its
+        actual loaded geometry, per Keith's request) alongside its
+        name - blank if that model's geometry isn't loaded yet, not an
+        error, matching the same lazy-loading fallback used elsewhere."""
         self._inst = inst
         self._loader = loader
         if nav_info is not None:
@@ -2020,10 +2024,17 @@ class _InstanceEditPanel(QWidget):
         effects = loader.get_2dfx_for_model(inst.model_id) if loader else []
         tobjs = loader.get_tobj_for_model(inst.model_id) if loader else []
 
+        size_suffix = ""
+        if model_cache is not None:
+            dims = model_cache.get_dimensions(inst.model_name)
+            if dims is not None:
+                width, depth, height = dims
+                size_suffix = f"  ({width:.1f} × {height:.1f})"
+
         self.setWindowTitle(f"Object Info - {inst.model_name} (ID {inst.model_id})")
         self._set_section_lines(self._identity_box, [
             f"ID: {inst.model_id}",
-            f"Name: {inst.model_name}",
+            f"Name: {inst.model_name}{size_suffix}",
             f"Texture (TXD): {obj.txd_name if obj else '(unresolved - no IDE match)'}",
         ])
         if obj:
@@ -2115,7 +2126,7 @@ class _ObjectBrowserModel(QAbstractTableModel):
     sorted/filtered subset) rather than the model touching the full
     object catalog on every repaint."""
 
-    _HEADERS = ["★", "ID", "Model", "TXD", "Instances"]
+    _HEADERS = ["★", "ID", "Model", "TXD", "Instances", "Size"]
 
     def __init__(self, parent=None): #vers 1
         super().__init__(parent)
@@ -2125,6 +2136,15 @@ class _ObjectBrowserModel(QAbstractTableModel):
         self._mode = 'all'                 # 'all' | 'most_used' | 'favourites' | 'generic'
         self._search = ''
         self._rows: list = []              # currently visible IDEObjects
+        self._model_cache = None           # ModelCache, set via set_model_cache()
+
+    def set_model_cache(self, model_cache): #vers 1
+        """Set the ModelCache used to look up each object's real
+        width/height (from its actual loaded geometry, if available -
+        shows nothing for a model that hasn't been loaded yet, per the
+        lazy-loading design, rather than blocking to load it just to
+        show a size)."""
+        self._model_cache = model_cache
 
     def set_objects(self, objects, instance_counts, favourites): #vers 1
         self._all_objects = objects
@@ -2202,6 +2222,13 @@ class _ObjectBrowserModel(QAbstractTableModel):
                 return obj.txd_name
             if col == 4:
                 return str(self._instance_counts.get(obj.model_id, 0))
+            if col == 5:
+                if self._model_cache is not None:
+                    dims = self._model_cache.get_dimensions(obj.model_name)
+                    if dims is not None:
+                        width, depth, height = dims
+                        return f"{width:.1f} × {height:.1f}"
+                return ""
         return None
 
     def object_at(self, row): #vers 1
@@ -4356,6 +4383,38 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
             p.drawRect(bx, by, front, front)
             for dx, dy in ((0, 0), (front, 0), (0, front), (front, front)):
                 p.drawLine(fx + dx, fy + dy, bx + dx, by + dy)
+        elif kind == 'list_all':
+            p.setPen(QPen(qc, pen_w)); p.setBrush(Qt.BrushStyle.NoBrush)
+            step = (size - 2*m) / 3.0
+            for i in range(3):
+                y = int(m + step * i + step/2)
+                p.drawLine(m, y, size - m, y)
+        elif kind == 'bars_most_used':
+            p.setPen(QPen(qc, pen_w)); p.setBrush(QBrush(qc))
+            bar_w = max(2, (size - 2*m) // 4)
+            gap = max(1, bar_w // 2)
+            heights = (0.4, 0.7, 1.0)
+            x = m
+            for h in heights:
+                bar_h = int((size - 2*m) * h)
+                p.drawRect(x, size - m - bar_h, bar_w, bar_h)
+                x += bar_w + gap
+        elif kind == 'star_filled':
+            from PyQt6.QtGui import QPolygonF
+            p.setPen(QPen(qc, pen_w)); p.setBrush(QBrush(qc))
+            cx, cy = size / 2.0, size / 2.0
+            outer_r, inner_r = (size - 2*m) / 2.0, (size - 2*m) / 4.5
+            pts = []
+            for i in range(10):
+                ang = -math.pi/2 + i * math.pi/5
+                r = outer_r if i % 2 == 0 else inner_r
+                pts.append(QPointF(cx + r*math.cos(ang), cy + r*math.sin(ang)))
+            p.drawPolygon(QPolygonF(pts))
+        elif kind == 'box_generic':
+            p.setPen(QPen(qc, pen_w)); p.setBrush(Qt.BrushStyle.NoBrush)
+            box = size - 2*m
+            p.drawRect(m, m, box, box)
+            p.drawLine(m, m + box//3, size - m, m + box//3)
         elif kind in ('chevron_left', 'chevron_left2', 'chevron_right', 'chevron_right2'):
             p.setPen(QPen(qc, max(2, pen_w))); p.setBrush(Qt.BrushStyle.NoBrush)
             cy = size // 2
@@ -8269,7 +8328,7 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
         header.setStretchLastSection(False)
-        table.setColumnWidth(0, 18)
+        table.setColumnWidth(0, 22)
         saved_widths = self.map_settings.get('ipl_sections_column_widths') or []
         if len(saved_widths) >= 2:
             table.setColumnWidth(1, saved_widths[1])
@@ -8277,8 +8336,7 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
             header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         header.sectionResized.connect(self._on_ipl_sections_column_resized)
         table.verticalHeader().setVisible(False)
-        #table.verticalHeader().setDefaultSectionSize(20) # TODO; need value for height.
-        IPL_SECTION_ROW_HEIGHT = 20 # Idea one.
+        IPL_SECTION_ROW_HEIGHT = 18   # matches Object Browser's row height for consistency
 
         table.verticalHeader().setDefaultSectionSize(
             IPL_SECTION_ROW_HEIGHT
@@ -8331,9 +8389,6 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
 
         icon_color = self._get_icon_color()
         icon_sz = 16
-
-        icon_cell_sz = 18 # TODO; Box for eye slightly wider then icon.
-
         self._eye_open_icon = self._render_variant_icon('eye_visible', None, icon_sz,
                                                          icon_color, has_menu=False)
         self._eye_closed_icon = self._render_variant_icon('eye_hidden', None, icon_sz,
@@ -8666,7 +8721,6 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         OBJECT_BROWSER_BUTTON_W = 18
         OBJECT_BROWSER_BUTTON_H = 18
         panel = QWidget()
-        #lay = QVBoxLayout(panel) # TODO; Testing
 
         main_layout = QHBoxLayout(panel)
         main_layout.setContentsMargins(4, 4, 4, 4)
@@ -8688,21 +8742,50 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
 
         left_layout.setContentsMargins(4, 4, 4, 4)
 
+        # Compact single-row layout: search field (stretching) + mode
+        # icon buttons (All/Most Used/Favourites/Generic) + Add/Del/
+        # Rename icons, replacing what was previously three separate
+        # rows (search, then Add/Del/Rename, then text-label mode
+        # buttons) - per Keith's TODOs asking for exactly this.
+        icon_color = self._get_icon_color()
+
+        top_row_widget = QWidget()
+        top_row = QHBoxLayout(top_row_widget)
+        top_row.setContentsMargins(0, 0, 0, 0)
+
+        search = QLineEdit()
+        search.setPlaceholderText("Search objects…")
+        search.textChanged.connect(self._on_object_search_changed)
+        top_row.addWidget(search)
+        self._object_search_edit = search
+
+        group = QButtonGroup(panel)
+        group.setExclusive(True)
+        self._object_mode_buttons = {}
+        mode_icon_shapes = {'all': 'list_all', 'most_used': 'bars_most_used',
+                            'favourites': 'star_filled', 'generic': 'box_generic'}
+        mode_labels = {'all': "All", 'most_used': "Most Used",
+                      'favourites': "Favourites", 'generic': "Generic"}
+        for mode in ('all', 'most_used', 'favourites', 'generic'):
+            icon = self._render_variant_icon(mode_icon_shapes[mode], None,
+                                             OBJECT_BROWSER_ICON_SIZE, icon_color,
+                                             has_menu=False)
+            btn = QPushButton(icon, "")
+            btn.setToolTip(mode_labels[mode])
+            btn.setCheckable(True)
+            btn.setChecked(mode == 'all')
+            btn.setFixedSize(OBJECT_BROWSER_BUTTON_W, OBJECT_BROWSER_BUTTON_H)
+            btn.clicked.connect(lambda checked, m=mode: self._on_object_mode_changed(m))
+            group.addButton(btn)
+            top_row.addWidget(btn)
+            self._object_mode_buttons[mode] = btn
+
         # Add/Delete/Rename icon row - previously these actions only
         # existed as right-click context menu entries with no visible
         # affordance at all (Keith couldn't find them in a screenshot -
         # rightly so, since nothing hinted they existed). Real, visible
-        # SVG icon buttons now, operating on whichever row is currently
+        # SVG icon buttons, operating on whichever row is currently
         # selected; disabled entirely when nothing is selected.
-        icon_color = self._get_icon_color()
-        #
-
-        search = QLineEdit() # TODO; search should be on the same row as Object Browser [Search] to save space.
-        search.setPlaceholderText("Search objects…")
-        search.textChanged.connect(self._on_object_search_changed)
-        left_layout.addWidget(search)
-
-        self._object_search_edit = search
         action_row_widget = QWidget()
         action_row = QHBoxLayout(action_row_widget)
         action_row.setContentsMargins(0, 0, 0, 0)
@@ -8717,36 +8800,19 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         self._ob_rename_btn.setToolTip("Rename the selected object")
         self._ob_rename_btn.clicked.connect(self._on_object_browser_rename_clicked)
         for btn in (self._ob_add_btn, self._ob_del_btn, self._ob_rename_btn):
-            btn.setFixedSize(
-            OBJECT_BROWSER_BUTTON_W, OBJECT_BROWSER_BUTTON_H
-            )
+            btn.setFixedSize(OBJECT_BROWSER_BUTTON_W, OBJECT_BROWSER_BUTTON_H)
             btn.setEnabled(False)
             action_row.addWidget(btn)
-
-        action_row.addStretch()
         # Only shown when docked - in standalone mode the titlebar's own
         # Add/Del/Rename icons cover this, so showing both would be
-        # redundant (per Keith's explicit request).
+        # redundant (per Keith's explicit request). The mode buttons
+        # above stay visible either way - they aren't duplicated
+        # anywhere else, unlike Add/Del/Rename.
         action_row_widget.setVisible(not self.standalone_mode)
         self._ob_action_row_widget = action_row_widget
-        left_layout.addWidget(action_row_widget)
+        top_row.addWidget(action_row_widget)
 
-        btn_row = QHBoxLayout()
-
-        group = QButtonGroup(panel)
-        group.setExclusive(True)
-        self._object_mode_buttons = {}
-        for mode, label in (('all', "All"), ('most_used', "Most Used"), ('favourites', "Favourites"), ('generic', "Generic")):
-        #TODO; these buttons should be on the same line as [add] [del] [rename] as icons, with tooltips.
-        #But these buttons only remain visible.
-            btn = QPushButton(label)
-            btn.setCheckable(True)
-            btn.setChecked(mode == 'all')
-            btn.clicked.connect(lambda checked, m=mode: self._on_object_mode_changed(m))
-            group.addButton(btn)
-            btn_row.addWidget(btn)
-            self._object_mode_buttons[mode] = btn
-        left_layout.addLayout(btn_row)
+        left_layout.addWidget(top_row_widget)
 
         view = QTableView()
         view.verticalHeader().setDefaultSectionSize(
@@ -8776,7 +8842,7 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         self._object_browser_view = view
         self._object_browser_model = model
 
-        dock = QDockWidget("Object Browser", self) # TODO; need height value and a way to adjust cell size
+        dock = QDockWidget("Object Browser", self)
         dock.setObjectName("Object Browser")
         dock.setWidget(panel)
         dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
@@ -8791,6 +8857,7 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         model = getattr(self, '_object_browser_model', None)
         if model is None:
             return
+        model.set_model_cache(getattr(self, '_model_cache', None))
         from collections import Counter
         counts = Counter(inst.model_id for inst in loader.instances)
         favourites = self.map_settings.get('favourite_objects') or []
@@ -8896,7 +8963,6 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         if obj is None:
             return
 
-        #TODO; Sizing settings for inst and object browser and spacing.
         menu = QMenu(view)
         is_fav = obj.model_id in model._favourites
         fav_act = menu.addAction("Remove from Favourites" if is_fav else "Add to Favourites")
@@ -9134,7 +9200,8 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         if panel is None:
             panel = _InstanceEditPanel(self)
             self._instance_edit_panel = panel
-        panel.show_for_instance(inst, getattr(self, '_world_loader', None), nav_info)
+        panel.show_for_instance(inst, getattr(self, '_world_loader', None), nav_info,
+                                getattr(self, '_model_cache', None))
         top_level = self.window()
         panel.move(top_level.mapToGlobal(top_level.rect().topLeft()) +
                    QPoint(8, 8))
