@@ -8371,37 +8371,48 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         request) - previously name then icon."""
         panel = QWidget()
         lay = QVBoxLayout(panel)
-        lay.setContentsMargins(6, 6, 6, 6)
-        from apps.methods.imgfactory_svg_icons import get_add_icon, get_trash_icon
+        lay.setContentsMargins(1, 1, 1, 1)
+        from apps.methods.imgfactory_svg_icons import get_remove_icon, get_file_icon, get_add_icon, get_close_icon
         from PyQt6.QtWidgets import QButtonGroup
         title_row = QHBoxLayout()
         label = QLabel("IPL Sections")
         label.setStyleSheet("font-weight: bold;")
         title_row.addWidget(label)
+        sm_buttonheight = 20
+        #_COMPACT_BUTTON_H = 18 #TODO; does not show the right size?
+        #_COMPACT_ICON_SIZE = 18 TODO; Text less then min 18 and max 20, the text buttons get corrupted.
 
         icon_color = self._get_icon_color()
-        open_btn = QPushButton(get_add_icon(18, icon_color), "Open")
+        open_btn = QPushButton(get_add_icon(sm_buttonheight, icon_color), "Open")
         open_btn.setToolTip("Load the selected IPL's content on demand -\n"
                             "same as clicking its eye icon to show it")
+        open_btn.setIconSize(QSize(18, 18))
+        open_btn.setMinimumHeight(18); open_btn.setMaximumHeight(28)
         open_btn.clicked.connect(self._on_ipl_tab_open_clicked)
-        open_btn.setFixedHeight(self._COMPACT_BUTTON_H)
-        close_btn = QPushButton(get_trash_icon(18, icon_color), "Close")
+        #open_btn.setFixedHeight(16)
+        close_btn = QPushButton(get_close_icon(sm_buttonheight, icon_color), "Close")
         close_btn.setToolTip("Hide the selected IPL - same as clicking\n"
                              "its eye icon to hide it (its data stays\n"
                              "loaded, just not shown)")
+        close_btn.setIconSize(QSize(18, 18))
+        close_btn.setMinimumHeight(18); close_btn.setMaximumHeight(28)
         close_btn.clicked.connect(self._on_ipl_tab_close_clicked)
-        close_btn.setFixedHeight(self._COMPACT_BUTTON_H)
-        new_btn = QPushButton("New")
+        #close_btn.setFixedHeight(16) #TODO; need new icon.
+        new_btn = QPushButton(get_file_icon(sm_buttonheight, icon_color), "New")
         new_btn.setToolTip("STUB - creating a brand new, empty IPL file\n"
                            "on disk isn't built yet")
+        new_btn.setIconSize(QSize(18, 18))
+        new_btn.setMinimumHeight(18); new_btn.setMaximumHeight(28)
         new_btn.setEnabled(False)
-        new_btn.setFixedHeight(self._COMPACT_BUTTON_H)
-        delete_btn = QPushButton("Delete")
+        #new_btn.setFixedHeight(16) #TODO; need delete icon.
+        delete_btn = QPushButton(get_remove_icon(sm_buttonheight, icon_color), "Delete")
         delete_btn.setToolTip("STUB - deleting an IPL file from disk isn't\n"
                               "built yet (no write-back infrastructure exists\n"
                               "for any file type in Map Workshop yet)")
+        delete_btn.setIconSize(QSize(18, 18))
+        delete_btn.setMinimumHeight(18); delete_btn.setMaximumHeight(28)
         delete_btn.setEnabled(False)
-        delete_btn.setFixedHeight(self._COMPACT_BUTTON_H)
+        #delete_btn.setFixedHeight(16)
         for b in (open_btn, close_btn, new_btn, delete_btn):
             title_row.addWidget(b)
         title_row.addStretch()
@@ -8431,7 +8442,7 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         self._ipl_sections_table = table
 
         placeholder = QLabel("No world loaded yet")
-        placeholder.setStyleSheet("color: palette(mid);")
+        #placeholder.setStyleSheet("color: palette(mid);")
         lay.addWidget(placeholder)
         self._ipl_sections_placeholder = placeholder
         placeholder.setVisible(True)
@@ -8443,6 +8454,7 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         # are already parsed - GTAWorldLoader.instances/culls/zones);
         # PATH is an honest stub, disabled with a tooltip explaining
         # why, rather than a guess at an unverified format.
+        #TODO shows a purple background, use panel_bg instead.
         type_box = QGroupBox()
         type_lay = QVBoxLayout(type_box)
         self._ipl_type_group = QButtonGroup(panel)
@@ -8467,7 +8479,6 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
             type_lay.addWidget(radio)
         lay.addWidget(type_box)
         self._ipl_data_type = 'inst'
-
         return panel
 
     def _populate_ipl_sections(self, loader): #vers 6
@@ -8818,20 +8829,32 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         write-back infrastructure exists for any file type yet."""
         panel = QWidget()
         lay = QVBoxLayout(panel)
-        lay.setContentsMargins(6, 6, 6, 6)
+        lay.setContentsMargins(1, 1, 1, 1)
+        from apps.methods.imgfactory_svg_icons import get_save_icon, get_edit_icon
+        from PyQt6.QtWidgets import QButtonGroup
         title_row = QHBoxLayout()
+        sm_buttonheight = 20
+
+        icon_color = self._get_icon_color()
+
         label = QLabel("IDE Definitions")
         label.setStyleSheet("font-weight: bold;")
         title_row.addWidget(label)
-        edit_btn = QPushButton("Edit")
+        #edit_btn.setStyleSheet("font-weight: bold;")
+        edit_btn = QPushButton(get_edit_icon(sm_buttonheight, icon_color), "Edit")
         edit_btn.setToolTip("STUB - no IDE editing built yet")
+        edit_btn.setIconSize(QSize(18, 18))
+        edit_btn.setMinimumHeight(18); edit_btn.setMaximumHeight(28)
         edit_btn.setEnabled(False)
-        edit_btn.setFixedHeight(self._COMPACT_BUTTON_H)
-        save_btn = QPushButton("Save")
+        #edit_btn.setFixedHeight(self._COMPACT_BUTTON_H)
+        #save_btn.setStyleSheet("font-weight: bold;")
+        save_btn = QPushButton(get_save_icon(sm_buttonheight, icon_color), "Save")
         save_btn.setToolTip("STUB - no write-back to disk exists for any\n"
                             "file type in Map Workshop yet")
+        save_btn.setIconSize(QSize(18, 18))
+        save_btn.setMinimumHeight(18); save_btn.setMaximumHeight(28)
         save_btn.setEnabled(False)
-        save_btn.setFixedHeight(self._COMPACT_BUTTON_H)
+        #save_btn.setFixedHeight(self._COMPACT_BUTTON_H)
         title_row.addWidget(edit_btn)
         title_row.addWidget(save_btn)
         title_row.addStretch()
@@ -8903,18 +8926,30 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         lay = QVBoxLayout(panel)
         lay.setContentsMargins(6, 6, 6, 6)
         title_row = QHBoxLayout()
+        from apps.methods.imgfactory_svg_icons import get_save_icon, get_edit_icon
+        from PyQt6.QtWidgets import QButtonGroup
+
+        sm_buttonheight = 20
+
+        icon_color = self._get_icon_color()
+
         label = QLabel("Dat Editor")
         label.setStyleSheet("font-weight: bold;")
         title_row.addWidget(label)
-        edit_btn = QPushButton("Edit")
+
+        edit_btn = QPushButton(get_edit_icon(sm_buttonheight, icon_color), "Edit")
         edit_btn.setToolTip("STUB - no .dat editing built yet")
+        edit_btn.setIconSize(QSize(18, 18))
+        edit_btn.setMinimumHeight(18); edit_btn.setMaximumHeight(28)
         edit_btn.setEnabled(False)
-        edit_btn.setFixedHeight(self._COMPACT_BUTTON_H)
-        save_btn = QPushButton("Save")
+        #edit_btn.setFixedHeight(16)
+        save_btn = QPushButton(get_save_icon(sm_buttonheight, icon_color), "Save")
         save_btn.setToolTip("STUB - no write-back to disk exists for any\n"
                             "file type in Map Workshop yet")
+        save_btn.setIconSize(QSize(18, 18))
+        save_btn.setMinimumHeight(18); save_btn.setMaximumHeight(28)
         save_btn.setEnabled(False)
-        save_btn.setFixedHeight(self._COMPACT_BUTTON_H)
+        #save_btn.setFixedHeight(16)
         title_row.addWidget(edit_btn)
         title_row.addWidget(save_btn)
         title_row.addStretch()
@@ -8952,20 +8987,55 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         Workshop yet, IMG included."""
         panel = QWidget()
         lay = QVBoxLayout(panel)
-        lay.setContentsMargins(6, 6, 6, 6)
+        lay.setContentsMargins(1, 1, 1, 1)
         title_row = QHBoxLayout()
+
         label = QLabel("IMG File")
         label.setStyleSheet("font-weight: bold;")
         title_row.addWidget(label)
-        for name in ("Extract", "Add", "Del", "Rename"):
-            b = QPushButton(name)
-            b.setToolTip(f"STUB - {name} isn't built yet - no write-back to\n"
-                        "disk exists for any file type in Map Workshop yet")
-            b.setEnabled(False)
-            b.setFixedHeight(self._COMPACT_BUTTON_H)
+        #for name in ("Extract", "Add", "Del", "Rename"):
+
+        from apps.methods.imgfactory_svg_icons import get_save_icon, get_rename_icon, get_remove_icon, get_add_icon, get_dump_icon
+        from PyQt6.QtWidgets import QButtonGroup
+        title_row = QHBoxLayout()
+        sm_buttonheight = 20
+
+        icon_color = self._get_icon_color()
+
+        ext_btn = QPushButton(get_dump_icon(sm_buttonheight, icon_color), "Extract")
+        ext_btn.setToolTip("STUB - no .dat editing built yet")
+        ext_btn.setIconSize(QSize(18, 18))
+        ext_btn.setMinimumHeight(18); ext_btn.setMaximumHeight(28)
+        ext_btn.setEnabled(False)
+        ext_btn.setFixedHeight(16)
+        add_btn = QPushButton(get_add_icon(sm_buttonheight, icon_color), "Add")
+        add_btn.setToolTip("STUB - no .dat editing built yet")
+        add_btn.setIconSize(QSize(18, 18))
+        add_btn.setMinimumHeight(18); add_btn.setMaximumHeight(28)
+        add_btn.setEnabled(False)
+        add_btn.setFixedHeight(16)
+        del_btn = QPushButton(get_remove_icon(sm_buttonheight, icon_color), "Del")
+        del_btn.setToolTip("STUB - no .dat editing built yet")
+        del_btn.setIconSize(QSize(18, 18))
+        del_btn.setMinimumHeight(18); del_btn.setMaximumHeight(28)
+        del_btn.setEnabled(False)
+        del_btn.setFixedHeight(16)
+        ren_btn = QPushButton(get_rename_icon(sm_buttonheight, icon_color), "Rename")
+        ren_btn.setToolTip("STUB - no .dat editing built yet")
+        ren_btn.setIconSize(QSize(18, 18))
+        ren_btn.setMinimumHeight(18); ren_btn.setMaximumHeight(28)
+        ren_btn.setEnabled(False)
+        ren_btn.setFixedHeight(16)
+        save_btn = QPushButton(get_save_icon(sm_buttonheight, icon_color), "Rebuild")
+        save_btn.setToolTip("STUB - no write-back to disk exists for any\n" #TODO get_rebuild_icon
+                            "file type in Map Workshop yet")
+        save_btn.setIconSize(QSize(18, 18))
+        save_btn.setMinimumHeight(18); save_btn.setMaximumHeight(28)
+        save_btn.setEnabled(False)
+        save_btn.setFixedHeight(16)
+        for b in (ext_btn, add_btn, del_btn, ren_btn, save_btn):
             title_row.addWidget(b)
-        title_row.addStretch()
-        lay.addLayout(title_row)
+
         img_tabs = QTabWidget()
         img_tabs.setTabPosition(QTabWidget.TabPosition.North)
         from PyQt6.QtGui import QFontMetrics
@@ -9301,8 +9371,7 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
             btn = QToolButton()
             btn.setText(tab_labels[tab_key])
             btn.setStyleSheet(f"QToolButton {{ color: {tab_colors[tab_key]}; font-weight: bold; }}")
-            btn.setToolTip(f"{tab_labels[tab_key]} tab (merged in from the former "
-                          f"standalone Editing Panel dock)")
+            btn.setToolTip(f"{tab_labels[tab_key]} tab")
             btn.setCheckable(True)
             btn.setFixedHeight(OBJECT_BROWSER_BUTTON_H)
             btn.clicked.connect(lambda checked, k=tab_key: self._on_object_browser_tab_changed(k))
