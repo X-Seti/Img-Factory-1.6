@@ -8833,6 +8833,11 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
             btn.setCheckable(True)
             btn.setChecked(mode == 'all')
             btn.setFixedHeight(OBJECT_BROWSER_BUTTON_H)
+            btn.setMinimumWidth(OBJECT_BROWSER_ICON_SIZE + 8)   # icon-only size floor - without
+                                                                # this the icon+text minimumSizeHint
+                                                                # (~80-100px per button) forces the
+                                                                # whole dock's minimum width way up,
+                                                                # blocking narrower resizing entirely
             btn.clicked.connect(lambda checked, m=mode: self._on_object_mode_changed(m))
             group.addButton(btn)
             top_row.addWidget(btn)
@@ -8943,6 +8948,7 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         title_lay.addWidget(title_label)
         search = QLineEdit()
         search.setPlaceholderText("Search objects…")
+        search.setMinimumWidth(40)
         search.textChanged.connect(self._on_object_search_changed)
         title_lay.addWidget(search, 1)
         self._object_search_edit = search
