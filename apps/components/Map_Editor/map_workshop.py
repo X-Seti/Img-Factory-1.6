@@ -2579,25 +2579,16 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         if world_dock is not None:
             outer_mw.splitDockWidget(world_dock, object_browser_dock, Qt.Orientation.Vertical)
 
-        # Editing Panel dock (IDE/IPL/DAT/IMG tabs) - replaces the
-        # previous standalone IPL Sections dock, which is now the
-        # [IPL] tab inside this. Tabbed with Object Browser rather than
-        # split alongside it (only one visible at a time via the tab
-        # strip) - per Keith's "compact, use the area logically"
-        # request, matching the same arrangement the old IPL Sections
-        # dock had.
-        editing_panel_dock = self._create_editing_panel_dock()
-        outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, editing_panel_dock)
-        outer_mw.tabifyDockWidget(object_browser_dock, editing_panel_dock)
-        object_browser_dock.raise_()
-
-        # IPL Inst File dock - new, takes the old IPL Sections dock's
-        # former physical location (stacked below Object Browser/
-        # Editing Panel) - shows the real raw content of whichever IPL
-        # is currently selected in the [IPL] tab, per Keith's request.
+        # IPL Inst File dock - takes the old IPL Sections dock's former
+        # physical location (stacked below Object Browser, which now
+        # also hosts the merged IDE/IPL/DAT/IMG tabs directly - per
+        # Keith's request to merge the former standalone Editing Panel
+        # dock in rather than keep it separate) - shows the real raw
+        # content of whichever IPL is currently selected in the [IPL]
+        # tab.
         ipl_inst_file_dock = self._create_ipl_inst_file_panel()
         outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, ipl_inst_file_dock)
-        outer_mw.splitDockWidget(editing_panel_dock, ipl_inst_file_dock, Qt.Orientation.Vertical)
+        outer_mw.splitDockWidget(object_browser_dock, ipl_inst_file_dock, Qt.Orientation.Vertical)
 
         # Control Panel dock - replicates MooMapper's own "Hide/Show
         # Control Panel" area (see _create_control_panel_dock's own
@@ -2674,7 +2665,6 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         for dock in (getattr(self, '_world_view_dock', None),
                      getattr(self, '_instance_list_dock', None),
                      getattr(self, '_object_browser_dock', None),
-                     getattr(self, '_editing_panel_dock', None),
                      getattr(self, '_ipl_inst_file_dock', None),
                      getattr(self, '_control_panel_dock', None)):
             if dock is None:
@@ -8377,12 +8367,12 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         lay.setContentsMargins(6, 6, 6, 6)
         from apps.methods.imgfactory_svg_icons import get_add_icon, get_trash_icon
         from PyQt6.QtWidgets import QButtonGroup
+        title_row = QHBoxLayout()
         label = QLabel("IPL Sections")
         label.setStyleSheet("font-weight: bold;")
-        lay.addWidget(label)
+        title_row.addWidget(label)
 
         icon_color = self._get_icon_color()
-        btn_row = QHBoxLayout()
         open_btn = QPushButton(get_add_icon(18, icon_color), "Open")
         open_btn.setToolTip("Load the selected IPL's content on demand -\n"
                             "same as clicking its eye icon to show it")
@@ -8402,8 +8392,9 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
                               "for any file type in Map Workshop yet)")
         delete_btn.setEnabled(False)
         for b in (open_btn, close_btn, new_btn, delete_btn):
-            btn_row.addWidget(b)
-        lay.addLayout(btn_row)
+            title_row.addWidget(b)
+        title_row.addStretch()
+        lay.addLayout(title_row)
 
         table = QTableWidget(0, 2)
         table.setHorizontalHeaderLabels(["", "IPL File"])
@@ -8801,20 +8792,23 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
                     in_section = False
         return "\n".join(out) if found else None
 
-    def _create_ide_tab(self): #vers 1
+    def _create_ide_tab(self): #vers 2
         """[IDE] tab content, matching MooMapper's own "Object
         Definition" tab - lists every IDE file the .dat references
         (real data, drawn from GTAWorldLoader.load_log, which already
-        tracks every IDE path encountered during loading). Edit/Save
-        are honest stubs - no write-back infrastructure exists for any
-        file type in Map Workshop yet."""
+        tracks every IDE path encountered during loading), paths
+        shortened relative to the game root. Clicking a row previews
+        that file's real content below, mirroring the IPL tab's
+        click-to-preview behaviour (per Keith's request that IDE files
+        work "like the ipl links"). Edit/Save are honest stubs - no
+        write-back infrastructure exists for any file type yet."""
         panel = QWidget()
         lay = QVBoxLayout(panel)
         lay.setContentsMargins(6, 6, 6, 6)
+        title_row = QHBoxLayout()
         label = QLabel("IDE Definitions")
         label.setStyleSheet("font-weight: bold;")
-        lay.addWidget(label)
-        btn_row = QHBoxLayout()
+        title_row.addWidget(label)
         edit_btn = QPushButton("Edit")
         edit_btn.setToolTip("STUB - no IDE editing built yet")
         edit_btn.setEnabled(False)
@@ -8822,28 +8816,66 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         save_btn.setToolTip("STUB - no write-back to disk exists for any\n"
                             "file type in Map Workshop yet")
         save_btn.setEnabled(False)
-        btn_row.addWidget(edit_btn)
-        btn_row.addWidget(save_btn)
-        lay.addLayout(btn_row)
+        title_row.addWidget(edit_btn)
+        title_row.addWidget(save_btn)
+        title_row.addStretch()
+        lay.addLayout(title_row)
         table = QTableWidget(0, 2)
         table.setHorizontalHeaderLabels(["Ind.", "Filename"])
         table.verticalHeader().setVisible(False)
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        table.cellClicked.connect(self._on_ide_tab_row_clicked)
         lay.addWidget(table)
         self._ide_tab_table = table
+        from PyQt6.QtWidgets import QTextEdit
+        preview = QTextEdit()
+        preview.setReadOnly(True)
+        font = preview.font(); font.setFamily("monospace"); preview.setFont(font)
+        preview.setPlaceholderText("Click an IDE file above to preview its contents here")
+        lay.addWidget(preview)
+        self._ide_tab_preview = preview
         return panel
 
-    def _refresh_ide_tab(self, loader): #vers 1
+    def _refresh_ide_tab(self, loader): #vers 2
+        """Populate the IDE file list - paths shortened relative to the
+        game root folder (per Keith: "start from the game root folder
+        to shorten the paths"), matching how IPL Sections already
+        shows short names rather than full absolute paths."""
         table = getattr(self, '_ide_tab_table', None)
         if table is None:
             return
+        game_root = getattr(self, '_game_root', None)
         ide_paths = [abs_path for phase, entry_type, abs_path, ok in loader.load_log
                     if entry_type == "IDE" and ok]
         table.setRowCount(len(ide_paths))
+        self._ide_tab_paths = {}
         for i, path in enumerate(ide_paths):
+            display_path = path
+            if game_root:
+                try:
+                    display_path = os.path.relpath(path, game_root)
+                except Exception:
+                    display_path = path
             table.setItem(i, 0, QTableWidgetItem(str(i)))
-            table.setItem(i, 1, QTableWidgetItem(path))
+            table.setItem(i, 1, QTableWidgetItem(display_path))
+            self._ide_tab_paths[i] = path
+
+    def _on_ide_tab_row_clicked(self, row, col): #vers 1
+        """Preview the clicked IDE file's real raw text content - per
+        Keith's request that IDE files work like IPL files (click to
+        preview), mirroring _refresh_ipl_inst_file_panel's approach:
+        re-read directly from disk each time rather than reconstructed
+        from parsed data."""
+        text_widget = getattr(self, '_ide_tab_preview', None)
+        path = getattr(self, '_ide_tab_paths', {}).get(row)
+        if text_widget is None or path is None:
+            return
+        try:
+            with open(path, 'r', encoding='ascii', errors='ignore') as f:
+                text_widget.setPlainText(f.read())
+        except Exception as e:
+            text_widget.setPlainText(f"(could not read {path}: {e})")
 
     def _create_dat_tab(self): #vers 1
         """[DAT] tab content, matching MooMapper's own "DAT Editor" -
@@ -8854,10 +8886,10 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         panel = QWidget()
         lay = QVBoxLayout(panel)
         lay.setContentsMargins(6, 6, 6, 6)
+        title_row = QHBoxLayout()
         label = QLabel("Dat Editor")
         label.setStyleSheet("font-weight: bold;")
-        lay.addWidget(label)
-        btn_row = QHBoxLayout()
+        title_row.addWidget(label)
         edit_btn = QPushButton("Edit")
         edit_btn.setToolTip("STUB - no .dat editing built yet")
         edit_btn.setEnabled(False)
@@ -8865,9 +8897,10 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         save_btn.setToolTip("STUB - no write-back to disk exists for any\n"
                             "file type in Map Workshop yet")
         save_btn.setEnabled(False)
-        btn_row.addWidget(edit_btn)
-        btn_row.addWidget(save_btn)
-        lay.addLayout(btn_row)
+        title_row.addWidget(edit_btn)
+        title_row.addWidget(save_btn)
+        title_row.addStretch()
+        lay.addLayout(title_row)
         from PyQt6.QtWidgets import QTextEdit
         text = QTextEdit()
         text.setReadOnly(True)
@@ -8902,17 +8935,18 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         panel = QWidget()
         lay = QVBoxLayout(panel)
         lay.setContentsMargins(6, 6, 6, 6)
+        title_row = QHBoxLayout()
         label = QLabel("IMG File")
         label.setStyleSheet("font-weight: bold;")
-        lay.addWidget(label)
-        btn_row = QHBoxLayout()
+        title_row.addWidget(label)
         for name in ("Extract", "Add", "Del", "Rename"):
             b = QPushButton(name)
             b.setToolTip(f"STUB - {name} isn't built yet - no write-back to\n"
                         "disk exists for any file type in Map Workshop yet")
             b.setEnabled(False)
-            btn_row.addWidget(b)
-        lay.addLayout(btn_row)
+            title_row.addWidget(b)
+        title_row.addStretch()
+        lay.addLayout(title_row)
         img_tabs = QTabWidget()
         img_tabs.setTabPosition(QTabWidget.TabPosition.North)
         lay.addWidget(img_tabs)
@@ -9194,7 +9228,7 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         filter (All/Most Used/Favourites/Generic) over the loaded
         object catalog. Double-click a row to toggle its favourite
         status (persisted to map_settings)."""
-        from PyQt6.QtWidgets import QTableView, QLineEdit, QPushButton, QButtonGroup, QToolButton
+        from PyQt6.QtWidgets import QTableView, QLineEdit, QPushButton, QButtonGroup, QToolButton, QStackedWidget
         from apps.methods.imgfactory_svg_icons import get_add_icon, get_trash_icon, get_rename_icon
 
         OBJECT_BROWSER_ICON_SIZE = 18
@@ -9231,6 +9265,28 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         group = QButtonGroup(panel)
         group.setExclusive(True)
         self._object_mode_buttons = {}
+
+        # IMG/DAT/IDE/IPL - compact colored-text buttons (the label
+        # text itself IS the icon, no separate graphic - per Keith's
+        # request to save space) for the tabs merged in from the old
+        # standalone Editing Panel dock. Order matches Keith's request:
+        # IMG, DAT, IDE, IPL, then All/Most Used/Favourites/Generic.
+        tab_colors = {'img': '#c060e0', 'dat': '#e0a030', 'ide': '#4090e0', 'ipl': '#40b060'}
+        tab_labels = {'img': "IMG", 'dat': "DAT", 'ide': "IDE", 'ipl': "IPL"}
+        self._object_browser_tab_buttons = {}
+        for tab_key in ('img', 'dat', 'ide', 'ipl'):
+            btn = QToolButton()
+            btn.setText(tab_labels[tab_key])
+            btn.setStyleSheet(f"QToolButton {{ color: {tab_colors[tab_key]}; font-weight: bold; }}")
+            btn.setToolTip(f"{tab_labels[tab_key]} tab (merged in from the former "
+                          f"standalone Editing Panel dock)")
+            btn.setCheckable(True)
+            btn.setFixedHeight(OBJECT_BROWSER_BUTTON_H)
+            btn.clicked.connect(lambda checked, k=tab_key: self._on_object_browser_tab_changed(k))
+            group.addButton(btn)
+            top_row.addWidget(btn)
+            self._object_browser_tab_buttons[tab_key] = btn
+
         mode_icon_shapes = {'all': 'list_all', 'most_used': 'bars_most_used',
                             'favourites': 'star_filled', 'generic': 'box_generic'}
         mode_labels = {'all': "All", 'most_used': "Most Used",
@@ -9345,9 +9401,21 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         if sel_model is not None:
             sel_model.currentRowChanged.connect(
                 lambda cur, prev: self._on_object_row_selected(cur.row()))
-        left_layout.addWidget(view)
         self._object_browser_view = view
         self._object_browser_model = model
+
+        # Stacked content area - page 0 is the Object Browser table
+        # itself (All/Most Used/Favourites/Generic modes all share this
+        # one page, just filtering its rows); pages 1-4 are the tabs
+        # merged in from the former standalone Editing Panel dock.
+        content_stack = QStackedWidget()
+        content_stack.addWidget(view)
+        content_stack.addWidget(self._create_ide_tab())
+        content_stack.addWidget(self._create_ipl_tab())
+        content_stack.addWidget(self._create_dat_tab())
+        content_stack.addWidget(self._create_img_tab())
+        left_layout.addWidget(content_stack)
+        self._object_browser_content_stack = content_stack
 
         dock = QDockWidget("Object Browser", self)
         dock.setObjectName("Object Browser")
@@ -9389,10 +9457,25 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         if model is not None:
             model.set_search(text)
 
-    def _on_object_mode_changed(self, mode): #vers 1
+    def _on_object_mode_changed(self, mode): #vers 2
         model = getattr(self, '_object_browser_model', None)
         if model is not None:
             model.set_mode(mode)
+        stack = getattr(self, '_object_browser_content_stack', None)
+        if stack is not None:
+            stack.setCurrentIndex(0)   # table page - IMG/DAT/IDE/IPL buttons show pages 1-4
+
+    def _on_object_browser_tab_changed(self, tab_key): #vers 1
+        """IMG/DAT/IDE/IPL button clicked - switches the shared content
+        stack to that tab's page instead of the Object Browser table,
+        per Keith's request to merge the former standalone Editing
+        Panel dock's tabs in here."""
+        stack = getattr(self, '_object_browser_content_stack', None)
+        if stack is None:
+            return
+        page_index = {'ide': 1, 'ipl': 2, 'dat': 3, 'img': 4}.get(tab_key)
+        if page_index is not None:
+            stack.setCurrentIndex(page_index)
 
     def _on_object_row_selected(self, row): #vers 2
         """Selecting a model row in the (now merged) Object Browser
