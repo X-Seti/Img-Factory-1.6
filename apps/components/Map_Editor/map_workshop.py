@@ -2313,6 +2313,13 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
     # Image Palette/User Palette dock widgets (initial ribbon rebuild).
     _OUTER_LAYOUT_VERSION = 1
 
+    # Shared compact sizing for Object Browser and all four tabs merged
+    # into it (IDE/IPL/DAT/IMG) - per Keith's report that the new tabs'
+    # buttons/header cells were taller than Object Browser's own,
+    # everything should use these same values.
+    _COMPACT_BUTTON_H = 18
+    _COMPACT_ICON_SIZE = 18
+
     # Widget registry - each entry describes one dock widget module under
     # depends/. setup_ui() loops over this instead of hardcoding each
     # dock's creation, so adding a new widget, removing one, or swapping
@@ -8377,20 +8384,24 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         open_btn.setToolTip("Load the selected IPL's content on demand -\n"
                             "same as clicking its eye icon to show it")
         open_btn.clicked.connect(self._on_ipl_tab_open_clicked)
+        open_btn.setFixedHeight(self._COMPACT_BUTTON_H)
         close_btn = QPushButton(get_trash_icon(18, icon_color), "Close")
         close_btn.setToolTip("Hide the selected IPL - same as clicking\n"
                              "its eye icon to hide it (its data stays\n"
                              "loaded, just not shown)")
         close_btn.clicked.connect(self._on_ipl_tab_close_clicked)
+        close_btn.setFixedHeight(self._COMPACT_BUTTON_H)
         new_btn = QPushButton("New")
         new_btn.setToolTip("STUB - creating a brand new, empty IPL file\n"
                            "on disk isn't built yet")
         new_btn.setEnabled(False)
+        new_btn.setFixedHeight(self._COMPACT_BUTTON_H)
         delete_btn = QPushButton("Delete")
         delete_btn.setToolTip("STUB - deleting an IPL file from disk isn't\n"
                               "built yet (no write-back infrastructure exists\n"
                               "for any file type in Map Workshop yet)")
         delete_btn.setEnabled(False)
+        delete_btn.setFixedHeight(self._COMPACT_BUTTON_H)
         for b in (open_btn, close_btn, new_btn, delete_btn):
             title_row.addWidget(b)
         title_row.addStretch()
@@ -8399,7 +8410,6 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         table = QTableWidget(0, 2)
         table.setHorizontalHeaderLabels(["", "IPL File"])
         header = table.horizontalHeader()
-        header.setMinimumSectionSize(16)
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
         header.setStretchLastSection(False)
@@ -8410,16 +8420,7 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         else:
             header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         header.sectionResized.connect(self._on_ipl_sections_column_resized)
-        table.verticalHeader().setVisible(False)
-        from PyQt6.QtGui import QFontMetrics
-        text_h = QFontMetrics(table.font()).height()
-        IPL_SECTION_ROW_HEIGHT = text_h + 2   # per Keith: row height = text height + 2px
-        table.verticalHeader().setMinimumSectionSize(IPL_SECTION_ROW_HEIGHT)
-
-        table.verticalHeader().setDefaultSectionSize(
-            IPL_SECTION_ROW_HEIGHT
-        )
-        header.setFixedHeight(QFontMetrics(header.font()).height() + 2)
+        self._apply_compact_table_style(table)
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         table.setShowGrid(False)
         table.setToolTip("Toggle which IPL files' placements are shown in World View")
@@ -8714,9 +8715,6 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         panel = QWidget()
         lay = QVBoxLayout(panel)
         lay.setContentsMargins(6, 6, 6, 6)
-        label = QLabel("IPL Inst File")
-        label.setStyleSheet("font-weight: bold;")
-        lay.addWidget(label)
         from PyQt6.QtWidgets import QTextEdit
         text = QTextEdit()
         text.setReadOnly(True)
@@ -8792,6 +8790,22 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
                     in_section = False
         return "\n".join(out) if found else None
 
+    def _apply_compact_table_style(self, table): #vers 1
+        """Apply the same compact row/header height Object Browser
+        uses (font-metric-based: text height + 2px, not a hardcoded
+        guess) to a table in one of the merged tabs - per Keith's
+        report that the new tabs' header cells were taller than Object
+        Browser's own. Reused instead of duplicating this logic in
+        every tab's own creation method."""
+        from PyQt6.QtGui import QFontMetrics
+        row_h = QFontMetrics(table.font()).height() + 2
+        table.verticalHeader().setVisible(False)
+        table.verticalHeader().setMinimumSectionSize(row_h)
+        table.verticalHeader().setDefaultSectionSize(row_h)
+        header = table.horizontalHeader()
+        header.setMinimumSectionSize(16)
+        header.setFixedHeight(QFontMetrics(header.font()).height() + 2)
+
     def _create_ide_tab(self): #vers 2
         """[IDE] tab content, matching MooMapper's own "Object
         Definition" tab - lists every IDE file the .dat references
@@ -8812,20 +8826,22 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         edit_btn = QPushButton("Edit")
         edit_btn.setToolTip("STUB - no IDE editing built yet")
         edit_btn.setEnabled(False)
+        edit_btn.setFixedHeight(self._COMPACT_BUTTON_H)
         save_btn = QPushButton("Save")
         save_btn.setToolTip("STUB - no write-back to disk exists for any\n"
                             "file type in Map Workshop yet")
         save_btn.setEnabled(False)
+        save_btn.setFixedHeight(self._COMPACT_BUTTON_H)
         title_row.addWidget(edit_btn)
         title_row.addWidget(save_btn)
         title_row.addStretch()
         lay.addLayout(title_row)
         table = QTableWidget(0, 2)
         table.setHorizontalHeaderLabels(["Ind.", "Filename"])
-        table.verticalHeader().setVisible(False)
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         table.cellClicked.connect(self._on_ide_tab_row_clicked)
+        self._apply_compact_table_style(table)
         lay.addWidget(table)
         self._ide_tab_table = table
         from PyQt6.QtWidgets import QTextEdit
@@ -8893,10 +8909,12 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         edit_btn = QPushButton("Edit")
         edit_btn.setToolTip("STUB - no .dat editing built yet")
         edit_btn.setEnabled(False)
+        edit_btn.setFixedHeight(self._COMPACT_BUTTON_H)
         save_btn = QPushButton("Save")
         save_btn.setToolTip("STUB - no write-back to disk exists for any\n"
                             "file type in Map Workshop yet")
         save_btn.setEnabled(False)
+        save_btn.setFixedHeight(self._COMPACT_BUTTON_H)
         title_row.addWidget(edit_btn)
         title_row.addWidget(save_btn)
         title_row.addStretch()
@@ -8944,11 +8962,16 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
             b.setToolTip(f"STUB - {name} isn't built yet - no write-back to\n"
                         "disk exists for any file type in Map Workshop yet")
             b.setEnabled(False)
+            b.setFixedHeight(self._COMPACT_BUTTON_H)
             title_row.addWidget(b)
         title_row.addStretch()
         lay.addLayout(title_row)
         img_tabs = QTabWidget()
         img_tabs.setTabPosition(QTabWidget.TabPosition.North)
+        from PyQt6.QtGui import QFontMetrics
+        tab_font = img_tabs.font()
+        img_tabs.tabBar().setStyleSheet(
+            f"QTabBar::tab {{ height: {QFontMetrics(tab_font).height() + 6}px; padding: 2px 8px; }}")
         lay.addWidget(img_tabs)
         self._img_tab_tabs = img_tabs
         return panel
@@ -8966,9 +8989,9 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         for i, img_path in enumerate(loader.get_img_paths(), 1):
             table = QTableWidget(0, 4)
             table.setHorizontalHeaderLabels(["Ind.", "Filename", "Type", "Size"])
-            table.verticalHeader().setVisible(False)
             table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
             table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+            self._apply_compact_table_style(table)
             try:
                 img = IMGFile(img_path)
                 if img.open():
@@ -9291,6 +9314,7 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
                             'favourites': 'star_filled', 'generic': 'box_generic'}
         mode_labels = {'all': "All", 'most_used': "Most Used",
                       'favourites': "Favourites", 'generic': "Generic"}
+        self._object_mode_button_text_widths = {}
         for mode in ('all', 'most_used', 'favourites', 'generic'):
             icon = self._render_variant_icon(mode_icon_shapes[mode], None,
                                              OBJECT_BROWSER_ICON_SIZE, icon_color,
@@ -9299,7 +9323,7 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
             btn.setIcon(icon)
             btn.setText(mode_labels[mode])
             btn.setToolTip(mode_labels[mode])
-            btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+            btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
             btn.setCheckable(True)
             btn.setChecked(mode == 'all')
             btn.setFixedHeight(OBJECT_BROWSER_BUTTON_H)
@@ -9312,6 +9336,13 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
             group.addButton(btn)
             top_row.addWidget(btn)
             self._object_mode_buttons[mode] = btn
+            # Estimated width needed in icon+text mode, computed directly
+            # from font metrics rather than by actually switching the
+            # button's style to measure it (avoids flicker/cascading
+            # resize events - see _update_mode_button_style).
+            from PyQt6.QtGui import QFontMetrics
+            text_w = QFontMetrics(btn.font()).horizontalAdvance(mode_labels[mode])
+            self._object_mode_button_text_widths[mode] = OBJECT_BROWSER_ICON_SIZE + text_w + 16
 
         # Add/Delete/Rename icon row - previously these actions only
         # existed as right-click context menu entries with no visible
@@ -9347,6 +9378,7 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
 
         self._ob_top_row_widget = top_row_widget
         top_row_widget.installEventFilter(self)
+        QTimer.singleShot(0, self._update_mode_button_style)
         left_layout.addWidget(top_row_widget)
 
         view = QTableView()
@@ -10011,38 +10043,54 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         if obj is getattr(self, '_ob_top_row_widget', None):
             from PyQt6.QtCore import QEvent
             if event.type() == QEvent.Type.Resize:
-                self._update_mode_button_style()
+                QTimer.singleShot(0, self._update_mode_button_style)
         elif obj is getattr(self, '_object_browser_view', None):
             from PyQt6.QtCore import QEvent
             if event.type() == QEvent.Type.Resize:
-                self._recompute_object_browser_model_width()
+                QTimer.singleShot(0, self._recompute_object_browser_model_width)
         return super().eventFilter(obj, event)
 
-    def _update_mode_button_style(self): #vers 1
+    def _update_mode_button_style(self): #vers 2
         """Switch the Object Browser mode buttons (All/Most Used/
         Favourites/Generic) between icon+text and icon-only, based on
         whether the row currently has enough width to show all four
-        with their text labels - falls back to icon-only (tooltip
-        still shows the label) when space is limited."""
+        with their text labels. Defaults to icon-only (per Keith:
+        "show icons only, unless someone widens the pane, then switch
+        to icons and text"), switching to icon+text only once there's
+        actually enough room.
+
+        Uses each button's pre-cached estimated text-mode width
+        (computed once from font metrics at creation time) rather than
+        actually switching styles to measure - the previous version
+        temporarily forced icon+text mode first to measure the row's
+        real needed width, which could itself trigger another resize
+        event (changing a button's style changes its size hint) and
+        end up comparing against stale geometry from before Qt's
+        layout system had finished recalculating - the likely cause of
+        the truncated-text bug Keith reported (buttons stuck showing
+        partial text like "Most U", "Favouri" instead of cleanly
+        switching to icon-only)."""
         buttons = getattr(self, '_object_mode_buttons', None)
+        text_widths = getattr(self, '_object_mode_button_text_widths', None)
         row_widget = getattr(self, '_ob_top_row_widget', None)
         action_widget = getattr(self, '_ob_action_row_widget', None)
-        if not buttons or row_widget is None:
+        tab_buttons = getattr(self, '_object_browser_tab_buttons', None)
+        if not buttons or not text_widths or row_widget is None:
             return
         text_style = Qt.ToolButtonStyle.ToolButtonTextBesideIcon
         icon_style = Qt.ToolButtonStyle.ToolButtonIconOnly
-        # How wide the row would need to be with text shown - measured
-        # once from the buttons' own text-mode size hints, not
-        # recalculated from scratch every resize.
-        for btn in buttons.values():
-            btn.setToolButtonStyle(text_style)
-        needed = sum(btn.sizeHint().width() for btn in buttons.values())
+
+        needed = sum(text_widths.values())
+        if tab_buttons:
+            needed += sum(btn.sizeHint().width() for btn in tab_buttons.values())
         if action_widget is not None and action_widget.isVisible():
             needed += action_widget.sizeHint().width()
         available = row_widget.width()
-        if available < needed:
-            for btn in buttons.values():
-                btn.setToolButtonStyle(icon_style)
+
+        target_style = text_style if available >= needed else icon_style
+        for btn in buttons.values():
+            if btn.toolButtonStyle() != target_style:
+                btn.setToolButtonStyle(target_style)
 
     def _toggle_world_pane_maximize(self, pane): #vers 2
         """Maximize the given world-view pane to fill the whole dock
