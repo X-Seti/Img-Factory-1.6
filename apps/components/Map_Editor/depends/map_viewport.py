@@ -84,8 +84,25 @@ class MapViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self.app_settings = None
 
         self._label_widget = QLabel(self)
-        self._label_widget.setStyleSheet(
-            "color: palette(text); background: transparent; font-weight: bold;")
+        # Was setStyleSheet("color: palette(text); background:
+        # transparent; font-weight: bold;") - any stylesheet
+        # application, even one specifying a transparent background,
+        # sets Qt's WA_StyledBackground attribute, forcing the full
+        # style-based paint path rather than the lightweight "alien
+        # widget" compositing normally used for child widgets on a
+        # QOpenGLWidget - a known trigger for repeated "paintEngine
+        # should no longer be called" warnings (Keith's report).
+        # QPalette + a bold font set directly avoids the stylesheet
+        # machinery entirely while keeping the exact same appearance
+        # and all existing functionality (right-click menu still
+        # works, since this is still a real, interactive QLabel).
+        pal = self._label_widget.palette()
+        pal.setColor(self._label_widget.foregroundRole(), pal.color(pal.ColorRole.Text))
+        self._label_widget.setPalette(pal)
+        label_font = self._label_widget.font()
+        label_font.setBold(True)
+        self._label_widget.setFont(label_font)
+        self._label_widget.setAutoFillBackground(False)
         self._label_widget.hide()
 
     def set_instances(self, instances): #vers 2
