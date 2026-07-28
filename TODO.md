@@ -721,6 +721,41 @@ Keith's instruction to ignore those).
   both were previously dead/disconnected TODO markers with the actual
   fix never wired up.
 
+### Tabbed Editing Panel (IDE/IPL/DAT/IMG) - major MooMapper-matched milestone
+
+Per Keith: "show me what you can really do" - replaced the standalone
+IPL Sections dock with a tabbed "Editing Panel" (IDE/IPL/DAT/IMG,
+24px hand-drawn icons), matching MooMapper's own tabbed structure, plus
+a new "IPL Inst File" dock in IPL Sections' old physical location.
+
+- [IPL]: former IPL Sections table moved here (not duplicated) + Open/
+  Close (real, reuse existing load/hide logic)/New/Delete (stubbed) +
+  INST/CULL/ZONE/PATH radios (INST/CULL/ZONE real - all three already
+  parsed; PATH disabled/stubbed - no path-node data parsed anywhere in
+  this project, no real sample to verify a format against).
+- [IDE]: real IDE file list from load_log. [DAT]: real raw .dat text
+  re-read from disk. [IMG]: real per-archive file listings via
+  numbered sub-tabs. Edit/Save/Extract/Add/Del/Rename all honestly
+  stubbed everywhere - no write-back-to-disk exists for any file type
+  yet.
+- IPL Inst File panel: shows the real raw text of whichever IPL is
+  selected in [IPL], filtered by the selected data type, updating live
+  on any row click (not just the eye icon) - re-read from disk each
+  time, not reconstructed from parsed data.
+
+Verified extensively: all four tabs populate with real data where
+claimed; the core live-update behaviour confirmed end to end (clicking
+between two different IPLs shows exactly each one's own content, CULL
+radio correctly extracts just that section); full regression across
+every existing dock/feature (Object Browser modes, Control Panel, lazy
+per-IPL loading, layout save/restore) with no regression. Caught two
+of my own accidental code deletions (str_replace clobbering existing
+lines) and one real NameError (missing import) before/via testing,
+not left in.
+
+Still open: real editing/write-back for IDE/DAT/IMG/IPL New-Delete: a
+separate, larger piece of work, not started.
+
 ## July 2026 - Next up: DP5 Workshop
 
 ### DP5 Workshop - ribbon rebuild + sidebar sectioning
