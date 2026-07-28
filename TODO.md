@@ -695,6 +695,32 @@ wasn't confirmed from the reference screenshot alone - worth asking
 Keith what it actually does in the original before building anything
 for it).
 
+### Width/height display + compact UI pass (addressing Keith's in-code TODOs)
+
+Per Keith: "add height and width values to the inst name, and object
+browser, making the ui window more compact... height of some sections
+and buttons needs looking at." Searched for and addressed every TODO
+comment left directly in map_workshop.py (excluding *_old* files, per
+Keith's instruction to ignore those).
+
+- ModelCache.get_dimensions() - real axis-aligned bounding box from
+  actual vertex data (width/depth/height), not just the existing
+  bounding-sphere radius. Wired into Object Browser (new "Size"
+  column) and the Instance Edit Panel's Name line - blank when a
+  model's geometry isn't loaded yet, matching the lazy-loading
+  fallback used elsewhere, not an error.
+- Object Browser: search field + mode buttons (All/Most Used/
+  Favourites/Generic, now icons with tooltips instead of text) +
+  Add/Del/Rename combined onto one row (was three separate rows) -
+  four new hand-drawn icon shapes added to the existing
+  _paint_variant_shape system. Mode buttons stay visible regardless
+  of standalone/docked mode; Add/Del/Rename keeps its existing
+  standalone-hidden behaviour (titlebar covers that case there).
+- IPL Sections/Object Browser row heights aligned (18px, both) and
+  the eye-icon column widened slightly (22px) for breathing room -
+  both were previously dead/disconnected TODO markers with the actual
+  fix never wired up.
+
 ## July 2026 - Next up: DP5 Workshop
 
 ### DP5 Workshop - ribbon rebuild + sidebar sectioning
