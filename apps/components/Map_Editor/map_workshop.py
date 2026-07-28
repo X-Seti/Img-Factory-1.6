@@ -13562,4 +13562,4 @@ if __name__ == "__main__": #vers 1
         sys.exit(1)
 
 
-__all__ = ['MapWorkshop', 'MapCanvas', 'DP5PaletteBar', 'open_map_workshop']
+__all__ = ['MapWorkshop', 'open_map_workshop']
