@@ -2311,7 +2311,15 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
     # cleanly rejected instead of Qt silently failing to restore it.
     # History: 1 = Tools/Image Ops ribbons + Bitmaps/Brush & Colors/
     # Image Palette/User Palette dock widgets (initial ribbon rebuild).
-    _OUTER_LAYOUT_VERSION = 1
+    # 2 = Control Panel dock added, IPL Inst File dock added, standalone
+    # Editing Panel dock added then merged into Object Browser (IDE/
+    # IPL/DAT/IMG tabs) - none of these bumped the version at the time,
+    # so a layout saved under any of those structures could pass this
+    # check but restore into a mismatched/broken arrangement, since the
+    # actual set of docks has changed underneath it. Bumped now so any
+    # such stale saved layout is cleanly rejected instead, falling back
+    # to the default arrangement (which correctly shows every dock).
+    _OUTER_LAYOUT_VERSION = 2
 
     # Shared compact sizing for Object Browser and all four tabs merged
     # into it (IDE/IPL/DAT/IMG) - per Keith's report that the new tabs'
@@ -8988,19 +8996,15 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         panel = QWidget()
         lay = QVBoxLayout(panel)
         lay.setContentsMargins(1, 1, 1, 1)
+        from apps.methods.imgfactory_svg_icons import get_save_icon, get_rename_icon, get_remove_icon, get_add_icon, get_dump_icon
+
         title_row = QHBoxLayout()
+        sm_buttonheight = 20
+        icon_color = self._get_icon_color()
 
         label = QLabel("IMG File")
         label.setStyleSheet("font-weight: bold;")
         title_row.addWidget(label)
-        #for name in ("Extract", "Add", "Del", "Rename"):
-
-        from apps.methods.imgfactory_svg_icons import get_save_icon, get_rename_icon, get_remove_icon, get_add_icon, get_dump_icon
-        from PyQt6.QtWidgets import QButtonGroup
-        title_row = QHBoxLayout()
-        sm_buttonheight = 20
-
-        icon_color = self._get_icon_color()
 
         ext_btn = QPushButton(get_dump_icon(sm_buttonheight, icon_color), "Extract")
         ext_btn.setToolTip("STUB - no .dat editing built yet")
@@ -9035,6 +9039,8 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         save_btn.setFixedHeight(16)
         for b in (ext_btn, add_btn, del_btn, ren_btn, save_btn):
             title_row.addWidget(b)
+        title_row.addStretch()
+        lay.addLayout(title_row)
 
         img_tabs = QTabWidget()
         img_tabs.setTabPosition(QTabWidget.TabPosition.North)
