@@ -1200,6 +1200,7 @@ class MapSettings:
         # restored on next open rather than resetting to defaults.
         'ipl_sections_column_widths': [],
         'object_browser_column_widths': [],
+        'object_browser_hidden_columns': [],
         'ui_font_size':      10,       # toolbar/button font size
         'canvas_mode':       'free',   # 'free'|'platform'|'texture'|'icon'
         'show_anim_strip':   False,    # show animation timeline strip
@@ -2665,7 +2666,9 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         self._layout_save_timer.timeout.connect(self._save_outer_layout)
         for dock in (getattr(self, '_world_view_dock', None),
                      getattr(self, '_instance_list_dock', None),
-                     getattr(self, '_object_browser_dock', None)):
+                     getattr(self, '_object_browser_dock', None),
+                     getattr(self, '_ipl_sections_dock', None),
+                     getattr(self, '_control_panel_dock', None)):
             if dock is None:
                 continue
             dock.dockLocationChanged.connect(
@@ -8515,6 +8518,36 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         self.map_settings.set('object_browser_column_widths', widths)
         self.map_settings.save()
 
+    def _on_object_browser_header_context_menu(self, pos): #vers 1
+        """Right-click the Object Browser header to hide/show individual
+        columns - per Keith's request. A checked item means the column
+        is currently visible; unchecking hides it. Persisted to
+        object_browser_hidden_columns so it survives to the next
+        session."""
+        view = getattr(self, '_object_browser_view', None)
+        if view is None:
+            return
+        model = view.model()
+        header = view.horizontalHeader()
+        menu = QMenu(header)
+        for col in range(model.columnCount()):
+            label = model.headerData(col, Qt.Orientation.Horizontal) or f"Column {col}"
+            act = menu.addAction(str(label))
+            act.setCheckable(True)
+            act.setChecked(not view.isColumnHidden(col))
+            act.triggered.connect(
+                lambda checked, c=col: self._on_object_browser_column_visibility_toggled(c, checked))
+        menu.exec(header.mapToGlobal(pos))
+
+    def _on_object_browser_column_visibility_toggled(self, col, visible): #vers 1
+        view = getattr(self, '_object_browser_view', None)
+        if view is None:
+            return
+        view.setColumnHidden(col, not visible)
+        hidden = [c for c in range(view.model().columnCount()) if view.isColumnHidden(c)]
+        self.map_settings.set('object_browser_hidden_columns', hidden)
+        self.map_settings.save()
+
     def _on_ipl_section_cell_clicked(self, row, col): #vers 3
         """Clicking the eye-icon cell toggles that IPL's visibility -
         plain item click rather than a button, so there's no button
@@ -8836,6 +8869,8 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         header.sectionResized.connect(self._on_object_browser_column_resized)
+        header.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        header.customContextMenuRequested.connect(self._on_object_browser_header_context_menu)
         view.verticalHeader().setVisible(False)
         view.setEditTriggers(QTableView.EditTrigger.NoEditTriggers)
         view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -8856,6 +8891,10 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
             if col < model.columnCount() and col != 2:   # 2 (Model) stays Stretch
                 header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
                 view.setColumnWidth(col, width)
+        hidden_cols = self.map_settings.get('object_browser_hidden_columns') or []
+        for col in hidden_cols:
+            if col < model.columnCount():
+                view.setColumnHidden(col, True)
         sel_model = view.selectionModel()
         if sel_model is not None:
             sel_model.currentRowChanged.connect(
