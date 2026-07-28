@@ -8539,7 +8539,7 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
                 lambda checked, c=col: self._on_object_browser_column_visibility_toggled(c, checked))
         menu.exec(header.mapToGlobal(pos))
 
-    def _on_object_browser_column_visibility_toggled(self, col, visible): #vers 1
+    def _on_object_browser_column_visibility_toggled(self, col, visible): #vers 2
         view = getattr(self, '_object_browser_view', None)
         if view is None:
             return
@@ -8547,6 +8547,30 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         hidden = [c for c in range(view.model().columnCount()) if view.isColumnHidden(c)]
         self.map_settings.set('object_browser_hidden_columns', hidden)
         self.map_settings.save()
+        self._recompute_object_browser_model_width()
+
+    def _recompute_object_browser_model_width(self): #vers 1
+        """Explicitly set the Model column (col 2) to fill whatever
+        space is left after every other VISIBLE column, replacing
+        QHeaderView.ResizeMode.Stretch - confirmed by direct
+        measurement that Stretch mode wasn't reliably recalculating
+        after columns were hidden/shown (Keith's report: the Model
+        column widened correctly when he hid TXD/Instances/Size
+        interactively, but reset to narrow after a reload - Stretch's
+        automatic recalculation isn't dependable enough to build this
+        on). Called on initial setup, on any column visibility toggle,
+        and on the view's own resize (see eventFilter)."""
+        view = getattr(self, '_object_browser_view', None)
+        if view is None:
+            return
+        model = view.model()
+        if model is None:
+            return
+        other_width = sum(view.columnWidth(c) for c in range(model.columnCount())
+                          if c != 2 and not view.isColumnHidden(c))
+        available = view.viewport().width()
+        model_width = max(80, available - other_width)
+        view.setColumnWidth(2, model_width)
 
     def _on_ipl_section_cell_clicked(self, row, col): #vers 3
         """Clicking the eye-icon cell toggles that IPL's visibility -
@@ -8767,22 +8791,17 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         main_layout = QHBoxLayout(panel)
         main_layout.setContentsMargins(4, 4, 4, 4)
 
-        splitter = QSplitter(Qt.Orientation.Horizontal)
-
+        # Per Keith: "I think there is a hidden splitter in the middle
+        # between both panes, I cant resize the objects browser
+        # window" - there was: a QSplitter with an empty, entirely
+        # unused right_panel (nothing was ever added to its layout)
+        # taking up half the space and interfering with resizing.
+        # Removed entirely - left_panel's content goes straight into
+        # main_layout now.
         left_panel = QWidget()
         left_layout = QVBoxLayout(left_panel)
-        left_layout.setContentsMargins(0,0,0,0)
-
-        right_panel = QWidget()
-        right_layout = QVBoxLayout(right_panel)
-        right_layout.setContentsMargins(0,0,0,0)
-
-        splitter.addWidget(left_panel)
-        splitter.addWidget(right_panel)
-
-        main_layout.addWidget(splitter)
-
         left_layout.setContentsMargins(4, 4, 4, 4)
+        main_layout.addWidget(left_panel)
 
         # Compact single-row layout: search field (stretching) + mode
         # icon buttons (All/Most Used/Favourites/Generic) + Add/Del/
@@ -8867,7 +8886,13 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         header.setMinimumSectionSize(16)   # Qt's own default was silently clamping the narrow ★/ID widths upward
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        # Model (col 2) used to be QHeaderView.ResizeMode.Stretch, but
+        # that didn't reliably recalculate after hiding/showing other
+        # columns (confirmed by direct measurement, not just assumed) -
+        # explicit, directly-computed width instead (see
+        # _recompute_object_browser_model_width), recalculated on
+        # setup, column visibility changes, and view resize.
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)
         header.sectionResized.connect(self._on_object_browser_column_resized)
         header.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         header.customContextMenuRequested.connect(self._on_object_browser_header_context_menu)
@@ -8877,24 +8902,26 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         view.doubleClicked.connect(self._on_object_row_double_clicked)
         view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         view.customContextMenuRequested.connect(self._on_object_browser_context_menu)
+        view.installEventFilter(self)
         model = _ObjectBrowserModel()
         view.setModel(model)
         # Narrow defaults for ★/ID (per Keith: "Fav * cell needs to be
         # narrow, 5px of the ID, Model should fit the name") - just
         # enough to show a star glyph and a typical 4-5 digit model ID,
-        # freeing the rest of the row width for the Stretch-mode Model
-        # column. Saved widths (if any) override these below.
+        # freeing the rest of the row width for Model. Saved widths (if
+        # any) override these below.
         view.setColumnWidth(0, 20)
         view.setColumnWidth(1, 45)
         saved_widths = self.map_settings.get('object_browser_column_widths') or []
         for col, width in enumerate(saved_widths):
-            if col < model.columnCount() and col != 2:   # 2 (Model) stays Stretch
+            if col < model.columnCount() and col != 2:   # 2 (Model) is computed, not restored
                 header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
                 view.setColumnWidth(col, width)
         hidden_cols = self.map_settings.get('object_browser_hidden_columns') or []
         for col in hidden_cols:
             if col < model.columnCount():
                 view.setColumnHidden(col, True)
+        QTimer.singleShot(0, self._recompute_object_browser_model_width)
         sel_model = view.selectionModel()
         if sel_model is not None:
             sel_model.currentRowChanged.connect(
@@ -9474,11 +9501,18 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         events, switching its buttons between icon+text and icon-only
         depending on available width - per Keith's request that these
         buttons show icon+text normally but fall back to icon-only
-        when space is limited."""
+        when space is limited. And watches the Object Browser table
+        view itself for resize events, recomputing the Model column's
+        width to fill available space (see
+        _recompute_object_browser_model_width)."""
         if obj is getattr(self, '_ob_top_row_widget', None):
             from PyQt6.QtCore import QEvent
             if event.type() == QEvent.Type.Resize:
                 self._update_mode_button_style()
+        elif obj is getattr(self, '_object_browser_view', None):
+            from PyQt6.QtCore import QEvent
+            if event.type() == QEvent.Type.Resize:
+                self._recompute_object_browser_model_width()
         return super().eventFilter(obj, event)
 
     def _update_mode_button_style(self): #vers 1
