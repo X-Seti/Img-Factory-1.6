@@ -8462,8 +8462,11 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         # are already parsed - GTAWorldLoader.instances/culls/zones);
         # PATH is an honest stub, disabled with a tooltip explaining
         # why, rather than a guess at an unverified format.
-        #TODO shows a purple background, use panel_bg instead.
+        themecol = self.app_settings.get_theme_colors()
+        panel_bg = themecol.get('panel_bg')
         type_box = QGroupBox()
+        if panel_bg:
+            type_box.setStyleSheet(f"QGroupBox {{ background: {panel_bg}; }}")
         type_lay = QVBoxLayout(type_box)
         self._ipl_type_group = QButtonGroup(panel)
         self._ipl_type_group.setExclusive(True)
