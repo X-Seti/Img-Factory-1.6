@@ -8723,7 +8723,7 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         filter (All/Most Used/Favourites/Generic) over the loaded
         object catalog. Double-click a row to toggle its favourite
         status (persisted to map_settings)."""
-        from PyQt6.QtWidgets import QTableView, QLineEdit, QPushButton, QButtonGroup
+        from PyQt6.QtWidgets import QTableView, QLineEdit, QPushButton, QButtonGroup, QToolButton
         from apps.methods.imgfactory_svg_icons import get_add_icon, get_trash_icon, get_rename_icon
 
         OBJECT_BROWSER_ICON_SIZE = 18
@@ -8762,12 +8762,6 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         top_row = QHBoxLayout(top_row_widget)
         top_row.setContentsMargins(0, 0, 0, 0)
 
-        search = QLineEdit()
-        search.setPlaceholderText("Search objects…")
-        search.textChanged.connect(self._on_object_search_changed)
-        top_row.addWidget(search)
-        self._object_search_edit = search
-
         group = QButtonGroup(panel)
         group.setExclusive(True)
         self._object_mode_buttons = {}
@@ -8779,11 +8773,14 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
             icon = self._render_variant_icon(mode_icon_shapes[mode], None,
                                              OBJECT_BROWSER_ICON_SIZE, icon_color,
                                              has_menu=False)
-            btn = QPushButton(icon, "")
+            btn = QToolButton()
+            btn.setIcon(icon)
+            btn.setText(mode_labels[mode])
             btn.setToolTip(mode_labels[mode])
+            btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
             btn.setCheckable(True)
             btn.setChecked(mode == 'all')
-            btn.setFixedSize(OBJECT_BROWSER_BUTTON_W, OBJECT_BROWSER_BUTTON_H)
+            btn.setFixedHeight(OBJECT_BROWSER_BUTTON_H)
             btn.clicked.connect(lambda checked, m=mode: self._on_object_mode_changed(m))
             group.addButton(btn)
             top_row.addWidget(btn)
@@ -8821,6 +8818,8 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         self._ob_action_row_widget = action_row_widget
         top_row.addWidget(action_row_widget)
 
+        self._ob_top_row_widget = top_row_widget
+        top_row_widget.installEventFilter(self)
         left_layout.addWidget(top_row_widget)
 
         view = QTableView()
@@ -8870,6 +8869,19 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         dock.setWidget(panel)
         dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
                         QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+
+        title_bar = QWidget()
+        title_lay = QHBoxLayout(title_bar)
+        title_lay.setContentsMargins(6, 2, 6, 2)
+        title_label = QLabel("Object Browser")
+        title_lay.addWidget(title_label)
+        search = QLineEdit()
+        search.setPlaceholderText("Search objects…")
+        search.textChanged.connect(self._on_object_search_changed)
+        title_lay.addWidget(search, 1)
+        self._object_search_edit = search
+        dock.setTitleBarWidget(title_bar)
+
         self._object_browser_dock = dock
         return dock
 
@@ -9409,7 +9421,7 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
 
         return dock
 
-    def eventFilter(self, obj, event): #vers 2
+    def eventFilter(self, obj, event): #vers 3
         """No longer triggers maximize/restore on double-click - that
         conflicted with click-to-pick (Keith reported clicking to pick
         an object was reverting the view to all 3 panes, which is
@@ -9417,8 +9429,44 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         pick attempt would do via the old trigger here). Maximize/
         Restore remains available via the right-click menu on a
         pane's label (_show_world_pane_menu), so no functionality is
-        lost - just the ambiguous, easily-mistaken gesture."""
+        lost - just the ambiguous, easily-mistaken gesture.
+
+        Also watches the Object Browser mode-button row for resize
+        events, switching its buttons between icon+text and icon-only
+        depending on available width - per Keith's request that these
+        buttons show icon+text normally but fall back to icon-only
+        when space is limited."""
+        if obj is getattr(self, '_ob_top_row_widget', None):
+            from PyQt6.QtCore import QEvent
+            if event.type() == QEvent.Type.Resize:
+                self._update_mode_button_style()
         return super().eventFilter(obj, event)
+
+    def _update_mode_button_style(self): #vers 1
+        """Switch the Object Browser mode buttons (All/Most Used/
+        Favourites/Generic) between icon+text and icon-only, based on
+        whether the row currently has enough width to show all four
+        with their text labels - falls back to icon-only (tooltip
+        still shows the label) when space is limited."""
+        buttons = getattr(self, '_object_mode_buttons', None)
+        row_widget = getattr(self, '_ob_top_row_widget', None)
+        action_widget = getattr(self, '_ob_action_row_widget', None)
+        if not buttons or row_widget is None:
+            return
+        text_style = Qt.ToolButtonStyle.ToolButtonTextBesideIcon
+        icon_style = Qt.ToolButtonStyle.ToolButtonIconOnly
+        # How wide the row would need to be with text shown - measured
+        # once from the buttons' own text-mode size hints, not
+        # recalculated from scratch every resize.
+        for btn in buttons.values():
+            btn.setToolButtonStyle(text_style)
+        needed = sum(btn.sizeHint().width() for btn in buttons.values())
+        if action_widget is not None and action_widget.isVisible():
+            needed += action_widget.sizeHint().width()
+        available = row_widget.width()
+        if available < needed:
+            for btn in buttons.values():
+                btn.setToolButtonStyle(icon_style)
 
     def _toggle_world_pane_maximize(self, pane): #vers 2
         """Maximize the given world-view pane to fill the whole dock
@@ -12738,7 +12786,7 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
             b.setFixedSize(28, 28)
             b.setToolTip(tip)
             b.clicked.connect(slot)
-            b.setStyleSheet("QPushButton{background:#333;color:palette(windowText);border:1px solid palette(mid);border-radius:3px;}"
+            b.setStyleSheet("QPushButton{background:palette(button);color:palette(windowText);border:1px solid palette(mid);border-radius:3px;}"
                             "QPushButton:hover{background:palette(mid);}")
             return b
 
@@ -12761,7 +12809,7 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         self._anim_fps_spin.setRange(1, 60)
         self._anim_fps_spin.setValue(self.map_settings.get('anim_fps'))
         self._anim_fps_spin.setFixedWidth(52)
-        self._anim_fps_spin.setStyleSheet("background:#333;color:palette(windowText);border:1px solid palette(mid);")
+        self._anim_fps_spin.setStyleSheet("background:palette(button);color:palette(windowText);border:1px solid palette(mid);")
         hl.addWidget(fps_lbl)
         hl.addWidget(self._anim_fps_spin)
         hl.addSpacing(6)
@@ -12776,7 +12824,7 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         self._anim_thumb_area.setFixedHeight(58)
         self._anim_thumb_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
         self._anim_thumb_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self._anim_thumb_area.setStyleSheet("background:#111; border:none;")
+        self._anim_thumb_area.setStyleSheet("background:palette(base); border:none;")
         self._anim_thumb_container = QWidget()
         self._anim_thumb_layout = QHBoxLayout(self._anim_thumb_container)
         self._anim_thumb_layout.setContentsMargins(2,2,2,2)
