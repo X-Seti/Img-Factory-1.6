@@ -73,7 +73,7 @@ if str(project_root) not in sys.path:
 
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QSplitter,
-    QListWidget, QListWidgetItem, QLabel, QPushButton, QFrame,
+    QListWidget, QListWidgetItem, QLabel, QPushButton, QFrame, QRadioButton,
     QLineEdit, QMessageBox, QGroupBox, QComboBox,
     QSpinBox, QTabWidget, QScrollArea, QCheckBox, QDialog,
     QFormLayout, QFontComboBox, QSlider, QSizePolicy,
@@ -7767,6 +7767,223 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         self._populate_ipl_sections(loader)
         self._populate_object_browser(loader)
         QMessageBox.information(self, source_desc, loader.get_summary())
+
+        # Per Keith: "we could have load from .dat file with no IPL
+        # files selected... Or load with options. the options show all
+        # ipl files [x] boxes and model [x] textures [x] and
+        # [continue]." Only offered when lazy loading actually
+        # discovered something to choose from.
+        if getattr(loader, 'lazy_ipl_loading', False) and loader.available_ipls:
+            selection = self._show_load_options_dialog(loader)
+            if selection is not None:
+                stems, load_models, load_textures = selection
+                if stems:
+                    self._load_selected_ipls_with_log(
+                        loader, model_cache, stems, load_models, load_textures)
+
+    def _load_selected_ipls_with_log(self, loader, model_cache, stems, load_models, load_textures): #vers 1
+        """Load a batch of specific IPLs (from the Load Options dialog),
+        showing a scrolling log dialog matching Keith's exact requested
+        format: "loading <name>" followed by each newly-added instance's
+        line as it's added, then a final per-IPL result line - "loaded
+        <name> - no errors" or "<name> - <model>.dff/<txd>.txd missing
+        from img file" when a referenced model/texture genuinely isn't
+        in any indexed archive at all (as opposed to a parse error in
+        the IPL's own text, which _write_ipl_error_log/the per-IPL
+        issue count already covers separately).
+
+        load_models/load_textures gate whether ModelCache.get_geometry/
+        get_textures are called at all for this batch - unchecking
+        either skips that half of pre-loading entirely for everything
+        loaded here (their own per-instance rendering fallback to
+        point/dot rendering is unaffected either way, this only
+        controls whether pre-loading happens now)."""
+        from PyQt6.QtWidgets import QTextEdit
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Loading IPL Files")
+        dlg.resize(560, 420)
+        lay = QVBoxLayout(dlg)
+        log = QTextEdit()
+        log.setReadOnly(True)
+        font = log.font(); font.setFamily("monospace"); log.setFont(font)
+        lay.addWidget(log)
+        cancel_btn = QPushButton("Cancel")
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        btn_row.addWidget(cancel_btn)
+        lay.addLayout(btn_row)
+
+        cancelled = {'flag': False}
+        cancel_btn.clicked.connect(lambda: cancelled.update(flag=True))
+        dlg.show()
+
+        def _append(line): #vers 1
+            log.append(line)
+            QApplication.processEvents()
+
+        any_loaded = False
+        for stem in stems:
+            if cancelled['flag']:
+                _append("Cancelled - remaining IPLs not loaded")
+                break
+            entry = loader.available_ipls.get(stem)
+            display_name = os.path.basename(entry.abs_path) if entry else stem
+            _append(f"loading {display_name}")
+
+            before_count = len(loader.instances)
+            result = loader.load_ipl_by_name(stem)
+            if not result.success:
+                _append(f"{display_name} - failed to load"
+                       + (f": {result.errors[0]}" if result.errors else ""))
+                continue
+            any_loaded = True
+
+            new_instances = loader.instances[before_count:]
+            for i, inst in enumerate(new_instances):
+                _append(f"{inst.model_id}, {inst.model_name}, {inst.interior}, "
+                        f"{inst.pos_x}, {inst.pos_y}, {inst.pos_z}, "
+                        f"{inst.scale_x}, {inst.scale_y}, {inst.scale_z}, "
+                        f"{inst.rot_x}, {inst.rot_y}, {inst.rot_z}, {inst.rot_w}")
+                if cancelled['flag']:
+                    break
+
+            # Missing-model/texture detection - genuinely absent from
+            # any indexed archive, not a parse error in the IPL itself
+            missing = []
+            seen_models = set()
+            for inst in new_instances:
+                if inst.model_name in seen_models:
+                    continue
+                seen_models.add(inst.model_name)
+                obj = loader.get_object(inst.model_id)
+                txd_name = obj.txd_name if obj else ""
+                if load_models and not model_cache.is_dff_indexed(inst.model_name):
+                    missing.append(f"{inst.model_name}.dff")
+                if load_textures and txd_name and not model_cache.is_txd_indexed(txd_name):
+                    missing.append(f"{txd_name}.txd")
+                if load_models:
+                    model_cache.get_geometry(inst.model_name)
+                if load_textures and txd_name:
+                    model_cache.get_textures(txd_name)
+
+            problem_count = result.error_count + result.warning_count
+            if missing:
+                _append(f"{display_name} loaded - "
+                        + "/ ".join(missing) + " missing from img file")
+                self._write_ipl_error_log(result)
+            elif problem_count:
+                log_path = self._write_ipl_error_log(result)
+                _append(f"{display_name} loaded - {problem_count} issue(s) found"
+                        + (f", check {os.path.basename(log_path)} added to the maps folder"
+                           if log_path else ""))
+            else:
+                _append(f"{display_name} loaded - no errors")
+
+        if any_loaded:
+            self._all_instances = list(loader.instances)
+            self._populate_object_browser(loader)
+            visible = self._apply_lod_filter(loader.instances)
+            for pane in getattr(self, '_world_panes', []):
+                pane.set_instances(visible)
+
+        cancel_btn.setText("Close")
+        cancel_btn.clicked.disconnect()
+        cancel_btn.clicked.connect(dlg.accept)
+
+    def _show_load_options_dialog(self, loader): #vers 1
+        """Shown right after a world's IPL list is discovered (but
+        before any of their content is actually loaded) - lets the
+        user choose "load from .dat file" (stay purely lazy, nothing
+        loaded now, browse/load individual IPLs later via their eye
+        icons - the existing behaviour) or "load with options" (pick
+        specific IPLs, and whether to load their models/textures, right
+        now). Returns (selected_stems, load_models, load_textures), or
+        None if the user picked "load from .dat file" / cancelled."""
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Load Options")
+        dlg.setMinimumWidth(420)
+        lay = QVBoxLayout(dlg)
+
+        dat_only_radio = QRadioButton(
+            "Load from .dat file - IPL data is discovered but not loaded; "
+            "no models or textures loaded into the scene\n"
+            "(load individual IPLs later via their eye icon in IPL Sections)")
+        dat_only_radio.setChecked(True)
+        with_options_radio = QRadioButton("Load with options:")
+        lay.addWidget(dat_only_radio)
+        lay.addWidget(with_options_radio)
+
+        options_box = QGroupBox()
+        options_lay = QVBoxLayout(options_box)
+        ipl_list = QListWidget()
+        ipl_list.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        stem_by_display = {}
+        for stem, entry in sorted(loader.available_ipls.items(),
+                                  key=lambda kv: os.path.basename(kv[1].abs_path).lower()):
+            display_name = os.path.basename(entry.abs_path)
+            item = QListWidgetItem(display_name)
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Unchecked)
+            ipl_list.addItem(item)
+            stem_by_display[display_name] = stem
+        options_lay.addWidget(ipl_list)
+
+        select_row = QHBoxLayout()
+        select_all_btn = QPushButton("Select All")
+        select_none_btn = QPushButton("Select None")
+        select_row.addWidget(select_all_btn)
+        select_row.addWidget(select_none_btn)
+        select_row.addStretch()
+        options_lay.addLayout(select_row)
+
+        def _set_all_checked(checked): #vers 1
+            state = Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked
+            for i in range(ipl_list.count()):
+                ipl_list.item(i).setCheckState(state)
+        select_all_btn.clicked.connect(lambda: _set_all_checked(True))
+        select_none_btn.clicked.connect(lambda: _set_all_checked(False))
+
+        models_chk = QCheckBox("Model")
+        models_chk.setChecked(True)
+        textures_chk = QCheckBox("Textures")
+        textures_chk.setChecked(True)
+        mt_row = QHBoxLayout()
+        mt_row.addWidget(models_chk)
+        mt_row.addWidget(textures_chk)
+        mt_row.addStretch()
+        options_lay.addLayout(mt_row)
+        lay.addWidget(options_box)
+
+        def _sync_options_enabled(): #vers 1
+            options_box.setEnabled(with_options_radio.isChecked())
+        dat_only_radio.toggled.connect(_sync_options_enabled)
+        with_options_radio.toggled.connect(_sync_options_enabled)
+        _sync_options_enabled()
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        continue_btn = QPushButton("Continue")
+        continue_btn.setDefault(True)
+        btn_row.addWidget(continue_btn)
+        lay.addLayout(btn_row)
+
+        result = {}
+        def _on_continue(): #vers 1
+            if with_options_radio.isChecked():
+                selected_stems = [
+                    stem_by_display[ipl_list.item(i).text()]
+                    for i in range(ipl_list.count())
+                    if ipl_list.item(i).checkState() == Qt.CheckState.Checked]
+                result['value'] = (selected_stems, models_chk.isChecked(),
+                                   textures_chk.isChecked())
+            else:
+                result['value'] = ([], True, True)   # dat-only: nothing to load
+            dlg.accept()
+        continue_btn.clicked.connect(_on_continue)
+
+        dlg.exec()
+        return result.get('value')
 
     def _set_render_mode(self, mode): #vers 1
         """Set the Solid/Semi/Wireframe render mode across all World

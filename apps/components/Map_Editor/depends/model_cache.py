@@ -143,6 +143,19 @@ class ModelCache:
             return None
         return img.read_entry_data(entry)
 
+    def is_dff_indexed(self, model_name: str) -> bool:
+        """True if model_name's .dff was found in one of the indexed
+        IMG archives at all - distinguishes "genuinely missing from
+        the archive" from "present but failed to parse" (get_geometry
+        returning None covers both cases; this is for callers that
+        need to tell them apart, e.g. Keith's requested "road43.dff
+        missing from img file" reporting)."""
+        return model_name.lower() in self._dff_index
+
+    def is_txd_indexed(self, txd_name: str) -> bool:
+        """Same as is_dff_indexed, for TXD files."""
+        return txd_name.lower() in self._txd_index
+
     def stats(self) -> str: #vers 1
         """One-line human-readable summary, for status bar/log use."""
         return (f"{len(self._dff_index)} DFF, {len(self._txd_index)} TXD indexed "
