@@ -472,55 +472,6 @@ except ImportError:
     SettingsDialog = None
 
 
-# - Sticker/emoji assets — real image files (GIF/JPG etc), not font
-# glyphs. apps/emojis/ sits three levels up from this file
-# (apps/components/DP5_Workshop/map_workshop.py -> apps/).
-_STICKER_DIR = Path(__file__).resolve().parent.parent.parent / "emojis"
-_sticker_cache = {}   # filename -> (rgba_bytearray, w, h)
-
-
-def _list_stickers(): #vers 1
-    """Return sorted list of available sticker filenames in
-    apps/emojis/, or an empty list if the folder doesn't exist."""
-    if not _STICKER_DIR.exists():
-        return []
-    exts = ('.gif', '.png', '.jpg', '.jpeg', '.bmp')
-    return sorted(f.name for f in _STICKER_DIR.iterdir()
-                  if f.is_file() and f.suffix.lower() in exts)
-
-
-def _load_sticker_rgba(filename: str): #vers 1
-    """Load a sticker image file, return (rgba_bytearray, w, h) with
-    transparency resolved and cached. Uses the image's own alpha info
-    if the source already has any transparent pixels (real GIF
-    transparency); otherwise treats the top-left corner pixel's colour
-    as the background and makes matching pixels transparent, since most
-    of this set are old-style solid-background icon GIFs without real
-    alpha. Returns (None, 0, 0) if the file can't be loaded."""
-    if filename in _sticker_cache:
-        return _sticker_cache[filename]
-    path = _STICKER_DIR / filename
-    try:
-        from PIL import Image
-        img = Image.open(path).convert('RGBA')
-        w, h = img.size
-        px = img.load()
-        has_alpha = any(px[x, y][3] < 255
-                        for x in (0, w - 1) for y in (0, h - 1))
-        if not has_alpha:
-            bg = px[0, 0]
-            for y in range(h):
-                for x in range(w):
-                    r, g, b, a = px[x, y]
-                    if (r, g, b) == bg[:3]:
-                        px[x, y] = (r, g, b, 0)
-        rgba = bytearray(img.tobytes())
-        _sticker_cache[filename] = (rgba, w, h)
-        return rgba, w, h
-    except Exception:
-        return None, 0, 0
-
-
 # - Tool icon renderer — Photoshop-style white silhouettes on dark tile
 def _load_tool_icon(shape: str, size: int = 42, active: bool = False,
                     tile_bg: str = '', icon_col: str = '') -> QIcon:  #vers 4
@@ -553,580 +504,6 @@ def _load_tool_icon(shape: str, size: int = 42, active: bool = False,
             return QIcon(pix)
     # 3. Built-in renderer
     return _make_tool_icon(shape, size, active, tile_bg=tile_bg, icon_col=icon_col)
-
-
-def _make_tool_icon(shape: str, size: int = 42,
-                    active: bool = False,
-                    tile_bg: str = '', icon_col: str = '') -> QIcon: #vers 4
-    """
-    Render a tool icon.  Uses SVGIconFactory.dp_*_icon() when available.
-    tile_bg / icon_col MUST be passed in from the caller's
-    _get_icon_color() call - this is a module-level function with no
-    access to self/app_settings, so it can't look up theme colours
-    itself. No fallback colour here: if the caller doesn't provide one,
-    that's the caller's responsibility to fix, not this function's job
-    to invent a value for.
-    """
-    #    SVG icon map: shape → SVGIconFactory method name                      
-    # Add entries here as you create new dp_*_icon() methods in
-    # imgfactory_svg_icons.py — they'll be picked up automatically.
-    _SVG_MAP = {
-        'pencil':          'dp_pencil_icon',
-        'eraser':          'dp_eraser_icon',
-        'fill':            'dp_bucket_icon',
-        'spray':           'dp_brush_icon',
-        'picker':          'dp_color_picker_icon',
-        'line':            'dp_line_icon',
-        'zoom':            'dp_magnify_icon',
-        'curve':           'dp_curve_icon',
-        'rect':            'dp_rect_icon',
-        'filled_rect':     'dp_filled_rect_icon',
-        'circle':          'dp_circle_icon',
-        'filled_circle':   'dp_filled_circle_icon',
-        'triangle':        'dp_triangle_icon',
-        'filled_triangle': 'dp_filled_triangle_icon',
-        'polygon':         'dp_polygon_icon',
-        'filled_polygon':  'dp_filled_polygon_icon',
-        'star':            'dp_star_icon',
-        'filled_star':     'dp_filled_star_icon',
-        'select':          'dp_select_icon',
-        'lasso':           'dp_lasso_icon',
-        'filled_lasso':    'dp_filled_lasso_icon',
-        'text':            'dp_text_icon',
-        'stamp':           'dp_stamp_icon',
-        'crop':            'dp_crop_icon',
-        'resize':          'dp_resize_icon',
-        'dither':          'dp_dither_icon',
-        'symmetry':        'dp_symmetry_icon',
-        'blur_brush':      'dp_blur_brush_icon',
-        'smudge':          'dp_smudge_icon',
-        'lighten':         'dp_lighten_icon',
-        'darken':          'dp_darken_icon',
-    }
-
-    if ICONS_AVAILABLE and shape in _SVG_MAP:
-        method_name = _SVG_MAP[shape]
-        fn = getattr(SVGIconFactory, method_name, None)
-        if fn is not None:
-            try:
-                # Get the icon rendered transparent (no bg_color — avoids SVG corruption)
-                ico = fn(size, color=icon_col)
-                # Composite onto tile background manually
-                px = QPixmap(size, size)
-                px.fill(QColor(tile_bg))
-                p  = QPainter(px)
-                p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
-                p.drawPixmap(0, 0, ico.pixmap(size, size))
-                p.end()
-                return QIcon(px)
-            except Exception:
-                pass  # fall through to QPainter
-
-    # - QPainter fallback (shapes, lasso, select, text, etc.)
-    import math as _m
-
-    tile_bg_c = QColor(tile_bg)
-    ink     = QColor(icon_col)
-
-    px = QPixmap(size, size)
-    px.fill(tile_bg_c)
-
-    p = QPainter(px)
-    p.setRenderHint(QPainter.RenderHint.Antialiasing)
-    p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
-
-    # Work in a normalised 48×48 space, then scale down via transform
-    N  = 48.0
-    sc = size / N
-    p.scale(sc, sc)
-
-    # Helpers in 48-unit space
-    def mk_pen(w=2.5, cap=Qt.PenCapStyle.RoundCap,
-               join=Qt.PenJoinStyle.RoundJoin): #vers 1
-        return QPen(ink, w, Qt.PenStyle.SolidLine, cap, join)
-
-    def solid_brush(): #vers 1
-        return QBrush(ink)
-
-    def poly(*args): #vers 1
-        """Accept poly((x,y),(x,y)...) or poly([(x,y),...]) or poly(x,y,x,y...)."""
-        from PyQt6.QtGui import QPolygonF
-        from PyQt6.QtCore import QPointF
-        # Single list/tuple of pairs
-        if len(args) == 1 and hasattr(args[0], '__iter__'):
-            pts = [(x, y) for x, y in args[0]]
-        # Flat numeric sequence: poly(x1,y1,x2,y2,...)
-        elif all(isinstance(a, (int, float)) for a in args) and len(args) % 2 == 0:
-            pts = [(args[i], args[i+1]) for i in range(0, len(args), 2)]
-        # Sequence of (x,y) tuples
-        else:
-            pts = list(args)
-        return QPolygonF([QPointF(x, y) for x, y in pts])
-
-
-    def path_from(*segments): #vers 1
-        """Build QPainterPath from ('M',x,y), ('L',x,y), ('C',x1,y1,x2,y2,x,y),
-        ('Q',x1,y1,x,y), ('Z',) tuples."""
-        from PyQt6.QtCore import QPointF
-        pa = QPainterPath()
-        for seg in segments:
-            cmd = seg[0]
-            if cmd == 'M': pa.moveTo(seg[1], seg[2])
-            elif cmd == 'L': pa.lineTo(seg[1], seg[2])
-            elif cmd == 'C': pa.cubicTo(seg[1],seg[2],seg[3],seg[4],seg[5],seg[6])
-            elif cmd == 'Q': pa.quadTo(seg[1],seg[2],seg[3],seg[4])
-            elif cmd == 'Z': pa.closeSubpath()
-        return pa
-
-
-    if shape == 'pencil':
-        # Photoshop-style pencil: long diagonal body, pointed tip bottom-left,
-        # small eraser rectangle top-right, ~45° angle
-        # Body (parallelogram)
-        p.setPen(mk_pen(0))
-        p.setBrush(solid_brush())
-        p.drawPolygon(poly(
-            8, 40,   # tip bottom-left
-            12, 36,  # left shoulder
-            36, 12,  # right shoulder
-            40, 16,  # top-right body
-            16, 40,  # bottom body
-        ))
-        # Tip triangle (darker notch)
-        p.setBrush(QBrush(tile_bg))
-        p.drawPolygon(poly(8,40, 13,38, 10,35))
-        # Eraser cap rectangle top-right
-        p.setBrush(solid_brush())
-        p.setPen(mk_pen(0))
-        # Rotate the eraser cap to match pencil angle
-        from PyQt6.QtCore import QPointF
-        from PyQt6.QtGui import QPolygonF
-        p.drawPolygon(poly(36,8, 40,12, 44,8, 40,4))
-        # Ferrule line (separator between body and eraser)
-        p.setPen(mk_pen(1.5))
-        p.setBrush(QBrush(Qt.BrushStyle.NoBrush))
-        p.drawLine(QPoint(36,12), QPoint(40,8))
-
-    elif shape == 'eraser':
-        # Wide rounded rectangle eraser — iconic PS shape
-        # Main body
-        p.setPen(mk_pen(0))
-        p.setBrush(solid_brush())
-        p.drawRoundedRect(6, 16, 36, 18, 4, 4)
-        # Stripe in the middle (erased area — slightly darker)
-        p.setBrush(QBrush(tile_bg.lighter(130)))
-        p.setPen(mk_pen(0))
-        p.drawRoundedRect(6, 22, 18, 12, 2, 2)
-        # Bottom shadow line
-        p.setPen(mk_pen(1.5))
-        p.setBrush(QBrush(Qt.BrushStyle.NoBrush))
-        p.drawLine(QPoint(6,38), QPoint(42,38))
-
-    elif shape == 'alpha_brush':
-        # Checkerboard pattern (the universal transparency symbol in
-        # image editors) inside a rounded outline - distinguishes this
-        # from the plain Eraser by clearly communicating "paints
-        # transparency" rather than "erases to background".
-        p.setPen(mk_pen(1.8))
-        p.setBrush(QBrush(Qt.BrushStyle.NoBrush))
-        p.drawRoundedRect(8, 8, 32, 32, 4, 4)
-        cell = 8
-        for row in range(4):
-            for col in range(4):
-                if (row + col) % 2 == 0:
-                    p.setPen(Qt.PenStyle.NoPen)
-                    p.setBrush(solid_brush())
-                    p.drawRect(8 + col*cell, 8 + row*cell, cell, cell)
-
-    elif shape == 'fill':
-        # Paint bucket — bucket body + handle arc + small drop below spout
-        # Bucket body (trapezoid, narrower top)
-        p.setPen(mk_pen(0))
-        p.setBrush(solid_brush())
-        p.drawPolygon(poly(
-            (14,20), (34,20),   # top
-            (38,40), (10,40),   # bottom (wider)
-        ))
-        # Bucket top rim
-        p.drawRoundedRect(12, 15, 24, 7, 2, 2)
-        # Handle arc (over the top)
-        p.setPen(mk_pen(2.5))
-        p.setBrush(QBrush(Qt.BrushStyle.NoBrush))
-        handle = QPainterPath()
-        handle.moveTo(17, 15)
-        handle.quadTo(24, 4, 31, 15)
-        p.drawPath(handle)
-        # Small round paint drop sitting BELOW the bucket base centre
-        p.setPen(mk_pen(0))
-        p.setBrush(solid_brush())
-        p.drawEllipse(QPoint(24, 44), 3, 3)
-
-    elif shape == 'spray':
-        # Airbrush / spray can - tilted 45°, gradient-shaded metallic body
-        # for a more lifelike/dimensional look (rather than a flat single
-        # fill), plus a colour accent label band and red trigger cap.
-        # Light, sparse mist (airbrush = light spray, not a heavy cloud).
-        from PyQt6.QtGui import QLinearGradient
-        from PyQt6.QtCore import QPointF
-
-        p.save()
-        p.translate(24, 24)
-        p.rotate(45)
-        p.translate(-24, -24)
-
-        # Can body - metallic gradient (light-mid-light) simulating a
-        # cylindrical highlight, rather than one flat colour
-        body_grad = QLinearGradient(16, 0, 32, 0)
-        if not active:
-            body_grad.setColorAt(0.0, QColor('#8b8f98'))
-            body_grad.setColorAt(0.5, QColor('#d8dbe2'))
-            body_grad.setColorAt(1.0, QColor('#9a9ea6'))
-        else:
-            body_grad.setColorAt(0.0, QColor('#b8bcc4'))
-            body_grad.setColorAt(0.5, QColor('#f2f4f8'))
-            body_grad.setColorAt(1.0, QColor('#c4c8d0'))
-        p.setPen(mk_pen(1.8))
-        p.setBrush(QBrush(body_grad))
-        p.drawRoundedRect(16, 20, 16, 22, 3, 3)
-
-        # Colour accent label band - fixed blue, gives the can visual
-        # identity rather than being uniformly metallic
-        p.setPen(QPen(QColor('#2f6fb0'), 0.5))
-        p.setBrush(QBrush(QColor('#3f8fd8')))
-        p.drawRect(16, 30, 16, 6)
-
-        # Nozzle stem, straight up from top-centre (before rotation this
-        # is "up"; after the 45° rotation it points up-and-right)
-        p.setPen(mk_pen(1.8))
-        p.setBrush(QBrush(body_grad))
-        p.drawRoundedRect(21, 12, 6, 9, 1, 1)
-
-        # Trigger cap - fixed red accent
-        p.setPen(mk_pen(1.3))
-        p.setBrush(QBrush(QColor('#d05050')))
-        p.drawEllipse(QPoint(24, 10), 4, 4)
-
-        p.restore()
-
-        # Light, sparse mist - drawn after restoring rotation so it fans
-        # out from the can's actual (now-diagonal) nozzle direction
-        mist_col = QColor('#9fd4ee') if not active else QColor('#cdeaf8')
-        p.setPen(QPen(mist_col, 0))
-        p.setBrush(QBrush(mist_col))
-        mist_pts = [(36, 8, 1.5), (32, 4, 1.2), (40, 12, 1.2),
-                    (44, 6, 1.0), (38, 15, 1.0), (43, 16, 1.1)]
-        for mx, my, mr in mist_pts:
-            p.drawEllipse(QPointF(mx, my), mr, mr)
-
-    elif shape == 'spraycan':
-        # Spraycan - same can-body construction as Airbrush ('spray')
-        # since they're visually related tools, but with an orange/red
-        # accent band (vs Airbrush's blue) and a much denser, messier
-        # mist of varied dot sizes to visually read as the "heavier,
-        # coarser" spray tool rather than Airbrush's light mist.
-        from PyQt6.QtGui import QLinearGradient
-        from PyQt6.QtCore import QPointF
-
-        p.save()
-        p.translate(24, 24)
-        p.rotate(45)
-        p.translate(-24, -24)
-
-        body_grad = QLinearGradient(16, 0, 32, 0)
-        if not active:
-            body_grad.setColorAt(0.0, QColor('#8b8f98'))
-            body_grad.setColorAt(0.5, QColor('#d8dbe2'))
-            body_grad.setColorAt(1.0, QColor('#9a9ea6'))
-        else:
-            body_grad.setColorAt(0.0, QColor('#b8bcc4'))
-            body_grad.setColorAt(0.5, QColor('#f2f4f8'))
-            body_grad.setColorAt(1.0, QColor('#c4c8d0'))
-        p.setPen(mk_pen(1.8))
-        p.setBrush(QBrush(body_grad))
-        p.drawRoundedRect(16, 20, 16, 22, 3, 3)
-
-        # Orange/red accent band - distinct from Airbrush's blue
-        p.setPen(QPen(QColor('#b05a20'), 0.5))
-        p.setBrush(QBrush(QColor('#e08040')))
-        p.drawRect(16, 30, 16, 6)
-
-        p.setPen(mk_pen(1.8))
-        p.setBrush(QBrush(body_grad))
-        p.drawRoundedRect(21, 12, 6, 9, 1, 1)
-
-        p.setPen(mk_pen(1.3))
-        p.setBrush(QBrush(QColor('#d05050')))
-        p.drawEllipse(QPoint(24, 10), 4, 4)
-
-        p.restore()
-
-        # Dense, messy mist - many more, size-varied dots than Airbrush's
-        # sparse pattern, spreading wider from the nozzle
-        mist_col = QColor('#f0c090') if not active else QColor('#fadfc0')
-        p.setPen(QPen(mist_col, 0))
-        p.setBrush(QBrush(mist_col))
-        mist_pts = [(36, 8, 1.6), (31, 3, 1.1), (41, 11, 1.8),
-                    (45, 5, 1.0), (37, 16, 1.3), (44, 17, 1.5),
-                    (34, 9, 0.8), (39, 4, 1.2), (46, 12, 0.9),
-                    (42, 20, 1.1), (30, 14, 0.9), (47, 8, 1.3)]
-        for mx, my, mr in mist_pts:
-            p.drawEllipse(QPointF(mx, my), mr, mr)
-
-    elif shape == 'picker':
-        # Eyedropper — long body, round glass bulb top-right, pointed tip bottom-left
-        # Main body diagonal
-        p.setPen(mk_pen(0))
-        p.setBrush(solid_brush())
-        # Body shaft (rotated rectangle)
-        p.drawPolygon(poly(
-            8,40,  12,44,  36,20,  32,16
-        ))
-        # Tip point
-        p.drawPolygon(poly(6,42, 10,38, 8,44))
-        # Round glass bulb top-right
-        p.drawEllipse(QPoint(34,12), 8, 8)
-        # Band between bulb and shaft
-        p.setBrush(QBrush(tile_bg))
-        p.setPen(mk_pen(0))
-        p.drawPolygon(poly(28,18, 32,14, 36,18, 32,22))
-        p.setBrush(solid_brush())
-        p.drawRect(29,15, 6, 6)   # re-fill centre
-
-    elif shape == 'line':
-        # Diagonal line with round endpoint handles — PS line tool
-        p.setPen(mk_pen(3.0))
-        p.drawLine(QPoint(8, 40), QPoint(40, 8))
-        # Endpoint circles
-        p.setPen(mk_pen(1.5))
-        p.setBrush(solid_brush())
-        p.drawEllipse(QPoint(8, 40), 4, 4)
-        p.drawEllipse(QPoint(40, 8), 4, 4)
-
-    elif shape == 'curve':
-        # Bézier curve tool — S-curve with 2 visible control handles + dots
-        path = path_from(
-            ('M', 8, 40),
-            ('C', 8, 18,  40, 30,  40, 8),
-            ('Z',) if False else ('M',8,40),   # no close
-        )
-        # Re-draw properly
-        path2 = QPainterPath()
-        path2.moveTo(8, 40)
-        path2.cubicTo(8, 18, 40, 30, 40, 8)
-        p.setPen(mk_pen(3.0))
-        p.setBrush(QBrush(Qt.BrushStyle.NoBrush))
-        p.drawPath(path2)
-        # Control point handles (squares with lines)
-        p.setPen(mk_pen(1.5))
-        p.drawLine(QPoint(8,40), QPoint(8,18))
-        p.drawLine(QPoint(40,8), QPoint(40,30))
-        p.setBrush(solid_brush())
-        p.drawRect(5, 15, 6, 6)
-        p.drawRect(37, 27, 6, 6)
-        # Anchor dots
-        p.drawEllipse(QPoint(8,40), 3, 3)
-        p.drawEllipse(QPoint(40,8), 3, 3)
-
-    elif shape == 'rect':
-        # Hollow rectangle — clean outline with visible corners
-        p.setPen(mk_pen(2.5, Qt.PenCapStyle.SquareCap, Qt.PenJoinStyle.MiterJoin))
-        p.setBrush(QBrush(Qt.BrushStyle.NoBrush))
-        p.drawRect(8, 8, 32, 32)
-
-    elif shape == 'filled_rect':
-        # Filled rectangle — solid white box
-        p.setPen(mk_pen(1.5, Qt.PenCapStyle.SquareCap, Qt.PenJoinStyle.MiterJoin))
-        p.setBrush(solid_brush())
-        p.drawRect(8, 8, 32, 32)
-
-    elif shape == 'circle':
-        # Hollow ellipse — clean outline
-        p.setPen(mk_pen(2.5))
-        p.setBrush(QBrush(Qt.BrushStyle.NoBrush))
-        p.drawEllipse(QPoint(24, 24), 16, 16)
-
-    elif shape == 'filled_circle':
-        # Solid filled ellipse
-        p.setPen(mk_pen(1.5))
-        p.setBrush(solid_brush())
-        p.drawEllipse(QPoint(24, 24), 16, 16)
-
-    elif shape == 'triangle':
-        # Isoceles triangle outline — pointed up
-        p.setPen(mk_pen(2.5))
-        p.setBrush(QBrush(Qt.BrushStyle.NoBrush))
-        p.drawPolygon(poly(24,6, 6,42, 42,42))
-
-    elif shape == 'filled_triangle':
-        p.setPen(mk_pen(1.5))
-        p.setBrush(solid_brush())
-        p.drawPolygon(poly(24,6, 6,42, 42,42))
-
-    elif shape == 'polygon':
-        # Regular hexagon outline
-        pts = [(int(24 + 18*_m.cos(_m.pi/2 + _m.pi*i/3)),
-                int(24 + 18*_m.sin(_m.pi/2 + _m.pi*i/3))) for i in range(6)]
-        p.setPen(mk_pen(2.5))
-        p.setBrush(QBrush(Qt.BrushStyle.NoBrush))
-        p.drawPolygon(poly(*[(x,y) for x,y in pts]))
-
-    elif shape == 'filled_polygon':
-        pts = [(int(24 + 18*_m.cos(_m.pi/2 + _m.pi*i/3)),
-                int(24 + 18*_m.sin(_m.pi/2 + _m.pi*i/3))) for i in range(6)]
-        p.setPen(mk_pen(1.5))
-        p.setBrush(solid_brush())
-        p.drawPolygon(poly(*[(x,y) for x,y in pts]))
-
-    elif shape == 'star':
-        # 5-point star — outline only
-        outer, inner = 20, 8
-        pts = []
-        for i in range(10):
-            a   = _m.pi * i / 5 - _m.pi / 2
-            rad = outer if i % 2 == 0 else inner
-            pts.append((24 + rad*_m.cos(a), 24 + rad*_m.sin(a)))
-        p.setPen(mk_pen(2.5))
-        p.setBrush(QBrush(Qt.BrushStyle.NoBrush))
-        p.drawPolygon(poly(*pts))
-
-    elif shape == 'filled_star':
-        outer, inner = 20, 8
-        pts = []
-        for i in range(10):
-            a   = _m.pi * i / 5 - _m.pi / 2
-            rad = outer if i % 2 == 0 else inner
-            pts.append((24 + rad*_m.cos(a), 24 + rad*_m.sin(a)))
-        p.setPen(mk_pen(1.5))
-        p.setBrush(solid_brush())
-        p.drawPolygon(poly(*pts))
-
-    elif shape == 'select':
-        # Marquee selection — dashed rectangle with corner handles
-        pen_dash = QPen(ink, 2.0, Qt.PenStyle.DashLine,
-                        Qt.PenCapStyle.SquareCap, Qt.PenJoinStyle.MiterJoin)
-        pen_dash.setDashPattern([3, 2])
-        p.setPen(pen_dash)
-        p.setBrush(QBrush(Qt.BrushStyle.NoBrush))
-        p.drawRect(8, 8, 32, 32)
-        # Corner handles
-        p.setPen(mk_pen(0))
-        p.setBrush(solid_brush())
-        for hx, hy in [(6,6),(38,6),(6,38),(38,38),(22,6),(22,38),(6,22),(38,22)]:
-            p.drawRect(hx-2, hy-2, 4, 4)
-
-    elif shape == 'select_copy':
-        # Same marquee as 'select', plus a small "+" badge (bottom-right)
-        # to indicate copy/duplicate rather than cut/move.
-        pen_dash = QPen(ink, 2.0, Qt.PenStyle.DashLine,
-                        Qt.PenCapStyle.SquareCap, Qt.PenJoinStyle.MiterJoin)
-        pen_dash.setDashPattern([3, 2])
-        p.setPen(pen_dash)
-        p.setBrush(QBrush(Qt.BrushStyle.NoBrush))
-        p.drawRect(6, 6, 28, 28)
-        p.setPen(mk_pen(0))
-        p.setBrush(solid_brush())
-        for hx, hy in [(4,4),(34,4),(4,34),(34,34)]:
-            p.drawRect(hx-2, hy-2, 4, 4)
-        # "+" badge
-        p.setPen(mk_pen(3.5))
-        p.drawLine(QPoint(34, 26), QPoint(34, 42))
-        p.drawLine(QPoint(26, 34), QPoint(42, 34))
-
-    elif shape == 'lasso':
-        # Freehand lasso — kidney-bean loop, open at bottom-right, dashed
-        path3 = QPainterPath()
-        path3.moveTo(24, 42)
-        path3.cubicTo(6, 42,  6, 6,  24, 6)
-        path3.cubicTo(42, 6,  42, 30, 32, 36)
-        pen_dash2 = QPen(ink, 2.5, Qt.PenStyle.DashLine,
-                         Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
-        pen_dash2.setDashPattern([4, 2])
-        p.setPen(pen_dash2)
-        p.setBrush(QBrush(Qt.BrushStyle.NoBrush))
-        p.drawPath(path3)
-        p.setPen(mk_pen(2.5))
-        p.drawLine(QPoint(32,36), QPoint(38,44))
-
-    elif shape == 'filled_lasso':
-        # Filled lasso — same shape but solid filled
-        path3 = QPainterPath()
-        path3.moveTo(24, 42)
-        path3.cubicTo(6, 42,  6, 6,  24, 6)
-        path3.cubicTo(42, 6,  42, 30, 32, 36)
-        path3.closeSubpath()
-        p.setPen(mk_pen(1.5))
-        p.setBrush(solid_brush())
-        p.drawPath(path3)
-
-    elif shape == 'move':
-        # Classic 4-way arrow move tool — solid arrowheads, thin cross arms
-        # Centre cross arms
-        p.setPen(mk_pen(2.0))
-        p.setBrush(QBrush(Qt.BrushStyle.NoBrush))
-        p.drawLine(QPoint(24,8), QPoint(24,40))
-        p.drawLine(QPoint(8,24), QPoint(40,24))
-        # 4 arrowheads — solid triangles
-        p.setPen(mk_pen(0))
-        p.setBrush(solid_brush())
-        # Up
-        p.drawPolygon(poly(24,4, 20,12, 28,12))
-        # Down
-        p.drawPolygon(poly(24,44, 20,36, 28,36))
-        # Left
-        p.drawPolygon(poly(4,24, 12,20, 12,28))
-        # Right
-        p.drawPolygon(poly(44,24, 36,20, 36,28))
-
-    elif shape == 'zoom':
-        # Magnifying glass — circle lens (top-left), diagonal handle (bottom-right)
-        # Lens ring
-        p.setPen(mk_pen(3.5))
-        p.setBrush(QBrush(Qt.BrushStyle.NoBrush))
-        p.drawEllipse(QPoint(18, 18), 12, 12)
-        # Handle
-        p.setPen(mk_pen(4.0, Qt.PenCapStyle.RoundCap))
-        p.drawLine(QPoint(28, 28), QPoint(42, 42))
-        # Plus inside lens
-        p.setPen(mk_pen(2.0))
-        p.drawLine(QPoint(18, 13), QPoint(18, 23))
-        p.drawLine(QPoint(13, 18), QPoint(23, 18))
-
-    elif shape == 'text':
-        # Capital T — serif style, wide top bar, serifs on feet — classic PS text tool
-        p.setPen(mk_pen(0))
-        p.setBrush(solid_brush())
-        # Top horizontal bar
-        p.drawRect(8, 8, 32, 5)
-        # Vertical stem
-        p.drawRect(20, 13, 8, 27)
-        # Bottom serifs
-        p.drawRect(14, 38, 8, 4)
-        p.drawRect(26, 38, 8, 4)
-        # Cursor I-beam line (right of T)
-        p.setPen(mk_pen(1.5))
-        p.setBrush(QBrush(Qt.BrushStyle.NoBrush))
-        p.drawLine(QPoint(40, 10), QPoint(40, 38))
-        p.drawLine(QPoint(37, 10), QPoint(43, 10))
-        p.drawLine(QPoint(37, 38), QPoint(43, 38))
-
-    elif shape == 'stamp':
-        # Rubber stamp — handle bar top, stamp body bottom, wavy ink dots
-        p.setPen(mk_pen(0))
-        p.setBrush(solid_brush())
-        # Handle grip (top)
-        p.drawRoundedRect(16, 6, 16, 10, 3, 3)
-        # Neck connecting handle to pad
-        p.drawRect(20, 16, 8, 6)
-        # Stamp pad (wide flat block)
-        p.drawRoundedRect(8, 22, 32, 10, 2, 2)
-        # Ink impression dots below (showing it's been used)
-        p.setPen(mk_pen(1.5))
-        p.setBrush(solid_brush())
-        for dot_x in [14, 20, 26, 32]:
-            p.drawEllipse(QPoint(dot_x, 38), 2, 2)
-
-    p.end()
-    return QIcon(px)
 
 
 
@@ -1329,107 +706,6 @@ class MapSettingsDialog(QDialog):
         self._undo_spin = QSpinBox(); self._undo_spin.setRange(4, 128)
         self._undo_spin.setValue(self.s.get('undo_levels'))
         cl.addRow("Undo levels:", self._undo_spin)
-
-        self._grid_chk = QCheckBox()
-        self._grid_chk.setChecked(self.s.get('show_pixel_grid'))
-        cl.addRow("Show pixel grid:", self._grid_chk)
-
-        self._fit_resize_chk = QCheckBox()
-        self._fit_resize_chk.setChecked(self.s.get('zoom_to_fit_resize'))
-        self._fit_resize_chk.setToolTip("Always scale canvas to fill the viewport on window resize")
-        cl.addRow("Zoom to fit on resize:", self._fit_resize_chk)
-
-        self._img_pal_cols_spin = QSpinBox(); self._img_pal_cols_spin.setRange(4, 32)
-        self._img_pal_cols_spin.setValue(self.s.get('img_pal_cols'))
-        cl.addRow("Image palette cols:", self._img_pal_cols_spin)
-
-        self._img_pal_rows_spin = QSpinBox(); self._img_pal_rows_spin.setRange(1, 32)
-        self._img_pal_rows_spin.setValue(self.s.get('img_pal_rows'))
-        cl.addRow("Image palette max rows:", self._img_pal_rows_spin)
-
-        self._user_pal_cols_spin = QSpinBox(); self._user_pal_cols_spin.setRange(4, 32)
-        self._user_pal_cols_spin.setValue(self.s.get('user_pal_cols'))
-        cl.addRow("User palette cols:", self._user_pal_cols_spin)
-
-        self._user_pal_rows_spin = QSpinBox(); self._user_pal_rows_spin.setRange(1, 32)
-        self._user_pal_rows_spin.setValue(self.s.get('user_pal_rows'))
-        cl.addRow("User palette max rows:", self._user_pal_rows_spin)
-
-        self._platform_combo = QComboBox()
-        self._platform_combo.addItems([
-            'none','amiga','amiga_aga','amiga_ham','amiga_ham8','amiga_rtg',
-            'c64','c64m','spectrum','zx80','zx81','specnext',
-            'msx','cpc','cpc1','atari_st','atari_800','plus4','vic20'])
-        self._platform_combo.setCurrentText(self.s.get('platform_mode'))
-        cl.addRow("Platform mode:", self._platform_combo)
-
-        self._cell_grid_chk = QCheckBox()
-        self._cell_grid_chk.setChecked(self.s.get('show_cell_grid'))
-        cl.addRow("Show cell grid:", self._cell_grid_chk)
-
-        self._grid_color_btn = QPushButton()
-        gc = QColor(self.s.get('grid_color'))
-        self._grid_color_btn.setStyleSheet(f"background:{gc.name()};")
-        self._grid_color_btn.setFixedHeight(22)
-        self._grid_color_btn.setToolTip("Click to pick pixel grid colour")
-        def _pick_grid_color():  #vers 1
-            c = QColorDialog.getColor(QColor(self.s.get('grid_color')), self, "Grid Colour",
-                                      QColorDialog.ColorDialogOption.ShowAlphaChannel)
-            if c.isValid():
-                self._grid_color_btn.setStyleSheet(f"background:{c.name()};")
-                self._grid_color_btn._chosen = c.name(QColor.NameFormat.HexArgb)
-        self._grid_color_btn._chosen = self.s.get('grid_color')
-        self._grid_color_btn.clicked.connect(_pick_grid_color)
-        cl.addRow("Pixel grid colour:", self._grid_color_btn)
-
-        cl.addRow(QLabel("—  Marching Ants  —"))
-
-        self._ants_chk = QCheckBox()
-        self._ants_chk.setChecked(self.s.get('marching_ants_enabled'))
-        cl.addRow("Animate selection outline:", self._ants_chk)
-
-        self._ants_style_combo = QComboBox()
-        self._ants_style_combo.addItems(["dashes", "dots"])
-        self._ants_style_combo.setCurrentText(self.s.get('marching_ants_style'))
-        cl.addRow("Style:", self._ants_style_combo)
-
-        self._ants_fg_btn = QPushButton()
-        afg = QColor(self.s.get('marching_ants_fg'))
-        self._ants_fg_btn.setStyleSheet(f"background:{afg.name()};")
-        self._ants_fg_btn.setFixedHeight(22)
-        self._ants_fg_btn.setToolTip("Click to pick foreground colour")
-        def _pick_ants_fg():  #vers 1
-            c = QColorDialog.getColor(QColor(self.s.get('marching_ants_fg')), self,
-                                      "Marching Ants Foreground")
-            if c.isValid():
-                self._ants_fg_btn.setStyleSheet(f"background:{c.name()};")
-                self._ants_fg_btn._chosen = c.name()
-        self._ants_fg_btn._chosen = self.s.get('marching_ants_fg')
-        self._ants_fg_btn.clicked.connect(_pick_ants_fg)
-        cl.addRow("Foreground colour:", self._ants_fg_btn)
-
-        self._ants_bg_btn = QPushButton()
-        abg = QColor(self.s.get('marching_ants_bg'))
-        self._ants_bg_btn.setStyleSheet(f"background:{abg.name()};")
-        self._ants_bg_btn.setFixedHeight(22)
-        self._ants_bg_btn.setToolTip("Click to pick background colour")
-        def _pick_ants_bg():  #vers 1
-            c = QColorDialog.getColor(QColor(self.s.get('marching_ants_bg')), self,
-                                      "Marching Ants Background")
-            if c.isValid():
-                self._ants_bg_btn.setStyleSheet(f"background:{c.name()};")
-                self._ants_bg_btn._chosen = c.name()
-        self._ants_bg_btn._chosen = self.s.get('marching_ants_bg')
-        self._ants_bg_btn.clicked.connect(_pick_ants_bg)
-        cl.addRow("Background colour:", self._ants_bg_btn)
-
-        self._ants_speed_spin = QSpinBox()
-        self._ants_speed_spin.setRange(30, 1000)
-        self._ants_speed_spin.setSingleStep(10)
-        self._ants_speed_spin.setSuffix(" ms")
-        self._ants_speed_spin.setValue(self.s.get('marching_ants_speed'))
-        self._ants_speed_spin.setToolTip("Lower = faster animation")
-        cl.addRow("Animation speed:", self._ants_speed_spin)
 
         tabs.addTab(canvas_tab, "Canvas")
 
@@ -2408,15 +1684,6 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         self._canvas_tabs = []
         self._active_canvas_tab_idx = 0
 
-        # Sticker tool - currently selected sticker filename (from
-        # apps/emojis/) to stamp, set via the Annotate ribbon's sticker
-        # picker. None if no stickers are available.
-        _stickers = _list_stickers()
-        self._current_sticker = _stickers[0] if _stickers else None
-
-        # Number tool - auto-incrementing badge counter, reset via the
-        # Annotate ribbon's Number dropdown.
-        self._next_annotation_number = 1
 
         # Duplicate (U) - position of the last stamped/duplicated copy,
         # so repeated duplicates step diagonally rather than stacking
@@ -2430,9 +1697,6 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         self._default_text_font_family = "Arial"
         self._default_text_font_size = 16
 
-        # Bitmap list (left panel)
-        self._bitmap_list: List[dict] = []   # [{name, rgba, w, h}]
-        self._current_bitmap = -1
         # AppSettings (global theme only)
         if main_window and hasattr(main_window, 'app_settings'):
             self.app_settings = main_window.app_settings
@@ -4679,7 +3943,7 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         c.update()
         self._last_stamp_pos = (ox, oy)
 
-    #    Tool / colour helpers                                                  
+    #    Tool / colour helpers
 
     def _show_sticker_picker(self, btn): #vers 3
         """Show a scrollable grid of sticker thumbnails loaded from
@@ -5588,7 +4852,7 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         menu.exec(w.mapToGlobal(pos) if w else self.cursor().pos())
 
 
-    #    Colour Clash Visualiser                                                
+    #    Colour Clash Visualiser
 
     def _toggle_clash_visualiser(self, on: bool): #vers 1
         """Toggle ZX Spectrum colour clash overlay — red = more than 2 colours in 8×8 cell."""
@@ -5601,7 +4865,7 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
             self._set_status("Clash visualiser OFF")
 
 
-    #    Character / Font Editor                                                
+    #    Character / Font Editor
 
     def _open_char_editor(self): #vers 2
         """Toggle character/font editor floating panel."""
@@ -5617,7 +4881,7 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
             self._char_editor_panel.hide()
 
 
-    #    Sprite Editor                                                          
+    #    Sprite Editor
 
     def _open_sprite_editor(self): #vers 2
         """Toggle sprite editor floating panel."""
@@ -5887,7 +5151,7 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
             self._set_status(f"Polygon: {n} sides")
 
 
-    #    Canvas signal callbacks                                                
+    #    Canvas signal callbacks
 
     def _on_canvas_changed(self, x: int, y: int): #vers 1
         if self.map_canvas:
@@ -5971,7 +5235,7 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         return img.convert('RGB').quantize(palette=pal_img, dither=0).convert('RGB').convert('RGBA')
 
 
-    #    Render As                                                             
+    #    Render As
 
     def _render_as_ascii(self): #vers 1
         """Convert canvas to ASCII art — map brightness to characters, render back to canvas."""
