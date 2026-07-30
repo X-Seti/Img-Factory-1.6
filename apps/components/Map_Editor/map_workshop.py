@@ -2561,6 +2561,12 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
             "width: 1px; height: 1px; } "
             "QMainWindow::separator:hover { background: palette(highlight); }")
         self._outer_mw = outer_mw
+        # Per Keith: "unable to dock objects browser to the top left,
+        # or left" - Qt's default for dockNestingEnabled is False,
+        # which prevents dragging a dock into an area another dock
+        # already occupies (e.g. Control Panel on the left) unless
+        # nesting is explicitly enabled.
+        outer_mw.setDockNestingEnabled(True)
 
         centre = self._create_centre_panel()
         outer_mw.setCentralWidget(centre)
@@ -8050,6 +8056,10 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         lay.addWidget(with_options_radio)
 
         options_box = QGroupBox()
+        themecol_opt = self.app_settings.get_theme_colors()
+        panel_bg_opt = themecol_opt.get('panel_bg')
+        if panel_bg_opt:
+            options_box.setStyleSheet(f"QGroupBox {{ background: {panel_bg_opt}; }}")
         options_lay = QVBoxLayout(options_box)
         ipl_list = QListWidget()
         ipl_list.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
@@ -8211,6 +8221,10 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
 
         # - Position (X, Y, Z) + Move There
         pos_box = QGroupBox("Position (X, Y, Z)")
+        themecol_pos = self.app_settings.get_theme_colors()
+        panel_bg_pos = themecol_pos.get('panel_bg')
+        if panel_bg_pos:
+            pos_box.setStyleSheet(f"QGroupBox {{ background: {panel_bg_pos}; }}")
         pos_lay = QHBoxLayout(pos_box)
         self._cp_pos_x = QDoubleSpinBox(); self._cp_pos_x.setRange(-100000, 100000)
         self._cp_pos_y = QDoubleSpinBox(); self._cp_pos_y.setRange(-100000, 100000)
@@ -8310,6 +8324,12 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         #   MapViewport controls (configure_movement/mouseMoveEvent),
         #   not a stub - this reflects real, working behaviour.
         controls_box = QGroupBox("Dragging Controls")
+        themecol = self.app_settings.get_theme_colors()
+        panel_bg = themecol.get('panel_bg')
+        if panel_bg:
+            controls_box.setStyleSheet(
+                f"QGroupBox {{ background: {panel_bg}; }} "
+                f"QGroupBox QLabel {{ background: {panel_bg}; }}")
         controls_lay = QVBoxLayout(controls_box)
         for line in (
             "Middle Btn: Move Camera (pan)",
