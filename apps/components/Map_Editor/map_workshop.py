@@ -8387,8 +8387,6 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         label.setStyleSheet("font-weight: bold;")
         title_row.addWidget(label)
         sm_buttonheight = 20
-        #_COMPACT_BUTTON_H = 18 #TODO; does not show the right size?
-        #_COMPACT_ICON_SIZE = 18 TODO; Text less then min 18 and max 20, the text buttons get corrupted.
 
         icon_color = self._get_icon_color()
         open_btn = QPushButton(get_add_icon(sm_buttonheight, icon_color), "Open")
@@ -8397,7 +8395,6 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         open_btn.setIconSize(QSize(18, 18))
         open_btn.setMinimumHeight(18); open_btn.setMaximumHeight(28)
         open_btn.clicked.connect(self._on_ipl_tab_open_clicked)
-        #open_btn.setFixedHeight(16)
         close_btn = QPushButton(get_close_icon(sm_buttonheight, icon_color), "Close")
         close_btn.setToolTip("Hide the selected IPL - same as clicking\n"
                              "its eye icon to hide it (its data stays\n"
@@ -8405,14 +8402,12 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         close_btn.setIconSize(QSize(18, 18))
         close_btn.setMinimumHeight(18); close_btn.setMaximumHeight(28)
         close_btn.clicked.connect(self._on_ipl_tab_close_clicked)
-        #close_btn.setFixedHeight(16) #TODO; need new icon.
         new_btn = QPushButton(get_file_icon(sm_buttonheight, icon_color), "New")
         new_btn.setToolTip("STUB - creating a brand new, empty IPL file\n"
                            "on disk isn't built yet")
         new_btn.setIconSize(QSize(18, 18))
         new_btn.setMinimumHeight(18); new_btn.setMaximumHeight(28)
         new_btn.setEnabled(False)
-        #new_btn.setFixedHeight(16) #TODO; need delete icon.
         delete_btn = QPushButton(get_remove_icon(sm_buttonheight, icon_color), "Delete")
         delete_btn.setToolTip("STUB - deleting an IPL file from disk isn't\n"
                               "built yet (no write-back infrastructure exists\n"
@@ -8999,7 +8994,7 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         panel = QWidget()
         lay = QVBoxLayout(panel)
         lay.setContentsMargins(1, 1, 1, 1)
-        from apps.methods.imgfactory_svg_icons import get_save_icon, get_rename_icon, get_remove_icon, get_add_icon, get_dump_icon
+        from apps.methods.imgfactory_svg_icons import get_rebuild_icon, get_rename_icon, get_remove_icon, get_add_icon, get_dump_icon
 
         title_row = QHBoxLayout()
         sm_buttonheight = 20
@@ -9014,32 +9009,27 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         ext_btn.setIconSize(QSize(18, 18))
         ext_btn.setMinimumHeight(18); ext_btn.setMaximumHeight(28)
         ext_btn.setEnabled(False)
-        ext_btn.setFixedHeight(16)
         add_btn = QPushButton(get_add_icon(sm_buttonheight, icon_color), "Add")
         add_btn.setToolTip("STUB - no .dat editing built yet")
         add_btn.setIconSize(QSize(18, 18))
         add_btn.setMinimumHeight(18); add_btn.setMaximumHeight(28)
         add_btn.setEnabled(False)
-        add_btn.setFixedHeight(16)
         del_btn = QPushButton(get_remove_icon(sm_buttonheight, icon_color), "Del")
         del_btn.setToolTip("STUB - no .dat editing built yet")
         del_btn.setIconSize(QSize(18, 18))
         del_btn.setMinimumHeight(18); del_btn.setMaximumHeight(28)
         del_btn.setEnabled(False)
-        del_btn.setFixedHeight(16)
         ren_btn = QPushButton(get_rename_icon(sm_buttonheight, icon_color), "Rename")
         ren_btn.setToolTip("STUB - no .dat editing built yet")
         ren_btn.setIconSize(QSize(18, 18))
         ren_btn.setMinimumHeight(18); ren_btn.setMaximumHeight(28)
         ren_btn.setEnabled(False)
-        ren_btn.setFixedHeight(16)
-        save_btn = QPushButton(get_save_icon(sm_buttonheight, icon_color), "Rebuild")
-        save_btn.setToolTip("STUB - no write-back to disk exists for any\n" #TODO get_rebuild_icon
+        save_btn = QPushButton(get_rebuild_icon(sm_buttonheight, icon_color), "Rebuild")
+        save_btn.setToolTip("STUB - no write-back to disk exists for any\n"
                             "file type in Map Workshop yet")
         save_btn.setIconSize(QSize(18, 18))
         save_btn.setMinimumHeight(18); save_btn.setMaximumHeight(28)
         save_btn.setEnabled(False)
-        save_btn.setFixedHeight(16)
         for b in (ext_btn, add_btn, del_btn, ren_btn, save_btn):
             title_row.addWidget(b)
         title_row.addStretch()
