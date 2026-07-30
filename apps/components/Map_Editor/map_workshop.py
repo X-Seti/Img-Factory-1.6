@@ -8999,7 +8999,7 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         panel = QWidget()
         lay = QVBoxLayout(panel)
         lay.setContentsMargins(1, 1, 1, 1)
-        from apps.methods.imgfactory_svg_icons import get_save_icon, get_rename_icon, get_remove_icon, get_add_icon, get_dump_icon
+        from apps.methods.imgfactory_svg_icons import get_rebuild_icon, get_rename_icon, get_remove_icon, get_add_icon, get_dump_icon
 
         title_row = QHBoxLayout()
         sm_buttonheight = 20
@@ -9033,8 +9033,8 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         ren_btn.setMinimumHeight(18); ren_btn.setMaximumHeight(28)
         ren_btn.setEnabled(False)
         ren_btn.setFixedHeight(16)
-        save_btn = QPushButton(get_save_icon(sm_buttonheight, icon_color), "Rebuild")
-        save_btn.setToolTip("STUB - no write-back to disk exists for any\n" #TODO get_rebuild_icon
+        save_btn = QPushButton(get_rebuild_icon(sm_buttonheight, icon_color), "Rebuild")
+        save_btn.setToolTip("STUB - no write-back to disk exists for any\n"
                             "file type in Map Workshop yet")
         save_btn.setIconSize(QSize(18, 18))
         save_btn.setMinimumHeight(18); save_btn.setMaximumHeight(28)
