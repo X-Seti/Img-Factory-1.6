@@ -98,287 +98,292 @@ from PyQt6.QtGui import (
 # MapSettings.set
 # MapSettingsDialog.__init__
 # MapSettingsDialog._accept
-# MapWorkshop._9bit_to_rgb
-# MapWorkshop.__init__
-# MapWorkshop._activate_stamp_mode
-# MapWorkshop._add_canvas_tab
-# MapWorkshop._adjust
-# MapWorkshop._anim_add_frame
-# MapWorkshop._anim_del_frame
-# MapWorkshop._anim_dup_frame
-# MapWorkshop._anim_export_gif
-# MapWorkshop._anim_export_png_seq
-# MapWorkshop._anim_first
-# MapWorkshop._anim_highlight_thumb
-# MapWorkshop._anim_init_frames
-# MapWorkshop._anim_last
-# MapWorkshop._anim_load_frame
-# MapWorkshop._anim_next
-# MapWorkshop._anim_prev
-# MapWorkshop._anim_refresh_thumbs
-# MapWorkshop._anim_save_current_frame
-# MapWorkshop._anim_tick
-# MapWorkshop._anim_toggle_play
-# MapWorkshop._anim_update_label
-# MapWorkshop._apply_atari_st_constraint
-# MapWorkshop._apply_bit_depth
-# MapWorkshop._apply_cell_constraint
-# MapWorkshop._apply_generic_constraint
-# MapWorkshop._apply_ham_constraint
-# MapWorkshop._apply_menu_bar_style
-# MapWorkshop._apply_mode_to_canvas
-# MapWorkshop._apply_msx_constraint
-# MapWorkshop._apply_palette0_alpha
-# MapWorkshop._apply_pending_constraint
-# MapWorkshop._apply_ribbon_style
-# MapWorkshop._apply_selection_rotation
-# MapWorkshop._apply_spectrum_clash
-# MapWorkshop._apply_theme
-# MapWorkshop._apply_zx8x_dither
-# MapWorkshop._background_to_alpha
-# MapWorkshop._background_to_alpha_dialog
-# MapWorkshop._batch_convert_icons
-# MapWorkshop._batch_convert_textures
-# MapWorkshop._blend_palette_colors
-# MapWorkshop._build_canvas_menus
-# MapWorkshop._build_load_menu
-# MapWorkshop._build_menus_into_qmenu
-# MapWorkshop._build_ribbons_from_assignment
-# MapWorkshop._build_tool_ribbon
-# MapWorkshop._canvas_to_256colour_indexed
-# MapWorkshop._capture_canvas_tab_state
-# MapWorkshop._center_view_on
-# MapWorkshop._clear_brush
-# MapWorkshop._clear_canvas
-# MapWorkshop._convert_canvas_to_platform
-# MapWorkshop._copy_selection
-# MapWorkshop._create_anim_strip
-# MapWorkshop._create_annotate_ribbon
-# MapWorkshop._create_canvas_tabs_ribbon
-# MapWorkshop._create_centre_panel
-# MapWorkshop._create_docked_bar
-# MapWorkshop._create_image_ops_ribbon
-# MapWorkshop._create_tool_settings_ribbon
-# MapWorkshop._create_toolbar
-# MapWorkshop._crop_to_selection
-# MapWorkshop._cut_selection
-# MapWorkshop._decode_amiga_info
-# MapWorkshop._decode_iff_ilbm
-# MapWorkshop._decode_newicon_im1
-# MapWorkshop._delete_bitmap
-# MapWorkshop._deselect
-# MapWorkshop._dither_bayer_canvas
-# MapWorkshop._dither_checker_canvas
-# MapWorkshop._dither_floyd_steinberg
-# MapWorkshop._dp5_blur
-# MapWorkshop._dp5_edge_detect
-# MapWorkshop._dp5_emboss
-# MapWorkshop._dp5_sharpen
-# MapWorkshop._duplicate_last_stamp
-# MapWorkshop._export_amiga_icon
-# MapWorkshop._export_art_studio
-# MapWorkshop._export_bitmap
-# MapWorkshop._export_c64mprg
-# MapWorkshop._export_c64prg
-# MapWorkshop._export_dds
-# MapWorkshop._export_icns
-# MapWorkshop._export_ico
-# MapWorkshop._export_iff
-# MapWorkshop._export_iff_ham
-# MapWorkshop._export_koala
-# MapWorkshop._export_msxcom
-# MapWorkshop._export_nex
-# MapWorkshop._export_nxi
-# MapWorkshop._export_pal
-# MapWorkshop._export_pcx
-# MapWorkshop._export_pi1
-# MapWorkshop._export_plus4prg
-# MapWorkshop._export_sc2
-# MapWorkshop._export_scr
-# MapWorkshop._export_svg_icon
-# MapWorkshop._export_tap
-# MapWorkshop._export_texture_bmp
-# MapWorkshop._export_texture_png
-# MapWorkshop._export_tga
-# MapWorkshop._export_vicprg
-# MapWorkshop._fill_canvas
-# MapWorkshop._fit_canvas_to_viewport
-# MapWorkshop._fit_img_pal_height
-# MapWorkshop._flip_h
-# MapWorkshop._flip_v
-# MapWorkshop._get_canvas_pil
-# MapWorkshop._get_icon_color
-# MapWorkshop._get_resize_corner
-# MapWorkshop._get_resize_direction
-# MapWorkshop._get_ribbon_assignment
-# MapWorkshop._get_ribbon_tile_bg
-# MapWorkshop._get_tool_menu_style
-# MapWorkshop._get_user_palette_rgb
-# MapWorkshop._group_palette
-# MapWorkshop._handle_corner_resize
-# MapWorkshop._handle_resize
-# MapWorkshop._iff_find_chunk
-# MapWorkshop._iff_unpack_body
-# MapWorkshop._import_amiga_info
-# MapWorkshop._import_art_studio
-# MapWorkshop._import_bitmap
-# MapWorkshop._import_bitmap_path
-# MapWorkshop._import_bitmap_snap_canvas_size
-# MapWorkshop._import_bitmap_snap_canvas_size_dither
-# MapWorkshop._import_bitmap_snap_dither
-# MapWorkshop._import_bitmap_snap_user_pal
-# MapWorkshop._import_dds
-# MapWorkshop._import_dropped_file
-# MapWorkshop._import_gif
-# MapWorkshop._import_icns
-# MapWorkshop._import_ico
-# MapWorkshop._import_iff
-# MapWorkshop._import_koala
-# MapWorkshop._import_nxi
-# MapWorkshop._import_pal
-# MapWorkshop._import_pcx
-# MapWorkshop._import_pi1
-# MapWorkshop._import_psd
-# MapWorkshop._import_sc2
-# MapWorkshop._import_scr
-# MapWorkshop._import_svg
-# MapWorkshop._import_tga
-# MapWorkshop._import_tiff
-# MapWorkshop._invert
-# MapWorkshop._is_importable_ext
-# MapWorkshop._is_on_draggable_area
-# MapWorkshop._launch_theme_settings
-# MapWorkshop._limit_cell_colours
-# MapWorkshop._load_btn_context_menu
-# MapWorkshop._load_rgba
-# MapWorkshop._make_checkerboard
-# MapWorkshop._make_dock_collapsible
-# MapWorkshop._make_dropdown_tool_button
-# MapWorkshop._mirror_h
-# MapWorkshop._mirror_v
-# MapWorkshop._nearest_in_palette
-# MapWorkshop._nearest_zx_colour
-# MapWorkshop._new_btn_context_menu
-# MapWorkshop._on_bg_changed
-# MapWorkshop._on_bitmap_selected
-# MapWorkshop._on_brush_mgr_selected
-# MapWorkshop._on_canvas_changed
-# MapWorkshop._on_fg_changed
-# MapWorkshop._on_image_palette_color
-# MapWorkshop._on_menu_btn_clicked
-# MapWorkshop._on_splitter_moved
-# MapWorkshop._on_ts_font_size_changed
-# MapWorkshop._on_ts_size_changed
-# MapWorkshop._on_ts_strength_changed
-# MapWorkshop._on_user_palette_color
-# MapWorkshop._open_char_editor
-# MapWorkshop._open_dp5_colour_adjust
-# MapWorkshop._open_dp5_seamless
-# MapWorkshop._open_dp5_snow
-# MapWorkshop._open_icon_browser
-# MapWorkshop._open_icon_editor
-# MapWorkshop._open_ribbon_manager
-# MapWorkshop._open_sprite_editor
-# MapWorkshop._open_zoom_lens
-# MapWorkshop._paint_variant_shape
-# MapWorkshop._paste_selection
-# MapWorkshop._pick_sticker
-# MapWorkshop._pick_ts_font
-# MapWorkshop._pil_transform
-# MapWorkshop._place_text_at
-# MapWorkshop._push_color_history
-# MapWorkshop._push_undo
-# MapWorkshop._rebuild_right_panel
-# MapWorkshop._rebuild_tool_ribbons
-# MapWorkshop._redo_canvas
-# MapWorkshop._refresh_canvas_tabs_ribbon
-# MapWorkshop._refresh_corner_overlay
-# MapWorkshop._refresh_icons
-# MapWorkshop._refresh_tool_settings_ribbon
-# MapWorkshop._render_as_ansi
-# MapWorkshop._render_as_ascii
-# MapWorkshop._render_as_petscii
-# MapWorkshop._render_as_teletext
-# MapWorkshop._render_variant_icon
-# MapWorkshop._resize_canvas_dialog
-# MapWorkshop._restore_canvas_tab_state
-# MapWorkshop._restore_outer_layout
-# MapWorkshop._rgb_to_9bit
-# MapWorkshop._ribbon_context_menu
-# MapWorkshop._ribbon_presets_dir
-# MapWorkshop._rotate_180
-# MapWorkshop._rotate_90_ccw
-# MapWorkshop._rotate_90_cw
-# MapWorkshop._rotate_arbitrary
-# MapWorkshop._rotate_selection_dialog
-# MapWorkshop._save_current_canvas_tab
-# MapWorkshop._scale_canvas
-# MapWorkshop._select_all
-# MapWorkshop._select_tool
-# MapWorkshop._set_brush_size
-# MapWorkshop._set_canvas_mode
-# MapWorkshop._set_opacity
-# MapWorkshop._set_platform
-# MapWorkshop._set_polygon_sides
-# MapWorkshop._set_ribbon_assignment
-# MapWorkshop._set_show_grid
-# MapWorkshop._set_snap_grid
-# MapWorkshop._set_status
-# MapWorkshop._set_zoom
-# MapWorkshop._set_zoom_mode
-# MapWorkshop._setup_corner_overlay
-# MapWorkshop._show_active_zoom_sensitivity_menu
-# MapWorkshop._show_dropdown_menu
-# MapWorkshop._show_load_menu
-# MapWorkshop._show_load_menu_at
-# MapWorkshop._show_sticker_picker
-# MapWorkshop._show_tool_settings_menu
-# MapWorkshop._show_workshop_settings
-# MapWorkshop._snap_canvas_to_user_palette
-# MapWorkshop._snap_canvas_to_user_palette_dither
-# MapWorkshop._snap_cell_to_palette
-# MapWorkshop._snap_image_to_platform_palette
-# MapWorkshop._snap_image_to_user_palette
-# MapWorkshop._switch_canvas_tab
-# MapWorkshop._sync_brush_thumb
-# MapWorkshop._toggle_active_zoom
-# MapWorkshop._toggle_anim_strip
-# MapWorkshop._toggle_brush_manager
-# MapWorkshop._toggle_cell_grid
-# MapWorkshop._toggle_clash_visualiser
-# MapWorkshop._toggle_colour_constraints
-# MapWorkshop._toggle_dither_mode
-# MapWorkshop._toggle_dock_floating
-# MapWorkshop._toggle_maximize
-# MapWorkshop._toggle_menubar
-# MapWorkshop._toggle_onion_skin
-# MapWorkshop._toggle_statusbar
-# MapWorkshop._toggle_symmetry_mode
-# MapWorkshop._undo_canvas
-# MapWorkshop._update_color_swatches
-# MapWorkshop._update_cursor
-# MapWorkshop._update_mode_buttons
-# MapWorkshop._update_status
-# MapWorkshop._update_transform_text_panel_visibility
-# MapWorkshop._update_zoom_label
-# MapWorkshop._write_amiga_info
-# MapWorkshop._write_icns
-# MapWorkshop._zoom_mode_menu
-# MapWorkshop.closeEvent
-# MapWorkshop.dragEnterEvent
-# MapWorkshop.dragMoveEvent
-# MapWorkshop.dropEvent
-# MapWorkshop.get_menu_title
-# MapWorkshop.keyPressEvent
-# MapWorkshop.mouseMoveEvent
-# MapWorkshop.mousePressEvent
-# MapWorkshop.mouseReleaseEvent
-# MapWorkshop.paintEvent
-# MapWorkshop.resizeEvent
-# MapWorkshop.resizeEvent
-# MapWorkshop.set_menu_orientation
-# MapWorkshop.setup_ui
-# MapWorkshop.showEvent
+##Methods list - tags below are a draft aid, not a
+# guarantee - CHECK-CHAIN and LIKELY-* entries were not each traced
+# through their actual callers the way VERIFIED-LIVE/VERIFIED-DEAD
+# entries were (see recent commits for that process) - verify before
+# deleting anything tagged anything other than VERIFIED-DEAD.
+#
+# MapWorkshop.__init__  [FRAMEWORK] Qt override / entry point, always live
+# MapWorkshop._activate_stamp_mode  [VERIFIED-LIVE] traced actual caller this session
+# MapWorkshop._apply_menu_bar_style  [VERIFIED-LIVE] traced actual caller this session
+# MapWorkshop._apply_mode_to_canvas  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._apply_ribbon_style  [VERIFIED-LIVE] traced actual caller this session
+# MapWorkshop._apply_selection_rotation  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._apply_theme  [VERIFIED-LIVE] traced actual caller this session
+# MapWorkshop._build_canvas_menus  [VERIFIED-LIVE] traced actual caller this session
+# MapWorkshop._build_menus_into_qmenu  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._build_ribbons_from_assignment  [VERIFIED-LIVE] traced actual caller this session
+# MapWorkshop._build_tool_ribbon  [VERIFIED-LIVE] traced actual caller this session
+# MapWorkshop._capture_canvas_tab_state  [VERIFIED-LIVE] traced actual caller this session
+# MapWorkshop._copy_selection  [VERIFIED-LIVE] traced actual caller this session
+# MapWorkshop._create_annotate_ribbon  [VERIFIED-DEAD] traced this session - zero live callers
+# MapWorkshop._create_canvas_tabs_ribbon  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._create_centre_panel  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._create_image_ops_ribbon  [VERIFIED-DEAD] traced this session - zero live callers
+# MapWorkshop._create_tool_settings_ribbon  [VERIFIED-DEAD] traced this session - zero live callers
+# MapWorkshop._create_toolbar  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._cut_selection  [LIKELY-LIVE] 3 references - probably live, not individually confirmed
+# MapWorkshop._deselect  [CHECK-CHAIN] 2 reference(s) - verify caller is itself live before removing
+# MapWorkshop._dither_bayer_canvas  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._dither_checker_canvas  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._dither_floyd_steinberg  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._dp5_blur  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._dp5_edge_detect  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._dp5_emboss  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._dp5_sharpen  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._duplicate_last_stamp  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._fill_canvas  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._fit_canvas_to_viewport  [LIKELY-LIVE] 11 references - probably live, not individually confirmed
+# MapWorkshop._fit_img_pal_height  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._flip_h  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._flip_v  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._get_icon_color  [VERIFIED-LIVE] traced actual caller this session
+# MapWorkshop._get_resize_corner  [CHECK-CHAIN] 2 reference(s) - verify caller is itself live before removing
+# MapWorkshop._get_resize_direction  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._get_ribbon_assignment  [VERIFIED-LIVE] traced actual caller this session
+# MapWorkshop._get_ribbon_tile_bg  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._get_tool_menu_style  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._get_user_palette_rgb  [LIKELY-LIVE] 5 references - probably live, not individually confirmed
+# MapWorkshop._group_palette  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._handle_corner_resize  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._handle_resize  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._is_on_draggable_area  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._launch_theme_settings  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._limit_cell_colours  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._make_dock_collapsible  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._make_dropdown_tool_button  [LIKELY-LIVE] 5 references - probably live, not individually confirmed
+# MapWorkshop._mirror_h  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._mirror_v  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._nearest_in_palette  [CHECK-CHAIN] 2 reference(s) - verify caller is itself live before removing
+# MapWorkshop._nearest_zx_colour  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._on_bg_changed  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._on_canvas_changed  [VERIFIED-DEAD] traced this session - zero live callers
+# MapWorkshop._on_fg_changed  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._on_image_palette_color  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._on_menu_btn_clicked  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._on_ts_font_size_changed  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._on_ts_size_changed  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._on_ts_strength_changed  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._on_user_palette_color  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._open_char_editor  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._open_dp5_colour_adjust  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._open_dp5_seamless  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._open_dp5_snow  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._open_icon_browser  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._open_icon_editor  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._open_ribbon_manager  [VERIFIED-LIVE] traced actual caller this session
+# MapWorkshop._open_sprite_editor  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._open_zoom_lens  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._paint_variant_shape  [VERIFIED-LIVE] traced actual caller this session
+# MapWorkshop._paste_selection  [VERIFIED-LIVE] traced actual caller this session
+# MapWorkshop._pick_sticker  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._pick_ts_font  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._pil_transform  [LIKELY-LIVE] 7 references - probably live, not individually confirmed
+# MapWorkshop._place_text_at  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._push_color_history  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._push_undo  [LIKELY-LIVE] 20 references - probably live, not individually confirmed
+# MapWorkshop._rebuild_right_panel  [CHECK-CHAIN] 2 reference(s) - verify caller is itself live before removing
+# MapWorkshop._rebuild_tool_ribbons  [LIKELY-LIVE] 6 references - probably live, not individually confirmed
+# MapWorkshop._redo_canvas  [CHECK-CHAIN] 2 reference(s) - verify caller is itself live before removing
+# MapWorkshop._refresh_canvas_tabs_ribbon  [CHECK-CHAIN] 2 reference(s) - verify caller is itself live before removing
+# MapWorkshop._refresh_corner_overlay  [CHECK-CHAIN] 2 reference(s) - verify caller is itself live before removing
+# MapWorkshop._refresh_icons  [CHECK-CHAIN] 2 reference(s) - verify caller is itself live before removing
+# MapWorkshop._refresh_tool_settings_ribbon  [CHECK-CHAIN] 2 reference(s) - verify caller is itself live before removing
+# MapWorkshop._render_as_ansi  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._render_as_ascii  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._render_as_petscii  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._render_as_teletext  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._render_variant_icon  [VERIFIED-LIVE] traced actual caller this session
+# MapWorkshop._restore_canvas_tab_state  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._restore_outer_layout  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._ribbon_context_menu  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._ribbon_presets_dir  [CHECK-CHAIN] 2 reference(s) - verify caller is itself live before removing
+# MapWorkshop._rotate_180  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._rotate_90_ccw  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._rotate_90_cw  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._rotate_arbitrary  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._rotate_selection_dialog  [VERIFIED-LIVE] traced actual caller this session
+# MapWorkshop._save_current_canvas_tab  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._scale_canvas  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._select_all  [CHECK-CHAIN] 2 reference(s) - verify caller is itself live before removing
+# MapWorkshop._select_tool  [LIKELY-LIVE] 13 references - probably live, not individually confirmed
+# MapWorkshop._set_brush_size  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._set_opacity  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._set_platform  [CHECK-CHAIN] 2 reference(s) - verify caller is itself live before removing
+# MapWorkshop._set_polygon_sides  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._set_ribbon_assignment  [VERIFIED-LIVE] traced actual caller this session
+# MapWorkshop._set_show_grid  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._set_snap_grid  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._set_status  [VERIFIED-LIVE] traced actual caller this session
+# MapWorkshop._set_zoom  [LIKELY-LIVE] 8 references - probably live, not individually confirmed
+# MapWorkshop._set_zoom_mode  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._setup_corner_overlay  [LIKELY-LIVE] 4 references - probably live, not individually confirmed
+# MapWorkshop._show_active_zoom_sensitivity_menu  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._show_dropdown_menu  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._show_sticker_picker  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._show_tool_settings_menu  [CHECK-CHAIN] 2 reference(s) - verify caller is itself live before removing
+# MapWorkshop._show_workshop_settings  [VERIFIED-LIVE] traced actual caller this session
+# MapWorkshop._snap_canvas_to_user_palette  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._snap_canvas_to_user_palette_dither  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._snap_cell_to_palette  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._snap_image_to_platform_palette  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._snap_image_to_user_palette  [CHECK-CHAIN] 2 reference(s) - verify caller is itself live before removing
+# MapWorkshop._switch_canvas_tab  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._sync_brush_thumb  [LIKELY-LIVE] 3 references - probably live, not individually confirmed
+# MapWorkshop._toggle_active_zoom  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._toggle_brush_manager  [VERIFIED-DEAD] traced this session - zero live callers
+# MapWorkshop._toggle_cell_grid  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._toggle_clash_visualiser  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._toggle_colour_constraints  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._toggle_dither_mode  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._toggle_dock_floating  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._toggle_maximize  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._toggle_menubar  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._toggle_onion_skin  [VERIFIED-LIVE] traced actual caller this session
+# MapWorkshop._toggle_statusbar  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._toggle_symmetry_mode  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._undo_canvas  [LIKELY-LIVE] 3 references - probably live, not individually confirmed
+# MapWorkshop._update_color_swatches  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._update_cursor  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._update_mode_buttons  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._update_status  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._update_transform_text_panel_visibility  [LIKELY-DEAD-DP5] zero self.-references found
+# MapWorkshop._update_zoom_label  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop._zoom_mode_menu  [CHECK-CHAIN] 1 reference(s) - verify caller is itself live before removing
+# MapWorkshop.closeEvent  [FRAMEWORK] Qt override / entry point, always live
+# MapWorkshop.get_menu_title  [FRAMEWORK] Qt override / entry point, always live
+# MapWorkshop.keyPressEvent  [FRAMEWORK] Qt override / entry point, always live
+# MapWorkshop.mouseMoveEvent  [FRAMEWORK] Qt override / entry point, always live
+# MapWorkshop.mousePressEvent  [FRAMEWORK] Qt override / entry point, always live
+# MapWorkshop.mouseReleaseEvent  [FRAMEWORK] Qt override / entry point, always live
+# MapWorkshop.paintEvent  [FRAMEWORK] Qt override / entry point, always live
+# MapWorkshop.resizeEvent  [FRAMEWORK] Qt override / entry point, always live
+# MapWorkshop.set_menu_orientation  [FRAMEWORK] Qt override / entry point, always live
+# MapWorkshop.setup_ui  [FRAMEWORK] Qt override / entry point, always live
+# MapWorkshop.showEvent  [FRAMEWORK] Qt override / entry point, always live
+# MapWorkshop._9bit_to_rgb  [ALREADY REMOVED]
+# MapWorkshop._add_canvas_tab  [ALREADY REMOVED]
+# MapWorkshop._adjust  [ALREADY REMOVED]
+# MapWorkshop._anim_add_frame  [ALREADY REMOVED]
+# MapWorkshop._anim_del_frame  [ALREADY REMOVED]
+# MapWorkshop._anim_dup_frame  [ALREADY REMOVED]
+# MapWorkshop._anim_export_gif  [ALREADY REMOVED]
+# MapWorkshop._anim_export_png_seq  [ALREADY REMOVED]
+# MapWorkshop._anim_first  [ALREADY REMOVED]
+# MapWorkshop._anim_highlight_thumb  [ALREADY REMOVED]
+# MapWorkshop._anim_init_frames  [ALREADY REMOVED]
+# MapWorkshop._anim_last  [ALREADY REMOVED]
+# MapWorkshop._anim_load_frame  [ALREADY REMOVED]
+# MapWorkshop._anim_next  [ALREADY REMOVED]
+# MapWorkshop._anim_prev  [ALREADY REMOVED]
+# MapWorkshop._anim_refresh_thumbs  [ALREADY REMOVED]
+# MapWorkshop._anim_save_current_frame  [ALREADY REMOVED]
+# MapWorkshop._anim_tick  [ALREADY REMOVED]
+# MapWorkshop._anim_toggle_play  [ALREADY REMOVED]
+# MapWorkshop._anim_update_label  [ALREADY REMOVED]
+# MapWorkshop._apply_atari_st_constraint  [ALREADY REMOVED]
+# MapWorkshop._apply_bit_depth  [ALREADY REMOVED]
+# MapWorkshop._apply_cell_constraint  [ALREADY REMOVED]
+# MapWorkshop._apply_generic_constraint  [ALREADY REMOVED]
+# MapWorkshop._apply_ham_constraint  [ALREADY REMOVED]
+# MapWorkshop._apply_msx_constraint  [ALREADY REMOVED]
+# MapWorkshop._apply_palette0_alpha  [ALREADY REMOVED]
+# MapWorkshop._apply_pending_constraint  [ALREADY REMOVED]
+# MapWorkshop._apply_spectrum_clash  [ALREADY REMOVED]
+# MapWorkshop._apply_zx8x_dither  [ALREADY REMOVED]
+# MapWorkshop._background_to_alpha  [ALREADY REMOVED]
+# MapWorkshop._background_to_alpha_dialog  [ALREADY REMOVED]
+# MapWorkshop._batch_convert_icons  [ALREADY REMOVED]
+# MapWorkshop._batch_convert_textures  [ALREADY REMOVED]
+# MapWorkshop._blend_palette_colors  [ALREADY REMOVED]
+# MapWorkshop._build_load_menu  [ALREADY REMOVED]
+# MapWorkshop._canvas_to_256colour_indexed  [ALREADY REMOVED]
+# MapWorkshop._center_view_on  [ALREADY REMOVED]
+# MapWorkshop._clear_brush  [ALREADY REMOVED]
+# MapWorkshop._clear_canvas  [ALREADY REMOVED]
+# MapWorkshop._convert_canvas_to_platform  [ALREADY REMOVED]
+# MapWorkshop._create_anim_strip  [ALREADY REMOVED]
+# MapWorkshop._create_docked_bar  [ALREADY REMOVED]
+# MapWorkshop._crop_to_selection  [ALREADY REMOVED]
+# MapWorkshop._decode_amiga_info  [ALREADY REMOVED]
+# MapWorkshop._decode_iff_ilbm  [ALREADY REMOVED]
+# MapWorkshop._decode_newicon_im1  [ALREADY REMOVED]
+# MapWorkshop._delete_bitmap  [ALREADY REMOVED]
+# MapWorkshop._export_amiga_icon  [ALREADY REMOVED]
+# MapWorkshop._export_art_studio  [ALREADY REMOVED]
+# MapWorkshop._export_bitmap  [ALREADY REMOVED]
+# MapWorkshop._export_c64mprg  [ALREADY REMOVED]
+# MapWorkshop._export_c64prg  [ALREADY REMOVED]
+# MapWorkshop._export_dds  [ALREADY REMOVED]
+# MapWorkshop._export_icns  [ALREADY REMOVED]
+# MapWorkshop._export_ico  [ALREADY REMOVED]
+# MapWorkshop._export_iff  [ALREADY REMOVED]
+# MapWorkshop._export_iff_ham  [ALREADY REMOVED]
+# MapWorkshop._export_koala  [ALREADY REMOVED]
+# MapWorkshop._export_msxcom  [ALREADY REMOVED]
+# MapWorkshop._export_nex  [ALREADY REMOVED]
+# MapWorkshop._export_nxi  [ALREADY REMOVED]
+# MapWorkshop._export_pal  [ALREADY REMOVED]
+# MapWorkshop._export_pcx  [ALREADY REMOVED]
+# MapWorkshop._export_pi1  [ALREADY REMOVED]
+# MapWorkshop._export_plus4prg  [ALREADY REMOVED]
+# MapWorkshop._export_sc2  [ALREADY REMOVED]
+# MapWorkshop._export_scr  [ALREADY REMOVED]
+# MapWorkshop._export_svg_icon  [ALREADY REMOVED]
+# MapWorkshop._export_tap  [ALREADY REMOVED]
+# MapWorkshop._export_texture_bmp  [ALREADY REMOVED]
+# MapWorkshop._export_texture_png  [ALREADY REMOVED]
+# MapWorkshop._export_tga  [ALREADY REMOVED]
+# MapWorkshop._export_vicprg  [ALREADY REMOVED]
+# MapWorkshop._get_canvas_pil  [ALREADY REMOVED]
+# MapWorkshop._iff_find_chunk  [ALREADY REMOVED]
+# MapWorkshop._iff_unpack_body  [ALREADY REMOVED]
+# MapWorkshop._import_amiga_info  [ALREADY REMOVED]
+# MapWorkshop._import_art_studio  [ALREADY REMOVED]
+# MapWorkshop._import_bitmap  [ALREADY REMOVED]
+# MapWorkshop._import_bitmap_path  [ALREADY REMOVED]
+# MapWorkshop._import_bitmap_snap_canvas_size  [ALREADY REMOVED]
+# MapWorkshop._import_bitmap_snap_canvas_size_dither  [ALREADY REMOVED]
+# MapWorkshop._import_bitmap_snap_dither  [ALREADY REMOVED]
+# MapWorkshop._import_bitmap_snap_user_pal  [ALREADY REMOVED]
+# MapWorkshop._import_dds  [ALREADY REMOVED]
+# MapWorkshop._import_dropped_file  [ALREADY REMOVED]
+# MapWorkshop._import_gif  [ALREADY REMOVED]
+# MapWorkshop._import_icns  [ALREADY REMOVED]
+# MapWorkshop._import_ico  [ALREADY REMOVED]
+# MapWorkshop._import_iff  [ALREADY REMOVED]
+# MapWorkshop._import_koala  [ALREADY REMOVED]
+# MapWorkshop._import_nxi  [ALREADY REMOVED]
+# MapWorkshop._import_pal  [ALREADY REMOVED]
+# MapWorkshop._import_pcx  [ALREADY REMOVED]
+# MapWorkshop._import_pi1  [ALREADY REMOVED]
+# MapWorkshop._import_psd  [ALREADY REMOVED]
+# MapWorkshop._import_sc2  [ALREADY REMOVED]
+# MapWorkshop._import_scr  [ALREADY REMOVED]
+# MapWorkshop._import_svg  [ALREADY REMOVED]
+# MapWorkshop._import_tga  [ALREADY REMOVED]
+# MapWorkshop._import_tiff  [ALREADY REMOVED]
+# MapWorkshop._invert  [ALREADY REMOVED]
+# MapWorkshop._is_importable_ext  [ALREADY REMOVED]
+# MapWorkshop._load_btn_context_menu  [ALREADY REMOVED]
+# MapWorkshop._load_rgba  [ALREADY REMOVED]
+# MapWorkshop._make_checkerboard  [ALREADY REMOVED]
+# MapWorkshop._new_btn_context_menu  [ALREADY REMOVED]
+# MapWorkshop._on_bitmap_selected  [ALREADY REMOVED]
+# MapWorkshop._on_brush_mgr_selected  [ALREADY REMOVED]
+# MapWorkshop._on_splitter_moved  [ALREADY REMOVED]
+# MapWorkshop._resize_canvas_dialog  [ALREADY REMOVED]
+# MapWorkshop._rgb_to_9bit  [ALREADY REMOVED]
+# MapWorkshop._set_canvas_mode  [ALREADY REMOVED]
+# MapWorkshop._show_load_menu  [ALREADY REMOVED]
+# MapWorkshop._show_load_menu_at  [ALREADY REMOVED]
+# MapWorkshop._toggle_anim_strip  [ALREADY REMOVED]
+# MapWorkshop._write_amiga_info  [ALREADY REMOVED]
+# MapWorkshop._write_icns  [ALREADY REMOVED]
+# MapWorkshop.dragEnterEvent  [ALREADY REMOVED]
+# MapWorkshop.dragMoveEvent  [ALREADY REMOVED]
+# MapWorkshop.dropEvent  [ALREADY REMOVED]
 
 App_name = "Map Workshop"
 App_build = "July 28 26 (Build 380) Vers 62"
