@@ -2319,7 +2319,7 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
     # actual set of docks has changed underneath it. Bumped now so any
     # such stale saved layout is cleanly rejected instead, falling back
     # to the default arrangement (which correctly shows every dock).
-    _OUTER_LAYOUT_VERSION = 2
+    _OUTER_LAYOUT_VERSION = 3
 
     # Shared compact sizing for Object Browser and all four tabs merged
     # into it (IDE/IPL/DAT/IMG) - per Keith's report that the new tabs'
@@ -3921,12 +3921,16 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
                 lambda pos, t=toolbar: self._ribbon_context_menu(t, pos))
             toolbar._ribbon_ctx_menu_wired = True
 
-    def _ribbon_context_menu(self, toolbar, pos): #vers 1
+    def _ribbon_context_menu(self, toolbar, pos): #vers 2
         """Right-click context menu on any ribbon's empty background -
         gives access to the Ribbon Manager without needing to dig
         through Settings, plus quick lock/unlock for all ribbons at
-        once."""
-        from PyQt6.QtWidgets import QMenu, QToolBar
+        once. Also lists every dock with a checkable show/hide action
+        (dock.toggleViewAction()) - per Keith's report that Object
+        Browser disappeared entirely with no way to bring it back;
+        this is the safety net for that failure mode, regardless of
+        what caused the dock to end up hidden in the first place."""
+        from PyQt6.QtWidgets import QMenu, QToolBar, QDockWidget
         menu = QMenu(self)
         menu.addAction("Ribbon Manager…", self._open_ribbon_manager)
         menu.addSeparator()
@@ -3936,6 +3940,13 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
                 lambda: [tb.setMovable(False) for tb in outer_mw.findChildren(QToolBar)])
             menu.addAction("Unlock All Ribbons",
                 lambda: [tb.setMovable(True) for tb in outer_mw.findChildren(QToolBar)])
+            docks = outer_mw.findChildren(QDockWidget)
+            if docks:
+                menu.addSeparator()
+                docks_menu = menu.addMenu("Docks")
+                for dock in docks:
+                    docks_menu.addAction(f"Show {dock.windowTitle()}",
+                        lambda checked=False, d=dock: (d.show(), d.raise_()))
         menu.exec(toolbar.mapToGlobal(pos))
 
     def _create_image_ops_ribbon(self): #vers 1
