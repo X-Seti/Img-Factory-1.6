@@ -8221,6 +8221,7 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
 
         # - Position (X, Y, Z) + Move There
         pos_box = QGroupBox("Position (X, Y, Z)")
+        from PyQt6.QtWidgets import QAbstractSpinBox
         themecol_pos = self.app_settings.get_theme_colors()
         panel_bg_pos = themecol_pos.get('panel_bg')
         if panel_bg_pos:
@@ -8229,14 +8230,24 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         self._cp_pos_x = QDoubleSpinBox(); self._cp_pos_x.setRange(-100000, 100000)
         self._cp_pos_y = QDoubleSpinBox(); self._cp_pos_y.setRange(-100000, 100000)
         self._cp_pos_z = QDoubleSpinBox(); self._cp_pos_z.setRange(-100000, 100000)
-        for spin in (self._cp_pos_x, self._cp_pos_y, self._cp_pos_z):
-            spin.setDecimals(2)
-            pos_lay.addWidget(spin)
         move_there_btn = QPushButton("Move There")
+        move_there_btn.setFixedHeight(self._COMPACT_BUTTON_H + 6)
         move_there_btn.setToolTip("Centre all World View panes' cameras on this\n"
                                   "typed position - the direct type-in alternative\n"
                                   "to nudging/clicking an object")
         move_there_btn.clicked.connect(self._on_move_there_clicked)
+        for spin in (self._cp_pos_x, self._cp_pos_y, self._cp_pos_z):
+            spin.setDecimals(2)
+            # Without this, Qt reserves worst-case width for the full
+            # ±100000 range (over 500px combined for all three) - per
+            # Keith's report that this was locking the whole panel's
+            # width. Still fully usable for extreme values via typing/
+            # scrolling, just doesn't force display of every possible
+            # digit at once.
+            spin.setMinimumWidth(60)
+            spin.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.UpDownArrows)
+            spin.setFixedHeight(self._COMPACT_BUTTON_H + 6)   # match Move There's height
+            pos_lay.addWidget(spin)
         pos_lay.addWidget(move_there_btn)
         lay.addWidget(pos_box)
 
@@ -8427,6 +8438,7 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
                             "same as clicking its eye icon to show it")
         open_btn.setIconSize(QSize(18, 18))
         open_btn.setMinimumHeight(18); open_btn.setMaximumHeight(28)
+        open_btn.setMinimumWidth(40)
         open_btn.clicked.connect(self._on_ipl_tab_open_clicked)
         #open_btn.setFixedHeight(16)
         close_btn = QPushButton(get_close_icon(sm_buttonheight, icon_color), "Close")
@@ -8435,6 +8447,7 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
                              "loaded, just not shown)")
         close_btn.setIconSize(QSize(18, 18))
         close_btn.setMinimumHeight(18); close_btn.setMaximumHeight(28)
+        close_btn.setMinimumWidth(40)
         close_btn.clicked.connect(self._on_ipl_tab_close_clicked)
         #close_btn.setFixedHeight(16) #TODO; need new icon.
         new_btn = QPushButton(get_file_icon(sm_buttonheight, icon_color), "New")
@@ -8442,6 +8455,7 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
                            "on disk isn't built yet")
         new_btn.setIconSize(QSize(18, 18))
         new_btn.setMinimumHeight(18); new_btn.setMaximumHeight(28)
+        new_btn.setMinimumWidth(40)
         new_btn.setEnabled(False)
         #new_btn.setFixedHeight(16) #TODO; need delete icon.
         delete_btn = QPushButton(get_remove_icon(sm_buttonheight, icon_color), "Delete")
@@ -8450,6 +8464,7 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
                               "for any file type in Map Workshop yet)")
         delete_btn.setIconSize(QSize(18, 18))
         delete_btn.setMinimumHeight(18); delete_btn.setMaximumHeight(28)
+        delete_btn.setMinimumWidth(40)
         delete_btn.setEnabled(False)
         #delete_btn.setFixedHeight(16)
         for b in (open_btn, close_btn, new_btn, delete_btn):
@@ -9044,24 +9059,28 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
         ext_btn.setToolTip("STUB - no .dat editing built yet")
         ext_btn.setIconSize(QSize(18, 18))
         ext_btn.setMinimumHeight(18); ext_btn.setMaximumHeight(28)
+        ext_btn.setMinimumWidth(40)
         ext_btn.setEnabled(False)
         ext_btn.setFixedHeight(16)
         add_btn = QPushButton(get_add_icon(sm_buttonheight, icon_color), "Add")
         add_btn.setToolTip("STUB - no .dat editing built yet")
         add_btn.setIconSize(QSize(18, 18))
         add_btn.setMinimumHeight(18); add_btn.setMaximumHeight(28)
+        add_btn.setMinimumWidth(40)
         add_btn.setEnabled(False)
         add_btn.setFixedHeight(16)
         del_btn = QPushButton(get_remove_icon(sm_buttonheight, icon_color), "Del")
         del_btn.setToolTip("STUB - no .dat editing built yet")
         del_btn.setIconSize(QSize(18, 18))
         del_btn.setMinimumHeight(18); del_btn.setMaximumHeight(28)
+        del_btn.setMinimumWidth(40)
         del_btn.setEnabled(False)
         del_btn.setFixedHeight(16)
         ren_btn = QPushButton(get_rename_icon(sm_buttonheight, icon_color), "Rename")
         ren_btn.setToolTip("STUB - no .dat editing built yet")
         ren_btn.setIconSize(QSize(18, 18))
         ren_btn.setMinimumHeight(18); ren_btn.setMaximumHeight(28)
+        ren_btn.setMinimumWidth(40)
         ren_btn.setEnabled(False)
         ren_btn.setFixedHeight(16)
         save_btn = QPushButton(get_rebuild_icon(sm_buttonheight, icon_color), "Rebuild")
@@ -9069,6 +9088,7 @@ class MapWorkshop(_ToolMenuMixin, QWidget):
                             "file type in Map Workshop yet")
         save_btn.setIconSize(QSize(18, 18))
         save_btn.setMinimumHeight(18); save_btn.setMaximumHeight(28)
+        save_btn.setMinimumWidth(40)
         save_btn.setEnabled(False)
         save_btn.setFixedHeight(16)
         for b in (ext_btn, add_btn, del_btn, ren_btn, save_btn):
