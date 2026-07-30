@@ -1,12 +1,22 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 193
-# X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
+# NOTE (Jul 30 2026): This file started as a direct copy of Model
+# Workshop (apps/components/Model_Editor/model_workshop.py v193),
+# per Keith's request to rebuild Map Workshop on that cleaner
+# foundation rather than continuing to strip DP5 leftovers out of the
+# old map_workshop.py (preserved as map_workshop_old_version.py for
+# reference on what Map Workshop's actual features need to be ported
+# over). All ModelWorkshop/Model Workshop/model_workshop naming below
+# has been renamed to MapWorkshop/Map Workshop/map_workshop throughout
+# this copy - the original Model_Editor/model_workshop.py is untouched
+# and still the real, working Model Workshop feature.
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 193
+# X-Seti - Apr 2026 - Map Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
 # [FIX] _rebuild_grid QWidget crash: removed redundant deleteLater (QScrollArea auto-deletes old widget).
 # [FIX] _rebuild_grid QFrame deletion crash: reparent slots before scroll widget swap.
 # X-Seti - May08 2026 - Model editor
-# X-Seti - Jul07 2026 - Added 3ds Max style 4-pane viewport (Top/Front/Side/Perspective) via QStackedWidget central widget; user-assignable per pane by right-click; splitter-resizable; layout persists to model_workshop.json.
+# X-Seti - Jul07 2026 - Added 3ds Max style 4-pane viewport (Top/Front/Side/Perspective) via QStackedWidget central widget; user-assignable per pane by right-click; splitter-resizable; layout persists to map_workshop.json.
 # X-Seti - Jul11 2026 - Diagnostic rollback to pre-4-pane state then restored:
 # black-window/QOpenGLWidget context failure confirmed via journalctl to be a
 # hardware/driver issue (PCIe BadTLP errors + NVIDIA GSP firmware load failure
@@ -106,7 +116,7 @@ except ImportError:
 # import_elements    STUB: import OBJ/FBX geometry into DFF
 # open_col_editor
 # open_col_workshop
-# open_model_workshop    factory method — open workshop with optional DFF #vers 3
+# open_map_workshop    factory method — open workshop with optional DFF #vers 3
 # open_workshop
 # refresh_model_list
 # update_view_options
@@ -201,7 +211,7 @@ except ImportError:
 # _refresh_toolbar_list
 # _save_preset
 #
-##class ModelWorkshop: -
+##class MapWorkshop: -
 # __init__
 # _add_geometry_to_dff
 # _add_textures_from_txd
@@ -340,7 +350,7 @@ except ImportError:
 # _load_txd_file    load TXD file → texture panel + viewport cache
 # _load_txd_file_from_data    load TXD from raw bytes
 # _load_txd_into_workshop
-# _load_viewport_light_settings    restore saved light from model_workshop.json #vers 1
+# _load_viewport_light_settings    restore saved light from map_workshop.json #vers 1
 # _lookup_ide_for_dff    find IDE entry via xref or IDEDatabase #vers 2
 # _lookup_ide_from_db
 # _mirror_dialog
@@ -571,17 +581,17 @@ except ImportError:
 #
 
 # Build information
-App_name = "Model Workshop"
-App_build = "193"
+App_name = "Map Workshop"
+App_build = "Map Workshop rebuild v1 (based on Model Workshop v193)"
 
 #TODO some gta3 dff files show as unknown format, effects standalone and docked versions, loading files from the img files.
 
-# Model Workshop icon available: SVGIconFactory.model_workshop_icon()
-# Use for: DFF edit button in main toolbar, Model Workshop tab icon.
+# Map Workshop icon available: SVGIconFactory.map_workshop_icon()
+# Use for: DFF edit button in main toolbar, Map Workshop tab icon.
 # - DFF → Viewport adapter
 
-# Model Workshop icon available: SVGIconFactory.model_workshop_icon()
-# Use for: DFF edit button in main toolbar, Model Workshop tab icon.
+# Map Workshop icon available: SVGIconFactory.map_workshop_icon()
+# Use for: DFF edit button in main toolbar, Map Workshop tab icon.
 # - DFF → Viewport adapter
 class _DFFGeometryAdapter:
     """Adapts a DFF Geometry for use with COL3DViewport.
@@ -2607,7 +2617,7 @@ class COL3DViewport(QWidget): #vers 2
         if ref is not None: return ref
         p = self.parent()
         while p:
-            if isinstance(p, ModelWorkshop): return p
+            if isinstance(p, MapWorkshop): return p
             p = p.parent() if callable(getattr(p, 'parent', None)) else None
         return None
 
@@ -2773,7 +2783,7 @@ class RibbonManagerDialog(QDialog): #vers 1
             import json
             from pathlib import Path
             _saved_px = json.loads(
-                (Path.home()/'.config'/'imgfactory'/'model_workshop.json').read_text()
+                (Path.home()/'.config'/'imgfactory'/'map_workshop.json').read_text()
             ).get('icon_scale', 20)
         except Exception:
             pass
@@ -2964,7 +2974,7 @@ class RibbonManagerDialog(QDialog): #vers 1
         name, ok = QInputDialog.getText(self, "Save Preset", "Preset name:")
         if not ok or not name.strip():
             return
-        path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+        path = Path.home() / '.config' / 'imgfactory' / 'map_workshop.json'
         try:
             data = json.loads(path.read_text())
         except Exception:
@@ -2982,7 +2992,7 @@ class RibbonManagerDialog(QDialog): #vers 1
         from pathlib import Path
         if not self._mw:
             return
-        path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+        path = Path.home() / '.config' / 'imgfactory' / 'map_workshop.json'
         try:
             data = json.loads(path.read_text())
         except Exception:
@@ -3013,8 +3023,8 @@ class RibbonManagerDialog(QDialog): #vers 1
         self.reject()
 
 
-class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
-    """Model Workshop - Main window"""
+class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
+    """Map Workshop - Main window"""
 
     # - ToolMenuMixin implementation
 
@@ -3023,7 +3033,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         return "DFF"
 
     def _build_menus_into_qmenu(self, parent_menu): #vers 1
-        """Populate parent_menu with Model Workshop actions."""
+        """Populate parent_menu with Map Workshop actions."""
         fm = parent_menu.addMenu("File")
         fm.addAction("Open…",    self._open_file if hasattr(self, '_open_file') else lambda: None)
         fm.addAction("Save",     self._save_file if hasattr(self, '_save_file') else lambda: None)
@@ -7408,7 +7418,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         def _save():  #vers 1
             _apply_live()
-            cfg_path = os.path.expanduser('~/.config/imgfactory/model_workshop.json')
+            cfg_path = os.path.expanduser('~/.config/imgfactory/map_workshop.json')
             try:
                 try: cfg = json.load(open(cfg_path))
                 except Exception: cfg = {}
@@ -7437,10 +7447,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         _apply_live(); dlg.exec()
 
     def _load_viewport_light_settings(self): #vers 1
-        """Load saved viewport light settings from model_workshop.json."""
+        """Load saved viewport light settings from map_workshop.json."""
         import json, os
         cfg_path = os.path.expanduser(
-            '~/.config/imgfactory/model_workshop.json')
+            '~/.config/imgfactory/map_workshop.json')
         try:
             cfg = json.load(open(cfg_path))
             vl = cfg.get('viewport_light', {})
@@ -7713,7 +7723,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             frames  = getattr(dff_model, 'frames', [])
             for i, geom in enumerate(dff_model.geometries):
                 atomic = next((a for a in atomics if a.geometry_index == i), None)
-                from apps.components.Model_Editor.model_workshop import _DFFGeometryAdapter
+                from apps.components.Map_Editor.map_workshop import _DFFGeometryAdapter
                 self._dff_adapters[i] = _DFFGeometryAdapter(geom, i, dff_model=dff_model, atomic=atomic)
         vp = getattr(self, 'preview_widget', None)
         if vp:
@@ -7875,7 +7885,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._set_status(f"Select mode: {mode}")
         mw = self.main_window
         if mw and hasattr(mw, 'log_message'):
-            mw.log_message(f"Model Workshop: select mode → {mode}")
+            mw.log_message(f"Map Workshop: select mode → {mode}")
 
     def _update_select_mode_availability(self): #vers 2
         """Enable vertex/edge/face/poly select buttons only when there is
@@ -8407,7 +8417,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         ]
 
         # Hook the row's own resize event directly - self.resizeEvent()
-        # only fires when the whole ModelWorkshop widget's outer bounding
+        # only fires when the whole MapWorkshop widget's outer bounding
         # box changes, but dragging the Models/viewport dock divider only
         # changes this row's own width (the outer tab doesn't resize at
         # all), so relying solely on self.resizeEvent() left the compact
@@ -8708,7 +8718,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         """Reparent one of the Name/IDE-TXD toolbars (identified by key,
         'name' or 'ide') between the middle panel's own nested QMainWindow
         and the right panel's QMainWindow - dockable/floatable in both
-        places. Persists the choice per-ribbon to model_workshop.json."""
+        places. Persists the choice per-ribbon to map_workshop.json."""
         tb = self._info_ribbons.get(key)
         if tb is None or location == self._info_ribbon_location.get(key):
             return
@@ -8734,7 +8744,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         try:
             import json
             from pathlib import Path
-            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            path = Path.home() / '.config' / 'imgfactory' / 'map_workshop.json'
             try:
                 data = json.loads(path.read_text())
             except Exception:
@@ -9104,7 +9114,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         try:
             import json
             from pathlib import Path
-            data = json.loads((Path.home()/'.config'/'imgfactory'/'model_workshop.json').read_text())
+            data = json.loads((Path.home()/'.config'/'imgfactory'/'map_workshop.json').read_text())
             slider.setValue(data.get('icon_scale', 20))
         except Exception:
             slider.setValue(20)
@@ -9130,7 +9140,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         try:
             import json
             from pathlib import Path
-            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            path = Path.home() / '.config' / 'imgfactory' / 'map_workshop.json'
             try:
                 data = json.loads(path.read_text())
             except Exception:
@@ -9167,7 +9177,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         try:
             import json
             from pathlib import Path
-            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            path = Path.home() / '.config' / 'imgfactory' / 'map_workshop.json'
             try:
                 data = json.loads(path.read_text())
             except Exception:
@@ -9183,14 +9193,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         dlg.exec()
 
     def _save_toolbar_state(self): #vers 2
-        """Save QMainWindow toolbar state to model_workshop.json."""
+        """Save QMainWindow toolbar state to map_workshop.json."""
         mw = getattr(self, '_inner_mw', None)
         if mw is None:
             return
         try:
             import json
             from pathlib import Path
-            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            path = Path.home() / '.config' / 'imgfactory' / 'map_workshop.json'
             try:
                 data = json.loads(path.read_text())
             except Exception:
@@ -9201,12 +9211,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._set_status("Ribbon config saved")
             main_wnd = getattr(self, 'main_window', None)
             if main_wnd and hasattr(main_wnd, 'log_message'):
-                main_wnd.log_message("Model Workshop: Ribbon config saved")
+                main_wnd.log_message("Map Workshop: Ribbon config saved")
         except Exception as _e:
-            print(f"[ModelWorkshop] _save_toolbar_state error: {_e}")
+            print(f"[MapWorkshop] _save_toolbar_state error: {_e}")
 
     def _restore_toolbar_state(self): #vers 5
-        """Restore QMainWindow toolbar state from model_workshop.json.
+        """Restore QMainWindow toolbar state from map_workshop.json.
         Uses an explicit layout version - bumped whenever ribbons are
         added/removed/renamed - so a stale save from an older ribbon
         layout is cleanly rejected instead of silently failing to
@@ -9219,7 +9229,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             import json
             from pathlib import Path
             from PyQt6.QtCore import QByteArray
-            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            path = Path.home() / '.config' / 'imgfactory' / 'map_workshop.json'
             if not path.exists():
                 return
             data = json.loads(path.read_text())
@@ -9232,15 +9242,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     self._set_status("Ribbon config loaded")
                     main_wnd = getattr(self, 'main_window', None)
                     if main_wnd and hasattr(main_wnd, 'log_message'):
-                        main_wnd.log_message("Model Workshop: Ribbon config loaded")
+                        main_wnd.log_message("Map Workshop: Ribbon config loaded")
                 else:
-                    print("[ModelWorkshop] _restore_toolbar_state: restoreState() returned False")
+                    print("[MapWorkshop] _restore_toolbar_state: restoreState() returned False")
             elif state_hex:
-                print(f"[ModelWorkshop] Saved ribbon layout is from an older version "
+                print(f"[MapWorkshop] Saved ribbon layout is from an older version "
                       f"({saved_version} != {self._RIBBON_LAYOUT_VERSION}) - skipping, "
                       f"will save fresh on next change.")
         except Exception as _e:
-            print(f"[ModelWorkshop] _restore_toolbar_state error: {_e}")
+            print(f"[MapWorkshop] _restore_toolbar_state error: {_e}")
         finally:
             # Safety net: restoreState() can leave a ribbon fully hidden
             # (e.g. saved mid-drag, floating off-screen, squeezed out) with
@@ -9272,7 +9282,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         try:
             import json
             from pathlib import Path
-            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            path = Path.home() / '.config' / 'imgfactory' / 'map_workshop.json'
             try:
                 data = json.loads(path.read_text())
             except Exception:
@@ -9281,7 +9291,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             data['outer_layout_version'] = self._OUTER_LAYOUT_VERSION
             path.write_text(json.dumps(data, indent=2))
         except Exception as _e:
-            print(f"[ModelWorkshop] _save_outer_layout error: {_e}")
+            print(f"[MapWorkshop] _save_outer_layout error: {_e}")
 
     def _restore_outer_layout(self): #vers 1
         """Restore _outer_mw's dock layout, with the same version-check +
@@ -9293,7 +9303,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             import json
             from pathlib import Path
             from PyQt6.QtCore import QByteArray
-            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            path = Path.home() / '.config' / 'imgfactory' / 'map_workshop.json'
             if path.exists():
                 data = json.loads(path.read_text())
                 state_hex = data.get('outer_layout_state')
@@ -9302,7 +9312,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     mw.restoreState(QByteArray.fromHex(state_hex.encode()),
                                      self._OUTER_LAYOUT_VERSION)
         except Exception as _e:
-            print(f"[ModelWorkshop] _restore_outer_layout error: {_e}")
+            print(f"[MapWorkshop] _restore_outer_layout error: {_e}")
         finally:
             for dock in (getattr(self, '_left_dock', None),
                          getattr(self, '_middle_dock', None),
@@ -9333,7 +9343,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     if top_level.width() > avail.width():
                         top_level.resize(avail.width(), top_level.height())
             except Exception as _e:
-                print(f"[ModelWorkshop] outer layout width clamp error: {_e}")
+                print(f"[MapWorkshop] outer layout width clamp error: {_e}")
 
         # Restore Model Name / IDE-TXD ribbon locations (middle panel vs
         # right panel ribbon stack) - separate from the QMainWindow toolbar
@@ -9342,7 +9352,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         try:
             import json
             from pathlib import Path
-            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            path = Path.home() / '.config' / 'imgfactory' / 'map_workshop.json'
             if path.exists():
                 data = json.loads(path.read_text())
                 saved_locations = data.get('info_ribbon_locations', {})
@@ -9350,7 +9360,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     if saved_location != self._info_ribbon_location.get(key):
                         self._move_info_ribbon(key, saved_location)
         except Exception as _e:
-            print(f"[ModelWorkshop] Info ribbon location restore error: {_e}")
+            print(f"[MapWorkshop] Info ribbon location restore error: {_e}")
 
     def _create_paint_bar(self): #vers 3
         """Floating paint bar — QWidget child of preview_widget, sits at top of viewport.
@@ -9653,7 +9663,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         try:
             cfg_dir = os.path.expanduser('~/.config/imgfactory')
             os.makedirs(cfg_dir, exist_ok=True)
-            cfg_path = os.path.join(cfg_dir, 'model_workshop.json')
+            cfg_path = os.path.join(cfg_dir, 'map_workshop.json')
             data = {}
             if os.path.exists(cfg_path):
                 try:
@@ -9683,7 +9693,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if not panes:
             return
         try:
-            cfg_path = os.path.expanduser('~/.config/imgfactory/model_workshop.json')
+            cfg_path = os.path.expanduser('~/.config/imgfactory/map_workshop.json')
             if not os.path.exists(cfg_path):
                 return
             with open(cfg_path) as f:
@@ -10895,11 +10905,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _get_icon_set(self) -> str: #vers 1
         """Return active icon set: 'default' or '3dsmax'.
-        Read from model_workshop.json 'icon_set' key."""
+        Read from map_workshop.json 'icon_set' key."""
         try:
             import json
             from pathlib import Path
-            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            path = Path.home() / '.config' / 'imgfactory' / 'map_workshop.json'
             if path.exists():
                 return json.loads(path.read_text()).get('icon_set', 'default')
         except Exception:
@@ -11258,7 +11268,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._auto_load_txd_from_imgs()
 
     def _open_txd_standalone(self): #vers 2
-        """Open a TXD file — loads textures into Model Workshop AND opens TXD Workshop."""
+        """Open a TXD file — loads textures into Map Workshop AND opens TXD Workshop."""
         path, _ = QFileDialog.getOpenFileName(
             self, "Open TXD Texture Archive",
             os.path.dirname(getattr(self, '_current_dff_path', '')),
@@ -11451,7 +11461,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._texlist_path = ''
 
         # Hook the panel's own resize event directly - self.resizeEvent()
-        # only fires when the whole ModelWorkshop widget's outer bounding
+        # only fires when the whole MapWorkshop widget's outer bounding
         # box changes, but dragging the Models/viewport dock divider only
         # changes this panel's own width, so relying solely on
         # self.resizeEvent() left the compact check stuck at whatever it
@@ -12103,15 +12113,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._save_texlist_setting()
             mw = self.main_window
             if mw and hasattr(mw, 'log_message'):
-                mw.log_message(f"Model Workshop: texlist folder -> {folder}")
+                mw.log_message(f"Map Workshop: texlist folder -> {folder}")
 
     def _save_texlist_setting(self): #vers 1
-        """Persist the texlist folder path to ~/.config/imgfactory/model_workshop.json"""
+        """Persist the texlist folder path to ~/.config/imgfactory/map_workshop.json"""
         import json
         cfg_dir = os.path.expanduser('~/.config/imgfactory')
         os.makedirs(cfg_dir, exist_ok=True)
         try:
-            p = os.path.join(cfg_dir, 'model_workshop.json')
+            p = os.path.join(cfg_dir, 'map_workshop.json')
             data = {}
             if os.path.isfile(p):
                 data = json.load(open(p))
@@ -12121,9 +12131,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             pass
 
     def _load_texlist_setting(self): #vers 1
-        """Load the texlist folder path from ~/.config/imgfactory/model_workshop.json"""
+        """Load the texlist folder path from ~/.config/imgfactory/map_workshop.json"""
         import json
-        p = os.path.expanduser('~/.config/imgfactory/model_workshop.json')
+        p = os.path.expanduser('~/.config/imgfactory/map_workshop.json')
         if os.path.isfile(p):
             try:
                 data = json.load(open(p))
@@ -12135,7 +12145,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
 
     def _load_txd_into_workshop(self): #vers 1
-        """Open a TXD file and load its textures into Model Workshop."""
+        """Open a TXD file and load its textures into Map Workshop."""
         path, _ = QFileDialog.getOpenFileName(
             self, "Load TXD",
             os.path.dirname(getattr(self, '_current_dff_path', '')),
@@ -14156,7 +14166,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
             img_name = os.path.basename(img_path)
             if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Model Workshop: scanning {img_name}…")
+                self.main_window.log_message(f"Map Workshop: scanning {img_name}…")
 
             model_exts = ('.dff', '.col', '.txd')
             model_entries = [e for e in img.entries
@@ -14193,10 +14203,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             n_col = sum(1 for e in model_entries if e.name.lower().endswith('.col'))
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(
-                    f"Model Workshop: {img_name} — "
+                    f"Map Workshop: {img_name} — "
                     f"{n_dff} DFF, {n_col} COL, {n_txd} TXD")
 
-            self.setWindowTitle(f"Model Workshop: {img_name}")
+            self.setWindowTitle(f"Map Workshop: {img_name}")
             return True
 
         except Exception as e:
@@ -14272,7 +14282,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 f"DFF ({n_dff})  TXD ({n_txd})  COL ({n_col})")
         if self.main_window and hasattr(self.main_window, 'log_message'):
             self.main_window.log_message(
-                f"Model Workshop: {lw.count()} entries in left panel")
+                f"Map Workshop: {lw.count()} entries in left panel")
         return
 
 
@@ -15665,7 +15675,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # Save hotkeys to config
         try:
             import json, os
-            cfg_path = os.path.expanduser('~/.config/imgfactory/model_workshop.json')
+            cfg_path = os.path.expanduser('~/.config/imgfactory/map_workshop.json')
             try:
                 cfg = json.load(open(cfg_path))
             except Exception:
@@ -15841,7 +15851,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         dialog.exec()
 
     def _show_about(self): #vers 1
-        """Show Model Workshop about dialog."""
+        """Show Map Workshop about dialog."""
         from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QTextEdit
         from PyQt6.QtGui import QFont
         from PyQt6.QtCore import Qt
@@ -15860,7 +15870,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         info = QTextEdit(); info.setReadOnly(True)
         info.setHtml("""
-            <b>Model Workshop Capabilities:</b><br><br>
+            <b>Map Workshop Capabilities:</b><br><br>
             <b>✓ DFF Support:</b> GTA III / VC / SA RenderWare DFF model files<br>
             <b>✓ COL Support:</b> COL1 (III/VC) COL2/3/4 (SA) collision files<br>
             <b>✓ Viewport:</b> QPainter 2D + OpenGL 3D (GL toggle)<br>
@@ -16844,7 +16854,7 @@ def export_model(model: COLModel, file_path: str) -> bool: #vers 1
             with open(file_path, 'wb') as f: f.write(block)
             return True
         elif ext == '.obj':
-            lines = ['# Exported by IMG Factory Model Workshop']
+            lines = ['# Exported by IMG Factory Map Workshop']
             verts = getattr(model, 'vertices', [])
             faces = getattr(model, 'faces', [])
             for v in verts: lines.append(f'v {v.x:.6f} {v.y:.6f} {v.z:.6f}')
@@ -16910,7 +16920,7 @@ def update_view_options(viewer: 'COL3DViewport', **options): #vers 1
         print(f"Error updating view options: {str(e)}")
 
 
-# (moved into ModelWorkshop class — see _ensure_standalone_functionality method above)
+# (moved into MapWorkshop class — see _ensure_standalone_functionality method above)
 
 
 
@@ -16937,9 +16947,9 @@ import shutil
 import sys
 
 
-def open_model_workshop(main_window, dff_path=None,
+def open_map_workshop(main_window, dff_path=None,
                         original_dff_name=None): #vers 5
-    """Open Model Workshop — routes DFF/COL/IMG correctly.
+    """Open Map Workshop — routes DFF/COL/IMG correctly.
     original_dff_name: the DFF entry name from the IMG (e.g. 'airportwall_2_2.dff')
     so that IDE lookup works even when the DFF was extracted to /tmp/ with a random suffix."""
     try:
@@ -16950,10 +16960,10 @@ def open_model_workshop(main_window, dff_path=None,
             container = QWidget()
             layout = QVBoxLayout(container)
             layout.setContentsMargins(0, 0, 0, 0)
-            workshop = ModelWorkshop(container, main_window)
+            workshop = MapWorkshop(container, main_window)
             workshop.setWindowFlags(Qt.WindowType.Widget)
             layout.addWidget(workshop)
-            tab_label = _os.path.splitext(_os.path.basename(dff_path))[0] if dff_path else "Model Workshop"
+            tab_label = _os.path.splitext(_os.path.basename(dff_path))[0] if dff_path else "Map Workshop"
             try:
                 from apps.methods.imgfactory_svg_icons import get_dff_edit_icon
                 icon = get_dff_edit_icon()
@@ -16966,9 +16976,9 @@ def open_model_workshop(main_window, dff_path=None,
             workshop.show()
         else:
             # Standalone window
-            workshop = ModelWorkshop(main_window=main_window)
+            workshop = MapWorkshop(main_window=main_window)
             workshop.setWindowFlags(Qt.WindowType.Window)
-            workshop.setWindowTitle(f"Model Workshop — {App_name}")
+            workshop.setWindowTitle(f"Map Workshop — {App_name}")
             workshop.resize(1200, 800)
             workshop.show()
 
@@ -17000,18 +17010,18 @@ def open_model_workshop(main_window, dff_path=None,
                 if img and hasattr(img, 'entries'):
                     workshop._populate_left_panel_from_img(img)
                 if hasattr(main_window, 'log_message'):
-                    main_window.log_message("Model Workshop opened")
+                    main_window.log_message("Map Workshop opened")
 
         return workshop
     except Exception as e:
         import traceback; traceback.print_exc()
         if main_window and hasattr(main_window, 'log_message'):
-            main_window.log_message(f"Model Workshop error: {e}")
+            main_window.log_message(f"Map Workshop error: {e}")
         return None
 
 def open_workshop(main_window, img_path=None): #vers 4
-    """Legacy wrapper — calls open_model_workshop."""
-    return open_model_workshop(main_window, img_path)
+    """Legacy wrapper — calls open_map_workshop."""
+    return open_map_workshop(main_window, img_path)
 
 
 def open_col_workshop(main_window, img_path=None): #vers 2
@@ -17021,14 +17031,14 @@ def open_col_workshop(main_window, img_path=None): #vers 2
 
         # Standalone mode
         if not main_window or not hasattr(main_window, 'main_tab_widget'):
-            workshop = ModelWorkshop(None, main_window)
+            workshop = MapWorkshop(None, main_window)
             workshop.setWindowFlags(Qt.WindowType.Window)
             if img_path and img_path.lower().endswith('.dff'):
                 if hasattr(workshop, 'open_dff_file'):
                     workshop.open_dff_file(img_path)
                 elif hasattr(workshop, 'load_dff_file'):
                     workshop.load_dff_file(img_path)
-            workshop.setWindowTitle(f"Model Workshop - {App_name}")
+            workshop.setWindowTitle(f"Map Workshop - {App_name}")
             workshop.resize(1200, 800)
             workshop.show()
             return workshop
@@ -17039,7 +17049,7 @@ def open_col_workshop(main_window, img_path=None): #vers 2
         tab_layout = QVBoxLayout(tab_container)
         tab_layout.setContentsMargins(0, 0, 0, 0)
 
-        workshop = ModelWorkshop(tab_container, main_window)
+        workshop = MapWorkshop(tab_container, main_window)
         workshop.setWindowFlags(Qt.WindowType.Widget)
         tab_layout.addWidget(workshop)
 
@@ -17049,7 +17059,7 @@ def open_col_workshop(main_window, img_path=None): #vers 2
             elif hasattr(workshop, 'load_dff_file'):
                 workshop.load_dff_file(img_path)
 
-        tab_label = os.path.splitext(os.path.basename(img_path))[0] if img_path else "Model Workshop"
+        tab_label = os.path.splitext(os.path.basename(img_path))[0] if img_path else "Map Workshop"
         try:
             from apps.methods.imgfactory_svg_icons import get_model_file_icon
             icon = get_model_file_icon()
@@ -17065,12 +17075,12 @@ def open_col_workshop(main_window, img_path=None): #vers 2
 
     except Exception as e:
         if main_window and hasattr(main_window, 'log_message'):
-            main_window.log_message(f"Error opening Model Workshop: {str(e)}")
+            main_window.log_message(f"Error opening Map Workshop: {str(e)}")
         return None
 
-MDLEditorDialog = ModelWorkshop
-MODWorkshop     = ModelWorkshop
-ModelWorkshopDialog = ModelWorkshop
+MDLEditorDialog = MapWorkshop
+MODWorkshop     = MapWorkshop
+MapWorkshopDialog = MapWorkshop
 
 if __name__ == "__main__":
     import sys
@@ -17082,7 +17092,7 @@ if __name__ == "__main__":
         app = QApplication(sys.argv)
         print("QApplication created")
 
-        workshop = ModelWorkshop()
+        workshop = MapWorkshop()
         print(App_name + " instance created")
 
         workshop.setWindowTitle(App_name + " - Standalone")
