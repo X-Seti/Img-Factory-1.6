@@ -9,7 +9,7 @@
 # has been renamed to MapWorkshop/Map Workshop/map_workshop throughout
 # this copy - the original Model_Editor/model_workshop.py is untouched
 # and still the real, working Model Workshop feature.
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 204
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 205
 # X-Seti - Apr 2026 - Map Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -191,6 +191,29 @@
 # viewport_stack between single/quad, RibbonManagerDialog lists both
 # ribbons (World, View), Model Workshop docks still hidden by default
 # after this change.
+# X-Seti - Jul31 2026 - Made the viewport itself a proper QDockWidget
+# (self._viewport_dock) instead of outer_mw's fixed central widget, per
+# Keith: he noticed it had no draggable header like every other pane
+# ("it doesn't have the header to move that area, like the other
+# viewpoint window") after confirming the View ribbon's single/quad
+# toggle was working correctly all along (the earlier "2 viewpoints"
+# report was that toggle, not a bug). A QMainWindow's central widget is
+# structurally different from its docks - can never float, move, or get
+# a title bar - so as long as the viewport stayed central it could never
+# match the rest of the now-unified snap system. Fix: outer_mw's real
+# central widget is now a trivial empty QWidget (setMaximumSize(0,0),
+# collapses to nothing); self.preview_widget/self._viewport_stack (the
+# single-view/quad-view stack, unchanged) is wrapped in
+# self._viewport_dock instead, with the same _make_dock_collapsible
+# header treatment and Movable|Floatable|Closable features as every
+# other pane, added via addDockWidget like the rest. Given an initial
+# width of 900px (resizeDocks) so it still reads as the main content by
+# default, but it's no longer structurally locked there.
+# Verified: outer_mw's createPopupMenu() now lists "Viewport" alongside
+# the other 7 panes and both ribbons; quad-view toggle still correctly
+# switches _viewport_stack's current widget with the dock wrapper in
+# place; viewport_dock's toggleViewAction enabled and dock stays visible
+# through the toggle.
 
 import os
 import math
@@ -4651,6 +4674,17 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "background: palette(mid); width: 5px; height: 5px; } "
             "QMainWindow::separator:hover { background: palette(highlight); }")
         self._outer_mw = outer_mw
+
+        # Per Keith (Jul 31 2026): the viewport had no draggable header
+        # like every other pane, because QMainWindow's central widget can
+        # never float/move/get a title bar - that's what made it
+        # structurally different. Give outer_mw a trivial empty central
+        # widget instead (collapses to nothing via setMaximumSize(0,0))
+        # and let _create_right_panel wrap the real viewport in its own
+        # QDockWidget, same as every other pane.
+        _central_placeholder = QWidget()
+        _central_placeholder.setMaximumSize(0, 0)
+        outer_mw.setCentralWidget(_central_placeholder)
 
         # Per Keith (Jul 31 2026): unify everything - ribbons and docks -
         # into ONE snappable QMainWindow instead of nesting a separate
@@ -10203,29 +10237,45 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             pass
         self._set_status(f"Model Info ribbon moved to {location} panel")
 
-    def _create_right_panel(self): #vers 16
+    def _create_right_panel(self): #vers 17
         """Viewport + ribbons, built directly onto self._outer_mw instead
         of a separate nested QMainWindow (Jul 31 2026, per Keith: unify
         ribbons and docks into one snappable window, no separate left/
         right areas). self._inner_mw is kept as an alias to self._outer_mw
         so _build_toolbars/_rebuild_toolbars/_save_toolbar_state/
         _restore_toolbar_state/_toolbar_context_menu/RibbonManagerDialog
-        all keep working unchanged."""
+        all keep working unchanged. The viewport itself is a QDockWidget
+        (self._viewport_dock), not the central widget - Keith noticed it
+        had no draggable header like every other pane, since a
+        QMainWindow's central widget can never float/move that way."""
         icon_color = self._get_icon_color()
 
         inner_mw = self._outer_mw
         self._inner_mw = inner_mw
 
-        # Central widget — the 3D viewport, wrapped in a stack so the
-        # 4-Pane view (Top/Front/Side/Perspective) can be swapped in without
-        # disturbing QMainWindow's central-widget ownership.
+        # The 3D viewport, wrapped in a stack so the 4-Pane view (Top/
+        # Front/Side/Perspective) can be swapped in via the View ribbon's
+        # toggle without disturbing the dock's own widget ownership.
         from PyQt6.QtWidgets import QStackedWidget
         self.preview_widget = DFFViewport()
         self.preview_widget._workshop_ref = self
         self._viewport_stack = QStackedWidget()
         self._viewport_stack.addWidget(self.preview_widget)   # index 0: single view
         self._viewport_stack.setMinimumWidth(200)
-        inner_mw.setCentralWidget(self._viewport_stack)
+
+        self._viewport_dock = QDockWidget("Viewport", self)
+        self._viewport_dock.setObjectName("Viewport")
+        self._viewport_dock.setWidget(self._viewport_stack)
+        self._viewport_dock.setFeatures(
+            QDockWidget.DockWidgetFeature.DockWidgetMovable |
+            QDockWidget.DockWidgetFeature.DockWidgetFloatable |
+            QDockWidget.DockWidgetFeature.DockWidgetClosable)
+        self._make_dock_collapsible(self._viewport_dock, "Viewport")
+        inner_mw.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self._viewport_dock)
+        # Widest single pane by default - it's still the main content most
+        # of the time, just no longer structurally locked in place.
+        inner_mw.resizeDocks([self._viewport_dock], [900], Qt.Orientation.Horizontal)
+
         self._gl_viewport  = self.preview_widget
         self._qp_viewport  = self.preview_widget
         self._gl_mode      = True
