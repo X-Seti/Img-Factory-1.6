@@ -9,7 +9,7 @@
 # has been renamed to MapWorkshop/Map Workshop/map_workshop throughout
 # this copy - the original Model_Editor/model_workshop.py is untouched
 # and still the real, working Model Workshop feature.
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 196
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 197
 # X-Seti - Apr 2026 - Map Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -36,6 +36,9 @@
 # into MapWorkshop from map_workshop_old_version.py: dock creation, population,
 # row selection/double-click, context menu, favourite toggle, add/delete
 # instance-of-model, cycle/center-on instance, viewport pick handling.
+# X-Seti - Jul31 2026 - Ported Control Panel dock methods (6) into MapWorkshop
+# from map_workshop_old_version.py: dock creation, wireframe toggle, zoom,
+# reset view, bg change, move-there (position spinbox pan).
 
 import os
 # Force X11/GLX backend for NVIDIA on Wayland
@@ -332,6 +335,7 @@ except ImportError:
 # _copy_text_to_clipboard
 # _create_action_section
 # _create_col_from_dff    generate COL1/2/3 binary from DFF geometry #vers 1
+# _create_control_panel_dock
 # _create_frame_hierarchy_panel
 # _create_info_section
 # _create_instance_list_dock
@@ -439,6 +443,10 @@ except ImportError:
 # _on_col_selected
 # _on_collision_selected
 # _on_compact_col_selected
+# _on_control_panel_bg_changed
+# _on_control_panel_reset_view
+# _on_control_panel_wireframe_toggled
+# _on_control_panel_zoom
 # _on_dff_geom_selected
 # _on_dff_geom_selected_tbl    handle model table row click → show geometry #vers 1
 # _on_frame_tree_clicked
@@ -447,6 +455,7 @@ except ImportError:
 # _on_instance_row_double_clicked
 # _on_instance_row_selected
 # _on_menu_btn_clicked
+# _on_move_there_clicked
 # _on_object_browser_add_clicked
 # _on_object_browser_column_resized
 # _on_object_browser_column_visibility_toggled
@@ -17807,6 +17816,216 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if inst is None:
             return
         self._center_on_instance(inst)
+
+    # --- Control Panel dock (ported from map_workshop_old_version.py) ---
+
+    def _create_control_panel_dock(self): #vers 1
+        """Control Panel dock - replicates MooMapper's "Hide/Show
+        Control Panel" layout (Position/Move There, Time, Enable
+        Textures/Wireframe/Alpha Blending/First Person/Background Map
+        checkboxes, Zoom/Reset View, background colour, a Visible
+        Files-style summary, and the Dragging Controls legend), per
+        Keith's request to replicate the shape of all these functions
+        first so there's a solid base to build on later - several are
+        wired to real, working functionality already in this project
+        (Position/Move There, Reset View, Zoom, Wireframe Mode via the
+        existing render-mode dropdown, background colour); the rest
+        are clearly marked STUB below and don't yet do anything -
+        they're placeholders for functionality this project doesn't
+        have yet (time-of-day simulation, first-person navigation,
+        a reference background map image, texture toggling separate
+        from render mode)."""
+        panel = QWidget()
+        lay = QVBoxLayout(panel)
+        lay.setContentsMargins(6, 6, 6, 6)
+
+        # - Position (X, Y, Z) + Move There
+        pos_box = QGroupBox("Position (X, Y, Z)")
+        from PyQt6.QtWidgets import QAbstractSpinBox
+        themecol_pos = self.app_settings.get_theme_colors()
+        panel_bg_pos = themecol_pos.get('panel_bg')
+        if panel_bg_pos:
+            pos_box.setStyleSheet(f"QGroupBox {{ background: {panel_bg_pos}; }}")
+        pos_lay = QHBoxLayout(pos_box)
+        self._cp_pos_x = QDoubleSpinBox(); self._cp_pos_x.setRange(-100000, 100000)
+        self._cp_pos_y = QDoubleSpinBox(); self._cp_pos_y.setRange(-100000, 100000)
+        self._cp_pos_z = QDoubleSpinBox(); self._cp_pos_z.setRange(-100000, 100000)
+        move_there_btn = QPushButton("Move There")
+        move_there_btn.setFixedHeight(self._COMPACT_BUTTON_H + 6)
+        move_there_btn.setToolTip("Centre all World View panes' cameras on this\n"
+                                  "typed position - the direct type-in alternative\n"
+                                  "to nudging/clicking an object")
+        move_there_btn.clicked.connect(self._on_move_there_clicked)
+        for spin in (self._cp_pos_x, self._cp_pos_y, self._cp_pos_z):
+            spin.setDecimals(2)
+            # Without this, Qt reserves worst-case width for the full
+            # ±100000 range (over 500px combined for all three) - per
+            # Keith's report that this was locking the whole panel's
+            # width. Still fully usable for extreme values via typing/
+            # scrolling, just doesn't force display of every possible
+            # digit at once.
+            spin.setMinimumWidth(60)
+            spin.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.UpDownArrows)
+            spin.setFixedHeight(self._COMPACT_BUTTON_H + 6)   # match Move There's height
+            pos_lay.addWidget(spin)
+        pos_lay.addWidget(move_there_btn)
+        lay.addWidget(pos_box)
+
+        # - Time (STUB - no day/night simulation exists yet)
+        time_row = QHBoxLayout()
+        time_row.addWidget(QLabel("Time:"))
+        self._cp_time_combo = QComboBox()
+        self._cp_time_combo.addItems([f"{h:02d}:00" for h in range(24)])
+        self._cp_time_combo.setCurrentText("09:00")
+        self._cp_time_combo.setToolTip("STUB - no time-of-day simulation built yet\n"
+                                       "(would matter for TOBJ/timed object rendering)")
+        time_row.addWidget(self._cp_time_combo)
+        time_row.addStretch()
+        lay.addLayout(time_row)
+
+        # - Checkboxes: Enable Textures / Wireframe Mode / Alpha Blending /
+        #   First Person / Background Map
+        self._cp_enable_textures_chk = QCheckBox("Enable Textures")
+        self._cp_enable_textures_chk.setChecked(True)
+        self._cp_enable_textures_chk.setToolTip("STUB - texture binding for real mesh\n"
+                                                "rendering isn't wired up yet")
+        lay.addWidget(self._cp_enable_textures_chk)
+
+        self._cp_wireframe_chk = QCheckBox("Wireframe Mode")
+        self._cp_wireframe_chk.setToolTip("Same as choosing Wireframe in the\n"
+                                          "Render Mode dropdown (Plotting ribbon)")
+        self._cp_wireframe_chk.toggled.connect(self._on_control_panel_wireframe_toggled)
+        lay.addWidget(self._cp_wireframe_chk)
+
+        self._cp_alpha_chk = QCheckBox("Alpha Blending")
+        self._cp_alpha_chk.setChecked(True)
+        self._cp_alpha_chk.setToolTip("STUB - not yet connected to anything")
+        lay.addWidget(self._cp_alpha_chk)
+
+        self._cp_first_person_chk = QCheckBox("First Person")
+        self._cp_first_person_chk.setToolTip("STUB - no first-person navigation mode\n"
+                                             "built yet, only orbit/pan camera controls")
+        lay.addWidget(self._cp_first_person_chk)
+
+        self._cp_background_map_chk = QCheckBox("Background Map")
+        self._cp_background_map_chk.setToolTip("STUB - no reference background map\n"
+                                                "image support built yet")
+        lay.addWidget(self._cp_background_map_chk)
+
+        # - Zoom +/- and Reset View
+        zoom_row = QHBoxLayout()
+        zoom_row.addWidget(QLabel("Zoom:"))
+        zoom_minus_btn = QPushButton("-"); zoom_minus_btn.setFixedWidth(28)
+        zoom_minus_btn.clicked.connect(lambda: self._on_control_panel_zoom(1.15))
+        zoom_plus_btn = QPushButton("+"); zoom_plus_btn.setFixedWidth(28)
+        zoom_plus_btn.clicked.connect(lambda: self._on_control_panel_zoom(0.85))
+        zoom_row.addWidget(zoom_minus_btn)
+        zoom_row.addWidget(zoom_plus_btn)
+        zoom_row.addStretch()
+        lay.addLayout(zoom_row)
+
+        reset_view_btn = QPushButton("Reset View")
+        reset_view_btn.setToolTip("Reset yaw/pitch/pan and re-fit the camera to\n"
+                                  "the currently loaded instances, for every pane")
+        reset_view_btn.clicked.connect(self._on_control_panel_reset_view)
+        lay.addWidget(reset_view_btn)
+
+        # - Background colour
+        bg_row = QHBoxLayout()
+        bg_row.addWidget(QLabel("Background:"))
+        self._cp_bg_combo = QComboBox()
+        self._cp_bg_combo.addItems(["Default", "Black", "White", "Dark Grey"])
+        self._cp_bg_combo.currentTextChanged.connect(self._on_control_panel_bg_changed)
+        bg_row.addWidget(self._cp_bg_combo)
+        lay.addLayout(bg_row)
+
+        # - "Normal Mode" dropdown (STUB - MooMapper shows this but its
+        #   exact purpose isn't clear from the reference screenshot alone)
+        mode_row = QHBoxLayout()
+        mode_row.addWidget(QLabel("Mode:"))
+        self._cp_mode_combo = QComboBox()
+        self._cp_mode_combo.addItems(["Normal Mode"])
+        self._cp_mode_combo.setToolTip("STUB - MooMapper shows a mode dropdown here,\n"
+                                       "but its exact purpose isn't confirmed yet")
+        mode_row.addWidget(self._cp_mode_combo)
+        mode_row.addStretch()
+        lay.addLayout(mode_row)
+
+        # - Dragging Controls legend - matches the actual current
+        #   MapViewport controls (configure_movement/mouseMoveEvent),
+        #   not a stub - this reflects real, working behaviour.
+        controls_box = QGroupBox("Dragging Controls")
+        themecol = self.app_settings.get_theme_colors()
+        panel_bg = themecol.get('panel_bg')
+        if panel_bg:
+            controls_box.setStyleSheet(
+                f"QGroupBox {{ background: {panel_bg}; }} "
+                f"QGroupBox QLabel {{ background: {panel_bg}; }}")
+        controls_lay = QVBoxLayout(controls_box)
+        for line in (
+            "Middle Btn: Move Camera (pan)",
+            "Right Btn: Rotate Camera (3D pane only)",
+            "Left Btn (click, no drag): Select Object & Zoom In",
+            "Mouse Wheel: Zoom",
+        ):
+            controls_lay.addWidget(QLabel(line))
+        note = QLabel("(button assignment is configurable in Settings)")
+        note.setStyleSheet("color: palette(mid);")
+        controls_lay.addWidget(note)
+        lay.addWidget(controls_box)
+
+        lay.addStretch()
+
+        dock = QDockWidget("Control Panel", self)
+        dock.setObjectName("Control Panel")
+        dock.setWidget(panel)
+        dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
+                        QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+        self._control_panel_dock = dock
+        return dock
+
+    def _on_move_there_clicked(self): #vers 1
+        x, y, z = self._cp_pos_x.value(), self._cp_pos_y.value(), self._cp_pos_z.value()
+        for pane in getattr(self, '_world_panes', []):
+            pane._pan_x = -x
+            pane._pan_y = -y
+            pane.update()
+
+    def _on_control_panel_wireframe_toggled(self, checked): #vers 1
+        """Wireframe Mode checkbox - mirrors the Render Mode dropdown
+        rather than being a separate, independent control, so the two
+        can't disagree with each other."""
+        self._set_render_mode('wireframe' if checked else 'solid')
+        lod_btn = getattr(self, '_render_mode_button', None)
+        if lod_btn is not None:
+            menu = lod_btn.menu()
+            for act in menu.actions():
+                act.setChecked(act.text() == ("Wireframe" if checked else "Solid"))
+
+    def _on_control_panel_zoom(self, factor): #vers 1
+        for pane in getattr(self, '_world_panes', []):
+            pane._dist = max(0.1, min(50000.0, pane._dist * factor))
+            if pane._projection == 'ortho':
+                try:
+                    pane.resizeGL(pane.width(), pane.height())
+                except Exception:
+                    pass
+            pane.update()
+
+    def _on_control_panel_reset_view(self): #vers 1
+        for pane in getattr(self, '_world_panes', []):
+            pane.reset_view()
+
+    def _on_control_panel_bg_changed(self, text): #vers 1
+        colors = {
+            "Default": None,
+            "Black": (0, 0, 0),
+            "White": (255, 255, 255),
+            "Dark Grey": (40, 40, 40),
+        }
+        rgb = colors.get(text)
+        for pane in getattr(self, '_world_panes', []):
+            pane.set_bg_color_override(rgb)
 class ZoomablePreview(QLabel): #vers 2
     """Fixed preview widget with zoom and pan"""
 
