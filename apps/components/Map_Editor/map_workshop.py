@@ -9,7 +9,7 @@
 # has been renamed to MapWorkshop/Map Workshop/map_workshop throughout
 # this copy - the original Model_Editor/model_workshop.py is untouched
 # and still the real, working Model Workshop feature.
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 193
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 194
 # X-Seti - Apr 2026 - Map Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -23,6 +23,10 @@
 # on the GPU, starting Jul 10) - not caused by this file or dff_viewport.py.
 # The existing QT_QPA_PLATFORM=xcb / QSG_RHI_BACKEND=opengl forcing below
 # doesn't help since the GPU itself is failing at the hardware level.
+# X-Seti - Jul31 2026 - Ported 7 standalone classes from map_workshop_old_version.py:
+# MapSettings, MapSettingsDialog, _CornerOverlay, _InstanceEditPanel,
+# _FilteredLoaderStub, _ObjectBrowserModel, _InstanceTableModel.
+# No name collisions with existing classes - inserted whole, unmodified.
 
 import os
 # Force X11/GLX backend for NVIDIA on Wayland
@@ -49,10 +53,11 @@ if str(project_root) not in sys.path:
 
 # Import PyQt6
 from PyQt6.QtWidgets import (QApplication, QSlider, QCheckBox,
-    QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QListWidget, QDialog, QFormLayout, QSpinBox,  QListWidgetItem, QLabel, QPushButton, QFrame, QFileDialog, QLineEdit, QTextEdit, QMessageBox, QScrollArea, QGroupBox, QTableWidget, QTableWidgetItem, QColorDialog, QHeaderView, QAbstractItemView, QMenu, QComboBox, QInputDialog, QTabWidget, QDoubleSpinBox, QRadioButton, QStyledItemDelegate
+    QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QListWidget, QDialog, QFormLayout, QSpinBox,  QListWidgetItem, QLabel, QPushButton, QFrame, QFileDialog, QLineEdit, QTextEdit, QMessageBox, QScrollArea, QGroupBox, QTableWidget, QTableWidgetItem, QColorDialog, QHeaderView, QAbstractItemView, QMenu, QComboBox, QInputDialog, QTabWidget, QDoubleSpinBox, QRadioButton, QStyledItemDelegate,
+    QFontComboBox, QSizePolicy, QMenuBar, QStatusBar, QGridLayout, QDockWidget, QProgressDialog
 )
 
-from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPoint, QRect, QByteArray
+from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPoint, QPointF, QRect, QByteArray, QTimer, QAbstractTableModel
 from PyQt6.QtGui import QFont, QIcon, QPixmap, QImage, QPainter, QPen, QBrush, QColor, QCursor
 
 # Shared DFFViewport — import from methods/, fallback to local methods/
@@ -210,6 +215,67 @@ except ImportError:
 # _refresh_action_list
 # _refresh_toolbar_list
 # _save_preset
+#
+##class MapSettings: -
+# __init__
+# _load
+# get
+# save
+# set
+#
+##class MapSettingsDialog: -
+# __init__
+# _accept
+#
+##class _CornerOverlay: -
+# __init__
+# _update_mask
+# paintEvent
+# resizeEvent
+# setGeometry
+# update_state
+#
+##class _InstanceEditPanel: -
+# __init__
+# _add_nudge_section
+# _add_section
+# _on_position_nudged
+# _on_rotation_nudged
+# _reflow_nudge_rows
+# _refresh_position_spins
+# _refresh_rotation_spins
+# _set_nav_visible
+# _set_section_lines
+# resizeEvent
+# show_for_instance
+#
+##class _FilteredLoaderStub: -
+# __init__
+# get_object
+#
+##class _ObjectBrowserModel: -
+# __init__
+# _is_generic
+# _recompute
+# columnCount
+# data
+# headerData
+# object_at
+# rowCount
+# set_mode
+# set_model_cache
+# set_objects
+# set_search
+# toggle_favourite
+#
+##class _InstanceTableModel: -
+# __init__
+# _resolve_txd
+# columnCount
+# data
+# headerData
+# instance_at
+# rowCount
 #
 ##class MapWorkshop: -
 # __init__
@@ -3021,6 +3087,1074 @@ class RibbonManagerDialog(QDialog): #vers 1
         if self._cancel_state and self._mw:
             self._mw.restoreState(self._cancel_state)
         self.reject()
+
+
+class MapSettings:
+    """
+    Lightweight JSON settings for DP5 Workshop.
+    Stored at ~/.config/imgfactory/map_workshop.json
+    Completely separate from the global AppSettings/theme system.
+    """
+
+    DEFAULTS = {
+        'show_bitmap_list':  False,    # left panel visible
+        # Persistent default fill colour for new canvases - replaces the
+        # New Canvas dialog's hardcoded Grey(128,128,128) with a
+        # user-adjustable colour, set via the Canvas swatch in
+        # Brush & Colors.
+        'canvas_fill_color': '#808080',
+        # Widget manager - enable/disable each dock independently of its
+        # current show/hide state (this controls whether the dock exists
+        # at all / is offered in the UI, not just its visibility).
+        'widget_bitmaps_enabled':      True,
+        'widget_brushcolors_enabled':  True,
+        'widget_imagepalette_enabled': True,
+        'widget_userpalette_enabled':  True,
+        'tool_icon_size':    24,       # tool button pixel size (20–64)
+        'tool_icon_color':   'color',  # 'color' | 'white' | 'dark'
+        'tool_columns':      3,        # 3, 4, 5, or 6
+        'hidden_tools':      [],       # list of tool_ids to hide
+        'img_pal_cols':      16,       # image palette columns
+        'img_pal_rows':      16,       # image palette max visible rows
+        'user_pal_cols':     16,       # user palette columns
+        'user_pal_rows':     16,       # user palette max visible rows
+        'default_zoom':      4,        # startup zoom level
+        'undo_levels':       32,
+        'default_width':     320,
+        'default_height':    200,
+        'retro_palette':     'Amiga AGA WB',
+        'show_pixel_grid':   True,
+        'grid_color':        '#808080',  # pixel grid colour (hex)
+        'platform_mode':     'none',   # 'none'|'c64'|'c64m'|'spectrum'|'msx'|'cpc'|'atari_st'|'amiga'
+        'show_cell_grid':    False,    # show platform cell boundaries
+        'show_statusbar':    True,     # show bottom status bar
+        'show_paint_canvas': False,    # forked-in paint canvas - hidden by default, toggleable
+        'favourite_objects': [],       # list of favourited model_ids, Object Browser panel
+        # Per-view-mode pan direction inversion (World View: Top/Side/
+        # Front/3D each have a different camera orientation, so the
+        # same raw mouse delta needs different sign handling per mode
+        # to feel consistent - Keith reported Top view's left/right
+        # was inverted and other views' up/down was inverted; exposed
+        # here as user-adjustable rather than a single hardcoded guess,
+        # since without a real GPU to test against directly, giving
+        # direct control is safer than a blind sign-flip.
+        'viewport_pan_invert': {
+            'Top':   {'x': False, 'y': False},
+            'Side':  {'x': False, 'y': False},
+            'Front': {'x': False, 'y': False},
+            '3D':    {'x': False, 'y': False},
+        },
+        # Mouse button assignment for World View pane interaction -
+        # which button pans vs rotates (rotate only applies to
+        # unlocked/3D panes; locked ortho panes only ever pan).
+        'viewport_pan_button': 'middle',     # 'middle' | 'left' | 'right'
+        'viewport_rotate_button': 'right',   # 'middle' | 'left' | 'right'
+        # Persisted display order for IPL Sections rows - a list of
+        # ipl_name strings; any names not in this list (a different
+        # world/mod was loaded) get appended alphabetically after the
+        # known ones, rather than the order being lost entirely.
+        'ipl_sections_order': [],
+        # Persisted column widths (user-resized), keyed by panel -
+        # restored on next open rather than resetting to defaults.
+        'ipl_sections_column_widths': [],
+        'object_browser_column_widths': [],
+        'object_browser_hidden_columns': [],
+        'ui_font_size':      10,       # toolbar/button font size
+        'canvas_mode':       'free',   # 'free'|'platform'|'texture'|'icon'
+        'show_anim_strip':   False,    # show animation timeline strip
+        'anim_fps':          12,       # default animation FPS
+        'zoom_to_fit_resize': False,
+        'show_menubar':       False,     # hidden by default — enable in Settings > Menu
+        'menu_style':         'dropdown', # 'topbar' | 'dropdown'
+        'menu_bar_font_size':  9,         # topbar menubar font size (pt)
+        'menu_bar_height':     22,        # topbar menubar height (px)
+        'menu_dropdown_font_size': 9,     # dropdown menu item font size (pt)
+        'outer_layout_state':   '',            # QMainWindow.saveState() hex - dock/ribbon layout
+        'outer_layout_version': 0,             # must match _OUTER_LAYOUT_VERSION to restore
+        # Icon editor
+        'char_editor_docked':  False,  # _CharFontEditor dock state
+        'sprite_editor_docked': False, # _SpriteEditor dock state
+        'sprite_editor_folder': '',    # sprite source folder
+        'char_editor_folder':   '',    # bitmap font folder
+        'svg_browser_docked':  False,  # SVGIconBrowser dock state
+        'icon_editor_docked':  False,  # True = snapped to overlay, False = floating
+        'icon_editor_x':       -1,     # last window X (-1 = auto)
+        'icon_editor_y':       -1,     # last window Y
+        'icon_editor_out_fmt': 'PNG',  # last export format
+        'icon_editor_alpha':   True,   # colour 0 = alpha
+        'icon_editor_alpha_r': 0,      # alpha colour R
+        'icon_editor_alpha_g': 0,      # alpha colour G
+        'icon_editor_alpha_b': 0,      # alpha colour B
+        'icon_editor_amiga_pal':'AGA Workbench (WB3.9)',
+        'icon_editor_folder':   '',   # last source icon folder
+        # Marching ants (animated selection outline)
+        'marching_ants_enabled': True,
+        'marching_ants_fg':      '#000000',  # foreground colour (hex)
+        'marching_ants_bg':      '#ffffff',  # background colour (hex)
+        'marching_ants_style':   'dashes',   # 'dashes' | 'dots'
+        'marching_ants_speed':   150,        # animation step interval, ms
+        # Ribbon appearance - applies to every ribbon (Tools, Image Ops,
+        # any added later), independently for whichever orientation the
+        # ribbon is currently docked at (vertical = left/right dock area,
+        # horizontal = top/bottom), re-applied live when a ribbon is
+        # dragged between them.
+        'ribbon_icon_size_vert':  22,
+        'ribbon_icon_size_horz':  22,
+        'ribbon_padding_vert':    3,
+        'ribbon_padding_horz':    3,
+        'ribbon_opacity':         100,   # 0-100, 100 = fully opaque
+        # Internal padding between the icon and the button's own edge -
+        # distinct from ribbon_padding_* above, which is the gap BETWEEN
+        # buttons. QToolButton has its own built-in padding from the Qt
+        # style even when the toolbar's inter-item spacing is 0.
+        'ribbon_button_padding_vert': 2,
+        'ribbon_button_padding_horz': 2,
+        # Ribbon Manager - persisted tool_id -> ribbon_name assignment,
+        # letting tools be moved freely between ribbons (including new
+        # custom ribbons the user creates). Empty dict means "use each
+        # tool's default_ribbon from _RIBBON_TOOL_REGISTRY".
+        'ribbon_tool_assignment': {},
+        # Ribbon Manager - explicit display order for all reassignable
+        # tools, updated by drag-reordering within a ribbon in the
+        # manager dialog. Empty list means "use each tool's natural
+        # order from _RIBBON_TOOL_REGISTRY".
+        'ribbon_tool_order': [],
+    }
+
+    def __init__(self): #vers 1
+        cfg_dir = Path.home() / '.config' / 'imgfactory'
+        cfg_dir.mkdir(parents=True, exist_ok=True)
+        self._path = cfg_dir / 'map_workshop.json'
+        self._data = dict(self.DEFAULTS)
+        self._load()
+
+
+    def _load(self): #vers 1
+        try:
+            if self._path.exists():
+                loaded = json.loads(self._path.read_text())
+                self._data.update({k: v for k, v in loaded.items()
+                                   if k in self.DEFAULTS})
+        except Exception:
+            pass
+
+    def save(self): #vers 1
+        try:
+            self._path.write_text(json.dumps(self._data, indent=2))
+        except Exception:
+            pass
+
+    def get(self, key, default=None): #vers 1
+        return self._data.get(key, default if default is not None
+                              else self.DEFAULTS.get(key))
+
+    def set(self, key, value): #vers 1
+        if key in self.DEFAULTS:
+            self._data[key] = value
+
+
+class MapSettingsDialog(QDialog):
+    """Settings dialog for Map Workshop — does NOT touch global AppSettings."""
+
+    def __init__(self, map_settings: MapSettings, parent=None): #vers 4
+        super().__init__(parent)
+        self.s = map_settings
+        self._workshop = parent   # MapWorkshop instance - gives access to _WIDGET_REGISTRY
+        self.setWindowTitle(App_name + " - Settings")
+        self.setMinimumWidth(380)
+        self.setModal(True)
+
+        root = QVBoxLayout(self)
+        tabs = QTabWidget()
+
+        # - Canvas tab
+        canvas_tab = QWidget()
+        cl = QFormLayout(canvas_tab)
+        cl.setSpacing(8)
+
+        self._w_spin = QSpinBox(); self._w_spin.setRange(8, 4096)
+        self._w_spin.setValue(self.s.get('default_width'))
+        cl.addRow("Default width:", self._w_spin)
+
+        self._h_spin = QSpinBox(); self._h_spin.setRange(8, 4096)
+        self._h_spin.setValue(self.s.get('default_height'))
+        cl.addRow("Default height:", self._h_spin)
+
+        self._zoom_spin = QSpinBox(); self._zoom_spin.setRange(1, 64)
+        self._zoom_spin.setValue(self.s.get('default_zoom'))
+        cl.addRow("Default zoom:", self._zoom_spin)
+
+        self._undo_spin = QSpinBox(); self._undo_spin.setRange(4, 128)
+        self._undo_spin.setValue(self.s.get('undo_levels'))
+        cl.addRow("Undo levels:", self._undo_spin)
+
+        tabs.addTab(canvas_tab, "Canvas")
+
+        # - Ribbons tab (icon size / padding per orientation, opacity)
+        ribbons_tab = QWidget()
+        rl = QFormLayout(ribbons_tab)
+
+        ribbon_mgr_btn = QPushButton("Ribbon Manager…")
+        ribbon_mgr_btn.setToolTip("Move tools between ribbons, save/load layout presets")
+        if self._workshop is not None:
+            ribbon_mgr_btn.clicked.connect(self._workshop._open_ribbon_manager)
+        rl.addRow(ribbon_mgr_btn)
+        rl.addRow(QLabel(""))
+
+        rl.addRow(QLabel("—  Vertical  (docked left/right)  —"))
+        self._ribbon_icon_vert_spin = QSpinBox()
+        self._ribbon_icon_vert_spin.setRange(12, 64)
+        self._ribbon_icon_vert_spin.setValue(self.s.get('ribbon_icon_size_vert'))
+        rl.addRow("Icon size:", self._ribbon_icon_vert_spin)
+        self._ribbon_pad_vert_spin = QSpinBox()
+        self._ribbon_pad_vert_spin.setRange(0, 20)
+        self._ribbon_pad_vert_spin.setValue(self.s.get('ribbon_padding_vert'))
+        self._ribbon_pad_vert_spin.setToolTip("Gap between buttons")
+        rl.addRow("Button spacing:", self._ribbon_pad_vert_spin)
+        self._ribbon_btn_pad_vert_spin = QSpinBox()
+        self._ribbon_btn_pad_vert_spin.setRange(0, 20)
+        self._ribbon_btn_pad_vert_spin.setValue(self.s.get('ribbon_button_padding_vert'))
+        self._ribbon_btn_pad_vert_spin.setToolTip("Gap between the icon and the button's own edge")
+        rl.addRow("Button edge padding:", self._ribbon_btn_pad_vert_spin)
+
+        rl.addRow(QLabel("—  Horizontal  (docked top/bottom)  —"))
+        self._ribbon_icon_horz_spin = QSpinBox()
+        self._ribbon_icon_horz_spin.setRange(12, 64)
+        self._ribbon_icon_horz_spin.setValue(self.s.get('ribbon_icon_size_horz'))
+        rl.addRow("Icon size:", self._ribbon_icon_horz_spin)
+        self._ribbon_pad_horz_spin = QSpinBox()
+        self._ribbon_pad_horz_spin.setRange(0, 20)
+        self._ribbon_pad_horz_spin.setValue(self.s.get('ribbon_padding_horz'))
+        self._ribbon_pad_horz_spin.setToolTip("Gap between buttons")
+        rl.addRow("Button spacing:", self._ribbon_pad_horz_spin)
+        self._ribbon_btn_pad_horz_spin = QSpinBox()
+        self._ribbon_btn_pad_horz_spin.setRange(0, 20)
+        self._ribbon_btn_pad_horz_spin.setValue(self.s.get('ribbon_button_padding_horz'))
+        self._ribbon_btn_pad_horz_spin.setToolTip("Gap between the icon and the button's own edge")
+        rl.addRow("Button edge padding:", self._ribbon_btn_pad_horz_spin)
+
+        rl.addRow(QLabel("—  Appearance  —"))
+        self._ribbon_opacity_spin = QSpinBox()
+        self._ribbon_opacity_spin.setRange(10, 100)
+        self._ribbon_opacity_spin.setSuffix(" %")
+        self._ribbon_opacity_spin.setValue(self.s.get('ribbon_opacity'))
+        self._ribbon_opacity_spin.setToolTip("Ribbon background translucency - "
+                                             "lower = more see-through")
+        rl.addRow("Opacity:", self._ribbon_opacity_spin)
+
+        tabs.addTab(ribbons_tab, "Ribbons")
+
+        # - Interface tab
+        ui_tab = QWidget()
+        ul = QFormLayout(ui_tab)
+        ul.setSpacing(8)
+
+        self._bitmap_chk = QCheckBox()
+        self._bitmap_chk.setChecked(self.s.get('show_bitmap_list'))
+        ul.addRow("Show bitmap list panel:", self._bitmap_chk)
+
+        self._statusbar_chk = QCheckBox()
+        self._statusbar_chk.setChecked(self.s.get('show_statusbar'))
+        ul.addRow("Show status bar:", self._statusbar_chk)
+
+        self._font_size_spin = QSpinBox(); self._font_size_spin.setRange(7, 18)
+        self._font_size_spin.setValue(self.s.get('ui_font_size'))
+        ul.addRow("UI font size:", self._font_size_spin)
+
+        self._icon_size_spin = QSpinBox(); self._icon_size_spin.setRange(16, 64)
+        self._icon_size_spin.setValue(self.s.get('tool_icon_size'))
+        ul.addRow("Tool icon size (px):", self._icon_size_spin)
+
+        self._icon_color_combo = QComboBox()
+        self._icon_color_combo.addItems(['color', 'white', 'dark'])
+        idx = {'color': 0, 'white': 1, 'dark': 2}.get(
+            self.s.get('tool_icon_color'), 0)
+        self._icon_color_combo.setCurrentIndex(idx)
+        ul.addRow("Tool icon colour:", self._icon_color_combo)
+
+        self._cols_combo = QComboBox()
+        self._cols_combo.addItems(['3 columns', '4 columns', '5 columns', '6 columns'])
+        col_idx = {3: 0, 4: 1, 5: 2, 6: 3}.get(self.s.get('tool_columns'), 0)
+        self._cols_combo.setCurrentIndex(col_idx)
+        ul.addRow("Gadget columns:", self._cols_combo)
+
+        tabs.addTab(ui_tab, "Interface")
+
+        # - Widgets tab (enable/disable each dock) - generated from
+        # MapWorkshop._WIDGET_REGISTRY rather than one hardcoded checkbox
+        # per widget, so adding a new widget to the registry (e.g. an
+        # alternative colour-widget implementation) automatically gets a
+        # toggle here too, with no dialog code changes needed.
+        widgets_tab = QWidget()
+        wl = QFormLayout(widgets_tab)
+        wl.setSpacing(8)
+
+        self._widget_chks = {}   # key -> QCheckBox, for generic save logic
+        registry = getattr(self._workshop, '_WIDGET_REGISTRY', [])
+        for entry in registry:
+            # Entries with enabled_setting=None (Bitmaps) have their
+            # visibility combined with another setting elsewhere, but
+            # still get a checkbox here using the conventional settings
+            # key, which already exists.
+            setting_key = entry.get('enabled_setting') or f"widget_{entry['key']}_enabled"
+            chk = QCheckBox()
+            chk.setChecked(self.s.get(setting_key))
+            wl.addRow(f"{entry.get('label', entry['key'])}:", chk)
+            self._widget_chks[entry['key']] = chk
+
+        tabs.addTab(widgets_tab, "Widgets")
+
+        # - Gadgets tab
+        gadgets_tab = QWidget()
+        gl = QVBoxLayout(gadgets_tab)
+        gl.setSpacing(4)
+        gl.addWidget(QLabel("Click to toggle tool visibility (highlighted = visible):"))
+        hidden = self.s.get('hidden_tools') or []
+        icon_sz = self.s.get('tool_icon_size')
+        btn_sz  = max(26, icon_sz + 2)  # min 26px so labels stay readable
+        self._gadget_chks = {}
+        TOOL_LABELS = [
+            ('pencil','Pencil'), ('eraser','Eraser'), ('fill','Fill'),
+            ('spray','Spray'), ('picker','Picker'), ('curve','Curve'),
+            ('line','Line'), ('rect','Rectangle'), ('circle','Circle'),
+            ('triangle','Triangle'), ('polygon','Polygon'), ('star','Star'),
+            ('select','Select'), ('lasso','Lasso'), ('zoom','Zoom'),
+            ('text','Text'), ('crop','Crop'), ('resize','Resize'),
+            ('dither','Dither'), ('symmetry','Symmetry'),
+        ]
+        grid_w = QWidget()
+        grid_l = QGridLayout(grid_w)
+        grid_l.setSpacing(4)
+        grid_l.setContentsMargins(0, 0, 0, 0)
+        cols = 4
+        for idx, (tool_id, label) in enumerate(TOOL_LABELS):
+            btn = QPushButton()
+            btn.setCheckable(True)
+            btn.setChecked(tool_id not in hidden)
+            btn.setFixedSize(btn_sz, btn_sz + 14)
+            btn.setToolTip(label)
+            # Use parent workshop's icon colour if available
+            _ws  = parent if hasattr(parent, '_get_icon_color') else None
+            _col = _ws._get_icon_color() if _ws else ''
+            _tbg = ''
+            if _ws and _ws.app_settings:
+                _tc = _ws.app_settings.get_theme_colors() or {}
+                _tbg = _tc.get('gadgetbar_bg', _tc.get('toolbar_bg', ''))
+            ico = _load_tool_icon(tool_id, icon_sz, tile_bg=_tbg, icon_col=_col)
+            btn.setIcon(ico)
+            btn.setIconSize(QSize(icon_sz, icon_sz))
+            lbl_short = label[:6]
+            btn.setText(lbl_short)
+            # Theme-aware stylesheet — no hardcoded colours
+            acc = '#4a8a4a'
+            if _ws and _ws.app_settings:
+                _tc2 = _ws.app_settings.get_theme_colors() or {}
+                acc  = _tc2.get('accent_primary', acc)
+            btn.setStyleSheet(
+                f"QPushButton {{ font-size: 8px; color: palette(mid); "
+                f"background: palette(base); border: 1px solid palette(mid); "
+                f"padding-top: 2px; }} "
+                f"QPushButton:checked {{ background: {acc}; "
+                f"border: 1px solid palette(highlight); }}"
+            )
+            btn.setLayoutDirection(Qt.LayoutDirection.LeftToRight)
+            grid_l.addWidget(btn, idx // cols, idx % cols)
+            self._gadget_chks[tool_id] = btn
+        gl.addWidget(grid_w)
+        gl.addStretch()
+
+        # - Menu tab  
+        menu_tab = QWidget()
+        ml = QFormLayout(menu_tab)
+        ml.setSpacing(8)
+
+        self._menu_style_combo = QComboBox()
+        self._menu_style_combo.addItems(['topbar', 'dropdown'])
+        self._menu_style_combo.setCurrentText(self.s.get('menu_style'))
+        ml.addRow("Menu orientation:", self._menu_style_combo)
+
+        self._menu_bar_height_spin = QSpinBox()
+        self._menu_bar_height_spin.setRange(16, 40)
+        self._menu_bar_height_spin.setValue(self.s.get('menu_bar_height'))
+        self._menu_bar_height_spin.setSuffix(" px")
+        ml.addRow("Topbar height:", self._menu_bar_height_spin)
+
+        self._menu_bar_font_spin = QSpinBox()
+        self._menu_bar_font_spin.setRange(7, 16)
+        self._menu_bar_font_spin.setValue(self.s.get('menu_bar_font_size'))
+        self._menu_bar_font_spin.setSuffix(" pt")
+        ml.addRow("Topbar font size:", self._menu_bar_font_spin)
+
+        self._menu_dropdown_font_spin = QSpinBox()
+        self._menu_dropdown_font_spin.setRange(7, 16)
+        self._menu_dropdown_font_spin.setValue(self.s.get('menu_dropdown_font_size'))
+        self._menu_dropdown_font_spin.setSuffix(" pt")
+        ml.addRow("Dropdown font size:", self._menu_dropdown_font_spin)
+
+        tabs.addTab(menu_tab, "Menu")
+
+        tabs.addTab(gadgets_tab, "Gadgets")
+
+        # - Viewport tab (World View movement settings)
+        viewport_tab = QWidget()
+        vp_lay = QVBoxLayout(viewport_tab)
+        vp_form = QFormLayout()
+        vp_form.setSpacing(8)
+
+        self._pan_button_combo = QComboBox()
+        self._pan_button_combo.addItems(["left", "middle", "right"])
+        self._pan_button_combo.setCurrentText(self.s.get('viewport_pan_button'))
+        vp_form.addRow("Pan button:", self._pan_button_combo)
+
+        self._rotate_button_combo = QComboBox()
+        self._rotate_button_combo.addItems(["left", "middle", "right"])
+        self._rotate_button_combo.setCurrentText(self.s.get('viewport_rotate_button'))
+        vp_form.addRow("Rotate button (3D only):", self._rotate_button_combo)
+        vp_lay.addLayout(vp_form)
+
+        vp_lay.addWidget(QLabel(
+            "Invert pan direction per viewport - Top/Side/Front/3D each\n"
+            "have a different camera orientation, so correct this per\n"
+            "mode if panning feels backwards in one but not another."))
+
+        self._pan_invert_checks = {}
+        invert_cfg = self.s.get('viewport_pan_invert') or {}
+        for mode in ("Top", "Side", "Front", "3D"):
+            box = QGroupBox(mode)
+            box_lay = QHBoxLayout(box)
+            axis_cfg = invert_cfg.get(mode, {'x': False, 'y': False})
+            chk_x = QCheckBox("Invert X"); chk_x.setChecked(axis_cfg.get('x', False))
+            chk_y = QCheckBox("Invert Y"); chk_y.setChecked(axis_cfg.get('y', False))
+            box_lay.addWidget(chk_x); box_lay.addWidget(chk_y)
+            vp_lay.addWidget(box)
+            self._pan_invert_checks[mode] = (chk_x, chk_y)
+        vp_lay.addStretch()
+        tabs.addTab(viewport_tab, "Viewport")
+
+        root.addWidget(tabs)
+
+        # OK / Cancel
+        btns = QHBoxLayout()
+        btns.addStretch()
+        ok_btn = QPushButton("OK")
+        ok_btn.setDefault(True)
+        ok_btn.clicked.connect(self._accept)
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self.reject)
+        btns.addWidget(ok_btn); btns.addWidget(cancel_btn)
+        root.addLayout(btns)
+
+    def _accept(self): #vers 1
+        self.s.set('default_width',    self._w_spin.value())
+        self.s.set('default_height',   self._h_spin.value())
+        self.s.set('default_zoom',     self._zoom_spin.value())
+        self.s.set('undo_levels',      self._undo_spin.value())
+        self.s.set('show_pixel_grid',  self._grid_chk.isChecked())
+        self.s.set('zoom_to_fit_resize', self._fit_resize_chk.isChecked())
+        self.s.set('menu_style',              self._menu_style_combo.currentText())
+        self.s.set('menu_bar_height',         self._menu_bar_height_spin.value())
+        self.s.set('menu_bar_font_size',      self._menu_bar_font_spin.value())
+        self.s.set('menu_dropdown_font_size', self._menu_dropdown_font_spin.value())
+        self.s.set('img_pal_cols',       self._img_pal_cols_spin.value())
+        self.s.set('img_pal_rows',       self._img_pal_rows_spin.value())
+        self.s.set('user_pal_cols',      self._user_pal_cols_spin.value())
+        self.s.set('user_pal_rows',      self._user_pal_rows_spin.value())
+        self.s.set('platform_mode',      self._platform_combo.currentText())
+        self.s.set('show_cell_grid',     self._cell_grid_chk.isChecked())
+        self.s.set('grid_color',         self._grid_color_btn._chosen)
+        self.s.set('marching_ants_enabled', self._ants_chk.isChecked())
+        self.s.set('marching_ants_style',   self._ants_style_combo.currentText())
+        self.s.set('marching_ants_fg',      self._ants_fg_btn._chosen)
+        self.s.set('marching_ants_bg',      self._ants_bg_btn._chosen)
+        self.s.set('marching_ants_speed',   self._ants_speed_spin.value())
+        self.s.set('ribbon_icon_size_vert', self._ribbon_icon_vert_spin.value())
+        self.s.set('ribbon_padding_vert',   self._ribbon_pad_vert_spin.value())
+        self.s.set('ribbon_icon_size_horz', self._ribbon_icon_horz_spin.value())
+        self.s.set('ribbon_padding_horz',   self._ribbon_pad_horz_spin.value())
+        self.s.set('ribbon_button_padding_vert', self._ribbon_btn_pad_vert_spin.value())
+        self.s.set('ribbon_button_padding_horz', self._ribbon_btn_pad_horz_spin.value())
+        self.s.set('ribbon_opacity',        self._ribbon_opacity_spin.value())
+        self.s.set('show_bitmap_list', self._bitmap_chk.isChecked())
+        registry = getattr(self._workshop, '_WIDGET_REGISTRY', [])
+        for entry in registry:
+            setting_key = entry.get('enabled_setting') or f"widget_{entry['key']}_enabled"
+            chk = self._widget_chks.get(entry['key'])
+            if chk is not None:
+                self.s.set(setting_key, chk.isChecked())
+        self.s.set('show_statusbar',   self._statusbar_chk.isChecked())
+        self.s.set('ui_font_size',     self._font_size_spin.value())
+        self.s.set('tool_icon_size',   self._icon_size_spin.value())
+        self.s.set('tool_icon_color',  self._icon_color_combo.currentText())
+        self.s.set('tool_columns',     [3, 4, 5, 6][self._cols_combo.currentIndex()])
+        hidden = [tid for tid, chk in self._gadget_chks.items() if not chk.isChecked()]
+        self.s.set('hidden_tools',     hidden)
+
+        self.s.set('viewport_pan_button',    self._pan_button_combo.currentText())
+        self.s.set('viewport_rotate_button', self._rotate_button_combo.currentText())
+        invert_cfg = {}
+        for mode, (chk_x, chk_y) in self._pan_invert_checks.items():
+            invert_cfg[mode] = {'x': chk_x.isChecked(), 'y': chk_y.isChecked()}
+        self.s.set('viewport_pan_invert', invert_cfg)
+
+        self.s.save()
+        # Re-apply immediately to any already-open World View panes, so
+        # the change takes effect without needing to reopen/restart.
+        if self._workshop is not None:
+            for pane in getattr(self._workshop, '_world_panes', []):
+                self._workshop._apply_viewport_movement_settings(pane, pane._view_label)
+        self.accept()
+
+
+
+class _CornerOverlay(QWidget):
+    """Transparent overlay that draws corner resize triangles on top of all children.
+    Uses setMask() so only the triangle pixels exist — fully transparent elsewhere.
+    WA_AlwaysStackOnTop keeps it above all sibling widgets on Wayland/KDE."""
+
+    SIZE = 20   # triangle leg size in pixels
+
+    def __init__(self, parent): #vers 3
+        super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_AlwaysStackOnTop, True)
+        self.setWindowFlags(Qt.WindowType.Widget)
+        self._hover_corner = None
+        self._app_settings = None
+        self.setGeometry(0, 0, parent.width(), parent.height())
+        self._update_mask()
+
+    def _update_mask(self): #vers 1
+        """Create a mask covering only the four corner triangles."""
+        from PyQt6.QtGui import QRegion, QPolygon
+        from PyQt6.QtCore import QPoint
+        s = self.SIZE
+        w, h = self.width(), self.height()
+        region = QRegion()
+        for pts in [
+            [QPoint(0,0),    QPoint(s,0),    QPoint(0,s)],     # top-left
+            [QPoint(w,0),    QPoint(w-s,0),  QPoint(w,s)],     # top-right
+            [QPoint(0,h),    QPoint(s,h),    QPoint(0,h-s)],   # bottom-left
+            [QPoint(w,h),    QPoint(w-s,h),  QPoint(w,h-s)],   # bottom-right
+        ]:
+            region = region.united(QRegion(QPolygon(pts)))
+        self.setMask(region)
+
+    def update_state(self, hover_corner, app_settings): #vers 1
+        self._hover_corner = hover_corner
+        self._app_settings = app_settings
+        self.update()
+
+    def setGeometry(self, *args): #vers 1
+        super().setGeometry(*args)
+        self._update_mask()
+
+    def resizeEvent(self, event): #vers 1
+        super().resizeEvent(event)
+        self._update_mask()
+
+    def paintEvent(self, event): #vers 2
+        s = self.SIZE
+        _p = self.palette()
+        _accent_fallback = _p.color(_p.ColorRole.Highlight)
+        if self._app_settings:
+            try:
+                colors = self._app_settings.get_theme_colors()
+                accent = QColor(colors.get('accent_primary', _accent_fallback.name()))
+            except Exception:
+                accent = _accent_fallback
+        else:
+            accent = _accent_fallback
+        accent.setAlpha(200)
+        hover_c = QColor(accent); hover_c.setAlpha(255)
+        w, h = self.width(), self.height()
+        corners = {
+            'top-left':     [(0,0),  (s,0),   (0,s)],
+            'top-right':    [(w,0),  (w-s,0), (w,s)],
+            'bottom-left':  [(0,h),  (s,h),   (0,h-s)],
+            'bottom-right': [(w,h),  (w-s,h), (w,h-s)],
+        }
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        for name, pts in corners.items():
+            path = QPainterPath()
+            path.moveTo(*pts[0]); path.lineTo(*pts[1]); path.lineTo(*pts[2])
+            path.closeSubpath()
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(hover_c if self._hover_corner == name else accent))
+            painter.drawPath(path)
+        painter.end()
+
+
+class _InstanceEditPanel(QWidget):
+    """Non-modal, persistent object info/edit panel - shown in the top-
+    left corner (per Keith's request for a 'pop-out dialog or embedded
+    window' rather than a blocking modal dialog). Shows Identity/IDE/
+    IPL/2DFX/TOBJ info like the earlier modal version, plus live
+    position and rotation nudge controls (small/large step buttons
+    either side of a directly-editable spinbox per axis) that actually
+    modify the underlying IPLInstance in memory and refresh the World
+    View/Instance List to match.
+
+    Rotation is stored on IPLInstance as a quaternion but edited here
+    as X/Y/Z degrees (quat_to_euler_degrees/euler_degrees_to_quat) -
+    standard, round-trip-verified conversion, not GTA-format-specific
+    guessing."""
+
+    _POS_SMALL_STEP = 0.5
+    _POS_LARGE_STEP = 10.0
+    _ROT_SMALL_STEP = 1.0
+    _ROT_LARGE_STEP = 15.0
+
+    def __init__(self, workshop, parent=None): #vers 2
+        super().__init__(parent, Qt.WindowType.Tool)
+        self._workshop = workshop
+        self._inst = None
+        self._loader = None
+        self._nudge_wide = None   # current reflow state, None forces first layout
+        self.setWindowTitle("Object Info")
+        self.setMinimumWidth(180)
+
+        self._lay = QVBoxLayout(self)
+        self._identity_box = self._add_section("Identity")
+        self._nav_row = QHBoxLayout()
+        self._nav_label = QLabel("")
+        self._nav_prev_btn = QPushButton("< Prev")
+        self._nav_next_btn = QPushButton("Next >")
+        self._nav_prev_btn.clicked.connect(lambda: self._workshop._cycle_model_instance(-1))
+        self._nav_next_btn.clicked.connect(lambda: self._workshop._cycle_model_instance(1))
+        self._nav_row.addWidget(self._nav_prev_btn)
+        self._nav_row.addWidget(self._nav_label)
+        self._nav_row.addWidget(self._nav_next_btn)
+        self._lay.addLayout(self._nav_row)
+        self._set_nav_visible(False)
+        self._ide_box = self._add_section("IDE Info")
+        self._pos_box, self._pos_spins, self._pos_grid, self._pos_rows = \
+            self._add_nudge_section("Position", self._POS_SMALL_STEP,
+                                    self._POS_LARGE_STEP, self._on_position_nudged)
+        self._rot_box, self._rot_spins, self._rot_grid, self._rot_rows = \
+            self._add_nudge_section("Rotation (degrees)", self._ROT_SMALL_STEP,
+                                    self._ROT_LARGE_STEP, self._on_rotation_nudged)
+        self._meta_box = self._add_section("Placement Info")
+        self._2dfx_box = self._add_section("2DFX Effects")
+        self._tobj_box = self._add_section("TOBJ (Timed Object) Variants")
+
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(self.hide)
+        self._lay.addWidget(close_btn)
+
+        self._reflow_nudge_rows(wide=True)
+
+    def resizeEvent(self, event): #vers 1
+        """Wrap the nudge rows' arrow buttons onto a second line when
+        the panel is too narrow for everything on one row, rather than
+        clipping/squeezing them (per Keith's request - 'wrapping is
+        needed depending on the popup dialog width')."""
+        super().resizeEvent(event)
+        wide = self.width() >= 260
+        if wide != self._nudge_wide:
+            self._reflow_nudge_rows(wide)
+
+    def _reflow_nudge_rows(self, wide): #vers 1
+        """Rebuild both nudge sections' grids for the given width mode -
+        wide: label, <<, <, value, >, >> all in one row per axis.
+        narrow: label+value on one row, the 4 arrow buttons on the row
+        beneath, per axis."""
+        for grid, rows_info in ((self._pos_grid, self._pos_rows),
+                                (self._rot_grid, self._rot_rows)):
+            # Clear all positions (widgets stay alive, just get re-added)
+            while grid.count():
+                grid.takeAt(0)
+            for i, (label, btn_ll, btn_l, spin, btn_r, btn_rr) in enumerate(rows_info):
+                if wide:
+                    r = i
+                    grid.addWidget(label, r, 0)
+                    grid.addWidget(btn_ll, r, 1)
+                    grid.addWidget(btn_l, r, 2)
+                    grid.addWidget(spin, r, 3)
+                    grid.addWidget(btn_r, r, 4)
+                    grid.addWidget(btn_rr, r, 5)
+                else:
+                    r = i * 2
+                    grid.addWidget(label, r, 0)
+                    grid.addWidget(spin, r, 1, 1, 4)
+                    grid.addWidget(btn_ll, r + 1, 0)
+                    grid.addWidget(btn_l, r + 1, 1)
+                    grid.addWidget(btn_r, r + 1, 2)
+                    grid.addWidget(btn_rr, r + 1, 3)
+        self._nudge_wide = wide
+
+    def _add_section(self, title): #vers 1
+        box = QGroupBox(title)
+        QVBoxLayout(box)
+        self._lay.addWidget(box)
+        return box
+
+    def _set_section_lines(self, box, lines): #vers 1
+        lay = box.layout()
+        while lay.count():
+            item = lay.takeAt(0)
+            w = item.widget()
+            if w: w.deleteLater()
+        if lines:
+            for line in lines:
+                lay.addWidget(QLabel(line))
+        else:
+            empty = QLabel("(none)")
+            empty.setStyleSheet("color: palette(mid);")
+            lay.addWidget(empty)
+
+    def _add_nudge_section(self, title, small_step, large_step, on_nudge): #vers 2
+        """One label + << < [value] > >> row per axis (X/Y/Z), using
+        real chevron icons rather than text, laid out in a QGridLayout
+        so _reflow_nudge_rows can wrap the arrow buttons onto a second
+        row when the panel is too narrow to fit everything on one
+        line (rather than clipping/squeezing, which a plain QHBoxLayout
+        would do with no wrapping at all)."""
+        box = QGroupBox(title)
+        grid = QGridLayout(box)
+        wf = self._workshop
+        icon_sz = 14
+        icon_color = wf._get_icon_color()
+        icons = {
+            'll': wf._render_variant_icon('chevron_left2', None, icon_sz, icon_color, has_menu=False),
+            'l':  wf._render_variant_icon('chevron_left',  None, icon_sz, icon_color, has_menu=False),
+            'r':  wf._render_variant_icon('chevron_right', None, icon_sz, icon_color, has_menu=False),
+            'rr': wf._render_variant_icon('chevron_right2',None, icon_sz, icon_color, has_menu=False),
+        }
+        spins = {}
+        rows_info = []   # per-axis widget refs, for _reflow_nudge_rows
+        for axis in ('x', 'y', 'z'):
+            label = QLabel(axis.upper() + ":")
+            btn_ll = QPushButton(); btn_ll.setIcon(icons['ll']); btn_ll.setFixedWidth(28)
+            btn_l  = QPushButton(); btn_l.setIcon(icons['l']);   btn_l.setFixedWidth(22)
+            spin = QDoubleSpinBox()
+            spin.setRange(-100000.0, 100000.0)
+            spin.setDecimals(2)
+            spin.setFixedWidth(80)
+            btn_r  = QPushButton(); btn_r.setIcon(icons['r']);   btn_r.setFixedWidth(22)
+            btn_rr = QPushButton(); btn_rr.setIcon(icons['rr']); btn_rr.setFixedWidth(28)
+            btn_ll.setToolTip(f"-{large_step:g}")
+            btn_l.setToolTip(f"-{small_step:g}")
+            btn_r.setToolTip(f"+{small_step:g}")
+            btn_rr.setToolTip(f"+{large_step:g}")
+            btn_ll.clicked.connect(lambda _=False, a=axis: on_nudge(a, -large_step))
+            btn_l.clicked.connect(lambda _=False, a=axis: on_nudge(a, -small_step))
+            btn_r.clicked.connect(lambda _=False, a=axis: on_nudge(a, small_step))
+            btn_rr.clicked.connect(lambda _=False, a=axis: on_nudge(a, large_step))
+            spin.editingFinished.connect(
+                lambda a=axis, s=spin: on_nudge(a, None, absolute=s.value()))
+            spins[axis] = spin
+            rows_info.append((label, btn_ll, btn_l, spin, btn_r, btn_rr))
+        self._lay.addWidget(box)
+        return box, spins, grid, rows_info
+        return box, spins
+
+    def _set_nav_visible(self, visible): #vers 1
+        self._nav_label.setVisible(visible)
+        self._nav_prev_btn.setVisible(visible)
+        self._nav_next_btn.setVisible(visible)
+
+    def show_for_instance(self, inst, loader, nav_info=None, model_cache=None): #vers 3
+        """Refresh every section for a (possibly new) instance - called
+        both when first opening the panel and whenever the selection
+        changes (Instance List, or the merged Object Browser), so the
+        same panel stays open and up to date rather than needing to be
+        reopened. nav_info, if given, is (current_index, total_count)
+        for a model with multiple placements - shows Prev/Next
+        cycling, per Keith's request that clicking a merged Object
+        Browser row (one row per model, not per placement) still be
+        able to reach every instance of that model. model_cache, if
+        given, is used to show the model's real width/height (from its
+        actual loaded geometry, per Keith's request) alongside its
+        name - blank if that model's geometry isn't loaded yet, not an
+        error, matching the same lazy-loading fallback used elsewhere."""
+        self._inst = inst
+        self._loader = loader
+        if nav_info is not None:
+            idx, total = nav_info
+            self._set_nav_visible(total > 1)
+            self._nav_label.setText(f"Instance {idx + 1} of {total}")
+        else:
+            self._set_nav_visible(False)
+        obj = loader.get_object(inst.model_id) if loader else None
+        effects = loader.get_2dfx_for_model(inst.model_id) if loader else []
+        tobjs = loader.get_tobj_for_model(inst.model_id) if loader else []
+
+        size_suffix = ""
+        if model_cache is not None:
+            dims = model_cache.get_dimensions(inst.model_name)
+            if dims is not None:
+                width, depth, height = dims
+                size_suffix = f"  ({width:.1f} × {height:.1f})"
+
+        self.setWindowTitle(f"Object Info - {inst.model_name} (ID {inst.model_id})")
+        self._set_section_lines(self._identity_box, [
+            f"ID: {inst.model_id}",
+            f"Name: {inst.model_name}{size_suffix}",
+            f"Texture (TXD): {obj.txd_name if obj else '(unresolved - no IDE match)'}",
+        ])
+        if obj:
+            ide_lines = [f"Type: {obj.obj_type}   Section: {obj.section}",
+                        f"Source: {obj.source_ide}  (line {obj.line_no})"]
+            ide_lines += [f"{k}: {v}" for k, v in obj.extra.items()]
+            self._set_section_lines(self._ide_box, ide_lines)
+        else:
+            self._set_section_lines(self._ide_box, None)
+
+        self._refresh_position_spins()
+        self._refresh_rotation_spins()
+
+        self._set_section_lines(self._meta_box, [
+            f"Interior: {inst.interior}   LOD index: {inst.lod_index}",
+            f"Source IPL: {inst.source_ipl}  (line {inst.line_no})",
+        ])
+        self._set_section_lines(self._2dfx_box, [
+            f"#{i+1}: {e.obj_type} (line {e.line_no}, {e.source_ide})"
+            for i, e in enumerate(effects)] or None)
+        self._set_section_lines(self._tobj_box, [
+            f"{t.model_name} (ID {t.model_id}, {t.source_ide} line {t.line_no})"
+            for t in tobjs] or None)
+
+    def _refresh_position_spins(self): #vers 1
+        inst = self._inst
+        for axis, spin in self._pos_spins.items():
+            spin.blockSignals(True)
+            spin.setValue(getattr(inst, f"pos_{axis}"))
+            spin.blockSignals(False)
+
+    def _refresh_rotation_spins(self): #vers 1
+        inst = self._inst
+        roll, pitch, yaw = quat_to_euler_degrees(
+            inst.rot_x, inst.rot_y, inst.rot_z, inst.rot_w)
+        for axis, val in zip(('x', 'y', 'z'), (roll, pitch, yaw)):
+            spin = self._rot_spins[axis]
+            spin.blockSignals(True)
+            spin.setValue(val)
+            spin.blockSignals(False)
+
+    def _on_position_nudged(self, axis, delta, absolute=None): #vers 1
+        if self._inst is None:
+            return
+        attr = f"pos_{axis}"
+        new_val = absolute if absolute is not None else getattr(self._inst, attr) + delta
+        setattr(self._inst, attr, new_val)
+        self._refresh_position_spins()
+        self._workshop._on_instance_edited(self._inst)
+
+    def _on_rotation_nudged(self, axis, delta, absolute=None): #vers 1
+        if self._inst is None:
+            return
+        roll, pitch, yaw = quat_to_euler_degrees(
+            self._inst.rot_x, self._inst.rot_y, self._inst.rot_z, self._inst.rot_w)
+        current = {'x': roll, 'y': pitch, 'z': yaw}
+        current[axis] = absolute if absolute is not None else current[axis] + delta
+        x, y, z, w = euler_degrees_to_quat(current['x'], current['y'], current['z'])
+        self._inst.rot_x, self._inst.rot_y, self._inst.rot_z, self._inst.rot_w = x, y, z, w
+        self._refresh_rotation_spins()
+        self._workshop._on_instance_edited(self._inst)
+
+
+class _FilteredLoaderStub:
+    """Minimal loader-shaped wrapper so _populate_instance_list (which
+    expects .instances and .get_object()) can be fed a filtered subset
+    of instances (from the IPL Sections panel's Show/Hide toggles)
+    without needing a second, real GTAWorldLoader - object definitions
+    don't change when filtering by IPL, only which instances are
+    visible, so get_object() just delegates to the original loader."""
+
+    def __init__(self, instances, real_loader):
+        self.instances = instances
+        self._real_loader = real_loader
+
+    def get_object(self, model_id):
+        if self._real_loader is None:
+            return None
+        return self._real_loader.get_object(model_id)
+
+
+class _ObjectBrowserModel(QAbstractTableModel):
+    """Backs the Object Browser QTableView - shows the loaded object
+    catalog (IDEObject definitions from GTAWorldLoader.objects), each
+    row's instance count (how many placements in the currently loaded
+    world use that model) and favourite status. Supports four view
+    modes and live search filtering, applied in set_filter()/
+    set_search() by recomputing self._rows (the currently visible,
+    sorted/filtered subset) rather than the model touching the full
+    object catalog on every repaint."""
+
+    _HEADERS = ["★", "ID", "Model", "TXD", "Instances", "Size"]
+
+    def __init__(self, parent=None): #vers 1
+        super().__init__(parent)
+        self._all_objects: list = []       # every IDEObject, set once per load
+        self._instance_counts: dict = {}   # model_id -> instance count
+        self._favourites: set = set()      # favourited model_ids
+        self._mode = 'all'                 # 'all' | 'most_used' | 'favourites' | 'generic'
+        self._search = ''
+        self._rows: list = []              # currently visible IDEObjects
+        self._model_cache = None           # ModelCache, set via set_model_cache()
+
+    def set_model_cache(self, model_cache): #vers 1
+        """Set the ModelCache used to look up each object's real
+        width/height (from its actual loaded geometry, if available -
+        shows nothing for a model that hasn't been loaded yet, per the
+        lazy-loading design, rather than blocking to load it just to
+        show a size)."""
+        self._model_cache = model_cache
+
+    def set_objects(self, objects, instance_counts, favourites): #vers 1
+        self._all_objects = objects
+        self._instance_counts = instance_counts
+        self._favourites = set(favourites)
+        self._recompute()
+
+    def set_mode(self, mode): #vers 1
+        self._mode = mode
+        self._recompute()
+
+    def set_search(self, text): #vers 1
+        self._search = text.lower().strip()
+        self._recompute()
+
+    def toggle_favourite(self, model_id): #vers 1
+        if model_id in self._favourites:
+            self._favourites.discard(model_id)
+        else:
+            self._favourites.add(model_id)
+        self._recompute()
+        return sorted(self._favourites)
+
+    def _is_generic(self, obj): #vers 1
+        """Heuristic for 'generic' objects - matches the real naming
+        convention seen in GTA3/VC/SA .dat files and IDE data (e.g.
+        MODELS\\GENERIC\\WHEELS.DFF, GENERIC.TXD): model or TXD name
+        containing 'generic'."""
+        return 'generic' in obj.model_name.lower() or 'generic' in obj.txd_name.lower()
+
+    def _recompute(self): #vers 1
+        self.beginResetModel()
+        rows = self._all_objects
+        if self._mode == 'favourites':
+            rows = [o for o in rows if o.model_id in self._favourites]
+        elif self._mode == 'generic':
+            rows = [o for o in rows if self._is_generic(o)]
+        if self._search:
+            rows = [o for o in rows if self._search in o.model_name.lower()
+                    or self._search in o.txd_name.lower()]
+        if self._mode == 'most_used':
+            rows = sorted(rows, key=lambda o: self._instance_counts.get(o.model_id, 0),
+                          reverse=True)
+        else:
+            rows = sorted(rows, key=lambda o: o.model_name.lower())
+        self._rows = rows
+        self.endResetModel()
+
+    def rowCount(self, parent=None): #vers 1
+        return len(self._rows)
+
+    def columnCount(self, parent=None): #vers 1
+        return len(self._HEADERS)
+
+    def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole): #vers 1
+        if role != Qt.ItemDataRole.DisplayRole:
+            return None
+        if orientation == Qt.Orientation.Horizontal:
+            return self._HEADERS[section]
+        return str(section + 1)
+
+    def data(self, index, role=Qt.ItemDataRole.DisplayRole): #vers 2
+        if not index.isValid():
+            return None
+        obj = self._rows[index.row()]
+        col = index.column()
+        if role == Qt.ItemDataRole.DisplayRole:
+            if col == 0:
+                return "★" if obj.model_id in self._favourites else ""
+            if col == 1:
+                return str(obj.model_id)
+            if col == 2:
+                return obj.model_name
+            if col == 3:
+                return obj.txd_name
+            if col == 4:
+                return str(self._instance_counts.get(obj.model_id, 0))
+            if col == 5:
+                if self._model_cache is not None:
+                    dims = self._model_cache.get_dimensions(obj.model_name)
+                    if dims is not None:
+                        width, depth, height = dims
+                        return f"{width:.1f} × {height:.1f}"
+                return ""
+        return None
+
+    def object_at(self, row): #vers 1
+        if 0 <= row < len(self._rows):
+            return self._rows[row]
+        return None
+
+
+class _InstanceTableModel(QAbstractTableModel):
+    """Backs the Instance List QTableView - resolves/formats each row's
+    display data on demand via data(), rather than eagerly building a
+    QTableWidgetItem per cell for every instance up front (the old
+    QTableWidget approach, timed at 2.6s of UI freeze for 51,711
+    instances - two thirds of which was resolving every single
+    instance's TXD name immediately regardless of whether that row
+    would ever actually be scrolled into view).
+
+    Just ID + Model columns - TXD/Position/Interior/Source IPL are
+    still available (via the object detail panel opened from a row),
+    just not shown as default columns any more."""
+
+    _HEADERS = ["ID", "Model"]
+
+    def __init__(self, instances, loader, parent=None): #vers 2
+        super().__init__(parent)
+        self._instances = instances
+        self._loader = loader
+        self._txd_cache = {}   # model_id -> resolved TXD name, filled lazily
+
+    def rowCount(self, parent=None): #vers 1
+        return len(self._instances)
+
+    def columnCount(self, parent=None): #vers 1
+        return len(self._HEADERS)
+
+    def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole): #vers 1
+        if role != Qt.ItemDataRole.DisplayRole:
+            return None
+        if orientation == Qt.Orientation.Horizontal:
+            return self._HEADERS[section]
+        return str(section + 1)
+
+    def _resolve_txd(self, inst): #vers 1
+        cached = self._txd_cache.get(inst.model_id)
+        if cached is not None:
+            return cached
+        obj = self._loader.get_object(inst.model_id)
+        name = obj.txd_name if obj else ""
+        self._txd_cache[inst.model_id] = name
+        return name
+
+    def data(self, index, role=Qt.ItemDataRole.DisplayRole): #vers 2
+        if role != Qt.ItemDataRole.DisplayRole or not index.isValid():
+            return None
+        inst = self._instances[index.row()]
+        col = index.column()
+        if col == 0:
+            return str(inst.model_id)
+        if col == 1:
+            return inst.model_name
+        return None
+
+    def instance_at(self, row): #vers 1
+        """Look up the raw IPLInstance for a given row - used by the
+        row-selection handler to centre the world-view cameras."""
+        if 0 <= row < len(self._instances):
+            return self._instances[row]
+        return None
 
 
 class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
