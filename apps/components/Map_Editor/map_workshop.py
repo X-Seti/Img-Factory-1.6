@@ -9,7 +9,7 @@
 # has been renamed to MapWorkshop/Map Workshop/map_workshop throughout
 # this copy - the original Model_Editor/model_workshop.py is untouched
 # and still the real, working Model Workshop feature.
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 202
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 203
 # X-Seti - Apr 2026 - Map Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -122,6 +122,33 @@
 # view/swap (Textures dock already lists Name/Size/Format, swap action
 # not yet added). Frame Hierarchy dock intentionally left as-is (hidden,
 # not parked) - only Models was in scope for this change.
+# X-Seti - Jul31 2026 - Fixed two dock-visibility bugs Keith found by
+# testing the running app (ui2.png): "left bar still showing" and
+# "right-click what-to-show menu isn't working, not deselecting or
+# opening ui bars":
+# 1. _restore_outer_layout had an unconditional finally: block forcing
+#    Files/Models/Frame Hierarchy/Textures back to setVisible(True) +
+#    toggleViewAction checked, 400ms after every startup - directly
+#    fighting the hide added in v200. Removed the forcing (kept the
+#    unrelated window-width clamp below it). Also bumped
+#    _OUTER_LAYOUT_VERSION 2->3 and _RIBBON_LAYOUT_VERSION 2->3 so any
+#    layout saved before these changes (which would restore the old
+#    visible/mesh-ribbon state) is cleanly rejected instead of replayed.
+# 2. Root cause of the right-click menu not working: none of the 10
+#    dock widgets had QDockWidget.DockWidgetFeature.DockWidgetClosable
+#    in their setFeatures() call (only Movable|Floatable) - Qt disables
+#    toggleViewAction() entirely when a dock isn't closable, so every
+#    checkbox in that native Qt menu was inert (verified: trigger() on
+#    a disabled action does nothing). Added DockWidgetClosable to all
+#    10 setFeatures() calls (the 4 Model Workshop docks in setup_ui,
+#    plus Object Browser/Instance List/Control Panel/IPL Inst File/
+#    Editing Panel/World View). Custom title bars (_make_dock_
+#    collapsible) still provide their own close button, so this only
+#    affects toggleViewAction's enabled state, not visible chrome.
+# Verified: all 7 active docks' toggleViewAction now enabled and
+# correctly toggle visibility on trigger(); Model Workshop docks
+# confirmed still hidden by default even after _restore_outer_layout
+# fires.
 
 import os
 import math
@@ -4382,7 +4409,9 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     # Geometry/Navigation/Render ribbons. 2 = Files/Models panels converted
     # to QDockWidgets in the same QMainWindow (EXPERIMENTAL, Jul 2026) -
     # user can now freely drag/float/tab any panel, not just ribbons.
-    _RIBBON_LAYOUT_VERSION = 2
+    # 3 = mesh-editing ribbons (Selection/Snap/Geometry/Navigation/Render)
+    # parked inactive, replaced by Map Workshop's own "World" ribbon.
+    _RIBBON_LAYOUT_VERSION = 3
 
     # Compact button height for Control Panel widgets (ported from
     # map_workshop_old_version.py)
@@ -4608,7 +4637,8 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._left_dock.setMinimumWidth(150)
             self._left_dock.setFeatures(
                 QDockWidget.DockWidgetFeature.DockWidgetMovable |
-                QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+                QDockWidget.DockWidgetFeature.DockWidgetFloatable |
+                QDockWidget.DockWidgetFeature.DockWidgetClosable)
             outer_mw.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self._left_dock)
 
         self._middle_dock = QDockWidget("Models", self)
@@ -4623,7 +4653,8 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._middle_dock.setMinimumWidth(250)
         self._middle_dock.setFeatures(
             QDockWidget.DockWidgetFeature.DockWidgetMovable |
-            QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+            QDockWidget.DockWidgetFeature.DockWidgetFloatable |
+            QDockWidget.DockWidgetFeature.DockWidgetClosable)
         outer_mw.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self._middle_dock)
 
         self._frame_hierarchy_dock = QDockWidget("Frame Hierarchy", self)
@@ -4632,7 +4663,8 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._frame_hierarchy_dock.setMinimumWidth(200)
         self._frame_hierarchy_dock.setFeatures(
             QDockWidget.DockWidgetFeature.DockWidgetMovable |
-            QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+            QDockWidget.DockWidgetFeature.DockWidgetFloatable |
+            QDockWidget.DockWidgetFeature.DockWidgetClosable)
         outer_mw.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self._frame_hierarchy_dock)
 
         self._texture_dock = QDockWidget("Textures", self)
@@ -4641,7 +4673,8 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._texture_dock.setMinimumWidth(200)
         self._texture_dock.setFeatures(
             QDockWidget.DockWidgetFeature.DockWidgetMovable |
-            QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+            QDockWidget.DockWidgetFeature.DockWidgetFloatable |
+            QDockWidget.DockWidgetFeature.DockWidgetClosable)
         outer_mw.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self._texture_dock)
 
         if self._left_dock is not None:
@@ -10725,8 +10758,13 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     # around the viewport) - a separate QMainWindow from _inner_mw, so it
     # gets its own save/restore with its own version constant. History:
     # 1 = Files/Models only. 2 = Frame Hierarchy and Textures split out
-    # into their own top-level dock widgets too, same as Files.
-    _OUTER_LAYOUT_VERSION = 2
+    # into their own top-level dock widgets too, same as Files. 3 = Map
+    # Workshop docks added (World Viewport/Object Browser/IPL Inst File/
+    # Control Panel) and Files/Models/Frame Hierarchy/Textures hidden by
+    # default - bumped so any layout saved before this point (which would
+    # restore those 4 back to visible) is cleanly rejected rather than
+    # fighting the new default.
+    _OUTER_LAYOUT_VERSION = 3
 
     def _save_outer_layout(self): #vers 1
         """Save _outer_mw's dock layout (Files/Models around the viewport)."""
@@ -10768,13 +10806,14 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         except Exception as _e:
             print(f"[MapWorkshop] _restore_outer_layout error: {_e}")
         finally:
-            for dock in (getattr(self, '_left_dock', None),
-                         getattr(self, '_middle_dock', None),
-                         getattr(self, '_frame_hierarchy_dock', None),
-                         getattr(self, '_texture_dock', None)):
-                if dock is not None:
-                    dock.setVisible(True)
-                    dock.toggleViewAction().setChecked(True)
+            # Map Workshop: Files/Models/Frame Hierarchy/Textures are
+            # Model Workshop panels, intentionally hidden by default (see
+            # setup_ui) - this safety net used to force them back visible
+            # after every restoreState() call, which fought our hide and
+            # was the cause of "left bar still showing" after startup.
+            # No longer forcing these 4 visible; restoreState()'s own
+            # result (or our explicit hide, whichever ran last) stands.
+            pass
 
             # Safety net: restoreState() reapplies whatever dock
             # proportions were saved, regardless of whether they fit the
@@ -17618,7 +17657,8 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         dock.setObjectName("Object Browser")
         dock.setWidget(panel)
         dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
-                        QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+                        QDockWidget.DockWidgetFeature.DockWidgetFloatable |
+                        QDockWidget.DockWidgetFeature.DockWidgetClosable)
 
         title_bar = QWidget()
         title_lay = QHBoxLayout(title_bar)
@@ -17921,7 +17961,8 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         dock.setObjectName("Instance List")
         dock.setWidget(view)
         dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
-                        QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+                        QDockWidget.DockWidgetFeature.DockWidgetFloatable |
+                        QDockWidget.DockWidgetFeature.DockWidgetClosable)
         self._instance_list_dock = dock
         return dock
 
@@ -18252,7 +18293,8 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         dock.setObjectName("Control Panel")
         dock.setWidget(panel)
         dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
-                        QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+                        QDockWidget.DockWidgetFeature.DockWidgetFloatable |
+                        QDockWidget.DockWidgetFeature.DockWidgetClosable)
         self._control_panel_dock = dock
         return dock
 
@@ -18989,7 +19031,8 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         dock.setObjectName("IPL Inst File")
         dock.setWidget(panel)
         dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
-                        QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+                        QDockWidget.DockWidgetFeature.DockWidgetFloatable |
+                        QDockWidget.DockWidgetFeature.DockWidgetClosable)
         self._ipl_inst_file_dock = dock
         return dock
 
@@ -19358,7 +19401,8 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         dock.setObjectName("Editing Panel")
         dock.setWidget(tabs)
         dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
-                        QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+                        QDockWidget.DockWidgetFeature.DockWidgetFloatable |
+                        QDockWidget.DockWidgetFeature.DockWidgetClosable)
         self._editing_panel_dock = dock
         self._editing_panel_tabs = tabs
         return dock
@@ -19876,7 +19920,8 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         dock.setObjectName("World View")
         dock.setWidget(splitter)
         dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
-                        QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+                        QDockWidget.DockWidgetFeature.DockWidgetFloatable |
+                        QDockWidget.DockWidgetFeature.DockWidgetClosable)
         self._world_view_dock = dock
 
         # Default to showing only 3D, per Keith's request ("I suggest
