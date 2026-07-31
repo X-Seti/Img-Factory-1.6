@@ -9,7 +9,7 @@
 # has been renamed to MapWorkshop/Map Workshop/map_workshop throughout
 # this copy - the original Model_Editor/model_workshop.py is untouched
 # and still the real, working Model Workshop feature.
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 200
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 201
 # X-Seti - Apr 2026 - Map Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -75,6 +75,39 @@
 # a dock) - left as available-but-unused code, matching old_version.
 # Verified: ast.parse clean, full QApplication instantiation clean, all
 # 4 new docks present, Model Workshop left docks confirmed hidden.
+# X-Seti - Jul31 2026 - Ribbon system cleanup, per Keith ("there should be
+# no canvas in the dp5 sense" / "there are ribbons in map_workshop already
+# we can adapt, make sure the ribbon manager works"):
+# - Discovered the ported _open_ribbon_manager/_get_ribbon_assignment/
+#   _set_ribbon_assignment/_ribbon_presets_dir/_apply_ribbon_style/
+#   _ribbon_context_menu/_RIBBON_TOOL_REGISTRY (from map_workshop_old_
+#   version.py) were a complete DUPLICATE of a working system already in
+#   the Model Workshop base - open_ribbon_manager()+RibbonManagerDialog,
+#   which operates generically on _inner_mw's live QToolBars via
+#   findChildren(), needing no registry at all. The base's own toolbar
+#   context menu called self.open_ribbon_manager (no underscore) - our
+#   ported _open_ribbon_manager (with underscore) was never reachable
+#   from it, so "Ribbon Manager..." would have thrown AttributeError.
+#   Removed the entire duplicate subsystem (429 lines) and fixed the one
+#   real external caller (a button in MapSettingsDialog's Ribbons tab)
+#   to call the real open_ribbon_manager instead.
+# - Renamed the Model Workshop mesh-editing ribbon builder aside:
+#   _build_toolbars -> _build_toolbars_tmp (Selection VEFP/Snap Targets/
+#   Edit Geometry/Navigation/Render - inactive, parked, kept for
+#   reference/reuse later, per Keith's direction - not deleted).
+# - Added a new active _build_toolbars using the same _tb/_act/
+#   _ribbon_actions pattern (so Ribbon Manager drag-reorder/presets work
+#   identically): one "World" ribbon with LOD display mode (Normal/Low/
+#   Both, exclusive) and Cull Boxes toggle - both wired to already-ported,
+#   real methods (_set_lod_display_mode, _toggle_cull_boxes), not stubs.
+#   Verified via RibbonManagerDialog construction that it correctly lists
+#   this new ribbon.
+# - Cleaned _create_centre_panel: removed the last DP5 canvas leftovers
+#   (hardcoded "320x256"/"RGBA32" bitmap status labels, show_paint_canvas
+#   collapse-to-0x0 hack) - kept only the generic status bar creation.
+# Central widget (DFFViewport, the 3D mesh viewport) intentionally left
+# untouched for now per Keith's direction - not swapped for the World
+# Viewport dock at this time.
 
 import os
 import math
@@ -346,7 +379,6 @@ except ImportError:
 # _apply_menu_bar_style
 # _apply_panel_font
 # _apply_prelighting    TODO: bake ambient+directional into DFF vertex colours
-# _apply_ribbon_style
 # _apply_settings
 # _apply_theme
 # _apply_title_font
@@ -364,6 +396,7 @@ except ImportError:
 # _build_model_name_toolbar
 # _build_primitive    generate vertices+triangles for Box/Sphere/Cylinder/Plane
 # _build_toolbars
+# _build_toolbars_tmp
 # _build_txd_from_textures
 # _center_on_instance
 # _change_format
@@ -463,7 +496,6 @@ except ImportError:
 # _get_ide_db
 # _get_resize_corner
 # _get_resize_direction
-# _get_ribbon_assignment
 # _get_selected_model
 # _get_tool_menu_style
 # _get_view_coords
@@ -556,7 +588,6 @@ except ImportError:
 # _open_paint_editor    open paint mode for face surface editing #vers 5
 # _open_paint_mat_popup
 # _open_render_settings_dialog
-# _open_ribbon_manager
 # _open_settings_dialog
 # _open_surface_edit_dialog
 # _open_surface_paint_dialog
@@ -612,8 +643,6 @@ except ImportError:
 # _reset_hotkeys_to_defaults
 # _restore_outer_layout
 # _restore_toolbar_state
-# _ribbon_context_menu
-# _ribbon_presets_dir
 # _rotate_ccw_all
 # _rotate_cw_all
 # _save_as_col_file
@@ -636,7 +665,6 @@ except ImportError:
 # _set_lod_display_mode
 # _set_lod_override
 # _set_paint_tool
-# _set_ribbon_assignment
 # _set_select_mode    switch vertex/edge/face/poly/object select mode #vers 2
 # _set_status
 # _set_texlist_folder    set texlist/ folder via dialog
@@ -3442,7 +3470,7 @@ class MapSettingsDialog(QDialog):
         ribbon_mgr_btn = QPushButton("Ribbon Manager…")
         ribbon_mgr_btn.setToolTip("Move tools between ribbons, save/load layout presets")
         if self._workshop is not None:
-            ribbon_mgr_btn.clicked.connect(self._workshop._open_ribbon_manager)
+            ribbon_mgr_btn.clicked.connect(self._workshop.open_ribbon_manager)
         rl.addRow(ribbon_mgr_btn)
         rl.addRow(QLabel(""))
 
@@ -10135,10 +10163,13 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         return panel
 
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 7
-        """Build all QToolBar instances using QAction.
-        Icon set resolved once — 'default' uses SVGIconFactory with currentColor,
-        '3dsmax' uses MaxIconSet with hardcoded Max palette."""
+    def _build_toolbars_tmp(self, mw: 'QMainWindow', icon_color: str): #vers 7
+        """PARKED (Jul 31 2026) - Model Workshop's original mesh-editing
+        ribbon builder (Selection VEFP/Snap Targets/Edit Geometry/
+        Navigation/Render), inactive - no longer called. Kept in place,
+        renamed aside, since some of this may be needed again later
+        (icon resolution pattern, _tb/_act helpers). See _build_toolbars
+        below for the active Map Workshop ribbon set."""
         from PyQt6.QtWidgets import QToolBar
         icon_size = QSize(20, 20)
         pw = self.preview_widget
@@ -10406,6 +10437,93 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._sel_edge_btn   = None
         self._sel_face_btn   = None
         self._sel_poly_btn   = None
+
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 1
+        """Build Map Workshop's own ribbons - active version. Uses the
+        same QToolBar/QAction/_ribbon_actions pattern as the parked
+        _build_toolbars_tmp (Model Workshop's mesh-editing ribbons)
+        so the Ribbon Manager (drag-reorder, icon size, presets) works
+        identically for these. Currently one ribbon - World - covering
+        the two real, already-wired toggles (LOD display mode, Cull
+        Boxes); more tools get added here as instance placement/
+        selection tools are built out."""
+        from PyQt6.QtWidgets import QToolBar
+        from PyQt6.QtGui import QAction, QActionGroup
+        icon_size = QSize(20, 20)
+        self._ribbon_actions = []
+
+        def _tb(name, area=Qt.ToolBarArea.TopToolBarArea):  #vers 1
+            tb = QToolBar(name, mw)
+            tb.setObjectName(name)
+            tb.setIconSize(icon_size)
+            tb.setMovable(True)
+            tb.setFloatable(True)
+            tb.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            tb.customContextMenuRequested.connect(
+                lambda pos, t=tb: self._toolbar_context_menu(t, pos))
+            mw.addToolBar(area, tb)
+            return tb
+
+        def _act(tb, name, icon_fn, callback=None, checkable=False,
+                 checked=False, attr=None):  #vers 1
+            try:
+                icon = icon_fn(color=icon_color)
+            except Exception:
+                icon = self.icon_factory.settings_icon(color=icon_color)
+            action = QAction(icon, name, mw)
+            action.setToolTip(name)
+            action.setCheckable(checkable)
+            if checkable:
+                action.setChecked(checked)
+            if callback:
+                if checkable:
+                    action.toggled.connect(callback)
+                else:
+                    action.triggered.connect(callback)
+            tb.addAction(action)
+            self._ribbon_actions.append({
+                'action':    action,
+                'toolbar':   tb,
+                'name':      name,
+                'icon_fn':   icon_fn,
+                'checkable': checkable,
+            })
+            if attr:
+                setattr(self, attr, action)
+            return action
+
+        # - Ribbon: World
+        tb_world = _tb("World")
+
+        lod_group = QActionGroup(mw)
+        lod_group.setExclusive(True)
+
+        def _lod_act(attr, name, mode):  #vers 1
+            action = QAction(name, mw)
+            action.setToolTip(f"LOD display: {name}")
+            action.setCheckable(True)
+            action.triggered.connect(lambda _=False, m=mode: self._set_lod_display_mode(m))
+            lod_group.addAction(action)
+            tb_world.addAction(action)
+            self._ribbon_actions.append({
+                'action': action, 'toolbar': tb_world, 'name': name,
+                'icon_fn': None, 'checkable': True,
+            })
+            setattr(self, attr, action)
+            return action
+
+        _lod_act('_lod_normal_act', 'LOD: Normal', 'normal')
+        _lod_act('_lod_lod_act',    'LOD: Low',     'lod')
+        _lod_act('_lod_both_act',  'LOD: Both',    'both')
+        current_mode = getattr(self, '_lod_display_mode', 'normal')
+        {'normal': self._lod_normal_act, 'lod': self._lod_lod_act,
+         'both': self._lod_both_act}[current_mode].setChecked(True)
+
+        tb_world.addSeparator()
+
+        _act(tb_world, "Cull Boxes", self.icon_factory.box_icon,
+             lambda checked: self._toggle_cull_boxes(checked),
+             checkable=True, attr='_cull_boxes_act')
 
     def _toolbar_context_menu(self, toolbar, pos): #vers 2
         """Right-click context menu on any toolbar."""
@@ -19376,41 +19494,29 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     # --- World viewport, LOD, ribbon/menu framework (ported from map_workshop_old_version.py) ---
 
-    def _create_centre_panel(self): #vers 3
+    def _create_centre_panel(self): #vers 4
+        """Map Workshop's own centre panel - status bar only. No DP5-style
+        bitmap canvas here (removed Jul 31 2026 per Keith: "there should be
+        no canvas in the dp5 sense") - the real Map Workshop content lives
+        in the World Viewport, Object Browser, IPL Inst File, and Control
+        Panel docks instead."""
         panel = QWidget()
         self._centre_panel = panel
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-
-        # Status bar - built here (needs canvas context) but NOT added to
-        # this panel's own layout. It becomes outer_mw's native status
-        # bar instead (see setup_ui) - QMainWindow's built-in status bar
-        # always spans the full window width, whereas embedding it in
-        # this panel meant it only got whatever width was left after the
-        # right-side dock widgets (Brush & Colors etc.) took their share,
-        # squeezing/covering its right-aligned permanent widgets.
+        # Status bar - built here but NOT added to this panel's own layout.
+        # It becomes outer_mw's native status bar instead (see setup_ui) -
+        # QMainWindow's built-in status bar always spans the full window
+        # width, whereas embedding it in this panel meant it only got
+        # whatever width was left after the right-side dock widgets took
+        # their share, squeezing/covering its right-aligned permanent
+        # widgets.
         self._status_bar = QStatusBar()
         self._status_bar.setSizeGripEnabled(False)
         self._status_bar.setFixedHeight(22)
         self._status_bar.setVisible(self.map_settings.get('show_statusbar'))
-        # Permanent right-side info labels
-        self._status_size_lbl  = QLabel("320×256")
-        self._status_depth_lbl = QLabel("RGBA32")
-        self._status_size_lbl.setStyleSheet("padding: 0 6px; color: palette(mid);")
-        self._status_depth_lbl.setStyleSheet("padding: 0 6px; color: palette(mid);")
-        self._status_bar.addPermanentWidget(self._status_depth_lbl)
-        self._status_bar.addPermanentWidget(self._status_size_lbl)
-
-        # Initial collapse state - matches the same logic
-        # _toggle_paint_canvas applies dynamically. Canvas is hidden by
-        # default, so without this the central widget area reserves
-        # space for nothing, leaving a visible empty gap (IPL Sections
-        # used to fill this same space as a fallback before it became
-        # its own dock).
-        if not self.map_settings.get('show_paint_canvas'):
-            panel.setMaximumSize(0, 0)
 
         return panel
 
@@ -19526,435 +19632,6 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 else:
                     mw.menu_bar_system._remove_tool_menu()
 
-
-    # Ribbon Manager: master registry of every reassignable tool -
-    # (tool_id, icon_shape, tooltip, default_ribbon_name). Replaces the
-    # old hardcoded TOOL_ORDER/SHAPE_ORDER lists - _get_ribbon_assignment()
-    # reads/writes which ribbon each tool_id currently lives in (starting
-    # from these defaults), and _build_ribbons_from_assignment() builds
-    # whichever ribbons that assignment calls for.
-    _RIBBON_TOOL_REGISTRY = [
-        # Paint tools removed per Keith's request ("lets remove the
-        # plotting, shapes, like you suggest") - this registry drove
-        # the Plotting/Shapes ribbons' contents (Pencil/Eraser/Fill/
-        # Line/Rectangle/etc, all inherited from the DP5 fork this
-        # editor started from). The registry mechanism itself (Ribbon
-        # Manager, drag-reordering, per-tool ribbon assignment,
-        # persistence) is untouched and still generic for any future
-        # single-selection tool. Empty for now - LOD display mode and
-        # Cull Boxes are added directly in _build_ribbons_from_assignment
-        # instead (like the existing Active Zoom button), since neither
-        # fits this registry's "one mutually-exclusive drawing tool
-        # active at a time" model - LOD is a 3-way dropdown, Cull Boxes
-        # is an independent show/hide toggle, not exclusive with
-        # anything else.
-    ]
-
-    def _get_ribbon_assignment(self): #vers 1
-        """Return the current tool_id -> ribbon_name assignment, reading
-        from saved settings if present and falling back to each tool's
-        default_ribbon from _RIBBON_TOOL_REGISTRY otherwise. Always
-        returns an assignment for every registered tool, even if the
-        saved settings only cover a subset (e.g. after a new tool was
-        added since the setting was last saved)."""
-        saved = self.map_settings.get('ribbon_tool_assignment') or {}
-        assignment = {}
-        for tool_id, _shape, _tip, default_ribbon in self._RIBBON_TOOL_REGISTRY:
-            assignment[tool_id] = saved.get(tool_id, default_ribbon)
-        return assignment
-
-    def _set_ribbon_assignment(self, assignment: dict): #vers 1
-        """Persist a full tool_id -> ribbon_name assignment to settings."""
-        self.map_settings.set('ribbon_tool_assignment', dict(assignment))
-
-    def _ribbon_presets_dir(self): #vers 1
-        """Folder where Ribbon Manager presets are saved/loaded from."""
-        d = Path.home() / '.config' / 'imgfactory' / 'map_ribbon_presets'
-        d.mkdir(parents=True, exist_ok=True)
-        return d
-
-    def _open_ribbon_manager(self): #vers 2
-        """Ribbon Manager dialog - two-pane layout matching Model
-        Workshop's richer style: left pane lists ribbons (with an icon
-        preview of their first tool), right pane shows the selected
-        ribbon's tools with icons and names, drag-reorderable within the
-        ribbon. Explicit +New Ribbon/Delete buttons, a Move-to-ribbon
-        control, icon size slider, and Save/Load Preset. Changes apply
-        live as you go (each move/reorder immediately rebuilds the real
-        ribbons) - Cancel reverts to a snapshot taken when the dialog
-        opened; OK just keeps whatever's already been applied."""
-        from PyQt6.QtWidgets import (QListWidget, QListWidgetItem, QSplitter,
-            QAbstractItemView, QSlider, QDialogButtonBox)
-
-        snapshot_assignment = dict(self._get_ribbon_assignment())
-        snapshot_order = list(self.map_settings.get('ribbon_tool_order') or [])
-        snapshot_icon_horz = self.map_settings.get('ribbon_icon_size_horz')
-        snapshot_icon_vert = self.map_settings.get('ribbon_icon_size_vert')
-        registry_by_id = {t: (t, s, tip, d) for t, s, tip, d in self._RIBBON_TOOL_REGISTRY}
-        icon_color = self._get_icon_color()
-        icon_sz_preview = 20
-
-        def _tool_name(tool_id):
-            tip = registry_by_id[tool_id][2]
-            return tip.split(' — ')[0].split(' (')[0].strip()
-
-        def _tool_icon(tool_id):
-            shape = registry_by_id[tool_id][1]
-            return _load_tool_icon(shape, icon_sz_preview, active=False,
-                                   tile_bg='', icon_col=icon_color)
-
-        dlg = QDialog(self)
-        dlg.setWindowTitle("Ribbon Manager")
-        dlg.setMinimumSize(660, 440)
-        outer = QVBoxLayout(dlg)
-
-        # New/Delete ribbon row
-        tb_row = QHBoxLayout()
-        new_btn = QPushButton("+ New Ribbon")
-        del_btn = QPushButton("Delete")
-        save_preset_btn = QPushButton("Save Preset…")
-        load_preset_btn = QPushButton("Load Preset…")
-        for b in (new_btn, del_btn, save_preset_btn, load_preset_btn):
-            tb_row.addWidget(b)
-        tb_row.addStretch()
-        outer.addLayout(tb_row)
-
-        # Icon size row
-        size_row = QHBoxLayout()
-        size_row.addWidget(QLabel("Ribbon Icon Size:"))
-        size_slider = QSlider(Qt.Orientation.Horizontal)
-        size_slider.setRange(12, 64)
-        size_slider.setSingleStep(2)
-        size_slider.setValue(max(self.map_settings.get('ribbon_icon_size_horz'),
-                                 self.map_settings.get('ribbon_icon_size_vert')))
-        size_label = QLabel(f"{size_slider.value()}px")
-        size_label.setMinimumWidth(36)
-        size_row.addWidget(size_slider, 1)
-        size_row.addWidget(size_label)
-        outer.addLayout(size_row)
-
-        splitter = QSplitter(Qt.Orientation.Horizontal)
-        outer.addWidget(splitter, 1)
-
-        left = QWidget()
-        ll = QVBoxLayout(left); ll.setSpacing(4)
-        ll.addWidget(QLabel("Ribbons"))
-        ribbon_list = QListWidget()
-        ll.addWidget(ribbon_list)
-        splitter.addWidget(left)
-
-        right = QWidget()
-        rl = QVBoxLayout(right); rl.setSpacing(4)
-        tool_label = QLabel("Select a ribbon")
-        rl.addWidget(tool_label)
-        tool_list = QListWidget()
-        tool_list.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
-        tool_list.setDefaultDropAction(Qt.DropAction.MoveAction)
-        tool_list.setIconSize(QSize(icon_sz_preview, icon_sz_preview))
-        rl.addWidget(tool_list)
-
-        move_row = QHBoxLayout()
-        move_row.addWidget(QLabel("Move selected to:"))
-        move_combo = QComboBox()
-        move_row.addWidget(move_combo, 1)
-        move_btn = QPushButton("Move →")
-        move_row.addWidget(move_btn)
-        rl.addLayout(move_row)
-        splitter.addWidget(right)
-        splitter.setSizes([200, 460])
-
-        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
-                                QDialogButtonBox.StandardButton.Cancel)
-        outer.addWidget(btns)
-
-        state = {'selected_ribbon': None}
-
-        def _current_assignment():
-            return self._get_ribbon_assignment()
-
-        def _refresh_ribbon_list():
-            ribbon_list.blockSignals(True)
-            prev = state['selected_ribbon']
-            ribbon_list.clear()
-            move_combo.clear()
-            assignment = _current_assignment()
-            by_ribbon = {}
-            for tool_id in assignment:
-                by_ribbon.setdefault(assignment[tool_id], []).append(tool_id)
-            for name in sorted(by_ribbon.keys()):
-                item = QListWidgetItem(name)
-                tools_here = by_ribbon[name]
-                if tools_here:
-                    item.setIcon(_tool_icon(tools_here[0]))
-                ribbon_list.addItem(item)
-                move_combo.addItem(name)
-            ribbon_list.blockSignals(False)
-            # Reselect the previously-selected ribbon if it still exists
-            if prev is not None:
-                matches = ribbon_list.findItems(prev, Qt.MatchFlag.MatchExactly)
-                if matches:
-                    ribbon_list.setCurrentItem(matches[0])
-                    return
-            if ribbon_list.count():
-                ribbon_list.setCurrentRow(0)
-
-        def _refresh_tool_list():
-            tool_list.blockSignals(True)
-            tool_list.clear()
-            name = state['selected_ribbon']
-            if not name:
-                tool_list.blockSignals(False)
-                return
-            tool_label.setText(f"{name} — tools")
-            assignment = _current_assignment()
-            order = self.map_settings.get('ribbon_tool_order') or []
-            ordered_ids = [t for t in order if t in registry_by_id]
-            ordered_ids += [t for t in registry_by_id if t not in ordered_ids]
-            for tool_id in ordered_ids:
-                if assignment.get(tool_id) != name:
-                    continue
-                item = QListWidgetItem(_tool_icon(tool_id), _tool_name(tool_id))
-                item.setData(Qt.ItemDataRole.UserRole, tool_id)
-                tool_list.addItem(item)
-            tool_list.blockSignals(False)
-
-        def _on_ribbon_selected(row):
-            item = ribbon_list.item(row)
-            state['selected_ribbon'] = item.text() if item else None
-            _refresh_tool_list()
-        ribbon_list.currentRowChanged.connect(_on_ribbon_selected)
-
-        def _on_tools_reordered():
-            # Rebuild ribbon_tool_order from the current combined order:
-            # this ribbon's tools in their new order, all other tools
-            # keeping their existing relative order
-            name = state['selected_ribbon']
-            if not name:
-                return
-            new_local_order = []
-            for i in range(tool_list.count()):
-                tid = tool_list.item(i).data(Qt.ItemDataRole.UserRole)
-                if tid:
-                    new_local_order.append(tid)
-            old_order = self.map_settings.get('ribbon_tool_order') or []
-            old_order = [t for t in old_order if t in registry_by_id]
-            old_order += [t for t in registry_by_id if t not in old_order]
-            merged = []
-            it = iter(new_local_order)
-            for tid in old_order:
-                if tid in new_local_order:
-                    merged.append(next(it))
-                else:
-                    merged.append(tid)
-            self.map_settings.set('ribbon_tool_order', merged)
-            self.map_settings.save()
-            self._rebuild_tool_ribbons()
-        tool_list.model().rowsMoved.connect(_on_tools_reordered)
-
-        def _new_ribbon():
-            name, ok = QInputDialog.getText(dlg, "New Ribbon", "Ribbon name:")
-            if not ok or not name.strip():
-                return
-            name = name.strip()
-            # An empty ribbon has no tools yet - it'll only actually
-            # appear once a tool is moved into it, since ribbons here
-            # are derived from the assignment rather than being
-            # independent objects. Remember the intent so the list
-            # shows it immediately as a hint of where to move things.
-            state['pending_new_ribbon'] = name
-            item = QListWidgetItem(name)
-            ribbon_list.addItem(item)
-            move_combo.addItem(name)
-            ribbon_list.setCurrentItem(item)
-            self._set_status(f"New ribbon '{name}' created - move a tool into it")
-        new_btn.clicked.connect(_new_ribbon)
-
-        def _delete_ribbon():
-            name = state['selected_ribbon']
-            if not name:
-                return
-            assignment = _current_assignment()
-            affected = [t for t, r in assignment.items() if r == name]
-            if affected:
-                ans = QMessageBox.question(
-                    dlg, "Delete Ribbon",
-                    f"'{name}' has {len(affected)} tool(s).\n"
-                    "They will move to Plotting.\nContinue?",
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel)
-                if ans != QMessageBox.StandardButton.Yes:
-                    return
-                for t in affected:
-                    assignment[t] = 'Plotting'
-                self._set_ribbon_assignment(assignment)
-                self.map_settings.save()
-                self._rebuild_tool_ribbons()
-            state['selected_ribbon'] = None
-            _refresh_ribbon_list()
-        del_btn.clicked.connect(_delete_ribbon)
-
-        def _move_selected():
-            item = tool_list.currentItem()
-            if not item:
-                return
-            tool_id = item.data(Qt.ItemDataRole.UserRole)
-            target = move_combo.currentText().strip()
-            if not tool_id or not target or target == state['selected_ribbon']:
-                return
-            assignment = _current_assignment()
-            assignment[tool_id] = target
-            self._set_ribbon_assignment(assignment)
-            self.map_settings.save()
-            self._rebuild_tool_ribbons()
-            _refresh_ribbon_list()
-        move_btn.clicked.connect(_move_selected)
-
-        def _on_size_changed(px):
-            size_label.setText(f"{px}px")
-            self.map_settings.set('ribbon_icon_size_horz', px)
-            self.map_settings.set('ribbon_icon_size_vert', px)
-            self.map_settings.save()
-            self._rebuild_tool_ribbons()
-        size_slider.valueChanged.connect(_on_size_changed)
-
-        def _save_preset():
-            name, ok = QInputDialog.getText(dlg, "Save Preset", "Preset name:")
-            if not ok or not name.strip():
-                return
-            data = {
-                'assignment': _current_assignment(),
-                'order': self.map_settings.get('ribbon_tool_order') or [],
-                'icon_size': size_slider.value(),
-            }
-            path = self._ribbon_presets_dir() / f"{name.strip()}.json"
-            try:
-                path.write_text(json.dumps(data, indent=2))
-                self._set_status(f"Saved ribbon preset '{name.strip()}'")
-            except Exception as e:
-                QMessageBox.warning(dlg, "Save Preset Error", str(e))
-        save_preset_btn.clicked.connect(_save_preset)
-
-        def _load_preset():
-            presets_dir = self._ribbon_presets_dir()
-            files = sorted(p.stem for p in presets_dir.glob('*.json'))
-            if not files:
-                QMessageBox.information(dlg, "Load Preset", "No saved presets found.")
-                return
-            name, ok = QInputDialog.getItem(dlg, "Load Preset", "Preset:", files, 0, False)
-            if not ok:
-                return
-            path = presets_dir / f"{name}.json"
-            try:
-                data = json.loads(path.read_text())
-            except Exception as e:
-                QMessageBox.warning(dlg, "Load Preset Error", str(e))
-                return
-            self._set_ribbon_assignment(data.get('assignment', {}))
-            self.map_settings.set('ribbon_tool_order', data.get('order', []))
-            loaded_size = data.get('icon_size')
-            if loaded_size:
-                self.map_settings.set('ribbon_icon_size_horz', loaded_size)
-                self.map_settings.set('ribbon_icon_size_vert', loaded_size)
-                size_slider.setValue(loaded_size)
-            self.map_settings.save()
-            self._rebuild_tool_ribbons()
-            state['selected_ribbon'] = None
-            _refresh_ribbon_list()
-            self._set_status(f"Loaded ribbon preset '{name}'")
-        load_preset_btn.clicked.connect(_load_preset)
-
-        def _on_accept():
-            dlg.accept()
-
-        def _on_cancel():
-            self._set_ribbon_assignment(snapshot_assignment)
-            self.map_settings.set('ribbon_tool_order', snapshot_order)
-            self.map_settings.set('ribbon_icon_size_horz', snapshot_icon_horz)
-            self.map_settings.set('ribbon_icon_size_vert', snapshot_icon_vert)
-            self.map_settings.save()
-            self._rebuild_tool_ribbons()
-            dlg.reject()
-        btns.accepted.connect(_on_accept)
-        btns.rejected.connect(_on_cancel)
-
-        _refresh_ribbon_list()
-        self._ribbon_manager_dlg = dlg
-        dlg.exec()
-
-    def _apply_ribbon_style(self, toolbar): #vers 2
-        """Apply icon size / padding / opacity to a ribbon, using whichever
-        of the vertical or horizontal settings match its current
-        orientation. Called on creation and again whenever the ribbon is
-        dragged to a dock area of the other orientation (orientationChanged),
-        so settings stay correct no matter where the user puts it."""
-        vertical = (toolbar.orientation() == Qt.Orientation.Vertical)
-        icon_sz = self.map_settings.get(
-            'ribbon_icon_size_vert' if vertical else 'ribbon_icon_size_horz')
-        padding = self.map_settings.get(
-            'ribbon_padding_vert' if vertical else 'ribbon_padding_horz')
-        btn_padding = self.map_settings.get(
-            'ribbon_button_padding_vert' if vertical else 'ribbon_button_padding_horz')
-        opacity = self.map_settings.get('ribbon_opacity')
-
-        toolbar.setIconSize(QSize(icon_sz, icon_sz))
-        toolbar.layout().setSpacing(max(0, int(padding)))
-
-        alpha = max(0, min(255, round(opacity / 100 * 255)))
-        base_col = None
-        if self.app_settings and hasattr(self.app_settings, 'get_theme_colors'):
-            tc = self.app_settings.get_theme_colors()
-            #hexval = tc.get('panel_bg')
-            hexval = tc.get('bg_primary')
-            #hexval = tc.get('bg_secondary')
-            if hexval:
-                base_col = QColor(hexval)
-
-        btn_rule = f"QToolButton {{ padding: {max(0, int(btn_padding))}px; }}"
-        if base_col is not None:
-            toolbar.setStyleSheet(
-                f"QToolBar {{ background: rgba({base_col.red()}, {base_col.green()}, "
-                f"{base_col.blue()}, {alpha}); "
-                f"spacing: {max(0, int(padding))}px; }} " + btn_rule)
-        else:
-            toolbar.setStyleSheet(
-                f"QToolBar {{ spacing: {max(0, int(padding))}px; }} " + btn_rule)
-
-        # Right-click anywhere on the ribbon's empty background opens a
-        # menu with Ribbon Manager access (per Keith's request) - only
-        # wire this once per toolbar, since _apply_ribbon_style also
-        # re-runs on every orientationChanged
-        if not getattr(toolbar, '_ribbon_ctx_menu_wired', False):
-            toolbar.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-            toolbar.customContextMenuRequested.connect(
-                lambda pos, t=toolbar: self._ribbon_context_menu(t, pos))
-            toolbar._ribbon_ctx_menu_wired = True
-
-    def _ribbon_context_menu(self, toolbar, pos): #vers 2
-        """Right-click context menu on any ribbon's empty background -
-        gives access to the Ribbon Manager without needing to dig
-        through Settings, plus quick lock/unlock for all ribbons at
-        once. Also lists every dock with a checkable show/hide action
-        (dock.toggleViewAction()) - per Keith's report that Object
-        Browser disappeared entirely with no way to bring it back;
-        this is the safety net for that failure mode, regardless of
-        what caused the dock to end up hidden in the first place."""
-        from PyQt6.QtWidgets import QMenu, QToolBar, QDockWidget
-        menu = QMenu(self)
-        menu.addAction("Ribbon Manager…", self._open_ribbon_manager)
-        menu.addSeparator()
-        outer_mw = getattr(self, '_outer_mw', None)
-        if outer_mw is not None:
-            menu.addAction("Lock All Ribbons",
-                lambda: [tb.setMovable(False) for tb in outer_mw.findChildren(QToolBar)])
-            menu.addAction("Unlock All Ribbons",
-                lambda: [tb.setMovable(True) for tb in outer_mw.findChildren(QToolBar)])
-            docks = outer_mw.findChildren(QDockWidget)
-            if docks:
-                menu.addSeparator()
-                docks_menu = menu.addMenu("Docks")
-                for dock in docks:
-                    docks_menu.addAction(f"Show {dock.windowTitle()}",
-                        lambda checked=False, d=dock: (d.show(), d.raise_()))
-        menu.exec(toolbar.mapToGlobal(pos))
 
     def _toggle_menubar(self, on: bool): #vers 3
         self.map_settings.set('show_menubar', on)
