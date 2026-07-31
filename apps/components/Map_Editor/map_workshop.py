@@ -9,7 +9,7 @@
 # has been renamed to MapWorkshop/Map Workshop/map_workshop throughout
 # this copy - the original Model_Editor/model_workshop.py is untouched
 # and still the real, working Model Workshop feature.
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 201
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 202
 # X-Seti - Apr 2026 - Map Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -108,6 +108,20 @@
 # Central widget (DFFViewport, the 3D mesh viewport) intentionally left
 # untouched for now per Keith's direction - not swapped for the World
 # Viewport dock at this time.
+# X-Seti - Jul31 2026 - Parked the Models left dock's DFF/COL model-table
+# content aside: _create_models_table_panel -> _create_models_table_panel_tmp
+# (unchanged body, inactive). setup_ui now passes an empty QWidget()
+# placeholder to self._middle_dock instead (dock is hidden anyway). Per
+# Keith's plan for later: rework this dock into an instance-stats panel
+# modelled on the original Item Editor Dialog (moomapper_dialog.png) - ID
+# Number, Model Name (also becomes the dock title), Position/Interior/
+# Scale/Rotation with nudge controls (_InstanceEditPanel already has
+# most of this, currently used as a floating overlay via
+# _show_instance_edit_panel - would need embedding as a dock instead),
+# a Validation checklist (new logic, not yet written), and texture
+# view/swap (Textures dock already lists Name/Size/Format, swap action
+# not yet added). Frame Hierarchy dock intentionally left as-is (hidden,
+# not parked) - only Models was in scope for this change.
 
 import os
 import math
@@ -425,7 +439,7 @@ except ImportError:
 # _create_ipl_tab
 # _create_left_panel
 # _create_level_card
-# _create_models_table_panel
+# _create_models_table_panel_tmp
 # _create_new_model
 # _create_new_surface
 # _create_object_browser_dock
@@ -4550,7 +4564,10 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # Files already could.
         right_panel = self._create_right_panel()
         left_panel = self._create_left_panel()
-        models_table_panel = self._create_models_table_panel()   # is self._middle_mw
+        # Models table panel parked (_create_models_table_panel_tmp) - dock
+        # is hidden anyway (see the hide loop below), placeholder keeps
+        # setWidget() happy without instantiating the DFF/COL machinery.
+        models_table_panel = QWidget()   # was self._create_models_table_panel()
         frame_hierarchy_panel = self._create_frame_hierarchy_panel()
         texture_panel = self._create_texture_panel()
 
@@ -9642,13 +9659,15 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         return panel
 
 
-    def _create_models_table_panel(self): #vers 2
-        """Create the Models table panel - mini toolbar + view toggle +
-        model table only. Frame Hierarchy and Textures are now separate
-        top-level dock widgets (see _create_frame_hierarchy_panel,
-        _create_texture_panel), not stacked into this same panel -
-        every section can be independently dragged/floated/docked now,
-        same as Files already could."""
+    def _create_models_table_panel_tmp(self): #vers 2
+        """PARKED (Jul 31 2026) - Model Workshop's DFF/COL model-table
+        panel (Open/Save/Import/Export/Undo/3D-View toolbar, Preview/
+        Details compact table, full details table) - disabled/temp per
+        Keith's direction, to be revisited later as a Map Workshop
+        instance-stats panel (Item Editor Dialog style: ID, Position,
+        Interior, Scale, Rotation + nudge, texture view/swap) instead
+        of DFF model management. Renamed aside rather than removed so
+        the working code stays available for reference/reuse."""
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
         panel.setMinimumWidth(250)
