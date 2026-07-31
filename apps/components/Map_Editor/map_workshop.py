@@ -9,7 +9,7 @@
 # has been renamed to MapWorkshop/Map Workshop/map_workshop throughout
 # this copy - the original Model_Editor/model_workshop.py is untouched
 # and still the real, working Model Workshop feature.
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 194
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 195
 # X-Seti - Apr 2026 - Map Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -27,6 +27,11 @@
 # MapSettings, MapSettingsDialog, _CornerOverlay, _InstanceEditPanel,
 # _FilteredLoaderStub, _ObjectBrowserModel, _InstanceTableModel.
 # No name collisions with existing classes - inserted whole, unmodified.
+# X-Seti - Jul31 2026 - Ported Object Browser methods (17) into MapWorkshop
+# from map_workshop_old_version.py: dock creation, population, column/context
+# menu handling, row selection, search, rename/delete/add. Not yet wired into
+# __init__ - dock creation call sites still to be added once remaining
+# MapWorkshop feature groups are ported.
 
 import os
 # Force X11/GLX backend for NVIDIA on Wayland
@@ -328,6 +333,7 @@ except ImportError:
 # _create_models_table_panel
 # _create_new_model
 # _create_new_surface
+# _create_object_browser_dock
 # _create_paint_bar
 # _create_preview_widget
 # _create_primitive_dialog    dialog to add Box/Sphere/Cylinder/Plane to DFF #vers 1
@@ -428,6 +434,18 @@ except ImportError:
 # _on_dff_geom_selected_tbl    handle model table row click → show geometry #vers 1
 # _on_frame_tree_clicked
 # _on_menu_btn_clicked
+# _on_object_browser_add_clicked
+# _on_object_browser_column_resized
+# _on_object_browser_column_visibility_toggled
+# _on_object_browser_context_menu
+# _on_object_browser_delete_clicked
+# _on_object_browser_header_context_menu
+# _on_object_browser_rename_clicked
+# _on_object_browser_tab_changed
+# _on_object_mode_changed
+# _on_object_row_double_clicked
+# _on_object_row_selected
+# _on_object_search_changed
 # _on_paint_mode_exited
 # _on_painted_face
 # _on_splitter_moved
@@ -468,12 +486,14 @@ except ImportError:
 # _populate_dff_detail_table
 # _populate_frame_tree
 # _populate_left_panel_from_img
+# _populate_object_browser
 # _populate_tex_thumbnails    64×64 thumbnail grid in texture panel #vers 1
 # _populate_texture_list    fill texture panel table from _mod_textures
 # _prelight_setup_dialog    light source setup for prelighting STUB #vers 1
 # _project_model_2d
 # _push_undo
 # _rebuild_toolbars
+# _recompute_object_browser_model_width
 # _refresh_icons    refresh all SVG icons after theme change
 # _refresh_main_window
 # _regenerate_all_thumbnails
@@ -483,6 +503,7 @@ except ImportError:
 # _remove_shadow_mesh
 # _remove_via_ide
 # _rename_col_model
+# _rename_object
 # _rename_shadow_shortcut
 # _render_collision_preview
 # _reset_hotkeys_to_defaults
@@ -569,6 +590,7 @@ except ImportError:
 # _update_all_buttons
 # _update_cursor
 # _update_dock_button_visibility
+# _update_object_browser_action_buttons
 # _update_select_mode_availability
 # _update_status_indicators
 # _update_tex_btn_compact    icon-only when texture panel narrow #vers 1
@@ -598,9 +620,9 @@ except ImportError:
 # save_col_file
 # setup_ui
 # shadow_dialog
-# showEvent
 # show_help
 # show_settings_dialog
+# showEvent
 # switch_surface_view
 # toggle_dock_mode
 #
@@ -17022,6 +17044,474 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         lay.addWidget(btn)
         dlg.exec()
 
+
+    # --- Object Browser (ported from map_workshop_old_version.py) ---
+
+    def _on_object_browser_column_resized(self, logical_index, old_size, new_size): #vers 1
+        """Persist the user's column widths for Object Browser whenever
+        they resize a column, so it doesn't reset to defaults on next
+        open. Column 2 (Model) is captured too even though it stays
+        Stretch-managed and isn't restored on the next load - harmless
+        to store, simpler than special-casing it out."""
+        view = getattr(self, '_object_browser_view', None)
+        if view is None:
+            return
+        widths = [view.columnWidth(c) for c in range(view.model().columnCount())]
+        self.map_settings.set('object_browser_column_widths', widths)
+        self.map_settings.save()
+
+    def _on_object_browser_header_context_menu(self, pos): #vers 1
+        """Right-click the Object Browser header to hide/show individual
+        columns - per Keith's request. A checked item means the column
+        is currently visible; unchecking hides it. Persisted to
+        object_browser_hidden_columns so it survives to the next
+        session."""
+        view = getattr(self, '_object_browser_view', None)
+        if view is None:
+            return
+        model = view.model()
+        header = view.horizontalHeader()
+        menu = QMenu(header)
+        for col in range(model.columnCount()):
+            label = model.headerData(col, Qt.Orientation.Horizontal) or f"Column {col}"
+            act = menu.addAction(str(label))
+            act.setCheckable(True)
+            act.setChecked(not view.isColumnHidden(col))
+            act.triggered.connect(
+                lambda checked, c=col: self._on_object_browser_column_visibility_toggled(c, checked))
+        menu.exec(header.mapToGlobal(pos))
+
+    def _on_object_browser_column_visibility_toggled(self, col, visible): #vers 2
+        view = getattr(self, '_object_browser_view', None)
+        if view is None:
+            return
+        view.setColumnHidden(col, not visible)
+        hidden = [c for c in range(view.model().columnCount()) if view.isColumnHidden(c)]
+        self.map_settings.set('object_browser_hidden_columns', hidden)
+        self.map_settings.save()
+        self._recompute_object_browser_model_width()
+
+    def _recompute_object_browser_model_width(self): #vers 1
+        """Explicitly set the Model column (col 2) to fill whatever
+        space is left after every other VISIBLE column, replacing
+        QHeaderView.ResizeMode.Stretch - confirmed by direct
+        measurement that Stretch mode wasn't reliably recalculating
+        after columns were hidden/shown (Keith's report: the Model
+        column widened correctly when he hid TXD/Instances/Size
+        interactively, but reset to narrow after a reload - Stretch's
+        automatic recalculation isn't dependable enough to build this
+        on). Called on initial setup, on any column visibility toggle,
+        and on the view's own resize (see eventFilter)."""
+        view = getattr(self, '_object_browser_view', None)
+        if view is None:
+            return
+        model = view.model()
+        if model is None:
+            return
+        other_width = sum(view.columnWidth(c) for c in range(model.columnCount())
+                          if c != 2 and not view.isColumnHidden(c))
+        available = view.viewport().width()
+        model_width = max(80, available - other_width)
+        view.setColumnWidth(2, model_width)
+
+    def _create_object_browser_dock(self): #vers 2
+        """Object Browser dock - Add/Delete/Rename icon row, search +
+        filter (All/Most Used/Favourites/Generic) over the loaded
+        object catalog. Double-click a row to toggle its favourite
+        status (persisted to map_settings)."""
+        from PyQt6.QtWidgets import QTableView, QLineEdit, QPushButton, QButtonGroup, QToolButton, QStackedWidget
+        from apps.methods.imgfactory_svg_icons import get_add_icon, get_trash_icon, get_rename_icon
+
+        OBJECT_BROWSER_ICON_SIZE = 18
+        OBJECT_BROWSER_BUTTON_W = 18
+        OBJECT_BROWSER_BUTTON_H = 18
+        panel = QWidget()
+
+        main_layout = QHBoxLayout(panel)
+        main_layout.setContentsMargins(4, 4, 4, 4)
+
+        # Per Keith: "I think there is a hidden splitter in the middle
+        # between both panes, I cant resize the objects browser
+        # window" - there was: a QSplitter with an empty, entirely
+        # unused right_panel (nothing was ever added to its layout)
+        # taking up half the space and interfering with resizing.
+        # Removed entirely - left_panel's content goes straight into
+        # main_layout now.
+        left_panel = QWidget()
+        left_layout = QVBoxLayout(left_panel)
+        left_layout.setContentsMargins(4, 4, 4, 4)
+        main_layout.addWidget(left_panel)
+
+        # Compact single-row layout: search field (stretching) + mode
+        # icon buttons (All/Most Used/Favourites/Generic) + Add/Del/
+        # Rename icons, replacing what was previously three separate
+        # rows (search, then Add/Del/Rename, then text-label mode
+        # buttons) - per Keith's TODOs asking for exactly this.
+        icon_color = self._get_icon_color()
+
+        top_row_widget = QWidget()
+        top_row = QHBoxLayout(top_row_widget)
+        top_row.setContentsMargins(0, 0, 0, 0)
+
+        group = QButtonGroup(panel)
+        group.setExclusive(True)
+        self._object_mode_buttons = {}
+
+        # IMG/DAT/IDE/IPL - compact colored-text buttons (the label
+        # text itself IS the icon, no separate graphic - per Keith's
+        # request to save space) for the tabs merged in from the old
+        # standalone Editing Panel dock. Order matches Keith's request:
+        # IMG, DAT, IDE, IPL, then All/Most Used/Favourites/Generic.
+        tab_colors = {'img': '#c060e0', 'dat': '#e0a030', 'ide': '#4090e0', 'ipl': '#40b060'}
+        tab_labels = {'img': "IMG", 'dat': "DAT", 'ide': "IDE", 'ipl': "IPL"}
+        self._object_browser_tab_buttons = {}
+        for tab_key in ('img', 'dat', 'ide', 'ipl'):
+            btn = QToolButton()
+            btn.setText(tab_labels[tab_key])
+            btn.setStyleSheet(f"QToolButton {{ color: {tab_colors[tab_key]}; font-weight: bold; }}")
+            btn.setToolTip(f"{tab_labels[tab_key]} tab")
+            btn.setCheckable(True)
+            btn.setFixedHeight(OBJECT_BROWSER_BUTTON_H)
+            btn.clicked.connect(lambda checked, k=tab_key: self._on_object_browser_tab_changed(k))
+            group.addButton(btn)
+            top_row.addWidget(btn)
+            self._object_browser_tab_buttons[tab_key] = btn
+
+        mode_icon_shapes = {'all': 'list_all', 'most_used': 'bars_most_used',
+                            'favourites': 'star_filled', 'generic': 'box_generic'}
+        mode_labels = {'all': "All", 'most_used': "Most Used",
+                      'favourites': "Favourites", 'generic': "Generic"}
+        self._object_mode_button_text_widths = {}
+        for mode in ('all', 'most_used', 'favourites', 'generic'):
+            icon = self._render_variant_icon(mode_icon_shapes[mode], None,
+                                             OBJECT_BROWSER_ICON_SIZE, icon_color,
+                                             has_menu=False)
+            btn = QToolButton()
+            btn.setIcon(icon)
+            btn.setText(mode_labels[mode])
+            btn.setToolTip(mode_labels[mode])
+            btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+            btn.setCheckable(True)
+            btn.setChecked(mode == 'all')
+            btn.setFixedHeight(OBJECT_BROWSER_BUTTON_H)
+            btn.setMinimumWidth(OBJECT_BROWSER_ICON_SIZE + 8)   # icon-only size floor - without
+                                                                # this the icon+text minimumSizeHint
+                                                                # (~80-100px per button) forces the
+                                                                # whole dock's minimum width way up,
+                                                                # blocking narrower resizing entirely
+            btn.clicked.connect(lambda checked, m=mode: self._on_object_mode_changed(m))
+            group.addButton(btn)
+            top_row.addWidget(btn)
+            self._object_mode_buttons[mode] = btn
+            # Estimated width needed in icon+text mode, computed directly
+            # from font metrics rather than by actually switching the
+            # button's style to measure it (avoids flicker/cascading
+            # resize events - see _update_mode_button_style).
+            from PyQt6.QtGui import QFontMetrics
+            text_w = QFontMetrics(btn.font()).horizontalAdvance(mode_labels[mode])
+            self._object_mode_button_text_widths[mode] = OBJECT_BROWSER_ICON_SIZE + text_w + 16
+
+        # Add/Delete/Rename icon row - previously these actions only
+        # existed as right-click context menu entries with no visible
+        # affordance at all (Keith couldn't find them in a screenshot -
+        # rightly so, since nothing hinted they existed). Real, visible
+        # SVG icon buttons, operating on whichever row is currently
+        # selected; disabled entirely when nothing is selected.
+        action_row_widget = QWidget()
+        action_row = QHBoxLayout(action_row_widget)
+        action_row.setContentsMargins(0, 0, 0, 0)
+        self._ob_add_btn = QPushButton(get_add_icon(OBJECT_BROWSER_ICON_SIZE, icon_color), "")
+        self._ob_add_btn.setToolTip("Add Instance Here - place another copy of the\n"
+                                    "selected model at the origin")
+        self._ob_add_btn.clicked.connect(self._on_object_browser_add_clicked)
+        self._ob_del_btn = QPushButton(get_trash_icon(18, icon_color), "")
+        self._ob_del_btn.setToolTip("Delete All Instances of the selected model")
+        self._ob_del_btn.clicked.connect(self._on_object_browser_delete_clicked)
+        self._ob_rename_btn = QPushButton(get_rename_icon(18, icon_color), "")
+        self._ob_rename_btn.setToolTip("Rename the selected object")
+        self._ob_rename_btn.clicked.connect(self._on_object_browser_rename_clicked)
+        for btn in (self._ob_add_btn, self._ob_del_btn, self._ob_rename_btn):
+            btn.setFixedSize(OBJECT_BROWSER_BUTTON_W, OBJECT_BROWSER_BUTTON_H)
+            btn.setEnabled(False)
+            action_row.addWidget(btn)
+        # Only shown when docked - in standalone mode the titlebar's own
+        # Add/Del/Rename icons cover this, so showing both would be
+        # redundant (per Keith's explicit request). The mode buttons
+        # above stay visible either way - they aren't duplicated
+        # anywhere else, unlike Add/Del/Rename.
+        action_row_widget.setVisible(not self.standalone_mode)
+        self._ob_action_row_widget = action_row_widget
+        top_row.addWidget(action_row_widget)
+
+        self._ob_top_row_widget = top_row_widget
+        top_row_widget.installEventFilter(self)
+        QTimer.singleShot(0, self._update_mode_button_style)
+        left_layout.addWidget(top_row_widget)
+
+        view = QTableView()
+        from PyQt6.QtGui import QFontMetrics
+        OBJECT_BROWSER_ROW_HEIGHT = QFontMetrics(view.font()).height() + 2   # text height + 2px
+        view.verticalHeader().setMinimumSectionSize(OBJECT_BROWSER_ROW_HEIGHT)
+        view.verticalHeader().setDefaultSectionSize(
+            OBJECT_BROWSER_ROW_HEIGHT
+        )
+        header = view.horizontalHeader()
+        header.setFixedHeight(QFontMetrics(header.font()).height() + 2)
+        header.setMinimumSectionSize(16)   # Qt's own default was silently clamping the narrow ★/ID widths upward
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
+        # Model (col 2) used to be QHeaderView.ResizeMode.Stretch, but
+        # that didn't reliably recalculate after hiding/showing other
+        # columns (confirmed by direct measurement, not just assumed) -
+        # explicit, directly-computed width instead (see
+        # _recompute_object_browser_model_width), recalculated on
+        # setup, column visibility changes, and view resize.
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)
+        header.sectionResized.connect(self._on_object_browser_column_resized)
+        header.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        header.customContextMenuRequested.connect(self._on_object_browser_header_context_menu)
+        view.verticalHeader().setVisible(False)
+        view.setEditTriggers(QTableView.EditTrigger.NoEditTriggers)
+        view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        view.doubleClicked.connect(self._on_object_row_double_clicked)
+        view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        view.customContextMenuRequested.connect(self._on_object_browser_context_menu)
+        view.installEventFilter(self)
+        model = _ObjectBrowserModel()
+        view.setModel(model)
+        # Narrow defaults for ★/ID (per Keith: "Fav * cell needs to be
+        # narrow, 5px of the ID, Model should fit the name") - just
+        # enough to show a star glyph and a typical 4-5 digit model ID,
+        # freeing the rest of the row width for Model. Saved widths (if
+        # any) override these below.
+        view.setColumnWidth(0, 20)
+        view.setColumnWidth(1, 45)
+        saved_widths = self.map_settings.get('object_browser_column_widths') or []
+        for col, width in enumerate(saved_widths):
+            if col < model.columnCount() and col != 2:   # 2 (Model) is computed, not restored
+                header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
+                view.setColumnWidth(col, width)
+        hidden_cols = self.map_settings.get('object_browser_hidden_columns') or []
+        for col in hidden_cols:
+            if col < model.columnCount():
+                view.setColumnHidden(col, True)
+        QTimer.singleShot(0, self._recompute_object_browser_model_width)
+        sel_model = view.selectionModel()
+        if sel_model is not None:
+            sel_model.currentRowChanged.connect(
+                lambda cur, prev: self._on_object_row_selected(cur.row()))
+        self._object_browser_view = view
+        self._object_browser_model = model
+
+        # Stacked content area - page 0 is the Object Browser table
+        # itself (All/Most Used/Favourites/Generic modes all share this
+        # one page, just filtering its rows); pages 1-4 are the tabs
+        # merged in from the former standalone Editing Panel dock.
+        content_stack = QStackedWidget()
+        content_stack.addWidget(view)
+        content_stack.addWidget(self._create_ide_tab())
+        content_stack.addWidget(self._create_ipl_tab())
+        content_stack.addWidget(self._create_dat_tab())
+        content_stack.addWidget(self._create_img_tab())
+        left_layout.addWidget(content_stack)
+        self._object_browser_content_stack = content_stack
+
+        dock = QDockWidget("Object Browser", self)
+        dock.setObjectName("Object Browser")
+        dock.setWidget(panel)
+        dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
+                        QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+
+        title_bar = QWidget()
+        title_lay = QHBoxLayout(title_bar)
+        title_lay.setContentsMargins(6, 2, 6, 2)
+        title_label = QLabel("Object Browser")
+        title_lay.addWidget(title_label)
+        search = QLineEdit()
+        search.setPlaceholderText("Search objects…")
+        search.setMinimumWidth(40)
+        search.textChanged.connect(self._on_object_search_changed)
+        title_lay.addWidget(search, 1)
+        self._object_search_edit = search
+        dock.setTitleBarWidget(title_bar)
+
+        self._object_browser_dock = dock
+        return dock
+
+    def _populate_object_browser(self, loader): #vers 1
+        """Fill the Object Browser from a completed load - instance
+        counts per model (for Most Used) computed once here, not
+        recomputed on every filter change."""
+        model = getattr(self, '_object_browser_model', None)
+        if model is None:
+            return
+        model.set_model_cache(getattr(self, '_model_cache', None))
+        from collections import Counter
+        counts = Counter(inst.model_id for inst in loader.instances)
+        favourites = self.map_settings.get('favourite_objects') or []
+        model.set_objects(list(loader.objects.values()), counts, favourites)
+
+    def _on_object_search_changed(self, text): #vers 1
+        model = getattr(self, '_object_browser_model', None)
+        if model is not None:
+            model.set_search(text)
+
+    def _on_object_mode_changed(self, mode): #vers 2
+        model = getattr(self, '_object_browser_model', None)
+        if model is not None:
+            model.set_mode(mode)
+        stack = getattr(self, '_object_browser_content_stack', None)
+        if stack is not None:
+            stack.setCurrentIndex(0)   # table page - IMG/DAT/IDE/IPL buttons show pages 1-4
+
+    def _on_object_browser_tab_changed(self, tab_key): #vers 1
+        """IMG/DAT/IDE/IPL button clicked - switches the shared content
+        stack to that tab's page instead of the Object Browser table,
+        per Keith's request to merge the former standalone Editing
+        Panel dock's tabs in here."""
+        stack = getattr(self, '_object_browser_content_stack', None)
+        if stack is None:
+            return
+        page_index = {'ide': 1, 'ipl': 2, 'dat': 3, 'img': 4}.get(tab_key)
+        if page_index is not None:
+            stack.setCurrentIndex(page_index)
+
+    def _on_object_row_selected(self, row): #vers 2
+        """Selecting a model row in the (now merged) Object Browser
+        centres the camera + shows the edit panel on that model's
+        FIRST placement, if it has any - with Prev/Next cycling stored
+        for models with multiple instances. Models with zero instances
+        (defined in the IDE but never placed) show identity/IDE/2DFX/
+        TOBJ info in the panel without any placement-specific data,
+        since there's no instance to show it for. Also enables/disables
+        the Add/Delete/Rename icon row based on selection state."""
+        if row < 0:
+            self._selected_object_model_id = None
+            self._update_object_browser_action_buttons()
+            return
+        model = self._object_browser_model
+        obj = model.object_at(row)
+        if obj is None:
+            self._selected_object_model_id = None
+            self._update_object_browser_action_buttons()
+            return
+        self._selected_object_model_id = obj.model_id
+        self._update_object_browser_action_buttons()
+        loader = getattr(self, '_world_loader', None)
+        instances = loader.get_instances_for_model(obj.model_id) if loader else []
+        if not instances:
+            self._current_model_instances = []
+            self._current_instance_index = 0
+            return
+        self._current_model_instances = instances
+        self._current_instance_index = 0
+        self._center_on_instance(instances[0], nav_info=(0, len(instances)))
+
+    def _update_object_browser_action_buttons(self): #vers 1
+        """Enable/disable the Add/Delete/Rename icon buttons to match
+        the current selection - Add and Rename work regardless of
+        instance count, Delete additionally needs at least one
+        instance to remove."""
+        mid = getattr(self, '_selected_object_model_id', None)
+        has_selection = mid is not None
+        self._ob_add_btn.setEnabled(has_selection)
+        self._ob_rename_btn.setEnabled(has_selection)
+        instance_count = 0
+        if has_selection:
+            model = self._object_browser_model
+            instance_count = model._instance_counts.get(mid, 0)
+        self._ob_del_btn.setEnabled(has_selection and instance_count > 0)
+
+    def _on_object_browser_add_clicked(self): #vers 1
+        mid = getattr(self, '_selected_object_model_id', None)
+        if mid is not None:
+            self._add_instance_of_model(mid)
+            self._update_object_browser_action_buttons()
+
+    def _on_object_browser_delete_clicked(self): #vers 1
+        mid = getattr(self, '_selected_object_model_id', None)
+        if mid is not None:
+            self._delete_all_instances_of_model(mid)
+            self._update_object_browser_action_buttons()
+
+    def _on_object_browser_rename_clicked(self): #vers 1
+        mid = getattr(self, '_selected_object_model_id', None)
+        if mid is not None:
+            self._rename_object(mid)
+
+    def _on_object_browser_context_menu(self, pos): #vers 2
+        """Right-click a row for Favourites, Rename, Add Instance, and
+        Delete All Instances - the Add/Del/Rename functions Keith asked
+        to continue. These are in-memory operations for now (mutating
+        self._all_instances and the loader's own instances list, kept
+        consistent with each other) - writing changes back to the
+        actual IPL/IDE files on disk isn't built yet, tracked
+        separately in TODO.md."""
+        view = self._object_browser_view
+        index = view.indexAt(pos)
+        if not index.isValid():
+            return
+        model = self._object_browser_model
+        obj = model.object_at(index.row())
+        if obj is None:
+            return
+
+        menu = QMenu(view)
+        is_fav = obj.model_id in model._favourites
+        fav_act = menu.addAction("Remove from Favourites" if is_fav else "Add to Favourites")
+        fav_act.triggered.connect(lambda checked=False, mid=obj.model_id:
+                                  self._toggle_instance_favourite(mid))
+        menu.addSeparator()
+        rename_act = menu.addAction("Rename Object…")
+        rename_act.triggered.connect(lambda checked=False, mid=obj.model_id:
+                                     self._rename_object(mid))
+        add_act = menu.addAction("Add Instance Here…")
+        add_act.triggered.connect(lambda checked=False, mid=obj.model_id:
+                                  self._add_instance_of_model(mid))
+        instance_count = model._instance_counts.get(obj.model_id, 0)
+        del_act = menu.addAction(f"Delete All Instances ({instance_count})")
+        del_act.setEnabled(instance_count > 0)
+        del_act.triggered.connect(lambda checked=False, mid=obj.model_id:
+                                  self._delete_all_instances_of_model(mid))
+        menu.exec(view.viewport().mapToGlobal(pos))
+
+    def _rename_object(self, model_id): #vers 1
+        """Rename an object's model_name - IN MEMORY ONLY for now
+        (updates the IDEObject held by the current GTAWorldLoader and
+        refreshes Object Browser's display). Does NOT yet write the
+        new name back to the actual IDE file, or update GTA3/VC's
+        text-format IPL lines that redundantly store the name (SA's
+        format doesn't) - that needs real file-writing infrastructure,
+        tracked separately."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            return
+        obj = loader.get_object(model_id)
+        if obj is None:
+            return
+        new_name, ok = QInputDialog.getText(
+            self, "Rename Object", "New name:", text=obj.model_name)
+        if not ok or not new_name.strip():
+            return
+        obj.model_name = new_name.strip()
+        for inst in getattr(self, '_all_instances', []):
+            if inst.model_id == model_id:
+                inst.model_name = obj.model_name
+        self._object_browser_model._recompute()
+        self._set_status(f"Renamed object {model_id} to '{obj.model_name}' "
+                         f"(in memory only - not yet written to disk)")
+
+    def _on_object_row_double_clicked(self, index): #vers 1
+        """Double-click a row to toggle its favourite status."""
+        model = getattr(self, '_object_browser_model', None)
+        if model is None:
+            return
+        obj = model.object_at(index.row())
+        if obj is None:
+            return
+        new_favourites = model.toggle_favourite(obj.model_id)
+        self.map_settings.set('favourite_objects', new_favourites)
+        self.map_settings.save()
 class ZoomablePreview(QLabel): #vers 2
     """Fixed preview widget with zoom and pan"""
 
