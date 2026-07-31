@@ -9,7 +9,7 @@
 # has been renamed to MapWorkshop/Map Workshop/map_workshop throughout
 # this copy - the original Model_Editor/model_workshop.py is untouched
 # and still the real, working Model Workshop feature.
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 205
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 206
 # X-Seti - Apr 2026 - Map Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -214,6 +214,32 @@
 # switches _viewport_stack's current widget with the dock wrapper in
 # place; viewport_dock's toggleViewAction enabled and dock stays visible
 # through the toggle.
+# X-Seti - Jul31 2026 - Hid self._viewport_dock by default and removed
+# the "View" ribbon entirely, per Keith: "move the view functions...
+# to the other viewpoint that can be moved, then remove the original
+# view function". self._viewport_dock (Model Workshop's own single-
+# mesh DFFViewport-based preview, just made into a movable dock in the
+# previous change) is redundant for Map Workshop's actual purpose -
+# World View (MapViewport-based, the real map/instance viewport) is
+# already movable and already has its own equivalent single/multi-pane
+# behaviour via _toggle_world_pane_maximize (defaults to 3D-only).
+# Chose to hide rather than fully delete self.preview_widget/self.
+# _viewport_stack - ~26 other references to them still exist in
+# dormant Model Workshop texture/material code (flip/rotate buttons,
+# background colour, texture cache, geometry-loaded callback) that
+# isn't worth unpicking for this; hiding the dock achieves the same
+# end-user result (no redundant viewport, no confusing toggle) with
+# far less blast radius. Removed the "View" ribbon's 4-Pane toggle
+# button entirely (nothing left for it to control) -
+# _toggle_quad_view/_create_quad_viewport are untouched, just no
+# longer wired to a ribbon. Bumped _OUTER_LAYOUT_VERSION 3->4 and
+# _RIBBON_LAYOUT_VERSION 3->4 so old saved state doesn't restore the
+# dock back to visible or try to rebuild the removed ribbon.
+# Verified: viewport_dock hidden by default and stays hidden through
+# _restore_outer_layout; world_view_dock still visible; _quad_view_act
+# no longer exists on the instance; createPopupMenu() lists Viewport
+# (hidden, still recoverable) alongside the other panes, and only the
+# World ribbon remains (View is gone).
 
 import os
 import math
@@ -4476,7 +4502,9 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     # user can now freely drag/float/tab any panel, not just ribbons.
     # 3 = mesh-editing ribbons (Selection/Snap/Geometry/Navigation/Render)
     # parked inactive, replaced by Map Workshop's own "World" ribbon.
-    _RIBBON_LAYOUT_VERSION = 3
+    # 4 = "View" ribbon (4-Pane toggle) removed - its target dock
+    # (Viewport) is hidden by default now, redundant with World View.
+    _RIBBON_LAYOUT_VERSION = 4
 
     # Compact button height for Control Panel widgets (ported from
     # map_workshop_old_version.py)
@@ -10275,6 +10303,18 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # Widest single pane by default - it's still the main content most
         # of the time, just no longer structurally locked in place.
         inner_mw.resizeDocks([self._viewport_dock], [900], Qt.Orientation.Horizontal)
+        # Per Keith (Jul 31 2026): this is Model Workshop's own single-
+        # mesh preview viewport (DFFViewport-based), redundant with World
+        # View (MapViewport-based, the real Map Workshop world viewport,
+        # which already has its own Top/Side/3D pane toggle via
+        # _toggle_world_pane_maximize) - hidden by default rather than
+        # removed outright, since ~26 other references to self.preview_
+        # widget/self._viewport_stack still exist in dormant Model
+        # Workshop texture/material code that isn't worth unpicking for
+        # this. The "View" ribbon (its 4-Pane toggle) has been removed
+        # entirely since it had nothing left to control - see
+        # _build_toolbars.
+        self._viewport_dock.setVisible(False)
 
         self._gl_viewport  = self.preview_widget
         self._qp_viewport  = self.preview_widget
@@ -10655,14 +10695,13 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
              lambda checked: self._toggle_cull_boxes(checked),
              checkable=True, attr='_cull_boxes_act')
 
-        # - Ribbon: View - viewpoint 1 (single) / viewpoint 2 (4-pane
-        # quad) toggle. _toggle_quad_view/_create_quad_viewport already
-        # existed (previously only wired into the parked
-        # _build_toolbars_tmp) - reused here as-is, not rewritten.
-        tb_view = _tb("View")
-        _act(tb_view, "4-Pane View", self.icon_factory.view_icon,
-             lambda checked: self._toggle_quad_view(checked),
-             checkable=True, attr='_quad_view_act')
+        # "View" ribbon (4-Pane View toggle for self._viewport_dock)
+        # removed Jul 31 2026, per Keith - that dock is Model Workshop's
+        # own single-mesh preview, redundant with World View for Map
+        # Workshop's purposes and now hidden by default, so the ribbon
+        # had nothing left to control. _toggle_quad_view/
+        # _create_quad_viewport still exist, untouched, just no longer
+        # wired to a ribbon button.
 
     def _toolbar_context_menu(self, toolbar, pos): #vers 2
         """Right-click context menu on any toolbar."""
@@ -10850,8 +10889,9 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     # Control Panel) and Files/Models/Frame Hierarchy/Textures hidden by
     # default - bumped so any layout saved before this point (which would
     # restore those 4 back to visible) is cleanly rejected rather than
-    # fighting the new default.
-    _OUTER_LAYOUT_VERSION = 3
+    # fighting the new default. 4 = viewport became its own QDockWidget
+    # (Viewport), then hidden by default (redundant with World View).
+    _OUTER_LAYOUT_VERSION = 4
 
     def _save_outer_layout(self): #vers 1
         """Save _outer_mw's dock layout (Files/Models around the viewport)."""
