@@ -595,7 +595,7 @@ except ImportError:
 # _create_preview_widget
 # _create_primitive_dialog    dialog to add Box/Sphere/Cylinder/Plane to DFF #vers 1
 # _create_quad_viewport
-# _create_right_panel
+
 # _create_shadow_mesh
 # _create_stat_box
 # _create_stats_grid
@@ -4656,7 +4656,7 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.move(parent_pos.x() + 50, parent_pos.y() + 80)
 
 
-        # Paint toolbar attrs — set by _create_paint_bar() called from _create_right_panel
+        # Paint toolbar attrs — set by _create_paint_bar() called from _create_viewport_dock
         self.paint_toolbar   = None
         self.paint_mat_combo = None
         self.paint_swatch    = None
@@ -4682,7 +4682,7 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
           - _outer_mw: hosts Files/Models as QDockWidgets, with the
             Viewport panel as its central widget. Dragging Files/Models
             anywhere (including onto/around the viewport) uses this one.
-          - _inner_mw (built in _create_right_panel, unchanged): hosts
+          - _inner_mw (built in _create_viewport_dock, unchanged): hosts
             just the viewport + its own ribbons (Selection/Snap/Geometry/
             Navigation/Render) - clean 4-sided docking around the
             viewport, independent of where Files/Models currently sit.
@@ -4756,8 +4756,9 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # _save_toolbar_state, _restore_toolbar_state,
         # _toolbar_context_menu, RibbonManagerDialog) keeps working
         # unchanged, now correctly operating on the shared window.
-        self._create_right_panel()
+        self._create_viewport_dock()
         left_panel = self._create_left_panel()
+
         # Models table panel parked (_create_models_table_panel_tmp) - dock
         # is hidden anyway (see the hide loop below), placeholder keeps
         # setWidget() happy without instantiating the DFF/COL machinery.
@@ -10295,17 +10296,10 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             pass
         self._set_status(f"Model Info ribbon moved to {location} panel")
 
-    def _create_right_panel(self): #vers 17
+    def _create_viewport_dock(self): #vers 17
         """Viewport + ribbons, built directly onto self._outer_mw instead
-        of a separate nested QMainWindow (Jul 31 2026, per Keith: unify
-        ribbons and docks into one snappable window, no separate left/
-        right areas). self._inner_mw is kept as an alias to self._outer_mw
-        so _build_toolbars/_rebuild_toolbars/_save_toolbar_state/
-        _restore_toolbar_state/_toolbar_context_menu/RibbonManagerDialog
-        all keep working unchanged. The viewport itself is a QDockWidget
-        (self._viewport_dock), not the central widget - Keith noticed it
-        had no draggable header like every other pane, since a
-        QMainWindow's central widget can never float/move that way."""
+        of a separate nested QMainWindow, there should only be one dock
+        so this one stays, we need to add the eye icon back for quad."""
         icon_color = self._get_icon_color()
 
         inner_mw = self._outer_mw
