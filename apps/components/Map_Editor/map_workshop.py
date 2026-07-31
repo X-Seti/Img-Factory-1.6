@@ -9,7 +9,7 @@
 # has been renamed to MapWorkshop/Map Workshop/map_workshop throughout
 # this copy - the original Model_Editor/model_workshop.py is untouched
 # and still the real, working Model Workshop feature.
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 206
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 207
 # X-Seti - Apr 2026 - Map Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -240,6 +240,36 @@
 # no longer exists on the instance; createPopupMenu() lists Viewport
 # (hidden, still recoverable) alongside the other panes, and only the
 # World ribbon remains (View is gone).
+# X-Seti - Jul31 2026 - Two live-testing findings from Keith:
+# 1. setVisible(False) alone wasn't enough for self._viewport_dock - it
+#    was still added to LeftDockWidgetArea, so it still occupied a slot
+#    in that area's internal splitter chain (alongside Files/Models/
+#    Frame Hierarchy/Textures). Keith found that dragging the left
+#    splitter slightly revealed it despite isVisible() being False.
+#    Fixed by calling outer_mw.removeDockWidget() right after adding it,
+#    fully detaching it from the dock-area layout tree instead of just
+#    hiding it - no more splitter slot to leak through. The dock/
+#    preview_widget/viewport_stack objects stay alive in Python, just no
+#    longer part of outer_mw's layout at all - not in the right-click
+#    pane menu anymore either (only lists docks outer_mw still owns),
+#    but can be re-added later via outer_mw.addDockWidget(...) if ever
+#    needed. Files/Models/Frame Hierarchy/Textures were NOT changed to
+#    match (still just hidden, not removed) - only Viewport was reported
+#    as actually leaking, so only Viewport was fixed this way; worth
+#    applying the same fix to the other 4 if the same bug ever surfaces
+#    there.
+# 2. No dock/toolbar edge-snap preview appears at all when dragging,
+#    even though dragging itself clearly works (a dock can be dragged
+#    off into floating - confirmed by Keith's screenshot). This points
+#    away from the custom title bars (_make_dock_collapsible) as the
+#    cause, since if they were blocking mouse events entirely, dragging
+#    wouldn't work either. Leading hypothesis instead: a Wayland
+#    compositor limitation - Qt's snap-preview needs live cross-window
+#    geometry tracking during drag that Wayland restricts more than X11
+#    does (Keith's dev environment is Garuda Linux KDE/Wayland). Not
+#    something fixable from application code if confirmed - suggested
+#    Keith test with QT_QPA_PLATFORM=xcb to check whether it's
+#    Wayland-specific, not yet confirmed either way.
 
 import os
 import math
@@ -10299,22 +10329,26 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             QDockWidget.DockWidgetFeature.DockWidgetFloatable |
             QDockWidget.DockWidgetFeature.DockWidgetClosable)
         self._make_dock_collapsible(self._viewport_dock, "Viewport")
-        inner_mw.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self._viewport_dock)
-        # Widest single pane by default - it's still the main content most
-        # of the time, just no longer structurally locked in place.
-        inner_mw.resizeDocks([self._viewport_dock], [900], Qt.Orientation.Horizontal)
         # Per Keith (Jul 31 2026): this is Model Workshop's own single-
         # mesh preview viewport (DFFViewport-based), redundant with World
         # View (MapViewport-based, the real Map Workshop world viewport,
         # which already has its own Top/Side/3D pane toggle via
-        # _toggle_world_pane_maximize) - hidden by default rather than
-        # removed outright, since ~26 other references to self.preview_
-        # widget/self._viewport_stack still exist in dormant Model
-        # Workshop texture/material code that isn't worth unpicking for
-        # this. The "View" ribbon (its 4-Pane toggle) has been removed
-        # entirely since it had nothing left to control - see
-        # _build_toolbars.
-        self._viewport_dock.setVisible(False)
+        # _toggle_world_pane_maximize). Originally just hidden via
+        # setVisible(False) while still added to LeftDockWidgetArea, but
+        # Keith found that left it still occupying a slot in that area's
+        # internal splitter chain (alongside Files/Models/Frame
+        # Hierarchy/Textures) - dragging that splitter could reveal it
+        # despite isVisible() being False. Fix: add it, then immediately
+        # remove it from outer_mw's dock-area layout entirely
+        # (removeDockWidget) rather than just hiding it - no more splitter
+        # slot to leak through. self._viewport_dock (and self.
+        # preview_widget/self._viewport_stack, ~26 other references) stay
+        # alive as Python objects, just fully detached from the visible
+        # layout - not rediscoverable via the right-click pane menu
+        # anymore (that only lists docks outer_mw still owns), but can be
+        # re-added later with outer_mw.addDockWidget(...) if ever needed.
+        inner_mw.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self._viewport_dock)
+        inner_mw.removeDockWidget(self._viewport_dock)
 
         self._gl_viewport  = self.preview_widget
         self._qp_viewport  = self.preview_widget
