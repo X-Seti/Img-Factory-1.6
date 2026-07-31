@@ -9,7 +9,7 @@
 # has been renamed to MapWorkshop/Map Workshop/map_workshop throughout
 # this copy - the original Model_Editor/model_workshop.py is untouched
 # and still the real, working Model Workshop feature.
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 208
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 209
 # X-Seti - Apr 2026 - Map Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -301,6 +301,38 @@
 # ("Full View"); Show All Panes toggle correctly switches between
 # single and all-3 and back. ast.parse clean, full QApplication
 # instantiation clean.
+# X-Seti - Jul31 2026 - Reverted the ribbon/dock unification from
+# earlier today. Keith reported dock/ribbon edge-snap drag preview
+# wasn't working, and ruled out both leading hypotheses: tested under
+# QT_QPA_PLATFORM=xcb (still broken, so not Wayland-specific), and
+# ribbons (plain QToolBars, no custom code) losing snapping too (so not
+# the custom dock title bars either, since they never touch ribbons).
+# Confirmed working in map_workshop_old_version.py's original separate-
+# window architecture. That leaves "ribbons and docks sharing one
+# QMainWindow" as the one remaining variable - and matches the exact
+# category of an earlier revert (8b950b9/cb81f7f) this unification had
+# already been flagged as possibly repeating, before Keith chose to try
+# it anyway.
+# Re-split self._inner_mw back into its own separate nested QMainWindow
+# (created fresh inside _create_viewport_dock, no longer aliased to
+# self._outer_mw). self._viewport_dock's widget is now inner_mw itself
+# (a QMainWindow can be a dock's content widget) instead of the world
+# splitter directly; inner_mw.setCentralWidget(world_splitter) puts the
+# map panes back as inner_mw's own central widget, and
+# _build_toolbars(inner_mw, ...) attaches ribbons to that separate
+# window again - so ribbons dock within the Viewport dock's own 4
+# edges, and outer_mw's docks (Object Browser, Control Panel, etc.)
+# snap independently of them, same separation as before today's
+# unification. Bumped _RIBBON_LAYOUT_VERSION 4->5 and
+# _OUTER_LAYOUT_VERSION 4->5 so old saved state from the brief unified
+# period doesn't get replayed against this reverted structure.
+# Verified: self._inner_mw is no longer self._outer_mw (separate
+# objects again); _viewport_dock.widget() is inner_mw;
+# inner_mw.centralWidget() is the world splitter; Show All Panes
+# toggle still works; RibbonManagerDialog still correctly finds the
+# World ribbon (now via the separate inner_mw); outer_mw's
+# createPopupMenu() no longer lists ribbons, only docks. ast.parse
+# clean, full QApplication instantiation clean.
 
 import os
 import math
@@ -4565,7 +4597,12 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     # parked inactive, replaced by Map Workshop's own "World" ribbon.
     # 4 = "View" ribbon (4-Pane toggle) removed - its target dock
     # (Viewport) is hidden by default now, redundant with World View.
-    _RIBBON_LAYOUT_VERSION = 4
+    # 5 = ribbons moved back into a separate inner_mw (was briefly
+    # unified with outer_mw) - unifying broke Qt's dock/ribbon edge-snap
+    # drag preview entirely (confirmed not Wayland, confirmed not the
+    # custom dock title bars), matching the category of an earlier
+    # revert (8b950b9/cb81f7f) this had already been warned might repeat.
+    _RIBBON_LAYOUT_VERSION = 5
 
     # Compact button height for Control Panel widgets (ported from
     # map_workshop_old_version.py)
@@ -10327,25 +10364,45 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             pass
         self._set_status(f"Model Info ribbon moved to {location} panel")
 
-    def _create_viewport_dock(self): #vers 18
-        """The one remaining viewport dock (Jul 31 2026, per Keith:
-        "get rid of the full view dock and transfer its functions to
-        the other viewer... this way, we only get one viewpoint
-        window"). Content is now the Top/Side/3D MapViewport triple-
-        pane splitter that used to live in the separate World View
-        dock (_create_world_viewport_dock, now parked aside as
-        _create_world_viewport_dock_tmp) - that's Map Workshop's real
-        content, not the old DFFViewport single-mesh preview. A "Show
-        All Panes" eye-icon toggle in the World ribbon switches between
-        single (3D only, "Full View") and all three, reusing the
-        existing _toggle_world_pane_maximize mechanism unchanged.
-        self.preview_widget/self._viewport_stack (DFFViewport) are
-        still created but not shown anywhere - kept alive only so the
-        ~26 other references to them in dormant Model Workshop texture/
-        material code don't break."""
+    def _create_viewport_dock(self): #vers 19
+        """The one remaining viewport dock. Content is the Top/Side/3D
+        MapViewport triple-pane splitter that used to live in the
+        separate World View dock (now parked as
+        _create_world_viewport_dock_tmp) - Map Workshop's real content,
+        not the old DFFViewport single-mesh preview. A "Show All Panes"
+        eye-icon toggle in the World ribbon switches between single
+        (3D only, "Full View") and all three.
+
+        Jul 31 2026 - re-split ribbons into their own nested inner_mw
+        again (separate from self._outer_mw), reverting the Jul 31
+        unification. Keith confirmed dock/ribbon edge-snap was working
+        in map_workshop_old_version.py's separate-window architecture,
+        and ruled out Wayland (tested under QT_QPA_PLATFORM=xcb, still
+        broken) and the custom dock title bars (ribbons are plain
+        QToolBars with no custom code, and they ALSO lost snapping) -
+        leaving "ribbons and docks sharing one QMainWindow" as the
+        remaining variable, matching the exact category of the earlier
+        revert (8b950b9/cb81f7f) this unification had already been
+        warned might repeat. self.preview_widget/self._viewport_stack
+        (DFFViewport) still created but not shown anywhere - kept alive
+        only so the ~26 other references to them in dormant Model
+        Workshop texture/material code don't break."""
         icon_color = self._get_icon_color()
 
-        inner_mw = self._outer_mw
+        # Separate nested QMainWindow again for the viewport + its own
+        # ribbons - NOT aliased to self._outer_mw anymore. Same pattern
+        # map_workshop_old_version.py used (and the original Model
+        # Workshop base, before today's unification attempt).
+        from PyQt6.QtWidgets import QMainWindow as _QMainWindow
+        inner_mw = _QMainWindow()
+        inner_mw.setWindowFlags(Qt.WindowType.Widget)
+        inner_mw.setDockOptions(
+            _QMainWindow.DockOption.AllowNestedDocks |
+            _QMainWindow.DockOption.AllowTabbedDocks)
+        inner_mw.setStyleSheet(
+            "QMainWindow::separator { "
+            "background: palette(mid); width: 5px; height: 5px; } "
+            "QMainWindow::separator:hover { background: palette(highlight); }")
         self._inner_mw = inner_mw
 
         # Kept alive, unused/unshown - safety net for other code that
@@ -10391,16 +10448,21 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._world_splitter = world_splitter
         self._maximized_world_pane = None
 
+        # world_splitter is inner_mw's central widget - ribbons dock
+        # around it within inner_mw's own 4 edges, same as before today's
+        # unification, just with map panes instead of a mesh preview.
+        inner_mw.setCentralWidget(world_splitter)
+
         self._viewport_dock = QDockWidget("Viewport", self)
         self._viewport_dock.setObjectName("Viewport")
-        self._viewport_dock.setWidget(world_splitter)
+        self._viewport_dock.setWidget(inner_mw)
         self._viewport_dock.setFeatures(
             QDockWidget.DockWidgetFeature.DockWidgetMovable |
             QDockWidget.DockWidgetFeature.DockWidgetFloatable |
             QDockWidget.DockWidgetFeature.DockWidgetClosable)
         self._make_dock_collapsible(self._viewport_dock, "Viewport")
-        inner_mw.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self._viewport_dock)
-        inner_mw.resizeDocks([self._viewport_dock], [900], Qt.Orientation.Horizontal)
+        self._outer_mw.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self._viewport_dock)
+        self._outer_mw.resizeDocks([self._viewport_dock], [900], Qt.Orientation.Horizontal)
 
         # Default to showing only 3D ("Full View"), per Keith's original
         # request for World View, carried over here - double-click any
@@ -10408,7 +10470,8 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if self._world_panes:
             self._toggle_world_pane_maximize(self._world_panes[2])   # index 2 = "3D"
 
-        # Build all toolbars and add to the (now shared) QMainWindow
+        # Build all toolbars onto inner_mw - back to its own separate
+        # ribbon space, not shared with self._outer_mw's docks.
         self._build_toolbars(inner_mw, icon_color)
 
         # Restore saved toolbar state (positions, rows, floating)
@@ -10992,7 +11055,10 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     # restore those 4 back to visible) is cleanly rejected rather than
     # fighting the new default. 4 = viewport became its own QDockWidget
     # (Viewport), then hidden by default (redundant with World View).
-    _OUTER_LAYOUT_VERSION = 4
+    # 5 = World View merged into the Viewport dock (one viewpoint total);
+    # ribbons moved back into their own inner_mw, no longer sharing
+    # outer_mw's dock-area layout.
+    _OUTER_LAYOUT_VERSION = 5
 
     def _save_outer_layout(self): #vers 1
         """Save _outer_mw's dock layout (Files/Models around the viewport)."""
