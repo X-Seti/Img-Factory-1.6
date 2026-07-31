@@ -9,7 +9,7 @@
 # has been renamed to MapWorkshop/Map Workshop/map_workshop throughout
 # this copy - the original Model_Editor/model_workshop.py is untouched
 # and still the real, working Model Workshop feature.
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 203
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 204
 # X-Seti - Apr 2026 - Map Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -149,6 +149,48 @@
 # correctly toggle visibility on trigger(); Model Workshop docks
 # confirmed still hidden by default even after _restore_outer_layout
 # fires.
+# X-Seti - Jul31 2026 - Unified ribbons and docks into ONE snappable
+# QMainWindow, per Keith: "use _outer_mw (owns all the docks), adding
+# the right_panel's own the viewport + all ribbon toolbars". Previously
+# _create_right_panel built its own separate nested QMainWindow
+# (_inner_mw) for the viewport + ribbons, while _outer_mw separately
+# owned all the docks (World Viewport/Object Browser/etc) - two
+# independent Qt widget hierarchies, so nothing could snap across the
+# boundary between them (ribbons stuck to the viewport's own 4 edges,
+# docks stuck to the outer window's 4 edges). Note: this exact
+# "everything in one window" approach was tried before and reverted
+# (rollback points 8b950b9, cb81f7f) because dragging a ribbon could
+# then span the whole window instead of staying a strip - flagged this
+# history to Keith before proceeding; he confirmed to go ahead anyway.
+# Fix: outer_mw now created BEFORE _create_right_panel() runs (was
+# after); _create_right_panel no longer creates its own QMainWindow or
+# QFrame wrapper - it sets self._inner_mw = self._outer_mw (alias) and
+# calls outer_mw.setCentralWidget(viewport_stack) + _build_toolbars(
+# outer_mw, ...) directly. Every other method that already referenced
+# self._inner_mw (_build_toolbars, _rebuild_toolbars, _save_toolbar_
+# state, _restore_toolbar_state, _toolbar_context_menu,
+# RibbonManagerDialog) needed no changes - they now just operate on
+# the shared window automatically. self._right_panel_ref no longer
+# set (only one guarded getattr() reader, falls back to self.width()
+# harmlessly).
+# Also added: a "View" ribbon with a 4-Pane View toggle (viewpoint 1 =
+# single view, viewpoint 2 = 4-pane quad view), answering Keith's "2
+# viewpoint...toggle button" ask. Reused _toggle_quad_view/_create_
+# quad_viewport as-is - both already existed, just previously only
+# wired into the parked _build_toolbars_tmp. Along the way, hit a
+# genuine pre-existing bug in apps/methods/imgfactory_svg_icons.py: a
+# stray module-level function (get_water_workshop_icon) breaks
+# SVGIconFactory's class body early, silently nesting list_icon/
+# grid_icon/others inside it instead of leaving them as class methods -
+# same bug class as the extraction boundary issues hit earlier today,
+# just pre-existing and in a different file. Did not fix it (out of
+# scope, shared file, risky to touch blindly) - used view_icon (unaffected,
+# defined earlier in the file) for the new toggle button instead.
+# Verified: _inner_mw is _outer_mw (same object), outer_mw's central
+# widget is the viewport, quad-view toggle correctly switches
+# viewport_stack between single/quad, RibbonManagerDialog lists both
+# ribbons (World, View), Model Workshop docks still hidden by default
+# after this change.
 
 import os
 import math
@@ -4591,15 +4633,6 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # instead of being stacked into one combined middle panel - every
         # one of them can be dragged/floated/docked on its own, same as
         # Files already could.
-        right_panel = self._create_right_panel()
-        left_panel = self._create_left_panel()
-        # Models table panel parked (_create_models_table_panel_tmp) - dock
-        # is hidden anyway (see the hide loop below), placeholder keeps
-        # setWidget() happy without instantiating the DFF/COL machinery.
-        models_table_panel = QWidget()   # was self._create_models_table_panel()
-        frame_hierarchy_panel = self._create_frame_hierarchy_panel()
-        texture_panel = self._create_texture_panel()
-
         from PyQt6.QtWidgets import QDockWidget, QMainWindow
         outer_mw = QMainWindow()
         outer_mw.setWindowFlags(Qt.WindowType.Widget)
@@ -4619,10 +4652,26 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "QMainWindow::separator:hover { background: palette(highlight); }")
         self._outer_mw = outer_mw
 
-        # Viewport (right_panel, wrapping _inner_mw) is the central widget -
-        # always visible, never accidentally closed/floated away entirely.
-        # Every dock can go to any of its 4 edges.
-        outer_mw.setCentralWidget(right_panel)
+        # Per Keith (Jul 31 2026): unify everything - ribbons and docks -
+        # into ONE snappable QMainWindow instead of nesting a separate
+        # inner_mw for the viewport's own ribbons. _create_right_panel now
+        # builds directly onto self._outer_mw (available here, created
+        # above) rather than creating its own QMainWindow; it sets
+        # outer_mw's central widget itself, so no right_panel object comes
+        # back to assign here. self._inner_mw is kept as an alias to
+        # self._outer_mw so every other method that already references
+        # self._inner_mw (_build_toolbars, _rebuild_toolbars,
+        # _save_toolbar_state, _restore_toolbar_state,
+        # _toolbar_context_menu, RibbonManagerDialog) keeps working
+        # unchanged, now correctly operating on the shared window.
+        self._create_right_panel()
+        left_panel = self._create_left_panel()
+        # Models table panel parked (_create_models_table_panel_tmp) - dock
+        # is hidden anyway (see the hide loop below), placeholder keeps
+        # setWidget() happy without instantiating the DFF/COL machinery.
+        models_table_panel = QWidget()   # was self._create_models_table_panel()
+        frame_hierarchy_panel = self._create_frame_hierarchy_panel()
+        texture_panel = self._create_texture_panel()
 
         self._left_dock = None
         self._middle_dock = None
@@ -10154,35 +10203,17 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             pass
         self._set_status(f"Model Info ribbon moved to {location} panel")
 
-    def _create_right_panel(self): #vers 15
-        """Right panel using QMainWindow + QToolBar for native docking.
-        QMainWindow handles toolbar placement, row stacking, floating, and
-        save/restore natively — same system Gwenview/KDE apps use."""
+    def _create_right_panel(self): #vers 16
+        """Viewport + ribbons, built directly onto self._outer_mw instead
+        of a separate nested QMainWindow (Jul 31 2026, per Keith: unify
+        ribbons and docks into one snappable window, no separate left/
+        right areas). self._inner_mw is kept as an alias to self._outer_mw
+        so _build_toolbars/_rebuild_toolbars/_save_toolbar_state/
+        _restore_toolbar_state/_toolbar_context_menu/RibbonManagerDialog
+        all keep working unchanged."""
         icon_color = self._get_icon_color()
 
-        panel = QFrame()
-        panel.setFrameStyle(QFrame.Shape.StyledPanel)
-        panel.setMinimumWidth(200)
-        self._right_panel_ref = panel
-        outer_layout = QVBoxLayout(panel)
-        outer_layout.setContentsMargins(4, 4, 4, 4)
-        outer_layout.setSpacing(3)
-
-        # Inner QMainWindow — owns the viewport as central widget and all
-        # QToolBars. Embedded as a plain widget (no window chrome).
-        from PyQt6.QtWidgets import QMainWindow
-        inner_mw = QMainWindow()
-        inner_mw.setWindowFlags(Qt.WindowType.Widget)
-        inner_mw.setDockOptions(
-            QMainWindow.DockOption.AllowNestedDocks |
-            QMainWindow.DockOption.AllowTabbedDocks)
-        # Same explicit separator styling as outer_mw/middle_mw - guards
-        # against the same docked-mode theme-cascade issue, in case any
-        # dock widgets get added here in future.
-        inner_mw.setStyleSheet(
-            "QMainWindow::separator { "
-            "background: palette(mid); width: 5px; height: 5px; } "
-            "QMainWindow::separator:hover { background: palette(highlight); }")
+        inner_mw = self._outer_mw
         self._inner_mw = inner_mw
 
         # Central widget — the 3D viewport, wrapped in a stack so the
@@ -10193,6 +10224,7 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.preview_widget._workshop_ref = self
         self._viewport_stack = QStackedWidget()
         self._viewport_stack.addWidget(self.preview_widget)   # index 0: single view
+        self._viewport_stack.setMinimumWidth(200)
         inner_mw.setCentralWidget(self._viewport_stack)
         self._gl_viewport  = self.preview_widget
         self._qp_viewport  = self.preview_widget
@@ -10200,10 +10232,8 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         self._create_paint_bar()
 
-        # Build all toolbars and add to the inner QMainWindow
+        # Build all toolbars and add to the (now shared) QMainWindow
         self._build_toolbars(inner_mw, icon_color)
-
-        outer_layout.addWidget(inner_mw, stretch=1)
 
         # Restore saved toolbar state (positions, rows, floating)
         from PyQt6.QtCore import QTimer as _QT
@@ -10212,8 +10242,6 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # Save on close
         self.window_closed.connect(self._save_toolbar_state)
         self.window_closed.connect(self._save_quad_layout)
-
-        return panel
 
     def _build_toolbars_tmp(self, mw: 'QMainWindow', icon_color: str): #vers 7
         """PARKED (Jul 31 2026) - Model Workshop's original mesh-editing
@@ -10576,6 +10604,15 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         _act(tb_world, "Cull Boxes", self.icon_factory.box_icon,
              lambda checked: self._toggle_cull_boxes(checked),
              checkable=True, attr='_cull_boxes_act')
+
+        # - Ribbon: View - viewpoint 1 (single) / viewpoint 2 (4-pane
+        # quad) toggle. _toggle_quad_view/_create_quad_viewport already
+        # existed (previously only wired into the parked
+        # _build_toolbars_tmp) - reused here as-is, not rewritten.
+        tb_view = _tb("View")
+        _act(tb_view, "4-Pane View", self.icon_factory.view_icon,
+             lambda checked: self._toggle_quad_view(checked),
+             checkable=True, attr='_quad_view_act')
 
     def _toolbar_context_menu(self, toolbar, pos): #vers 2
         """Right-click context menu on any toolbar."""
