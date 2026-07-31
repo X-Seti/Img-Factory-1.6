@@ -9,7 +9,7 @@
 # has been renamed to MapWorkshop/Map Workshop/map_workshop throughout
 # this copy - the original Model_Editor/model_workshop.py is untouched
 # and still the real, working Model Workshop feature.
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 198
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 199
 # X-Seti - Apr 2026 - Map Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -44,6 +44,18 @@
 # IPL sections table (populate/rebuild/move/context menu/cell click), IPL
 # Inst File panel, game folder/DAT loading, world-load application, load
 # options dialog, map load menu, ipl error logging, compact table styling.
+# X-Seti - Jul31 2026 - Ported 27 more MapWorkshop methods (world viewport dock,
+# LOD filter/override/display, corner overlay, ribbon framework, menu/statusbar
+# toggles) from map_workshop_old_version.py. Deliberately excluded from this
+# pass: _set_show_grid/_set_snap_grid/_toggle_clash_visualiser/_update_status/
+# _rebuild_right_panel (all DP5 paint-canvas-specific despite map-sounding
+# names - _toggle_clash_visualiser is literally ZX Spectrum colour clash, not
+# GTA clash detection); _build_ribbons_from_assignment/_build_tool_ribbon/
+# _create_panels_ribbon/_rebuild_tool_ribbons (reference DP5 paint-tool IDs,
+# need Map Workshop's own tool set defined first); the existing undo system
+# (_push_undo/_undo_canvas/_redo_canvas/_undo_stack/_redo_stack) is raster/
+# pixel-based against the dead paint canvas, not instance/IPL state - real
+# undo for mapping changes needs its own design, not a port, and is deferred.
 
 import os
 # Force X11/GLX backend for NVIDIA on Wayland
@@ -309,15 +321,21 @@ except ImportError:
 # _apply_hotkey_settings
 # _apply_icon_scale
 # _apply_infobar_font
+# _apply_ipl_visibility_filter
 # _apply_loaded_world
+# _apply_lod_filter
+# _apply_menu_bar_style
 # _apply_panel_font
 # _apply_prelighting    TODO: bake ambient+directional into DFF vertex colours
+# _apply_ribbon_style
 # _apply_settings
 # _apply_theme
 # _apply_title_font
 # _apply_to_selected_faces_paint
+# _apply_viewport_movement_settings
 # _apply_window_flags
 # _assign_quad_pane_view
+# _assign_world_pane_view
 # _auto_load_from_texlist    scan texlist/ folder for pre-exported textures
 # _auto_load_txd_from_imgs    search open IMG tabs for IDE-linked TXD
 # _browse_texlist_folder    open texlist/ browser dialog
@@ -341,6 +359,7 @@ except ImportError:
 # _copy_surface
 # _copy_text_to_clipboard
 # _create_action_section
+# _create_centre_panel
 # _create_col_from_dff    generate COL1/2/3 binary from DFF geometry #vers 1
 # _create_control_panel_dock
 # _create_dat_tab
@@ -369,6 +388,7 @@ except ImportError:
 # _create_status_bar
 # _create_texture_panel
 # _create_toolbar
+# _create_world_viewport_dock
 # _cycle_model_instance
 # _cycle_render_mode
 # _cycle_view_render_style
@@ -413,6 +433,7 @@ except ImportError:
 # _find_all_paint_btns
 # _find_col_via_db
 # _find_in_ide    look up model in DAT Browser IDE entries
+# _find_lod_primary_key
 # _flip_horizontal_all
 # _flip_vertical_all
 # _focus_search
@@ -423,7 +444,9 @@ except ImportError:
 # _get_ide_db
 # _get_resize_corner
 # _get_resize_direction
+# _get_ribbon_assignment
 # _get_selected_model
+# _get_tool_menu_style
 # _get_view_coords
 # _get_xref
 # _handle_corner_resize
@@ -514,6 +537,7 @@ except ImportError:
 # _open_paint_editor    open paint mode for face surface editing #vers 5
 # _open_paint_mat_popup
 # _open_render_settings_dialog
+# _open_ribbon_manager
 # _open_settings_dialog
 # _open_surface_edit_dialog
 # _open_surface_paint_dialog
@@ -541,11 +565,13 @@ except ImportError:
 # _populate_tex_thumbnails    64×64 thumbnail grid in texture panel #vers 1
 # _populate_texture_list    fill texture panel table from _mod_textures
 # _prelight_setup_dialog    light source setup for prelighting STUB #vers 1
+# _preload_world_assets
 # _project_model_2d
 # _push_undo
 # _rebuild_ipl_sections_rows
 # _rebuild_toolbars
 # _recompute_object_browser_model_width
+# _refresh_corner_overlay
 # _refresh_dat_tab
 # _refresh_icons    refresh all SVG icons after theme change
 # _refresh_ide_tab
@@ -565,6 +591,8 @@ except ImportError:
 # _reset_hotkeys_to_defaults
 # _restore_outer_layout
 # _restore_toolbar_state
+# _ribbon_context_menu
+# _ribbon_presets_dir
 # _rotate_ccw_all
 # _rotate_cw_all
 # _save_as_col_file
@@ -584,11 +612,15 @@ except ImportError:
 # _select_model_by_row
 # _set_checkerboard_bg
 # _set_col_buttons_enabled
+# _set_lod_display_mode
+# _set_lod_override
 # _set_paint_tool
+# _set_ribbon_assignment
 # _set_select_mode    switch vertex/edge/face/poly/object select mode #vers 2
 # _set_status
 # _set_texlist_folder    set texlist/ folder via dialog
 # _set_thumbnail_view
+# _setup_corner_overlay
 # _setup_hotkeys
 # _setup_settings_button
 # _show_about
@@ -630,20 +662,24 @@ except ImportError:
 # _toggle_backface_cull
 # _toggle_boxes
 # _toggle_col_view
+# _toggle_cull_boxes
 # _toggle_front_only_paint
 # _toggle_instance_favourite
 # _toggle_ipl_section
 # _toggle_maximize
+# _toggle_menubar
 # _toggle_mesh
 # _toggle_mid_btn_row_collapsed
 # _toggle_pin_selected
 # _toggle_quad_view
 # _toggle_spheres
+# _toggle_statusbar
 # _toggle_tearoff
 # _toggle_tex_btn_row_collapsed
 # _toggle_tex_view    switch texture panel list/thumbnail view #vers 1
 # _toggle_upscale_native
 # _toggle_viewport_shading    toggle Lambertian shading on/off #vers 1
+# _toggle_world_pane_maximize
 # _toolbar_context_menu
 # _uncompress_col
 # _uncompress_surface
@@ -652,6 +688,7 @@ except ImportError:
 # _update_all_buttons
 # _update_cursor
 # _update_dock_button_visibility
+# _update_mode_button_style
 # _update_object_browser_action_buttons
 # _update_select_mode_availability
 # _update_status_indicators
@@ -667,6 +704,7 @@ except ImportError:
 # export_selected
 # export_selected_surface
 # get_menu_title
+# get_menu_title
 # load_from_img_archive
 # mouseDoubleClickEvent
 # mouseMoveEvent
@@ -681,6 +719,7 @@ except ImportError:
 # reload_surface_table
 # resizeEvent
 # save_col_file
+# set_menu_orientation
 # setup_ui
 # shadow_dialog
 # show_help
@@ -19275,6 +19314,950 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         else:
             self._hidden_ipls.discard(ipl_name)
         self._apply_ipl_visibility_filter()
+
+    # --- World viewport, LOD, ribbon/menu framework (ported from map_workshop_old_version.py) ---
+
+    def _create_centre_panel(self): #vers 3
+        panel = QWidget()
+        self._centre_panel = panel
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+
+        # Status bar - built here (needs canvas context) but NOT added to
+        # this panel's own layout. It becomes outer_mw's native status
+        # bar instead (see setup_ui) - QMainWindow's built-in status bar
+        # always spans the full window width, whereas embedding it in
+        # this panel meant it only got whatever width was left after the
+        # right-side dock widgets (Brush & Colors etc.) took their share,
+        # squeezing/covering its right-aligned permanent widgets.
+        self._status_bar = QStatusBar()
+        self._status_bar.setSizeGripEnabled(False)
+        self._status_bar.setFixedHeight(22)
+        self._status_bar.setVisible(self.map_settings.get('show_statusbar'))
+        # Permanent right-side info labels
+        self._status_size_lbl  = QLabel("320×256")
+        self._status_depth_lbl = QLabel("RGBA32")
+        self._status_size_lbl.setStyleSheet("padding: 0 6px; color: palette(mid);")
+        self._status_depth_lbl.setStyleSheet("padding: 0 6px; color: palette(mid);")
+        self._status_bar.addPermanentWidget(self._status_depth_lbl)
+        self._status_bar.addPermanentWidget(self._status_size_lbl)
+
+        # Initial collapse state - matches the same logic
+        # _toggle_paint_canvas applies dynamically. Canvas is hidden by
+        # default, so without this the central widget area reserves
+        # space for nothing, leaving a visible empty gap (IPL Sections
+        # used to fill this same space as a fallback before it became
+        # its own dock).
+        if not self.map_settings.get('show_paint_canvas'):
+            panel.setMaximumSize(0, 0)
+
+        return panel
+
+    def get_menu_title(self) -> str: #vers 2
+        """Short label for imgfactory titlebar button."""
+        return "MAP"
+
+    def _get_tool_menu_style(self) -> str: #vers 1
+        """Read menu_style from map_settings."""
+        return self.map_settings.get('menu_style', 'dropdown')
+
+    def _apply_menu_bar_style(self): #vers 3
+        """Apply font size, height and colours to the topbar menubar.
+        Uses explicit colours so it stays readable regardless of app theme.
+        """
+        mb = getattr(self, '_menu_bar', None)
+        if not mb:
+            return
+        bar_h  = self.map_settings.get('menu_bar_height', 22)
+        bar_fs = self.map_settings.get('menu_bar_font_size', 9)
+        dd_fs  = self.map_settings.get('menu_dropdown_font_size', 9)
+
+        # Get theme colours if available, otherwise use sensible defaults
+        bg   = '#2b2b2b'
+        fg   = '#e0e0e0'
+        sel  = '#1976d2'
+        selfg = '#ffffff'
+        border = '#555555'
+        try:
+            app_settings = getattr(self, 'app_settings', None)
+            if not app_settings and self.main_window:
+                app_settings = getattr(self.main_window, 'app_settings', None)
+            if app_settings:
+                tc = app_settings.get_theme_colors() or {}
+                bg    = tc.get('bg_primary',   bg)
+                fg    = tc.get('text_primary',  fg)
+                sel   = tc.get('accent',        sel)
+                border = tc.get('border',       border)
+        except Exception:
+            pass
+
+        # Height controlled by container — NOT by stylesheet min/max-height
+        # (stylesheet height properties override Qt layout and prevent the bar showing)
+        mb.setStyleSheet(f"""
+            QMenuBar {{
+                background-color: {bg};
+                color: {fg};
+                border-bottom: 1px solid {border};
+                font-size: {bar_fs}pt;
+            }}
+            QMenuBar::item {{
+                background-color: transparent;
+                padding: 2px 6px;
+            }}
+            QMenuBar::item:selected {{
+                background-color: {sel};
+                color: {selfg};
+            }}
+            QMenu {{
+                background-color: {bg};
+                color: {fg};
+                border: 1px solid {border};
+                font-size: {dd_fs}pt;
+            }}
+            QMenu::item:selected {{
+                background-color: {sel};
+                color: {selfg};
+            }}
+        """)
+
+        # Size the container based on settings, not isVisible() 
+        # (isVisible() is False during __init__ even if widget will be shown)
+        c = getattr(self, '_menu_bar_container', None)
+        if c:
+            show = (self.map_settings.get('show_menubar', False) and
+                    self.map_settings.get('menu_style', 'dropdown') == 'topbar')
+            if show:
+                c.setMinimumHeight(0)
+                c.setMaximumHeight(bar_h)
+            # Don't touch height here if hiding — setup_ui and set_menu_orientation handle that
+
+
+    def set_menu_orientation(self, style: str): #vers 5
+        """Switch DP5 menu between 'topbar' (internal) and 'dropdown' (host menubar).
+        When docked the internal bar is always suppressed regardless of style —
+        imgfactory's top bar owns the menus via ToolMenuMixin injection.
+        """
+        self.map_settings.set('menu_style', style)
+        self.map_settings.set('show_menubar', style == 'topbar')
+
+        container = getattr(self, '_menu_bar_container', None) or getattr(self, '_menu_bar', None)
+        if container:
+            if style == 'topbar' and self.standalone_mode:
+                # Only show internal bar in standalone mode
+                container.setMinimumHeight(0)
+                container.setMaximumHeight(16777215)
+                container.setVisible(True)
+                container.updateGeometry()
+                self._apply_menu_bar_style()
+            else:
+                # Docked always hides internal bar; dropdown mode always hides it too
+                container.setVisible(False)
+                container.setMinimumHeight(0)
+                container.setMaximumHeight(0)
+                container.setFixedHeight(0)
+
+        # Notify imgfactory to inject/remove tool menu when docked
+        if not self.standalone_mode:
+            mw = getattr(self, 'main_window', None)
+            if mw and hasattr(mw, 'menu_bar_system'):
+                if style == 'dropdown':
+                    mw.menu_bar_system._inject_tool_menu(self)
+                else:
+                    mw.menu_bar_system._remove_tool_menu()
+
+
+    # Ribbon Manager: master registry of every reassignable tool -
+    # (tool_id, icon_shape, tooltip, default_ribbon_name). Replaces the
+    # old hardcoded TOOL_ORDER/SHAPE_ORDER lists - _get_ribbon_assignment()
+    # reads/writes which ribbon each tool_id currently lives in (starting
+    # from these defaults), and _build_ribbons_from_assignment() builds
+    # whichever ribbons that assignment calls for.
+    _RIBBON_TOOL_REGISTRY = [
+        # Paint tools removed per Keith's request ("lets remove the
+        # plotting, shapes, like you suggest") - this registry drove
+        # the Plotting/Shapes ribbons' contents (Pencil/Eraser/Fill/
+        # Line/Rectangle/etc, all inherited from the DP5 fork this
+        # editor started from). The registry mechanism itself (Ribbon
+        # Manager, drag-reordering, per-tool ribbon assignment,
+        # persistence) is untouched and still generic for any future
+        # single-selection tool. Empty for now - LOD display mode and
+        # Cull Boxes are added directly in _build_ribbons_from_assignment
+        # instead (like the existing Active Zoom button), since neither
+        # fits this registry's "one mutually-exclusive drawing tool
+        # active at a time" model - LOD is a 3-way dropdown, Cull Boxes
+        # is an independent show/hide toggle, not exclusive with
+        # anything else.
+    ]
+
+    def _get_ribbon_assignment(self): #vers 1
+        """Return the current tool_id -> ribbon_name assignment, reading
+        from saved settings if present and falling back to each tool's
+        default_ribbon from _RIBBON_TOOL_REGISTRY otherwise. Always
+        returns an assignment for every registered tool, even if the
+        saved settings only cover a subset (e.g. after a new tool was
+        added since the setting was last saved)."""
+        saved = self.map_settings.get('ribbon_tool_assignment') or {}
+        assignment = {}
+        for tool_id, _shape, _tip, default_ribbon in self._RIBBON_TOOL_REGISTRY:
+            assignment[tool_id] = saved.get(tool_id, default_ribbon)
+        return assignment
+
+    def _set_ribbon_assignment(self, assignment: dict): #vers 1
+        """Persist a full tool_id -> ribbon_name assignment to settings."""
+        self.map_settings.set('ribbon_tool_assignment', dict(assignment))
+
+    def _ribbon_presets_dir(self): #vers 1
+        """Folder where Ribbon Manager presets are saved/loaded from."""
+        d = Path.home() / '.config' / 'imgfactory' / 'map_ribbon_presets'
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    def _open_ribbon_manager(self): #vers 2
+        """Ribbon Manager dialog - two-pane layout matching Model
+        Workshop's richer style: left pane lists ribbons (with an icon
+        preview of their first tool), right pane shows the selected
+        ribbon's tools with icons and names, drag-reorderable within the
+        ribbon. Explicit +New Ribbon/Delete buttons, a Move-to-ribbon
+        control, icon size slider, and Save/Load Preset. Changes apply
+        live as you go (each move/reorder immediately rebuilds the real
+        ribbons) - Cancel reverts to a snapshot taken when the dialog
+        opened; OK just keeps whatever's already been applied."""
+        from PyQt6.QtWidgets import (QListWidget, QListWidgetItem, QSplitter,
+            QAbstractItemView, QSlider, QDialogButtonBox)
+
+        snapshot_assignment = dict(self._get_ribbon_assignment())
+        snapshot_order = list(self.map_settings.get('ribbon_tool_order') or [])
+        snapshot_icon_horz = self.map_settings.get('ribbon_icon_size_horz')
+        snapshot_icon_vert = self.map_settings.get('ribbon_icon_size_vert')
+        registry_by_id = {t: (t, s, tip, d) for t, s, tip, d in self._RIBBON_TOOL_REGISTRY}
+        icon_color = self._get_icon_color()
+        icon_sz_preview = 20
+
+        def _tool_name(tool_id):
+            tip = registry_by_id[tool_id][2]
+            return tip.split(' — ')[0].split(' (')[0].strip()
+
+        def _tool_icon(tool_id):
+            shape = registry_by_id[tool_id][1]
+            return _load_tool_icon(shape, icon_sz_preview, active=False,
+                                   tile_bg='', icon_col=icon_color)
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Ribbon Manager")
+        dlg.setMinimumSize(660, 440)
+        outer = QVBoxLayout(dlg)
+
+        # New/Delete ribbon row
+        tb_row = QHBoxLayout()
+        new_btn = QPushButton("+ New Ribbon")
+        del_btn = QPushButton("Delete")
+        save_preset_btn = QPushButton("Save Preset…")
+        load_preset_btn = QPushButton("Load Preset…")
+        for b in (new_btn, del_btn, save_preset_btn, load_preset_btn):
+            tb_row.addWidget(b)
+        tb_row.addStretch()
+        outer.addLayout(tb_row)
+
+        # Icon size row
+        size_row = QHBoxLayout()
+        size_row.addWidget(QLabel("Ribbon Icon Size:"))
+        size_slider = QSlider(Qt.Orientation.Horizontal)
+        size_slider.setRange(12, 64)
+        size_slider.setSingleStep(2)
+        size_slider.setValue(max(self.map_settings.get('ribbon_icon_size_horz'),
+                                 self.map_settings.get('ribbon_icon_size_vert')))
+        size_label = QLabel(f"{size_slider.value()}px")
+        size_label.setMinimumWidth(36)
+        size_row.addWidget(size_slider, 1)
+        size_row.addWidget(size_label)
+        outer.addLayout(size_row)
+
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        outer.addWidget(splitter, 1)
+
+        left = QWidget()
+        ll = QVBoxLayout(left); ll.setSpacing(4)
+        ll.addWidget(QLabel("Ribbons"))
+        ribbon_list = QListWidget()
+        ll.addWidget(ribbon_list)
+        splitter.addWidget(left)
+
+        right = QWidget()
+        rl = QVBoxLayout(right); rl.setSpacing(4)
+        tool_label = QLabel("Select a ribbon")
+        rl.addWidget(tool_label)
+        tool_list = QListWidget()
+        tool_list.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+        tool_list.setDefaultDropAction(Qt.DropAction.MoveAction)
+        tool_list.setIconSize(QSize(icon_sz_preview, icon_sz_preview))
+        rl.addWidget(tool_list)
+
+        move_row = QHBoxLayout()
+        move_row.addWidget(QLabel("Move selected to:"))
+        move_combo = QComboBox()
+        move_row.addWidget(move_combo, 1)
+        move_btn = QPushButton("Move →")
+        move_row.addWidget(move_btn)
+        rl.addLayout(move_row)
+        splitter.addWidget(right)
+        splitter.setSizes([200, 460])
+
+        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                QDialogButtonBox.StandardButton.Cancel)
+        outer.addWidget(btns)
+
+        state = {'selected_ribbon': None}
+
+        def _current_assignment():
+            return self._get_ribbon_assignment()
+
+        def _refresh_ribbon_list():
+            ribbon_list.blockSignals(True)
+            prev = state['selected_ribbon']
+            ribbon_list.clear()
+            move_combo.clear()
+            assignment = _current_assignment()
+            by_ribbon = {}
+            for tool_id in assignment:
+                by_ribbon.setdefault(assignment[tool_id], []).append(tool_id)
+            for name in sorted(by_ribbon.keys()):
+                item = QListWidgetItem(name)
+                tools_here = by_ribbon[name]
+                if tools_here:
+                    item.setIcon(_tool_icon(tools_here[0]))
+                ribbon_list.addItem(item)
+                move_combo.addItem(name)
+            ribbon_list.blockSignals(False)
+            # Reselect the previously-selected ribbon if it still exists
+            if prev is not None:
+                matches = ribbon_list.findItems(prev, Qt.MatchFlag.MatchExactly)
+                if matches:
+                    ribbon_list.setCurrentItem(matches[0])
+                    return
+            if ribbon_list.count():
+                ribbon_list.setCurrentRow(0)
+
+        def _refresh_tool_list():
+            tool_list.blockSignals(True)
+            tool_list.clear()
+            name = state['selected_ribbon']
+            if not name:
+                tool_list.blockSignals(False)
+                return
+            tool_label.setText(f"{name} — tools")
+            assignment = _current_assignment()
+            order = self.map_settings.get('ribbon_tool_order') or []
+            ordered_ids = [t for t in order if t in registry_by_id]
+            ordered_ids += [t for t in registry_by_id if t not in ordered_ids]
+            for tool_id in ordered_ids:
+                if assignment.get(tool_id) != name:
+                    continue
+                item = QListWidgetItem(_tool_icon(tool_id), _tool_name(tool_id))
+                item.setData(Qt.ItemDataRole.UserRole, tool_id)
+                tool_list.addItem(item)
+            tool_list.blockSignals(False)
+
+        def _on_ribbon_selected(row):
+            item = ribbon_list.item(row)
+            state['selected_ribbon'] = item.text() if item else None
+            _refresh_tool_list()
+        ribbon_list.currentRowChanged.connect(_on_ribbon_selected)
+
+        def _on_tools_reordered():
+            # Rebuild ribbon_tool_order from the current combined order:
+            # this ribbon's tools in their new order, all other tools
+            # keeping their existing relative order
+            name = state['selected_ribbon']
+            if not name:
+                return
+            new_local_order = []
+            for i in range(tool_list.count()):
+                tid = tool_list.item(i).data(Qt.ItemDataRole.UserRole)
+                if tid:
+                    new_local_order.append(tid)
+            old_order = self.map_settings.get('ribbon_tool_order') or []
+            old_order = [t for t in old_order if t in registry_by_id]
+            old_order += [t for t in registry_by_id if t not in old_order]
+            merged = []
+            it = iter(new_local_order)
+            for tid in old_order:
+                if tid in new_local_order:
+                    merged.append(next(it))
+                else:
+                    merged.append(tid)
+            self.map_settings.set('ribbon_tool_order', merged)
+            self.map_settings.save()
+            self._rebuild_tool_ribbons()
+        tool_list.model().rowsMoved.connect(_on_tools_reordered)
+
+        def _new_ribbon():
+            name, ok = QInputDialog.getText(dlg, "New Ribbon", "Ribbon name:")
+            if not ok or not name.strip():
+                return
+            name = name.strip()
+            # An empty ribbon has no tools yet - it'll only actually
+            # appear once a tool is moved into it, since ribbons here
+            # are derived from the assignment rather than being
+            # independent objects. Remember the intent so the list
+            # shows it immediately as a hint of where to move things.
+            state['pending_new_ribbon'] = name
+            item = QListWidgetItem(name)
+            ribbon_list.addItem(item)
+            move_combo.addItem(name)
+            ribbon_list.setCurrentItem(item)
+            self._set_status(f"New ribbon '{name}' created - move a tool into it")
+        new_btn.clicked.connect(_new_ribbon)
+
+        def _delete_ribbon():
+            name = state['selected_ribbon']
+            if not name:
+                return
+            assignment = _current_assignment()
+            affected = [t for t, r in assignment.items() if r == name]
+            if affected:
+                ans = QMessageBox.question(
+                    dlg, "Delete Ribbon",
+                    f"'{name}' has {len(affected)} tool(s).\n"
+                    "They will move to Plotting.\nContinue?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel)
+                if ans != QMessageBox.StandardButton.Yes:
+                    return
+                for t in affected:
+                    assignment[t] = 'Plotting'
+                self._set_ribbon_assignment(assignment)
+                self.map_settings.save()
+                self._rebuild_tool_ribbons()
+            state['selected_ribbon'] = None
+            _refresh_ribbon_list()
+        del_btn.clicked.connect(_delete_ribbon)
+
+        def _move_selected():
+            item = tool_list.currentItem()
+            if not item:
+                return
+            tool_id = item.data(Qt.ItemDataRole.UserRole)
+            target = move_combo.currentText().strip()
+            if not tool_id or not target or target == state['selected_ribbon']:
+                return
+            assignment = _current_assignment()
+            assignment[tool_id] = target
+            self._set_ribbon_assignment(assignment)
+            self.map_settings.save()
+            self._rebuild_tool_ribbons()
+            _refresh_ribbon_list()
+        move_btn.clicked.connect(_move_selected)
+
+        def _on_size_changed(px):
+            size_label.setText(f"{px}px")
+            self.map_settings.set('ribbon_icon_size_horz', px)
+            self.map_settings.set('ribbon_icon_size_vert', px)
+            self.map_settings.save()
+            self._rebuild_tool_ribbons()
+        size_slider.valueChanged.connect(_on_size_changed)
+
+        def _save_preset():
+            name, ok = QInputDialog.getText(dlg, "Save Preset", "Preset name:")
+            if not ok or not name.strip():
+                return
+            data = {
+                'assignment': _current_assignment(),
+                'order': self.map_settings.get('ribbon_tool_order') or [],
+                'icon_size': size_slider.value(),
+            }
+            path = self._ribbon_presets_dir() / f"{name.strip()}.json"
+            try:
+                path.write_text(json.dumps(data, indent=2))
+                self._set_status(f"Saved ribbon preset '{name.strip()}'")
+            except Exception as e:
+                QMessageBox.warning(dlg, "Save Preset Error", str(e))
+        save_preset_btn.clicked.connect(_save_preset)
+
+        def _load_preset():
+            presets_dir = self._ribbon_presets_dir()
+            files = sorted(p.stem for p in presets_dir.glob('*.json'))
+            if not files:
+                QMessageBox.information(dlg, "Load Preset", "No saved presets found.")
+                return
+            name, ok = QInputDialog.getItem(dlg, "Load Preset", "Preset:", files, 0, False)
+            if not ok:
+                return
+            path = presets_dir / f"{name}.json"
+            try:
+                data = json.loads(path.read_text())
+            except Exception as e:
+                QMessageBox.warning(dlg, "Load Preset Error", str(e))
+                return
+            self._set_ribbon_assignment(data.get('assignment', {}))
+            self.map_settings.set('ribbon_tool_order', data.get('order', []))
+            loaded_size = data.get('icon_size')
+            if loaded_size:
+                self.map_settings.set('ribbon_icon_size_horz', loaded_size)
+                self.map_settings.set('ribbon_icon_size_vert', loaded_size)
+                size_slider.setValue(loaded_size)
+            self.map_settings.save()
+            self._rebuild_tool_ribbons()
+            state['selected_ribbon'] = None
+            _refresh_ribbon_list()
+            self._set_status(f"Loaded ribbon preset '{name}'")
+        load_preset_btn.clicked.connect(_load_preset)
+
+        def _on_accept():
+            dlg.accept()
+
+        def _on_cancel():
+            self._set_ribbon_assignment(snapshot_assignment)
+            self.map_settings.set('ribbon_tool_order', snapshot_order)
+            self.map_settings.set('ribbon_icon_size_horz', snapshot_icon_horz)
+            self.map_settings.set('ribbon_icon_size_vert', snapshot_icon_vert)
+            self.map_settings.save()
+            self._rebuild_tool_ribbons()
+            dlg.reject()
+        btns.accepted.connect(_on_accept)
+        btns.rejected.connect(_on_cancel)
+
+        _refresh_ribbon_list()
+        self._ribbon_manager_dlg = dlg
+        dlg.exec()
+
+    def _apply_ribbon_style(self, toolbar): #vers 2
+        """Apply icon size / padding / opacity to a ribbon, using whichever
+        of the vertical or horizontal settings match its current
+        orientation. Called on creation and again whenever the ribbon is
+        dragged to a dock area of the other orientation (orientationChanged),
+        so settings stay correct no matter where the user puts it."""
+        vertical = (toolbar.orientation() == Qt.Orientation.Vertical)
+        icon_sz = self.map_settings.get(
+            'ribbon_icon_size_vert' if vertical else 'ribbon_icon_size_horz')
+        padding = self.map_settings.get(
+            'ribbon_padding_vert' if vertical else 'ribbon_padding_horz')
+        btn_padding = self.map_settings.get(
+            'ribbon_button_padding_vert' if vertical else 'ribbon_button_padding_horz')
+        opacity = self.map_settings.get('ribbon_opacity')
+
+        toolbar.setIconSize(QSize(icon_sz, icon_sz))
+        toolbar.layout().setSpacing(max(0, int(padding)))
+
+        alpha = max(0, min(255, round(opacity / 100 * 255)))
+        base_col = None
+        if self.app_settings and hasattr(self.app_settings, 'get_theme_colors'):
+            tc = self.app_settings.get_theme_colors()
+            #hexval = tc.get('panel_bg')
+            hexval = tc.get('bg_primary')
+            #hexval = tc.get('bg_secondary')
+            if hexval:
+                base_col = QColor(hexval)
+
+        btn_rule = f"QToolButton {{ padding: {max(0, int(btn_padding))}px; }}"
+        if base_col is not None:
+            toolbar.setStyleSheet(
+                f"QToolBar {{ background: rgba({base_col.red()}, {base_col.green()}, "
+                f"{base_col.blue()}, {alpha}); "
+                f"spacing: {max(0, int(padding))}px; }} " + btn_rule)
+        else:
+            toolbar.setStyleSheet(
+                f"QToolBar {{ spacing: {max(0, int(padding))}px; }} " + btn_rule)
+
+        # Right-click anywhere on the ribbon's empty background opens a
+        # menu with Ribbon Manager access (per Keith's request) - only
+        # wire this once per toolbar, since _apply_ribbon_style also
+        # re-runs on every orientationChanged
+        if not getattr(toolbar, '_ribbon_ctx_menu_wired', False):
+            toolbar.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            toolbar.customContextMenuRequested.connect(
+                lambda pos, t=toolbar: self._ribbon_context_menu(t, pos))
+            toolbar._ribbon_ctx_menu_wired = True
+
+    def _ribbon_context_menu(self, toolbar, pos): #vers 2
+        """Right-click context menu on any ribbon's empty background -
+        gives access to the Ribbon Manager without needing to dig
+        through Settings, plus quick lock/unlock for all ribbons at
+        once. Also lists every dock with a checkable show/hide action
+        (dock.toggleViewAction()) - per Keith's report that Object
+        Browser disappeared entirely with no way to bring it back;
+        this is the safety net for that failure mode, regardless of
+        what caused the dock to end up hidden in the first place."""
+        from PyQt6.QtWidgets import QMenu, QToolBar, QDockWidget
+        menu = QMenu(self)
+        menu.addAction("Ribbon Manager…", self._open_ribbon_manager)
+        menu.addSeparator()
+        outer_mw = getattr(self, '_outer_mw', None)
+        if outer_mw is not None:
+            menu.addAction("Lock All Ribbons",
+                lambda: [tb.setMovable(False) for tb in outer_mw.findChildren(QToolBar)])
+            menu.addAction("Unlock All Ribbons",
+                lambda: [tb.setMovable(True) for tb in outer_mw.findChildren(QToolBar)])
+            docks = outer_mw.findChildren(QDockWidget)
+            if docks:
+                menu.addSeparator()
+                docks_menu = menu.addMenu("Docks")
+                for dock in docks:
+                    docks_menu.addAction(f"Show {dock.windowTitle()}",
+                        lambda checked=False, d=dock: (d.show(), d.raise_()))
+        menu.exec(toolbar.mapToGlobal(pos))
+
+    def _toggle_menubar(self, on: bool): #vers 3
+        self.map_settings.set('show_menubar', on)
+        self.map_settings.save()
+        c = getattr(self, '_menu_bar_container', self._menu_bar if hasattr(self, '_menu_bar') else None)
+        if c:
+            c.setMinimumHeight(0)
+            c.setMaximumHeight(16777215 if on else 0)
+            c.setVisible(on)
+
+
+    def _toggle_statusbar(self, on: bool): #vers 1
+        self.map_settings.set('show_statusbar', on)
+        self.map_settings.save()
+        if hasattr(self, '_status_bar'):
+            self._status_bar.setVisible(on)
+
+
+    def _preload_world_assets(self, loader, model_cache, instances=None, title=None): #vers 2
+        """Eagerly load+parse (and cache) geometry and textures for
+        every distinct model referenced by the given instances (or
+        every loaded instance, if none given), with a progress dialog
+        showing what's currently being processed.
+
+        Originally ran across the whole world at load time - per
+        Keith's follow-up report ("very slow scanning... it should be
+        showing model/texture when loading the selected .ipl, not at
+        map mapper startup"), this is now called scoped to one
+        specific IPL's newly-loaded instances instead (see
+        _ensure_ipl_loaded), matching MooMapper's own model of not
+        touching an IPL's content - or its models' geometry/textures -
+        until the user actually asks for that specific IPL.
+        QProgressDialog processes Qt events internally on setValue(),
+        so the UI stays responsive throughout rather than a single
+        long blocking call."""
+        instances = instances if instances is not None else loader.instances
+        # Deduplicate by model_name - many instances share one model,
+        # no need to load it more than once.
+        seen_models = {}
+        for inst in instances:
+            if inst.model_name not in seen_models:
+                obj = loader.get_object(inst.model_id)
+                txd_name = obj.txd_name if obj else ""
+                seen_models[inst.model_name] = (txd_name, inst.source_ipl)
+        if not seen_models:
+            return
+
+        items = list(seen_models.items())
+        progress = QProgressDialog(
+            title or "Loading assets…", "Cancel", 0, len(items), self)
+        progress.setWindowTitle("Loading Meshes and Textures")
+        progress.setMinimumDuration(500)   # don't flash up for fast loads
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+
+        loaded_txds = set()
+        for i, (model_name, (txd_name, source_ipl)) in enumerate(items):
+            if progress.wasCanceled():
+                self._set_status(
+                    f"Asset loading cancelled after {i} of {len(items)} models "
+                    f"- remaining models will still load on demand while browsing")
+                break
+            progress.setLabelText(
+                f"Model: {model_name}\nTexture: {txd_name or '(none)'}\nIPL: {source_ipl}")
+            progress.setValue(i)
+            model_cache.get_geometry(model_name)
+            if txd_name and txd_name not in loaded_txds:
+                model_cache.get_textures(txd_name)
+                loaded_txds.add(txd_name)
+        progress.setValue(len(items))
+
+    def _toggle_cull_boxes(self, checked): #vers 1
+        """Show/hide wireframe cull zone boxes across all World View
+        panes - real, working feature using GTAWorldLoader.culls (see
+        MapViewport._draw_cull_boxes for the honest caveat on the
+        field-interpretation assumption)."""
+        loader = getattr(self, '_world_loader', None)
+        culls = loader.culls if loader is not None else []
+        for pane in getattr(self, '_world_panes', []):
+            pane.set_cull_boxes(culls, checked)
+
+    def _apply_ipl_visibility_filter(self): #vers 2
+        """Recompute which instances are currently visible: every
+        loaded instance whose source_ipl isn't in self._hidden_ipls,
+        then layer LOD show/hide on top (global toggle + any per-
+        instance overrides) - push the final result to the world-view
+        panes and Instance List."""
+        all_inst = getattr(self, '_all_instances', None)
+        if all_inst is None:
+            return
+        hidden = getattr(self, '_hidden_ipls', set())
+        visible = [i for i in all_inst if i.source_ipl not in hidden] if hidden else all_inst
+        visible = self._apply_lod_filter(visible)
+        for pane in getattr(self, '_world_panes', []):
+            pane.set_instances(visible)
+        loader_stub = _FilteredLoaderStub(visible, getattr(self, '_world_loader', None))
+        self._populate_instance_list(loader_stub)
+
+    def _apply_lod_filter(self, instances): #vers 2
+        """Given an already-IPL-filtered instance list, decide for each
+        LOD-paired primary instance which version(s) to keep - per-
+        instance override (self._lod_overrides, keyed by id(primary
+        instance), one of 'normal'/'lod'/'both'/None) takes precedence
+        over the global mode (self._lod_display_mode). Instances with
+        no LOD pair at all pass through unchanged."""
+        pairs = getattr(self, '_lod_pairs', None)
+        if not pairs:
+            return instances
+        overrides = getattr(self, '_lod_overrides', {})
+        global_mode = getattr(self, '_lod_display_mode', 'normal')
+        paired_target_ids = {id(v) for v in pairs.values()}
+        result = []
+        for inst in instances:
+            iid = id(inst)
+            if iid in pairs:
+                mode = overrides.get(iid) or global_mode
+                if mode == 'lod':
+                    result.append(pairs[iid])
+                elif mode == 'both':
+                    result.append(inst)
+                    result.append(pairs[iid])
+                else:  # 'normal'
+                    result.append(inst)
+            elif iid in paired_target_ids:
+                # This instance IS someone's LOD target - it's only
+                # included via its primary above (in 'lod'/'both' mode),
+                # to avoid duplicates when both members of a pair pass
+                # the IPL filter.
+                continue
+            else:
+                result.append(inst)
+        return result
+
+    def _set_lod_display_mode(self, mode): #vers 1
+        """Global LOD display mode - 'normal' (default), 'lod', or
+        'both'. Per-instance overrides (set via the Instance List)
+        still take precedence over this for any instance they cover."""
+        self._lod_display_mode = mode
+        self._apply_ipl_visibility_filter()
+
+    def _find_lod_primary_key(self, instance): #vers 1
+        """Given an instance currently displayed in a row (which may be
+        either the 'primary' or its LOD-paired counterpart, depending
+        on the current global/override mode), find the id() key to use
+        with self._lod_overrides - always the primary's id(), whichever
+        member is actually showing right now."""
+        pairs = getattr(self, '_lod_pairs', None)
+        if not pairs:
+            return None
+        iid = id(instance)
+        if iid in pairs:
+            return iid
+        for primary_id, target in pairs.items():
+            if target is instance:
+                return primary_id
+        return None
+
+    def _set_lod_override(self, primary_key, mode): #vers 1
+        """Set (or clear, if mode is None) a per-instance LOD override
+        for one specific pair, keyed by the primary instance's id()."""
+        overrides = getattr(self, '_lod_overrides', None)
+        if overrides is None:
+            return
+        if mode is None:
+            overrides.pop(primary_key, None)
+        else:
+            overrides[primary_key] = mode
+        self._apply_ipl_visibility_filter()
+
+    def _apply_viewport_movement_settings(self, pane, label): #vers 1
+        """Apply the configured pan-button/rotate-button/invert-axis
+        settings for one World View pane, based on its current view
+        label (Top/Side/Front/3D each get their own invert settings,
+        since their different camera orientations don't necessarily
+        need the same correction)."""
+        invert = self.map_settings.get('viewport_pan_invert') or {}
+        axis = invert.get(label, {'x': False, 'y': False})
+        pane.configure_movement(
+            pan_button=self.map_settings.get('viewport_pan_button'),
+            rotate_button=self.map_settings.get('viewport_rotate_button'),
+            invert_x=axis.get('x', False),
+            invert_y=axis.get('y', False))
+
+    def _create_world_viewport_dock(self): #vers 1
+        """Top/Side/3D triple-pane world viewport, in its own dock so it
+        can sit alongside the still-present paint canvas rather than
+        replacing it outright. Same MapViewport class, camera/pane-lock
+        contract, and right-click-to-reassign pattern as Model
+        Workshop's existing DFFViewport quad viewport - reused here
+        rather than inventing a new multi-pane scheme."""
+        try:
+            from apps.components.Map_Editor.depends.map_viewport import MapViewport
+        except Exception as e:
+            print(f"[MapWorkshop] MapViewport unavailable: {e}")
+            return None
+
+        presets = [("Top", 0, 0, 'ortho'),
+                   ("Side", 90, 0, 'ortho'),
+                   ("3D", 45, 25, 'perspective')]
+        self._world_panes = []
+        for label, yaw, pitch, proj in presets:
+            pane = MapViewport()
+            pane.set_view_lock(proj == 'ortho', label, yaw=yaw, pitch=pitch,
+                               projection=proj)
+            self._apply_viewport_movement_settings(pane, label)
+            pane.set_pick_callback(self._on_viewport_instance_picked)
+            pane.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
+            pane._label_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            pane._label_widget.customContextMenuRequested.connect(
+                lambda pos, p=pane: self._show_world_pane_menu(p, p._label_widget.mapToGlobal(pos)))
+            # Double-click to maximize/restore - same pattern as Model
+            # Workshop's quad viewport, via event filter rather than
+            # touching MapViewport's own mouse handlers.
+            pane.installEventFilter(self)
+            self._world_panes.append(pane)
+
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        for pane in self._world_panes:
+            splitter.addWidget(pane)
+        self._world_splitter = splitter
+        self._maximized_world_pane = None
+
+        dock = QDockWidget("World View", self)
+        dock.setObjectName("World View")
+        dock.setWidget(splitter)
+        dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
+                        QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+        self._world_view_dock = dock
+
+        # Default to showing only 3D, per Keith's request ("I suggest
+        # showing 3d only, unless the user wants to change the
+        # viewpoint") - reuses the existing maximize/restore mechanism
+        # (previously only reachable by double-clicking a pane) rather
+        # than inventing a separate "default view" concept. Double-
+        # click any pane to restore all 3; right-click a pane's label
+        # to reassign which view it shows.
+        self._toggle_world_pane_maximize(self._world_panes[2])   # index 2 = "3D"
+
+        return dock
+
+    def _update_mode_button_style(self): #vers 2
+        """Switch the Object Browser mode buttons (All/Most Used/
+        Favourites/Generic) between icon+text and icon-only, based on
+        whether the row currently has enough width to show all four
+        with their text labels. Defaults to icon-only (per Keith:
+        "show icons only, unless someone widens the pane, then switch
+        to icons and text"), switching to icon+text only once there's
+        actually enough room.
+
+        Uses each button's pre-cached estimated text-mode width
+        (computed once from font metrics at creation time) rather than
+        actually switching styles to measure - the previous version
+        temporarily forced icon+text mode first to measure the row's
+        real needed width, which could itself trigger another resize
+        event (changing a button's style changes its size hint) and
+        end up comparing against stale geometry from before Qt's
+        layout system had finished recalculating - the likely cause of
+        the truncated-text bug Keith reported (buttons stuck showing
+        partial text like "Most U", "Favouri" instead of cleanly
+        switching to icon-only)."""
+        buttons = getattr(self, '_object_mode_buttons', None)
+        text_widths = getattr(self, '_object_mode_button_text_widths', None)
+        row_widget = getattr(self, '_ob_top_row_widget', None)
+        action_widget = getattr(self, '_ob_action_row_widget', None)
+        tab_buttons = getattr(self, '_object_browser_tab_buttons', None)
+        if not buttons or not text_widths or row_widget is None:
+            return
+        text_style = Qt.ToolButtonStyle.ToolButtonTextBesideIcon
+        icon_style = Qt.ToolButtonStyle.ToolButtonIconOnly
+
+        needed = sum(text_widths.values())
+        if tab_buttons:
+            needed += sum(btn.sizeHint().width() for btn in tab_buttons.values())
+        if action_widget is not None and action_widget.isVisible():
+            needed += action_widget.sizeHint().width()
+        available = row_widget.width()
+
+        target_style = text_style if available >= needed else icon_style
+        for btn in buttons.values():
+            if btn.toolButtonStyle() != target_style:
+                btn.setToolButtonStyle(target_style)
+
+    def _toggle_world_pane_maximize(self, pane): #vers 2
+        """Maximize the given world-view pane to fill the whole dock
+        (hiding its siblings), or restore all 3 if already maximized.
+        Simpler than Model Workshop's version - one flat splitter here,
+        not a nested 2x2 grid, so just hiding the other panes is enough.
+
+        Switches the maximized pane's label to 'Full View' - that label
+        is also the pane's exclusive right-click-menu trigger (see
+        _create_world_viewport_dock), so without it there'd be no
+        labelled target to right-click while maximized. Restores the
+        original view-name label (Top/Side/3D) when un-maximized."""
+        panes = getattr(self, '_world_panes', None)
+        if not panes:
+            return
+        if getattr(self, '_maximized_world_pane', None) is pane:
+            for p in panes:
+                p.setVisible(True)
+            self._maximized_world_pane = None
+            restore_label = getattr(pane, '_pre_maximize_label', None) or pane._view_label
+            pane._label_widget.setText(restore_label)
+            pane._label_widget.adjustSize()
+            return
+        for p in panes:
+            p.setVisible(p is pane)
+        self._maximized_world_pane = pane
+        pane._pre_maximize_label = pane._view_label
+        pane._label_widget.setText("Full View")
+        pane._label_widget.adjustSize()
+
+    def _assign_world_pane_view(self, pane, label, yaw, pitch, projection): #vers 2
+        """Apply a user-chosen preset to one world-view pane. If this
+        pane is currently maximized, re-apply the 'Full View' label
+        afterward - set_view_lock always writes the new view name into
+        the label, which would otherwise silently drop the full-view
+        indication while still actually maximized. Also re-applies
+        movement settings for the new label, since Top/Side/Front/3D
+        can each have their own pan-invert configuration."""
+        pane.set_view_lock(projection == 'ortho', label, yaw=yaw, pitch=pitch,
+                            projection=projection)
+        self._apply_viewport_movement_settings(pane, label)
+        if getattr(self, '_maximized_world_pane', None) is pane:
+            pane._pre_maximize_label = label
+            pane._label_widget.setText("Full View")
+            pane._label_widget.adjustSize()
+
+
+
+    #    File I/O                                                               
+
+    def _setup_corner_overlay(self): #vers 3
+        """Create or re-raise the corner resize overlay.
+        Only active in standalone (frameless) mode.
+        Called from showEvent and resizeEvent with a delay so all child
+        widgets are laid out before we raise_() above them.
+        """
+        if not self.standalone_mode:
+            return
+        if not (self.windowFlags() & Qt.WindowType.FramelessWindowHint):
+            return
+        if hasattr(self, '_corner_overlay') and self._corner_overlay:
+            self._corner_overlay.setGeometry(0, 0, self.width(), self.height())
+            self._corner_overlay.raise_()
+            self._corner_overlay.update_state(
+                getattr(self, 'hover_corner', None), self.app_settings)
+            return
+        overlay = _CornerOverlay(self)
+        overlay.update_state(getattr(self, 'hover_corner', None), self.app_settings)
+        self._corner_overlay = overlay
+        overlay.setGeometry(0, 0, self.width(), self.height())
+        overlay.show()
+        overlay.raise_()
+
+    def _refresh_corner_overlay(self): #vers 2
+        if hasattr(self, '_corner_overlay') and self._corner_overlay:
+            self._corner_overlay.setGeometry(0, 0, self.width(), self.height())
+            self._corner_overlay.update_state(
+                getattr(self, 'hover_corner', None), self.app_settings)
+            self._corner_overlay.raise_()
+
+
+#  Public factory function
 class ZoomablePreview(QLabel): #vers 2
     """Fixed preview widget with zoom and pan"""
 
