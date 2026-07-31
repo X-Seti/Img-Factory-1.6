@@ -9,7 +9,7 @@
 # has been renamed to MapWorkshop/Map Workshop/map_workshop throughout
 # this copy - the original Model_Editor/model_workshop.py is untouched
 # and still the real, working Model Workshop feature.
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 199
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 200
 # X-Seti - Apr 2026 - Map Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -56,9 +56,28 @@
 # (_push_undo/_undo_canvas/_redo_canvas/_undo_stack/_redo_stack) is raster/
 # pixel-based against the dead paint canvas, not instance/IPL state - real
 # undo for mapping changes needs its own design, not a port, and is deferred.
+# X-Seti - Jul31 2026 - Ported _render_variant_icon/_paint_variant_shape
+# (misclassified earlier as DP5-only; actually shared icon-shape rendering
+# used by Object Browser mode buttons, IPL/IDE/DAT/IMG tab icons, LOD
+# toggle, and cull-boxes icons). Added missing "import math" needed by
+# _paint_variant_shape. Wired __init__: added self.map_settings = MapSettings(),
+# _COMPACT_BUTTON_H class constant. Hid the Model Workshop-specific left
+# docks (Files/Models/Frame Hierarchy/Textures - not applicable to a map
+# editor, hidden not removed). Wired the real Map Workshop dock sequence
+# in setup_ui matching old_version's actual __init__ order: World Viewport
+# -> Object Browser -> IPL Inst File -> Control Panel, all on the right,
+# stacked vertically, with dock nesting enabled per Keith's own noted
+# preference. _create_instance_list_dock/_create_editing_panel_dock are
+# NOT wired in - confirmed old_version itself never calls them either
+# (superseded: Object Browser's own creation code now builds the merged
+# IDE/IPL/DAT/IMG tabs directly, and Instance Edit Panel is a floating
+# non-modal overlay shown on demand via _show_instance_edit_panel, not
+# a dock) - left as available-but-unused code, matching old_version.
+# Verified: ast.parse clean, full QApplication instantiation clean, all
+# 4 new docks present, Model Workshop left docks confirmed hidden.
 
 import os
-# Force X11/GLX backend for NVIDIA on Wayland
+import math
 os.environ['QT_QPA_PLATFORM'] = 'xcb'
 os.environ['QSG_RHI_BACKEND'] = 'opengl'
 os.environ['LIBGL_ALWAYS_SOFTWARE'] = '0'  # Use hardware acceleration
@@ -547,6 +566,7 @@ except ImportError:
 # _open_txd_standalone
 # _paint_cycle_mat
 # _paint_model_onto
+# _paint_variant_shape
 # _pan_preview
 # _parse_txd_lightweight
 # _pass_textures_to_txd_workshop
@@ -588,6 +608,7 @@ except ImportError:
 # _rename_object
 # _rename_shadow_shortcut
 # _render_collision_preview
+# _render_variant_icon
 # _reset_hotkeys_to_defaults
 # _restore_outer_layout
 # _restore_toolbar_state
@@ -4321,6 +4342,10 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     # user can now freely drag/float/tab any panel, not just ribbons.
     _RIBBON_LAYOUT_VERSION = 2
 
+    # Compact button height for Control Panel widgets (ported from
+    # map_workshop_old_version.py)
+    _COMPACT_BUTTON_H = 18
+
 
     def __init__(self, parent=None, main_window=None): #vers 11
         """initialize_features"""
@@ -4335,8 +4360,12 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             pass
         self.icon_factory = SVGIconFactory()
 
-        self.main_window = main_window
+        # Map Workshop settings (separate from global app_settings/theme) -
+        # required by the ported Object Browser/Instance List/Editing Panel/
+        # World Viewport/Control Panel/ribbon-framework methods.
+        self.map_settings = MapSettings()
 
+        self.main_window = main_window
         self.undo_stack = []
         self.button_display_mode = 'both'
         self.last_save_directory = None
@@ -4584,6 +4613,14 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         outer_mw.splitDockWidget(self._frame_hierarchy_dock, self._texture_dock,
                                   Qt.Orientation.Vertical)
 
+        # Map Workshop: Files/Models/Frame Hierarchy/Textures are Model
+        # Workshop panels (3D mesh editing), not applicable here. Hidden
+        # rather than removed so the code path stays intact if needed later.
+        for _mw_dock in (self._left_dock, self._middle_dock,
+                         self._frame_hierarchy_dock, self._texture_dock):
+            if _mw_dock is not None:
+                _mw_dock.setVisible(False)
+
         # Double-click any dock's title bar to collapse it down to just the
         # title (content hidden), double-click again to restore - replaces
         # the ad-hoc per-panel collapse buttons that used to live inside
@@ -4595,6 +4632,28 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                                (self._texture_dock, "Textures")):
             if _dock is not None:
                 self._make_dock_collapsible(_dock, _title)
+
+        # Map Workshop docks (ported from map_workshop_old_version.py's real
+        # __init__ wiring sequence). Per Keith: enable nesting so Object
+        # Browser etc. can dock to the left too, not just stack on the right.
+        outer_mw.setDockNestingEnabled(True)
+
+        world_dock = self._create_world_viewport_dock()
+        if world_dock is not None:
+            outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, world_dock)
+
+        object_browser_dock = self._create_object_browser_dock()
+        outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, object_browser_dock)
+        if world_dock is not None:
+            outer_mw.splitDockWidget(world_dock, object_browser_dock, Qt.Orientation.Vertical)
+
+        ipl_inst_file_dock = self._create_ipl_inst_file_panel()
+        outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, ipl_inst_file_dock)
+        outer_mw.splitDockWidget(object_browser_dock, ipl_inst_file_dock, Qt.Orientation.Vertical)
+
+        control_panel_dock = self._create_control_panel_dock()
+        outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, control_panel_dock)
+        outer_mw.splitDockWidget(ipl_inst_file_dock, control_panel_dock, Qt.Orientation.Vertical)
 
         main_layout.addWidget(outer_mw)
 
@@ -20258,6 +20317,271 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
 
 #  Public factory function
+
+    # --- Shared icon-shape rendering (ported from map_workshop_old_version.py) ---
+
+    def _paint_variant_shape(self, p, kind, size, color): #vers 2
+        """Draw a simple, reliable shape for an Annotate-ribbon variant
+        that has no existing SVG icon - avoids depending on the system
+        font having specific Unicode glyphs (arrows, shape symbols,
+        circled digits), which isn't guaranteed and was the cause of
+        blank/invisible buttons."""
+        from PyQt6.QtGui import QPolygon
+        qc = QColor(color)
+        m = max(2, int(size * 0.15))
+        pen_w = max(1, size // 10)
+        p.setPen(QPen(qc, pen_w))
+        p.setBrush(Qt.BrushStyle.NoBrush)
+
+        if kind == 'arrow':
+            p.drawLine(m, size - m, size - m, m)
+            ah = size * 0.3
+            p.setPen(Qt.PenStyle.NoPen); p.setBrush(qc)
+            p.drawPolygon(QPolygon([
+                QPoint(size - m, m), QPoint(int(size - m - ah), m),
+                QPoint(size - m, int(m + ah))]))
+        elif kind == 'double_arrow':
+            cy = size // 2
+            p.drawLine(m, cy, size - m, cy)
+            ah = size * 0.22
+            p.setPen(Qt.PenStyle.NoPen); p.setBrush(qc)
+            p.drawPolygon(QPolygon([
+                QPoint(size - m, cy), QPoint(int(size - m - ah), int(cy - ah)),
+                QPoint(int(size - m - ah), int(cy + ah))]))
+            p.drawPolygon(QPolygon([
+                QPoint(m, cy), QPoint(int(m + ah), int(cy - ah)),
+                QPoint(int(m + ah), int(cy + ah))]))
+        elif kind == 'marker_pen':
+            p.setPen(Qt.PenStyle.NoPen); p.setBrush(qc)
+            p.drawRect(m, int(size * 0.4), size - 2*m, int(size * 0.2))
+        elif kind == 'marker_rect':
+            p.setPen(Qt.PenStyle.NoPen); p.setBrush(qc)
+            p.drawRect(m, m, size - 2*m, size - 2*m)
+        elif kind == 'marker_ellipse':
+            p.setPen(Qt.PenStyle.NoPen); p.setBrush(qc)
+            p.drawEllipse(m, m, size - 2*m, size - 2*m)
+        elif kind in ('text_pointer', 'text_arrow'):
+            font = QFont(); font.setPixelSize(int(size * 0.5)); font.setBold(True)
+            p.setFont(font); p.setPen(qc)
+            p.drawText(0, 0, int(size * 0.55), size,
+                       Qt.AlignmentFlag.AlignCenter, "A")
+            if kind == 'text_pointer':
+                p.drawLine(int(size*0.55), int(size*0.7), size - m, int(size*0.7))
+            else:
+                p.drawLine(int(size*0.55), int(size*0.65), size - m - 3, m + 3)
+                p.setPen(Qt.PenStyle.NoPen); p.setBrush(qc)
+                ah = size * 0.16
+                p.drawPolygon(QPolygon([
+                    QPoint(size - m, m), QPoint(int(size - m - ah), m),
+                    QPoint(size - m, int(m + ah))]))
+        elif kind in ('number', 'number_pointer', 'number_arrow'):
+            d = size - 2*m
+            p.setPen(Qt.PenStyle.NoPen); p.setBrush(qc)
+            p.drawEllipse(m, m, d, d)
+            font = QFont(); font.setPixelSize(int(size * 0.45)); font.setBold(True)
+            p.setFont(font); p.setPen(QColor('#ffffff'))
+            p.drawText(m, m, d, d, Qt.AlignmentFlag.AlignCenter, "1")
+        elif kind == 'pixelate':
+            cell = size // 4
+            for row in range(4):
+                for col in range(4):
+                    shade = qc.lighter(130) if (row+col) % 2 == 0 else qc.darker(120)
+                    p.setPen(Qt.PenStyle.NoPen); p.setBrush(shade)
+                    p.drawRect(col*cell, row*cell, cell, cell)
+        elif kind == 'sharpen':
+            p.setPen(Qt.PenStyle.NoPen); p.setBrush(qc)
+            p.drawPolygon(QPolygon([
+                QPoint(size//2, m), QPoint(size - m, size//2),
+                QPoint(size//2, size - m), QPoint(m, size//2)]))
+        elif kind == 'duplicate':
+            p.setPen(QPen(qc, pen_w)); p.setBrush(Qt.BrushStyle.NoBrush)
+            off = int(size * 0.18)
+            sq = size - m - off
+            p.drawRect(m, m, sq - m, sq - m)
+            p.drawRect(m + off, m + off, sq - m, sq - m)
+        elif kind == 'dot':
+            p.setPen(Qt.PenStyle.NoPen); p.setBrush(qc)
+            d = int(size * 0.6)
+            off = (size - d) // 2
+            p.drawEllipse(off, off, d, d)
+        elif kind == 'bullet':
+            p.setPen(Qt.PenStyle.NoPen); p.setBrush(qc)
+            d = int(size * 0.35)
+            off = (size - d) // 2
+            p.drawEllipse(off, off, d, d)
+        elif kind == 'active_zoom':
+            p.setPen(QPen(qc, pen_w)); p.setBrush(Qt.BrushStyle.NoBrush)
+            lens_d = int(size * 0.55)
+            p.drawEllipse(m, m, lens_d, lens_d)
+            p.drawLine(m + int(lens_d*0.85), m + int(lens_d*0.85), size - m, size - m)
+            # Crosshair inside the lens to suggest cursor-follow
+            cx, cy = m + lens_d // 2, m + lens_d // 2
+            p.drawLine(cx - lens_d//4, cy, cx + lens_d//4, cy)
+            p.drawLine(cx, cy - lens_d//4, cx, cy + lens_d//4)
+        elif kind == 'canvas_toggle':
+            p.setPen(QPen(qc, pen_w)); p.setBrush(Qt.BrushStyle.NoBrush)
+            p.drawRect(m, m + 2, size - 2*m, size - 2*m - 4)
+            p.drawLine(m, size - m - 2, size - m, m + 2)
+        elif kind == 'lod_toggle':
+            p.setPen(QPen(qc, pen_w)); p.setBrush(Qt.BrushStyle.NoBrush)
+            big = int(size * 0.65)
+            small = int(size * 0.4)
+            p.drawRect(m, m, big, big)
+            p.drawRect(size - m - small, size - m - small, small, small)
+        elif kind in ('eye_visible', 'eye_hidden'):
+            p.setPen(QPen(qc, pen_w)); p.setBrush(Qt.BrushStyle.NoBrush)
+            cx, cy = size // 2, size // 2
+            eye_w = size - 2*m
+            eye_h = int(eye_w * 0.55)
+            rect_x, rect_y = m, cy - eye_h // 2
+            # Eye outline as an ellipse (approximated with drawArc-style
+            # via drawEllipse, simplest reliable cross-Qt-version option)
+            p.drawEllipse(rect_x, rect_y, eye_w, eye_h)
+            pupil_d = max(2, int(eye_h * 0.5))
+            p.setBrush(QBrush(qc))
+            p.drawEllipse(cx - pupil_d//2, cy - pupil_d//2, pupil_d, pupil_d)
+            if kind == 'eye_hidden':
+                p.setBrush(Qt.BrushStyle.NoBrush)
+                p.drawLine(m, m, size - m, size - m)
+        elif kind == 'cull_boxes':
+            p.setPen(QPen(qc, pen_w)); p.setBrush(Qt.BrushStyle.NoBrush)
+            front = int(size * 0.6)
+            offset = int(size * 0.22)
+            fx, fy = m, size - m - front
+            p.drawRect(fx, fy, front, front)
+            bx, by = fx + offset, fy - offset
+            p.drawRect(bx, by, front, front)
+            for dx, dy in ((0, 0), (front, 0), (0, front), (front, front)):
+                p.drawLine(fx + dx, fy + dy, bx + dx, by + dy)
+        elif kind == 'list_all':
+            p.setPen(QPen(qc, pen_w)); p.setBrush(Qt.BrushStyle.NoBrush)
+            step = (size - 2*m) / 3.0
+            for i in range(3):
+                y = int(m + step * i + step/2)
+                p.drawLine(m, y, size - m, y)
+        elif kind == 'bars_most_used':
+            p.setPen(QPen(qc, pen_w)); p.setBrush(QBrush(qc))
+            bar_w = max(2, (size - 2*m) // 4)
+            gap = max(1, bar_w // 2)
+            heights = (0.4, 0.7, 1.0)
+            x = m
+            for h in heights:
+                bar_h = int((size - 2*m) * h)
+                p.drawRect(x, size - m - bar_h, bar_w, bar_h)
+                x += bar_w + gap
+        elif kind == 'star_filled':
+            from PyQt6.QtGui import QPolygonF
+            p.setPen(QPen(qc, pen_w)); p.setBrush(QBrush(qc))
+            cx, cy = size / 2.0, size / 2.0
+            outer_r, inner_r = (size - 2*m) / 2.0, (size - 2*m) / 4.5
+            pts = []
+            for i in range(10):
+                ang = -math.pi/2 + i * math.pi/5
+                r = outer_r if i % 2 == 0 else inner_r
+                pts.append(QPointF(cx + r*math.cos(ang), cy + r*math.sin(ang)))
+            p.drawPolygon(QPolygonF(pts))
+        elif kind == 'box_generic':
+            p.setPen(QPen(qc, pen_w)); p.setBrush(Qt.BrushStyle.NoBrush)
+            box = size - 2*m
+            p.drawRect(m, m, box, box)
+            p.drawLine(m, m + box//3, size - m, m + box//3)
+        elif kind == 'tab_ide':
+            from PyQt6.QtGui import QPolygonF
+            p.setPen(QPen(qc, pen_w)); p.setBrush(Qt.BrushStyle.NoBrush)
+            fold = int(size * 0.28)
+            pts = [QPointF(m, m), QPointF(size - m - fold, m), QPointF(size - m, m + fold),
+                   QPointF(size - m, size - m), QPointF(m, size - m)]
+            p.drawPolygon(QPolygonF(pts))
+            p.drawLine(size - m - fold, m, size - m - fold, m + fold)
+            p.drawLine(size - m - fold, m + fold, size - m, m + fold)
+            step = (size - 2*m) / 3.5
+            for i in range(2):
+                y = int(m + fold + step * (i + 1))
+                p.drawLine(m + 2, y, size - m - 2, y)
+        elif kind == 'tab_ipl':
+            p.setPen(QPen(qc, pen_w)); p.setBrush(Qt.BrushStyle.NoBrush)
+            cx = size / 2.0
+            top = m
+            tip_y = size - m
+            r = (size - 2*m) * 0.32
+            cy = top + r + 1
+            p.drawEllipse(QPointF(cx, cy), r, r)
+            from PyQt6.QtGui import QPolygonF
+            pts = [QPointF(cx - r * 0.6, cy + r * 0.6), QPointF(cx, tip_y),
+                   QPointF(cx + r * 0.6, cy + r * 0.6)]
+            p.drawPolygon(QPolygonF(pts))
+            p.setBrush(QBrush(qc))
+            p.drawEllipse(QPointF(cx, cy), r * 0.35, r * 0.35)
+        elif kind == 'tab_dat':
+            p.setPen(QPen(qc, pen_w)); p.setBrush(Qt.BrushStyle.NoBrush)
+            step = (size - 2*m) / 2.5
+            knob_x = (0.3, 0.65, 0.4)
+            for i in range(3):
+                y = int(m + step * i + step * 0.5)
+                p.drawLine(m, y, size - m, y)
+                kx = int(m + (size - 2*m) * knob_x[i])
+                p.setBrush(QBrush(qc))
+                p.drawEllipse(QPointF(kx, y), 2, 2)
+                p.setBrush(Qt.BrushStyle.NoBrush)
+        elif kind == 'tab_img':
+            p.setPen(QPen(qc, pen_w)); p.setBrush(Qt.BrushStyle.NoBrush)
+            band_h = (size - 2*m) / 3.2
+            for i in range(3):
+                y = int(m + i * (band_h + 2))
+                p.drawRect(m, y, size - 2*m, int(band_h))
+        elif kind in ('chevron_left', 'chevron_left2', 'chevron_right', 'chevron_right2'):
+            p.setPen(QPen(qc, max(2, pen_w))); p.setBrush(Qt.BrushStyle.NoBrush)
+            cy = size // 2
+            half_h = (size - 2*m) // 2
+            is_right = kind.startswith('chevron_right')
+            is_double = kind.endswith('2')
+
+            def _draw_chevron(cx): #vers 1
+                if is_right:
+                    p.drawLine(cx - half_h//2, cy - half_h, cx + half_h//2, cy)
+                    p.drawLine(cx + half_h//2, cy, cx - half_h//2, cy + half_h)
+                else:
+                    p.drawLine(cx + half_h//2, cy - half_h, cx - half_h//2, cy)
+                    p.drawLine(cx - half_h//2, cy, cx + half_h//2, cy + half_h)
+
+            if is_double:
+                offset = max(2, size // 5)
+                _draw_chevron(size//2 - offset)
+                _draw_chevron(size//2 + offset)
+            else:
+                _draw_chevron(size // 2)
+
+    def _render_variant_icon(self, icon_kind, icon_method, size, icon_color,
+                              has_menu: bool = False) -> QIcon: #vers 2
+        """Render one square icon for a dropdown-button variant: the
+        existing SVG icon if icon_method is given, otherwise a shape
+        drawn via _paint_variant_shape for icon_kind. If has_menu, bakes
+        a small triangle into the top-right corner instead of relying
+        on Qt's separate style-drawn menu-indicator, which reads as a
+        detached arrow rather than part of the icon."""
+        from PyQt6.QtGui import QPolygon
+        px = QPixmap(size, size)
+        px.fill(Qt.GlobalColor.transparent)
+        p = QPainter(px)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        if icon_method:
+            try:
+                ico = getattr(SVGIconFactory, icon_method)(size, icon_color)
+                ico.paint(p, 0, 0, size, size)
+            except Exception:
+                pass
+        elif icon_kind:
+            self._paint_variant_shape(p, icon_kind, size, icon_color)
+
+        if has_menu:
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QColor(icon_color))
+            a = max(5, size // 3)
+            p.drawPolygon(QPolygon([
+                QPoint(size - a, 0), QPoint(size, 0), QPoint(size, a)]))
+        p.end()
+        return QIcon(px)
 class ZoomablePreview(QLabel): #vers 2
     """Fixed preview widget with zoom and pan"""
 
