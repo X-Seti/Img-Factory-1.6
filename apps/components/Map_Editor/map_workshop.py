@@ -9,7 +9,7 @@
 # has been renamed to MapWorkshop/Map Workshop/map_workshop throughout
 # this copy - the original Model_Editor/model_workshop.py is untouched
 # and still the real, working Model Workshop feature.
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 197
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 198
 # X-Seti - Apr 2026 - Map Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -39,6 +39,11 @@
 # X-Seti - Jul31 2026 - Ported Control Panel dock methods (6) into MapWorkshop
 # from map_workshop_old_version.py: dock creation, wireframe toggle, zoom,
 # reset view, bg change, move-there (position spinbox pan).
+# X-Seti - Jul31 2026 - Ported Editing Panel methods (31) into MapWorkshop
+# from map_workshop_old_version.py: IPL/IDE/DAT/IMG tab creation and refresh,
+# IPL sections table (populate/rebuild/move/context menu/cell click), IPL
+# Inst File panel, game folder/DAT loading, world-load application, load
+# options dialog, map load menu, ipl error logging, compact table styling.
 
 import os
 # Force X11/GLX backend for NVIDIA on Wayland
@@ -299,10 +304,12 @@ except ImportError:
 # _apply_always_on_top
 # _apply_button_font
 # _apply_button_mode
+# _apply_compact_table_style
 # _apply_fonts_to_widgets
 # _apply_hotkey_settings
 # _apply_icon_scale
 # _apply_infobar_font
+# _apply_loaded_world
 # _apply_panel_font
 # _apply_prelighting    TODO: bake ambient+directional into DFF vertex colours
 # _apply_settings
@@ -336,9 +343,15 @@ except ImportError:
 # _create_action_section
 # _create_col_from_dff    generate COL1/2/3 binary from DFF geometry #vers 1
 # _create_control_panel_dock
+# _create_dat_tab
+# _create_editing_panel_dock
 # _create_frame_hierarchy_panel
+# _create_ide_tab
+# _create_img_tab
 # _create_info_section
 # _create_instance_list_dock
+# _create_ipl_inst_file_panel
+# _create_ipl_tab
 # _create_left_panel
 # _create_level_card
 # _create_models_table_panel
@@ -384,6 +397,7 @@ except ImportError:
 # _enable_dff_toolbar    show/hide DFF-only toolbar buttons #vers 2
 # _enable_move_mode
 # _enable_name_edit
+# _ensure_ipl_loaded
 # _exit_paint_mode
 # _export_col_data
 # _export_col_model
@@ -393,6 +407,7 @@ except ImportError:
 # _export_textures_as_png
 # _export_via_ide
 # _extract_col_from_img
+# _extract_ipl_section_text
 # _extrude_dialog    prompt for distance, apply extrude to selected faces #vers 1
 # _filter_model_list
 # _find_all_paint_btns
@@ -427,9 +442,12 @@ except ImportError:
 # _is_on_draggable_area
 # _launch_theme_settings
 # _live_viewports
+# _load_game_dat_file
+# _load_game_folder
 # _load_iff_as_qimage
 # _load_img_col_list
 # _load_quad_layout
+# _load_selected_ipls_with_log
 # _load_settings
 # _load_texlist_setting
 # _load_txd_file    load TXD file → texture panel + viewport cache
@@ -440,6 +458,7 @@ except ImportError:
 # _lookup_ide_from_db
 # _mirror_dialog
 # _move_info_ribbon
+# _move_ipl_section
 # _on_col_selected
 # _on_collision_selected
 # _on_compact_col_selected
@@ -450,10 +469,17 @@ except ImportError:
 # _on_dff_geom_selected
 # _on_dff_geom_selected_tbl    handle model table row click → show geometry #vers 1
 # _on_frame_tree_clicked
+# _on_ide_tab_row_clicked
 # _on_instance_edited
 # _on_instance_list_context_menu
 # _on_instance_row_double_clicked
 # _on_instance_row_selected
+# _on_ipl_data_type_changed
+# _on_ipl_section_cell_clicked
+# _on_ipl_sections_column_resized
+# _on_ipl_sections_context_menu
+# _on_ipl_tab_close_clicked
+# _on_ipl_tab_open_clicked
 # _on_menu_btn_clicked
 # _on_move_there_clicked
 # _on_object_browser_add_clicked
@@ -509,6 +535,7 @@ except ImportError:
 # _populate_dff_detail_table
 # _populate_frame_tree
 # _populate_instance_list
+# _populate_ipl_sections
 # _populate_left_panel_from_img
 # _populate_object_browser
 # _populate_tex_thumbnails    64×64 thumbnail grid in texture panel #vers 1
@@ -516,9 +543,14 @@ except ImportError:
 # _prelight_setup_dialog    light source setup for prelighting STUB #vers 1
 # _project_model_2d
 # _push_undo
+# _rebuild_ipl_sections_rows
 # _rebuild_toolbars
 # _recompute_object_browser_model_width
+# _refresh_dat_tab
 # _refresh_icons    refresh all SVG icons after theme change
+# _refresh_ide_tab
+# _refresh_img_tab
+# _refresh_ipl_inst_file_panel
 # _refresh_main_window
 # _regenerate_all_thumbnails
 # _reload_surface_table
@@ -566,6 +598,8 @@ except ImportError:
 # _show_dff_geometry    push _DFFGeometryAdapter into COL3DViewport #vers 1
 # _show_dff_material_context_menu
 # _show_instance_edit_panel
+# _show_load_options_dialog
+# _show_map_load_menu
 # _show_model_details
 # _show_model_search
 # _show_paint_toolbar
@@ -585,6 +619,7 @@ except ImportError:
 # _sort_models_desc
 # _start_thumbnail_spin
 # _stop_thumbnail_spin
+# _style_ipl_name_item
 # _switch_icon_set
 # _sync_middle_btn_row_visibility
 # _sync_quad_from_main
@@ -597,6 +632,7 @@ except ImportError:
 # _toggle_col_view
 # _toggle_front_only_paint
 # _toggle_instance_favourite
+# _toggle_ipl_section
 # _toggle_maximize
 # _toggle_mesh
 # _toggle_mid_btn_row_collapsed
@@ -624,6 +660,7 @@ except ImportError:
 # _wire_col_buttons
 # _wire_dff_buttons
 # _wrap_middle_panel_with_own_dock_areas
+# _write_ipl_error_log
 # closeEvent
 # export_all
 # export_all_surfaces
@@ -18026,6 +18063,1218 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         rgb = colors.get(text)
         for pane in getattr(self, '_world_panes', []):
             pane.set_bg_color_override(rgb)
+
+    # --- Editing Panel: IPL/IDE/DAT/IMG tabs (ported from map_workshop_old_version.py) ---
+
+    def _load_game_folder(self, preset_root: str = None): #vers 2
+        """Load a GTA game's world data (DAT -> IDE -> IPL, full engine-
+        order two-phase load) via the existing GTAWorldLoader - this is
+        the Map Editor's actual data layer, already handling multi-game
+        detection (GTA3/VC/SA/SOL) and object/instance cross-referencing;
+        nothing new needed here beyond wiring it into the UI.
+
+        preset_root: when given (e.g. passed in from Dat Browser, which
+        already has a game root loaded), skip the folder picker and load
+        directly - the same underlying load either way, just two ways to
+        reach it, matching how Model/TXD/COL Workshop can be opened either
+        via an explicit path or by picking up whatever's already open."""
+        from PyQt6.QtWidgets import QFileDialog
+        from apps.methods.gta_dat_parser import detect_game, GTAWorldLoader
+
+        if preset_root:
+            folder = preset_root
+        else:
+            folder = QFileDialog.getExistingDirectory(self, "Select GTA game folder")
+            if not folder:
+                return
+
+        game = detect_game(folder)
+        if not game:
+            QMessageBox.warning(self, "Load Game Folder",
+                f"Couldn't detect a supported GTA game in:\n{folder}\n\n"
+                "Expected a 'data' folder containing gta3.dat, gta_vc.dat, "
+                "or gta.dat.")
+            return
+
+        loader = GTAWorldLoader(game)
+        loader.lazy_ipl_loading = True   # per Keith: don't load/scan any
+                                         # IPL's content (or its models'
+                                         # geometry/textures) until the
+                                         # user actually asks for that
+                                         # specific IPL, not the whole
+                                         # world eagerly at load time
+        ok = loader.load(folder)
+        self._game_root = folder
+        self._apply_loaded_world(loader, game, ok, "Load Game Folder")
+
+    def _show_map_load_menu(self): #vers 1
+        """Menu shown from the titlebar's Load button - the same two
+        load paths already in the File menu (Load Game Folder / Load
+        Game DAT File), surfaced here since Keith wants Load on the
+        titlebar to actually load a map, not the paint canvas's old
+        image-load menu."""
+        menu = QMenu(self)
+        menu.addAction("Load Game Folder…", self._load_game_folder)
+        menu.addAction("Load Game DAT File…", self._load_game_dat_file)
+        menu.exec(self.tb_load_btn.mapToGlobal(
+            self.tb_load_btn.rect().bottomLeft()))
+
+    def _load_game_dat_file(self, preset_dat_path: str = None): #vers 1
+        """Load a GTA game's world data starting from one specific .dat
+        file, rather than a whole game folder - per Keith's request
+        that the standalone flow ask for the actual gta_xx.dat/
+        default.dat file path directly. Also the entry point for the
+        DAT Browser tree's 'Load with Map Workshop' right-click on a
+        specific .dat entry, via preset_dat_path.
+
+        The game is detected purely from the .dat file's own basename
+        (detect_game_from_dat_filename) rather than scanning a folder -
+        deliberately doesn't accept an ambiguous bare 'default.dat'
+        (shared across gta3/vc/sa), since there'd be no way to tell
+        which game it belongs to from the filename alone; the user
+        picks the actual main .dat (gta3.dat, gta_vc.dat, gta.dat, or
+        gta_sol.dat)."""
+        from PyQt6.QtWidgets import QFileDialog
+        from apps.methods.gta_dat_parser import detect_game_from_dat_filename, GTAWorldLoader
+
+        if preset_dat_path:
+            dat_path = preset_dat_path
+        else:
+            dat_path, _ = QFileDialog.getOpenFileName(
+                self, "Select GTA .dat file", "",
+                "GTA DAT files (gta3.dat gta_vc.dat gta.dat gta_sol.dat gtasol.dat gta_quick.dat);;All files (*.dat)")
+            if not dat_path:
+                return
+
+        game = detect_game_from_dat_filename(dat_path)
+        if not game:
+            QMessageBox.warning(self, "Load Game DAT File",
+                f"Couldn't identify the game from:\n{dat_path}\n\n"
+                "Expected the game's main .dat file (gta3.dat, gta_vc.dat, "
+                "gta.dat, or gta_sol.dat) - not default.dat, which is "
+                "shared across games and can't be identified by name alone.")
+            return
+
+        game_root = os.path.normpath(os.path.join(os.path.dirname(dat_path), ".."))
+        loader = GTAWorldLoader(game)
+        loader.lazy_ipl_loading = True
+        ok = loader.load_from_dat(dat_path, game_root)
+        self._game_root = game_root
+        self._apply_loaded_world(loader, game, ok, "Load Game DAT File")
+
+    def _apply_loaded_world(self, loader, game, ok, source_desc): #vers 1
+        """Shared post-load handling for both _load_game_folder and
+        _load_game_dat_file - status message, populating the World View
+        panes/Instance List/IPL Sections panel, and the summary/error
+        dialog. Factored out so both loading paths (folder-based, or a
+        specific .dat file) share exactly the same result handling."""
+        self._world_loader = loader
+        self._loaded_dat_path = getattr(loader.main_dat, 'dat_path', '') if hasattr(loader, 'main_dat') else ''
+
+        if not ok:
+            QMessageBox.warning(self, source_desc,
+                f"Load failed:\n" + "\n".join(loader.stats.errors[:10]))
+            return
+
+        self._set_status(
+            f"Loaded {game.upper()} world: {len(loader.objects)} objects, "
+            f"{len(loader.instances)} instances, {loader.stats.ipl_files} IPL files")
+        self._lod_pairs = loader.resolve_lod_pairs()
+        self._lod_overrides = {}
+        self._lod_display_mode = 'normal'
+
+        model_cache = getattr(self, '_model_cache', None)
+        if model_cache is None:
+            from apps.components.Map_Editor.depends.model_cache import ModelCache
+            model_cache = ModelCache()
+            self._model_cache = model_cache
+        model_cache.index_img_files(loader.get_img_paths())
+        # Per Keith: model/texture scanning should happen when a
+        # specific IPL is actually loaded, not for the whole world at
+        # startup - with lazy_ipl_loading enabled above, loader.
+        # instances is empty at this point anyway (nothing parsed
+        # yet), so pre-loading here would be a no-op regardless. The
+        # real pre-load now happens per-IPL in _on_ipl_section_cell_
+        # clicked, scoped to just that IPL's newly-loaded instances.
+
+        visible = self._apply_lod_filter(loader.instances)
+        for pane in getattr(self, '_world_panes', []):
+            pane.set_instances(visible)
+            pane.set_model_cache(model_cache)
+            pane.set_cull_boxes(loader.culls, getattr(self, '_cull_boxes_act', None) and
+                                self._cull_boxes_act.isChecked())
+        self._populate_instance_list(_FilteredLoaderStub(visible, loader))
+        self._populate_ipl_sections(loader)
+        self._populate_object_browser(loader)
+        self._refresh_ide_tab(loader)
+        self._refresh_dat_tab()
+        self._refresh_img_tab(loader)
+        self._refresh_ipl_inst_file_panel()
+        QMessageBox.information(self, source_desc, loader.get_summary())
+
+        # Per Keith: "we could have load from .dat file with no IPL
+        # files selected... Or load with options. the options show all
+        # ipl files [x] boxes and model [x] textures [x] and
+        # [continue]." Only offered when lazy loading actually
+        # discovered something to choose from.
+        if getattr(loader, 'lazy_ipl_loading', False) and loader.available_ipls:
+            selection = self._show_load_options_dialog(loader)
+            if selection is not None:
+                stems, load_models, load_textures = selection
+                if stems:
+                    self._load_selected_ipls_with_log(
+                        loader, model_cache, stems, load_models, load_textures)
+
+    def _load_selected_ipls_with_log(self, loader, model_cache, stems, load_models, load_textures): #vers 1
+        """Load a batch of specific IPLs (from the Load Options dialog),
+        showing a scrolling log dialog matching Keith's exact requested
+        format: "loading <name>" followed by each newly-added instance's
+        line as it's added, then a final per-IPL result line - "loaded
+        <name> - no errors" or "<name> - <model>.dff/<txd>.txd missing
+        from img file" when a referenced model/texture genuinely isn't
+        in any indexed archive at all (as opposed to a parse error in
+        the IPL's own text, which _write_ipl_error_log/the per-IPL
+        issue count already covers separately).
+
+        load_models/load_textures gate whether ModelCache.get_geometry/
+        get_textures are called at all for this batch - unchecking
+        either skips that half of pre-loading entirely for everything
+        loaded here (their own per-instance rendering fallback to
+        point/dot rendering is unaffected either way, this only
+        controls whether pre-loading happens now)."""
+        from PyQt6.QtWidgets import QTextEdit
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Loading IPL Files")
+        dlg.resize(560, 420)
+        lay = QVBoxLayout(dlg)
+        log = QTextEdit()
+        log.setReadOnly(True)
+        font = log.font(); font.setFamily("monospace"); log.setFont(font)
+        lay.addWidget(log)
+        cancel_btn = QPushButton("Cancel")
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        btn_row.addWidget(cancel_btn)
+        lay.addLayout(btn_row)
+
+        cancelled = {'flag': False}
+        cancel_btn.clicked.connect(lambda: cancelled.update(flag=True))
+        dlg.show()
+
+        def _append(line): #vers 1
+            log.append(line)
+            QApplication.processEvents()
+
+        any_loaded = False
+        for stem in stems:
+            if cancelled['flag']:
+                _append("Cancelled - remaining IPLs not loaded")
+                break
+            entry = loader.available_ipls.get(stem)
+            display_name = os.path.basename(entry.abs_path) if entry else stem
+            _append(f"loading {display_name}")
+
+            before_count = len(loader.instances)
+            result = loader.load_ipl_by_name(stem)
+            if not result.success:
+                _append(f"{display_name} - failed to load"
+                       + (f": {result.errors[0]}" if result.errors else ""))
+                continue
+            any_loaded = True
+
+            new_instances = loader.instances[before_count:]
+            for i, inst in enumerate(new_instances):
+                _append(f"{inst.model_id}, {inst.model_name}, {inst.interior}, "
+                        f"{inst.pos_x}, {inst.pos_y}, {inst.pos_z}, "
+                        f"{inst.scale_x}, {inst.scale_y}, {inst.scale_z}, "
+                        f"{inst.rot_x}, {inst.rot_y}, {inst.rot_z}, {inst.rot_w}")
+                if cancelled['flag']:
+                    break
+
+            # Missing-model/texture detection - genuinely absent from
+            # any indexed archive, not a parse error in the IPL itself
+            missing = []
+            seen_models = set()
+            for inst in new_instances:
+                if inst.model_name in seen_models:
+                    continue
+                seen_models.add(inst.model_name)
+                obj = loader.get_object(inst.model_id)
+                txd_name = obj.txd_name if obj else ""
+                if load_models and not model_cache.is_dff_indexed(inst.model_name):
+                    missing.append(f"{inst.model_name}.dff")
+                if load_textures and txd_name and not model_cache.is_txd_indexed(txd_name):
+                    missing.append(f"{txd_name}.txd")
+                if load_models:
+                    model_cache.get_geometry(inst.model_name)
+                if load_textures and txd_name:
+                    model_cache.get_textures(txd_name)
+
+            problem_count = result.error_count + result.warning_count
+            if missing:
+                _append(f"{display_name} loaded - "
+                        + "/ ".join(missing) + " missing from img file")
+                self._write_ipl_error_log(result)
+            elif problem_count:
+                log_path = self._write_ipl_error_log(result)
+                _append(f"{display_name} loaded - {problem_count} issue(s) found"
+                        + (f", check {os.path.basename(log_path)} added to the maps folder"
+                           if log_path else ""))
+            else:
+                _append(f"{display_name} loaded - no errors")
+
+        if any_loaded:
+            self._all_instances = list(loader.instances)
+            self._populate_object_browser(loader)
+            visible = self._apply_lod_filter(loader.instances)
+            for pane in getattr(self, '_world_panes', []):
+                pane.set_instances(visible)
+
+        cancel_btn.setText("Close")
+        cancel_btn.clicked.disconnect()
+        cancel_btn.clicked.connect(dlg.accept)
+
+    def _show_load_options_dialog(self, loader): #vers 1
+        """Shown right after a world's IPL list is discovered (but
+        before any of their content is actually loaded) - lets the
+        user choose "load from .dat file" (stay purely lazy, nothing
+        loaded now, browse/load individual IPLs later via their eye
+        icons - the existing behaviour) or "load with options" (pick
+        specific IPLs, and whether to load their models/textures, right
+        now). Returns (selected_stems, load_models, load_textures), or
+        None if the user picked "load from .dat file" / cancelled."""
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Load Options")
+        dlg.setMinimumWidth(420)
+        lay = QVBoxLayout(dlg)
+
+        dat_only_radio = QRadioButton(
+            "Load from .dat file - IPL data is discovered but not loaded; "
+            "no models or textures loaded into the scene\n"
+            "(load individual IPLs later via their eye icon in IPL Sections)")
+        dat_only_radio.setChecked(True)
+        with_options_radio = QRadioButton("Load with options:")
+        lay.addWidget(dat_only_radio)
+        lay.addWidget(with_options_radio)
+
+        options_box = QGroupBox()
+        themecol_opt = self.app_settings.get_theme_colors()
+        panel_bg_opt = themecol_opt.get('panel_bg')
+        if panel_bg_opt:
+            options_box.setStyleSheet(f"QGroupBox {{ background: {panel_bg_opt}; }}")
+        options_lay = QVBoxLayout(options_box)
+        ipl_list = QListWidget()
+        ipl_list.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        stem_by_display = {}
+        for stem, entry in sorted(loader.available_ipls.items(),
+                                  key=lambda kv: os.path.basename(kv[1].abs_path).lower()):
+            display_name = os.path.basename(entry.abs_path)
+            item = QListWidgetItem(display_name)
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Unchecked)
+            ipl_list.addItem(item)
+            stem_by_display[display_name] = stem
+        options_lay.addWidget(ipl_list)
+
+        select_row = QHBoxLayout()
+        select_all_btn = QPushButton("Select All")
+        select_none_btn = QPushButton("Select None")
+        select_row.addWidget(select_all_btn)
+        select_row.addWidget(select_none_btn)
+        select_row.addStretch()
+        options_lay.addLayout(select_row)
+
+        def _set_all_checked(checked): #vers 1
+            state = Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked
+            for i in range(ipl_list.count()):
+                ipl_list.item(i).setCheckState(state)
+        select_all_btn.clicked.connect(lambda: _set_all_checked(True))
+        select_none_btn.clicked.connect(lambda: _set_all_checked(False))
+
+        models_chk = QCheckBox("Model")
+        models_chk.setChecked(True)
+        textures_chk = QCheckBox("Textures")
+        textures_chk.setChecked(True)
+        mt_row = QHBoxLayout()
+        mt_row.addWidget(models_chk)
+        mt_row.addWidget(textures_chk)
+        mt_row.addStretch()
+        options_lay.addLayout(mt_row)
+        lay.addWidget(options_box)
+
+        def _sync_options_enabled(): #vers 1
+            options_box.setEnabled(with_options_radio.isChecked())
+        dat_only_radio.toggled.connect(_sync_options_enabled)
+        with_options_radio.toggled.connect(_sync_options_enabled)
+        _sync_options_enabled()
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        continue_btn = QPushButton("Continue")
+        continue_btn.setDefault(True)
+        btn_row.addWidget(continue_btn)
+        lay.addLayout(btn_row)
+
+        result = {}
+        def _on_continue(): #vers 1
+            if with_options_radio.isChecked():
+                selected_stems = [
+                    stem_by_display[ipl_list.item(i).text()]
+                    for i in range(ipl_list.count())
+                    if ipl_list.item(i).checkState() == Qt.CheckState.Checked]
+                result['value'] = (selected_stems, models_chk.isChecked(),
+                                   textures_chk.isChecked())
+            else:
+                result['value'] = ([], True, True)   # dat-only: nothing to load
+            dlg.accept()
+        continue_btn.clicked.connect(_on_continue)
+
+        dlg.exec()
+        return result.get('value')
+
+    def _create_ipl_tab(self): #vers 1
+        """[IPL] tab content, matching MooMapper's own "Item Placement"
+        tab - the former standalone IPL Sections dock's table moves
+        here unchanged, plus an Open/Close/New/Delete button row and
+        INST/CULL/ZONE/PATH radio buttons at the bottom (only INST/
+        CULL/ZONE are real - PATH isn't parsed anywhere in this
+        project yet, honestly stubbed rather than guessed at without
+        real sample data to verify against, the same caution applied
+        to the VC/GTA3 inst-format work earlier).
+
+        Column order is eye-icon first, then name (per Keith's
+        request) - previously name then icon."""
+        panel = QWidget()
+        lay = QVBoxLayout(panel)
+        lay.setContentsMargins(1, 1, 1, 1)
+        from apps.methods.imgfactory_svg_icons import get_remove_icon, get_file_icon, get_add_icon, get_close_icon
+        from PyQt6.QtWidgets import QButtonGroup
+        title_row = QHBoxLayout()
+        label = QLabel("IPL Sections")
+        label.setStyleSheet("font-weight: bold;")
+        title_row.addWidget(label)
+        sm_buttonheight = 20
+        #_COMPACT_BUTTON_H = 18 #TODO; does not show the right size?
+        #_COMPACT_ICON_SIZE = 18 TODO; Text less then min 18 and max 20, the text buttons get corrupted.
+
+        icon_color = self._get_icon_color()
+        open_btn = QPushButton(get_add_icon(sm_buttonheight, icon_color), "Open")
+        open_btn.setToolTip("Load the selected IPL's content on demand -\n"
+                            "same as clicking its eye icon to show it")
+        open_btn.setIconSize(QSize(18, 18))
+        open_btn.setMinimumHeight(18); open_btn.setMaximumHeight(28)
+        open_btn.setMinimumWidth(40)
+        open_btn.clicked.connect(self._on_ipl_tab_open_clicked)
+        #open_btn.setFixedHeight(16)
+        close_btn = QPushButton(get_close_icon(sm_buttonheight, icon_color), "Close")
+        close_btn.setToolTip("Hide the selected IPL - same as clicking\n"
+                             "its eye icon to hide it (its data stays\n"
+                             "loaded, just not shown)")
+        close_btn.setIconSize(QSize(18, 18))
+        close_btn.setMinimumHeight(18); close_btn.setMaximumHeight(28)
+        close_btn.setMinimumWidth(40)
+        close_btn.clicked.connect(self._on_ipl_tab_close_clicked)
+        #close_btn.setFixedHeight(16) #TODO; need new icon.
+        new_btn = QPushButton(get_file_icon(sm_buttonheight, icon_color), "New")
+        new_btn.setToolTip("STUB - creating a brand new, empty IPL file\n"
+                           "on disk isn't built yet")
+        new_btn.setIconSize(QSize(18, 18))
+        new_btn.setMinimumHeight(18); new_btn.setMaximumHeight(28)
+        new_btn.setMinimumWidth(40)
+        new_btn.setEnabled(False)
+        #new_btn.setFixedHeight(16) #TODO; need delete icon.
+        delete_btn = QPushButton(get_remove_icon(sm_buttonheight, icon_color), "Delete")
+        delete_btn.setToolTip("STUB - deleting an IPL file from disk isn't\n"
+                              "built yet (no write-back infrastructure exists\n"
+                              "for any file type in Map Workshop yet)")
+        delete_btn.setIconSize(QSize(18, 18))
+        delete_btn.setMinimumHeight(18); delete_btn.setMaximumHeight(28)
+        delete_btn.setMinimumWidth(40)
+        delete_btn.setEnabled(False)
+        #delete_btn.setFixedHeight(16)
+        for b in (open_btn, close_btn, new_btn, delete_btn):
+            title_row.addWidget(b)
+        title_row.addStretch()
+        lay.addLayout(title_row)
+
+        table = QTableWidget(0, 2)
+        table.setHorizontalHeaderLabels(["", "IPL File"])
+        header = table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
+        header.setStretchLastSection(False)
+        table.setColumnWidth(0, 18)
+        saved_widths = self.map_settings.get('ipl_sections_column_widths') or []
+        if len(saved_widths) >= 2:
+            table.setColumnWidth(1, saved_widths[1])
+        else:
+            header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        header.sectionResized.connect(self._on_ipl_sections_column_resized)
+        self._apply_compact_table_style(table)
+        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        table.setShowGrid(False)
+        table.setToolTip("Toggle which IPL files' placements are shown in World View")
+        table.cellClicked.connect(self._on_ipl_section_cell_clicked)
+        table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        table.customContextMenuRequested.connect(self._on_ipl_sections_context_menu)
+        lay.addWidget(table)
+        self._ipl_sections_table = table
+
+        placeholder = QLabel("No world loaded yet")
+        #placeholder.setStyleSheet("color: palette(mid);")
+        lay.addWidget(placeholder)
+        self._ipl_sections_placeholder = placeholder
+        placeholder.setVisible(True)
+        table.setVisible(False)
+
+        # INST/CULL/ZONE/PATH data-type selector - switches which kind
+        # of IPL content the "IPL Inst File" panel shows for the
+        # currently selected IPL. INST/CULL/ZONE are real (all three
+        # are already parsed - GTAWorldLoader.instances/culls/zones);
+        # PATH is an honest stub, disabled with a tooltip explaining
+        # why, rather than a guess at an unverified format.
+        themecol = self.app_settings.get_theme_colors()
+        panel_bg = themecol.get('panel_bg')
+        type_box = QGroupBox()
+        if panel_bg:
+            type_box.setStyleSheet(f"QGroupBox {{ background: {panel_bg}; }}")
+        type_lay = QVBoxLayout(type_box)
+        self._ipl_type_group = QButtonGroup(panel)
+        self._ipl_type_group.setExclusive(True)
+        type_specs = [
+            ('inst', "INST - Item Instances", True),
+            ('cull', "CULL - Object Culling", True),
+            ('zone', "ZONE - Map Zones", True),
+            ('path', "PATH - Pedestrian / Vehicle Paths", False),
+        ]
+        for key, text, enabled in type_specs:
+            radio = QRadioButton(text)
+            radio.setChecked(key == 'inst')
+            radio.setEnabled(enabled)
+            if not enabled:
+                radio.setToolTip("STUB - path node data isn't parsed anywhere\n"
+                                 "in this project yet, no real sample data has\n"
+                                 "been verified against yet to build this on")
+            radio.toggled.connect(
+                lambda checked, k=key: self._on_ipl_data_type_changed(k) if checked else None)
+            self._ipl_type_group.addButton(radio)
+            type_lay.addWidget(radio)
+        lay.addWidget(type_box)
+        self._ipl_data_type = 'inst'
+        return panel
+
+    def _populate_ipl_sections(self, loader): #vers 6
+        """Fill the IPL Sections panel from a completed load - one row
+        per IPL, in the user's saved display order (ipl_sections_order)
+        if any, with new/unrecognised names (a different world/mod)
+        appended alphabetically after the known ones rather than losing
+        the saved order entirely.
+
+        With lazy_ipl_loading enabled (the default for Map Workshop's
+        own load paths), every IPL the .dat(s) reference is listed
+        immediately from loader.available_ipls - matching MooMapper's
+        own behaviour of listing every IPL path upfront without loading
+        any of their content - rather than only showing IPLs that
+        already have instances loaded. Falls back to the older
+        instances-based derivation for any caller that doesn't use lazy
+        loading."""
+        table = getattr(self, '_ipl_sections_table', None)
+        placeholder = getattr(self, '_ipl_sections_placeholder', None)
+        if table is None:
+            return
+
+        self._all_instances = list(loader.instances)
+
+        icon_color = self._get_icon_color()
+        icon_sz = 16
+        self._eye_open_icon = self._render_variant_icon('eye_visible', None, icon_sz,
+                                                         icon_color, has_menu=False)
+        self._eye_closed_icon = self._render_variant_icon('eye_hidden', None, icon_sz,
+                                                           icon_color, has_menu=False)
+
+        # display name (as it'll appear in the table / match inst.source_ipl
+        # once loaded) -> lowercase stem (the key load_ipl_by_name expects)
+        self._ipl_display_to_stem = {}
+        if getattr(loader, 'lazy_ipl_loading', False):
+            for stem, entry in loader.available_ipls.items():
+                display_name = os.path.basename(entry.abs_path)
+                self._ipl_display_to_stem[display_name] = stem
+            current_names = set(self._ipl_display_to_stem.keys())
+            # Nothing is actually loaded yet - every IPL starts hidden/
+            # unloaded, matching MooMapper's own default state, rather
+            # than showing everything as already visible.
+            self._hidden_ipls = set(current_names)
+        else:
+            current_names = {inst.source_ipl for inst in loader.instances}
+            self._hidden_ipls = set()
+
+        saved_order = self.map_settings.get('ipl_sections_order') or []
+        ordered = [n for n in saved_order if n in current_names]
+        remaining = sorted(current_names - set(ordered))
+        self._ipl_display_order = ordered + remaining
+
+        self._rebuild_ipl_sections_rows()
+
+        if placeholder is not None:
+            placeholder.setVisible(False)
+        table.setVisible(True)
+
+    def _rebuild_ipl_sections_rows(self): #vers 1
+        """(Re)build every row from self._ipl_display_order - shared by
+        the initial populate and by _move_ipl_section, so reordering
+        doesn't duplicate the row-construction logic."""
+        table = self._ipl_sections_table
+        table.setRowCount(len(self._ipl_display_order))
+        hidden = getattr(self, '_hidden_ipls', set())
+        for row, ipl_name in enumerate(self._ipl_display_order):
+            is_hidden = ipl_name in hidden
+            eye_item = QTableWidgetItem()
+            eye_item.setIcon(self._eye_closed_icon if is_hidden else self._eye_open_icon)
+            eye_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            eye_item.setToolTip(f"Show {ipl_name}" if is_hidden else f"Hide {ipl_name}")
+            eye_item.setData(Qt.ItemDataRole.UserRole, ipl_name)
+            table.setItem(row, 0, eye_item)
+            name_item = QTableWidgetItem(ipl_name)
+            self._style_ipl_name_item(name_item, is_hidden)
+            table.setItem(row, 1, name_item)
+
+    def _move_ipl_section(self, ipl_name, direction): #vers 1
+        """Move one IPL section up (-1) or down (+1) in the display
+        order, persisting the new order so it survives reloads."""
+        order = getattr(self, '_ipl_display_order', None)
+        if not order or ipl_name not in order:
+            return
+        idx = order.index(ipl_name)
+        new_idx = idx + direction
+        if not (0 <= new_idx < len(order)):
+            return  # already at that end
+        order[idx], order[new_idx] = order[new_idx], order[idx]
+        self._rebuild_ipl_sections_rows()
+        self.map_settings.set('ipl_sections_order', order)
+        self.map_settings.save()
+
+    def _on_ipl_sections_context_menu(self, pos): #vers 1
+        """Right-click a row for Move Up/Down - explicit menu actions
+        rather than drag-and-drop, since QTableWidget's built-in
+        InternalMove drag-drop is a known source of subtle bugs with
+        multi-column rows (data can end up split across the wrong
+        rows/columns) - explicit actions are simple and reliable."""
+        table = self._ipl_sections_table
+        index = table.indexAt(pos)
+        if not index.isValid():
+            return
+        item = table.item(index.row(), 0)
+        if item is None:
+            return
+        ipl_name = item.data(Qt.ItemDataRole.UserRole)
+        order = getattr(self, '_ipl_display_order', [])
+        idx = order.index(ipl_name) if ipl_name in order else -1
+
+        menu = QMenu(table)
+        is_hidden = ipl_name in getattr(self, '_hidden_ipls', set())
+        vis_act = menu.addAction("Show" if is_hidden else "Hide")
+        vis_act.triggered.connect(
+            lambda checked=False, r=index.row(): self._on_ipl_section_cell_clicked(r, 0))
+        menu.addSeparator()
+        up_act = menu.addAction("Move Up")
+        up_act.setEnabled(idx > 0)
+        up_act.triggered.connect(lambda checked=False, n=ipl_name: self._move_ipl_section(n, -1))
+        down_act = menu.addAction("Move Down")
+        down_act.setEnabled(0 <= idx < len(order) - 1)
+        down_act.triggered.connect(lambda checked=False, n=ipl_name: self._move_ipl_section(n, 1))
+        menu.exec(table.viewport().mapToGlobal(pos))
+
+    def _on_ipl_sections_column_resized(self, logical_index, old_size, new_size): #vers 1
+        """Persist the user's column widths for the IPL Sections table
+        whenever they resize a column, so it doesn't reset to defaults
+        on next open."""
+        table = getattr(self, '_ipl_sections_table', None)
+        if table is None:
+            return
+        widths = [table.columnWidth(c) for c in range(table.columnCount())]
+        self.map_settings.set('ipl_sections_column_widths', widths)
+        self.map_settings.save()
+
+    def _on_ipl_tab_open_clicked(self): #vers 1
+        """Open button - loads the currently selected IPL's content on
+        demand, same as clicking its eye icon to show it."""
+        table = getattr(self, '_ipl_sections_table', None)
+        if table is None or table.currentRow() < 0:
+            return
+        self._on_ipl_section_cell_clicked(table.currentRow(), 0)
+
+    def _on_ipl_tab_close_clicked(self): #vers 1
+        """Close button - hides the currently selected IPL, same as
+        clicking its eye icon to hide it. Its data stays loaded (not
+        re-parsed if reopened), only its instances stop being shown."""
+        table = getattr(self, '_ipl_sections_table', None)
+        if table is None or table.currentRow() < 0:
+            return
+        row = table.currentRow()
+        item = table.item(row, 0)
+        if item is None:
+            return
+        ipl_name = item.data(Qt.ItemDataRole.UserRole)
+        if ipl_name not in getattr(self, '_hidden_ipls', set()):
+            self._on_ipl_section_cell_clicked(row, 0)
+
+    def _on_ipl_data_type_changed(self, data_type): #vers 1
+        """INST/CULL/ZONE/PATH radio changed - updates which kind of
+        data the IPL Inst File panel shows for the currently selected
+        IPL. Only called for the real, enabled options (INST/CULL/
+        ZONE) - PATH is disabled at the widget level since it isn't
+        parsed anywhere in this project yet."""
+        self._ipl_data_type = data_type
+        self._refresh_ipl_inst_file_panel()
+
+    def _create_ipl_inst_file_panel(self): #vers 1
+        """New panel replacing the old standalone IPL Sections dock's
+        physical location - shows the real, raw text content of
+        whichever IPL is currently selected in the [IPL] tab, filtered
+        to whichever data type (INST/CULL/ZONE) is selected there.
+        Updates live as different IPL files are clicked, per Keith's
+        request ("each ipl file we press changes the contents in the
+        IPL inst file"). Re-reads the actual file from disk each time
+        rather than reconstructing from parsed IPLInstance data, so
+        it's always faithful to the real file (comments, exact
+        formatting, sections not otherwise surfaced anywhere)."""
+        panel = QWidget()
+        lay = QVBoxLayout(panel)
+        lay.setContentsMargins(6, 6, 6, 6)
+        from PyQt6.QtWidgets import QTextEdit
+        text = QTextEdit()
+        text.setReadOnly(True)
+        font = text.font(); font.setFamily("monospace"); text.setFont(font)
+        text.setPlaceholderText("Select an IPL file in the IPL tab to preview its contents here")
+        lay.addWidget(text)
+        self._ipl_inst_file_text = text
+
+        dock = QDockWidget("IPL Inst File", self)
+        dock.setObjectName("IPL Inst File")
+        dock.setWidget(panel)
+        dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
+                        QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+        self._ipl_inst_file_dock = dock
+        return dock
+
+    def _refresh_ipl_inst_file_panel(self): #vers 1
+        """Re-read and display the currently selected IPL's raw file
+        content, filtered to the currently selected data type (INST/
+        CULL/ZONE - PATH is stubbed, never reachable here since its
+        radio button is disabled)."""
+        text_widget = getattr(self, '_ipl_inst_file_text', None)
+        table = getattr(self, '_ipl_sections_table', None)
+        loader = getattr(self, '_world_loader', None)
+        if text_widget is None or table is None or loader is None:
+            return
+        row = table.currentRow()
+        if row < 0:
+            text_widget.clear()
+            return
+        item = table.item(row, 0)
+        if item is None:
+            text_widget.clear()
+            return
+        display_name = item.data(Qt.ItemDataRole.UserRole)
+        stem = getattr(self, '_ipl_display_to_stem', {}).get(display_name)
+        entry = loader.available_ipls.get(stem) if stem else None
+        if entry is None or not entry.exists:
+            text_widget.setPlainText(f"({display_name} - file not found on disk)")
+            return
+        try:
+            with open(entry.abs_path, 'r', encoding='ascii', errors='ignore') as f:
+                raw_text = f.read()
+        except Exception as e:
+            text_widget.setPlainText(f"(could not read {display_name}: {e})")
+            return
+
+        data_type = getattr(self, '_ipl_data_type', 'inst')
+        section_text = self._extract_ipl_section_text(raw_text, data_type)
+        text_widget.setPlainText(section_text if section_text is not None else raw_text)
+
+    def _extract_ipl_section_text(self, raw_text, section_name): #vers 1
+        """Extract just one named section's lines (between the section
+        keyword and its "end") from a raw IPL file's text - returns
+        None if that section isn't present at all (falls back to
+        showing the whole file), rather than an empty/misleading
+        result."""
+        lines = raw_text.splitlines()
+        out = []
+        in_section = False
+        found = False
+        for raw in lines:
+            line = raw.split("#")[0].strip()
+            low = line.lower()
+            if not in_section and low == section_name:
+                in_section = True
+                found = True
+                out.append(raw)
+                continue
+            if in_section:
+                out.append(raw)
+                if low == "end":
+                    in_section = False
+        return "\n".join(out) if found else None
+
+    def _apply_compact_table_style(self, table): #vers 1
+        """Apply the same compact row/header height Object Browser
+        uses (font-metric-based: text height + 2px, not a hardcoded
+        guess) to a table in one of the merged tabs - per Keith's
+        report that the new tabs' header cells were taller than Object
+        Browser's own. Reused instead of duplicating this logic in
+        every tab's own creation method."""
+        from PyQt6.QtGui import QFontMetrics
+        row_h = QFontMetrics(table.font()).height() + 2
+        table.verticalHeader().setVisible(False)
+        table.verticalHeader().setMinimumSectionSize(row_h)
+        table.verticalHeader().setDefaultSectionSize(row_h)
+        header = table.horizontalHeader()
+        header.setMinimumSectionSize(16)
+        header.setFixedHeight(QFontMetrics(header.font()).height() + 2)
+
+    def _create_ide_tab(self): #vers 2
+        """[IDE] tab content, matching MooMapper's own "Object
+        Definition" tab - lists every IDE file the .dat references
+        (real data, drawn from GTAWorldLoader.load_log, which already
+        tracks every IDE path encountered during loading), paths
+        shortened relative to the game root. Clicking a row previews
+        that file's real content below, mirroring the IPL tab's
+        click-to-preview behaviour (per Keith's request that IDE files
+        work "like the ipl links"). Edit/Save are honest stubs - no
+        write-back infrastructure exists for any file type yet."""
+        panel = QWidget()
+        lay = QVBoxLayout(panel)
+        lay.setContentsMargins(1, 1, 1, 1)
+        from apps.methods.imgfactory_svg_icons import get_save_icon, get_edit_icon
+        from PyQt6.QtWidgets import QButtonGroup
+        title_row = QHBoxLayout()
+        sm_buttonheight = 20
+
+        icon_color = self._get_icon_color()
+
+        label = QLabel("IDE Definitions")
+        label.setStyleSheet("font-weight: bold;")
+        title_row.addWidget(label)
+        #edit_btn.setStyleSheet("font-weight: bold;")
+        edit_btn = QPushButton(get_edit_icon(sm_buttonheight, icon_color), "Edit")
+        edit_btn.setToolTip("STUB - no IDE editing built yet")
+        edit_btn.setIconSize(QSize(18, 18))
+        edit_btn.setMinimumHeight(18); edit_btn.setMaximumHeight(28)
+        edit_btn.setEnabled(False)
+        #edit_btn.setFixedHeight(self._COMPACT_BUTTON_H)
+        #save_btn.setStyleSheet("font-weight: bold;")
+        save_btn = QPushButton(get_save_icon(sm_buttonheight, icon_color), "Save")
+        save_btn.setToolTip("STUB - no write-back to disk exists for any\n"
+                            "file type in Map Workshop yet")
+        save_btn.setIconSize(QSize(18, 18))
+        save_btn.setMinimumHeight(18); save_btn.setMaximumHeight(28)
+        save_btn.setEnabled(False)
+        #save_btn.setFixedHeight(self._COMPACT_BUTTON_H)
+        title_row.addWidget(edit_btn)
+        title_row.addWidget(save_btn)
+        title_row.addStretch()
+        lay.addLayout(title_row)
+        table = QTableWidget(0, 2)
+        table.setHorizontalHeaderLabels(["Ind.", "Filename"])
+        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        table.cellClicked.connect(self._on_ide_tab_row_clicked)
+        self._apply_compact_table_style(table)
+        lay.addWidget(table)
+        self._ide_tab_table = table
+        from PyQt6.QtWidgets import QTextEdit
+        preview = QTextEdit()
+        preview.setReadOnly(True)
+        font = preview.font(); font.setFamily("monospace"); preview.setFont(font)
+        preview.setPlaceholderText("Click an IDE file above to preview its contents here")
+        lay.addWidget(preview)
+        self._ide_tab_preview = preview
+        return panel
+
+    def _refresh_ide_tab(self, loader): #vers 2
+        """Populate the IDE file list - paths shortened relative to the
+        game root folder (per Keith: "start from the game root folder
+        to shorten the paths"), matching how IPL Sections already
+        shows short names rather than full absolute paths."""
+        table = getattr(self, '_ide_tab_table', None)
+        if table is None:
+            return
+        game_root = getattr(self, '_game_root', None)
+        ide_paths = [abs_path for phase, entry_type, abs_path, ok in loader.load_log
+                    if entry_type == "IDE" and ok]
+        table.setRowCount(len(ide_paths))
+        self._ide_tab_paths = {}
+        for i, path in enumerate(ide_paths):
+            display_path = path
+            if game_root:
+                try:
+                    display_path = os.path.relpath(path, game_root)
+                except Exception:
+                    display_path = path
+            table.setItem(i, 0, QTableWidgetItem(str(i)))
+            table.setItem(i, 1, QTableWidgetItem(display_path))
+            self._ide_tab_paths[i] = path
+
+    def _on_ide_tab_row_clicked(self, row, col): #vers 1
+        """Preview the clicked IDE file's real raw text content - per
+        Keith's request that IDE files work like IPL files (click to
+        preview), mirroring _refresh_ipl_inst_file_panel's approach:
+        re-read directly from disk each time rather than reconstructed
+        from parsed data."""
+        text_widget = getattr(self, '_ide_tab_preview', None)
+        path = getattr(self, '_ide_tab_paths', {}).get(row)
+        if text_widget is None or path is None:
+            return
+        try:
+            with open(path, 'r', encoding='ascii', errors='ignore') as f:
+                text_widget.setPlainText(f.read())
+        except Exception as e:
+            text_widget.setPlainText(f"(could not read {path}: {e})")
+
+    def _create_dat_tab(self): #vers 1
+        """[DAT] tab content, matching MooMapper's own "DAT Editor" -
+        shows the real raw text of the loaded .dat file (comments,
+        directive order, exactly as it appears on disk), re-read
+        directly rather than reconstructed from parsed data. Edit/Save
+        are honest stubs, same reasoning as the IDE tab."""
+        panel = QWidget()
+        lay = QVBoxLayout(panel)
+        lay.setContentsMargins(6, 6, 6, 6)
+        title_row = QHBoxLayout()
+        from apps.methods.imgfactory_svg_icons import get_save_icon, get_edit_icon
+        from PyQt6.QtWidgets import QButtonGroup
+
+        sm_buttonheight = 20
+
+        icon_color = self._get_icon_color()
+
+        label = QLabel("Dat Editor")
+        label.setStyleSheet("font-weight: bold;")
+        title_row.addWidget(label)
+
+        edit_btn = QPushButton(get_edit_icon(sm_buttonheight, icon_color), "Edit")
+        edit_btn.setToolTip("STUB - no .dat editing built yet")
+        edit_btn.setIconSize(QSize(18, 18))
+        edit_btn.setMinimumHeight(18); edit_btn.setMaximumHeight(28)
+        edit_btn.setEnabled(False)
+        #edit_btn.setFixedHeight(16)
+        save_btn = QPushButton(get_save_icon(sm_buttonheight, icon_color), "Save")
+        save_btn.setToolTip("STUB - no write-back to disk exists for any\n"
+                            "file type in Map Workshop yet")
+        save_btn.setIconSize(QSize(18, 18))
+        save_btn.setMinimumHeight(18); save_btn.setMaximumHeight(28)
+        save_btn.setEnabled(False)
+        #save_btn.setFixedHeight(16)
+        title_row.addWidget(edit_btn)
+        title_row.addWidget(save_btn)
+        title_row.addStretch()
+        lay.addLayout(title_row)
+        from PyQt6.QtWidgets import QTextEdit
+        text = QTextEdit()
+        text.setReadOnly(True)
+        font = text.font(); font.setFamily("monospace"); text.setFont(font)
+        text.setPlaceholderText("Load a game folder/DAT file to see its contents here")
+        lay.addWidget(text)
+        self._dat_tab_text = text
+        return panel
+
+    def _refresh_dat_tab(self): #vers 1
+        text_widget = getattr(self, '_dat_tab_text', None)
+        dat_path = getattr(self, '_loaded_dat_path', None)
+        if text_widget is None:
+            return
+        if not dat_path:
+            text_widget.clear()
+            return
+        try:
+            with open(dat_path, 'r', encoding='ascii', errors='ignore') as f:
+                text_widget.setPlainText(f.read())
+        except Exception as e:
+            text_widget.setPlainText(f"(could not read {dat_path}: {e})")
+
+    def _create_img_tab(self): #vers 1
+        """[IMG] tab content, matching MooMapper's own "IMG Archive"
+        tab - numbered sub-tabs (one per loaded IMG archive), each
+        showing that archive's real entry list (name/type/size) via
+        the already-built ModelCache index. Extract/Add/Del/Rename are
+        honest stubs - these are real file-writing operations, and no
+        write-back infrastructure exists for any file type in Map
+        Workshop yet, IMG included."""
+        panel = QWidget()
+        lay = QVBoxLayout(panel)
+        lay.setContentsMargins(1, 1, 1, 1)
+        from apps.methods.imgfactory_svg_icons import get_rebuild_icon, get_rename_icon, get_remove_icon, get_add_icon, get_dump_icon
+
+        title_row = QHBoxLayout()
+        sm_buttonheight = 20
+        icon_color = self._get_icon_color()
+
+        label = QLabel("IMG File")
+        label.setStyleSheet("font-weight: bold;")
+        title_row.addWidget(label)
+
+        ext_btn = QPushButton(get_dump_icon(sm_buttonheight, icon_color), "Extract")
+        ext_btn.setToolTip("STUB - no .dat editing built yet")
+        ext_btn.setIconSize(QSize(18, 18))
+        ext_btn.setMinimumHeight(18); ext_btn.setMaximumHeight(28)
+        ext_btn.setMinimumWidth(40)
+        ext_btn.setEnabled(False)
+        ext_btn.setFixedHeight(16)
+        add_btn = QPushButton(get_add_icon(sm_buttonheight, icon_color), "Add")
+        add_btn.setToolTip("STUB - no .dat editing built yet")
+        add_btn.setIconSize(QSize(18, 18))
+        add_btn.setMinimumHeight(18); add_btn.setMaximumHeight(28)
+        add_btn.setMinimumWidth(40)
+        add_btn.setEnabled(False)
+        add_btn.setFixedHeight(16)
+        del_btn = QPushButton(get_remove_icon(sm_buttonheight, icon_color), "Del")
+        del_btn.setToolTip("STUB - no .dat editing built yet")
+        del_btn.setIconSize(QSize(18, 18))
+        del_btn.setMinimumHeight(18); del_btn.setMaximumHeight(28)
+        del_btn.setMinimumWidth(40)
+        del_btn.setEnabled(False)
+        del_btn.setFixedHeight(16)
+        ren_btn = QPushButton(get_rename_icon(sm_buttonheight, icon_color), "Rename")
+        ren_btn.setToolTip("STUB - no .dat editing built yet")
+        ren_btn.setIconSize(QSize(18, 18))
+        ren_btn.setMinimumHeight(18); ren_btn.setMaximumHeight(28)
+        ren_btn.setMinimumWidth(40)
+        ren_btn.setEnabled(False)
+        ren_btn.setFixedHeight(16)
+        save_btn = QPushButton(get_rebuild_icon(sm_buttonheight, icon_color), "Rebuild")
+        save_btn.setToolTip("STUB - no write-back to disk exists for any\n"
+                            "file type in Map Workshop yet")
+        save_btn.setIconSize(QSize(18, 18))
+        save_btn.setMinimumHeight(18); save_btn.setMaximumHeight(28)
+        save_btn.setMinimumWidth(40)
+        save_btn.setEnabled(False)
+        save_btn.setFixedHeight(16)
+        for b in (ext_btn, add_btn, del_btn, ren_btn, save_btn):
+            title_row.addWidget(b)
+        title_row.addStretch()
+        lay.addLayout(title_row)
+
+        img_tabs = QTabWidget()
+        img_tabs.setTabPosition(QTabWidget.TabPosition.North)
+        from PyQt6.QtGui import QFontMetrics
+        tab_font = img_tabs.font()
+        img_tabs.tabBar().setStyleSheet(
+            f"QTabBar::tab {{ height: {QFontMetrics(tab_font).height() + 6}px; padding: 2px 8px; }}")
+        lay.addWidget(img_tabs)
+        self._img_tab_tabs = img_tabs
+        return panel
+
+    def _refresh_img_tab(self, loader): #vers 1
+        """Rebuild the numbered IMG sub-tabs from the loaded world's
+        actual IMG archives (loader.get_img_paths()) - one table per
+        archive, listing every entry's real name/type/size read
+        directly from the archive itself."""
+        img_tabs = getattr(self, '_img_tab_tabs', None)
+        if img_tabs is None:
+            return
+        img_tabs.clear()
+        from apps.methods.img_core_classes import IMGFile
+        for i, img_path in enumerate(loader.get_img_paths(), 1):
+            table = QTableWidget(0, 4)
+            table.setHorizontalHeaderLabels(["Ind.", "Filename", "Type", "Size"])
+            table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+            table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+            self._apply_compact_table_style(table)
+            try:
+                img = IMGFile(img_path)
+                if img.open():
+                    table.setRowCount(len(img.entries))
+                    for row, entry in enumerate(img.entries):
+                        table.setItem(row, 0, QTableWidgetItem(str(row)))
+                        table.setItem(row, 1, QTableWidgetItem(entry.name))
+                        table.setItem(row, 2, QTableWidgetItem(entry.extension.upper() + " File"
+                                                                if entry.extension else "File"))
+                        size_kb = max(1, entry.size // 1024)
+                        table.setItem(row, 3, QTableWidgetItem(f"{size_kb} kB"))
+            except Exception:
+                pass
+            img_tabs.addTab(table, str(i))
+
+    def _create_editing_panel_dock(self): #vers 1
+        """New tabbed "Editing Panel" dock - IDE/IPL/DAT/IMG, matching
+        MooMapper's own tabbed IMG Archive/Object Definition/Item
+        Placement structure - replaces the previous standalone IPL
+        Sections dock (its content now lives in the [IPL] tab, moved
+        rather than duplicated). [IPL] is the only fully real,
+        interactive tab so far; [IDE] and [DAT] show real data
+        (IDE file list, raw .dat text) but can't edit/save yet;
+        [IMG] shows real per-archive entry lists but can't
+        Extract/Add/Del/Rename yet - none of this project has any
+        write-back-to-disk infrastructure yet, for any file type."""
+        icon_color = self._get_icon_color()
+        tabs = QTabWidget()
+        tabs.addTab(self._create_ide_tab(),
+                   self._render_variant_icon('tab_ide', None, 24, icon_color, has_menu=False), "IDE")
+        tabs.addTab(self._create_ipl_tab(),
+                   self._render_variant_icon('tab_ipl', None, 24, icon_color, has_menu=False), "IPL")
+        tabs.addTab(self._create_dat_tab(),
+                   self._render_variant_icon('tab_dat', None, 24, icon_color, has_menu=False), "DAT")
+        tabs.addTab(self._create_img_tab(),
+                   self._render_variant_icon('tab_img', None, 24, icon_color, has_menu=False), "IMG")
+        tabs.setCurrentIndex(1)   # [IPL] is the main working tab so far
+
+        dock = QDockWidget("Editing Panel", self)
+        dock.setObjectName("Editing Panel")
+        dock.setWidget(tabs)
+        dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
+                        QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+        self._editing_panel_dock = dock
+        self._editing_panel_tabs = tabs
+        return dock
+
+    def _on_ipl_section_cell_clicked(self, row, col): #vers 4
+        """Clicking the eye-icon cell (col 0) toggles that IPL's
+        visibility - plain item click rather than a button, so there's
+        no button widget/chrome to size or pad. Clicking anywhere else
+        on the row just selects it, which is enough to refresh the IPL
+        Inst File panel below (per Keith's request that pressing any
+        IPL file updates that panel's content, independent of
+        toggling visibility).
+
+        With lazy IPL loading, toggling to visible for the first time
+        also triggers the actual on-demand load of that IPL's content
+        (_ensure_ipl_loaded) - matching MooMapper's model of not
+        touching an IPL until the user asks for it."""
+        table = self._ipl_sections_table
+        item = table.item(row, 0)
+        if item is None:
+            return
+        if col == 0:
+            ipl_name = item.data(Qt.ItemDataRole.UserRole)
+            hidden = ipl_name in getattr(self, '_hidden_ipls', set())
+            new_hidden = not hidden
+            if not new_hidden:
+                self._ensure_ipl_loaded(ipl_name)
+            item.setIcon(self._eye_closed_icon if new_hidden else self._eye_open_icon)
+            item.setToolTip(f"Show {ipl_name}" if new_hidden else f"Hide {ipl_name}")
+            name_item = table.item(row, 1)
+            if name_item is not None:
+                self._style_ipl_name_item(name_item, new_hidden)
+            self._toggle_ipl_section(ipl_name, new_hidden)
+        self._refresh_ipl_inst_file_panel()
+
+    def _ensure_ipl_loaded(self, display_name): #vers 2
+        """Actually load one IPL's content on demand, the first time
+        it's toggled visible - parses its instances (GTAWorldLoader.
+        load_ipl_by_name), refreshes self._all_instances/Object Browser
+        with the newly-added data, and pre-loads (with a progress
+        dialog scoped to just this IPL's models, not the whole world)
+        the geometry/textures those new instances reference. A no-op
+        if this IPL was already loaded (or lazy loading isn't active
+        at all, e.g. a non-Map-Workshop caller).
+
+        Reports per-IPL success/error status matching Keith's requested
+        format ("path/airport.ipl loaded - no errors" / "path/
+        airportN.ipl loaded - N errors found, check log added to the
+        maps folder") - writes an actual .log file alongside the IPL
+        itself when there are errors, rather than only showing a
+        transient status message."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None or not getattr(loader, 'lazy_ipl_loading', False):
+            return
+        stem = getattr(self, '_ipl_display_to_stem', {}).get(display_name)
+        if stem is None or stem in loader.loaded_ipls:
+            return   # not a lazily-tracked IPL, or already loaded
+
+        before_count = len(loader.instances)
+        result = loader.load_ipl_by_name(stem)
+        if not result.success:
+            self._set_status(f"{display_name} failed to load"
+                             + (f" - {result.errors[0]}" if result.errors else ""))
+            return
+
+        problem_count = result.error_count + result.warning_count
+        if problem_count:
+            log_path = self._write_ipl_error_log(result)
+            self._set_status(
+                f"{display_name} loaded - {problem_count} issue(s) found"
+                + (f", check {os.path.basename(log_path)} added to the maps folder"
+                   if log_path else ""))
+        else:
+            self._set_status(f"{display_name} loaded - no errors "
+                             f"({result.instance_count} instances)")
+
+        new_instances = loader.instances[before_count:]
+
+        self._all_instances = list(loader.instances)
+        self._populate_object_browser(loader)
+
+        model_cache = getattr(self, '_model_cache', None)
+        if model_cache is not None and new_instances:
+            self._preload_world_assets(
+                loader, model_cache, instances=new_instances,
+                title=f"Loading {display_name}…")
+
+    def _write_ipl_error_log(self, result): #vers 1
+        """Write a plain-text log of one IPL's parse errors/warnings
+        alongside the IPL file itself (same folder), per Keith's
+        request ("check log added to the maps folder"). Returns the
+        written path, or None if writing failed (in which case the
+        errors are still visible via the status message and the
+        loader's own accumulated stats - this is a convenience, not the
+        only place the information lives)."""
+        if not result.abs_path:
+            return None
+        try:
+            folder = os.path.dirname(result.abs_path)
+            base = os.path.splitext(os.path.basename(result.abs_path))[0]
+            log_path = os.path.join(folder, f"{base}_load_errors.log")
+            with open(log_path, 'w', encoding='utf-8') as f:
+                f.write(f"Load errors for {result.abs_path}\n")
+                f.write(f"{result.error_count} error(s), {result.warning_count} warning(s)\n\n")
+                if result.errors:
+                    f.write("Errors:\n")
+                    for e in result.errors:
+                        f.write(f"  - {e}\n")
+                if result.warnings:
+                    f.write("\nWarnings:\n")
+                    for w in result.warnings:
+                        f.write(f"  - {w}\n")
+            return log_path
+        except Exception:
+            return None
+
+    def _style_ipl_name_item(self, name_item, hidden): #vers 3
+        """Grey out a disabled/hidden IPL's name text, per Keith's
+        request, so a hidden entry is visually distinct at a glance,
+        not just via its eye icon.
+
+        Doesn't rely on QPalette's Disabled colour group - confirmed
+        that resolves incorrectly here (this app's dark theme is
+        applied via QSS stylesheet, which leaves the underlying
+        QPalette's Active and Disabled Text roles both reporting white -
+        a known Qt quirk where stylesheet-driven theming doesn't keep
+        the palette object itself in sync). Instead blends the active
+        text colour 50% toward the window background colour
+        programmatically, which dims correctly under any theme."""
+        pal = self.palette()
+        text_color = pal.color(pal.ColorGroup.Active, pal.ColorRole.Text)
+        if hidden:
+            bg_color = pal.color(pal.ColorGroup.Active, pal.ColorRole.Window)
+            color = QColor(
+                (text_color.red()   + bg_color.red())   // 2,
+                (text_color.green() + bg_color.green()) // 2,
+                (text_color.blue()  + bg_color.blue())  // 2)
+        else:
+            color = text_color
+        name_item.setForeground(QBrush(color))
+
+    def _toggle_ipl_section(self, ipl_name, hidden): #vers 1
+        """Show/hide all instances from one IPL file - recomputes the
+        visible instance subset from the full loaded set and re-feeds
+        it to the world-view panes and Instance List, without needing
+        to reload from disk."""
+        if hidden:
+            self._hidden_ipls.add(ipl_name)
+        else:
+            self._hidden_ipls.discard(ipl_name)
+        self._apply_ipl_visibility_filter()
 class ZoomablePreview(QLabel): #vers 2
     """Fixed preview widget with zoom and pan"""
 
