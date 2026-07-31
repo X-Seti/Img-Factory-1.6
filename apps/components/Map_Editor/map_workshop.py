@@ -9,7 +9,7 @@
 # has been renamed to MapWorkshop/Map Workshop/map_workshop throughout
 # this copy - the original Model_Editor/model_workshop.py is untouched
 # and still the real, working Model Workshop feature.
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 195
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 196
 # X-Seti - Apr 2026 - Map Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -32,6 +32,10 @@
 # menu handling, row selection, search, rename/delete/add. Not yet wired into
 # __init__ - dock creation call sites still to be added once remaining
 # MapWorkshop feature groups are ported.
+# X-Seti - Jul31 2026 - Ported Instance List / Instance Edit Panel methods (13)
+# into MapWorkshop from map_workshop_old_version.py: dock creation, population,
+# row selection/double-click, context menu, favourite toggle, add/delete
+# instance-of-model, cycle/center-on instance, viewport pick handling.
 
 import os
 # Force X11/GLX backend for NVIDIA on Wayland
@@ -285,6 +289,7 @@ except ImportError:
 ##class MapWorkshop: -
 # __init__
 # _add_geometry_to_dff
+# _add_instance_of_model
 # _add_textures_from_txd
 # _align_dialog
 # _analyze_collision
@@ -313,6 +318,7 @@ except ImportError:
 # _build_primitive    generate vertices+triangles for Box/Sphere/Cylinder/Plane
 # _build_toolbars
 # _build_txd_from_textures
+# _center_on_instance
 # _change_format
 # _close_col_tab
 # _compress_col
@@ -328,6 +334,7 @@ except ImportError:
 # _create_col_from_dff    generate COL1/2/3 binary from DFF geometry #vers 1
 # _create_frame_hierarchy_panel
 # _create_info_section
+# _create_instance_list_dock
 # _create_left_panel
 # _create_level_card
 # _create_models_table_panel
@@ -345,8 +352,10 @@ except ImportError:
 # _create_status_bar
 # _create_texture_panel
 # _create_toolbar
+# _cycle_model_instance
 # _cycle_render_mode
 # _cycle_view_render_style
+# _delete_all_instances_of_model
 # _delete_selected_model
 # _delete_surface
 # _dff_analyze
@@ -433,6 +442,10 @@ except ImportError:
 # _on_dff_geom_selected
 # _on_dff_geom_selected_tbl    handle model table row click → show geometry #vers 1
 # _on_frame_tree_clicked
+# _on_instance_edited
+# _on_instance_list_context_menu
+# _on_instance_row_double_clicked
+# _on_instance_row_selected
 # _on_menu_btn_clicked
 # _on_object_browser_add_clicked
 # _on_object_browser_column_resized
@@ -450,6 +463,7 @@ except ImportError:
 # _on_painted_face
 # _on_splitter_moved
 # _on_tex_selected
+# _on_viewport_instance_picked
 # _open_col_file
 # _open_col_from_img_entry
 # _open_dff_material_editor
@@ -485,6 +499,7 @@ except ImportError:
 # _populate_compact_col_list
 # _populate_dff_detail_table
 # _populate_frame_tree
+# _populate_instance_list
 # _populate_left_panel_from_img
 # _populate_object_browser
 # _populate_tex_thumbnails    64×64 thumbnail grid in texture panel #vers 1
@@ -541,6 +556,7 @@ except ImportError:
 # _show_detailed_info
 # _show_dff_geometry    push _DFFGeometryAdapter into COL3DViewport #vers 1
 # _show_dff_material_context_menu
+# _show_instance_edit_panel
 # _show_model_details
 # _show_model_search
 # _show_paint_toolbar
@@ -571,6 +587,7 @@ except ImportError:
 # _toggle_boxes
 # _toggle_col_view
 # _toggle_front_only_paint
+# _toggle_instance_favourite
 # _toggle_maximize
 # _toggle_mesh
 # _toggle_mid_btn_row_collapsed
@@ -17512,6 +17529,284 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         new_favourites = model.toggle_favourite(obj.model_id)
         self.map_settings.set('favourite_objects', new_favourites)
         self.map_settings.save()
+
+    # --- Instance List / Instance Edit Panel (ported from map_workshop_old_version.py) ---
+
+    def _cycle_model_instance(self, direction): #vers 1
+        """Prev (-1) / Next (+1) through the currently-selected model's
+        placements, wrapping around at either end."""
+        instances = getattr(self, '_current_model_instances', [])
+        if not instances:
+            return
+        idx = (getattr(self, '_current_instance_index', 0) + direction) % len(instances)
+        self._current_instance_index = idx
+        self._center_on_instance(instances[idx], nav_info=(idx, len(instances)))
+
+    def _add_instance_of_model(self, model_id): #vers 1
+        """Add a new placement of an existing model - IN MEMORY ONLY
+        for now, at a default position (origin, identity rotation).
+        Does NOT yet write the new inst line back to the actual IPL
+        file - that needs real file-writing infrastructure, tracked
+        separately. Keith's fuller Add request (importing new DFF/TXD/
+        COL from the desktop into the game's IMG for models that don't
+        exist at all yet) is a bigger, separate piece - this covers
+        placing another copy of a model that's already loaded."""
+        loader = getattr(self, '_world_loader', None)
+        obj = loader.get_object(model_id) if loader else None
+        if obj is None:
+            return
+        from apps.methods.gta_dat_parser import IPLInstance
+        new_inst = IPLInstance(
+            model_id=model_id, model_name=obj.model_name, interior=0,
+            pos_x=0.0, pos_y=0.0, pos_z=0.0,
+            rot_x=0.0, rot_y=0.0, rot_z=0.0, rot_w=1.0,
+            lod_index=-1, source_ipl="(added this session)", line_no=0)
+        self._all_instances = getattr(self, '_all_instances', [])
+        self._all_instances.append(new_inst)
+        if loader is not None:
+            loader.instances.append(new_inst)
+        counts = getattr(self._object_browser_model, '_instance_counts', {})
+        counts[model_id] = counts.get(model_id, 0) + 1
+        self._object_browser_model._recompute()
+        self._apply_ipl_visibility_filter()
+        self._center_on_instance(new_inst)
+        self._set_status(f"Added a new instance of '{obj.model_name}' at the origin "
+                         f"(in memory only - not yet written to disk)")
+
+    def _delete_all_instances_of_model(self, model_id): #vers 1
+        """Remove every placement of a model - the simpler 'just
+        remove from IPL' case Keith described (leaves the IDE
+        definition, COL, and IMG-packed DFF/TXD untouched, so other
+        references to the same model_id, if any, stay valid). IN
+        MEMORY ONLY for now - doesn't yet rewrite the actual IPL
+        file(s) on disk, or offer the 'purge everything and free the
+        ID' alternative Keith also described (that needs IDE/COL/IMG
+        write support this project doesn't have yet)."""
+        loader = getattr(self, '_world_loader', None)
+        all_inst = getattr(self, '_all_instances', [])
+        removed = sum(1 for i in all_inst if i.model_id == model_id)
+        if removed == 0:
+            return
+        confirm = QMessageBox.question(
+            self, "Delete All Instances",
+            f"Remove all {removed} placement(s) of this model from the "
+            f"currently loaded world?\n\n"
+            f"This only removes the placements - the object definition, "
+            f"collision, and model/texture files are left untouched.\n\n"
+            f"(In-memory only for now - not yet written back to the "
+            f"actual IPL file(s) on disk.)",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+        self._all_instances = [i for i in all_inst if i.model_id != model_id]
+        if loader is not None:
+            loader.instances[:] = [i for i in loader.instances if i.model_id != model_id]
+        counts = getattr(self._object_browser_model, '_instance_counts', {})
+        counts.pop(model_id, None)
+        self._object_browser_model._recompute()
+        self._apply_ipl_visibility_filter()
+        self._set_status(f"Removed {removed} placement(s) "
+                         f"(in memory only - not yet written to disk)")
+
+    def _create_instance_list_dock(self): #vers 3
+        """Instance List dock - a browsable table (ID + Model only) of
+        every loaded world placement. Single-click (or keyboard
+        navigation) shows/updates the non-modal object edit panel for
+        that instance; double-click additionally centres the camera in
+        all three World View panes on it.
+
+        QTableView + a lazy model (_InstanceTableModel) rather than
+        QTableWidget - the old QTableWidget approach eagerly created a
+        QTableWidgetItem per cell (5 per instance) and resolved every
+        instance's TXD name immediately, timed at 2.6s of UI freeze for
+        51,711 instances. The model defers both to data() calls for
+        whatever's actually visible."""
+        from PyQt6.QtWidgets import QTableView
+
+        view = QTableView()
+        view.horizontalHeader().setSectionResizeMode(
+            0, QHeaderView.ResizeMode.ResizeToContents)
+        view.horizontalHeader().setSectionResizeMode(
+            1, QHeaderView.ResizeMode.Stretch)
+        view.verticalHeader().setVisible(False)
+        view.setEditTriggers(QTableView.EditTrigger.NoEditTriggers)
+        view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        view.customContextMenuRequested.connect(self._on_instance_list_context_menu)
+        view.doubleClicked.connect(self._on_instance_row_double_clicked)
+        self._instance_table = view
+
+        dock = QDockWidget("Instance List", self)
+        dock.setObjectName("Instance List")
+        dock.setWidget(view)
+        dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
+                        QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+        self._instance_list_dock = dock
+        return dock
+
+    def _on_instance_row_double_clicked(self, index): #vers 3
+        """Double-click does the same as single-click (centre camera +
+        gizmo + edit panel) - kept as a separate handler since it's
+        also the natural place to land double-click-on-the-rendered-
+        marker-in-the-viewport picking, once that's built."""
+        model = self._instance_table.model()
+        inst = model.instance_at(index.row()) if model else None
+        if inst is None:
+            return
+        self._center_on_instance(inst)
+
+    def _on_viewport_instance_picked(self, inst, pane): #vers 2
+        """Called when the user clicks directly on a rendered marker in
+        one specific World View pane - zooms in close on that instance
+        WITHIN THAT PANE ONLY, and shows the edit panel.
+
+        Fixes two things Keith reported: clicking an object was
+        repositioning all 3 views (the previous version called
+        _center_on_instance, which loops over every pane in
+        self._world_panes) instead of responding to just the pane that
+        was actually clicked; and it wasn't zooming in at all, only
+        panning to centre while leaving distance/zoom completely
+        untouched, so the object could still appear small/far away
+        after being 'centred'."""
+        pane._pan_x = -inst.pos_x
+        pane._pan_y = -inst.pos_y
+        pane._dist = 15.0   # close-up distance - a reasonable default,
+                            # not tuned against real object sizes
+        if pane._projection == 'ortho':
+            try:
+                pane.resizeGL(pane.width(), pane.height())   # refresh ortho half_h for the new dist
+            except Exception:
+                pass
+        pane.set_gizmo_position((inst.pos_x, inst.pos_y, inst.pos_z))
+        pane.update()
+        self._show_instance_edit_panel(inst)
+
+    def _center_on_instance(self, inst, nav_info=None): #vers 2
+        """Centre all three World View panes' cameras on an instance,
+        show an XYZ gizmo at its position, and show/update its edit
+        panel - the shared behaviour for both single- and double-
+        clicking an Instance List row, and (since the Object Browser
+        merge) selecting a model row with one or more placements.
+        nav_info, if given, is (current_index, total_count) for
+        Prev/Next cycling through a model's other placements."""
+        for pane in getattr(self, '_world_panes', []):
+            pane._pan_x = -inst.pos_x
+            pane._pan_y = -inst.pos_y
+            pane.set_gizmo_position((inst.pos_x, inst.pos_y, inst.pos_z))
+        self._show_instance_edit_panel(inst, nav_info)
+
+    def _show_instance_edit_panel(self, inst, nav_info=None): #vers 2
+        """Show (creating on first use) the non-modal object edit panel
+        for one instance, positioned in the top-left corner of the
+        window - stays open and gets its content refreshed for
+        whichever instance is currently selected, rather than a modal
+        dialog that blocks interaction and needs reopening each time."""
+        panel = getattr(self, '_instance_edit_panel', None)
+        if panel is None:
+            panel = _InstanceEditPanel(self)
+            self._instance_edit_panel = panel
+        panel.show_for_instance(inst, getattr(self, '_world_loader', None), nav_info,
+                                getattr(self, '_model_cache', None))
+        top_level = self.window()
+        panel.move(top_level.mapToGlobal(top_level.rect().topLeft()) +
+                   QPoint(8, 8))
+        panel.show()
+        panel.raise_()
+
+    def _on_instance_edited(self, inst): #vers 1
+        """Called by _InstanceEditPanel whenever a position/rotation
+        nudge changes an instance in memory - refreshes the World View
+        panes to reflect the new position (they cache instance data as
+        plain tuples for fast rendering, built at the last filter
+        application, so mutating the IPLInstance alone doesn't
+        propagate until this re-applies the current filter)."""
+        self._apply_ipl_visibility_filter()
+
+    def _on_instance_list_context_menu(self, pos): #vers 2
+        """Right-click a row - Add/Remove Favourites always available
+        (reusing the same favourite_objects setting Object Browser
+        uses, so favouriting stays in sync between both panels);
+        per-instance LOD override options only added when this
+        instance actually has a resolved LOD pair (see
+        resolve_lod_pairs)."""
+        view = self._instance_table
+        index = view.indexAt(pos)
+        if not index.isValid():
+            return
+        model = view.model()
+        inst = model.instance_at(index.row())
+        if inst is None:
+            return
+
+        menu = QMenu(view)
+        favourites = self.map_settings.get('favourite_objects') or []
+        is_fav = inst.model_id in favourites
+        fav_act = menu.addAction("Remove from Favourites" if is_fav else "Add to Favourites")
+        fav_act.triggered.connect(
+            lambda checked=False, mid=inst.model_id: self._toggle_instance_favourite(mid))
+
+        primary_key = self._find_lod_primary_key(inst)
+        if primary_key is not None:
+            menu.addSeparator()
+            current = getattr(self, '_lod_overrides', {}).get(primary_key)
+            for mode, label in (('normal', "Show Normal"), ('lod', "Show LOD"),
+                                ('both', "Show Both")):
+                act = menu.addAction(label)
+                act.setCheckable(True)
+                act.setChecked(current == mode)
+                act.triggered.connect(
+                    lambda checked=False, k=primary_key, m=mode: self._set_lod_override(k, m))
+            clear_act = menu.addAction("Use Global Setting")
+            clear_act.setEnabled(current is not None)
+            clear_act.triggered.connect(
+                lambda checked=False, k=primary_key: self._set_lod_override(k, None))
+
+        menu.exec(view.viewport().mapToGlobal(pos))
+
+    def _toggle_instance_favourite(self, model_id): #vers 1
+        """Add/remove a model_id from favourite_objects - shared with
+        Object Browser's own favourite toggle, so favouriting an object
+        from either panel stays in sync. Refreshes Object Browser's
+        model if it's currently showing the Favourites filter."""
+        favourites = set(self.map_settings.get('favourite_objects') or [])
+        if model_id in favourites:
+            favourites.discard(model_id)
+        else:
+            favourites.add(model_id)
+        self.map_settings.set('favourite_objects', sorted(favourites))
+        self.map_settings.save()
+        ob_model = getattr(self, '_object_browser_model', None)
+        if ob_model is not None:
+            ob_model._favourites = favourites
+            ob_model._recompute()
+
+    def _populate_instance_list(self, loader): #vers 2
+        """Point the Instance List view at a completed GTAWorldLoader
+        load's instances - the model resolves each instance's TXD name
+        (via loader.get_object) lazily, per-cell, rather than all up
+        front for every row regardless of whether it's ever scrolled
+        into view."""
+        view = getattr(self, '_instance_table', None)
+        if view is None:
+            return
+        model = _InstanceTableModel(loader.instances, loader)
+        view.setModel(model)
+        sel_model = view.selectionModel()
+        if sel_model is not None:
+            sel_model.currentRowChanged.connect(
+                lambda cur, prev: self._on_instance_row_selected(model, cur.row()))
+
+    def _on_instance_row_selected(self, model, row): #vers 4
+        """Single-click (or keyboard navigation) centres the camera,
+        shows an XYZ gizmo, and shows/updates the object edit panel for
+        the newly-selected instance - same as double-click; both share
+        _center_on_instance()."""
+        if row < 0:
+            return
+        inst = model.instance_at(row)
+        if inst is None:
+            return
+        self._center_on_instance(inst)
 class ZoomablePreview(QLabel): #vers 2
     """Fixed preview widget with zoom and pan"""
 
