@@ -9,7 +9,7 @@
 # has been renamed to MapWorkshop/Map Workshop/map_workshop throughout
 # this copy - the original Model_Editor/model_workshop.py is untouched
 # and still the real, working Model Workshop feature.
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 207
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 208
 # X-Seti - Apr 2026 - Map Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -270,6 +270,37 @@
 #    something fixable from application code if confirmed - suggested
 #    Keith test with QT_QPA_PLATFORM=xcb to check whether it's
 #    Wayland-specific, not yet confirmed either way.
+# X-Seti - Jul31 2026 - Consolidated to ONE viewport, per Keith: "get
+# rid of the full view dock and transfer its functions to the other
+# viewer, _create_viewport_dock; this way, we only get one viewpoint
+# window". He'd already renamed _create_right_panel to
+# _create_viewport_dock himself (pushed separately) before this change.
+# Migrated the Top/Side/3D MapViewport triple-pane splitter (the real
+# Map Workshop content, previously in a separate "World View" dock)
+# directly into _create_viewport_dock/self._viewport_dock - it's now
+# the dock's actual widget instead of the old DFFViewport single-mesh
+# preview. self.preview_widget/self._viewport_stack (DFFViewport) are
+# still created but never shown anywhere, kept alive only so the ~26
+# other references to them in dormant Model Workshop texture/material
+# code don't break. _create_paint_bar() (material painting toolbar,
+# tied to preview_widget) is no longer called - not needed since
+# preview_widget is never the visible content.
+# Removed the separate world_dock creation/addDockWidget call from
+# setup_ui; Object Browser no longer splits against it (nothing to
+# split against now that the viewport lives on the left, not the
+# right). Parked _create_world_viewport_dock aside as
+# _create_world_viewport_dock_tmp (unchanged body, reference only).
+# Added the "eye icon" toggle back per Keith's own note ("we need to
+# add the eye icon back for quad") - a checkable "Show All Panes"
+# button in the World ribbon, using the existing _render_variant_icon
+# utility with 'eye_visible' and reusing _toggle_world_pane_maximize
+# unchanged (anchored on the "3D" pane for a clean binary toggle).
+# Verified: only one dock ("Viewport") appears in createPopupMenu(),
+# no separate World View; _viewport_dock's widget is the world
+# splitter with all 3 MapViewport panes; default view is 3D-only
+# ("Full View"); Show All Panes toggle correctly switches between
+# single and all-3 and back. ast.parse clean, full QApplication
+# instantiation clean.
 
 import os
 import math
@@ -595,14 +626,14 @@ except ImportError:
 # _create_preview_widget
 # _create_primitive_dialog    dialog to add Box/Sphere/Cylinder/Plane to DFF #vers 1
 # _create_quad_viewport
-
 # _create_shadow_mesh
 # _create_stat_box
 # _create_stats_grid
 # _create_status_bar
 # _create_texture_panel
 # _create_toolbar
-# _create_world_viewport_dock
+# _create_viewport_dock
+# _create_world_viewport_dock_tmp
 # _cycle_model_instance
 # _cycle_render_mode
 # _cycle_view_render_style
@@ -4858,14 +4889,14 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # Browser etc. can dock to the left too, not just stack on the right.
         outer_mw.setDockNestingEnabled(True)
 
-        world_dock = self._create_world_viewport_dock()
-        if world_dock is not None:
-            outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, world_dock)
-
+        # World View dock removed (Jul 31 2026, per Keith: "get rid of the
+        # full view dock and transfer its functions to the other viewer...
+        # this way, we only get one viewpoint window") - its Top/Side/3D
+        # MapViewport content now lives directly in self._viewport_dock,
+        # built by _create_viewport_dock() above. See
+        # _create_world_viewport_dock_tmp for the parked original.
         object_browser_dock = self._create_object_browser_dock()
         outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, object_browser_dock)
-        if world_dock is not None:
-            outer_mw.splitDockWidget(world_dock, object_browser_dock, Qt.Orientation.Vertical)
 
         ipl_inst_file_dock = self._create_ipl_inst_file_panel()
         outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, ipl_inst_file_dock)
@@ -10296,59 +10327,86 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             pass
         self._set_status(f"Model Info ribbon moved to {location} panel")
 
-    def _create_viewport_dock(self): #vers 17
-        """Viewport + ribbons, built directly onto self._outer_mw instead
-        of a separate nested QMainWindow, there should only be one dock
-        so this one stays, we need to add the eye icon back for quad."""
+    def _create_viewport_dock(self): #vers 18
+        """The one remaining viewport dock (Jul 31 2026, per Keith:
+        "get rid of the full view dock and transfer its functions to
+        the other viewer... this way, we only get one viewpoint
+        window"). Content is now the Top/Side/3D MapViewport triple-
+        pane splitter that used to live in the separate World View
+        dock (_create_world_viewport_dock, now parked aside as
+        _create_world_viewport_dock_tmp) - that's Map Workshop's real
+        content, not the old DFFViewport single-mesh preview. A "Show
+        All Panes" eye-icon toggle in the World ribbon switches between
+        single (3D only, "Full View") and all three, reusing the
+        existing _toggle_world_pane_maximize mechanism unchanged.
+        self.preview_widget/self._viewport_stack (DFFViewport) are
+        still created but not shown anywhere - kept alive only so the
+        ~26 other references to them in dormant Model Workshop texture/
+        material code don't break."""
         icon_color = self._get_icon_color()
 
         inner_mw = self._outer_mw
         self._inner_mw = inner_mw
 
-        # The 3D viewport, wrapped in a stack so the 4-Pane view (Top/
-        # Front/Side/Perspective) can be swapped in via the View ribbon's
-        # toggle without disturbing the dock's own widget ownership.
+        # Kept alive, unused/unshown - safety net for other code that
+        # still references self.preview_widget/self._viewport_stack.
         from PyQt6.QtWidgets import QStackedWidget
         self.preview_widget = DFFViewport()
         self.preview_widget._workshop_ref = self
         self._viewport_stack = QStackedWidget()
-        self._viewport_stack.addWidget(self.preview_widget)   # index 0: single view
-        self._viewport_stack.setMinimumWidth(200)
+        self._viewport_stack.addWidget(self.preview_widget)
+        self._gl_viewport  = self.preview_widget
+        self._qp_viewport  = self.preview_widget
+        self._gl_mode      = True
+
+        # The real content: Top/Side/3D MapViewport triple-pane splitter,
+        # migrated from _create_world_viewport_dock_tmp unchanged.
+        try:
+            from apps.components.Map_Editor.depends.map_viewport import MapViewport
+        except Exception as e:
+            print(f"[MapWorkshop] MapViewport unavailable: {e}")
+            MapViewport = None
+
+        self._world_panes = []
+        if MapViewport is not None:
+            presets = [("Top", 0, 0, 'ortho'),
+                       ("Side", 90, 0, 'ortho'),
+                       ("3D", 45, 25, 'perspective')]
+            for label, yaw, pitch, proj in presets:
+                pane = MapViewport()
+                pane.set_view_lock(proj == 'ortho', label, yaw=yaw, pitch=pitch,
+                                   projection=proj)
+                self._apply_viewport_movement_settings(pane, label)
+                pane.set_pick_callback(self._on_viewport_instance_picked)
+                pane.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
+                pane._label_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+                pane._label_widget.customContextMenuRequested.connect(
+                    lambda pos, p=pane: self._show_world_pane_menu(p, p._label_widget.mapToGlobal(pos)))
+                pane.installEventFilter(self)
+                self._world_panes.append(pane)
+
+        world_splitter = QSplitter(Qt.Orientation.Horizontal)
+        for pane in self._world_panes:
+            world_splitter.addWidget(pane)
+        self._world_splitter = world_splitter
+        self._maximized_world_pane = None
 
         self._viewport_dock = QDockWidget("Viewport", self)
         self._viewport_dock.setObjectName("Viewport")
-        self._viewport_dock.setWidget(self._viewport_stack)
+        self._viewport_dock.setWidget(world_splitter)
         self._viewport_dock.setFeatures(
             QDockWidget.DockWidgetFeature.DockWidgetMovable |
             QDockWidget.DockWidgetFeature.DockWidgetFloatable |
             QDockWidget.DockWidgetFeature.DockWidgetClosable)
         self._make_dock_collapsible(self._viewport_dock, "Viewport")
-        # Per Keith (Jul 31 2026): this is Model Workshop's own single-
-        # mesh preview viewport (DFFViewport-based), redundant with World
-        # View (MapViewport-based, the real Map Workshop world viewport,
-        # which already has its own Top/Side/3D pane toggle via
-        # _toggle_world_pane_maximize). Originally just hidden via
-        # setVisible(False) while still added to LeftDockWidgetArea, but
-        # Keith found that left it still occupying a slot in that area's
-        # internal splitter chain (alongside Files/Models/Frame
-        # Hierarchy/Textures) - dragging that splitter could reveal it
-        # despite isVisible() being False. Fix: add it, then immediately
-        # remove it from outer_mw's dock-area layout entirely
-        # (removeDockWidget) rather than just hiding it - no more splitter
-        # slot to leak through. self._viewport_dock (and self.
-        # preview_widget/self._viewport_stack, ~26 other references) stay
-        # alive as Python objects, just fully detached from the visible
-        # layout - not rediscoverable via the right-click pane menu
-        # anymore (that only lists docks outer_mw still owns), but can be
-        # re-added later with outer_mw.addDockWidget(...) if ever needed.
         inner_mw.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self._viewport_dock)
-        inner_mw.removeDockWidget(self._viewport_dock)
+        inner_mw.resizeDocks([self._viewport_dock], [900], Qt.Orientation.Horizontal)
 
-        self._gl_viewport  = self.preview_widget
-        self._qp_viewport  = self.preview_widget
-        self._gl_mode      = True
-
-        self._create_paint_bar()
+        # Default to showing only 3D ("Full View"), per Keith's original
+        # request for World View, carried over here - double-click any
+        # pane (or the eye-icon ribbon toggle) to show all 3.
+        if self._world_panes:
+            self._toggle_world_pane_maximize(self._world_panes[2])   # index 2 = "3D"
 
         # Build all toolbars and add to the (now shared) QMainWindow
         self._build_toolbars(inner_mw, icon_color)
@@ -10722,6 +10780,21 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         _act(tb_world, "Cull Boxes", self.icon_factory.box_icon,
              lambda checked: self._toggle_cull_boxes(checked),
              checkable=True, attr='_cull_boxes_act')
+
+        tb_world.addSeparator()
+
+        # Eye-icon toggle: single 3D pane ("Full View") <-> all 3 panes
+        # (Top/Side/3D). Reuses _toggle_world_pane_maximize unchanged -
+        # calling it on the same pane twice maximizes then restores, so
+        # anchoring on the "3D" pane (index 2) gives a clean binary
+        # toggle. Per Keith: "we need to add the eye icon back for quad."
+        show_all_act = _act(
+            tb_world, "Show All Panes",
+            lambda color=None: self._render_variant_icon(
+                'eye_visible', None, 20, color or icon_color),
+            lambda checked: (self._world_panes and
+                             self._toggle_world_pane_maximize(self._world_panes[2])),
+            checkable=True, checked=False, attr='_show_all_panes_act')
 
         # "View" ribbon (4-Pane View toggle for self._viewport_dock)
         # removed Jul 31 2026, per Keith - that dock is Model Workshop's
@@ -20032,13 +20105,14 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             invert_x=axis.get('x', False),
             invert_y=axis.get('y', False))
 
-    def _create_world_viewport_dock(self): #vers 1
-        """Top/Side/3D triple-pane world viewport, in its own dock so it
-        can sit alongside the still-present paint canvas rather than
-        replacing it outright. Same MapViewport class, camera/pane-lock
-        contract, and right-click-to-reassign pattern as Model
-        Workshop's existing DFFViewport quad viewport - reused here
-        rather than inventing a new multi-pane scheme."""
+    def _create_world_viewport_dock_tmp(self): #vers 1
+        """PARKED (Jul 31 2026) - the original standalone "World View"
+        dock. Its Top/Side/3D MapViewport triple-pane content was
+        migrated into _create_viewport_dock (self._viewport_dock is now
+        the one remaining viewport), per Keith: "get rid of the full
+        view dock and transfer its functions to the other viewer...
+        this way, we only get one viewpoint window". Kept for
+        reference, no longer called."""
         try:
             from apps.components.Map_Editor.depends.map_viewport import MapViewport
         except Exception as e:
