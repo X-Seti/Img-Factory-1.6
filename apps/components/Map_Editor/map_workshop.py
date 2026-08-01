@@ -18421,6 +18421,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         from apps.methods.imgfactory_svg_icons import get_remove_icon, get_file_icon, get_add_icon, get_close_icon
         from PyQt6.QtWidgets import QButtonGroup
         title_row_widget = QWidget()
+        title_row_widget.setObjectName("IPL_title_row")
         title_row = QHBoxLayout(title_row_widget)
         title_row.setContentsMargins(0, 0, 0, 0)
         label = QLabel("IPL Sections")
@@ -18436,7 +18437,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         open_btn.setIconSize(QSize(18, 18))
         open_btn.setFixedHeight(18)
         open_btn.setStyleSheet(_compact_18)
-        open_btn.setMinimumWidth(40)
         open_btn.clicked.connect(self._on_ipl_tab_open_clicked)
         close_btn = QPushButton(get_close_icon(sm_buttonheight, icon_color), "Close")
         close_btn.setToolTip("Hide the selected IPL - same as clicking\n"
@@ -18445,7 +18445,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         close_btn.setIconSize(QSize(18, 18))
         close_btn.setFixedHeight(18)
         close_btn.setStyleSheet(_compact_18)
-        close_btn.setMinimumWidth(40)
         close_btn.clicked.connect(self._on_ipl_tab_close_clicked)
         new_btn = QPushButton(get_file_icon(sm_buttonheight, icon_color), "New")
         new_btn.setToolTip("STUB - creating a brand new, empty IPL file\n"
@@ -18453,7 +18452,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         new_btn.setIconSize(QSize(18, 18))
         new_btn.setFixedHeight(18)
         new_btn.setStyleSheet(_compact_18)
-        new_btn.setMinimumWidth(40)
         new_btn.setEnabled(False)
         delete_btn = QPushButton(get_remove_icon(sm_buttonheight, icon_color), "Delete")
         delete_btn.setToolTip("STUB - deleting an IPL file from disk isn't\n"
@@ -18462,7 +18460,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         delete_btn.setIconSize(QSize(18, 18))
         delete_btn.setFixedHeight(18)
         delete_btn.setStyleSheet(_compact_18)
-        delete_btn.setMinimumWidth(40)
         delete_btn.setEnabled(False)
         for b in (open_btn, close_btn, new_btn, delete_btn):
             title_row.addWidget(b)
@@ -18833,6 +18830,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         from apps.methods.imgfactory_svg_icons import get_save_icon, get_edit_icon
         from PyQt6.QtWidgets import QButtonGroup
         title_row_widget = QWidget()
+        title_row_widget.setObjectName("IDE_title_row")
         title_row = QHBoxLayout(title_row_widget)
         title_row.setContentsMargins(0, 0, 0, 0)
         sm_buttonheight = 20
@@ -18942,6 +18940,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         lay = QVBoxLayout(panel)
         lay.setContentsMargins(6, 6, 6, 6)
         title_row_widget = QWidget()
+        title_row_widget.setObjectName("DAT_title_row")
         title_row = QHBoxLayout(title_row_widget)
         title_row.setContentsMargins(0, 0, 0, 0)
         from apps.methods.imgfactory_svg_icons import get_save_icon, get_edit_icon
@@ -19025,6 +19024,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         from apps.methods.imgfactory_svg_icons import get_rebuild_icon, get_rename_icon, get_remove_icon, get_add_icon, get_dump_icon
 
         title_row_widget = QWidget()
+        title_row_widget.setObjectName("IMG_title_row")
         title_row = QHBoxLayout(title_row_widget)
         title_row.setContentsMargins(0, 0, 0, 0)
         sm_buttonheight = 20
@@ -19764,6 +19764,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             needed += fm.horizontalAdvance(text) + btn.iconSize().width() + 24
         available = row_widget.width()
         show_text = available >= needed
+        print(f"[collapse-debug] row={row_widget.objectName() or id(row_widget)} "
+              f"available={available} needed={needed} show_text={show_text}")
         for btn, text in specs:
             btn.setText(text if show_text else "")
 
