@@ -17762,9 +17762,19 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         H = self._COMPACT_BUTTON_H   # 18px, shared by every control here
         from PyQt6.QtWidgets import QAbstractSpinBox
 
-        def _h18(*widgets):  #vers 1
+        # setFixedHeight(18) alone clips text - Qt's default style reserves
+        # more internal padding/border than 18px leaves room for. Stripping
+        # that padding via stylesheet lets the text actually fit in 18px,
+        # rather than quietly making the boxes taller than asked for. This
+        # is a known, pre-existing issue (see the old #_COMPACT_BUTTON_H =
+        # 18 #TODO comment elsewhere in this file, from before this pass).
+        _COMPACT_STYLE = "padding: 0px 2px; margin: 0px; border-width: 1px;"
+
+        def _h18(*widgets):  #vers 2
             for w in widgets:
                 w.setFixedHeight(H)
+                existing = w.styleSheet()
+                w.setStyleSheet((existing + "; " if existing else "") + _COMPACT_STYLE)
 
         themecol = self.app_settings.get_theme_colors()
         panel_bg = themecol.get('panel_bg')
