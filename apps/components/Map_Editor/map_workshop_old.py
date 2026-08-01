@@ -1,21 +1,387 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 193
-# X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
+# NOTE (Jul 30 2026): This file started as a direct copy of Model
+# Workshop (apps/components/Model_Editor/model_workshop.py v193),
+# per Keith's request to rebuild Map Workshop on that cleaner
+# foundation rather than continuing to strip DP5 leftovers out of the
+# old map_workshop.py (preserved as map_workshop_old_version.py for
+# reference on what Map Workshop's actual features need to be ported
+# over). All ModelWorkshop/Model Workshop/model_workshop naming below
+# has been renamed to MapWorkshop/Map Workshop/map_workshop throughout
+# this copy - the original Model_Editor/model_workshop.py is untouched
+# and still the real, working Model Workshop feature.
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 210
+# X-Seti - Apr 2026 - Map Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
 # [FIX] _rebuild_grid QWidget crash: removed redundant deleteLater (QScrollArea auto-deletes old widget).
 # [FIX] _rebuild_grid QFrame deletion crash: reparent slots before scroll widget swap.
 # X-Seti - May08 2026 - Model editor
-# X-Seti - Jul07 2026 - Added 3ds Max style 4-pane viewport (Top/Front/Side/Perspective) via QStackedWidget central widget; user-assignable per pane by right-click; splitter-resizable; layout persists to model_workshop.json.
+# X-Seti - Jul07 2026 - Added 3ds Max style 4-pane viewport (Top/Front/Side/Perspective) via QStackedWidget central widget; user-assignable per pane by right-click; splitter-resizable; layout persists to map_workshop.json.
 # X-Seti - Jul11 2026 - Diagnostic rollback to pre-4-pane state then restored:
 # black-window/QOpenGLWidget context failure confirmed via journalctl to be a
 # hardware/driver issue (PCIe BadTLP errors + NVIDIA GSP firmware load failure
 # on the GPU, starting Jul 10) - not caused by this file or dff_viewport.py.
 # The existing QT_QPA_PLATFORM=xcb / QSG_RHI_BACKEND=opengl forcing below
 # doesn't help since the GPU itself is failing at the hardware level.
+# X-Seti - Jul31 2026 - Ported 7 standalone classes from map_workshop_old_version.py:
+# MapSettings, MapSettingsDialog, _CornerOverlay, _InstanceEditPanel,
+# _FilteredLoaderStub, _ObjectBrowserModel, _InstanceTableModel.
+# No name collisions with existing classes - inserted whole, unmodified.
+# X-Seti - Jul31 2026 - Ported Object Browser methods (17) into MapWorkshop
+# from map_workshop_old_version.py: dock creation, population, column/context
+# menu handling, row selection, search, rename/delete/add. Not yet wired into
+# __init__ - dock creation call sites still to be added once remaining
+# MapWorkshop feature groups are ported.
+# X-Seti - Jul31 2026 - Ported Instance List / Instance Edit Panel methods (13)
+# into MapWorkshop from map_workshop_old_version.py: dock creation, population,
+# row selection/double-click, context menu, favourite toggle, add/delete
+# instance-of-model, cycle/center-on instance, viewport pick handling.
+# X-Seti - Jul31 2026 - Ported Control Panel dock methods (6) into MapWorkshop
+# from map_workshop_old_version.py: dock creation, wireframe toggle, zoom,
+# reset view, bg change, move-there (position spinbox pan).
+# X-Seti - Jul31 2026 - Ported Editing Panel methods (31) into MapWorkshop
+# from map_workshop_old_version.py: IPL/IDE/DAT/IMG tab creation and refresh,
+# IPL sections table (populate/rebuild/move/context menu/cell click), IPL
+# Inst File panel, game folder/DAT loading, world-load application, load
+# options dialog, map load menu, ipl error logging, compact table styling.
+# X-Seti - Jul31 2026 - Ported 27 more MapWorkshop methods (world viewport dock,
+# LOD filter/override/display, corner overlay, ribbon framework, menu/statusbar
+# toggles) from map_workshop_old_version.py. Deliberately excluded from this
+# pass: _set_show_grid/_set_snap_grid/_toggle_clash_visualiser/_update_status/
+# _rebuild_right_panel (all DP5 paint-canvas-specific despite map-sounding
+# names - _toggle_clash_visualiser is literally ZX Spectrum colour clash, not
+# GTA clash detection); _build_ribbons_from_assignment/_build_tool_ribbon/
+# _create_panels_ribbon/_rebuild_tool_ribbons (reference DP5 paint-tool IDs,
+# need Map Workshop's own tool set defined first); the existing undo system
+# (_push_undo/_undo_canvas/_redo_canvas/_undo_stack/_redo_stack) is raster/
+# pixel-based against the dead paint canvas, not instance/IPL state - real
+# undo for mapping changes needs its own design, not a port, and is deferred.
+# X-Seti - Jul31 2026 - Ported _render_variant_icon/_paint_variant_shape
+# (misclassified earlier as DP5-only; actually shared icon-shape rendering
+# used by Object Browser mode buttons, IPL/IDE/DAT/IMG tab icons, LOD
+# toggle, and cull-boxes icons). Added missing "import math" needed by
+# _paint_variant_shape. Wired __init__: added self.map_settings = MapSettings(),
+# _COMPACT_BUTTON_H class constant. Hid the Model Workshop-specific left
+# docks (Files/Models/Frame Hierarchy/Textures - not applicable to a map
+# editor, hidden not removed). Wired the real Map Workshop dock sequence
+# in setup_ui matching old_version's actual __init__ order: World Viewport
+# -> Object Browser -> IPL Inst File -> Control Panel, all on the right,
+# stacked vertically, with dock nesting enabled per Keith's own noted
+# preference. _create_instance_list_dock/_create_editing_panel_dock are
+# NOT wired in - confirmed old_version itself never calls them either
+# (superseded: Object Browser's own creation code now builds the merged
+# IDE/IPL/DAT/IMG tabs directly, and Instance Edit Panel is a floating
+# non-modal overlay shown on demand via _show_instance_edit_panel, not
+# a dock) - left as available-but-unused code, matching old_version.
+# Verified: ast.parse clean, full QApplication instantiation clean, all
+# 4 new docks present, Model Workshop left docks confirmed hidden.
+# X-Seti - Jul31 2026 - Ribbon system cleanup, per Keith ("there should be
+# no canvas in the dp5 sense" / "there are ribbons in map_workshop already
+# we can adapt, make sure the ribbon manager works"):
+# - Discovered the ported _open_ribbon_manager/_get_ribbon_assignment/
+#   _set_ribbon_assignment/_ribbon_presets_dir/_apply_ribbon_style/
+#   _ribbon_context_menu/_RIBBON_TOOL_REGISTRY (from map_workshop_old_
+#   version.py) were a complete DUPLICATE of a working system already in
+#   the Model Workshop base - open_ribbon_manager()+RibbonManagerDialog,
+#   which operates generically on _inner_mw's live QToolBars via
+#   findChildren(), needing no registry at all. The base's own toolbar
+#   context menu called self.open_ribbon_manager (no underscore) - our
+#   ported _open_ribbon_manager (with underscore) was never reachable
+#   from it, so "Ribbon Manager..." would have thrown AttributeError.
+#   Removed the entire duplicate subsystem (429 lines) and fixed the one
+#   real external caller (a button in MapSettingsDialog's Ribbons tab)
+#   to call the real open_ribbon_manager instead.
+# - Renamed the Model Workshop mesh-editing ribbon builder aside:
+#   _build_toolbars -> _build_toolbars_tmp (Selection VEFP/Snap Targets/
+#   Edit Geometry/Navigation/Render - inactive, parked, kept for
+#   reference/reuse later, per Keith's direction - not deleted).
+# - Added a new active _build_toolbars using the same _tb/_act/
+#   _ribbon_actions pattern (so Ribbon Manager drag-reorder/presets work
+#   identically): one "World" ribbon with LOD display mode (Normal/Low/
+#   Both, exclusive) and Cull Boxes toggle - both wired to already-ported,
+#   real methods (_set_lod_display_mode, _toggle_cull_boxes), not stubs.
+#   Verified via RibbonManagerDialog construction that it correctly lists
+#   this new ribbon.
+# - Cleaned _create_centre_panel: removed the last DP5 canvas leftovers
+#   (hardcoded "320x256"/"RGBA32" bitmap status labels, show_paint_canvas
+#   collapse-to-0x0 hack) - kept only the generic status bar creation.
+# Central widget (DFFViewport, the 3D mesh viewport) intentionally left
+# untouched for now per Keith's direction - not swapped for the World
+# Viewport dock at this time.
+# X-Seti - Jul31 2026 - Parked the Models left dock's DFF/COL model-table
+# content aside: _create_models_table_panel -> _create_models_table_panel_tmp
+# (unchanged body, inactive). setup_ui now passes an empty QWidget()
+# placeholder to self._middle_dock instead (dock is hidden anyway). Per
+# Keith's plan for later: rework this dock into an instance-stats panel
+# modelled on the original Item Editor Dialog (moomapper_dialog.png) - ID
+# Number, Model Name (also becomes the dock title), Position/Interior/
+# Scale/Rotation with nudge controls (_InstanceEditPanel already has
+# most of this, currently used as a floating overlay via
+# _show_instance_edit_panel - would need embedding as a dock instead),
+# a Validation checklist (new logic, not yet written), and texture
+# view/swap (Textures dock already lists Name/Size/Format, swap action
+# not yet added). Frame Hierarchy dock intentionally left as-is (hidden,
+# not parked) - only Models was in scope for this change.
+# X-Seti - Jul31 2026 - Fixed two dock-visibility bugs Keith found by
+# testing the running app (ui2.png): "left bar still showing" and
+# "right-click what-to-show menu isn't working, not deselecting or
+# opening ui bars":
+# 1. _restore_outer_layout had an unconditional finally: block forcing
+#    Files/Models/Frame Hierarchy/Textures back to setVisible(True) +
+#    toggleViewAction checked, 400ms after every startup - directly
+#    fighting the hide added in v200. Removed the forcing (kept the
+#    unrelated window-width clamp below it). Also bumped
+#    _OUTER_LAYOUT_VERSION 2->3 and _RIBBON_LAYOUT_VERSION 2->3 so any
+#    layout saved before these changes (which would restore the old
+#    visible/mesh-ribbon state) is cleanly rejected instead of replayed.
+# 2. Root cause of the right-click menu not working: none of the 10
+#    dock widgets had QDockWidget.DockWidgetFeature.DockWidgetClosable
+#    in their setFeatures() call (only Movable|Floatable) - Qt disables
+#    toggleViewAction() entirely when a dock isn't closable, so every
+#    checkbox in that native Qt menu was inert (verified: trigger() on
+#    a disabled action does nothing). Added DockWidgetClosable to all
+#    10 setFeatures() calls (the 4 Model Workshop docks in setup_ui,
+#    plus Object Browser/Instance List/Control Panel/IPL Inst File/
+#    Editing Panel/World View). Custom title bars (_make_dock_
+#    collapsible) still provide their own close button, so this only
+#    affects toggleViewAction's enabled state, not visible chrome.
+# Verified: all 7 active docks' toggleViewAction now enabled and
+# correctly toggle visibility on trigger(); Model Workshop docks
+# confirmed still hidden by default even after _restore_outer_layout
+# fires.
+# X-Seti - Jul31 2026 - Unified ribbons and docks into ONE snappable
+# QMainWindow, per Keith: "use _outer_mw (owns all the docks), adding
+# the right_panel's own the viewport + all ribbon toolbars". Previously
+# _create_right_panel built its own separate nested QMainWindow
+# (_inner_mw) for the viewport + ribbons, while _outer_mw separately
+# owned all the docks (World Viewport/Object Browser/etc) - two
+# independent Qt widget hierarchies, so nothing could snap across the
+# boundary between them (ribbons stuck to the viewport's own 4 edges,
+# docks stuck to the outer window's 4 edges). Note: this exact
+# "everything in one window" approach was tried before and reverted
+# (rollback points 8b950b9, cb81f7f) because dragging a ribbon could
+# then span the whole window instead of staying a strip - flagged this
+# history to Keith before proceeding; he confirmed to go ahead anyway.
+# Fix: outer_mw now created BEFORE _create_right_panel() runs (was
+# after); _create_right_panel no longer creates its own QMainWindow or
+# QFrame wrapper - it sets self._inner_mw = self._outer_mw (alias) and
+# calls outer_mw.setCentralWidget(viewport_stack) + _build_toolbars(
+# outer_mw, ...) directly. Every other method that already referenced
+# self._inner_mw (_build_toolbars, _rebuild_toolbars, _save_toolbar_
+# state, _restore_toolbar_state, _toolbar_context_menu,
+# RibbonManagerDialog) needed no changes - they now just operate on
+# the shared window automatically. self._right_panel_ref no longer
+# set (only one guarded getattr() reader, falls back to self.width()
+# harmlessly).
+# Also added: a "View" ribbon with a 4-Pane View toggle (viewpoint 1 =
+# single view, viewpoint 2 = 4-pane quad view), answering Keith's "2
+# viewpoint...toggle button" ask. Reused _toggle_quad_view/_create_
+# quad_viewport as-is - both already existed, just previously only
+# wired into the parked _build_toolbars_tmp. Along the way, hit a
+# genuine pre-existing bug in apps/methods/imgfactory_svg_icons.py: a
+# stray module-level function (get_water_workshop_icon) breaks
+# SVGIconFactory's class body early, silently nesting list_icon/
+# grid_icon/others inside it instead of leaving them as class methods -
+# same bug class as the extraction boundary issues hit earlier today,
+# just pre-existing and in a different file. Did not fix it (out of
+# scope, shared file, risky to touch blindly) - used view_icon (unaffected,
+# defined earlier in the file) for the new toggle button instead.
+# Verified: _inner_mw is _outer_mw (same object), outer_mw's central
+# widget is the viewport, quad-view toggle correctly switches
+# viewport_stack between single/quad, RibbonManagerDialog lists both
+# ribbons (World, View), Model Workshop docks still hidden by default
+# after this change.
+# X-Seti - Jul31 2026 - Made the viewport itself a proper QDockWidget
+# (self._viewport_dock) instead of outer_mw's fixed central widget, per
+# Keith: he noticed it had no draggable header like every other pane
+# ("it doesn't have the header to move that area, like the other
+# viewpoint window") after confirming the View ribbon's single/quad
+# toggle was working correctly all along (the earlier "2 viewpoints"
+# report was that toggle, not a bug). A QMainWindow's central widget is
+# structurally different from its docks - can never float, move, or get
+# a title bar - so as long as the viewport stayed central it could never
+# match the rest of the now-unified snap system. Fix: outer_mw's real
+# central widget is now a trivial empty QWidget (setMaximumSize(0,0),
+# collapses to nothing); self.preview_widget/self._viewport_stack (the
+# single-view/quad-view stack, unchanged) is wrapped in
+# self._viewport_dock instead, with the same _make_dock_collapsible
+# header treatment and Movable|Floatable|Closable features as every
+# other pane, added via addDockWidget like the rest. Given an initial
+# width of 900px (resizeDocks) so it still reads as the main content by
+# default, but it's no longer structurally locked there.
+# Verified: outer_mw's createPopupMenu() now lists "Viewport" alongside
+# the other 7 panes and both ribbons; quad-view toggle still correctly
+# switches _viewport_stack's current widget with the dock wrapper in
+# place; viewport_dock's toggleViewAction enabled and dock stays visible
+# through the toggle.
+# X-Seti - Jul31 2026 - Hid self._viewport_dock by default and removed
+# the "View" ribbon entirely, per Keith: "move the view functions...
+# to the other viewpoint that can be moved, then remove the original
+# view function". self._viewport_dock (Model Workshop's own single-
+# mesh DFFViewport-based preview, just made into a movable dock in the
+# previous change) is redundant for Map Workshop's actual purpose -
+# World View (MapViewport-based, the real map/instance viewport) is
+# already movable and already has its own equivalent single/multi-pane
+# behaviour via _toggle_world_pane_maximize (defaults to 3D-only).
+# Chose to hide rather than fully delete self.preview_widget/self.
+# _viewport_stack - ~26 other references to them still exist in
+# dormant Model Workshop texture/material code (flip/rotate buttons,
+# background colour, texture cache, geometry-loaded callback) that
+# isn't worth unpicking for this; hiding the dock achieves the same
+# end-user result (no redundant viewport, no confusing toggle) with
+# far less blast radius. Removed the "View" ribbon's 4-Pane toggle
+# button entirely (nothing left for it to control) -
+# _toggle_quad_view/_create_quad_viewport are untouched, just no
+# longer wired to a ribbon. Bumped _OUTER_LAYOUT_VERSION 3->4 and
+# _RIBBON_LAYOUT_VERSION 3->4 so old saved state doesn't restore the
+# dock back to visible or try to rebuild the removed ribbon.
+# Verified: viewport_dock hidden by default and stays hidden through
+# _restore_outer_layout; world_view_dock still visible; _quad_view_act
+# no longer exists on the instance; createPopupMenu() lists Viewport
+# (hidden, still recoverable) alongside the other panes, and only the
+# World ribbon remains (View is gone).
+# X-Seti - Jul31 2026 - Two live-testing findings from Keith:
+# 1. setVisible(False) alone wasn't enough for self._viewport_dock - it
+#    was still added to LeftDockWidgetArea, so it still occupied a slot
+#    in that area's internal splitter chain (alongside Files/Models/
+#    Frame Hierarchy/Textures). Keith found that dragging the left
+#    splitter slightly revealed it despite isVisible() being False.
+#    Fixed by calling outer_mw.removeDockWidget() right after adding it,
+#    fully detaching it from the dock-area layout tree instead of just
+#    hiding it - no more splitter slot to leak through. The dock/
+#    preview_widget/viewport_stack objects stay alive in Python, just no
+#    longer part of outer_mw's layout at all - not in the right-click
+#    pane menu anymore either (only lists docks outer_mw still owns),
+#    but can be re-added later via outer_mw.addDockWidget(...) if ever
+#    needed. Files/Models/Frame Hierarchy/Textures were NOT changed to
+#    match (still just hidden, not removed) - only Viewport was reported
+#    as actually leaking, so only Viewport was fixed this way; worth
+#    applying the same fix to the other 4 if the same bug ever surfaces
+#    there.
+# 2. No dock/toolbar edge-snap preview appears at all when dragging,
+#    even though dragging itself clearly works (a dock can be dragged
+#    off into floating - confirmed by Keith's screenshot). This points
+#    away from the custom title bars (_make_dock_collapsible) as the
+#    cause, since if they were blocking mouse events entirely, dragging
+#    wouldn't work either. Leading hypothesis instead: a Wayland
+#    compositor limitation - Qt's snap-preview needs live cross-window
+#    geometry tracking during drag that Wayland restricts more than X11
+#    does (Keith's dev environment is Garuda Linux KDE/Wayland). Not
+#    something fixable from application code if confirmed - suggested
+#    Keith test with QT_QPA_PLATFORM=xcb to check whether it's
+#    Wayland-specific, not yet confirmed either way.
+# X-Seti - Jul31 2026 - Consolidated to ONE viewport, per Keith: "get
+# rid of the full view dock and transfer its functions to the other
+# viewer, _create_viewport_dock; this way, we only get one viewpoint
+# window". He'd already renamed _create_right_panel to
+# _create_viewport_dock himself (pushed separately) before this change.
+# Migrated the Top/Side/3D MapViewport triple-pane splitter (the real
+# Map Workshop content, previously in a separate "World View" dock)
+# directly into _create_viewport_dock/self._viewport_dock - it's now
+# the dock's actual widget instead of the old DFFViewport single-mesh
+# preview. self.preview_widget/self._viewport_stack (DFFViewport) are
+# still created but never shown anywhere, kept alive only so the ~26
+# other references to them in dormant Model Workshop texture/material
+# code don't break. _create_paint_bar() (material painting toolbar,
+# tied to preview_widget) is no longer called - not needed since
+# preview_widget is never the visible content.
+# Removed the separate world_dock creation/addDockWidget call from
+# setup_ui; Object Browser no longer splits against it (nothing to
+# split against now that the viewport lives on the left, not the
+# right). Parked _create_world_viewport_dock aside as
+# _create_world_viewport_dock_tmp (unchanged body, reference only).
+# Added the "eye icon" toggle back per Keith's own note ("we need to
+# add the eye icon back for quad") - a checkable "Show All Panes"
+# button in the World ribbon, using the existing _render_variant_icon
+# utility with 'eye_visible' and reusing _toggle_world_pane_maximize
+# unchanged (anchored on the "3D" pane for a clean binary toggle).
+# Verified: only one dock ("Viewport") appears in createPopupMenu(),
+# no separate World View; _viewport_dock's widget is the world
+# splitter with all 3 MapViewport panes; default view is 3D-only
+# ("Full View"); Show All Panes toggle correctly switches between
+# single and all-3 and back. ast.parse clean, full QApplication
+# instantiation clean.
+# X-Seti - Jul31 2026 - Reverted the ribbon/dock unification from
+# earlier today. Keith reported dock/ribbon edge-snap drag preview
+# wasn't working, and ruled out both leading hypotheses: tested under
+# QT_QPA_PLATFORM=xcb (still broken, so not Wayland-specific), and
+# ribbons (plain QToolBars, no custom code) losing snapping too (so not
+# the custom dock title bars either, since they never touch ribbons).
+# Confirmed working in map_workshop_old_version.py's original separate-
+# window architecture. That leaves "ribbons and docks sharing one
+# QMainWindow" as the one remaining variable - and matches the exact
+# category of an earlier revert (8b950b9/cb81f7f) this unification had
+# already been flagged as possibly repeating, before Keith chose to try
+# it anyway.
+# Re-split self._inner_mw back into its own separate nested QMainWindow
+# (created fresh inside _create_viewport_dock, no longer aliased to
+# self._outer_mw). self._viewport_dock's widget is now inner_mw itself
+# (a QMainWindow can be a dock's content widget) instead of the world
+# splitter directly; inner_mw.setCentralWidget(world_splitter) puts the
+# map panes back as inner_mw's own central widget, and
+# _build_toolbars(inner_mw, ...) attaches ribbons to that separate
+# window again - so ribbons dock within the Viewport dock's own 4
+# edges, and outer_mw's docks (Object Browser, Control Panel, etc.)
+# snap independently of them, same separation as before today's
+# unification. Bumped _RIBBON_LAYOUT_VERSION 4->5 and
+# _OUTER_LAYOUT_VERSION 4->5 so old saved state from the brief unified
+# period doesn't get replayed against this reverted structure.
+# Verified: self._inner_mw is no longer self._outer_mw (separate
+# objects again); _viewport_dock.widget() is inner_mw;
+# inner_mw.centralWidget() is the world splitter; Show All Panes
+# toggle still works; RibbonManagerDialog still correctly finds the
+# World ribbon (now via the separate inner_mw); outer_mw's
+# createPopupMenu() no longer lists ribbons, only docks. ast.parse
+# clean, full QApplication instantiation clean.
+# X-Seti - Aug01 2026 - Full from-scratch rebuild of setup_ui, per
+# Keith: "None of the map editor logic is in yet... why not remove all
+# ui elements, keeping the [menu] [settings] -- title -- [Open] [Save]
+# [Import] [Export] so on? just redo from scratch the panes and
+# ribbons in the way i've seen it working." Confirmed he wants
+# QDockWidgets kept (not QSplitters), and confirmed the rebuild should
+# match map_workshop_old_version.py's structure, which turned out (on
+# actually reading its real setup_ui, not assumed) to be the UNIFIED
+# one - ribbons and docks both directly on one QMainWindow, no
+# separate inner_mw. That's exactly what the Jul 31 unification
+# attempt already tried and reverted after Keith found snap-drag
+# broken - flagged this contradiction to Keith before proceeding; he
+# confirmed "we know this works" is from memory of using it a while
+# back (not a fresh live test - old_version currently crashes before
+# reaching a testable UI state, in _rebuild_right_panel), and chose to
+# rebuild fresh and unified anyway, since the exact cause of the
+# earlier regression was never conclusively identified despite 5
+# separate isolated reproduction scripts (vanilla docks, non-top-level
+# embedding, dockOptions+stylesheet+custom title bars combined, nested
+# QMainWindow-in-a-dock, and full scale with hidden docks + split
+# chains) all working fine - something about the real app specifically
+# still causes it, not yet found.
+# Dropped Files/Models/Frame Hierarchy/Textures (Model Workshop's 3D
+# mesh-editing panels) entirely rather than building-then-hiding them -
+# no map-editing logic depends on them, and old_version never had them
+# either. setup_ui now only builds: toolbar (top bar), Viewport dock
+# (Top/Side/3D map panes + World ribbon, unified on outer_mw via
+# _create_viewport_dock), Object Browser, IPL Inst File, Control Panel.
+# _create_viewport_dock no longer creates a separate inner_mw - it
+# aliases self._inner_mw to self._outer_mw again and calls
+# _build_toolbars(outer_mw, ...) directly, matching old_version.
+# Bumped _RIBBON_LAYOUT_VERSION 5->6 and _OUTER_LAYOUT_VERSION 5->6 so
+# any saved state from the reverted split architecture is cleanly
+# rejected rather than replayed against this rebuild.
+# _create_left_panel/_create_frame_hierarchy_panel/_create_texture_panel/
+# _create_models_table_panel_tmp are still defined (unused, not called) -
+# left in place for reference/reversibility, not deleted.
+# Verified: self._inner_mw is self._outer_mw again (unified); no
+# _left_dock/_middle_dock attributes exist at all now;
+# createPopupMenu() lists exactly Viewport/Object Browser/IPL Inst
+# File/Control Panel plus the World ribbon, nothing else; Show All
+# Panes toggle and Object Browser's toggleViewAction both verified
+# working; RibbonManagerDialog still finds the World ribbon. ast.parse
+# clean, full QApplication instantiation clean. Whether this actually
+# fixes the live snap-drag issue can only be confirmed by Keith testing
+# it directly - noted as unresolved/unverified pending that test.
 
 import os
-# Force X11/GLX backend for NVIDIA on Wayland
+import math
 os.environ['QT_QPA_PLATFORM'] = 'xcb'
 os.environ['QSG_RHI_BACKEND'] = 'opengl'
 os.environ['LIBGL_ALWAYS_SOFTWARE'] = '0'  # Use hardware acceleration
@@ -39,10 +405,11 @@ if str(project_root) not in sys.path:
 
 # Import PyQt6
 from PyQt6.QtWidgets import (QApplication, QSlider, QCheckBox,
-    QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QListWidget, QDialog, QFormLayout, QSpinBox,  QListWidgetItem, QLabel, QPushButton, QFrame, QFileDialog, QLineEdit, QTextEdit, QMessageBox, QScrollArea, QGroupBox, QTableWidget, QTableWidgetItem, QColorDialog, QHeaderView, QAbstractItemView, QMenu, QComboBox, QInputDialog, QTabWidget, QDoubleSpinBox, QRadioButton, QStyledItemDelegate
+    QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QListWidget, QDialog, QFormLayout, QSpinBox,  QListWidgetItem, QLabel, QPushButton, QFrame, QFileDialog, QLineEdit, QTextEdit, QMessageBox, QScrollArea, QGroupBox, QTableWidget, QTableWidgetItem, QColorDialog, QHeaderView, QAbstractItemView, QMenu, QComboBox, QInputDialog, QTabWidget, QDoubleSpinBox, QRadioButton, QStyledItemDelegate,
+    QFontComboBox, QSizePolicy, QMenuBar, QStatusBar, QGridLayout, QDockWidget, QProgressDialog
 )
 
-from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPoint, QRect, QByteArray
+from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPoint, QPointF, QRect, QByteArray, QTimer, QAbstractTableModel
 from PyQt6.QtGui import QFont, QIcon, QPixmap, QImage, QPainter, QPen, QBrush, QColor, QCursor
 
 # Shared DFFViewport — import from methods/, fallback to local methods/
@@ -106,7 +473,7 @@ except ImportError:
 # import_elements    STUB: import OBJ/FBX geometry into DFF
 # open_col_editor
 # open_col_workshop
-# open_model_workshop    factory method — open workshop with optional DFF #vers 3
+# open_map_workshop    factory method — open workshop with optional DFF #vers 3
 # open_workshop
 # refresh_model_list
 # update_view_options
@@ -201,27 +568,96 @@ except ImportError:
 # _refresh_toolbar_list
 # _save_preset
 #
-##class ModelWorkshop: -
+##class MapSettings: -
+# __init__
+# _load
+# get
+# save
+# set
+#
+##class MapSettingsDialog: -
+# __init__
+# _accept
+#
+##class _CornerOverlay: -
+# __init__
+# _update_mask
+# paintEvent
+# resizeEvent
+# setGeometry
+# update_state
+#
+##class _InstanceEditPanel: -
+# __init__
+# _add_nudge_section
+# _add_section
+# _on_position_nudged
+# _on_rotation_nudged
+# _reflow_nudge_rows
+# _refresh_position_spins
+# _refresh_rotation_spins
+# _set_nav_visible
+# _set_section_lines
+# resizeEvent
+# show_for_instance
+#
+##class _FilteredLoaderStub: -
+# __init__
+# get_object
+#
+##class _ObjectBrowserModel: -
+# __init__
+# _is_generic
+# _recompute
+# columnCount
+# data
+# headerData
+# object_at
+# rowCount
+# set_mode
+# set_model_cache
+# set_objects
+# set_search
+# toggle_favourite
+#
+##class _InstanceTableModel: -
+# __init__
+# _resolve_txd
+# columnCount
+# data
+# headerData
+# instance_at
+# rowCount
+#
+##class MapWorkshop: -
 # __init__
 # _add_geometry_to_dff
+# _add_instance_of_model
 # _add_textures_from_txd
 # _align_dialog
 # _analyze_collision
 # _apply_always_on_top
 # _apply_button_font
 # _apply_button_mode
+# _apply_compact_table_style
 # _apply_fonts_to_widgets
 # _apply_hotkey_settings
 # _apply_icon_scale
 # _apply_infobar_font
+# _apply_ipl_visibility_filter
+# _apply_loaded_world
+# _apply_lod_filter
+# _apply_menu_bar_style
 # _apply_panel_font
 # _apply_prelighting    TODO: bake ambient+directional into DFF vertex colours
 # _apply_settings
 # _apply_theme
 # _apply_title_font
 # _apply_to_selected_faces_paint
+# _apply_viewport_movement_settings
 # _apply_window_flags
 # _assign_quad_pane_view
+# _assign_world_pane_view
 # _auto_load_from_texlist    scan texlist/ folder for pre-exported textures
 # _auto_load_txd_from_imgs    search open IMG tabs for IDE-linked TXD
 # _browse_texlist_folder    open texlist/ browser dialog
@@ -231,7 +667,9 @@ except ImportError:
 # _build_model_name_toolbar
 # _build_primitive    generate vertices+triangles for Box/Sphere/Cylinder/Plane
 # _build_toolbars
+# _build_toolbars_tmp
 # _build_txd_from_textures
+# _center_on_instance
 # _change_format
 # _close_col_tab
 # _compress_col
@@ -244,27 +682,40 @@ except ImportError:
 # _copy_surface
 # _copy_text_to_clipboard
 # _create_action_section
+# _create_centre_panel
 # _create_col_from_dff    generate COL1/2/3 binary from DFF geometry #vers 1
+# _create_control_panel_dock
+# _create_dat_tab
+# _create_editing_panel_dock
 # _create_frame_hierarchy_panel
+# _create_ide_tab
+# _create_img_tab
 # _create_info_section
+# _create_instance_list_dock
+# _create_ipl_inst_file_panel
+# _create_ipl_tab
 # _create_left_panel
 # _create_level_card
-# _create_models_table_panel
+# _create_models_table_panel_tmp
 # _create_new_model
 # _create_new_surface
+# _create_object_browser_dock
 # _create_paint_bar
 # _create_preview_widget
 # _create_primitive_dialog    dialog to add Box/Sphere/Cylinder/Plane to DFF #vers 1
 # _create_quad_viewport
-# _create_right_panel
 # _create_shadow_mesh
 # _create_stat_box
 # _create_stats_grid
 # _create_status_bar
 # _create_texture_panel
 # _create_toolbar
+# _create_viewport_dock
+# _create_world_viewport_dock_tmp
+# _cycle_model_instance
 # _cycle_render_mode
 # _cycle_view_render_style
+# _delete_all_instances_of_model
 # _delete_selected_model
 # _delete_surface
 # _dff_analyze
@@ -289,6 +740,7 @@ except ImportError:
 # _enable_dff_toolbar    show/hide DFF-only toolbar buttons #vers 2
 # _enable_move_mode
 # _enable_name_edit
+# _ensure_ipl_loaded
 # _exit_paint_mode
 # _export_col_data
 # _export_col_model
@@ -298,11 +750,13 @@ except ImportError:
 # _export_textures_as_png
 # _export_via_ide
 # _extract_col_from_img
+# _extract_ipl_section_text
 # _extrude_dialog    prompt for distance, apply extrude to selected faces #vers 1
 # _filter_model_list
 # _find_all_paint_btns
 # _find_col_via_db
 # _find_in_ide    look up model in DAT Browser IDE entries
+# _find_lod_primary_key
 # _flip_horizontal_all
 # _flip_vertical_all
 # _focus_search
@@ -314,6 +768,7 @@ except ImportError:
 # _get_resize_corner
 # _get_resize_direction
 # _get_selected_model
+# _get_tool_menu_style
 # _get_view_coords
 # _get_xref
 # _handle_corner_resize
@@ -332,30 +787,63 @@ except ImportError:
 # _is_on_draggable_area
 # _launch_theme_settings
 # _live_viewports
+# _load_game_dat_file
+# _load_game_folder
 # _load_iff_as_qimage
 # _load_img_col_list
 # _load_quad_layout
+# _load_selected_ipls_with_log
 # _load_settings
 # _load_texlist_setting
 # _load_txd_file    load TXD file → texture panel + viewport cache
 # _load_txd_file_from_data    load TXD from raw bytes
 # _load_txd_into_workshop
-# _load_viewport_light_settings    restore saved light from model_workshop.json #vers 1
+# _load_viewport_light_settings    restore saved light from map_workshop.json #vers 1
 # _lookup_ide_for_dff    find IDE entry via xref or IDEDatabase #vers 2
 # _lookup_ide_from_db
 # _mirror_dialog
 # _move_info_ribbon
+# _move_ipl_section
 # _on_col_selected
 # _on_collision_selected
 # _on_compact_col_selected
+# _on_control_panel_bg_changed
+# _on_control_panel_reset_view
+# _on_control_panel_wireframe_toggled
+# _on_control_panel_zoom
 # _on_dff_geom_selected
 # _on_dff_geom_selected_tbl    handle model table row click → show geometry #vers 1
 # _on_frame_tree_clicked
+# _on_ide_tab_row_clicked
+# _on_instance_edited
+# _on_instance_list_context_menu
+# _on_instance_row_double_clicked
+# _on_instance_row_selected
+# _on_ipl_data_type_changed
+# _on_ipl_section_cell_clicked
+# _on_ipl_sections_column_resized
+# _on_ipl_sections_context_menu
+# _on_ipl_tab_close_clicked
+# _on_ipl_tab_open_clicked
 # _on_menu_btn_clicked
+# _on_move_there_clicked
+# _on_object_browser_add_clicked
+# _on_object_browser_column_resized
+# _on_object_browser_column_visibility_toggled
+# _on_object_browser_context_menu
+# _on_object_browser_delete_clicked
+# _on_object_browser_header_context_menu
+# _on_object_browser_rename_clicked
+# _on_object_browser_tab_changed
+# _on_object_mode_changed
+# _on_object_row_double_clicked
+# _on_object_row_selected
+# _on_object_search_changed
 # _on_paint_mode_exited
 # _on_painted_face
 # _on_splitter_moved
 # _on_tex_selected
+# _on_viewport_instance_picked
 # _open_col_file
 # _open_col_from_img_entry
 # _open_dff_material_editor
@@ -380,6 +868,7 @@ except ImportError:
 # _open_txd_standalone
 # _paint_cycle_mat
 # _paint_model_onto
+# _paint_variant_shape
 # _pan_preview
 # _parse_txd_lightweight
 # _pass_textures_to_txd_workshop
@@ -391,14 +880,25 @@ except ImportError:
 # _populate_compact_col_list
 # _populate_dff_detail_table
 # _populate_frame_tree
+# _populate_instance_list
+# _populate_ipl_sections
 # _populate_left_panel_from_img
+# _populate_object_browser
 # _populate_tex_thumbnails    64×64 thumbnail grid in texture panel #vers 1
 # _populate_texture_list    fill texture panel table from _mod_textures
 # _prelight_setup_dialog    light source setup for prelighting STUB #vers 1
+# _preload_world_assets
 # _project_model_2d
 # _push_undo
+# _rebuild_ipl_sections_rows
 # _rebuild_toolbars
+# _recompute_object_browser_model_width
+# _refresh_corner_overlay
+# _refresh_dat_tab
 # _refresh_icons    refresh all SVG icons after theme change
+# _refresh_ide_tab
+# _refresh_img_tab
+# _refresh_ipl_inst_file_panel
 # _refresh_main_window
 # _regenerate_all_thumbnails
 # _reload_surface_table
@@ -407,8 +907,10 @@ except ImportError:
 # _remove_shadow_mesh
 # _remove_via_ide
 # _rename_col_model
+# _rename_object
 # _rename_shadow_shortcut
 # _render_collision_preview
+# _render_variant_icon
 # _reset_hotkeys_to_defaults
 # _restore_outer_layout
 # _restore_toolbar_state
@@ -431,11 +933,14 @@ except ImportError:
 # _select_model_by_row
 # _set_checkerboard_bg
 # _set_col_buttons_enabled
+# _set_lod_display_mode
+# _set_lod_override
 # _set_paint_tool
 # _set_select_mode    switch vertex/edge/face/poly/object select mode #vers 2
 # _set_status
 # _set_texlist_folder    set texlist/ folder via dialog
 # _set_thumbnail_view
+# _setup_corner_overlay
 # _setup_hotkeys
 # _setup_settings_button
 # _show_about
@@ -444,6 +949,9 @@ except ImportError:
 # _show_detailed_info
 # _show_dff_geometry    push _DFFGeometryAdapter into COL3DViewport #vers 1
 # _show_dff_material_context_menu
+# _show_instance_edit_panel
+# _show_load_options_dialog
+# _show_map_load_menu
 # _show_model_details
 # _show_model_search
 # _show_paint_toolbar
@@ -463,6 +971,7 @@ except ImportError:
 # _sort_models_desc
 # _start_thumbnail_spin
 # _stop_thumbnail_spin
+# _style_ipl_name_item
 # _switch_icon_set
 # _sync_middle_btn_row_visibility
 # _sync_quad_from_main
@@ -473,18 +982,24 @@ except ImportError:
 # _toggle_backface_cull
 # _toggle_boxes
 # _toggle_col_view
+# _toggle_cull_boxes
 # _toggle_front_only_paint
+# _toggle_instance_favourite
+# _toggle_ipl_section
 # _toggle_maximize
+# _toggle_menubar
 # _toggle_mesh
 # _toggle_mid_btn_row_collapsed
 # _toggle_pin_selected
 # _toggle_quad_view
 # _toggle_spheres
+# _toggle_statusbar
 # _toggle_tearoff
 # _toggle_tex_btn_row_collapsed
 # _toggle_tex_view    switch texture panel list/thumbnail view #vers 1
 # _toggle_upscale_native
 # _toggle_viewport_shading    toggle Lambertian shading on/off #vers 1
+# _toggle_world_pane_maximize
 # _toolbar_context_menu
 # _uncompress_col
 # _uncompress_surface
@@ -493,6 +1008,8 @@ except ImportError:
 # _update_all_buttons
 # _update_cursor
 # _update_dock_button_visibility
+# _update_mode_button_style
+# _update_object_browser_action_buttons
 # _update_select_mode_availability
 # _update_status_indicators
 # _update_tex_btn_compact    icon-only when texture panel narrow #vers 1
@@ -500,11 +1017,13 @@ except ImportError:
 # _wire_col_buttons
 # _wire_dff_buttons
 # _wrap_middle_panel_with_own_dock_areas
+# _write_ipl_error_log
 # closeEvent
 # export_all
 # export_all_surfaces
 # export_selected
 # export_selected_surface
+# get_menu_title
 # get_menu_title
 # load_from_img_archive
 # mouseDoubleClickEvent
@@ -520,11 +1039,12 @@ except ImportError:
 # reload_surface_table
 # resizeEvent
 # save_col_file
+# set_menu_orientation
 # setup_ui
 # shadow_dialog
-# showEvent
 # show_help
 # show_settings_dialog
+# showEvent
 # switch_surface_view
 # toggle_dock_mode
 #
@@ -571,17 +1091,17 @@ except ImportError:
 #
 
 # Build information
-App_name = "Model Workshop"
-App_build = "193"
+App_name = "Map Workshop"
+App_build = "Map Workshop rebuild v1 (based on Model Workshop v193)"
 
 #TODO some gta3 dff files show as unknown format, effects standalone and docked versions, loading files from the img files.
 
-# Model Workshop icon available: SVGIconFactory.model_workshop_icon()
-# Use for: DFF edit button in main toolbar, Model Workshop tab icon.
+# Map Workshop icon available: SVGIconFactory.map_workshop_icon()
+# Use for: DFF edit button in main toolbar, Map Workshop tab icon.
 # - DFF → Viewport adapter
 
-# Model Workshop icon available: SVGIconFactory.model_workshop_icon()
-# Use for: DFF edit button in main toolbar, Model Workshop tab icon.
+# Map Workshop icon available: SVGIconFactory.map_workshop_icon()
+# Use for: DFF edit button in main toolbar, Map Workshop tab icon.
 # - DFF → Viewport adapter
 class _DFFGeometryAdapter:
     """Adapts a DFF Geometry for use with COL3DViewport.
@@ -2607,7 +3127,7 @@ class COL3DViewport(QWidget): #vers 2
         if ref is not None: return ref
         p = self.parent()
         while p:
-            if isinstance(p, ModelWorkshop): return p
+            if isinstance(p, MapWorkshop): return p
             p = p.parent() if callable(getattr(p, 'parent', None)) else None
         return None
 
@@ -2773,7 +3293,7 @@ class RibbonManagerDialog(QDialog): #vers 1
             import json
             from pathlib import Path
             _saved_px = json.loads(
-                (Path.home()/'.config'/'imgfactory'/'model_workshop.json').read_text()
+                (Path.home()/'.config'/'imgfactory'/'map_workshop.json').read_text()
             ).get('icon_scale', 20)
         except Exception:
             pass
@@ -2964,7 +3484,7 @@ class RibbonManagerDialog(QDialog): #vers 1
         name, ok = QInputDialog.getText(self, "Save Preset", "Preset name:")
         if not ok or not name.strip():
             return
-        path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+        path = Path.home() / '.config' / 'imgfactory' / 'map_workshop.json'
         try:
             data = json.loads(path.read_text())
         except Exception:
@@ -2982,7 +3502,7 @@ class RibbonManagerDialog(QDialog): #vers 1
         from pathlib import Path
         if not self._mw:
             return
-        path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+        path = Path.home() / '.config' / 'imgfactory' / 'map_workshop.json'
         try:
             data = json.loads(path.read_text())
         except Exception:
@@ -3013,8 +3533,1076 @@ class RibbonManagerDialog(QDialog): #vers 1
         self.reject()
 
 
-class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
-    """Model Workshop - Main window"""
+class MapSettings:
+    """
+    Lightweight JSON settings for DP5 Workshop.
+    Stored at ~/.config/imgfactory/map_workshop.json
+    Completely separate from the global AppSettings/theme system.
+    """
+
+    DEFAULTS = {
+        'show_bitmap_list':  False,    # left panel visible
+        # Persistent default fill colour for new canvases - replaces the
+        # New Canvas dialog's hardcoded Grey(128,128,128) with a
+        # user-adjustable colour, set via the Canvas swatch in
+        # Brush & Colors.
+        'canvas_fill_color': '#808080',
+        # Widget manager - enable/disable each dock independently of its
+        # current show/hide state (this controls whether the dock exists
+        # at all / is offered in the UI, not just its visibility).
+        'widget_bitmaps_enabled':      True,
+        'widget_brushcolors_enabled':  True,
+        'widget_imagepalette_enabled': True,
+        'widget_userpalette_enabled':  True,
+        'tool_icon_size':    24,       # tool button pixel size (20–64)
+        'tool_icon_color':   'color',  # 'color' | 'white' | 'dark'
+        'tool_columns':      3,        # 3, 4, 5, or 6
+        'hidden_tools':      [],       # list of tool_ids to hide
+        'img_pal_cols':      16,       # image palette columns
+        'img_pal_rows':      16,       # image palette max visible rows
+        'user_pal_cols':     16,       # user palette columns
+        'user_pal_rows':     16,       # user palette max visible rows
+        'default_zoom':      4,        # startup zoom level
+        'undo_levels':       32,
+        'default_width':     320,
+        'default_height':    200,
+        'retro_palette':     'Amiga AGA WB',
+        'show_pixel_grid':   True,
+        'grid_color':        '#808080',  # pixel grid colour (hex)
+        'platform_mode':     'none',   # 'none'|'c64'|'c64m'|'spectrum'|'msx'|'cpc'|'atari_st'|'amiga'
+        'show_cell_grid':    False,    # show platform cell boundaries
+        'show_statusbar':    True,     # show bottom status bar
+        'show_paint_canvas': False,    # forked-in paint canvas - hidden by default, toggleable
+        'favourite_objects': [],       # list of favourited model_ids, Object Browser panel
+        # Per-view-mode pan direction inversion (World View: Top/Side/
+        # Front/3D each have a different camera orientation, so the
+        # same raw mouse delta needs different sign handling per mode
+        # to feel consistent - Keith reported Top view's left/right
+        # was inverted and other views' up/down was inverted; exposed
+        # here as user-adjustable rather than a single hardcoded guess,
+        # since without a real GPU to test against directly, giving
+        # direct control is safer than a blind sign-flip.
+        'viewport_pan_invert': {
+            'Top':   {'x': False, 'y': False},
+            'Side':  {'x': False, 'y': False},
+            'Front': {'x': False, 'y': False},
+            '3D':    {'x': False, 'y': False},
+        },
+        # Mouse button assignment for World View pane interaction -
+        # which button pans vs rotates (rotate only applies to
+        # unlocked/3D panes; locked ortho panes only ever pan).
+        'viewport_pan_button': 'middle',     # 'middle' | 'left' | 'right'
+        'viewport_rotate_button': 'right',   # 'middle' | 'left' | 'right'
+        # Persisted display order for IPL Sections rows - a list of
+        # ipl_name strings; any names not in this list (a different
+        # world/mod was loaded) get appended alphabetically after the
+        # known ones, rather than the order being lost entirely.
+        'ipl_sections_order': [],
+        # Persisted column widths (user-resized), keyed by panel -
+        # restored on next open rather than resetting to defaults.
+        'ipl_sections_column_widths': [],
+        'object_browser_column_widths': [],
+        'object_browser_hidden_columns': [],
+        'ui_font_size':      10,       # toolbar/button font size
+        'canvas_mode':       'free',   # 'free'|'platform'|'texture'|'icon'
+        'show_anim_strip':   False,    # show animation timeline strip
+        'anim_fps':          12,       # default animation FPS
+        'zoom_to_fit_resize': False,
+        'show_menubar':       False,     # hidden by default — enable in Settings > Menu
+        'menu_style':         'dropdown', # 'topbar' | 'dropdown'
+        'menu_bar_font_size':  9,         # topbar menubar font size (pt)
+        'menu_bar_height':     22,        # topbar menubar height (px)
+        'menu_dropdown_font_size': 9,     # dropdown menu item font size (pt)
+        'outer_layout_state':   '',            # QMainWindow.saveState() hex - dock/ribbon layout
+        'outer_layout_version': 0,             # must match _OUTER_LAYOUT_VERSION to restore
+        # Icon editor
+        'char_editor_docked':  False,  # _CharFontEditor dock state
+        'sprite_editor_docked': False, # _SpriteEditor dock state
+        'sprite_editor_folder': '',    # sprite source folder
+        'char_editor_folder':   '',    # bitmap font folder
+        'svg_browser_docked':  False,  # SVGIconBrowser dock state
+        'icon_editor_docked':  False,  # True = snapped to overlay, False = floating
+        'icon_editor_x':       -1,     # last window X (-1 = auto)
+        'icon_editor_y':       -1,     # last window Y
+        'icon_editor_out_fmt': 'PNG',  # last export format
+        'icon_editor_alpha':   True,   # colour 0 = alpha
+        'icon_editor_alpha_r': 0,      # alpha colour R
+        'icon_editor_alpha_g': 0,      # alpha colour G
+        'icon_editor_alpha_b': 0,      # alpha colour B
+        'icon_editor_amiga_pal':'AGA Workbench (WB3.9)',
+        'icon_editor_folder':   '',   # last source icon folder
+        # Marching ants (animated selection outline)
+        'marching_ants_enabled': True,
+        'marching_ants_fg':      '#000000',  # foreground colour (hex)
+        'marching_ants_bg':      '#ffffff',  # background colour (hex)
+        'marching_ants_style':   'dashes',   # 'dashes' | 'dots'
+        'marching_ants_speed':   150,        # animation step interval, ms
+        # Ribbon appearance - applies to every ribbon (Tools, Image Ops,
+        # any added later), independently for whichever orientation the
+        # ribbon is currently docked at (vertical = left/right dock area,
+        # horizontal = top/bottom), re-applied live when a ribbon is
+        # dragged between them.
+        'ribbon_icon_size_vert':  22,
+        'ribbon_icon_size_horz':  22,
+        'ribbon_padding_vert':    3,
+        'ribbon_padding_horz':    3,
+        'ribbon_opacity':         100,   # 0-100, 100 = fully opaque
+        # Internal padding between the icon and the button's own edge -
+        # distinct from ribbon_padding_* above, which is the gap BETWEEN
+        # buttons. QToolButton has its own built-in padding from the Qt
+        # style even when the toolbar's inter-item spacing is 0.
+        'ribbon_button_padding_vert': 2,
+        'ribbon_button_padding_horz': 2,
+        # Ribbon Manager - persisted tool_id -> ribbon_name assignment,
+        # letting tools be moved freely between ribbons (including new
+        # custom ribbons the user creates). Empty dict means "use each
+        # tool's default_ribbon from _RIBBON_TOOL_REGISTRY".
+        'ribbon_tool_assignment': {},
+        # Ribbon Manager - explicit display order for all reassignable
+        # tools, updated by drag-reordering within a ribbon in the
+        # manager dialog. Empty list means "use each tool's natural
+        # order from _RIBBON_TOOL_REGISTRY".
+        'ribbon_tool_order': [],
+    }
+
+    def __init__(self): #vers 1
+        cfg_dir = Path.home() / '.config' / 'imgfactory'
+        cfg_dir.mkdir(parents=True, exist_ok=True)
+        self._path = cfg_dir / 'map_workshop.json'
+        self._data = dict(self.DEFAULTS)
+        self._load()
+
+
+    def _load(self): #vers 1
+        try:
+            if self._path.exists():
+                loaded = json.loads(self._path.read_text())
+                self._data.update({k: v for k, v in loaded.items()
+                                   if k in self.DEFAULTS})
+        except Exception:
+            pass
+
+    def save(self): #vers 1
+        try:
+            self._path.write_text(json.dumps(self._data, indent=2))
+        except Exception:
+            pass
+
+    def get(self, key, default=None): #vers 1
+        return self._data.get(key, default if default is not None
+                              else self.DEFAULTS.get(key))
+
+    def set(self, key, value): #vers 1
+        if key in self.DEFAULTS:
+            self._data[key] = value
+
+
+class MapSettingsDialog(QDialog):
+    """Settings dialog for Map Workshop — does NOT touch global AppSettings."""
+
+    def __init__(self, map_settings: MapSettings, parent=None): #vers 4
+        super().__init__(parent)
+        self.s = map_settings
+        self._workshop = parent   # MapWorkshop instance - gives access to _WIDGET_REGISTRY
+        self.setWindowTitle(App_name + " - Settings")
+        self.setMinimumWidth(380)
+        self.setModal(True)
+
+        root = QVBoxLayout(self)
+        tabs = QTabWidget()
+
+        # - Canvas tab
+        canvas_tab = QWidget()
+        cl = QFormLayout(canvas_tab)
+        cl.setSpacing(8)
+
+        self._w_spin = QSpinBox(); self._w_spin.setRange(8, 4096)
+        self._w_spin.setValue(self.s.get('default_width'))
+        cl.addRow("Default width:", self._w_spin)
+
+        self._h_spin = QSpinBox(); self._h_spin.setRange(8, 4096)
+        self._h_spin.setValue(self.s.get('default_height'))
+        cl.addRow("Default height:", self._h_spin)
+
+        self._zoom_spin = QSpinBox(); self._zoom_spin.setRange(1, 64)
+        self._zoom_spin.setValue(self.s.get('default_zoom'))
+        cl.addRow("Default zoom:", self._zoom_spin)
+
+        self._undo_spin = QSpinBox(); self._undo_spin.setRange(4, 128)
+        self._undo_spin.setValue(self.s.get('undo_levels'))
+        cl.addRow("Undo levels:", self._undo_spin)
+
+        tabs.addTab(canvas_tab, "Canvas")
+
+        # - Ribbons tab (icon size / padding per orientation, opacity)
+        ribbons_tab = QWidget()
+        rl = QFormLayout(ribbons_tab)
+
+        ribbon_mgr_btn = QPushButton("Ribbon Manager…")
+        ribbon_mgr_btn.setToolTip("Move tools between ribbons, save/load layout presets")
+        if self._workshop is not None:
+            ribbon_mgr_btn.clicked.connect(self._workshop.open_ribbon_manager)
+        rl.addRow(ribbon_mgr_btn)
+        rl.addRow(QLabel(""))
+
+        rl.addRow(QLabel("—  Vertical  (docked left/right)  —"))
+        self._ribbon_icon_vert_spin = QSpinBox()
+        self._ribbon_icon_vert_spin.setRange(12, 64)
+        self._ribbon_icon_vert_spin.setValue(self.s.get('ribbon_icon_size_vert'))
+        rl.addRow("Icon size:", self._ribbon_icon_vert_spin)
+        self._ribbon_pad_vert_spin = QSpinBox()
+        self._ribbon_pad_vert_spin.setRange(0, 20)
+        self._ribbon_pad_vert_spin.setValue(self.s.get('ribbon_padding_vert'))
+        self._ribbon_pad_vert_spin.setToolTip("Gap between buttons")
+        rl.addRow("Button spacing:", self._ribbon_pad_vert_spin)
+        self._ribbon_btn_pad_vert_spin = QSpinBox()
+        self._ribbon_btn_pad_vert_spin.setRange(0, 20)
+        self._ribbon_btn_pad_vert_spin.setValue(self.s.get('ribbon_button_padding_vert'))
+        self._ribbon_btn_pad_vert_spin.setToolTip("Gap between the icon and the button's own edge")
+        rl.addRow("Button edge padding:", self._ribbon_btn_pad_vert_spin)
+
+        rl.addRow(QLabel("—  Horizontal  (docked top/bottom)  —"))
+        self._ribbon_icon_horz_spin = QSpinBox()
+        self._ribbon_icon_horz_spin.setRange(12, 64)
+        self._ribbon_icon_horz_spin.setValue(self.s.get('ribbon_icon_size_horz'))
+        rl.addRow("Icon size:", self._ribbon_icon_horz_spin)
+        self._ribbon_pad_horz_spin = QSpinBox()
+        self._ribbon_pad_horz_spin.setRange(0, 20)
+        self._ribbon_pad_horz_spin.setValue(self.s.get('ribbon_padding_horz'))
+        self._ribbon_pad_horz_spin.setToolTip("Gap between buttons")
+        rl.addRow("Button spacing:", self._ribbon_pad_horz_spin)
+        self._ribbon_btn_pad_horz_spin = QSpinBox()
+        self._ribbon_btn_pad_horz_spin.setRange(0, 20)
+        self._ribbon_btn_pad_horz_spin.setValue(self.s.get('ribbon_button_padding_horz'))
+        self._ribbon_btn_pad_horz_spin.setToolTip("Gap between the icon and the button's own edge")
+        rl.addRow("Button edge padding:", self._ribbon_btn_pad_horz_spin)
+
+        rl.addRow(QLabel("—  Appearance  —"))
+        self._ribbon_opacity_spin = QSpinBox()
+        self._ribbon_opacity_spin.setRange(10, 100)
+        self._ribbon_opacity_spin.setSuffix(" %")
+        self._ribbon_opacity_spin.setValue(self.s.get('ribbon_opacity'))
+        self._ribbon_opacity_spin.setToolTip("Ribbon background translucency - "
+                                             "lower = more see-through")
+        rl.addRow("Opacity:", self._ribbon_opacity_spin)
+
+        tabs.addTab(ribbons_tab, "Ribbons")
+
+        # - Interface tab
+        ui_tab = QWidget()
+        ul = QFormLayout(ui_tab)
+        ul.setSpacing(8)
+
+        self._bitmap_chk = QCheckBox()
+        self._bitmap_chk.setChecked(self.s.get('show_bitmap_list'))
+        ul.addRow("Show bitmap list panel:", self._bitmap_chk)
+
+        self._statusbar_chk = QCheckBox()
+        self._statusbar_chk.setChecked(self.s.get('show_statusbar'))
+        ul.addRow("Show status bar:", self._statusbar_chk)
+
+        self._font_size_spin = QSpinBox(); self._font_size_spin.setRange(7, 18)
+        self._font_size_spin.setValue(self.s.get('ui_font_size'))
+        ul.addRow("UI font size:", self._font_size_spin)
+
+        self._icon_size_spin = QSpinBox(); self._icon_size_spin.setRange(16, 64)
+        self._icon_size_spin.setValue(self.s.get('tool_icon_size'))
+        ul.addRow("Tool icon size (px):", self._icon_size_spin)
+
+        self._icon_color_combo = QComboBox()
+        self._icon_color_combo.addItems(['color', 'white', 'dark'])
+        idx = {'color': 0, 'white': 1, 'dark': 2}.get(
+            self.s.get('tool_icon_color'), 0)
+        self._icon_color_combo.setCurrentIndex(idx)
+        ul.addRow("Tool icon colour:", self._icon_color_combo)
+
+        self._cols_combo = QComboBox()
+        self._cols_combo.addItems(['3 columns', '4 columns', '5 columns', '6 columns'])
+        col_idx = {3: 0, 4: 1, 5: 2, 6: 3}.get(self.s.get('tool_columns'), 0)
+        self._cols_combo.setCurrentIndex(col_idx)
+        ul.addRow("Gadget columns:", self._cols_combo)
+
+        tabs.addTab(ui_tab, "Interface")
+
+        # - Widgets tab (enable/disable each dock) - generated from
+        # MapWorkshop._WIDGET_REGISTRY rather than one hardcoded checkbox
+        # per widget, so adding a new widget to the registry (e.g. an
+        # alternative colour-widget implementation) automatically gets a
+        # toggle here too, with no dialog code changes needed.
+        widgets_tab = QWidget()
+        wl = QFormLayout(widgets_tab)
+        wl.setSpacing(8)
+
+        self._widget_chks = {}   # key -> QCheckBox, for generic save logic
+        registry = getattr(self._workshop, '_WIDGET_REGISTRY', [])
+        for entry in registry:
+            # Entries with enabled_setting=None (Bitmaps) have their
+            # visibility combined with another setting elsewhere, but
+            # still get a checkbox here using the conventional settings
+            # key, which already exists.
+            setting_key = entry.get('enabled_setting') or f"widget_{entry['key']}_enabled"
+            chk = QCheckBox()
+            chk.setChecked(self.s.get(setting_key))
+            wl.addRow(f"{entry.get('label', entry['key'])}:", chk)
+            self._widget_chks[entry['key']] = chk
+
+        tabs.addTab(widgets_tab, "Widgets")
+
+        # - Gadgets tab
+        gadgets_tab = QWidget()
+        gl = QVBoxLayout(gadgets_tab)
+        gl.setSpacing(4)
+        gl.addWidget(QLabel("Click to toggle tool visibility (highlighted = visible):"))
+        hidden = self.s.get('hidden_tools') or []
+        icon_sz = self.s.get('tool_icon_size')
+        btn_sz  = max(26, icon_sz + 2)  # min 26px so labels stay readable
+        self._gadget_chks = {}
+        TOOL_LABELS = [
+            ('pencil','Pencil'), ('eraser','Eraser'), ('fill','Fill'),
+            ('spray','Spray'), ('picker','Picker'), ('curve','Curve'),
+            ('line','Line'), ('rect','Rectangle'), ('circle','Circle'),
+            ('triangle','Triangle'), ('polygon','Polygon'), ('star','Star'),
+            ('select','Select'), ('lasso','Lasso'), ('zoom','Zoom'),
+            ('text','Text'), ('crop','Crop'), ('resize','Resize'),
+            ('dither','Dither'), ('symmetry','Symmetry'),
+        ]
+        grid_w = QWidget()
+        grid_l = QGridLayout(grid_w)
+        grid_l.setSpacing(4)
+        grid_l.setContentsMargins(0, 0, 0, 0)
+        cols = 4
+        for idx, (tool_id, label) in enumerate(TOOL_LABELS):
+            btn = QPushButton()
+            btn.setCheckable(True)
+            btn.setChecked(tool_id not in hidden)
+            btn.setFixedSize(btn_sz, btn_sz + 14)
+            btn.setToolTip(label)
+            # Use parent workshop's icon colour if available
+            _ws  = parent if hasattr(parent, '_get_icon_color') else None
+            _col = _ws._get_icon_color() if _ws else ''
+            _tbg = ''
+            if _ws and _ws.app_settings:
+                _tc = _ws.app_settings.get_theme_colors() or {}
+                _tbg = _tc.get('gadgetbar_bg', _tc.get('toolbar_bg', ''))
+            ico = _load_tool_icon(tool_id, icon_sz, tile_bg=_tbg, icon_col=_col)
+            btn.setIcon(ico)
+            btn.setIconSize(QSize(icon_sz, icon_sz))
+            lbl_short = label[:6]
+            btn.setText(lbl_short)
+            # Theme-aware stylesheet — no hardcoded colours
+            acc = '#4a8a4a'
+            if _ws and _ws.app_settings:
+                _tc2 = _ws.app_settings.get_theme_colors() or {}
+                acc  = _tc2.get('accent_primary', acc)
+            btn.setStyleSheet(
+                f"QPushButton {{ font-size: 8px; color: palette(mid); "
+                f"background: palette(base); border: 1px solid palette(mid); "
+                f"padding-top: 2px; }} "
+                f"QPushButton:checked {{ background: {acc}; "
+                f"border: 1px solid palette(highlight); }}"
+            )
+            btn.setLayoutDirection(Qt.LayoutDirection.LeftToRight)
+            grid_l.addWidget(btn, idx // cols, idx % cols)
+            self._gadget_chks[tool_id] = btn
+        gl.addWidget(grid_w)
+        gl.addStretch()
+
+        # - Menu tab  
+        menu_tab = QWidget()
+        ml = QFormLayout(menu_tab)
+        ml.setSpacing(8)
+
+        self._menu_style_combo = QComboBox()
+        self._menu_style_combo.addItems(['topbar', 'dropdown'])
+        self._menu_style_combo.setCurrentText(self.s.get('menu_style'))
+        ml.addRow("Menu orientation:", self._menu_style_combo)
+
+        self._menu_bar_height_spin = QSpinBox()
+        self._menu_bar_height_spin.setRange(16, 40)
+        self._menu_bar_height_spin.setValue(self.s.get('menu_bar_height'))
+        self._menu_bar_height_spin.setSuffix(" px")
+        ml.addRow("Topbar height:", self._menu_bar_height_spin)
+
+        self._menu_bar_font_spin = QSpinBox()
+        self._menu_bar_font_spin.setRange(7, 16)
+        self._menu_bar_font_spin.setValue(self.s.get('menu_bar_font_size'))
+        self._menu_bar_font_spin.setSuffix(" pt")
+        ml.addRow("Topbar font size:", self._menu_bar_font_spin)
+
+        self._menu_dropdown_font_spin = QSpinBox()
+        self._menu_dropdown_font_spin.setRange(7, 16)
+        self._menu_dropdown_font_spin.setValue(self.s.get('menu_dropdown_font_size'))
+        self._menu_dropdown_font_spin.setSuffix(" pt")
+        ml.addRow("Dropdown font size:", self._menu_dropdown_font_spin)
+
+        tabs.addTab(menu_tab, "Menu")
+
+        tabs.addTab(gadgets_tab, "Gadgets")
+
+        # - Viewport tab (World View movement settings)
+        viewport_tab = QWidget()
+        vp_lay = QVBoxLayout(viewport_tab)
+        vp_form = QFormLayout()
+        vp_form.setSpacing(8)
+
+        self._pan_button_combo = QComboBox()
+        self._pan_button_combo.addItems(["left", "middle", "right"])
+        self._pan_button_combo.setCurrentText(self.s.get('viewport_pan_button'))
+        vp_form.addRow("Pan button:", self._pan_button_combo)
+
+        self._rotate_button_combo = QComboBox()
+        self._rotate_button_combo.addItems(["left", "middle", "right"])
+        self._rotate_button_combo.setCurrentText(self.s.get('viewport_rotate_button'))
+        vp_form.addRow("Rotate button (3D only):", self._rotate_button_combo)
+        vp_lay.addLayout(vp_form)
+
+        vp_lay.addWidget(QLabel(
+            "Invert pan direction per viewport - Top/Side/Front/3D each\n"
+            "have a different camera orientation, so correct this per\n"
+            "mode if panning feels backwards in one but not another."))
+
+        self._pan_invert_checks = {}
+        invert_cfg = self.s.get('viewport_pan_invert') or {}
+        for mode in ("Top", "Side", "Front", "3D"):
+            box = QGroupBox(mode)
+            box_lay = QHBoxLayout(box)
+            axis_cfg = invert_cfg.get(mode, {'x': False, 'y': False})
+            chk_x = QCheckBox("Invert X"); chk_x.setChecked(axis_cfg.get('x', False))
+            chk_y = QCheckBox("Invert Y"); chk_y.setChecked(axis_cfg.get('y', False))
+            box_lay.addWidget(chk_x); box_lay.addWidget(chk_y)
+            vp_lay.addWidget(box)
+            self._pan_invert_checks[mode] = (chk_x, chk_y)
+        vp_lay.addStretch()
+        tabs.addTab(viewport_tab, "Viewport")
+
+        root.addWidget(tabs)
+
+        # OK / Cancel
+        btns = QHBoxLayout()
+        btns.addStretch()
+        ok_btn = QPushButton("OK")
+        ok_btn.setDefault(True)
+        ok_btn.clicked.connect(self._accept)
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self.reject)
+        btns.addWidget(ok_btn); btns.addWidget(cancel_btn)
+        root.addLayout(btns)
+
+    def _accept(self): #vers 1
+        self.s.set('default_width',    self._w_spin.value())
+        self.s.set('default_height',   self._h_spin.value())
+        self.s.set('default_zoom',     self._zoom_spin.value())
+        self.s.set('undo_levels',      self._undo_spin.value())
+        self.s.set('show_pixel_grid',  self._grid_chk.isChecked())
+        self.s.set('zoom_to_fit_resize', self._fit_resize_chk.isChecked())
+        self.s.set('menu_style',              self._menu_style_combo.currentText())
+        self.s.set('menu_bar_height',         self._menu_bar_height_spin.value())
+        self.s.set('menu_bar_font_size',      self._menu_bar_font_spin.value())
+        self.s.set('menu_dropdown_font_size', self._menu_dropdown_font_spin.value())
+        self.s.set('img_pal_cols',       self._img_pal_cols_spin.value())
+        self.s.set('img_pal_rows',       self._img_pal_rows_spin.value())
+        self.s.set('user_pal_cols',      self._user_pal_cols_spin.value())
+        self.s.set('user_pal_rows',      self._user_pal_rows_spin.value())
+        self.s.set('platform_mode',      self._platform_combo.currentText())
+        self.s.set('show_cell_grid',     self._cell_grid_chk.isChecked())
+        self.s.set('grid_color',         self._grid_color_btn._chosen)
+        self.s.set('marching_ants_enabled', self._ants_chk.isChecked())
+        self.s.set('marching_ants_style',   self._ants_style_combo.currentText())
+        self.s.set('marching_ants_fg',      self._ants_fg_btn._chosen)
+        self.s.set('marching_ants_bg',      self._ants_bg_btn._chosen)
+        self.s.set('marching_ants_speed',   self._ants_speed_spin.value())
+        self.s.set('ribbon_icon_size_vert', self._ribbon_icon_vert_spin.value())
+        self.s.set('ribbon_padding_vert',   self._ribbon_pad_vert_spin.value())
+        self.s.set('ribbon_icon_size_horz', self._ribbon_icon_horz_spin.value())
+        self.s.set('ribbon_padding_horz',   self._ribbon_pad_horz_spin.value())
+        self.s.set('ribbon_button_padding_vert', self._ribbon_btn_pad_vert_spin.value())
+        self.s.set('ribbon_button_padding_horz', self._ribbon_btn_pad_horz_spin.value())
+        self.s.set('ribbon_opacity',        self._ribbon_opacity_spin.value())
+        self.s.set('show_bitmap_list', self._bitmap_chk.isChecked())
+        registry = getattr(self._workshop, '_WIDGET_REGISTRY', [])
+        for entry in registry:
+            setting_key = entry.get('enabled_setting') or f"widget_{entry['key']}_enabled"
+            chk = self._widget_chks.get(entry['key'])
+            if chk is not None:
+                self.s.set(setting_key, chk.isChecked())
+        self.s.set('show_statusbar',   self._statusbar_chk.isChecked())
+        self.s.set('ui_font_size',     self._font_size_spin.value())
+        self.s.set('tool_icon_size',   self._icon_size_spin.value())
+        self.s.set('tool_icon_color',  self._icon_color_combo.currentText())
+        self.s.set('tool_columns',     [3, 4, 5, 6][self._cols_combo.currentIndex()])
+        hidden = [tid for tid, chk in self._gadget_chks.items() if not chk.isChecked()]
+        self.s.set('hidden_tools',     hidden)
+
+        self.s.set('viewport_pan_button',    self._pan_button_combo.currentText())
+        self.s.set('viewport_rotate_button', self._rotate_button_combo.currentText())
+        invert_cfg = {}
+        for mode, (chk_x, chk_y) in self._pan_invert_checks.items():
+            invert_cfg[mode] = {'x': chk_x.isChecked(), 'y': chk_y.isChecked()}
+        self.s.set('viewport_pan_invert', invert_cfg)
+
+        self.s.save()
+        # Re-apply immediately to any already-open World View panes, so
+        # the change takes effect without needing to reopen/restart.
+        if self._workshop is not None:
+            for pane in getattr(self._workshop, '_world_panes', []):
+                self._workshop._apply_viewport_movement_settings(pane, pane._view_label)
+        self.accept()
+
+
+
+class _CornerOverlay(QWidget):
+    """Transparent overlay that draws corner resize triangles on top of all children.
+    Uses setMask() so only the triangle pixels exist — fully transparent elsewhere.
+    WA_AlwaysStackOnTop keeps it above all sibling widgets on Wayland/KDE."""
+
+    SIZE = 20   # triangle leg size in pixels
+
+    def __init__(self, parent): #vers 3
+        super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_AlwaysStackOnTop, True)
+        self.setWindowFlags(Qt.WindowType.Widget)
+        self._hover_corner = None
+        self._app_settings = None
+        self.setGeometry(0, 0, parent.width(), parent.height())
+        self._update_mask()
+
+    def _update_mask(self): #vers 1
+        """Create a mask covering only the four corner triangles."""
+        from PyQt6.QtGui import QRegion, QPolygon
+        from PyQt6.QtCore import QPoint
+        s = self.SIZE
+        w, h = self.width(), self.height()
+        region = QRegion()
+        for pts in [
+            [QPoint(0,0),    QPoint(s,0),    QPoint(0,s)],     # top-left
+            [QPoint(w,0),    QPoint(w-s,0),  QPoint(w,s)],     # top-right
+            [QPoint(0,h),    QPoint(s,h),    QPoint(0,h-s)],   # bottom-left
+            [QPoint(w,h),    QPoint(w-s,h),  QPoint(w,h-s)],   # bottom-right
+        ]:
+            region = region.united(QRegion(QPolygon(pts)))
+        self.setMask(region)
+
+    def update_state(self, hover_corner, app_settings): #vers 1
+        self._hover_corner = hover_corner
+        self._app_settings = app_settings
+        self.update()
+
+    def setGeometry(self, *args): #vers 1
+        super().setGeometry(*args)
+        self._update_mask()
+
+    def resizeEvent(self, event): #vers 1
+        super().resizeEvent(event)
+        self._update_mask()
+
+    def paintEvent(self, event): #vers 2
+        s = self.SIZE
+        _p = self.palette()
+        _accent_fallback = _p.color(_p.ColorRole.Highlight)
+        if self._app_settings:
+            try:
+                colors = self._app_settings.get_theme_colors()
+                accent = QColor(colors.get('accent_primary', _accent_fallback.name()))
+            except Exception:
+                accent = _accent_fallback
+        else:
+            accent = _accent_fallback
+        accent.setAlpha(200)
+        hover_c = QColor(accent); hover_c.setAlpha(255)
+        w, h = self.width(), self.height()
+        corners = {
+            'top-left':     [(0,0),  (s,0),   (0,s)],
+            'top-right':    [(w,0),  (w-s,0), (w,s)],
+            'bottom-left':  [(0,h),  (s,h),   (0,h-s)],
+            'bottom-right': [(w,h),  (w-s,h), (w,h-s)],
+        }
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        for name, pts in corners.items():
+            path = QPainterPath()
+            path.moveTo(*pts[0]); path.lineTo(*pts[1]); path.lineTo(*pts[2])
+            path.closeSubpath()
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(hover_c if self._hover_corner == name else accent))
+            painter.drawPath(path)
+        painter.end()
+
+
+class _InstanceEditPanel(QWidget):
+    """Non-modal, persistent object info/edit panel - shown in the top-
+    left corner (per Keith's request for a 'pop-out dialog or embedded
+    window' rather than a blocking modal dialog). Shows Identity/IDE/
+    IPL/2DFX/TOBJ info like the earlier modal version, plus live
+    position and rotation nudge controls (small/large step buttons
+    either side of a directly-editable spinbox per axis) that actually
+    modify the underlying IPLInstance in memory and refresh the World
+    View/Instance List to match.
+
+    Rotation is stored on IPLInstance as a quaternion but edited here
+    as X/Y/Z degrees (quat_to_euler_degrees/euler_degrees_to_quat) -
+    standard, round-trip-verified conversion, not GTA-format-specific
+    guessing."""
+
+    _POS_SMALL_STEP = 0.5
+    _POS_LARGE_STEP = 10.0
+    _ROT_SMALL_STEP = 1.0
+    _ROT_LARGE_STEP = 15.0
+
+    def __init__(self, workshop, parent=None): #vers 2
+        super().__init__(parent, Qt.WindowType.Tool)
+        self._workshop = workshop
+        self._inst = None
+        self._loader = None
+        self._nudge_wide = None   # current reflow state, None forces first layout
+        self.setWindowTitle("Object Info")
+        self.setMinimumWidth(180)
+
+        self._lay = QVBoxLayout(self)
+        self._identity_box = self._add_section("Identity")
+        self._nav_row = QHBoxLayout()
+        self._nav_label = QLabel("")
+        self._nav_prev_btn = QPushButton("< Prev")
+        self._nav_next_btn = QPushButton("Next >")
+        self._nav_prev_btn.clicked.connect(lambda: self._workshop._cycle_model_instance(-1))
+        self._nav_next_btn.clicked.connect(lambda: self._workshop._cycle_model_instance(1))
+        self._nav_row.addWidget(self._nav_prev_btn)
+        self._nav_row.addWidget(self._nav_label)
+        self._nav_row.addWidget(self._nav_next_btn)
+        self._lay.addLayout(self._nav_row)
+        self._set_nav_visible(False)
+        self._ide_box = self._add_section("IDE Info")
+        self._pos_box, self._pos_spins, self._pos_grid, self._pos_rows = \
+            self._add_nudge_section("Position", self._POS_SMALL_STEP,
+                                    self._POS_LARGE_STEP, self._on_position_nudged)
+        self._rot_box, self._rot_spins, self._rot_grid, self._rot_rows = \
+            self._add_nudge_section("Rotation (degrees)", self._ROT_SMALL_STEP,
+                                    self._ROT_LARGE_STEP, self._on_rotation_nudged)
+        self._meta_box = self._add_section("Placement Info")
+        self._2dfx_box = self._add_section("2DFX Effects")
+        self._tobj_box = self._add_section("TOBJ (Timed Object) Variants")
+
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(self.hide)
+        self._lay.addWidget(close_btn)
+
+        self._reflow_nudge_rows(wide=True)
+
+    def resizeEvent(self, event): #vers 1
+        """Wrap the nudge rows' arrow buttons onto a second line when
+        the panel is too narrow for everything on one row, rather than
+        clipping/squeezing them (per Keith's request - 'wrapping is
+        needed depending on the popup dialog width')."""
+        super().resizeEvent(event)
+        wide = self.width() >= 260
+        if wide != self._nudge_wide:
+            self._reflow_nudge_rows(wide)
+
+    def _reflow_nudge_rows(self, wide): #vers 1
+        """Rebuild both nudge sections' grids for the given width mode -
+        wide: label, <<, <, value, >, >> all in one row per axis.
+        narrow: label+value on one row, the 4 arrow buttons on the row
+        beneath, per axis."""
+        for grid, rows_info in ((self._pos_grid, self._pos_rows),
+                                (self._rot_grid, self._rot_rows)):
+            # Clear all positions (widgets stay alive, just get re-added)
+            while grid.count():
+                grid.takeAt(0)
+            for i, (label, btn_ll, btn_l, spin, btn_r, btn_rr) in enumerate(rows_info):
+                if wide:
+                    r = i
+                    grid.addWidget(label, r, 0)
+                    grid.addWidget(btn_ll, r, 1)
+                    grid.addWidget(btn_l, r, 2)
+                    grid.addWidget(spin, r, 3)
+                    grid.addWidget(btn_r, r, 4)
+                    grid.addWidget(btn_rr, r, 5)
+                else:
+                    r = i * 2
+                    grid.addWidget(label, r, 0)
+                    grid.addWidget(spin, r, 1, 1, 4)
+                    grid.addWidget(btn_ll, r + 1, 0)
+                    grid.addWidget(btn_l, r + 1, 1)
+                    grid.addWidget(btn_r, r + 1, 2)
+                    grid.addWidget(btn_rr, r + 1, 3)
+        self._nudge_wide = wide
+
+    def _add_section(self, title): #vers 1
+        box = QGroupBox(title)
+        QVBoxLayout(box)
+        self._lay.addWidget(box)
+        return box
+
+    def _set_section_lines(self, box, lines): #vers 1
+        lay = box.layout()
+        while lay.count():
+            item = lay.takeAt(0)
+            w = item.widget()
+            if w: w.deleteLater()
+        if lines:
+            for line in lines:
+                lay.addWidget(QLabel(line))
+        else:
+            empty = QLabel("(none)")
+            empty.setStyleSheet("color: palette(mid);")
+            lay.addWidget(empty)
+
+    def _add_nudge_section(self, title, small_step, large_step, on_nudge): #vers 2
+        """One label + << < [value] > >> row per axis (X/Y/Z), using
+        real chevron icons rather than text, laid out in a QGridLayout
+        so _reflow_nudge_rows can wrap the arrow buttons onto a second
+        row when the panel is too narrow to fit everything on one
+        line (rather than clipping/squeezing, which a plain QHBoxLayout
+        would do with no wrapping at all)."""
+        box = QGroupBox(title)
+        grid = QGridLayout(box)
+        wf = self._workshop
+        icon_sz = 14
+        icon_color = wf._get_icon_color()
+        icons = {
+            'll': wf._render_variant_icon('chevron_left2', None, icon_sz, icon_color, has_menu=False),
+            'l':  wf._render_variant_icon('chevron_left',  None, icon_sz, icon_color, has_menu=False),
+            'r':  wf._render_variant_icon('chevron_right', None, icon_sz, icon_color, has_menu=False),
+            'rr': wf._render_variant_icon('chevron_right2',None, icon_sz, icon_color, has_menu=False),
+        }
+        spins = {}
+        rows_info = []   # per-axis widget refs, for _reflow_nudge_rows
+        for axis in ('x', 'y', 'z'):
+            label = QLabel(axis.upper() + ":")
+            btn_ll = QPushButton(); btn_ll.setIcon(icons['ll']); btn_ll.setFixedWidth(28)
+            btn_l  = QPushButton(); btn_l.setIcon(icons['l']);   btn_l.setFixedWidth(22)
+            spin = QDoubleSpinBox()
+            spin.setRange(-100000.0, 100000.0)
+            spin.setDecimals(2)
+            spin.setFixedWidth(80)
+            btn_r  = QPushButton(); btn_r.setIcon(icons['r']);   btn_r.setFixedWidth(22)
+            btn_rr = QPushButton(); btn_rr.setIcon(icons['rr']); btn_rr.setFixedWidth(28)
+            btn_ll.setToolTip(f"-{large_step:g}")
+            btn_l.setToolTip(f"-{small_step:g}")
+            btn_r.setToolTip(f"+{small_step:g}")
+            btn_rr.setToolTip(f"+{large_step:g}")
+            btn_ll.clicked.connect(lambda _=False, a=axis: on_nudge(a, -large_step))
+            btn_l.clicked.connect(lambda _=False, a=axis: on_nudge(a, -small_step))
+            btn_r.clicked.connect(lambda _=False, a=axis: on_nudge(a, small_step))
+            btn_rr.clicked.connect(lambda _=False, a=axis: on_nudge(a, large_step))
+            spin.editingFinished.connect(
+                lambda a=axis, s=spin: on_nudge(a, None, absolute=s.value()))
+            spins[axis] = spin
+            rows_info.append((label, btn_ll, btn_l, spin, btn_r, btn_rr))
+        self._lay.addWidget(box)
+        return box, spins, grid, rows_info
+        return box, spins
+
+    def _set_nav_visible(self, visible): #vers 1
+        self._nav_label.setVisible(visible)
+        self._nav_prev_btn.setVisible(visible)
+        self._nav_next_btn.setVisible(visible)
+
+    def show_for_instance(self, inst, loader, nav_info=None, model_cache=None): #vers 3
+        """Refresh every section for a (possibly new) instance - called
+        both when first opening the panel and whenever the selection
+        changes (Instance List, or the merged Object Browser), so the
+        same panel stays open and up to date rather than needing to be
+        reopened. nav_info, if given, is (current_index, total_count)
+        for a model with multiple placements - shows Prev/Next
+        cycling, per Keith's request that clicking a merged Object
+        Browser row (one row per model, not per placement) still be
+        able to reach every instance of that model. model_cache, if
+        given, is used to show the model's real width/height (from its
+        actual loaded geometry, per Keith's request) alongside its
+        name - blank if that model's geometry isn't loaded yet, not an
+        error, matching the same lazy-loading fallback used elsewhere."""
+        self._inst = inst
+        self._loader = loader
+        if nav_info is not None:
+            idx, total = nav_info
+            self._set_nav_visible(total > 1)
+            self._nav_label.setText(f"Instance {idx + 1} of {total}")
+        else:
+            self._set_nav_visible(False)
+        obj = loader.get_object(inst.model_id) if loader else None
+        effects = loader.get_2dfx_for_model(inst.model_id) if loader else []
+        tobjs = loader.get_tobj_for_model(inst.model_id) if loader else []
+
+        size_suffix = ""
+        if model_cache is not None:
+            dims = model_cache.get_dimensions(inst.model_name)
+            if dims is not None:
+                width, depth, height = dims
+                size_suffix = f"  ({width:.1f} × {height:.1f})"
+
+        self.setWindowTitle(f"Object Info - {inst.model_name} (ID {inst.model_id})")
+        self._set_section_lines(self._identity_box, [
+            f"ID: {inst.model_id}",
+            f"Name: {inst.model_name}{size_suffix}",
+            f"Texture (TXD): {obj.txd_name if obj else '(unresolved - no IDE match)'}",
+        ])
+        if obj:
+            ide_lines = [f"Type: {obj.obj_type}   Section: {obj.section}",
+                        f"Source: {obj.source_ide}  (line {obj.line_no})"]
+            ide_lines += [f"{k}: {v}" for k, v in obj.extra.items()]
+            self._set_section_lines(self._ide_box, ide_lines)
+        else:
+            self._set_section_lines(self._ide_box, None)
+
+        self._refresh_position_spins()
+        self._refresh_rotation_spins()
+
+        self._set_section_lines(self._meta_box, [
+            f"Interior: {inst.interior}   LOD index: {inst.lod_index}",
+            f"Source IPL: {inst.source_ipl}  (line {inst.line_no})",
+        ])
+        self._set_section_lines(self._2dfx_box, [
+            f"#{i+1}: {e.obj_type} (line {e.line_no}, {e.source_ide})"
+            for i, e in enumerate(effects)] or None)
+        self._set_section_lines(self._tobj_box, [
+            f"{t.model_name} (ID {t.model_id}, {t.source_ide} line {t.line_no})"
+            for t in tobjs] or None)
+
+    def _refresh_position_spins(self): #vers 1
+        inst = self._inst
+        for axis, spin in self._pos_spins.items():
+            spin.blockSignals(True)
+            spin.setValue(getattr(inst, f"pos_{axis}"))
+            spin.blockSignals(False)
+
+    def _refresh_rotation_spins(self): #vers 1
+        inst = self._inst
+        roll, pitch, yaw = quat_to_euler_degrees(
+            inst.rot_x, inst.rot_y, inst.rot_z, inst.rot_w)
+        for axis, val in zip(('x', 'y', 'z'), (roll, pitch, yaw)):
+            spin = self._rot_spins[axis]
+            spin.blockSignals(True)
+            spin.setValue(val)
+            spin.blockSignals(False)
+
+    def _on_position_nudged(self, axis, delta, absolute=None): #vers 1
+        if self._inst is None:
+            return
+        attr = f"pos_{axis}"
+        new_val = absolute if absolute is not None else getattr(self._inst, attr) + delta
+        setattr(self._inst, attr, new_val)
+        self._refresh_position_spins()
+        self._workshop._on_instance_edited(self._inst)
+
+    def _on_rotation_nudged(self, axis, delta, absolute=None): #vers 1
+        if self._inst is None:
+            return
+        roll, pitch, yaw = quat_to_euler_degrees(
+            self._inst.rot_x, self._inst.rot_y, self._inst.rot_z, self._inst.rot_w)
+        current = {'x': roll, 'y': pitch, 'z': yaw}
+        current[axis] = absolute if absolute is not None else current[axis] + delta
+        x, y, z, w = euler_degrees_to_quat(current['x'], current['y'], current['z'])
+        self._inst.rot_x, self._inst.rot_y, self._inst.rot_z, self._inst.rot_w = x, y, z, w
+        self._refresh_rotation_spins()
+        self._workshop._on_instance_edited(self._inst)
+
+
+class _FilteredLoaderStub:
+    """Minimal loader-shaped wrapper so _populate_instance_list (which
+    expects .instances and .get_object()) can be fed a filtered subset
+    of instances (from the IPL Sections panel's Show/Hide toggles)
+    without needing a second, real GTAWorldLoader - object definitions
+    don't change when filtering by IPL, only which instances are
+    visible, so get_object() just delegates to the original loader."""
+
+    def __init__(self, instances, real_loader):
+        self.instances = instances
+        self._real_loader = real_loader
+
+    def get_object(self, model_id):
+        if self._real_loader is None:
+            return None
+        return self._real_loader.get_object(model_id)
+
+
+class _ObjectBrowserModel(QAbstractTableModel):
+    """Backs the Object Browser QTableView - shows the loaded object
+    catalog (IDEObject definitions from GTAWorldLoader.objects), each
+    row's instance count (how many placements in the currently loaded
+    world use that model) and favourite status. Supports four view
+    modes and live search filtering, applied in set_filter()/
+    set_search() by recomputing self._rows (the currently visible,
+    sorted/filtered subset) rather than the model touching the full
+    object catalog on every repaint."""
+
+    _HEADERS = ["★", "ID", "Model", "TXD", "Instances", "Size"]
+
+    def __init__(self, parent=None): #vers 1
+        super().__init__(parent)
+        self._all_objects: list = []       # every IDEObject, set once per load
+        self._instance_counts: dict = {}   # model_id -> instance count
+        self._favourites: set = set()      # favourited model_ids
+        self._mode = 'all'                 # 'all' | 'most_used' | 'favourites' | 'generic'
+        self._search = ''
+        self._rows: list = []              # currently visible IDEObjects
+        self._model_cache = None           # ModelCache, set via set_model_cache()
+
+    def set_model_cache(self, model_cache): #vers 1
+        """Set the ModelCache used to look up each object's real
+        width/height (from its actual loaded geometry, if available -
+        shows nothing for a model that hasn't been loaded yet, per the
+        lazy-loading design, rather than blocking to load it just to
+        show a size)."""
+        self._model_cache = model_cache
+
+    def set_objects(self, objects, instance_counts, favourites): #vers 1
+        self._all_objects = objects
+        self._instance_counts = instance_counts
+        self._favourites = set(favourites)
+        self._recompute()
+
+    def set_mode(self, mode): #vers 1
+        self._mode = mode
+        self._recompute()
+
+    def set_search(self, text): #vers 1
+        self._search = text.lower().strip()
+        self._recompute()
+
+    def toggle_favourite(self, model_id): #vers 1
+        if model_id in self._favourites:
+            self._favourites.discard(model_id)
+        else:
+            self._favourites.add(model_id)
+        self._recompute()
+        return sorted(self._favourites)
+
+    def _is_generic(self, obj): #vers 1
+        """Heuristic for 'generic' objects - matches the real naming
+        convention seen in GTA3/VC/SA .dat files and IDE data (e.g.
+        MODELS\\GENERIC\\WHEELS.DFF, GENERIC.TXD): model or TXD name
+        containing 'generic'."""
+        return 'generic' in obj.model_name.lower() or 'generic' in obj.txd_name.lower()
+
+    def _recompute(self): #vers 1
+        self.beginResetModel()
+        rows = self._all_objects
+        if self._mode == 'favourites':
+            rows = [o for o in rows if o.model_id in self._favourites]
+        elif self._mode == 'generic':
+            rows = [o for o in rows if self._is_generic(o)]
+        if self._search:
+            rows = [o for o in rows if self._search in o.model_name.lower()
+                    or self._search in o.txd_name.lower()]
+        if self._mode == 'most_used':
+            rows = sorted(rows, key=lambda o: self._instance_counts.get(o.model_id, 0),
+                          reverse=True)
+        else:
+            rows = sorted(rows, key=lambda o: o.model_name.lower())
+        self._rows = rows
+        self.endResetModel()
+
+    def rowCount(self, parent=None): #vers 1
+        return len(self._rows)
+
+    def columnCount(self, parent=None): #vers 1
+        return len(self._HEADERS)
+
+    def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole): #vers 1
+        if role != Qt.ItemDataRole.DisplayRole:
+            return None
+        if orientation == Qt.Orientation.Horizontal:
+            return self._HEADERS[section]
+        return str(section + 1)
+
+    def data(self, index, role=Qt.ItemDataRole.DisplayRole): #vers 2
+        if not index.isValid():
+            return None
+        obj = self._rows[index.row()]
+        col = index.column()
+        if role == Qt.ItemDataRole.DisplayRole:
+            if col == 0:
+                return "★" if obj.model_id in self._favourites else ""
+            if col == 1:
+                return str(obj.model_id)
+            if col == 2:
+                return obj.model_name
+            if col == 3:
+                return obj.txd_name
+            if col == 4:
+                return str(self._instance_counts.get(obj.model_id, 0))
+            if col == 5:
+                if self._model_cache is not None:
+                    dims = self._model_cache.get_dimensions(obj.model_name)
+                    if dims is not None:
+                        width, depth, height = dims
+                        return f"{width:.1f} × {height:.1f}"
+                return ""
+        return None
+
+    def object_at(self, row): #vers 1
+        if 0 <= row < len(self._rows):
+            return self._rows[row]
+        return None
+
+
+class _InstanceTableModel(QAbstractTableModel):
+    """Backs the Instance List QTableView - resolves/formats each row's
+    display data on demand via data(), rather than eagerly building a
+    QTableWidgetItem per cell for every instance up front (the old
+    QTableWidget approach, timed at 2.6s of UI freeze for 51,711
+    instances - two thirds of which was resolving every single
+    instance's TXD name immediately regardless of whether that row
+    would ever actually be scrolled into view).
+
+    Just ID + Model columns - TXD/Position/Interior/Source IPL are
+    still available (via the object detail panel opened from a row),
+    just not shown as default columns any more."""
+
+    _HEADERS = ["ID", "Model"]
+
+    def __init__(self, instances, loader, parent=None): #vers 2
+        super().__init__(parent)
+        self._instances = instances
+        self._loader = loader
+        self._txd_cache = {}   # model_id -> resolved TXD name, filled lazily
+
+    def rowCount(self, parent=None): #vers 1
+        return len(self._instances)
+
+    def columnCount(self, parent=None): #vers 1
+        return len(self._HEADERS)
+
+    def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole): #vers 1
+        if role != Qt.ItemDataRole.DisplayRole:
+            return None
+        if orientation == Qt.Orientation.Horizontal:
+            return self._HEADERS[section]
+        return str(section + 1)
+
+    def _resolve_txd(self, inst): #vers 1
+        cached = self._txd_cache.get(inst.model_id)
+        if cached is not None:
+            return cached
+        obj = self._loader.get_object(inst.model_id)
+        name = obj.txd_name if obj else ""
+        self._txd_cache[inst.model_id] = name
+        return name
+
+    def data(self, index, role=Qt.ItemDataRole.DisplayRole): #vers 2
+        if role != Qt.ItemDataRole.DisplayRole or not index.isValid():
+            return None
+        inst = self._instances[index.row()]
+        col = index.column()
+        if col == 0:
+            return str(inst.model_id)
+        if col == 1:
+            return inst.model_name
+        return None
+
+    def instance_at(self, row): #vers 1
+        """Look up the raw IPLInstance for a given row - used by the
+        row-selection handler to centre the world-view cameras."""
+        if 0 <= row < len(self._instances):
+            return self._instances[row]
+        return None
+
+
+class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
+    """Map Workshop - Main window"""
 
     # - ToolMenuMixin implementation
 
@@ -3023,7 +4611,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         return "DFF"
 
     def _build_menus_into_qmenu(self, parent_menu): #vers 1
-        """Populate parent_menu with Model Workshop actions."""
+        """Populate parent_menu with Map Workshop actions."""
         fm = parent_menu.addMenu("File")
         fm.addAction("Open…",    self._open_file if hasattr(self, '_open_file') else lambda: None)
         fm.addAction("Save",     self._save_file if hasattr(self, '_save_file') else lambda: None)
@@ -3051,7 +4639,26 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     # Geometry/Navigation/Render ribbons. 2 = Files/Models panels converted
     # to QDockWidgets in the same QMainWindow (EXPERIMENTAL, Jul 2026) -
     # user can now freely drag/float/tab any panel, not just ribbons.
-    _RIBBON_LAYOUT_VERSION = 2
+    # 3 = mesh-editing ribbons (Selection/Snap/Geometry/Navigation/Render)
+    # parked inactive, replaced by Map Workshop's own "World" ribbon.
+    # 4 = "View" ribbon (4-Pane toggle) removed - its target dock
+    # (Viewport) is hidden by default now, redundant with World View.
+    # 5 = ribbons moved back into a separate inner_mw (was briefly
+    # unified with outer_mw) - unifying broke Qt's dock/ribbon edge-snap
+    # drag preview entirely (confirmed not Wayland, confirmed not the
+    # custom dock title bars), matching the category of an earlier
+    # revert (8b950b9/cb81f7f) this had already been warned might repeat.
+    # 6 = full from-scratch rebuild (Aug 1 2026), per Keith - back to
+    # unified on outer_mw again, matching map_workshop_old_version.py's
+    # actual confirmed structure, retested fresh since the exact cause
+    # of the earlier unification's snap-drag regression was never
+    # conclusively identified after extensive isolated reproduction
+    # testing (5 separate test scripts, all working fine in isolation).
+    _RIBBON_LAYOUT_VERSION = 6
+
+    # Compact button height for Control Panel widgets (ported from
+    # map_workshop_old_version.py)
+    _COMPACT_BUTTON_H = 18
 
 
     def __init__(self, parent=None, main_window=None): #vers 11
@@ -3067,8 +4674,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             pass
         self.icon_factory = SVGIconFactory()
 
-        self.main_window = main_window
+        # Map Workshop settings (separate from global app_settings/theme) -
+        # required by the ported Object Browser/Instance List/Editing Panel/
+        # World Viewport/Control Panel/ribbon-framework methods.
+        self.map_settings = MapSettings()
 
+        self.main_window = main_window
         self.undo_stack = []
         self.button_display_mode = 'both'
         self.last_save_directory = None
@@ -3165,7 +4776,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.move(parent_pos.x() + 50, parent_pos.y() + 80)
 
 
-        # Paint toolbar attrs — set by _create_paint_bar() called from _create_right_panel
+        # Paint toolbar attrs — set by _create_paint_bar() called from _create_viewport_dock
         self.paint_toolbar   = None
         self.paint_mat_combo = None
         self.paint_swatch    = None
@@ -3184,50 +4795,41 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._apply_theme()
 
 
-    def setup_ui(self): #vers 14
-        """Setup the main UI layout.
+    def setup_ui(self): #vers 15
+        """Setup the main UI layout - rebuilt from scratch (Aug 1 2026),
+        per Keith: "None of the map editor logic is in yet... why not
+        remove all ui elements, keeping the [menu] [settings] -- title
+        -- [Open] [Save] [Import] [Export] so on? just redo from
+        scratch the panes and ribbons in the way i've seen it working."
 
-        EXPERIMENTAL (Jul 2026): three independent QMainWindows, nested:
-          - _outer_mw: hosts Files/Models as QDockWidgets, with the
-            Viewport panel as its central widget. Dragging Files/Models
-            anywhere (including onto/around the viewport) uses this one.
-          - _inner_mw (built in _create_right_panel, unchanged): hosts
-            just the viewport + its own ribbons (Selection/Snap/Geometry/
-            Navigation/Render) - clean 4-sided docking around the
-            viewport, independent of where Files/Models currently sit.
-          - _middle_mw (built in _create_models_table_panel): hosts the
-            Models table + the Model Name/IDE ribbons - same idea, one
-            level down. Frame Hierarchy and Textures are now separate
-            top-level dock widgets of their own, not nested here.
-        Earlier attempt put Files/Models directly into _inner_mw, which
-        meant the viewport's own ribbon edges and the outer panel edges
-        were the same areas - dragging a ribbon towards the middle panel
-        could end up spanning the whole window instead of just that panel.
-        Rollback points: 8b950b9 (original QSplitter), cb81f7f
-        (Files/Models as docks inside _inner_mw, before this change).
-        """
+        Matches map_workshop_old_version.py's actual, real structure
+        (confirmed by reading its setup_ui directly, not assumed): ONE
+        QMainWindow (self._outer_mw) hosts everything - a trivial empty
+        central widget (no DP5 canvas), all panes as QDockWidgets, and
+        all ribbons as QToolBars added directly to the same window.
+        No separate inner_mw this time - old_version never had one
+        either. This is the version Keith recalls working, worth a
+        clean/fresh retest since our patched-together unification
+        attempt earlier (reverted) may have differed from old_version's
+        actual approach in some way not yet identified.
+
+        Model Workshop's legacy panels (Files/Models/Frame Hierarchy/
+        Textures - 3D mesh editing, not applicable to a map editor)
+        are dropped entirely this time rather than built-then-hidden -
+        no map-editing logic depends on them, and old_version never
+        had them either."""
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(5, 5, 5, 5)
         main_layout.setSpacing(5)
 
-        # Toolbar - hidden when embedded in main window tab
+        # Toolbar - the top bar (Menu/Settings/title/Open/Save/Import/
+        # Export/Undo/Info/gear/minimize/maximize/close). Hidden when
+        # embedded in main window tab, matching prior behaviour.
         toolbar = self._create_toolbar()
         self._workshop_toolbar = toolbar
         if not self.standalone_mode:
             toolbar.setVisible(False)
         main_layout.addWidget(toolbar)
-
-        # Build all panels - right panel builds self._inner_mw (viewport +
-        # its own ribbons), fully self-contained. Models table, Frame
-        # Hierarchy, and Textures are now three independent sections
-        # instead of being stacked into one combined middle panel - every
-        # one of them can be dragged/floated/docked on its own, same as
-        # Files already could.
-        right_panel = self._create_right_panel()
-        left_panel = self._create_left_panel()
-        models_table_panel = self._create_models_table_panel()   # is self._middle_mw
-        frame_hierarchy_panel = self._create_frame_hierarchy_panel()
-        texture_panel = self._create_texture_panel()
 
         from PyQt6.QtWidgets import QDockWidget, QMainWindow
         outer_mw = QMainWindow()
@@ -3235,103 +4837,43 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         outer_mw.setDockOptions(
             QMainWindow.DockOption.AllowNestedDocks |
             QMainWindow.DockOption.AllowTabbedDocks)
-        # Explicit separator styling - when docked inside IMG Factory,
-        # this nested QMainWindow inherits the main app's theme stylesheet
-        # cascading down through the tab widget (standalone has no parent
-        # stylesheet to inherit), which was zeroing out the dock separator
-        # entirely - no visible line/handle between panels, reported bug.
-        # A locally-set stylesheet rule takes precedence over anything
-        # inherited from a parent, so this holds regardless of theme.
+        outer_mw.setDockNestingEnabled(True)
+        # Explicit separator styling - guards against the same
+        # docked-mode theme-cascade issue found in Model Workshop (a
+        # locally-set stylesheet rule takes precedence over anything
+        # inherited from a parent theme).
         outer_mw.setStyleSheet(
             "QMainWindow::separator { "
             "background: palette(mid); width: 5px; height: 5px; } "
             "QMainWindow::separator:hover { background: palette(highlight); }")
         self._outer_mw = outer_mw
 
-        # Viewport (right_panel, wrapping _inner_mw) is the central widget -
-        # always visible, never accidentally closed/floated away entirely.
-        # Every dock can go to any of its 4 edges.
-        outer_mw.setCentralWidget(right_panel)
+        # Trivial empty central widget - no DP5 canvas, no mesh preview.
+        # All real content lives in dock widgets instead.
+        _central_placeholder = QWidget()
+        _central_placeholder.setMaximumSize(0, 0)
+        outer_mw.setCentralWidget(_central_placeholder)
 
-        self._left_dock = None
-        self._middle_dock = None
-        self._frame_hierarchy_dock = None
-        self._texture_dock = None
-        icon_color = self._get_icon_color()
+        # Viewport (Top/Side/3D map panes) + its ribbons (World: LOD/
+        # Cull Boxes/Show All Panes), all built directly onto outer_mw -
+        # see _create_viewport_dock for the unified (no separate
+        # inner_mw) version.
+        self._create_viewport_dock()
 
-        if left_panel is not None:  # IMG Factory mode
-            self._left_dock = QDockWidget("Files", self)
-            self._left_dock.setObjectName("Files")
-            self._left_dock.setWidget(left_panel)
-            self._left_dock.setMinimumWidth(150)
-            self._left_dock.setFeatures(
-                QDockWidget.DockWidgetFeature.DockWidgetMovable |
-                QDockWidget.DockWidgetFeature.DockWidgetFloatable)
-            outer_mw.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self._left_dock)
+        object_browser_dock = self._create_object_browser_dock()
+        outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, object_browser_dock)
 
-        self._middle_dock = QDockWidget("Models", self)
-        self._middle_dock.setObjectName("Models")
-        self._middle_dock.setWidget(models_table_panel)
-        # Set explicit here, not just on the inner panel - with nested
-        # QMainWindows (outer_mw -> this dock -> _middle_mw -> panel), a
-        # minimum width set only on the innermost panel doesn't reliably
-        # propagate up through multiple layers to the outer dock-resize
-        # logic. Without this, dragging the divider could shrink the dock
-        # to fully hidden but not grow it back past a point - reported bug.
-        self._middle_dock.setMinimumWidth(250)
-        self._middle_dock.setFeatures(
-            QDockWidget.DockWidgetFeature.DockWidgetMovable |
-            QDockWidget.DockWidgetFeature.DockWidgetFloatable)
-        outer_mw.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self._middle_dock)
+        ipl_inst_file_dock = self._create_ipl_inst_file_panel()
+        outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, ipl_inst_file_dock)
+        outer_mw.splitDockWidget(object_browser_dock, ipl_inst_file_dock, Qt.Orientation.Vertical)
 
-        self._frame_hierarchy_dock = QDockWidget("Frame Hierarchy", self)
-        self._frame_hierarchy_dock.setObjectName("Frame Hierarchy")
-        self._frame_hierarchy_dock.setWidget(frame_hierarchy_panel)
-        self._frame_hierarchy_dock.setMinimumWidth(200)
-        self._frame_hierarchy_dock.setFeatures(
-            QDockWidget.DockWidgetFeature.DockWidgetMovable |
-            QDockWidget.DockWidgetFeature.DockWidgetFloatable)
-        outer_mw.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self._frame_hierarchy_dock)
-
-        self._texture_dock = QDockWidget("Textures", self)
-        self._texture_dock.setObjectName("Textures")
-        self._texture_dock.setWidget(texture_panel)
-        self._texture_dock.setMinimumWidth(200)
-        self._texture_dock.setFeatures(
-            QDockWidget.DockWidgetFeature.DockWidgetMovable |
-            QDockWidget.DockWidgetFeature.DockWidgetFloatable)
-        outer_mw.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self._texture_dock)
-
-        if self._left_dock is not None:
-            # Side-by-side by default (Files | Models), matching the old
-            # splitter's left-to-right order - user can still drag them
-            # apart, tab together, float, or move either beside/around
-            # the viewport from here.
-            outer_mw.splitDockWidget(self._left_dock, self._middle_dock,
-                                      Qt.Orientation.Horizontal)
-        # Frame Hierarchy and Textures default to stacking below Models -
-        # a sensible starting point, freely rearrangeable afterwards.
-        outer_mw.splitDockWidget(self._middle_dock, self._frame_hierarchy_dock,
-                                  Qt.Orientation.Vertical)
-        outer_mw.splitDockWidget(self._frame_hierarchy_dock, self._texture_dock,
-                                  Qt.Orientation.Vertical)
-
-        # Double-click any dock's title bar to collapse it down to just the
-        # title (content hidden), double-click again to restore - replaces
-        # the ad-hoc per-panel collapse buttons that used to live inside
-        # Models/Frame Hierarchy/Textures with one consistent interaction
-        # across every dock, including Files.
-        for _dock, _title in ((self._left_dock, "Files"),
-                               (self._middle_dock, "Models"),
-                               (self._frame_hierarchy_dock, "Frame Hierarchy"),
-                               (self._texture_dock, "Textures")):
-            if _dock is not None:
-                self._make_dock_collapsible(_dock, _title)
+        control_panel_dock = self._create_control_panel_dock()
+        outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, control_panel_dock)
+        outer_mw.splitDockWidget(ipl_inst_file_dock, control_panel_dock, Qt.Orientation.Vertical)
 
         main_layout.addWidget(outer_mw)
 
-        # Restore saved outer layout (Files/Models positions around the
-        # viewport) - separate from _inner_mw's own ribbon state.
+        # Restore saved outer layout
         from PyQt6.QtCore import QTimer as _QTOuter
         _QTOuter.singleShot(400, self._restore_outer_layout)
         self.window_closed.connect(self._save_outer_layout)
@@ -7408,7 +8950,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         def _save():  #vers 1
             _apply_live()
-            cfg_path = os.path.expanduser('~/.config/imgfactory/model_workshop.json')
+            cfg_path = os.path.expanduser('~/.config/imgfactory/map_workshop.json')
             try:
                 try: cfg = json.load(open(cfg_path))
                 except Exception: cfg = {}
@@ -7437,10 +8979,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         _apply_live(); dlg.exec()
 
     def _load_viewport_light_settings(self): #vers 1
-        """Load saved viewport light settings from model_workshop.json."""
+        """Load saved viewport light settings from map_workshop.json."""
         import json, os
         cfg_path = os.path.expanduser(
-            '~/.config/imgfactory/model_workshop.json')
+            '~/.config/imgfactory/map_workshop.json')
         try:
             cfg = json.load(open(cfg_path))
             vl = cfg.get('viewport_light', {})
@@ -7713,7 +9255,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             frames  = getattr(dff_model, 'frames', [])
             for i, geom in enumerate(dff_model.geometries):
                 atomic = next((a for a in atomics if a.geometry_index == i), None)
-                from apps.components.Model_Editor.model_workshop import _DFFGeometryAdapter
+                from apps.components.Map_Editor.map_workshop import _DFFGeometryAdapter
                 self._dff_adapters[i] = _DFFGeometryAdapter(geom, i, dff_model=dff_model, atomic=atomic)
         vp = getattr(self, 'preview_widget', None)
         if vp:
@@ -7875,7 +9417,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._set_status(f"Select mode: {mode}")
         mw = self.main_window
         if mw and hasattr(mw, 'log_message'):
-            mw.log_message(f"Model Workshop: select mode → {mode}")
+            mw.log_message(f"Map Workshop: select mode → {mode}")
 
     def _update_select_mode_availability(self): #vers 2
         """Enable vertex/edge/face/poly select buttons only when there is
@@ -8287,13 +9829,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         return panel
 
 
-    def _create_models_table_panel(self): #vers 2
-        """Create the Models table panel - mini toolbar + view toggle +
-        model table only. Frame Hierarchy and Textures are now separate
-        top-level dock widgets (see _create_frame_hierarchy_panel,
-        _create_texture_panel), not stacked into this same panel -
-        every section can be independently dragged/floated/docked now,
-        same as Files already could."""
+    def _create_models_table_panel_tmp(self): #vers 2
+        """PARKED (Jul 31 2026) - Model Workshop's DFF/COL model-table
+        panel (Open/Save/Import/Export/Undo/3D-View toolbar, Preview/
+        Details compact table, full details table) - disabled/temp per
+        Keith's direction, to be revisited later as a Map Workshop
+        instance-stats panel (Item Editor Dialog style: ID, Position,
+        Interior, Scale, Rotation + nudge, texture view/swap) instead
+        of DFF model management. Renamed aside rather than removed so
+        the working code stays available for reference/reuse."""
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
         panel.setMinimumWidth(250)
@@ -8407,7 +9951,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         ]
 
         # Hook the row's own resize event directly - self.resizeEvent()
-        # only fires when the whole ModelWorkshop widget's outer bounding
+        # only fires when the whole MapWorkshop widget's outer bounding
         # box changes, but dragging the Models/viewport dock divider only
         # changes this row's own width (the outer tab doesn't resize at
         # all), so relying solely on self.resizeEvent() left the compact
@@ -8708,7 +10252,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         """Reparent one of the Name/IDE-TXD toolbars (identified by key,
         'name' or 'ide') between the middle panel's own nested QMainWindow
         and the right panel's QMainWindow - dockable/floatable in both
-        places. Persists the choice per-ribbon to model_workshop.json."""
+        places. Persists the choice per-ribbon to map_workshop.json."""
         tb = self._info_ribbons.get(key)
         if tb is None or location == self._info_ribbon_location.get(key):
             return
@@ -8734,7 +10278,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         try:
             import json
             from pathlib import Path
-            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            path = Path.home() / '.config' / 'imgfactory' / 'map_workshop.json'
             try:
                 data = json.loads(path.read_text())
             except Exception:
@@ -8747,56 +10291,90 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             pass
         self._set_status(f"Model Info ribbon moved to {location} panel")
 
-    def _create_right_panel(self): #vers 15
-        """Right panel using QMainWindow + QToolBar for native docking.
-        QMainWindow handles toolbar placement, row stacking, floating, and
-        save/restore natively — same system Gwenview/KDE apps use."""
+    def _create_viewport_dock(self): #vers 20
+        """The viewport dock: Top/Side/3D MapViewport triple-pane
+        splitter (the real Map Workshop content). A "Show All Panes"
+        eye-icon toggle in the World ribbon switches between single
+        (3D only, "Full View") and all three.
+
+        Rebuilt from scratch (Aug 1 2026), per Keith: matches
+        map_workshop_old_version.py's actual, confirmed structure -
+        ribbons and docks unified on ONE QMainWindow (self._outer_mw),
+        no separate inner_mw. self._inner_mw is kept as an alias to
+        self._outer_mw purely so other methods that already reference
+        self._inner_mw (_build_toolbars, _rebuild_toolbars,
+        _save_toolbar_state, _restore_toolbar_state,
+        _toolbar_context_menu, RibbonManagerDialog) keep working
+        unchanged. self.preview_widget/self._viewport_stack (DFFViewport)
+        still created but not shown anywhere - kept alive only so the
+        ~26 other references to them in dormant Model Workshop texture/
+        material code don't break."""
         icon_color = self._get_icon_color()
 
-        panel = QFrame()
-        panel.setFrameStyle(QFrame.Shape.StyledPanel)
-        panel.setMinimumWidth(200)
-        self._right_panel_ref = panel
-        outer_layout = QVBoxLayout(panel)
-        outer_layout.setContentsMargins(4, 4, 4, 4)
-        outer_layout.setSpacing(3)
+        outer_mw = self._outer_mw
+        self._inner_mw = outer_mw
 
-        # Inner QMainWindow — owns the viewport as central widget and all
-        # QToolBars. Embedded as a plain widget (no window chrome).
-        from PyQt6.QtWidgets import QMainWindow
-        inner_mw = QMainWindow()
-        inner_mw.setWindowFlags(Qt.WindowType.Widget)
-        inner_mw.setDockOptions(
-            QMainWindow.DockOption.AllowNestedDocks |
-            QMainWindow.DockOption.AllowTabbedDocks)
-        # Same explicit separator styling as outer_mw/middle_mw - guards
-        # against the same docked-mode theme-cascade issue, in case any
-        # dock widgets get added here in future.
-        inner_mw.setStyleSheet(
-            "QMainWindow::separator { "
-            "background: palette(mid); width: 5px; height: 5px; } "
-            "QMainWindow::separator:hover { background: palette(highlight); }")
-        self._inner_mw = inner_mw
-
-        # Central widget — the 3D viewport, wrapped in a stack so the
-        # 4-Pane view (Top/Front/Side/Perspective) can be swapped in without
-        # disturbing QMainWindow's central-widget ownership.
+        # Kept alive, unused/unshown - safety net for other code that
+        # still references self.preview_widget/self._viewport_stack.
         from PyQt6.QtWidgets import QStackedWidget
         self.preview_widget = DFFViewport()
         self.preview_widget._workshop_ref = self
         self._viewport_stack = QStackedWidget()
-        self._viewport_stack.addWidget(self.preview_widget)   # index 0: single view
-        inner_mw.setCentralWidget(self._viewport_stack)
+        self._viewport_stack.addWidget(self.preview_widget)
         self._gl_viewport  = self.preview_widget
         self._qp_viewport  = self.preview_widget
         self._gl_mode      = True
 
-        self._create_paint_bar()
+        # The real content: Top/Side/3D MapViewport triple-pane splitter.
+        try:
+            from apps.components.Map_Editor.depends.map_viewport import MapViewport
+        except Exception as e:
+            print(f"[MapWorkshop] MapViewport unavailable: {e}")
+            MapViewport = None
 
-        # Build all toolbars and add to the inner QMainWindow
-        self._build_toolbars(inner_mw, icon_color)
+        self._world_panes = []
+        if MapViewport is not None:
+            presets = [("Top", 0, 0, 'ortho'),
+                       ("Side", 90, 0, 'ortho'),
+                       ("3D", 45, 25, 'perspective')]
+            for label, yaw, pitch, proj in presets:
+                pane = MapViewport()
+                pane.set_view_lock(proj == 'ortho', label, yaw=yaw, pitch=pitch,
+                                   projection=proj)
+                self._apply_viewport_movement_settings(pane, label)
+                pane.set_pick_callback(self._on_viewport_instance_picked)
+                pane.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
+                pane._label_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+                pane._label_widget.customContextMenuRequested.connect(
+                    lambda pos, p=pane: self._show_world_pane_menu(p, p._label_widget.mapToGlobal(pos)))
+                pane.installEventFilter(self)
+                self._world_panes.append(pane)
 
-        outer_layout.addWidget(inner_mw, stretch=1)
+        world_splitter = QSplitter(Qt.Orientation.Horizontal)
+        for pane in self._world_panes:
+            world_splitter.addWidget(pane)
+        self._world_splitter = world_splitter
+        self._maximized_world_pane = None
+
+        self._viewport_dock = QDockWidget("Viewport", self)
+        self._viewport_dock.setObjectName("Viewport")
+        self._viewport_dock.setWidget(world_splitter)
+        self._viewport_dock.setFeatures(
+            QDockWidget.DockWidgetFeature.DockWidgetMovable |
+            QDockWidget.DockWidgetFeature.DockWidgetFloatable |
+            QDockWidget.DockWidgetFeature.DockWidgetClosable)
+        self._make_dock_collapsible(self._viewport_dock, "Viewport")
+        outer_mw.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self._viewport_dock)
+        outer_mw.resizeDocks([self._viewport_dock], [900], Qt.Orientation.Horizontal)
+
+        # Default to showing only 3D ("Full View") - double-click any
+        # pane (or the eye-icon ribbon toggle) to show all 3.
+        if self._world_panes:
+            self._toggle_world_pane_maximize(self._world_panes[2])   # index 2 = "3D"
+
+        # Build all toolbars directly onto outer_mw - unified with the
+        # docks, matching old_version's actual structure.
+        self._build_toolbars(outer_mw, icon_color)
 
         # Restore saved toolbar state (positions, rows, floating)
         from PyQt6.QtCore import QTimer as _QT
@@ -8806,12 +10384,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.window_closed.connect(self._save_toolbar_state)
         self.window_closed.connect(self._save_quad_layout)
 
-        return panel
-
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 7
-        """Build all QToolBar instances using QAction.
-        Icon set resolved once — 'default' uses SVGIconFactory with currentColor,
-        '3dsmax' uses MaxIconSet with hardcoded Max palette."""
+    def _build_toolbars_tmp(self, mw: 'QMainWindow', icon_color: str): #vers 7
+        """PARKED (Jul 31 2026) - Model Workshop's original mesh-editing
+        ribbon builder (Selection VEFP/Snap Targets/Edit Geometry/
+        Navigation/Render), inactive - no longer called. Kept in place,
+        renamed aside, since some of this may be needed again later
+        (icon resolution pattern, _tb/_act helpers). See _build_toolbars
+        below for the active Map Workshop ribbon set."""
         from PyQt6.QtWidgets import QToolBar
         icon_size = QSize(20, 20)
         pw = self.preview_widget
@@ -9080,6 +10659,116 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._sel_face_btn   = None
         self._sel_poly_btn   = None
 
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 1
+        """Build Map Workshop's own ribbons - active version. Uses the
+        same QToolBar/QAction/_ribbon_actions pattern as the parked
+        _build_toolbars_tmp (Model Workshop's mesh-editing ribbons)
+        so the Ribbon Manager (drag-reorder, icon size, presets) works
+        identically for these. Currently one ribbon - World - covering
+        the two real, already-wired toggles (LOD display mode, Cull
+        Boxes); more tools get added here as instance placement/
+        selection tools are built out."""
+        from PyQt6.QtWidgets import QToolBar
+        from PyQt6.QtGui import QAction, QActionGroup
+        icon_size = QSize(20, 20)
+        self._ribbon_actions = []
+
+        def _tb(name, area=Qt.ToolBarArea.TopToolBarArea):  #vers 1
+            tb = QToolBar(name, mw)
+            tb.setObjectName(name)
+            tb.setIconSize(icon_size)
+            tb.setMovable(True)
+            tb.setFloatable(True)
+            tb.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            tb.customContextMenuRequested.connect(
+                lambda pos, t=tb: self._toolbar_context_menu(t, pos))
+            mw.addToolBar(area, tb)
+            return tb
+
+        def _act(tb, name, icon_fn, callback=None, checkable=False,
+                 checked=False, attr=None):  #vers 1
+            try:
+                icon = icon_fn(color=icon_color)
+            except Exception:
+                icon = self.icon_factory.settings_icon(color=icon_color)
+            action = QAction(icon, name, mw)
+            action.setToolTip(name)
+            action.setCheckable(checkable)
+            if checkable:
+                action.setChecked(checked)
+            if callback:
+                if checkable:
+                    action.toggled.connect(callback)
+                else:
+                    action.triggered.connect(callback)
+            tb.addAction(action)
+            self._ribbon_actions.append({
+                'action':    action,
+                'toolbar':   tb,
+                'name':      name,
+                'icon_fn':   icon_fn,
+                'checkable': checkable,
+            })
+            if attr:
+                setattr(self, attr, action)
+            return action
+
+        # - Ribbon: World
+        tb_world = _tb("World")
+
+        lod_group = QActionGroup(mw)
+        lod_group.setExclusive(True)
+
+        def _lod_act(attr, name, mode):  #vers 1
+            action = QAction(name, mw)
+            action.setToolTip(f"LOD display: {name}")
+            action.setCheckable(True)
+            action.triggered.connect(lambda _=False, m=mode: self._set_lod_display_mode(m))
+            lod_group.addAction(action)
+            tb_world.addAction(action)
+            self._ribbon_actions.append({
+                'action': action, 'toolbar': tb_world, 'name': name,
+                'icon_fn': None, 'checkable': True,
+            })
+            setattr(self, attr, action)
+            return action
+
+        _lod_act('_lod_normal_act', 'LOD: Normal', 'normal')
+        _lod_act('_lod_lod_act',    'LOD: Low',     'lod')
+        _lod_act('_lod_both_act',  'LOD: Both',    'both')
+        current_mode = getattr(self, '_lod_display_mode', 'normal')
+        {'normal': self._lod_normal_act, 'lod': self._lod_lod_act,
+         'both': self._lod_both_act}[current_mode].setChecked(True)
+
+        tb_world.addSeparator()
+
+        _act(tb_world, "Cull Boxes", self.icon_factory.box_icon,
+             lambda checked: self._toggle_cull_boxes(checked),
+             checkable=True, attr='_cull_boxes_act')
+
+        tb_world.addSeparator()
+
+        # Eye-icon toggle: single 3D pane ("Full View") <-> all 3 panes
+        # (Top/Side/3D). Reuses _toggle_world_pane_maximize unchanged -
+        # calling it on the same pane twice maximizes then restores, so
+        # anchoring on the "3D" pane (index 2) gives a clean binary
+        # toggle. Per Keith: "we need to add the eye icon back for quad."
+        show_all_act = _act(
+            tb_world, "Show All Panes",
+            lambda color=None: self._render_variant_icon(
+                'eye_visible', None, 20, color or icon_color),
+            lambda checked: (self._world_panes and
+                             self._toggle_world_pane_maximize(self._world_panes[2])),
+            checkable=True, checked=False, attr='_show_all_panes_act')
+
+        # "View" ribbon (4-Pane View toggle for self._viewport_dock)
+        # removed Jul 31 2026, per Keith - that dock is Model Workshop's
+        # own single-mesh preview, redundant with World View for Map
+        # Workshop's purposes and now hidden by default, so the ribbon
+        # had nothing left to control. _toggle_quad_view/
+        # _create_quad_viewport still exist, untouched, just no longer
+        # wired to a ribbon button.
+
     def _toolbar_context_menu(self, toolbar, pos): #vers 2
         """Right-click context menu on any toolbar."""
         from PyQt6.QtWidgets import QMenu
@@ -9104,7 +10793,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         try:
             import json
             from pathlib import Path
-            data = json.loads((Path.home()/'.config'/'imgfactory'/'model_workshop.json').read_text())
+            data = json.loads((Path.home()/'.config'/'imgfactory'/'map_workshop.json').read_text())
             slider.setValue(data.get('icon_scale', 20))
         except Exception:
             slider.setValue(20)
@@ -9130,7 +10819,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         try:
             import json
             from pathlib import Path
-            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            path = Path.home() / '.config' / 'imgfactory' / 'map_workshop.json'
             try:
                 data = json.loads(path.read_text())
             except Exception:
@@ -9167,7 +10856,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         try:
             import json
             from pathlib import Path
-            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            path = Path.home() / '.config' / 'imgfactory' / 'map_workshop.json'
             try:
                 data = json.loads(path.read_text())
             except Exception:
@@ -9183,14 +10872,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         dlg.exec()
 
     def _save_toolbar_state(self): #vers 2
-        """Save QMainWindow toolbar state to model_workshop.json."""
+        """Save QMainWindow toolbar state to map_workshop.json."""
         mw = getattr(self, '_inner_mw', None)
         if mw is None:
             return
         try:
             import json
             from pathlib import Path
-            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            path = Path.home() / '.config' / 'imgfactory' / 'map_workshop.json'
             try:
                 data = json.loads(path.read_text())
             except Exception:
@@ -9201,12 +10890,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._set_status("Ribbon config saved")
             main_wnd = getattr(self, 'main_window', None)
             if main_wnd and hasattr(main_wnd, 'log_message'):
-                main_wnd.log_message("Model Workshop: Ribbon config saved")
+                main_wnd.log_message("Map Workshop: Ribbon config saved")
         except Exception as _e:
-            print(f"[ModelWorkshop] _save_toolbar_state error: {_e}")
+            print(f"[MapWorkshop] _save_toolbar_state error: {_e}")
 
     def _restore_toolbar_state(self): #vers 5
-        """Restore QMainWindow toolbar state from model_workshop.json.
+        """Restore QMainWindow toolbar state from map_workshop.json.
         Uses an explicit layout version - bumped whenever ribbons are
         added/removed/renamed - so a stale save from an older ribbon
         layout is cleanly rejected instead of silently failing to
@@ -9219,7 +10908,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             import json
             from pathlib import Path
             from PyQt6.QtCore import QByteArray
-            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            path = Path.home() / '.config' / 'imgfactory' / 'map_workshop.json'
             if not path.exists():
                 return
             data = json.loads(path.read_text())
@@ -9232,15 +10921,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     self._set_status("Ribbon config loaded")
                     main_wnd = getattr(self, 'main_window', None)
                     if main_wnd and hasattr(main_wnd, 'log_message'):
-                        main_wnd.log_message("Model Workshop: Ribbon config loaded")
+                        main_wnd.log_message("Map Workshop: Ribbon config loaded")
                 else:
-                    print("[ModelWorkshop] _restore_toolbar_state: restoreState() returned False")
+                    print("[MapWorkshop] _restore_toolbar_state: restoreState() returned False")
             elif state_hex:
-                print(f"[ModelWorkshop] Saved ribbon layout is from an older version "
+                print(f"[MapWorkshop] Saved ribbon layout is from an older version "
                       f"({saved_version} != {self._RIBBON_LAYOUT_VERSION}) - skipping, "
                       f"will save fresh on next change.")
         except Exception as _e:
-            print(f"[ModelWorkshop] _restore_toolbar_state error: {_e}")
+            print(f"[MapWorkshop] _restore_toolbar_state error: {_e}")
         finally:
             # Safety net: restoreState() can leave a ribbon fully hidden
             # (e.g. saved mid-drag, floating off-screen, squeezed out) with
@@ -9261,8 +10950,21 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     # around the viewport) - a separate QMainWindow from _inner_mw, so it
     # gets its own save/restore with its own version constant. History:
     # 1 = Files/Models only. 2 = Frame Hierarchy and Textures split out
-    # into their own top-level dock widgets too, same as Files.
-    _OUTER_LAYOUT_VERSION = 2
+    # into their own top-level dock widgets too, same as Files. 3 = Map
+    # Workshop docks added (World Viewport/Object Browser/IPL Inst File/
+    # Control Panel) and Files/Models/Frame Hierarchy/Textures hidden by
+    # default - bumped so any layout saved before this point (which would
+    # restore those 4 back to visible) is cleanly rejected rather than
+    # fighting the new default. 4 = viewport became its own QDockWidget
+    # (Viewport), then hidden by default (redundant with World View).
+    # 5 = World View merged into the Viewport dock (one viewpoint total);
+    # ribbons moved back into their own inner_mw, no longer sharing
+    # outer_mw's dock-area layout.
+    # 6 = full from-scratch rebuild (Aug 1 2026) - Files/Models/Frame
+    # Hierarchy/Textures (Model Workshop legacy) dropped entirely rather
+    # than built-then-hidden; ribbons unified back onto outer_mw,
+    # matching map_workshop_old_version.py's actual structure.
+    _OUTER_LAYOUT_VERSION = 6
 
     def _save_outer_layout(self): #vers 1
         """Save _outer_mw's dock layout (Files/Models around the viewport)."""
@@ -9272,7 +10974,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         try:
             import json
             from pathlib import Path
-            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            path = Path.home() / '.config' / 'imgfactory' / 'map_workshop.json'
             try:
                 data = json.loads(path.read_text())
             except Exception:
@@ -9281,7 +10983,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             data['outer_layout_version'] = self._OUTER_LAYOUT_VERSION
             path.write_text(json.dumps(data, indent=2))
         except Exception as _e:
-            print(f"[ModelWorkshop] _save_outer_layout error: {_e}")
+            print(f"[MapWorkshop] _save_outer_layout error: {_e}")
 
     def _restore_outer_layout(self): #vers 1
         """Restore _outer_mw's dock layout, with the same version-check +
@@ -9293,7 +10995,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             import json
             from pathlib import Path
             from PyQt6.QtCore import QByteArray
-            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            path = Path.home() / '.config' / 'imgfactory' / 'map_workshop.json'
             if path.exists():
                 data = json.loads(path.read_text())
                 state_hex = data.get('outer_layout_state')
@@ -9302,15 +11004,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     mw.restoreState(QByteArray.fromHex(state_hex.encode()),
                                      self._OUTER_LAYOUT_VERSION)
         except Exception as _e:
-            print(f"[ModelWorkshop] _restore_outer_layout error: {_e}")
+            print(f"[MapWorkshop] _restore_outer_layout error: {_e}")
         finally:
-            for dock in (getattr(self, '_left_dock', None),
-                         getattr(self, '_middle_dock', None),
-                         getattr(self, '_frame_hierarchy_dock', None),
-                         getattr(self, '_texture_dock', None)):
-                if dock is not None:
-                    dock.setVisible(True)
-                    dock.toggleViewAction().setChecked(True)
+            # Map Workshop: Files/Models/Frame Hierarchy/Textures are
+            # Model Workshop panels, intentionally hidden by default (see
+            # setup_ui) - this safety net used to force them back visible
+            # after every restoreState() call, which fought our hide and
+            # was the cause of "left bar still showing" after startup.
+            # No longer forcing these 4 visible; restoreState()'s own
+            # result (or our explicit hide, whichever ran last) stands.
+            pass
 
             # Safety net: restoreState() reapplies whatever dock
             # proportions were saved, regardless of whether they fit the
@@ -9333,7 +11036,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     if top_level.width() > avail.width():
                         top_level.resize(avail.width(), top_level.height())
             except Exception as _e:
-                print(f"[ModelWorkshop] outer layout width clamp error: {_e}")
+                print(f"[MapWorkshop] outer layout width clamp error: {_e}")
 
         # Restore Model Name / IDE-TXD ribbon locations (middle panel vs
         # right panel ribbon stack) - separate from the QMainWindow toolbar
@@ -9342,7 +11045,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         try:
             import json
             from pathlib import Path
-            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            path = Path.home() / '.config' / 'imgfactory' / 'map_workshop.json'
             if path.exists():
                 data = json.loads(path.read_text())
                 saved_locations = data.get('info_ribbon_locations', {})
@@ -9350,7 +11053,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     if saved_location != self._info_ribbon_location.get(key):
                         self._move_info_ribbon(key, saved_location)
         except Exception as _e:
-            print(f"[ModelWorkshop] Info ribbon location restore error: {_e}")
+            print(f"[MapWorkshop] Info ribbon location restore error: {_e}")
 
     def _create_paint_bar(self): #vers 3
         """Floating paint bar — QWidget child of preview_widget, sits at top of viewport.
@@ -9653,7 +11356,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         try:
             cfg_dir = os.path.expanduser('~/.config/imgfactory')
             os.makedirs(cfg_dir, exist_ok=True)
-            cfg_path = os.path.join(cfg_dir, 'model_workshop.json')
+            cfg_path = os.path.join(cfg_dir, 'map_workshop.json')
             data = {}
             if os.path.exists(cfg_path):
                 try:
@@ -9683,7 +11386,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if not panes:
             return
         try:
-            cfg_path = os.path.expanduser('~/.config/imgfactory/model_workshop.json')
+            cfg_path = os.path.expanduser('~/.config/imgfactory/map_workshop.json')
             if not os.path.exists(cfg_path):
                 return
             with open(cfg_path) as f:
@@ -10895,11 +12598,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _get_icon_set(self) -> str: #vers 1
         """Return active icon set: 'default' or '3dsmax'.
-        Read from model_workshop.json 'icon_set' key."""
+        Read from map_workshop.json 'icon_set' key."""
         try:
             import json
             from pathlib import Path
-            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            path = Path.home() / '.config' / 'imgfactory' / 'map_workshop.json'
             if path.exists():
                 return json.loads(path.read_text()).get('icon_set', 'default')
         except Exception:
@@ -11258,7 +12961,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._auto_load_txd_from_imgs()
 
     def _open_txd_standalone(self): #vers 2
-        """Open a TXD file — loads textures into Model Workshop AND opens TXD Workshop."""
+        """Open a TXD file — loads textures into Map Workshop AND opens TXD Workshop."""
         path, _ = QFileDialog.getOpenFileName(
             self, "Open TXD Texture Archive",
             os.path.dirname(getattr(self, '_current_dff_path', '')),
@@ -11451,7 +13154,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._texlist_path = ''
 
         # Hook the panel's own resize event directly - self.resizeEvent()
-        # only fires when the whole ModelWorkshop widget's outer bounding
+        # only fires when the whole MapWorkshop widget's outer bounding
         # box changes, but dragging the Models/viewport dock divider only
         # changes this panel's own width, so relying solely on
         # self.resizeEvent() left the compact check stuck at whatever it
@@ -12103,15 +13806,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._save_texlist_setting()
             mw = self.main_window
             if mw and hasattr(mw, 'log_message'):
-                mw.log_message(f"Model Workshop: texlist folder -> {folder}")
+                mw.log_message(f"Map Workshop: texlist folder -> {folder}")
 
     def _save_texlist_setting(self): #vers 1
-        """Persist the texlist folder path to ~/.config/imgfactory/model_workshop.json"""
+        """Persist the texlist folder path to ~/.config/imgfactory/map_workshop.json"""
         import json
         cfg_dir = os.path.expanduser('~/.config/imgfactory')
         os.makedirs(cfg_dir, exist_ok=True)
         try:
-            p = os.path.join(cfg_dir, 'model_workshop.json')
+            p = os.path.join(cfg_dir, 'map_workshop.json')
             data = {}
             if os.path.isfile(p):
                 data = json.load(open(p))
@@ -12121,9 +13824,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             pass
 
     def _load_texlist_setting(self): #vers 1
-        """Load the texlist folder path from ~/.config/imgfactory/model_workshop.json"""
+        """Load the texlist folder path from ~/.config/imgfactory/map_workshop.json"""
         import json
-        p = os.path.expanduser('~/.config/imgfactory/model_workshop.json')
+        p = os.path.expanduser('~/.config/imgfactory/map_workshop.json')
         if os.path.isfile(p):
             try:
                 data = json.load(open(p))
@@ -12135,7 +13838,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
 
     def _load_txd_into_workshop(self): #vers 1
-        """Open a TXD file and load its textures into Model Workshop."""
+        """Open a TXD file and load its textures into Map Workshop."""
         path, _ = QFileDialog.getOpenFileName(
             self, "Load TXD",
             os.path.dirname(getattr(self, '_current_dff_path', '')),
@@ -14156,7 +15859,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
             img_name = os.path.basename(img_path)
             if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Model Workshop: scanning {img_name}…")
+                self.main_window.log_message(f"Map Workshop: scanning {img_name}…")
 
             model_exts = ('.dff', '.col', '.txd')
             model_entries = [e for e in img.entries
@@ -14193,10 +15896,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             n_col = sum(1 for e in model_entries if e.name.lower().endswith('.col'))
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(
-                    f"Model Workshop: {img_name} — "
+                    f"Map Workshop: {img_name} — "
                     f"{n_dff} DFF, {n_col} COL, {n_txd} TXD")
 
-            self.setWindowTitle(f"Model Workshop: {img_name}")
+            self.setWindowTitle(f"Map Workshop: {img_name}")
             return True
 
         except Exception as e:
@@ -14272,7 +15975,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 f"DFF ({n_dff})  TXD ({n_txd})  COL ({n_col})")
         if self.main_window and hasattr(self.main_window, 'log_message'):
             self.main_window.log_message(
-                f"Model Workshop: {lw.count()} entries in left panel")
+                f"Map Workshop: {lw.count()} entries in left panel")
         return
 
 
@@ -15665,7 +17368,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # Save hotkeys to config
         try:
             import json, os
-            cfg_path = os.path.expanduser('~/.config/imgfactory/model_workshop.json')
+            cfg_path = os.path.expanduser('~/.config/imgfactory/map_workshop.json')
             try:
                 cfg = json.load(open(cfg_path))
             except Exception:
@@ -15841,7 +17544,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         dialog.exec()
 
     def _show_about(self): #vers 1
-        """Show Model Workshop about dialog."""
+        """Show Map Workshop about dialog."""
         from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QTextEdit
         from PyQt6.QtGui import QFont
         from PyQt6.QtCore import Qt
@@ -15860,7 +17563,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         info = QTextEdit(); info.setReadOnly(True)
         info.setHtml("""
-            <b>Model Workshop Capabilities:</b><br><br>
+            <b>Map Workshop Capabilities:</b><br><br>
             <b>✓ DFF Support:</b> GTA III / VC / SA RenderWare DFF model files<br>
             <b>✓ COL Support:</b> COL1 (III/VC) COL2/3/4 (SA) collision files<br>
             <b>✓ Viewport:</b> QPainter 2D + OpenGL 3D (GL toggle)<br>
@@ -15878,6 +17581,2949 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         lay.addWidget(btn)
         dlg.exec()
 
+
+    # --- Object Browser (ported from map_workshop_old_version.py) ---
+
+    def _on_object_browser_column_resized(self, logical_index, old_size, new_size): #vers 1
+        """Persist the user's column widths for Object Browser whenever
+        they resize a column, so it doesn't reset to defaults on next
+        open. Column 2 (Model) is captured too even though it stays
+        Stretch-managed and isn't restored on the next load - harmless
+        to store, simpler than special-casing it out."""
+        view = getattr(self, '_object_browser_view', None)
+        if view is None:
+            return
+        widths = [view.columnWidth(c) for c in range(view.model().columnCount())]
+        self.map_settings.set('object_browser_column_widths', widths)
+        self.map_settings.save()
+
+    def _on_object_browser_header_context_menu(self, pos): #vers 1
+        """Right-click the Object Browser header to hide/show individual
+        columns - per Keith's request. A checked item means the column
+        is currently visible; unchecking hides it. Persisted to
+        object_browser_hidden_columns so it survives to the next
+        session."""
+        view = getattr(self, '_object_browser_view', None)
+        if view is None:
+            return
+        model = view.model()
+        header = view.horizontalHeader()
+        menu = QMenu(header)
+        for col in range(model.columnCount()):
+            label = model.headerData(col, Qt.Orientation.Horizontal) or f"Column {col}"
+            act = menu.addAction(str(label))
+            act.setCheckable(True)
+            act.setChecked(not view.isColumnHidden(col))
+            act.triggered.connect(
+                lambda checked, c=col: self._on_object_browser_column_visibility_toggled(c, checked))
+        menu.exec(header.mapToGlobal(pos))
+
+    def _on_object_browser_column_visibility_toggled(self, col, visible): #vers 2
+        view = getattr(self, '_object_browser_view', None)
+        if view is None:
+            return
+        view.setColumnHidden(col, not visible)
+        hidden = [c for c in range(view.model().columnCount()) if view.isColumnHidden(c)]
+        self.map_settings.set('object_browser_hidden_columns', hidden)
+        self.map_settings.save()
+        self._recompute_object_browser_model_width()
+
+    def _recompute_object_browser_model_width(self): #vers 1
+        """Explicitly set the Model column (col 2) to fill whatever
+        space is left after every other VISIBLE column, replacing
+        QHeaderView.ResizeMode.Stretch - confirmed by direct
+        measurement that Stretch mode wasn't reliably recalculating
+        after columns were hidden/shown (Keith's report: the Model
+        column widened correctly when he hid TXD/Instances/Size
+        interactively, but reset to narrow after a reload - Stretch's
+        automatic recalculation isn't dependable enough to build this
+        on). Called on initial setup, on any column visibility toggle,
+        and on the view's own resize (see eventFilter)."""
+        view = getattr(self, '_object_browser_view', None)
+        if view is None:
+            return
+        model = view.model()
+        if model is None:
+            return
+        other_width = sum(view.columnWidth(c) for c in range(model.columnCount())
+                          if c != 2 and not view.isColumnHidden(c))
+        available = view.viewport().width()
+        model_width = max(80, available - other_width)
+        view.setColumnWidth(2, model_width)
+
+    def _create_object_browser_dock(self): #vers 2
+        """Object Browser dock - Add/Delete/Rename icon row, search +
+        filter (All/Most Used/Favourites/Generic) over the loaded
+        object catalog. Double-click a row to toggle its favourite
+        status (persisted to map_settings)."""
+        from PyQt6.QtWidgets import QTableView, QLineEdit, QPushButton, QButtonGroup, QToolButton, QStackedWidget
+        from apps.methods.imgfactory_svg_icons import get_add_icon, get_trash_icon, get_rename_icon
+
+        OBJECT_BROWSER_ICON_SIZE = 18
+        OBJECT_BROWSER_BUTTON_W = 18
+        OBJECT_BROWSER_BUTTON_H = 18
+        panel = QWidget()
+
+        main_layout = QHBoxLayout(panel)
+        main_layout.setContentsMargins(4, 4, 4, 4)
+
+        # Per Keith: "I think there is a hidden splitter in the middle
+        # between both panes, I cant resize the objects browser
+        # window" - there was: a QSplitter with an empty, entirely
+        # unused right_panel (nothing was ever added to its layout)
+        # taking up half the space and interfering with resizing.
+        # Removed entirely - left_panel's content goes straight into
+        # main_layout now.
+        left_panel = QWidget()
+        left_layout = QVBoxLayout(left_panel)
+        left_layout.setContentsMargins(4, 4, 4, 4)
+        main_layout.addWidget(left_panel)
+
+        # Compact single-row layout: search field (stretching) + mode
+        # icon buttons (All/Most Used/Favourites/Generic) + Add/Del/
+        # Rename icons, replacing what was previously three separate
+        # rows (search, then Add/Del/Rename, then text-label mode
+        # buttons) - per Keith's TODOs asking for exactly this.
+        icon_color = self._get_icon_color()
+
+        top_row_widget = QWidget()
+        top_row = QHBoxLayout(top_row_widget)
+        top_row.setContentsMargins(0, 0, 0, 0)
+
+        group = QButtonGroup(panel)
+        group.setExclusive(True)
+        self._object_mode_buttons = {}
+
+        # IMG/DAT/IDE/IPL - compact colored-text buttons (the label
+        # text itself IS the icon, no separate graphic - per Keith's
+        # request to save space) for the tabs merged in from the old
+        # standalone Editing Panel dock. Order matches Keith's request:
+        # IMG, DAT, IDE, IPL, then All/Most Used/Favourites/Generic.
+        tab_colors = {'img': '#c060e0', 'dat': '#e0a030', 'ide': '#4090e0', 'ipl': '#40b060'}
+        tab_labels = {'img': "IMG", 'dat': "DAT", 'ide': "IDE", 'ipl': "IPL"}
+        self._object_browser_tab_buttons = {}
+        for tab_key in ('img', 'dat', 'ide', 'ipl'):
+            btn = QToolButton()
+            btn.setText(tab_labels[tab_key])
+            btn.setStyleSheet(f"QToolButton {{ color: {tab_colors[tab_key]}; font-weight: bold; }}")
+            btn.setToolTip(f"{tab_labels[tab_key]} tab")
+            btn.setCheckable(True)
+            btn.setFixedHeight(OBJECT_BROWSER_BUTTON_H)
+            btn.clicked.connect(lambda checked, k=tab_key: self._on_object_browser_tab_changed(k))
+            group.addButton(btn)
+            top_row.addWidget(btn)
+            self._object_browser_tab_buttons[tab_key] = btn
+
+        mode_icon_shapes = {'all': 'list_all', 'most_used': 'bars_most_used',
+                            'favourites': 'star_filled', 'generic': 'box_generic'}
+        mode_labels = {'all': "All", 'most_used': "Most Used",
+                      'favourites': "Favourites", 'generic': "Generic"}
+        self._object_mode_button_text_widths = {}
+        for mode in ('all', 'most_used', 'favourites', 'generic'):
+            icon = self._render_variant_icon(mode_icon_shapes[mode], None,
+                                             OBJECT_BROWSER_ICON_SIZE, icon_color,
+                                             has_menu=False)
+            btn = QToolButton()
+            btn.setIcon(icon)
+            btn.setText(mode_labels[mode])
+            btn.setToolTip(mode_labels[mode])
+            btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+            btn.setCheckable(True)
+            btn.setChecked(mode == 'all')
+            btn.setFixedHeight(OBJECT_BROWSER_BUTTON_H)
+            btn.setMinimumWidth(OBJECT_BROWSER_ICON_SIZE + 8)   # icon-only size floor - without
+                                                                # this the icon+text minimumSizeHint
+                                                                # (~80-100px per button) forces the
+                                                                # whole dock's minimum width way up,
+                                                                # blocking narrower resizing entirely
+            btn.clicked.connect(lambda checked, m=mode: self._on_object_mode_changed(m))
+            group.addButton(btn)
+            top_row.addWidget(btn)
+            self._object_mode_buttons[mode] = btn
+            # Estimated width needed in icon+text mode, computed directly
+            # from font metrics rather than by actually switching the
+            # button's style to measure it (avoids flicker/cascading
+            # resize events - see _update_mode_button_style).
+            from PyQt6.QtGui import QFontMetrics
+            text_w = QFontMetrics(btn.font()).horizontalAdvance(mode_labels[mode])
+            self._object_mode_button_text_widths[mode] = OBJECT_BROWSER_ICON_SIZE + text_w + 16
+
+        # Add/Delete/Rename icon row - previously these actions only
+        # existed as right-click context menu entries with no visible
+        # affordance at all (Keith couldn't find them in a screenshot -
+        # rightly so, since nothing hinted they existed). Real, visible
+        # SVG icon buttons, operating on whichever row is currently
+        # selected; disabled entirely when nothing is selected.
+        action_row_widget = QWidget()
+        action_row = QHBoxLayout(action_row_widget)
+        action_row.setContentsMargins(0, 0, 0, 0)
+        self._ob_add_btn = QPushButton(get_add_icon(OBJECT_BROWSER_ICON_SIZE, icon_color), "")
+        self._ob_add_btn.setToolTip("Add Instance Here - place another copy of the\n"
+                                    "selected model at the origin")
+        self._ob_add_btn.clicked.connect(self._on_object_browser_add_clicked)
+        self._ob_del_btn = QPushButton(get_trash_icon(18, icon_color), "")
+        self._ob_del_btn.setToolTip("Delete All Instances of the selected model")
+        self._ob_del_btn.clicked.connect(self._on_object_browser_delete_clicked)
+        self._ob_rename_btn = QPushButton(get_rename_icon(18, icon_color), "")
+        self._ob_rename_btn.setToolTip("Rename the selected object")
+        self._ob_rename_btn.clicked.connect(self._on_object_browser_rename_clicked)
+        for btn in (self._ob_add_btn, self._ob_del_btn, self._ob_rename_btn):
+            btn.setFixedSize(OBJECT_BROWSER_BUTTON_W, OBJECT_BROWSER_BUTTON_H)
+            btn.setEnabled(False)
+            action_row.addWidget(btn)
+        # Only shown when docked - in standalone mode the titlebar's own
+        # Add/Del/Rename icons cover this, so showing both would be
+        # redundant (per Keith's explicit request). The mode buttons
+        # above stay visible either way - they aren't duplicated
+        # anywhere else, unlike Add/Del/Rename.
+        action_row_widget.setVisible(not self.standalone_mode)
+        self._ob_action_row_widget = action_row_widget
+        top_row.addWidget(action_row_widget)
+
+        self._ob_top_row_widget = top_row_widget
+        top_row_widget.installEventFilter(self)
+        QTimer.singleShot(0, self._update_mode_button_style)
+        left_layout.addWidget(top_row_widget)
+
+        view = QTableView()
+        from PyQt6.QtGui import QFontMetrics
+        OBJECT_BROWSER_ROW_HEIGHT = QFontMetrics(view.font()).height() + 2   # text height + 2px
+        view.verticalHeader().setMinimumSectionSize(OBJECT_BROWSER_ROW_HEIGHT)
+        view.verticalHeader().setDefaultSectionSize(
+            OBJECT_BROWSER_ROW_HEIGHT
+        )
+        header = view.horizontalHeader()
+        header.setFixedHeight(QFontMetrics(header.font()).height() + 2)
+        header.setMinimumSectionSize(16)   # Qt's own default was silently clamping the narrow ★/ID widths upward
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
+        # Model (col 2) used to be QHeaderView.ResizeMode.Stretch, but
+        # that didn't reliably recalculate after hiding/showing other
+        # columns (confirmed by direct measurement, not just assumed) -
+        # explicit, directly-computed width instead (see
+        # _recompute_object_browser_model_width), recalculated on
+        # setup, column visibility changes, and view resize.
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)
+        header.sectionResized.connect(self._on_object_browser_column_resized)
+        header.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        header.customContextMenuRequested.connect(self._on_object_browser_header_context_menu)
+        view.verticalHeader().setVisible(False)
+        view.setEditTriggers(QTableView.EditTrigger.NoEditTriggers)
+        view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        view.doubleClicked.connect(self._on_object_row_double_clicked)
+        view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        view.customContextMenuRequested.connect(self._on_object_browser_context_menu)
+        view.installEventFilter(self)
+        model = _ObjectBrowserModel()
+        view.setModel(model)
+        # Narrow defaults for ★/ID (per Keith: "Fav * cell needs to be
+        # narrow, 5px of the ID, Model should fit the name") - just
+        # enough to show a star glyph and a typical 4-5 digit model ID,
+        # freeing the rest of the row width for Model. Saved widths (if
+        # any) override these below.
+        view.setColumnWidth(0, 20)
+        view.setColumnWidth(1, 45)
+        saved_widths = self.map_settings.get('object_browser_column_widths') or []
+        for col, width in enumerate(saved_widths):
+            if col < model.columnCount() and col != 2:   # 2 (Model) is computed, not restored
+                header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
+                view.setColumnWidth(col, width)
+        hidden_cols = self.map_settings.get('object_browser_hidden_columns') or []
+        for col in hidden_cols:
+            if col < model.columnCount():
+                view.setColumnHidden(col, True)
+        QTimer.singleShot(0, self._recompute_object_browser_model_width)
+        sel_model = view.selectionModel()
+        if sel_model is not None:
+            sel_model.currentRowChanged.connect(
+                lambda cur, prev: self._on_object_row_selected(cur.row()))
+        self._object_browser_view = view
+        self._object_browser_model = model
+
+        # Stacked content area - page 0 is the Object Browser table
+        # itself (All/Most Used/Favourites/Generic modes all share this
+        # one page, just filtering its rows); pages 1-4 are the tabs
+        # merged in from the former standalone Editing Panel dock.
+        content_stack = QStackedWidget()
+        content_stack.addWidget(view)
+        content_stack.addWidget(self._create_ide_tab())
+        content_stack.addWidget(self._create_ipl_tab())
+        content_stack.addWidget(self._create_dat_tab())
+        content_stack.addWidget(self._create_img_tab())
+        left_layout.addWidget(content_stack)
+        self._object_browser_content_stack = content_stack
+
+        dock = QDockWidget("Object Browser", self)
+        dock.setObjectName("Object Browser")
+        dock.setWidget(panel)
+        dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
+                        QDockWidget.DockWidgetFeature.DockWidgetFloatable |
+                        QDockWidget.DockWidgetFeature.DockWidgetClosable)
+
+        title_bar = QWidget()
+        title_lay = QHBoxLayout(title_bar)
+        title_lay.setContentsMargins(6, 2, 6, 2)
+        title_label = QLabel("Object Browser")
+        title_lay.addWidget(title_label)
+        search = QLineEdit()
+        search.setPlaceholderText("Search objects…")
+        search.setMinimumWidth(40)
+        search.textChanged.connect(self._on_object_search_changed)
+        title_lay.addWidget(search, 1)
+        self._object_search_edit = search
+        dock.setTitleBarWidget(title_bar)
+
+        self._object_browser_dock = dock
+        return dock
+
+    def _populate_object_browser(self, loader): #vers 1
+        """Fill the Object Browser from a completed load - instance
+        counts per model (for Most Used) computed once here, not
+        recomputed on every filter change."""
+        model = getattr(self, '_object_browser_model', None)
+        if model is None:
+            return
+        model.set_model_cache(getattr(self, '_model_cache', None))
+        from collections import Counter
+        counts = Counter(inst.model_id for inst in loader.instances)
+        favourites = self.map_settings.get('favourite_objects') or []
+        model.set_objects(list(loader.objects.values()), counts, favourites)
+
+    def _on_object_search_changed(self, text): #vers 1
+        model = getattr(self, '_object_browser_model', None)
+        if model is not None:
+            model.set_search(text)
+
+    def _on_object_mode_changed(self, mode): #vers 2
+        model = getattr(self, '_object_browser_model', None)
+        if model is not None:
+            model.set_mode(mode)
+        stack = getattr(self, '_object_browser_content_stack', None)
+        if stack is not None:
+            stack.setCurrentIndex(0)   # table page - IMG/DAT/IDE/IPL buttons show pages 1-4
+
+    def _on_object_browser_tab_changed(self, tab_key): #vers 1
+        """IMG/DAT/IDE/IPL button clicked - switches the shared content
+        stack to that tab's page instead of the Object Browser table,
+        per Keith's request to merge the former standalone Editing
+        Panel dock's tabs in here."""
+        stack = getattr(self, '_object_browser_content_stack', None)
+        if stack is None:
+            return
+        page_index = {'ide': 1, 'ipl': 2, 'dat': 3, 'img': 4}.get(tab_key)
+        if page_index is not None:
+            stack.setCurrentIndex(page_index)
+
+    def _on_object_row_selected(self, row): #vers 2
+        """Selecting a model row in the (now merged) Object Browser
+        centres the camera + shows the edit panel on that model's
+        FIRST placement, if it has any - with Prev/Next cycling stored
+        for models with multiple instances. Models with zero instances
+        (defined in the IDE but never placed) show identity/IDE/2DFX/
+        TOBJ info in the panel without any placement-specific data,
+        since there's no instance to show it for. Also enables/disables
+        the Add/Delete/Rename icon row based on selection state."""
+        if row < 0:
+            self._selected_object_model_id = None
+            self._update_object_browser_action_buttons()
+            return
+        model = self._object_browser_model
+        obj = model.object_at(row)
+        if obj is None:
+            self._selected_object_model_id = None
+            self._update_object_browser_action_buttons()
+            return
+        self._selected_object_model_id = obj.model_id
+        self._update_object_browser_action_buttons()
+        loader = getattr(self, '_world_loader', None)
+        instances = loader.get_instances_for_model(obj.model_id) if loader else []
+        if not instances:
+            self._current_model_instances = []
+            self._current_instance_index = 0
+            return
+        self._current_model_instances = instances
+        self._current_instance_index = 0
+        self._center_on_instance(instances[0], nav_info=(0, len(instances)))
+
+    def _update_object_browser_action_buttons(self): #vers 1
+        """Enable/disable the Add/Delete/Rename icon buttons to match
+        the current selection - Add and Rename work regardless of
+        instance count, Delete additionally needs at least one
+        instance to remove."""
+        mid = getattr(self, '_selected_object_model_id', None)
+        has_selection = mid is not None
+        self._ob_add_btn.setEnabled(has_selection)
+        self._ob_rename_btn.setEnabled(has_selection)
+        instance_count = 0
+        if has_selection:
+            model = self._object_browser_model
+            instance_count = model._instance_counts.get(mid, 0)
+        self._ob_del_btn.setEnabled(has_selection and instance_count > 0)
+
+    def _on_object_browser_add_clicked(self): #vers 1
+        mid = getattr(self, '_selected_object_model_id', None)
+        if mid is not None:
+            self._add_instance_of_model(mid)
+            self._update_object_browser_action_buttons()
+
+    def _on_object_browser_delete_clicked(self): #vers 1
+        mid = getattr(self, '_selected_object_model_id', None)
+        if mid is not None:
+            self._delete_all_instances_of_model(mid)
+            self._update_object_browser_action_buttons()
+
+    def _on_object_browser_rename_clicked(self): #vers 1
+        mid = getattr(self, '_selected_object_model_id', None)
+        if mid is not None:
+            self._rename_object(mid)
+
+    def _on_object_browser_context_menu(self, pos): #vers 2
+        """Right-click a row for Favourites, Rename, Add Instance, and
+        Delete All Instances - the Add/Del/Rename functions Keith asked
+        to continue. These are in-memory operations for now (mutating
+        self._all_instances and the loader's own instances list, kept
+        consistent with each other) - writing changes back to the
+        actual IPL/IDE files on disk isn't built yet, tracked
+        separately in TODO.md."""
+        view = self._object_browser_view
+        index = view.indexAt(pos)
+        if not index.isValid():
+            return
+        model = self._object_browser_model
+        obj = model.object_at(index.row())
+        if obj is None:
+            return
+
+        menu = QMenu(view)
+        is_fav = obj.model_id in model._favourites
+        fav_act = menu.addAction("Remove from Favourites" if is_fav else "Add to Favourites")
+        fav_act.triggered.connect(lambda checked=False, mid=obj.model_id:
+                                  self._toggle_instance_favourite(mid))
+        menu.addSeparator()
+        rename_act = menu.addAction("Rename Object…")
+        rename_act.triggered.connect(lambda checked=False, mid=obj.model_id:
+                                     self._rename_object(mid))
+        add_act = menu.addAction("Add Instance Here…")
+        add_act.triggered.connect(lambda checked=False, mid=obj.model_id:
+                                  self._add_instance_of_model(mid))
+        instance_count = model._instance_counts.get(obj.model_id, 0)
+        del_act = menu.addAction(f"Delete All Instances ({instance_count})")
+        del_act.setEnabled(instance_count > 0)
+        del_act.triggered.connect(lambda checked=False, mid=obj.model_id:
+                                  self._delete_all_instances_of_model(mid))
+        menu.exec(view.viewport().mapToGlobal(pos))
+
+    def _rename_object(self, model_id): #vers 1
+        """Rename an object's model_name - IN MEMORY ONLY for now
+        (updates the IDEObject held by the current GTAWorldLoader and
+        refreshes Object Browser's display). Does NOT yet write the
+        new name back to the actual IDE file, or update GTA3/VC's
+        text-format IPL lines that redundantly store the name (SA's
+        format doesn't) - that needs real file-writing infrastructure,
+        tracked separately."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            return
+        obj = loader.get_object(model_id)
+        if obj is None:
+            return
+        new_name, ok = QInputDialog.getText(
+            self, "Rename Object", "New name:", text=obj.model_name)
+        if not ok or not new_name.strip():
+            return
+        obj.model_name = new_name.strip()
+        for inst in getattr(self, '_all_instances', []):
+            if inst.model_id == model_id:
+                inst.model_name = obj.model_name
+        self._object_browser_model._recompute()
+        self._set_status(f"Renamed object {model_id} to '{obj.model_name}' "
+                         f"(in memory only - not yet written to disk)")
+
+    def _on_object_row_double_clicked(self, index): #vers 1
+        """Double-click a row to toggle its favourite status."""
+        model = getattr(self, '_object_browser_model', None)
+        if model is None:
+            return
+        obj = model.object_at(index.row())
+        if obj is None:
+            return
+        new_favourites = model.toggle_favourite(obj.model_id)
+        self.map_settings.set('favourite_objects', new_favourites)
+        self.map_settings.save()
+
+    # --- Instance List / Instance Edit Panel (ported from map_workshop_old_version.py) ---
+
+    def _cycle_model_instance(self, direction): #vers 1
+        """Prev (-1) / Next (+1) through the currently-selected model's
+        placements, wrapping around at either end."""
+        instances = getattr(self, '_current_model_instances', [])
+        if not instances:
+            return
+        idx = (getattr(self, '_current_instance_index', 0) + direction) % len(instances)
+        self._current_instance_index = idx
+        self._center_on_instance(instances[idx], nav_info=(idx, len(instances)))
+
+    def _add_instance_of_model(self, model_id): #vers 1
+        """Add a new placement of an existing model - IN MEMORY ONLY
+        for now, at a default position (origin, identity rotation).
+        Does NOT yet write the new inst line back to the actual IPL
+        file - that needs real file-writing infrastructure, tracked
+        separately. Keith's fuller Add request (importing new DFF/TXD/
+        COL from the desktop into the game's IMG for models that don't
+        exist at all yet) is a bigger, separate piece - this covers
+        placing another copy of a model that's already loaded."""
+        loader = getattr(self, '_world_loader', None)
+        obj = loader.get_object(model_id) if loader else None
+        if obj is None:
+            return
+        from apps.methods.gta_dat_parser import IPLInstance
+        new_inst = IPLInstance(
+            model_id=model_id, model_name=obj.model_name, interior=0,
+            pos_x=0.0, pos_y=0.0, pos_z=0.0,
+            rot_x=0.0, rot_y=0.0, rot_z=0.0, rot_w=1.0,
+            lod_index=-1, source_ipl="(added this session)", line_no=0)
+        self._all_instances = getattr(self, '_all_instances', [])
+        self._all_instances.append(new_inst)
+        if loader is not None:
+            loader.instances.append(new_inst)
+        counts = getattr(self._object_browser_model, '_instance_counts', {})
+        counts[model_id] = counts.get(model_id, 0) + 1
+        self._object_browser_model._recompute()
+        self._apply_ipl_visibility_filter()
+        self._center_on_instance(new_inst)
+        self._set_status(f"Added a new instance of '{obj.model_name}' at the origin "
+                         f"(in memory only - not yet written to disk)")
+
+    def _delete_all_instances_of_model(self, model_id): #vers 1
+        """Remove every placement of a model - the simpler 'just
+        remove from IPL' case Keith described (leaves the IDE
+        definition, COL, and IMG-packed DFF/TXD untouched, so other
+        references to the same model_id, if any, stay valid). IN
+        MEMORY ONLY for now - doesn't yet rewrite the actual IPL
+        file(s) on disk, or offer the 'purge everything and free the
+        ID' alternative Keith also described (that needs IDE/COL/IMG
+        write support this project doesn't have yet)."""
+        loader = getattr(self, '_world_loader', None)
+        all_inst = getattr(self, '_all_instances', [])
+        removed = sum(1 for i in all_inst if i.model_id == model_id)
+        if removed == 0:
+            return
+        confirm = QMessageBox.question(
+            self, "Delete All Instances",
+            f"Remove all {removed} placement(s) of this model from the "
+            f"currently loaded world?\n\n"
+            f"This only removes the placements - the object definition, "
+            f"collision, and model/texture files are left untouched.\n\n"
+            f"(In-memory only for now - not yet written back to the "
+            f"actual IPL file(s) on disk.)",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+        self._all_instances = [i for i in all_inst if i.model_id != model_id]
+        if loader is not None:
+            loader.instances[:] = [i for i in loader.instances if i.model_id != model_id]
+        counts = getattr(self._object_browser_model, '_instance_counts', {})
+        counts.pop(model_id, None)
+        self._object_browser_model._recompute()
+        self._apply_ipl_visibility_filter()
+        self._set_status(f"Removed {removed} placement(s) "
+                         f"(in memory only - not yet written to disk)")
+
+    def _create_instance_list_dock(self): #vers 3
+        """Instance List dock - a browsable table (ID + Model only) of
+        every loaded world placement. Single-click (or keyboard
+        navigation) shows/updates the non-modal object edit panel for
+        that instance; double-click additionally centres the camera in
+        all three World View panes on it.
+
+        QTableView + a lazy model (_InstanceTableModel) rather than
+        QTableWidget - the old QTableWidget approach eagerly created a
+        QTableWidgetItem per cell (5 per instance) and resolved every
+        instance's TXD name immediately, timed at 2.6s of UI freeze for
+        51,711 instances. The model defers both to data() calls for
+        whatever's actually visible."""
+        from PyQt6.QtWidgets import QTableView
+
+        view = QTableView()
+        view.horizontalHeader().setSectionResizeMode(
+            0, QHeaderView.ResizeMode.ResizeToContents)
+        view.horizontalHeader().setSectionResizeMode(
+            1, QHeaderView.ResizeMode.Stretch)
+        view.verticalHeader().setVisible(False)
+        view.setEditTriggers(QTableView.EditTrigger.NoEditTriggers)
+        view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        view.customContextMenuRequested.connect(self._on_instance_list_context_menu)
+        view.doubleClicked.connect(self._on_instance_row_double_clicked)
+        self._instance_table = view
+
+        dock = QDockWidget("Instance List", self)
+        dock.setObjectName("Instance List")
+        dock.setWidget(view)
+        dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
+                        QDockWidget.DockWidgetFeature.DockWidgetFloatable |
+                        QDockWidget.DockWidgetFeature.DockWidgetClosable)
+        self._instance_list_dock = dock
+        return dock
+
+    def _on_instance_row_double_clicked(self, index): #vers 3
+        """Double-click does the same as single-click (centre camera +
+        gizmo + edit panel) - kept as a separate handler since it's
+        also the natural place to land double-click-on-the-rendered-
+        marker-in-the-viewport picking, once that's built."""
+        model = self._instance_table.model()
+        inst = model.instance_at(index.row()) if model else None
+        if inst is None:
+            return
+        self._center_on_instance(inst)
+
+    def _on_viewport_instance_picked(self, inst, pane): #vers 2
+        """Called when the user clicks directly on a rendered marker in
+        one specific World View pane - zooms in close on that instance
+        WITHIN THAT PANE ONLY, and shows the edit panel.
+
+        Fixes two things Keith reported: clicking an object was
+        repositioning all 3 views (the previous version called
+        _center_on_instance, which loops over every pane in
+        self._world_panes) instead of responding to just the pane that
+        was actually clicked; and it wasn't zooming in at all, only
+        panning to centre while leaving distance/zoom completely
+        untouched, so the object could still appear small/far away
+        after being 'centred'."""
+        pane._pan_x = -inst.pos_x
+        pane._pan_y = -inst.pos_y
+        pane._dist = 15.0   # close-up distance - a reasonable default,
+                            # not tuned against real object sizes
+        if pane._projection == 'ortho':
+            try:
+                pane.resizeGL(pane.width(), pane.height())   # refresh ortho half_h for the new dist
+            except Exception:
+                pass
+        pane.set_gizmo_position((inst.pos_x, inst.pos_y, inst.pos_z))
+        pane.update()
+        self._show_instance_edit_panel(inst)
+
+    def _center_on_instance(self, inst, nav_info=None): #vers 2
+        """Centre all three World View panes' cameras on an instance,
+        show an XYZ gizmo at its position, and show/update its edit
+        panel - the shared behaviour for both single- and double-
+        clicking an Instance List row, and (since the Object Browser
+        merge) selecting a model row with one or more placements.
+        nav_info, if given, is (current_index, total_count) for
+        Prev/Next cycling through a model's other placements."""
+        for pane in getattr(self, '_world_panes', []):
+            pane._pan_x = -inst.pos_x
+            pane._pan_y = -inst.pos_y
+            pane.set_gizmo_position((inst.pos_x, inst.pos_y, inst.pos_z))
+        self._show_instance_edit_panel(inst, nav_info)
+
+    def _show_instance_edit_panel(self, inst, nav_info=None): #vers 2
+        """Show (creating on first use) the non-modal object edit panel
+        for one instance, positioned in the top-left corner of the
+        window - stays open and gets its content refreshed for
+        whichever instance is currently selected, rather than a modal
+        dialog that blocks interaction and needs reopening each time."""
+        panel = getattr(self, '_instance_edit_panel', None)
+        if panel is None:
+            panel = _InstanceEditPanel(self)
+            self._instance_edit_panel = panel
+        panel.show_for_instance(inst, getattr(self, '_world_loader', None), nav_info,
+                                getattr(self, '_model_cache', None))
+        top_level = self.window()
+        panel.move(top_level.mapToGlobal(top_level.rect().topLeft()) +
+                   QPoint(8, 8))
+        panel.show()
+        panel.raise_()
+
+    def _on_instance_edited(self, inst): #vers 1
+        """Called by _InstanceEditPanel whenever a position/rotation
+        nudge changes an instance in memory - refreshes the World View
+        panes to reflect the new position (they cache instance data as
+        plain tuples for fast rendering, built at the last filter
+        application, so mutating the IPLInstance alone doesn't
+        propagate until this re-applies the current filter)."""
+        self._apply_ipl_visibility_filter()
+
+    def _on_instance_list_context_menu(self, pos): #vers 2
+        """Right-click a row - Add/Remove Favourites always available
+        (reusing the same favourite_objects setting Object Browser
+        uses, so favouriting stays in sync between both panels);
+        per-instance LOD override options only added when this
+        instance actually has a resolved LOD pair (see
+        resolve_lod_pairs)."""
+        view = self._instance_table
+        index = view.indexAt(pos)
+        if not index.isValid():
+            return
+        model = view.model()
+        inst = model.instance_at(index.row())
+        if inst is None:
+            return
+
+        menu = QMenu(view)
+        favourites = self.map_settings.get('favourite_objects') or []
+        is_fav = inst.model_id in favourites
+        fav_act = menu.addAction("Remove from Favourites" if is_fav else "Add to Favourites")
+        fav_act.triggered.connect(
+            lambda checked=False, mid=inst.model_id: self._toggle_instance_favourite(mid))
+
+        primary_key = self._find_lod_primary_key(inst)
+        if primary_key is not None:
+            menu.addSeparator()
+            current = getattr(self, '_lod_overrides', {}).get(primary_key)
+            for mode, label in (('normal', "Show Normal"), ('lod', "Show LOD"),
+                                ('both', "Show Both")):
+                act = menu.addAction(label)
+                act.setCheckable(True)
+                act.setChecked(current == mode)
+                act.triggered.connect(
+                    lambda checked=False, k=primary_key, m=mode: self._set_lod_override(k, m))
+            clear_act = menu.addAction("Use Global Setting")
+            clear_act.setEnabled(current is not None)
+            clear_act.triggered.connect(
+                lambda checked=False, k=primary_key: self._set_lod_override(k, None))
+
+        menu.exec(view.viewport().mapToGlobal(pos))
+
+    def _toggle_instance_favourite(self, model_id): #vers 1
+        """Add/remove a model_id from favourite_objects - shared with
+        Object Browser's own favourite toggle, so favouriting an object
+        from either panel stays in sync. Refreshes Object Browser's
+        model if it's currently showing the Favourites filter."""
+        favourites = set(self.map_settings.get('favourite_objects') or [])
+        if model_id in favourites:
+            favourites.discard(model_id)
+        else:
+            favourites.add(model_id)
+        self.map_settings.set('favourite_objects', sorted(favourites))
+        self.map_settings.save()
+        ob_model = getattr(self, '_object_browser_model', None)
+        if ob_model is not None:
+            ob_model._favourites = favourites
+            ob_model._recompute()
+
+    def _populate_instance_list(self, loader): #vers 2
+        """Point the Instance List view at a completed GTAWorldLoader
+        load's instances - the model resolves each instance's TXD name
+        (via loader.get_object) lazily, per-cell, rather than all up
+        front for every row regardless of whether it's ever scrolled
+        into view."""
+        view = getattr(self, '_instance_table', None)
+        if view is None:
+            return
+        model = _InstanceTableModel(loader.instances, loader)
+        view.setModel(model)
+        sel_model = view.selectionModel()
+        if sel_model is not None:
+            sel_model.currentRowChanged.connect(
+                lambda cur, prev: self._on_instance_row_selected(model, cur.row()))
+
+    def _on_instance_row_selected(self, model, row): #vers 4
+        """Single-click (or keyboard navigation) centres the camera,
+        shows an XYZ gizmo, and shows/updates the object edit panel for
+        the newly-selected instance - same as double-click; both share
+        _center_on_instance()."""
+        if row < 0:
+            return
+        inst = model.instance_at(row)
+        if inst is None:
+            return
+        self._center_on_instance(inst)
+
+    # --- Control Panel dock (ported from map_workshop_old_version.py) ---
+
+    def _create_control_panel_dock(self): #vers 1
+        """Control Panel dock - replicates MooMapper's "Hide/Show
+        Control Panel" layout (Position/Move There, Time, Enable
+        Textures/Wireframe/Alpha Blending/First Person/Background Map
+        checkboxes, Zoom/Reset View, background colour, a Visible
+        Files-style summary, and the Dragging Controls legend), per
+        Keith's request to replicate the shape of all these functions
+        first so there's a solid base to build on later - several are
+        wired to real, working functionality already in this project
+        (Position/Move There, Reset View, Zoom, Wireframe Mode via the
+        existing render-mode dropdown, background colour); the rest
+        are clearly marked STUB below and don't yet do anything -
+        they're placeholders for functionality this project doesn't
+        have yet (time-of-day simulation, first-person navigation,
+        a reference background map image, texture toggling separate
+        from render mode)."""
+        panel = QWidget()
+        lay = QVBoxLayout(panel)
+        lay.setContentsMargins(6, 6, 6, 6)
+
+        # - Position (X, Y, Z) + Move There
+        pos_box = QGroupBox("Position (X, Y, Z)")
+        from PyQt6.QtWidgets import QAbstractSpinBox
+        themecol_pos = self.app_settings.get_theme_colors()
+        panel_bg_pos = themecol_pos.get('panel_bg')
+        if panel_bg_pos:
+            pos_box.setStyleSheet(f"QGroupBox {{ background: {panel_bg_pos}; }}")
+        pos_lay = QHBoxLayout(pos_box)
+        self._cp_pos_x = QDoubleSpinBox(); self._cp_pos_x.setRange(-100000, 100000)
+        self._cp_pos_y = QDoubleSpinBox(); self._cp_pos_y.setRange(-100000, 100000)
+        self._cp_pos_z = QDoubleSpinBox(); self._cp_pos_z.setRange(-100000, 100000)
+        move_there_btn = QPushButton("Move There")
+        move_there_btn.setFixedHeight(self._COMPACT_BUTTON_H + 6)
+        move_there_btn.setToolTip("Centre all World View panes' cameras on this\n"
+                                  "typed position - the direct type-in alternative\n"
+                                  "to nudging/clicking an object")
+        move_there_btn.clicked.connect(self._on_move_there_clicked)
+        for spin in (self._cp_pos_x, self._cp_pos_y, self._cp_pos_z):
+            spin.setDecimals(2)
+            # Without this, Qt reserves worst-case width for the full
+            # ±100000 range (over 500px combined for all three) - per
+            # Keith's report that this was locking the whole panel's
+            # width. Still fully usable for extreme values via typing/
+            # scrolling, just doesn't force display of every possible
+            # digit at once.
+            spin.setMinimumWidth(60)
+            spin.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.UpDownArrows)
+            spin.setFixedHeight(self._COMPACT_BUTTON_H + 6)   # match Move There's height
+            pos_lay.addWidget(spin)
+        pos_lay.addWidget(move_there_btn)
+        lay.addWidget(pos_box)
+
+        # - Time (STUB - no day/night simulation exists yet)
+        time_row = QHBoxLayout()
+        time_row.addWidget(QLabel("Time:"))
+        self._cp_time_combo = QComboBox()
+        self._cp_time_combo.addItems([f"{h:02d}:00" for h in range(24)])
+        self._cp_time_combo.setCurrentText("09:00")
+        self._cp_time_combo.setToolTip("STUB - no time-of-day simulation built yet\n"
+                                       "(would matter for TOBJ/timed object rendering)")
+        time_row.addWidget(self._cp_time_combo)
+        time_row.addStretch()
+        lay.addLayout(time_row)
+
+        # - Checkboxes: Enable Textures / Wireframe Mode / Alpha Blending /
+        #   First Person / Background Map
+        self._cp_enable_textures_chk = QCheckBox("Enable Textures")
+        self._cp_enable_textures_chk.setChecked(True)
+        self._cp_enable_textures_chk.setToolTip("STUB - texture binding for real mesh\n"
+                                                "rendering isn't wired up yet")
+        lay.addWidget(self._cp_enable_textures_chk)
+
+        self._cp_wireframe_chk = QCheckBox("Wireframe Mode")
+        self._cp_wireframe_chk.setToolTip("Same as choosing Wireframe in the\n"
+                                          "Render Mode dropdown (Plotting ribbon)")
+        self._cp_wireframe_chk.toggled.connect(self._on_control_panel_wireframe_toggled)
+        lay.addWidget(self._cp_wireframe_chk)
+
+        self._cp_alpha_chk = QCheckBox("Alpha Blending")
+        self._cp_alpha_chk.setChecked(True)
+        self._cp_alpha_chk.setToolTip("STUB - not yet connected to anything")
+        lay.addWidget(self._cp_alpha_chk)
+
+        self._cp_first_person_chk = QCheckBox("First Person")
+        self._cp_first_person_chk.setToolTip("STUB - no first-person navigation mode\n"
+                                             "built yet, only orbit/pan camera controls")
+        lay.addWidget(self._cp_first_person_chk)
+
+        self._cp_background_map_chk = QCheckBox("Background Map")
+        self._cp_background_map_chk.setToolTip("STUB - no reference background map\n"
+                                                "image support built yet")
+        lay.addWidget(self._cp_background_map_chk)
+
+        # - Zoom +/- and Reset View
+        zoom_row = QHBoxLayout()
+        zoom_row.addWidget(QLabel("Zoom:"))
+        zoom_minus_btn = QPushButton("-"); zoom_minus_btn.setFixedWidth(28)
+        zoom_minus_btn.clicked.connect(lambda: self._on_control_panel_zoom(1.15))
+        zoom_plus_btn = QPushButton("+"); zoom_plus_btn.setFixedWidth(28)
+        zoom_plus_btn.clicked.connect(lambda: self._on_control_panel_zoom(0.85))
+        zoom_row.addWidget(zoom_minus_btn)
+        zoom_row.addWidget(zoom_plus_btn)
+        zoom_row.addStretch()
+        lay.addLayout(zoom_row)
+
+        reset_view_btn = QPushButton("Reset View")
+        reset_view_btn.setToolTip("Reset yaw/pitch/pan and re-fit the camera to\n"
+                                  "the currently loaded instances, for every pane")
+        reset_view_btn.clicked.connect(self._on_control_panel_reset_view)
+        lay.addWidget(reset_view_btn)
+
+        # - Background colour
+        bg_row = QHBoxLayout()
+        bg_row.addWidget(QLabel("Background:"))
+        self._cp_bg_combo = QComboBox()
+        self._cp_bg_combo.addItems(["Default", "Black", "White", "Dark Grey"])
+        self._cp_bg_combo.currentTextChanged.connect(self._on_control_panel_bg_changed)
+        bg_row.addWidget(self._cp_bg_combo)
+        lay.addLayout(bg_row)
+
+        # - "Normal Mode" dropdown (STUB - MooMapper shows this but its
+        #   exact purpose isn't clear from the reference screenshot alone)
+        mode_row = QHBoxLayout()
+        mode_row.addWidget(QLabel("Mode:"))
+        self._cp_mode_combo = QComboBox()
+        self._cp_mode_combo.addItems(["Normal Mode"])
+        self._cp_mode_combo.setToolTip("STUB - MooMapper shows a mode dropdown here,\n"
+                                       "but its exact purpose isn't confirmed yet")
+        mode_row.addWidget(self._cp_mode_combo)
+        mode_row.addStretch()
+        lay.addLayout(mode_row)
+
+        # - Dragging Controls legend - matches the actual current
+        #   MapViewport controls (configure_movement/mouseMoveEvent),
+        #   not a stub - this reflects real, working behaviour.
+        controls_box = QGroupBox("Dragging Controls")
+        themecol = self.app_settings.get_theme_colors()
+        panel_bg = themecol.get('panel_bg')
+        if panel_bg:
+            controls_box.setStyleSheet(
+                f"QGroupBox {{ background: {panel_bg}; }} "
+                f"QGroupBox QLabel {{ background: {panel_bg}; }}")
+        controls_lay = QVBoxLayout(controls_box)
+        for line in (
+            "Middle Btn: Move Camera (pan)",
+            "Right Btn: Rotate Camera (3D pane only)",
+            "Left Btn (click, no drag): Select Object & Zoom In",
+            "Mouse Wheel: Zoom",
+        ):
+            controls_lay.addWidget(QLabel(line))
+        note = QLabel("(button assignment is configurable in Settings)")
+        note.setStyleSheet("color: palette(mid);")
+        controls_lay.addWidget(note)
+        lay.addWidget(controls_box)
+
+        lay.addStretch()
+
+        dock = QDockWidget("Control Panel", self)
+        dock.setObjectName("Control Panel")
+        dock.setWidget(panel)
+        dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
+                        QDockWidget.DockWidgetFeature.DockWidgetFloatable |
+                        QDockWidget.DockWidgetFeature.DockWidgetClosable)
+        self._control_panel_dock = dock
+        return dock
+
+    def _on_move_there_clicked(self): #vers 1
+        x, y, z = self._cp_pos_x.value(), self._cp_pos_y.value(), self._cp_pos_z.value()
+        for pane in getattr(self, '_world_panes', []):
+            pane._pan_x = -x
+            pane._pan_y = -y
+            pane.update()
+
+    def _on_control_panel_wireframe_toggled(self, checked): #vers 1
+        """Wireframe Mode checkbox - mirrors the Render Mode dropdown
+        rather than being a separate, independent control, so the two
+        can't disagree with each other."""
+        self._set_render_mode('wireframe' if checked else 'solid')
+        lod_btn = getattr(self, '_render_mode_button', None)
+        if lod_btn is not None:
+            menu = lod_btn.menu()
+            for act in menu.actions():
+                act.setChecked(act.text() == ("Wireframe" if checked else "Solid"))
+
+    def _on_control_panel_zoom(self, factor): #vers 1
+        for pane in getattr(self, '_world_panes', []):
+            pane._dist = max(0.1, min(50000.0, pane._dist * factor))
+            if pane._projection == 'ortho':
+                try:
+                    pane.resizeGL(pane.width(), pane.height())
+                except Exception:
+                    pass
+            pane.update()
+
+    def _on_control_panel_reset_view(self): #vers 1
+        for pane in getattr(self, '_world_panes', []):
+            pane.reset_view()
+
+    def _on_control_panel_bg_changed(self, text): #vers 1
+        colors = {
+            "Default": None,
+            "Black": (0, 0, 0),
+            "White": (255, 255, 255),
+            "Dark Grey": (40, 40, 40),
+        }
+        rgb = colors.get(text)
+        for pane in getattr(self, '_world_panes', []):
+            pane.set_bg_color_override(rgb)
+
+    # --- Editing Panel: IPL/IDE/DAT/IMG tabs (ported from map_workshop_old_version.py) ---
+
+    def _load_game_folder(self, preset_root: str = None): #vers 2
+        """Load a GTA game's world data (DAT -> IDE -> IPL, full engine-
+        order two-phase load) via the existing GTAWorldLoader - this is
+        the Map Editor's actual data layer, already handling multi-game
+        detection (GTA3/VC/SA/SOL) and object/instance cross-referencing;
+        nothing new needed here beyond wiring it into the UI.
+
+        preset_root: when given (e.g. passed in from Dat Browser, which
+        already has a game root loaded), skip the folder picker and load
+        directly - the same underlying load either way, just two ways to
+        reach it, matching how Model/TXD/COL Workshop can be opened either
+        via an explicit path or by picking up whatever's already open."""
+        from PyQt6.QtWidgets import QFileDialog
+        from apps.methods.gta_dat_parser import detect_game, GTAWorldLoader
+
+        if preset_root:
+            folder = preset_root
+        else:
+            folder = QFileDialog.getExistingDirectory(self, "Select GTA game folder")
+            if not folder:
+                return
+
+        game = detect_game(folder)
+        if not game:
+            QMessageBox.warning(self, "Load Game Folder",
+                f"Couldn't detect a supported GTA game in:\n{folder}\n\n"
+                "Expected a 'data' folder containing gta3.dat, gta_vc.dat, "
+                "or gta.dat.")
+            return
+
+        loader = GTAWorldLoader(game)
+        loader.lazy_ipl_loading = True   # per Keith: don't load/scan any
+                                         # IPL's content (or its models'
+                                         # geometry/textures) until the
+                                         # user actually asks for that
+                                         # specific IPL, not the whole
+                                         # world eagerly at load time
+        ok = loader.load(folder)
+        self._game_root = folder
+        self._apply_loaded_world(loader, game, ok, "Load Game Folder")
+
+    def _show_map_load_menu(self): #vers 1
+        """Menu shown from the titlebar's Load button - the same two
+        load paths already in the File menu (Load Game Folder / Load
+        Game DAT File), surfaced here since Keith wants Load on the
+        titlebar to actually load a map, not the paint canvas's old
+        image-load menu."""
+        menu = QMenu(self)
+        menu.addAction("Load Game Folder…", self._load_game_folder)
+        menu.addAction("Load Game DAT File…", self._load_game_dat_file)
+        menu.exec(self.tb_load_btn.mapToGlobal(
+            self.tb_load_btn.rect().bottomLeft()))
+
+    def _load_game_dat_file(self, preset_dat_path: str = None): #vers 1
+        """Load a GTA game's world data starting from one specific .dat
+        file, rather than a whole game folder - per Keith's request
+        that the standalone flow ask for the actual gta_xx.dat/
+        default.dat file path directly. Also the entry point for the
+        DAT Browser tree's 'Load with Map Workshop' right-click on a
+        specific .dat entry, via preset_dat_path.
+
+        The game is detected purely from the .dat file's own basename
+        (detect_game_from_dat_filename) rather than scanning a folder -
+        deliberately doesn't accept an ambiguous bare 'default.dat'
+        (shared across gta3/vc/sa), since there'd be no way to tell
+        which game it belongs to from the filename alone; the user
+        picks the actual main .dat (gta3.dat, gta_vc.dat, gta.dat, or
+        gta_sol.dat)."""
+        from PyQt6.QtWidgets import QFileDialog
+        from apps.methods.gta_dat_parser import detect_game_from_dat_filename, GTAWorldLoader
+
+        if preset_dat_path:
+            dat_path = preset_dat_path
+        else:
+            dat_path, _ = QFileDialog.getOpenFileName(
+                self, "Select GTA .dat file", "",
+                "GTA DAT files (gta3.dat gta_vc.dat gta.dat gta_sol.dat gtasol.dat gta_quick.dat);;All files (*.dat)")
+            if not dat_path:
+                return
+
+        game = detect_game_from_dat_filename(dat_path)
+        if not game:
+            QMessageBox.warning(self, "Load Game DAT File",
+                f"Couldn't identify the game from:\n{dat_path}\n\n"
+                "Expected the game's main .dat file (gta3.dat, gta_vc.dat, "
+                "gta.dat, or gta_sol.dat) - not default.dat, which is "
+                "shared across games and can't be identified by name alone.")
+            return
+
+        game_root = os.path.normpath(os.path.join(os.path.dirname(dat_path), ".."))
+        loader = GTAWorldLoader(game)
+        loader.lazy_ipl_loading = True
+        ok = loader.load_from_dat(dat_path, game_root)
+        self._game_root = game_root
+        self._apply_loaded_world(loader, game, ok, "Load Game DAT File")
+
+    def _apply_loaded_world(self, loader, game, ok, source_desc): #vers 1
+        """Shared post-load handling for both _load_game_folder and
+        _load_game_dat_file - status message, populating the World View
+        panes/Instance List/IPL Sections panel, and the summary/error
+        dialog. Factored out so both loading paths (folder-based, or a
+        specific .dat file) share exactly the same result handling."""
+        self._world_loader = loader
+        self._loaded_dat_path = getattr(loader.main_dat, 'dat_path', '') if hasattr(loader, 'main_dat') else ''
+
+        if not ok:
+            QMessageBox.warning(self, source_desc,
+                f"Load failed:\n" + "\n".join(loader.stats.errors[:10]))
+            return
+
+        self._set_status(
+            f"Loaded {game.upper()} world: {len(loader.objects)} objects, "
+            f"{len(loader.instances)} instances, {loader.stats.ipl_files} IPL files")
+        self._lod_pairs = loader.resolve_lod_pairs()
+        self._lod_overrides = {}
+        self._lod_display_mode = 'normal'
+
+        model_cache = getattr(self, '_model_cache', None)
+        if model_cache is None:
+            from apps.components.Map_Editor.depends.model_cache import ModelCache
+            model_cache = ModelCache()
+            self._model_cache = model_cache
+        model_cache.index_img_files(loader.get_img_paths())
+        # Per Keith: model/texture scanning should happen when a
+        # specific IPL is actually loaded, not for the whole world at
+        # startup - with lazy_ipl_loading enabled above, loader.
+        # instances is empty at this point anyway (nothing parsed
+        # yet), so pre-loading here would be a no-op regardless. The
+        # real pre-load now happens per-IPL in _on_ipl_section_cell_
+        # clicked, scoped to just that IPL's newly-loaded instances.
+
+        visible = self._apply_lod_filter(loader.instances)
+        for pane in getattr(self, '_world_panes', []):
+            pane.set_instances(visible)
+            pane.set_model_cache(model_cache)
+            pane.set_cull_boxes(loader.culls, getattr(self, '_cull_boxes_act', None) and
+                                self._cull_boxes_act.isChecked())
+        self._populate_instance_list(_FilteredLoaderStub(visible, loader))
+        self._populate_ipl_sections(loader)
+        self._populate_object_browser(loader)
+        self._refresh_ide_tab(loader)
+        self._refresh_dat_tab()
+        self._refresh_img_tab(loader)
+        self._refresh_ipl_inst_file_panel()
+        QMessageBox.information(self, source_desc, loader.get_summary())
+
+        # Per Keith: "we could have load from .dat file with no IPL
+        # files selected... Or load with options. the options show all
+        # ipl files [x] boxes and model [x] textures [x] and
+        # [continue]." Only offered when lazy loading actually
+        # discovered something to choose from.
+        if getattr(loader, 'lazy_ipl_loading', False) and loader.available_ipls:
+            selection = self._show_load_options_dialog(loader)
+            if selection is not None:
+                stems, load_models, load_textures = selection
+                if stems:
+                    self._load_selected_ipls_with_log(
+                        loader, model_cache, stems, load_models, load_textures)
+
+    def _load_selected_ipls_with_log(self, loader, model_cache, stems, load_models, load_textures): #vers 1
+        """Load a batch of specific IPLs (from the Load Options dialog),
+        showing a scrolling log dialog matching Keith's exact requested
+        format: "loading <name>" followed by each newly-added instance's
+        line as it's added, then a final per-IPL result line - "loaded
+        <name> - no errors" or "<name> - <model>.dff/<txd>.txd missing
+        from img file" when a referenced model/texture genuinely isn't
+        in any indexed archive at all (as opposed to a parse error in
+        the IPL's own text, which _write_ipl_error_log/the per-IPL
+        issue count already covers separately).
+
+        load_models/load_textures gate whether ModelCache.get_geometry/
+        get_textures are called at all for this batch - unchecking
+        either skips that half of pre-loading entirely for everything
+        loaded here (their own per-instance rendering fallback to
+        point/dot rendering is unaffected either way, this only
+        controls whether pre-loading happens now)."""
+        from PyQt6.QtWidgets import QTextEdit
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Loading IPL Files")
+        dlg.resize(560, 420)
+        lay = QVBoxLayout(dlg)
+        log = QTextEdit()
+        log.setReadOnly(True)
+        font = log.font(); font.setFamily("monospace"); log.setFont(font)
+        lay.addWidget(log)
+        cancel_btn = QPushButton("Cancel")
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        btn_row.addWidget(cancel_btn)
+        lay.addLayout(btn_row)
+
+        cancelled = {'flag': False}
+        cancel_btn.clicked.connect(lambda: cancelled.update(flag=True))
+        dlg.show()
+
+        def _append(line): #vers 1
+            log.append(line)
+            QApplication.processEvents()
+
+        any_loaded = False
+        for stem in stems:
+            if cancelled['flag']:
+                _append("Cancelled - remaining IPLs not loaded")
+                break
+            entry = loader.available_ipls.get(stem)
+            display_name = os.path.basename(entry.abs_path) if entry else stem
+            _append(f"loading {display_name}")
+
+            before_count = len(loader.instances)
+            result = loader.load_ipl_by_name(stem)
+            if not result.success:
+                _append(f"{display_name} - failed to load"
+                       + (f": {result.errors[0]}" if result.errors else ""))
+                continue
+            any_loaded = True
+
+            new_instances = loader.instances[before_count:]
+            for i, inst in enumerate(new_instances):
+                _append(f"{inst.model_id}, {inst.model_name}, {inst.interior}, "
+                        f"{inst.pos_x}, {inst.pos_y}, {inst.pos_z}, "
+                        f"{inst.scale_x}, {inst.scale_y}, {inst.scale_z}, "
+                        f"{inst.rot_x}, {inst.rot_y}, {inst.rot_z}, {inst.rot_w}")
+                if cancelled['flag']:
+                    break
+
+            # Missing-model/texture detection - genuinely absent from
+            # any indexed archive, not a parse error in the IPL itself
+            missing = []
+            seen_models = set()
+            for inst in new_instances:
+                if inst.model_name in seen_models:
+                    continue
+                seen_models.add(inst.model_name)
+                obj = loader.get_object(inst.model_id)
+                txd_name = obj.txd_name if obj else ""
+                if load_models and not model_cache.is_dff_indexed(inst.model_name):
+                    missing.append(f"{inst.model_name}.dff")
+                if load_textures and txd_name and not model_cache.is_txd_indexed(txd_name):
+                    missing.append(f"{txd_name}.txd")
+                if load_models:
+                    model_cache.get_geometry(inst.model_name)
+                if load_textures and txd_name:
+                    model_cache.get_textures(txd_name)
+
+            problem_count = result.error_count + result.warning_count
+            if missing:
+                _append(f"{display_name} loaded - "
+                        + "/ ".join(missing) + " missing from img file")
+                self._write_ipl_error_log(result)
+            elif problem_count:
+                log_path = self._write_ipl_error_log(result)
+                _append(f"{display_name} loaded - {problem_count} issue(s) found"
+                        + (f", check {os.path.basename(log_path)} added to the maps folder"
+                           if log_path else ""))
+            else:
+                _append(f"{display_name} loaded - no errors")
+
+        if any_loaded:
+            self._all_instances = list(loader.instances)
+            self._populate_object_browser(loader)
+            visible = self._apply_lod_filter(loader.instances)
+            for pane in getattr(self, '_world_panes', []):
+                pane.set_instances(visible)
+
+        cancel_btn.setText("Close")
+        cancel_btn.clicked.disconnect()
+        cancel_btn.clicked.connect(dlg.accept)
+
+    def _show_load_options_dialog(self, loader): #vers 1
+        """Shown right after a world's IPL list is discovered (but
+        before any of their content is actually loaded) - lets the
+        user choose "load from .dat file" (stay purely lazy, nothing
+        loaded now, browse/load individual IPLs later via their eye
+        icons - the existing behaviour) or "load with options" (pick
+        specific IPLs, and whether to load their models/textures, right
+        now). Returns (selected_stems, load_models, load_textures), or
+        None if the user picked "load from .dat file" / cancelled."""
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Load Options")
+        dlg.setMinimumWidth(420)
+        lay = QVBoxLayout(dlg)
+
+        dat_only_radio = QRadioButton(
+            "Load from .dat file - IPL data is discovered but not loaded; "
+            "no models or textures loaded into the scene\n"
+            "(load individual IPLs later via their eye icon in IPL Sections)")
+        dat_only_radio.setChecked(True)
+        with_options_radio = QRadioButton("Load with options:")
+        lay.addWidget(dat_only_radio)
+        lay.addWidget(with_options_radio)
+
+        options_box = QGroupBox()
+        themecol_opt = self.app_settings.get_theme_colors()
+        panel_bg_opt = themecol_opt.get('panel_bg')
+        if panel_bg_opt:
+            options_box.setStyleSheet(f"QGroupBox {{ background: {panel_bg_opt}; }}")
+        options_lay = QVBoxLayout(options_box)
+        ipl_list = QListWidget()
+        ipl_list.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        stem_by_display = {}
+        for stem, entry in sorted(loader.available_ipls.items(),
+                                  key=lambda kv: os.path.basename(kv[1].abs_path).lower()):
+            display_name = os.path.basename(entry.abs_path)
+            item = QListWidgetItem(display_name)
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Unchecked)
+            ipl_list.addItem(item)
+            stem_by_display[display_name] = stem
+        options_lay.addWidget(ipl_list)
+
+        select_row = QHBoxLayout()
+        select_all_btn = QPushButton("Select All")
+        select_none_btn = QPushButton("Select None")
+        select_row.addWidget(select_all_btn)
+        select_row.addWidget(select_none_btn)
+        select_row.addStretch()
+        options_lay.addLayout(select_row)
+
+        def _set_all_checked(checked): #vers 1
+            state = Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked
+            for i in range(ipl_list.count()):
+                ipl_list.item(i).setCheckState(state)
+        select_all_btn.clicked.connect(lambda: _set_all_checked(True))
+        select_none_btn.clicked.connect(lambda: _set_all_checked(False))
+
+        models_chk = QCheckBox("Model")
+        models_chk.setChecked(True)
+        textures_chk = QCheckBox("Textures")
+        textures_chk.setChecked(True)
+        mt_row = QHBoxLayout()
+        mt_row.addWidget(models_chk)
+        mt_row.addWidget(textures_chk)
+        mt_row.addStretch()
+        options_lay.addLayout(mt_row)
+        lay.addWidget(options_box)
+
+        def _sync_options_enabled(): #vers 1
+            options_box.setEnabled(with_options_radio.isChecked())
+        dat_only_radio.toggled.connect(_sync_options_enabled)
+        with_options_radio.toggled.connect(_sync_options_enabled)
+        _sync_options_enabled()
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        continue_btn = QPushButton("Continue")
+        continue_btn.setDefault(True)
+        btn_row.addWidget(continue_btn)
+        lay.addLayout(btn_row)
+
+        result = {}
+        def _on_continue(): #vers 1
+            if with_options_radio.isChecked():
+                selected_stems = [
+                    stem_by_display[ipl_list.item(i).text()]
+                    for i in range(ipl_list.count())
+                    if ipl_list.item(i).checkState() == Qt.CheckState.Checked]
+                result['value'] = (selected_stems, models_chk.isChecked(),
+                                   textures_chk.isChecked())
+            else:
+                result['value'] = ([], True, True)   # dat-only: nothing to load
+            dlg.accept()
+        continue_btn.clicked.connect(_on_continue)
+
+        dlg.exec()
+        return result.get('value')
+
+    def _create_ipl_tab(self): #vers 1
+        """[IPL] tab content, matching MooMapper's own "Item Placement"
+        tab - the former standalone IPL Sections dock's table moves
+        here unchanged, plus an Open/Close/New/Delete button row and
+        INST/CULL/ZONE/PATH radio buttons at the bottom (only INST/
+        CULL/ZONE are real - PATH isn't parsed anywhere in this
+        project yet, honestly stubbed rather than guessed at without
+        real sample data to verify against, the same caution applied
+        to the VC/GTA3 inst-format work earlier).
+
+        Column order is eye-icon first, then name (per Keith's
+        request) - previously name then icon."""
+        panel = QWidget()
+        lay = QVBoxLayout(panel)
+        lay.setContentsMargins(1, 1, 1, 1)
+        from apps.methods.imgfactory_svg_icons import get_remove_icon, get_file_icon, get_add_icon, get_close_icon
+        from PyQt6.QtWidgets import QButtonGroup
+        title_row = QHBoxLayout()
+        label = QLabel("IPL Sections")
+        label.setStyleSheet("font-weight: bold;")
+        title_row.addWidget(label)
+        sm_buttonheight = 20
+        #_COMPACT_BUTTON_H = 18 #TODO; does not show the right size?
+        #_COMPACT_ICON_SIZE = 18 TODO; Text less then min 18 and max 20, the text buttons get corrupted.
+
+        icon_color = self._get_icon_color()
+        open_btn = QPushButton(get_add_icon(sm_buttonheight, icon_color), "Open")
+        open_btn.setToolTip("Load the selected IPL's content on demand -\n"
+                            "same as clicking its eye icon to show it")
+        open_btn.setIconSize(QSize(18, 18))
+        open_btn.setMinimumHeight(18); open_btn.setMaximumHeight(28)
+        open_btn.setMinimumWidth(40)
+        open_btn.clicked.connect(self._on_ipl_tab_open_clicked)
+        #open_btn.setFixedHeight(16)
+        close_btn = QPushButton(get_close_icon(sm_buttonheight, icon_color), "Close")
+        close_btn.setToolTip("Hide the selected IPL - same as clicking\n"
+                             "its eye icon to hide it (its data stays\n"
+                             "loaded, just not shown)")
+        close_btn.setIconSize(QSize(18, 18))
+        close_btn.setMinimumHeight(18); close_btn.setMaximumHeight(28)
+        close_btn.setMinimumWidth(40)
+        close_btn.clicked.connect(self._on_ipl_tab_close_clicked)
+        #close_btn.setFixedHeight(16) #TODO; need new icon.
+        new_btn = QPushButton(get_file_icon(sm_buttonheight, icon_color), "New")
+        new_btn.setToolTip("STUB - creating a brand new, empty IPL file\n"
+                           "on disk isn't built yet")
+        new_btn.setIconSize(QSize(18, 18))
+        new_btn.setMinimumHeight(18); new_btn.setMaximumHeight(28)
+        new_btn.setMinimumWidth(40)
+        new_btn.setEnabled(False)
+        #new_btn.setFixedHeight(16) #TODO; need delete icon.
+        delete_btn = QPushButton(get_remove_icon(sm_buttonheight, icon_color), "Delete")
+        delete_btn.setToolTip("STUB - deleting an IPL file from disk isn't\n"
+                              "built yet (no write-back infrastructure exists\n"
+                              "for any file type in Map Workshop yet)")
+        delete_btn.setIconSize(QSize(18, 18))
+        delete_btn.setMinimumHeight(18); delete_btn.setMaximumHeight(28)
+        delete_btn.setMinimumWidth(40)
+        delete_btn.setEnabled(False)
+        #delete_btn.setFixedHeight(16)
+        for b in (open_btn, close_btn, new_btn, delete_btn):
+            title_row.addWidget(b)
+        title_row.addStretch()
+        lay.addLayout(title_row)
+
+        table = QTableWidget(0, 2)
+        table.setHorizontalHeaderLabels(["", "IPL File"])
+        header = table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
+        header.setStretchLastSection(False)
+        table.setColumnWidth(0, 18)
+        saved_widths = self.map_settings.get('ipl_sections_column_widths') or []
+        if len(saved_widths) >= 2:
+            table.setColumnWidth(1, saved_widths[1])
+        else:
+            header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        header.sectionResized.connect(self._on_ipl_sections_column_resized)
+        self._apply_compact_table_style(table)
+        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        table.setShowGrid(False)
+        table.setToolTip("Toggle which IPL files' placements are shown in World View")
+        table.cellClicked.connect(self._on_ipl_section_cell_clicked)
+        table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        table.customContextMenuRequested.connect(self._on_ipl_sections_context_menu)
+        lay.addWidget(table)
+        self._ipl_sections_table = table
+
+        placeholder = QLabel("No world loaded yet")
+        #placeholder.setStyleSheet("color: palette(mid);")
+        lay.addWidget(placeholder)
+        self._ipl_sections_placeholder = placeholder
+        placeholder.setVisible(True)
+        table.setVisible(False)
+
+        # INST/CULL/ZONE/PATH data-type selector - switches which kind
+        # of IPL content the "IPL Inst File" panel shows for the
+        # currently selected IPL. INST/CULL/ZONE are real (all three
+        # are already parsed - GTAWorldLoader.instances/culls/zones);
+        # PATH is an honest stub, disabled with a tooltip explaining
+        # why, rather than a guess at an unverified format.
+        themecol = self.app_settings.get_theme_colors()
+        panel_bg = themecol.get('panel_bg')
+        type_box = QGroupBox()
+        if panel_bg:
+            type_box.setStyleSheet(f"QGroupBox {{ background: {panel_bg}; }}")
+        type_lay = QVBoxLayout(type_box)
+        self._ipl_type_group = QButtonGroup(panel)
+        self._ipl_type_group.setExclusive(True)
+        type_specs = [
+            ('inst', "INST - Item Instances", True),
+            ('cull', "CULL - Object Culling", True),
+            ('zone', "ZONE - Map Zones", True),
+            ('path', "PATH - Pedestrian / Vehicle Paths", False),
+        ]
+        for key, text, enabled in type_specs:
+            radio = QRadioButton(text)
+            radio.setChecked(key == 'inst')
+            radio.setEnabled(enabled)
+            if not enabled:
+                radio.setToolTip("STUB - path node data isn't parsed anywhere\n"
+                                 "in this project yet, no real sample data has\n"
+                                 "been verified against yet to build this on")
+            radio.toggled.connect(
+                lambda checked, k=key: self._on_ipl_data_type_changed(k) if checked else None)
+            self._ipl_type_group.addButton(radio)
+            type_lay.addWidget(radio)
+        lay.addWidget(type_box)
+        self._ipl_data_type = 'inst'
+        return panel
+
+    def _populate_ipl_sections(self, loader): #vers 6
+        """Fill the IPL Sections panel from a completed load - one row
+        per IPL, in the user's saved display order (ipl_sections_order)
+        if any, with new/unrecognised names (a different world/mod)
+        appended alphabetically after the known ones rather than losing
+        the saved order entirely.
+
+        With lazy_ipl_loading enabled (the default for Map Workshop's
+        own load paths), every IPL the .dat(s) reference is listed
+        immediately from loader.available_ipls - matching MooMapper's
+        own behaviour of listing every IPL path upfront without loading
+        any of their content - rather than only showing IPLs that
+        already have instances loaded. Falls back to the older
+        instances-based derivation for any caller that doesn't use lazy
+        loading."""
+        table = getattr(self, '_ipl_sections_table', None)
+        placeholder = getattr(self, '_ipl_sections_placeholder', None)
+        if table is None:
+            return
+
+        self._all_instances = list(loader.instances)
+
+        icon_color = self._get_icon_color()
+        icon_sz = 16
+        self._eye_open_icon = self._render_variant_icon('eye_visible', None, icon_sz,
+                                                         icon_color, has_menu=False)
+        self._eye_closed_icon = self._render_variant_icon('eye_hidden', None, icon_sz,
+                                                           icon_color, has_menu=False)
+
+        # display name (as it'll appear in the table / match inst.source_ipl
+        # once loaded) -> lowercase stem (the key load_ipl_by_name expects)
+        self._ipl_display_to_stem = {}
+        if getattr(loader, 'lazy_ipl_loading', False):
+            for stem, entry in loader.available_ipls.items():
+                display_name = os.path.basename(entry.abs_path)
+                self._ipl_display_to_stem[display_name] = stem
+            current_names = set(self._ipl_display_to_stem.keys())
+            # Nothing is actually loaded yet - every IPL starts hidden/
+            # unloaded, matching MooMapper's own default state, rather
+            # than showing everything as already visible.
+            self._hidden_ipls = set(current_names)
+        else:
+            current_names = {inst.source_ipl for inst in loader.instances}
+            self._hidden_ipls = set()
+
+        saved_order = self.map_settings.get('ipl_sections_order') or []
+        ordered = [n for n in saved_order if n in current_names]
+        remaining = sorted(current_names - set(ordered))
+        self._ipl_display_order = ordered + remaining
+
+        self._rebuild_ipl_sections_rows()
+
+        if placeholder is not None:
+            placeholder.setVisible(False)
+        table.setVisible(True)
+
+    def _rebuild_ipl_sections_rows(self): #vers 1
+        """(Re)build every row from self._ipl_display_order - shared by
+        the initial populate and by _move_ipl_section, so reordering
+        doesn't duplicate the row-construction logic."""
+        table = self._ipl_sections_table
+        table.setRowCount(len(self._ipl_display_order))
+        hidden = getattr(self, '_hidden_ipls', set())
+        for row, ipl_name in enumerate(self._ipl_display_order):
+            is_hidden = ipl_name in hidden
+            eye_item = QTableWidgetItem()
+            eye_item.setIcon(self._eye_closed_icon if is_hidden else self._eye_open_icon)
+            eye_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            eye_item.setToolTip(f"Show {ipl_name}" if is_hidden else f"Hide {ipl_name}")
+            eye_item.setData(Qt.ItemDataRole.UserRole, ipl_name)
+            table.setItem(row, 0, eye_item)
+            name_item = QTableWidgetItem(ipl_name)
+            self._style_ipl_name_item(name_item, is_hidden)
+            table.setItem(row, 1, name_item)
+
+    def _move_ipl_section(self, ipl_name, direction): #vers 1
+        """Move one IPL section up (-1) or down (+1) in the display
+        order, persisting the new order so it survives reloads."""
+        order = getattr(self, '_ipl_display_order', None)
+        if not order or ipl_name not in order:
+            return
+        idx = order.index(ipl_name)
+        new_idx = idx + direction
+        if not (0 <= new_idx < len(order)):
+            return  # already at that end
+        order[idx], order[new_idx] = order[new_idx], order[idx]
+        self._rebuild_ipl_sections_rows()
+        self.map_settings.set('ipl_sections_order', order)
+        self.map_settings.save()
+
+    def _on_ipl_sections_context_menu(self, pos): #vers 1
+        """Right-click a row for Move Up/Down - explicit menu actions
+        rather than drag-and-drop, since QTableWidget's built-in
+        InternalMove drag-drop is a known source of subtle bugs with
+        multi-column rows (data can end up split across the wrong
+        rows/columns) - explicit actions are simple and reliable."""
+        table = self._ipl_sections_table
+        index = table.indexAt(pos)
+        if not index.isValid():
+            return
+        item = table.item(index.row(), 0)
+        if item is None:
+            return
+        ipl_name = item.data(Qt.ItemDataRole.UserRole)
+        order = getattr(self, '_ipl_display_order', [])
+        idx = order.index(ipl_name) if ipl_name in order else -1
+
+        menu = QMenu(table)
+        is_hidden = ipl_name in getattr(self, '_hidden_ipls', set())
+        vis_act = menu.addAction("Show" if is_hidden else "Hide")
+        vis_act.triggered.connect(
+            lambda checked=False, r=index.row(): self._on_ipl_section_cell_clicked(r, 0))
+        menu.addSeparator()
+        up_act = menu.addAction("Move Up")
+        up_act.setEnabled(idx > 0)
+        up_act.triggered.connect(lambda checked=False, n=ipl_name: self._move_ipl_section(n, -1))
+        down_act = menu.addAction("Move Down")
+        down_act.setEnabled(0 <= idx < len(order) - 1)
+        down_act.triggered.connect(lambda checked=False, n=ipl_name: self._move_ipl_section(n, 1))
+        menu.exec(table.viewport().mapToGlobal(pos))
+
+    def _on_ipl_sections_column_resized(self, logical_index, old_size, new_size): #vers 1
+        """Persist the user's column widths for the IPL Sections table
+        whenever they resize a column, so it doesn't reset to defaults
+        on next open."""
+        table = getattr(self, '_ipl_sections_table', None)
+        if table is None:
+            return
+        widths = [table.columnWidth(c) for c in range(table.columnCount())]
+        self.map_settings.set('ipl_sections_column_widths', widths)
+        self.map_settings.save()
+
+    def _on_ipl_tab_open_clicked(self): #vers 1
+        """Open button - loads the currently selected IPL's content on
+        demand, same as clicking its eye icon to show it."""
+        table = getattr(self, '_ipl_sections_table', None)
+        if table is None or table.currentRow() < 0:
+            return
+        self._on_ipl_section_cell_clicked(table.currentRow(), 0)
+
+    def _on_ipl_tab_close_clicked(self): #vers 1
+        """Close button - hides the currently selected IPL, same as
+        clicking its eye icon to hide it. Its data stays loaded (not
+        re-parsed if reopened), only its instances stop being shown."""
+        table = getattr(self, '_ipl_sections_table', None)
+        if table is None or table.currentRow() < 0:
+            return
+        row = table.currentRow()
+        item = table.item(row, 0)
+        if item is None:
+            return
+        ipl_name = item.data(Qt.ItemDataRole.UserRole)
+        if ipl_name not in getattr(self, '_hidden_ipls', set()):
+            self._on_ipl_section_cell_clicked(row, 0)
+
+    def _on_ipl_data_type_changed(self, data_type): #vers 1
+        """INST/CULL/ZONE/PATH radio changed - updates which kind of
+        data the IPL Inst File panel shows for the currently selected
+        IPL. Only called for the real, enabled options (INST/CULL/
+        ZONE) - PATH is disabled at the widget level since it isn't
+        parsed anywhere in this project yet."""
+        self._ipl_data_type = data_type
+        self._refresh_ipl_inst_file_panel()
+
+    def _create_ipl_inst_file_panel(self): #vers 1
+        """New panel replacing the old standalone IPL Sections dock's
+        physical location - shows the real, raw text content of
+        whichever IPL is currently selected in the [IPL] tab, filtered
+        to whichever data type (INST/CULL/ZONE) is selected there.
+        Updates live as different IPL files are clicked, per Keith's
+        request ("each ipl file we press changes the contents in the
+        IPL inst file"). Re-reads the actual file from disk each time
+        rather than reconstructing from parsed IPLInstance data, so
+        it's always faithful to the real file (comments, exact
+        formatting, sections not otherwise surfaced anywhere)."""
+        panel = QWidget()
+        lay = QVBoxLayout(panel)
+        lay.setContentsMargins(6, 6, 6, 6)
+        from PyQt6.QtWidgets import QTextEdit
+        text = QTextEdit()
+        text.setReadOnly(True)
+        font = text.font(); font.setFamily("monospace"); text.setFont(font)
+        text.setPlaceholderText("Select an IPL file in the IPL tab to preview its contents here")
+        lay.addWidget(text)
+        self._ipl_inst_file_text = text
+
+        dock = QDockWidget("IPL Inst File", self)
+        dock.setObjectName("IPL Inst File")
+        dock.setWidget(panel)
+        dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
+                        QDockWidget.DockWidgetFeature.DockWidgetFloatable |
+                        QDockWidget.DockWidgetFeature.DockWidgetClosable)
+        self._ipl_inst_file_dock = dock
+        return dock
+
+    def _refresh_ipl_inst_file_panel(self): #vers 1
+        """Re-read and display the currently selected IPL's raw file
+        content, filtered to the currently selected data type (INST/
+        CULL/ZONE - PATH is stubbed, never reachable here since its
+        radio button is disabled)."""
+        text_widget = getattr(self, '_ipl_inst_file_text', None)
+        table = getattr(self, '_ipl_sections_table', None)
+        loader = getattr(self, '_world_loader', None)
+        if text_widget is None or table is None or loader is None:
+            return
+        row = table.currentRow()
+        if row < 0:
+            text_widget.clear()
+            return
+        item = table.item(row, 0)
+        if item is None:
+            text_widget.clear()
+            return
+        display_name = item.data(Qt.ItemDataRole.UserRole)
+        stem = getattr(self, '_ipl_display_to_stem', {}).get(display_name)
+        entry = loader.available_ipls.get(stem) if stem else None
+        if entry is None or not entry.exists:
+            text_widget.setPlainText(f"({display_name} - file not found on disk)")
+            return
+        try:
+            with open(entry.abs_path, 'r', encoding='ascii', errors='ignore') as f:
+                raw_text = f.read()
+        except Exception as e:
+            text_widget.setPlainText(f"(could not read {display_name}: {e})")
+            return
+
+        data_type = getattr(self, '_ipl_data_type', 'inst')
+        section_text = self._extract_ipl_section_text(raw_text, data_type)
+        text_widget.setPlainText(section_text if section_text is not None else raw_text)
+
+    def _extract_ipl_section_text(self, raw_text, section_name): #vers 1
+        """Extract just one named section's lines (between the section
+        keyword and its "end") from a raw IPL file's text - returns
+        None if that section isn't present at all (falls back to
+        showing the whole file), rather than an empty/misleading
+        result."""
+        lines = raw_text.splitlines()
+        out = []
+        in_section = False
+        found = False
+        for raw in lines:
+            line = raw.split("#")[0].strip()
+            low = line.lower()
+            if not in_section and low == section_name:
+                in_section = True
+                found = True
+                out.append(raw)
+                continue
+            if in_section:
+                out.append(raw)
+                if low == "end":
+                    in_section = False
+        return "\n".join(out) if found else None
+
+    def _apply_compact_table_style(self, table): #vers 1
+        """Apply the same compact row/header height Object Browser
+        uses (font-metric-based: text height + 2px, not a hardcoded
+        guess) to a table in one of the merged tabs - per Keith's
+        report that the new tabs' header cells were taller than Object
+        Browser's own. Reused instead of duplicating this logic in
+        every tab's own creation method."""
+        from PyQt6.QtGui import QFontMetrics
+        row_h = QFontMetrics(table.font()).height() + 2
+        table.verticalHeader().setVisible(False)
+        table.verticalHeader().setMinimumSectionSize(row_h)
+        table.verticalHeader().setDefaultSectionSize(row_h)
+        header = table.horizontalHeader()
+        header.setMinimumSectionSize(16)
+        header.setFixedHeight(QFontMetrics(header.font()).height() + 2)
+
+    def _create_ide_tab(self): #vers 2
+        """[IDE] tab content, matching MooMapper's own "Object
+        Definition" tab - lists every IDE file the .dat references
+        (real data, drawn from GTAWorldLoader.load_log, which already
+        tracks every IDE path encountered during loading), paths
+        shortened relative to the game root. Clicking a row previews
+        that file's real content below, mirroring the IPL tab's
+        click-to-preview behaviour (per Keith's request that IDE files
+        work "like the ipl links"). Edit/Save are honest stubs - no
+        write-back infrastructure exists for any file type yet."""
+        panel = QWidget()
+        lay = QVBoxLayout(panel)
+        lay.setContentsMargins(1, 1, 1, 1)
+        from apps.methods.imgfactory_svg_icons import get_save_icon, get_edit_icon
+        from PyQt6.QtWidgets import QButtonGroup
+        title_row = QHBoxLayout()
+        sm_buttonheight = 20
+
+        icon_color = self._get_icon_color()
+
+        label = QLabel("IDE Definitions")
+        label.setStyleSheet("font-weight: bold;")
+        title_row.addWidget(label)
+        #edit_btn.setStyleSheet("font-weight: bold;")
+        edit_btn = QPushButton(get_edit_icon(sm_buttonheight, icon_color), "Edit")
+        edit_btn.setToolTip("STUB - no IDE editing built yet")
+        edit_btn.setIconSize(QSize(18, 18))
+        edit_btn.setMinimumHeight(18); edit_btn.setMaximumHeight(28)
+        edit_btn.setEnabled(False)
+        #edit_btn.setFixedHeight(self._COMPACT_BUTTON_H)
+        #save_btn.setStyleSheet("font-weight: bold;")
+        save_btn = QPushButton(get_save_icon(sm_buttonheight, icon_color), "Save")
+        save_btn.setToolTip("STUB - no write-back to disk exists for any\n"
+                            "file type in Map Workshop yet")
+        save_btn.setIconSize(QSize(18, 18))
+        save_btn.setMinimumHeight(18); save_btn.setMaximumHeight(28)
+        save_btn.setEnabled(False)
+        #save_btn.setFixedHeight(self._COMPACT_BUTTON_H)
+        title_row.addWidget(edit_btn)
+        title_row.addWidget(save_btn)
+        title_row.addStretch()
+        lay.addLayout(title_row)
+        table = QTableWidget(0, 2)
+        table.setHorizontalHeaderLabels(["Ind.", "Filename"])
+        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        table.cellClicked.connect(self._on_ide_tab_row_clicked)
+        self._apply_compact_table_style(table)
+        lay.addWidget(table)
+        self._ide_tab_table = table
+        from PyQt6.QtWidgets import QTextEdit
+        preview = QTextEdit()
+        preview.setReadOnly(True)
+        font = preview.font(); font.setFamily("monospace"); preview.setFont(font)
+        preview.setPlaceholderText("Click an IDE file above to preview its contents here")
+        lay.addWidget(preview)
+        self._ide_tab_preview = preview
+        return panel
+
+    def _refresh_ide_tab(self, loader): #vers 2
+        """Populate the IDE file list - paths shortened relative to the
+        game root folder (per Keith: "start from the game root folder
+        to shorten the paths"), matching how IPL Sections already
+        shows short names rather than full absolute paths."""
+        table = getattr(self, '_ide_tab_table', None)
+        if table is None:
+            return
+        game_root = getattr(self, '_game_root', None)
+        ide_paths = [abs_path for phase, entry_type, abs_path, ok in loader.load_log
+                    if entry_type == "IDE" and ok]
+        table.setRowCount(len(ide_paths))
+        self._ide_tab_paths = {}
+        for i, path in enumerate(ide_paths):
+            display_path = path
+            if game_root:
+                try:
+                    display_path = os.path.relpath(path, game_root)
+                except Exception:
+                    display_path = path
+            table.setItem(i, 0, QTableWidgetItem(str(i)))
+            table.setItem(i, 1, QTableWidgetItem(display_path))
+            self._ide_tab_paths[i] = path
+
+    def _on_ide_tab_row_clicked(self, row, col): #vers 1
+        """Preview the clicked IDE file's real raw text content - per
+        Keith's request that IDE files work like IPL files (click to
+        preview), mirroring _refresh_ipl_inst_file_panel's approach:
+        re-read directly from disk each time rather than reconstructed
+        from parsed data."""
+        text_widget = getattr(self, '_ide_tab_preview', None)
+        path = getattr(self, '_ide_tab_paths', {}).get(row)
+        if text_widget is None or path is None:
+            return
+        try:
+            with open(path, 'r', encoding='ascii', errors='ignore') as f:
+                text_widget.setPlainText(f.read())
+        except Exception as e:
+            text_widget.setPlainText(f"(could not read {path}: {e})")
+
+    def _create_dat_tab(self): #vers 1
+        """[DAT] tab content, matching MooMapper's own "DAT Editor" -
+        shows the real raw text of the loaded .dat file (comments,
+        directive order, exactly as it appears on disk), re-read
+        directly rather than reconstructed from parsed data. Edit/Save
+        are honest stubs, same reasoning as the IDE tab."""
+        panel = QWidget()
+        lay = QVBoxLayout(panel)
+        lay.setContentsMargins(6, 6, 6, 6)
+        title_row = QHBoxLayout()
+        from apps.methods.imgfactory_svg_icons import get_save_icon, get_edit_icon
+        from PyQt6.QtWidgets import QButtonGroup
+
+        sm_buttonheight = 20
+
+        icon_color = self._get_icon_color()
+
+        label = QLabel("Dat Editor")
+        label.setStyleSheet("font-weight: bold;")
+        title_row.addWidget(label)
+
+        edit_btn = QPushButton(get_edit_icon(sm_buttonheight, icon_color), "Edit")
+        edit_btn.setToolTip("STUB - no .dat editing built yet")
+        edit_btn.setIconSize(QSize(18, 18))
+        edit_btn.setMinimumHeight(18); edit_btn.setMaximumHeight(28)
+        edit_btn.setEnabled(False)
+        #edit_btn.setFixedHeight(16)
+        save_btn = QPushButton(get_save_icon(sm_buttonheight, icon_color), "Save")
+        save_btn.setToolTip("STUB - no write-back to disk exists for any\n"
+                            "file type in Map Workshop yet")
+        save_btn.setIconSize(QSize(18, 18))
+        save_btn.setMinimumHeight(18); save_btn.setMaximumHeight(28)
+        save_btn.setEnabled(False)
+        #save_btn.setFixedHeight(16)
+        title_row.addWidget(edit_btn)
+        title_row.addWidget(save_btn)
+        title_row.addStretch()
+        lay.addLayout(title_row)
+        from PyQt6.QtWidgets import QTextEdit
+        text = QTextEdit()
+        text.setReadOnly(True)
+        font = text.font(); font.setFamily("monospace"); text.setFont(font)
+        text.setPlaceholderText("Load a game folder/DAT file to see its contents here")
+        lay.addWidget(text)
+        self._dat_tab_text = text
+        return panel
+
+    def _refresh_dat_tab(self): #vers 1
+        text_widget = getattr(self, '_dat_tab_text', None)
+        dat_path = getattr(self, '_loaded_dat_path', None)
+        if text_widget is None:
+            return
+        if not dat_path:
+            text_widget.clear()
+            return
+        try:
+            with open(dat_path, 'r', encoding='ascii', errors='ignore') as f:
+                text_widget.setPlainText(f.read())
+        except Exception as e:
+            text_widget.setPlainText(f"(could not read {dat_path}: {e})")
+
+    def _create_img_tab(self): #vers 1
+        """[IMG] tab content, matching MooMapper's own "IMG Archive"
+        tab - numbered sub-tabs (one per loaded IMG archive), each
+        showing that archive's real entry list (name/type/size) via
+        the already-built ModelCache index. Extract/Add/Del/Rename are
+        honest stubs - these are real file-writing operations, and no
+        write-back infrastructure exists for any file type in Map
+        Workshop yet, IMG included."""
+        panel = QWidget()
+        lay = QVBoxLayout(panel)
+        lay.setContentsMargins(1, 1, 1, 1)
+        from apps.methods.imgfactory_svg_icons import get_rebuild_icon, get_rename_icon, get_remove_icon, get_add_icon, get_dump_icon
+
+        title_row = QHBoxLayout()
+        sm_buttonheight = 20
+        icon_color = self._get_icon_color()
+
+        label = QLabel("IMG File")
+        label.setStyleSheet("font-weight: bold;")
+        title_row.addWidget(label)
+
+        ext_btn = QPushButton(get_dump_icon(sm_buttonheight, icon_color), "Extract")
+        ext_btn.setToolTip("STUB - no .dat editing built yet")
+        ext_btn.setIconSize(QSize(18, 18))
+        ext_btn.setMinimumHeight(18); ext_btn.setMaximumHeight(28)
+        ext_btn.setMinimumWidth(40)
+        ext_btn.setEnabled(False)
+        ext_btn.setFixedHeight(16)
+        add_btn = QPushButton(get_add_icon(sm_buttonheight, icon_color), "Add")
+        add_btn.setToolTip("STUB - no .dat editing built yet")
+        add_btn.setIconSize(QSize(18, 18))
+        add_btn.setMinimumHeight(18); add_btn.setMaximumHeight(28)
+        add_btn.setMinimumWidth(40)
+        add_btn.setEnabled(False)
+        add_btn.setFixedHeight(16)
+        del_btn = QPushButton(get_remove_icon(sm_buttonheight, icon_color), "Del")
+        del_btn.setToolTip("STUB - no .dat editing built yet")
+        del_btn.setIconSize(QSize(18, 18))
+        del_btn.setMinimumHeight(18); del_btn.setMaximumHeight(28)
+        del_btn.setMinimumWidth(40)
+        del_btn.setEnabled(False)
+        del_btn.setFixedHeight(16)
+        ren_btn = QPushButton(get_rename_icon(sm_buttonheight, icon_color), "Rename")
+        ren_btn.setToolTip("STUB - no .dat editing built yet")
+        ren_btn.setIconSize(QSize(18, 18))
+        ren_btn.setMinimumHeight(18); ren_btn.setMaximumHeight(28)
+        ren_btn.setMinimumWidth(40)
+        ren_btn.setEnabled(False)
+        ren_btn.setFixedHeight(16)
+        save_btn = QPushButton(get_rebuild_icon(sm_buttonheight, icon_color), "Rebuild")
+        save_btn.setToolTip("STUB - no write-back to disk exists for any\n"
+                            "file type in Map Workshop yet")
+        save_btn.setIconSize(QSize(18, 18))
+        save_btn.setMinimumHeight(18); save_btn.setMaximumHeight(28)
+        save_btn.setMinimumWidth(40)
+        save_btn.setEnabled(False)
+        save_btn.setFixedHeight(16)
+        for b in (ext_btn, add_btn, del_btn, ren_btn, save_btn):
+            title_row.addWidget(b)
+        title_row.addStretch()
+        lay.addLayout(title_row)
+
+        img_tabs = QTabWidget()
+        img_tabs.setTabPosition(QTabWidget.TabPosition.North)
+        from PyQt6.QtGui import QFontMetrics
+        tab_font = img_tabs.font()
+        img_tabs.tabBar().setStyleSheet(
+            f"QTabBar::tab {{ height: {QFontMetrics(tab_font).height() + 6}px; padding: 2px 8px; }}")
+        lay.addWidget(img_tabs)
+        self._img_tab_tabs = img_tabs
+        return panel
+
+    def _refresh_img_tab(self, loader): #vers 1
+        """Rebuild the numbered IMG sub-tabs from the loaded world's
+        actual IMG archives (loader.get_img_paths()) - one table per
+        archive, listing every entry's real name/type/size read
+        directly from the archive itself."""
+        img_tabs = getattr(self, '_img_tab_tabs', None)
+        if img_tabs is None:
+            return
+        img_tabs.clear()
+        from apps.methods.img_core_classes import IMGFile
+        for i, img_path in enumerate(loader.get_img_paths(), 1):
+            table = QTableWidget(0, 4)
+            table.setHorizontalHeaderLabels(["Ind.", "Filename", "Type", "Size"])
+            table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+            table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+            self._apply_compact_table_style(table)
+            try:
+                img = IMGFile(img_path)
+                if img.open():
+                    table.setRowCount(len(img.entries))
+                    for row, entry in enumerate(img.entries):
+                        table.setItem(row, 0, QTableWidgetItem(str(row)))
+                        table.setItem(row, 1, QTableWidgetItem(entry.name))
+                        table.setItem(row, 2, QTableWidgetItem(entry.extension.upper() + " File"
+                                                                if entry.extension else "File"))
+                        size_kb = max(1, entry.size // 1024)
+                        table.setItem(row, 3, QTableWidgetItem(f"{size_kb} kB"))
+            except Exception:
+                pass
+            img_tabs.addTab(table, str(i))
+
+    def _create_editing_panel_dock(self): #vers 1
+        """New tabbed "Editing Panel" dock - IDE/IPL/DAT/IMG, matching
+        MooMapper's own tabbed IMG Archive/Object Definition/Item
+        Placement structure - replaces the previous standalone IPL
+        Sections dock (its content now lives in the [IPL] tab, moved
+        rather than duplicated). [IPL] is the only fully real,
+        interactive tab so far; [IDE] and [DAT] show real data
+        (IDE file list, raw .dat text) but can't edit/save yet;
+        [IMG] shows real per-archive entry lists but can't
+        Extract/Add/Del/Rename yet - none of this project has any
+        write-back-to-disk infrastructure yet, for any file type."""
+        icon_color = self._get_icon_color()
+        tabs = QTabWidget()
+        tabs.addTab(self._create_ide_tab(),
+                   self._render_variant_icon('tab_ide', None, 24, icon_color, has_menu=False), "IDE")
+        tabs.addTab(self._create_ipl_tab(),
+                   self._render_variant_icon('tab_ipl', None, 24, icon_color, has_menu=False), "IPL")
+        tabs.addTab(self._create_dat_tab(),
+                   self._render_variant_icon('tab_dat', None, 24, icon_color, has_menu=False), "DAT")
+        tabs.addTab(self._create_img_tab(),
+                   self._render_variant_icon('tab_img', None, 24, icon_color, has_menu=False), "IMG")
+        tabs.setCurrentIndex(1)   # [IPL] is the main working tab so far
+
+        dock = QDockWidget("Editing Panel", self)
+        dock.setObjectName("Editing Panel")
+        dock.setWidget(tabs)
+        dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
+                        QDockWidget.DockWidgetFeature.DockWidgetFloatable |
+                        QDockWidget.DockWidgetFeature.DockWidgetClosable)
+        self._editing_panel_dock = dock
+        self._editing_panel_tabs = tabs
+        return dock
+
+    def _on_ipl_section_cell_clicked(self, row, col): #vers 4
+        """Clicking the eye-icon cell (col 0) toggles that IPL's
+        visibility - plain item click rather than a button, so there's
+        no button widget/chrome to size or pad. Clicking anywhere else
+        on the row just selects it, which is enough to refresh the IPL
+        Inst File panel below (per Keith's request that pressing any
+        IPL file updates that panel's content, independent of
+        toggling visibility).
+
+        With lazy IPL loading, toggling to visible for the first time
+        also triggers the actual on-demand load of that IPL's content
+        (_ensure_ipl_loaded) - matching MooMapper's model of not
+        touching an IPL until the user asks for it."""
+        table = self._ipl_sections_table
+        item = table.item(row, 0)
+        if item is None:
+            return
+        if col == 0:
+            ipl_name = item.data(Qt.ItemDataRole.UserRole)
+            hidden = ipl_name in getattr(self, '_hidden_ipls', set())
+            new_hidden = not hidden
+            if not new_hidden:
+                self._ensure_ipl_loaded(ipl_name)
+            item.setIcon(self._eye_closed_icon if new_hidden else self._eye_open_icon)
+            item.setToolTip(f"Show {ipl_name}" if new_hidden else f"Hide {ipl_name}")
+            name_item = table.item(row, 1)
+            if name_item is not None:
+                self._style_ipl_name_item(name_item, new_hidden)
+            self._toggle_ipl_section(ipl_name, new_hidden)
+        self._refresh_ipl_inst_file_panel()
+
+    def _ensure_ipl_loaded(self, display_name): #vers 2
+        """Actually load one IPL's content on demand, the first time
+        it's toggled visible - parses its instances (GTAWorldLoader.
+        load_ipl_by_name), refreshes self._all_instances/Object Browser
+        with the newly-added data, and pre-loads (with a progress
+        dialog scoped to just this IPL's models, not the whole world)
+        the geometry/textures those new instances reference. A no-op
+        if this IPL was already loaded (or lazy loading isn't active
+        at all, e.g. a non-Map-Workshop caller).
+
+        Reports per-IPL success/error status matching Keith's requested
+        format ("path/airport.ipl loaded - no errors" / "path/
+        airportN.ipl loaded - N errors found, check log added to the
+        maps folder") - writes an actual .log file alongside the IPL
+        itself when there are errors, rather than only showing a
+        transient status message."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None or not getattr(loader, 'lazy_ipl_loading', False):
+            return
+        stem = getattr(self, '_ipl_display_to_stem', {}).get(display_name)
+        if stem is None or stem in loader.loaded_ipls:
+            return   # not a lazily-tracked IPL, or already loaded
+
+        before_count = len(loader.instances)
+        result = loader.load_ipl_by_name(stem)
+        if not result.success:
+            self._set_status(f"{display_name} failed to load"
+                             + (f" - {result.errors[0]}" if result.errors else ""))
+            return
+
+        problem_count = result.error_count + result.warning_count
+        if problem_count:
+            log_path = self._write_ipl_error_log(result)
+            self._set_status(
+                f"{display_name} loaded - {problem_count} issue(s) found"
+                + (f", check {os.path.basename(log_path)} added to the maps folder"
+                   if log_path else ""))
+        else:
+            self._set_status(f"{display_name} loaded - no errors "
+                             f"({result.instance_count} instances)")
+
+        new_instances = loader.instances[before_count:]
+
+        self._all_instances = list(loader.instances)
+        self._populate_object_browser(loader)
+
+        model_cache = getattr(self, '_model_cache', None)
+        if model_cache is not None and new_instances:
+            self._preload_world_assets(
+                loader, model_cache, instances=new_instances,
+                title=f"Loading {display_name}…")
+
+    def _write_ipl_error_log(self, result): #vers 1
+        """Write a plain-text log of one IPL's parse errors/warnings
+        alongside the IPL file itself (same folder), per Keith's
+        request ("check log added to the maps folder"). Returns the
+        written path, or None if writing failed (in which case the
+        errors are still visible via the status message and the
+        loader's own accumulated stats - this is a convenience, not the
+        only place the information lives)."""
+        if not result.abs_path:
+            return None
+        try:
+            folder = os.path.dirname(result.abs_path)
+            base = os.path.splitext(os.path.basename(result.abs_path))[0]
+            log_path = os.path.join(folder, f"{base}_load_errors.log")
+            with open(log_path, 'w', encoding='utf-8') as f:
+                f.write(f"Load errors for {result.abs_path}\n")
+                f.write(f"{result.error_count} error(s), {result.warning_count} warning(s)\n\n")
+                if result.errors:
+                    f.write("Errors:\n")
+                    for e in result.errors:
+                        f.write(f"  - {e}\n")
+                if result.warnings:
+                    f.write("\nWarnings:\n")
+                    for w in result.warnings:
+                        f.write(f"  - {w}\n")
+            return log_path
+        except Exception:
+            return None
+
+    def _style_ipl_name_item(self, name_item, hidden): #vers 3
+        """Grey out a disabled/hidden IPL's name text, per Keith's
+        request, so a hidden entry is visually distinct at a glance,
+        not just via its eye icon.
+
+        Doesn't rely on QPalette's Disabled colour group - confirmed
+        that resolves incorrectly here (this app's dark theme is
+        applied via QSS stylesheet, which leaves the underlying
+        QPalette's Active and Disabled Text roles both reporting white -
+        a known Qt quirk where stylesheet-driven theming doesn't keep
+        the palette object itself in sync). Instead blends the active
+        text colour 50% toward the window background colour
+        programmatically, which dims correctly under any theme."""
+        pal = self.palette()
+        text_color = pal.color(pal.ColorGroup.Active, pal.ColorRole.Text)
+        if hidden:
+            bg_color = pal.color(pal.ColorGroup.Active, pal.ColorRole.Window)
+            color = QColor(
+                (text_color.red()   + bg_color.red())   // 2,
+                (text_color.green() + bg_color.green()) // 2,
+                (text_color.blue()  + bg_color.blue())  // 2)
+        else:
+            color = text_color
+        name_item.setForeground(QBrush(color))
+
+    def _toggle_ipl_section(self, ipl_name, hidden): #vers 1
+        """Show/hide all instances from one IPL file - recomputes the
+        visible instance subset from the full loaded set and re-feeds
+        it to the world-view panes and Instance List, without needing
+        to reload from disk."""
+        if hidden:
+            self._hidden_ipls.add(ipl_name)
+        else:
+            self._hidden_ipls.discard(ipl_name)
+        self._apply_ipl_visibility_filter()
+
+    # --- World viewport, LOD, ribbon/menu framework (ported from map_workshop_old_version.py) ---
+
+    def _create_centre_panel(self): #vers 4
+        """Map Workshop's own centre panel - status bar only. No DP5-style
+        bitmap canvas here (removed Jul 31 2026 per Keith: "there should be
+        no canvas in the dp5 sense") - the real Map Workshop content lives
+        in the World Viewport, Object Browser, IPL Inst File, and Control
+        Panel docks instead."""
+        panel = QWidget()
+        self._centre_panel = panel
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        # Status bar - built here but NOT added to this panel's own layout.
+        # It becomes outer_mw's native status bar instead (see setup_ui) -
+        # QMainWindow's built-in status bar always spans the full window
+        # width, whereas embedding it in this panel meant it only got
+        # whatever width was left after the right-side dock widgets took
+        # their share, squeezing/covering its right-aligned permanent
+        # widgets.
+        self._status_bar = QStatusBar()
+        self._status_bar.setSizeGripEnabled(False)
+        self._status_bar.setFixedHeight(22)
+        self._status_bar.setVisible(self.map_settings.get('show_statusbar'))
+
+        return panel
+
+    def get_menu_title(self) -> str: #vers 2
+        """Short label for imgfactory titlebar button."""
+        return "MAP"
+
+    def _get_tool_menu_style(self) -> str: #vers 1
+        """Read menu_style from map_settings."""
+        return self.map_settings.get('menu_style', 'dropdown')
+
+    def _apply_menu_bar_style(self): #vers 3
+        """Apply font size, height and colours to the topbar menubar.
+        Uses explicit colours so it stays readable regardless of app theme.
+        """
+        mb = getattr(self, '_menu_bar', None)
+        if not mb:
+            return
+        bar_h  = self.map_settings.get('menu_bar_height', 22)
+        bar_fs = self.map_settings.get('menu_bar_font_size', 9)
+        dd_fs  = self.map_settings.get('menu_dropdown_font_size', 9)
+
+        # Get theme colours if available, otherwise use sensible defaults
+        bg   = '#2b2b2b'
+        fg   = '#e0e0e0'
+        sel  = '#1976d2'
+        selfg = '#ffffff'
+        border = '#555555'
+        try:
+            app_settings = getattr(self, 'app_settings', None)
+            if not app_settings and self.main_window:
+                app_settings = getattr(self.main_window, 'app_settings', None)
+            if app_settings:
+                tc = app_settings.get_theme_colors() or {}
+                bg    = tc.get('bg_primary',   bg)
+                fg    = tc.get('text_primary',  fg)
+                sel   = tc.get('accent',        sel)
+                border = tc.get('border',       border)
+        except Exception:
+            pass
+
+        # Height controlled by container — NOT by stylesheet min/max-height
+        # (stylesheet height properties override Qt layout and prevent the bar showing)
+        mb.setStyleSheet(f"""
+            QMenuBar {{
+                background-color: {bg};
+                color: {fg};
+                border-bottom: 1px solid {border};
+                font-size: {bar_fs}pt;
+            }}
+            QMenuBar::item {{
+                background-color: transparent;
+                padding: 2px 6px;
+            }}
+            QMenuBar::item:selected {{
+                background-color: {sel};
+                color: {selfg};
+            }}
+            QMenu {{
+                background-color: {bg};
+                color: {fg};
+                border: 1px solid {border};
+                font-size: {dd_fs}pt;
+            }}
+            QMenu::item:selected {{
+                background-color: {sel};
+                color: {selfg};
+            }}
+        """)
+
+        # Size the container based on settings, not isVisible() 
+        # (isVisible() is False during __init__ even if widget will be shown)
+        c = getattr(self, '_menu_bar_container', None)
+        if c:
+            show = (self.map_settings.get('show_menubar', False) and
+                    self.map_settings.get('menu_style', 'dropdown') == 'topbar')
+            if show:
+                c.setMinimumHeight(0)
+                c.setMaximumHeight(bar_h)
+            # Don't touch height here if hiding — setup_ui and set_menu_orientation handle that
+
+
+    def set_menu_orientation(self, style: str): #vers 5
+        """Switch DP5 menu between 'topbar' (internal) and 'dropdown' (host menubar).
+        When docked the internal bar is always suppressed regardless of style —
+        imgfactory's top bar owns the menus via ToolMenuMixin injection.
+        """
+        self.map_settings.set('menu_style', style)
+        self.map_settings.set('show_menubar', style == 'topbar')
+
+        container = getattr(self, '_menu_bar_container', None) or getattr(self, '_menu_bar', None)
+        if container:
+            if style == 'topbar' and self.standalone_mode:
+                # Only show internal bar in standalone mode
+                container.setMinimumHeight(0)
+                container.setMaximumHeight(16777215)
+                container.setVisible(True)
+                container.updateGeometry()
+                self._apply_menu_bar_style()
+            else:
+                # Docked always hides internal bar; dropdown mode always hides it too
+                container.setVisible(False)
+                container.setMinimumHeight(0)
+                container.setMaximumHeight(0)
+                container.setFixedHeight(0)
+
+        # Notify imgfactory to inject/remove tool menu when docked
+        if not self.standalone_mode:
+            mw = getattr(self, 'main_window', None)
+            if mw and hasattr(mw, 'menu_bar_system'):
+                if style == 'dropdown':
+                    mw.menu_bar_system._inject_tool_menu(self)
+                else:
+                    mw.menu_bar_system._remove_tool_menu()
+
+
+    def _toggle_menubar(self, on: bool): #vers 3
+        self.map_settings.set('show_menubar', on)
+        self.map_settings.save()
+        c = getattr(self, '_menu_bar_container', self._menu_bar if hasattr(self, '_menu_bar') else None)
+        if c:
+            c.setMinimumHeight(0)
+            c.setMaximumHeight(16777215 if on else 0)
+            c.setVisible(on)
+
+
+    def _toggle_statusbar(self, on: bool): #vers 1
+        self.map_settings.set('show_statusbar', on)
+        self.map_settings.save()
+        if hasattr(self, '_status_bar'):
+            self._status_bar.setVisible(on)
+
+
+    def _preload_world_assets(self, loader, model_cache, instances=None, title=None): #vers 2
+        """Eagerly load+parse (and cache) geometry and textures for
+        every distinct model referenced by the given instances (or
+        every loaded instance, if none given), with a progress dialog
+        showing what's currently being processed.
+
+        Originally ran across the whole world at load time - per
+        Keith's follow-up report ("very slow scanning... it should be
+        showing model/texture when loading the selected .ipl, not at
+        map mapper startup"), this is now called scoped to one
+        specific IPL's newly-loaded instances instead (see
+        _ensure_ipl_loaded), matching MooMapper's own model of not
+        touching an IPL's content - or its models' geometry/textures -
+        until the user actually asks for that specific IPL.
+        QProgressDialog processes Qt events internally on setValue(),
+        so the UI stays responsive throughout rather than a single
+        long blocking call."""
+        instances = instances if instances is not None else loader.instances
+        # Deduplicate by model_name - many instances share one model,
+        # no need to load it more than once.
+        seen_models = {}
+        for inst in instances:
+            if inst.model_name not in seen_models:
+                obj = loader.get_object(inst.model_id)
+                txd_name = obj.txd_name if obj else ""
+                seen_models[inst.model_name] = (txd_name, inst.source_ipl)
+        if not seen_models:
+            return
+
+        items = list(seen_models.items())
+        progress = QProgressDialog(
+            title or "Loading assets…", "Cancel", 0, len(items), self)
+        progress.setWindowTitle("Loading Meshes and Textures")
+        progress.setMinimumDuration(500)   # don't flash up for fast loads
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+
+        loaded_txds = set()
+        for i, (model_name, (txd_name, source_ipl)) in enumerate(items):
+            if progress.wasCanceled():
+                self._set_status(
+                    f"Asset loading cancelled after {i} of {len(items)} models "
+                    f"- remaining models will still load on demand while browsing")
+                break
+            progress.setLabelText(
+                f"Model: {model_name}\nTexture: {txd_name or '(none)'}\nIPL: {source_ipl}")
+            progress.setValue(i)
+            model_cache.get_geometry(model_name)
+            if txd_name and txd_name not in loaded_txds:
+                model_cache.get_textures(txd_name)
+                loaded_txds.add(txd_name)
+        progress.setValue(len(items))
+
+    def _toggle_cull_boxes(self, checked): #vers 1
+        """Show/hide wireframe cull zone boxes across all World View
+        panes - real, working feature using GTAWorldLoader.culls (see
+        MapViewport._draw_cull_boxes for the honest caveat on the
+        field-interpretation assumption)."""
+        loader = getattr(self, '_world_loader', None)
+        culls = loader.culls if loader is not None else []
+        for pane in getattr(self, '_world_panes', []):
+            pane.set_cull_boxes(culls, checked)
+
+    def _apply_ipl_visibility_filter(self): #vers 2
+        """Recompute which instances are currently visible: every
+        loaded instance whose source_ipl isn't in self._hidden_ipls,
+        then layer LOD show/hide on top (global toggle + any per-
+        instance overrides) - push the final result to the world-view
+        panes and Instance List."""
+        all_inst = getattr(self, '_all_instances', None)
+        if all_inst is None:
+            return
+        hidden = getattr(self, '_hidden_ipls', set())
+        visible = [i for i in all_inst if i.source_ipl not in hidden] if hidden else all_inst
+        visible = self._apply_lod_filter(visible)
+        for pane in getattr(self, '_world_panes', []):
+            pane.set_instances(visible)
+        loader_stub = _FilteredLoaderStub(visible, getattr(self, '_world_loader', None))
+        self._populate_instance_list(loader_stub)
+
+    def _apply_lod_filter(self, instances): #vers 2
+        """Given an already-IPL-filtered instance list, decide for each
+        LOD-paired primary instance which version(s) to keep - per-
+        instance override (self._lod_overrides, keyed by id(primary
+        instance), one of 'normal'/'lod'/'both'/None) takes precedence
+        over the global mode (self._lod_display_mode). Instances with
+        no LOD pair at all pass through unchanged."""
+        pairs = getattr(self, '_lod_pairs', None)
+        if not pairs:
+            return instances
+        overrides = getattr(self, '_lod_overrides', {})
+        global_mode = getattr(self, '_lod_display_mode', 'normal')
+        paired_target_ids = {id(v) for v in pairs.values()}
+        result = []
+        for inst in instances:
+            iid = id(inst)
+            if iid in pairs:
+                mode = overrides.get(iid) or global_mode
+                if mode == 'lod':
+                    result.append(pairs[iid])
+                elif mode == 'both':
+                    result.append(inst)
+                    result.append(pairs[iid])
+                else:  # 'normal'
+                    result.append(inst)
+            elif iid in paired_target_ids:
+                # This instance IS someone's LOD target - it's only
+                # included via its primary above (in 'lod'/'both' mode),
+                # to avoid duplicates when both members of a pair pass
+                # the IPL filter.
+                continue
+            else:
+                result.append(inst)
+        return result
+
+    def _set_lod_display_mode(self, mode): #vers 1
+        """Global LOD display mode - 'normal' (default), 'lod', or
+        'both'. Per-instance overrides (set via the Instance List)
+        still take precedence over this for any instance they cover."""
+        self._lod_display_mode = mode
+        self._apply_ipl_visibility_filter()
+
+    def _find_lod_primary_key(self, instance): #vers 1
+        """Given an instance currently displayed in a row (which may be
+        either the 'primary' or its LOD-paired counterpart, depending
+        on the current global/override mode), find the id() key to use
+        with self._lod_overrides - always the primary's id(), whichever
+        member is actually showing right now."""
+        pairs = getattr(self, '_lod_pairs', None)
+        if not pairs:
+            return None
+        iid = id(instance)
+        if iid in pairs:
+            return iid
+        for primary_id, target in pairs.items():
+            if target is instance:
+                return primary_id
+        return None
+
+    def _set_lod_override(self, primary_key, mode): #vers 1
+        """Set (or clear, if mode is None) a per-instance LOD override
+        for one specific pair, keyed by the primary instance's id()."""
+        overrides = getattr(self, '_lod_overrides', None)
+        if overrides is None:
+            return
+        if mode is None:
+            overrides.pop(primary_key, None)
+        else:
+            overrides[primary_key] = mode
+        self._apply_ipl_visibility_filter()
+
+    def _apply_viewport_movement_settings(self, pane, label): #vers 1
+        """Apply the configured pan-button/rotate-button/invert-axis
+        settings for one World View pane, based on its current view
+        label (Top/Side/Front/3D each get their own invert settings,
+        since their different camera orientations don't necessarily
+        need the same correction)."""
+        invert = self.map_settings.get('viewport_pan_invert') or {}
+        axis = invert.get(label, {'x': False, 'y': False})
+        pane.configure_movement(
+            pan_button=self.map_settings.get('viewport_pan_button'),
+            rotate_button=self.map_settings.get('viewport_rotate_button'),
+            invert_x=axis.get('x', False),
+            invert_y=axis.get('y', False))
+
+    def _create_world_viewport_dock_tmp(self): #vers 1
+        """PARKED (Jul 31 2026) - the original standalone "World View"
+        dock. Its Top/Side/3D MapViewport triple-pane content was
+        migrated into _create_viewport_dock (self._viewport_dock is now
+        the one remaining viewport), per Keith: "get rid of the full
+        view dock and transfer its functions to the other viewer...
+        this way, we only get one viewpoint window". Kept for
+        reference, no longer called."""
+        try:
+            from apps.components.Map_Editor.depends.map_viewport import MapViewport
+        except Exception as e:
+            print(f"[MapWorkshop] MapViewport unavailable: {e}")
+            return None
+
+        presets = [("Top", 0, 0, 'ortho'),
+                   ("Side", 90, 0, 'ortho'),
+                   ("3D", 45, 25, 'perspective')]
+        self._world_panes = []
+        for label, yaw, pitch, proj in presets:
+            pane = MapViewport()
+            pane.set_view_lock(proj == 'ortho', label, yaw=yaw, pitch=pitch,
+                               projection=proj)
+            self._apply_viewport_movement_settings(pane, label)
+            pane.set_pick_callback(self._on_viewport_instance_picked)
+            pane.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
+            pane._label_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            pane._label_widget.customContextMenuRequested.connect(
+                lambda pos, p=pane: self._show_world_pane_menu(p, p._label_widget.mapToGlobal(pos)))
+            # Double-click to maximize/restore - same pattern as Model
+            # Workshop's quad viewport, via event filter rather than
+            # touching MapViewport's own mouse handlers.
+            pane.installEventFilter(self)
+            self._world_panes.append(pane)
+
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        for pane in self._world_panes:
+            splitter.addWidget(pane)
+        self._world_splitter = splitter
+        self._maximized_world_pane = None
+
+        dock = QDockWidget("World View", self)
+        dock.setObjectName("World View")
+        dock.setWidget(splitter)
+        dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
+                        QDockWidget.DockWidgetFeature.DockWidgetFloatable |
+                        QDockWidget.DockWidgetFeature.DockWidgetClosable)
+        self._world_view_dock = dock
+
+        # Default to showing only 3D, per Keith's request ("I suggest
+        # showing 3d only, unless the user wants to change the
+        # viewpoint") - reuses the existing maximize/restore mechanism
+        # (previously only reachable by double-clicking a pane) rather
+        # than inventing a separate "default view" concept. Double-
+        # click any pane to restore all 3; right-click a pane's label
+        # to reassign which view it shows.
+        self._toggle_world_pane_maximize(self._world_panes[2])   # index 2 = "3D"
+
+        return dock
+
+    def _update_mode_button_style(self): #vers 2
+        """Switch the Object Browser mode buttons (All/Most Used/
+        Favourites/Generic) between icon+text and icon-only, based on
+        whether the row currently has enough width to show all four
+        with their text labels. Defaults to icon-only (per Keith:
+        "show icons only, unless someone widens the pane, then switch
+        to icons and text"), switching to icon+text only once there's
+        actually enough room.
+
+        Uses each button's pre-cached estimated text-mode width
+        (computed once from font metrics at creation time) rather than
+        actually switching styles to measure - the previous version
+        temporarily forced icon+text mode first to measure the row's
+        real needed width, which could itself trigger another resize
+        event (changing a button's style changes its size hint) and
+        end up comparing against stale geometry from before Qt's
+        layout system had finished recalculating - the likely cause of
+        the truncated-text bug Keith reported (buttons stuck showing
+        partial text like "Most U", "Favouri" instead of cleanly
+        switching to icon-only)."""
+        buttons = getattr(self, '_object_mode_buttons', None)
+        text_widths = getattr(self, '_object_mode_button_text_widths', None)
+        row_widget = getattr(self, '_ob_top_row_widget', None)
+        action_widget = getattr(self, '_ob_action_row_widget', None)
+        tab_buttons = getattr(self, '_object_browser_tab_buttons', None)
+        if not buttons or not text_widths or row_widget is None:
+            return
+        text_style = Qt.ToolButtonStyle.ToolButtonTextBesideIcon
+        icon_style = Qt.ToolButtonStyle.ToolButtonIconOnly
+
+        needed = sum(text_widths.values())
+        if tab_buttons:
+            needed += sum(btn.sizeHint().width() for btn in tab_buttons.values())
+        if action_widget is not None and action_widget.isVisible():
+            needed += action_widget.sizeHint().width()
+        available = row_widget.width()
+
+        target_style = text_style if available >= needed else icon_style
+        for btn in buttons.values():
+            if btn.toolButtonStyle() != target_style:
+                btn.setToolButtonStyle(target_style)
+
+    def _toggle_world_pane_maximize(self, pane): #vers 2
+        """Maximize the given world-view pane to fill the whole dock
+        (hiding its siblings), or restore all 3 if already maximized.
+        Simpler than Model Workshop's version - one flat splitter here,
+        not a nested 2x2 grid, so just hiding the other panes is enough.
+
+        Switches the maximized pane's label to 'Full View' - that label
+        is also the pane's exclusive right-click-menu trigger (see
+        _create_world_viewport_dock), so without it there'd be no
+        labelled target to right-click while maximized. Restores the
+        original view-name label (Top/Side/3D) when un-maximized."""
+        panes = getattr(self, '_world_panes', None)
+        if not panes:
+            return
+        if getattr(self, '_maximized_world_pane', None) is pane:
+            for p in panes:
+                p.setVisible(True)
+            self._maximized_world_pane = None
+            restore_label = getattr(pane, '_pre_maximize_label', None) or pane._view_label
+            pane._label_widget.setText(restore_label)
+            pane._label_widget.adjustSize()
+            return
+        for p in panes:
+            p.setVisible(p is pane)
+        self._maximized_world_pane = pane
+        pane._pre_maximize_label = pane._view_label
+        pane._label_widget.setText("Full View")
+        pane._label_widget.adjustSize()
+
+    def _assign_world_pane_view(self, pane, label, yaw, pitch, projection): #vers 2
+        """Apply a user-chosen preset to one world-view pane. If this
+        pane is currently maximized, re-apply the 'Full View' label
+        afterward - set_view_lock always writes the new view name into
+        the label, which would otherwise silently drop the full-view
+        indication while still actually maximized. Also re-applies
+        movement settings for the new label, since Top/Side/Front/3D
+        can each have their own pan-invert configuration."""
+        pane.set_view_lock(projection == 'ortho', label, yaw=yaw, pitch=pitch,
+                            projection=projection)
+        self._apply_viewport_movement_settings(pane, label)
+        if getattr(self, '_maximized_world_pane', None) is pane:
+            pane._pre_maximize_label = label
+            pane._label_widget.setText("Full View")
+            pane._label_widget.adjustSize()
+
+
+
+    #    File I/O                                                               
+
+    def _setup_corner_overlay(self): #vers 3
+        """Create or re-raise the corner resize overlay.
+        Only active in standalone (frameless) mode.
+        Called from showEvent and resizeEvent with a delay so all child
+        widgets are laid out before we raise_() above them.
+        """
+        if not self.standalone_mode:
+            return
+        if not (self.windowFlags() & Qt.WindowType.FramelessWindowHint):
+            return
+        if hasattr(self, '_corner_overlay') and self._corner_overlay:
+            self._corner_overlay.setGeometry(0, 0, self.width(), self.height())
+            self._corner_overlay.raise_()
+            self._corner_overlay.update_state(
+                getattr(self, 'hover_corner', None), self.app_settings)
+            return
+        overlay = _CornerOverlay(self)
+        overlay.update_state(getattr(self, 'hover_corner', None), self.app_settings)
+        self._corner_overlay = overlay
+        overlay.setGeometry(0, 0, self.width(), self.height())
+        overlay.show()
+        overlay.raise_()
+
+    def _refresh_corner_overlay(self): #vers 2
+        if hasattr(self, '_corner_overlay') and self._corner_overlay:
+            self._corner_overlay.setGeometry(0, 0, self.width(), self.height())
+            self._corner_overlay.update_state(
+                getattr(self, 'hover_corner', None), self.app_settings)
+            self._corner_overlay.raise_()
+
+
+#  Public factory function
+
+    # --- Shared icon-shape rendering (ported from map_workshop_old_version.py) ---
+
+    def _paint_variant_shape(self, p, kind, size, color): #vers 2
+        """Draw a simple, reliable shape for an Annotate-ribbon variant
+        that has no existing SVG icon - avoids depending on the system
+        font having specific Unicode glyphs (arrows, shape symbols,
+        circled digits), which isn't guaranteed and was the cause of
+        blank/invisible buttons."""
+        from PyQt6.QtGui import QPolygon
+        qc = QColor(color)
+        m = max(2, int(size * 0.15))
+        pen_w = max(1, size // 10)
+        p.setPen(QPen(qc, pen_w))
+        p.setBrush(Qt.BrushStyle.NoBrush)
+
+        if kind == 'arrow':
+            p.drawLine(m, size - m, size - m, m)
+            ah = size * 0.3
+            p.setPen(Qt.PenStyle.NoPen); p.setBrush(qc)
+            p.drawPolygon(QPolygon([
+                QPoint(size - m, m), QPoint(int(size - m - ah), m),
+                QPoint(size - m, int(m + ah))]))
+        elif kind == 'double_arrow':
+            cy = size // 2
+            p.drawLine(m, cy, size - m, cy)
+            ah = size * 0.22
+            p.setPen(Qt.PenStyle.NoPen); p.setBrush(qc)
+            p.drawPolygon(QPolygon([
+                QPoint(size - m, cy), QPoint(int(size - m - ah), int(cy - ah)),
+                QPoint(int(size - m - ah), int(cy + ah))]))
+            p.drawPolygon(QPolygon([
+                QPoint(m, cy), QPoint(int(m + ah), int(cy - ah)),
+                QPoint(int(m + ah), int(cy + ah))]))
+        elif kind == 'marker_pen':
+            p.setPen(Qt.PenStyle.NoPen); p.setBrush(qc)
+            p.drawRect(m, int(size * 0.4), size - 2*m, int(size * 0.2))
+        elif kind == 'marker_rect':
+            p.setPen(Qt.PenStyle.NoPen); p.setBrush(qc)
+            p.drawRect(m, m, size - 2*m, size - 2*m)
+        elif kind == 'marker_ellipse':
+            p.setPen(Qt.PenStyle.NoPen); p.setBrush(qc)
+            p.drawEllipse(m, m, size - 2*m, size - 2*m)
+        elif kind in ('text_pointer', 'text_arrow'):
+            font = QFont(); font.setPixelSize(int(size * 0.5)); font.setBold(True)
+            p.setFont(font); p.setPen(qc)
+            p.drawText(0, 0, int(size * 0.55), size,
+                       Qt.AlignmentFlag.AlignCenter, "A")
+            if kind == 'text_pointer':
+                p.drawLine(int(size*0.55), int(size*0.7), size - m, int(size*0.7))
+            else:
+                p.drawLine(int(size*0.55), int(size*0.65), size - m - 3, m + 3)
+                p.setPen(Qt.PenStyle.NoPen); p.setBrush(qc)
+                ah = size * 0.16
+                p.drawPolygon(QPolygon([
+                    QPoint(size - m, m), QPoint(int(size - m - ah), m),
+                    QPoint(size - m, int(m + ah))]))
+        elif kind in ('number', 'number_pointer', 'number_arrow'):
+            d = size - 2*m
+            p.setPen(Qt.PenStyle.NoPen); p.setBrush(qc)
+            p.drawEllipse(m, m, d, d)
+            font = QFont(); font.setPixelSize(int(size * 0.45)); font.setBold(True)
+            p.setFont(font); p.setPen(QColor('#ffffff'))
+            p.drawText(m, m, d, d, Qt.AlignmentFlag.AlignCenter, "1")
+        elif kind == 'pixelate':
+            cell = size // 4
+            for row in range(4):
+                for col in range(4):
+                    shade = qc.lighter(130) if (row+col) % 2 == 0 else qc.darker(120)
+                    p.setPen(Qt.PenStyle.NoPen); p.setBrush(shade)
+                    p.drawRect(col*cell, row*cell, cell, cell)
+        elif kind == 'sharpen':
+            p.setPen(Qt.PenStyle.NoPen); p.setBrush(qc)
+            p.drawPolygon(QPolygon([
+                QPoint(size//2, m), QPoint(size - m, size//2),
+                QPoint(size//2, size - m), QPoint(m, size//2)]))
+        elif kind == 'duplicate':
+            p.setPen(QPen(qc, pen_w)); p.setBrush(Qt.BrushStyle.NoBrush)
+            off = int(size * 0.18)
+            sq = size - m - off
+            p.drawRect(m, m, sq - m, sq - m)
+            p.drawRect(m + off, m + off, sq - m, sq - m)
+        elif kind == 'dot':
+            p.setPen(Qt.PenStyle.NoPen); p.setBrush(qc)
+            d = int(size * 0.6)
+            off = (size - d) // 2
+            p.drawEllipse(off, off, d, d)
+        elif kind == 'bullet':
+            p.setPen(Qt.PenStyle.NoPen); p.setBrush(qc)
+            d = int(size * 0.35)
+            off = (size - d) // 2
+            p.drawEllipse(off, off, d, d)
+        elif kind == 'active_zoom':
+            p.setPen(QPen(qc, pen_w)); p.setBrush(Qt.BrushStyle.NoBrush)
+            lens_d = int(size * 0.55)
+            p.drawEllipse(m, m, lens_d, lens_d)
+            p.drawLine(m + int(lens_d*0.85), m + int(lens_d*0.85), size - m, size - m)
+            # Crosshair inside the lens to suggest cursor-follow
+            cx, cy = m + lens_d // 2, m + lens_d // 2
+            p.drawLine(cx - lens_d//4, cy, cx + lens_d//4, cy)
+            p.drawLine(cx, cy - lens_d//4, cx, cy + lens_d//4)
+        elif kind == 'canvas_toggle':
+            p.setPen(QPen(qc, pen_w)); p.setBrush(Qt.BrushStyle.NoBrush)
+            p.drawRect(m, m + 2, size - 2*m, size - 2*m - 4)
+            p.drawLine(m, size - m - 2, size - m, m + 2)
+        elif kind == 'lod_toggle':
+            p.setPen(QPen(qc, pen_w)); p.setBrush(Qt.BrushStyle.NoBrush)
+            big = int(size * 0.65)
+            small = int(size * 0.4)
+            p.drawRect(m, m, big, big)
+            p.drawRect(size - m - small, size - m - small, small, small)
+        elif kind in ('eye_visible', 'eye_hidden'):
+            p.setPen(QPen(qc, pen_w)); p.setBrush(Qt.BrushStyle.NoBrush)
+            cx, cy = size // 2, size // 2
+            eye_w = size - 2*m
+            eye_h = int(eye_w * 0.55)
+            rect_x, rect_y = m, cy - eye_h // 2
+            # Eye outline as an ellipse (approximated with drawArc-style
+            # via drawEllipse, simplest reliable cross-Qt-version option)
+            p.drawEllipse(rect_x, rect_y, eye_w, eye_h)
+            pupil_d = max(2, int(eye_h * 0.5))
+            p.setBrush(QBrush(qc))
+            p.drawEllipse(cx - pupil_d//2, cy - pupil_d//2, pupil_d, pupil_d)
+            if kind == 'eye_hidden':
+                p.setBrush(Qt.BrushStyle.NoBrush)
+                p.drawLine(m, m, size - m, size - m)
+        elif kind == 'cull_boxes':
+            p.setPen(QPen(qc, pen_w)); p.setBrush(Qt.BrushStyle.NoBrush)
+            front = int(size * 0.6)
+            offset = int(size * 0.22)
+            fx, fy = m, size - m - front
+            p.drawRect(fx, fy, front, front)
+            bx, by = fx + offset, fy - offset
+            p.drawRect(bx, by, front, front)
+            for dx, dy in ((0, 0), (front, 0), (0, front), (front, front)):
+                p.drawLine(fx + dx, fy + dy, bx + dx, by + dy)
+        elif kind == 'list_all':
+            p.setPen(QPen(qc, pen_w)); p.setBrush(Qt.BrushStyle.NoBrush)
+            step = (size - 2*m) / 3.0
+            for i in range(3):
+                y = int(m + step * i + step/2)
+                p.drawLine(m, y, size - m, y)
+        elif kind == 'bars_most_used':
+            p.setPen(QPen(qc, pen_w)); p.setBrush(QBrush(qc))
+            bar_w = max(2, (size - 2*m) // 4)
+            gap = max(1, bar_w // 2)
+            heights = (0.4, 0.7, 1.0)
+            x = m
+            for h in heights:
+                bar_h = int((size - 2*m) * h)
+                p.drawRect(x, size - m - bar_h, bar_w, bar_h)
+                x += bar_w + gap
+        elif kind == 'star_filled':
+            from PyQt6.QtGui import QPolygonF
+            p.setPen(QPen(qc, pen_w)); p.setBrush(QBrush(qc))
+            cx, cy = size / 2.0, size / 2.0
+            outer_r, inner_r = (size - 2*m) / 2.0, (size - 2*m) / 4.5
+            pts = []
+            for i in range(10):
+                ang = -math.pi/2 + i * math.pi/5
+                r = outer_r if i % 2 == 0 else inner_r
+                pts.append(QPointF(cx + r*math.cos(ang), cy + r*math.sin(ang)))
+            p.drawPolygon(QPolygonF(pts))
+        elif kind == 'box_generic':
+            p.setPen(QPen(qc, pen_w)); p.setBrush(Qt.BrushStyle.NoBrush)
+            box = size - 2*m
+            p.drawRect(m, m, box, box)
+            p.drawLine(m, m + box//3, size - m, m + box//3)
+        elif kind == 'tab_ide':
+            from PyQt6.QtGui import QPolygonF
+            p.setPen(QPen(qc, pen_w)); p.setBrush(Qt.BrushStyle.NoBrush)
+            fold = int(size * 0.28)
+            pts = [QPointF(m, m), QPointF(size - m - fold, m), QPointF(size - m, m + fold),
+                   QPointF(size - m, size - m), QPointF(m, size - m)]
+            p.drawPolygon(QPolygonF(pts))
+            p.drawLine(size - m - fold, m, size - m - fold, m + fold)
+            p.drawLine(size - m - fold, m + fold, size - m, m + fold)
+            step = (size - 2*m) / 3.5
+            for i in range(2):
+                y = int(m + fold + step * (i + 1))
+                p.drawLine(m + 2, y, size - m - 2, y)
+        elif kind == 'tab_ipl':
+            p.setPen(QPen(qc, pen_w)); p.setBrush(Qt.BrushStyle.NoBrush)
+            cx = size / 2.0
+            top = m
+            tip_y = size - m
+            r = (size - 2*m) * 0.32
+            cy = top + r + 1
+            p.drawEllipse(QPointF(cx, cy), r, r)
+            from PyQt6.QtGui import QPolygonF
+            pts = [QPointF(cx - r * 0.6, cy + r * 0.6), QPointF(cx, tip_y),
+                   QPointF(cx + r * 0.6, cy + r * 0.6)]
+            p.drawPolygon(QPolygonF(pts))
+            p.setBrush(QBrush(qc))
+            p.drawEllipse(QPointF(cx, cy), r * 0.35, r * 0.35)
+        elif kind == 'tab_dat':
+            p.setPen(QPen(qc, pen_w)); p.setBrush(Qt.BrushStyle.NoBrush)
+            step = (size - 2*m) / 2.5
+            knob_x = (0.3, 0.65, 0.4)
+            for i in range(3):
+                y = int(m + step * i + step * 0.5)
+                p.drawLine(m, y, size - m, y)
+                kx = int(m + (size - 2*m) * knob_x[i])
+                p.setBrush(QBrush(qc))
+                p.drawEllipse(QPointF(kx, y), 2, 2)
+                p.setBrush(Qt.BrushStyle.NoBrush)
+        elif kind == 'tab_img':
+            p.setPen(QPen(qc, pen_w)); p.setBrush(Qt.BrushStyle.NoBrush)
+            band_h = (size - 2*m) / 3.2
+            for i in range(3):
+                y = int(m + i * (band_h + 2))
+                p.drawRect(m, y, size - 2*m, int(band_h))
+        elif kind in ('chevron_left', 'chevron_left2', 'chevron_right', 'chevron_right2'):
+            p.setPen(QPen(qc, max(2, pen_w))); p.setBrush(Qt.BrushStyle.NoBrush)
+            cy = size // 2
+            half_h = (size - 2*m) // 2
+            is_right = kind.startswith('chevron_right')
+            is_double = kind.endswith('2')
+
+            def _draw_chevron(cx): #vers 1
+                if is_right:
+                    p.drawLine(cx - half_h//2, cy - half_h, cx + half_h//2, cy)
+                    p.drawLine(cx + half_h//2, cy, cx - half_h//2, cy + half_h)
+                else:
+                    p.drawLine(cx + half_h//2, cy - half_h, cx - half_h//2, cy)
+                    p.drawLine(cx - half_h//2, cy, cx + half_h//2, cy + half_h)
+
+            if is_double:
+                offset = max(2, size // 5)
+                _draw_chevron(size//2 - offset)
+                _draw_chevron(size//2 + offset)
+            else:
+                _draw_chevron(size // 2)
+
+    def _render_variant_icon(self, icon_kind, icon_method, size, icon_color,
+                              has_menu: bool = False) -> QIcon: #vers 2
+        """Render one square icon for a dropdown-button variant: the
+        existing SVG icon if icon_method is given, otherwise a shape
+        drawn via _paint_variant_shape for icon_kind. If has_menu, bakes
+        a small triangle into the top-right corner instead of relying
+        on Qt's separate style-drawn menu-indicator, which reads as a
+        detached arrow rather than part of the icon."""
+        from PyQt6.QtGui import QPolygon
+        px = QPixmap(size, size)
+        px.fill(Qt.GlobalColor.transparent)
+        p = QPainter(px)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        if icon_method:
+            try:
+                ico = getattr(SVGIconFactory, icon_method)(size, icon_color)
+                ico.paint(p, 0, 0, size, size)
+            except Exception:
+                pass
+        elif icon_kind:
+            self._paint_variant_shape(p, icon_kind, size, icon_color)
+
+        if has_menu:
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QColor(icon_color))
+            a = max(5, size // 3)
+            p.drawPolygon(QPolygon([
+                QPoint(size - a, 0), QPoint(size, 0), QPoint(size, a)]))
+        p.end()
+        return QIcon(px)
 class ZoomablePreview(QLabel): #vers 2
     """Fixed preview widget with zoom and pan"""
 
@@ -16844,7 +21490,7 @@ def export_model(model: COLModel, file_path: str) -> bool: #vers 1
             with open(file_path, 'wb') as f: f.write(block)
             return True
         elif ext == '.obj':
-            lines = ['# Exported by IMG Factory Model Workshop']
+            lines = ['# Exported by IMG Factory Map Workshop']
             verts = getattr(model, 'vertices', [])
             faces = getattr(model, 'faces', [])
             for v in verts: lines.append(f'v {v.x:.6f} {v.y:.6f} {v.z:.6f}')
@@ -16910,7 +21556,7 @@ def update_view_options(viewer: 'COL3DViewport', **options): #vers 1
         print(f"Error updating view options: {str(e)}")
 
 
-# (moved into ModelWorkshop class — see _ensure_standalone_functionality method above)
+# (moved into MapWorkshop class — see _ensure_standalone_functionality method above)
 
 
 
@@ -16937,9 +21583,9 @@ import shutil
 import sys
 
 
-def open_model_workshop(main_window, dff_path=None,
+def open_map_workshop(main_window, dff_path=None,
                         original_dff_name=None): #vers 5
-    """Open Model Workshop — routes DFF/COL/IMG correctly.
+    """Open Map Workshop — routes DFF/COL/IMG correctly.
     original_dff_name: the DFF entry name from the IMG (e.g. 'airportwall_2_2.dff')
     so that IDE lookup works even when the DFF was extracted to /tmp/ with a random suffix."""
     try:
@@ -16950,10 +21596,10 @@ def open_model_workshop(main_window, dff_path=None,
             container = QWidget()
             layout = QVBoxLayout(container)
             layout.setContentsMargins(0, 0, 0, 0)
-            workshop = ModelWorkshop(container, main_window)
+            workshop = MapWorkshop(container, main_window)
             workshop.setWindowFlags(Qt.WindowType.Widget)
             layout.addWidget(workshop)
-            tab_label = _os.path.splitext(_os.path.basename(dff_path))[0] if dff_path else "Model Workshop"
+            tab_label = _os.path.splitext(_os.path.basename(dff_path))[0] if dff_path else "Map Workshop"
             try:
                 from apps.methods.imgfactory_svg_icons import get_dff_edit_icon
                 icon = get_dff_edit_icon()
@@ -16966,9 +21612,9 @@ def open_model_workshop(main_window, dff_path=None,
             workshop.show()
         else:
             # Standalone window
-            workshop = ModelWorkshop(main_window=main_window)
+            workshop = MapWorkshop(main_window=main_window)
             workshop.setWindowFlags(Qt.WindowType.Window)
-            workshop.setWindowTitle(f"Model Workshop — {App_name}")
+            workshop.setWindowTitle(f"Map Workshop — {App_name}")
             workshop.resize(1200, 800)
             workshop.show()
 
@@ -17000,18 +21646,18 @@ def open_model_workshop(main_window, dff_path=None,
                 if img and hasattr(img, 'entries'):
                     workshop._populate_left_panel_from_img(img)
                 if hasattr(main_window, 'log_message'):
-                    main_window.log_message("Model Workshop opened")
+                    main_window.log_message("Map Workshop opened")
 
         return workshop
     except Exception as e:
         import traceback; traceback.print_exc()
         if main_window and hasattr(main_window, 'log_message'):
-            main_window.log_message(f"Model Workshop error: {e}")
+            main_window.log_message(f"Map Workshop error: {e}")
         return None
 
 def open_workshop(main_window, img_path=None): #vers 4
-    """Legacy wrapper — calls open_model_workshop."""
-    return open_model_workshop(main_window, img_path)
+    """Legacy wrapper — calls open_map_workshop."""
+    return open_map_workshop(main_window, img_path)
 
 
 def open_col_workshop(main_window, img_path=None): #vers 2
@@ -17021,14 +21667,14 @@ def open_col_workshop(main_window, img_path=None): #vers 2
 
         # Standalone mode
         if not main_window or not hasattr(main_window, 'main_tab_widget'):
-            workshop = ModelWorkshop(None, main_window)
+            workshop = MapWorkshop(None, main_window)
             workshop.setWindowFlags(Qt.WindowType.Window)
             if img_path and img_path.lower().endswith('.dff'):
                 if hasattr(workshop, 'open_dff_file'):
                     workshop.open_dff_file(img_path)
                 elif hasattr(workshop, 'load_dff_file'):
                     workshop.load_dff_file(img_path)
-            workshop.setWindowTitle(f"Model Workshop - {App_name}")
+            workshop.setWindowTitle(f"Map Workshop - {App_name}")
             workshop.resize(1200, 800)
             workshop.show()
             return workshop
@@ -17039,7 +21685,7 @@ def open_col_workshop(main_window, img_path=None): #vers 2
         tab_layout = QVBoxLayout(tab_container)
         tab_layout.setContentsMargins(0, 0, 0, 0)
 
-        workshop = ModelWorkshop(tab_container, main_window)
+        workshop = MapWorkshop(tab_container, main_window)
         workshop.setWindowFlags(Qt.WindowType.Widget)
         tab_layout.addWidget(workshop)
 
@@ -17049,7 +21695,7 @@ def open_col_workshop(main_window, img_path=None): #vers 2
             elif hasattr(workshop, 'load_dff_file'):
                 workshop.load_dff_file(img_path)
 
-        tab_label = os.path.splitext(os.path.basename(img_path))[0] if img_path else "Model Workshop"
+        tab_label = os.path.splitext(os.path.basename(img_path))[0] if img_path else "Map Workshop"
         try:
             from apps.methods.imgfactory_svg_icons import get_model_file_icon
             icon = get_model_file_icon()
@@ -17065,12 +21711,12 @@ def open_col_workshop(main_window, img_path=None): #vers 2
 
     except Exception as e:
         if main_window and hasattr(main_window, 'log_message'):
-            main_window.log_message(f"Error opening Model Workshop: {str(e)}")
+            main_window.log_message(f"Error opening Map Workshop: {str(e)}")
         return None
 
-MDLEditorDialog = ModelWorkshop
-MODWorkshop     = ModelWorkshop
-ModelWorkshopDialog = ModelWorkshop
+MDLEditorDialog = MapWorkshop
+MODWorkshop     = MapWorkshop
+MapWorkshopDialog = MapWorkshop
 
 if __name__ == "__main__":
     import sys
@@ -17082,7 +21728,7 @@ if __name__ == "__main__":
         app = QApplication(sys.argv)
         print("QApplication created")
 
-        workshop = ModelWorkshop()
+        workshop = MapWorkshop()
         print(App_name + " instance created")
 
         workshop.setWindowTitle(App_name + " - Standalone")
