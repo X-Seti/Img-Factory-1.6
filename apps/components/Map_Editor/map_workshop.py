@@ -41,7 +41,7 @@ if str(project_root) not in sys.path:
 # Import PyQt6
 from PyQt6.QtWidgets import (QApplication, QSlider, QCheckBox,
     QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QListWidget, QDialog, QFormLayout, QSpinBox,  QListWidgetItem, QLabel, QPushButton, QFrame, QFileDialog, QLineEdit, QTextEdit, QMessageBox, QScrollArea, QGroupBox, QTableWidget, QTableWidgetItem, QColorDialog, QHeaderView, QAbstractItemView, QMenu, QComboBox, QInputDialog, QTabWidget, QDoubleSpinBox, QRadioButton, QStyledItemDelegate,
-    QDockWidget, QFontComboBox, QSizePolicy, QMenuBar, QStatusBar, QProgressDialog
+    QDockWidget, QFontComboBox, QSizePolicy, QMenuBar, QStatusBar, QProgressDialog, QStackedWidget
 )
 
 from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPoint, QRect, QByteArray, QPointF, QTimer, QAbstractTableModel
@@ -4081,6 +4081,27 @@ class _InstanceTableModel(QAbstractTableModel):
         if 0 <= row < len(self._instances):
             return self._instances[row]
         return None
+
+
+class _SizeAdaptiveStackedWidget(QStackedWidget):
+    """QStackedWidget defaults to sizing itself (sizeHint/minimumSizeHint)
+    to the LARGEST of its pages, regardless of which one is currently
+    visible - so a stack holding Object Browser's own table plus the
+    merged IDE/IPL/DAT/IMG tabs was reporting the IMG tab's much wider
+    content (~509px) as its minimum even while showing the object
+    table (~72px), permanently locking Object Browser's width no
+    matter how compact everything else in the dock became (Keith's
+    report: "should be able to make it the same width as those docks
+    on the left"). Overriding sizeHint/minimumSizeHint to reflect only
+    currentWidget() fixes this - the stack (and the dock containing
+    it) can now shrink to whatever the ACTIVE tab actually needs."""
+    def sizeHint(self): #vers 1
+        cw = self.currentWidget()
+        return cw.sizeHint() if cw is not None else super().sizeHint()
+
+    def minimumSizeHint(self): #vers 1
+        cw = self.currentWidget()
+        return cw.minimumSizeHint() if cw is not None else super().minimumSizeHint()
 
 
 class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
@@ -17266,7 +17287,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # itself (All/Most Used/Favourites/Generic modes all share this
         # one page, just filtering its rows); pages 1-4 are the tabs
         # merged in from the former standalone Editing Panel dock.
-        content_stack = QStackedWidget()
+        content_stack = _SizeAdaptiveStackedWidget()
         content_stack.addWidget(view)
         content_stack.addWidget(self._create_ide_tab())
         content_stack.addWidget(self._create_ipl_tab())
