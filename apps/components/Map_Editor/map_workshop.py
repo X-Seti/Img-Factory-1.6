@@ -10611,13 +10611,26 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._load_quad_layout()
         return quad
 
-    def eventFilter(self, obj, event): #vers 1
+    def eventFilter(self, obj, event): #vers 2
         """Double-click on a quad pane maximizes/restores it - previously
         there was no way to view just one of the 4 panes full-size; the
         '4-Pane View' toggle only ever swapped between the whole quad
         grid and the single original preview_widget (never any specific
-        quad pane), reported as feeling 'locked to one full pane'."""
+        quad pane), reported as feeling 'locked to one full pane'.
+
+        Also: Resize events on Object Browser's top row (the IMG/DAT/
+        IDE/IPL + All/Most Used/Favourites/Generic buttons) re-trigger
+        _update_mode_button_style(), which was previously only ever
+        called once via QTimer.singleShot(0, ...) at construction time -
+        meaning the mode buttons' icon-only/icon+text collapse never
+        re-evaluated when the dock was actually resized afterward,
+        which is what made Object Browser feel like it had a hard
+        minimum width it couldn't shrink past (Keith's report)."""
         from PyQt6.QtCore import QEvent
+        if event.type() == QEvent.Type.Resize:
+            top_row_widget = getattr(self, '_ob_top_row_widget', None)
+            if top_row_widget is not None and obj is top_row_widget:
+                self._update_mode_button_style()
         if event.type() == QEvent.Type.MouseButtonDblClick:
             panes = getattr(self, '_quad_panes', None)
             if panes and obj in panes:
