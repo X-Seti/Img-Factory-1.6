@@ -21246,6 +21246,14 @@ def open_model_workshop(main_window, dff_path=None,
             main_window.log_message(f"Model Workshop error: {e}")
         return None
 
+# Alias so callers (e.g. IMG Factory's DAT Browser) that import this
+# module expecting a Map Workshop-named factory function don't hit
+# ImportError: cannot import name 'open_map_workshop'. Same function,
+# same ModelWorkshop class - map_workshop.py is currently a Model
+# Workshop base with Map Workshop's content grafted in (see
+# CHANGELOG.md), not yet renamed throughout.
+open_map_workshop = open_model_workshop
+
 def open_workshop(main_window, img_path=None): #vers 4
     """Legacy wrapper — calls open_model_workshop."""
     return open_model_workshop(main_window, img_path)
