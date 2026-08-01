@@ -54,4 +54,8 @@ conclusively found despite extensive isolated testing.
   Workshop" labels to "Map Workshop"; added collapsible sections to
   the IMG/IDE/IPL/DAT tabs inside Object Browser (double-click each
   tab's bold title label to collapse/restore its content, matching
-  the same interaction already used for dock title bars).
+  the same interaction already used for dock title bars); fixed 18px
+  text clipping and added icon-only collapse (wired to live resize)
+  for every action-button row across all 4 tabs (Edit/Save,
+  Open/Close/New/Delete, Extract/Add/Del/Rename/Rebuild), via a new
+  general-purpose `_register_collapsible_button_row` helper.

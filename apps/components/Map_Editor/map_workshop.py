@@ -10644,12 +10644,21 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         meaning the mode buttons' icon-only/icon+text collapse never
         re-evaluated when the dock was actually resized afterward,
         which is what made Object Browser feel like it had a hard
-        minimum width it couldn't shrink past (Keith's report)."""
+        minimum width it couldn't shrink past (Keith's report).
+
+        Also: Resize events on any row registered via
+        _register_collapsible_button_row() re-trigger
+        _update_button_row_collapse() for that row - the IMG/IDE/IPL/
+        DAT tabs' own action-button rows (Edit/Save, Open/Close/New/
+        Delete, Extract/Add/Del/Rename/Rebuild)."""
         from PyQt6.QtCore import QEvent
         if event.type() == QEvent.Type.Resize:
             top_row_widget = getattr(self, '_ob_top_row_widget', None)
             if top_row_widget is not None and obj is top_row_widget:
                 self._update_mode_button_style()
+            collapsible_rows = getattr(self, '_collapsible_button_rows', None)
+            if collapsible_rows and obj in collapsible_rows:
+                self._update_button_row_collapse(obj)
         if event.type() == QEvent.Type.MouseButtonDblClick:
             panes = getattr(self, '_quad_panes', None)
             if panes and obj in panes:
@@ -18400,34 +18409,39 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         lay.setContentsMargins(1, 1, 1, 1)
         from apps.methods.imgfactory_svg_icons import get_remove_icon, get_file_icon, get_add_icon, get_close_icon
         from PyQt6.QtWidgets import QButtonGroup
-        title_row = QHBoxLayout()
+        title_row_widget = QWidget()
+        title_row = QHBoxLayout(title_row_widget)
+        title_row.setContentsMargins(0, 0, 0, 0)
         label = QLabel("IPL Sections")
         label.setStyleSheet("font-weight: bold;")
         title_row.addWidget(label)
         sm_buttonheight = 20
+        _compact_18 = "padding: 0px 4px; margin: 0px; border-width: 1px;"
 
         icon_color = self._get_icon_color()
         open_btn = QPushButton(get_add_icon(sm_buttonheight, icon_color), "Open")
         open_btn.setToolTip("Load the selected IPL's content on demand -\n"
                             "same as clicking its eye icon to show it")
         open_btn.setIconSize(QSize(18, 18))
-        open_btn.setMinimumHeight(18); open_btn.setMaximumHeight(28)
+        open_btn.setFixedHeight(18)
+        open_btn.setStyleSheet(_compact_18)
         open_btn.setMinimumWidth(40)
         open_btn.clicked.connect(self._on_ipl_tab_open_clicked)
-        #open_btn.setFixedHeight(16)
         close_btn = QPushButton(get_close_icon(sm_buttonheight, icon_color), "Close")
         close_btn.setToolTip("Hide the selected IPL - same as clicking\n"
                              "its eye icon to hide it (its data stays\n"
                              "loaded, just not shown)")
         close_btn.setIconSize(QSize(18, 18))
-        close_btn.setMinimumHeight(18); close_btn.setMaximumHeight(28)
+        close_btn.setFixedHeight(18)
+        close_btn.setStyleSheet(_compact_18)
         close_btn.setMinimumWidth(40)
         close_btn.clicked.connect(self._on_ipl_tab_close_clicked)
         new_btn = QPushButton(get_file_icon(sm_buttonheight, icon_color), "New")
         new_btn.setToolTip("STUB - creating a brand new, empty IPL file\n"
                            "on disk isn't built yet")
         new_btn.setIconSize(QSize(18, 18))
-        new_btn.setMinimumHeight(18); new_btn.setMaximumHeight(28)
+        new_btn.setFixedHeight(18)
+        new_btn.setStyleSheet(_compact_18)
         new_btn.setMinimumWidth(40)
         new_btn.setEnabled(False)
         delete_btn = QPushButton(get_remove_icon(sm_buttonheight, icon_color), "Delete")
@@ -18435,14 +18449,17 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                               "built yet (no write-back infrastructure exists\n"
                               "for any file type in Map Workshop yet)")
         delete_btn.setIconSize(QSize(18, 18))
-        delete_btn.setMinimumHeight(18); delete_btn.setMaximumHeight(28)
+        delete_btn.setFixedHeight(18)
+        delete_btn.setStyleSheet(_compact_18)
         delete_btn.setMinimumWidth(40)
         delete_btn.setEnabled(False)
-        #delete_btn.setFixedHeight(16)
         for b in (open_btn, close_btn, new_btn, delete_btn):
             title_row.addWidget(b)
         title_row.addStretch()
-        lay.addLayout(title_row)
+        lay.addWidget(title_row_widget)
+        self._register_collapsible_button_row(
+            title_row_widget, [(open_btn, "Open"), (close_btn, "Close"),
+                                (new_btn, "New"), (delete_btn, "Delete")])
 
         content_container = QWidget()
         content_lay = QVBoxLayout(content_container)
@@ -18801,7 +18818,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         lay.setContentsMargins(1, 1, 1, 1)
         from apps.methods.imgfactory_svg_icons import get_save_icon, get_edit_icon
         from PyQt6.QtWidgets import QButtonGroup
-        title_row = QHBoxLayout()
+        title_row_widget = QWidget()
+        title_row = QHBoxLayout(title_row_widget)
+        title_row.setContentsMargins(0, 0, 0, 0)
         sm_buttonheight = 20
 
         icon_color = self._get_icon_color()
@@ -18810,24 +18829,27 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         label.setStyleSheet("font-weight: bold;")
         title_row.addWidget(label)
         #edit_btn.setStyleSheet("font-weight: bold;")
+        _compact_18 = "padding: 0px 4px; margin: 0px; border-width: 1px;"
         edit_btn = QPushButton(get_edit_icon(sm_buttonheight, icon_color), "Edit")
         edit_btn.setToolTip("STUB - no IDE editing built yet")
         edit_btn.setIconSize(QSize(18, 18))
-        edit_btn.setMinimumHeight(18); edit_btn.setMaximumHeight(28)
+        edit_btn.setFixedHeight(18)
+        edit_btn.setStyleSheet(_compact_18)
         edit_btn.setEnabled(False)
-        #edit_btn.setFixedHeight(self._COMPACT_BUTTON_H)
         #save_btn.setStyleSheet("font-weight: bold;")
         save_btn = QPushButton(get_save_icon(sm_buttonheight, icon_color), "Save")
         save_btn.setToolTip("STUB - no write-back to disk exists for any\n"
                             "file type in Map Workshop yet")
         save_btn.setIconSize(QSize(18, 18))
-        save_btn.setMinimumHeight(18); save_btn.setMaximumHeight(28)
+        save_btn.setFixedHeight(18)
+        save_btn.setStyleSheet(_compact_18)
         save_btn.setEnabled(False)
-        #save_btn.setFixedHeight(self._COMPACT_BUTTON_H)
         title_row.addWidget(edit_btn)
         title_row.addWidget(save_btn)
         title_row.addStretch()
-        lay.addLayout(title_row)
+        lay.addWidget(title_row_widget)
+        self._register_collapsible_button_row(
+            title_row_widget, [(edit_btn, "Edit"), (save_btn, "Save")])
 
         content_container = QWidget()
         content_lay = QVBoxLayout(content_container)
@@ -18902,7 +18924,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         panel = QWidget()
         lay = QVBoxLayout(panel)
         lay.setContentsMargins(6, 6, 6, 6)
-        title_row = QHBoxLayout()
+        title_row_widget = QWidget()
+        title_row = QHBoxLayout(title_row_widget)
+        title_row.setContentsMargins(0, 0, 0, 0)
         from apps.methods.imgfactory_svg_icons import get_save_icon, get_edit_icon
         from PyQt6.QtWidgets import QButtonGroup
 
@@ -18914,23 +18938,26 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         label.setStyleSheet("font-weight: bold;")
         title_row.addWidget(label)
 
+        _compact_18 = "padding: 0px 4px; margin: 0px; border-width: 1px;"
         edit_btn = QPushButton(get_edit_icon(sm_buttonheight, icon_color), "Edit")
         edit_btn.setToolTip("STUB - no .dat editing built yet")
         edit_btn.setIconSize(QSize(18, 18))
-        edit_btn.setMinimumHeight(18); edit_btn.setMaximumHeight(28)
+        edit_btn.setFixedHeight(18)
+        edit_btn.setStyleSheet(_compact_18)
         edit_btn.setEnabled(False)
-        #edit_btn.setFixedHeight(16)
         save_btn = QPushButton(get_save_icon(sm_buttonheight, icon_color), "Save")
         save_btn.setToolTip("STUB - no write-back to disk exists for any\n"
                             "file type in Map Workshop yet")
         save_btn.setIconSize(QSize(18, 18))
-        save_btn.setMinimumHeight(18); save_btn.setMaximumHeight(28)
+        save_btn.setFixedHeight(18)
+        save_btn.setStyleSheet(_compact_18)
         save_btn.setEnabled(False)
-        #save_btn.setFixedHeight(16)
         title_row.addWidget(edit_btn)
         title_row.addWidget(save_btn)
         title_row.addStretch()
-        lay.addLayout(title_row)
+        lay.addWidget(title_row_widget)
+        self._register_collapsible_button_row(
+            title_row_widget, [(edit_btn, "Edit"), (save_btn, "Save")])
 
         content_container = QWidget()
         content_lay = QVBoxLayout(content_container)
@@ -18977,9 +19004,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         lay.setContentsMargins(1, 1, 1, 1)
         from apps.methods.imgfactory_svg_icons import get_rebuild_icon, get_rename_icon, get_remove_icon, get_add_icon, get_dump_icon
 
-        title_row = QHBoxLayout()
+        title_row_widget = QWidget()
+        title_row = QHBoxLayout(title_row_widget)
+        title_row.setContentsMargins(0, 0, 0, 0)
         sm_buttonheight = 20
         icon_color = self._get_icon_color()
+        _compact_18 = "padding: 0px 4px; margin: 0px; border-width: 1px;"
 
         label = QLabel("IMG File")
         label.setStyleSheet("font-weight: bold;")
@@ -18988,43 +19018,42 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         ext_btn = QPushButton(get_dump_icon(sm_buttonheight, icon_color), "Extract")
         ext_btn.setToolTip("STUB - no .dat editing built yet")
         ext_btn.setIconSize(QSize(18, 18))
-        ext_btn.setMinimumHeight(18); ext_btn.setMaximumHeight(28)
-        #ext_btn.setMinimumWidth(40)
+        ext_btn.setFixedHeight(18)
+        ext_btn.setStyleSheet(_compact_18)
         ext_btn.setEnabled(False)
-        #ext_btn.setFixedHeight(18)
         add_btn = QPushButton(get_add_icon(sm_buttonheight, icon_color), "Add")
         add_btn.setToolTip("STUB - no .dat editing built yet")
         add_btn.setIconSize(QSize(18, 18))
-        add_btn.setMinimumHeight(18); add_btn.setMaximumHeight(28)
-        #add_btn.setMinimumWidth(40)
+        add_btn.setFixedHeight(18)
+        add_btn.setStyleSheet(_compact_18)
         add_btn.setEnabled(False)
-        #add_btn.setFixedHeight(18)
         del_btn = QPushButton(get_remove_icon(sm_buttonheight, icon_color), "Del")
         del_btn.setToolTip("STUB - no .dat editing built yet")
         del_btn.setIconSize(QSize(18, 18))
-        del_btn.setMinimumHeight(18); del_btn.setMaximumHeight(28)
-        #del_btn.setMinimumWidth(40)
+        del_btn.setFixedHeight(18)
+        del_btn.setStyleSheet(_compact_18)
         del_btn.setEnabled(False)
-        #del_btn.setFixedHeight(18)
         ren_btn = QPushButton(get_rename_icon(sm_buttonheight, icon_color), "Rename")
         ren_btn.setToolTip("STUB - no .dat editing built yet")
         ren_btn.setIconSize(QSize(18, 18))
-        ren_btn.setMinimumHeight(18); ren_btn.setMaximumHeight(28)
-        #ren_btn.setMinimumWidth(40)
+        ren_btn.setFixedHeight(18)
+        ren_btn.setStyleSheet(_compact_18)
         ren_btn.setEnabled(False)
-        #ren_btn.setFixedHeight(18)
         save_btn = QPushButton(get_rebuild_icon(sm_buttonheight, icon_color), "Rebuild")
         save_btn.setToolTip("STUB - no write-back to disk exists for any\n"
                             "file type in Map Workshop yet")
         save_btn.setIconSize(QSize(18, 18))
-        save_btn.setMinimumHeight(18); save_btn.setMaximumHeight(28)
-        #save_btn.setMinimumWidth(40)
+        save_btn.setFixedHeight(18)
+        save_btn.setStyleSheet(_compact_18)
         save_btn.setEnabled(False)
-        #save_btn.setFixedHeight(16)
         for b in (ext_btn, add_btn, del_btn, ren_btn, save_btn):
             title_row.addWidget(b)
         title_row.addStretch()
-        lay.addLayout(title_row)
+        lay.addWidget(title_row_widget)
+        self._register_collapsible_button_row(
+            title_row_widget, [(ext_btn, "Extract"), (add_btn, "Add"),
+                                (del_btn, "Del"), (ren_btn, "Rename"),
+                                (save_btn, "Rebuild")])
 
         content_container = QWidget()
         content_lay = QVBoxLayout(content_container)
@@ -19673,6 +19702,47 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         for btn in buttons.values():
             if btn.toolButtonStyle() != target_style:
                 btn.setToolButtonStyle(target_style)
+
+    def _register_collapsible_button_row(self, row_widget, button_specs): #vers 1
+        """Register a row of icon+text QPushButtons (Edit/Save, Open/
+        Close/New/Delete, Extract/Add/Del/Rename/Rebuild, etc.) to
+        collapse to icon-only when the row doesn't have room to show
+        full text, expanding back once there's space - same idea as
+        Object Browser's mode-button collapse
+        (_update_mode_button_style), generalized here for QPushButton
+        rows elsewhere, which don't have QToolButton's icon-only style
+        so this toggles each button's text instead. Wired to live
+        resize via eventFilter from the start, unlike the first
+        version of the mode-button collapse (which was only ever run
+        once at construction and never re-evaluated on drag-resize -
+        Keith's report that Object Browser felt width-locked).
+
+        button_specs: list of (button, full_text) tuples - full_text
+        is stored since collapsing clears the button's own .text()."""
+        if not hasattr(self, '_collapsible_button_rows'):
+            self._collapsible_button_rows = {}
+        self._collapsible_button_rows[row_widget] = button_specs
+        row_widget.installEventFilter(self)
+        self._update_button_row_collapse(row_widget)
+
+    def _update_button_row_collapse(self, row_widget): #vers 1
+        """Toggle every button in a registered row between icon+text
+        and icon-only, based on the row's current available width vs
+        each button's estimated icon+text width (font metrics, not an
+        actual style switch - avoids the same measure-during-resize
+        flicker _update_mode_button_style already works around)."""
+        specs = getattr(self, '_collapsible_button_rows', {}).get(row_widget)
+        if not specs:
+            return
+        from PyQt6.QtGui import QFontMetrics
+        needed = 0
+        for btn, text in specs:
+            fm = QFontMetrics(btn.font())
+            needed += fm.horizontalAdvance(text) + btn.iconSize().width() + 24
+        available = row_widget.width()
+        show_text = available >= needed
+        for btn, text in specs:
+            btn.setText(text if show_text else "")
 
     def _toggle_world_pane_maximize(self, pane): #vers 2
         """Maximize the given world-view pane to fill the whole dock
