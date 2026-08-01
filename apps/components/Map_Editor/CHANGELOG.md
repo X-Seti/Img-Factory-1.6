@@ -51,4 +51,7 @@ conclusively found despite extensive isolated testing.
   grouped sections); fixed Object Browser's width lock (a
   `QStackedWidget` sizing itself to its largest page - the merged IMG
   tab - regardless of which page was visible); renamed all "Model
-  Workshop" labels to "Map Workshop".
+  Workshop" labels to "Map Workshop"; added collapsible sections to
+  the IMG/IDE/IPL/DAT tabs inside Object Browser (double-click each
+  tab's bold title label to collapse/restore its content, matching
+  the same interaction already used for dock title bars).

@@ -9706,6 +9706,21 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         dock.setTitleBarWidget(bar)
 
+    def _make_section_collapsible(self, label, content_widget): #vers 1
+        """Double-click a section's bold title label to collapse/restore
+        the content widget below it - same double-click-to-collapse
+        interaction as dock title bars (_make_dock_collapsible), just
+        applied to a sub-section within a panel instead of a whole
+        dock. Used for the IMG/IDE/IPL/DAT tabs inside Object Browser,
+        per Keith: "make sure everything is colapasble, in objects
+        browser, even in the tabs"."""
+        def _dbl_click(event, w=content_widget): #vers 1
+            w.setVisible(not w.isVisible())
+        label.mouseDoubleClickEvent = _dbl_click
+        existing_tip = label.toolTip()
+        label.setToolTip((existing_tip + "\n" if existing_tip else "") +
+                         "Double-click to collapse/expand")
+
     def _wrap_middle_panel_with_own_dock_areas(self, content_panel): #vers 4
         """Give the middle panel its own nested QMainWindow (same pattern
         the right panel already uses for the viewport), so the Name and
@@ -18429,6 +18444,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         title_row.addStretch()
         lay.addLayout(title_row)
 
+        content_container = QWidget()
+        content_lay = QVBoxLayout(content_container)
+        content_lay.setContentsMargins(0, 0, 0, 0)
+
         table = QTableWidget(0, 2)
         table.setHorizontalHeaderLabels(["", "IPL File"])
         header = table.horizontalHeader()
@@ -18449,12 +18468,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         table.cellClicked.connect(self._on_ipl_section_cell_clicked)
         table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         table.customContextMenuRequested.connect(self._on_ipl_sections_context_menu)
-        lay.addWidget(table)
+        content_lay.addWidget(table)
         self._ipl_sections_table = table
 
         placeholder = QLabel("No world loaded yet")
         #placeholder.setStyleSheet("color: palette(mid);")
-        lay.addWidget(placeholder)
+        content_lay.addWidget(placeholder)
         self._ipl_sections_placeholder = placeholder
         placeholder.setVisible(True)
         table.setVisible(False)
@@ -18491,8 +18510,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 lambda checked, k=key: self._on_ipl_data_type_changed(k) if checked else None)
             self._ipl_type_group.addButton(radio)
             type_lay.addWidget(radio)
-        lay.addWidget(type_box)
+        content_lay.addWidget(type_box)
         self._ipl_data_type = 'inst'
+
+        lay.addWidget(content_container)
+        self._make_section_collapsible(label, content_container)
         return panel
 
     def _populate_ipl_sections(self, loader): #vers 6
@@ -18806,21 +18828,29 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         title_row.addWidget(save_btn)
         title_row.addStretch()
         lay.addLayout(title_row)
+
+        content_container = QWidget()
+        content_lay = QVBoxLayout(content_container)
+        content_lay.setContentsMargins(0, 0, 0, 0)
+
         table = QTableWidget(0, 2)
         table.setHorizontalHeaderLabels(["Ind.", "Filename"])
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         table.cellClicked.connect(self._on_ide_tab_row_clicked)
         self._apply_compact_table_style(table)
-        lay.addWidget(table)
+        content_lay.addWidget(table)
         self._ide_tab_table = table
         from PyQt6.QtWidgets import QTextEdit
         preview = QTextEdit()
         preview.setReadOnly(True)
         font = preview.font(); font.setFamily("monospace"); preview.setFont(font)
         preview.setPlaceholderText("Click an IDE file above to preview its contents here")
-        lay.addWidget(preview)
+        content_lay.addWidget(preview)
         self._ide_tab_preview = preview
+
+        lay.addWidget(content_container)
+        self._make_section_collapsible(label, content_container)
         return panel
 
     def _refresh_ide_tab(self, loader): #vers 2
@@ -18901,13 +18931,21 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         title_row.addWidget(save_btn)
         title_row.addStretch()
         lay.addLayout(title_row)
+
+        content_container = QWidget()
+        content_lay = QVBoxLayout(content_container)
+        content_lay.setContentsMargins(0, 0, 0, 0)
+
         from PyQt6.QtWidgets import QTextEdit
         text = QTextEdit()
         text.setReadOnly(True)
         font = text.font(); font.setFamily("monospace"); text.setFont(font)
         text.setPlaceholderText("Load a game folder/DAT file to see its contents here")
-        lay.addWidget(text)
+        content_lay.addWidget(text)
         self._dat_tab_text = text
+
+        lay.addWidget(content_container)
+        self._make_section_collapsible(label, content_container)
         return panel
 
 
@@ -18988,14 +19026,21 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         title_row.addStretch()
         lay.addLayout(title_row)
 
+        content_container = QWidget()
+        content_lay = QVBoxLayout(content_container)
+        content_lay.setContentsMargins(0, 0, 0, 0)
+
         img_tabs = QTabWidget()
         img_tabs.setTabPosition(QTabWidget.TabPosition.North)
         from PyQt6.QtGui import QFontMetrics
         tab_font = img_tabs.font()
         img_tabs.tabBar().setStyleSheet(
             f"QTabBar::tab {{ height: {QFontMetrics(tab_font).height() + 6}px; padding: 2px 8px; }}")
-        lay.addWidget(img_tabs)
+        content_lay.addWidget(img_tabs)
         self._img_tab_tabs = img_tabs
+
+        lay.addWidget(content_container)
+        self._make_section_collapsible(label, content_container)
         return panel
 
 
