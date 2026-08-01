@@ -4421,17 +4421,22 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._make_dock_collapsible(object_browser_dock, "Object Browser")
         outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, object_browser_dock)
 
-        ipl_inst_file_dock = self._create_ipl_inst_file_panel()
-        ipl_inst_file_dock.setMinimumWidth(250)
-        self._make_dock_collapsible(ipl_inst_file_dock, "IPL Inst File")
-        outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, ipl_inst_file_dock)
-        outer_mw.splitDockWidget(object_browser_dock, ipl_inst_file_dock, Qt.Orientation.Vertical)
+        # TEMP TEST (Aug 1): IPL Inst File and Control Panel disabled so
+        # only Object Browser (with its installEventFilter calls also
+        # disabled, see _create_object_browser_dock) is active - isolating
+        # whether installEventFilter specifically is why enabling any of
+        # these 3 docks breaks dragging/docking for the whole window.
+        # ipl_inst_file_dock = self._create_ipl_inst_file_panel()
+        # ipl_inst_file_dock.setMinimumWidth(250)
+        # self._make_dock_collapsible(ipl_inst_file_dock, "IPL Inst File")
+        # outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, ipl_inst_file_dock)
+        # outer_mw.splitDockWidget(object_browser_dock, ipl_inst_file_dock, Qt.Orientation.Vertical)
 
-        control_panel_dock = self._create_control_panel_dock()
-        control_panel_dock.setMinimumWidth(250)
-        self._make_dock_collapsible(control_panel_dock, "Control Panel")
-        outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, control_panel_dock)
-        outer_mw.splitDockWidget(ipl_inst_file_dock, control_panel_dock, Qt.Orientation.Vertical)
+        # control_panel_dock = self._create_control_panel_dock()
+        # control_panel_dock.setMinimumWidth(250)
+        # self._make_dock_collapsible(control_panel_dock, "Control Panel")
+        # outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, control_panel_dock)
+        # outer_mw.splitDockWidget(ipl_inst_file_dock, control_panel_dock, Qt.Orientation.Vertical)
 
         main_layout.addWidget(outer_mw)
 
@@ -17182,7 +17187,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         top_row.addWidget(action_row_widget)
 
         self._ob_top_row_widget = top_row_widget
-        top_row_widget.installEventFilter(self)
+        # TEMP TEST (Aug 1): disabled to isolate whether this specific
+        # installEventFilter call is why enabling this dock breaks
+        # dragging/docking for ALL docks in the window, not just this one.
+        # top_row_widget.installEventFilter(self)
         QTimer.singleShot(0, self._update_mode_button_style)
         left_layout.addWidget(top_row_widget)
 
@@ -17214,7 +17222,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         view.doubleClicked.connect(self._on_object_row_double_clicked)
         view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         view.customContextMenuRequested.connect(self._on_object_browser_context_menu)
-        view.installEventFilter(self)
+        # TEMP TEST (Aug 1): disabled - see matching note on
+        # top_row_widget.installEventFilter above.
+        # view.installEventFilter(self)
         model = _ObjectBrowserModel()
         view.setModel(model)
         # Narrow defaults for ★/ID (per Keith: "Fav * cell needs to be
