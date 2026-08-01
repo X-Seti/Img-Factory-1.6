@@ -1,18 +1,6 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 193
-# X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
-# [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
-# [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
-# [FIX] _rebuild_grid QWidget crash: removed redundant deleteLater (QScrollArea auto-deletes old widget).
-# [FIX] _rebuild_grid QFrame deletion crash: reparent slots before scroll widget swap.
-# X-Seti - May08 2026 - Model editor
-# X-Seti - Jul07 2026 - Added 3ds Max style 4-pane viewport (Top/Front/Side/Perspective) via QStackedWidget central widget; user-assignable per pane by right-click; splitter-resizable; layout persists to model_workshop.json.
-# X-Seti - Jul11 2026 - Diagnostic rollback to pre-4-pane state then restored:
-# black-window/QOpenGLWidget context failure confirmed via journalctl to be a
-# hardware/driver issue (PCIe BadTLP errors + NVIDIA GSP firmware load failure
-# on the GPU, starting Jul 10) - not caused by this file or dff_viewport.py.
-# The existing QT_QPA_PLATFORM=xcb / QSG_RHI_BACKEND=opengl forcing below
-# doesn't help since the GPU itself is failing at the hardware level.
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 193
+# X-Seti - see CHANGELOG.md in this folder for the full dated history
 
 import os
 import math
@@ -101,7 +89,7 @@ except ImportError:
     print("Warning: AppSettings not available")
 
 ##Methods list -
-# apply_changes    TODO: commit pending edits to DFF/COL data
+# apply_changes
 # create_new_model
 # delete_model
 # export_model    STUB: write DFF to file
@@ -217,7 +205,7 @@ except ImportError:
 # _apply_icon_scale
 # _apply_infobar_font
 # _apply_panel_font
-# _apply_prelighting    TODO: bake ambient+directional into DFF vertex colours
+# _apply_prelighting
 # _apply_settings
 # _apply_theme
 # _apply_title_font
@@ -573,10 +561,9 @@ except ImportError:
 #
 
 # Build information
-App_name = "Model Workshop"
+App_name = "Map Workshop"
 App_build = "193"
 
-#TODO some gta3 dff files show as unknown format, effects standalone and docked versions, loading files from the img files.
 
 # Model Workshop icon available: SVGIconFactory.model_workshop_icon()
 # Use for: DFF edit button in main toolbar, Model Workshop tab icon.
@@ -8603,14 +8590,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
 
     def _apply_prelighting(self): #vers 1
-        """Apply vertex prelighting to DFF model — stub, full impl in next session."""
+        """Apply vertex prelighting to DFF model - stub. See TODO.md."""
         from PyQt6.QtWidgets import QMessageBox
         model = getattr(self, '_current_dff_model', None)
         if not model:
             QMessageBox.information(self, "No DFF", "Load a DFF model first.")
             return
-        # TODO: bake ambient + directional light into vertex colour channel
-        # Requires: light_dir, ambient_colour, diffuse_colour from setup dialog
         QMessageBox.information(self, "Prelighting",
             "Prelighting not yet available.\n"
             "Will bake ambient + directional lights into vertex colours\n"
@@ -9676,13 +9661,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         title bar - only mouseDoubleClickEvent is overridden, so single-
         click-and-drag (moving the dock) still works exactly as before,
         since that's handled by mousePressEvent/mouseMoveEvent, untouched
-        here."""
-
-        #TODO missing splitter between middle panel and right panel, or right panel, and newly placed "middle panel", that was moved to the right of the right panel.
-        #TODO
-        #X gadgets do not work, and right click menu recovery bar needs work.
-        #TODO
-        #I have disabled the float/dock function as this is meant to effect it's own bar open/collapse, not the surrounding bars that get collapsed.
+        here. Known rough edges tracked in TODO.md (missing splitter
+        between some panels, right-click recovery menu, the disabled
+        float/dock button below)."""
 
         from PyQt6.QtWidgets import QWidget as _QW, QToolButton as _QTB
 
@@ -9704,9 +9685,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         #float_btn.clicked.connect(lambda: self._toggle_dock_floating(dock))
         #lay.addWidget(float_btn)
 
-        #TODO double clicking the section header seems to work best.
-
-        close_btn = _QTB() #TODO needs checking, View menu does nothing yet.
+        close_btn = _QTB()
         close_btn.setText("×")
         close_btn.setToolTip("Close (use the View menu or another dock's right-click menu to bring it back)")
         close_btn.setFixedSize(20, 20)
@@ -17800,8 +17779,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # more internal padding/border than 18px leaves room for. Stripping
         # that padding via stylesheet lets the text actually fit in 18px,
         # rather than quietly making the boxes taller than asked for. This
-        # is a known, pre-existing issue (see the old #_COMPACT_BUTTON_H =
-        # 18 #TODO comment elsewhere in this file, from before this pass).
+        # is a known, pre-existing issue (see TODO.md - the same 18px
+        # clipping problem exists in other places in this file too).
         _COMPACT_STYLE = "padding: 0px 2px; margin: 0px; border-width: 1px;"
 
         def _h18(*widgets):  #vers 2
@@ -18407,8 +18386,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         label.setStyleSheet("font-weight: bold;")
         title_row.addWidget(label)
         sm_buttonheight = 20
-        #_COMPACT_BUTTON_H = 18 #TODO; does not show the right size?
-        #_COMPACT_ICON_SIZE = 18 TODO; Text less then min 18 and max 20, the text buttons get corrupted.
 
         icon_color = self._get_icon_color()
         open_btn = QPushButton(get_add_icon(sm_buttonheight, icon_color), "Open")
@@ -18427,7 +18404,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         close_btn.setMinimumHeight(18); close_btn.setMaximumHeight(28)
         close_btn.setMinimumWidth(40)
         close_btn.clicked.connect(self._on_ipl_tab_close_clicked)
-        #close_btn.setFixedHeight(16) #TODO; need new icon.
         new_btn = QPushButton(get_file_icon(sm_buttonheight, icon_color), "New")
         new_btn.setToolTip("STUB - creating a brand new, empty IPL file\n"
                            "on disk isn't built yet")
@@ -18435,7 +18411,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         new_btn.setMinimumHeight(18); new_btn.setMaximumHeight(28)
         new_btn.setMinimumWidth(40)
         new_btn.setEnabled(False)
-        #new_btn.setFixedHeight(16) #TODO; need delete icon.
         delete_btn = QPushButton(get_remove_icon(sm_buttonheight, icon_color), "Delete")
         delete_btn.setToolTip("STUB - deleting an IPL file from disk isn't\n"
                               "built yet (no write-back infrastructure exists\n"
@@ -21071,7 +21046,7 @@ def open_model_workshop(main_window, dff_path=None,
             workshop = ModelWorkshop(container, main_window)
             workshop.setWindowFlags(Qt.WindowType.Widget)
             layout.addWidget(workshop)
-            tab_label = _os.path.splitext(_os.path.basename(dff_path))[0] if dff_path else "Model Workshop"
+            tab_label = _os.path.splitext(_os.path.basename(dff_path))[0] if dff_path else "Map Workshop"
             try:
                 from apps.methods.imgfactory_svg_icons import get_dff_edit_icon
                 icon = get_dff_edit_icon()
@@ -21167,7 +21142,7 @@ def open_col_workshop(main_window, img_path=None): #vers 2
             elif hasattr(workshop, 'load_dff_file'):
                 workshop.load_dff_file(img_path)
 
-        tab_label = os.path.splitext(os.path.basename(img_path))[0] if img_path else "Model Workshop"
+        tab_label = os.path.splitext(os.path.basename(img_path))[0] if img_path else "Map Workshop"
         try:
             from apps.methods.imgfactory_svg_icons import get_model_file_icon
             icon = get_model_file_icon()
