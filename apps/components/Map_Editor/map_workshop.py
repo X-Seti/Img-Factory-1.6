@@ -4440,12 +4440,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         #This breaks the docking.
         #outer_mw.splitDockWidget(object_browser_dock, ipl_inst_file_dock, Qt.Orientation.Vertical)
 
-        #Adding control panel breaks the docking??
-        control_dock = self._create_control_dock()
-        control_dock.setMinimumWidth(250)
-        self._make_dock_collapsible(control_dock, "Control Panel")
-        outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, control_dock)
-
+        # DISABLED (Aug 1 2026) per Keith: snapping stopped working again
+        # after Control Panel's content was restored/tidied up (checkboxes,
+        # background/mode dropdowns, dragging controls legend, 18px
+        # stylesheet fix) - disabling the dock entirely for now until the
+        # cause is found. _create_control_dock() itself is untouched, just
+        # not called/wired here.
+        # control_dock = self._create_control_dock()
+        # control_dock.setMinimumWidth(250)
+        # self._make_dock_collapsible(control_dock, "Control Panel")
+        # outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, control_dock)
 
         #outer_mw.splitDockWidget(ipl_inst_file_dock, control_panel_dock, Qt.Orientation.Vertical)
 
