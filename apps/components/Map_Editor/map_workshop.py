@@ -17351,17 +17351,28 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if stack is not None:
             stack.setCurrentIndex(0)   # table page - IMG/DAT/IDE/IPL buttons show pages 1-4
 
-    def _on_object_browser_tab_changed(self, tab_key): #vers 1
+    def _on_object_browser_tab_changed(self, tab_key): #vers 2
         """IMG/DAT/IDE/IPL button clicked - switches the shared content
         stack to that tab's page instead of the Object Browser table,
         per Keith's request to merge the former standalone Editing
-        Panel dock's tabs in here."""
+        Panel dock's tabs in here. Also re-checks that tab's own
+        action-button row for icon-only/icon+text collapse right away -
+        a widget on a QStackedWidget page that isn't current doesn't
+        reliably receive/react to resize events, so its row's collapse
+        state could be stale (e.g. still showing full text even though
+        the dock is currently narrow) the moment it becomes visible,
+        without this (Keith's report: dragging a splitter narrower
+        didn't collapse the IMG tab's buttons to icon-only)."""
         stack = getattr(self, '_object_browser_content_stack', None)
         if stack is None:
             return
         page_index = {'ide': 1, 'ipl': 2, 'dat': 3, 'img': 4}.get(tab_key)
         if page_index is not None:
             stack.setCurrentIndex(page_index)
+        row_widget = getattr(self, '_object_browser_tab_rows', {}).get(tab_key)
+        if row_widget is not None:
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(0, lambda w=row_widget: self._update_button_row_collapse(w))
 
     def _on_object_row_selected(self, row): #vers 2
         """Selecting a model row in the (now merged) Object Browser
@@ -18460,6 +18471,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._register_collapsible_button_row(
             title_row_widget, [(open_btn, "Open"), (close_btn, "Close"),
                                 (new_btn, "New"), (delete_btn, "Delete")])
+        if not hasattr(self, '_object_browser_tab_rows'):
+            self._object_browser_tab_rows = {}
+        self._object_browser_tab_rows['ipl'] = title_row_widget
 
         content_container = QWidget()
         content_lay = QVBoxLayout(content_container)
@@ -18850,6 +18864,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         lay.addWidget(title_row_widget)
         self._register_collapsible_button_row(
             title_row_widget, [(edit_btn, "Edit"), (save_btn, "Save")])
+        if not hasattr(self, '_object_browser_tab_rows'):
+            self._object_browser_tab_rows = {}
+        self._object_browser_tab_rows['ide'] = title_row_widget
 
         content_container = QWidget()
         content_lay = QVBoxLayout(content_container)
@@ -18958,6 +18975,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         lay.addWidget(title_row_widget)
         self._register_collapsible_button_row(
             title_row_widget, [(edit_btn, "Edit"), (save_btn, "Save")])
+        if not hasattr(self, '_object_browser_tab_rows'):
+            self._object_browser_tab_rows = {}
+        self._object_browser_tab_rows['dat'] = title_row_widget
 
         content_container = QWidget()
         content_lay = QVBoxLayout(content_container)
@@ -19054,6 +19074,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             title_row_widget, [(ext_btn, "Extract"), (add_btn, "Add"),
                                 (del_btn, "Del"), (ren_btn, "Rename"),
                                 (save_btn, "Rebuild")])
+        if not hasattr(self, '_object_browser_tab_rows'):
+            self._object_browser_tab_rows = {}
+        self._object_browser_tab_rows['img'] = title_row_widget
 
         content_container = QWidget()
         content_lay = QVBoxLayout(content_container)

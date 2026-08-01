@@ -58,4 +58,9 @@ conclusively found despite extensive isolated testing.
   text clipping and added icon-only collapse (wired to live resize)
   for every action-button row across all 4 tabs (Edit/Save,
   Open/Close/New/Delete, Extract/Add/Del/Rename/Rebuild), via a new
-  general-purpose `_register_collapsible_button_row` helper.
+  general-purpose `_register_collapsible_button_row` helper; fixed a
+  follow-up bug where switching to a tab (e.g. IMG) didn't re-check
+  its row's collapse state, since a `QStackedWidget` page that isn't
+  current doesn't reliably react to resize events while hidden -
+  `_on_object_browser_tab_changed` now force-refreshes the newly
+  shown tab's row right away.
