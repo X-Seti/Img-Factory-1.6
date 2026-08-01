@@ -17832,69 +17832,70 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                                                 "image support built yet")
         lay.addWidget(self._cp_background_map_chk)
 
-        # - Zoom +/- and Reset View
-        zoom_row = QHBoxLayout()
-        zoom_row.addWidget(QLabel("Zoom:"))
-        zoom_minus_btn = QPushButton("-"); zoom_minus_btn.setFixedWidth(28)
-        zoom_minus_btn.clicked.connect(lambda: self._on_control_panel_zoom(1.15))
-        zoom_plus_btn = QPushButton("+"); zoom_plus_btn.setFixedWidth(28)
-        zoom_plus_btn.clicked.connect(lambda: self._on_control_panel_zoom(0.85))
-        zoom_row.addWidget(zoom_minus_btn)
-        zoom_row.addWidget(zoom_plus_btn)
-        zoom_row.addStretch()
-        lay.addLayout(zoom_row)
+        # --- BISECT TEST: Zoom/Reset/Background/Mode/DraggingControls disabled ---
+        # BISECT_DISABLED: # - Zoom +/- and Reset View
+        # BISECT_DISABLED: zoom_row = QHBoxLayout()
+        # BISECT_DISABLED: zoom_row.addWidget(QLabel("Zoom:"))
+        # BISECT_DISABLED: zoom_minus_btn = QPushButton("-"); zoom_minus_btn.setFixedWidth(28)
+        # BISECT_DISABLED: zoom_minus_btn.clicked.connect(lambda: self._on_control_panel_zoom(1.15))
+        # BISECT_DISABLED: zoom_plus_btn = QPushButton("+"); zoom_plus_btn.setFixedWidth(28)
+        # BISECT_DISABLED: zoom_plus_btn.clicked.connect(lambda: self._on_control_panel_zoom(0.85))
+        # BISECT_DISABLED: zoom_row.addWidget(zoom_minus_btn)
+        # BISECT_DISABLED: zoom_row.addWidget(zoom_plus_btn)
+        # BISECT_DISABLED: zoom_row.addStretch()
+        # BISECT_DISABLED: lay.addLayout(zoom_row)
 
-        reset_view_btn = QPushButton("Reset View")
-        reset_view_btn.setToolTip("Reset yaw/pitch/pan and re-fit the camera to\n"
-                                  "the currently loaded instances, for every pane")
-        reset_view_btn.clicked.connect(self._on_control_panel_reset_view)
-        lay.addWidget(reset_view_btn)
+        # BISECT_DISABLED: reset_view_btn = QPushButton("Reset View")
+        # BISECT_DISABLED: reset_view_btn.setToolTip("Reset yaw/pitch/pan and re-fit the camera to\n"
+        # BISECT_DISABLED: "the currently loaded instances, for every pane")
+        # BISECT_DISABLED: reset_view_btn.clicked.connect(self._on_control_panel_reset_view)
+        # BISECT_DISABLED: lay.addWidget(reset_view_btn)
 
-        # - Background colour
-        bg_row = QHBoxLayout()
-        bg_row.addWidget(QLabel("Background:"))
-        self._cp_bg_combo = QComboBox()
-        self._cp_bg_combo.addItems(["Default", "Black", "White", "Dark Grey"])
-        self._cp_bg_combo.currentTextChanged.connect(self._on_control_panel_bg_changed)
-        bg_row.addWidget(self._cp_bg_combo)
-        lay.addLayout(bg_row)
+        # BISECT_DISABLED: # - Background colour
+        # BISECT_DISABLED: bg_row = QHBoxLayout()
+        # BISECT_DISABLED: bg_row.addWidget(QLabel("Background:"))
+        # BISECT_DISABLED: self._cp_bg_combo = QComboBox()
+        # BISECT_DISABLED: self._cp_bg_combo.addItems(["Default", "Black", "White", "Dark Grey"])
+        # BISECT_DISABLED: self._cp_bg_combo.currentTextChanged.connect(self._on_control_panel_bg_changed)
+        # BISECT_DISABLED: bg_row.addWidget(self._cp_bg_combo)
+        # BISECT_DISABLED: lay.addLayout(bg_row)
 
-        # - "Normal Mode" dropdown (STUB - MooMapper shows this but its
-        #   exact purpose isn't clear from the reference screenshot alone)
-        mode_row = QHBoxLayout()
-        mode_row.addWidget(QLabel("Mode:"))
-        self._cp_mode_combo = QComboBox()
-        self._cp_mode_combo.addItems(["Normal Mode"])
-        self._cp_mode_combo.setToolTip("STUB - MooMapper shows a mode dropdown here,\n"
-                                       "but its exact purpose isn't confirmed yet")
-        mode_row.addWidget(self._cp_mode_combo)
-        mode_row.addStretch()
-        lay.addLayout(mode_row)
+        # BISECT_DISABLED: # - "Normal Mode" dropdown (STUB - MooMapper shows this but its
+        # BISECT_DISABLED: #   exact purpose isn't clear from the reference screenshot alone)
+        # BISECT_DISABLED: mode_row = QHBoxLayout()
+        # BISECT_DISABLED: mode_row.addWidget(QLabel("Mode:"))
+        # BISECT_DISABLED: self._cp_mode_combo = QComboBox()
+        # BISECT_DISABLED: self._cp_mode_combo.addItems(["Normal Mode"])
+        # BISECT_DISABLED: self._cp_mode_combo.setToolTip("STUB - MooMapper shows a mode dropdown here,\n"
+        # BISECT_DISABLED: "but its exact purpose isn't confirmed yet")
+        # BISECT_DISABLED: mode_row.addWidget(self._cp_mode_combo)
+        # BISECT_DISABLED: mode_row.addStretch()
+        # BISECT_DISABLED: lay.addLayout(mode_row)
 
-        # - Dragging Controls legend - matches the actual current
-        #   MapViewport controls (configure_movement/mouseMoveEvent),
-        #   not a stub - this reflects real, working behaviour.
-        controls_box = QGroupBox("Dragging Controls")
-        themecol = self.app_settings.get_theme_colors()
-        panel_bg = themecol.get('panel_bg')
-        if panel_bg:
-            controls_box.setStyleSheet(
-                f"QGroupBox {{ background: {panel_bg}; }} "
-                f"QGroupBox QLabel {{ background: {panel_bg}; }}")
-        controls_lay = QVBoxLayout(controls_box)
-        for line in (
-            "Middle Btn: Move Camera (pan)",
-            "Right Btn: Rotate Camera (3D pane only)",
-            "Left Btn (click, no drag): Select Object & Zoom In",
-            "Mouse Wheel: Zoom",
-        ):
-            controls_lay.addWidget(QLabel(line))
-        note = QLabel("(button assignment is configurable in Settings)")
-        note.setStyleSheet("color: palette(mid);")
-        controls_lay.addWidget(note)
-        lay.addWidget(controls_box)
+        # BISECT_DISABLED: # - Dragging Controls legend - matches the actual current
+        # BISECT_DISABLED: #   MapViewport controls (configure_movement/mouseMoveEvent),
+        # BISECT_DISABLED: #   not a stub - this reflects real, working behaviour.
+        # BISECT_DISABLED: controls_box = QGroupBox("Dragging Controls")
+        # BISECT_DISABLED: themecol = self.app_settings.get_theme_colors()
+        # BISECT_DISABLED: panel_bg = themecol.get('panel_bg')
+        # BISECT_DISABLED: if panel_bg:
+        # BISECT_DISABLED: controls_box.setStyleSheet(
+        # BISECT_DISABLED: f"QGroupBox {{ background: {panel_bg}; }} "
+        # BISECT_DISABLED: f"QGroupBox QLabel {{ background: {panel_bg}; }}")
+        # BISECT_DISABLED: controls_lay = QVBoxLayout(controls_box)
+        # BISECT_DISABLED: for line in (
+        # BISECT_DISABLED: "Middle Btn: Move Camera (pan)",
+        # BISECT_DISABLED: "Right Btn: Rotate Camera (3D pane only)",
+        # BISECT_DISABLED: "Left Btn (click, no drag): Select Object & Zoom In",
+        # BISECT_DISABLED: "Mouse Wheel: Zoom",
+        # BISECT_DISABLED: ):
+        # BISECT_DISABLED: controls_lay.addWidget(QLabel(line))
+        # BISECT_DISABLED: note = QLabel("(button assignment is configurable in Settings)")
+        # BISECT_DISABLED: note.setStyleSheet("color: palette(mid);")
+        # BISECT_DISABLED: controls_lay.addWidget(note)
+        # BISECT_DISABLED: lay.addWidget(controls_box)
 
-        lay.addStretch()
+        # BISECT_DISABLED: lay.addStretch()
 
         dock = QDockWidget("Control Panel", self)
         dock.setObjectName("Control Panel")
