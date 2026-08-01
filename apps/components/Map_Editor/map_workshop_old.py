@@ -9,7 +9,7 @@
 # has been renamed to MapWorkshop/Map Workshop/map_workshop throughout
 # this copy - the original Model_Editor/model_workshop.py is untouched
 # and still the real, working Model Workshop feature.
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 210
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 211
 # X-Seti - Apr 2026 - Map Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -379,6 +379,31 @@
 # clean, full QApplication instantiation clean. Whether this actually
 # fixes the live snap-drag issue can only be confirmed by Keith testing
 # it directly - noted as unresolved/unverified pending that test.
+# X-Seti - Aug01 2026 - Removed outer_mw.setDockNestingEnabled(True).
+# Keith confirmed Model Workshop (apps/components/Model_Editor/
+# model_workshop.py) is a live, currently-working reference for dock/
+# ribbon drag-snap - unlike map_workshop_old_version.py, which crashes
+# before reaching a testable UI state. Direct comparison against
+# Model Workshop's actual current setup_ui found: its docks use only
+# DockWidgetMovable|DockWidgetFloatable (no Closable - confirms
+# Closable is unrelated to snap-drag, unrelated to the earlier v203
+# fix), it also uses _make_dock_collapsible custom title bars (confirms
+# those aren't the cause either, consistent with earlier findings),
+# and its viewport is outer_mw's central widget wrapping its own
+# separate inner_mw - not a QDockWidget. Keith chose to keep the
+# viewport as a dock (wants the movable header) rather than match that
+# last part, but flagged one more concrete difference worth testing
+# first: Model Workshop never calls setDockNestingEnabled(True) at
+# all, while Map Workshop does (added earlier per Keith's own request
+# about docking Object Browser to the left). Removed it here - it's
+# redundant with AllowNestedDocks (already set via setDockOptions,
+# which both apps share; Qt6's setDockNestingEnabled() just toggles
+# that same option), so removing it costs nothing functionally even
+# if it turns out not to be the cause. Verified: instantiates cleanly,
+# dockOptions() still shows AllowNestedDocks|AllowTabbedDocks. Whether
+# this fixes the live snap-drag issue is unverified pending Keith's
+# test - if not, the search continues by comparing other differences
+# against Model Workshop's confirmed-working setup.
 
 import os
 import math
@@ -4837,7 +4862,14 @@ class MapWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         outer_mw.setDockOptions(
             QMainWindow.DockOption.AllowNestedDocks |
             QMainWindow.DockOption.AllowTabbedDocks)
-        outer_mw.setDockNestingEnabled(True)
+        # setDockNestingEnabled(True) removed (Aug 1 2026) - Model
+        # Workshop's proven-working setup never calls it, and it's
+        # redundant with AllowNestedDocks above anyway (Qt6's
+        # setDockNestingEnabled() just toggles that same dock option).
+        # Testing whether this specific call was interfering with
+        # Qt's drag-snap hit-testing, since it's one of the few
+        # remaining concrete differences found by direct comparison
+        # against Model Workshop's current, live, working setup_ui.
         # Explicit separator styling - guards against the same
         # docked-mode theme-cascade issue found in Model Workshop (a
         # locally-set stylesheet rule takes precedence over anything
