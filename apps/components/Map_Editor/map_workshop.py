@@ -4417,13 +4417,19 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # recreate the same "two viewports" confusion from earlier
         # today - flagged to Keith rather than guessing.
         object_browser_dock = self._create_object_browser_dock()
+        object_browser_dock.setMinimumWidth(250)
+        self._make_dock_collapsible(object_browser_dock, "Object Browser")
         outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, object_browser_dock)
 
         ipl_inst_file_dock = self._create_ipl_inst_file_panel()
+        ipl_inst_file_dock.setMinimumWidth(250)
+        self._make_dock_collapsible(ipl_inst_file_dock, "IPL Inst File")
         outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, ipl_inst_file_dock)
         outer_mw.splitDockWidget(object_browser_dock, ipl_inst_file_dock, Qt.Orientation.Vertical)
 
         control_panel_dock = self._create_control_panel_dock()
+        control_panel_dock.setMinimumWidth(250)
+        self._make_dock_collapsible(control_panel_dock, "Control Panel")
         outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, control_panel_dock)
         outer_mw.splitDockWidget(ipl_inst_file_dock, control_panel_dock, Qt.Orientation.Vertical)
 
@@ -17252,8 +17258,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         dock.setObjectName("Object Browser")
         dock.setWidget(panel)
         dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
-                        QDockWidget.DockWidgetFeature.DockWidgetFloatable |
-                        QDockWidget.DockWidgetFeature.DockWidgetClosable)
+                        QDockWidget.DockWidgetFeature.DockWidgetFloatable)
 
         title_bar = QWidget()
         title_lay = QHBoxLayout(title_bar)
@@ -17556,8 +17561,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         dock.setObjectName("Instance List")
         dock.setWidget(view)
         dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
-                        QDockWidget.DockWidgetFeature.DockWidgetFloatable |
-                        QDockWidget.DockWidgetFeature.DockWidgetClosable)
+                        QDockWidget.DockWidgetFeature.DockWidgetFloatable)
         self._instance_list_dock = dock
         return dock
 
@@ -17888,8 +17892,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         dock.setObjectName("Control Panel")
         dock.setWidget(panel)
         dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
-                        QDockWidget.DockWidgetFeature.DockWidgetFloatable |
-                        QDockWidget.DockWidgetFeature.DockWidgetClosable)
+                        QDockWidget.DockWidgetFeature.DockWidgetFloatable)
         self._control_panel_dock = dock
         return dock
 
@@ -18626,8 +18629,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         dock.setObjectName("IPL Inst File")
         dock.setWidget(panel)
         dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
-                        QDockWidget.DockWidgetFeature.DockWidgetFloatable |
-                        QDockWidget.DockWidgetFeature.DockWidgetClosable)
+                        QDockWidget.DockWidgetFeature.DockWidgetFloatable)
         self._ipl_inst_file_dock = dock
         return dock
 
@@ -18996,8 +18998,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         dock.setObjectName("Editing Panel")
         dock.setWidget(tabs)
         dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
-                        QDockWidget.DockWidgetFeature.DockWidgetFloatable |
-                        QDockWidget.DockWidgetFeature.DockWidgetClosable)
+                        QDockWidget.DockWidgetFeature.DockWidgetFloatable)
         self._editing_panel_dock = dock
         self._editing_panel_tabs = tabs
         return dock
@@ -19512,8 +19513,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         dock.setObjectName("World View")
         dock.setWidget(splitter)
         dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
-                        QDockWidget.DockWidgetFeature.DockWidgetFloatable |
-                        QDockWidget.DockWidgetFeature.DockWidgetClosable)
+                        QDockWidget.DockWidgetFeature.DockWidgetFloatable)
         self._world_view_dock = dock
 
         # Default to showing only 3D, per Keith's request ("I suggest
