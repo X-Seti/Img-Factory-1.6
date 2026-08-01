@@ -4421,16 +4421,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._make_dock_collapsible(object_browser_dock, "Object Browser")
         outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, object_browser_dock)
 
-        # TEMP TEST (Aug 1): IPL Inst File and Control Panel disabled so
-        # only Object Browser (with its installEventFilter calls also
-        # disabled, see _create_object_browser_dock) is active - isolating
-        # whether installEventFilter specifically is why enabling any of
-        # these 3 docks breaks dragging/docking for the whole window.
-        # ipl_inst_file_dock = self._create_ipl_inst_file_panel()
-        # ipl_inst_file_dock.setMinimumWidth(250)
-        # self._make_dock_collapsible(ipl_inst_file_dock, "IPL Inst File")
-        # outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, ipl_inst_file_dock)
-        # outer_mw.splitDockWidget(object_browser_dock, ipl_inst_file_dock, Qt.Orientation.Vertical)
+        # TEMP TEST (Aug 1): Object Browser confirmed NOT the cause
+        # (docked correctly with installEventFilter disabled). Now
+        # testing IPL Inst File next - Control Panel still disabled.
+        ipl_inst_file_dock = self._create_ipl_inst_file_panel()
+        ipl_inst_file_dock.setMinimumWidth(250)
+        self._make_dock_collapsible(ipl_inst_file_dock, "IPL Inst File")
+        outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, ipl_inst_file_dock)
+        outer_mw.splitDockWidget(object_browser_dock, ipl_inst_file_dock, Qt.Orientation.Vertical)
 
         # control_panel_dock = self._create_control_panel_dock()
         # control_panel_dock.setMinimumWidth(250)
