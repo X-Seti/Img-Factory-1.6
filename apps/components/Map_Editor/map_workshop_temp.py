@@ -4433,10 +4433,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         #outer_mw.splitDockWidget(object_browser_dock, ipl_inst_file_dock, Qt.Orientation.Vertical)
 
         #Adding control panel breaks the docking??
-        control_dock = self._create_control_dock()
-        control_dock.setMinimumWidth(250)
-        self._make_dock_collapsible(control_dock, "Control Panel")
-        outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, control_dock)
+        control_panel_dock = self._create_control_dock()
+        control_panel_dock.setMinimumWidth(250)
+        self._make_dock_collapsible(control_panel_dock, "Control Panel")
+        outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, control_panel_dock)
 
 
         #outer_mw.splitDockWidget(ipl_inst_file_dock, control_panel_dock, Qt.Orientation.Vertical)
@@ -17755,8 +17755,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         a reference background map image, texture toggling separate
         from render mode)."""
         panel = QWidget()
-        lay = QHBoxLayout(panel)
-        lay.setContentsMargins(1, 1, 1, 1)
+        lay = QVBoxLayout(panel)
+        lay.setContentsMargins(6, 6, 6, 6)
 
         # - Position (X, Y, Z) + Move There
         pos_box = QGroupBox("Position (X, Y, Z)")
@@ -17770,17 +17770,22 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._cp_pos_y = QDoubleSpinBox(); self._cp_pos_y.setRange(-100000, 100000)
         self._cp_pos_z = QDoubleSpinBox(); self._cp_pos_z.setRange(-100000, 100000)
         move_there_btn = QPushButton("Move There")
-        #move_there_btn.setFixedHeight(self._COMPACT_BUTTON_H + 6)
+        move_there_btn.setFixedHeight(self._COMPACT_BUTTON_H + 6)
         move_there_btn.setToolTip("Centre all World View panes' cameras on this\n"
                                   "typed position - the direct type-in alternative\n"
                                   "to nudging/clicking an object")
         move_there_btn.clicked.connect(self._on_move_there_clicked)
         for spin in (self._cp_pos_x, self._cp_pos_y, self._cp_pos_z):
             spin.setDecimals(2)
-
-            #spin.setMinimumWidth(60)
+            # Without this, Qt reserves worst-case width for the full
+            # ±100000 range (over 500px combined for all three) - per
+            # Keith's report that this was locking the whole panel's
+            # width. Still fully usable for extreme values via typing/
+            # scrolling, just doesn't force display of every possible
+            # digit at once.
+            spin.setMinimumWidth(60)
             spin.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.UpDownArrows)
-            #spin.setFixedHeight(self._COMPACT_BUTTON_H + 6)   # match Move There's height
+            spin.setFixedHeight(self._COMPACT_BUTTON_H + 6)   # match Move There's height
             pos_lay.addWidget(spin)
         pos_lay.addWidget(move_there_btn)
         lay.addWidget(pos_box)
@@ -17794,7 +17799,37 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._cp_time_combo.setToolTip("STUB - no time-of-day simulation built yet\n"
                                        "(would matter for TOBJ/timed object rendering)")
         time_row.addWidget(self._cp_time_combo)
+        time_row.addStretch()
         lay.addLayout(time_row)
+
+        # - Checkboxes: Enable Textures / Wireframe Mode / Alpha Blending /
+        #   First Person / Background Map
+        self._cp_enable_textures_chk = QCheckBox("Enable Textures")
+        self._cp_enable_textures_chk.setChecked(True)
+        self._cp_enable_textures_chk.setToolTip("STUB - texture binding for real mesh\n"
+                                                "rendering isn't wired up yet")
+        lay.addWidget(self._cp_enable_textures_chk)
+
+        self._cp_wireframe_chk = QCheckBox("Wireframe Mode")
+        self._cp_wireframe_chk.setToolTip("Same as choosing Wireframe in the\n"
+                                          "Render Mode dropdown (Plotting ribbon)")
+        self._cp_wireframe_chk.toggled.connect(self._on_control_panel_wireframe_toggled)
+        lay.addWidget(self._cp_wireframe_chk)
+
+        self._cp_alpha_chk = QCheckBox("Alpha Blending")
+        self._cp_alpha_chk.setChecked(True)
+        self._cp_alpha_chk.setToolTip("STUB - not yet connected to anything")
+        lay.addWidget(self._cp_alpha_chk)
+
+        self._cp_first_person_chk = QCheckBox("First Person")
+        self._cp_first_person_chk.setToolTip("STUB - no first-person navigation mode\n"
+                                             "built yet, only orbit/pan camera controls")
+        lay.addWidget(self._cp_first_person_chk)
+
+        self._cp_background_map_chk = QCheckBox("Background Map")
+        self._cp_background_map_chk.setToolTip("STUB - no reference background map\n"
+                                                "image support built yet")
+        lay.addWidget(self._cp_background_map_chk)
 
         # - Zoom +/- and Reset View
         zoom_row = QHBoxLayout()
@@ -17805,7 +17840,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         zoom_plus_btn.clicked.connect(lambda: self._on_control_panel_zoom(0.85))
         zoom_row.addWidget(zoom_minus_btn)
         zoom_row.addWidget(zoom_plus_btn)
-
+        zoom_row.addStretch()
         lay.addLayout(zoom_row)
 
         reset_view_btn = QPushButton("Reset View")
@@ -17814,86 +17849,58 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         reset_view_btn.clicked.connect(self._on_control_panel_reset_view)
         lay.addWidget(reset_view_btn)
 
-        # - Next row
-        #lay = QHBoxLayout(panel)
-
-        # - Checkboxes: Enable Textures / Wireframe Mode / Alpha Blending /
-        #   First Person / Background Map
-        #self._cp_enable_textures_chk = QCheckBox("Enable Textures")
-        #self._cp_enable_textures_chk.setChecked(True)
-        #self._cp_enable_textures_chk.setToolTip("STUB - texture binding for real mesh rendering isn't wired up yet")
-        #lay.addWidget(self._cp_enable_textures_chk)
-
-        #self._cp_wireframe_chk = QCheckBox("Wireframe Mode")
-        #self._cp_wireframe_chk.setToolTip("Same as choosing Wireframe in the Render Mode dropdown (Plotting ribbon)")
-        #self._cp_wireframe_chk.toggled.connect(self._on_control_panel_wireframe_toggled)
-        #lay.addWidget(self._cp_wireframe_chk)
-
-        #self._cp_alpha_chk = QCheckBox("Alpha Blending")
-        #self._cp_alpha_chk.setChecked(True)
-        #self._cp_alpha_chk.setToolTip("STUB - not yet connected to anything")
-        #lay.addWidget(self._cp_alpha_chk)
-
-        #self._cp_first_person_chk = QCheckBox("First Person")
-        #self._cp_first_person_chk.setToolTip("STUB - no first-person navigation mode built yet, only orbit/pan camera controls")
-        #lay.addWidget(self._cp_first_person_chk)
-
-        #self._cp_background_map_chk = QCheckBox("Background Map")
-        #self._cp_background_map_chk.setToolTip("STUB - no reference background map image support built yet")
-        #lay.addWidget(self._cp_background_map_chk)
-
         # - Background colour
-        #bg_row = QHBoxLayout()
-        #bg_row.addWidget(QLabel("Background:"))
-        #self._cp_bg_combo = QComboBox()
-        #self._cp_bg_combo.addItems(["Default", "Black", "White", #"Dark Grey"])
-        #self._cp_bg_combo.currentTextChanged.connect(self._on_control#_panel_bg_changed)
-        #bg_row.addWidget(self._cp_bg_combo)
-        #lay.addLayout(bg_row)
+        bg_row = QHBoxLayout()
+        bg_row.addWidget(QLabel("Background:"))
+        self._cp_bg_combo = QComboBox()
+        self._cp_bg_combo.addItems(["Default", "Black", "White", "Dark Grey"])
+        self._cp_bg_combo.currentTextChanged.connect(self._on_control_panel_bg_changed)
+        bg_row.addWidget(self._cp_bg_combo)
+        lay.addLayout(bg_row)
 
         # - "Normal Mode" dropdown (STUB - MooMapper shows this but its
         #   exact purpose isn't clear from the reference screenshot alone)
-        #mode_row = QHBoxLayout()
-        #mode_row.addWidget(QLabel("Mode:"))
-        #self._cp_mode_combo = QComboBox()
-        #self._cp_mode_combo.addItems(["Normal Mode"])
-        #self._cp_mode_combo.setToolTip("STUB - MooMapper shows a mode dropdown here, but its exact purpose isn't confirmed yet")
-        #mode_row.addWidget(self._cp_mode_combo)
-        #mode_row.addStretch()
-        #lay.addLayout(mode_row)
+        mode_row = QHBoxLayout()
+        mode_row.addWidget(QLabel("Mode:"))
+        self._cp_mode_combo = QComboBox()
+        self._cp_mode_combo.addItems(["Normal Mode"])
+        self._cp_mode_combo.setToolTip("STUB - MooMapper shows a mode dropdown here,\n"
+                                       "but its exact purpose isn't confirmed yet")
+        mode_row.addWidget(self._cp_mode_combo)
+        mode_row.addStretch()
+        lay.addLayout(mode_row)
 
         # - Dragging Controls legend - matches the actual current
         #   MapViewport controls (configure_movement/mouseMoveEvent),
         #   not a stub - this reflects real, working behaviour.
-        #controls_box = QGroupBox("Dragging Controls")
-        #themecol = self.app_settings.get_theme_colors()
-        #panel_bg = themecol.get('panel_bg')
-        #if panel_bg:
-        #    controls_box.setStyleSheet(
-        #        f"QGroupBox {{ background: {panel_bg}; }} "
-        #        f"QGroupBox QLabel {{ background: {panel_bg}; }}")
-        #controls_lay = QVBoxLayout(controls_box)
-        #for line in (
-        #    "Middle Btn: Move Camera (pan)",
-        #    "Right Btn: Rotate Camera (3D pane only)",
-        #    "Left Btn (click, no drag): Select Object & Zoom In",
-        #    "Mouse Wheel: Zoom",
-        #):
-        #    controls_lay.addWidget(QLabel(line))
-        #note = QLabel("(button assignment is configurable in Settings)")
-        #note.setStyleSheet("color: palette(mid);")
-        #controls_lay.addWidget(note)
-        #lay.addWidget(controls_box)
+        controls_box = QGroupBox("Dragging Controls")
+        themecol = self.app_settings.get_theme_colors()
+        panel_bg = themecol.get('panel_bg')
+        if panel_bg:
+            controls_box.setStyleSheet(
+                f"QGroupBox {{ background: {panel_bg}; }} "
+                f"QGroupBox QLabel {{ background: {panel_bg}; }}")
+        controls_lay = QVBoxLayout(controls_box)
+        for line in (
+            "Middle Btn: Move Camera (pan)",
+            "Right Btn: Rotate Camera (3D pane only)",
+            "Left Btn (click, no drag): Select Object & Zoom In",
+            "Mouse Wheel: Zoom",
+        ):
+            controls_lay.addWidget(QLabel(line))
+        note = QLabel("(button assignment is configurable in Settings)")
+        note.setStyleSheet("color: palette(mid);")
+        controls_lay.addWidget(note)
+        lay.addWidget(controls_box)
 
-        #lay.addStretch()
+        lay.addStretch()
 
-        dock = QDockWidget("Control Panel", self)
-        dock.setObjectName("Control Panel")
-        dock.setWidget(panel)
+        #dock = QDockWidget("Control Panel", self)
+        #dock.setObjectName("Control Panel")
+        #dock.setWidget(panel)
         #dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable | QDockWidget.DockWidgetFeature.DockWidgetFloatable)
         self._control_panel_dock = dock
         return dock
-
 
     def _on_move_there_clicked(self): #vers 1
         x, y, z = self._cp_pos_x.value(), self._cp_pos_y.value(), self._cp_pos_z.value()
@@ -18853,7 +18860,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._dat_tab_text = text
         return panel
 
-
     def _refresh_dat_tab(self): #vers 1
         text_widget = getattr(self, '_dat_tab_text', None)
         dat_path = getattr(self, '_loaded_dat_path', None)
@@ -18867,7 +18873,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 text_widget.setPlainText(f.read())
         except Exception as e:
             text_widget.setPlainText(f"(could not read {dat_path}: {e})")
-
 
     def _create_img_tab(self): #vers 1
         """[IMG] tab content, matching MooMapper's own "IMG Archive"
@@ -18941,7 +18946,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._img_tab_tabs = img_tabs
         return panel
 
-
     def _refresh_img_tab(self, loader): #vers 1
         """Rebuild the numbered IMG sub-tabs from the loaded world's
         actual IMG archives (loader.get_img_paths()) - one table per
@@ -18972,7 +18976,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             except Exception:
                 pass
             img_tabs.addTab(table, str(i))
-
 
     def _create_editing_panel_dock(self): #vers 1
         """New tabbed "Editing Panel" dock - IDE/IPL/DAT/IMG, matching
