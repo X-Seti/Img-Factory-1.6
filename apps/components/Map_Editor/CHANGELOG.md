@@ -75,3 +75,19 @@ conclusively found despite extensive isolated testing.
   (`_load_game_folder`, `_load_game_dat_file`, `_apply_loaded_world`,
   `_load_selected_ipls_with_log`, etc.) already existed from the
   earlier graft, just wasn't wired to any visible UI element yet.
+  Found and fixed a second gap: `open_model_workshop`/
+  `open_map_workshop` itself (the entry point actually called when
+  opening with a specific file path, e.g. from the DAT Browser) only
+  routed `.dff`/`.col`/`.img` extensions, never `.dat` - added that
+  routing too. Verified the full chain end-to-end (with `QMessageBox`
+  mocked to avoid blocking modal dialogs in headless testing):
+  `open_map_workshop(main_window, "some.dat")` -> `_load_game_dat_file`
+  -> `GTAWorldLoader.load_from_dat` -> `_apply_loaded_world` -> the
+  entire UI population chain (Object Browser, IPL Sections, Instance
+  List, IDE/DAT/IMG tabs, IPL Inst File panel) all ran without
+  crashing, and the per-IPL lazy-load path
+  (`_on_ipl_section_cell_clicked` -> `_ensure_ipl_loaded`) was
+  confirmed intact and complete. World Viewport panes intentionally
+  not wired in for this pass, per Keith - keeping Model Workshop's
+  existing DFF viewport, data-only (Object Browser/IPL Sections/etc.)
+  is enough for now.

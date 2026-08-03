@@ -21237,6 +21237,12 @@ def open_model_workshop(main_window, dff_path=None,
                 workshop.open_col_file(dff_path)
             elif ext.endswith('.img'):
                 workshop.load_from_img_archive(dff_path)
+            elif ext.endswith('.dat'):
+                # DAT Browser (or any other caller) opening Map Workshop
+                # with a specific .dat path - route to the real map-load
+                # logic instead of falling through to nothing, matching
+                # what the Open button's dialog already does for .dat.
+                workshop._load_game_dat_file(dff_path)
         else:
             # No explicit file — use already-open IMG from main window directly
             if main_window:
