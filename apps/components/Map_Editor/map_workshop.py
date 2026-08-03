@@ -12047,6 +12047,52 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 pass
         return '#cccccc'
 
+    def _get_ui_color(self, key): #vers 1
+        """Get a theme-aware QColor from app_settings. No hardcoded colors.
+        Genuinely missing from ModelWorkshop until now (Aug 1 2026) -
+        found via a systematic audit of self.method() calls against
+        defined methods, per Keith's question about functions needed
+        to use the existing viewport. This class's own DFF-viewport
+        painting code (dozens of call sites) calls self._get_ui_color(),
+        but it was only ever defined on COL3DViewport (a different
+        class this one doesn't inherit from) - every one of those
+        calls would have raised AttributeError the moment any painting
+        actually happened. Copied verbatim from COL3DViewport's
+        version (same file, line ~772) since the logic doesn't depend
+        on anything specific to that class - just self.app_settings/
+        self.main_window.app_settings and self.palette(), both
+        available here too."""
+        from PyQt6.QtGui import QColor
+        try:
+            app_settings = getattr(self, 'app_settings', None) or \
+                getattr(getattr(self, 'main_window', None), 'app_settings', None)
+            if app_settings and hasattr(app_settings, 'get_ui_color'):
+                return app_settings.get_ui_color(key)
+        except Exception:
+            pass
+        # Palette fallback - no hardcoded values
+        pal = self.palette()
+        if key == 'viewport_bg':
+            return pal.color(pal.ColorRole.Base)
+        if key == 'viewport_text':
+            return pal.color(pal.ColorRole.PlaceholderText)
+        return pal.color(pal.ColorRole.WindowText)
+
+    def _set_render_mode(self, mode: str): #vers 1
+        """Set the actual viewport's render mode (wireframe/solid/etc.)
+        - genuinely missing from ModelWorkshop until now (Aug 1 2026),
+        same audit as _get_ui_color above. Only caller currently is
+        _on_control_panel_wireframe_toggled (Control Panel is still
+        disabled pending the dock-snap investigation, so this isn't
+        reachable yet, but would have raised AttributeError the
+        moment it was re-enabled and someone toggled Wireframe Mode).
+        DFFViewport (self.preview_widget, the real existing viewport
+        we're using) already has its own real set_render_mode(mode) -
+        this just delegates to it."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is not None and hasattr(vp, 'set_render_mode'):
+            vp.set_render_mode(mode)
+
     def _get_icon_set(self) -> str: #vers 1
         """Return active icon set: 'default' or '3dsmax'.
         Read from model_workshop.json 'icon_set' key."""

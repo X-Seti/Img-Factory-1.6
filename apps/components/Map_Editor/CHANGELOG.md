@@ -126,3 +126,31 @@ conclusively found despite extensive isolated testing.
   (keyword args, both the `dat_path` and no-args cases confirmed
   working end-to-end).
 
+- **Aug 1, 2026 (cont'd)** — Per Keith's question ("are there
+  functions missing that we still need to add, not counting the
+  viewport, as we're using the existing instead, can you change the
+  functions needed... to use the viewport"): ran a systematic audit
+  (AST-based - every `self.method()` call in the `ModelWorkshop`
+  class checked against every method actually defined on it) rather
+  than guessing. First confirmed every `self._world_panes` reference
+  (the deliberately-unused Map-specific viewport) is safely
+  `getattr`-guarded - all silently no-op, nothing crashes from not
+  using it. Then found two genuinely missing methods in active code
+  paths for the viewport we ARE using: `_get_ui_color` (called 20+
+  times throughout `ModelWorkshop`'s own DFF-viewport painting code,
+  but only ever defined on `COL3DViewport`, a different class this
+  one doesn't inherit from - every call would have raised
+  `AttributeError` the moment any painting happened) and
+  `_set_render_mode` (Control Panel's Wireframe Mode toggle called
+  this, but it never existed anywhere - `DFFViewport.set_render_mode`
+  does exist though, on the actual viewport widget
+  (`self.preview_widget`), so added a thin delegating method). Both
+  added and verified working. Ten other "missing" methods found by
+  the same audit are all either safely guarded, only referenced in
+  already-parked/unused code, or gated behind explicit clicks on
+  Model-Workshop-specific features (COL level import/export, icon
+  display mode, platform scanning) unrelated to Map Workshop's
+  loading functionality - pre-existing gaps in the base app, not
+  addressed here.
+
+
