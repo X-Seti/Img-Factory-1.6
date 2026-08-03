@@ -21259,13 +21259,58 @@ def open_model_workshop(main_window, dff_path=None,
             main_window.log_message(f"Model Workshop error: {e}")
         return None
 
-# Alias so callers (e.g. IMG Factory's DAT Browser) that import this
-# module expecting a Map Workshop-named factory function don't hit
-# ImportError: cannot import name 'open_map_workshop'. Same function,
-# same ModelWorkshop class - map_workshop.py is currently a Model
-# Workshop base with Map Workshop's content grafted in (see
-# CHANGELOG.md), not yet renamed throughout.
-open_map_workshop = open_model_workshop
+def open_map_workshop(main_window, game_root=None, dat_path=None): #vers 1
+    """Open Map Workshop and load a GTA world - either a whole game
+    folder (game_root) or one specific .dat file (dat_path), matching
+    the signature apps/components/Img_Factory/imgfactory.py's
+    open_map_workshop_docked() actually calls this with (game_root
+    from Dat Browser's currently-loaded game root; dat_path from
+    right-clicking a .dat entry in the Dat Browser tree). An earlier
+    version of this function was just `open_map_workshop =
+    open_model_workshop` (a plain alias) - fixed the ImportError, but
+    open_model_workshop's own signature (dff_path/original_dff_name,
+    routing only .dff/.col/.img) doesn't accept game_root/dat_path at
+    all, so the call itself still failed with "got an unexpected
+    keyword argument 'game_root'". This is a real, separate
+    implementation instead."""
+    try:
+        if main_window and hasattr(main_window, 'main_tab_widget'):
+            from PyQt6.QtWidgets import QWidget, QVBoxLayout
+            container = QWidget()
+            layout = QVBoxLayout(container)
+            layout.setContentsMargins(0, 0, 0, 0)
+            workshop = ModelWorkshop(container, main_window)
+            workshop.setWindowFlags(Qt.WindowType.Widget)
+            layout.addWidget(workshop)
+            tab_label = "Map Workshop"
+            try:
+                from apps.methods.imgfactory_svg_icons import get_dff_edit_icon
+                icon = get_dff_edit_icon()
+                idx = main_window.main_tab_widget.addTab(container, icon, tab_label)
+            except Exception:
+                idx = main_window.main_tab_widget.addTab(container, tab_label)
+            main_window.main_tab_widget.setCurrentIndex(idx)
+            if hasattr(main_window, '_ensure_tab_area_visible'):
+                main_window._ensure_tab_area_visible()
+            workshop.show()
+        else:
+            workshop = ModelWorkshop(main_window=main_window)
+            workshop.setWindowFlags(Qt.WindowType.Window)
+            workshop.setWindowTitle(f"Map Workshop — {App_name}")
+            workshop.resize(1200, 800)
+            workshop.show()
+
+        if game_root:
+            workshop._load_game_folder(game_root)
+        elif dat_path:
+            workshop._load_game_dat_file(dat_path)
+
+        return workshop
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        if main_window and hasattr(main_window, 'log_message'):
+            main_window.log_message(f"Map Workshop error: {e}")
+        return None
 
 def open_workshop(main_window, img_path=None): #vers 4
     """Legacy wrapper — calls open_model_workshop."""

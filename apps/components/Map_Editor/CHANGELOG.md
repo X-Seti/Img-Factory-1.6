@@ -91,3 +91,22 @@ conclusively found despite extensive isolated testing.
   not wired in for this pass, per Keith - keeping Model Workshop's
   existing DFF viewport, data-only (Object Browser/IPL Sections/etc.)
   is enough for now.
+
+- **Aug 1, 2026 (cont'd)** — Fixed a second, deeper bug in the same
+  area: `open_map_workshop` was just `= open_model_workshop` (a plain
+  alias) - fixed the `ImportError`, but the actual caller
+  (`apps/components/Img_Factory/imgfactory.py`'s
+  `open_map_workshop_docked`) calls
+  `open_map_workshop(self, game_root=game_root, dat_path=dat_path)`,
+  keyword arguments `open_model_workshop`'s own signature
+  (`dff_path`/`original_dff_name`) doesn't accept at all - so the
+  alias still failed, now with `got an unexpected keyword argument
+  'game_root'`. Replaced the alias with a real, separate
+  `open_map_workshop(main_window, game_root=None, dat_path=None)`
+  implementation - docks/opens a `ModelWorkshop` the same way
+  `open_model_workshop` does, then routes to `_load_game_folder` or
+  `_load_game_dat_file` depending on which argument was given.
+  Verified against the exact call signature `imgfactory.py` uses
+  (keyword args, both the `dat_path` and no-args cases confirmed
+  working end-to-end).
+
