@@ -12441,16 +12441,21 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             except Exception as e:
                 QMessageBox.critical(self, "TXD Error", f"Failed to open TXD:\n{e}")
 
-    def _open_file(self): #vers 4
+    def _open_file(self): #vers 5
         """Open file dialog — supports DFF (model), COL (collision), and
-        TXD (texture dictionary) files."""
+        TXD (texture dictionary) files, plus a GTA game's main .dat file
+        (loads a whole map via _load_game_dat_file - Map Workshop's real
+        purpose, wired into this shared dialog per Keith's choice to
+        extend Open rather than add a separate button)."""
         try:
             file_path, _ = QFileDialog.getOpenFileName(
                 self,
-                "Open Model / Collision / Texture File",
+                "Open Model / Collision / Texture / Map File",
                 "",
+                "All Supported Files (*.dff *.col *.txd *.dat);;"
                 "Model/Collision/Texture Files (*.dff *.col *.txd);;"
                 "DFF Models (*.dff);;COL Files (*.col);;TXD Files (*.txd);;"
+                "GTA Map (*.dat gta3.dat gta_vc.dat gta.dat gta_sol.dat gtasol.dat gta_quick.dat);;"
                 "All Files (*)"
             )
             if not file_path:
@@ -12472,6 +12477,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 else:
                     from apps.components.Txd_Editor.txd_workshop import open_txd_workshop
                     open_txd_workshop(self, file_path)
+            elif ext == '.dat':
+                self._load_game_dat_file(file_path)
             else:
                 self.open_col_file(file_path)
         except Exception as e:

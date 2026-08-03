@@ -64,3 +64,14 @@ conclusively found despite extensive isolated testing.
   current doesn't reliably react to resize events while hidden -
   `_on_object_browser_tab_changed` now force-refreshes the newly
   shown tab's row right away.
+
+- **Aug 1, 2026 (cont'd)** — Fixed an `ImportError` when opening Map
+  Workshop from IMG Factory's DAT Browser (`open_map_workshop` didn't
+  exist, only `open_model_workshop` did) by adding it as an alias.
+  Extended the "Open" button's file dialog to also accept a GTA
+  game's main `.dat` file, routing it through the already-working
+  `_load_game_dat_file` (map-loading) logic instead of adding a
+  separate button - the actual file-import logic
+  (`_load_game_folder`, `_load_game_dat_file`, `_apply_loaded_world`,
+  `_load_selected_ipls_with_log`, etc.) already existed from the
+  earlier graft, just wasn't wired to any visible UI element yet.
