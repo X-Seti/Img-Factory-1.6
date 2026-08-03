@@ -19167,7 +19167,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._editing_panel_tabs = tabs
         return dock
 
-    def _on_ipl_section_cell_clicked(self, row, col): #vers 4
+    def _on_ipl_section_cell_clicked(self, row, col): #vers 5
         """Clicking the eye-icon cell (col 0) toggles that IPL's
         visibility - plain item click rather than a button, so there's
         no button widget/chrome to size or pad. Clicking anywhere else
@@ -19179,24 +19179,43 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         With lazy IPL loading, toggling to visible for the first time
         also triggers the actual on-demand load of that IPL's content
         (_ensure_ipl_loaded) - matching MooMapper's model of not
-        touching an IPL until the user asks for it."""
-        table = self._ipl_sections_table
-        item = table.item(row, 0)
-        if item is None:
+        touching an IPL until the user asks for it.
+
+        Re-entrancy guarded (Aug 1 2026, Keith's report: "wired
+        cycling loop in the ipl inst tap when trying to load ipls") -
+        _ensure_ipl_loaded's own _preload_world_assets shows a
+        QProgressDialog whose setValue() calls processEvents()
+        internally to keep the UI responsive during a fast load; with
+        setMinimumDuration(500), that dialog often never actually
+        becomes visible/modal for a quick preload, so processEvents()
+        still pumps the event queue with no real modal blocking in
+        effect - a queued duplicate click event could re-enter this
+        same handler mid-flight, before the first call has finished
+        toggling state, producing exactly this kind of repeated/
+        cycling behaviour."""
+        if getattr(self, '_ipl_cell_click_in_progress', False):
             return
-        if col == 0:
-            ipl_name = item.data(Qt.ItemDataRole.UserRole)
-            hidden = ipl_name in getattr(self, '_hidden_ipls', set())
-            new_hidden = not hidden
-            if not new_hidden:
-                self._ensure_ipl_loaded(ipl_name)
-            item.setIcon(self._eye_closed_icon if new_hidden else self._eye_open_icon)
-            item.setToolTip(f"Show {ipl_name}" if new_hidden else f"Hide {ipl_name}")
-            name_item = table.item(row, 1)
-            if name_item is not None:
-                self._style_ipl_name_item(name_item, new_hidden)
-            self._toggle_ipl_section(ipl_name, new_hidden)
-        self._refresh_ipl_inst_file_panel()
+        self._ipl_cell_click_in_progress = True
+        try:
+            table = self._ipl_sections_table
+            item = table.item(row, 0)
+            if item is None:
+                return
+            if col == 0:
+                ipl_name = item.data(Qt.ItemDataRole.UserRole)
+                hidden = ipl_name in getattr(self, '_hidden_ipls', set())
+                new_hidden = not hidden
+                if not new_hidden:
+                    self._ensure_ipl_loaded(ipl_name)
+                item.setIcon(self._eye_closed_icon if new_hidden else self._eye_open_icon)
+                item.setToolTip(f"Show {ipl_name}" if new_hidden else f"Hide {ipl_name}")
+                name_item = table.item(row, 1)
+                if name_item is not None:
+                    self._style_ipl_name_item(name_item, new_hidden)
+                self._toggle_ipl_section(ipl_name, new_hidden)
+            self._refresh_ipl_inst_file_panel()
+        finally:
+            self._ipl_cell_click_in_progress = False
 
     def _ensure_ipl_loaded(self, display_name): #vers 2
         """Actually load one IPL's content on demand, the first time

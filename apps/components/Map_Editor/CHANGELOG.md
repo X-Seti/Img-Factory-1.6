@@ -92,6 +92,22 @@ conclusively found despite extensive isolated testing.
   existing DFF viewport, data-only (Object Browser/IPL Sections/etc.)
   is enough for now.
 
+- **Aug 1, 2026 (cont'd)** — Fixed a "weird cycling loop" Keith found
+  when actually loading real IPLs live (screenshot confirmed real
+  parsed instance data showing correctly in the IPL Inst File panel -
+  the core load chain does work). Root cause:
+  `_ensure_ipl_loaded`'s own `_preload_world_assets` shows a
+  `QProgressDialog` whose `setValue()` calls `processEvents()`
+  internally to keep the UI responsive; with `setMinimumDuration(500)`,
+  that dialog often never actually becomes visible/modal for a fast
+  preload (few models), so `processEvents()` still pumps the event
+  queue with no real modal blocking in effect - a queued duplicate
+  click event could re-enter `_on_ipl_section_cell_clicked` mid-flight,
+  before the first call finished toggling visibility state, producing
+  repeated/cycling behaviour. Added a simple re-entrancy guard
+  (`self._ipl_cell_click_in_progress`) around the whole method.
+
+
 - **Aug 1, 2026 (cont'd)** — Fixed a second, deeper bug in the same
   area: `open_map_workshop` was just `= open_model_workshop` (a plain
   alias) - fixed the `ImportError`, but the actual caller
