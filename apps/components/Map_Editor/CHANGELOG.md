@@ -192,5 +192,20 @@ conclusively found despite extensive isolated testing.
   reflects whatever docks exist at the time, including Control Panel
   once it's re-enabled.
 
+- **Aug 1, 2026 (cont'd)** — Per Keith: "need to save unticked
+  panes." `_restore_outer_layout` had a leftover safety net that
+  unconditionally force-showed Files/Models/Frame Hierarchy/Textures
+  on every startup, regardless of what was actually saved -
+  overriding a hidden dock's state right after `restoreState()`
+  correctly restored it. Removed the force-visible block entirely
+  (kept the unrelated window-width clamp logic below it) - Qt's own
+  `restoreState()` already correctly restores each dock's saved
+  visibility on its own, no manual re-application needed. Verified
+  end-to-end: hid Object Browser, called `_save_outer_layout()`,
+  created a fresh `ModelWorkshop` instance, let its delayed restore
+  timer fire, confirmed Object Browser was still hidden (both
+  `isVisible()` and the toggle action's checked state).
+
+
 
 

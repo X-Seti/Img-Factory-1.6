@@ -10454,13 +10454,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         except Exception as _e:
             print(f"[ModelWorkshop] _restore_outer_layout error: {_e}")
         finally:
-            for dock in (getattr(self, '_left_dock', None),
-                         getattr(self, '_middle_dock', None),
-                         getattr(self, '_frame_hierarchy_dock', None),
-                         getattr(self, '_texture_dock', None)):
-                if dock is not None:
-                    dock.setVisible(True)
-                    dock.toggleViewAction().setChecked(True)
+            # Per Keith (Aug 1 2026): "need to save unticked panes" -
+            # previously this block force-showed every dock on every
+            # startup regardless of what was actually saved, which
+            # meant unticking a panel (via the Panels menu) never
+            # stuck across a restart. Removed - mw.restoreState()
+            # above already correctly restores each dock's saved
+            # visibility on its own (that's inherent to Qt's own
+            # QMainWindow save/restore mechanism, not something this
+            # needs to redo manually). Only the window-width safety
+            # net below (unrelated to visibility) is still needed.
 
             # Safety net: restoreState() reapplies whatever dock
             # proportions were saved, regardless of whether they fit the
