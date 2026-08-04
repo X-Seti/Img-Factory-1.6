@@ -4366,7 +4366,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._left_dock.setMinimumWidth(150)
             self._left_dock.setFeatures(
                 QDockWidget.DockWidgetFeature.DockWidgetMovable |
-                QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+                QDockWidget.DockWidgetFeature.DockWidgetFloatable |
+                QDockWidget.DockWidgetFeature.DockWidgetClosable)
             outer_mw.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self._left_dock)
 
         self._middle_dock = QDockWidget("Models", self)
@@ -4381,7 +4382,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._middle_dock.setMinimumWidth(250)
         self._middle_dock.setFeatures(
             QDockWidget.DockWidgetFeature.DockWidgetMovable |
-            QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+            QDockWidget.DockWidgetFeature.DockWidgetFloatable |
+            QDockWidget.DockWidgetFeature.DockWidgetClosable)
         outer_mw.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self._middle_dock)
 
         self._frame_hierarchy_dock = QDockWidget("Frame Hierarchy", self)
@@ -4390,7 +4392,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._frame_hierarchy_dock.setMinimumWidth(200)
         self._frame_hierarchy_dock.setFeatures(
             QDockWidget.DockWidgetFeature.DockWidgetMovable |
-            QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+            QDockWidget.DockWidgetFeature.DockWidgetFloatable |
+            QDockWidget.DockWidgetFeature.DockWidgetClosable)
         outer_mw.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self._frame_hierarchy_dock)
 
         self._texture_dock = QDockWidget("Textures", self)
@@ -4399,7 +4402,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._texture_dock.setMinimumWidth(200)
         self._texture_dock.setFeatures(
             QDockWidget.DockWidgetFeature.DockWidgetMovable |
-            QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+            QDockWidget.DockWidgetFeature.DockWidgetFloatable |
+            QDockWidget.DockWidgetFeature.DockWidgetClosable)
         outer_mw.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self._texture_dock)
 
         if self._left_dock is not None:
@@ -17374,7 +17378,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         dock.setObjectName("Object Browser")
         dock.setWidget(panel)
         dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
-                        QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+                        QDockWidget.DockWidgetFeature.DockWidgetFloatable |
+                        QDockWidget.DockWidgetFeature.DockWidgetClosable)
 
         title_bar = QWidget()
         title_lay = QHBoxLayout(title_bar)
@@ -17688,7 +17693,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         dock.setObjectName("Instance List")
         dock.setWidget(view)
         dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
-                        QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+                        QDockWidget.DockWidgetFeature.DockWidgetFloatable |
+                        QDockWidget.DockWidgetFeature.DockWidgetClosable)
         self._instance_list_dock = dock
         return dock
 
@@ -18053,6 +18059,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         dock = QDockWidget("Control Panel", self)
         dock.setObjectName("Control Panel")
         dock.setWidget(panel)
+        # Left commented out deliberately (part of the confirmed-working
+        # snap-drag fix) - Qt's default features (uncalled setFeatures())
+        # already include DockWidgetClosable, so toggleViewAction() works
+        # fine here without needing the same fix applied to every other
+        # dock below (Aug 1 2026, Keith's "right click pane selection not
+        # working" report - those all had DockWidgetClosable explicitly
+        # left out, which disables toggleViewAction entirely).
         #dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable | QDockWidget.DockWidgetFeature.DockWidgetFloatable)
         self._control_panel_dock = dock
         return dock
@@ -18802,7 +18815,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         dock.setObjectName("IPL Inst File")
         dock.setWidget(panel)
         dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
-                        QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+                        QDockWidget.DockWidgetFeature.DockWidgetFloatable |
+                        QDockWidget.DockWidgetFeature.DockWidgetClosable)
         self._ipl_inst_file_dock = dock
         return dock
 
@@ -19222,7 +19236,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         dock.setObjectName("Editing Panel")
         dock.setWidget(tabs)
         dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
-                        QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+                        QDockWidget.DockWidgetFeature.DockWidgetFloatable |
+                        QDockWidget.DockWidgetFeature.DockWidgetClosable)
         self._editing_panel_dock = dock
         self._editing_panel_tabs = tabs
         return dock
@@ -19756,7 +19771,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         dock.setObjectName("World View")
         dock.setWidget(splitter)
         dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
-                        QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+                        QDockWidget.DockWidgetFeature.DockWidgetFloatable |
+                        QDockWidget.DockWidgetFeature.DockWidgetClosable)
         self._world_view_dock = dock
 
         # Default to showing only 3D, per Keith's request ("I suggest

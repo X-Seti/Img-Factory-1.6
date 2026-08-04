@@ -153,6 +153,31 @@ conclusively found despite extensive isolated testing.
   loading functionality - pre-existing gaps in the base app, not
   addressed here.
 
+- **Aug 1, 2026 (cont'd)** — Per Keith's screenshot: the right-click/
+  Panels menu correctly showed tick marks for every dock, but
+  clicking an item didn't actually toggle it ("right click pane
+  selection not working"). Root cause: this is the exact same
+  regression found and fixed earlier in the session
+  (`toggleViewAction()` requires `DockWidgetClosable` to be enabled -
+  without it, Qt disables the action entirely, so it shows correctly
+  but does nothing when clicked) - it came back when
+  `DockWidgetClosable` was later deliberately removed from every
+  dock's `setFeatures()` call during the snap-drag debugging (for
+  parity with Model Workshop's own docks, which also lack it).
+  Verified empirically with a minimal isolated test:
+  `toggleViewAction().isEnabled()` is `False` without
+  `DockWidgetClosable`, `True` with it. Since `DockWidgetClosable`
+  was already conclusively ruled out as a cause of the snap-drag
+  issue (compared directly against Model Workshop, which also lacks
+  it and still drags/snaps fine), adding it back is safe. Added
+  `DockWidgetClosable` back to all 9 active docks (Files/Models/
+  Frame Hierarchy/Textures/Object Browser/Instance List/IPL Inst
+  File/Editing Panel/World View). Left Control Panel's `setFeatures()`
+  call (still commented out) untouched - since it's never called,
+  it already gets Qt's full default feature set including
+  `DockWidgetClosable` automatically.
+
+
 - **Aug 1, 2026 (cont'd)** — Per Keith: "the panel list with the tick
   marks to indicate the loaded panes needs work, I should be able to
   hide panels." The View menu already existed (Menu button -> View)
