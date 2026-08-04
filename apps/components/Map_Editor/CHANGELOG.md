@@ -323,6 +323,62 @@ conclusively found despite extensive isolated testing.
   untouched, the VC row's `1,1,1` correctly became `0,0,0`). Full
   `QApplication` instantiation clean, `ast.parse` clean.
 
+- **Aug 1, 2026 (cont'd)** — Per Keith's larger multi-part request
+  (using real GTA SOL IPL data, plus reference screenshots of a
+  MooMapper-style "Item Editor Dialog"): implemented the first,
+  lower-risk subset this pass -
+
+  1. INST/CULL/ZON/PATH replaced the vertical `QRadioButton` list
+     with compact horizontal buttons + tooltips ("This needs to be
+     buttons under IPL sections... with tooltips showing a
+     description").
+  2. Right-click context menu on the IPL Inst File table: Copy
+     (selected cells, tab-separated) and Copy Row(s) as IPL line(s)
+     (comma-separated, matching the real file format) to the
+     clipboard - "have right-click options to copy to the clipboard;
+     we can start to add editing options."
+  3. Double-clicking a Model cell in the IPL Inst File table now
+     finds the matching real instance, centres the actual active
+     viewport (`self.preview_widget`) on it via a new
+     `_center_viewport_on_instance`, and opens the existing (already-
+     ported) `_InstanceEditPanel` via `_center_on_instance` - "Clicking
+     on the model name in IPL Inst File brings up the model in the
+     viewport and shows the Object Editor Dialogue." `_center_on_
+     instance` previously only updated the unused `_world_panes`
+     (this build uses Model Workshop's own DFF viewport instead, per
+     an earlier decision), so it never visibly did anything here
+     until now.
+
+  While wiring #3, found and fixed two real, pre-existing bugs that
+  would have crashed `_InstanceEditPanel` (comprehensive, already-
+  ported code - Identity/IDE Info/Position+Rotation nudge controls/
+  2DFX/TOBJ sections) the moment it was ever actually used, entirely
+  unrelated to anything built today: `QGridLayout` was never imported
+  at module level, and `quat_to_euler_degrees`/`euler_degrees_to_quat`
+  (used to present an instance's quaternion rotation as editable X/Y/Z
+  degrees) were referenced but never defined anywhere - ported both
+  from `map_workshop_old_version.py`, where they'd always existed.
+
+  Verified end-to-end with Keith's own real example data (a real
+  `IPLInstance` for `vgncarshow1`): double-click correctly finds the
+  instance, centres the viewport (`pan_x`/`pan_y` computed correctly),
+  and opens a genuinely visible edit panel - confirming both new bugs
+  are now fixed and the whole chain works.
+
+  Deferred to a follow-up pass (each a substantial feature on its
+  own): double-click picking objects directly in the 3D viewport
+  (needs real 3D ray-casting against world instances, not built
+  yet); double-click a model in the Models dock jumping to it in the
+  viewport; merging the Models panel into IPL Inst File; a texture
+  tile view (matching TXD Workshop's style) plus a "Show model
+  textures" button in the edit panel; actually binding/rendering
+  textures on models in the viewport (currently untextured
+  wireframe/solid only); a Validation checklist section in the edit
+  panel matching the reference dialog image; and the VC/LC IPL
+  display issue, which Keith asked to address last since the above
+  changes might resolve it as a side effect.
+
+
 
 
 

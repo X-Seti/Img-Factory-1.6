@@ -29,7 +29,7 @@ if str(project_root) not in sys.path:
 # Import PyQt6
 from PyQt6.QtWidgets import (QApplication, QSlider, QCheckBox,
     QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QListWidget, QDialog, QFormLayout, QSpinBox,  QListWidgetItem, QLabel, QPushButton, QFrame, QFileDialog, QLineEdit, QTextEdit, QMessageBox, QScrollArea, QGroupBox, QTableWidget, QTableWidgetItem, QColorDialog, QHeaderView, QAbstractItemView, QMenu, QComboBox, QInputDialog, QTabWidget, QDoubleSpinBox, QRadioButton, QStyledItemDelegate,
-    QDockWidget, QFontComboBox, QSizePolicy, QMenuBar, QStatusBar, QProgressDialog, QStackedWidget
+    QDockWidget, QFontComboBox, QSizePolicy, QMenuBar, QStatusBar, QProgressDialog, QStackedWidget, QGridLayout
 )
 
 from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPoint, QRect, QByteArray, QPointF, QTimer, QAbstractTableModel
@@ -568,6 +568,41 @@ App_build = "193"
 # Model Workshop icon available: SVGIconFactory.model_workshop_icon()
 # Use for: DFF edit button in main toolbar, Model Workshop tab icon.
 # - DFF → Viewport adapter
+
+def quat_to_euler_degrees(x, y, z, w): #vers 1
+    """Convert a quaternion to (roll, pitch, yaw) euler angles in
+    degrees - standard formula, round-trip verified against
+    euler_degrees_to_quat. Used to present an IPLInstance's rotation
+    (stored as a quaternion) as editable X/Y/Z degree values.
+    Ported from map_workshop_old_version.py (Aug 1 2026) - genuinely
+    missing until now, would have raised NameError the moment
+    _InstanceEditPanel.show_for_instance actually ran (found while
+    wiring up double-click-to-edit)."""
+    sinr_cosp = 2 * (w * x + y * z)
+    cosr_cosp = 1 - 2 * (x * x + y * y)
+    roll = math.atan2(sinr_cosp, cosr_cosp)
+    sinp = 2 * (w * y - z * x)
+    pitch = math.copysign(math.pi / 2, sinp) if abs(sinp) >= 1 else math.asin(sinp)
+    siny_cosp = 2 * (w * z + x * y)
+    cosy_cosp = 1 - 2 * (y * y + z * z)
+    yaw = math.atan2(siny_cosp, cosy_cosp)
+    return math.degrees(roll), math.degrees(pitch), math.degrees(yaw)
+
+
+def euler_degrees_to_quat(roll_deg, pitch_deg, yaw_deg): #vers 1
+    """Convert (roll, pitch, yaw) euler angles in degrees back to a
+    quaternion (x, y, z, w) - inverse of quat_to_euler_degrees."""
+    roll, pitch, yaw = (math.radians(roll_deg), math.radians(pitch_deg),
+                       math.radians(yaw_deg))
+    cr, sr = math.cos(roll * 0.5), math.sin(roll * 0.5)
+    cp, sp = math.cos(pitch * 0.5), math.sin(pitch * 0.5)
+    cy, sy = math.cos(yaw * 0.5), math.sin(yaw * 0.5)
+    w = cr * cp * cy + sr * sp * sy
+    x = sr * cp * cy - cr * sp * sy
+    y = cr * sp * cy + sr * cp * sy
+    z = cr * cp * sy - sr * sp * cy
+    return x, y, z, w
+
 
 # Model Workshop icon available: SVGIconFactory.model_workshop_icon()
 # Use for: DFF edit button in main toolbar, Model Workshop tab icon.
@@ -18598,40 +18633,47 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         placeholder.setVisible(True)
         table.setVisible(False)
 
-        # INST/CULL/ZONE/PATH data-type selector - switches which kind
+        # INST/CULL/ZON/PATH data-type selector - switches which kind
         # of IPL content the "IPL Inst File" panel shows for the
         # currently selected IPL. INST/CULL/ZONE are real (all three
         # are already parsed - GTAWorldLoader.instances/culls/zones);
         # PATH is an honest stub, disabled with a tooltip explaining
         # why, rather than a guess at an unverified format.
-        themecol = self.app_settings.get_theme_colors()
-        panel_bg = themecol.get('panel_bg')
-        type_box = QGroupBox()
-        if panel_bg:
-            type_box.setStyleSheet(f"QGroupBox {{ background: {panel_bg}; }}")
-        type_lay = QVBoxLayout(type_box)
+        #
+        # Compact buttons with tooltips (Aug 1 2026, per Keith: "This
+        # needs to be buttons under IPL sections: [INST] [CULL] [ZON]
+        # [PATH] with tooltips showing a description. Instead of the
+        # INST - Item Instance, CULL - Object Culling..") - replaces
+        # the earlier vertical QRadioButton list, which took much more
+        # vertical space for the same information.
+        type_row = QHBoxLayout()
         self._ipl_type_group = QButtonGroup(panel)
         self._ipl_type_group.setExclusive(True)
         type_specs = [
-            ('inst', "INST - Item Instances", True),
-            ('cull', "CULL - Object Culling", True),
-            ('zone', "ZONE - Map Zones", True),
-            ('path', "PATH - Pedestrian / Vehicle Paths", False),
+            ('inst', "INST", "INST - Item Instances", True),
+            ('cull', "CULL", "CULL - Object Culling", True),
+            ('zone', "ZON",  "ZONE - Map Zones", True),
+            ('path', "PATH", "PATH - Pedestrian / Vehicle Paths", False),
         ]
-        for key, text, enabled in type_specs:
-            radio = QRadioButton(text)
-            radio.setChecked(key == 'inst')
-            radio.setEnabled(enabled)
-            if not enabled:
-                radio.setToolTip("STUB - path node data isn't parsed anywhere\n"
-                                 "in this project yet, no real sample data has\n"
-                                 "been verified against yet to build this on")
-            radio.toggled.connect(
+        for key, label_text, tooltip, enabled in type_specs:
+            btn = QPushButton(label_text)
+            btn.setCheckable(True)
+            btn.setChecked(key == 'inst')
+            btn.setEnabled(enabled)
+            if enabled:
+                btn.setToolTip(tooltip)
+            else:
+                btn.setToolTip(tooltip + "\n\nSTUB - path node data isn't parsed anywhere\n"
+                               "in this project yet, no real sample data has\n"
+                               "been verified against yet to build this on")
+            btn.toggled.connect(
                 lambda checked, k=key: self._on_ipl_data_type_changed(k) if checked else None)
-            self._ipl_type_group.addButton(radio)
-            type_lay.addWidget(radio)
-        content_lay.addWidget(type_box)
+            self._ipl_type_group.addButton(btn)
+            type_row.addWidget(btn)
+        type_row.addStretch()
+        content_lay.addLayout(type_row)
         self._ipl_data_type = 'inst'
+
 
         lay.addWidget(content_container)
         self._make_section_collapsible(label, content_container)
@@ -18860,6 +18902,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             QTableWidget.EditTrigger.EditKeyPressed)
         self._apply_compact_table_style(table)
         font = table.font(); font.setFamily("monospace"); table.setFont(font)
+        table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        table.customContextMenuRequested.connect(self._on_ipl_inst_file_context_menu)
+        table.cellDoubleClicked.connect(self._on_ipl_inst_file_cell_double_clicked)
         lay.addWidget(table)
         self._ipl_inst_file_table = table
 
@@ -18871,6 +18916,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                         QDockWidget.DockWidgetFeature.DockWidgetClosable)
         self._ipl_inst_file_dock = dock
         return dock
+
 
     def _on_ignore_scaling_toggled(self, checked): #vers 1
         """Just re-renders the currently shown table with the new
@@ -18935,6 +18981,104 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 if ignore_scaling and 6 <= c <= 8 and value == "1":
                     value = "0"
                 table.setItem(r, c, QTableWidgetItem(value))
+
+    def _on_ipl_inst_file_context_menu(self, pos): #vers 1
+        """Right-click the IPL Inst File table - Copy (selected cells,
+        tab-separated per row, matching how spreadsheets paste) and
+        Copy Row(s) (whole lines, comma-separated, matching the
+        original .ipl line format) to the clipboard. Per Keith: "have
+        right-click options to copy to the clipboard; we can start to
+        add editing options, we spoke about this earlier" - clipboard
+        copy first, since it's useful on its own and needs no write-
+        back infrastructure; batch rename/prefix/suffix/move go here
+        next once that's decided."""
+        table = getattr(self, '_ipl_inst_file_table', None)
+        if table is None:
+            return
+        selected = table.selectedItems()
+        if not selected:
+            return
+        menu = QMenu(self)
+        copy_cells_action = menu.addAction("Copy")
+        copy_rows_action = menu.addAction("Copy Row(s) as IPL line(s)")
+        chosen = menu.exec(table.viewport().mapToGlobal(pos))
+        if chosen is None:
+            return
+        clipboard = QApplication.clipboard()
+        if chosen is copy_cells_action:
+            by_row = {}
+            for item in selected:
+                by_row.setdefault(item.row(), {})[item.column()] = item.text()
+            lines = []
+            for r in sorted(by_row):
+                cols = by_row[r]
+                lines.append('\t'.join(cols.get(c, '') for c in sorted(cols)))
+            clipboard.setText('\n'.join(lines))
+        elif chosen is copy_rows_action:
+            rows = sorted({item.row() for item in selected})
+            lines = []
+            for r in rows:
+                fields = [table.item(r, c).text() if table.item(r, c) else ''
+                         for c in range(table.columnCount())]
+                lines.append(', '.join(fields))
+            clipboard.setText('\n'.join(lines))
+
+    def _on_ipl_inst_file_cell_double_clicked(self, row, col): #vers 1
+        """Double-clicking the Model column (1) finds that row's real
+        instance and jumps the viewport to it + opens its edit panel,
+        matching double-clicking a row in the Instance List - per
+        Keith: "Clicking on the model name in IPL Inst File brings up
+        the model in the viewport and shows the Object Editor
+        Dialogue." Other columns keep the normal cell-editing
+        behaviour (this table's EditTrigger), untouched."""
+        if col != 1:
+            return
+        table = getattr(self, '_ipl_inst_file_table', None)
+        loader = getattr(self, '_world_loader', None)
+        if table is None or loader is None:
+            return
+        id_item = table.item(row, 0)
+        model_item = table.item(row, 1)
+        if id_item is None or model_item is None:
+            return
+        try:
+            target_id = int(id_item.text())
+        except ValueError:
+            target_id = None
+        target_model = model_item.text()
+        match = None
+        for inst in getattr(self, '_all_instances', []):
+            if inst.model_name == target_model and (target_id is None or inst.model_id == target_id):
+                match = inst
+                break
+        if match is None:
+            for inst in getattr(self, '_all_instances', []):
+                if inst.model_name == target_model:
+                    match = inst
+                    break
+        if match is not None:
+            self._center_viewport_on_instance(match)
+            self._center_on_instance(match)
+
+    def _center_viewport_on_instance(self, inst): #vers 1
+        """Pan/zoom self.preview_widget (our actual active viewport)
+        to focus closely on one instance's position - _center_on_
+        instance (existing, ported code) only ever updated the
+        Map-specific _world_panes, which this build doesn't use (see
+        CHANGELOG.md - "keep using Model Workshop's existing DFF
+        viewport"), so it never actually moved anything visible here."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is None:
+            return
+        vp._pan_x = -inst.pos_x
+        vp._pan_y = -inst.pos_y
+        vp._dist = 15.0
+        if getattr(vp, '_projection', None) == 'ortho':
+            try:
+                vp.resizeGL(vp.width(), vp.height())
+            except Exception:
+                pass
+        vp.update()
 
     def _extract_ipl_section_text(self, raw_text, section_name): #vers 1
         """Extract just one named section's lines (between the section
