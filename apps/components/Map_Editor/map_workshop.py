@@ -4121,6 +4121,20 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         vm = parent_menu.addMenu("View")
         vm.addAction("Sort",     self._show_sort_menu if hasattr(self, '_show_sort_menu') else lambda: None)
+        vm.addSeparator()
+        panels_m = vm.addMenu("Panels")
+        outer_mw = getattr(self, '_outer_mw', None)
+        if outer_mw is not None:
+            from PyQt6.QtWidgets import QDockWidget
+            docks = outer_mw.findChildren(QDockWidget)
+            # Stable order (alphabetical by title) rather than whatever
+            # order findChildren happens to return, which can shift
+            # around depending on how docks were added/split.
+            for dock in sorted(docks, key=lambda d: d.windowTitle()):
+                panels_m.addAction(dock.toggleViewAction())
+        if panels_m.isEmpty():
+            no_panels_action = panels_m.addAction("(no panels)")
+            no_panels_action.setEnabled(False)
 
     workshop_closed = pyqtSignal()
     window_closed = pyqtSignal()

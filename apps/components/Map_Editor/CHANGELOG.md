@@ -153,4 +153,19 @@ conclusively found despite extensive isolated testing.
   loading functionality - pre-existing gaps in the base app, not
   addressed here.
 
+- **Aug 1, 2026 (cont'd)** — Per Keith: "the panel list with the tick
+  marks to indicate the loaded panes needs work, I should be able to
+  hide panels." The View menu already existed (Menu button -> View)
+  but only had a "Sort" action - close_btn's tooltip on every dock's
+  collapsible title bar promises "use the View menu... to bring it
+  back", but there was nothing there to back that up. Added a
+  "Panels" submenu under View, dynamically listing every dock
+  currently on `_outer_mw` (via `findChildren(QDockWidget)`,
+  alphabetically sorted) with its own `toggleViewAction()` - Qt's
+  standard built-in mechanism for exactly this (checkable, shows a
+  tick mark for visible panels, click to hide/show). Automatically
+  reflects whatever docks exist at the time, including Control Panel
+  once it's re-enabled.
+
+
 
