@@ -291,6 +291,39 @@ conclusively found despite extensive isolated testing.
   needs Keith's confirmation that dragging feels smoother once
   pulled.
 
+- **Aug 1, 2026 (cont'd)** — Per Keith, using real GTA SOL IPL data
+  as reference (SA data converted to VC's format across all cities):
+  "We need to change how the IPL inst at displayed in the IPL panel
+  ... The IPL would need to be in a cells table, so we can highlight
+  what we want to change, rename, prefix, suffix names, move X, Y, Z
+  cords in batches to any location." Converted the IPL Inst File
+  panel from a plain read-only `QTextEdit` to an editable
+  `QTableWidget` - one row per instance line, 13 columns (ID/Model/
+  Interior/Pos X,Y,Z/Scale X,Y,Z/Rot X,Y,Z,W), multi-selectable
+  (`ExtendedSelection`), foundation for the batch rename/prefix/
+  suffix/move operations still to come. Cell edits are currently
+  display-only - nothing writes back to the actual `.ipl` file yet
+  (no write-back infrastructure exists for any file type in Map
+  Workshop, a known, already-documented gap - see TODO.md).
+
+  Also added an "Ignore Scaling" checkbox: some converted IPLs (his
+  GTA SOL example - SA data converted to VC's format) have a broken/
+  placeholder `(0,0,0)` scale in the Scale columns instead of the
+  normal `(1,1,1)` unit scale his VC/LC data correctly shows.
+  Checking it treats a `(1,1,1)` scale as equivalent to `(0,0,0)` for
+  interpretation purposes only - confirmed with Keith this should
+  never write anything back to the file ("leaving the ipl
+  untouched").
+
+  Verified end-to-end with Keith's own real example data (a
+  temporary IPL file built from his `vgncarshow1`/`man_backside`
+  lines): correct 13-field parsing, correct row count, and confirmed
+  the Ignore Scaling toggle only affects cells that actually show
+  `1` (the SA-converted row's already-`0,0,0` scale stayed
+  untouched, the VC row's `1,1,1` correctly became `0,0,0`). Full
+  `QApplication` instantiation clean, `ast.parse` clean.
+
+
 
 
 

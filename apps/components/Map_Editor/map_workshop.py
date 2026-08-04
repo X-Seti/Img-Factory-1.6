@@ -18801,27 +18801,67 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._ipl_data_type = data_type
         self._refresh_ipl_inst_file_panel()
 
-    def _create_ipl_inst_file_panel(self): #vers 1
-        """New panel replacing the old standalone IPL Sections dock's
-        physical location - shows the real, raw text content of
-        whichever IPL is currently selected in the [IPL] tab, filtered
-        to whichever data type (INST/CULL/ZONE) is selected there.
-        Updates live as different IPL files are clicked, per Keith's
-        request ("each ipl file we press changes the contents in the
-        IPL inst file"). Re-reads the actual file from disk each time
-        rather than reconstructing from parsed IPLInstance data, so
-        it's always faithful to the real file (comments, exact
-        formatting, sections not otherwise surfaced anywhere)."""
+    def _create_ipl_inst_file_panel(self): #vers 2
+        """Editable cells table for whichever IPL is currently selected
+        in the [IPL] tab, filtered to whichever data type (INST/CULL/
+        ZONE) is selected there - one row per instance line, one
+        column per field (ID/Model/Interior/PosX,Y,Z/ScaleX,Y,Z/
+        RotX,Y,Z,W). Updates live as different IPL files are clicked,
+        per Keith's request ("each ipl file we press changes the
+        contents in the IPL inst file").
+
+        Replaces the earlier plain read-only QTextEdit (Aug 1 2026,
+        per Keith: "The IPL would need to be in a cells table, so we
+        can highlight what we want to change, rename, prefix, suffix
+        names, move X, Y, Z cords in batches to any location") -
+        editable and multi-selectable, foundation for batch rename/
+        move operations. Cell edits currently only change what's
+        shown here, NOT the actual .ipl file on disk - no write-back
+        infrastructure exists for any file type in Map Workshop yet
+        (see TODO.md), and Keith's own "leaving the ipl untouched"
+        caution on a related point suggests being conservative here
+        until that's explicitly confirmed as wanted.
+
+        "Ignore Scaling" checkbox: per Keith, some converted IPLs
+        (e.g. GTA SA data converted to VC's format) have a broken/
+        placeholder (0,0,0) scale instead of the normal (1,1,1) unit
+        scale in the Scale columns - checking this treats a (1,1,1)
+        scale as equivalent to (0,0,0) for interpretation purposes
+        only, never writing anything back to the file."""
         panel = QWidget()
         lay = QVBoxLayout(panel)
         lay.setContentsMargins(6, 6, 6, 6)
-        from PyQt6.QtWidgets import QTextEdit
-        text = QTextEdit()
-        text.setReadOnly(True)
-        font = text.font(); font.setFamily("monospace"); text.setFont(font)
-        text.setPlaceholderText("Select an IPL file in the IPL tab to preview its contents here")
-        lay.addWidget(text)
-        self._ipl_inst_file_text = text
+        lay.setSpacing(4)
+
+        opts_row = QHBoxLayout()
+        ignore_scaling_chk = QCheckBox("Ignore Scaling")
+        ignore_scaling_chk.setToolTip(
+            "Treat a (1,1,1) scale as equivalent to (0,0,0) for\n"
+            "interpretation purposes only - never writes anything\n"
+            "back to the IPL file. Useful for converted IPLs (e.g.\n"
+            "GTA SA data converted to VC's format) where the Scale\n"
+            "columns may be broken/placeholder rather than real data.")
+        ignore_scaling_chk.toggled.connect(self._on_ignore_scaling_toggled)
+        self._ignore_scaling_chk = ignore_scaling_chk
+        opts_row.addWidget(ignore_scaling_chk)
+        opts_row.addStretch()
+        lay.addLayout(opts_row)
+
+        table = QTableWidget(0, 13)
+        table.setHorizontalHeaderLabels([
+            "ID", "Model", "Int",
+            "Pos X", "Pos Y", "Pos Z",
+            "Scale X", "Scale Y", "Scale Z",
+            "Rot X", "Rot Y", "Rot Z", "Rot W"])
+        table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
+        table.setEditTriggers(
+            QTableWidget.EditTrigger.DoubleClicked |
+            QTableWidget.EditTrigger.EditKeyPressed)
+        self._apply_compact_table_style(table)
+        font = table.font(); font.setFamily("monospace"); table.setFont(font)
+        lay.addWidget(table)
+        self._ipl_inst_file_table = table
 
         dock = QDockWidget("IPL Inst File", self)
         dock.setObjectName("IPL Inst File")
@@ -18832,40 +18872,69 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._ipl_inst_file_dock = dock
         return dock
 
-    def _refresh_ipl_inst_file_panel(self): #vers 1
-        """Re-read and display the currently selected IPL's raw file
-        content, filtered to the currently selected data type (INST/
-        CULL/ZONE - PATH is stubbed, never reachable here since its
-        radio button is disabled)."""
-        text_widget = getattr(self, '_ipl_inst_file_text', None)
-        table = getattr(self, '_ipl_sections_table', None)
+    def _on_ignore_scaling_toggled(self, checked): #vers 1
+        """Just re-renders the currently shown table with the new
+        interpretation (see _create_ipl_inst_file_panel's docstring) -
+        never touches the actual .ipl file."""
+        self._refresh_ipl_inst_file_panel()
+
+    def _refresh_ipl_inst_file_panel(self): #vers 2
+        """Re-read the currently selected IPL's raw file content,
+        filtered to the currently selected data type (INST/CULL/ZONE -
+        PATH is stubbed, never reachable here since its radio button
+        is disabled), and parse it into the cells table - one row per
+        instance line, split on commas into its 13 fields."""
+        table = getattr(self, '_ipl_inst_file_table', None)
+        sections_table = getattr(self, '_ipl_sections_table', None)
         loader = getattr(self, '_world_loader', None)
-        if text_widget is None or table is None or loader is None:
+        if table is None or sections_table is None or loader is None:
             return
-        row = table.currentRow()
+        row = sections_table.currentRow()
         if row < 0:
-            text_widget.clear()
+            table.setRowCount(0)
             return
-        item = table.item(row, 0)
+        item = sections_table.item(row, 0)
         if item is None:
-            text_widget.clear()
+            table.setRowCount(0)
             return
         display_name = item.data(Qt.ItemDataRole.UserRole)
         stem = getattr(self, '_ipl_display_to_stem', {}).get(display_name)
         entry = loader.available_ipls.get(stem) if stem else None
         if entry is None or not entry.exists:
-            text_widget.setPlainText(f"({display_name} - file not found on disk)")
+            table.setRowCount(0)
             return
         try:
             with open(entry.abs_path, 'r', encoding='ascii', errors='ignore') as f:
                 raw_text = f.read()
-        except Exception as e:
-            text_widget.setPlainText(f"(could not read {display_name}: {e})")
+        except Exception:
+            table.setRowCount(0)
             return
 
         data_type = getattr(self, '_ipl_data_type', 'inst')
         section_text = self._extract_ipl_section_text(raw_text, data_type)
-        text_widget.setPlainText(section_text if section_text is not None else raw_text)
+        if section_text is None:
+            table.setRowCount(0)
+            return
+
+        ignore_scaling = getattr(self, '_ignore_scaling_chk', None)
+        ignore_scaling = ignore_scaling.isChecked() if ignore_scaling is not None else False
+
+        data_lines = []
+        for raw_line in section_text.splitlines():
+            line = raw_line.split("#")[0].strip()
+            low = line.lower()
+            if not line or low in (data_type, 'end'):
+                continue
+            fields = [f.strip() for f in line.split(',')]
+            data_lines.append(fields)
+
+        table.setRowCount(len(data_lines))
+        for r, fields in enumerate(data_lines):
+            for c in range(13):
+                value = fields[c] if c < len(fields) else ""
+                if ignore_scaling and 6 <= c <= 8 and value == "1":
+                    value = "0"
+                table.setItem(r, c, QTableWidgetItem(value))
 
     def _extract_ipl_section_text(self, raw_text, section_name): #vers 1
         """Extract just one named section's lines (between the section
