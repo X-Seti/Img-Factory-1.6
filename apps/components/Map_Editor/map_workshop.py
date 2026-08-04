@@ -14633,13 +14633,21 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         except Exception as e:
             print("_populate_compact_col_list error: " + str(e))
 
-    def _on_compact_col_selected(self): #vers 4
-        """Handle compact [=] list selection — routes to DFF or COL handler."""
+    def _on_compact_col_selected(self): #vers 5
+        """Handle compact [=] list selection — routes to DFF or COL handler.
+        Aug 1 2026: also routes to _on_ipl_model_row_selected when
+        self._ipl_models_mode is set (the Models dock is currently
+        listing an IPL's referenced models, not a DFF/COL file's own
+        parts), per Keith's request to show the loaded IPL's models
+        here and their textures below."""
         try:
             rows = self.mod_compact_list.selectionModel().selectedRows()
             if not rows:
                 return
             row = rows[0].row()
+            if getattr(self, '_ipl_models_mode', False):
+                self._on_ipl_model_row_selected(row)
+                return
             # DFF mode: _dff_adapters set when a DFF is loaded
             if getattr(self, '_dff_adapters', None):
                 self._on_dff_geom_selected_tbl()
@@ -19696,9 +19704,100 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             entry['pos']   = (inst.pos_x, inst.pos_y, inst.pos_z)
             entry['rot']   = (inst.rot_x, inst.rot_y, inst.rot_z, inst.rot_w)
             entry['scale'] = (inst.scale_x, inst.scale_y, inst.scale_z)
+            entry['model_key'] = model_name
             entries.append(entry)
 
         vp.set_world_instances(entries)
+        self._populate_models_panel_from_ipl(instances)
+
+    def _populate_models_panel_from_ipl(self, instances): #vers 1
+        """List every distinct model referenced by the currently
+        loaded/visible instances in the Models dock (self.mod_compact_
+        list), one row per model (Details column: model name + how
+        many instances use it) - per Keith's request ("I'd like the
+        opened IPL file, shown in models"). Selecting a row shows that
+        model's textures below (see _on_ipl_model_row_selected),
+        matching his second request ("highlighted models get there
+        textures shown in the pane below"). Sets self._ipl_models_mode
+        so the existing selection handler (_on_compact_col_selected,
+        originally built for DFF/COL browsing) routes here instead of
+        its own DFF/COL logic - additive, doesn't touch that existing
+        behaviour when not in this mode."""
+        table = getattr(self, 'mod_compact_list', None)
+        if table is None:
+            return
+        loader = getattr(self, '_world_loader', None)
+
+        counts = {}
+        order = []
+        for inst in instances:
+            if inst.model_name not in counts:
+                order.append(inst.model_name)
+                counts[inst.model_name] = 0
+            counts[inst.model_name] += 1
+
+        self._ipl_models_mode = True
+        self._ipl_model_names = order
+
+        table.itemSelectionChanged.disconnect(self._on_compact_col_selected)
+        try:
+            table.setRowCount(len(order))
+            for row, model_name in enumerate(order):
+                preview_item = QTableWidgetItem("")
+                table.setItem(row, 0, preview_item)
+                detail_item = QTableWidgetItem(
+                    f"{model_name}\n{counts[model_name]} instance"
+                    f"{'s' if counts[model_name] != 1 else ''}")
+                table.setItem(row, 1, detail_item)
+        finally:
+            table.itemSelectionChanged.connect(self._on_compact_col_selected)
+
+    def _on_ipl_model_row_selected(self, row): #vers 1
+        """Show one model's info (Model Name/IDE/ID/TXD fields) and
+        its textures (self._tex_list) - the "highlighted models get
+        there textures shown in the pane below" half of Keith's
+        request. Textures come from self._model_cache.get_textures(),
+        already loaded/cached by _preload_world_assets when the IPL
+        was loaded."""
+        names = getattr(self, '_ipl_model_names', [])
+        if row < 0 or row >= len(names):
+            return
+        model_name = names[row]
+        loader = getattr(self, '_world_loader', None)
+        model_cache = getattr(self, '_model_cache', None)
+
+        if hasattr(self, 'info_name'):
+            self.info_name.setText(model_name)
+
+        txd_name = ""
+        if loader is not None:
+            for inst in getattr(self, '_all_instances', []):
+                if inst.model_name == model_name:
+                    obj = loader.get_object(inst.model_id)
+                    if obj is not None:
+                        if hasattr(self, 'info_ide_section'):
+                            self.info_ide_section.setText(obj.section or 'object')
+                        if hasattr(self, 'info_model_id'):
+                            self.info_model_id.setText(f"ID: {inst.model_id}")
+                        txd_name = obj.txd_name or ""
+                    break
+        if hasattr(self, 'info_txd_name'):
+            self.info_txd_name.setText(txd_name or '—')
+
+        tex_list = getattr(self, '_tex_list', None)
+        if tex_list is None:
+            return
+        textures = model_cache.get_textures(txd_name) if (model_cache and txd_name) else None
+        textures = textures or {}
+        tex_list.setRowCount(len(textures))
+        for i, tex in enumerate(textures.values()):
+            tex_list.setItem(i, 0, QTableWidgetItem(""))
+            tex_list.setItem(i, 1, QTableWidgetItem(tex.get('name', '')))
+            tex_list.setItem(i, 2, QTableWidgetItem(
+                f"{tex.get('width', '?')}x{tex.get('height', '?')}"))
+            tex_list.setItem(i, 3, QTableWidgetItem(tex.get('format', '')))
+        if hasattr(self, '_tex_count_lbl'):
+            self._tex_count_lbl.setText(f"{len(textures)} texture{'s' if len(textures) != 1 else ''}")
 
     def _apply_lod_filter(self, instances): #vers 2
         """Given an already-IPL-filtered instance list, decide for each

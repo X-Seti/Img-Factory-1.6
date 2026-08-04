@@ -242,6 +242,57 @@ conclusively found despite extensive isolated testing.
   environment) - needs Keith's visual confirmation with real data
   once pulled.
 
+- **Aug 1, 2026 (cont'd)** — Keith confirmed the multi-instance world
+  view works live with real data (screenshot: a real wireframe map
+  rendering), but reported bottlenecking when interacting with the
+  viewport (rotating/panning during drag), and asked for the loaded
+  IPL's models to show in the Models dock with textures shown below
+  on selection.
+
+  Performance fix (`apps/methods/dff_viewport.py`): every triangle of
+  every instance was being fully re-executed via immediate-mode
+  OpenGL (`glBegin`/`glVertex` in a Python loop) on every single
+  repaint, including every frame during an interactive camera drag.
+  Added a display-list cache (`self._world_display_lists`, keyed by
+  `(model_key, render mode)`) - each distinct model's geometry is
+  compiled into a GL display list once, then every instance of it
+  (however many share that model) just replays the pre-compiled list
+  (`glCallList`) - the expensive per-triangle Python/GL work now only
+  happens once per model per mode, not once per instance per frame.
+  `set_world_instances`/`clear_world_instances` discard old lists
+  when replacing the world, freeing GPU memory rather than growing
+  the cache across every load. `ModelWorkshop._refresh_world_view`
+  now tags each entry with `model_key` (the model name) so instances
+  sharing a model correctly share one compiled list.
+
+  Models/Textures panel wiring (`map_workshop.py`): added
+  `_populate_models_panel_from_ipl` (lists every distinct model
+  referenced by the currently visible instances in the existing
+  Models dock's table, one row per model with an instance count) and
+  `_on_ipl_model_row_selected` (shows that model's Model Name/IDE/
+  ID/TXD info and its actual textures - name/size/format - in the
+  Textures dock, pulled from the same `model_cache` already loading
+  geometry). Routes through the existing selection handler
+  (`_on_compact_col_selected`) via a new `self._ipl_models_mode`
+  flag, checked first so the existing DFF/COL browsing behaviour is
+  untouched when not in this mode. Both wired into the same
+  `_refresh_world_view` call site as the viewport update, so the
+  Models panel and viewport always stay in sync.
+
+  Verified end-to-end with mock data: display-list grouping confirmed
+  (50 instances of one model correctly share a single `model_key`);
+  Models panel population confirmed (2 distinct models -> 2 rows,
+  correct instance counts); selection flow confirmed (selecting a
+  row correctly updates Model Name/TXD fields and populates the
+  Textures table with the right name/size/format, texture count
+  label updates too). Full `QApplication` instantiation clean,
+  `ast.parse` clean on both files. Could not verify actual live
+  OpenGL display-list performance (no PyOpenGL in this environment) -
+  needs Keith's confirmation that dragging feels smoother once
+  pulled.
+
+
+
 
 
 

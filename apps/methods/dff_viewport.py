@@ -169,6 +169,19 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         # DFF's assembled parts) - these each get their own
         # glPushMatrix/glTranslatef/rotate/glScalef/glPopMatrix.
         self._world_instances = []
+        # Display-list cache, keyed by (model_key, render mode) (Aug 1
+        # 2026, per Keith: "bottlenecking is trying to move the
+        # objects in the viewer") - immediate-mode OpenGL (glBegin/
+        # glVertex per triangle) was being fully re-executed in Python
+        # for every instance, every single repaint (including every
+        # frame during an interactive camera drag) - with many
+        # instances sharing a handful of distinct models, this
+        # compiles each DISTINCT model's geometry into a GL display
+        # list ONCE, then every instance of it just replays the
+        # pre-compiled list (glCallList) - the expensive per-triangle
+        # work only happens once per model per render mode, not once
+        # per instance per frame.
+        self._world_display_lists = {}
 
         # Wheels
         self._wheels_model      = None
@@ -1090,7 +1103,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
              self._triangles,self._materials,self._prelit,
              self._current_geom_flags) = (old_v,old_n,old_u,old_t,old_m,old_p,old_f)
 
-    def set_world_instances(self, entries): #vers 1
+    def set_world_instances(self, entries): #vers 2
         """Load a whole set of positioned instances for a full
         multi-instance world view (Aug 1 2026, per Keith: "wire every
         pane into the viewport, when I load ipl, these dont show").
@@ -1098,19 +1111,39 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
           {'vertices': [(x,y,z),...], 'normals': [...] or [],
            'uvs': [...] or [], 'triangles': [(v1,v2,v3,mat_id),...],
            'materials': [...], 'prelit': [...] or [],
-           'pos': (x,y,z), 'rot': (x,y,z,w) quaternion, 'scale': (x,y,z)}
+           'pos': (x,y,z), 'rot': (x,y,z,w) quaternion, 'scale': (x,y,z),
+           'model_key': <hashable, shared by every instance of the
+           same model - used to build one display list per distinct
+           model instead of one per instance>}
         Caller (ModelWorkshop._refresh_world_view) is responsible for
         converting each instance's cached DFFModel geometry into this
         shape - same field names/format load_geometry() already uses
-        internally, just per-instance instead of one shared set."""
+        internally, just per-instance instead of one shared set.
+        Discards any previously-built display lists (Aug 1 2026
+        perf fix) - a new world/IPL selection means the old models'
+        compiled geometry is no longer relevant, freeing that GPU
+        memory rather than letting the cache grow across every load."""
+        self._clear_world_display_lists()
         self._world_instances = entries or []
         if self._world_instances:
             self._auto_fit_world()
         self.update()
 
-    def clear_world_instances(self): #vers 1
+    def clear_world_instances(self): #vers 2
+        self._clear_world_display_lists()
         self._world_instances = []
         self.update()
+
+    def _clear_world_display_lists(self): #vers 1
+        if OPENGL_AVAILABLE and self._world_display_lists and self.isValid():
+            try:
+                self.makeCurrent()
+                for list_id in self._world_display_lists.values():
+                    glDeleteLists(list_id, 1)
+                self.doneCurrent()
+            except Exception:
+                pass
+        self._world_display_lists = {}
 
     @staticmethod
     def _quat_to_gl_matrix(x, y, z, w): #vers 1
@@ -1127,13 +1160,44 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             0.0,              0.0,             0.0,             1.0,
         ]
 
-    def _draw_world_instances(self): #vers 1
+    def _draw_world_instances(self): #vers 2
+        """Per instance: glPushMatrix/translate/rotate/scale, then
+        replay a pre-compiled display list (Aug 1 2026 perf fix, per
+        Keith: "bottlenecking is trying to move the objects in the
+        viewer") - built once per (model, render mode) the first time
+        it's needed, cached in self._world_display_lists, and just
+        glCallList'd (cheap - no Python per-triangle loop, no
+        per-vertex glBegin/glVertex calls) on every subsequent
+        instance and every subsequent frame. Building a list happens
+        with NO transform applied (raw local-space geometry only) -
+        the per-instance position/rotation/scale is applied outside
+        the list, every time, via the surrounding
+        glPushMatrix/.../glPopMatrix, so one compiled list correctly
+        serves every instance of that model regardless of where
+        they're each positioned."""
         if not OPENGL_AVAILABLE: return
         old_v,old_n,old_u,old_t,old_m,old_p,old_f = (
             self._vertices,self._normals,self._uvs,
             self._triangles,self._materials,self._prelit,
             getattr(self,'_current_geom_flags',0))
         for entry in self._world_instances:
+            model_key = entry.get('model_key', id(entry))
+            cache_key = (model_key, self._mode)
+            list_id = self._world_display_lists.get(cache_key)
+            if list_id is None:
+                list_id = glGenLists(1)
+                self._vertices  = entry.get('vertices', [])
+                self._normals   = entry.get('normals', [])
+                self._uvs       = entry.get('uvs', [])
+                self._triangles = entry.get('triangles', [])
+                self._materials = entry.get('materials', [])
+                self._prelit    = entry.get('prelit', [])
+                glNewList(list_id, GL_COMPILE)
+                if   self._mode=='wireframe': self._draw_wireframe()
+                elif self._mode=='solid':     self._draw_solid()
+                elif self._mode=='textured':  self._draw_textured()
+                glEndList()
+                self._world_display_lists[cache_key] = list_id
             glPushMatrix()
             px, py, pz = entry.get('pos', (0.0, 0.0, 0.0))
             glTranslatef(px, py, pz)
@@ -1141,15 +1205,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             glMultMatrixf(self._quat_to_gl_matrix(rx, ry, rz, rw))
             sx, sy, sz = entry.get('scale', (1.0, 1.0, 1.0))
             glScalef(sx, sy, sz)
-            self._vertices  = entry.get('vertices', [])
-            self._normals   = entry.get('normals', [])
-            self._uvs       = entry.get('uvs', [])
-            self._triangles = entry.get('triangles', [])
-            self._materials = entry.get('materials', [])
-            self._prelit    = entry.get('prelit', [])
-            if   self._mode=='wireframe': self._draw_wireframe()
-            elif self._mode=='solid':     self._draw_solid()
-            elif self._mode=='textured':  self._draw_textured()
+            glCallList(list_id)
             glPopMatrix()
         (self._vertices,self._normals,self._uvs,
          self._triangles,self._materials,self._prelit,
