@@ -206,6 +206,43 @@ conclusively found despite extensive isolated testing.
   timer fire, confirmed Object Browser was still hidden (both
   `isVisible()` and the toggle action's checked state).
 
+- **Aug 1, 2026 (cont'd)** — Per Keith: "wire every pane into the
+  viewport, when I load ipl, these dont show" - a full multi-instance
+  3D world view (confirmed scope, not just single-selection preview).
+  `DFFViewport` only ever supported showing one model at a time
+  (`set_current_model`); `_draw_assembly`'s multi-geometry path draws
+  everything at one shared origin (for a single DFF's assembled
+  parts, not positioned world objects). Added real multi-instance
+  support to `apps/methods/dff_viewport.py`: `set_world_instances()`
+  / `clear_world_instances()` store a list of per-instance geometry +
+  transform dicts; `_draw_world_instances()` applies its own
+  `glPushMatrix`/`glTranslatef`/quaternion rotation (via
+  `glMultMatrixf` and a new `_quat_to_gl_matrix` helper, verified
+  mathematically correct against known identity and 90°-rotation
+  cases) / `glScalef`/`glPopMatrix` per instance, reusing the
+  existing `_draw_wireframe`/`_draw_solid`/`_draw_textured` draw
+  calls via the same temp-swap trick `_draw_assembly` already uses;
+  `_auto_fit_world()` frames the camera across every instance's
+  position (map-scale, not vertex-level detail); `paintGL` checks for
+  world instances first. Added `ModelWorkshop._refresh_world_view()`
+  (`map_workshop.py`) - converts each distinct model's cached
+  `DFFModel` geometry (`self._model_cache.get_geometry`, already
+  loaded by `_preload_world_assets` when an IPL loads) into the
+  entry format once, reused across every instance sharing that
+  model, then hands the whole list to
+  `preview_widget.set_world_instances()`. Wired into both
+  `_apply_ipl_visibility_filter` (covers every existing
+  toggle/LOD-change call site) and `_apply_loaded_world` (the
+  initial-load path, which built its own visible-instance list
+  separately). Verified end-to-end with mock instance/geometry data:
+  correct conversion, correct camera auto-fit distance, and a
+  missing/unparseable model correctly skipped rather than crashing.
+  Could not verify actual live OpenGL rendering or GTA-specific
+  rotation/coordinate conventions (PyOpenGL isn't installed in this
+  environment) - needs Keith's visual confirmation with real data
+  once pulled.
+
+
 
 
 

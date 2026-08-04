@@ -159,6 +159,17 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._assembly_mode = False
         self._show_lod      = False
 
+        # World instances (Aug 1 2026, per Keith: "wire every pane
+        # into the viewport, when I load ipl, these dont show" -
+        # full multi-instance 3D world view) - each entry is a dict:
+        # {'vertices','normals','uvs','triangles','materials','prelit',
+        #  'pos':(x,y,z), 'rot':(x,y,z,w) quaternion, 'scale':(x,y,z)}.
+        # Distinct from _all_geoms (which draws multiple geometries at
+        # the SAME shared origin/camera transform, for viewing one
+        # DFF's assembled parts) - these each get their own
+        # glPushMatrix/glTranslatef/rotate/glScalef/glPopMatrix.
+        self._world_instances = []
+
         # Wheels
         self._wheels_model      = None
         self._wheels_model_path = ''
@@ -528,8 +539,14 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         else:
             glDisable(GL_CULL_FACE)
         self._setup_lighting()
+        has_world = bool(getattr(self, '_world_instances', None))
         has_geoms = bool(getattr(self, '_all_geoms', None))
         has_verts = bool(self._vertices)
+        if has_world:
+            self._draw_world_instances()
+            if self._show_grid: self._draw_grid()
+            self._draw_axes()
+            return
         if not has_geoms and not has_verts:
             if self._show_grid: self._draw_grid()
             self._draw_axes()
@@ -1072,6 +1089,85 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             (self._vertices,self._normals,self._uvs,
              self._triangles,self._materials,self._prelit,
              self._current_geom_flags) = (old_v,old_n,old_u,old_t,old_m,old_p,old_f)
+
+    def set_world_instances(self, entries): #vers 1
+        """Load a whole set of positioned instances for a full
+        multi-instance world view (Aug 1 2026, per Keith: "wire every
+        pane into the viewport, when I load ipl, these dont show").
+        entries: list of dicts, each:
+          {'vertices': [(x,y,z),...], 'normals': [...] or [],
+           'uvs': [...] or [], 'triangles': [(v1,v2,v3,mat_id),...],
+           'materials': [...], 'prelit': [...] or [],
+           'pos': (x,y,z), 'rot': (x,y,z,w) quaternion, 'scale': (x,y,z)}
+        Caller (ModelWorkshop._refresh_world_view) is responsible for
+        converting each instance's cached DFFModel geometry into this
+        shape - same field names/format load_geometry() already uses
+        internally, just per-instance instead of one shared set."""
+        self._world_instances = entries or []
+        if self._world_instances:
+            self._auto_fit_world()
+        self.update()
+
+    def clear_world_instances(self): #vers 1
+        self._world_instances = []
+        self.update()
+
+    @staticmethod
+    def _quat_to_gl_matrix(x, y, z, w): #vers 1
+        """Quaternion -> 16-float column-major 4x4 rotation matrix,
+        the layout glMultMatrixf expects directly. Standard formula -
+        each group of 4 below is one column, not one row."""
+        xx, yy, zz = x*x, y*y, z*z
+        xy, xz, yz = x*y, x*z, y*z
+        wx, wy, wz = w*x, w*y, w*z
+        return [
+            1.0-2.0*(yy+zz), 2.0*(xy+wz),     2.0*(xz-wy),     0.0,
+            2.0*(xy-wz),     1.0-2.0*(xx+zz), 2.0*(yz+wx),     0.0,
+            2.0*(xz+wy),     2.0*(yz-wx),     1.0-2.0*(xx+yy), 0.0,
+            0.0,              0.0,             0.0,             1.0,
+        ]
+
+    def _draw_world_instances(self): #vers 1
+        if not OPENGL_AVAILABLE: return
+        old_v,old_n,old_u,old_t,old_m,old_p,old_f = (
+            self._vertices,self._normals,self._uvs,
+            self._triangles,self._materials,self._prelit,
+            getattr(self,'_current_geom_flags',0))
+        for entry in self._world_instances:
+            glPushMatrix()
+            px, py, pz = entry.get('pos', (0.0, 0.0, 0.0))
+            glTranslatef(px, py, pz)
+            rx, ry, rz, rw = entry.get('rot', (0.0, 0.0, 0.0, 1.0))
+            glMultMatrixf(self._quat_to_gl_matrix(rx, ry, rz, rw))
+            sx, sy, sz = entry.get('scale', (1.0, 1.0, 1.0))
+            glScalef(sx, sy, sz)
+            self._vertices  = entry.get('vertices', [])
+            self._normals   = entry.get('normals', [])
+            self._uvs       = entry.get('uvs', [])
+            self._triangles = entry.get('triangles', [])
+            self._materials = entry.get('materials', [])
+            self._prelit    = entry.get('prelit', [])
+            if   self._mode=='wireframe': self._draw_wireframe()
+            elif self._mode=='solid':     self._draw_solid()
+            elif self._mode=='textured':  self._draw_textured()
+            glPopMatrix()
+        (self._vertices,self._normals,self._uvs,
+         self._triangles,self._materials,self._prelit,
+         self._current_geom_flags) = (old_v,old_n,old_u,old_t,old_m,old_p,old_f)
+
+    def _auto_fit_world(self): #vers 1
+        """Frame the camera around every instance's WORLD position
+        (not vertex-level detail like _auto_fit - map-scale distances
+        make individual meshes irrelevant to the initial framing)."""
+        if not self._world_instances: return
+        xs = [e.get('pos', (0,0,0))[0] for e in self._world_instances]
+        ys = [e.get('pos', (0,0,0))[1] for e in self._world_instances]
+        zs = [e.get('pos', (0,0,0))[2] for e in self._world_instances]
+        diag = math.sqrt((max(xs)-min(xs))**2+(max(ys)-min(ys))**2+(max(zs)-min(zs))**2)
+        self._dist  = max(diag*0.75, 10.0)
+        self._pan_x = -(max(xs)+min(xs))/2
+        self._pan_y = -(max(ys)+min(ys))/2
+        self.update()
 
     def set_prelight(self, v: bool): #vers 1
         self._use_prelight = v; self.update()

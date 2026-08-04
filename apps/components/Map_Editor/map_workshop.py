@@ -18257,6 +18257,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             pane.set_cull_boxes(loader.culls, getattr(self, '_cull_boxes_act', None) and
                                 self._cull_boxes_act.isChecked())
         self._populate_instance_list(_FilteredLoaderStub(visible, loader))
+        self._refresh_world_view(visible)
         self._populate_ipl_sections(loader)
         self._populate_object_browser(loader)
         self._refresh_ide_tab(loader)
@@ -19644,6 +19645,60 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             pane.set_instances(visible)
         loader_stub = _FilteredLoaderStub(visible, getattr(self, '_world_loader', None))
         self._populate_instance_list(loader_stub)
+        self._refresh_world_view(visible)
+
+    def _refresh_world_view(self, instances): #vers 1
+        """Push a full multi-instance 3D world view into the existing
+        DFF viewport (self.preview_widget) - Aug 1 2026, per Keith:
+        "wire every pane into the viewport, when I load ipl, these
+        dont show." Converts each distinct model's cached DFFModel
+        geometry (self._model_cache.get_geometry, already
+        loaded/parsed by _preload_world_assets when the IPL was
+        loaded) into the vertex/normal/uv/triangle/material arrays
+        DFFViewport.load_geometry() already knows how to draw - just
+        done once per distinct model and reused across every instance
+        of it, rather than converting per-instance (many instances
+        commonly share one model). Builds one entry per instance with
+        its own pos/rot/scale and hands the whole list to
+        preview_widget.set_world_instances()."""
+        vp = getattr(self, 'preview_widget', None)
+        model_cache = getattr(self, '_model_cache', None)
+        if vp is None or model_cache is None or not hasattr(vp, 'set_world_instances'):
+            return
+        if not instances:
+            if vp is not None and hasattr(vp, 'clear_world_instances'):
+                vp.clear_world_instances()
+            return
+
+        # Convert each distinct model's geometry once, reuse across instances
+        converted = {}
+        entries = []
+        for inst in instances:
+            model_name = inst.model_name
+            if model_name not in converted:
+                dff_model = model_cache.get_geometry(model_name)
+                if dff_model is None or not getattr(dff_model, 'geometries', None):
+                    converted[model_name] = None
+                else:
+                    g = dff_model.geometries[0]
+                    converted[model_name] = {
+                        'vertices':  [(v.x, v.y, v.z) for v in g.vertices],
+                        'normals':   [(n.x, n.y, n.z) for n in g.normals] if g.normals else [],
+                        'uvs':       [(u.u, u.v) for u in g.uv_layers[0]] if g.uv_layers else [],
+                        'triangles': [(t.v1, t.v2, t.v3, t.material_id) for t in g.triangles],
+                        'materials': g.materials,
+                        'prelit':    [(c.r, c.g, c.b, c.a) for c in getattr(g, 'colors', [])] if getattr(g, 'colors', None) else [],
+                    }
+            base = converted[model_name]
+            if base is None:
+                continue   # model failed to load/parse - skip this instance
+            entry = dict(base)
+            entry['pos']   = (inst.pos_x, inst.pos_y, inst.pos_z)
+            entry['rot']   = (inst.rot_x, inst.rot_y, inst.rot_z, inst.rot_w)
+            entry['scale'] = (inst.scale_x, inst.scale_y, inst.scale_z)
+            entries.append(entry)
+
+        vp.set_world_instances(entries)
 
     def _apply_lod_filter(self, instances): #vers 2
         """Given an already-IPL-filtered instance list, decide for each
