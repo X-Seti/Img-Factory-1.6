@@ -383,6 +383,51 @@ conclusively found despite extensive isolated testing.
   world view renders objects correctly. **Works on PC version of
   Vice City.**
 
+- **Aug 1, 2026 (cont'd)** — Per Keith: "lets start implementing
+  functions like textures on models and texture tiles, shown in
+  texture pane." Two related pieces -
+
+  Texture tiles: the Textures dock's table (`self._tex_list`) had
+  already been built with `setIconSize(QSize(32,32))` and a 56px-wide
+  thumbnail column ready to go, but was never actually populated with
+  real thumbnails - `_on_ipl_model_row_selected` only ever set an
+  empty string item there. Added `_create_texture_thumbnail`
+  (`map_workshop.py`), reusing the exact same approach as TXD
+  Workshop's own `_create_thumbnail` ("the same way as in TXD
+  workshop") - `model_cache.get_textures()` already returns fully
+  decoded `rgba_data` (`parse_txd` handles DXT1/DXT3/DXT5/etc.
+  decompression itself), so this just builds/scales a `QPixmap` from
+  it, no extra decoding needed. Set as each row's `DecorationRole`.
+
+  Textures on models in the viewport: per Keith, "we need to load the
+  textures with the models in the viewport." `DFFViewport._draw_
+  textured()` already existed (used for regular single-model preview)
+  and looks up textures via a single shared `self._tex_ids` dict
+  (texture name -> GL id) - not per-model, so for a whole world of
+  different models each needing their own textures, every texture any
+  model might need has to be uploaded into that dict before any
+  model's display list gets built (the bound texture id is baked into
+  the list at compile time). Extended `ModelWorkshop._refresh_world_
+  view` to, for each distinct model, look up its TXD via its IDE
+  object (same lookup `_on_ipl_model_row_selected` already does),
+  fetch its textures from the same `model_cache` already loading
+  geometry, collect them all (de-duplicated by TXD), and upload the
+  whole batch via `preview_widget._upload_textures()` before pushing
+  the world instances - also switches the viewport to `'textured'`
+  render mode so `_draw_world_instances` actually uses this path.
+
+  Verified end-to-end with mock data: thumbnail creation confirmed
+  (4x4 and 8x8 synthetic RGBA images correctly scaled to 32x32);
+  full `_on_ipl_model_row_selected` flow confirmed populating a real
+  thumbnail alongside name/size/format; full `_refresh_world_view`
+  flow confirmed correct texture de-duplication (2 instances sharing
+  one model -> exactly 1 texture upload, not 2), correct render-mode
+  switch to `'textured'`, correct instance count pushed. Full
+  `QApplication` instantiation clean, `ast.parse` clean. Could not
+  verify actual live OpenGL texture binding (no PyOpenGL in this
+  environment) - needs Keith's visual confirmation with real data.
+
+
 
 
 

@@ -19868,7 +19868,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._populate_instance_list(loader_stub)
         self._refresh_world_view(visible)
 
-    def _refresh_world_view(self, instances): #vers 1
+    def _refresh_world_view(self, instances): #vers 2
         """Push a full multi-instance 3D world view into the existing
         DFF viewport (self.preview_widget) - Aug 1 2026, per Keith:
         "wire every pane into the viewport, when I load ipl, these
@@ -19881,9 +19881,24 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         of it, rather than converting per-instance (many instances
         commonly share one model). Builds one entry per instance with
         its own pos/rot/scale and hands the whole list to
-        preview_widget.set_world_instances()."""
+        preview_widget.set_world_instances().
+
+        Also collects and uploads every distinct model's textures
+        (Aug 1 2026, per Keith: "we need to load the textures with
+        the models in the viewport") - each model's TXD is looked up
+        via its IDE object (same lookup _on_ipl_model_row_selected
+        already does), textures fetched from the same model_cache
+        already loading geometry, and all of them uploaded together
+        via preview_widget._upload_textures() BEFORE any per-model
+        display list gets built - the bound texture id gets baked
+        into a display list at compile time, so every texture a model
+        might need has to already be in self._tex_ids first, whether
+        or not that particular model happens to build its list first.
+        Switches the viewport to 'textured' render mode so
+        _draw_world_instances actually uses this."""
         vp = getattr(self, 'preview_widget', None)
         model_cache = getattr(self, '_model_cache', None)
+        loader = getattr(self, '_world_loader', None)
         if vp is None or model_cache is None or not hasattr(vp, 'set_world_instances'):
             return
         if not instances:
@@ -19894,6 +19909,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # Convert each distinct model's geometry once, reuse across instances
         converted = {}
         entries = []
+        all_textures = []
+        seen_txds = set()
         for inst in instances:
             model_name = inst.model_name
             if model_name not in converted:
@@ -19910,6 +19927,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                         'materials': g.materials,
                         'prelit':    [(c.r, c.g, c.b, c.a) for c in getattr(g, 'colors', [])] if getattr(g, 'colors', None) else [],
                     }
+                if loader is not None:
+                    obj = loader.get_object(inst.model_id)
+                    txd_name = obj.txd_name if (obj is not None and obj.txd_name) else None
+                    if txd_name and txd_name not in seen_txds:
+                        seen_txds.add(txd_name)
+                        textures = model_cache.get_textures(txd_name)
+                        if textures:
+                            all_textures.extend(textures.values())
             base = converted[model_name]
             if base is None:
                 continue   # model failed to load/parse - skip this instance
@@ -19920,6 +19945,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             entry['model_key'] = model_name
             entries.append(entry)
 
+        if all_textures and hasattr(vp, '_upload_textures'):
+            vp._upload_textures(all_textures, additive=False)
+        if hasattr(vp, 'set_render_mode'):
+            vp.set_render_mode('textured')
         vp.set_world_instances(entries)
         self._populate_models_panel_from_ipl(instances)
 
@@ -20004,13 +20033,47 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         textures = textures or {}
         tex_list.setRowCount(len(textures))
         for i, tex in enumerate(textures.values()):
-            tex_list.setItem(i, 0, QTableWidgetItem(""))
+            thumb_item = QTableWidgetItem()
+            pixmap = self._create_texture_thumbnail(
+                tex.get('rgba_data'), tex.get('width', 0), tex.get('height', 0))
+            if pixmap is not None:
+                thumb_item.setData(Qt.ItemDataRole.DecorationRole, pixmap)
+            tex_list.setItem(i, 0, thumb_item)
             tex_list.setItem(i, 1, QTableWidgetItem(tex.get('name', '')))
             tex_list.setItem(i, 2, QTableWidgetItem(
                 f"{tex.get('width', '?')}x{tex.get('height', '?')}"))
             tex_list.setItem(i, 3, QTableWidgetItem(tex.get('format', '')))
         if hasattr(self, '_tex_count_lbl'):
             self._tex_count_lbl.setText(f"{len(textures)} texture{'s' if len(textures) != 1 else ''}")
+
+    def _create_texture_thumbnail(self, rgba_data, width, height): #vers 1
+        """Build a scaled QPixmap thumbnail from decoded RGBA8888 bytes
+        - same approach as TXD Workshop's own _create_thumbnail (Aug 1
+        2026, per Keith: "texture tiles, shown in texture pane...
+        the same way as in TXD workshop"). model_cache.get_textures()
+        already returns fully-decoded rgba_data (parse_txd handles
+        DXT1/DXT3/DXT5/etc. decompression itself), so no extra
+        decoding work is needed here - just building/scaling the
+        QPixmap, matching _tex_list's already-configured 32px icon
+        size (it was built with setIconSize(QSize(32,32)) ready for
+        this, just never actually populated with real thumbnails
+        until now)."""
+        try:
+            if not rgba_data or width <= 0 or height <= 0:
+                return None
+            buf = bytes(rgba_data)
+            image = QImage(buf, width, height, width * 4, QImage.Format.Format_RGBA8888)
+            if image.isNull():
+                return None
+            image = image.copy()   # QImage doesn't own buf - copy so GC can't free it early
+            pixmap = QPixmap.fromImage(image)
+            thumb_size = 32
+            mode = (Qt.TransformationMode.FastTransformation if width < thumb_size
+                    and height < thumb_size else Qt.TransformationMode.SmoothTransformation)
+            return pixmap.scaled(thumb_size, thumb_size,
+                Qt.AspectRatioMode.KeepAspectRatio, mode)
+        except Exception:
+            return None
 
     def _apply_lod_filter(self, instances): #vers 2
         """Given an already-IPL-filtered instance list, decide for each
