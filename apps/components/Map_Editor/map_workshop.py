@@ -18874,6 +18874,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         lay = QVBoxLayout(panel)
         lay.setContentsMargins(6, 6, 6, 6)
         lay.setSpacing(4)
+        _compact_18 = "padding: 0px 4px; margin: 0px; border-width: 1px;"
 
         # Row 1: INST/CULL/ZON/PATH data-type selector - switches which
         # kind of IPL content the IPL Inst File panel shows for the
@@ -18895,6 +18896,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             btn.setCheckable(True)
             btn.setChecked(key == 'inst')
             btn.setEnabled(enabled)
+            btn.setFixedHeight(18)
+            btn.setStyleSheet(_compact_18)
             if enabled:
                 btn.setToolTip(tooltip)
             else:
@@ -18912,6 +18915,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # Row 2: Ignore Scaling / Generic.txd / LOD view
         opts_row = QHBoxLayout()
         ignore_scaling_chk = QCheckBox("Ignore Scaling")
+        ignore_scaling_chk.setFixedHeight(18)
+        ignore_scaling_chk.setStyleSheet(_compact_18)
         ignore_scaling_chk.setToolTip(
             "Treat a (1,1,1) scale as equivalent to (0,0,0) for\n"
             "interpretation purposes only - never writes anything\n"
@@ -18923,6 +18928,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         opts_row.addWidget(ignore_scaling_chk)
 
         generic_txd_btn = QPushButton("Generic.txd")
+        generic_txd_btn.setFixedHeight(18)
+        generic_txd_btn.setStyleSheet(_compact_18)
         generic_txd_btn.setToolTip(
             "Load generic.txd - the shared texture archive many models\n"
             "reference without having their own dedicated TXD. Tries\n"
@@ -18933,6 +18940,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         opts_row.addWidget(generic_txd_btn)
 
         lod_view_btn = QPushButton("LOD view")
+        lod_view_btn.setFixedHeight(18)
+        lod_view_btn.setStyleSheet(_compact_18)
         from PyQt6.QtGui import QActionGroup
         lod_menu = QMenu(lod_view_btn)
         lod_group = QActionGroup(lod_menu)

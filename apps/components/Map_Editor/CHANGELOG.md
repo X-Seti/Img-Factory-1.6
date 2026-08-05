@@ -508,6 +508,18 @@ conclusively found despite extensive isolated testing.
   with section headers/`end` correctly skipped and shorter rows
   correctly padded with empty cells; switching back to IPL mode
   correctly restores both the title and the fixed 13-column schema.
+
+- **Aug 1, 2026 (cont'd)** — Per Keith's screenshot: "IPL secton
+  buttons are a perfect size so the IPL control buttons need to be
+  the same size." The IPL Controls dock's buttons (INST/CULL/ZON/
+  PATH, Ignore Scaling, Generic.txd, LOD view) had been built without
+  the 18px compact-button treatment (`setFixedHeight(18)` + the
+  padding-stripped stylesheet) already applied everywhere else -
+  IPL Sections' Open/Close/New/Delete, Control Panel, all four tabs'
+  action rows. Applied the same treatment to all 6 IPL Controls
+  buttons/checkbox, matching exactly. Verified: every button in the
+  dock confirmed `height() == 18`.
+
   Full `QApplication` instantiation clean, `ast.parse` clean.
 
 
