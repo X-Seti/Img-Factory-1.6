@@ -705,3 +705,42 @@ conclusively found despite extensive isolated testing.
 
 
 
+
+
+- **Aug 1, 2026 (cont'd)** — Per Keith, using his real `docks.ipl` and
+  `generic.ide` (comparison screenshots against MooMapper running the
+  same file): "I don't see any indication that the genericide
+  textures are being loaded, shown in the status, and those objects
+  are still white" and "some of the objects don't align correctly,
+  the rotation is off, maybe some values in the IPL are not being
+  parsed correctly."
+
+  **Texture status feedback**: added visible status output to
+  `_preload_generic_ide_textures` (via `_set_status`, which falls
+  back to a console print if no status widget is showing) - reports
+  how many `generic.ide` objects were found, how many distinct TXDs,
+  and how many were actually fetched. Verified against the real
+  uploaded `generic.ide`: correctly found 306 objects across 108
+  distinct TXDs (confirming the earlier fix's *logic* is sound - it
+  genuinely does find `mine`/`metal`/`dynbarrels`/etc. when given
+  real data), and correctly reported a 0-fetched worst case when the
+  texture lookup itself was simulated to fail. This should reveal in
+  Keith's live environment whether `generic.ide` is loading at all
+  (0 objects found would mean it isn't - a separate, upstream issue)
+  or whether the fetch step itself is what's failing.
+
+  **Rotation investigation**: verified every layer of the pipeline
+  against Keith's real data and found each one correct on its own -
+  `detect_game_from_dat_filename('gta_vc.dat')` correctly returns VC;
+  `GTAWorldLoader`/`IPLParser` construction correctly propagates that
+  game value through; `IPLParser`'s VC-specific 13-field branch
+  (interior, position, scale, then quaternion) correctly parses every
+  field of the real `docks.ipl` verbatim, including `docks10`'s
+  non-identity rotation; and the quaternion-to-matrix conversion
+  (`DFFViewport._quat_to_gl_matrix`) was cross-checked against
+  `scipy.spatial.transform.Rotation` using that exact real rotation
+  value and produced an identical matrix. Could not find the actual
+  cause through static analysis alone given everything checked out
+  correct in isolation - narrowing this down further needs either
+  Keith's live environment directly, or a closer visual comparison of
+  which specific objects look misaligned between the two screenshots.

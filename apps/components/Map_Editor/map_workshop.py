@@ -19062,15 +19062,37 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if cache is not None and cache[0] == id(loader):
             return cache[1], cache[2]
         distinct_txds = set()
+        generic_ide_object_count = 0
         for obj in loader.objects.values():
             source = (getattr(obj, 'source_ide', '') or '').lower()
-            if os.path.basename(source) == 'generic.ide' and obj.txd_name:
-                distinct_txds.add(obj.txd_name.lower())
+            if os.path.basename(source) == 'generic.ide':
+                generic_ide_object_count += 1
+                if obj.txd_name:
+                    distinct_txds.add(obj.txd_name.lower())
+        # Status feedback (Aug 1 2026, per Keith: "I don't see any
+        # indication that the genericide textures are being loaded,
+        # shown in the status") - makes it visible whether generic.ide
+        # was even found among the loaded objects at all (if 0, the
+        # file itself likely isn't loading - a separate, upstream
+        # issue from anything this method does) vs how many of its
+        # TXDs were actually found/fetched (if fewer than expected,
+        # points at the IMG-index/loose-file lookup itself).
+        if generic_ide_object_count == 0:
+            self._set_status(
+                "generic.ide: no objects found with source_ide matching "
+                "'generic.ide' - it may not have loaded at all")
         all_textures = []
+        fetched_count = 0
         for txd_name in sorted(distinct_txds):
             textures, _source = self._get_txd_textures_with_fallback(txd_name)
             if textures:
+                fetched_count += 1
                 all_textures.extend(textures.values())
+        if generic_ide_object_count > 0:
+            self._set_status(
+                f"generic.ide: {generic_ide_object_count} objects, "
+                f"{len(distinct_txds)} distinct TXDs, {fetched_count} "
+                f"found/fetched, {len(all_textures)} textures total")
         self._generic_ide_textures_cache = (id(loader), all_textures, distinct_txds)
         return all_textures, distinct_txds
 
