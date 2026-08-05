@@ -378,6 +378,12 @@ conclusively found despite extensive isolated testing.
   display issue, which Keith asked to address last since the above
   changes might resolve it as a side effect.
 
+- **Aug 1, 2026 (cont'd)** — Confirmed by Keith testing against a
+  real copy of the PC version of Vice City: the multi-instance 3D
+  world view renders objects correctly. **Works on PC version of
+  Vice City.**
+
+
 
 
 
