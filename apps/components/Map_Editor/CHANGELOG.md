@@ -427,6 +427,53 @@ conclusively found despite extensive isolated testing.
   verify actual live OpenGL texture binding (no PyOpenGL in this
   environment) - needs Keith's visual confirmation with real data.
 
+- **Aug 1, 2026 (cont'd)** — Per Keith: "the INST CULL ZON PATH
+  buttons need to be in there own pane, with [ignore scaling]
+  [Generic.txd] [LOD view] the [LOD view] button has 3 toggles,
+  [Show All] [Show Norm] [Show LOD] the Generic.txd button should
+  load the generic.txd from gta3.img and root/models/generic.txd" -
+  confirmed with Keith as a brand new, separate dock (own title bar,
+  dockable/movable like every other one), not folded into IPL Inst
+  File or Object Browser where these pieces previously lived.
+
+  Added `_create_ipl_controls_dock`: Row 1 is INST/CULL/ZON/PATH
+  (moved out of the IPL tab); Row 2 is Ignore Scaling (moved out of
+  IPL Inst File), Generic.txd, and LOD view. LOD view maps directly
+  onto already-existing, already-working logic
+  (`_set_lod_display_mode`) - Show All = `'both'`, Show Norm =
+  `'normal'`, Show LOD = `'lod'` - just needed a 3-way toggle menu
+  wired to it. Generic.txd tries `model_cache.get_textures('generic')`
+  first (which searches every indexed IMG archive - `gta3.img` is
+  always auto-indexed for every game, per `GTAWorldLoader.load()`'s
+  own docstring: "Always enforces models/gta3.img... so TXD Workshop
+  and the Dump TXDs feature can always find it"), confirmed by Keith
+  as the right order, then falls back to `{game root}/models/
+  generic.txd` as a loose file (parsed directly via `parse_txd`) if
+  not found there - `self._game_root` was already tracked from
+  earlier loading code, reused rather than re-derived.
+
+  Hit and fixed two mistakes made while extracting this code from its
+  old locations: the method definition line for
+  `_create_ipl_inst_file_panel` was accidentally dropped during the
+  edit that removed its Ignore Scaling checkbox (caught immediately
+  by the next instantiation test - `AttributeError: no attribute
+  '_create_ipl_inst_file_panel'`); and `QButtonGroup` needed a local
+  import in the new method (not available at module level, matching
+  the existing pattern elsewhere in this file).
+
+  Verified end-to-end: all 6 docks (Models/Frame Hierarchy/Textures/
+  Object Browser/IPL Inst File/IPL Controls) present via
+  `createPopupMenu()`; INST/CULL/ZON/PATH buttons and Ignore Scaling
+  checkbox both confirmed present in the new dock; Generic.txd tested
+  both paths (found via a fake IMG-search model_cache, and the
+  fallback-to-loose-file path with a real temp file on disk, correctly
+  handling a parse failure without crashing); LOD view menu confirmed
+  correct initial state (Show Norm checked, matching the default) and
+  correct behaviour on trigger (`Show All` -> `self._lod_display_mode
+  == 'both'`). Full `QApplication` instantiation clean, `ast.parse`
+  clean.
+
+
 
 
 

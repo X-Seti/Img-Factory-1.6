@@ -4490,6 +4490,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._make_dock_collapsible(ipl_inst_file_dock, "IPL Inst File")
         outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, ipl_inst_file_dock)
 
+        ipl_controls_dock = self._create_ipl_controls_dock()
+        ipl_controls_dock.setMinimumWidth(250)
+        self._make_dock_collapsible(ipl_controls_dock, "IPL Controls")
+        outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, ipl_controls_dock)
+
         #This breaks the docking.
         #outer_mw.splitDockWidget(object_browser_dock, ipl_inst_file_dock, Qt.Orientation.Vertical)
 
@@ -18633,47 +18638,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         placeholder.setVisible(True)
         table.setVisible(False)
 
-        # INST/CULL/ZON/PATH data-type selector - switches which kind
-        # of IPL content the "IPL Inst File" panel shows for the
-        # currently selected IPL. INST/CULL/ZONE are real (all three
-        # are already parsed - GTAWorldLoader.instances/culls/zones);
-        # PATH is an honest stub, disabled with a tooltip explaining
-        # why, rather than a guess at an unverified format.
-        #
-        # Compact buttons with tooltips (Aug 1 2026, per Keith: "This
-        # needs to be buttons under IPL sections: [INST] [CULL] [ZON]
-        # [PATH] with tooltips showing a description. Instead of the
-        # INST - Item Instance, CULL - Object Culling..") - replaces
-        # the earlier vertical QRadioButton list, which took much more
-        # vertical space for the same information.
-        type_row = QHBoxLayout()
-        self._ipl_type_group = QButtonGroup(panel)
-        self._ipl_type_group.setExclusive(True)
-        type_specs = [
-            ('inst', "INST", "INST - Item Instances", True),
-            ('cull', "CULL", "CULL - Object Culling", True),
-            ('zone', "ZON",  "ZONE - Map Zones", True),
-            ('path', "PATH", "PATH - Pedestrian / Vehicle Paths", False),
-        ]
-        for key, label_text, tooltip, enabled in type_specs:
-            btn = QPushButton(label_text)
-            btn.setCheckable(True)
-            btn.setChecked(key == 'inst')
-            btn.setEnabled(enabled)
-            if enabled:
-                btn.setToolTip(tooltip)
-            else:
-                btn.setToolTip(tooltip + "\n\nSTUB - path node data isn't parsed anywhere\n"
-                               "in this project yet, no real sample data has\n"
-                               "been verified against yet to build this on")
-            btn.toggled.connect(
-                lambda checked, k=key: self._on_ipl_data_type_changed(k) if checked else None)
-            self._ipl_type_group.addButton(btn)
-            type_row.addWidget(btn)
-        type_row.addStretch()
-        content_lay.addLayout(type_row)
+        # INST/CULL/ZON/PATH data-type selector moved to its own
+        # dedicated dock (Aug 1 2026, per Keith: "the INST CULL ZON
+        # PATH buttons need to be in there own pane" - see
+        # _create_ipl_controls_dock) - self._ipl_data_type is still
+        # initialized here since this tab's own logic reads it
+        # regardless of where the buttons that set it actually live.
         self._ipl_data_type = 'inst'
-
 
         lay.addWidget(content_container)
         self._make_section_collapsible(label, content_container)
@@ -18843,7 +18814,172 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._ipl_data_type = data_type
         self._refresh_ipl_inst_file_panel()
 
-    def _create_ipl_inst_file_panel(self): #vers 2
+    def _create_ipl_controls_dock(self): #vers 1
+        """Dedicated dock for IPL viewing/filtering controls, per
+        Keith: "the INST CULL ZON PATH buttons need to be in there
+        own pane, with [ignore scaling] [Generic.txd] [LOD view] the
+        [LOD view] button has 3 toggles, [Show All] [Show Norm]
+        [Show LOD] the Generic.txd button should load the generic.txd
+        from gta3.img and root/models/generic.txd" - confirmed as a
+        brand new, separate dock (own title bar, dockable/movable
+        like the others), not folded into IPL Inst File or Object
+        Browser where these pieces used to live.
+
+        Row 1: INST/CULL/ZON/PATH (moved from the IPL tab).
+        Row 2: Ignore Scaling (moved from IPL Inst File) / Generic.txd
+        / LOD view."""
+        panel = QWidget()
+        from PyQt6.QtWidgets import QButtonGroup
+        lay = QVBoxLayout(panel)
+        lay.setContentsMargins(6, 6, 6, 6)
+        lay.setSpacing(4)
+
+        # Row 1: INST/CULL/ZON/PATH data-type selector - switches which
+        # kind of IPL content the IPL Inst File panel shows for the
+        # currently selected IPL. INST/CULL/ZONE are real (all three
+        # are already parsed - GTAWorldLoader.instances/culls/zones);
+        # PATH is an honest stub, disabled with a tooltip explaining
+        # why, rather than a guess at an unverified format.
+        type_row = QHBoxLayout()
+        self._ipl_type_group = QButtonGroup(panel)
+        self._ipl_type_group.setExclusive(True)
+        type_specs = [
+            ('inst', "INST", "INST - Item Instances", True),
+            ('cull', "CULL", "CULL - Object Culling", True),
+            ('zone', "ZON",  "ZONE - Map Zones", True),
+            ('path', "PATH", "PATH - Pedestrian / Vehicle Paths", False),
+        ]
+        for key, label_text, tooltip, enabled in type_specs:
+            btn = QPushButton(label_text)
+            btn.setCheckable(True)
+            btn.setChecked(key == 'inst')
+            btn.setEnabled(enabled)
+            if enabled:
+                btn.setToolTip(tooltip)
+            else:
+                btn.setToolTip(tooltip + "\n\nSTUB - path node data isn't parsed anywhere\n"
+                               "in this project yet, no real sample data has\n"
+                               "been verified against yet to build this on")
+            btn.toggled.connect(
+                lambda checked, k=key: self._on_ipl_data_type_changed(k) if checked else None)
+            self._ipl_type_group.addButton(btn)
+            type_row.addWidget(btn)
+        type_row.addStretch()
+        lay.addLayout(type_row)
+        self._ipl_data_type = 'inst'
+
+        # Row 2: Ignore Scaling / Generic.txd / LOD view
+        opts_row = QHBoxLayout()
+        ignore_scaling_chk = QCheckBox("Ignore Scaling")
+        ignore_scaling_chk.setToolTip(
+            "Treat a (1,1,1) scale as equivalent to (0,0,0) for\n"
+            "interpretation purposes only - never writes anything\n"
+            "back to the IPL file. Useful for converted IPLs (e.g.\n"
+            "GTA SA data converted to VC's format) where the Scale\n"
+            "columns may be broken/placeholder rather than real data.")
+        ignore_scaling_chk.toggled.connect(self._on_ignore_scaling_toggled)
+        self._ignore_scaling_chk = ignore_scaling_chk
+        opts_row.addWidget(ignore_scaling_chk)
+
+        generic_txd_btn = QPushButton("Generic.txd")
+        generic_txd_btn.setToolTip(
+            "Load generic.txd - the shared texture archive many models\n"
+            "reference without having their own dedicated TXD. Tries\n"
+            "the game's indexed IMG archives first (e.g. gta3.img,\n"
+            "which every game always loads via the exe), then falls\n"
+            "back to {game root}/models/generic.txd as a loose file.")
+        generic_txd_btn.clicked.connect(self._on_load_generic_txd_clicked)
+        opts_row.addWidget(generic_txd_btn)
+
+        lod_view_btn = QPushButton("LOD view")
+        from PyQt6.QtGui import QActionGroup
+        lod_menu = QMenu(lod_view_btn)
+        lod_group = QActionGroup(lod_menu)
+        lod_group.setExclusive(True)
+        lod_specs = [
+            ('both',   "Show All",  "Show both normal and LOD (low-detail) instances together"),
+            ('normal', "Show Norm", "Show only normal-detail instances (default)"),
+            ('lod',    "Show LOD",  "Show only LOD (low-detail) instances"),
+        ]
+        for mode, label_text, tooltip in lod_specs:
+            action = lod_menu.addAction(label_text)
+            action.setCheckable(True)
+            action.setChecked(mode == getattr(self, '_lod_display_mode', 'normal'))
+            action.setToolTip(tooltip)
+            action.triggered.connect(lambda checked, m=mode: self._set_lod_display_mode(m) if checked else None)
+            lod_group.addAction(action)
+        lod_view_btn.setMenu(lod_menu)
+        lod_view_btn.setToolTip("Choose which detail level(s) of instances to show")
+        opts_row.addWidget(lod_view_btn)
+
+        opts_row.addStretch()
+        lay.addLayout(opts_row)
+
+        dock = QDockWidget("IPL Controls", self)
+        dock.setObjectName("IPL Controls")
+        dock.setWidget(panel)
+        dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
+                        QDockWidget.DockWidgetFeature.DockWidgetFloatable |
+                        QDockWidget.DockWidgetFeature.DockWidgetClosable)
+        self._ipl_controls_dock = dock
+        return dock
+
+    def _on_load_generic_txd_clicked(self): #vers 1
+        """Load generic.txd - tries the game's indexed IMG archives
+        first (gta3.img is always auto-indexed for every game, per
+        GTAWorldLoader.load()'s own docstring: "Always enforces
+        models/gta3.img... so TXD Workshop and the Dump TXDs feature
+        can always find it"), falling back to {game root}/models/
+        generic.txd as a loose file if not found there. Per Keith:
+        "the Generic.txd button should load the generic.txd from
+        gta3.img and root/models/generic.txd", confirmed IMG first."""
+        model_cache = getattr(self, '_model_cache', None)
+        if model_cache is None:
+            QMessageBox.information(self, "Generic.txd", "No world loaded yet.")
+            return
+        textures = model_cache.get_textures('generic')
+        source = "an indexed IMG archive (e.g. gta3.img)"
+        if not textures:
+            game_root = getattr(self, '_game_root', None)
+            if game_root:
+                loose_path = os.path.join(game_root, 'models', 'generic.txd')
+                if os.path.isfile(loose_path):
+                    try:
+                        with open(loose_path, 'rb') as f:
+                            from apps.methods.txd_parser import parse_txd
+                            tex_list = parse_txd(f.read())
+                        textures = {t['name'].lower(): t for t in tex_list}
+                        source = loose_path
+                    except Exception as e:
+                        QMessageBox.warning(self, "Generic.txd",
+                            f"Found {loose_path} but couldn't parse it:\n{e}")
+                        return
+        if not textures:
+            QMessageBox.warning(self, "Generic.txd",
+                "generic.txd not found in any indexed IMG archive\n"
+                "(e.g. gta3.img) or at {game root}/models/generic.txd.")
+            return
+        self._generic_textures = textures
+        if hasattr(self, '_tex_count_lbl'):
+            self._tex_count_lbl.setText(
+                f"{len(textures)} texture{'s' if len(textures) != 1 else ''} (generic.txd, from {source})")
+        tex_list = getattr(self, '_tex_list', None)
+        if tex_list is not None:
+            tex_list.setRowCount(len(textures))
+            for i, tex in enumerate(textures.values()):
+                thumb_item = QTableWidgetItem()
+                pixmap = self._create_texture_thumbnail(
+                    tex.get('rgba_data'), tex.get('width', 0), tex.get('height', 0))
+                if pixmap is not None:
+                    thumb_item.setData(Qt.ItemDataRole.DecorationRole, pixmap)
+                tex_list.setItem(i, 0, thumb_item)
+                tex_list.setItem(i, 1, QTableWidgetItem(tex.get('name', '')))
+                tex_list.setItem(i, 2, QTableWidgetItem(
+                    f"{tex.get('width', '?')}x{tex.get('height', '?')}"))
+                tex_list.setItem(i, 3, QTableWidgetItem(tex.get('format', '')))
+
+
+    def _create_ipl_inst_file_panel(self): #vers 3
         """Editable cells table for whichever IPL is currently selected
         in the [IPL] tab, filtered to whichever data type (INST/CULL/
         ZONE) is selected there - one row per instance line, one
@@ -18864,30 +19000,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         caution on a related point suggests being conservative here
         until that's explicitly confirmed as wanted.
 
-        "Ignore Scaling" checkbox: per Keith, some converted IPLs
-        (e.g. GTA SA data converted to VC's format) have a broken/
-        placeholder (0,0,0) scale instead of the normal (1,1,1) unit
-        scale in the Scale columns - checking this treats a (1,1,1)
-        scale as equivalent to (0,0,0) for interpretation purposes
-        only, never writing anything back to the file."""
+        The "Ignore Scaling" checkbox (and INST/CULL/ZON/PATH) moved
+        out to their own dedicated dock (Aug 1 2026, per Keith - see
+        _create_ipl_controls_dock)."""
         panel = QWidget()
         lay = QVBoxLayout(panel)
         lay.setContentsMargins(6, 6, 6, 6)
         lay.setSpacing(4)
-
-        opts_row = QHBoxLayout()
-        ignore_scaling_chk = QCheckBox("Ignore Scaling")
-        ignore_scaling_chk.setToolTip(
-            "Treat a (1,1,1) scale as equivalent to (0,0,0) for\n"
-            "interpretation purposes only - never writes anything\n"
-            "back to the IPL file. Useful for converted IPLs (e.g.\n"
-            "GTA SA data converted to VC's format) where the Scale\n"
-            "columns may be broken/placeholder rather than real data.")
-        ignore_scaling_chk.toggled.connect(self._on_ignore_scaling_toggled)
-        self._ignore_scaling_chk = ignore_scaling_chk
-        opts_row.addWidget(ignore_scaling_chk)
-        opts_row.addStretch()
-        lay.addLayout(opts_row)
 
         table = QTableWidget(0, 13)
         table.setHorizontalHeaderLabels([
