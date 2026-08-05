@@ -473,6 +473,44 @@ conclusively found despite extensive isolated testing.
   == 'both'`). Full `QApplication` instantiation clean, `ast.parse`
   clean.
 
+- **Aug 1, 2026 (cont'd)** — Per Keith: "when selecting the IDE tab,
+  the IPL inst file, turns into IDE Objects, and displays the IDE
+  entries in cells just like the IPLs." Added `self._ipl_inst_file_
+  mode` ('ipl'/'ide') to `_on_object_browser_tab_changed`: selecting
+  the IDE tab now updates the shared IPL Inst File dock's visible
+  title to "IDE Objects" (needed exposing the custom title bar's
+  `QLabel` as `dock._title_label` in `_make_dock_collapsible`, since
+  it was only ever set once at construction and never stored
+  anywhere reachable) and shows whichever IDE file is currently
+  selected in the IDE tab's own list; selecting any other tab
+  switches back to "IPL Inst File" and restores the normal IPL
+  Sections view (also restoring the table's fixed 13-column schema,
+  since IDE mode changes the column count dynamically).
+
+  Added `_refresh_ide_objects_panel`: unlike IPL's INST/CULL/ZONE
+  (each always exactly 13 fields), IDE has several different section
+  types (objs/tobj/cars/peds/anim/weap/txdp/2dfx/hier, etc.) with
+  genuinely different field counts each - rather than building a
+  separate fixed schema per section type, every real data line
+  becomes its own row with however many comma-separated fields it
+  actually has, columns numbered ("Field 1", "Field 2", ...) up to
+  the widest row found across the whole file. Section header lines
+  and "end" are skipped using the same detection the real IDE parser
+  itself uses (`DATParser.parse_ide` - any short comma-free lowercase
+  token). `_on_ide_tab_row_clicked` now also triggers this refresh
+  when IDE Objects mode is active, matching how clicking an IPL
+  Sections row already refreshes IPL Inst File.
+
+  Verified end-to-end with a real mixed-section test IDE file (two
+  `objs` entries plus one `tobj` entry): title correctly switches to
+  "IDE Objects"; column count correctly comes out as 7 (matching the
+  widest row, the 7-field `tobj` entry); all 3 rows correctly parsed
+  with section headers/`end` correctly skipped and shorter rows
+  correctly padded with empty cells; switching back to IPL mode
+  correctly restores both the title and the fixed 13-column schema.
+  Full `QApplication` instantiation clean, `ast.parse` clean.
+
+
 
 
 

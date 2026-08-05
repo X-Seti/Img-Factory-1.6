@@ -9736,6 +9736,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         lbl = QLabel(title)
         lbl.setFont(self.section_title_font)
+        dock._title_label = lbl   # exposed so callers can update the visible
+                                  # title dynamically later (Aug 1 2026, per
+                                  # Keith: IPL Inst File "turns into IDE
+                                  # Objects" when the IDE tab is selected)
         lay.addWidget(lbl)
         lay.addStretch()
 
@@ -17474,7 +17478,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if stack is not None:
             stack.setCurrentIndex(0)   # table page - IMG/DAT/IDE/IPL buttons show pages 1-4
 
-    def _on_object_browser_tab_changed(self, tab_key): #vers 2
+    def _on_object_browser_tab_changed(self, tab_key): #vers 3
         """IMG/DAT/IDE/IPL button clicked - switches the shared content
         stack to that tab's page instead of the Object Browser table,
         per Keith's request to merge the former standalone Editing
@@ -17485,7 +17489,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         state could be stale (e.g. still showing full text even though
         the dock is currently narrow) the moment it becomes visible,
         without this (Keith's report: dragging a splitter narrower
-        didn't collapse the IMG tab's buttons to icon-only)."""
+        didn't collapse the IMG tab's buttons to icon-only).
+
+        Also switches the shared IPL Inst File dock between its two
+        modes (Aug 1 2026, per Keith: "when selecting the IDE tab, the
+        IPL inst file, turns into IDE Objects, and displays the IDE
+        entries in cells just like the IPLs") - selecting IDE updates
+        the dock's title to "IDE Objects" and shows whichever IDE file
+        is currently selected in the IDE tab's own list (or clears if
+        none is); selecting any other tab switches the title back to
+        "IPL Inst File" and restores the normal IPL Sections view."""
         stack = getattr(self, '_object_browser_content_stack', None)
         if stack is None:
             return
@@ -17496,6 +17509,34 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if row_widget is not None:
             from PyQt6.QtCore import QTimer
             QTimer.singleShot(0, lambda w=row_widget: self._update_button_row_collapse(w))
+
+        dock = getattr(self, '_ipl_inst_file_dock', None)
+        title_lbl = getattr(dock, '_title_label', None) if dock is not None else None
+        if tab_key == 'ide':
+            self._ipl_inst_file_mode = 'ide'
+            if title_lbl is not None:
+                title_lbl.setText("IDE Objects")
+            ide_table = getattr(self, '_ide_tab_table', None)
+            ide_row = ide_table.currentRow() if ide_table is not None else -1
+            if ide_row >= 0:
+                self._refresh_ide_objects_panel(ide_row)
+            else:
+                table = getattr(self, '_ipl_inst_file_table', None)
+                if table is not None:
+                    table.setRowCount(0)
+        else:
+            self._ipl_inst_file_mode = 'ipl'
+            if title_lbl is not None:
+                title_lbl.setText("IPL Inst File")
+            table = getattr(self, '_ipl_inst_file_table', None)
+            if table is not None and table.columnCount() != 13:
+                table.setColumnCount(13)
+                table.setHorizontalHeaderLabels([
+                    "ID", "Model", "Int",
+                    "Pos X", "Pos Y", "Pos Z",
+                    "Scale X", "Scale Y", "Scale Z",
+                    "Rot X", "Rot Y", "Rot Z", "Rot W"])
+            self._refresh_ipl_inst_file_panel()
 
     def _on_object_row_selected(self, row): #vers 2
         """Selecting a model row in the (now merged) Object Browser
@@ -19043,12 +19084,21 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         never touches the actual .ipl file."""
         self._refresh_ipl_inst_file_panel()
 
-    def _refresh_ipl_inst_file_panel(self): #vers 2
+    def _refresh_ipl_inst_file_panel(self): #vers 3
         """Re-read the currently selected IPL's raw file content,
         filtered to the currently selected data type (INST/CULL/ZONE -
         PATH is stubbed, never reachable here since its radio button
         is disabled), and parse it into the cells table - one row per
-        instance line, split on commas into its 13 fields."""
+        instance line, split on commas into its 13 fields.
+
+        Guarded by self._ipl_inst_file_mode (Aug 1 2026, per Keith:
+        selecting the IDE tab should turn this same shared table into
+        "IDE Objects" instead - see _refresh_ide_objects_panel) - does
+        nothing while that mode is active, so switching back to IPL
+        doesn't get silently overwritten by a stale IDE-mode refresh
+        call landing after the mode switch."""
+        if getattr(self, '_ipl_inst_file_mode', 'ipl') != 'ipl':
+            return
         table = getattr(self, '_ipl_inst_file_table', None)
         sections_table = getattr(self, '_ipl_sections_table', None)
         loader = getattr(self, '_world_loader', None)
@@ -19339,12 +19389,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             table.setItem(i, 1, QTableWidgetItem(display_path))
             self._ide_tab_paths[i] = path
 
-    def _on_ide_tab_row_clicked(self, row, col): #vers 1
+    def _on_ide_tab_row_clicked(self, row, col): #vers 2
         """Preview the clicked IDE file's real raw text content - per
         Keith's request that IDE files work like IPL files (click to
         preview), mirroring _refresh_ipl_inst_file_panel's approach:
         re-read directly from disk each time rather than reconstructed
-        from parsed data."""
+        from parsed data. Also refreshes the shared IDE Objects table
+        (Aug 1 2026) if that mode is currently active - matches how
+        clicking an IPL Sections row refreshes IPL Inst File."""
         text_widget = getattr(self, '_ide_tab_preview', None)
         path = getattr(self, '_ide_tab_paths', {}).get(row)
         if text_widget is None or path is None:
@@ -19354,6 +19406,65 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 text_widget.setPlainText(f.read())
         except Exception as e:
             text_widget.setPlainText(f"(could not read {path}: {e})")
+        if getattr(self, '_ipl_inst_file_mode', 'ipl') == 'ide':
+            self._refresh_ide_objects_panel(row)
+
+    def _refresh_ide_objects_panel(self, row): #vers 1
+        """Parse the IDE file at self._ide_tab_paths[row] into the
+        shared cells table (self._ipl_inst_file_table, currently
+        titled "IDE Objects") - one row per entry line, same approach
+        as _refresh_ipl_inst_file_panel: re-read raw text from disk,
+        split each real data line on commas. Aug 1 2026, per Keith:
+        "when selecting the IDE tab, the IPL inst file, turns into IDE
+        Objects, and displays the IDE entries in cells just like the
+        IPLs."
+
+        Unlike IPL's INST/CULL/ZONE (each a fixed 13 fields), IDE has
+        several different section types (objs/tobj/cars/peds/anim/
+        weap/txdp/2dfx/hier, etc.) with genuinely different field
+        counts each - rather than building a separate fixed column
+        schema per section type, this shows every real data line as
+        its own row with however many comma-separated fields it
+        actually has, column headers just numbered ("Field 1", "Field
+        2", ...) up to the widest row found. Section header lines
+        (e.g. "objs", "tobj") and "end" are skipped, matching the
+        same detection the real IDE parser uses (DATParser.parse_ide -
+        any short comma-free lowercase token, plus "end")."""
+        import re
+        table = getattr(self, '_ipl_inst_file_table', None)
+        path = getattr(self, '_ide_tab_paths', {}).get(row)
+        if table is None:
+            return
+        if path is None:
+            table.setRowCount(0)
+            return
+        try:
+            with open(path, 'r', encoding='ascii', errors='ignore') as f:
+                raw_text = f.read()
+        except Exception:
+            table.setRowCount(0)
+            return
+
+        data_rows = []
+        for raw_line in raw_text.splitlines():
+            line = raw_line.split("#")[0].strip()
+            if not line or line.startswith("//"):
+                continue
+            low = line.lower()
+            if low == 'end':
+                continue
+            if ',' not in line and re.match(r'^[a-z0-9_]{2,8}$', low):
+                continue   # section header (objs/tobj/cars/etc.)
+            fields = [f.strip() for f in line.split(',')]
+            data_rows.append(fields)
+
+        max_cols = max((len(r) for r in data_rows), default=0)
+        table.setColumnCount(max_cols)
+        table.setHorizontalHeaderLabels([f"Field {i+1}" for i in range(max_cols)])
+        table.setRowCount(len(data_rows))
+        for r, fields in enumerate(data_rows):
+            for c in range(max_cols):
+                table.setItem(r, c, QTableWidgetItem(fields[c] if c < len(fields) else ""))
 
     def _create_dat_tab(self): #vers 1
         """[DAT] tab content, matching MooMapper's own "DAT Editor" -
