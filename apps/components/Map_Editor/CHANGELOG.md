@@ -610,9 +610,44 @@ conclusively found despite extensive isolated testing.
   context-menu path. Full `QApplication` instantiation clean,
   `ast.parse` clean.
 
+- **Aug 1, 2026 (cont'd)** — Per Keith's screenshot (the Object Editor
+  Dialog working well, showing real comprehensive data - Identity,
+  IDE Info, Position/Rotation with nudge controls, Placement Info,
+  2DFX Effects, TOBJ): "When loading the ipls, we also need to
+  preload the generic textures first, as these appear white in the
+  game ipls, the object exists in gta3.img with everything else."
 
+  His own screenshot's Identity panel confirmed the actual cause:
+  `veg_palm04`'s own `Texture (TXD): generic` - but
+  `_refresh_world_view`'s automatic per-model texture lookup only
+  ever called `model_cache.get_textures(txd_name)` directly (a plain
+  IMG-index lookup), without the same IMG-then-loose-file fallback
+  the "Generic.txd" button already had (`_get_generic_textures`,
+  factored out of `_on_load_generic_txd_clicked` for reuse) - so
+  objects whose TXD is specifically "generic" could end up with no
+  textures at all if the plain lookup didn't find it, rendering
+  white. Fixed two ways: `_refresh_world_view` now unconditionally
+  preloads generic.txd first (before the per-model loop), and any
+  per-model TXD lookup that's specifically "generic" (case-
+  insensitive) reuses the same already-fetched, robust-fallback
+  textures instead of a second plain lookup.
 
-  Full `QApplication` instantiation clean, `ast.parse` clean.
+  Also per Keith's screenshot: "the buttons in the object info, the
+  buttons need to be the same size as the others, like Zon, Cull, and
+  so on, all buttons should be uniform." The Item Editor Dialog's
+  nudge buttons (the chevron `«` `<` `>` `»` icons for Position/
+  Rotation) and its Prev/Next/Close buttons had no fixed height set
+  at all, defaulting to Qt's larger natural button size. Applied the
+  same 18px `setFixedHeight` used everywhere else in the app.
+
+  Verified end-to-end: with a mock `model_cache` where the plain
+  per-model "generic" lookup deliberately fails (simulating the real
+  bug), confirmed the texture still gets uploaded correctly via the
+  unconditional preload, with no duplicate upload; confirmed every
+  button in the Item Editor Dialog (14 nudge buttons plus Close)
+  reports `height() == 18`. Full `QApplication` instantiation clean,
+  `ast.parse` clean.
+
 
 
 

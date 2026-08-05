@@ -3670,6 +3670,8 @@ class _InstanceEditPanel(QWidget):
         self._nav_label = QLabel("")
         self._nav_prev_btn = QPushButton("< Prev")
         self._nav_next_btn = QPushButton("Next >")
+        self._nav_prev_btn.setFixedHeight(18)
+        self._nav_next_btn.setFixedHeight(18)
         self._nav_prev_btn.clicked.connect(lambda: self._workshop._cycle_model_instance(-1))
         self._nav_next_btn.clicked.connect(lambda: self._workshop._cycle_model_instance(1))
         self._nav_row.addWidget(self._nav_prev_btn)
@@ -3689,6 +3691,7 @@ class _InstanceEditPanel(QWidget):
         self._tobj_box = self._add_section("TOBJ (Timed Object) Variants")
 
         close_btn = QPushButton("Close")
+        close_btn.setFixedHeight(18)
         close_btn.clicked.connect(self.hide)
         self._lay.addWidget(close_btn)
 
@@ -3783,6 +3786,13 @@ class _InstanceEditPanel(QWidget):
             spin.setFixedWidth(80)
             btn_r  = QPushButton(); btn_r.setIcon(icons['r']);   btn_r.setFixedWidth(22)
             btn_rr = QPushButton(); btn_rr.setIcon(icons['rr']); btn_rr.setFixedWidth(28)
+            # 18px uniform height (Aug 1 2026, per Keith's screenshot:
+            # "the buttons need to be the same size as the others, like
+            # Zon, Cull, and so on, all buttons should be uniform") -
+            # these previously had no fixed height at all, defaulting
+            # to Qt's larger natural button size.
+            for _btn in (btn_ll, btn_l, spin, btn_r, btn_rr):
+                _btn.setFixedHeight(18)
             btn_ll.setToolTip(f"-{large_step:g}")
             btn_l.setToolTip(f"-{small_step:g}")
             btn_r.setToolTip(f"+{small_step:g}")
@@ -18974,19 +18984,28 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._ipl_controls_dock = dock
         return dock
 
-    def _on_load_generic_txd_clicked(self): #vers 1
-        """Load generic.txd - tries the game's indexed IMG archives
-        first (gta3.img is always auto-indexed for every game, per
-        GTAWorldLoader.load()'s own docstring: "Always enforces
-        models/gta3.img... so TXD Workshop and the Dump TXDs feature
-        can always find it"), falling back to {game root}/models/
-        generic.txd as a loose file if not found there. Per Keith:
-        "the Generic.txd button should load the generic.txd from
-        gta3.img and root/models/generic.txd", confirmed IMG first."""
+    def _get_generic_textures(self): #vers 1
+        """Fetch generic.txd's textures - tries the game's indexed IMG
+        archives first (gta3.img is always auto-indexed for every
+        game, per GTAWorldLoader.load()'s own docstring: "Always
+        enforces models/gta3.img... so TXD Workshop and the Dump TXDs
+        feature can always find it"), falling back to {game root}/
+        models/generic.txd as a loose file if not found there. Returns
+        (textures_dict_or_None, source_description). Factored out of
+        _on_load_generic_txd_clicked (Aug 1 2026) so _refresh_world_
+        view can also auto-preload generic.txd - per Keith: "we also
+        need to preload the generic textures first, as these appear
+        white in the game ipls" - objects whose own txd_name IS
+        "generic" (confirmed in his screenshot's Identity panel:
+        "Texture (TXD): generic") were rendering untextured/white
+        because the automatic per-model texture loading only ever
+        called model_cache.get_textures(txd_name) directly (IMG-index
+        lookup only), without this same loose-file fallback the
+        button already had - "generic" apparently isn't always found
+        by the plain IMG index lookup alone."""
         model_cache = getattr(self, '_model_cache', None)
         if model_cache is None:
-            QMessageBox.information(self, "Generic.txd", "No world loaded yet.")
-            return
+            return None, None
         textures = model_cache.get_textures('generic')
         source = "an indexed IMG archive (e.g. gta3.img)"
         if not textures:
@@ -19000,10 +19019,21 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                             tex_list = parse_txd(f.read())
                         textures = {t['name'].lower(): t for t in tex_list}
                         source = loose_path
-                    except Exception as e:
-                        QMessageBox.warning(self, "Generic.txd",
-                            f"Found {loose_path} but couldn't parse it:\n{e}")
-                        return
+                    except Exception:
+                        return None, None
+        return (textures, source) if textures else (None, None)
+
+    def _on_load_generic_txd_clicked(self): #vers 2
+        """Load generic.txd and show it in the Textures dock - per
+        Keith: "the Generic.txd button should load the generic.txd
+        from gta3.img and root/models/generic.txd", confirmed IMG
+        first. See _get_generic_textures for the actual fetch/fallback
+        logic, shared with the automatic per-IPL preload in
+        _refresh_world_view."""
+        if getattr(self, '_model_cache', None) is None:
+            QMessageBox.information(self, "Generic.txd", "No world loaded yet.")
+            return
+        textures, source = self._get_generic_textures()
         if not textures:
             QMessageBox.warning(self, "Generic.txd",
                 "generic.txd not found in any indexed IMG archive\n"
@@ -20275,6 +20305,23 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         entries = []
         all_textures = []
         seen_txds = set()
+
+        # Preload generic.txd unconditionally, first (Aug 1 2026, per
+        # Keith: "we also need to preload the generic textures first,
+        # as these appear white in the game ipls, the object exists
+        # in gta3.img with everything else") - many common objects
+        # (trees, streetlights, etc.) reference "generic" as their
+        # shared TXD; the plain per-model model_cache.get_textures()
+        # lookup below doesn't always find it (this is exactly why
+        # the Generic.txd button has its own IMG-then-loose-file
+        # fallback, _get_generic_textures) - preloading it here
+        # unconditionally means it's always available regardless of
+        # whether any individual model's own TXD lookup succeeds.
+        generic_textures, _source = self._get_generic_textures()
+        if generic_textures:
+            seen_txds.add('generic')
+            all_textures.extend(generic_textures.values())
+
         for inst in instances:
             model_name = inst.model_name
             if model_name not in converted:
@@ -20294,9 +20341,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 if loader is not None:
                     obj = loader.get_object(inst.model_id)
                     txd_name = obj.txd_name if (obj is not None and obj.txd_name) else None
-                    if txd_name and txd_name not in seen_txds:
-                        seen_txds.add(txd_name)
-                        textures = model_cache.get_textures(txd_name)
+                    if txd_name and txd_name.lower() not in seen_txds:
+                        seen_txds.add(txd_name.lower())
+                        if txd_name.lower() == 'generic':
+                            textures = generic_textures   # already fetched above, robust fallback included
+                        else:
+                            textures = model_cache.get_textures(txd_name)
                         if textures:
                             all_textures.extend(textures.values())
             base = converted[model_name]
