@@ -59,3 +59,21 @@ Extracted from inline `#TODO` comments in map_workshop.py, per Keith
   edits) isn't implemented - needs its own instance/IPL-state design,
   since the old raster/pixel-based undo system (from the DP5 paint
   canvas era) isn't portable to this.
+- Pick/goto settings (Aug 1 2026, per Keith): double-clicking an
+  object in the viewport zooms in too tightly (currently a hardcoded
+  distance) - needs a proper settings option for how close "go to
+  object" zooms in, rather than one fixed value for everyone/every
+  object size.
+- Snap function (Aug 1 2026, per Keith): "the biggest problem
+  sometimes with making models is sometimes there are gaps, so we
+  need a snap function" - snapping vertices/objects together to close
+  gaps when building/positioning models. Not designed yet.
+- Smooth mesh function (Aug 1 2026, per Keith, same context as snap
+  above) - smoothing a mesh's surface. Not designed yet.
+- Right-click menu on the IPL Inst File table (Aug 1 2026, per Keith):
+  "load into model workshop" and "edit the model in map editor" -
+  exact intended behavior for these two needs clarifying before
+  building (how they should differ from each other, and from what
+  double-clicking already does) - Info and Show Textures were
+  straightforward enough to add directly; these two weren't.
+

@@ -567,6 +567,50 @@ conclusively found despite extensive isolated testing.
   already-proven code being reused here, not new. Full `QApplication`
   instantiation clean, `ast.parse` clean on both files.
 
+- **Aug 1, 2026 (cont'd)** — Per Keith: "When selecting the object, it
+  takes me to the object, which is good, but the zoom in is too
+  strong, I have to zoom out alot to see the object, maybe in time we
+  need a setting for pick [goto] and zoom values, add todo." Bumped
+  the default go-to-instance zoom distance from 15 to 40 as a better
+  default for now; added the proper user-configurable pick/goto zoom
+  setting to TODO.md, along with two other items from the same
+  message that need real design work before building: a snap
+  function and a smooth-mesh function ("the biggest problem sometimes
+  with making models is sometimes there are gaps, so we need a snap
+  function, and a smooth mesh function").
+
+  Also per Keith: "more important when selecting and viewing a single
+  object, this should be highlighted in the IPL Inst file list."
+  Added `_sync_ipl_inst_file_selection`, called from `_on_world_
+  instance_picked` - matches the picked instance's `source_ipl`
+  against IPL Sections' rows (switching to and refreshing the right
+  IPL first if it's not the one currently shown), then finds and
+  highlights the matching row in the IPL Inst File table itself
+  (matched by ID + Model name, `scrollToItem`'d into view too).
+
+  Extended the IPL Inst File table's right-click menu (previously
+  just Copy/Copy Row(s)) with Info (opens the same edit panel double-
+  clicking the Model cell already does) and Show Textures (loads that
+  row's model's textures into the Textures dock, reusing the exact
+  logic `_on_ipl_model_row_selected` already has). Factored the row ->
+  real `IPLInstance` lookup out into a shared `_find_instance_for_ipl_
+  inst_file_row`, now used by both the context menu and the existing
+  double-click handler (previously duplicated inline). Two more menu
+  items Keith asked for - "load into model workshop" and "edit the
+  model in map editor" - need their exact intended behaviour
+  clarified before building (tracked in TODO.md); Info and Show
+  Textures were unambiguous enough to add directly.
+
+  Verified end-to-end: row-highlighting confirmed both for the
+  same-IPL case (row correctly selected) and the cross-IPL case
+  (IPL Sections correctly switches to the instance's actual source
+  IPL first); the shared instance-lookup helper confirmed returning
+  the right instance; Show Textures confirmed populating the Textures
+  dock correctly (thumbnail, name, size, format, count label) via the
+  context-menu path. Full `QApplication` instantiation clean,
+  `ast.parse` clean.
+
+
 
   Full `QApplication` instantiation clean, `ast.parse` clean.
 

@@ -19160,30 +19160,40 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     value = "0"
                 table.setItem(r, c, QTableWidgetItem(value))
 
-    def _on_ipl_inst_file_context_menu(self, pos): #vers 1
+    def _on_ipl_inst_file_context_menu(self, pos): #vers 2
         """Right-click the IPL Inst File table - Copy (selected cells,
-        tab-separated per row, matching how spreadsheets paste) and
-        Copy Row(s) (whole lines, comma-separated, matching the
-        original .ipl line format) to the clipboard. Per Keith: "have
-        right-click options to copy to the clipboard; we can start to
-        add editing options, we spoke about this earlier" - clipboard
-        copy first, since it's useful on its own and needs no write-
-        back infrastructure; batch rename/prefix/suffix/move go here
-        next once that's decided."""
+        tab-separated per row, matching how spreadsheets paste), Copy
+        Row(s) (whole lines, comma-separated, matching the original
+        .ipl line format) to the clipboard, Info (opens the same edit
+        panel double-clicking the Model cell already does), and Show
+        Textures (loads that row's model's textures into the Textures
+        dock, same as clicking it in the Models panel). Per Keith:
+        "have right-click options to copy to the clipboard; we can
+        start to add editing options" and later "right click the file
+        for info, show textures, load into model workshop, or edit
+        the model in map editor" - the first two ("load into model
+        workshop"/"edit the model in map editor") need their exact
+        intended behaviour clarified before building, tracked in
+        TODO.md; Info and Show Textures were straightforward enough
+        to add directly."""
         table = getattr(self, '_ipl_inst_file_table', None)
         if table is None:
             return
         selected = table.selectedItems()
         if not selected:
             return
+        row = selected[0].row()
         menu = QMenu(self)
         copy_cells_action = menu.addAction("Copy")
         copy_rows_action = menu.addAction("Copy Row(s) as IPL line(s)")
+        menu.addSeparator()
+        info_action = menu.addAction("Info")
+        show_textures_action = menu.addAction("Show Textures")
         chosen = menu.exec(table.viewport().mapToGlobal(pos))
         if chosen is None:
             return
-        clipboard = QApplication.clipboard()
         if chosen is copy_cells_action:
+            clipboard = QApplication.clipboard()
             by_row = {}
             for item in selected:
                 by_row.setdefault(item.row(), {})[item.column()] = item.text()
@@ -19193,6 +19203,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 lines.append('\t'.join(cols.get(c, '') for c in sorted(cols)))
             clipboard.setText('\n'.join(lines))
         elif chosen is copy_rows_action:
+            clipboard = QApplication.clipboard()
             rows = sorted({item.row() for item in selected})
             lines = []
             for r in rows:
@@ -19200,8 +19211,74 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                          for c in range(table.columnCount())]
                 lines.append(', '.join(fields))
             clipboard.setText('\n'.join(lines))
+        elif chosen is info_action:
+            inst = self._find_instance_for_ipl_inst_file_row(row)
+            if inst is not None:
+                self._center_viewport_on_instance(inst)
+                self._center_on_instance(inst)
+        elif chosen is show_textures_action:
+            inst = self._find_instance_for_ipl_inst_file_row(row)
+            if inst is not None:
+                self._show_textures_for_instance(inst)
 
-    def _on_ipl_inst_file_cell_double_clicked(self, row, col): #vers 1
+    def _find_instance_for_ipl_inst_file_row(self, row): #vers 1
+        """Look up the real IPLInstance for a row in the IPL Inst File
+        table, matched by ID + Model name - factored out of
+        _on_ipl_inst_file_cell_double_clicked so the context menu's
+        Info/Show Textures can reuse the same lookup."""
+        table = getattr(self, '_ipl_inst_file_table', None)
+        if table is None:
+            return None
+        id_item = table.item(row, 0)
+        model_item = table.item(row, 1)
+        if id_item is None or model_item is None:
+            return None
+        try:
+            target_id = int(id_item.text())
+        except ValueError:
+            target_id = None
+        target_model = model_item.text()
+        for inst in getattr(self, '_all_instances', []):
+            if inst.model_name == target_model and (target_id is None or inst.model_id == target_id):
+                return inst
+        for inst in getattr(self, '_all_instances', []):
+            if inst.model_name == target_model:
+                return inst
+        return None
+
+    def _show_textures_for_instance(self, inst): #vers 1
+        """Load one instance's model's textures into the Textures
+        dock - same lookup/population logic as
+        _on_ipl_model_row_selected, just entered from the IPL Inst
+        File table's right-click menu instead of the Models panel."""
+        loader = getattr(self, '_world_loader', None)
+        model_cache = getattr(self, '_model_cache', None)
+        tex_list = getattr(self, '_tex_list', None)
+        if tex_list is None:
+            return
+        txd_name = ""
+        if loader is not None:
+            obj = loader.get_object(inst.model_id)
+            if obj is not None:
+                txd_name = obj.txd_name or ""
+        textures = model_cache.get_textures(txd_name) if (model_cache and txd_name) else None
+        textures = textures or {}
+        tex_list.setRowCount(len(textures))
+        for i, tex in enumerate(textures.values()):
+            thumb_item = QTableWidgetItem()
+            pixmap = self._create_texture_thumbnail(
+                tex.get('rgba_data'), tex.get('width', 0), tex.get('height', 0))
+            if pixmap is not None:
+                thumb_item.setData(Qt.ItemDataRole.DecorationRole, pixmap)
+            tex_list.setItem(i, 0, thumb_item)
+            tex_list.setItem(i, 1, QTableWidgetItem(tex.get('name', '')))
+            tex_list.setItem(i, 2, QTableWidgetItem(
+                f"{tex.get('width', '?')}x{tex.get('height', '?')}"))
+            tex_list.setItem(i, 3, QTableWidgetItem(tex.get('format', '')))
+        if hasattr(self, '_tex_count_lbl'):
+            self._tex_count_lbl.setText(f"{len(textures)} texture{'s' if len(textures) != 1 else ''}")
+
+    def _on_ipl_inst_file_cell_double_clicked(self, row, col): #vers 2
         """Double-clicking the Model column (1) finds that row's real
         instance and jumps the viewport to it + opens its edit panel,
         matching double-clicking a row in the Instance List - per
@@ -19211,46 +19288,31 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         behaviour (this table's EditTrigger), untouched."""
         if col != 1:
             return
-        table = getattr(self, '_ipl_inst_file_table', None)
-        loader = getattr(self, '_world_loader', None)
-        if table is None or loader is None:
-            return
-        id_item = table.item(row, 0)
-        model_item = table.item(row, 1)
-        if id_item is None or model_item is None:
-            return
-        try:
-            target_id = int(id_item.text())
-        except ValueError:
-            target_id = None
-        target_model = model_item.text()
-        match = None
-        for inst in getattr(self, '_all_instances', []):
-            if inst.model_name == target_model and (target_id is None or inst.model_id == target_id):
-                match = inst
-                break
-        if match is None:
-            for inst in getattr(self, '_all_instances', []):
-                if inst.model_name == target_model:
-                    match = inst
-                    break
+        match = self._find_instance_for_ipl_inst_file_row(row)
         if match is not None:
             self._center_viewport_on_instance(match)
             self._center_on_instance(match)
 
-    def _center_viewport_on_instance(self, inst): #vers 1
+    def _center_viewport_on_instance(self, inst): #vers 2
         """Pan/zoom self.preview_widget (our actual active viewport)
         to focus closely on one instance's position - _center_on_
         instance (existing, ported code) only ever updated the
         Map-specific _world_panes, which this build doesn't use (see
         CHANGELOG.md - "keep using Model Workshop's existing DFF
-        viewport"), so it never actually moved anything visible here."""
+        viewport"), so it never actually moved anything visible here.
+
+        Zoom distance bumped 15 -> 40 (Aug 1 2026, per Keith: "the
+        zoom in is too strong, I have to zoom out alot to see the
+        object") - still a fixed value, not scaled to the actual
+        object's size, so this is a better default rather than a real
+        fix; a proper user-configurable pick/goto zoom setting is
+        tracked in TODO.md."""
         vp = getattr(self, 'preview_widget', None)
         if vp is None:
             return
         vp._pan_x = -inst.pos_x
         vp._pan_y = -inst.pos_y
-        vp._dist = 15.0
+        vp._dist = 40.0
         if getattr(vp, '_projection', None) == 'ortho':
             try:
                 vp.resizeGL(vp.width(), vp.height())
@@ -19258,7 +19320,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 pass
         vp.update()
 
-    def _on_world_instance_picked(self, index): #vers 1
+    def _on_world_instance_picked(self, index): #vers 2
         """Called by DFFViewport.mouseDoubleClickEvent when the user
         double-clicks an object in the 3D world view - Aug 1 2026, per
         Keith: "im trying to select a tree double clicking on it, so I
@@ -19268,7 +19330,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         added in _refresh_world_view) and opens the same edit
         panel/centering flow the IPL Inst File table's double-click
         already uses, for one consistent way to select-and-inspect an
-        instance regardless of which panel you click it from."""
+        instance regardless of which panel you click it from.
+
+        Also highlights the instance's row in the IPL Inst File list
+        (Aug 1 2026, per Keith: "when selecting and viewing a single
+        object, this should be highlighted in the IPL Inst file
+        list")."""
         vp = getattr(self, 'preview_widget', None)
         if vp is None or not (0 <= index < len(vp._world_instances)):
             return
@@ -19276,6 +19343,45 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if inst is not None:
             self._center_viewport_on_instance(inst)
             self._center_on_instance(inst)
+            self._sync_ipl_inst_file_selection(inst)
+
+    def _sync_ipl_inst_file_selection(self, inst): #vers 1
+        """Highlight one instance's row in the IPL Inst File table,
+        switching IPL Sections/the shown IPL first if the instance
+        belongs to a different one than what's currently displayed -
+        Aug 1 2026, per Keith's request that picking an object (e.g.
+        via double-click in the viewport) highlights it in the list
+        too, not just opening the edit dialog. inst.source_ipl matches
+        the display name stored on each IPL Sections row (both are the
+        IPL's basename, e.g. "docks.ipl" - confirmed against how
+        self._ipl_display_to_stem itself is built)."""
+        sections_table = getattr(self, '_ipl_sections_table', None)
+        table = getattr(self, '_ipl_inst_file_table', None)
+        if sections_table is None or table is None:
+            return
+        if getattr(self, '_ipl_inst_file_mode', 'ipl') != 'ipl':
+            return   # currently showing IDE Objects, not IPL data - nothing to sync to
+
+        source_ipl = getattr(inst, 'source_ipl', '')
+        current_item = sections_table.item(sections_table.currentRow(), 0)
+        current_name = current_item.data(Qt.ItemDataRole.UserRole) if current_item else None
+        if source_ipl and source_ipl != current_name:
+            for r in range(sections_table.rowCount()):
+                item = sections_table.item(r, 0)
+                if item is not None and item.data(Qt.ItemDataRole.UserRole) == source_ipl:
+                    sections_table.setCurrentCell(r, 0)
+                    self._refresh_ipl_inst_file_panel()
+                    break
+
+        for r in range(table.rowCount()):
+            id_item = table.item(r, 0)
+            model_item = table.item(r, 1)
+            if (id_item is not None and model_item is not None
+                    and id_item.text() == str(inst.model_id)
+                    and model_item.text() == inst.model_name):
+                table.selectRow(r)
+                table.scrollToItem(id_item)
+                break
 
     def _extract_ipl_section_text(self, raw_text, section_name): #vers 1
         """Extract just one named section's lines (between the section
