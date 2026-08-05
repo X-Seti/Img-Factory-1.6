@@ -520,6 +520,54 @@ conclusively found despite extensive isolated testing.
   buttons/checkbox, matching exactly. Verified: every button in the
   dock confirmed `height() == 18`.
 
+- **Aug 1, 2026 (cont'd)** — Confirmed by Keith: the multi-instance
+  world view now renders real Vice City docks geometry with textures
+  correctly (screenshot showed cranes, containers, buildings all
+  textured properly). Per Keith: "im trying to select a tree double
+  clicking on it, so I can see its edit dialog window" - implemented
+  double-click-to-select directly in the 3D viewport, the deferred
+  item from earlier in the session.
+
+  `apps/methods/dff_viewport.py` already had a complete, working
+  ray-picking toolkit built for vertex/edge picking in single-model
+  editing mode (`_pick_ray` - unprojects a screen pixel to a world-
+  space ray via `gluUnProject`, using the exact same camera transform
+  `paintGL` uses; `_closest_point_on_ray`; even a full Möller–Trumbore
+  `_ray_triangle_intersect` for later if needed) - all directly
+  reusable rather than building picking from scratch. Added
+  `_pick_world_instance(mx, my)`, following the same pattern as the
+  existing `_pick_vertex`/`_pick_edge`: finds the closest world
+  instance's *position* to the ray within a camera-distance-scaled
+  tolerance (not full per-triangle mesh intersection - re-testing
+  every triangle of every instance on every click would be
+  considerably slower across a whole loaded map; distance-to-origin
+  is fast and good enough for clicking roughly on/near an object).
+  Added `mouseDoubleClickEvent`, calling `_workshop_ref._on_world_
+  instance_picked(index)` (the viewport already carries `_workshop_ref`
+  back to `ModelWorkshop`, set at construction) when a world view is
+  loaded and something was picked.
+
+  `ModelWorkshop._refresh_world_view` now also carries each entry's
+  original `IPLInstance` (`entry['instance']`), needed to map a picked
+  index back to something `_center_on_instance`/`_show_instance_edit_
+  panel` can actually use. Added `_on_world_instance_picked`, reusing
+  the exact same centering + edit-panel flow the IPL Inst File table's
+  own double-click already uses - one consistent way to select and
+  inspect an instance regardless of which panel you click it from.
+
+  Verified end-to-end: the ray-math selection logic itself confirmed
+  correct (a ray pointing straight down onto two candidate positions
+  correctly picked the one it was aimed at); the full picked-index ->
+  real `IPLInstance` -> centering + edit panel chain confirmed working
+  with a real `IPLInstance` (viewport pan correctly computed, edit
+  panel confirmed genuinely visible); an out-of-range index confirmed
+  handled safely without crashing. Could not test the actual
+  `gluUnProject` ray generation itself (needs a real OpenGL context,
+  not available in this sandbox) - but that's pre-existing,
+  already-proven code being reused here, not new. Full `QApplication`
+  instantiation clean, `ast.parse` clean on both files.
+
+
   Full `QApplication` instantiation clean, `ast.parse` clean.
 
 

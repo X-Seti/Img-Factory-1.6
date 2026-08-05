@@ -19258,6 +19258,25 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 pass
         vp.update()
 
+    def _on_world_instance_picked(self, index): #vers 1
+        """Called by DFFViewport.mouseDoubleClickEvent when the user
+        double-clicks an object in the 3D world view - Aug 1 2026, per
+        Keith: "im trying to select a tree double clicking on it, so I
+        can see its edit dialog window." Maps the picked entry's index
+        back to its real IPLInstance (each entry in
+        preview_widget._world_instances carries one via 'instance',
+        added in _refresh_world_view) and opens the same edit
+        panel/centering flow the IPL Inst File table's double-click
+        already uses, for one consistent way to select-and-inspect an
+        instance regardless of which panel you click it from."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is None or not (0 <= index < len(vp._world_instances)):
+            return
+        inst = vp._world_instances[index].get('instance')
+        if inst is not None:
+            self._center_viewport_on_instance(inst)
+            self._center_on_instance(inst)
+
     def _extract_ipl_section_text(self, raw_text, section_name): #vers 1
         """Extract just one named section's lines (between the section
         keyword and its "end") from a raw IPL file's text - returns
@@ -20182,6 +20201,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             entry['rot']   = (inst.rot_x, inst.rot_y, inst.rot_z, inst.rot_w)
             entry['scale'] = (inst.scale_x, inst.scale_y, inst.scale_z)
             entry['model_key'] = model_name
+            entry['instance'] = inst
             entries.append(entry)
 
         if all_textures and hasattr(vp, '_upload_textures'):

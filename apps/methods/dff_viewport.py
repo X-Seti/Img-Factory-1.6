@@ -356,6 +356,55 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 best_key, best_t, best_d2 = (i, j), t, d2
         return best_key
 
+    def _pick_world_instance(self, mx: float, my: float): #vers 1
+        """Return the index into self._world_instances closest to the
+        ray through (mx,my), within a tolerance that scales with
+        camera distance (same pattern as _pick_vertex/_pick_edge just
+        above - reuses the exact same _pick_ray/_closest_point_on_ray
+        infrastructure, just testing against each instance's world
+        position instead of mesh vertices/edges). Picks by distance
+        from the instance's origin point to the ray, not full
+        per-triangle mesh intersection (_ray_triangle_intersect exists
+        and would be more precise, but re-testing every triangle of
+        every instance on every click would be considerably slower for
+        a whole loaded map - this is fast and good enough for clicking
+        roughly on/near an object). Aug 1 2026, per Keith: "im trying
+        to select a tree double clicking on it, so I can see its edit
+        dialog window.\""""
+        ray = self._pick_ray(mx, my)
+        if ray is None or not self._world_instances:
+            return None
+        origin, direction = ray
+        tol2 = (self._dist * 0.05) ** 2
+        best_i, best_t, best_d2 = None, None, tol2
+        for i, entry in enumerate(self._world_instances):
+            pos = entry.get('pos')
+            if pos is None:
+                continue
+            t, d2 = self._closest_point_on_ray(origin, direction, pos)
+            if t < 0:
+                continue
+            if d2 < best_d2 or (best_i is not None and d2 <= best_d2 and t < best_t):
+                best_i, best_t, best_d2 = i, t, d2
+        return best_i
+
+    def mouseDoubleClickEvent(self, event): #vers 1
+        """Double-clicking a world instance opens its edit dialog (Aug
+        1 2026, per Keith - see _pick_world_instance's docstring).
+        Only active when a world (multi-instance) view is actually
+        loaded - self._workshop_ref is set at construction
+        (model_workshop.py) regardless of mode, so this checks
+        _world_instances specifically rather than assuming."""
+        if self._world_instances:
+            pos = event.position()
+            idx = self._pick_world_instance(pos.x(), pos.y())
+            if idx is not None:
+                ws = getattr(self, '_workshop_ref', None)
+                if ws is not None and hasattr(ws, '_on_world_instance_picked'):
+                    ws._on_world_instance_picked(idx)
+                    return
+        super().mouseDoubleClickEvent(event)
+
     def _ray_triangle_intersect(self, origin, direction, v0, v1, v2): #vers 1
         """Möller–Trumbore ray/triangle test. Returns t (distance along the
         ray) on hit, or None. Backface-tolerant (tests both winding orders)."""
