@@ -648,6 +648,50 @@ conclusively found despite extensive isolated testing.
   reports `height() == 18`. Full `QApplication` instantiation clean,
   `ast.parse` clean.
 
+- **Aug 1, 2026 (cont'd)** — Per Keith: "its not just generic.txd,
+  there are other texture files needed; these are found in
+  generic.ide thats called from gta_vc.dat... IDE DATA\MAPS\generic.IDE
+  loads those textures into memory... so we'll be looking for
+  mine.txd metal.txd, dynphn.txd, dynbarrels.txd, woodpanels.txd,
+  boxes.txd and every other texture listed in the .ide... some of
+  those names repeat, but we only need 1 of each." The earlier fix
+  only special-cased literally "generic.txd" - the real issue was
+  broader: any of generic.ide's other referenced TXDs could have the
+  same "plain IMG-index lookup alone doesn't always find it" problem.
+
+  Generalized `_get_generic_textures` into
+  `_get_txd_textures_with_fallback(txd_name)` (works for any TXD
+  name, not just "generic"), keeping the old name as a thin wrapper
+  for the button. Added `_preload_generic_ide_textures`, which finds
+  every `IDEObject` whose `source_ide` basename is `generic.ide`
+  (case-insensitive), collects the distinct set of their `txd_name`s
+  (deduplicated - many objects share one TXD, e.g. `bollard`/
+  `bollardlight` both use `metal`), and fetches all of them via the
+  robust fallback helper. `_refresh_world_view` now calls this
+  unconditionally first (replacing the old generic-only preload), and
+  also uses the robust fallback (not a plain `model_cache.get_
+  textures()` call) for every other model's own TXD lookup too, since
+  the underlying issue isn't specific to generic.ide.
+
+  Cached (`_generic_ide_textures_cache`, keyed by `id(loader)`) since
+  `_refresh_world_view` calls this on every single visibility toggle
+  and generic.ide's own content doesn't change during a session -
+  recomputing (re-iterating every loaded IDE object, re-fetching each
+  TXD) every time would have been wasted, repeated work.
+
+  Verified end-to-end with Keith's own example data (a mock built
+  from his actual generic.ide excerpt - `mine`/`bollard`/
+  `bollardlight`/`barrel1`/`barrel2`, plus one `downtown.ide` object
+  as a negative control): correctly fetched exactly 3 distinct TXDs
+  (`mine`, `metal`, `dynbarrels` - `metal` and `dynbarrels` each only
+  fetched once despite 2 objects sharing them), correctly excluded
+  the `downtown.ide` object's `citytxd`; full `_refresh_world_view`
+  flow confirmed no duplicate upload after fixing an off-by-mistake
+  in the initial version (was deduplicating by texture name instead
+  of TXD name); caching confirmed working (3 calls -> 1 actual fetch).
+  Full `QApplication` instantiation clean, `ast.parse` clean.
+
+
 
 
 

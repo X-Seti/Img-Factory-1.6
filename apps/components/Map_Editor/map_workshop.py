@@ -18984,34 +18984,33 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._ipl_controls_dock = dock
         return dock
 
-    def _get_generic_textures(self): #vers 1
-        """Fetch generic.txd's textures - tries the game's indexed IMG
-        archives first (gta3.img is always auto-indexed for every
+    def _get_txd_textures_with_fallback(self, txd_name): #vers 1
+        """Fetch any named TXD's textures - tries the game's indexed
+        IMG archives first (gta3.img is always auto-indexed for every
         game, per GTAWorldLoader.load()'s own docstring: "Always
         enforces models/gta3.img... so TXD Workshop and the Dump TXDs
         feature can always find it"), falling back to {game root}/
-        models/generic.txd as a loose file if not found there. Returns
-        (textures_dict_or_None, source_description). Factored out of
-        _on_load_generic_txd_clicked (Aug 1 2026) so _refresh_world_
-        view can also auto-preload generic.txd - per Keith: "we also
-        need to preload the generic textures first, as these appear
-        white in the game ipls" - objects whose own txd_name IS
-        "generic" (confirmed in his screenshot's Identity panel:
-        "Texture (TXD): generic") were rendering untextured/white
-        because the automatic per-model texture loading only ever
-        called model_cache.get_textures(txd_name) directly (IMG-index
-        lookup only), without this same loose-file fallback the
-        button already had - "generic" apparently isn't always found
-        by the plain IMG index lookup alone."""
+        models/{txd_name}.txd as a loose file if not found there.
+        Returns (textures_dict_or_None, source_description).
+
+        Generalized (Aug 1 2026) from the original generic.txd-only
+        _get_generic_textures, per Keith: "its not just generic.txd,
+        there are other texture files needed; these are found in
+        generic.ide... so we'll be looking for mine.txd metal.txd,
+        dynphn.txd, dynbarrels.txd, woodpanels.txd, boxes.txd and
+        every other texture listed in the .ide" - the same "plain
+        IMG-index lookup alone doesn't always find it" issue that
+        affected "generic" specifically turned out to affect any of
+        generic.ide's other referenced TXDs too, not just that one."""
         model_cache = getattr(self, '_model_cache', None)
         if model_cache is None:
             return None, None
-        textures = model_cache.get_textures('generic')
+        textures = model_cache.get_textures(txd_name)
         source = "an indexed IMG archive (e.g. gta3.img)"
         if not textures:
             game_root = getattr(self, '_game_root', None)
             if game_root:
-                loose_path = os.path.join(game_root, 'models', 'generic.txd')
+                loose_path = os.path.join(game_root, 'models', f'{txd_name}.txd')
                 if os.path.isfile(loose_path):
                     try:
                         with open(loose_path, 'rb') as f:
@@ -19022,6 +19021,58 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     except Exception:
                         return None, None
         return (textures, source) if textures else (None, None)
+
+    def _get_generic_textures(self): #vers 2
+        """Thin wrapper kept for the Generic.txd button - see
+        _get_txd_textures_with_fallback for the actual (now
+        generalized) fetch/fallback logic."""
+        return self._get_txd_textures_with_fallback('generic')
+
+    def _preload_generic_ide_textures(self): #vers 2
+        """Collect every distinct TXD name referenced by generic.ide's
+        own entries (IDEObject.source_ide, matched by basename,
+        case-insensitive) and preload all of them via
+        _get_txd_textures_with_fallback. Returns (all_textures,
+        covered_txd_names) - the second so callers can skip re-fetching
+        these same TXDs in their own per-model loop.
+
+        Cached after the first successful computation (Aug 1 2026) -
+        _refresh_world_view calls this on every single visibility
+        toggle, and generic.ide's own content doesn't change during a
+        session, so recomputing (iterating every loaded IDE object,
+        re-fetching each TXD) every time would be wasted work. Keyed
+        by id(loader) so a genuinely different loaded world correctly
+        recomputes rather than reusing a stale cache.
+
+        Aug 1 2026, per Keith: "its not just generic.txd, there are
+        other texture files needed; these are found in generic.ide
+        thats called from gta_vc.dat... IDE DATA\\MAPS\\generic.IDE
+        loads those textures into memory... so we'll be looking for
+        mine.txd metal.txd, dynphn.txd, dynbarrels.txd, woodpanels.txd,
+        boxes.txd and every other texture listed in the .ide... some
+        of those names repeat, but we only need 1 of each." Matches
+        GTA's own engine behaviour: processing generic.ide's objects
+        section preloads all of its referenced TXDs, independent of
+        which specific instances any currently-loaded IPL happens to
+        place - not just the one literally named "generic.txd"."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None or not hasattr(loader, 'objects'):
+            return [], set()
+        cache = getattr(self, '_generic_ide_textures_cache', None)
+        if cache is not None and cache[0] == id(loader):
+            return cache[1], cache[2]
+        distinct_txds = set()
+        for obj in loader.objects.values():
+            source = (getattr(obj, 'source_ide', '') or '').lower()
+            if os.path.basename(source) == 'generic.ide' and obj.txd_name:
+                distinct_txds.add(obj.txd_name.lower())
+        all_textures = []
+        for txd_name in sorted(distinct_txds):
+            textures, _source = self._get_txd_textures_with_fallback(txd_name)
+            if textures:
+                all_textures.extend(textures.values())
+        self._generic_ide_textures_cache = (id(loader), all_textures, distinct_txds)
+        return all_textures, distinct_txds
 
     def _on_load_generic_txd_clicked(self): #vers 2
         """Load generic.txd and show it in the Textures dock - per
@@ -20306,21 +20357,22 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         all_textures = []
         seen_txds = set()
 
-        # Preload generic.txd unconditionally, first (Aug 1 2026, per
-        # Keith: "we also need to preload the generic textures first,
-        # as these appear white in the game ipls, the object exists
-        # in gta3.img with everything else") - many common objects
-        # (trees, streetlights, etc.) reference "generic" as their
-        # shared TXD; the plain per-model model_cache.get_textures()
-        # lookup below doesn't always find it (this is exactly why
-        # the Generic.txd button has its own IMG-then-loose-file
-        # fallback, _get_generic_textures) - preloading it here
-        # unconditionally means it's always available regardless of
-        # whether any individual model's own TXD lookup succeeds.
-        generic_textures, _source = self._get_generic_textures()
-        if generic_textures:
-            seen_txds.add('generic')
-            all_textures.extend(generic_textures.values())
+        # Preload every TXD referenced by generic.ide, unconditionally,
+        # first (Aug 1 2026, per Keith: "its not just generic.txd,
+        # there are other texture files needed; these are found in
+        # generic.ide... so we'll be looking for mine.txd metal.txd,
+        # dynphn.txd, dynbarrels.txd, woodpanels.txd, boxes.txd and
+        # every other texture listed in the .ide") - generic.ide's
+        # objects (mine, bollard, phonebooth1, barrel1/2/3, etc.) are
+        # common "urban clutter" props used across the whole map, and
+        # several of their TXDs weren't reliably found by the plain
+        # per-model model_cache.get_textures() lookup below (the same
+        # issue "generic" itself had) - preloading all of them here
+        # unconditionally means they're always available regardless
+        # of whether any individual model's own TXD lookup succeeds.
+        generic_ide_textures, generic_ide_txds = self._preload_generic_ide_textures()
+        all_textures.extend(generic_ide_textures)
+        seen_txds.update(generic_ide_txds)
 
         for inst in instances:
             model_name = inst.model_name
@@ -20343,10 +20395,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     txd_name = obj.txd_name if (obj is not None and obj.txd_name) else None
                     if txd_name and txd_name.lower() not in seen_txds:
                         seen_txds.add(txd_name.lower())
-                        if txd_name.lower() == 'generic':
-                            textures = generic_textures   # already fetched above, robust fallback included
-                        else:
-                            textures = model_cache.get_textures(txd_name)
+                        # Robust fallback (IMG then loose file) for every
+                        # model's own TXD, not just generic.ide's ones -
+                        # the underlying "plain IMG lookup sometimes
+                        # doesn't find it" issue isn't specific to
+                        # generic.ide, just where Keith happened to
+                        # notice it first.
+                        textures, _src = self._get_txd_textures_with_fallback(txd_name)
                         if textures:
                             all_textures.extend(textures.values())
             base = converted[model_name]
