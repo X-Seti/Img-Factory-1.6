@@ -37,7 +37,7 @@
     "game_root": "/home/x2/Desktop/gta_resouce/GTASOL76.0/",
     "assists_path": "/home/x2/Desktop/depends",
     "created_date": "2026-01-20T02:11:04.637163",
-    "last_used": "2026-08-01T10:21:21.643048"
+    "last_used": "2026-08-05T20:31:22.778995"
   },
   "GTASOL test": {
     "name": "GTASOL test",
@@ -46,5 +46,13 @@
     "assists_path": "/home/x2/Desktop/gta_resouce/",
     "created_date": "2026-07-07T19:01:53.884876",
     "last_used": ""
+  },
+  "Vice City": {
+    "name": "Vice City",
+    "project_folder": "/home/x2/Desktop/gta_resouce/PC/GTAVC-PC/",
+    "game_root": "/home/x2/Desktop/gta_resouce/PC/GTAVC-PC/",
+    "assists_path": "/home/x2/Projects/",
+    "created_date": "2026-08-04T16:48:22.902388",
+    "last_used": "2026-08-06T17:52:03.007640"
   }
 }

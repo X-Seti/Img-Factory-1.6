@@ -3683,14 +3683,11 @@ class _InstanceEditPanel(QWidget):
         self._set_nav_visible(False)
         self._ide_box = self._add_section("IDE Info")
         self._pos_box, self._pos_spins, self._pos_grid, self._pos_rows = \
-            self._add_nudge_section("Position", self._POS_SMALL_STEP,
-                                    self._POS_LARGE_STEP, self._on_position_nudged)
+            self._add_nudge_section("Position", self._POS_SMALL_STEP, self._POS_LARGE_STEP, self._on_position_nudged)
         self._rot_box, self._rot_spins, self._rot_grid, self._rot_rows = \
-            self._add_nudge_section("Rotation (degrees)", self._ROT_SMALL_STEP,
-                                    self._ROT_LARGE_STEP, self._on_rotation_nudged)
+            self._add_nudge_section("Rotation (degrees)", self._ROT_SMALL_STEP, self._ROT_LARGE_STEP, self._on_rotation_nudged)
         self._scale_box, self._scale_spins, self._scale_grid, self._scale_rows = \
-            self._add_nudge_section("Scale", self._SCALE_SMALL_STEP,
-                                    self._SCALE_LARGE_STEP, self._on_scale_nudged)
+            self._add_nudge_section("Scale", self._SCALE_SMALL_STEP, self._SCALE_LARGE_STEP, self._on_scale_nudged)
         set_scale_zero_btn = QPushButton("Set Scaling to 0")
         set_scale_zero_btn.setFixedHeight(18)
         set_scale_zero_btn.setToolTip(
