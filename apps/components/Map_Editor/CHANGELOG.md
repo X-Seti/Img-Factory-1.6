@@ -814,3 +814,23 @@ conclusively found despite extensive isolated testing.
   Set Scaling to 0 (both the spin boxes and the underlying instance)
   all confirmed correct. Full `QApplication` instantiation clean,
   `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Per Keith: "when i close all the panes,
+  there is noway to bring them back, so I suggest we add them to the
+  ribbon right click aswell." The Panels submenu (dynamic dock list
+  with tick marks, added earlier) only lived under Menu -> View -
+  with every dock closed, right-clicking on any dock to find it isn't
+  possible, and the Menu button may not be the first place someone
+  looks. Added the same dynamic Panels submenu (reusing the identical
+  `findChildren(QDockWidget)` + `toggleViewAction()` logic) to the
+  toolbar's own right-click context menu (`_toolbar_context_menu`,
+  the one showing Icon Set/Icon Size/Ribbon Manager/Lock-Unlock All
+  Toolbars) too - a toolbar is always visible regardless of dock
+  state, so this gives a reliable way back even when every single
+  pane is closed.
+
+  Verified: closed every dock programmatically, confirmed the Panels
+  submenu still correctly lists all 6 (Frame Hierarchy/IPL Controls/
+  IPL Inst File/Models/Object Browser/Textures), each unchecked but
+  enabled and clickable to restore. Full `QApplication` instantiation
+  clean, `ast.parse` clean.

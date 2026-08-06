@@ -10445,6 +10445,26 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         menu.addSeparator()
         menu.addAction("Ribbon Manager...", self.open_ribbon_manager)
         menu.addSeparator()
+
+        # Panels submenu (Aug 1 2026, per Keith: "when i close all the
+        # panes, there is noway to bring them back, so I suggest we
+        # add them to the ribbon right click aswell") - same dynamic
+        # dock list + toggleViewAction() as the Menu -> View -> Panels
+        # submenu (_build_menus_into_qmenu), just also reachable from
+        # here so there's a way back even if every dock is closed and
+        # the Menu button isn't the first place someone looks.
+        panels_menu = menu.addMenu("Panels")
+        outer_mw = getattr(self, '_outer_mw', None)
+        if outer_mw is not None:
+            from PyQt6.QtWidgets import QDockWidget
+            docks = outer_mw.findChildren(QDockWidget)
+            for dock in sorted(docks, key=lambda d: d.windowTitle()):
+                panels_menu.addAction(dock.toggleViewAction())
+        if panels_menu.isEmpty():
+            no_panels_action = panels_menu.addAction("(no panels)")
+            no_panels_action.setEnabled(False)
+        menu.addSeparator()
+
         from PyQt6.QtWidgets import QToolBar as _QTB
         menu.addAction("Lock All Toolbars",
             lambda: [tb.setMovable(False)
