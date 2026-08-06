@@ -77,3 +77,37 @@ Extracted from inline `#TODO` comments in map_workshop.py, per Keith
   double-clicking already does) - Info and Show Textures were
   straightforward enough to add directly; these two weren't.
 
+
+## Item Editor Dialog redesign (Aug 1 2026, Keith's spec)
+
+Keith laid out a fuller redesign for the Item Editor Dialog
+(_InstanceEditPanel), using a real example (veg_palmkb2, ID 451,
+nbeach.ipl):
+
+- Header/label should read like "[IPL object editor] ID 451 |
+  veg_palmkb2 | nbeach.ipl" - showing the ID, model name, and source
+  IPL right in the title, not just in a sub-section.
+- Identity section should show both raw lines verbatim: the IPL inst
+  line itself (e.g. "451, veg_palmkb2, 0, -847.8391113, ...") and the
+  matching IDE line (e.g. "451, veg_palmkb2, generic, 1, 45, 132"),
+  plus a note on which IMG/TXD actually gets loaded for it (e.g.
+  "gta3.img/generic.txd is loaded").
+- Todo (Keith's own words): "The above can be edited and saved; any
+  changes are updated in the main viewpoint" - editing the raw
+  IPL/IDE line values directly, with live viewport sync and actual
+  write-back to disk. Depends on the general write-back
+  infrastructure noted elsewhere in this file.
+- Placement Info's Interior/2DFX/TOBJ should become actual buttons
+  ([2DFX] [TOBJ]) rather than read-only text sections.
+- A "[Set Scaling to 0]" button, tying into the existing Ignore
+  Scaling concept.
+- Todo (Keith's own words): "There are other buttons that can go here
+  that switch the view. SA has other sections" - SA's IDE format has
+  additional section types (peds/cars/hier/etc. beyond objs/tobj)
+  that this dialog doesn't account for yet.
+- Bottom buttons: [Apply] [Undo] [Close] [Save] (currently only
+  [Close] exists).
+- Todo (Keith's own words): "Show info can be removed and added to
+  the right-click on the model" - reconsider whether double-click
+  should still open this directly once right-click "Info" covers the
+  same thing, or keep both.

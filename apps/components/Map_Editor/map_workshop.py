@@ -19349,22 +19349,43 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 return inst
         return None
 
-    def _show_textures_for_instance(self, inst): #vers 1
+    def _show_textures_for_instance(self, inst): #vers 2
         """Load one instance's model's textures into the Textures
         dock - same lookup/population logic as
         _on_ipl_model_row_selected, just entered from the IPL Inst
-        File table's right-click menu instead of the Models panel."""
+        File table's right-click menu instead of the Models panel.
+
+        Fixed (Aug 1 2026, per Keith: "Right-click on the model > Show
+        textures brings nothing up nothing, i was expecting to see
+        tiles, or something telling me there missing") to use the same
+        robust IMG-then-loose-file fallback
+        (_get_txd_textures_with_fallback) the generic.ide fix already
+        uses, instead of a plain model_cache.get_textures() call that
+        silently returns nothing on failure with zero indication why -
+        his own real example (b_hse_pier, TXD "boathouse") hit exactly
+        this. Now shows a clear message either way instead of just
+        leaving the table empty with no explanation."""
         loader = getattr(self, '_world_loader', None)
         model_cache = getattr(self, '_model_cache', None)
         tex_list = getattr(self, '_tex_list', None)
         if tex_list is None:
             return
         txd_name = ""
+        ide_note = ""
         if loader is not None:
             obj = loader.get_object(inst.model_id)
             if obj is not None:
                 txd_name = obj.txd_name or ""
-        textures = model_cache.get_textures(txd_name) if (model_cache and txd_name) else None
+                source_ide = getattr(obj, 'source_ide', '') or 'unknown.ide'
+                line_no = getattr(obj, 'line_no', 0)
+                ide_note = f" (TXD from {source_ide}, line {line_no})"
+        if not txd_name:
+            tex_list.setRowCount(0)
+            if hasattr(self, '_tex_count_lbl'):
+                self._tex_count_lbl.setText(
+                    f"No TXD name found for {inst.model_name} (check its IDE entry)")
+            return
+        textures, source = self._get_txd_textures_with_fallback(txd_name) if model_cache else (None, None)
         textures = textures or {}
         tex_list.setRowCount(len(textures))
         for i, tex in enumerate(textures.values()):
@@ -19379,7 +19400,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 f"{tex.get('width', '?')}x{tex.get('height', '?')}"))
             tex_list.setItem(i, 3, QTableWidgetItem(tex.get('format', '')))
         if hasattr(self, '_tex_count_lbl'):
-            self._tex_count_lbl.setText(f"{len(textures)} texture{'s' if len(textures) != 1 else ''}")
+            if textures:
+                self._tex_count_lbl.setText(
+                    f"{len(textures)} texture{'s' if len(textures) != 1 else ''} "
+                    f"({txd_name}.txd, from {source}){ide_note}")
+            else:
+                self._tex_count_lbl.setText(
+                    f"{txd_name}.txd not found in any indexed IMG archive or as a "
+                    f"loose file{ide_note}")
+
 
     def _on_ipl_inst_file_cell_double_clicked(self, row, col): #vers 2
         """Double-clicking the Model column (1) finds that row's real
@@ -20486,13 +20515,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         finally:
             table.itemSelectionChanged.connect(self._on_compact_col_selected)
 
-    def _on_ipl_model_row_selected(self, row): #vers 1
+    def _on_ipl_model_row_selected(self, row): #vers 2
         """Show one model's info (Model Name/IDE/ID/TXD fields) and
         its textures (self._tex_list) - the "highlighted models get
         there textures shown in the pane below" half of Keith's
-        request. Textures come from self._model_cache.get_textures(),
-        already loaded/cached by _preload_world_assets when the IPL
-        was loaded."""
+        request. Textures come from the same robust IMG-then-loose-
+        file fallback the generic.ide fix and Show Textures context
+        menu use (Aug 1 2026) - a plain model_cache.get_textures()
+        call here had the same silent-failure bug those did."""
         names = getattr(self, '_ipl_model_names', [])
         if row < 0 or row >= len(names):
             return
@@ -20521,7 +20551,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         tex_list = getattr(self, '_tex_list', None)
         if tex_list is None:
             return
-        textures = model_cache.get_textures(txd_name) if (model_cache and txd_name) else None
+        if not txd_name:
+            tex_list.setRowCount(0)
+            if hasattr(self, '_tex_count_lbl'):
+                self._tex_count_lbl.setText(f"No TXD name found for {model_name}")
+            return
+        textures, source = self._get_txd_textures_with_fallback(txd_name) if model_cache else (None, None)
         textures = textures or {}
         tex_list.setRowCount(len(textures))
         for i, tex in enumerate(textures.values()):
@@ -20536,7 +20571,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 f"{tex.get('width', '?')}x{tex.get('height', '?')}"))
             tex_list.setItem(i, 3, QTableWidgetItem(tex.get('format', '')))
         if hasattr(self, '_tex_count_lbl'):
-            self._tex_count_lbl.setText(f"{len(textures)} texture{'s' if len(textures) != 1 else ''}")
+            if textures:
+                self._tex_count_lbl.setText(
+                    f"{len(textures)} texture{'s' if len(textures) != 1 else ''} "
+                    f"({txd_name}.txd, from {source})")
+            else:
+                self._tex_count_lbl.setText(
+                    f"{txd_name}.txd not found in any indexed IMG archive or as a loose file")
+
 
     def _create_texture_thumbnail(self, rgba_data, width, height): #vers 1
         """Build a scaled QPixmap thumbnail from decoded RGBA8888 bytes

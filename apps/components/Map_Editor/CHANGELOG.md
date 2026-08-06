@@ -744,3 +744,34 @@ conclusively found despite extensive isolated testing.
   correct in isolation - narrowing this down further needs either
   Keith's live environment directly, or a closer visual comparison of
   which specific objects look misaligned between the two screenshots.
+
+- **Aug 1, 2026 (cont'd)** — Per Keith: "Right-click on the model >
+  Show textures brings nothing up nothing, i was expecting to see
+  tiles, or something telling me there missing, also showing the IDE
+  line" - confirmed the same underlying bug as the earlier generic.ide
+  fix (his own words: "No fallback; I think this makes it harder to
+  fix"), just hit via a different real example this time (`b_hse_pier`,
+  TXD `boathouse`, from `docks.ide` line 127).
+
+  Fixed both `_show_textures_for_instance` (the right-click menu path)
+  and `_on_ipl_model_row_selected` (the Models panel path) to use the
+  same robust `_get_txd_textures_with_fallback` the generic.ide fix
+  already uses, instead of a plain `model_cache.get_textures()` call
+  that silently left the table empty with zero indication why. Both
+  now show a clear message either way - on success, the texture count
+  plus which TXD and where it was found from; on failure, an explicit
+  "not found in any indexed IMG archive or as a loose file" message -
+  and both now include the requested IDE source/line info (e.g. "TXD
+  from docks.ide, line 127").
+
+  Also logged Keith's fuller Item Editor Dialog redesign spec to
+  TODO.md - a real header format, showing both raw IPL/IDE lines
+  verbatim, editable fields with live viewport sync and write-back,
+  Interior/2DFX/TOBJ as buttons, Apply/Undo/Save, and SA section
+  support - a substantial roadmap item, not built this pass.
+
+  Verified end-to-end with Keith's own real example (`b_hse_pier`/
+  `boathouse`/`docks.ide` line 127): both the not-found case (clear
+  message, IDE line shown) and the found case (correct texture count,
+  source, IDE line) confirmed working correctly. Full `QApplication`
+  instantiation clean, `ast.parse` clean.
