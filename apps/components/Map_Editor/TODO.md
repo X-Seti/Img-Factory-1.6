@@ -82,32 +82,38 @@ Extracted from inline `#TODO` comments in map_workshop.py, per Keith
 
 Keith laid out a fuller redesign for the Item Editor Dialog
 (_InstanceEditPanel), using a real example (veg_palmkb2, ID 451,
-nbeach.ipl):
+nbeach.ipl). Implemented Aug 1 2026:
 
-- Header/label should read like "[IPL object editor] ID 451 |
-  veg_palmkb2 | nbeach.ipl" - showing the ID, model name, and source
-  IPL right in the title, not just in a sub-section.
-- Identity section should show both raw lines verbatim: the IPL inst
-  line itself (e.g. "451, veg_palmkb2, 0, -847.8391113, ...") and the
-  matching IDE line (e.g. "451, veg_palmkb2, generic, 1, 45, 132"),
-  plus a note on which IMG/TXD actually gets loaded for it (e.g.
-  "gta3.img/generic.txd is loaded").
+- [DONE] Header/label reads "[IPL object editor] ID 451 | veg_palmkb2
+  | nbeach.ipl".
+- [DONE] Identity section shows both raw lines verbatim (IPL inst
+  line and matching IDE line, reconstructed from parsed fields - not
+  the original file text, which isn't kept in memory) plus a note on
+  which TXD is expected.
+- [DONE] Added a Scale nudge section (Position/Rotation already had
+  one, Scale never did) plus a "[Set Scaling to 0]" button.
+- [DONE] Placement Info's Interior stays as text; 2DFX/TOBJ are now
+  [2DFX (n)]/[TOBJ (n)] buttons showing a popup with details on
+  click, instead of always-visible text blocks.
+- [DONE] Bottom row is now [Apply] [Undo] [Close] [Save] - Apply/Undo/
+  Save are honest stubs (clear popup explaining why, not silently
+  doing nothing) since none of what they'd need exists yet:
+
+Still open:
 - Todo (Keith's own words): "The above can be edited and saved; any
   changes are updated in the main viewpoint" - editing the raw
-  IPL/IDE line values directly, with live viewport sync and actual
-  write-back to disk. Depends on the general write-back
+  IPL/IDE line text directly (not just the existing Position/
+  Rotation/Scale nudge controls, which already do apply live), with
+  actual write-back to disk. Depends on the general write-back
   infrastructure noted elsewhere in this file.
-- Placement Info's Interior/2DFX/TOBJ should become actual buttons
-  ([2DFX] [TOBJ]) rather than read-only text sections.
-- A "[Set Scaling to 0]" button, tying into the existing Ignore
-  Scaling concept.
 - Todo (Keith's own words): "There are other buttons that can go here
   that switch the view. SA has other sections" - SA's IDE format has
   additional section types (peds/cars/hier/etc. beyond objs/tobj)
   that this dialog doesn't account for yet.
-- Bottom buttons: [Apply] [Undo] [Close] [Save] (currently only
-  [Close] exists).
 - Todo (Keith's own words): "Show info can be removed and added to
   the right-click on the model" - reconsider whether double-click
   should still open this directly once right-click "Info" covers the
   same thing, or keep both.
+- Real Undo (currently a stub) - same underlying design work as the
+  general undo/redo item above.
+

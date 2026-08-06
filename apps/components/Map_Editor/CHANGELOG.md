@@ -775,3 +775,42 @@ conclusively found despite extensive isolated testing.
   message, IDE line shown) and the found case (correct texture count,
   source, IDE line) confirmed working correctly. Full `QApplication`
   instantiation clean, `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Redesigned the Item Editor Dialog
+  (`_InstanceEditPanel`) per Keith's fuller spec, using his real
+  example (`veg_palmkb2`, ID 451, `nbeach.ipl`):
+
+  - Window title now reads `[IPL object editor] ID 451 | veg_palmkb2
+    | nbeach.ipl`.
+  - Identity section now shows both the raw IPL inst line and the
+    matching IDE line verbatim (reconstructed from parsed fields -
+    the original file text isn't kept in memory), plus a note on
+    which TXD is expected. Verified exact match against Keith's own
+    example precision (`-847.8391113` etc., `.10g` formatting).
+  - Added a genuinely missing Scale nudge section (Position/Rotation
+    already had one via `_add_nudge_section`, Scale never did) plus a
+    "Set Scaling to 0" button - both wired the same way Position/
+    Rotation already are (live edits, immediate viewport sync via
+    `_on_instance_edited`).
+  - Placement Info's 2DFX/TOBJ are now `[2DFX (n)]`/`[TOBJ (n)]`
+    buttons showing a popup with details on click, instead of
+    permanent always-visible text blocks (Interior stays as plain
+    text).
+  - Bottom row is now `[Apply] [Undo] [Close] [Save]` (previously
+    just `[Close]`) - Apply/Undo/Save are honest stubs with a clear
+    explanatory popup rather than silently doing nothing, since real
+    undo and file write-back are both separate, larger TODO items.
+
+  Deferred to TODO.md (each needs more design work): editable raw
+  IPL/IDE line text with write-back and live sync; extensibility for
+  SA's additional IDE section types; whether double-click should
+  still open this directly now that right-click "Info" covers the
+  same ground; and real Undo.
+
+  Verified end-to-end with Keith's own exact example data: window
+  title, both raw lines (byte-for-byte match on the IPL line,
+  including full precision), TXD note, 2DFX/TOBJ button counts, Scale
+  spins defaulting to (1,1,1) and correctly updating to (0,0,0) via
+  Set Scaling to 0 (both the spin boxes and the underlying instance)
+  all confirmed correct. Full `QApplication` instantiation clean,
+  `ast.parse` clean.

@@ -3654,6 +3654,8 @@ class _InstanceEditPanel(QWidget):
     _POS_LARGE_STEP = 10.0
     _ROT_SMALL_STEP = 1.0
     _ROT_LARGE_STEP = 15.0
+    _SCALE_SMALL_STEP = 0.1
+    _SCALE_LARGE_STEP = 1.0
 
     def __init__(self, workshop, parent=None): #vers 2
         super().__init__(parent, Qt.WindowType.Tool)
@@ -3661,7 +3663,7 @@ class _InstanceEditPanel(QWidget):
         self._inst = None
         self._loader = None
         self._nudge_wide = None   # current reflow state, None forces first layout
-        self.setWindowTitle("Object Info")
+        self.setWindowTitle("[IPL object editor]")
         self.setMinimumWidth(180)
 
         self._lay = QVBoxLayout(self)
@@ -3686,14 +3688,59 @@ class _InstanceEditPanel(QWidget):
         self._rot_box, self._rot_spins, self._rot_grid, self._rot_rows = \
             self._add_nudge_section("Rotation (degrees)", self._ROT_SMALL_STEP,
                                     self._ROT_LARGE_STEP, self._on_rotation_nudged)
+        self._scale_box, self._scale_spins, self._scale_grid, self._scale_rows = \
+            self._add_nudge_section("Scale", self._SCALE_SMALL_STEP,
+                                    self._SCALE_LARGE_STEP, self._on_scale_nudged)
+        set_scale_zero_btn = QPushButton("Set Scaling to 0")
+        set_scale_zero_btn.setFixedHeight(18)
+        set_scale_zero_btn.setToolTip(
+            "Sets this instance's scale to (0,0,0) - matches how some\n"
+            "converted IPLs (e.g. GTA SA data converted to VC's format)\n"
+            "represent 'no real scale data' rather than the normal (1,1,1)\n"
+            "unit scale. See the Ignore Scaling option in IPL Controls\n"
+            "for treating this the other way around, without editing.")
+        set_scale_zero_btn.clicked.connect(self._on_set_scale_zero_clicked)
+        self._lay.addWidget(set_scale_zero_btn)
         self._meta_box = self._add_section("Placement Info")
-        self._2dfx_box = self._add_section("2DFX Effects")
-        self._tobj_box = self._add_section("TOBJ (Timed Object) Variants")
+        effects_row = QHBoxLayout()
+        self._2dfx_btn = QPushButton("2DFX (0)")
+        self._tobj_btn = QPushButton("TOBJ (0)")
+        self._2dfx_btn.setFixedHeight(18)
+        self._tobj_btn.setFixedHeight(18)
+        self._2dfx_btn.clicked.connect(self._on_2dfx_button_clicked)
+        self._tobj_btn.clicked.connect(self._on_tobj_button_clicked)
+        effects_row.addWidget(self._2dfx_btn)
+        effects_row.addWidget(self._tobj_btn)
+        self._lay.addLayout(effects_row)
+        self._current_effects = []
+        self._current_tobjs = []
 
+        bottom_row = QHBoxLayout()
+        apply_btn = QPushButton("Apply")
+        undo_btn = QPushButton("Undo")
         close_btn = QPushButton("Close")
-        close_btn.setFixedHeight(18)
+        save_btn = QPushButton("Save")
+        for _btn in (apply_btn, undo_btn, close_btn, save_btn):
+            _btn.setFixedHeight(18)
+        apply_btn.setToolTip(
+            "STUB - edits made here (Position/Rotation/Scale) already\n"
+            "apply live and update the viewport immediately as you nudge\n"
+            "them, so there's nothing separate to 'Apply' yet. Will do\n"
+            "something once raw-line editing (per the redesign spec) is\n"
+            "built - see TODO.md.")
+        apply_btn.clicked.connect(self._on_apply_clicked)
+        undo_btn.clicked.connect(self._on_undo_clicked)
         close_btn.clicked.connect(self.hide)
-        self._lay.addWidget(close_btn)
+        save_btn.setToolTip(
+            "STUB - no write-back infrastructure exists for any file type\n"
+            "in Map Workshop yet (see TODO.md) - edits stay in memory only,\n"
+            "nothing gets written back to the .ipl/.ide file on disk.")
+        save_btn.clicked.connect(self._on_save_clicked)
+        bottom_row.addWidget(apply_btn)
+        bottom_row.addWidget(undo_btn)
+        bottom_row.addWidget(close_btn)
+        bottom_row.addWidget(save_btn)
+        self._lay.addLayout(bottom_row)
 
         self._reflow_nudge_rows(wide=True)
 
@@ -3713,7 +3760,8 @@ class _InstanceEditPanel(QWidget):
         narrow: label+value on one row, the 4 arrow buttons on the row
         beneath, per axis."""
         for grid, rows_info in ((self._pos_grid, self._pos_rows),
-                                (self._rot_grid, self._rot_rows)):
+                                (self._rot_grid, self._rot_rows),
+                                (self._scale_grid, self._scale_rows)):
             # Clear all positions (widgets stay alive, just get re-added)
             while grid.count():
                 grid.takeAt(0)
@@ -3847,11 +3895,24 @@ class _InstanceEditPanel(QWidget):
                 width, depth, height = dims
                 size_suffix = f"  ({width:.1f} × {height:.1f})"
 
-        self.setWindowTitle(f"Object Info - {inst.model_name} (ID {inst.model_id})")
+        self.setWindowTitle(
+            f"[IPL object editor] ID {inst.model_id} | {inst.model_name} | {inst.source_ipl}")
+        ipl_line = (f"{inst.model_id}, {inst.model_name}, {inst.interior}, "
+                   f"{inst.pos_x:.10g}, {inst.pos_y:.10g}, {inst.pos_z:.10g}, "
+                   f"{inst.scale_x:.10g}, {inst.scale_y:.10g}, {inst.scale_z:.10g}, "
+                   f"{inst.rot_x:.10g}, {inst.rot_y:.10g}, {inst.rot_z:.10g}, {inst.rot_w:.10g}")
+        if obj is not None:
+            ide_fields = [str(obj.model_id), obj.model_name, obj.txd_name]
+            ide_fields += [str(v) for v in obj.extra.values()]
+            ide_line = ", ".join(ide_fields)
+            txd_note = f"{obj.txd_name}.txd is expected to be loaded{size_suffix}"
+        else:
+            ide_line = "(no matching IDE entry found)"
+            txd_note = f"(TXD unknown - no IDE match){size_suffix}"
         self._set_section_lines(self._identity_box, [
-            f"ID: {inst.model_id}",
-            f"Name: {inst.model_name}{size_suffix}",
-            f"Texture (TXD): {obj.txd_name if obj else '(unresolved - no IDE match)'}",
+            ipl_line,
+            ide_line,
+            txd_note,
         ])
         if obj:
             ide_lines = [f"Type: {obj.obj_type}   Section: {obj.section}",
@@ -3863,17 +3924,16 @@ class _InstanceEditPanel(QWidget):
 
         self._refresh_position_spins()
         self._refresh_rotation_spins()
+        self._refresh_scale_spins()
 
         self._set_section_lines(self._meta_box, [
             f"Interior: {inst.interior}   LOD index: {inst.lod_index}",
             f"Source IPL: {inst.source_ipl}  (line {inst.line_no})",
         ])
-        self._set_section_lines(self._2dfx_box, [
-            f"#{i+1}: {e.obj_type} (line {e.line_no}, {e.source_ide})"
-            for i, e in enumerate(effects)] or None)
-        self._set_section_lines(self._tobj_box, [
-            f"{t.model_name} (ID {t.model_id}, {t.source_ide} line {t.line_no})"
-            for t in tobjs] or None)
+        self._current_effects = effects
+        self._current_tobjs = tobjs
+        self._2dfx_btn.setText(f"2DFX ({len(effects)})")
+        self._tobj_btn.setText(f"TOBJ ({len(tobjs)})")
 
     def _refresh_position_spins(self): #vers 1
         inst = self._inst
@@ -3912,6 +3972,71 @@ class _InstanceEditPanel(QWidget):
         self._inst.rot_x, self._inst.rot_y, self._inst.rot_z, self._inst.rot_w = x, y, z, w
         self._refresh_rotation_spins()
         self._workshop._on_instance_edited(self._inst)
+
+    def _on_scale_nudged(self, axis, delta, absolute=None): #vers 1
+        if self._inst is None:
+            return
+        attr = f"scale_{axis}"
+        new_val = absolute if absolute is not None else getattr(self._inst, attr) + delta
+        setattr(self._inst, attr, new_val)
+        self._refresh_scale_spins()
+        self._workshop._on_instance_edited(self._inst)
+
+    def _refresh_scale_spins(self): #vers 1
+        inst = self._inst
+        for axis, spin in self._scale_spins.items():
+            spin.blockSignals(True)
+            spin.setValue(getattr(inst, f"scale_{axis}"))
+            spin.blockSignals(False)
+
+    def _on_set_scale_zero_clicked(self): #vers 1
+        """Set this instance's scale to (0,0,0) - per Keith's spec,
+        matching how some converted IPLs represent 'no real scale
+        data' instead of the normal (1,1,1) unit scale."""
+        if self._inst is None:
+            return
+        self._inst.scale_x = self._inst.scale_y = self._inst.scale_z = 0.0
+        self._refresh_scale_spins()
+        self._workshop._on_instance_edited(self._inst)
+
+    def _on_2dfx_button_clicked(self): #vers 1
+        """Show this instance's 2DFX effects in a popup - replaces the
+        earlier always-visible text section (Aug 1 2026, per Keith's
+        Item Editor Dialog redesign spec: Interior/2DFX/TOBJ should be
+        buttons, not permanent text blocks)."""
+        if not self._current_effects:
+            QMessageBox.information(self, "2DFX Effects", "(none)")
+            return
+        lines = [f"#{i+1}: {e.obj_type} (line {e.line_no}, {e.source_ide})"
+                for i, e in enumerate(self._current_effects)]
+        QMessageBox.information(self, "2DFX Effects", "\n".join(lines))
+
+    def _on_tobj_button_clicked(self): #vers 1
+        """Show this instance's TOBJ (timed object) variants in a
+        popup - replaces the earlier always-visible text section."""
+        if not self._current_tobjs:
+            QMessageBox.information(self, "TOBJ (Timed Object) Variants", "(none)")
+            return
+        lines = [f"{t.model_name} (ID {t.model_id}, {t.source_ide} line {t.line_no})"
+                for t in self._current_tobjs]
+        QMessageBox.information(self, "TOBJ (Timed Object) Variants", "\n".join(lines))
+
+    def _on_apply_clicked(self): #vers 1
+        QMessageBox.information(self, "Apply",
+            "Position/Rotation/Scale edits already apply live as you\n"
+            "nudge them - there's nothing separate to Apply yet.")
+
+    def _on_undo_clicked(self): #vers 1
+        QMessageBox.information(self, "Undo",
+            "STUB - undo/redo for mapping changes (instance placement,\n"
+            "rotation, IPL edits) isn't implemented yet - needs its own\n"
+            "instance/IPL-state design (see TODO.md).")
+
+    def _on_save_clicked(self): #vers 1
+        QMessageBox.information(self, "Save",
+            "STUB - no write-back infrastructure exists for any file\n"
+            "type in Map Workshop yet (see TODO.md) - edits stay in\n"
+            "memory only, nothing gets written back to disk.")
 
 
 class _FilteredLoaderStub:
