@@ -3657,8 +3657,8 @@ class _InstanceEditPanel(QWidget):
     _SCALE_SMALL_STEP = 0.1
     _SCALE_LARGE_STEP = 1.0
 
-    def __init__(self, workshop, parent=None): #vers 2
-        super().__init__(parent, Qt.WindowType.Tool)
+    def __init__(self, workshop, parent=None): #vers 3
+        super().__init__(parent)
         self._workshop = workshop
         self._inst = None
         self._loader = None
@@ -3667,6 +3667,8 @@ class _InstanceEditPanel(QWidget):
         self.setMinimumWidth(180)
 
         self._lay = QVBoxLayout(self)
+        self._lay.setContentsMargins(4, 4, 4, 4)
+        self._lay.setSpacing(3)
         self._identity_box = self._add_section("Identity")
         self._nav_row = QHBoxLayout()
         self._nav_label = QLabel("")
@@ -3697,7 +3699,6 @@ class _InstanceEditPanel(QWidget):
             "for treating this the other way around, without editing.")
         set_scale_zero_btn.clicked.connect(self._on_set_scale_zero_clicked)
         self._lay.addWidget(set_scale_zero_btn)
-        self._meta_box = self._add_section("Placement Info")
         effects_row = QHBoxLayout()
         self._2dfx_btn = QPushButton("2DFX (0)")
         self._tobj_btn = QPushButton("TOBJ (0)")
@@ -3726,7 +3727,7 @@ class _InstanceEditPanel(QWidget):
             "built - see TODO.md.")
         apply_btn.clicked.connect(self._on_apply_clicked)
         undo_btn.clicked.connect(self._on_undo_clicked)
-        close_btn.clicked.connect(self.hide)
+        close_btn.clicked.connect(self._on_close_clicked)
         save_btn.setToolTip(
             "STUB - no write-back infrastructure exists for any file type\n"
             "in Map Workshop yet (see TODO.md) - edits stay in memory only,\n"
@@ -3792,9 +3793,11 @@ class _InstanceEditPanel(QWidget):
                     grid.addWidget(btn_rr, r + 1, 3)
         self._nudge_wide = wide
 
-    def _add_section(self, title): #vers 1
+    def _add_section(self, title): #vers 2
         box = QGroupBox(title)
-        QVBoxLayout(box)
+        lay = QVBoxLayout(box)
+        lay.setContentsMargins(6, 4, 6, 4)
+        lay.setSpacing(2)
         self._lay.addWidget(box)
         return box
 
@@ -3812,7 +3815,7 @@ class _InstanceEditPanel(QWidget):
             empty.setStyleSheet("color: palette(mid);")
             lay.addWidget(empty)
 
-    def _populate_identity_section(self, ipl_line, ide_line, txd_name): #vers 1
+    def _populate_identity_section(self, ipl_line, ide_line, txd_name, interior, lod_index): #vers 2
         """Identity section: raw IPL line, raw IDE line, and a 3rd row
         with the TXD's real status - one of three messages depending
         on what actually happened when looking it up (Aug 1 2026, per
@@ -3823,7 +3826,15 @@ class _InstanceEditPanel(QWidget):
         [Show] populates the existing Textures dock (tiles with
         thumbnails, already built) - Keith's fuller spec also
         mentioned "name as a dropdown" for this, which isn't fully
-        clear yet (what selecting a name in it should actually do)."""
+        clear yet (what selecting a name in it should actually do).
+
+        Interior/LOD index sit on the right side of this same row
+        (Aug 1 2026, per Keith: "the Interior [0] and LOD index -1
+        should be on the same row as Generic.txd is load [show] ...
+        but from the right on the same row") - the old standalone
+        "Placement Info" section became empty once this moved out of
+        it and its other line (Source IPL) turned out to duplicate
+        the window title, so that section is gone entirely now."""
         box = self._identity_box
         lay = box.layout()
         while lay.count():
@@ -3850,6 +3861,7 @@ class _InstanceEditPanel(QWidget):
             else:
                 row.addWidget(QLabel(f"{txd_name}.txd is missing from gta3.img"))
         row.addStretch()
+        row.addWidget(QLabel(f"Interior: {interior}   LOD index: {lod_index}"))
         lay.addLayout(row)
 
     def _add_nudge_section(self, title, small_step, large_step, on_nudge): #vers 2
@@ -3861,6 +3873,8 @@ class _InstanceEditPanel(QWidget):
         would do with no wrapping at all)."""
         box = QGroupBox(title)
         grid = QGridLayout(box)
+        grid.setContentsMargins(6, 4, 6, 4)
+        grid.setSpacing(3)
         wf = self._workshop
         icon_sz = 14
         icon_color = wf._get_icon_color()
@@ -3874,12 +3888,14 @@ class _InstanceEditPanel(QWidget):
         rows_info = []   # per-axis widget refs, for _reflow_nudge_rows
         for axis in ('x', 'y', 'z'):
             label = QLabel(axis.upper() + ":")
+            from PyQt6.QtWidgets import QAbstractSpinBox
             btn_ll = QPushButton(); btn_ll.setIcon(icons['ll']); btn_ll.setFixedWidth(28)
             btn_l  = QPushButton(); btn_l.setIcon(icons['l']);   btn_l.setFixedWidth(22)
             spin = QDoubleSpinBox()
             spin.setRange(-100000.0, 100000.0)
             spin.setDecimals(2)
-            spin.setFixedWidth(80)
+            spin.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
+            spin.setFixedWidth(70)
             btn_r  = QPushButton(); btn_r.setIcon(icons['r']);   btn_r.setFixedWidth(22)
             btn_rr = QPushButton(); btn_rr.setIcon(icons['rr']); btn_rr.setFixedWidth(28)
             # 18px uniform height (Aug 1 2026, per Keith's screenshot:
@@ -3951,16 +3967,12 @@ class _InstanceEditPanel(QWidget):
         else:
             ide_line = "(no matching IDE entry found)"
             txd_name = ""
-        self._populate_identity_section(ipl_line, ide_line, txd_name)
+        self._populate_identity_section(ipl_line, ide_line, txd_name, inst.interior, inst.lod_index)
 
         self._refresh_position_spins()
         self._refresh_rotation_spins()
         self._refresh_scale_spins()
 
-        self._set_section_lines(self._meta_box, [
-            f"Interior: {inst.interior}   LOD index: {inst.lod_index}",
-            f"Source IPL: {inst.source_ipl}  (line {inst.line_no})",
-        ])
         self._current_effects = effects
         self._current_tobjs = tobjs
         self._2dfx_btn.setText(f"2DFX ({len(effects)})")
@@ -4051,6 +4063,13 @@ class _InstanceEditPanel(QWidget):
         lines = [f"{t.model_name} (ID {t.model_id}, {t.source_ide} line {t.line_no})"
                 for t in self._current_tobjs]
         QMessageBox.information(self, "TOBJ (Timed Object) Variants", "\n".join(lines))
+
+    def _on_close_clicked(self): #vers 1
+        dock = getattr(self._workshop, '_instance_edit_dock', None)
+        if dock is not None:
+            dock.hide()
+        else:
+            self.hide()
 
     def _on_apply_clicked(self): #vers 1
         QMessageBox.information(self, "Apply",
@@ -18027,23 +18046,41 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             pane.set_gizmo_position((inst.pos_x, inst.pos_y, inst.pos_z))
         self._show_instance_edit_panel(inst, nav_info)
 
-    def _show_instance_edit_panel(self, inst, nav_info=None): #vers 2
+    def _show_instance_edit_panel(self, inst, nav_info=None): #vers 3
         """Show (creating on first use) the non-modal object edit panel
-        for one instance, positioned in the top-left corner of the
-        window - stays open and gets its content refreshed for
-        whichever instance is currently selected, rather than a modal
-        dialog that blocks interaction and needs reopening each time."""
-        panel = getattr(self, '_instance_edit_panel', None)
-        if panel is None:
+        for one instance - stays open and gets its content refreshed
+        for whichever instance is currently selected, rather than a
+        modal dialog that blocks interaction and needs reopening each
+        time.
+
+        Wrapped in a real QDockWidget (Aug 1 2026, per Keith: "docLable,
+        but start undocked") - dockable into the main window like every
+        other panel, but starts floating (undocked) by default so it
+        behaves the same as before for anyone who never drags it in."""
+        dock = getattr(self, '_instance_edit_dock', None)
+        if dock is None:
             panel = _InstanceEditPanel(self)
             self._instance_edit_panel = panel
+            dock = QDockWidget("IPL Object Editor", self)
+            dock.setObjectName("IPL Object Editor")
+            dock.setWidget(panel)
+            dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
+                            QDockWidget.DockWidgetFeature.DockWidgetFloatable |
+                            QDockWidget.DockWidgetFeature.DockWidgetClosable)
+            outer_mw = getattr(self, '_outer_mw', None)
+            if outer_mw is not None:
+                outer_mw.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, dock)
+            dock.setFloating(True)
+            self._instance_edit_dock = dock
+        panel = self._instance_edit_panel
         panel.show_for_instance(inst, getattr(self, '_world_loader', None), nav_info,
                                 getattr(self, '_model_cache', None))
-        top_level = self.window()
-        panel.move(top_level.mapToGlobal(top_level.rect().topLeft()) +
-                   QPoint(8, 8))
-        panel.show()
-        panel.raise_()
+        if dock.isFloating():
+            top_level = self.window()
+            dock.move(top_level.mapToGlobal(top_level.rect().topLeft()) +
+                     QPoint(8, 8))
+        dock.show()
+        dock.raise_()
 
     def _on_instance_edited(self, inst): #vers 1
         """Called by _InstanceEditPanel whenever a position/rotation

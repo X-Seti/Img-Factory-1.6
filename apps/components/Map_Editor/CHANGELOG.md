@@ -879,3 +879,39 @@ conclusively found despite extensive isolated testing.
   column layout (X/`-`/value/`+`, Y/../.., Z/../.., no overlaps)
   after the column-math fix. Full `QApplication` instantiation clean,
   `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Further refined the Item Editor Dialog
+  per Keith's latest screenshot/feedback, using his real example
+  (`veg_palwee01`, ID 448, `littleha.ipl`):
+
+  - Made it a real dockable panel, starting floating by default
+    ("docLable, but start undocked") - wrapped `_InstanceEditPanel`
+    (previously a `Qt.WindowType.Tool` standalone floating widget) in
+    a proper `QDockWidget` added to `outer_mw`, with `setFloating
+    (True)` so it opens the same way as before unless someone
+    explicitly drags it into the main window. Close now hides the
+    whole dock rather than just the panel content.
+  - Removed the duplicate "Source IPL" line from Placement Info (it
+    already appears in the window title) - and since Interior/LOD
+    also moved out (see next point), Placement Info as a whole
+    section is now empty and gone entirely.
+  - Interior/LOD index now sit on the right side of the TXD status
+    row instead of their own section ("the Interior [0] and LOD
+    index -1 should be on the same row as Generic.txd is load [show]
+    ... but from the right on the same row").
+  - Fixed unreadable/clipped spin box values: removed the native up/
+    down arrow buttons (`QAbstractSpinBox.NoButtons`) since the
+    dedicated `‹`/`›` chevron buttons already do that job - freed up
+    space that was being spent on redundant arrows, giving the actual
+    value text room to display without clipping.
+  - Tightened margins/spacing throughout (main layout, each section
+    box, the nudge grids) for a more compact overall panel.
+
+  Verified end-to-end with Keith's own real example data: dock
+  confirmed created and floating on first show; Placement Info
+  confirmed gone; TXD status row confirmed showing "generic.txd is
+  loaded" + Show button + "Interior: 0   LOD index: -1" all on one
+  row; spin box confirmed using `NoButtons` and correctly displaying
+  "-793.59" (matching the real position value) without clipping;
+  Close confirmed hiding the dock. Full `QApplication` instantiation
+  clean, `ast.parse` clean.
