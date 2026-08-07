@@ -100,6 +100,10 @@ nbeach.ipl). Implemented Aug 1 2026:
   doing nothing) since none of what they'd need exists yet:
 
 Still open:
+- Todo Show objects in map workshop with alpha object layers working.
+- Add real-time cycling play > stop [] in timecyc dock.
+- day to night, show lights from 2dfx and timed objects.
+- Adjustable time flow: 1 min for every Second adjustable. 
 - Todo (Keith's own words): "The above can be edited and saved; any
   changes are updated in the main viewpoint" - editing the raw
   IPL/IDE line text directly (not just the existing Position/
