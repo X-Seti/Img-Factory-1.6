@@ -3666,7 +3666,7 @@ class _InstanceEditPanel(QWidget):
         self.setWindowTitle("[IPL object editor]")
         self.setMinimumWidth(380)
         self.setMinimumHeight(320)
-
+        #TODO Show textures work but texture names, shows the name texture name in all cells.
         self._lay = QVBoxLayout(self)
         self._lay.setContentsMargins(4, 4, 4, 4)
         self._lay.setSpacing(3)
@@ -3686,6 +3686,8 @@ class _InstanceEditPanel(QWidget):
         self._nav_row.addWidget(self._nav_next_btn)
         self._lay.addLayout(self._nav_row)
         self._set_nav_visible(False)
+        #TODO the values in the x, y and z boxes need to be visble.
+        #TODO thinking about adding < << Value >> > arrow back with keyboard shortcuts, need compact << and >> svg icons.
         self._pos_box, self._pos_spins, self._pos_grid, self._pos_rows = \
             self._add_nudge_section("Position", self._POS_SMALL_STEP, self._POS_LARGE_STEP, self._on_position_nudged)
         self._rot_box, self._rot_spins, self._rot_grid, self._rot_rows = \
@@ -3694,6 +3696,7 @@ class _InstanceEditPanel(QWidget):
             self._add_nudge_section("Scale", self._SCALE_SMALL_STEP, self._SCALE_LARGE_STEP, self._on_scale_nudged)
         from apps.methods.imgfactory_svg_icons import (
             get_checkmark_icon, get_undo_icon, get_close_icon, get_save_icon)
+        #TODO need to write all stubs and show process of objects being moved in the viewport,
         icon_color = self._workshop._get_icon_color()
 
         effects_row = QHBoxLayout()
