@@ -3673,6 +3673,9 @@ class _InstanceEditPanel(QWidget):
         self._identity_box = self._add_section("Identity")
         self._identity_box.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._identity_box.customContextMenuRequested.connect(self._on_identity_context_menu)
+        #TODO Show Interior; 0 only when it exists
+        #TODO Show LOD index -1 only when we're working with SA format files.
+        #TODO Add the ability to read and write binary IPLs from the SA gta3.img
         self._nav_row = QHBoxLayout()
         self._nav_label = QLabel("")
         self._nav_prev_btn = QPushButton("< Prev")
@@ -3714,6 +3717,22 @@ class _InstanceEditPanel(QWidget):
         effects_row.addWidget(self._2dfx_btn)
         effects_row.addWidget(self._tobj_btn)
         effects_row.addWidget(self._zero_btn)
+        #objs Exists. TODO tobj shown below, needs adding with a [timecyc] button in ipl section, 1 minute per second [Editable] to show the game world cycling, night and day cycle with 2dfx objects lighting up. showing the map as if it was in the game.
+        #end
+        #tobj
+        #10976, drivingsch_SFS, drivingschool_sfse, 150, 0, 0, 23
+        #11394, hubgrgbeams_SFSe, newhubgrg1_sfse, 100, 4, 7, 17
+        #11410, nightlights01_SFSE, nightlights_sfse, 550, 4, 20, 6
+        #11411, nightlights02_SFSE, nightlights_sfse, 550, 4, 20, 6
+        #11412, nightlights03_SFSE, nightlights_sfse, 550, 4, 20, 6
+        #end
+        #path TODO a path button is needed to show paths. showing all ped, vehicle, airplace, train paths as plotted lines and nods.
+        #end
+        #2dfx TODO 2dfx button exists, but needs functionality, reading and displaying 2dfx lighting effects around models, being able to edit these.
+        #end
+        #anim TODO anim button needed for GTASA, need to look into how this works.
+        #11417 ,xenonsign2_SFSe ,xenon_sfse ,SFSe ,150 ,0
+
         self._lay.addLayout(effects_row)
         self._current_effects = []
         self._current_tobjs = []
