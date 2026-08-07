@@ -996,3 +996,30 @@ conclusively found despite extensive isolated testing.
   throughout. Verified all three buttons report `height() == 18` and
   Set Scaling to 0 still correctly zeroes the instance's scale. Full
   `QApplication` instantiation clean, `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Per Keith: "buttons still unreadable, so
+  im moving this around. looking at the code on IPL sections [IPL]
+  Tab, we need to show buttons in that size, and note that all
+  buttons on widgets and panels, are to that standard." Re-examined
+  the exact IPL Sections Open/Close/New/Delete button code (the one
+  Keith confirmed as "a perfect size" a few passes ago) and found the
+  real standard includes more than just `setFixedHeight(18)` + the
+  compact stylesheet, which is all earlier passes at the Item Editor
+  Dialog had been applying: an 18x18 icon alongside the text too.
+
+  Added `_make_standard_button(text, icon=None, tooltip=None)` - one
+  shared, documented helper matching this exact standard, so it's
+  applied consistently rather than hand-rolled slightly differently
+  each time. Applied it to every button in the Item Editor Dialog:
+  Apply/Undo/Close/Save and the Identity section's Show button now
+  have real icons (checkmark/undo/close/save/view, from `apps.
+  methods.imgfactory_svg_icons` - the same module IPL Sections' own
+  icons come from), matching the reference exactly; 2DFX/TOBJ/Set
+  Scaling to 0 stay text-only (no clean icon match exists for these
+  yet) but still go through the same helper for consistent sizing/
+  styling.
+
+  Verified: every button confirmed `height() == 18`; Apply/Undo/
+  Close/Save/Show confirmed carrying a real icon; 2DFX/TOBJ/Set
+  Scaling to 0 confirmed correctly icon-less but still properly
+  sized. Full `QApplication` instantiation clean, `ast.parse` clean.

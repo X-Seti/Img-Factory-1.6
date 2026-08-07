@@ -3692,14 +3692,14 @@ class _InstanceEditPanel(QWidget):
             self._add_nudge_section("Rotation (degrees)", self._ROT_SMALL_STEP, self._ROT_LARGE_STEP, self._on_rotation_nudged)
         self._scale_box, self._scale_spins, self._scale_grid, self._scale_rows = \
             self._add_nudge_section("Scale", self._SCALE_SMALL_STEP, self._SCALE_LARGE_STEP, self._on_scale_nudged)
+        from apps.methods.imgfactory_svg_icons import (
+            get_checkmark_icon, get_undo_icon, get_close_icon, get_save_icon)
+        icon_color = self._workshop._get_icon_color()
+
         effects_row = QHBoxLayout()
-        self._2dfx_btn = QPushButton("2DFX (0)")
-        self._tobj_btn = QPushButton("TOBJ (0)")
-        self._zero_btn = QPushButton("Set Scaling to 0")
-        self._2dfx_btn.setFixedHeight(18)
-        self._tobj_btn.setFixedHeight(18)
-        self._zero_btn.setFixedHeight(18)
-        self._zero_btn.setToolTip(
+        self._2dfx_btn = self._make_standard_button("2DFX (0)")
+        self._tobj_btn = self._make_standard_button("TOBJ (0)")
+        self._zero_btn = self._make_standard_button("Set Scaling to 0", tooltip=
             "Sets this instance's scale to (0,0,0) - matches how some\n"
             "converted IPLs (e.g. GTA SA data converted to VC's format)\n"
             "represent 'no real scale data' rather than the normal (1,1,1)\n"
@@ -3716,25 +3716,21 @@ class _InstanceEditPanel(QWidget):
         self._current_tobjs = []
 
         bottom_row = QHBoxLayout()
-        apply_btn = QPushButton("Apply")
-        undo_btn = QPushButton("Undo")
-        close_btn = QPushButton("Close")
-        save_btn = QPushButton("Save")
-        for _btn in (apply_btn, undo_btn, close_btn, save_btn):
-            _btn.setFixedHeight(18)
-        apply_btn.setToolTip(
+        apply_btn = self._make_standard_button("Apply", get_checkmark_icon(18, icon_color), tooltip=
             "STUB - edits made here (Position/Rotation/Scale) already\n"
             "apply live and update the viewport immediately as you nudge\n"
             "them, so there's nothing separate to 'Apply' yet. Will do\n"
             "something once raw-line editing (per the redesign spec) is\n"
             "built - see TODO.md.")
-        apply_btn.clicked.connect(self._on_apply_clicked)
-        undo_btn.clicked.connect(self._on_undo_clicked)
-        close_btn.clicked.connect(self._on_close_clicked)
-        save_btn.setToolTip(
+        undo_btn = self._make_standard_button("Undo", get_undo_icon(18, icon_color))
+        close_btn = self._make_standard_button("Close", get_close_icon(18, icon_color))
+        save_btn = self._make_standard_button("Save", get_save_icon(18, icon_color), tooltip=
             "STUB - no write-back infrastructure exists for any file type\n"
             "in Map Workshop yet (see TODO.md) - edits stay in memory only,\n"
             "nothing gets written back to the .ipl/.ide file on disk.")
+        apply_btn.clicked.connect(self._on_apply_clicked)
+        undo_btn.clicked.connect(self._on_undo_clicked)
+        close_btn.clicked.connect(self._on_close_clicked)
         save_btn.clicked.connect(self._on_save_clicked)
         bottom_row.addWidget(apply_btn)
         bottom_row.addWidget(undo_btn)
@@ -3804,6 +3800,27 @@ class _InstanceEditPanel(QWidget):
         self._lay.addWidget(box)
         return box
 
+    _COMPACT_BUTTON_STYLE = "padding: 0px 4px; margin: 0px; border-width: 1px;"
+
+    def _make_standard_button(self, text, icon=None, tooltip=None): #vers 1
+        """Build a button matching the exact standard used by the IPL
+        Sections row (Open/Close/New/Delete in the IPL tab) - the one
+        Keith confirmed as "a perfect size" and asked to become the
+        standard for every button on every widget/panel in the app
+        (Aug 1 2026): 18x18 icon (when given) + text, setFixedHeight
+        (18), and the same compact stylesheet
+        (padding: 0px 4px; margin: 0px; border-width: 1px) - not just
+        the height alone, which is what earlier passes at this had
+        been applying inconsistently."""
+        btn = QPushButton(icon, text) if icon is not None else QPushButton(text)
+        if icon is not None:
+            btn.setIconSize(QSize(18, 18))
+        btn.setFixedHeight(18)
+        btn.setStyleSheet(self._COMPACT_BUTTON_STYLE)
+        if tooltip:
+            btn.setToolTip(tooltip)
+        return btn
+
     def _set_section_lines(self, box, lines): #vers 1
         lay = box.layout()
         while lay.count():
@@ -3854,8 +3871,9 @@ class _InstanceEditPanel(QWidget):
             textures, _source, status = self._workshop._get_txd_textures(txd_name)
             if status == 'loaded':
                 row.addWidget(QLabel(f"{txd_name}.txd is loaded"))
-                show_btn = QPushButton("Show")
-                show_btn.setFixedHeight(18)
+                from apps.methods.imgfactory_svg_icons import get_view_icon
+                show_btn = self._make_standard_button(
+                    "Show", get_view_icon(18, self._workshop._get_icon_color()))
                 show_btn.clicked.connect(
                     lambda: self._workshop._show_textures_for_instance(self._inst))
                 row.addWidget(show_btn)
