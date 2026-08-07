@@ -986,3 +986,13 @@ conclusively found despite extensive isolated testing.
   reporting a real `height() == 18` with sensible on-screen geometry
   (not collapsed). Full `QApplication` instantiation clean, `ast.parse`
   clean.
+
+- **Aug 1, 2026 (cont'd)** — Per Keith: merged "Set Scaling to 0"
+  (previously its own row) with the `[2DFX]`/`[TOBJ]` buttons into a
+  single row of three - `[2DFX (n)] [TOBJ (n)] [Set Scaling to 0]`.
+  Fixed a `self.` reference bug present in Keith's own draft snippet
+  along the way (`_zero_btn.setToolTip(...)` without `self.` would
+  have raised `NameError`). Kept the 18px height convention used
+  throughout. Verified all three buttons report `height() == 18` and
+  Set Scaling to 0 still correctly zeroes the instance's scale. Full
+  `QApplication` instantiation clean, `ast.parse` clean.

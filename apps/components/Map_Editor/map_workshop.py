@@ -3692,25 +3692,25 @@ class _InstanceEditPanel(QWidget):
             self._add_nudge_section("Rotation (degrees)", self._ROT_SMALL_STEP, self._ROT_LARGE_STEP, self._on_rotation_nudged)
         self._scale_box, self._scale_spins, self._scale_grid, self._scale_rows = \
             self._add_nudge_section("Scale", self._SCALE_SMALL_STEP, self._SCALE_LARGE_STEP, self._on_scale_nudged)
-        set_scale_zero_btn = QPushButton("Set Scaling to 0")
-        set_scale_zero_btn.setFixedHeight(18)
-        set_scale_zero_btn.setToolTip(
+        effects_row = QHBoxLayout()
+        self._2dfx_btn = QPushButton("2DFX (0)")
+        self._tobj_btn = QPushButton("TOBJ (0)")
+        self._zero_btn = QPushButton("Set Scaling to 0")
+        self._2dfx_btn.setFixedHeight(18)
+        self._tobj_btn.setFixedHeight(18)
+        self._zero_btn.setFixedHeight(18)
+        self._zero_btn.setToolTip(
             "Sets this instance's scale to (0,0,0) - matches how some\n"
             "converted IPLs (e.g. GTA SA data converted to VC's format)\n"
             "represent 'no real scale data' rather than the normal (1,1,1)\n"
             "unit scale. See the Ignore Scaling option in IPL Controls\n"
             "for treating this the other way around, without editing.")
-        set_scale_zero_btn.clicked.connect(self._on_set_scale_zero_clicked)
-        self._lay.addWidget(set_scale_zero_btn)
-        effects_row = QHBoxLayout()
-        self._2dfx_btn = QPushButton("2DFX (0)")
-        self._tobj_btn = QPushButton("TOBJ (0)")
-        self._2dfx_btn.setFixedHeight(18)
-        self._tobj_btn.setFixedHeight(18)
         self._2dfx_btn.clicked.connect(self._on_2dfx_button_clicked)
         self._tobj_btn.clicked.connect(self._on_tobj_button_clicked)
+        self._zero_btn.clicked.connect(self._on_set_scale_zero_clicked)
         effects_row.addWidget(self._2dfx_btn)
         effects_row.addWidget(self._tobj_btn)
+        effects_row.addWidget(self._zero_btn)
         self._lay.addLayout(effects_row)
         self._current_effects = []
         self._current_tobjs = []
