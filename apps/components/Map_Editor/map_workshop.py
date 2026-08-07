@@ -3664,7 +3664,8 @@ class _InstanceEditPanel(QWidget):
         self._loader = None
         self._nudge_wide = None   # current reflow state, None forces first layout
         self.setWindowTitle("[IPL object editor]")
-        self.setMinimumWidth(180)
+        self.setMinimumWidth(380)
+        self.setMinimumHeight(520)
 
         self._lay = QVBoxLayout(self)
         self._lay.setContentsMargins(4, 4, 4, 4)
@@ -18179,6 +18180,18 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if outer_mw is not None:
                 outer_mw.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, dock)
             dock.setFloating(True)
+            # Explicit resize (Aug 1 2026, per Keith: "[Show] button
+            # can't be seen; only showing 3px in height", "the ipl
+            # values are barely visible", overlapping Prev/Next and
+            # Apply/Undo/Close/Save rows) - a dock briefly added to a
+            # dock area right before floating often inherits a tiny
+            # constrained size from that instant rather than sizing to
+            # its actual content, squeezing every fixed-height widget
+            # in the panel down below readable size. setMinimumWidth/
+            # Height on the panel itself stops things collapsing
+            # further, but the dock's initial floating size still
+            # needs setting explicitly here.
+            dock.resize(460, 560)
             self._instance_edit_dock = dock
         panel = self._instance_edit_panel
         panel.show_for_instance(inst, getattr(self, '_world_loader', None), nav_info,

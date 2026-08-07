@@ -960,3 +960,29 @@ conclusively found despite extensive isolated testing.
   correctly reports "R&I", one only in the geometry correctly reports
   "Req"); both new dialogs confirmed running without crashing. Full
   `QApplication` instantiation clean, `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Per Keith's screenshot: "[Show] button
+  can't be seen; only showing 3px in height for the font", "the ipl
+  values are barely visible", and "3 buttons; hard to see, should be
+  3 in a row - space then the 4 buttons under them, I can't tell what
+  they are." All three symptoms had one root cause: the dock (made
+  floating-by-default last pass) had no explicit size set anywhere -
+  a `QDockWidget` briefly added to a dock area right before
+  `setFloating(True)` often inherits a tiny constrained size from
+  that instant rather than sizing to its actual content, squeezing
+  every `setFixedHeight(18)` widget in the panel down well below
+  readable size and crowding the Prev/Next and Apply/Undo/Close/Save
+  rows against each other.
+
+  Fixed: bumped `_InstanceEditPanel`'s minimum size from 180×(none) to
+  380×520 (180 was never enough for the compact X/Y/Z-per-row layout,
+  and there was no minimum height at all), and explicitly `dock.resize
+  (460, 560)` right after `setFloating(True)` so the floating window
+  opens at a sensible size instead of whatever tiny default Qt would
+  otherwise give it.
+
+  Verified: dock confirmed at the requested 460×560 on creation, well
+  above the panel's 380×520 minimum; the `Show` button confirmed
+  reporting a real `height() == 18` with sensible on-screen geometry
+  (not collapsed). Full `QApplication` instantiation clean, `ast.parse`
+  clean.
