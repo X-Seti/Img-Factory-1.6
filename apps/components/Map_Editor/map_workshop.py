@@ -3665,7 +3665,7 @@ class _InstanceEditPanel(QWidget):
         self._nudge_wide = None   # current reflow state, None forces first layout
         self.setWindowTitle("[IPL object editor]")
         self.setMinimumWidth(380)
-        self.setMinimumHeight(520)
+        self.setMinimumHeight(320)
 
         self._lay = QVBoxLayout(self)
         self._lay.setContentsMargins(4, 4, 4, 4)
@@ -3737,6 +3737,7 @@ class _InstanceEditPanel(QWidget):
         bottom_row.addWidget(close_btn)
         bottom_row.addWidget(save_btn)
         self._lay.addLayout(bottom_row)
+        self._lay.addStretch()
 
         self._reflow_nudge_rows(wide=True)
 
@@ -3792,8 +3793,9 @@ class _InstanceEditPanel(QWidget):
                     grid.addWidget(btn_rr, r + 1, 3)
         self._nudge_wide = wide
 
-    def _add_section(self, title): #vers 2
+    def _add_section(self, title): #vers 3
         box = QGroupBox(title)
+        box.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         lay = QVBoxLayout(box)
         lay.setContentsMargins(6, 4, 6, 4)
         lay.setSpacing(2)
@@ -3999,6 +4001,7 @@ class _InstanceEditPanel(QWidget):
         line (rather than clipping/squeezing, which a plain QHBoxLayout
         would do with no wrapping at all)."""
         box = QGroupBox(title)
+        box.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         grid = QGridLayout(box)
         grid.setContentsMargins(6, 4, 6, 4)
         grid.setSpacing(3)
@@ -4022,7 +4025,7 @@ class _InstanceEditPanel(QWidget):
             spin.setRange(-100000.0, 100000.0)
             spin.setDecimals(2)
             spin.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
-            spin.setFixedWidth(70)
+            spin.setFixedWidth(74)
             btn_r  = QPushButton(); btn_r.setIcon(icons['r']);   btn_r.setFixedWidth(22)
             btn_rr = QPushButton(); btn_rr.setIcon(icons['rr']); btn_rr.setFixedWidth(28)
             # 18px uniform height (Aug 1 2026, per Keith's screenshot:
@@ -18209,7 +18212,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             # Height on the panel itself stops things collapsing
             # further, but the dock's initial floating size still
             # needs setting explicitly here.
-            dock.resize(460, 560)
+            dock.resize(460, 400)
             self._instance_edit_dock = dock
         panel = self._instance_edit_panel
         panel.show_for_instance(inst, getattr(self, '_world_loader', None), nav_info,

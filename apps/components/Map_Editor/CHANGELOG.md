@@ -1023,3 +1023,31 @@ conclusively found despite extensive isolated testing.
   Close/Save/Show confirmed carrying a real icon; 2DFX/TOBJ/Set
   Scaling to 0 confirmed correctly icon-less but still properly
   sized. Full `QApplication` instantiation clean, `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Per Keith's screenshot: "the value
+  entries need to be 4px wider, and the red lines show unused space,
+  so we can remove the emtpy areas" (red lines marking blank vertical
+  space within each Position/Rotation/Scale section).
+
+  Widened the value spinboxes from 70 to 74px. The empty space's real
+  cause: `QGroupBox` sections had no explicit vertical size policy,
+  so with the dock's fixed initial height (560px, set for the taller
+  pre-icon layout from a few passes ago) now noticeably taller than
+  the actual compact content needs (291px observed), the extra space
+  was being distributed across each expanding section rather than
+  collecting in one place. Set `QSizePolicy.Fixed` vertically on both
+  section box constructors (`_add_section` and `_add_nudge_section`)
+  so each sizes tightly to its own content, and added `self._lay.
+  addStretch()` at the end of the main layout so any genuinely extra
+  space goes to the bottom instead of being spread internally.
+  Reduced the panel's minimum height (520 -> 320) and the dock's
+  initial resize height (560 -> 400) to match the new compact reality
+  - the old values were themselves large enough to force wasted space
+  even with the above fixes.
+
+  Verified: spinbox confirmed `width() == 74`; Position section's
+  vertical policy confirmed `Fixed`; its `sizeHint()` confirmed a
+  tight 50px (matching a single row + margins, no leftover space);
+  panel's overall `sizeHint()` confirmed 447x291, comfortably inside
+  the new, more realistic minimum/initial sizes. Full `QApplication`
+  instantiation clean, `ast.parse` clean.
