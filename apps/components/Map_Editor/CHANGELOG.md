@@ -834,3 +834,48 @@ conclusively found despite extensive isolated testing.
   IPL Inst File/Models/Object Browser/Textures), each unchecked but
   enabled and clickable to restore. Full `QApplication` instantiation
   clean, `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Refined the Item Editor Dialog per
+  Keith's follow-up screenshot/feedback, using his real example
+  (`washer`, ID 331, `starisl.ipl`, TXD `dynjunk`):
+
+  - Removed the "IDE Info" section entirely (Type/Section/Source/
+    mesh_count/draw_dist/flags) - redundant now that Identity shows
+    the raw lines directly. Its "Source generic.ide (line 28)" info
+    moved into Identity's IDE line instead, appended after the raw
+    fields.
+  - Identity's 3rd row now reports the TXD's *real* status instead of
+    a generic "expected to be loaded" note - one of three messages
+    depending on what actually happened: `"{txd}.txd is missing from
+    gta3.img"`, `"{txd}.txd is loaded"` (with a `[Show]` button that
+    populates the existing Textures dock), or `"{txd}.txd exists but
+    can not be loaded"`. Extended `_get_txd_textures_with_fallback`
+    to return a proper 3-way status (`'loaded'`/`'missing'`/
+    `'failed'`) by checking `model_cache`'s own `_txd_index` directly
+    - distinguishing "never indexed anywhere" from "indexed (or a
+    loose file exists) but failed to read/parse", which a plain
+    textures-or-None result can't tell apart. Updated all 6 existing
+    callers of this method for the new 3-tuple return.
+  - Position/Rotation/Scale changed from one row per axis (3 rows per
+    section) to one row per *section* - X/Y/Z side by side, each
+    showing just label + single-step `-`/`+` + value (per Keith:
+    "instead show as X <> Y <> Z <> to save space"). The large-step
+    («/») buttons are hidden in this mode rather than removed, so
+    they're still there to reintroduce later if wanted. Caught and
+    fixed a real column-math bug in the first pass (used a
+    3-per-axis column stride when each axis actually needs 4 widgets,
+    causing the 2nd/3rd axis to silently overlap the 1st's buttons).
+
+  Note: Keith's fuller spec also mentioned "[Show] textures as tiles
+  with name as a dropdown" - the tiles part is wired (reuses the
+  existing Textures dock), but what a name dropdown should actually
+  do here isn't clear yet, left for a follow-up.
+
+  Verified end-to-end with Keith's own real example data: Identity
+  correctly shows the raw IPL line, the IDE line with source info
+  appended, and all three TXD status messages (tested missing/
+  loaded/failed cases individually, confirming the Show button only
+  appears in the loaded case); Position grid confirmed correct
+  column layout (X/`-`/value/`+`, Y/../.., Z/../.., no overlaps)
+  after the column-math fix. Full `QApplication` instantiation clean,
+  `ast.parse` clean.
