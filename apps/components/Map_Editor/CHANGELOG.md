@@ -915,3 +915,48 @@ conclusively found despite extensive isolated testing.
   "-793.59" (matching the real position value) without clipping;
   Close confirmed hiding the dock. Full `QApplication` instantiation
   clean, `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Per Keith's feedback (using a real
+  screenshot showing his game folder has both "Generic.txd" and
+  "generic.txd" as two different files - 348.0 KiB vs 256.4 KiB):
+  "since we have another generic.txd, just load them both without the
+  fall back, there should be no fallbacks, it should either work or
+  fail."
+
+  Removed the loose-file fallback entirely from `_get_txd_textures`
+  (renamed from `_get_txd_textures_with_fallback`, since it no longer
+  has one) - now looks up a TXD only via the game's indexed IMG
+  archives; if that fails it reports `'missing'` or `'failed'`
+  cleanly rather than silently trying a second source. The earlier
+  fallback design (added to fix white generic.txd objects a few
+  passes ago) could have silently picked the wrong one of two
+  conflicting same-named TXDs without ever surfacing that a conflict
+  existed. Updated all 9 call sites for the renamed method.
+
+  Also per Keith: "In the Identify section, right-click veg_palwee01
+  and show the names of the textures from veg_palwee01, Show tex
+  names shown in image, and Show Textures would display as [T] [T]
+  [T] [T] [T] as small thumbnails in a row" (image was RW Analyze's
+  "Texture List for <model>" dialog). Added a right-click context menu
+  on the Identity section with two new options:
+  - "Show tex names": an RW-Analyze-style table (Texture Name/Alpha
+    Name/Req-Incl) listing every texture the model's own geometry
+    materials reference, cross-checked against what the TXD actually
+    contains - "Req" if only the model needs it, "R&I" if the TXD has
+    it too.
+  - "Show Textures": a compact horizontal strip of small thumbnails,
+    distinct from the full Textures dock table (kept as-is for
+    detailed browsing) - a quick visual-only glance.
+
+  Logged "Compare TXD" (a TXD Workshop feature - listing/highlighting
+  duplicate-named TXDs like his real Generic.txd/generic.txd case) to
+  TODO.md, since it's a different component and a substantial feature
+  on its own.
+
+  Verified end-to-end: no-fallback behavior confirmed (an indexed-but-
+  failing TXD correctly returns `'failed'` without attempting any
+  loose-file lookup); the Req/Incl logic confirmed correct with
+  realistic data (a texture present in both the geometry and the TXD
+  correctly reports "R&I", one only in the geometry correctly reports
+  "Req"); both new dialogs confirmed running without crashing. Full
+  `QApplication` instantiation clean, `ast.parse` clean.

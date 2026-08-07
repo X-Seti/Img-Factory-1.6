@@ -117,3 +117,21 @@ Still open:
 - Real Undo (currently a stub) - same underlying design work as the
   general undo/redo item above.
 
+
+## Compare TXD (TXD Workshop, Aug 1 2026, Keith's request)
+
+Per Keith: "Compare TXD should be an option for txd workshop, as we
+have generic.txd and Generic.txd, it would say list both txd, and
+highlight the extra txd." This is a TXD Workshop
+(apps/components/Txd_Editor/txd_workshop.py) feature, not Map
+Workshop - a real screenshot showed his actual game folder has both
+"Generic.txd" (348.0 KiB) and "generic.txd" (256.4 KiB) as two
+different files. A "Compare TXD" option would scan for name
+collisions like this (case-different or otherwise duplicate TXD
+names across indexed locations) and list/highlight them so the
+conflict is visible rather than silently resolved one way or another.
+Directly related to why the fallback logic was removed from Map
+Workshop's texture loading (see CHANGELOG.md) - Keith's stated
+principle is "there should be no fallbacks, it should either work or
+fail," and a duplicate-detection feature is the right way to surface
+this kind of conflict instead.

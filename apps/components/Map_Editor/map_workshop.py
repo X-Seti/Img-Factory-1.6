@@ -3670,6 +3670,8 @@ class _InstanceEditPanel(QWidget):
         self._lay.setContentsMargins(4, 4, 4, 4)
         self._lay.setSpacing(3)
         self._identity_box = self._add_section("Identity")
+        self._identity_box.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._identity_box.customContextMenuRequested.connect(self._on_identity_context_menu)
         self._nav_row = QHBoxLayout()
         self._nav_label = QLabel("")
         self._nav_prev_btn = QPushButton("< Prev")
@@ -3848,7 +3850,7 @@ class _InstanceEditPanel(QWidget):
         if not txd_name:
             row.addWidget(QLabel("(TXD unknown - no IDE match)"))
         else:
-            textures, _source, status = self._workshop._get_txd_textures_with_fallback(txd_name)
+            textures, _source, status = self._workshop._get_txd_textures(txd_name)
             if status == 'loaded':
                 row.addWidget(QLabel(f"{txd_name}.txd is loaded"))
                 show_btn = QPushButton("Show")
@@ -3863,6 +3865,112 @@ class _InstanceEditPanel(QWidget):
         row.addStretch()
         row.addWidget(QLabel(f"Interior: {interior}   LOD index: {lod_index}"))
         lay.addLayout(row)
+
+    def _on_identity_context_menu(self, pos): #vers 1
+        """Right-click menu on the Identity section - Aug 1 2026, per
+        Keith: "In the Identify section, right-click veg_palwee01 and
+        show the names of the textures from veg_palwee01, Show tex
+        names shown in image, and Show Textures would display as
+        [T] [T] [T] [T] [T] as small thumbnails in a row" (image was
+        RW Analyze's "Texture List for <model>" dialog - Req/Incl/R&I
+        columns comparing what the model's geometry requires against
+        what the TXD actually includes)."""
+        if self._inst is None:
+            return
+        menu = QMenu(self)
+        names_action = menu.addAction("Show tex names")
+        textures_action = menu.addAction("Show Textures")
+        chosen = menu.exec(self._identity_box.mapToGlobal(pos))
+        if chosen is names_action:
+            self._show_tex_names_dialog()
+        elif chosen is textures_action:
+            self._show_texture_thumbnail_strip()
+
+    def _show_tex_names_dialog(self): #vers 1
+        """RW-Analyze-style texture list: every texture name the
+        model's own geometry materials reference (Req), cross-
+        referenced against what's actually in the TXD (Incl) - Req
+        without Incl means the model needs a texture the TXD doesn't
+        have; Incl without Req means the TXD has a texture the model
+        doesn't use; both means it's fully satisfied (R&I)."""
+        model_cache = getattr(self._workshop, '_model_cache', None)
+        inst = self._inst
+        if model_cache is None or inst is None:
+            return
+        dff_model = model_cache.get_geometry(inst.model_name)
+        required = []   # (texture_name, alpha_name)
+        if dff_model is not None:
+            for g in getattr(dff_model, 'geometries', []):
+                for m in getattr(g, 'materials', []):
+                    if m.texture_name:
+                        required.append((m.texture_name, m.texture_mask))
+        loader = getattr(self._workshop, '_world_loader', None)
+        obj = loader.get_object(inst.model_id) if loader else None
+        txd_name = obj.txd_name if obj else ""
+        textures, _source, _status = (self._workshop._get_txd_textures(txd_name)
+                                      if txd_name else (None, None, 'missing'))
+        included = set((textures or {}).keys())
+
+        table = QTableWidget(0, 3)
+        table.setHorizontalHeaderLabels(["Texture Name", "Alpha Name", "Req/Incl"])
+        table.setRowCount(len(required))
+        for i, (tex_name, alpha_name) in enumerate(required):
+            table.setItem(i, 0, QTableWidgetItem(tex_name))
+            table.setItem(i, 1, QTableWidgetItem(alpha_name))
+            status = "R&I" if tex_name.lower() in included else "Req"
+            table.setItem(i, 2, QTableWidgetItem(status))
+        table.resizeColumnsToContents()
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Texture List for {inst.model_name}")
+        lay = QVBoxLayout(dlg)
+        legend = QLabel("Req = required by model geometry   Incl = included in TXD   R&I = both")
+        legend.setStyleSheet("color: palette(mid);")
+        lay.addWidget(legend)
+        lay.addWidget(table)
+        dlg.resize(420, 260)
+        dlg.exec()
+
+    def _show_texture_thumbnail_strip(self): #vers 1
+        """Compact horizontal row of small texture thumbnails - per
+        Keith: "Show Textures would display as [T] [T] [T] [T] [T] as
+        small thumbnails in a row" - distinct from the full Textures
+        dock table (name/size/format columns), which stays as-is for
+        detailed browsing; this is a quick visual-only glance."""
+        inst = self._inst
+        if inst is None:
+            return
+        loader = getattr(self._workshop, '_world_loader', None)
+        obj = loader.get_object(inst.model_id) if loader else None
+        txd_name = obj.txd_name if obj else ""
+        textures, _source, status = (self._workshop._get_txd_textures(txd_name)
+                                     if txd_name else (None, None, 'missing'))
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Textures - {txd_name}.txd" if txd_name else "Textures")
+        outer = QVBoxLayout(dlg)
+        if not textures:
+            outer.addWidget(QLabel(f"{txd_name}.txd is {status}" if txd_name else "(no TXD)"))
+        else:
+            strip = QHBoxLayout()
+            for tex in textures.values():
+                cell = QVBoxLayout()
+                thumb_lbl = QLabel()
+                pixmap = self._workshop._create_texture_thumbnail(
+                    tex.get('rgba_data'), tex.get('width', 0), tex.get('height', 0))
+                if pixmap is not None:
+                    thumb_lbl.setPixmap(pixmap)
+                thumb_lbl.setFixedSize(32, 32)
+                name_lbl = QLabel(tex.get('name', ''))
+                name_lbl.setStyleSheet("font-size: 9px;")
+                name_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                cell.addWidget(thumb_lbl)
+                cell.addWidget(name_lbl)
+                strip.addLayout(cell)
+            strip.addStretch()
+            scroller = QWidget()
+            scroller.setLayout(strip)
+            outer.addWidget(scroller)
+        dlg.exec()
 
     def _add_nudge_section(self, title, small_step, large_step, on_nudge): #vers 2
         """One label + << < [value] > >> row per axis (X/Y/Z), using
@@ -19197,20 +19305,29 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._ipl_controls_dock = dock
         return dock
 
-    def _get_txd_textures_with_fallback(self, txd_name): #vers 2
-        """Fetch any named TXD's textures - tries the game's indexed
-        IMG archives first (gta3.img is always auto-indexed for every
-        game, per GTAWorldLoader.load()'s own docstring: "Always
-        enforces models/gta3.img... so TXD Workshop and the Dump TXDs
-        feature can always find it"), falling back to {game root}/
-        models/{txd_name}.txd as a loose file if not found there.
-        Returns (textures_dict_or_None, source_description, status) -
-        status is one of:
+    def _get_txd_textures(self, txd_name): #vers 3
+        """Fetch any named TXD's textures from the game's indexed IMG
+        archives (gta3.img is always auto-indexed for every game, per
+        GTAWorldLoader.load()'s own docstring: "Always enforces
+        models/gta3.img... so TXD Workshop and the Dump TXDs feature
+        can always find it"). Returns (textures_dict_or_None,
+        source_description, status) - status is one of:
           'loaded'  - found and parsed successfully
-          'missing' - not indexed in any IMG archive and no loose file
-                      exists either
-          'failed'  - found (indexed, or a loose file exists) but
-                      reading/parsing it failed
+          'missing' - not indexed in any IMG archive
+          'failed'  - indexed but reading/parsing it failed
+
+        No loose-file fallback (Aug 1 2026, removed per Keith: "since
+        we have another generic.txd, just load them both without the
+        fall back, there should be no fallbacks, it should either
+        work or fail") - an earlier version of this tried a loose
+        {game root}/models/{txd_name}.txd file when the IMG index
+        lookup failed, but Keith pointed out this can silently mask a
+        genuine conflict: his own game folder has both "Generic.txd"
+        and "generic.txd" (two different files, different sizes) -
+        silently picking whichever one a fallback happens to find
+        hides that duplicate rather than surfacing it. Better to fail
+        cleanly and let a duplicate-detection feature (Compare TXD,
+        tracked in TODO.md) surface the real problem.
 
         Generalized (Aug 1 2026) from the original generic.txd-only
         _get_generic_textures, per Keith: "its not just generic.txd,
@@ -19225,48 +19342,33 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         The 3-way status (Aug 1 2026, per Keith's Item Editor Dialog
         spec: "dynjunk.txd is missing from gta3.img" / "dynjunk.txd is
         loaded, [Show] textures..." / "dynjunk.txd exists but can not
-        be loaded" - three genuinely different situations, not just
-        found-or-not) distinguishes "never indexed anywhere" from
-        "indexed (or a loose file exists) but failed to read/parse" by
-        checking model_cache's own _txd_index directly, rather than
-        collapsing both into a single None result the way the plain
-        get_textures() call does."""
+        be loaded") distinguishes "never indexed anywhere" from
+        "indexed but failed to read/parse" by checking model_cache's
+        own _txd_index directly, rather than collapsing both into a
+        single None result the way the plain get_textures() call
+        does."""
         model_cache = getattr(self, '_model_cache', None)
         if model_cache is None:
             return None, None, 'missing'
         textures = model_cache.get_textures(txd_name)
         if textures:
             return textures, "an indexed IMG archive (e.g. gta3.img)", 'loaded'
-
         key = txd_name.lower()
         in_img_index = key in getattr(model_cache, '_txd_index', {})
-        game_root = getattr(self, '_game_root', None)
-        loose_path = os.path.join(game_root, 'models', f'{txd_name}.txd') if game_root else None
-        loose_exists = bool(loose_path and os.path.isfile(loose_path))
-        if loose_exists:
-            try:
-                with open(loose_path, 'rb') as f:
-                    from apps.methods.txd_parser import parse_txd
-                    tex_list = parse_txd(f.read())
-                textures = {t['name'].lower(): t for t in tex_list if t.get('name')}
-                if textures:
-                    return textures, loose_path, 'loaded'
-            except Exception:
-                pass
-        return None, None, ('failed' if (in_img_index or loose_exists) else 'missing')
+        return None, None, ('failed' if in_img_index else 'missing')
 
-    def _get_generic_textures(self): #vers 3
+    def _get_generic_textures(self): #vers 4
         """Thin wrapper kept for the Generic.txd button - see
-        _get_txd_textures_with_fallback for the actual (now
-        generalized) fetch/fallback logic. Returns the same 3-tuple
-        (textures, source, status)."""
-        return self._get_txd_textures_with_fallback('generic')
+        _get_txd_textures for the actual fetch logic (no fallback,
+        see its docstring). Returns the same 3-tuple (textures,
+        source, status)."""
+        return self._get_txd_textures('generic')
 
     def _preload_generic_ide_textures(self): #vers 2
         """Collect every distinct TXD name referenced by generic.ide's
         own entries (IDEObject.source_ide, matched by basename,
         case-insensitive) and preload all of them via
-        _get_txd_textures_with_fallback. Returns (all_textures,
+        _get_txd_textures. Returns (all_textures,
         covered_txd_names) - the second so callers can skip re-fetching
         these same TXDs in their own per-model loop.
 
@@ -19318,7 +19420,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         all_textures = []
         fetched_count = 0
         for txd_name in sorted(distinct_txds):
-            textures, _source, _status = self._get_txd_textures_with_fallback(txd_name)
+            textures, _source, _status = self._get_txd_textures(txd_name)
             if textures:
                 fetched_count += 1
                 all_textures.extend(textures.values())
@@ -19330,21 +19432,24 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._generic_ide_textures_cache = (id(loader), all_textures, distinct_txds)
         return all_textures, distinct_txds
 
-    def _on_load_generic_txd_clicked(self): #vers 2
-        """Load generic.txd and show it in the Textures dock - per
-        Keith: "the Generic.txd button should load the generic.txd
-        from gta3.img and root/models/generic.txd", confirmed IMG
-        first. See _get_generic_textures for the actual fetch/fallback
-        logic, shared with the automatic per-IPL preload in
-        _refresh_world_view."""
+    def _on_load_generic_txd_clicked(self): #vers 3
+        """Load generic.txd and show it in the Textures dock. Looks
+        it up in the game's indexed IMG archives only, no loose-file
+        fallback (Aug 1 2026, per Keith: "since we have another
+        generic.txd, just load them both without the fall back, there
+        should be no fallbacks, it should either work or fail" - his
+        own game folder has both "Generic.txd" and "generic.txd" as
+        separate files, and a fallback picking one silently would mask
+        that conflict rather than surfacing it). See _get_generic_
+        textures for the actual fetch logic, shared with the automatic
+        per-IPL preload in _refresh_world_view."""
         if getattr(self, '_model_cache', None) is None:
             QMessageBox.information(self, "Generic.txd", "No world loaded yet.")
             return
         textures, source, _status = self._get_generic_textures()
         if not textures:
             QMessageBox.warning(self, "Generic.txd",
-                "generic.txd not found in any indexed IMG archive\n"
-                "(e.g. gta3.img) or at {game root}/models/generic.txd.")
+                "generic.txd not found in any indexed IMG archive (e.g. gta3.img).")
             return
         self._generic_textures = textures
         if hasattr(self, '_tex_count_lbl'):
@@ -19593,7 +19698,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         textures brings nothing up nothing, i was expecting to see
         tiles, or something telling me there missing") to use the same
         robust IMG-then-loose-file fallback
-        (_get_txd_textures_with_fallback) the generic.ide fix already
+        (_get_txd_textures) the generic.ide fix already
         uses, instead of a plain model_cache.get_textures() call that
         silently returns nothing on failure with zero indication why -
         his own real example (b_hse_pier, TXD "boathouse") hit exactly
@@ -19619,7 +19724,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 self._tex_count_lbl.setText(
                     f"No TXD name found for {inst.model_name} (check its IDE entry)")
             return
-        textures, source, _status = self._get_txd_textures_with_fallback(txd_name) if model_cache else (None, None, 'missing')
+        textures, source, _status = self._get_txd_textures(txd_name) if model_cache else (None, None, 'missing')
         textures = textures or {}
         tex_list.setRowCount(len(textures))
         for i, tex in enumerate(textures.values()):
@@ -20686,7 +20791,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                         # doesn't find it" issue isn't specific to
                         # generic.ide, just where Keith happened to
                         # notice it first.
-                        textures, _src, _status = self._get_txd_textures_with_fallback(txd_name)
+                        textures, _src, _status = self._get_txd_textures(txd_name)
                         if textures:
                             all_textures.extend(textures.values())
             base = converted[model_name]
@@ -20790,7 +20895,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if hasattr(self, '_tex_count_lbl'):
                 self._tex_count_lbl.setText(f"No TXD name found for {model_name}")
             return
-        textures, source, _status = self._get_txd_textures_with_fallback(txd_name) if model_cache else (None, None, 'missing')
+        textures, source, _status = self._get_txd_textures(txd_name) if model_cache else (None, None, 'missing')
         textures = textures or {}
         tex_list.setRowCount(len(textures))
         for i, tex in enumerate(textures.values()):
