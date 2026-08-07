@@ -17881,6 +17881,33 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 table = getattr(self, '_ipl_inst_file_table', None)
                 if table is not None:
                     table.setRowCount(0)
+        #TODO add support for GTASA
+        #end
+        #cull TODO cull zones for LC, VC and SA.
+        #end
+        #path TODO Paths support for SA paths.ipl VC paths.ipl and LC where the path data is in the IDE file.
+        #end
+        #grge TODO add support for Garage locations
+        #-1941.04, 251.714, 33.4274, -1941.04, 239.541, -1930.66, 251.714, 38.6634, 1, 1, mdsSFSe
+        #-1908.93, 292.353, 40.0413, -1908.93, 277.989, -1900.11, 292.353, 45.539, 1, 5, sprsfse
+        #-2112.48, -21.214, 34.303, -2102.48, -21.214, -2112.48, -11.214, 40.303, 1, 1, brgSFSE
+        #-2043.1, 118.609, 27.821, -2021.91, 118.609, -2043.1, 129.609, 32.821, 1, 41, LCKSfse
+        #-2057.35, 150.803, 27.8286, -2038.91, 150.803, -2057.35, 182.876, 33.2286, 1, 1, hbgdSFS
+        #end
+        #enex TODO needs supporting
+        #-2027.73, -40.5488, 37.8263, 0, 3, 3, 8, -2027.83, -44.0454, 37.0263, 4139.7, 0, 4, "SVSFBG", 0, 2, 0, #24
+        #-2242.69, -88.2558, 34.3578, 0, 1.6, 1.6, 8, -2245.38, -88.2558, 34.3578, 3691.82, 0, 4, "BAR2", 0, 2, 0, 24
+        #end
+        #pick TODO Pick
+        #end
+        #jump TODO Jump?
+        #end
+        #tcyc TODO timecycle effects
+        #end
+        #auzo TODO add support for sound effects
+        #end
+        #mult
+        #end
         else:
             self._ipl_inst_file_mode = 'ipl'
             if title_lbl is not None:
