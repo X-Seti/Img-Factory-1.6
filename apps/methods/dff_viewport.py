@@ -1152,7 +1152,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
              self._triangles,self._materials,self._prelit,
              self._current_geom_flags) = (old_v,old_n,old_u,old_t,old_m,old_p,old_f)
 
-    def set_world_instances(self, entries): #vers 2
+    def set_world_instances(self, entries, auto_fit=True): #vers 3
         """Load a whole set of positioned instances for a full
         multi-instance world view (Aug 1 2026, per Keith: "wire every
         pane into the viewport, when I load ipl, these dont show").
@@ -1171,10 +1171,22 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         Discards any previously-built display lists (Aug 1 2026
         perf fix) - a new world/IPL selection means the old models'
         compiled geometry is no longer relevant, freeing that GPU
-        memory rather than letting the cache grow across every load."""
+        memory rather than letting the cache grow across every load.
+
+        auto_fit=False (Aug 1 2026, per Keith: "When moving an object
+        with the object editor... the viewpoint zooms out
+        automatically; the viewpoint should stay on the chosen
+        object") - every nudge edit re-applies the IPL visibility
+        filter to keep the World View panes in sync
+        (ModelWorkshop._on_instance_edited), which calls this same
+        method; auto-fitting on every single nudge was re-framing the
+        camera to the whole map's bounding box each time, fighting
+        whatever position the user had just navigated to. Real loads/
+        IPL switches still want the fit (finding the newly-visible
+        content is the point there); edit-triggered refreshes don't."""
         self._clear_world_display_lists()
         self._world_instances = entries or []
-        if self._world_instances:
+        if self._world_instances and auto_fit:
             self._auto_fit_world()
         self.update()
 

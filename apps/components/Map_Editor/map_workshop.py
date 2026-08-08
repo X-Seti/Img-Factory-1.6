@@ -18332,14 +18332,21 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         dock.show()
         dock.raise_()
 
-    def _on_instance_edited(self, inst): #vers 1
+    def _on_instance_edited(self, inst): #vers 2
         """Called by _InstanceEditPanel whenever a position/rotation
         nudge changes an instance in memory - refreshes the World View
         panes to reflect the new position (they cache instance data as
         plain tuples for fast rendering, built at the last filter
         application, so mutating the IPLInstance alone doesn't
-        propagate until this re-applies the current filter)."""
-        self._apply_ipl_visibility_filter()
+        propagate until this re-applies the current filter).
+
+        auto_fit=False (Aug 1 2026, per Keith: "When moving an object
+        with the object editor... the viewpoint zooms out
+        automatically; the viewpoint should stay on the chosen
+        object") - without this, every single nudge re-framed the
+        camera to fit the whole map's bounding box, fighting whatever
+        position the user had just navigated the camera to."""
+        self._apply_ipl_visibility_filter(auto_fit=False)
 
     def _on_instance_list_context_menu(self, pos): #vers 2
         """Right-click a row - Add/Remove Favourites always available
@@ -20840,12 +20847,18 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         for pane in getattr(self, '_world_panes', []):
             pane.set_cull_boxes(culls, checked)
 
-    def _apply_ipl_visibility_filter(self): #vers 2
+    def _apply_ipl_visibility_filter(self, auto_fit=True): #vers 3
         """Recompute which instances are currently visible: every
         loaded instance whose source_ipl isn't in self._hidden_ipls,
         then layer LOD show/hide on top (global toggle + any per-
         instance overrides) - push the final result to the world-view
-        panes and Instance List."""
+        panes and Instance List.
+
+        auto_fit=False lets a caller (specifically _on_instance_edited,
+        triggered by every position/rotation/scale nudge in the Item
+        Editor Dialog) refresh the view without re-framing the camera
+        to the whole map's bounding box each time - see
+        DFFViewport.set_world_instances for the full reasoning."""
         all_inst = getattr(self, '_all_instances', None)
         if all_inst is None:
             return
@@ -20856,9 +20869,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             pane.set_instances(visible)
         loader_stub = _FilteredLoaderStub(visible, getattr(self, '_world_loader', None))
         self._populate_instance_list(loader_stub)
-        self._refresh_world_view(visible)
+        self._refresh_world_view(visible, auto_fit=auto_fit)
 
-    def _refresh_world_view(self, instances): #vers 2
+    def _refresh_world_view(self, instances, auto_fit=True): #vers 3
         """Push a full multi-instance 3D world view into the existing
         DFF viewport (self.preview_widget) - Aug 1 2026, per Keith:
         "wire every pane into the viewport, when I load ipl, these
@@ -20964,7 +20977,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             vp._upload_textures(all_textures, additive=False)
         if hasattr(vp, 'set_render_mode'):
             vp.set_render_mode('textured')
-        vp.set_world_instances(entries)
+        vp.set_world_instances(entries, auto_fit=auto_fit)
         self._populate_models_panel_from_ipl(instances)
 
     def _populate_models_panel_from_ipl(self, instances): #vers 1

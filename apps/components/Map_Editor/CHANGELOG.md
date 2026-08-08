@@ -1184,3 +1184,55 @@ conclusively found despite extensive isolated testing.
   shared one correctly keeps its first-found version rather than
   either silently disappearing. Full `QApplication` instantiation
   clean, `ast.parse` clean on both files.
+
+- **Aug 1, 2026 (cont'd)** — Two real bugs fixed from Keith's latest
+  testing (DAT loading and textures now confirmed working standalone):
+
+  **1. LOD view stubbed for VC**: "Fix display: Show All, Show LOD,
+  Show Norm, as this seems to be stubbed." Found the cause -
+  `GTAWorldLoader.resolve_lod_pairs()` only ever built pairs for SA/
+  SOL (`if self.game not in (SA, SOL): return {}`), since it relied
+  entirely on SA's `lod_index` field, which GTA3/VC's inst format
+  doesn't have at all - so for VC, `_lod_pairs` was always empty and
+  the three display modes had nothing to filter, matching Keith's
+  "seems to be stubbed" exactly. Added a second detection path for
+  GTA3/VC: an instance whose model name starts with "LOD"
+  (case-insensitive) pairs with another instance in the same source
+  IPL file whose name matches the remainder (e.g. "LODdock10" ->
+  "dock10") AND sits at the same position (within a small tolerance,
+  guarding against unrelated objects sharing a name pattern
+  coincidentally) - matches the naming convention visible in Keith's
+  own earlier docks.ipl data ("LODdock10", "LODks85", "LODks96"
+  alongside their normal counterparts).
+
+  Verified with a realistic case mirroring his data: a real pair
+  (`dock10`/`LODdock10`, same position) correctly resolved; an
+  unrelated same-file LOD-prefixed instance with no matching normal
+  counterpart correctly stayed unpaired. Then verified all three
+  display modes end-to-end: Show Norm returns just the normal
+  instance, Show LOD just the LOD one, Show All both.
+
+  **2. Viewport zooms out when nudging an object**: "When moving an
+  object with the object editor... the viewpoint zooms out
+  automatically; the viewpoint should stay on the chosen object."
+  Found the cause - every nudge calls `_on_instance_edited`, which
+  re-applies the IPL visibility filter to keep the World View panes
+  in sync, which calls `DFFViewport.set_world_instances()` - and that
+  method unconditionally re-fit the camera to the whole map's
+  bounding box on every call, fighting whatever position the camera
+  had just been navigated to. Added an `auto_fit` parameter, threaded
+  through `set_world_instances` -> `_refresh_world_view` ->
+  `_apply_ipl_visibility_filter`, defaulting to `True` everywhere
+  (preserving the existing fit-on-load/IPL-switch behavior) except
+  `_on_instance_edited`, which now passes `auto_fit=False`.
+
+  Verified: set a distinctive camera state (dist=12.34, pan=(-99,
+  -88)), triggered an edit, confirmed both values unchanged
+  afterward - camera genuinely stays put now. Full `QApplication`
+  instantiation clean, `ast.parse` clean on both files.
+
+  Deferred to TODO.md (each a substantial feature on its own): alpha-
+  texture rendering, a render-mode toggle (semi-solid/non-textured/
+  wireframe) for the world view specifically, gizmo-based free object
+  movement (Ctrl+click-drag on X/Y/Z with a lockable axis gizmo), and
+  object-to-object snapping while moving.
