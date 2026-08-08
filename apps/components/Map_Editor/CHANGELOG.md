@@ -1236,3 +1236,52 @@ conclusively found despite extensive isolated testing.
   wireframe) for the world view specifically, gizmo-based free object
   movement (Ctrl+click-drag on X/Y/Z with a lockable axis gizmo), and
   object-to-object snapping while moving.
+
+- **Aug 1, 2026 (cont'd)** — Two more pieces from Keith's request:
+
+  **Alpha-textured objects**: "show any objects with alpha textures,
+  as that would display in the game." Found the texture's own alpha
+  channel was already being uploaded to the GPU correctly (`GL_RGBA`
+  format in `_upload_textures`), but `_draw_textured` only ever
+  triggered blending based on *material* face-color alpha, which most
+  alpha-textured objects (chain-link fences, foliage, glass) don't
+  actually set - their transparency comes entirely from the texture's
+  own per-pixel alpha, which was being ignored. Enabled `GL_ALPHA_TEST`
+  (`glAlphaFunc(GL_GREATER, 0.5)`) around textured rendering - cutout-
+  style transparency (a pixel draws fully or not at all past a
+  threshold), chosen over full `GL_BLEND` deliberately since it needs
+  no back-to-front sorting and doesn't disturb depth writes. Disabled
+  again before the untextured-triangle path, which doesn't have real
+  per-pixel alpha to test against and already has its own correct
+  material-alpha blend split.
+
+  **Render mode toggle**: "Add the option to show as semi-solid, non-
+  textured, wireframe." Added a Render dropdown to IPL Controls
+  (Textured/Non-Textured/Wireframe), wired to `DFFViewport.
+  set_render_mode` - which already existed and worked, just had no
+  world-view-facing control (only ever called once, hardcoded to
+  `'textured'`, when a world first loaded). While wiring this, found
+  and fixed a real conflict: that hardcoded call ran on *every*
+  refresh, including every nudge edit and IPL visibility toggle - so
+  picking Wireframe and then editing anything would silently snap
+  back to Textured. Added a `_world_render_mode_set` flag so the
+  default only applies once per world load, and resets on a genuinely
+  new load so a fresh map still defaults to Textured rather than
+  inheriting a previous session's choice. Also caught and fixed a
+  real bug in the same edit: initially called a `_make_standard_
+  button` helper that only exists on the unrelated `_InstanceEditPanel`
+  class, not `ModelWorkshop` - fixed to match `ModelWorkshop`'s own
+  established button pattern instead (caught immediately by the next
+  instantiation test).
+
+  Deliberately did not invent a "semi-solid" mode - what that should
+  actually mean (fixed reduced opacity applied globally? something
+  else?) isn't clear yet; the three modes with unambiguous meaning
+  are wired, holding this one for Keith's clarification.
+
+  Verified: mock render-mode-set test confirmed first load forces
+  `'textured'`, a user's subsequent manual pick (`'wireframe'`)
+  sticks, and a following edit-triggered refresh no longer resets it.
+  Full `QApplication` instantiation clean, `ast.parse` clean on both
+  files. Could not runtime-test the actual OpenGL alpha-test behavior
+  (no PyOpenGL in this sandbox) - needs Keith's visual confirmation.

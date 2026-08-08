@@ -18792,6 +18792,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         specific .dat file) share exactly the same result handling."""
         self._world_loader = loader
         self._loaded_dat_path = getattr(loader.main_dat, 'dat_path', '') if hasattr(loader, 'main_dat') else ''
+        # Reset the render-mode-set flag on a fresh world load (Aug 1
+        # 2026) - a genuinely new map should default back to Textured,
+        # not silently keep whatever mode was manually chosen for a
+        # previous session's world.
+        self._world_render_mode_set = False
 
         if not ok:
             QMessageBox.warning(self, source_desc,
@@ -19442,6 +19447,42 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         lod_view_btn.setToolTip("Choose which detail level(s) of instances to show")
         opts_row.addWidget(lod_view_btn)
 
+        # Render mode toggle (Aug 1 2026, per Keith: "Add the option
+        # to show as semi-solid, non-textured, wireframe") - reuses
+        # DFFViewport's existing set_render_mode('wireframe'/'solid'/
+        # 'textured'), which already worked but had no world-view-
+        # facing control to switch it (it only ever got set once, to
+        # 'textured', when a world first loads). "Non-textured" maps
+        # onto the existing 'solid' mode (flat/lit shading, no
+        # texture) - deliberately not inventing a new "semi-solid"
+        # mode yet, since what that should actually look like (a
+        # fixed reduced opacity applied globally? something else?)
+        # isn't clear - holding for Keith to clarify once he's tried
+        # the three modes that do have an unambiguous meaning already.
+        render_mode_btn = QPushButton("Render: Textured")
+        render_mode_btn.setFixedHeight(18)
+        render_mode_btn.setStyleSheet(_compact_18)
+        render_menu = QMenu(render_mode_btn)
+        render_group = QActionGroup(render_menu)
+        render_group.setExclusive(True)
+        render_specs = [
+            ('textured', "Textured", "Full textures, as loaded from the game's TXDs"),
+            ('solid',    "Non-Textured", "Flat/lit shading, no textures"),
+            ('wireframe',"Wireframe", "Edges only, no fill"),
+        ]
+        for mode, label_text, tooltip in render_specs:
+            action = render_menu.addAction(label_text)
+            action.setCheckable(True)
+            action.setChecked(mode == 'textured')
+            action.setToolTip(tooltip)
+            action.triggered.connect(
+                lambda checked, m=mode, lbl=label_text, btn=render_mode_btn:
+                    self._set_world_render_mode(m, lbl, btn) if checked else None)
+            render_group.addAction(action)
+        render_mode_btn.setMenu(render_menu)
+        render_mode_btn.setToolTip("Choose how the world view renders geometry")
+        opts_row.addWidget(render_mode_btn)
+
         opts_row.addStretch()
         lay.addLayout(opts_row)
 
@@ -19580,6 +19621,23 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 f"found/fetched, {len(all_textures)} textures total")
         self._generic_ide_textures_cache = (id(loader), all_textures, distinct_txds)
         return all_textures, distinct_txds
+
+    def _set_world_render_mode(self, mode, label, btn): #vers 1
+        """Switch the world view's render mode - per Keith: "Add the
+        option to show as semi-solid, non-textured, wireframe."
+        DFFViewport.set_render_mode already exists and works
+        (previously only ever called once, hardcoded to 'textured',
+        when a world first loads in _refresh_world_view); this just
+        gives it a UI control for the world view specifically. Marks
+        _world_render_mode_set too, matching the same flag
+        _refresh_world_view checks before applying its own default -
+        keeps both guards consistent regardless of which one runs
+        first for a given session."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is not None and hasattr(vp, 'set_render_mode'):
+            vp.set_render_mode(mode)
+        self._world_render_mode_set = True
+        btn.setText(f"Render: {label}")
 
     def _on_load_generic_txd_clicked(self): #vers 3
         """Load generic.txd and show it in the Textures dock. Looks
@@ -20975,8 +21033,17 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         if all_textures and hasattr(vp, '_upload_textures'):
             vp._upload_textures(all_textures, additive=False)
-        if hasattr(vp, 'set_render_mode'):
+        # Only force the default render mode once, on the very first
+        # world load (Aug 1 2026) - this used to run unconditionally
+        # on every single refresh, which fires on every nudge edit and
+        # IPL visibility toggle too, silently undoing the render-mode
+        # selector Keith asked for the moment anyone actually used it
+        # ("Add the option to show as semi-solid, non-textured,
+        # wireframe" - selecting Wireframe, then editing an instance,
+        # would immediately snap back to Textured without this guard).
+        if hasattr(vp, 'set_render_mode') and not getattr(self, '_world_render_mode_set', False):
             vp.set_render_mode('textured')
+            self._world_render_mode_set = True
         vp.set_world_instances(entries, auto_fit=auto_fit)
         self._populate_models_panel_from_ipl(instances)
 

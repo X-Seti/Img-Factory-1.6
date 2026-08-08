@@ -795,7 +795,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
         glDisable(GL_POLYGON_OFFSET_LINE)
 
-    def _draw_textured(self): #vers 3
+    def _draw_textured(self): #vers 4
         if not OPENGL_AVAILABLE: return
         flags = self._geom_flags()
         use_lighting = bool(flags & self.rpGEOMETRYLIGHT) and bool(self._normals)
@@ -808,6 +808,22 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glEnable(GL_TEXTURE_2D)
         glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE,
                   GL_MODULATE if use_modulate else GL_REPLACE)
+        # Alpha-textured objects (Aug 1 2026, per Keith: "show any
+        # objects with alpha textures, as that would display in the
+        # game") - chain-link fences, foliage, glass etc. rely on
+        # per-pixel alpha baked into the texture itself (already
+        # uploaded to the GPU correctly via GL_RGBA in
+        # _upload_textures), not material face-color alpha, which is
+        # what the opaque/transparent batch split below is actually
+        # keyed on - most such objects' materials are still alpha=1.0,
+        # so without this they rendered fully opaque regardless of
+        # what their texture's own alpha channel says. GL_ALPHA_TEST
+        # gives cutout-style transparency (a pixel either draws fully
+        # or not at all, based on a threshold) rather than smooth
+        # blending - deliberately, since it needs no back-to-front
+        # sorting and doesn't disturb depth writes, unlike GL_BLEND.
+        glEnable(GL_ALPHA_TEST)
+        glAlphaFunc(GL_GREATER, 0.5)
         use_p = (use_prelit or self._use_prelight) and bool(self._prelit)
         mats  = self._materials
         batches: Dict[tuple,list] = {}
@@ -840,6 +856,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 glEnd()
             if use_blend: glDepthMask(True); glDisable(GL_BLEND)
         glBindTexture(GL_TEXTURE_2D, 0); glDisable(GL_TEXTURE_2D)
+        glDisable(GL_ALPHA_TEST)
         no_opaque = [t for t in no_tex if self._face_color(t[3])[3]>=0.99]
         no_transp = [t for t in no_tex if self._face_color(t[3])[3]<0.99]
         for tri_list, use_blend in [(no_opaque,False),(no_transp,True)]:

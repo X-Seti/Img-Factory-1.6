@@ -139,3 +139,28 @@ Workshop's texture loading (see CHANGELOG.md) - Keith's stated
 principle is "there should be no fallbacks, it should either work or
 fail," and a duplicate-detection feature is the right way to surface
 this kind of conflict instead.
+
+## Interactive object movement (Aug 1 2026, Keith's request)
+
+Substantial features, not started - each needs its own design pass:
+
+- Clarify what "semi-solid" render mode should actually look like
+  (fixed reduced opacity applied globally to solid shading? something
+  else?) - Textured/Non-Textured/Wireframe are wired in IPL Controls'
+  Render dropdown, this one is genuinely ambiguous as stated.
+- Gizmo-based free object movement: "Pressing Ctrl and left-clicking
+  should freely move that object anywhere on the x, y, z axis; the
+  centre blue, red, and green thingy... should have clickable arrows
+  to lock the pane when freely moving objects." Needs: mouse-drag
+  detection distinct from camera-orbit dragging, ray/plane
+  intersection math to convert a 2D drag into a 3D position change
+  along a constrained axis or plane, rendering an actual move gizmo
+  (3 colored arrows/axes at the selected object's position) in the
+  viewport, and per-axis lock state driven by clicking the gizmo's
+  own arrows.
+- Object-to-object snapping while moving: "I should be allowed to
+  snap to object map objects, from the side, edge, or middle to
+  middle on another object, updating the snap tools." Depends on the
+  gizmo movement above existing first - needs proximity detection
+  against other loaded instances' bounding geometry, snap-point
+  calculation (side/edge/center-to-center), and visual snap feedback.
