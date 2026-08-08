@@ -1393,3 +1393,33 @@ conclusively found despite extensive isolated testing.
   would very likely break this already-verified-correct behaviour
   rather than fix anything - asked Keith for a specific VC object/
   example to investigate properly instead of guessing.
+
+- **Aug 1, 2026 (cont'd)** — Corrected the binary IPL scanning per
+  Keith's detailed follow-up explanation: "gta.dat contains entries
+  for text-based IPL files... Binary IPLs (streaming files like
+  LAe2_stream0.ipl) are not directly listed in gta.dat. Instead, they
+  are stored inside the .img archives... The game engine automatically
+  links these binary files to their parent text IPL by matching the
+  filename prefix (e.g. LAe2 in LAe2_stream0.ipl corresponds to
+  LAe2.IPL)." The previous pass treated every binary entry found in
+  an IMG archive as its own standalone row, which didn't reflect this
+  relationship at all.
+
+  Rewrote `_scan_binary_ipls_in_img_archives`: a binary entry is now
+  treated as belonging to an already-known text IPL when either its
+  own stem exactly matches the text IPL's stem (not every binary
+  entry uses the `_streamN` suffix - `BinaryIPLParser`'s own docstring
+  references a real `crack.ipl` sample with no such suffix), or its
+  stem matches `{text_ipl_stem}_streamN`. A match gets recorded
+  against the *existing* text IPL row (`_ipl_names_with_binary_stream`)
+  rather than adding a separate one - the Format column now shows
+  "Text + Binary Stream" for those. Only genuinely standalone binary
+  entries with no matching text IPL at all still get their own row
+  and "Binary IPL" label.
+
+  Verified with a scenario matching Keith's own example exactly: a
+  known text `LAe2.IPL` plus a binary `LAe2_stream0.ipl` found in the
+  archive, alongside an unrelated standalone binary `crack.ipl` -
+  confirmed the stream file correctly associated with `LAe2.IPL`
+  (no separate row created) while `crack.ipl` correctly got its own
+  row. Full `QApplication` instantiation clean, `ast.parse` clean.

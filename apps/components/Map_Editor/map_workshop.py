@@ -19256,32 +19256,42 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             placeholder.setVisible(False)
         table.setVisible(True)
 
-    def _scan_binary_ipls_in_img_archives(self, loader): #vers 1
+    def _scan_binary_ipls_in_img_archives(self, loader): #vers 2
         """Scan every indexed IMG archive (gta3.img etc.) for .ipl-
-        extension entries not referenced by any .dat IPL directive -
-        per Keith: "the binary ipl's are in the gta3.img, i think the
-        paths to these are hard-coded in the exe, unless there is a
-        file I dont know about. Count the binary IPL files, display
-        those found in the gta3.img as the file names in the object
-        browser." Unlike text IPLs (whose paths are listed via IPL
-        directives in the .dat, discovered normally through loader.
-        available_ipls), the game's own exe apparently loads some
-        binary IPLs straight from an IMG archive with no .dat
-        reference at all, so this loader would never find them
-        without directly scanning the archive's own entry list.
+        extension entries, associating binary ones with their parent
+        text IPL rather than listing them as independent entries -
+        per Keith's detailed correction: "gta.dat contains entries
+        for text-based IPL files... Binary IPLs (streaming files like
+        LAe2_stream0.ipl) are not directly listed in gta.dat. Instead,
+        they are stored inside the .img archives... The game engine
+        automatically links these binary files to their parent text
+        IPL by matching the filename prefix (e.g. LAe2 in
+        LAe2_stream0.ipl corresponds to LAe2.IPL)." An earlier version
+        of this method treated every binary entry as its own
+        standalone row, which didn't reflect this relationship at
+        all.
 
-        Adds each one found to self._ipl_display_order/_ipl_display_
-        to_stem (using a synthetic "img:<archive>:<entry>" stem, since
-        there's no on-disk abs_path the way a real available_ipls
-        entry has - see _ensure_ipl_loaded and _rebuild_ipl_sections_
-        rows for where that distinction matters) and self._binary_ipl_
-        names (checked directly for the Format column, since there's
-        no loose file to read bytes from for detect_ipl_format the
-        way other rows use). Loading their actual instance content
-        (BinaryIPLParser already accepts raw bytes, so this is
-        feasible) isn't wired up yet - this is the listing/counting
-        half only, per Keith's own wording."""
+        A binary entry is treated as belonging to a known text IPL
+        when either its own stem exactly matches the text IPL's stem
+        (e.g. a binary "crack.ipl" alongside a text "crack.ipl" - not
+        every binary entry uses the "_streamN" suffix convention,
+        per BinaryIPLParser's own docstring, which references exactly
+        this "crack.ipl" case from real sample data), or its stem
+        matches "{text_ipl_stem}_streamN" for some number N. Matches
+        get recorded in self._ipl_names_with_binary_stream (keyed by
+        the text IPL's own display name) rather than adding a
+        separate row - the Format column then shows both are present
+        for that one row. Only genuinely standalone binary entries
+        (no matching text IPL at all) still get their own row, via
+        the same self._binary_ipl_names/_ipl_display_to_stem/_ipl_
+        display_order mechanism as before.
+
+        Loading the actual binary instance content (BinaryIPLParser
+        already accepts raw bytes, so feasible) isn't wired up yet -
+        this is the listing/counting half only, per Keith's own
+        wording."""
         self._binary_ipl_names = set()
+        self._ipl_names_with_binary_stream = set()
         get_img_paths = getattr(loader, 'get_img_paths', None)
         if get_img_paths is None:
             return
@@ -19290,7 +19300,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             from apps.methods.img_core_classes import IMGFile
         except Exception:
             return
+
+        # stem (lowercase, no extension) -> text IPL's own display name
+        text_stems = {}
+        for display_name in list(self._ipl_display_to_stem.keys()):
+            stem = os.path.splitext(display_name)[0].lower()
+            text_stems[stem] = display_name
+
         found_count = 0
+        associated_count = 0
         for img_path in get_img_paths():
             try:
                 img = IMGFile(img_path)
@@ -19306,9 +19324,24 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                         continue
                     if detect_ipl_format(head) != 'binary':
                         continue
+                    found_count += 1
+                    entry_stem = os.path.splitext(name)[0].lower()
+
+                    # Match either the exact stem, or "{parent}_streamN"
+                    parent_stem = entry_stem
+                    if '_stream' in entry_stem:
+                        parent_stem = entry_stem.rsplit('_stream', 1)[0]
+                    parent_display = text_stems.get(entry_stem) or text_stems.get(parent_stem)
+
+                    if parent_display is not None:
+                        self._ipl_names_with_binary_stream.add(parent_display)
+                        associated_count += 1
+                        continue
+
+                    # No matching text IPL - genuinely standalone binary entry
                     display_name = name
                     if display_name in self._ipl_display_to_stem:
-                        continue   # already known (e.g. also referenced by a .dat)
+                        continue
                     stem = f"img:{os.path.basename(img_path)}:{name}".lower()
                     self._ipl_display_to_stem[display_name] = stem
                     self._binary_ipl_names.add(display_name)
@@ -19316,11 +19349,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                         self._ipl_display_order.append(display_name)
                     if display_name not in self._hidden_ipls:
                         self._hidden_ipls.add(display_name)
-                    found_count += 1
             except Exception:
                 continue
         if found_count:
-            self._set_status(f"Found {found_count} binary IPL(s) in indexed IMG archives")
+            standalone_count = found_count - associated_count
+            self._set_status(
+                f"Found {found_count} binary IPL(s) in indexed IMG archives "
+                f"({associated_count} matched to a parent text IPL, {standalone_count} standalone)")
 
     def _rebuild_ipl_sections_rows(self): #vers 2
         """(Re)build every row from self._ipl_display_order - shared by
@@ -19357,6 +19392,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             fmt_text = ""
             if ipl_name in getattr(self, '_binary_ipl_names', set()):
                 fmt_text = "Binary IPL"
+            elif ipl_name in getattr(self, '_ipl_names_with_binary_stream', set()):
+                fmt_text = "Text + Binary Stream"
             else:
                 stem = getattr(self, '_ipl_display_to_stem', {}).get(ipl_name)
                 entry = loader.available_ipls.get(stem) if (loader and stem) else None
