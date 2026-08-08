@@ -1095,3 +1095,13 @@ conclusively found despite extensive isolated testing.
   confirmed visible and correctly positioned around the value in the
   grid (label/«/-/value/+/» at columns 0-5). Full `QApplication`
   instantiation clean, `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Per Keith, commented out
+  `self._lay.addStretch()` in the Item Editor Dialog (his own local
+  edit, applied here to keep the repo in sync) - the stretch had been
+  added a few passes ago to push any leftover vertical space to the
+  bottom of the panel rather than having it spread across each
+  section; Keith removed it, presumably because the section-level
+  `QSizePolicy.Fixed` fix from that same pass is enough on its own
+  now that the dock/panel minimum sizes were also brought down to
+  match the real compact content size.

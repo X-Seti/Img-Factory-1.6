@@ -3758,7 +3758,7 @@ class _InstanceEditPanel(QWidget):
         bottom_row.addWidget(close_btn)
         bottom_row.addWidget(save_btn)
         self._lay.addLayout(bottom_row)
-        self._lay.addStretch()
+        #self._lay.addStretch()
 
         self._reflow_nudge_rows(wide=True)
 
