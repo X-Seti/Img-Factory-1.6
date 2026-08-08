@@ -12483,27 +12483,47 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 pass
         return '#cccccc'
 
+    _WORLD_MAP_SVG = """<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="32" cy="32" r="30" fill="#1a5f9e"/>
+  <circle cx="32" cy="32" r="30" fill="none" stroke="#0d3a63" stroke-width="1.5"/>
+  <clipPath id="mw-globe-clip"><circle cx="32" cy="32" r="30"/></clipPath>
+  <g clip-path="url(#mw-globe-clip)">
+    <path d="M2,26 Q10,20 18,24 Q26,20 32,25 Q38,21 46,25 Q54,22 62,27
+             L62,38 Q54,34 46,37 Q38,33 32,37 Q26,34 18,36 Q10,32 2,37 Z"
+          fill="#4d8f3a"/>
+    <path d="M4,23 Q12,26 20,22 Q28,27 34,23 Q42,27 50,22 Q58,25 60,22
+             L60,29 Q52,26 44,30 Q36,26 30,30 Q22,26 14,29 Q8,27 4,29 Z"
+          fill="#7fb54a"/>
+    <path d="M6,32 Q14,29 22,33 Q30,30 36,34 Q44,30 52,33 Q58,31 60,33
+             L60,40 Q52,37 44,40 Q36,36 30,40 Q22,37 14,39 Q8,38 6,40 Z"
+          fill="#c8c141"/>
+    <ellipse cx="16" cy="21" rx="5" ry="3" fill="#a9cf4c"/>
+    <ellipse cx="41" cy="40" rx="6" ry="3" fill="#8fbf4f"/>
+    <ellipse cx="53" cy="24" rx="4" ry="2.5" fill="#d8d24a"/>
+  </g>
+</svg>"""
+
     @staticmethod
-    def _make_world_map_icon(): #vers 1
-        """Render the same world map emoji (🗺) used in DAT Browser's
-        "Load with Map Workshop…" context menu item into a proper
-        multi-size QIcon - per Keith: "the world map icons that is
-        seen in Dat Browser, when right clicking the dat file, can be
-        used for map workshops app icon, shown in the taskbar, when
-        standalone." That menu item uses the emoji as a plain text
-        prefix (no actual icon file exists for it), so this renders
-        it onto a transparent QPixmap at several sizes instead, giving
-        a real window/taskbar icon with the same visual identity."""
+    def _make_world_map_icon(): #vers 2
+        """Real multi-color SVG Earth icon (blue ocean, green-to-yellow
+        continent shapes near the equator) - per Keith: "needs to be
+        multi color svg, blue background, greeny to yellow dithed
+        contenents on the equator, showing Earth. There should be no
+        emojis, except in DP5 point." Replaces the earlier version,
+        which rendered the plain 🗺 text emoji DAT Browser's "Load
+        with Map Workshop…" menu item uses as a text prefix onto a
+        pixmap - readable in a menu row but too indistinct at small
+        taskbar sizes, and Keith wants emoji reserved for DP5 (the
+        old paint-tool dead code area) rather than used here."""
+        from PyQt6.QtSvg import QSvgRenderer
         icon = QIcon()
+        renderer = QSvgRenderer(ModelWorkshop._WORLD_MAP_SVG.encode())
         for size in (16, 24, 32, 48, 64):
             pix = QPixmap(size, size)
             pix.fill(Qt.GlobalColor.transparent)
             painter = QPainter(pix)
             painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-            font = painter.font()
-            font.setPixelSize(int(size * 0.85))
-            painter.setFont(font)
-            painter.drawText(pix.rect(), Qt.AlignmentFlag.AlignCenter, "\U0001F5FA")
+            renderer.render(painter)
             painter.end()
             icon.addPixmap(pix)
         return icon
@@ -20218,6 +20238,17 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         title_row.addWidget(label)
 
         _compact_18 = "padding: 0px 4px; margin: 0px; border-width: 1px;"
+        from apps.methods.imgfactory_svg_icons import get_add_icon
+        load_btn = QPushButton(get_add_icon(sm_buttonheight, icon_color), "Load")
+        load_btn.setToolTip(
+            "Load a game's root .dat file (gta.dat for SA, gta3.dat for\n"
+            "LC/GTA3, gta_vc.dat for VC, gta_sol.dat/gtasol.dat for SOL) -\n"
+            "works the same whether Map Workshop is running standalone or\n"
+            "docked inside IMG Factory.")
+        load_btn.setIconSize(QSize(18, 18))
+        load_btn.setFixedHeight(18)
+        load_btn.setStyleSheet(_compact_18)
+        load_btn.clicked.connect(lambda: self._load_game_dat_file())
         edit_btn = QPushButton(get_edit_icon(sm_buttonheight, icon_color), "Edit")
         edit_btn.setToolTip("STUB - no .dat editing built yet")
         edit_btn.setIconSize(QSize(18, 18))
@@ -20231,12 +20262,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         save_btn.setFixedHeight(18)
         save_btn.setStyleSheet(_compact_18)
         save_btn.setEnabled(False)
+        title_row.addWidget(load_btn)
         title_row.addWidget(edit_btn)
         title_row.addWidget(save_btn)
         title_row.addStretch()
         lay.addWidget(title_row_widget)
         self._register_collapsible_button_row(
-            title_row_widget, [(edit_btn, "Edit"), (save_btn, "Save")])
+            title_row_widget, [(load_btn, "Load"), (edit_btn, "Edit"), (save_btn, "Save")])
+
         if not hasattr(self, '_object_browser_tab_rows'):
             self._object_browser_tab_rows = {}
         self._object_browser_tab_rows['dat'] = title_row_widget

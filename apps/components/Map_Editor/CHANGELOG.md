@@ -1131,3 +1131,56 @@ conclusively found despite extensive isolated testing.
   sandbox may lack proper emoji font support that a real desktop
   would have) - worth Keith's visual confirmation once pulled. Full
   `QApplication` instantiation clean, `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Three pieces per Keith's latest message:
+
+  **1. Real SVG Earth icon** (replacing the emoji-rendering approach
+  from last pass): "needs to be multi color svg, blue background,
+  greeny to yellow dithed contenents on the equator, showing Earth.
+  There should be no emojis, except in DP5 point." Built a real SVG
+  (blue ocean circle, layered green-to-yellow continent blob shapes
+  across the equatorial band) and render it via `QSvgRenderer` at 5
+  icon sizes, replacing the earlier `🗺` emoji-onto-pixmap approach
+  entirely. Verified: 59 distinct colors sampled from the rendered
+  32px icon, including clear blue and multiple green/yellow-green
+  tones - a real multi-color result, not dependent on the system's
+  emoji font support the way the previous approach was.
+
+  **2. Load button in the DAT tab**: "next to [Edit] [Save], there
+  should be an option to 'Load' button, left of [Edit] allowing
+  standalone to read the root dat file, picking gta.dat (SA)
+  gta3_dat (LC) gta_vc.dat (VC) gta_sol.dat/gtasol.dat for [SOL]."
+  Added a `Load` button left of `Edit` in `_create_dat_tab`, wired to
+  the already-existing `_load_game_dat_file()` - which already opens
+  exactly this file-picker dialog (filtered to gta3.dat/gta_vc.dat/
+  gta.dat/gta_sol.dat/gtasol.dat/gta_quick.dat) and detects the game
+  from the filename, so this needed no new loading logic, just
+  exposing the existing entry point from this tab. Works identically
+  whether Map Workshop is standalone or docked, since it's the same
+  underlying method either way.
+
+  **3. Duplicate-named TXD data loss** ("both Generic.dat, and
+  generic.dat should be read and storied in memory so we don't see
+  white textures" - read as TXD given the "white textures" context,
+  matching his real `Generic.txd`/`generic.txd` case from a few
+  passes ago): found and fixed a genuine bug in `ModelCache`
+  (`depends/model_cache.py`) causing this - `_txd_index`/`_dff_index`
+  stored a single `(img_path, entry)` tuple per lowercase name, so
+  indexing two archive entries that only differ by case (his real
+  case) silently overwrote one with the other, permanently losing
+  whichever indexed first. Changed both indexes to store a *list* of
+  entries per name; `get_textures` now merges every duplicate's
+  textures together (a texture name already found from an earlier
+  entry isn't overwritten, but distinct texture names from other
+  duplicates are added in), and `get_geometry` tries each entry in
+  order until one parses successfully (geometry can't be merged the
+  way textures can, so this just stops one bad duplicate from
+  blocking a working one under the same name).
+
+  Verified with a mock 2-archive scenario mirroring Keith's real
+  case: two duplicate-named entries with different content (one
+  texture shared with different sizes, one texture unique to each) -
+  confirmed both distinct texture names end up available, and the
+  shared one correctly keeps its first-found version rather than
+  either silently disappearing. Full `QApplication` instantiation
+  clean, `ast.parse` clean on both files.

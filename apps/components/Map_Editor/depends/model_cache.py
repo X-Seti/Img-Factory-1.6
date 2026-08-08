@@ -22,10 +22,16 @@ from apps.methods.dff_classes import DFFModel
 class ModelCache:
     """See module docstring."""
 
-    def __init__(self): #vers 1
-        # lowercase entry name (no extension) -> (img_path, IMGEntry)
-        self._dff_index: Dict[str, Tuple[str, object]] = {}
-        self._txd_index: Dict[str, Tuple[str, object]] = {}
+    def __init__(self): #vers 2
+        # lowercase entry name (no extension) -> [(img_path, IMGEntry), ...]
+        # A list, not a single tuple (Aug 1 2026) - if the same name is
+        # indexed more than once (e.g. Keith's real game folder has
+        # both "Generic.txd" and "generic.txd" as genuinely different
+        # files), a single-tuple version would silently drop whichever
+        # got indexed first, with no way to recover its content. See
+        # get_geometry/get_textures for how duplicates get resolved.
+        self._dff_index: Dict[str, List[Tuple[str, object]]] = {}
+        self._txd_index: Dict[str, List[Tuple[str, object]]] = {}
         # lowercase model/txd name -> parsed result, or None if loading/
         # parsing failed (cached as None so it's not retried every time)
         self._geometry_cache: Dict[str, Optional[DFFModel]] = {}
@@ -64,9 +70,9 @@ class ModelCache:
                     stem_lower = stem.lower()
                     ext_lower = ext.lower()
                     if ext_lower == 'dff':
-                        self._dff_index[stem_lower] = (img_path, entry)
+                        self._dff_index.setdefault(stem_lower, []).append((img_path, entry))
                     elif ext_lower == 'txd':
-                        self._txd_index[stem_lower] = (img_path, entry)
+                        self._txd_index.setdefault(stem_lower, []).append((img_path, entry))
                 self.indexed_img_paths.append(img_path)
             except Exception as e:
                 self.index_errors.append(f"{img_path}: {e}")
@@ -90,21 +96,28 @@ class ModelCache:
         parse as a valid DFF - callers should fall back to the simple
         point/marker rendering in that case, not treat it as an error
         to surface to the user (a mod's IMG set legitimately might not
-        contain every model referenced by its own map data)."""
+        contain every model referenced by its own map data).
+
+        Tries every entry indexed under this name in order until one
+        parses successfully (Aug 1 2026) - unlike textures, a model's
+        geometry is one coherent mesh, not a set of independently
+        useful named items, so duplicates can't be usefully merged the
+        same way; this just means a duplicate that fails to parse
+        doesn't block a working one indexed under the same name."""
         key = model_name.lower()
         if key in self._geometry_cache:
             return self._geometry_cache[key]
 
         result = None
-        entry_info = self._dff_index.get(key)
-        if entry_info is not None:
-            img_path, entry = entry_info
+        for img_path, entry in self._dff_index.get(key, []):
             try:
                 data = self._read_entry(img_path, entry)
                 if data and detect_dff(data):
                     result = DFFParser(data, model_name).parse()
+                    if result is not None:
+                        break
             except Exception:
-                result = None
+                continue
         self._geometry_cache[key] = result
         return result
 
@@ -144,23 +157,38 @@ class ModelCache:
         lowercase texture name (a TXD can hold multiple textures) -
         loading/parsing/caching on first request, same fallback
         contract as get_geometry: None means 'not available', not an
-        error to surface."""
+        error to surface.
+
+        Merges across every entry indexed under this name (Aug 1
+        2026) rather than only ever reading one - if duplicate-named
+        TXDs genuinely differ (Keith's real case: "Generic.txd" and
+        "generic.txd" are two different files with different sizes),
+        each contributes whichever texture names the others don't
+        already have, rather than one silently winning and the
+        other's content being unreachable."""
         key = txd_name.lower()
         if key in self._texture_cache:
             return self._texture_cache[key]
 
         result = None
-        entry_info = self._txd_index.get(key)
-        if entry_info is not None:
-            img_path, entry = entry_info
-            try:
-                data = self._read_entry(img_path, entry)
-                if data:
+        entries = self._txd_index.get(key)
+        if entries:
+            merged = {}
+            for img_path, entry in entries:
+                try:
+                    data = self._read_entry(img_path, entry)
+                    if not data:
+                        continue
                     textures = parse_txd(data)
-                    if textures:
-                        result = {t['name'].lower(): t for t in textures if t.get('name')}
-            except Exception:
-                result = None
+                    if not textures:
+                        continue
+                    for t in textures:
+                        name = t.get('name')
+                        if name and name.lower() not in merged:
+                            merged[name.lower()] = t
+                except Exception:
+                    continue
+            result = merged or None
         self._texture_cache[key] = result
         return result
 
