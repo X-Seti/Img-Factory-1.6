@@ -19134,13 +19134,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         content_lay = QVBoxLayout(content_container)
         content_lay.setContentsMargins(0, 0, 0, 0)
 
-        table = QTableWidget(0, 2)
-        table.setHorizontalHeaderLabels(["", "IPL File"])
+        table = QTableWidget(0, 3)
+        table.setHorizontalHeaderLabels(["", "IPL File", "Format"])
         header = table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
         header.setStretchLastSection(False)
         table.setColumnWidth(0, 18)
+        table.setColumnWidth(2, 70)
         saved_widths = self.map_settings.get('ipl_sections_column_widths') or []
         if len(saved_widths) >= 2:
             table.setColumnWidth(1, saved_widths[1])
@@ -19232,13 +19234,26 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             placeholder.setVisible(False)
         table.setVisible(True)
 
-    def _rebuild_ipl_sections_rows(self): #vers 1
+    def _rebuild_ipl_sections_rows(self): #vers 2
         """(Re)build every row from self._ipl_display_order - shared by
         the initial populate and by _move_ipl_section, so reordering
-        doesn't duplicate the row-construction logic."""
+        doesn't duplicate the row-construction logic.
+
+        Format column shows "Binary IPL" for binary-format files (Aug
+        1 2026, per Keith: "When there are binary IPLs, these should
+        also be shown in object browser in IPL files | Binary IPL as
+        a name column") - detected by reading just the first 64 bytes
+        of each file and reusing the already-existing detect_ipl_format
+        (built for BinaryIPLParser, which only actually parses the
+        inst section so far - cull/zone/other sections in a binary IPL
+        aren't read yet, but this at least surfaces which files are
+        binary rather than leaving them looking like silently-empty
+        text IPLs)."""
         table = self._ipl_sections_table
         table.setRowCount(len(self._ipl_display_order))
         hidden = getattr(self, '_hidden_ipls', set())
+        loader = getattr(self, '_world_loader', None)
+        from apps.methods.gta_dat_parser import detect_ipl_format
         for row, ipl_name in enumerate(self._ipl_display_order):
             is_hidden = ipl_name in hidden
             eye_item = QTableWidgetItem()
@@ -19250,6 +19265,21 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             name_item = QTableWidgetItem(ipl_name)
             self._style_ipl_name_item(name_item, is_hidden)
             table.setItem(row, 1, name_item)
+
+            fmt_text = ""
+            stem = getattr(self, '_ipl_display_to_stem', {}).get(ipl_name)
+            entry = loader.available_ipls.get(stem) if (loader and stem) else None
+            if entry is not None and entry.exists:
+                try:
+                    with open(entry.abs_path, 'rb') as f:
+                        head = f.read(64)
+                    if detect_ipl_format(head) == 'binary':
+                        fmt_text = "Binary IPL"
+                except Exception:
+                    pass
+            fmt_item = QTableWidgetItem(fmt_text)
+            fmt_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            table.setItem(row, 2, fmt_item)
 
     def _move_ipl_section(self, ipl_name, direction): #vers 1
         """Move one IPL section up (-1) or down (+1) in the display

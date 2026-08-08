@@ -1285,3 +1285,16 @@ conclusively found despite extensive isolated testing.
   Full `QApplication` instantiation clean, `ast.parse` clean on both
   files. Could not runtime-test the actual OpenGL alpha-test behavior
   (no PyOpenGL in this sandbox) - needs Keith's visual confirmation.
+
+- **Aug 1, 2026 (cont'd)** — Per Keith: "When there are binary IPLs,
+  these should also be shown in object browser in IPL files | Binary
+  IPL as a name column." Added a third "Format" column to the IPL
+  Sections table, showing "Binary IPL" for files detected as binary
+  format (blank for text) - reuses `detect_ipl_format` (already built
+  for `BinaryIPLParser`), reading just the first 64 bytes of each
+  file rather than the whole thing.
+
+  Verified with a real text `.ipl` and a synthetic binary one (`bnry`
+  magic header): correctly showed "Binary IPL" for the binary file
+  and blank for the text one. Full `QApplication` instantiation
+  clean, `ast.parse` clean.
