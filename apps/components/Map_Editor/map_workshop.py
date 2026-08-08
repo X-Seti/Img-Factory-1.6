@@ -19256,7 +19256,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             placeholder.setVisible(False)
         table.setVisible(True)
 
-    def _scan_binary_ipls_in_img_archives(self, loader): #vers 2
+    def _scan_binary_ipls_in_img_archives(self, loader): #vers 3
         """Scan every indexed IMG archive (gta3.img etc.) for .ipl-
         extension entries, associating binary ones with their parent
         text IPL rather than listing them as independent entries -
@@ -19277,21 +19277,26 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         every binary entry uses the "_streamN" suffix convention,
         per BinaryIPLParser's own docstring, which references exactly
         this "crack.ipl" case from real sample data), or its stem
-        matches "{text_ipl_stem}_streamN" for some number N. Matches
-        get recorded in self._ipl_names_with_binary_stream (keyed by
-        the text IPL's own display name) rather than adding a
-        separate row - the Format column then shows both are present
-        for that one row. Only genuinely standalone binary entries
-        (no matching text IPL at all) still get their own row, via
-        the same self._binary_ipl_names/_ipl_display_to_stem/_ipl_
-        display_order mechanism as before.
+        matches "{text_ipl_stem}_streamN" for some number N.
+
+        A single parent commonly has *several* numbered stream files
+        (Aug 1 2026, per Keith: "binary ipls might show in the gta3.img
+        as LAn2_stream0.ipl, LAn2_stream1.ipl, LAn2_stream2.ipl and so
+        on") - self._ipl_names_with_binary_stream is keyed by the text
+        IPL's display name, valued with the *list* of matched stream
+        entry names (not just a boolean "has some"), so the Format
+        column can show a real count and a future loading feature has
+        the actual entry names ready to use. Only genuinely standalone
+        binary entries (no matching text IPL at all) still get their
+        own row, via the same self._binary_ipl_names/_ipl_display_to_
+        stem/_ipl_display_order mechanism as before.
 
         Loading the actual binary instance content (BinaryIPLParser
         already accepts raw bytes, so feasible) isn't wired up yet -
         this is the listing/counting half only, per Keith's own
         wording."""
         self._binary_ipl_names = set()
-        self._ipl_names_with_binary_stream = set()
+        self._ipl_names_with_binary_stream = {}   # text display name -> [stream entry names]
         get_img_paths = getattr(loader, 'get_img_paths', None)
         if get_img_paths is None:
             return
@@ -19334,7 +19339,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     parent_display = text_stems.get(entry_stem) or text_stems.get(parent_stem)
 
                     if parent_display is not None:
-                        self._ipl_names_with_binary_stream.add(parent_display)
+                        self._ipl_names_with_binary_stream.setdefault(parent_display, []).append(name)
                         associated_count += 1
                         continue
 
@@ -19392,8 +19397,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             fmt_text = ""
             if ipl_name in getattr(self, '_binary_ipl_names', set()):
                 fmt_text = "Binary IPL"
-            elif ipl_name in getattr(self, '_ipl_names_with_binary_stream', set()):
-                fmt_text = "Text + Binary Stream"
+            elif ipl_name in getattr(self, '_ipl_names_with_binary_stream', {}):
+                stream_count = len(self._ipl_names_with_binary_stream[ipl_name])
+                fmt_text = f"Text + {stream_count} Binary Stream{'s' if stream_count != 1 else ''}"
             else:
                 stem = getattr(self, '_ipl_display_to_stem', {}).get(ipl_name)
                 entry = loader.available_ipls.get(stem) if (loader and stem) else None

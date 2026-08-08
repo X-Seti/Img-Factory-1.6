@@ -1423,3 +1423,19 @@ conclusively found despite extensive isolated testing.
   confirmed the stream file correctly associated with `LAe2.IPL`
   (no separate row created) while `crack.ipl` correctly got its own
   row. Full `QApplication` instantiation clean, `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Per Keith: "also binary ipls might show
+  in the gta3.img as LAn2_stream0.ipl, LAn2_stream1.ipl,
+  LAn2_stream2.ipl and so on." Upgraded
+  `_ipl_names_with_binary_stream` from a boolean set (just "has some
+  stream files") to a dict mapping each text IPL's display name to
+  the *list* of its matched stream entry names, so the Format column
+  can show a real count ("Text + 3 Binary Streams") instead of a
+  generic "Text + Binary Stream" - and the actual entry names are now
+  tracked, ready for a future loading feature to use.
+
+  Verified with 3 numbered stream files matching Keith's exact
+  example (`LAn2_stream0/1/2.ipl`) against a known text `LAn2.IPL`:
+  all 3 correctly grouped together, Format column correctly reads
+  "Text + 3 Binary Streams". Full `QApplication` instantiation clean,
+  `ast.parse` clean.
