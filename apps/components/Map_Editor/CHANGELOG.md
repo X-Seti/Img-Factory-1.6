@@ -1051,3 +1051,33 @@ conclusively found despite extensive isolated testing.
   panel's overall `sizeHint()` confirmed 447x291, comfortably inside
   the new, more realistic minimum/initial sizes. Full `QApplication`
   instantiation clean, `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Addressed two of the `#TODO` comments
+  Keith added himself while reviewing the dialog:
+
+  "Show textures work but texture names, shows the name texture name
+  in all cells" - `_show_tex_names_dialog` now deduplicates required
+  textures by name. Multi-LOD models commonly have several geometries
+  (high detail, low detail, etc.) that all reference the same texture,
+  which was producing one identical row per geometry rather than one
+  row per distinct texture - looked like every row/cell showed the
+  same name because, for models with few distinct textures, they
+  mostly did. Verified with a realistic 2-geometry/1-shared-texture
+  case: correctly collapses to 1 row instead of 2.
+
+  "the values in the x, y and z boxes need to be visble" - found the
+  real cause: `QDoubleSpinBox`'s own `minimumSizeHint()` is 29px tall,
+  but the spinbox was being forced down to the app-wide 18px button
+  standard - well under what it needs to render its frame, padding,
+  and text comfortably, which is why the value kept looking clipped/
+  faint no matter how much the *width* grew in earlier passes (70 ->
+  74px). Bumped the whole nudge row (buttons + spinbox) from 18 to
+  22px - a real compromise between "compact" and "not fighting the
+  widget's own natural minimum." This is specifically a spinbox
+  issue, not a general button one - push buttons don't have the same
+  natural-minimum conflict at 18px.
+
+  Verified: spinbox confirmed `height() == 22` (up from the clipped
+  18, still well short of the fully-comfortable 29 natural minimum,
+  but no longer forcing it more than 7px under). Full `QApplication`
+  instantiation clean, `ast.parse` clean.

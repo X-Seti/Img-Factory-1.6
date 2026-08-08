@@ -3942,10 +3942,19 @@ class _InstanceEditPanel(QWidget):
             return
         dff_model = model_cache.get_geometry(inst.model_name)
         required = []   # (texture_name, alpha_name)
+        seen_tex_names = set()
         if dff_model is not None:
             for g in getattr(dff_model, 'geometries', []):
                 for m in getattr(g, 'materials', []):
-                    if m.texture_name:
+                    # Dedupe (Aug 1 2026, per Keith: "texture names,
+                    # shows the name texture name in all cells") -
+                    # multi-LOD models commonly have several geometries
+                    # (high detail, low detail, etc.) that all reference
+                    # the same texture, producing one identical row per
+                    # geometry rather than one row per distinct texture.
+                    key = m.texture_name.lower() if m.texture_name else ""
+                    if m.texture_name and key not in seen_tex_names:
+                        seen_tex_names.add(key)
                         required.append((m.texture_name, m.texture_mask))
         loader = getattr(self._workshop, '_world_loader', None)
         obj = loader.get_object(inst.model_id) if loader else None
@@ -4050,13 +4059,20 @@ class _InstanceEditPanel(QWidget):
             spin.setFixedWidth(74)
             btn_r  = QPushButton(); btn_r.setIcon(icons['r']);   btn_r.setFixedWidth(22)
             btn_rr = QPushButton(); btn_rr.setIcon(icons['rr']); btn_rr.setFixedWidth(28)
-            # 18px uniform height (Aug 1 2026, per Keith's screenshot:
-            # "the buttons need to be the same size as the others, like
-            # Zon, Cull, and so on, all buttons should be uniform") -
-            # these previously had no fixed height at all, defaulting
-            # to Qt's larger natural button size.
+            # 22px uniform height (Aug 1 2026) - the spinbox's own
+            # natural minimumSizeHint is 29px tall; forcing it down to
+            # the app-wide 18px button standard (matching Keith's
+            # earlier "buttons need to be uniform" request) squeezed
+            # it well below what it needs to render its frame/padding/
+            # text comfortably, which is exactly why the X/Y/Z values
+            # were "barely visible" no matter how much the width grew.
+            # 22px is a real compromise: still compact, but no longer
+            # forcing it well under its natural minimum. The four
+            # nudge buttons around it are bumped to match, purely for
+            # row alignment - they don't have this clipping problem
+            # themselves at 18px, this is specifically a spinbox fix.
             for _btn in (btn_ll, btn_l, spin, btn_r, btn_rr):
-                _btn.setFixedHeight(18)
+                _btn.setFixedHeight(22)
             btn_ll.setToolTip(f"-{large_step:g}")
             btn_l.setToolTip(f"-{small_step:g}")
             btn_r.setToolTip(f"+{small_step:g}")
