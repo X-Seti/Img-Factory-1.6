@@ -19155,14 +19155,18 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         header = table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)
         header.setStretchLastSection(False)
         table.setColumnWidth(0, 18)
-        table.setColumnWidth(2, 70)
         saved_widths = self.map_settings.get('ipl_sections_column_widths') or []
-        if len(saved_widths) >= 2:
+        if len(saved_widths) >= 3:
             table.setColumnWidth(1, saved_widths[1])
+            table.setColumnWidth(2, saved_widths[2])
+        elif len(saved_widths) >= 2:
+            table.setColumnWidth(1, saved_widths[1])
+            table.setColumnWidth(2, 70)
         else:
+            table.setColumnWidth(2, 70)
             header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         header.sectionResized.connect(self._on_ipl_sections_column_resized)
         self._apply_compact_table_style(table)
@@ -19244,11 +19248,79 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         remaining = sorted(current_names - set(ordered))
         self._ipl_display_order = ordered + remaining
 
+        self._scan_binary_ipls_in_img_archives(loader)
+
         self._rebuild_ipl_sections_rows()
 
         if placeholder is not None:
             placeholder.setVisible(False)
         table.setVisible(True)
+
+    def _scan_binary_ipls_in_img_archives(self, loader): #vers 1
+        """Scan every indexed IMG archive (gta3.img etc.) for .ipl-
+        extension entries not referenced by any .dat IPL directive -
+        per Keith: "the binary ipl's are in the gta3.img, i think the
+        paths to these are hard-coded in the exe, unless there is a
+        file I dont know about. Count the binary IPL files, display
+        those found in the gta3.img as the file names in the object
+        browser." Unlike text IPLs (whose paths are listed via IPL
+        directives in the .dat, discovered normally through loader.
+        available_ipls), the game's own exe apparently loads some
+        binary IPLs straight from an IMG archive with no .dat
+        reference at all, so this loader would never find them
+        without directly scanning the archive's own entry list.
+
+        Adds each one found to self._ipl_display_order/_ipl_display_
+        to_stem (using a synthetic "img:<archive>:<entry>" stem, since
+        there's no on-disk abs_path the way a real available_ipls
+        entry has - see _ensure_ipl_loaded and _rebuild_ipl_sections_
+        rows for where that distinction matters) and self._binary_ipl_
+        names (checked directly for the Format column, since there's
+        no loose file to read bytes from for detect_ipl_format the
+        way other rows use). Loading their actual instance content
+        (BinaryIPLParser already accepts raw bytes, so this is
+        feasible) isn't wired up yet - this is the listing/counting
+        half only, per Keith's own wording."""
+        self._binary_ipl_names = set()
+        get_img_paths = getattr(loader, 'get_img_paths', None)
+        if get_img_paths is None:
+            return
+        from apps.methods.gta_dat_parser import detect_ipl_format
+        try:
+            from apps.methods.img_core_classes import IMGFile
+        except Exception:
+            return
+        found_count = 0
+        for img_path in get_img_paths():
+            try:
+                img = IMGFile(img_path)
+                if not img.open():
+                    continue
+                for entry in img.entries:
+                    name = getattr(entry, 'name', '') or ''
+                    if not name.lower().endswith('.ipl'):
+                        continue
+                    try:
+                        head = img.read_entry_data(entry)[:64]
+                    except Exception:
+                        continue
+                    if detect_ipl_format(head) != 'binary':
+                        continue
+                    display_name = name
+                    if display_name in self._ipl_display_to_stem:
+                        continue   # already known (e.g. also referenced by a .dat)
+                    stem = f"img:{os.path.basename(img_path)}:{name}".lower()
+                    self._ipl_display_to_stem[display_name] = stem
+                    self._binary_ipl_names.add(display_name)
+                    if display_name not in self._ipl_display_order:
+                        self._ipl_display_order.append(display_name)
+                    if display_name not in self._hidden_ipls:
+                        self._hidden_ipls.add(display_name)
+                    found_count += 1
+            except Exception:
+                continue
+        if found_count:
+            self._set_status(f"Found {found_count} binary IPL(s) in indexed IMG archives")
 
     def _rebuild_ipl_sections_rows(self): #vers 2
         """(Re)build every row from self._ipl_display_order - shared by
@@ -19283,16 +19355,19 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             table.setItem(row, 1, name_item)
 
             fmt_text = ""
-            stem = getattr(self, '_ipl_display_to_stem', {}).get(ipl_name)
-            entry = loader.available_ipls.get(stem) if (loader and stem) else None
-            if entry is not None and entry.exists:
-                try:
-                    with open(entry.abs_path, 'rb') as f:
-                        head = f.read(64)
-                    if detect_ipl_format(head) == 'binary':
-                        fmt_text = "Binary IPL"
-                except Exception:
-                    pass
+            if ipl_name in getattr(self, '_binary_ipl_names', set()):
+                fmt_text = "Binary IPL"
+            else:
+                stem = getattr(self, '_ipl_display_to_stem', {}).get(ipl_name)
+                entry = loader.available_ipls.get(stem) if (loader and stem) else None
+                if entry is not None and entry.exists:
+                    try:
+                        with open(entry.abs_path, 'rb') as f:
+                            head = f.read(64)
+                        if detect_ipl_format(head) == 'binary':
+                            fmt_text = "Binary IPL"
+                    except Exception:
+                        pass
             fmt_item = QTableWidgetItem(fmt_text)
             fmt_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             table.setItem(row, 2, fmt_item)

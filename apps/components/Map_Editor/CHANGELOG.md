@@ -1346,3 +1346,50 @@ conclusively found despite extensive isolated testing.
   applied; full UI flow confirmed showing -53.69 in the actual
   Rotation Z spin box. Full `QApplication` instantiation clean,
   `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Two pieces per Keith's follow-up:
+
+  **Binary IPLs embedded in gta3.img**: "the binary ipl's are in the
+  gta3.img, i think the paths to these are hard-coded in the exe...
+  Count the binary IPL files, display those found in the gta3.img as
+  the file names in the object browser." Unlike text IPLs (whose
+  paths are listed via IPL directives in the .dat, and discovered
+  normally through `loader.available_ipls`), these apparently have no
+  `.dat` reference at all - the game's own exe loads them directly.
+  Added `_scan_binary_ipls_in_img_archives`, scanning every indexed
+  IMG archive's own entry list for `.ipl`-extension files, detecting
+  binary format by reading just the first 64 bytes of each (reusing
+  `detect_ipl_format`), and adding any found to the IPL Sections list
+  under a synthetic stem (there's no on-disk loose file the way a
+  regular entry has). The Format column's "Binary IPL" detection now
+  checks this set first before falling back to reading a loose file's
+  bytes. This is the listing/counting half only, matching Keith's own
+  wording - actually loading their instance content is a follow-up
+  (`BinaryIPLParser` already accepts raw bytes, so feasible later).
+
+  Verified with a synthetic `gta3.img` containing 2 binary IPL entries
+  (using the same real filenames `BinaryIPLParser`'s own docstring
+  references - `crack.ipl`, `countn2_stream1.ipl`) plus one non-IPL
+  entry: correctly found and counted both, correctly excluded the
+  unrelated entry.
+
+  **Column width persistence**: "i'd like to keep track of cell
+  widths, so if changed, save them." The new Format column was stuck
+  in `Fixed` resize mode (couldn't be resized by the user at all) and
+  its width was hardcoded rather than restored from `map_settings`
+  the way the IPL File column already was. Changed to `Interactive`
+  and restored from `ipl_sections_column_widths` if a saved value
+  exists - the existing save handler already covered all columns
+  generically, this was purely a restore-side gap.
+
+  Full `QApplication` instantiation clean, `ast.parse` clean.
+
+  **VC rotation question**: "Same issue is in VC, might as well check
+  gta3 ipl parsing rotation rendering bug?" Re-verified the exact real
+  VC rotation used earlier this session (`docks10`, `docks.ipl`) -
+  still matches `scipy`'s independent calculation exactly with the
+  standard (non-conjugated) math, same as before. Didn't apply the
+  SA conjugate to VC/GTA3 without further evidence, since doing so
+  would very likely break this already-verified-correct behaviour
+  rather than fix anything - asked Keith for a specific VC object/
+  example to investigate properly instead of guessing.
