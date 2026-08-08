@@ -1298,3 +1298,51 @@ conclusively found despite extensive isolated testing.
   magic header): correctly showed "Binary IPL" for the binary file
   and blank for the text one. Full `QApplication` instantiation
   clean, `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Solved the SA Z-rotation misalignment
+  Keith discovered and reported with two comparison screenshots:
+  "the Z rotation alignment issue - on some lines, it's not reading
+  the -90.0, for example. It's only reading 90.0; adding the - fixed
+  the issue." Traced this to a real difference in SA's rotation
+  quaternion convention versus VC's, using his own real data.
+
+  Found the exact raw line (`LAe.ipl` line 91, from his uploaded
+  files): `5533, LODroadB48, 0, 1932.59375, -1782.101563, 12.5, 0, 0,
+  0.4516149163, 0.8922129869, -1`. Standard quaternion-to-euler math
+  (cross-checked against `scipy` earlier this session, so trusted as
+  mathematically correct) converts this to yaw=+53.6deg - but Keith's
+  screenshots showed the object only aligns correctly when the Z
+  spinbox reads -53.69deg. Working backward: `euler_degrees_to_quat
+  (0,0,-53.69)` produces `(0,0,-0.4516,+0.8922)` - the *conjugate* of
+  the raw quaternion (negate x,y,z, keep w). Sampled several more
+  real instances across his uploaded `LAe`/`LAe2`/`LAhills`/`LAn`/
+  `LAs` files to check for a wider pattern; none had non-zero
+  `rot_x`/`rot_y` to fully distinguish "negate z only" from a true
+  full conjugate, but the conjugate is the mathematically well-
+  defined, standard operation (unlike "negate z only", which isn't a
+  meaningful operation in general once x/y aren't zero), and matches
+  the confirmed case exactly.
+
+  Added `ModelWorkshop._effective_rotation`/`_conjugate_rotation_for_
+  game`, applying this conjugate for SA/SOL specifically - not VC/
+  GTA3, which Keith already confirmed renders correctly as-is with
+  real Vice City data, so this is scoped by game rather than applied
+  universally (avoiding any risk of regressing already-working
+  behaviour). Used in two places: `_refresh_world_view` (actual
+  viewport rendering) and `_InstanceEditPanel`'s Rotation spin boxes
+  (`_refresh_rotation_spins`/`_on_rotation_nudged`, so the UI shows/
+  edits the same effective value the viewport renders, in both
+  directions - a conjugate is its own inverse, so editing the
+  effective value and converting back to what's actually stored uses
+  the identical operation). Deliberately does NOT touch the stored
+  `inst.rot_x/y/z/w` themselves - the Identity section's raw IPL line
+  still shows the genuinely verbatim file values.
+
+  Verified end-to-end with Keith's exact real data: effective
+  rotation for SA computed as `(-0,-0,-0.4516,+0.8922)`, converting
+  to yaw=-53.69deg - an exact match to his manual fix; VC confirmed
+  completely unaffected (effective rotation identical to raw); raw
+  stored `inst.rot_z`/`rot_w` confirmed unchanged after the fix is
+  applied; full UI flow confirmed showing -53.69 in the actual
+  Rotation Z spin box. Full `QApplication` instantiation clean,
+  `ast.parse` clean.

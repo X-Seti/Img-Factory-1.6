@@ -4151,10 +4151,20 @@ class _InstanceEditPanel(QWidget):
             spin.setValue(getattr(inst, f"pos_{axis}"))
             spin.blockSignals(False)
 
-    def _refresh_rotation_spins(self): #vers 1
+    def _refresh_rotation_spins(self): #vers 2
+        """Shows the *effective* rotation (matching what the viewport
+        actually renders), not necessarily the raw stored quaternion
+        verbatim - see ModelWorkshop._effective_rotation/_conjugate_
+        rotation_for_game for why (Aug 1 2026, Keith's real LODroadB48
+        SA discovery: a positive-Z-only rotation quaternion that only
+        visually aligns correctly when interpreted as its conjugate).
+        The Identity section's raw IPL line stays genuinely verbatim
+        regardless - only this display (and editing, in _on_rotation_
+        nudged below) uses the effective value."""
         inst = self._inst
-        roll, pitch, yaw = quat_to_euler_degrees(
+        ex, ey, ez, ew = self._workshop._conjugate_rotation_for_game(
             inst.rot_x, inst.rot_y, inst.rot_z, inst.rot_w)
+        roll, pitch, yaw = quat_to_euler_degrees(ex, ey, ez, ew)
         for axis, val in zip(('x', 'y', 'z'), (roll, pitch, yaw)):
             spin = self._rot_spins[axis]
             spin.blockSignals(True)
@@ -4170,14 +4180,20 @@ class _InstanceEditPanel(QWidget):
         self._refresh_position_spins()
         self._workshop._on_instance_edited(self._inst)
 
-    def _on_rotation_nudged(self, axis, delta, absolute=None): #vers 1
+    def _on_rotation_nudged(self, axis, delta, absolute=None): #vers 2
+        """Edits the *effective* rotation shown in the spin boxes, then
+        converts back through the same conjugate (its own inverse) to
+        get what should actually be stored in inst.rot_x/y/z/w - see
+        _refresh_rotation_spins."""
         if self._inst is None:
             return
-        roll, pitch, yaw = quat_to_euler_degrees(
+        ex, ey, ez, ew = self._workshop._conjugate_rotation_for_game(
             self._inst.rot_x, self._inst.rot_y, self._inst.rot_z, self._inst.rot_w)
+        roll, pitch, yaw = quat_to_euler_degrees(ex, ey, ez, ew)
         current = {'x': roll, 'y': pitch, 'z': yaw}
         current[axis] = absolute if absolute is not None else current[axis] + delta
-        x, y, z, w = euler_degrees_to_quat(current['x'], current['y'], current['z'])
+        nx, ny, nz, nw = euler_degrees_to_quat(current['x'], current['y'], current['z'])
+        x, y, z, w = self._workshop._conjugate_rotation_for_game(nx, ny, nz, nw)
         self._inst.rot_x, self._inst.rot_y, self._inst.rot_z, self._inst.rot_w = x, y, z, w
         self._refresh_rotation_spins()
         self._workshop._on_instance_edited(self._inst)
@@ -20959,6 +20975,54 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._populate_instance_list(loader_stub)
         self._refresh_world_view(visible, auto_fit=auto_fit)
 
+    def _effective_rotation(self, inst): #vers 1
+        """Return the quaternion (x,y,z,w) to actually use for
+        rendering/display, applying a conjugate (negate x,y,z; keep
+        w) for SA/SOL specifically - not for VC/GTA3, which Keith
+        already confirmed renders correctly as-is with real Vice City
+        data.
+
+        Found via Keith's real example (LODroadB48, LAe.ipl line 91):
+        raw file has rot=(0,0,0.4516149163,0.8922129869) - standard
+        quaternion-to-euler math (verified against scipy earlier this
+        session) converts this to yaw=+53.6deg, but Keith found the
+        object only aligns correctly at yaw=-53.6deg. Working
+        backward: euler_degrees_to_quat(0,0,-53.6) produces
+        (0,0,-0.4516,+0.8922) - the z-negated (here, x/y are both 0
+        for this object, so negating just z happens to be identical
+        to a full conjugate for this specific example) quaternion.
+        The conjugate is the mathematically well-defined, standard
+        operation (unlike "negate z only", which isn't a meaningful
+        operation in general when x/y aren't zero) - no SA sample
+        data with non-zero rot_x/rot_y was available to confirm this
+        distinction further, so this is verified for pure-yaw
+        rotations specifically, less certain for combined-axis ones.
+
+        This does NOT change the stored inst.rot_x/y/z/w - those stay
+        exactly as parsed from the file, so the Identity section's
+        verbatim raw-line display stays genuinely verbatim. Only
+        rendering and the Rotation spin boxes (see _InstanceEditPanel)
+        use this effective value."""
+        return self._conjugate_rotation_for_game(
+            inst.rot_x, inst.rot_y, inst.rot_z, inst.rot_w)
+
+    def _conjugate_rotation_for_game(self, x, y, z, w): #vers 1
+        """Raw quaternion in/out version of the same SA/SOL conjugate
+        _effective_rotation applies, for callers that don't have an
+        IPLInstance handy (specifically _InstanceEditPanel's rotation
+        spin boxes, which need this in both directions - display
+        reads the stored quaternion and needs the effective one;
+        editing needs the reverse, going from an edited effective
+        value back to what should actually be stored). A conjugate is
+        its own inverse (applying it twice returns the original), so
+        the same operation works both ways."""
+        loader = getattr(self, '_world_loader', None)
+        game = getattr(loader, 'game', None)
+        from apps.methods.gta_dat_parser import GTAGame
+        if game in (GTAGame.SA, GTAGame.SOL):
+            return (-x, -y, -z, w)
+        return (x, y, z, w)
+
     def _refresh_world_view(self, instances, auto_fit=True): #vers 3
         """Push a full multi-instance 3D world view into the existing
         DFF viewport (self.preview_widget) - Aug 1 2026, per Keith:
@@ -21055,7 +21119,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 continue   # model failed to load/parse - skip this instance
             entry = dict(base)
             entry['pos']   = (inst.pos_x, inst.pos_y, inst.pos_z)
-            entry['rot']   = (inst.rot_x, inst.rot_y, inst.rot_z, inst.rot_w)
+            entry['rot']   = self._effective_rotation(inst)
             entry['scale'] = (inst.scale_x, inst.scale_y, inst.scale_z)
             entry['model_key'] = model_name
             entry['instance'] = inst
