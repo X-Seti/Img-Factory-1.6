@@ -4543,7 +4543,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         super().__init__(parent)
         self.setWindowTitle(App_name)
         try:
-            self.setWindowIcon(SVGIconFactory.mesh_icon(32, '#4a9fd4'))
+            self.setWindowIcon(self._make_world_map_icon())
         except Exception:
             pass
         self.icon_factory = SVGIconFactory()
@@ -12482,6 +12482,31 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             except Exception:
                 pass
         return '#cccccc'
+
+    @staticmethod
+    def _make_world_map_icon(): #vers 1
+        """Render the same world map emoji (🗺) used in DAT Browser's
+        "Load with Map Workshop…" context menu item into a proper
+        multi-size QIcon - per Keith: "the world map icons that is
+        seen in Dat Browser, when right clicking the dat file, can be
+        used for map workshops app icon, shown in the taskbar, when
+        standalone." That menu item uses the emoji as a plain text
+        prefix (no actual icon file exists for it), so this renders
+        it onto a transparent QPixmap at several sizes instead, giving
+        a real window/taskbar icon with the same visual identity."""
+        icon = QIcon()
+        for size in (16, 24, 32, 48, 64):
+            pix = QPixmap(size, size)
+            pix.fill(Qt.GlobalColor.transparent)
+            painter = QPainter(pix)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            font = painter.font()
+            font.setPixelSize(int(size * 0.85))
+            painter.setFont(font)
+            painter.drawText(pix.rect(), Qt.AlignmentFlag.AlignCenter, "\U0001F5FA")
+            painter.end()
+            icon.addPixmap(pix)
+        return icon
 
     def _get_ui_color(self, key): #vers 1
         """Get a theme-aware QColor from app_settings. No hardcoded colors.
@@ -22885,6 +22910,12 @@ if __name__ == "__main__":
 
         workshop = ModelWorkshop()
         print(App_name + " instance created")
+
+        # Also set the QApplication-level icon (Aug 1 2026, per Keith:
+        # world map icon for the taskbar when standalone) - many Linux
+        # desktop environments look at this for the taskbar/dock icon
+        # specifically, not just the window's own setWindowIcon call.
+        app.setWindowIcon(workshop.windowIcon())
 
         workshop.setWindowTitle(App_name + " - Standalone")
         workshop.resize(1200, 800)

@@ -1105,3 +1105,29 @@ conclusively found despite extensive isolated testing.
   `QSizePolicy.Fixed` fix from that same pass is enough on its own
   now that the dock/panel minimum sizes were also brought down to
   match the real compact content size.
+
+- **Aug 1, 2026 (cont'd)** — Per Keith: "the world map icons that is
+  seen in Dat Browser, when right clicking the dat file, can be used
+  for map workshops app icon, shown in the taskbar, when standalone."
+
+  DAT Browser's "Load with Map Workshop…" context menu item uses the
+  🗺 emoji as a plain text prefix (`dat_browser.py`) - no actual icon
+  file exists for it. Added `ModelWorkshop._make_world_map_icon()`,
+  rendering that same emoji onto transparent `QPixmap`s at 5 sizes
+  (16/24/32/48/64) via `QPainter`, giving a real multi-resolution
+  `QIcon` with the same visual identity. Replaced the leftover
+  `SVGIconFactory.mesh_icon` window icon (a carry-over from Model
+  Workshop's original branding, unrelated to maps) with it, and also
+  set it at the `QApplication` level in the standalone `__main__`
+  block, since several Linux desktop environments look there
+  specifically for the taskbar/dock icon rather than the window's own
+  icon alone.
+
+  Verified: icon confirmed non-null with all 5 expected sizes
+  registered; the 32px pixmap confirmed containing real non-
+  transparent pixels (340 of 1024, consistent with a rendered glyph
+  shape) rather than coming back empty. Could not visually confirm
+  the glyph renders as the intended colour emoji specifically (this
+  sandbox may lack proper emoji font support that a real desktop
+  would have) - worth Keith's visual confirmation once pulled. Full
+  `QApplication` instantiation clean, `ast.parse` clean.
