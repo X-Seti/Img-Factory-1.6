@@ -3664,9 +3664,8 @@ class _InstanceEditPanel(QWidget):
         self._loader = None
         self._nudge_wide = None   # current reflow state, None forces first layout
         self.setWindowTitle("[IPL object editor]")
-        self.setMinimumWidth(380)
+        self.setMinimumWidth(560)
         self.setMinimumHeight(320)
-        #TODO Show textures work but texture names, shows the name texture name in all cells.
         self._lay = QVBoxLayout(self)
         self._lay.setContentsMargins(4, 4, 4, 4)
         self._lay.setSpacing(3)
@@ -3773,21 +3772,18 @@ class _InstanceEditPanel(QWidget):
         if wide != self._nudge_wide:
             self._reflow_nudge_rows(wide)
 
-    def _reflow_nudge_rows(self, wide): #vers 2
+    def _reflow_nudge_rows(self, wide): #vers 3
         """Rebuild both nudge sections' grids for the given width mode.
 
-        Compact mode (Aug 1 2026, per Keith: "instead show as X <>
-        Y <>    Z <> to save space. Same for rotation and scale" -
-        replacing the previous one-row-per-axis "wide" layout, which
-        took 3 rows per section) - all 3 axes on ONE row: label,
-        single-step -, value, single-step + per axis, three of those
-        side by side. Drops the large-step («/») buttons from this
-        row to fit - they're still built (still usable via a future
-        right-click or modifier-key path once that's wanted), just
-        not placed here. Falls back to the original narrow mode
-        (label+value on one row, 4 arrow buttons on the row beneath,
-        one full row group per axis) when the panel gets too narrow
-        even for the compact row."""
+        Compact mode (Aug 1 2026) - all 3 axes on ONE row: label,
+        large-step -, small-step -, value, small-step +, large-step +
+        per axis, three of those side by side. Large-step («»)
+        buttons were dropped from this row in an earlier pass to save
+        space, then brought back per Keith: "we can add << >> back."
+        Falls back to the original narrow mode (label+value on one
+        row, 4 arrow buttons on the row beneath, one full row group
+        per axis) when the panel gets too narrow even for the compact
+        row."""
         for grid, rows_info in ((self._pos_grid, self._pos_rows),
                                 (self._rot_grid, self._rot_rows),
                                 (self._scale_grid, self._scale_rows)):
@@ -3795,13 +3791,15 @@ class _InstanceEditPanel(QWidget):
                 grid.takeAt(0)
             if wide:
                 for i, (label, btn_ll, btn_l, spin, btn_r, btn_rr) in enumerate(rows_info):
-                    c = i * 4
-                    btn_ll.setVisible(False)
-                    btn_rr.setVisible(False)
+                    c = i * 6
+                    btn_ll.setVisible(True)
+                    btn_rr.setVisible(True)
                     grid.addWidget(label, 0, c)
-                    grid.addWidget(btn_l, 0, c + 1)
-                    grid.addWidget(spin, 0, c + 2)
-                    grid.addWidget(btn_r, 0, c + 3)
+                    grid.addWidget(btn_ll, 0, c + 1)
+                    grid.addWidget(btn_l, 0, c + 2)
+                    grid.addWidget(spin, 0, c + 3)
+                    grid.addWidget(btn_r, 0, c + 4)
+                    grid.addWidget(btn_rr, 0, c + 5)
             else:
                 for i, (label, btn_ll, btn_l, spin, btn_r, btn_rr) in enumerate(rows_info):
                     btn_ll.setVisible(True)
@@ -4072,7 +4070,7 @@ class _InstanceEditPanel(QWidget):
             # row alignment - they don't have this clipping problem
             # themselves at 18px, this is specifically a spinbox fix.
             for _btn in (btn_ll, btn_l, spin, btn_r, btn_rr):
-                _btn.setFixedHeight(22)
+                _btn.setFixedHeight(24)
             btn_ll.setToolTip(f"-{large_step:g}")
             btn_l.setToolTip(f"-{small_step:g}")
             btn_r.setToolTip(f"+{small_step:g}")
@@ -18277,7 +18275,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             # Height on the panel itself stops things collapsing
             # further, but the dock's initial floating size still
             # needs setting explicitly here.
-            dock.resize(460, 400)
+            dock.resize(620, 400)
             self._instance_edit_dock = dock
         panel = self._instance_edit_panel
         panel.show_for_instance(inst, getattr(self, '_world_loader', None), nav_info,

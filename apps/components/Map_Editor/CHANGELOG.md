@@ -1081,3 +1081,17 @@ conclusively found despite extensive isolated testing.
   18, still well short of the fully-comfortable 29 natural minimum,
   but no longer forcing it more than 7px under). Full `QApplication`
   instantiation clean, `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Per Keith's screenshot: "the values need
+  2px added, so the bottom of the text shows, and we can add << >>
+  back." Bumped the nudge row height from 22 to 24px. Restored the
+  large-step (`«`/`»`) buttons into the compact row (each axis now
+  shows label/«/-/value/+/» - 6 widgets instead of 4), which an
+  earlier pass had hidden to save space; bumped the panel's minimum
+  width (380 -> 560) and the dock's initial resize width (460 -> 620)
+  to accommodate the wider rows.
+
+  Verified: spinbox confirmed `height() == 24`; large-step buttons
+  confirmed visible and correctly positioned around the value in the
+  grid (label/«/-/value/+/» at columns 0-5). Full `QApplication`
+  instantiation clean, `ast.parse` clean.
