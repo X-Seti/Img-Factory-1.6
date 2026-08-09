@@ -111,9 +111,22 @@ nbeach.ipl). Implemented Aug 1 2026:
 
 Still open:
 - Todo Show objects in map workshop with alpha object layers working.
-- Add real-time cycling play > stop [] in timecyc dock.
-- day to night, show lights from 2dfx and timed objects.
-- Adjustable time flow: 1 min for every Second adjustable. 
+- [DONE Aug 1 2026] TOBJ time-of-day support: parse time_on/time_off
+  (were being silently dropped before), a Time switch + QTimeEdit in
+  IPL Controls filtering TOBJ instances by simulated time, Play/Stop/
+  Settings buttons with a real QTimer actually advancing time and
+  live-refreshing which TOBJ instances show. Settings cog controls
+  in-game-minutes-per-tick and real-seconds-per-tick separately,
+  giving the "1 min for every Second adjustable" rate Keith asked for
+  (not a single fixed ratio). Time and Nav moved to their own row per
+  Keith's follow-up.
+- Remaining, not yet started - each needs its own rendering-side
+  design pass: day/night shading (ambient/directional lighting or
+  fog color shifting based on the simulated time, so the world
+  visually looks different at different hours, not just which TOBJ
+  instances show/hide) and 2DFX objects lighting up at night
+  specifically (2DFX light-source entries rendering an actual glow/
+  light effect, gated by the same simulated time).
 - Todo (Keith's own words): "The above can be edited and saved; any
   changes are updated in the main viewpoint" - editing the raw
   IPL/IDE line text directly (not just the existing Position/

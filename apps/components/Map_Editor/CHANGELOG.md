@@ -1749,3 +1749,35 @@ conclusively found despite extensive isolated testing.
   widgets still construct and function correctly (checkbox/spinbox
   enable-on-check behavior unchanged). Full `QApplication`
   instantiation clean, `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Full time-flow controls, per Keith: "time
+  is hard to see, we need a [play] and [stop] and Settings [*] Cog
+  for time settings, we need to impliment movement of time, so we can
+  see the switching of tobjs on the map."
+
+  Replaced the plain 0-23 hour spinbox with a `QTimeEdit` (HH:MM,
+  more readable and gives real sub-hour precision) at 24px height -
+  the previous 18px was clipped like every other spinbox found this
+  session (spinboxes need more room than the 18px button standard).
+  Added Play/Stop buttons wired to a real `QTimer`: Play auto-enables
+  the Time switch (playing with the filter off wouldn't show anything
+  changing) and starts the timer; each tick advances the simulated
+  time by a configurable number of in-game minutes and re-applies the
+  visibility filter, so TOBJ switching is now visible live as time
+  passes rather than only on manual edits. Added a Settings ("*")
+  button opening a popup with two independent rates - in-game minutes
+  per tick, and real seconds per tick - giving the "1 min for every
+  Second adjustable" flow rate from the existing TODO item, not a
+  single fixed ratio.
+
+  Verified end-to-end: `QTimeEdit` confirmed at 24px; Play confirmed
+  auto-checking the Time switch and starting the timer; a manually-
+  triggered tick confirmed advancing 12:00 -> 12:01; Stop confirmed
+  halting the timer; settings popup confirmed running without
+  crashing. Full `QApplication` instantiation clean, `ast.parse`
+  clean.
+
+  Day/night shading and 2DFX-lighting-at-night are still open,
+  logged in TODO.md as needing their own rendering-side design pass -
+  genuinely separate from this time-control infrastructure (visual
+  lighting/ambient changes, not just which instances show/hide).

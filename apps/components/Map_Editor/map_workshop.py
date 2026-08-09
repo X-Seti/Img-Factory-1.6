@@ -28,7 +28,7 @@ if str(project_root) not in sys.path:
 
 # Import PyQt6
 from PyQt6.QtWidgets import (QApplication, QSlider, QCheckBox,
-    QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QListWidget, QDialog, QFormLayout, QSpinBox,  QListWidgetItem, QLabel, QPushButton, QFrame, QFileDialog, QLineEdit, QTextEdit, QMessageBox, QScrollArea, QGroupBox, QTableWidget, QTableWidgetItem, QColorDialog, QHeaderView, QAbstractItemView, QMenu, QComboBox, QInputDialog, QTabWidget, QDoubleSpinBox, QRadioButton, QStyledItemDelegate,
+    QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QListWidget, QDialog, QFormLayout, QSpinBox,  QListWidgetItem, QLabel, QPushButton, QFrame, QFileDialog, QLineEdit, QTextEdit, QMessageBox, QScrollArea, QGroupBox, QTableWidget, QTableWidgetItem, QColorDialog, QHeaderView, QAbstractItemView, QMenu, QComboBox, QInputDialog, QTabWidget, QDoubleSpinBox, QRadioButton, QStyledItemDelegate, QTimeEdit,
     QDockWidget, QFontComboBox, QSizePolicy, QMenuBar, QStatusBar, QProgressDialog, QStackedWidget, QGridLayout
 )
 
@@ -19757,25 +19757,65 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # time_off range includes the selected hour show - non-TOBJ
         # instances are never affected either way.
         time_chk = QCheckBox("Time")
-        time_chk.setFixedHeight(18)
+        time_chk.setFixedHeight(24)
         time_chk.setStyleSheet(_compact_18)
         time_chk.setToolTip(
             "Filter TOBJ (timed) objects by time of day - when on,\n"
             "only shows TOBJ instances whose IDE time_on/time_off\n"
             "range includes the hour selected here. Non-TOBJ objects\n"
             "are never affected by this switch.")
-        time_spin = QSpinBox()
-        time_spin.setRange(0, 23)
-        time_spin.setValue(12)
-        time_spin.setFixedHeight(18)
-        time_spin.setSuffix(":00")
-        time_spin.setEnabled(False)
-        time_spin.setToolTip("Simulated hour of day (0-23) for the Time switch above")
-        time_chk.toggled.connect(time_spin.setEnabled)
+
+        # QTimeEdit instead of a plain 0-23 spinbox (Aug 1 2026, per
+        # Keith: "time is hard to see") - shows HH:MM, which is both
+        # more readable and gives the sub-hour precision "movement of
+        # time" needs (minute-by-minute progression, not just jumping
+        # whole hours) - previously a plain QSpinBox with a ":00"
+        # suffix, whose 18px height also clipped like every other
+        # spinbox found earlier this session (QDoubleSpinBox/QSpinBox
+        # need more than the 18px button standard - bumped to 24px,
+        # matching the fix already applied in the Item Editor Dialog).
+        from PyQt6.QtCore import QTime
+        time_edit = QTimeEdit(QTime(12, 0))
+        time_edit.setDisplayFormat("HH:mm")
+        time_edit.setFixedHeight(24)
+        time_edit.setEnabled(False)
+        time_edit.setToolTip("Simulated time of day for the Time switch above")
+        time_chk.toggled.connect(time_edit.setEnabled)
         time_chk.toggled.connect(self._on_tobj_time_toggled)
-        time_spin.valueChanged.connect(self._on_tobj_time_changed)
+        time_edit.timeChanged.connect(self._on_tobj_time_changed)
         self._tobj_time_chk = time_chk
-        self._tobj_time_spin = time_spin
+        self._tobj_time_spin = time_edit   # kept name for existing callers
+
+        # Play/Stop + Settings (Aug 1 2026, per Keith: "we need a
+        # [play] and [stop] and Settings [*] Cog for time settings, we
+        # need to impliment movement of time, so we can see the
+        # switching of tobjs on the map") - a QTimer advances time_edit
+        # by self._time_flow_minutes_per_tick every self._time_flow_
+        # interval_ms, re-applying the TOBJ filter on each tick so
+        # switching is visible live rather than only on manual edits.
+        time_play_btn = QPushButton("Play")
+        time_play_btn.setFixedHeight(24)
+        time_play_btn.setStyleSheet(_compact_18)
+        time_play_btn.setToolTip("Start advancing time automatically")
+        time_stop_btn = QPushButton("Stop")
+        time_stop_btn.setFixedHeight(24)
+        time_stop_btn.setStyleSheet(_compact_18)
+        time_stop_btn.setEnabled(False)
+        time_stop_btn.setToolTip("Stop advancing time")
+        time_settings_btn = QPushButton("*")
+        time_settings_btn.setFixedHeight(24)
+        time_settings_btn.setFixedWidth(24)
+        time_settings_btn.setStyleSheet(_compact_18)
+        time_settings_btn.setToolTip("Time flow settings (speed)")
+        self._time_flow_timer = QTimer(self)
+        self._time_flow_minutes_per_tick = 1
+        self._time_flow_interval_ms = 1000
+        self._time_flow_timer.timeout.connect(self._on_time_flow_tick)
+        time_play_btn.clicked.connect(lambda: self._start_time_flow(time_play_btn, time_stop_btn))
+        time_stop_btn.clicked.connect(lambda: self._stop_time_flow(time_play_btn, time_stop_btn))
+        time_settings_btn.clicked.connect(self._show_time_flow_settings_popup)
+        self._time_play_btn = time_play_btn
+        self._time_stop_btn = time_stop_btn
 
         # Advanced menu (Aug 1 2026, per Keith: "as we're loading both
         # Generic files and this works, we don't need to show this in
@@ -19877,7 +19917,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # got crowded; given their own row instead.
         opts_row2 = QHBoxLayout()
         opts_row2.addWidget(time_chk)
-        opts_row2.addWidget(time_spin)
+        opts_row2.addWidget(time_edit)
+        opts_row2.addWidget(time_play_btn)
+        opts_row2.addWidget(time_stop_btn)
+        opts_row2.addWidget(time_settings_btn)
 
         # Nav settings (Aug 1 2026, per Keith: "need a way to toggle
         # these settings, mouse strength, other needed settings") -
@@ -20234,12 +20277,82 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         filter so the new on/off state takes effect immediately."""
         self._apply_ipl_visibility_filter(auto_fit=False)
 
-    def _on_tobj_time_changed(self, hour): #vers 1
-        """Simulated-hour spinbox changed - only matters while the
+    def _on_tobj_time_changed(self, qtime): #vers 2
+        """Simulated time-of-day edit changed - only matters while the
         Time switch is on, but re-applying is cheap and avoids a
         stale filter if the switch gets enabled right after."""
         if getattr(self, '_tobj_time_chk', None) and self._tobj_time_chk.isChecked():
             self._apply_ipl_visibility_filter(auto_fit=False)
+
+    def _start_time_flow(self, play_btn, stop_btn): #vers 1
+        """Start the time-flow timer - per Keith: "we need a [play]
+        and [stop]... we need to impliment movement of time, so we
+        can see the switching of tobjs on the map." Turns the Time
+        switch on automatically if it wasn't already (playing time
+        with the filter off wouldn't show anything changing)."""
+        if not self._tobj_time_chk.isChecked():
+            self._tobj_time_chk.setChecked(True)
+        self._time_flow_timer.start(self._time_flow_interval_ms)
+        play_btn.setEnabled(False)
+        stop_btn.setEnabled(True)
+
+    def _stop_time_flow(self, play_btn, stop_btn): #vers 1
+        """Stop the time-flow timer - time stays at whatever it
+        reached, doesn't reset."""
+        self._time_flow_timer.stop()
+        play_btn.setEnabled(True)
+        stop_btn.setEnabled(False)
+
+    def _on_time_flow_tick(self): #vers 1
+        """One time-flow timer tick - advances the simulated time by
+        self._time_flow_minutes_per_tick minutes (wrapping past
+        midnight automatically, QTime.addSecs handles that), then
+        re-applies the visibility filter so TOBJ switching is visible
+        live rather than only on manual time edits."""
+        current = self._tobj_time_spin.time()
+        new_time = current.addSecs(self._time_flow_minutes_per_tick * 60)
+        self._tobj_time_spin.setTime(new_time)
+        self._apply_ipl_visibility_filter(auto_fit=False)
+
+    def _show_time_flow_settings_popup(self): #vers 1
+        """Time flow speed settings - per Keith's TODO item: "Adjustable
+        time flow: 1 min for every Second adjustable." Two settings:
+        how many in-game minutes pass per tick, and how often (in real
+        milliseconds) a tick happens - together these give the "N
+        in-game minutes per M real seconds" rate Keith described,
+        rather than a fixed single ratio."""
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Time Flow Settings")
+        lay = QVBoxLayout(dlg)
+
+        lay.addWidget(QLabel("In-game minutes per tick"))
+        minutes_spin = QSpinBox()
+        minutes_spin.setRange(1, 120)
+        minutes_spin.setValue(self._time_flow_minutes_per_tick)
+        minutes_spin.setFixedHeight(24)
+        def on_minutes_change(v):
+            self._time_flow_minutes_per_tick = v
+        minutes_spin.valueChanged.connect(on_minutes_change)
+        lay.addWidget(minutes_spin)
+
+        lay.addWidget(QLabel("Real seconds per tick"))
+        interval_spin = QDoubleSpinBox()
+        interval_spin.setRange(0.1, 60.0)
+        interval_spin.setSingleStep(0.5)
+        interval_spin.setDecimals(1)
+        interval_spin.setValue(self._time_flow_interval_ms / 1000)
+        interval_spin.setFixedHeight(24)
+        def on_interval_change(v):
+            self._time_flow_interval_ms = int(v * 1000)
+            if self._time_flow_timer.isActive():
+                self._time_flow_timer.start(self._time_flow_interval_ms)
+        interval_spin.valueChanged.connect(on_interval_change)
+        lay.addWidget(interval_spin)
+
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(dlg.accept)
+        lay.addWidget(close_btn)
+        dlg.exec()
 
     def _refresh_ipl_inst_file_panel(self): #vers 3
         """Re-read the currently selected IPL's raw file content,
@@ -21762,7 +21875,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         get_object = getattr(loader, 'get_object', None)
         if get_object is None:
             return instances
-        hour = self._tobj_time_spin.value()
+        hour = self._tobj_time_spin.time().hour()
         result = []
         for inst in instances:
             obj = get_object(inst.model_id)
