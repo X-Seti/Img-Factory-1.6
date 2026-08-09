@@ -1781,3 +1781,22 @@ conclusively found despite extensive isolated testing.
   logged in TODO.md as needing their own rendering-side design pass -
   genuinely separate from this time-control infrastructure (visual
   lighting/ambient changes, not just which instances show/hide).
+
+- **Aug 1, 2026 (cont'd)** — Fixed LOD Show-Only/Show-Normals doing
+  nothing for SA data, per Keith: "when LOD only is set, it still
+  loads everything, when Norm is set, it loads the lods aswell,
+  filenames for lods, Start of LOD or lod." Same lesson as the
+  rotation conjugate fix earlier this session: `resolve_lod_pairs`'s
+  two detection strategies (lod_index field vs "LOD" name-prefix
+  matching) were mutually exclusive by game, with SA/SOL gated to
+  lod_index only - but Keith's own real SA data (`LODroadB48` from
+  `LAe.ipl`) always has `lod_index=-1` in practice, and its own model
+  name confirms SA uses the same "LOD" prefix convention as GTA3/VC.
+  Widened both strategies to run for every game and combine their
+  results, rather than being gated by game at all.
+
+  Verified with Keith's real SA example: `resolve_lod_pairs` now
+  correctly pairs `roadB48`/`LODroadB48` despite `lod_index=-1`; Show
+  LOD only correctly returns just the LOD instance, Show Normals
+  correctly returns just the base one - both previously did nothing
+  for this data. Full `ast.parse` clean.

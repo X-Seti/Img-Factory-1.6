@@ -1266,78 +1266,79 @@ class GTAWorldLoader: #vers 3
 
     def resolve_lod_pairs(self) -> Dict[int, IPLInstance]:
         """Resolve each instance's paired LOD counterpart, where one
-        exists. Two different detection strategies depending on the
-        game, since GTA3/VC's inst format has no lod_index field at
-        all (IPLParser never sets it for those, staying at the -1
-        default) - SA/SOL use that field; GTA3/VC identify their LOD
-        replacements by a "LOD" model-name prefix instead (Aug 1
-        2026, per Keith testing with VC and finding Show All/Show
-        LOD/Show Norm had no visible effect - confirmed by his own
-        earlier IPL data showing instances like "LODdock10" alongside
-        "dock10").
+        exists. Two detection strategies, both run for every game and
+        combined (Aug 1 2026, widened from being mutually exclusive
+        by game - per Keith: "when LOD only is set, it still loads
+        everything, when Norm is set, it loads the lods aswell,
+        filenames for lods, Start of LOD or lod" - his own real SA
+        data has always shown lod_index=-1 in practice (e.g.
+        LODroadB48 in LAe.ipl), so the lod_index-only strategy
+        previously gated to SA/SOL found nothing there; his own
+        model name ("LODroadB48") confirms SA uses the same "LOD"
+        prefix naming convention as GTA3/VC, not lod_index alone -
+        same lesson as the rotation conjugate fix, which also turned
+        out to need widening from an initially SA/VC-specific
+        assumption to apply universally):
 
-        SA/SOL interpretation (best-effort, based on community-
-        documented GTA SA .ipl format - not verified against official
-        documentation, so treat this as a reasonable starting point
-        rather than certain): a positive lod_index is the 0-based
-        position, among just the "inst" entries of that SAME source
-        .ipl file, of this instance's paired counterpart (typically a
-        lower-detail replacement model at the same position). -1 means
-        no LOD pair.
+        1. lod_index field (SA/SOL, best-effort, based on community-
+           documented format - not verified against official
+           documentation): a positive lod_index is the 0-based
+           position, among just the "inst" entries of that SAME
+           source .ipl file, of this instance's paired counterpart.
+           -1 means no LOD pair via this field. Still checked for
+           every game, in case some data genuinely uses it, even
+           though real SA sample data seen so far hasn't.
 
-        GTA3/VC interpretation: an instance whose model name starts
-        with "lod" (case-insensitive) pairs with another instance in
-        the same source IPL file whose model name matches the
-        remainder (e.g. "LODdock10" -> "dock10") AND whose position is
-        at (or extremely close to) the same coordinates - the position
-        check guards against two unrelated objects that happen to
-        share a name pattern coincidentally.
+        2. "LOD" name-prefix matching (all games): an instance whose
+           model name starts with "lod" (case-insensitive) pairs with
+           another instance in the same source IPL file whose model
+           name matches the remainder (e.g. "LODdock10" -> "dock10",
+           "LODroadB48" -> "roadB48") AND whose position is at (or
+           extremely close to) the same coordinates - the position
+           check guards against two unrelated objects that happen to
+           share a name pattern coincidentally.
 
         Returns a dict mapping id(instance) -> its paired IPLInstance,
-        for every instance that resolves to a valid pair. Keyed by
-        id() rather than model_id/position, since multiple instances
-        can share a model_id and this is about a specific placement's
-        specific pairing, not anything model-level."""
-        if self.game in (GTAGame.SA, GTAGame.SOL):
-            pairs: Dict[int, IPLInstance] = {}
-            by_file: Dict[str, list] = {}
-            for inst in self.instances:
-                by_file.setdefault(inst.source_ipl, []).append(inst)
-            for file_instances in by_file.values():
-                for inst in file_instances:
-                    if inst.lod_index is not None and inst.lod_index >= 0 \
-                            and inst.lod_index < len(file_instances):
-                        pairs[id(inst)] = file_instances[inst.lod_index]
-            return pairs
+        for every instance that resolves to a valid pair via either
+        strategy. Keyed by id() rather than model_id/position, since
+        multiple instances can share a model_id and this is about a
+        specific placement's specific pairing, not anything
+        model-level."""
+        pairs: Dict[int, IPLInstance] = {}
+        by_file: Dict[str, list] = {}
+        for inst in self.instances:
+            by_file.setdefault(inst.source_ipl, []).append(inst)
 
-        if self.game in (GTAGame.GTA3, GTAGame.VC):
-            pairs: Dict[int, IPLInstance] = {}
-            by_file: Dict[str, list] = {}
-            for inst in self.instances:
-                by_file.setdefault(inst.source_ipl, []).append(inst)
-            pos_tol = 0.5   # units - allows tiny float/rounding differences
-            for file_instances in by_file.values():
-                # Index non-LOD instances in this file by (name, rounded
-                # position) for fast, tolerant matching below.
-                by_name = {}
-                for inst in file_instances:
-                    if not inst.model_name.lower().startswith('lod'):
-                        by_name.setdefault(inst.model_name.lower(), []).append(inst)
-                for inst in file_instances:
-                    name = inst.model_name
-                    if not name.lower().startswith('lod'):
-                        continue
-                    base_name = name[3:].lower()   # strip "LOD"/"lod" prefix
-                    candidates = by_name.get(base_name, [])
-                    for cand in candidates:
-                        if (abs(cand.pos_x - inst.pos_x) <= pos_tol and
-                                abs(cand.pos_y - inst.pos_y) <= pos_tol and
-                                abs(cand.pos_z - inst.pos_z) <= pos_tol):
-                            pairs[id(cand)] = inst
-                            break
-            return pairs
+        # Strategy 1: lod_index field
+        for file_instances in by_file.values():
+            for inst in file_instances:
+                if inst.lod_index is not None and inst.lod_index >= 0 \
+                        and inst.lod_index < len(file_instances):
+                    pairs[id(inst)] = file_instances[inst.lod_index]
 
-        return {}
+        # Strategy 2: "LOD" name-prefix matching
+        pos_tol = 0.5   # units - allows tiny float/rounding differences
+        for file_instances in by_file.values():
+            # Index non-LOD instances in this file by name for fast,
+            # tolerant matching below.
+            by_name: Dict[str, list] = {}
+            for inst in file_instances:
+                if not inst.model_name.lower().startswith('lod'):
+                    by_name.setdefault(inst.model_name.lower(), []).append(inst)
+            for inst in file_instances:
+                name = inst.model_name
+                if not name.lower().startswith('lod'):
+                    continue
+                base_name = name[3:].lower()   # strip "LOD"/"lod" prefix
+                candidates = by_name.get(base_name, [])
+                for cand in candidates:
+                    if (abs(cand.pos_x - inst.pos_x) <= pos_tol and
+                            abs(cand.pos_y - inst.pos_y) <= pos_tol and
+                            abs(cand.pos_z - inst.pos_z) <= pos_tol):
+                        pairs[id(cand)] = inst
+                        break
+
+        return pairs
 
     def get_objects_by_type(self, obj_type: str) -> List[IDEObject]:
         t = obj_type.lower()
