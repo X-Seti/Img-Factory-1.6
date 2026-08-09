@@ -1603,3 +1603,21 @@ conclusively found despite extensive isolated testing.
   Verified: Advanced button confirmed present with the menu item
   correctly wired to the existing handler. Full `QApplication`
   instantiation clean, `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Continuing through TODO.md per Keith's
+  "lets continue adding the rest of whats on the todo list":
+
+  Marked two items as resolved after investigation/confirmation:
+  the missing splitter bug (Keith confirmed already fixed), and the
+  "18px compact sizing" general clipping concern (audited every
+  `setFixedHeight(18)` call in the file - none affect a spinbox
+  outside the Item Editor Dialog case already fixed earlier).
+
+  Implemented the "pick/goto zoom settings" item: `_center_viewport_
+  on_instance`'s previously-hardcoded `40.0` zoom distance is now
+  `self._goto_zoom_distance`, exposed as a spinbox in the same Nav
+  settings popup added for mouse sensitivity. Verified: default
+  confirmed `40.0`; changing the setting and then calling
+  `_center_viewport_on_instance` confirmed the new value is actually
+  used (not the old hardcoded one). Full `QApplication` instantiation
+  clean, `ast.parse` clean.

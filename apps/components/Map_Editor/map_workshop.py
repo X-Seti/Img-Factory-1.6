@@ -19877,13 +19877,18 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._generic_ide_textures_cache = (id(loader), all_textures, distinct_txds)
         return all_textures, distinct_txds
 
-    def _show_nav_settings_popup(self): #vers 1
-        """Small popup with viewport navigation settings - currently
-        just mouse sensitivity (Aug 1 2026, per Keith: "need a way to
-        toggle these settings, mouse strength, other needed
-        settings"). Applies to preview_widget._mouse_sensitivity,
-        which DFFViewport.mouseMoveEvent multiplies both the rotate
-        and pan deltas by."""
+    def _show_nav_settings_popup(self): #vers 2
+        """Small popup with viewport navigation settings - mouse
+        sensitivity (Aug 1 2026, per Keith: "need a way to toggle
+        these settings, mouse strength, other needed settings") and
+        the pick/goto-object zoom distance (per the TODO item: "Pick/
+        goto settings... needs a proper settings option for how close
+        'go to object' zooms in, rather than one fixed value for
+        everyone/every object size"). Applies to preview_widget.
+        _mouse_sensitivity (DFFViewport.mouseMoveEvent multiplies both
+        the rotate and pan deltas by it) and self._goto_zoom_distance
+        (_center_viewport_on_instance, used when double-clicking an
+        object in the viewport)."""
         vp = getattr(self, 'preview_widget', None)
         if vp is None:
             return
@@ -19903,6 +19908,26 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         row.addWidget(slider)
         row.addWidget(value_lbl)
         lay.addLayout(row)
+
+        lay.addWidget(QLabel("Go-to-Object Zoom Distance"))
+        zoom_row = QHBoxLayout()
+        zoom_spin = QDoubleSpinBox()
+        zoom_spin.setRange(1.0, 500.0)
+        zoom_spin.setDecimals(1)
+        zoom_spin.setSingleStep(5.0)
+        zoom_spin.setValue(getattr(self, '_goto_zoom_distance', 40.0))
+        zoom_spin.setToolTip(
+            "How far the camera sits from an object when double-clicking\n"
+            "it in the viewport (or picking it another way) - lower is\n"
+            "closer/more zoomed in. Not scaled to the object's own size\n"
+            "yet, so very large or very small objects may still need a\n"
+            "manual zoom adjustment afterward.")
+        def on_zoom_change(v):
+            self._goto_zoom_distance = v
+        zoom_spin.valueChanged.connect(on_zoom_change)
+        zoom_row.addWidget(zoom_spin)
+        lay.addLayout(zoom_row)
+
         close_btn = QPushButton("Close")
         close_btn.clicked.connect(dlg.accept)
         lay.addWidget(close_btn)
@@ -20257,7 +20282,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._center_viewport_on_instance(match)
             self._center_on_instance(match)
 
-    def _center_viewport_on_instance(self, inst): #vers 2
+    def _center_viewport_on_instance(self, inst): #vers 3
         """Pan/zoom self.preview_widget (our actual active viewport)
         to focus closely on one instance's position - _center_on_
         instance (existing, ported code) only ever updated the
@@ -20265,18 +20290,21 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         CHANGELOG.md - "keep using Model Workshop's existing DFF
         viewport"), so it never actually moved anything visible here.
 
-        Zoom distance bumped 15 -> 40 (Aug 1 2026, per Keith: "the
-        zoom in is too strong, I have to zoom out alot to see the
-        object") - still a fixed value, not scaled to the actual
-        object's size, so this is a better default rather than a real
-        fix; a proper user-configurable pick/goto zoom setting is
-        tracked in TODO.md."""
+        Zoom distance now user-configurable (Aug 1 2026) via
+        self._goto_zoom_distance, defaulting to 40.0 - the value
+        Keith settled on earlier ("the zoom in is too strong, I have
+        to zoom out alot to see the object", bumped from an original
+        15). Exposed as a setting in the Nav popup
+        (_show_nav_settings_popup) rather than staying a fixed value
+        for everyone/every object size, per the TODO item asking for
+        exactly that. Still not scaled to the actual object's own
+        size - a further refinement, not done here."""
         vp = getattr(self, 'preview_widget', None)
         if vp is None:
             return
         vp._pan_x = -inst.pos_x
         vp._pan_y = -inst.pos_y
-        vp._dist = 40.0
+        vp._dist = getattr(self, '_goto_zoom_distance', 40.0)
         if getattr(vp, '_projection', None) == 'ortho':
             try:
                 vp.resizeGL(vp.width(), vp.height())

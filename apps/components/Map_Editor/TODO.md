@@ -68,11 +68,12 @@ Extracted from inline `#TODO` comments in map_workshop.py, per Keith
   edits) isn't implemented - needs its own instance/IPL-state design,
   since the old raster/pixel-based undo system (from the DP5 paint
   canvas era) isn't portable to this.
-- Pick/goto settings (Aug 1 2026, per Keith): double-clicking an
-  object in the viewport zooms in too tightly (currently a hardcoded
-  distance) - needs a proper settings option for how close "go to
-  object" zooms in, rather than one fixed value for everyone/every
-  object size.
+- [DONE Aug 1 2026] Pick/goto settings: double-clicking an object in
+  the viewport zoomed in too tightly (was a hardcoded distance) -
+  added self._goto_zoom_distance (default 40.0, matching the value
+  Keith had already settled on), exposed as a spinbox in the same Nav
+  settings popup used for mouse sensitivity. Still not scaled to the
+  object's own size - a further refinement, not done here.
 - Snap function (Aug 1 2026, per Keith): "the biggest problem
   sometimes with making models is sometimes there are gaps, so we
   need a snap function" - snapping vertices/objects together to close
