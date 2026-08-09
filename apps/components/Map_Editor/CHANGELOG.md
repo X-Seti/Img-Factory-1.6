@@ -1923,3 +1923,41 @@ conclusively found despite extensive isolated testing.
   before and after loading; the text export confirmed producing a
   correctly formatted SA-style `.ipl` file. Full `QApplication`
   instantiation clean, `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Found and fixed the real root cause
+  behind "app freezes, no dialog?" after a binary IPL load that had
+  actually succeeded, per Keith: "[COL] Loaded barriers1.ipl: 8
+  instances (8 model names resolved) nothing, but a frozen app, no
+  dialog? and just noticed [COL] this isnt col workshop."
+
+  `ModelWorkshop` never had a working status bar at all.
+  `setup_ui`'s status-bar block was gated on `if hasattr(self,
+  '_setup_status_indicators'):` - that method is only ever actually
+  defined in TXD Workshop (`txd_workshop.py`), not `ModelWorkshop` or
+  any of its mixins, so the check silently evaluated `False` and no
+  status widget was ever built. Every single `_set_status(...)` call
+  this entire session - every load/preload status message referenced
+  throughout this changelog - has only ever printed to the console
+  via `_set_status`'s own fallback branch (which is also where the
+  confusing "[COL]" prefix came from, a leftover generic label for
+  that fallback), never shown anywhere in the actual UI. A real,
+  successful load like this one looked exactly like nothing happened
+  at all, because nothing *visible* did.
+
+  Fixed by wiring in the existing `_create_status_bar` method
+  (previously built but also never called) instead of the dead check
+  - it sets `self.status_label`, the first thing `_set_status` already
+  looks for. Also cleaned up the `[COL]` fallback prefix to `[Map
+  Workshop]`, though that branch should now be unreachable in normal
+  operation.
+
+  Found this is a shared, cross-component bug, not unique to Map
+  Workshop - Model Workshop and COL Workshop have the identical dead
+  `hasattr` check in their own `setup_ui`, logged to TODO.md as
+  needing the same fix, not yet applied there.
+
+  Verified: `status_label` confirmed to now actually exist on a real
+  `ModelWorkshop` instance (previously didn't); `_set_status` with
+  Keith's exact message text confirmed correctly reaching
+  `status_label.text()`. Full `QApplication` instantiation clean,
+  `ast.parse` clean.

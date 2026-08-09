@@ -4910,12 +4910,24 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         _QTOuter.singleShot(400, self._restore_outer_layout)
         self.window_closed.connect(self._save_outer_layout)
 
-        # Status indicators - hidden when embedded in main window tab
-        if hasattr(self, '_setup_status_indicators'):
-            status_frame = self._setup_status_indicators()
-            if not self.standalone_mode:
-                status_frame.setVisible(False)
-            main_layout.addWidget(status_frame)
+        # Status bar (Aug 1 2026, per Keith: "nothing, but a frozen
+        # app, no dialog?" after a binary IPL load that actually
+        # succeeded per its console log) - the previous check here
+        # (hasattr(self, '_setup_status_indicators')) always evaluated
+        # False: that method is only ever defined in TXD Workshop, not
+        # ModelWorkshop or any of its mixins - so this block never ran
+        # and no status widget was ever built. Every _set_status(...)
+        # call this whole session (including every load/preload
+        # status message referenced throughout CHANGELOG.md) has only
+        # ever printed to the console via _set_status's own fallback -
+        # never shown anywhere in the actual UI, which is exactly why
+        # a real successful load like this one could look like nothing
+        # happened at all. Uses the existing _create_status_bar
+        # (previously built but never called either) instead, which
+        # sets self.status_label - the first thing _set_status already
+        # checks for.
+        status_frame = self._create_status_bar()
+        main_layout.addWidget(status_frame)
 
         # Apply theme colours to all icons now that UI is fully built
         self._refresh_icons()
@@ -6198,14 +6210,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return models[row]
         return None
 
-    def _set_status(self, msg: str): #vers 1
+    def _set_status(self, msg: str): #vers 2
         """Write msg to the status label (whichever one exists)."""
         if hasattr(self, 'status_label'):
             self.status_label.setText(msg)
         elif hasattr(self, 'status_bar') and hasattr(self.status_bar, 'showMessage'):
             self.status_bar.showMessage(msg, 3000)
         else:
-            print(f"[COL] {msg}")
+            print(f"[Map Workshop] {msg}")
 
     def _create_new_surface(self): #vers 1
         """Add a new empty COL model to the loaded file."""

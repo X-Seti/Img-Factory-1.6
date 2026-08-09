@@ -224,3 +224,15 @@ session), editing each entry's fields, a 3D gizmo or coordinate
 entry for positioning a light's offset relative to the model, and
 write-back to the IDE file (depends on the general write-back
 infrastructure noted elsewhere in this file).
+
+## Cross-component dead status-bar code (Aug 1 2026, found while fixing Map Workshop's)
+
+Model Workshop, COL Workshop, and Map Workshop's own setup_ui all had
+the identical `if hasattr(self, '_setup_status_indicators'):` guard -
+that method is only ever actually defined in TXD Workshop
+(txd_workshop.py), so the check silently evaluates False everywhere
+else and no status bar/label ever gets built for those three. Fixed
+for Map Workshop this pass (see CHANGELOG.md); Model Workshop and
+COL Workshop still have the same dead code and almost certainly the
+same "status messages never actually reach the UI" symptom, just not
+reported yet - worth the same fix there too.
