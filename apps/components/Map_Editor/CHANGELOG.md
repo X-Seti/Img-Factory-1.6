@@ -1621,3 +1621,31 @@ conclusively found despite extensive isolated testing.
   `_center_viewport_on_instance` confirmed the new value is actually
   used (not the old hardcoded one). Full `QApplication` instantiation
   clean, `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Solved "SA trees not showing alpha, VC
+  works" - Keith corrected my initial rotation-bug hypothesis: "its
+  not a rotation bug, its the alpha layer not working on the SA tree
+  models" (with a screenshot showing pale, blocky, uniformly-white
+  tree shapes - not what an alpha-cutout failure looks like, which
+  would still show the leaf texture's own color/pattern, just without
+  the transparent parts cut out; this looked like a texture-load
+  failure falling back to untextured white geometry instead).
+
+  Found the real cause: `_preload_generic_ide_textures` only ever
+  collected TXDs from objects whose `source_ide` matched
+  `generic.ide` literally. Keith's own screenshot's selected object
+  showed `Source dynamic2.ide` - SA vegetation objects are defined in
+  a different shared IDE entirely, so their TXDs were never being
+  preloaded at all, and fell back to untextured white geometry -
+  which looks exactly like "alpha not working" but is actually a
+  missing texture. Generalized the method to collect TXDs from every
+  loaded object regardless of which IDE file it came from, not just
+  ones literally named `generic.ide` - same principle as the earlier
+  generic.txd-specific fix, now applied to every shared IDE a loaded
+  world has.
+
+  Verified with objects spanning 3 different IDE files (`generic.ide`,
+  `dynamic2.ide` matching Keith's real example, and a hypothetical
+  vegetation IDE): all 3 distinct TXDs now correctly collected, where
+  the old filter would have only found the `generic.ide` one. Full
+  `QApplication` instantiation clean, `ast.parse` clean.

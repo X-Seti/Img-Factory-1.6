@@ -19809,33 +19809,40 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         source, status)."""
         return self._get_txd_textures('generic')
 
-    def _preload_generic_ide_textures(self): #vers 2
-        """Collect every distinct TXD name referenced by generic.ide's
-        own entries (IDEObject.source_ide, matched by basename,
-        case-insensitive) and preload all of them via
-        _get_txd_textures. Returns (all_textures,
-        covered_txd_names) - the second so callers can skip re-fetching
-        these same TXDs in their own per-model loop.
+    def _preload_generic_ide_textures(self): #vers 3
+        """Collect every distinct TXD name referenced by ANY loaded
+        object (not just generic.ide's own entries) and preload all
+        of them via _get_txd_textures. Returns (all_textures,
+        covered_txd_names) - the second so callers can skip
+        re-fetching these same TXDs in their own per-model loop.
 
         Cached after the first successful computation (Aug 1 2026) -
         _refresh_world_view calls this on every single visibility
-        toggle, and generic.ide's own content doesn't change during a
-        session, so recomputing (iterating every loaded IDE object,
-        re-fetching each TXD) every time would be wasted work. Keyed
-        by id(loader) so a genuinely different loaded world correctly
-        recomputes rather than reusing a stale cache.
+        toggle, and the loaded world's own object set doesn't change
+        during a session, so recomputing (iterating every loaded IDE
+        object, re-fetching each TXD) every time would be wasted
+        work. Keyed by id(loader) so a genuinely different loaded
+        world correctly recomputes rather than reusing a stale cache.
 
-        Aug 1 2026, per Keith: "its not just generic.txd, there are
-        other texture files needed; these are found in generic.ide
-        thats called from gta_vc.dat... IDE DATA\\MAPS\\generic.IDE
-        loads those textures into memory... so we'll be looking for
-        mine.txd metal.txd, dynphn.txd, dynbarrels.txd, woodpanels.txd,
-        boxes.txd and every other texture listed in the .ide... some
-        of those names repeat, but we only need 1 of each." Matches
-        GTA's own engine behaviour: processing generic.ide's objects
-        section preloads all of its referenced TXDs, independent of
-        which specific instances any currently-loaded IPL happens to
-        place - not just the one literally named "generic.txd"."""
+        Generalized (Aug 1 2026, per Keith: "its not a rotation bug,
+        its the alpha layer not working on the SA tree models" -
+        traced to this method only ever looking at objects whose
+        source_ide matched "generic.ide" literally; SA vegetation
+        objects are defined in a different shared IDE entirely - his
+        own screenshot's selected object shows "Source dynamic2.ide"
+        - so their TXDs were never being preloaded at all, and fell
+        back to untextured white geometry, which looks like a broken
+        alpha layer but is actually a missing texture) from the
+        original generic.ide-only version, per Keith's earlier
+        request: "its not just generic.txd, there are other texture
+        files needed; these are found in generic.ide... so we'll be
+        looking for mine.txd metal.txd, dynphn.txd, dynbarrels.txd,
+        woodpanels.txd, boxes.txd and every other texture listed in
+        the .ide" - the same principle now applied to every shared IDE
+        a loaded world has, not just the one literally named
+        "generic.ide". Method name kept for now to minimize the diff
+        across existing callers; the docstring/behaviour are what
+        actually matter."""
         loader = getattr(self, '_world_loader', None)
         if loader is None or not hasattr(loader, 'objects'):
             return [], set()
@@ -19843,25 +19850,25 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if cache is not None and cache[0] == id(loader):
             return cache[1], cache[2]
         distinct_txds = set()
-        generic_ide_object_count = 0
+        object_count = 0
+        source_ide_names = set()
         for obj in loader.objects.values():
-            source = (getattr(obj, 'source_ide', '') or '').lower()
-            if os.path.basename(source) == 'generic.ide':
-                generic_ide_object_count += 1
-                if obj.txd_name:
-                    distinct_txds.add(obj.txd_name.lower())
+            object_count += 1
+            source = (getattr(obj, 'source_ide', '') or '')
+            if source:
+                source_ide_names.add(os.path.basename(source).lower())
+            if obj.txd_name:
+                distinct_txds.add(obj.txd_name.lower())
         # Status feedback (Aug 1 2026, per Keith: "I don't see any
         # indication that the genericide textures are being loaded,
-        # shown in the status") - makes it visible whether generic.ide
-        # was even found among the loaded objects at all (if 0, the
-        # file itself likely isn't loading - a separate, upstream
-        # issue from anything this method does) vs how many of its
-        # TXDs were actually found/fetched (if fewer than expected,
-        # points at the IMG-index/loose-file lookup itself).
-        if generic_ide_object_count == 0:
-            self._set_status(
-                "generic.ide: no objects found with source_ide matching "
-                "'generic.ide' - it may not have loaded at all")
+        # shown in the status") - makes it visible how many objects/
+        # source IDE files/distinct TXDs were found across the whole
+        # loaded world (if 0 objects, nothing loaded at all - a
+        # separate, upstream issue from anything this method does) vs
+        # how many TXDs were actually found/fetched (if fewer than
+        # expected, points at the IMG-index/loose-file lookup itself).
+        if object_count == 0:
+            self._set_status("No IDE objects loaded - textures can't be preloaded")
         all_textures = []
         fetched_count = 0
         for txd_name in sorted(distinct_txds):
@@ -19869,9 +19876,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if textures:
                 fetched_count += 1
                 all_textures.extend(textures.values())
-        if generic_ide_object_count > 0:
+        if object_count > 0:
             self._set_status(
-                f"generic.ide: {generic_ide_object_count} objects, "
+                f"{object_count} objects across {len(source_ide_names)} IDE file(s), "
                 f"{len(distinct_txds)} distinct TXDs, {fetched_count} "
                 f"found/fetched, {len(all_textures)} textures total")
         self._generic_ide_textures_cache = (id(loader), all_textures, distinct_txds)
