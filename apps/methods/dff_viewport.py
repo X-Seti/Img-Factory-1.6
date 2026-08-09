@@ -618,6 +618,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         elif has_verts:
             if   self._mode == 'wireframe': self._draw_wireframe()
             elif self._mode == 'solid':     self._draw_solid()
+            elif self._mode == 'semi_solid': self._draw_solid(alpha_multiplier=0.5)
             elif self._mode == 'textured':  self._draw_textured()
             self._draw_selection_overlay()
         if self._show_grid: self._draw_grid()
@@ -751,7 +752,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glEnable(GL_DEPTH_TEST)
         glEnable(GL_LIGHTING)
 
-    def _draw_solid(self): #vers 3
+    def _draw_solid(self, alpha_multiplier=1.0): #vers 4
         if not OPENGL_AVAILABLE: return
         flags = self._geom_flags()
         use_lighting = bool(flags & self.rpGEOMETRYLIGHT) and bool(self._normals)
@@ -763,9 +764,18 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             glDisable(GL_LIGHTING)
         use_p = (use_prelit or self._use_prelight) and bool(self._prelit)
         opaque = []; transparent = []
+        # alpha_multiplier < 1.0 (Aug 1 2026, Semi-Solid render mode -
+        # per Keith: "Render view should me merged with LOD view,
+        # labeled as Render: Texture, Non-texture, Semi-Solid,
+        # Wireframe...") forces every triangle through the blend path
+        # below instead of the opaque one, scaling its alpha down
+        # uniformly - a plain "ghosted" look, distinct from Non-
+        # Textured (which is fully opaque flat/lit shading).
+        force_transparent = alpha_multiplier < 0.999
         for tri in self._triangles:
             fc = self._face_color(tri[3])
-            (transparent if len(fc)>3 and fc[3]<0.99 else opaque).append((tri,fc))
+            is_transparent = force_transparent or (len(fc) > 3 and fc[3] < 0.99)
+            (transparent if is_transparent else opaque).append((tri, fc))
         glBegin(GL_TRIANGLES)
         for (v1,v2,v3,mid),(r,g,b,*rest) in opaque:
             a = rest[0] if rest else 1.0
@@ -777,7 +787,9 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         if transparent:
             glEnable(GL_BLEND); glDepthMask(False)
             glBegin(GL_TRIANGLES)
-            for (v1,v2,v3,mid),(r,g,b,a) in transparent:
+            for (v1,v2,v3,mid),fc in transparent:
+                r, g, b = fc[0], fc[1], fc[2]
+                a = (fc[3] if len(fc) > 3 else 1.0) * alpha_multiplier
                 if not use_p:
                     if use_modulate: glColor4f(r,g,b,a)
                     else: glColor4f(1.0,1.0,1.0,a)
@@ -1164,6 +1176,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._current_geom_flags=geom_flags
             if   self._mode=='wireframe': self._draw_wireframe()
             elif self._mode=='solid':     self._draw_solid()
+            elif self._mode=='semi_solid': self._draw_solid(alpha_multiplier=0.5)
             elif self._mode=='textured':  self._draw_textured()
             (self._vertices,self._normals,self._uvs,
              self._triangles,self._materials,self._prelit,
@@ -1273,6 +1286,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 glNewList(list_id, GL_COMPILE)
                 if   self._mode=='wireframe': self._draw_wireframe()
                 elif self._mode=='solid':     self._draw_solid()
+                elif self._mode=='semi_solid': self._draw_solid(alpha_multiplier=0.5)
                 elif self._mode=='textured':  self._draw_textured()
                 glEndList()
                 self._world_display_lists[cache_key] = list_id

@@ -19600,64 +19600,66 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         generic_txd_btn.clicked.connect(self._on_load_generic_txd_clicked)
         opts_row.addWidget(generic_txd_btn)
 
-        lod_view_btn = QPushButton("LOD view")
-        lod_view_btn.setFixedHeight(18)
-        lod_view_btn.setStyleSheet(_compact_18)
+        # Merged Render/LOD button (Aug 1 2026, per Keith: "Render
+        # view should me merged with LOD view, labeled as Render:
+        # Texture, Non-texture, Semi-Solid, Wireframe, Show LOD only,
+        # Show Normals, Show Both") - one button, one menu, two
+        # independent exclusive groups (render style and LOD filter
+        # are orthogonal - e.g. Wireframe + Show Both is a valid
+        # combination), separated by a divider. Replaces the earlier
+        # two separate buttons. Semi-Solid is a real render mode now
+        # (DFFViewport._draw_solid gained an alpha_multiplier
+        # parameter - forces every triangle through the alpha-blend
+        # path with its alpha scaled down uniformly, giving a
+        # ghosted/see-through look, distinct from Non-Textured's
+        # fully-opaque flat shading) - held off inventing this in an
+        # earlier pass since what it should mean wasn't clear yet;
+        # Keith's own wording here settles it as a real mode alongside
+        # the others.
         from PyQt6.QtGui import QActionGroup
-        lod_menu = QMenu(lod_view_btn)
-        lod_group = QActionGroup(lod_menu)
+        render_lod_btn = QPushButton("Render: Textured")
+        render_lod_btn.setFixedHeight(18)
+        render_lod_btn.setStyleSheet(_compact_18)
+        render_lod_menu = QMenu(render_lod_btn)
+
+        render_group = QActionGroup(render_lod_menu)
+        render_group.setExclusive(True)
+        render_specs = [
+            ('textured',   "Texture",     "Full textures, as loaded from the game's TXDs"),
+            ('solid',      "Non-texture", "Flat/lit shading, no textures"),
+            ('semi_solid', "Semi-Solid",  "Flat/lit shading with reduced opacity - a ghosted, see-through look"),
+            ('wireframe',  "Wireframe",   "Edges only, no fill"),
+        ]
+        for mode, label_text, tooltip in render_specs:
+            action = render_lod_menu.addAction(label_text)
+            action.setCheckable(True)
+            action.setChecked(mode == 'textured')
+            action.setToolTip(tooltip)
+            action.triggered.connect(
+                lambda checked, m=mode, lbl=label_text, btn=render_lod_btn:
+                    self._set_world_render_mode(m, lbl, btn) if checked else None)
+            render_group.addAction(action)
+
+        render_lod_menu.addSeparator()
+
+        lod_group = QActionGroup(render_lod_menu)
         lod_group.setExclusive(True)
         lod_specs = [
-            ('both',   "Show All",  "Show both normal and LOD (low-detail) instances together"),
-            ('normal', "Show Norm", "Show only normal-detail instances (default)"),
-            ('lod',    "Show LOD",  "Show only LOD (low-detail) instances"),
+            ('lod',    "Show LOD only", "Show only LOD (low-detail) instances"),
+            ('normal', "Show Normals",  "Show only normal-detail instances (default)"),
+            ('both',   "Show Both",     "Show both normal and LOD (low-detail) instances together"),
         ]
         for mode, label_text, tooltip in lod_specs:
-            action = lod_menu.addAction(label_text)
+            action = render_lod_menu.addAction(label_text)
             action.setCheckable(True)
             action.setChecked(mode == getattr(self, '_lod_display_mode', 'normal'))
             action.setToolTip(tooltip)
             action.triggered.connect(lambda checked, m=mode: self._set_lod_display_mode(m) if checked else None)
             lod_group.addAction(action)
-        lod_view_btn.setMenu(lod_menu)
-        lod_view_btn.setToolTip("Choose which detail level(s) of instances to show")
-        opts_row.addWidget(lod_view_btn)
 
-        # Render mode toggle (Aug 1 2026, per Keith: "Add the option
-        # to show as semi-solid, non-textured, wireframe") - reuses
-        # DFFViewport's existing set_render_mode('wireframe'/'solid'/
-        # 'textured'), which already worked but had no world-view-
-        # facing control to switch it (it only ever got set once, to
-        # 'textured', when a world first loads). "Non-textured" maps
-        # onto the existing 'solid' mode (flat/lit shading, no
-        # texture) - deliberately not inventing a new "semi-solid"
-        # mode yet, since what that should actually look like (a
-        # fixed reduced opacity applied globally? something else?)
-        # isn't clear - holding for Keith to clarify once he's tried
-        # the three modes that do have an unambiguous meaning already.
-        render_mode_btn = QPushButton("Render: Textured")
-        render_mode_btn.setFixedHeight(18)
-        render_mode_btn.setStyleSheet(_compact_18)
-        render_menu = QMenu(render_mode_btn)
-        render_group = QActionGroup(render_menu)
-        render_group.setExclusive(True)
-        render_specs = [
-            ('textured', "Textured", "Full textures, as loaded from the game's TXDs"),
-            ('solid',    "Non-Textured", "Flat/lit shading, no textures"),
-            ('wireframe',"Wireframe", "Edges only, no fill"),
-        ]
-        for mode, label_text, tooltip in render_specs:
-            action = render_menu.addAction(label_text)
-            action.setCheckable(True)
-            action.setChecked(mode == 'textured')
-            action.setToolTip(tooltip)
-            action.triggered.connect(
-                lambda checked, m=mode, lbl=label_text, btn=render_mode_btn:
-                    self._set_world_render_mode(m, lbl, btn) if checked else None)
-            render_group.addAction(action)
-        render_mode_btn.setMenu(render_menu)
-        render_mode_btn.setToolTip("Choose how the world view renders geometry")
-        opts_row.addWidget(render_mode_btn)
+        render_lod_btn.setMenu(render_lod_menu)
+        render_lod_btn.setToolTip("Choose how the world view renders geometry, and which detail level(s) to show")
+        opts_row.addWidget(render_lod_btn)
 
         opts_row.addStretch()
         lay.addLayout(opts_row)
@@ -21105,12 +21107,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._populate_instance_list(loader_stub)
         self._refresh_world_view(visible, auto_fit=auto_fit)
 
-    def _effective_rotation(self, inst): #vers 1
+    def _effective_rotation(self, inst): #vers 2
         """Return the quaternion (x,y,z,w) to actually use for
         rendering/display, applying a conjugate (negate x,y,z; keep
-        w) for SA/SOL specifically - not for VC/GTA3, which Keith
-        already confirmed renders correctly as-is with real Vice City
-        data.
+        w) - universally, not just for SA/SOL (see _conjugate_
+        rotation_for_game for the VC confirmation that widened this).
 
         Found via Keith's real example (LODroadB48, LAe.ipl line 91):
         raw file has rot=(0,0,0.4516149163,0.8922129869) - standard
@@ -21123,8 +21124,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         to a full conjugate for this specific example) quaternion.
         The conjugate is the mathematically well-defined, standard
         operation (unlike "negate z only", which isn't a meaningful
-        operation in general when x/y aren't zero) - no SA sample
-        data with non-zero rot_x/rot_y was available to confirm this
+        operation in general when x/y aren't zero) - no sample data
+        with non-zero rot_x/rot_y was available to confirm this
         distinction further, so this is verified for pure-yaw
         rotations specifically, less certain for combined-axis ones.
 
@@ -21136,8 +21137,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         return self._conjugate_rotation_for_game(
             inst.rot_x, inst.rot_y, inst.rot_z, inst.rot_w)
 
-    def _conjugate_rotation_for_game(self, x, y, z, w): #vers 1
-        """Raw quaternion in/out version of the same SA/SOL conjugate
+    def _conjugate_rotation_for_game(self, x, y, z, w): #vers 2
+        """Raw quaternion in/out version of the same conjugate
         _effective_rotation applies, for callers that don't have an
         IPLInstance handy (specifically _InstanceEditPanel's rotation
         spin boxes, which need this in both directions - display
@@ -21145,13 +21146,22 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         editing needs the reverse, going from an edited effective
         value back to what should actually be stored). A conjugate is
         its own inverse (applying it twice returns the original), so
-        the same operation works both ways."""
-        loader = getattr(self, '_world_loader', None)
-        game = getattr(loader, 'game', None)
-        from apps.methods.gta_dat_parser import GTAGame
-        if game in (GTAGame.SA, GTAGame.SOL):
-            return (-x, -y, -z, w)
-        return (x, y, z, w)
+        the same operation works both ways.
+
+        Applied universally now, not just SA/SOL (Aug 1 2026) - Keith
+        directly confirmed the identical symptom in VC: "the same
+        rotation issue is there, 32rot, I had to change to -32 to fix
+        the models position." Working the numbers the same way as the
+        original SA case: a raw quaternion whose euler yaw computes to
+        +32deg only aligns correctly at -32deg - exactly the z-sign-
+        flip pattern found for SA, just in a different game. The
+        earlier scipy cross-check (still mathematically correct, and
+        still in the code/tests) only proved this codebase's own
+        quaternion math is internally consistent with the standard
+        convention - it never proved that convention matches
+        RenderWare's actual on-disk one, which is what this conjugate
+        corrects for. No longer gated by game."""
+        return (-x, -y, -z, w)
 
     def _refresh_world_view(self, instances, auto_fit=True): #vers 3
         """Push a full multi-instance 3D world view into the existing

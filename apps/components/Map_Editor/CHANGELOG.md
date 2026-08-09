@@ -1467,3 +1467,51 @@ conclusively found despite extensive isolated testing.
   200px default; Format column tooltip confirmed listing all 3 real
   stream file names correctly, newline-separated. Full `QApplication`
   instantiation clean, `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Two more pieces per Keith:
+
+  **Merged Render/LOD menu**: "Render view should me merged with LOD
+  view, labeled as Render: Texture, Non-texture, Semi-Solid,
+  Wireframe, Show LOD only, Show Normals, Show Both." Replaced the
+  two separate buttons with one "Render" button and one menu
+  containing two independent exclusive action groups (render style
+  and LOD filter are orthogonal - e.g. Wireframe + Show Both is a
+  valid combination), separated by a divider - exact labels and order
+  as Keith specified.
+
+  Also implemented Semi-Solid as a real render mode, rather than
+  holding off on it as in an earlier pass. Added an `alpha_multiplier`
+  parameter to `DFFViewport._draw_solid` - when below 1.0, every
+  triangle is forced through the existing alpha-blend path (instead
+  of the opaque one) with its alpha scaled down uniformly, giving a
+  ghosted/see-through look distinct from Non-Texture's fully-opaque
+  flat shading. Wired into all 3 render dispatch points (single-model
+  view, DFF assembly view, world-instance display lists).
+
+  Verified: merged button confirmed showing all 7 items in the
+  correct order/grouping; Semi-Solid confirmed correctly reaching
+  `set_render_mode('semi_solid')` end to end.
+
+  **VC rotation confirmed, fix widened universally**: "the same
+  rotation issue is there, 32rot, I had to change to -32 to fix the
+  models position, this needs checking." Working the numbers the
+  same way as the original SA case: a raw quaternion whose euler yaw
+  computes to +32deg only aligns correctly at -32deg - the identical
+  z-sign-flip pattern found for SA, just now directly confirmed in
+  VC too. The earlier `scipy` cross-check was real and stays correct
+  (this codebase's own quaternion math is internally consistent with
+  the standard convention) but never actually proved that convention
+  matches RenderWare's on-disk one - that was an unwarranted leap
+  from "the math is self-consistent" to "VC is fine," which Keith's
+  direct report now corrects.
+
+  Removed the SA/SOL-only gate from `_conjugate_rotation_for_game` -
+  the conjugate now applies universally, still without touching the
+  stored `inst.rot_x/y/z/w` themselves (only rendering and the
+  Rotation spin boxes use the effective value, exactly as before).
+
+  Verified with Keith's own real VC data (`docks10`, `docks.ipl`):
+  effective rotation now correctly conjugated
+  `(-0,-0,-0.1908,+0.9816)`, yaw flips from +22deg to -22deg; raw
+  stored `rot_z`/`rot_w` confirmed unchanged. Full `QApplication`
+  instantiation clean, `ast.parse` clean on both files.
