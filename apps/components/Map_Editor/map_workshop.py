@@ -19315,12 +19315,18 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         own row, via the same self._binary_ipl_names/_ipl_display_to_
         stem/_ipl_display_order mechanism as before.
 
-        Loading the actual binary instance content (BinaryIPLParser
-        already accepts raw bytes, so feasible) isn't wired up yet -
-        this is the listing/counting half only, per Keith's own
-        wording."""
+        Loading the actual binary instance content is now wired up -
+        see _load_binary_ipl_stream and the "Load Binary Stream..."
+        context menu action, per Keith: "we need to be able to load
+        these binary IPLs, so right click, show the list, to load
+        from." self._ipl_names_with_binary_stream and self._
+        standalone_binary_ipl_archives now store (archive_path,
+        entry_name) tuples rather than plain entry name strings, so
+        the correct archive can be re-opened and the entry's actual
+        bytes read when loading."""
         self._binary_ipl_names = set()
-        self._ipl_names_with_binary_stream = {}   # text display name -> [stream entry names]
+        self._ipl_names_with_binary_stream = {}       # text display name -> [(archive_path, entry_name), ...]
+        self._standalone_binary_ipl_archives = {}      # display name -> archive_path
         get_img_paths = getattr(loader, 'get_img_paths', None)
         if get_img_paths is None:
             return
@@ -19363,7 +19369,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     parent_display = text_stems.get(entry_stem) or text_stems.get(parent_stem)
 
                     if parent_display is not None:
-                        self._ipl_names_with_binary_stream.setdefault(parent_display, []).append(name)
+                        self._ipl_names_with_binary_stream.setdefault(parent_display, []).append((img_path, name))
                         associated_count += 1
                         continue
 
@@ -19374,6 +19380,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     stem = f"img:{os.path.basename(img_path)}:{name}".lower()
                     self._ipl_display_to_stem[display_name] = stem
                     self._binary_ipl_names.add(display_name)
+                    self._standalone_binary_ipl_archives[display_name] = img_path
                     if display_name not in self._ipl_display_order:
                         self._ipl_display_order.append(display_name)
                     if display_name not in self._hidden_ipls:
@@ -19424,10 +19431,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 fmt_text = "Binary IPL"
                 fmt_tooltip = ipl_name
             elif ipl_name in getattr(self, '_ipl_names_with_binary_stream', {}):
-                stream_names = self._ipl_names_with_binary_stream[ipl_name]
-                stream_count = len(stream_names)
-                fmt_text = f"Text + {stream_count} Binary Stream{'s' if stream_count != 1 else ''}"
-                fmt_tooltip = "\n".join(stream_names)
+                stream_entries = sorted(self._ipl_names_with_binary_stream[ipl_name], key=lambda t: t[1])
+                stream_names = [name for _archive, name in stream_entries]
+                first_name = os.path.splitext(stream_names[0])[0]
+                remaining = stream_names[1:]
+                fmt_text = f"{first_name} +{len(remaining)}" if remaining else first_name
+                if remaining:
+                    fmt_tooltip = "\n".join(remaining)
             else:
                 stem = getattr(self, '_ipl_display_to_stem', {}).get(ipl_name)
                 entry = loader.available_ipls.get(stem) if (loader and stem) else None
@@ -19496,6 +19506,28 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             load_act.triggered.connect(
                 lambda checked=False, rows=selected_rows: self._load_selected_ipl_sections(rows))
 
+        # Load Binary Stream (Aug 1 2026, per Keith: "we need to be
+        # able to load these binary IPLs, so right click, show the
+        # list, to load from") - a submenu listing every associated
+        # stream file (for a text IPL that has one or more) as its own
+        # clickable item, or a direct action (only one entry to pick
+        # from) for a genuinely standalone binary IPL row.
+        stream_entries = getattr(self, '_ipl_names_with_binary_stream', {}).get(ipl_name)
+        if stream_entries:
+            stream_menu = menu.addMenu("Load Binary Stream")
+            for archive_path, entry_name in sorted(stream_entries, key=lambda t: t[1]):
+                act = stream_menu.addAction(entry_name)
+                act.triggered.connect(
+                    lambda checked=False, ap=archive_path, en=entry_name:
+                        self._load_binary_ipl_stream(ap, en))
+        elif ipl_name in getattr(self, '_binary_ipl_names', set()):
+            archive_path = getattr(self, '_standalone_binary_ipl_archives', {}).get(ipl_name)
+            if archive_path:
+                load_bin_act = menu.addAction("Load Binary Stream")
+                load_bin_act.triggered.connect(
+                    lambda checked=False, ap=archive_path, en=ipl_name:
+                        self._load_binary_ipl_stream(ap, en))
+
         menu.addSeparator()
         up_act = menu.addAction("Move Up")
         up_act.setEnabled(idx > 0)
@@ -19504,6 +19536,80 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         down_act.setEnabled(0 <= idx < len(order) - 1)
         down_act.triggered.connect(lambda checked=False, n=ipl_name: self._move_ipl_section(n, 1))
         menu.exec(table.viewport().mapToGlobal(pos))
+
+    def _load_binary_ipl_stream(self, archive_path, entry_name): #vers 1
+        """Actually load one binary IPL stream entry's instance data -
+        per Keith: "we need to be able to load these binary IPLs, so
+        right click, show the list, to load from." Reads the entry's
+        raw bytes from its archive, parses via the already-existing
+        BinaryIPLParser (built and verified against real sample data
+        earlier this session - only the inst section is parsed, per
+        its own docstring; cull/zone/other sections aren't yet), then:
+
+        - Resolves each parsed instance's model_name by looking it up
+          in the currently loaded world's own IDE objects (keyed by
+          model_id) - BinaryIPLParser can only ever know model_id from
+          the raw binary data itself, never a name.
+        - Merges the resolved instances into self._all_instances (the
+          flat list _apply_ipl_visibility_filter already reads from).
+        - Registers the stream's own display name as a normal section
+          (so it shows its own row, matching every other loaded IPL,
+          rather than staying folded under its parent text IPL's
+          Format-column "+N" count), makes it visible, and re-applies
+          the filter so it actually renders."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            return
+        try:
+            from apps.methods.img_core_classes import IMGFile
+            img = IMGFile(archive_path)
+            if not img.open():
+                self._set_status(f"Could not open {archive_path} to load {entry_name}")
+                return
+            entry = next((e for e in img.entries if getattr(e, 'name', '') == entry_name), None)
+            if entry is None:
+                self._set_status(f"{entry_name} not found in {archive_path}")
+                return
+            data = img.read_entry_data(entry)
+        except Exception as e:
+            self._set_status(f"Failed to read {entry_name}: {e}")
+            return
+
+        from apps.methods.gta_dat_parser import BinaryIPLParser
+        game = getattr(loader, 'game', None)
+        parser = BinaryIPLParser(game=game) if game else BinaryIPLParser()
+        if not parser.parse(data, source_name=entry_name):
+            errs = "; ".join(parser.stats.errors[:3])
+            self._set_status(f"Failed to parse {entry_name}: {errs}")
+            return
+
+        objects = getattr(loader, 'objects', {})
+        resolved_count = 0
+        for inst in parser.instances:
+            obj = objects.get(inst.model_id)
+            if obj is not None:
+                inst.model_name = obj.model_name
+                resolved_count += 1
+
+        all_inst = getattr(self, '_all_instances', None)
+        if all_inst is None:
+            self._all_instances = []
+            all_inst = self._all_instances
+        all_inst.extend(parser.instances)
+
+        if entry_name not in self._ipl_display_to_stem:
+            stem = f"img:{os.path.basename(archive_path)}:{entry_name}".lower()
+            self._ipl_display_to_stem[entry_name] = stem
+        if entry_name not in self._ipl_display_order:
+            self._ipl_display_order.append(entry_name)
+        self._hidden_ipls.discard(entry_name)
+        self._binary_ipl_names.discard(entry_name)   # now genuinely loaded, not just listed
+
+        self._set_status(
+            f"Loaded {entry_name}: {len(parser.instances)} instances "
+            f"({resolved_count} model names resolved)")
+        self._rebuild_ipl_sections_rows()
+        self._apply_ipl_visibility_filter()
 
     def _load_selected_ipl_sections(self, rows): #vers 1
         """Show/load every currently-hidden row among the given table

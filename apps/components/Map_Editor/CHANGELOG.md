@@ -1671,3 +1671,38 @@ conclusively found despite extensive isolated testing.
   paths joined together for a name indexed in two different
   archives. Full `QApplication` instantiation clean, `ast.parse`
   clean.
+
+- **Aug 1, 2026 (cont'd)** — Two pieces per Keith's binary IPL
+  follow-up:
+
+  **Format column redesign**: "instead of text + 6, with tooltop for
+  LAe_Stream0.ipl, have the first LAe_Stream0 as the first name +5,
+  with the tooltop showing the other 5." Changed from "Text + N
+  Binary Streams" (generic count) to showing the first stream's own
+  name directly plus a "+N" suffix for the rest, sorted for
+  predictable ordering (stream0 first) - the tooltip now lists only
+  the *remaining* entries, not repeating the one already visible in
+  the cell. Verified with 3 stream files: cell correctly reads
+  "LAn2_stream0 +2", tooltip correctly lists only stream1/stream2.
+
+  **Actual binary IPL loading**: "we need to be able to load these
+  binary IPLs, so right click, show the list, to load from." Added
+  `_load_binary_ipl_stream` - reads the entry's raw bytes from its
+  actual archive (now tracked as `(archive_path, entry_name)` tuples
+  rather than plain names, needed to know which archive to re-open),
+  parses via the already-existing `BinaryIPLParser`, resolves each
+  instance's `model_name` from the loaded world's own IDE objects
+  (binary IPLs only ever encode `model_id`, never a name), merges the
+  new instances into `_all_instances`, registers the stream as its
+  own normal section (visible, its own row) rather than staying
+  folded under its parent's Format-column count, and refreshes the
+  view. Wired into the context menu: a "Load Binary Stream" submenu
+  listing every associated stream file for a text IPL with one or
+  more, or a direct action for a standalone binary entry.
+
+  Verified end-to-end with a real synthetic binary IPL (correct magic
+  bytes, header, one instance record): instance count, resolved model
+  name, and parsed position all confirmed correct; entry confirmed
+  registered as its own visible section; visibility filter confirmed
+  re-applied. Full `QApplication` instantiation clean, `ast.parse`
+  clean.
