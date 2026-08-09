@@ -4242,14 +4242,32 @@ class _InstanceEditPanel(QWidget):
                 for i, e in enumerate(self._current_effects)]
         QMessageBox.information(self, "2DFX Effects", "\n".join(lines))
 
-    def _on_tobj_button_clicked(self): #vers 1
+    def _on_tobj_button_clicked(self): #vers 2
         """Show this instance's TOBJ (timed object) variants in a
-        popup - replaces the earlier always-visible text section."""
+        popup - replaces the earlier always-visible text section.
+
+        Now shows each variant's time_on/time_off range too (Aug 1
+        2026, per Keith: "lets complete the tojs, everything needed
+        to get that work") - previously showed only name/ID/source,
+        missing the actual time info a "timed object" popup should
+        lead with. Note: get_tobj_for_model groups by the queried
+        model_id, and each TOBJ IDE entry has its own unique model_id
+        (day and night variants of the same real-world object are
+        two separate IDE entries, linked only by shared placement
+        position via separate IPL instances, not a shared model_id) -
+        so this will usually show just the current object's own
+        entry, not an actual "paired" variant. Still useful: it's the
+        one place that surfaces this object's own time range."""
         if not self._current_tobjs:
             QMessageBox.information(self, "TOBJ (Timed Object) Variants", "(none)")
             return
-        lines = [f"{t.model_name} (ID {t.model_id}, {t.source_ide} line {t.line_no})"
-                for t in self._current_tobjs]
+        lines = []
+        for t in self._current_tobjs:
+            time_on = t.extra.get('time_on')
+            time_off = t.extra.get('time_off')
+            time_part = f"  -  visible {time_on:02d}:00-{time_off:02d}:00" \
+                if time_on is not None and time_off is not None else ""
+            lines.append(f"{t.model_name} (ID {t.model_id}, {t.source_ide} line {t.line_no}){time_part}")
         QMessageBox.information(self, "TOBJ (Timed Object) Variants", "\n".join(lines))
 
     def _on_close_clicked(self): #vers 1

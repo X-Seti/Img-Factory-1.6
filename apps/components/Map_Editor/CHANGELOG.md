@@ -1800,3 +1800,31 @@ conclusively found despite extensive isolated testing.
   LOD only correctly returns just the LOD instance, Show Normals
   correctly returns just the base one - both previously did nothing
   for this data. Full `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Rounded out TOBJ support per Keith's
+  "lets complete the tojs, everything needed to get that work":
+
+  The TOBJ popup (Item Editor Dialog's "TOBJ (n)" button) previously
+  showed only name/ID/source, missing the actual time range - the
+  core info a "timed object" popup should lead with. Now shows
+  "visible HH:00-HH:00" for each entry that has `time_on`/`time_off`
+  parsed. Verified: a real tobj entry (time_on=20, time_off=6)
+  correctly produces "streetlight01 (ID 1234, veg.ide line 42) -
+  visible 20:00-06:00".
+
+  Noted (not changed, already correct as-is): `get_tobj_for_model`
+  groups by the queried model_id, and each TOBJ IDE entry has its own
+  unique model_id (day/night variants of the same real-world object
+  are separate IDE entries, linked only by shared placement position
+  via separate IPL instances, never a shared model_id) - so this
+  mostly surfaces just the current object's own entry rather than an
+  actual paired variant, which is expected rather than a bug to fix.
+  Confirmed two other pieces already worked correctly without needing
+  changes: the raw IDE line shown in the Identity section already
+  picks up `time_on`/`time_off` automatically (it iterates the
+  parsed object's own `extra` dict, which now includes them since the
+  parsing fix); the IDE Objects table in Object Browser reads raw
+  file text directly rather than going through the parser, so it was
+  already showing every field verbatim regardless.
+
+  Full `QApplication` instantiation clean, `ast.parse` clean.
