@@ -19178,6 +19178,18 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._apply_compact_table_style(table)
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         table.setShowGrid(False)
+        # Multi-select (Aug 1 2026, per Keith: "option to hold control
+        # and highlight ipl entries, right click load all selected
+        # .ipls") - QTableWidget defaults to SingleSelection, which
+        # doesn't allow Ctrl/Shift+click to build up a multi-row
+        # selection at all. Clicking the eye-icon column (0) still
+        # toggles that one row's visibility immediately regardless
+        # (see _on_ipl_section_cell_clicked) - clicking the IPL File
+        # or Format columns is what selects without side effects,
+        # which is what Ctrl/Shift-clicking to build a selection
+        # should use.
+        table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         table.setToolTip("Toggle which IPL files' placements are shown in World View")
         table.cellClicked.connect(self._on_ipl_section_cell_clicked)
         table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -19442,12 +19454,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.map_settings.set('ipl_sections_order', order)
         self.map_settings.save()
 
-    def _on_ipl_sections_context_menu(self, pos): #vers 1
-        """Right-click a row for Move Up/Down - explicit menu actions
-        rather than drag-and-drop, since QTableWidget's built-in
-        InternalMove drag-drop is a known source of subtle bugs with
-        multi-column rows (data can end up split across the wrong
-        rows/columns) - explicit actions are simple and reliable."""
+    def _on_ipl_sections_context_menu(self, pos): #vers 2
+        """Right-click a row for Move Up/Down/Load Selected - explicit
+        menu actions rather than drag-and-drop, since QTableWidget's
+        built-in InternalMove drag-drop is a known source of subtle
+        bugs with multi-column rows (data can end up split across the
+        wrong rows/columns) - explicit actions are simple and
+        reliable."""
         table = self._ipl_sections_table
         index = table.indexAt(pos)
         if not index.isValid():
@@ -19464,6 +19477,19 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         vis_act = menu.addAction("Show" if is_hidden else "Hide")
         vis_act.triggered.connect(
             lambda checked=False, r=index.row(): self._on_ipl_section_cell_clicked(r, 0))
+
+        # Load Selected (Aug 1 2026, per Keith: "option to hold control
+        # and highlight ipl entries, right click load all selected
+        # .ipls") - operates on every currently-selected row, not just
+        # the one that was right-clicked, and only loads rows that are
+        # actually hidden (re-triggering the toggle on an already-
+        # visible row would hide it instead, the opposite of "load").
+        selected_rows = sorted({r.row() for r in table.selectionModel().selectedRows()})
+        if len(selected_rows) > 1:
+            load_act = menu.addAction(f"Load Selected ({len(selected_rows)})")
+            load_act.triggered.connect(
+                lambda checked=False, rows=selected_rows: self._load_selected_ipl_sections(rows))
+
         menu.addSeparator()
         up_act = menu.addAction("Move Up")
         up_act.setEnabled(idx > 0)
@@ -19472,6 +19498,25 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         down_act.setEnabled(0 <= idx < len(order) - 1)
         down_act.triggered.connect(lambda checked=False, n=ipl_name: self._move_ipl_section(n, 1))
         menu.exec(table.viewport().mapToGlobal(pos))
+
+    def _load_selected_ipl_sections(self, rows): #vers 1
+        """Show/load every currently-hidden row among the given table
+        rows - the "Load Selected" context menu action, per Keith:
+        "option to hold control and highlight ipl entries, right click
+        load all selected .ipls." Reuses the exact same per-row toggle
+        _on_ipl_section_cell_clicked already uses for a single click
+        on the eye-icon column, just applied to a whole selection at
+        once and skipping any row that's already visible (toggling an
+        already-visible row would hide it, the opposite of "load")."""
+        table = self._ipl_sections_table
+        hidden = getattr(self, '_hidden_ipls', set())
+        for row in rows:
+            item = table.item(row, 0)
+            if item is None:
+                continue
+            ipl_name = item.data(Qt.ItemDataRole.UserRole)
+            if ipl_name in hidden:
+                self._on_ipl_section_cell_clicked(row, 0)
 
     def _on_ipl_sections_column_resized(self, logical_index, old_size, new_size): #vers 1
         """Persist the user's column widths for the IPL Sections table

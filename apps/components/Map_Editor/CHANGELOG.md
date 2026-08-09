@@ -1515,3 +1515,26 @@ conclusively found despite extensive isolated testing.
   `(-0,-0,-0.1908,+0.9816)`, yaw flips from +22deg to -22deg; raw
   stored `rot_z`/`rot_w` confirmed unchanged. Full `QApplication`
   instantiation clean, `ast.parse` clean on both files.
+
+- **Aug 1, 2026 (cont'd)** — Per Keith: "option to hold control and
+  highlight ipl entries, right click load all selected .ipls." The
+  IPL Sections table defaulted to Qt's `SingleSelection` (never set
+  explicitly), so Ctrl/Shift-click couldn't build a multi-row
+  selection at all. Set `ExtendedSelection` + `SelectRows`; clicking
+  the eye-icon column still toggles that one row's visibility
+  immediately as before, but clicking the IPL File/Format columns
+  (what Ctrl/Shift-clicking to build a selection naturally lands on)
+  already only selected without any side effect - matched.
+
+  Added `_load_selected_ipl_sections` and a "Load Selected (N)"
+  context menu action (shown only when more than one row is
+  selected) - reuses the exact same per-row load-toggle a single
+  eye-icon click already triggers, applied across the whole
+  selection, skipping any row that's already visible (re-toggling an
+  already-visible row would hide it, the opposite of "load").
+
+  Verified: selection mode/behaviour confirmed set correctly; Load
+  Selected confirmed only toggling genuinely-hidden rows in a mixed
+  selection (one already-visible, one hidden) and correctly toggling
+  both in an all-hidden selection. Full `QApplication` instantiation
+  clean, `ast.parse` clean.
