@@ -1961,3 +1961,38 @@ conclusively found despite extensive isolated testing.
   Keith's exact message text confirmed correctly reaching
   `status_label.text()`. Full `QApplication` instantiation clean,
   `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Fixed the IPL Inst File pane showing
+  nothing for binary IPLs, per Keith: "loading LAe2.ipl, i can see
+  the ipl data below in the ipl inst file pane, when clicking on a
+  binary ipl, I should still beable to see the ipl lines aswell,
+  loading should be the same behavour as the data ipls. go from gray
+  to white."
+
+  Found the cause: `_refresh_ipl_inst_file_panel` only ever read a
+  selected IPL's raw text file via `loader.available_ipls` - a binary
+  IPL's synthetic stem was never an entry there (there's no raw text
+  file to read for one), so this fell straight through to an empty
+  table every time, regardless of whether the binary IPL had actually
+  loaded successfully. Fixed by detecting a binary-sourced stem
+  (`"img:"` prefix), auto-loading it via the already-existing
+  `_load_binary_ipl_stream` if not already loaded (matching how
+  simply selecting a text IPL "just works" without a separate load
+  step - "loading should be the same behavour as the data ipls"),
+  then building the table directly from its actual parsed instances
+  in `self._all_instances` rather than any file - same 13-column
+  layout the text-IPL path already uses, just sourced differently.
+
+  Confirmed the "gray to white" visibility styling already applies
+  correctly to binary rows without needing a separate fix - `_style_
+  ipl_name_item` is generic/uniform per-row regardless of source, and
+  `_rebuild_ipl_sections_rows` (which `_load_binary_ipl_stream` already
+  calls) re-applies it for every row on load.
+
+  Verified end-to-end with Keith's own `LAe2.ipl` example: IPL Inst
+  File pane went from 0 rows (before) to correctly showing the real
+  parsed instance (model ID/name/position/rotation all correct) on
+  first click, with no separate load step; instance confirmed
+  registered as loaded and visible; hidden-vs-visible foreground
+  colors confirmed genuinely different (`#8a8a96` gray vs `#ffffff`
+  white). Full `QApplication` instantiation clean, `ast.parse` clean.

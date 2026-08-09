@@ -20481,6 +20481,37 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return
         display_name = item.data(Qt.ItemDataRole.UserRole)
         stem = getattr(self, '_ipl_display_to_stem', {}).get(display_name)
+
+        # Binary IPLs (Aug 1 2026, per Keith: "when clicking on a
+        # binary ipl, I should still beable to see the ipl lines
+        # aswell, loading should be the same behavour as the data
+        # ipls") - a binary IPL's stem is a synthetic "img:..."
+        # string with no real entry in loader.available_ipls (there's
+        # no raw text file to read the way a text IPL has), so this
+        # fell through to an empty table every time before. Auto-loads
+        # it here if not already loaded (matching how simply selecting
+        # a text IPL "just works" without a separate load step), then
+        # builds the table directly from its actual parsed instances
+        # in self._all_instances rather than reading any file - same
+        # 13-column layout as the text-IPL path below, just a
+        # different data source.
+        if stem is not None and stem.startswith('img:'):
+            if display_name not in getattr(self, '_loaded_binary_ipls', set()):
+                archive_path = getattr(self, '_standalone_binary_ipl_archives', {}).get(display_name)
+                if archive_path:
+                    self._load_binary_ipl_stream(archive_path, display_name)
+            matching = [i for i in getattr(self, '_all_instances', [])
+                       if i.source_ipl == display_name]
+            table.setRowCount(len(matching))
+            for r, inst in enumerate(matching):
+                values = [inst.model_id, inst.model_name, inst.interior,
+                         f"{inst.pos_x:.6f}", f"{inst.pos_y:.6f}", f"{inst.pos_z:.6f}",
+                         inst.scale_x, inst.scale_y, inst.scale_z,
+                         f"{inst.rot_x:.7f}", f"{inst.rot_y:.7f}", f"{inst.rot_z:.7f}", f"{inst.rot_w:.7f}"]
+                for c, value in enumerate(values):
+                    table.setItem(r, c, QTableWidgetItem(str(value)))
+            return
+
         entry = loader.available_ipls.get(stem) if stem else None
         if entry is None or not entry.exists:
             table.setRowCount(0)
