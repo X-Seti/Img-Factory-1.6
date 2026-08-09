@@ -19164,10 +19164,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             table.setColumnWidth(2, saved_widths[2])
         elif len(saved_widths) >= 2:
             table.setColumnWidth(1, saved_widths[1])
-            table.setColumnWidth(2, 70)
+            table.setColumnWidth(2, 110)
         else:
-            table.setColumnWidth(2, 70)
-            header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+            # Interactive with a sane default (Aug 1 2026), not Stretch
+            # - Stretch mode ignores manual drag-resize attempts
+            # entirely, which is exactly what made the IPL File column
+            # unresizable the first time this table is ever shown
+            # (before any width has been saved) per Keith: "hard to
+            # see, i can not move the cell width of IPL file."
+            table.setColumnWidth(1, 200)
+            table.setColumnWidth(2, 110)
         header.sectionResized.connect(self._on_ipl_sections_column_resized)
         self._apply_compact_table_style(table)
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -19395,11 +19401,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             table.setItem(row, 1, name_item)
 
             fmt_text = ""
+            fmt_tooltip = ""
             if ipl_name in getattr(self, '_binary_ipl_names', set()):
                 fmt_text = "Binary IPL"
+                fmt_tooltip = ipl_name
             elif ipl_name in getattr(self, '_ipl_names_with_binary_stream', {}):
-                stream_count = len(self._ipl_names_with_binary_stream[ipl_name])
+                stream_names = self._ipl_names_with_binary_stream[ipl_name]
+                stream_count = len(stream_names)
                 fmt_text = f"Text + {stream_count} Binary Stream{'s' if stream_count != 1 else ''}"
+                fmt_tooltip = "\n".join(stream_names)
             else:
                 stem = getattr(self, '_ipl_display_to_stem', {}).get(ipl_name)
                 entry = loader.available_ipls.get(stem) if (loader and stem) else None
@@ -19413,6 +19423,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                         pass
             fmt_item = QTableWidgetItem(fmt_text)
             fmt_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            if fmt_tooltip:
+                fmt_item.setToolTip(fmt_tooltip)
             table.setItem(row, 2, fmt_item)
 
     def _move_ipl_section(self, ipl_name, direction): #vers 1

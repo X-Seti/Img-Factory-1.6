@@ -1439,3 +1439,31 @@ conclusively found despite extensive isolated testing.
   all 3 correctly grouped together, Format column correctly reads
   "Text + 3 Binary Streams". Full `QApplication` instantiation clean,
   `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Per Keith's screenshot: "hard to see, i
+  can not move the cell width of IPL file, but all I can see is
+  test... does it show the name of the img3 file dir LAn2_Stream0.ipl
+  naming format?"
+
+  Found the real cause of the unresizable column: the IPL File
+  column defaulted to `Stretch` resize mode the first time this table
+  is ever shown (before any width has been saved) - Stretch mode
+  ignores manual drag-resize attempts entirely, which is exactly why
+  dragging its border did nothing. Changed to `Interactive` with a
+  sane default width (200px) from the start instead, and widened the
+  Format column's own default (70 -> 110px, since "Text + N Binary
+  Streams" is longer than the "Binary IPL"-only case it was sized
+  for).
+
+  Also answering his question directly: the actual stream file names
+  weren't shown anywhere before, just a count. Added a tooltip on the
+  Format cell listing every associated stream file's real name (e.g.
+  hovering a "Text + 3 Binary Streams" cell now shows
+  "LAn2_stream0.ipl / LAn2_stream1.ipl / LAn2_stream2.ipl" on
+  separate lines) - and the same for standalone binary entries,
+  showing their own exact archive entry name.
+
+  Verified: column 1 confirmed in `Interactive` mode with the new
+  200px default; Format column tooltip confirmed listing all 3 real
+  stream file names correctly, newline-separated. Full `QApplication`
+  instantiation clean, `ast.parse` clean.
