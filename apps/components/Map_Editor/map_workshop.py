@@ -19633,17 +19633,35 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._ignore_scaling_chk = ignore_scaling_chk
         opts_row.addWidget(ignore_scaling_chk)
 
-        generic_txd_btn = QPushButton("Generic.txd")
-        generic_txd_btn.setFixedHeight(18)
-        generic_txd_btn.setStyleSheet(_compact_18)
-        generic_txd_btn.setToolTip(
-            "Load generic.txd - the shared texture archive many models\n"
-            "reference without having their own dedicated TXD. Tries\n"
-            "the game's indexed IMG archives first (e.g. gta3.img,\n"
-            "which every game always loads via the exe), then falls\n"
-            "back to {game root}/models/generic.txd as a loose file.")
-        generic_txd_btn.clicked.connect(self._on_load_generic_txd_clicked)
-        opts_row.addWidget(generic_txd_btn)
+        # Advanced menu (Aug 1 2026, per Keith: "as we're loading both
+        # Generic files and this works, we don't need to show this in
+        # a button, this can be replaced as an [Advanced] button") -
+        # the automatic generic.ide preloading (_preload_generic_ide_
+        # textures, wired into every world load) already handles
+        # generic.txd loading seamlessly, confirmed working in
+        # Keith's own testing - manually loading it is now a rare,
+        # advanced/diagnostic action rather than something that needs
+        # a prominent top-level button. Kept available as a menu item
+        # rather than removed outright, and this menu is a natural
+        # home for other advanced/less-common options as they come up.
+        advanced_btn = QPushButton("Advanced")
+        advanced_btn.setFixedHeight(18)
+        advanced_btn.setStyleSheet(_compact_18)
+        advanced_menu = QMenu(advanced_btn)
+        load_generic_act = advanced_menu.addAction("Load Generic.txd Manually")
+        load_generic_act.setToolTip(
+            "Manually (re)load generic.txd - the shared texture archive\n"
+            "many models reference without having their own dedicated\n"
+            "TXD. Not normally needed - generic.ide's referenced TXDs\n"
+            "(including generic.txd itself) are already preloaded\n"
+            "automatically whenever a world loads. Tries the game's\n"
+            "indexed IMG archives first (e.g. gta3.img, which every game\n"
+            "always loads via the exe), then falls back to {game root}/\n"
+            "models/generic.txd as a loose file.")
+        load_generic_act.triggered.connect(self._on_load_generic_txd_clicked)
+        advanced_btn.setMenu(advanced_menu)
+        advanced_btn.setToolTip("Less-common/diagnostic actions")
+        opts_row.addWidget(advanced_btn)
 
         # Merged Render/LOD button (Aug 1 2026, per Keith: "Render
         # view should me merged with LOD view, labeled as Render:

@@ -1587,3 +1587,19 @@ conclusively found despite extensive isolated testing.
 
   Full `QApplication` instantiation clean, `ast.parse` clean on both
   files.
+
+- **Aug 1, 2026 (cont'd)** — Per Keith: "as we're loading both
+  Generic files and this works, we don't need to show this in a
+  button, this can be replaced as an [Advanced] button." Replaced the
+  top-level "Generic.txd" button with an "Advanced" button/menu -
+  since the automatic `generic.ide` preloading already handles
+  generic.txd loading seamlessly (confirmed working in Keith's own
+  testing), manually loading it is now a rare/diagnostic action
+  rather than something needing a prominent button. Kept it available
+  as "Load Generic.txd Manually" under the new menu rather than
+  removing it outright, and this gives a natural home for other
+  advanced/less-common options later.
+
+  Verified: Advanced button confirmed present with the menu item
+  correctly wired to the existing handler. Full `QApplication`
+  instantiation clean, `ast.parse` clean.
