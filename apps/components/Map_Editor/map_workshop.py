@@ -3890,9 +3890,12 @@ class _InstanceEditPanel(QWidget):
         if not txd_name:
             row.addWidget(QLabel("(TXD unknown - no IDE match)"))
         else:
-            textures, _source, status = self._workshop._get_txd_textures(txd_name)
+            textures, source, status = self._workshop._get_txd_textures(txd_name)
             if status == 'loaded':
-                row.addWidget(QLabel(f"{txd_name}.txd is loaded"))
+                status_lbl = QLabel(f"{txd_name}.txd is loaded")
+                if source:
+                    status_lbl.setToolTip(f"Found in: {source}")
+                row.addWidget(status_lbl)
                 from apps.methods.imgfactory_svg_icons import get_view_icon
                 show_btn = self._make_standard_button(
                     "Show", get_view_icon(18, self._workshop._get_icon_color()))
@@ -3900,7 +3903,10 @@ class _InstanceEditPanel(QWidget):
                     lambda: self._workshop._show_textures_for_instance(self._inst))
                 row.addWidget(show_btn)
             elif status == 'failed':
-                row.addWidget(QLabel(f"{txd_name}.txd exists but can not be loaded"))
+                status_lbl = QLabel(f"{txd_name}.txd exists but can not be loaded")
+                if source:
+                    status_lbl.setToolTip(f"Found in: {source} (but failed to parse)")
+                row.addWidget(status_lbl)
             else:
                 row.addWidget(QLabel(f"{txd_name}.txd is missing from gta3.img"))
         row.addStretch()
@@ -19750,7 +19756,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._ipl_controls_dock = dock
         return dock
 
-    def _get_txd_textures(self, txd_name): #vers 3
+    def _get_txd_textures(self, txd_name): #vers 4
         """Fetch any named TXD's textures from the game's indexed IMG
         archives (gta3.img is always auto-indexed for every game, per
         GTAWorldLoader.load()'s own docstring: "Always enforces
@@ -19760,6 +19766,19 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
           'loaded'  - found and parsed successfully
           'missing' - not indexed in any IMG archive
           'failed'  - indexed but reading/parsing it failed
+
+        source_description is now the actual archive path(s) the name
+        was indexed under (Aug 1 2026, per Keith: "then I need to find
+        where the tree textures are being stored") - previously just
+        a generic "an indexed IMG archive (e.g. gta3.img)" string
+        regardless of which archive it actually came from, even
+        though model_cache._txd_index already tracks the real
+        (img_path, entry) per name (a list, since Aug 1 2026's
+        duplicate-name fix - a TXD can genuinely be indexed under more
+        than one archive). Multiple paths are joined with '; ' when
+        that's the case, so the exact real location(s) of any
+        texture - tree TXDs included - is directly visible rather
+        than needing to guess.
 
         No loose-file fallback (Aug 1 2026, removed per Keith: "since
         we have another generic.txd, just load them both without the
@@ -19795,12 +19814,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         model_cache = getattr(self, '_model_cache', None)
         if model_cache is None:
             return None, None, 'missing'
+        key = txd_name.lower()
+        entries = getattr(model_cache, '_txd_index', {}).get(key, [])
+        archive_paths = "; ".join(dict.fromkeys(img_path for img_path, _entry in entries))
         textures = model_cache.get_textures(txd_name)
         if textures:
-            return textures, "an indexed IMG archive (e.g. gta3.img)", 'loaded'
-        key = txd_name.lower()
-        in_img_index = key in getattr(model_cache, '_txd_index', {})
-        return None, None, ('failed' if in_img_index else 'missing')
+            return textures, (archive_paths or "an indexed IMG archive"), 'loaded'
+        return (None, (archive_paths or None), 'failed') if entries else (None, None, 'missing')
 
     def _get_generic_textures(self): #vers 4
         """Thin wrapper kept for the Generic.txd button - see

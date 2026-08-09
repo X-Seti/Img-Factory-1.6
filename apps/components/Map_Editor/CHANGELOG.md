@@ -1649,3 +1649,25 @@ conclusively found despite extensive isolated testing.
   vegetation IDE): all 3 distinct TXDs now correctly collected, where
   the old filter would have only found the `generic.ide` one. Full
   `QApplication` instantiation clean, `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Per Keith: "then I need to find where
+  the tree textures are being stored." `_get_txd_textures` previously
+  returned a generic "an indexed IMG archive (e.g. gta3.img)" string
+  regardless of which archive a TXD actually came from, even though
+  `model_cache._txd_index` already tracks the real `(img_path,
+  entry)` per name (a list, since the duplicate-name merge fix - a
+  name can genuinely be indexed under more than one archive). Now
+  returns the actual archive path(s), joined with `; ` when there's
+  more than one, for all three statuses (found the path for `failed`
+  too, since it was found there, just couldn't be parsed).
+
+  Surfaced in the Item Editor Dialog's Identity section - hovering
+  the TXD status line ("dynjunk.txd is loaded" etc.) now shows a
+  tooltip with the exact archive path(s) it was found in, so which
+  specific `.img` a texture (tree TXDs included) actually lives in is
+  directly visible rather than needing to guess.
+
+  Verified with a multi-archive scenario: correctly returned both
+  paths joined together for a name indexed in two different
+  archives. Full `QApplication` instantiation clean, `ast.parse`
+  clean.
