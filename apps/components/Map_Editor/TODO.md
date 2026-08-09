@@ -7,9 +7,10 @@ Extracted from inline `#TODO` comments in map_workshop.py, per Keith
 
 - Some GTA3 DFF files show as unknown format - affects both standalone
   and docked versions, when loading files from IMG files.
-- Missing splitter between the middle panel and right panel (or
-  between the right panel and the "middle panel" that got moved to
-  its right) - dock layout doesn't have a proper resize handle there.
+- [FIXED] Missing splitter between the middle panel and right panel
+  (or between the right panel and the "middle panel" that got moved
+  to its right) - dock layout didn't have a proper resize handle
+  there. Confirmed fixed by Keith (Aug 1 2026).
 - "X" close button on collapsible dock title bars: the right-click
   menu recovery for bringing a closed dock back doesn't fully work yet
   ("use the View menu or another dock's right-click menu to bring it
