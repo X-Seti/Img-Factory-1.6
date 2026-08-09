@@ -1874,3 +1874,52 @@ conclusively found despite extensive isolated testing.
   component - editing a model's own 2DFX entries, not Map Workshop's
   display of them) to TODO.md as its own substantial feature, not
   started.
+
+- **Aug 1, 2026 (cont'd)** — Fixed a real crash/freeze bug in binary
+  IPL loading, plus two follow-on display fixes, per Keith: "there is
+  a bug in loading IPL, the app freezes, no dialog status, plus ive
+  noticed the ipl's not linked to the other data files. that show as
+  just Binary IPL. single binary files should just show as there file
+  name. [COL] truthsfarm.ipl failed to load - Unknown IPL:
+  img:gta3.img:truthsfarm.ipl."
+
+  Found the exact cause: toggling the eye icon on any binary-sourced
+  row called `_ensure_ipl_loaded`, which always tried the *text* IPL
+  loading path (`loader.load_ipl_by_name(stem)`) - but a binary IPL's
+  stem is a synthetic `"img:<archive>:<entry>"` string, never a real
+  entry in `loader.available_ipls` the way a text IPL's stem is, so
+  this could only ever fail with exactly the "Unknown IPL" error
+  Keith hit. Fixed by detecting the `"img:"` stem prefix and routing
+  to the already-existing `_load_binary_ipl_stream` instead. Added
+  `self._loaded_binary_ipls` to track which binary IPLs have actually
+  been loaded (separate from `loader.loaded_ipls`, which only ever
+  knows about text IPLs), guarded in both `_ensure_ipl_loaded` and
+  `_load_binary_ipl_stream` itself against double-loading (which
+  would otherwise duplicate every instance on a second toggle/right-
+  click).
+
+  Also fixed the Format column showing nothing at all once a
+  standalone binary IPL was actually loaded (it gets removed from
+  `_binary_ipl_names`, "now genuinely loaded, not just listed", which
+  was falling through every branch to an empty string) - now checks
+  `_loaded_binary_ipls` too, keeping the filename shown either way.
+
+  And per Keith's specific display request: standalone (unlinked)
+  binary IPLs previously showed the generic label "Binary IPL" in the
+  Format column - now show the file's own name instead, matching how
+  linked stream files already display their real names.
+
+  Added "Save Binary IPL as Text..." to the right-click menu (shown
+  once a binary IPL is actually loaded) - a diagnostic export writing
+  the real parsed instances out as a standard text-format .ipl file,
+  so the binary parser's actual output can be inspected/compared
+  against a known-good file rather than trusted blindly.
+
+  Verified end-to-end against Keith's exact bug scenario (a
+  standalone `truthsfarm.ipl` binary entry, eye-icon toggle): instance
+  count and resolved model name both confirmed correct (previously 0
+  instances with the Unknown IPL error); double-toggle confirmed not
+  duplicating; Format column confirmed showing "truthsfarm" both
+  before and after loading; the text export confirmed producing a
+  correctly formatted SA-style `.ipl` file. Full `QApplication`
+  instantiation clean, `ast.parse` clean.

@@ -19445,8 +19445,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
             fmt_text = ""
             fmt_tooltip = ""
-            if ipl_name in getattr(self, '_binary_ipl_names', set()):
-                fmt_text = "Binary IPL"
+            if ipl_name in getattr(self, '_binary_ipl_names', set()) or \
+                    ipl_name in getattr(self, '_loaded_binary_ipls', set()):
+                fmt_text = os.path.splitext(ipl_name)[0]
                 fmt_tooltip = ipl_name
             elif ipl_name in getattr(self, '_ipl_names_with_binary_stream', {}):
                 stream_entries = sorted(self._ipl_names_with_binary_stream[ipl_name], key=lambda t: t[1])
@@ -19546,6 +19547,19 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     lambda checked=False, ap=archive_path, en=ipl_name:
                         self._load_binary_ipl_stream(ap, en))
 
+        # Save Binary IPL as Text (Aug 1 2026, per Keith: "we could add
+        # a right click option, to save binary Ipl as text, save as ?
+        # just to see if the ipl binary function is working") - a
+        # diagnostic export, letting the actual parsed result be
+        # inspected/compared against a known-good text IPL rather than
+        # trusting the binary parser blindly. Only shown once a binary
+        # IPL has actually been loaded (its instances need to already
+        # be in self._all_instances to have anything to export).
+        if ipl_name in getattr(self, '_loaded_binary_ipls', set()):
+            save_text_act = menu.addAction("Save Binary IPL as Text...")
+            save_text_act.triggered.connect(
+                lambda checked=False, n=ipl_name: self._save_binary_ipl_as_text(n))
+
         menu.addSeparator()
         up_act = menu.addAction("Move Up")
         up_act.setEnabled(idx > 0)
@@ -19554,6 +19568,48 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         down_act.setEnabled(0 <= idx < len(order) - 1)
         down_act.triggered.connect(lambda checked=False, n=ipl_name: self._move_ipl_section(n, 1))
         menu.exec(table.viewport().mapToGlobal(pos))
+
+    def _save_binary_ipl_as_text(self, ipl_name): #vers 1
+        """Diagnostic export - write a loaded binary IPL's actual
+        parsed instances out as a standard text-format .ipl file, per
+        Keith: "we could add a right click option, to save binary Ipl
+        as text, save as? just to see if the ipl binary function is
+        working." Lets the real parsed result be inspected/compared
+        against a known-good text IPL rather than trusting the binary
+        parser blindly.
+
+        Writes the SA-style inst format (id, model, interior, pos
+        XYZ, rot XYZW, lod_index - no scale fields) since that's the
+        format BinaryIPLParser is built for (defaults to GTAGame.SA).
+        model_name may be empty for any instance whose model_id
+        didn't resolve against the loaded world's own IDE objects
+        (see _load_binary_ipl_stream) - written as-is rather than
+        guessed at, so a blank name in the output is itself a visible
+        signal of an unresolved ID worth checking."""
+        all_inst = getattr(self, '_all_instances', None) or []
+        matching = [i for i in all_inst if i.source_ipl == ipl_name]
+        if not matching:
+            QMessageBox.information(self, "Save Binary IPL as Text",
+                f"No loaded instances found for {ipl_name}.")
+            return
+        default_name = os.path.splitext(ipl_name)[0] + ".ipl"
+        path, _filter = QFileDialog.getSaveFileName(
+            self, "Save Binary IPL as Text", default_name, "IPL files (*.ipl);;All files (*)")
+        if not path:
+            return
+        try:
+            with open(path, 'w', encoding='ascii', errors='replace') as f:
+                f.write("inst\n")
+                for inst in matching:
+                    f.write(f"{inst.model_id}, {inst.model_name}, {inst.interior}, "
+                            f"{inst.pos_x:.6f}, {inst.pos_y:.6f}, {inst.pos_z:.6f}, "
+                            f"{inst.rot_x:.7f}, {inst.rot_y:.7f}, {inst.rot_z:.7f}, {inst.rot_w:.7f}, "
+                            f"{inst.lod_index}\n")
+                f.write("end\n")
+        except Exception as e:
+            QMessageBox.warning(self, "Save Binary IPL as Text", f"Failed to save: {e}")
+            return
+        self._set_status(f"Saved {len(matching)} instances from {ipl_name} to {path}")
 
     def _load_binary_ipl_stream(self, archive_path, entry_name): #vers 1
         """Actually load one binary IPL stream entry's instance data -
@@ -19574,7 +19630,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
           (so it shows its own row, matching every other loaded IPL,
           rather than staying folded under its parent text IPL's
           Format-column "+N" count), makes it visible, and re-applies
-          the filter so it actually renders."""
+          the filter so it actually renders.
+
+        Guarded against double-loading (Aug 1 2026) - both the right-
+        click "Load Binary Stream" menu action and _ensure_ipl_loaded
+        (the eye-icon toggle path) can reach this; without a guard,
+        loading the same stream twice would duplicate every one of
+        its instances in self._all_instances."""
+        if entry_name in getattr(self, '_loaded_binary_ipls', set()):
+            self._set_status(f"{entry_name} is already loaded")
+            return
         loader = getattr(self, '_world_loader', None)
         if loader is None:
             return
@@ -19622,6 +19687,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._ipl_display_order.append(entry_name)
         self._hidden_ipls.discard(entry_name)
         self._binary_ipl_names.discard(entry_name)   # now genuinely loaded, not just listed
+        self._loaded_binary_ipls = getattr(self, '_loaded_binary_ipls', set())
+        self._loaded_binary_ipls.add(entry_name)
 
         self._set_status(
             f"Loaded {entry_name}: {len(parser.instances)} instances "
@@ -21205,7 +21272,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         finally:
             self._ipl_cell_click_in_progress = False
 
-    def _ensure_ipl_loaded(self, display_name): #vers 2
+    def _ensure_ipl_loaded(self, display_name): #vers 3
         """Actually load one IPL's content on demand, the first time
         it's toggled visible - parses its instances (GTAWorldLoader.
         load_ipl_by_name), refreshes self._all_instances/Object Browser
@@ -21220,12 +21287,41 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         airportN.ipl loaded - N errors found, check log added to the
         maps folder") - writes an actual .log file alongside the IPL
         itself when there are errors, rather than only showing a
-        transient status message."""
+        transient status message.
+
+        Routes binary IPLs to _load_binary_ipl_stream instead (Aug 1
+        2026, per Keith: "there is a bug in loading IPL, the app
+        freezes, no dialog status... [COL] truthsfarm.ipl failed to
+        load - Unknown IPL: img:gta3.img:truthsfarm.ipl") - a binary
+        IPL's stem is a synthetic "img:<archive>:<entry>" string (see
+        _scan_binary_ipls_in_img_archives/_load_binary_ipl_stream),
+        never a real entry in loader.available_ipls the way a text
+        IPL's stem is, so calling load_ipl_by_name(stem) on it could
+        only ever fail with exactly this "Unknown IPL" error - toggling
+        the eye icon on any binary-sourced row (standalone, or an
+        already-loaded stream entry re-toggled) hit this every time.
+        self._loaded_binary_ipls tracks which ones have already been
+        loaded this way, separate from loader.loaded_ipls (the
+        loader's own tracking, which only ever knows about real text
+        IPLs)."""
         loader = getattr(self, '_world_loader', None)
         if loader is None or not getattr(loader, 'lazy_ipl_loading', False):
             return
         stem = getattr(self, '_ipl_display_to_stem', {}).get(display_name)
-        if stem is None or stem in loader.loaded_ipls:
+        if stem is None:
+            return
+
+        if stem.startswith('img:'):
+            if display_name in getattr(self, '_loaded_binary_ipls', set()):
+                return   # already loaded via _load_binary_ipl_stream
+            archive_path = getattr(self, '_standalone_binary_ipl_archives', {}).get(display_name)
+            if archive_path is None:
+                self._set_status(f"{display_name}: no known archive to load it from")
+                return
+            self._load_binary_ipl_stream(archive_path, display_name)
+            return
+
+        if stem in loader.loaded_ipls:
             return   # not a lazily-tracked IPL, or already loaded
 
         before_count = len(loader.instances)
