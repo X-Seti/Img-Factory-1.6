@@ -21562,6 +21562,88 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         loader_stub = _FilteredLoaderStub(visible, getattr(self, '_world_loader', None))
         self._populate_instance_list(loader_stub)
         self._refresh_world_view(visible, auto_fit=auto_fit)
+        self._refresh_2dfx_lights(visible)
+
+    def _refresh_2dfx_lights(self, visible_instances): #vers 1
+        """Collect 2DFX light-type (effect_type == 0) entries for the
+        given visible instances, compute each one's world-space
+        position, and push them to the viewport - per Keith: "lets
+        add the 2dfx support next, showing 2dfx lighting at night."
+
+        World position = instance position + the 2DFX entry's own
+        local offset, rotated by the instance's rotation quaternion
+        (a 2DFX light's offset is defined relative to its owning
+        model's local space, e.g. "a bit above and in front of the
+        lamp mesh" - it has to rotate with the instance, not just
+        translate with it, or the light would drift away from the
+        fixture on any rotated instance).
+
+        "At night" (Aug 1 2026, since GTA's own IDE format has no
+        single canonical day/night cutoff hour defined anywhere Keith
+        or this session's research has referenced) is treated as
+        hour >= 20 or hour < 6, reusing the same simulated-time
+        infrastructure the TOBJ time filter already has - only
+        applied when the Time switch is actually on; with it off,
+        lights show regardless of time, matching how TOBJ objects
+        themselves behave with the switch off (no time filtering
+        happening at all, not a decision that "no time" means
+        "night")."""
+        vp = getattr(self, 'preview_widget', None)
+        loader = getattr(self, '_world_loader', None)
+        if vp is None or loader is None or not hasattr(vp, 'set_2dfx_lights'):
+            return
+        get_2dfx = getattr(loader, 'get_2dfx_for_model', None)
+        if get_2dfx is None:
+            vp.set_2dfx_lights([])
+            return
+
+        chk = getattr(self, '_tobj_time_chk', None)
+        if chk is not None and chk.isChecked():
+            hour = self._tobj_time_spin.time().hour()
+            is_night = hour >= 20 or hour < 6
+            if not is_night:
+                vp.set_2dfx_lights([])
+                return
+
+        lights = []
+        for inst in visible_instances:
+            for fx in get_2dfx(inst.model_id):
+                if fx.extra.get('effect_type') != 0:
+                    continue
+                ox = fx.extra.get('offset_x', 0.0)
+                oy = fx.extra.get('offset_y', 0.0)
+                oz = fx.extra.get('offset_z', 0.0)
+                wx, wy, wz = self._rotate_and_translate_offset(
+                    ox, oy, oz, inst.rot_x, inst.rot_y, inst.rot_z, inst.rot_w,
+                    inst.pos_x, inst.pos_y, inst.pos_z)
+                r = fx.extra.get('color_r', 255)
+                g = fx.extra.get('color_g', 255)
+                b = fx.extra.get('color_b', 255)
+                a = fx.extra.get('color_a', 255)
+                size = fx.extra.get('corona_size', 1.0)
+                lights.append((wx, wy, wz, r, g, b, a, size))
+        vp.set_2dfx_lights(lights)
+
+    def _rotate_and_translate_offset(self, ox, oy, oz, qx, qy, qz, qw, px, py, pz): #vers 1
+        """Rotate a local-space offset (ox,oy,oz) by quaternion
+        (qx,qy,qz,qw) then translate by (px,py,pz) - standard
+        quaternion-vector rotation formula
+        (v' = v + 2*cross(q.xyz, cross(q.xyz, v) + q.w*v)), used for
+        2DFX light offsets (see _refresh_2dfx_lights) since they're
+        defined in their owning instance's local space and need to
+        rotate with it, not just translate."""
+        cross1_x = qy * oz - qz * oy
+        cross1_y = qz * ox - qx * oz
+        cross1_z = qx * oy - qy * ox
+        t_x = cross1_x + qw * ox
+        t_y = cross1_y + qw * oy
+        t_z = cross1_z + qw * oz
+        cross2_x = qy * t_z - qz * t_y
+        cross2_y = qz * t_x - qx * t_z
+        cross2_z = qx * t_y - qy * t_x
+        return (ox + 2 * cross2_x + px,
+                oy + 2 * cross2_y + py,
+                oz + 2 * cross2_z + pz)
 
     def _effective_rotation(self, inst): #vers 2
         """Return the quaternion (x,y,z,w) to actually use for

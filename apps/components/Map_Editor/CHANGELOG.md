@@ -1828,3 +1828,49 @@ conclusively found despite extensive isolated testing.
   already showing every field verbatim regardless.
 
   Full `QApplication` instantiation clean, `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — 2DFX lighting at night, per Keith:
+  "lets add the 2dfx support next, showing 2dfx lighting at night."
+
+  Found the real starting gap: 2DFX IDE entries were being parsed as
+  a placeholder stub with completely empty `extra={}` - no offset,
+  color, or type data at all, which can't support rendering an
+  actual light. Implemented real parsing for `effect_type == 0`
+  (light) entries: local offset (x,y,z), RGBA color, and best-effort
+  `corona_far_clip`/`point_light_range`/`corona_size` (lower
+  confidence on the exact field order/count for these SA-specific
+  extras beyond the core offset+color+type, since no real 2DFX
+  sample data was available to verify against, unlike the rotation/
+  LOD fixes earlier this session which had Keith's actual raw lines
+  to check). Other effect types (particle, text, roadsign, etc.)
+  aren't parsed beyond their own offset/type - not needed for
+  lighting specifically.
+
+  Added `DFFViewport.set_2dfx_lights`/`_draw_2dfx_lights` - renders
+  each light as a glowing point (`GL_POINTS` with additive blending,
+  no depth writes - deliberately simple/reliable over sprite/
+  billboard geometry, needs no UV/texture setup). Added `ModelWorkshop
+  ._refresh_2dfx_lights`, wired into the same visibility-filter
+  pipeline the LOD/TOBJ filters already use (and therefore also into
+  every time-flow tick automatically) - collects light-type 2DFX
+  entries for currently visible instances, computes each one's world
+  position (instance position + its local offset rotated by the
+  instance's own quaternion, since a light's offset is defined in its
+  owning model's local space and has to rotate with it), and gates
+  showing them on "night" (hour >= 20 or hour < 6) only when the Time
+  switch is actually on - with it off, lights show regardless of
+  time, matching how TOBJ objects themselves behave in that case.
+
+  Verified thoroughly: the offset rotation math cross-checked against
+  `scipy` (exact match, same verification standard as the rotation
+  bug fixes); full pipeline tested with the Time switch off (always
+  shows), on at daytime (correctly empty), and on at night (correctly
+  shows, world position confirmed as instance position + rotated
+  offset, color/size confirmed passed through). Couldn't visually
+  verify the actual OpenGL glow rendering (no PyOpenGL in this
+  sandbox) - needs Keith's live confirmation.
+
+  Logged the separate Model Workshop 2DFX *editor* (a different
+  component - editing a model's own 2DFX entries, not Map Workshop's
+  display of them) to TODO.md as its own substantial feature, not
+  started.

@@ -606,6 +606,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         has_verts = bool(self._vertices)
         if has_world:
             self._draw_world_instances()
+            self._draw_2dfx_lights()
             if self._show_grid: self._draw_grid()
             self._draw_axes()
             return
@@ -1302,6 +1303,51 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         (self._vertices,self._normals,self._uvs,
          self._triangles,self._materials,self._prelit,
          self._current_geom_flags) = (old_v,old_n,old_u,old_t,old_m,old_p,old_f)
+
+    def set_2dfx_lights(self, lights): #vers 1
+        """Store the current set of 2DFX light points to render - per
+        Keith: "lets add the 2dfx support next, showing 2dfx lighting
+        at night." lights: list of (x, y, z, r, g, b, a, size) tuples
+        in WORLD space (caller - ModelWorkshop._refresh_2dfx_lights -
+        is responsible for computing each light's world position from
+        its owning instance's position/rotation plus the 2DFX entry's
+        own local offset, and for deciding which lights should be
+        showing at all based on the simulated time-of-day, e.g. only
+        collecting them at night). Empty list clears them (e.g. Time
+        switch off, or daytime)."""
+        self._2dfx_lights = lights or []
+        self.update()
+
+    def _draw_2dfx_lights(self): #vers 1
+        """Render every current 2DFX light as a glowing point - a
+        deliberately simple, reliable rendering technique (a single
+        GL_POINTS draw with additive blending and no depth writes,
+        rather than sprite/billboard geometry) since it needs no UV/
+        texture setup and still reads as "something is glowing here"
+        at typical map-view zoom levels. size (parsed from the 2DFX
+        entry's own corona_size where available, else a fallback)
+        scales the point - real corona sprites would scale with
+        camera distance for a true billboard look, which this doesn't
+        attempt yet."""
+        if not OPENGL_AVAILABLE: return
+        lights = getattr(self, '_2dfx_lights', None)
+        if not lights:
+            return
+        glDisable(GL_LIGHTING)
+        glDisable(GL_TEXTURE_2D)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE)   # additive - glow, not a flat dot
+        glDepthMask(False)
+        glPointSize(8.0)
+        for x, y, z, r, g, b, a, size in lights:
+            glPointSize(max(2.0, 8.0 * size))
+            glBegin(GL_POINTS)
+            glColor4f(r / 255.0, g / 255.0, b / 255.0, a / 255.0)
+            glVertex3f(x, y, z)
+            glEnd()
+        glDepthMask(True)
+        glDisable(GL_BLEND)
+        glEnable(GL_LIGHTING)
 
     def _auto_fit_world(self): #vers 1
         """Frame the camera around every instance's WORLD position

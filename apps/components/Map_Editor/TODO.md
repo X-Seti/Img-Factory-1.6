@@ -208,3 +208,19 @@ Substantial features, not started - each needs its own design pass:
 - Nav settings popup currently only has mouse sensitivity - Keith
   asked for "other needed settings" too, not yet specified which
   ones.
+
+## Model Workshop 2DFX Editor (Aug 1 2026, Keith's request)
+
+Per Keith: "then after for model_workshop, 2dfx editor, where we can
+edit the model with the 2dfx objects." A separate, substantial
+feature for a different component (apps/components/Model_Editor/
+model_workshop.py, not Map Workshop) - editing a model's own 2DFX
+entries (adding/removing/repositioning lights and other effect types,
+adjusting color/range/corona size) rather than Map Workshop's
+world-view display of them. Not started - needs its own design pass:
+a UI for listing a model's current 2DFX entries (now parseable in
+detail, see the 2DFX light-parsing work in gta_dat_parser.py this
+session), editing each entry's fields, a 3D gizmo or coordinate
+entry for positioning a light's offset relative to the model, and
+write-back to the IDE file (depends on the general write-back
+infrastructure noted elsewhere in this file).

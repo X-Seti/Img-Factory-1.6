@@ -518,11 +518,51 @@ class IDEParser: #vers 2
                                      "txdparent", section, {}, source, lineno)
 
             elif section == "2dfx":
-                if len(parts) < 2:
+                # id, offsetX, offsetY, offsetZ, r, g, b, a, effectType[, type-specific fields...]
+                # (Aug 1 2026, per Keith: "lets add the 2dfx support
+                # next, showing 2dfx lighting at night") - previously
+                # a placeholder stub with completely empty extra={},
+                # no offset/color/type data parsed at all, which
+                # can't support rendering an actual light. Based on
+                # community-documented format (GTAMods wiki-style,
+                # not verified against official documentation or any
+                # real sample data - unlike the rotation/LOD fixes
+                # earlier this session, which had Keith's actual raw
+                # IPL lines to check against): effectType 0 = light is
+                # the one this parses fully (offset, RGBA color, plus
+                # best-effort corona_far_clip/point_light_range/
+                # corona_size where present - lower confidence on the
+                # exact field order/count for these SA-specific extras
+                # beyond the core offset+color+type, since no real
+                # sample data was available to verify against). Other
+                # effect types (1=particle, 2=text/ped attractor,
+                # 3=sun glare/enter-exit, 4=roadsign, 5=trigger point,
+                # 6=cover point, 7=escalator, ...) aren't parsed beyond
+                # their own offset/type - not needed for lighting.
+                if len(parts) < 9:
                     return None
                 model_id = int(parts[0])
+                extra: Dict[str, Any] = {}
+                try:
+                    extra["offset_x"] = float(parts[1])
+                    extra["offset_y"] = float(parts[2])
+                    extra["offset_z"] = float(parts[3])
+                    extra["color_r"] = int(parts[4])
+                    extra["color_g"] = int(parts[5])
+                    extra["color_b"] = int(parts[6])
+                    extra["color_a"] = int(parts[7])
+                    extra["effect_type"] = int(parts[8])
+                except ValueError:
+                    pass
+                if extra.get("effect_type") == 0:
+                    try:
+                        if len(parts) > 9:  extra["corona_far_clip"]    = float(parts[9])
+                        if len(parts) > 10: extra["point_light_range"] = float(parts[10])
+                        if len(parts) > 11: extra["corona_size"]       = float(parts[11])
+                    except ValueError:
+                        pass
                 return IDEObject(model_id, f"2dfx_{model_id}", "",
-                                 "2dfx", section, {}, source, lineno)
+                                 "2dfx", section, extra, source, lineno)
 
         except (ValueError, IndexError):
             pass
