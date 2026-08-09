@@ -32,7 +32,15 @@ Extracted from inline `#TODO` comments in map_workshop.py, per Keith
   clipped/corrupted below a minimum-18/maximum-20 range for some
   button styles - needs a general, consistent fix across all the
   places 18px compact sizing is used, not just the one already fixed
-  in Control Panel.
+  in Control Panel. [Aug 1 2026: audited every `setFixedHeight(18)`
+  call in map_workshop.py - none are on a QSpinBox/QDoubleSpinBox
+  outside the Item Editor Dialog's Position/Rotation/Scale rows,
+  already bumped to 24px earlier in this same file's history. The
+  clipping issue specifically (spinboxes needing more room than
+  buttons do at the same height) appears isolated to that one place
+  and already resolved - leaving this open only for the general
+  "still worth a consistent style pass" concern, not a known
+  remaining clipping bug.]
 
 ## Missing icons
 
