@@ -359,7 +359,14 @@ class IDEParser: #vers 2
             parts = [p.strip() for p in line.split(",")]
 
             if section in ("objs", "tobj"):
-                # id, model, txd, meshCount, dist1[, dist2], flags
+                # objs: id, model, txd, meshCount, dist1[, dist2], flags
+                # tobj: same, plus 2 more fields - timeOn, timeOff (hours,
+                # 0-23) - the object is only visible in-game during that
+                # time range. Not extracted until now (Aug 1 2026, per
+                # Keith: "lets start support tobj first, with a time
+                # switch") - parsing previously stopped right after
+                # "flags" for both sections, silently dropping tobj's
+                # two extra fields entirely.
                 if len(parts) < 5:
                     return None
                 model_id   = int(parts[0])
@@ -382,6 +389,12 @@ class IDEParser: #vers 2
                 if dist_end < len(parts):
                     try: extra["flags"] = int(parts[dist_end])
                     except ValueError: pass
+                if section == "tobj" and len(parts) >= dist_end + 3:
+                    try:
+                        extra["time_on"]  = int(parts[dist_end + 1])
+                        extra["time_off"] = int(parts[dist_end + 2])
+                    except ValueError:
+                        pass
                 return IDEObject(model_id, model_name, txd_name,
                                  "object", section, extra, source, lineno)
 

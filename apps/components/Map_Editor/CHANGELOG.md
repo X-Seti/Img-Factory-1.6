@@ -1706,3 +1706,38 @@ conclusively found despite extensive isolated testing.
   registered as its own visible section; visibility filter confirmed
   re-applied. Full `QApplication` instantiation clean, `ast.parse`
   clean.
+
+- **Aug 1, 2026 (cont'd)** — First TOBJ support, per Keith: "lets
+  start support tobj first, with a time switch under Ignore Scaling,
+  on the IPL Sections pane."
+
+  Found and fixed a real parsing gap first: `IDEParser._parse_line`
+  stopped extracting fields right after `flags` for both `objs` and
+  `tobj` sections - `tobj`'s own two extra fields (`time_on`/
+  `time_off`, the hour range 0-23 an object is actually visible
+  in-game) were being silently dropped entirely, never parsed at all.
+  Now extracted specifically for `tobj` entries. Verified: a realistic
+  tobj line correctly yields `time_on`/`time_off`; a plain `objs` line
+  is confirmed unaffected (no time fields, as expected).
+
+  Added the Time switch (checkbox + hour spinbox, 0-23) right after
+  Ignore Scaling in IPL Controls - "Ignore Scaling" actually lives
+  there rather than in IPL Sections specifically, likely a naming
+  mix-up between the two adjacent docks, so placed it at the concrete
+  "under Ignore Scaling" reference point given. When off, every TOBJ
+  instance shows regardless of time (unchanged from before this
+  feature existed); when on, a TOBJ instance only shows if the
+  selected hour falls within its `time_on`/`time_off` range - non-TOBJ
+  instances are never affected either way. Chained
+  `_apply_tobj_time_filter` into the same visibility pipeline the LOD
+  filter already uses.
+
+  Verified with a realistic day/night-lamp scenario (including the
+  common overnight-wrap case, e.g. `time_on=20, time_off=6` meaning
+  visible 20:00 through 05:59): switch off passes all 3 test
+  instances through; hour=22 (night) correctly shows the night lamp
+  and the always-visible regular object, hides the day-only one;
+  hour=12 (day) correctly does the reverse. UI widgets confirmed
+  constructed correctly, spinbox starts disabled and enables when the
+  checkbox is checked. Full `QApplication` instantiation clean,
+  `ast.parse` clean on both files.

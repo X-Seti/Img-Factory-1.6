@@ -19745,6 +19745,40 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._ignore_scaling_chk = ignore_scaling_chk
         opts_row.addWidget(ignore_scaling_chk)
 
+        # Time switch for TOBJ objects (Aug 1 2026, per Keith: "lets
+        # start support tobj first, with a time switch under Ignore
+        # Scaling") - TOBJ (timed object) IDE entries have time_on/
+        # time_off hour fields (0-23) saying when the object is
+        # actually visible in-game (e.g. a lit streetlamp model only
+        # showing at night) - previously parsed but silently dropped,
+        # see IDEParser._parse_line. When this switch is off, every
+        # TOBJ instance shows regardless of time, same as before this
+        # feature existed. When on, only TOBJ instances whose time_on/
+        # time_off range includes the selected hour show - non-TOBJ
+        # instances are never affected either way.
+        time_chk = QCheckBox("Time")
+        time_chk.setFixedHeight(18)
+        time_chk.setStyleSheet(_compact_18)
+        time_chk.setToolTip(
+            "Filter TOBJ (timed) objects by time of day - when on,\n"
+            "only shows TOBJ instances whose IDE time_on/time_off\n"
+            "range includes the hour selected here. Non-TOBJ objects\n"
+            "are never affected by this switch.")
+        time_spin = QSpinBox()
+        time_spin.setRange(0, 23)
+        time_spin.setValue(12)
+        time_spin.setFixedHeight(18)
+        time_spin.setSuffix(":00")
+        time_spin.setEnabled(False)
+        time_spin.setToolTip("Simulated hour of day (0-23) for the Time switch above")
+        time_chk.toggled.connect(time_spin.setEnabled)
+        time_chk.toggled.connect(self._on_tobj_time_toggled)
+        time_spin.valueChanged.connect(self._on_tobj_time_changed)
+        self._tobj_time_chk = time_chk
+        self._tobj_time_spin = time_spin
+        opts_row.addWidget(time_chk)
+        opts_row.addWidget(time_spin)
+
         # Advanced menu (Aug 1 2026, per Keith: "as we're loading both
         # Generic files and this works, we don't need to show this in
         # a button, this can be replaced as an [Advanced] button") -
@@ -20185,6 +20219,18 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         interpretation (see _create_ipl_inst_file_panel's docstring) -
         never touches the actual .ipl file."""
         self._refresh_ipl_inst_file_panel()
+
+    def _on_tobj_time_toggled(self, checked): #vers 1
+        """Time switch for TOBJ objects - re-applies the visibility
+        filter so the new on/off state takes effect immediately."""
+        self._apply_ipl_visibility_filter(auto_fit=False)
+
+    def _on_tobj_time_changed(self, hour): #vers 1
+        """Simulated-hour spinbox changed - only matters while the
+        Time switch is on, but re-applying is cheap and avoids a
+        stale filter if the switch gets enabled right after."""
+        if getattr(self, '_tobj_time_chk', None) and self._tobj_time_chk.isChecked():
+            self._apply_ipl_visibility_filter(auto_fit=False)
 
     def _refresh_ipl_inst_file_panel(self): #vers 3
         """Re-read the currently selected IPL's raw file content,
@@ -21370,6 +21416,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         hidden = getattr(self, '_hidden_ipls', set())
         visible = [i for i in all_inst if i.source_ipl not in hidden] if hidden else all_inst
         visible = self._apply_lod_filter(visible)
+        visible = self._apply_tobj_time_filter(visible)
         for pane in getattr(self, '_world_panes', []):
             pane.set_instances(visible)
         loader_stub = _FilteredLoaderStub(visible, getattr(self, '_world_loader', None))
@@ -21685,6 +21732,46 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 Qt.AspectRatioMode.KeepAspectRatio, mode)
         except Exception:
             return None
+
+    def _apply_tobj_time_filter(self, instances): #vers 1
+        """Filter TOBJ (timed) instances by the simulated hour
+        selected in the Time switch - per Keith: "lets start support
+        tobj first, with a time switch under Ignore Scaling." When
+        the switch is off (default), every instance passes through
+        unchanged, same as before this feature existed. When on, an
+        instance is kept only if either: its model isn't a TOBJ entry
+        at all (never affected by this filter), or it is TOBJ and the
+        selected hour falls within its time_on/time_off range -
+        handling the common overnight-wrap case (e.g. time_on=20,
+        time_off=6 means visible from 20:00 through 05:59, wrapping
+        past midnight) as well as the same-day case (time_on=6,
+        time_off=20 means visible 06:00 through 19:59)."""
+        chk = getattr(self, '_tobj_time_chk', None)
+        if chk is None or not chk.isChecked():
+            return instances
+        loader = getattr(self, '_world_loader', None)
+        get_object = getattr(loader, 'get_object', None)
+        if get_object is None:
+            return instances
+        hour = self._tobj_time_spin.value()
+        result = []
+        for inst in instances:
+            obj = get_object(inst.model_id)
+            if obj is None or obj.section != 'tobj':
+                result.append(inst)
+                continue
+            time_on = obj.extra.get('time_on')
+            time_off = obj.extra.get('time_off')
+            if time_on is None or time_off is None:
+                result.append(inst)   # no time data parsed - don't hide it
+                continue
+            if time_on <= time_off:
+                visible = time_on <= hour < time_off
+            else:
+                visible = hour >= time_on or hour < time_off   # wraps past midnight
+            if visible:
+                result.append(inst)
+        return result
 
     def _apply_lod_filter(self, instances): #vers 2
         """Given an already-IPL-filtered instance list, decide for each
