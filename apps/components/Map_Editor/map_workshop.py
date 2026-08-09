@@ -19776,8 +19776,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         time_spin.valueChanged.connect(self._on_tobj_time_changed)
         self._tobj_time_chk = time_chk
         self._tobj_time_spin = time_spin
-        opts_row.addWidget(time_chk)
-        opts_row.addWidget(time_spin)
 
         # Advanced menu (Aug 1 2026, per Keith: "as we're loading both
         # Generic files and this works, we don't need to show this in
@@ -19870,6 +19868,17 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         render_lod_btn.setToolTip("Choose how the world view renders geometry, and which detail level(s) to show")
         opts_row.addWidget(render_lod_btn)
 
+        opts_row.addStretch()
+        lay.addLayout(opts_row)
+
+        # Row 3: Time / Nav (Aug 1 2026, per Keith: "put time and nav
+        # under on a new line") - previously both sat at the end of
+        # the same row as Ignore Scaling/Advanced/Render/LOD, which
+        # got crowded; given their own row instead.
+        opts_row2 = QHBoxLayout()
+        opts_row2.addWidget(time_chk)
+        opts_row2.addWidget(time_spin)
+
         # Nav settings (Aug 1 2026, per Keith: "need a way to toggle
         # these settings, mouse strength, other needed settings") -
         # right now just mouse sensitivity, applied to both the
@@ -19882,10 +19891,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         nav_btn.setStyleSheet(_compact_18)
         nav_btn.setToolTip("Viewport navigation settings (mouse sensitivity)")
         nav_btn.clicked.connect(self._show_nav_settings_popup)
-        opts_row.addWidget(nav_btn)
+        opts_row2.addWidget(nav_btn)
 
-        opts_row.addStretch()
-        lay.addLayout(opts_row)
+        opts_row2.addStretch()
+        lay.addLayout(opts_row2)
 
         dock = QDockWidget("IPL Controls", self)
         dock.setObjectName("IPL Controls")

@@ -1741,3 +1741,11 @@ conclusively found despite extensive isolated testing.
   constructed correctly, spinbox starts disabled and enables when the
   checkbox is checked. Full `QApplication` instantiation clean,
   `ast.parse` clean on both files.
+
+- **Aug 1, 2026 (cont'd)** — Per Keith: "put time and nav under on a
+  new line." IPL Controls' Time switch and Nav button had ended up on
+  the same crowded row as Ignore Scaling/Advanced/Render/LOD - moved
+  both to their own second row (opts_row2) below it. Verified
+  widgets still construct and function correctly (checkbox/spinbox
+  enable-on-check behavior unchanged). Full `QApplication`
+  instantiation clean, `ast.parse` clean.
