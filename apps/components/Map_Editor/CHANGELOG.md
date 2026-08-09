@@ -1538,3 +1538,52 @@ conclusively found despite extensive isolated testing.
   selection (one already-visible, one hidden) and correctly toggling
   both in an all-hidden selection. Full `QApplication` instantiation
   clean, `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Per Keith's multi-part message:
+
+  **GTA3 rotation question**: "rotation bug fixed in SA and VC, do we
+  need to look at gta3?" Confirmed `_conjugate_rotation_for_game` no
+  longer has any game-specific gate at all (removed in the previous
+  pass, applies unconditionally to every game) - GTA3 is already
+  covered by the same fix, no separate work needed.
+
+  **Alpha textures re-raised**: confirmed the `GL_ALPHA_TEST` fix
+  from an earlier pass is still correctly in place in the code -
+  couldn't verify the actual visual result (no PyOpenGL in this
+  sandbox), logged as needing Keith's specific feedback in TODO.md.
+
+  **Mouse navigation direction bug**: "moving the mouse left, should
+  always reflect moving left in the viewpoint... mouse movement seems
+  to switch depending on viewing angle." Found the real cause in
+  `DFFViewport.mouseMoveEvent`'s middle-mouse pan handling: `self.
+  _pan_x`/`_pan_y` get applied via `glTranslatef` *before* the
+  scene's own `glRotatef(yaw,...)` in `paintGL`'s transform chain
+  (OpenGL applies transforms to geometry in the reverse of call
+  order, so the translate lands on the raw world-space coordinates
+  first) - meaning the raw screen-space drag delta was being used
+  directly as a world-space offset with zero yaw compensation. "Left"
+  only felt consistent from whatever one specific angle the camera
+  happened to be at when panning started.
+
+  Fixed by pre-rotating the screen-space delta by `-yaw` before
+  applying it - this exactly cancels the scene's own `+yaw` rotation
+  once applied, keeping the net pan direction locked to actual
+  screen-space regardless of viewing angle. Verified mathematically
+  (can't visually test OpenGL in this sandbox): dragging the same way
+  at yaw=0/45/90/180/270 all produced the identical net on-screen
+  displacement `(2.0, 0.0)` after running the full transform chain.
+
+  Also added a `_mouse_sensitivity` multiplier (applied to both
+  rotate and pan deltas) and a "Nav" button in IPL Controls opening a
+  small settings popup with a sensitivity slider - per Keith: "need a
+  way to toggle these settings, mouse strength, other needed
+  settings." Only sensitivity is wired up so far; logged to TODO.md
+  that "other needed settings" isn't specified yet.
+
+  Noted in TODO.md: `VehicleViewport` (a separate subclass, used by
+  Vehicle Workshop) has its own duplicate `mouseMoveEvent` with the
+  identical pan bug, unfixed - out of scope for this session but
+  flagged for later.
+
+  Full `QApplication` instantiation clean, `ast.parse` clean on both
+  files.

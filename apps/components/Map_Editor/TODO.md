@@ -164,3 +164,24 @@ Substantial features, not started - each needs its own design pass:
   gizmo movement above existing first - needs proximity detection
   against other loaded instances' bounding geometry, snap-point
   calculation (side/edge/center-to-center), and visual snap feedback.
+
+## Follow-ups from Aug 1 2026 batch
+
+- Alpha-textured objects: Keith raised this again ("textures with
+  alpha layers, these need to show like they do in the game") after
+  the GL_ALPHA_TEST fix was already pushed - confirmed the fix is
+  still correctly in place in the code, but couldn't verify the
+  actual visual result (no PyOpenGL in this sandbox). Needs Keith's
+  specific feedback on whether it's still wrong, and if so which
+  objects/textures, since a hard 0.5 cutout threshold may not match
+  every case (some GTA textures might want smoother blending instead
+  of a hard cutout).
+- VehicleViewport (apps/methods/dff_viewport.py) has its own separate
+  mouseMoveEvent override with the identical yaw-uncompensated pan
+  bug just fixed in the base DFFViewport class - out of scope for
+  this Map Workshop session, but worth fixing there too since Vehicle
+  Workshop would have the exact same "mouse left doesn't always mean
+  screen left" issue.
+- Nav settings popup currently only has mouse sensitivity - Keith
+  asked for "other needed settings" too, not yet specified which
+  ones.

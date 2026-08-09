@@ -1389,16 +1389,37 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 self._notify_selection_changed()
                 self.update()
 
-    def mouseMoveEvent(self, event): #vers 2
+    def mouseMoveEvent(self, event): #vers 3
         dx = event.pos().x() - self._last_pos.x()
         dy = event.pos().y() - self._last_pos.y()
+        sens = getattr(self, '_mouse_sensitivity', 1.0)
         if event.buttons() & Qt.MouseButton.RightButton and not self._view_locked:
-            self._yaw   += dx * 0.5
-            self._pitch += dy * 0.5
+            self._yaw   += dx * 0.5 * sens
+            self._pitch += dy * 0.5 * sens
         elif event.buttons() & Qt.MouseButton.MiddleButton:
-            scale = self._dist * 0.002
-            self._pan_x += dx * scale
-            self._pan_y -= dy * scale
+            # Yaw-compensated pan (Aug 1 2026, per Keith: "moving the
+            # mouse left, should always reflect moving left in the
+            # viewpoint... mouse movement seems to switch depending on
+            # viewing angle") - self._pan_x/y get applied via
+            # glTranslatef *before* the scene's own glRotatef(yaw,...)
+            # in paintGL's transform chain (translate happens first on
+            # the actual geometry, since OpenGL applies transforms in
+            # the reverse of call order), so the raw screen-space drag
+            # delta was being interpreted directly as a world-space
+            # offset with no yaw compensation at all - "left" only
+            # felt consistent from whatever one specific angle the
+            # camera happened to start at. Pre-rotating the screen
+            # delta by -yaw here exactly cancels the scene's own +yaw
+            # rotation once applied, keeping the net pan direction
+            # locked to actual screen-space regardless of viewing
+            # angle.
+            scale = self._dist * 0.002 * sens
+            screen_dx = dx * scale
+            screen_dy = -dy * scale
+            rad = math.radians(-self._yaw)
+            cos_a, sin_a = math.cos(rad), math.sin(rad)
+            self._pan_x += screen_dx * cos_a - screen_dy * sin_a
+            self._pan_y += screen_dx * sin_a + screen_dy * cos_a
         self._last_pos = event.pos(); self.update()
 
     def mouseReleaseEvent(self, event): #vers 1

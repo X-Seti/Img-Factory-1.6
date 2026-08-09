@@ -19706,6 +19706,20 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         render_lod_btn.setToolTip("Choose how the world view renders geometry, and which detail level(s) to show")
         opts_row.addWidget(render_lod_btn)
 
+        # Nav settings (Aug 1 2026, per Keith: "need a way to toggle
+        # these settings, mouse strength, other needed settings") -
+        # right now just mouse sensitivity, applied to both the
+        # rotate and pan deltas in DFFViewport.mouseMoveEvent - a
+        # single starting point rather than a full settings dialog,
+        # since only sensitivity was explicitly asked for; more nav
+        # settings can be added to this same popup as they come up.
+        nav_btn = QPushButton("Nav")
+        nav_btn.setFixedHeight(18)
+        nav_btn.setStyleSheet(_compact_18)
+        nav_btn.setToolTip("Viewport navigation settings (mouse sensitivity)")
+        nav_btn.clicked.connect(self._show_nav_settings_popup)
+        opts_row.addWidget(nav_btn)
+
         opts_row.addStretch()
         lay.addLayout(opts_row)
 
@@ -19844,6 +19858,37 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 f"found/fetched, {len(all_textures)} textures total")
         self._generic_ide_textures_cache = (id(loader), all_textures, distinct_txds)
         return all_textures, distinct_txds
+
+    def _show_nav_settings_popup(self): #vers 1
+        """Small popup with viewport navigation settings - currently
+        just mouse sensitivity (Aug 1 2026, per Keith: "need a way to
+        toggle these settings, mouse strength, other needed
+        settings"). Applies to preview_widget._mouse_sensitivity,
+        which DFFViewport.mouseMoveEvent multiplies both the rotate
+        and pan deltas by."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is None:
+            return
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Navigation Settings")
+        lay = QVBoxLayout(dlg)
+        lay.addWidget(QLabel("Mouse Sensitivity"))
+        row = QHBoxLayout()
+        slider = QSlider(Qt.Orientation.Horizontal)
+        slider.setRange(10, 300)   # 0.1x to 3.0x, as integer tenths
+        slider.setValue(int(getattr(vp, '_mouse_sensitivity', 1.0) * 100))
+        value_lbl = QLabel(f"{slider.value() / 100:.1f}x")
+        def on_change(v):
+            vp._mouse_sensitivity = v / 100
+            value_lbl.setText(f"{v / 100:.1f}x")
+        slider.valueChanged.connect(on_change)
+        row.addWidget(slider)
+        row.addWidget(value_lbl)
+        lay.addLayout(row)
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(dlg.accept)
+        lay.addWidget(close_btn)
+        dlg.exec()
 
     def _set_world_render_mode(self, mode, label, btn): #vers 1
         """Switch the world view's render mode - per Keith: "Add the
