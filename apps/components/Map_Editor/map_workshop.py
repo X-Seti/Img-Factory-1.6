@@ -3864,6 +3864,31 @@ class _InstanceEditPanel(QWidget):
             empty.setStyleSheet("color: palette(mid);")
             lay.addWidget(empty)
 
+    def _clear_layout_recursive(self, layout): #vers 1
+        """Remove and delete every item in a layout, recursing into
+        any nested layouts too - per Keith's screenshot showing badly
+        garbled/overlapping text in the Identity section (Aug 1 2026).
+        The plain "while count(): item = takeAt(0); if item.widget():
+        deleteLater()" pattern used everywhere else in this file only
+        handles direct widget items - item.widget() returns None for
+        a nested-layout item (like the IPL/IDE row QHBoxLayouts added
+        for the Show buttons), so those rows' old labels/buttons were
+        never actually deleted on repeated calls (once per instance
+        selection change) - just silently orphaned, still visually
+        parented to the section box, piling up underneath/behind each
+        newly-added row every time a different instance was
+        selected."""
+        while layout.count():
+            item = layout.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.hide()
+                w.deleteLater()
+                continue
+            nested = item.layout()
+            if nested is not None:
+                self._clear_layout_recursive(nested)
+
     def _populate_identity_section(self, ipl_line, ide_line, txd_name, interior, lod_index): #vers 3
         """Identity section: raw IPL line, raw IDE line, and a 3rd row
         with the TXD's real status - one of three messages depending
@@ -3896,10 +3921,7 @@ class _InstanceEditPanel(QWidget):
         built - see show_for_instance)."""
         box = self._identity_box
         lay = box.layout()
-        while lay.count():
-            item = lay.takeAt(0)
-            w = item.widget()
-            if w: w.deleteLater()
+        self._clear_layout_recursive(lay)
 
         from apps.methods.imgfactory_svg_icons import get_view_icon
         icon_color = self._workshop._get_icon_color()
@@ -20157,6 +20179,29 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         opts_row2.addWidget(time_stop_btn)
         opts_row2.addWidget(time_settings_btn)
 
+        # 2DFX master toggle (Aug 1 2026, per Keith: "so lets switch
+        # to 2dfx, there needs to be a 2dfx button near the time,
+        # play, stop, these need looking at aswell, to complete the
+        # functionalty") - previously 2DFX lights had no way to be
+        # fully disabled: with the Time switch off they always showed
+        # regardless of time, with it on they only followed the day/
+        # night gating. This adds an actual master on/off, checked by
+        # _refresh_2dfx_lights before anything else - when off, no
+        # lights show regardless of the Time switch/hour at all; when
+        # on, the existing time-based night gating still applies
+        # exactly as before.
+        dfx_chk = QCheckBox("2DFX")
+        dfx_chk.setChecked(True)
+        dfx_chk.setFixedHeight(24)
+        dfx_chk.setStyleSheet(_compact_18)
+        dfx_chk.setToolTip(
+            "Show 2DFX lights in the world view - when off, no 2DFX\n"
+            "lights show at all, regardless of the Time switch. When\n"
+            "on, the existing day/night time gating still applies.")
+        dfx_chk.toggled.connect(self._on_2dfx_master_toggled)
+        self._2dfx_master_chk = dfx_chk
+        opts_row2.addWidget(dfx_chk)
+
         # Nav settings (Aug 1 2026, per Keith: "need a way to toggle
         # these settings, mouse strength, other needed settings") -
         # right now just mouse sensitivity, applied to both the
@@ -20518,6 +20563,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         stale filter if the switch gets enabled right after."""
         if getattr(self, '_tobj_time_chk', None) and self._tobj_time_chk.isChecked():
             self._apply_ipl_visibility_filter(auto_fit=False)
+
+    def _on_2dfx_master_toggled(self, checked): #vers 1
+        """2DFX master on/off switch changed - re-runs the same
+        visibility pipeline so lights are added/cleared immediately."""
+        self._apply_ipl_visibility_filter(auto_fit=False)
 
     def _start_time_flow(self, play_btn, stop_btn): #vers 1
         """Start the time-flow timer - per Keith: "we need a [play]
@@ -21961,6 +22011,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         loader = getattr(self, '_world_loader', None)
         if vp is None or loader is None or not hasattr(vp, 'set_2dfx_lights'):
             return
+        master_chk = getattr(self, '_2dfx_master_chk', None)
+        if master_chk is not None and not master_chk.isChecked():
+            vp.set_2dfx_lights([])
+            return
         get_2dfx = getattr(loader, 'get_2dfx_for_model', None)
         if get_2dfx is None:
             vp.set_2dfx_lights([])
@@ -21982,8 +22036,21 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 ox = fx.extra.get('offset_x', 0.0)
                 oy = fx.extra.get('offset_y', 0.0)
                 oz = fx.extra.get('offset_z', 0.0)
+                # Effective (conjugated) rotation, not the raw stored
+                # quaternion (Aug 1 2026, per Keith: "2dfx lighting
+                # isn't parsing correctly, the light spot is fine on
+                # some lampposts, but wrong on others, an axis issue
+                # like the rotation bug") - the model's own geometry
+                # renders using _effective_rotation's conjugated value
+                # (see _refresh_world_view), but this was still using
+                # inst.rot_x/y/z/w directly. For an identity-ish
+                # rotation the two are indistinguishable, which is
+                # exactly why it looked fine on some lampposts and
+                # wrong on others - only the genuinely rotated ones
+                # showed the mismatch.
+                erx, ery, erz, erw = self._effective_rotation(inst)
                 wx, wy, wz = self._rotate_and_translate_offset(
-                    ox, oy, oz, inst.rot_x, inst.rot_y, inst.rot_z, inst.rot_w,
+                    ox, oy, oz, erx, ery, erz, erw,
                     inst.pos_x, inst.pos_y, inst.pos_z)
                 r = fx.extra.get('color_r', 255)
                 g = fx.extra.get('color_g', 255)
@@ -22138,14 +22205,64 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 if dff_model is None or not getattr(dff_model, 'geometries', None):
                     converted[model_name] = None
                 else:
-                    g = dff_model.geometries[0]
+                    # Merge every geometry, not just the first (Aug 1
+                    # 2026, per Keith: "streetlights are multi clump
+                    # objects... show broken... traffic lights show in
+                    # a broken state") - a multi-clump model (separate
+                    # pole/arm/housing parts, each its own Geometry)
+                    # previously had every part after the first
+                    # silently dropped entirely, since only geometries
+                    # [0] was ever converted. Concatenates vertices/
+                    # normals/uvs/prelit colors across all geometries,
+                    # offsetting each geometry's own triangle vertex
+                    # indices and material_id by how many vertices/
+                    # materials came before it in the combined arrays
+                    # (each geometry's raw indices are relative to its
+                    # own lists, not a shared one). Doesn't apply any
+                    # per-atomic/per-frame transform between parts -
+                    # assumes each geometry's vertices are already in
+                    # correct model-local space, which covers simple
+                    # multi-part static props but not models relying on
+                    # genuine frame-hierarchy transforms between parts
+                    # (e.g. an animated/hinged part) - a further
+                    # refinement if that turns out to still look wrong
+                    # for some models.
+                    all_vertices, all_normals, all_uvs, all_prelit = [], [], [], []
+                    all_triangles, all_materials = [], []
+                    any_has_colors = any(getattr(g, 'colors', None) for g in dff_model.geometries)
+                    for g in dff_model.geometries:
+                        v_offset = len(all_vertices)
+                        mat_offset = len(all_materials)
+                        all_vertices.extend((v.x, v.y, v.z) for v in g.vertices)
+                        if g.normals:
+                            all_normals.extend((n.x, n.y, n.z) for n in g.normals)
+                        if g.uv_layers:
+                            all_uvs.extend((u.u, u.v) for u in g.uv_layers[0])
+                        # Pad with white for any geometry lacking its own
+                        # prelit colors, whenever at least one geometry
+                        # in this model has them - otherwise a mix of
+                        # colored/uncolored parts would leave all_prelit
+                        # shorter than all_vertices, misaligning the two
+                        # (checked upfront across all geometries, not
+                        # just "seen one with colors so far" - a
+                        # colorless geometry before the first colored
+                        # one still needs padding).
+                        if getattr(g, 'colors', None):
+                            all_prelit.extend((c.r, c.g, c.b, c.a) for c in g.colors)
+                        elif any_has_colors:
+                            all_prelit.extend((255, 255, 255, 255) for _ in g.vertices)
+                        all_triangles.extend(
+                            (t.v1 + v_offset, t.v2 + v_offset, t.v3 + v_offset,
+                             t.material_id + mat_offset)
+                            for t in g.triangles)
+                        all_materials.extend(g.materials)
                     converted[model_name] = {
-                        'vertices':  [(v.x, v.y, v.z) for v in g.vertices],
-                        'normals':   [(n.x, n.y, n.z) for n in g.normals] if g.normals else [],
-                        'uvs':       [(u.u, u.v) for u in g.uv_layers[0]] if g.uv_layers else [],
-                        'triangles': [(t.v1, t.v2, t.v3, t.material_id) for t in g.triangles],
-                        'materials': g.materials,
-                        'prelit':    [(c.r, c.g, c.b, c.a) for c in getattr(g, 'colors', [])] if getattr(g, 'colors', None) else [],
+                        'vertices':  all_vertices,
+                        'normals':   all_normals,
+                        'uvs':       all_uvs,
+                        'triangles': all_triangles,
+                        'materials': all_materials,
+                        'prelit':    all_prelit,
                     }
                 if loader is not None:
                     obj = loader.get_object(inst.model_id)

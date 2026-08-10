@@ -2138,3 +2138,71 @@ conclusively found despite extensive isolated testing.
   expected status message appears in order, confirming instrumentation
   reaches every step. Full `QApplication` instantiation clean,
   `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Four real bugs fixed from Keith's latest
+  screenshots/report:
+
+  **1. Garbled/overlapping Identity section text**: the plain "while
+  count(): item = takeAt(0); if item.widget(): deleteLater()" pattern
+  used to clear the section before repopulating only handled direct
+  widget items - `item.widget()` returns `None` for a nested-layout
+  item (the IPL/IDE row `QHBoxLayout`s added earlier this session for
+  the Show buttons), so those rows' old labels/buttons were never
+  actually removed on repeated calls (once per instance selection
+  change) - just silently orphaned, still visually parented to the
+  section box, piling up underneath/overlapping each newly-added row.
+  Added `_clear_layout_recursive` (handles nested layouts properly,
+  and `hide()`s widgets immediately rather than relying solely on
+  `deleteLater()`, which only schedules destruction for a later event
+  loop pass - the old widget stays visible at its old position in the
+  meantime otherwise). Verified: cycling between two instances 5 times
+  now leaves exactly 4 *visible* labels matching the current
+  selection, not accumulating stale ones underneath.
+
+  **2. 2DFX light offset using the wrong rotation**: "2dfx lighting
+  isn't parsing correctly, the light spot is fine on some lampposts,
+  but wrong on others, an axis issue like the rotation bug." Found
+  `_refresh_2dfx_lights` was rotating each light's local offset by
+  the *raw* stored quaternion (`inst.rot_x/y/z/w`), while the model's
+  own geometry renders using `_effective_rotation`'s *conjugated*
+  value - identical for a near-identity rotation (why some lampposts
+  looked fine), diverging for any genuinely rotated instance (why
+  others didn't) - the exact same lesson as the original rotation bug,
+  just missed in this newer code. Fixed to use the effective rotation.
+  Verified with a real rotated SA-style instance: the fix produces a
+  different (correct) world position than the old raw-quaternion
+  version would have.
+
+  **3. Multi-clump models missing most of their geometry**: "streetlights
+  are multi clump objects... show broken... traffic lights show in a
+  broken state." Found `_refresh_world_view` only ever converted
+  `dff_model.geometries[0]` - any multi-part model (separate pole/
+  arm/housing parts, each its own `Geometry`) had every part after
+  the first silently dropped entirely. Now merges every geometry:
+  vertices/normals/uvs/prelit colors concatenated, triangle vertex
+  indices and material indices offset per-geometry to stay correct
+  in the combined arrays, with white-padding for any geometry lacking
+  its own prelit colors when at least one other geometry in the same
+  model has them (otherwise a mixed colored/uncolored multi-part
+  model would misalign prelit data against vertices). Doesn't apply
+  per-atomic/frame transforms between parts - assumes each geometry's
+  vertices are already in correct model-local space, which covers
+  simple static multi-part props but not models relying on genuine
+  frame-hierarchy transforms between parts; noted as a possible
+  further refinement if some models still look wrong. Verified with a
+  realistic 2-geometry model: combined vertex count correct, second
+  geometry's triangle indices correctly offset rather than colliding
+  with the first's.
+
+  **4. 2DFX master toggle**: "so lets switch to 2dfx, there needs to
+  be a 2dfx button near the time, play, stop." Previously 2DFX lights
+  had no way to be fully disabled - with the Time switch off they
+  always showed regardless of time; with it on, only the day/night
+  gating applied. Added an actual master "2DFX" checkbox next to Time/
+  Play/Stop/Settings, checked first in `_refresh_2dfx_lights` before
+  any time-based logic - off means no lights show at all regardless
+  of the Time switch; on preserves the existing night-gating exactly
+  as before. Verified: toggling it off/on correctly clears/restores
+  the light list.
+
+  Full `QApplication` instantiation clean, `ast.parse` clean.
