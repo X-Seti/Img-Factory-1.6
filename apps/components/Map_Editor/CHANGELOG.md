@@ -2068,3 +2068,36 @@ conclusively found despite extensive isolated testing.
   whatever path is actually chosen (tested saving as `name_me.ipl`);
   saved content confirmed matching the real loaded instance data.
   Full `QApplication` instantiation clean, `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Added "Show" jump-to-line icons in the
+  Item Editor Dialog's Identity section, per Keith: "have a show
+  icon, before IPL and before IDE rows, that bring up the IPL /IDE
+  editors, there it says line (343) highlight the line in either
+  editor."
+
+  Added a small Show icon button before each of the IPL and IDE raw
+  lines - clicking one switches Object Browser to the matching tab,
+  selects that instance/object's own source file in IPL Sections /
+  the IDE file list, and highlights + scrolls to the exact row
+  matching its real file line number.
+
+  This needed real line-number tracking that didn't exist before:
+  `_extract_ipl_section_text` and `_refresh_ide_objects_panel`'s
+  parsing loops previously discarded each line's original position in
+  the file entirely, only building the displayed table row-by-row in
+  order. Changed `_extract_ipl_section_text` to return `(line_no,
+  raw_line)` tuples instead of a joined string, and both refresh
+  methods now stamp each row's column-0 cell with its real 1-based
+  file line number (`Qt.ItemDataRole.UserRole`) - what the new
+  `_select_and_scroll_to_line` searches for.
+
+  Added `_jump_to_ipl_line`/`_jump_to_ide_line`, both reusing
+  `_on_object_browser_tab_changed` (the existing IMG/DAT/IDE/IPL
+  button handler) for the tab switch itself, then locating the
+  matching source file and calling the shared line-search helper.
+
+  Verified end-to-end with real 3-line IPL and IDE files: jumping to
+  line 3 of each correctly selected the row for the object actually
+  on that line (not just any row), and the IDE jump correctly
+  switched the shared table into "IDE Objects" mode along the way.
+  Full `QApplication` instantiation clean, `ast.parse` clean.

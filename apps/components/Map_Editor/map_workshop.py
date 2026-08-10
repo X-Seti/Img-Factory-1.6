@@ -3667,6 +3667,7 @@ class _InstanceEditPanel(QWidget):
         super().__init__(parent)
         self._workshop = workshop
         self._inst = None
+        self._current_ide_obj = None
         self._loader = None
         self._nudge_wide = None   # current reflow state, None forces first layout
         self.setWindowTitle("[IPL object editor]")
@@ -3863,7 +3864,7 @@ class _InstanceEditPanel(QWidget):
             empty.setStyleSheet("color: palette(mid);")
             lay.addWidget(empty)
 
-    def _populate_identity_section(self, ipl_line, ide_line, txd_name, interior, lod_index): #vers 2
+    def _populate_identity_section(self, ipl_line, ide_line, txd_name, interior, lod_index): #vers 3
         """Identity section: raw IPL line, raw IDE line, and a 3rd row
         with the TXD's real status - one of three messages depending
         on what actually happened when looking it up (Aug 1 2026, per
@@ -3882,15 +3883,51 @@ class _InstanceEditPanel(QWidget):
         but from the right on the same row") - the old standalone
         "Placement Info" section became empty once this moved out of
         it and its other line (Source IPL) turned out to duplicate
-        the window title, so that section is gone entirely now."""
+        the window title, so that section is gone entirely now.
+
+        The IPL and IDE lines each now get their own Show icon before
+        them (Aug 1 2026, per Keith: "have a show icon, before IPL
+        and before IDE rows, that bring up the IPL /IDE editors,
+        there it says line (343) highlight the line in either
+        editor") - jumps Object Browser to the matching tab, selects
+        the instance/object's own source file, and highlights the
+        exact row matching its real file line number (self._inst.
+        line_no / obj.line_no, tracked when the Identity section was
+        built - see show_for_instance)."""
         box = self._identity_box
         lay = box.layout()
         while lay.count():
             item = lay.takeAt(0)
             w = item.widget()
             if w: w.deleteLater()
-        lay.addWidget(QLabel(ipl_line))
-        lay.addWidget(QLabel(ide_line))
+
+        from apps.methods.imgfactory_svg_icons import get_view_icon
+        icon_color = self._workshop._get_icon_color()
+
+        ipl_row = QHBoxLayout()
+        ipl_show_btn = self._make_standard_button("", get_view_icon(18, icon_color))
+        ipl_show_btn.setFixedWidth(24)
+        ipl_show_btn.setToolTip("Jump to this instance's line in the IPL editor")
+        ipl_show_btn.clicked.connect(
+            lambda: self._workshop._jump_to_ipl_line(self._inst.source_ipl, self._inst.line_no))
+        ipl_row.addWidget(ipl_show_btn)
+        ipl_row.addWidget(QLabel(ipl_line))
+        ipl_row.addStretch()
+        lay.addLayout(ipl_row)
+
+        ide_row = QHBoxLayout()
+        ide_show_btn = self._make_standard_button("", get_view_icon(18, icon_color))
+        ide_show_btn.setFixedWidth(24)
+        ide_show_btn.setToolTip("Jump to this object's line in the IDE editor")
+        ide_show_btn.setEnabled(self._current_ide_obj is not None)
+        if self._current_ide_obj is not None:
+            ide_show_btn.clicked.connect(
+                lambda: self._workshop._jump_to_ide_line(
+                    self._current_ide_obj.source_ide, self._current_ide_obj.line_no))
+        ide_row.addWidget(ide_show_btn)
+        ide_row.addWidget(QLabel(ide_line))
+        ide_row.addStretch()
+        lay.addLayout(ide_row)
 
         row = QHBoxLayout()
         if not txd_name:
@@ -4145,6 +4182,7 @@ class _InstanceEditPanel(QWidget):
         else:
             ide_line = "(no matching IDE entry found)"
             txd_name = ""
+        self._current_ide_obj = obj
         self._populate_identity_section(ipl_line, ide_line, txd_name, inst.interior, inst.lod_index)
 
         self._refresh_position_spins()
@@ -20507,6 +20545,63 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         lay.addWidget(close_btn)
         dlg.exec()
 
+    def _jump_to_ipl_line(self, source_ipl, line_no): #vers 1
+        """Switch Object Browser to the IPL tab, select the instance's
+        own source IPL file in IPL Sections, and highlight/scroll to
+        the exact row matching its original file line number - per
+        Keith: "have a show icon, before IPL and before IDE rows, that
+        bring up the IPL /IDE editors, there it says line (343)
+        highlight the line in either editor." """
+        self._on_object_browser_tab_changed('ipl')
+        sections_table = getattr(self, '_ipl_sections_table', None)
+        if sections_table is None:
+            return
+        for row in range(sections_table.rowCount()):
+            item = sections_table.item(row, 0)
+            if item is not None and item.data(Qt.ItemDataRole.UserRole) == source_ipl:
+                sections_table.setCurrentCell(row, 1)
+                break
+        self._refresh_ipl_inst_file_panel()
+        self._select_and_scroll_to_line(line_no)
+
+    def _jump_to_ide_line(self, source_ide, line_no): #vers 1
+        """Switch Object Browser to the IDE tab, select the object's
+        own source IDE file in the IDE file list, and highlight/scroll
+        to the exact row matching its original file line number - same
+        purpose as _jump_to_ipl_line, for the IDE side."""
+        self._on_object_browser_tab_changed('ide')
+        ide_paths = getattr(self, '_ide_tab_paths', {})
+        target_row = None
+        for row, path in ide_paths.items():
+            if os.path.basename(path) == source_ide:
+                target_row = row
+                break
+        if target_row is None:
+            return
+        ide_table = getattr(self, '_ide_tab_table', None)
+        if ide_table is not None:
+            ide_table.setCurrentCell(target_row, 1)
+        self._refresh_ide_objects_panel(target_row)
+        self._select_and_scroll_to_line(line_no)
+
+    def _select_and_scroll_to_line(self, line_no): #vers 1
+        """Find the shared cells table row whose tracked original file
+        line number matches line_no (stored on each row's column-0
+        item, see _refresh_ipl_inst_file_panel/_refresh_ide_objects_
+        panel), select it, and scroll it into view. Shared helper for
+        both _jump_to_ipl_line and _jump_to_ide_line, since both land
+        on the same table (self._ipl_inst_file_table), just populated
+        differently."""
+        table = getattr(self, '_ipl_inst_file_table', None)
+        if table is None:
+            return
+        for row in range(table.rowCount()):
+            item = table.item(row, 0)
+            if item is not None and item.data(Qt.ItemDataRole.UserRole) == line_no:
+                table.selectRow(row)
+                table.scrollToItem(item)
+                return
+
     def _refresh_ipl_inst_file_panel(self): #vers 3
         """Re-read the currently selected IPL's raw file content,
         filtered to the currently selected data type (INST/CULL/ZONE -
@@ -20580,8 +20675,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return
 
         data_type = getattr(self, '_ipl_data_type', 'inst')
-        section_text = self._extract_ipl_section_text(raw_text, data_type)
-        if section_text is None:
+        section_lines = self._extract_ipl_section_text(raw_text, data_type)
+        if section_lines is None:
             table.setRowCount(0)
             return
 
@@ -20589,21 +20684,24 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         ignore_scaling = ignore_scaling.isChecked() if ignore_scaling is not None else False
 
         data_lines = []
-        for raw_line in section_text.splitlines():
+        for line_no, raw_line in section_lines:
             line = raw_line.split("#")[0].strip()
             low = line.lower()
             if not line or low in (data_type, 'end'):
                 continue
             fields = [f.strip() for f in line.split(',')]
-            data_lines.append(fields)
+            data_lines.append((line_no, fields))
 
         table.setRowCount(len(data_lines))
-        for r, fields in enumerate(data_lines):
+        for r, (line_no, fields) in enumerate(data_lines):
             for c in range(13):
                 value = fields[c] if c < len(fields) else ""
                 if ignore_scaling and 6 <= c <= 8 and value == "1":
                     value = "0"
-                table.setItem(r, c, QTableWidgetItem(value))
+                item = QTableWidgetItem(value)
+                if c == 0:
+                    item.setData(Qt.ItemDataRole.UserRole, line_no)
+                table.setItem(r, c, item)
 
     def _on_ipl_inst_file_context_menu(self, pos): #vers 2
         """Right-click the IPL Inst File table - Copy (selected cells,
@@ -20869,29 +20967,32 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 table.scrollToItem(id_item)
                 break
 
-    def _extract_ipl_section_text(self, raw_text, section_name): #vers 1
+    def _extract_ipl_section_text(self, raw_text, section_name): #vers 2
         """Extract just one named section's lines (between the section
-        keyword and its "end") from a raw IPL file's text - returns
-        None if that section isn't present at all (falls back to
-        showing the whole file), rather than an empty/misleading
-        result."""
+        keyword and its "end") from a raw IPL file's text, tracking
+        each line's real 1-based file line number (Aug 1 2026, needed
+        for the Item Editor Dialog's "Show" jump-to-line buttons - see
+        _jump_to_ipl_line) - returns a list of (line_no, raw_line)
+        tuples, or None if that section isn't present at all (falls
+        back to showing the whole file elsewhere, rather than an
+        empty/misleading result)."""
         lines = raw_text.splitlines()
         out = []
         in_section = False
         found = False
-        for raw in lines:
+        for i, raw in enumerate(lines, start=1):
             line = raw.split("#")[0].strip()
             low = line.lower()
             if not in_section and low == section_name:
                 in_section = True
                 found = True
-                out.append(raw)
+                out.append((i, raw))
                 continue
             if in_section:
-                out.append(raw)
+                out.append((i, raw))
                 if low == "end":
                     in_section = False
-        return "\n".join(out) if found else None
+        return out if found else None
 
     def _apply_compact_table_style(self, table): #vers 1
         """Apply the same compact row/header height Object Browser
@@ -21066,7 +21167,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return
 
         data_rows = []
-        for raw_line in raw_text.splitlines():
+        for line_no, raw_line in enumerate(raw_text.splitlines(), start=1):
             line = raw_line.split("#")[0].strip()
             if not line or line.startswith("//"):
                 continue
@@ -21076,15 +21177,18 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if ',' not in line and re.match(r'^[a-z0-9_]{2,8}$', low):
                 continue   # section header (objs/tobj/cars/etc.)
             fields = [f.strip() for f in line.split(',')]
-            data_rows.append(fields)
+            data_rows.append((line_no, fields))
 
-        max_cols = max((len(r) for r in data_rows), default=0)
+        max_cols = max((len(r) for _ln, r in data_rows), default=0)
         table.setColumnCount(max_cols)
         table.setHorizontalHeaderLabels([f"Field {i+1}" for i in range(max_cols)])
         table.setRowCount(len(data_rows))
-        for r, fields in enumerate(data_rows):
+        for r, (line_no, fields) in enumerate(data_rows):
             for c in range(max_cols):
-                table.setItem(r, c, QTableWidgetItem(fields[c] if c < len(fields) else ""))
+                item = QTableWidgetItem(fields[c] if c < len(fields) else "")
+                if c == 0:
+                    item.setData(Qt.ItemDataRole.UserRole, line_no)
+                table.setItem(r, c, item)
 
     def _create_dat_tab(self): #vers 1
         """[DAT] tab content, matching MooMapper's own "DAT Editor" -
