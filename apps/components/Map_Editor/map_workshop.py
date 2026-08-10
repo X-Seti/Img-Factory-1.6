@@ -8856,6 +8856,17 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._set_status(
             f"Shading: {'ON (Lambertian)' if enabled else 'OFF (flat)'}")
 
+
+#TODO bug; Traceback (most recent call last):
+#  File "/home/x2/Documents/GitHub/Img-Factory-1.6/apps/methods/dff_viewport.py", line 603, in paintGL
+#    self._setup_lighting()
+#    ~~~~~~~~~~~~~~~~~~~~^^
+#  File "/home/x2/Documents/GitHub/Img-Factory-1.6/apps/methods/dff_viewport.py", line 569, in _setup_lighting
+#    _libGL.glLightfv(_GL_LIGHT0, _GL_POSITION, _f4(ld[0], ld[1], ld[2], ld[3]))
+#                                                                        ~~^^^
+#IndexError: tuple index out of range
+
+
     def _open_light_setup_dialog(self): #vers 2
         """Viewport light setup — visual position picker + sliders."""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
@@ -20173,11 +20184,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # the same row as Ignore Scaling/Advanced/Render/LOD, which
         # got crowded; given their own row instead.
         opts_row2 = QHBoxLayout()
-        opts_row2.addWidget(time_chk)
-        opts_row2.addWidget(time_edit)
-        opts_row2.addWidget(time_play_btn)
-        opts_row2.addWidget(time_stop_btn)
-        opts_row2.addWidget(time_settings_btn)
 
         # 2DFX master toggle (Aug 1 2026, per Keith: "so lets switch
         # to 2dfx, there needs to be a 2dfx button near the time,
@@ -20200,7 +20206,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "on, the existing day/night time gating still applies.")
         dfx_chk.toggled.connect(self._on_2dfx_master_toggled)
         self._2dfx_master_chk = dfx_chk
-        opts_row2.addWidget(dfx_chk)
+
 
         # Nav settings (Aug 1 2026, per Keith: "need a way to toggle
         # these settings, mouse strength, other needed settings") -
@@ -20214,7 +20220,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         nav_btn.setStyleSheet(_compact_18)
         nav_btn.setToolTip("Viewport navigation settings (mouse sensitivity)")
         nav_btn.clicked.connect(self._show_nav_settings_popup)
+
         opts_row2.addWidget(nav_btn)
+        opts_row2.addWidget(dfx_chk)
+        opts_row2.addWidget(time_chk)
+        opts_row2.addWidget(time_edit)
+        opts_row2.addWidget(time_play_btn)
+        opts_row2.addWidget(time_stop_btn)
+        opts_row2.addWidget(time_settings_btn)
 
         opts_row2.addStretch()
         lay.addLayout(opts_row2)
