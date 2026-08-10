@@ -2045,3 +2045,26 @@ conclusively found despite extensive isolated testing.
   re-adding an already-recent path correctly moves it to the top
   instead of duplicating; clear correctly empties the list. Full
   `QApplication` instantiation clean, `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Per Keith: "when clicking on a binary
+  ipl, i should beable to see this, and have an option to save it to
+  name_me.ipl." The IPL Inst File pane already shows a binary IPL's
+  data on click (fixed in an earlier pass this session), but the
+  "Save Binary IPL as Text" option only lived in the IPL Sections
+  table's own right-click menu, not reachable from the IPL Inst File
+  table itself, where the data is actually being looked at.
+
+  Generalized the export method (renamed `_save_binary_ipl_as_text`
+  -> `_save_ipl_data_as_text`, works identically regardless of
+  whether the source was binary or text, since both end up as the
+  same `IPLInstance` objects either way) and added "Save IPL Data
+  As..." to the IPL Inst File table's own context menu, using
+  whichever row is currently selected in IPL Sections. The save
+  dialog already lets the user type any filename they want (e.g.
+  `name_me.ipl`) - not limited to reusing the source's own name.
+
+  Verified end-to-end: the save dialog correctly suggests the
+  source's own name as a starting default, and correctly saves
+  whatever path is actually chosen (tested saving as `name_me.ipl`);
+  saved content confirmed matching the real loaded instance data.
+  Full `QApplication` instantiation clean, `ast.parse` clean.

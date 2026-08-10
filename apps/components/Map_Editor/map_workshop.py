@@ -19620,7 +19620,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if ipl_name in getattr(self, '_loaded_binary_ipls', set()):
             save_text_act = menu.addAction("Save Binary IPL as Text...")
             save_text_act.triggered.connect(
-                lambda checked=False, n=ipl_name: self._save_binary_ipl_as_text(n))
+                lambda checked=False, n=ipl_name: self._save_ipl_data_as_text(n))
 
         menu.addSeparator()
         up_act = menu.addAction("Move Up")
@@ -19631,32 +19631,38 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         down_act.triggered.connect(lambda checked=False, n=ipl_name: self._move_ipl_section(n, 1))
         menu.exec(table.viewport().mapToGlobal(pos))
 
-    def _save_binary_ipl_as_text(self, ipl_name): #vers 1
-        """Diagnostic export - write a loaded binary IPL's actual
-        parsed instances out as a standard text-format .ipl file, per
-        Keith: "we could add a right click option, to save binary Ipl
-        as text, save as? just to see if the ipl binary function is
-        working." Lets the real parsed result be inspected/compared
-        against a known-good text IPL rather than trusting the binary
-        parser blindly.
+    def _save_ipl_data_as_text(self, ipl_name): #vers 2
+        """Export an IPL's actual loaded instances out as a standard
+        text-format .ipl file - originally a binary-IPL diagnostic
+        per Keith: "we could add a right click option, to save binary
+        Ipl as text, save as? just to see if the ipl binary function
+        is working." Now also reachable from the IPL Inst File
+        table's own right-click menu (Aug 1 2026, per Keith: "when
+        clicking on a binary ipl, i should beable to see this, and
+        have an option to save it to name_me.ipl") - works the same
+        regardless of whether ipl_name's source was binary or text,
+        since both end up as the same IPLInstance objects in self.
+        _all_instances either way; the save dialog itself already
+        lets the user type any filename they want (e.g. name_me.ipl),
+        this isn't limited to reusing the source's own name.
 
         Writes the SA-style inst format (id, model, interior, pos
-        XYZ, rot XYZW, lod_index - no scale fields) since that's the
-        format BinaryIPLParser is built for (defaults to GTAGame.SA).
-        model_name may be empty for any instance whose model_id
-        didn't resolve against the loaded world's own IDE objects
-        (see _load_binary_ipl_stream) - written as-is rather than
-        guessed at, so a blank name in the output is itself a visible
-        signal of an unresolved ID worth checking."""
+        XYZ, rot XYZW, lod_index - no scale fields), matching what
+        BinaryIPLParser produces. model_name may be empty for any
+        instance whose model_id didn't resolve against the loaded
+        world's own IDE objects (see _load_binary_ipl_stream) -
+        written as-is rather than guessed at, so a blank name in the
+        output is itself a visible signal of an unresolved ID worth
+        checking."""
         all_inst = getattr(self, '_all_instances', None) or []
         matching = [i for i in all_inst if i.source_ipl == ipl_name]
         if not matching:
-            QMessageBox.information(self, "Save Binary IPL as Text",
+            QMessageBox.information(self, "Save IPL Data As Text",
                 f"No loaded instances found for {ipl_name}.")
             return
         default_name = os.path.splitext(ipl_name)[0] + ".ipl"
         path, _filter = QFileDialog.getSaveFileName(
-            self, "Save Binary IPL as Text", default_name, "IPL files (*.ipl);;All files (*)")
+            self, "Save IPL Data As Text", default_name, "IPL files (*.ipl);;All files (*)")
         if not path:
             return
         try:
@@ -20628,6 +20634,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         menu.addSeparator()
         info_action = menu.addAction("Info")
         show_textures_action = menu.addAction("Show Textures")
+        menu.addSeparator()
+        save_as_action = menu.addAction("Save IPL Data As...")
         chosen = menu.exec(table.viewport().mapToGlobal(pos))
         if chosen is None:
             return
@@ -20655,6 +20663,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if inst is not None:
                 self._center_viewport_on_instance(inst)
                 self._center_on_instance(inst)
+        elif chosen is save_as_action:
+            sections_table = getattr(self, '_ipl_sections_table', None)
+            sec_row = sections_table.currentRow() if sections_table is not None else -1
+            item = sections_table.item(sec_row, 0) if sec_row >= 0 else None
+            display_name = item.data(Qt.ItemDataRole.UserRole) if item is not None else None
+            if display_name:
+                self._save_ipl_data_as_text(display_name)
         elif chosen is show_textures_action:
             inst = self._find_instance_for_ipl_inst_file_row(row)
             if inst is not None:
