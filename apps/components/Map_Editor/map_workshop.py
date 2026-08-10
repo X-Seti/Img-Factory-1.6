@@ -18968,11 +18968,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         self._set_status(
             f"Loaded {game.upper()} world: {len(loader.objects)} objects, "
-            f"{len(loader.instances)} instances, {loader.stats.ipl_files} IPL files")
+            f"{len(loader.instances)} instances, {loader.stats.ipl_files} IPL files - "
+            f"resolving LOD pairs...")
+        QApplication.processEvents()
         self._lod_pairs = loader.resolve_lod_pairs()
         self._lod_overrides = {}
         self._lod_display_mode = 'normal'
 
+        self._set_status("Indexing IMG archives...")
+        QApplication.processEvents()
         model_cache = getattr(self, '_model_cache', None)
         if model_cache is None:
             from apps.components.Map_Editor.depends.model_cache import ModelCache
@@ -18987,20 +18991,37 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # real pre-load now happens per-IPL in _on_ipl_section_cell_
         # clicked, scoped to just that IPL's newly-loaded instances.
 
+        self._set_status("Applying LOD filter...")
+        QApplication.processEvents()
         visible = self._apply_lod_filter(loader.instances)
         for pane in getattr(self, '_world_panes', []):
             pane.set_instances(visible)
             pane.set_model_cache(model_cache)
             pane.set_cull_boxes(loader.culls, getattr(self, '_cull_boxes_act', None) and
                                 self._cull_boxes_act.isChecked())
+        self._set_status(f"Building instance list ({len(visible)} instances)...")
+        QApplication.processEvents()
         self._populate_instance_list(_FilteredLoaderStub(visible, loader))
+        self._set_status("Refreshing world view...")
+        QApplication.processEvents()
         self._refresh_world_view(visible)
+        self._set_status("Populating IPL Sections...")
+        QApplication.processEvents()
         self._populate_ipl_sections(loader)
+        self._set_status(f"Populating Object Browser ({len(loader.objects)} objects)...")
+        QApplication.processEvents()
         self._populate_object_browser(loader)
+        self._set_status("Refreshing IDE tab...")
+        QApplication.processEvents()
         self._refresh_ide_tab(loader)
         self._refresh_dat_tab()
+        self._set_status("Refreshing IMG tab...")
+        QApplication.processEvents()
         self._refresh_img_tab(loader)
         self._refresh_ipl_inst_file_panel()
+        self._set_status(
+            f"Loaded {game.upper()} world: {len(loader.objects)} objects, "
+            f"{len(loader.instances)} instances, {loader.stats.ipl_files} IPL files")
         QMessageBox.information(self, source_desc, loader.get_summary())
 
         # Per Keith: "we could have load from .dat file with no IPL

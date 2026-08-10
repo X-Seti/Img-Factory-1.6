@@ -2101,3 +2101,40 @@ conclusively found despite extensive isolated testing.
   on that line (not just any row), and the IDE jump correctly
   switched the shared table into "IDE Objects" mode along the way.
   Full `QApplication` instantiation clean, `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Added per-step status visibility for the
+  ~2 minute post-parse hang Keith reported: "there is a long hang
+  between ipl dialog loading, it reads the last line, then nothing
+  for 2 mins, i'd like to know what it's going, paring, sorting,
+  something other then think its silently crashed."
+
+  Found `_apply_loaded_world` ran its entire post-parse pipeline
+  (resolve LOD pairs, index every IMG archive, apply the LOD filter,
+  build the Instance List, refresh the world view, populate IPL
+  Sections/Object Browser/IDE/DAT/IMG tabs, refresh IPL Inst File) as
+  one unbroken sequence, with only a single status message at the
+  very start and zero `QApplication.processEvents()` calls anywhere
+  in between - meaning even if a status message had been set for a
+  later step, the UI genuinely could not repaint to show it until the
+  entire sequence finished, since Qt's single-threaded event loop
+  never got control back. Added a status message plus `processEvents
+  ()` before each major step, so whichever one is actually slow will
+  now show up as a real, visible, stuck-on message rather than
+  everything looking identically frozen.
+
+  Reviewed the two most likely culprits for actual algorithmic cost
+  given a large map (`resolve_lod_pairs`, widened to a second,
+  name-matching strategy earlier this session, and Object Browser/
+  Instance List population) - neither showed an obvious O(n²) pattern
+  on inspection (LOD pairing is close to linear per source file;
+  Object Browser's model properly uses beginResetModel/endResetModel;
+  Instance List resolves TXD names lazily per-cell rather than
+  upfront). Didn't find a smoking gun to fix directly - the
+  instrumentation itself is the more reliable next step, since it'll
+  show exactly which real step is slow on Keith's actual data rather
+  than requiring a guess.
+
+  Verified the full pipeline end-to-end with a mock loader: every
+  expected status message appears in order, confirming instrumentation
+  reaches every step. Full `QApplication` instantiation clean,
+  `ast.parse` clean.
