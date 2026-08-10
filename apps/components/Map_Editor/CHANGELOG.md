@@ -2027,3 +2027,21 @@ conclusively found despite extensive isolated testing.
   same archive now correctly call `IMGFile.open()` exactly once
   (would have been 50 times before this fix). Full `ast.parse` clean
   on both files.
+
+- **Aug 1, 2026 (cont'd)** — Added recent DAT files, per Keith: "when
+  loading Dat files, standalone, remember past files." Added `recent_
+  dat_files` to `MapSettings.DEFAULTS` (most recent first, deduped,
+  capped at 10), populated by `_add_recent_dat_file` on every
+  successful `_load_game_dat_file` call, persisted via the existing
+  JSON settings file. Added a separate "Recent" dropdown button next
+  to Load in the DAT tab (not attached to Load itself, since
+  `QPushButton.setMenu()` would make the whole button open the menu
+  on click, overriding Load's own "open file dialog" behaviour) -
+  lists recent paths, each re-triggering `_load_game_dat_file` with
+  that path preset, plus a "Clear Recent Files" action.
+
+  Verified: menu correctly shows the empty-state placeholder with
+  nothing loaded yet; two adds correctly ordered most-recent-first;
+  re-adding an already-recent path correctly moves it to the top
+  instead of duplicating; clear correctly empties the list. Full
+  `QApplication` instantiation clean, `ast.parse` clean.

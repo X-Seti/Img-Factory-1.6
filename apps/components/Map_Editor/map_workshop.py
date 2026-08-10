@@ -3068,6 +3068,12 @@ class MapSettings:
         'user_pal_rows':     16,       # user palette max visible rows
         'default_zoom':      4,        # startup zoom level
         'undo_levels':       32,
+        # Recently loaded .dat files (Aug 1 2026, per Keith: "when
+        # loading Dat files, standalone, remember past files") - most
+        # recent first, capped at 10. Populated by _load_game_dat_file
+        # on every successful load, surfaced as a dropdown on the DAT
+        # tab's Load button for quick re-loading without re-browsing.
+        'recent_dat_files':  [],
         'default_width':     320,
         'default_height':    200,
         'retro_palette':     'Amiga AGA WB',
@@ -18834,7 +18840,51 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         loader.lazy_ipl_loading = True
         ok = loader.load_from_dat(dat_path, game_root)
         self._game_root = game_root
+        if ok:
+            self._add_recent_dat_file(dat_path)
         self._apply_loaded_world(loader, game, ok, "Load Game DAT File")
+
+    def _add_recent_dat_file(self, dat_path): #vers 1
+        """Record a successfully loaded .dat path in the recent-files
+        list - per Keith: "when loading Dat files, standalone,
+        remember past files." Most recent first, deduplicated (a
+        re-load of the same file moves it back to the top rather than
+        appearing twice), capped at 10."""
+        recent = list(self.map_settings.get('recent_dat_files') or [])
+        recent = [p for p in recent if p != dat_path]
+        recent.insert(0, dat_path)
+        recent = recent[:10]
+        self.map_settings.set('recent_dat_files', recent)
+        self.map_settings.save()
+        self._refresh_recent_dat_menu()
+
+    def _refresh_recent_dat_menu(self): #vers 1
+        """Rebuild the Recent button's dropdown from the stored list -
+        called both on startup (existing history) and after every new
+        load (so the newest entry appears immediately without needing
+        the dock rebuilt)."""
+        menu = getattr(self, '_recent_dat_menu', None)
+        if menu is None:
+            return
+        menu.clear()
+        recent = self.map_settings.get('recent_dat_files') or []
+        if not recent:
+            empty_act = menu.addAction("(no recent files)")
+            empty_act.setEnabled(False)
+            return
+        for path in recent:
+            action = menu.addAction(path)
+            action.setToolTip(path)
+            action.triggered.connect(
+                lambda checked=False, p=path: self._load_game_dat_file(preset_dat_path=p))
+        menu.addSeparator()
+        clear_act = menu.addAction("Clear Recent Files")
+        clear_act.triggered.connect(self._clear_recent_dat_files)
+
+    def _clear_recent_dat_files(self): #vers 1
+        self.map_settings.set('recent_dat_files', [])
+        self.map_settings.save()
+        self._refresh_recent_dat_menu()
 
     def _apply_loaded_world(self, loader, game, ok, source_desc): #vers 1
         """Shared post-load handling for both _load_game_folder and
@@ -21057,6 +21107,22 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         load_btn.setFixedHeight(18)
         load_btn.setStyleSheet(_compact_18)
         load_btn.clicked.connect(lambda: self._load_game_dat_file())
+
+        # Recent files dropdown (Aug 1 2026, per Keith: "when loading
+        # Dat files, standalone, remember past files") - a separate
+        # button rather than attaching a menu to load_btn itself,
+        # since QPushButton.setMenu() makes the whole button open the
+        # menu on click, which would override Load's own "open file
+        # dialog" click behaviour rather than sitting alongside it.
+        recent_btn = QPushButton("Recent")
+        recent_btn.setToolTip("Recently loaded .dat files")
+        recent_btn.setFixedHeight(18)
+        recent_btn.setStyleSheet(_compact_18)
+        recent_menu = QMenu(recent_btn)
+        recent_btn.setMenu(recent_menu)
+        self._recent_dat_menu = recent_menu
+        self._refresh_recent_dat_menu()
+
         edit_btn = QPushButton(get_edit_icon(sm_buttonheight, icon_color), "Edit")
         edit_btn.setToolTip("STUB - no .dat editing built yet")
         edit_btn.setIconSize(QSize(18, 18))
@@ -21071,12 +21137,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         save_btn.setStyleSheet(_compact_18)
         save_btn.setEnabled(False)
         title_row.addWidget(load_btn)
+        title_row.addWidget(recent_btn)
         title_row.addWidget(edit_btn)
         title_row.addWidget(save_btn)
         title_row.addStretch()
         lay.addWidget(title_row_widget)
         self._register_collapsible_button_row(
-            title_row_widget, [(load_btn, "Load"), (edit_btn, "Edit"), (save_btn, "Save")])
+            title_row_widget, [(load_btn, "Load"), (recent_btn, "Recent"), (edit_btn, "Edit"), (save_btn, "Save")])
 
         if not hasattr(self, '_object_browser_tab_rows'):
             self._object_browser_tab_rows = {}
