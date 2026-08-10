@@ -18405,6 +18405,29 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if outer_mw is not None:
                 outer_mw.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, dock)
             dock.setFloating(True)
+            # Real taskbar-visible window flags (Aug 1 2026, per
+            # Keith: "Map editor isnt needs to show on the task bar
+            # in img factory, and any tools called like ide editor,
+            # ipl editor") - Qt's own default behaviour for a floating
+            # QDockWidget uses Tool-style window flags, which most
+            # window managers deliberately exclude from the taskbar by
+            # design (the same as a floating toolbar/palette not
+            # getting its own taskbar entry) - appropriate for a small
+            # accessory panel, not for something Keith wants to be
+            # able to find/switch to like an independent window. Map
+            # Workshop itself can't get the same treatment purely from
+            # in here - Keith confirmed it runs embedded as a tab
+            # inside IMG Factory's own window when opened that way, a
+            # genuine child widget with no top-level window of its own
+            # at all, which is a different, larger problem than a
+            # dock's window-flag choice (would need changes on IMG
+            # Factory's own side, outside this component). This dock,
+            # though, already becomes a genuine top-level window when
+            # floating - it just needed the right flags to actually
+            # show up as one.
+            dock.setWindowFlags(
+                (dock.windowFlags() & ~Qt.WindowType.WindowType_Mask) | Qt.WindowType.Window)
+            dock.show()
             # Explicit resize (Aug 1 2026, per Keith: "[Show] button
             # can't be seen; only showing 3px in height", "the ipl
             # values are barely visible", overlapping Prev/Next and

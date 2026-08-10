@@ -236,3 +236,32 @@ for Map Workshop this pass (see CHANGELOG.md); Model Workshop and
 COL Workshop still have the same dead code and almost certainly the
 same "status messages never actually reach the UI" symptom, just not
 reported yet - worth the same fix there too.
+
+## Map Workshop taskbar presence when embedded in IMG Factory (Aug 1 2026)
+
+Per Keith: "Map editor isnt needs to show on the task bar in img
+factory, and any tools called like ide editor, ipl editor." Two
+distinct pieces:
+
+- [DONE Aug 1 2026] The Item Editor Dialog (the floating dock/panel
+  for editing a single IPL instance) - Qt's own default floating-
+  QDockWidget behaviour uses Tool-type window flags, which most
+  window managers deliberately exclude from the taskbar by design
+  (same treatment as a floating toolbar/palette). Fixed by explicitly
+  switching its window type field to Window after floating. Verified:
+  the dock's window type field confirmed genuinely Window, not Tool.
+  Any other similar floating dock/dialog "editor" windows should get
+  the same treatment if this is found not to cover everything Keith
+  meant by "any tools called like ide editor, ipl editor."
+
+- NOT fixable purely from within this component: Map Workshop itself,
+  Keith confirmed, currently runs *embedded as a tab/panel inside IMG
+  Factory's own main window* when opened that way - a genuine child
+  widget with no top-level window of its own at all, not merely a
+  window with the wrong flags. A child widget embedded in a parent's
+  layout cannot have independent taskbar presence regardless of any
+  flags set here; giving Map Workshop its own taskbar entry while
+  running from inside IMG Factory would need it to become (or be
+  optionally switchable to) its own top-level window instead of a
+  tab - a decision and implementation on IMG Factory's own launching
+  code, outside apps/components/Map_Editor/map_workshop.py entirely.
