@@ -1996,3 +1996,34 @@ conclusively found despite extensive isolated testing.
   registered as loaded and visible; hidden-vs-visible foreground
   colors confirmed genuinely different (`#8a8a96` gray vs `#ffffff`
   white). Full `QApplication` instantiation clean, `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Found and fixed the real cause of the
+  reported freeze, using Keith's own Ctrl+C interrupt traceback (not
+  actually a binary IPL parsing issue - the trace showed it hung
+  inside `_apply_ipl_visibility_filter -> _refresh_world_view ->
+  _preload_generic_ide_textures -> ... -> model_cache._read_entry ->
+  IMGFile._open_version_2 -> entry.set_img_file`): `_read_entry` was
+  opening its IMG archive fresh on *every single call*, on the stated
+  (and here, wrong) assumption that this was cheap. `IMGFile.open()`
+  has to parse the archive's entire directory table (potentially
+  thousands of entries for `gta3.img`), and `_preload_generic_ide_
+  textures` (generalized earlier this session to cover every distinct
+  TXD across a whole loaded world, not just `generic.ide`'s own) can
+  call `_read_entry` hundreds of times in one preload pass for a full
+  map - hundreds of full directory re-parses of the same archive is
+  exactly what turns into a multi-minute hang with zero visible
+  progress.
+
+  Added `ModelCache._opened_img_files` (archive path -> already-opened
+  `IMGFile`), reused by `_read_entry` instead of re-opening every
+  time - the expensive directory parse now happens once per archive
+  per session. `index_img_files` (which already opens every archive
+  once anyway, to build the name indexes) now caches that same opened
+  instance too, so the very first texture lookup doesn't even need a
+  second open. `clear_indexes` clears this cache too, alongside the
+  other per-world caches it already resets.
+
+  Verified directly: 50 simulated `_read_entry` calls against the
+  same archive now correctly call `IMGFile.open()` exactly once
+  (would have been 50 times before this fix). Full `ast.parse` clean
+  on both files.

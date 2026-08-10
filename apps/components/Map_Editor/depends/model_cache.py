@@ -39,6 +39,29 @@ class ModelCache:
         self._texture_cache: Dict[str, Optional[Dict[str, dict]]] = {}
         self.indexed_img_paths: List[str] = []
         self.index_errors: List[str] = []
+        # img_path -> already-opened IMGFile (Aug 1 2026, per Keith's
+        # real crash trace: a Ctrl+C interrupt during "the app
+        # freezes, no indication of doing anything" landed inside
+        # IMGFile._open_version_2 -> entry.set_img_file, reached via
+        # _read_entry -> img.open()) - _read_entry previously opened
+        # the archive fresh on every single call, on the stated
+        # assumption that "re-reading raw bytes on a cache miss is
+        # cheap compared to re-parsing" - true for the *bytes* read
+        # (read_entry_data opens its own short-lived handle for that
+        # regardless, see its own docstring/implementation), false for
+        # opening itself: IMGFile.open() has to parse the archive's
+        # entire directory table (potentially thousands of entries for
+        # gta3.img), and _preload_generic_ide_textures (generalized
+        # earlier this session to cover every distinct TXD across a
+        # whole loaded world, not just generic.ide's own) can call
+        # _read_entry hundreds of times in one preload pass - hundreds
+        # of full directory re-parses of the same archive, one per
+        # distinct TXD, is exactly what a large SA map's worth of
+        # objects turns into a multi-minute hang with no progress
+        # shown. Caching the opened IMGFile here means the expensive
+        # directory parse happens once per archive per session, not
+        # once per texture lookup.
+        self._opened_img_files: Dict[str, 'object'] = {}
 
     def index_img_files(self, img_paths: List[str]): #vers 1
         """Scan a list of IMG archive paths, building name -> (path,
@@ -60,6 +83,7 @@ class ModelCache:
                 if not img.open():
                     self.index_errors.append(f"Failed to open {img_path}")
                     continue
+                self._opened_img_files[img_path] = img   # reuse in _read_entry
                 for entry in img.entries:
                     name = entry.name
                     if not name:
@@ -77,7 +101,7 @@ class ModelCache:
             except Exception as e:
                 self.index_errors.append(f"{img_path}: {e}")
 
-    def clear_indexes(self): #vers 1
+    def clear_indexes(self): #vers 2
         """Drop all indexes and cached geometry/textures - call before
         re-indexing for a newly loaded world, so stale entries from a
         previous world can't leak through."""
@@ -86,6 +110,7 @@ class ModelCache:
         self._geometry_cache.clear()
         self._texture_cache.clear()
         self._dimensions_cache.clear()
+        self._opened_img_files.clear()
         self.indexed_img_paths = []
         self.index_errors = []
 
@@ -193,15 +218,23 @@ class ModelCache:
         return result
 
     def _read_entry(self, img_path: str, entry) -> Optional[bytes]:
-        """Read one entry's raw bytes from its IMG archive - opens the
-        archive fresh each call rather than keeping file handles held
-        open long-term. Not cached at this layer (the parsed result
-        above is what's cached; re-reading raw bytes on a cache miss
-        is cheap compared to re-parsing)."""
+        """Read one entry's raw bytes from its IMG archive - reuses a
+        cached, already-opened IMGFile per archive path (Aug 1 2026,
+        see self._opened_img_files in __init__ for why: opening an
+        archive re-parses its entire directory table, which used to
+        happen on every single call here, turning a preload pass
+        across many distinct TXDs into a multi-minute hang). The
+        actual byte read (read_entry_data) still opens its own
+        short-lived file handle per call regardless of this cache -
+        only the expensive directory-parsing open() is what's being
+        avoided here."""
         from apps.methods.img_core_classes import IMGFile
-        img = IMGFile(img_path)
-        if not img.open():
-            return None
+        img = self._opened_img_files.get(img_path)
+        if img is None:
+            img = IMGFile(img_path)
+            if not img.open():
+                return None
+            self._opened_img_files[img_path] = img
         return img.read_entry_data(entry)
 
     def is_dff_indexed(self, model_name: str) -> bool:
