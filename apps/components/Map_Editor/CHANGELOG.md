@@ -2507,3 +2507,45 @@ conclusively found despite extensive isolated testing.
   instantiation clean (app doesn't crash even when context creation
   fails, it renders blank rather than erroring out - matching the
   reported symptom exactly), `ast.parse` clean on both files.
+
+- **Aug 1, 2026 (cont'd)** — Found the actual, definitive root cause
+  of the blank-window/context-failure issue, using Keith's terminal
+  log this time (not just the screenshot): "QRhiGles2: Failed to
+  create QRhi" appearing *before* the repeated "QOpenGLWidget: Failed
+  to create context" lines.
+
+  `map_workshop.py` (and every other individual workshop module -
+  `model_workshop.py`, `vehicle_workshop.py`, `col_workshop.py`, and
+  others) already sets `os.environ['QSG_RHI_BACKEND'] = 'opengl'` at
+  its own module level, specifically intending to force the desktop
+  GL backend and avoid exactly this GLES2 failure - but this only
+  actually works if that line runs before *any* `QApplication` is
+  constructed anywhere in the process. Every one of these workshops is
+  opened as a tab from inside an already-running IMG Factory - by the
+  time a workshop module is actually imported (when the user opens
+  that tab), IMG Factory's own `QApplication` already exists and has
+  already selected and locked in its RHI backend, so the workshop's
+  own env var setting was always too late to have any effect. This is
+  the same root architectural issue as the earlier `QSurfaceFormat`
+  timing fix, just for a different (RHI/Qt Quick, not classic
+  `QOpenGLWidget`) subsystem.
+
+  Fixed at the actual right place this time: `launch.py`'s own
+  `configure_display()`, called at the very start of `main()` before
+  `launch_imgfactory()` does anything else (including importing
+  `imgfactory.py` itself) - the one place in the entire process
+  genuinely guaranteed to run before any `QApplication` construction
+  anywhere. Sets `QSG_RHI_BACKEND=opengl` unconditionally (respecting
+  an already-set value, matching the existing pattern for `QT_QPA_
+  PLATFORM`/`DISPLAY` in the same function) rather than leaving it to
+  each individual workshop module's own too-late attempt.
+
+  This is a second, related fix alongside the earlier per-instance
+  `setFormat()` change (`DFFViewport`/`MapViewport`) - that one
+  addressed classic `QOpenGLWidget` context creation specifically,
+  this one addresses the separate Qt Quick/RHI backend selection the
+  terminal log actually showed failing first. Together they should
+  cover the most likely causes, though this still can't be verified
+  end-to-end without Keith's own GPU/driver setup - `launch.py`
+  parses cleanly and the fix is placed correctly, but the real test
+  is whether Map Workshop actually renders on his machine now.
