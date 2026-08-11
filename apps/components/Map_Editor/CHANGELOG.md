@@ -2549,3 +2549,29 @@ conclusively found despite extensive isolated testing.
   end-to-end without Keith's own GPU/driver setup - `launch.py`
   parses cleanly and the fix is placed correctly, but the real test
   is whether Map Workshop actually renders on his machine now.
+
+- **Aug 1, 2026 (cont'd)** — Reverted the status bar memory usage
+  feature entirely (both the initial addition and the follow-up
+  cross-platform fix), per Keith's request: "revert back to the last
+  fix, before where I said 'I think we also need to add a function on
+  the statas bar, to show memory usage.'" - part of isolating what's
+  actually causing the blank-window/context-failure issue by removing
+  the most recently added piece to test against a simpler baseline.
+
+  `_create_status_bar` restored to a plain "Ready" label only, no
+  memory display/timer; `_update_memory_status_label` and `_get_
+  memory_mb_stdlib` removed entirely. The DXT1 vectorization fix
+  (same commit as the original memory bar addition) is deliberately
+  kept - that's a separate, already-verified fix for a different real
+  crash, not part of what Keith asked to revert. The GL context timing
+  fixes (`DFFViewport`/`MapViewport` per-instance `setFormat()`,
+  `launch.py`'s `QSG_RHI_BACKEND` fix) are also kept, since diff review
+  already confirmed neither touches anything related to the memory bar.
+
+  Worth noting: even with the memory bar completely removed, this
+  sandbox's own instantiation test still shows "QOpenGLWidget: Failed
+  to create context" (expected here specifically, since this sandbox
+  has no real GPU either) - additional evidence, on top of the earlier
+  diff review, that the memory bar was never the actual cause. Full
+  `QApplication` instantiation clean, `ast.parse` clean, no dangling
+  references to the removed memory-bar code anywhere in the file.
