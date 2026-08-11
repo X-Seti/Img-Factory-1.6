@@ -2667,3 +2667,34 @@ conclusively found despite extensive isolated testing.
   status message; a second call for the same, now-cached model
   correctly shows nothing (matching the "silent when already fast"
   intent). Full `QApplication` instantiation clean, `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Found and fixed a major, foundational IDE
+  parsing bug using Keith's real uploaded `LAe.ide`: "So the draw
+  distance is higher than 300 to be an LOD... 5454, laeLODds03,
+  lod2lae1, 1500, 0."
+
+  `objs`/`tobj` parsing had assumed field 3 was always a "mesh count"
+  determining how many draw-distance fields follow (`id, model, txd,
+  meshCount, dist1[, dist2], flags`) - checked against Keith's entire
+  real file (293 objs/tobj lines) and found this format never
+  actually occurs there at all: every single `objs` line is exactly 5
+  fields, every `tobj` line exactly 7 - `id, model, txd, drawdist,
+  flags[, time_on, time_off]`, with no count field whatsoever. The old
+  assumption meant every real draw distance (e.g. `150` in a normal
+  entry, `1500` in Keith's LOD example) was being read as a bogus
+  "N meshes" count, and the real flags value read as a bogus draw_dist
+  of 0 - exactly backwards, and exactly why draw-distance-based LOD
+  detection couldn't have worked against the old parsing at all.
+
+  Rewrote to match the verified format directly for the common 5/7-
+  field cases, with the old mesh_count-chain logic kept only as a
+  defensive fallback for an unrecognized field count (no confirmed
+  real-world evidence it's ever actually used, but not removed
+  outright in case some other game/file genuinely needs it).
+
+  Verified against Keith's own exact real lines: `draw_dist` now
+  correctly reads `1500.0` for his two LOD examples, `150.0` for a
+  normal (non-LOD) entry from the same file (well under his suggested
+  300 threshold), and the `tobj` line correctly extracts drawdist/
+  flags/time_on/time_off together. Full `QApplication` instantiation
+  clean, `ast.parse` clean.

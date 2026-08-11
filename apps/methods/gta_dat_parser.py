@@ -359,42 +359,74 @@ class IDEParser: #vers 2
             parts = [p.strip() for p in line.split(",")]
 
             if section in ("objs", "tobj"):
-                # objs: id, model, txd, meshCount, dist1[, dist2], flags
-                # tobj: same, plus 2 more fields - timeOn, timeOff (hours,
-                # 0-23) - the object is only visible in-game during that
-                # time range. Not extracted until now (Aug 1 2026, per
-                # Keith: "lets start support tobj first, with a time
-                # switch") - parsing previously stopped right after
-                # "flags" for both sections, silently dropping tobj's
-                # two extra fields entirely.
+                # Verified against Keith's real LAe.ide (Aug 1 2026,
+                # per his own uploaded file): every single objs line
+                # is exactly 5 fields, every tobj line exactly 7 -
+                # id, model, txd, drawdist, flags[, time_on, time_off]
+                # - NOT "id, model, txd, meshCount, dist1[, dist2],
+                # flags" as this parser assumed until now. That
+                # assumption meant every real draw distance (e.g.
+                # "150" in "5390, laeskateparkLA, glenpark7_lae, 150,
+                # 0") was being read as a bogus "150 meshes" mesh_
+                # count, and the real flags value read as a bogus
+                # draw_dist of 0 - exactly backwards, and exactly why
+                # Keith's own "draw distance over 300 means LOD" idea
+                # couldn't have worked against the previous parsing.
+                # No confirmed real-world evidence of the multi-
+                # distance-chain variant this previously assumed
+                # (checked Keith's whole file: zero occurrences) -
+                # kept as a defensive fallback below only for a field
+                # count that doesn't match either direct pattern,
+                # rather than removed outright, in case some other
+                # game/file genuinely uses it.
                 if len(parts) < 5:
                     return None
                 model_id   = int(parts[0])
                 model_name = parts[1]
                 txd_name   = parts[2]
-                try:
-                    mesh_count = int(parts[3])
-                except ValueError:
-                    mesh_count = 1
-                extra: Dict[str, Any] = {"mesh_count": mesh_count}
-                dist_end = 4 + mesh_count
-                dists = []
-                for i in range(4, min(dist_end, len(parts))):
-                    try: dists.append(float(parts[i]))
+                extra: Dict[str, Any] = {}
+                if section == "objs" and len(parts) == 5:
+                    try: extra["draw_dist"] = float(parts[3])
                     except ValueError: pass
-                if dists:
-                    extra["draw_dist"] = dists[0]
-                    if len(dists) > 1:
-                        extra["draw_dist2"] = dists[1]
-                if dist_end < len(parts):
-                    try: extra["flags"] = int(parts[dist_end])
+                    try: extra["flags"] = int(parts[4])
                     except ValueError: pass
-                if section == "tobj" and len(parts) >= dist_end + 3:
+                elif section == "tobj" and len(parts) == 7:
+                    try: extra["draw_dist"] = float(parts[3])
+                    except ValueError: pass
+                    try: extra["flags"] = int(parts[4])
+                    except ValueError: pass
                     try:
-                        extra["time_on"]  = int(parts[dist_end + 1])
-                        extra["time_off"] = int(parts[dist_end + 2])
+                        extra["time_on"]  = int(parts[5])
+                        extra["time_off"] = int(parts[6])
                     except ValueError:
                         pass
+                else:
+                    # Defensive fallback for an unrecognized field
+                    # count - best-effort mesh_count-chain guess,
+                    # not verified against any real data.
+                    try:
+                        mesh_count = int(parts[3])
+                    except ValueError:
+                        mesh_count = 1
+                    extra["mesh_count"] = mesh_count
+                    dist_end = 4 + mesh_count
+                    dists = []
+                    for i in range(4, min(dist_end, len(parts))):
+                        try: dists.append(float(parts[i]))
+                        except ValueError: pass
+                    if dists:
+                        extra["draw_dist"] = dists[0]
+                        if len(dists) > 1:
+                            extra["draw_dist2"] = dists[1]
+                    if dist_end < len(parts):
+                        try: extra["flags"] = int(parts[dist_end])
+                        except ValueError: pass
+                    if section == "tobj" and len(parts) >= dist_end + 3:
+                        try:
+                            extra["time_on"]  = int(parts[dist_end + 1])
+                            extra["time_off"] = int(parts[dist_end + 2])
+                        except ValueError:
+                            pass
                 return IDEObject(model_id, model_name, txd_name,
                                  "object", section, extra, source, lineno)
 
