@@ -2643,3 +2643,27 @@ conclusively found despite extensive isolated testing.
   have been 3 times before); a stale cache entry is confirmed cleared
   after simulating `_apply_loaded_world`'s new-world-load path. Full
   `QApplication` instantiation clean, `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Added progress visibility to the "long
+  pause" phase itself, per Keith: "seems the long parse is loading
+  assets, maybe we should at that to the dialog, model and texture,
+  so we know its doing something."
+
+  `_preload_world_assets` already shows model/texture/IPL name in its
+  own progress dialog, but that dialog closes *before* `_refresh_world
+  _view`'s geometry conversion loop runs - which was the actual "long
+  pause" fixed earlier this session (previously rebuilding every
+  model's vertex/triangle data from scratch on every call; now cached,
+  but the *first* conversion of any genuinely new model still takes
+  real time and previously had zero status feedback at all). Added a
+  status message ("Loading model: {name} (texture: {txd})...") right
+  where a model is about to be converted for the first time, with
+  `processEvents()` so it's actually visible rather than only being
+  set right before a long block of work - already-cached models (the
+  common case after the first load) skip this and stay silent/fast,
+  since only genuinely new models take real time.
+
+  Verified: a first (uncached) call correctly shows the model+texture
+  status message; a second call for the same, now-cached model
+  correctly shows nothing (matching the "silent when already fast"
+  intent). Full `QApplication` instantiation clean, `ast.parse` clean.

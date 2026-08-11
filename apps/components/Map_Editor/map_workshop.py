@@ -22546,6 +22546,25 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         for inst in instances:
             model_name = inst.model_name
             if model_name not in converted:
+                # Status feedback for newly-converted models (Aug 1
+                # 2026, per Keith: "seems the long parse is loading
+                # assets, maybe we should at that to the dialog, model
+                # and texture, so we know its doing something") -
+                # _preload_world_assets already shows this for its own
+                # phase, but this conversion loop (which runs right
+                # after that dialog closes, and is what the described
+                # "long pause" actually was) previously had zero
+                # status feedback at all - a model already in
+                # `converted` (the cache) skips this and stays fast/
+                # silent, since only genuinely new models take real
+                # time to convert.
+                txd_name_hint = ""
+                if loader is not None:
+                    hint_obj = loader.get_object(inst.model_id)
+                    if hint_obj is not None and hint_obj.txd_name:
+                        txd_name_hint = f" (texture: {hint_obj.txd_name})"
+                self._set_status(f"Loading model: {model_name}{txd_name_hint}...")
+                QApplication.processEvents()
                 dff_model = model_cache.get_geometry(model_name)
                 if dff_model is None or not getattr(dff_model, 'geometries', None):
                     converted[model_name] = None
