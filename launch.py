@@ -29,8 +29,29 @@ if str(root_dir) not in sys.path:
     sys.path.insert(0, str(root_dir))
 
 
-def configure_display(): #vers 1
-    """Set Qt platform and DISPLAY for WSL2 and Wayland environments."""
+def configure_display(): #vers 2
+    """Set Qt platform and DISPLAY for WSL2 and Wayland environments.
+
+    Also forces the desktop OpenGL RHI backend unconditionally (Aug 1
+    2026, per Keith's own terminal log showing "QRhiGles2: Failed to
+    create QRhi" followed by repeated "QOpenGLWidget: Failed to
+    create context", producing a totally blank Map Workshop window)
+    - several individual workshop modules (map_workshop.py included)
+    already set os.environ['QSG_RHI_BACKEND'] = 'opengl' at their own
+    module level, intending exactly this, but that only actually
+    works if the module happens to be imported before any QApplication
+    is constructed. Every one of those workshops is opened as a tab
+    from inside an already-running IMG Factory - by the time a
+    workshop module is actually imported (when the user opens that
+    tab), IMG Factory's own QApplication already exists and has
+    already selected and locked in its RHI backend, so the workshop's
+    own env var setting is always too late to matter. This is the one
+    place in the entire process that's guaranteed to run before any
+    QApplication anywhere - launch.py's own main() calls this before
+    launch_imgfactory() does anything else, including its own imports."""
+    if 'QSG_RHI_BACKEND' not in os.environ:
+        os.environ['QSG_RHI_BACKEND'] = 'opengl'
+
     is_wsl = False
     try:
         with open('/proc/version', 'r') as f:
