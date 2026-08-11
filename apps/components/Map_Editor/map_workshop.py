@@ -19543,11 +19543,23 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         found_count = 0
         associated_count = 0
+        model_cache = getattr(self, '_model_cache', None)
         for img_path in get_img_paths():
             try:
-                img = IMGFile(img_path)
-                if not img.open():
-                    continue
+                # Reuse the model_cache's already-opened archive (Aug
+                # 1 2026, per Keith: "even if I click on them,
+                # everything freezes") - this scan runs on every
+                # single world load, so always creating a fresh
+                # IMGFile here (re-parsing the whole archive directory
+                # every time) was a significant, avoidable cost on top
+                # of the same issue found in _load_binary_ipl_stream.
+                img = model_cache._opened_img_files.get(img_path) if model_cache else None
+                if img is None:
+                    img = IMGFile(img_path)
+                    if not img.open():
+                        continue
+                    if model_cache is not None:
+                        model_cache._opened_img_files[img_path] = img
                 for entry in img.entries:
                     name = getattr(entry, 'name', '') or ''
                     if not name.lower().endswith('.ipl'):
@@ -19720,6 +19732,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 act.triggered.connect(
                     lambda checked=False, ap=archive_path, en=entry_name:
                         self._load_binary_ipl_stream(ap, en))
+            verify_menu = menu.addMenu("Verify Binary Parser")
+            for archive_path, entry_name in sorted(stream_entries, key=lambda t: t[1]):
+                act = verify_menu.addAction(entry_name)
+                act.triggered.connect(
+                    lambda checked=False, ap=archive_path, en=entry_name:
+                        self._verify_binary_ipl_parser(ap, en))
         elif ipl_name in getattr(self, '_binary_ipl_names', set()):
             archive_path = getattr(self, '_standalone_binary_ipl_archives', {}).get(ipl_name)
             if archive_path:
@@ -19727,6 +19745,21 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 load_bin_act.triggered.connect(
                     lambda checked=False, ap=archive_path, en=ipl_name:
                         self._load_binary_ipl_stream(ap, en))
+                # Verify Binary Parser (Aug 1 2026, per Keith: "at
+                # least check our parser can decode the binary.ipl,
+                # and read them") - a dry run: reads and parses the
+                # raw bytes exactly like a real load does, but never
+                # touches self._all_instances or the world view -
+                # just reports whether BinaryIPLParser succeeded, how
+                # many instances it found, any parse errors, and a
+                # preview of the first few instances (model_id,
+                # resolved name if possible, position). Lets the
+                # parser itself be checked independently of the full
+                # load/render pipeline.
+                verify_act = menu.addAction("Verify Binary Parser")
+                verify_act.triggered.connect(
+                    lambda checked=False, ap=archive_path, en=ipl_name:
+                        self._verify_binary_ipl_parser(ap, en))
 
         # Save Binary IPL as Text (Aug 1 2026, per Keith: "we could add
         # a right click option, to save binary Ipl as text, save as ?
@@ -19798,6 +19831,72 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return
         self._set_status(f"Saved {len(matching)} instances from {ipl_name} to {path}")
 
+    def _verify_binary_ipl_parser(self, archive_path, entry_name): #vers 1
+        """Diagnostic dry run - reads and parses one binary IPL entry
+        exactly like a real load does, but never touches self._all_
+        instances or the world view, per Keith: "we need to debug
+        this, or atleast check our parser can decode the binary.ipl,
+        and read them." Reports whether BinaryIPLParser succeeded, how
+        many instances it found, any parse errors/warnings, and a
+        preview of the first few instances (model_id, resolved name
+        where the loaded world's own IDE objects allow it, position) -
+        lets the parser itself be checked independently of the load/
+        merge/render pipeline it normally runs inside."""
+        loader = getattr(self, '_world_loader', None)
+        model_cache = getattr(self, '_model_cache', None)
+        try:
+            from apps.methods.img_core_classes import IMGFile
+            img = model_cache._opened_img_files.get(archive_path) if model_cache else None
+            if img is None:
+                img = IMGFile(archive_path)
+                if not img.open():
+                    QMessageBox.warning(self, "Verify Binary Parser",
+                        f"Could not open {archive_path}.")
+                    return
+                if model_cache is not None:
+                    model_cache._opened_img_files[archive_path] = img
+            entry = next((e for e in img.entries if getattr(e, 'name', '') == entry_name), None)
+            if entry is None:
+                QMessageBox.warning(self, "Verify Binary Parser",
+                    f"{entry_name} not found in {archive_path}.")
+                return
+            data = img.read_entry_data(entry)
+        except Exception as e:
+            QMessageBox.warning(self, "Verify Binary Parser", f"Failed to read: {e}")
+            return
+
+        from apps.methods.gta_dat_parser import BinaryIPLParser, detect_ipl_format
+        fmt = detect_ipl_format(data[:64])
+        game = getattr(loader, 'game', None) if loader else None
+        parser = BinaryIPLParser(game=game) if game else BinaryIPLParser()
+        success = parser.parse(data, source_name=entry_name)
+
+        lines = [
+            f"File: {entry_name}",
+            f"Archive: {archive_path}",
+            f"Size: {len(data)} bytes",
+            f"Detected format: {fmt}",
+            f"Parse result: {'SUCCESS' if success else 'FAILED'}",
+            f"Instances found: {len(parser.instances)}",
+        ]
+        if parser.stats.errors:
+            lines.append(f"Errors ({len(parser.stats.errors)}):")
+            lines.extend(f"  {e}" for e in parser.stats.errors[:5])
+        if parser.stats.warnings:
+            lines.append(f"Warnings ({len(parser.stats.warnings)}):")
+            lines.extend(f"  {w}" for w in parser.stats.warnings[:5])
+        if parser.instances:
+            objects = getattr(loader, 'objects', {}) if loader else {}
+            lines.append("First instances:")
+            for inst in parser.instances[:5]:
+                obj = objects.get(inst.model_id)
+                name = obj.model_name if obj is not None else "(unresolved)"
+                lines.append(
+                    f"  ID {inst.model_id} ({name}) @ "
+                    f"({inst.pos_x:.2f}, {inst.pos_y:.2f}, {inst.pos_z:.2f})")
+
+        QMessageBox.information(self, "Verify Binary Parser", "\n".join(lines))
+
     def _load_binary_ipl_stream(self, archive_path, entry_name): #vers 1
         """Actually load one binary IPL stream entry's instance data -
         per Keith: "we need to be able to load these binary IPLs, so
@@ -19830,12 +19929,30 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         loader = getattr(self, '_world_loader', None)
         if loader is None:
             return
+        self._set_status(f"Reading {entry_name} from {os.path.basename(archive_path)}...")
+        QApplication.processEvents()
         try:
-            from apps.methods.img_core_classes import IMGFile
-            img = IMGFile(archive_path)
-            if not img.open():
-                self._set_status(f"Could not open {archive_path} to load {entry_name}")
-                return
+            # Reuse the model_cache's already-opened archive instead of
+            # always creating a fresh IMGFile here (Aug 1 2026, per
+            # Keith: "even if I click on them, everything freezes") -
+            # this had exactly the same bug already fixed in model_
+            # cache._read_entry: IMGFile.open() re-parses the entire
+            # archive directory table (potentially thousands of
+            # entries for gta3.img) every single call, and this method
+            # was doing that unconditionally on every binary IPL load
+            # rather than reusing what's already open.
+            model_cache = getattr(self, '_model_cache', None)
+            img = None
+            if model_cache is not None:
+                img = model_cache._opened_img_files.get(archive_path)
+            if img is None:
+                from apps.methods.img_core_classes import IMGFile
+                img = IMGFile(archive_path)
+                if not img.open():
+                    self._set_status(f"Could not open {archive_path} to load {entry_name}")
+                    return
+                if model_cache is not None:
+                    model_cache._opened_img_files[archive_path] = img
             entry = next((e for e in img.entries if getattr(e, 'name', '') == entry_name), None)
             if entry is None:
                 self._set_status(f"{entry_name} not found in {archive_path}")
@@ -19845,6 +19962,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._set_status(f"Failed to read {entry_name}: {e}")
             return
 
+        self._set_status(f"Parsing {entry_name} ({len(data)} bytes)...")
+        QApplication.processEvents()
         from apps.methods.gta_dat_parser import BinaryIPLParser
         game = getattr(loader, 'game', None)
         parser = BinaryIPLParser(game=game) if game else BinaryIPLParser()

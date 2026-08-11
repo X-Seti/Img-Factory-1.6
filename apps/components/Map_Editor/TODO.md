@@ -265,3 +265,35 @@ distinct pieces:
   optionally switchable to) its own top-level window instead of a
   tab - a decision and implementation on IMG Factory's own launching
   code, outside apps/components/Map_Editor/map_workshop.py entirely.
+
+## Binary IPL writer - "make our own binary ipls" (Aug 1 2026, Keith's request)
+
+Per Keith: "in time write data to the binary.ipl, and make our own
+binary ipls." Not started - the read side (BinaryIPLParser) needs to
+stay proven reliable first, per its own docstring, before building a
+writer that could round-trip through it.
+
+The confirmed binary format (from BinaryIPLParser's own docstring,
+verified against Keith's real sample files - crack.ipl/
+countn2_stream1.ipl):
+- Magic: `b"bnry"` (4 bytes)
+- Header: 18 x int32 LE (72 bytes) - only 2 of 18 fields confirmed:
+  index 0 = inst_count, index 6 = 76 (constant, header size). The
+  other 16 are presumably offsets/counts for cull/zone/other sections
+  (per the text-format IPL_SECTIONS list) but which index maps to
+  which section isn't confirmed yet - a writer only handling `inst`
+  data could zero-fill the unconfirmed fields, but that would produce
+  a file GTA's own engine might not accept if it expects those other
+  sections to actually be present/located correctly.
+- Each inst record: 40 bytes = 7x float32 LE (pos_x/y/z, rot_x/y/z/w)
+  + 3x int32 LE (model_id, an unconfirmed flags-like field - not
+  interior, see the parser's own docstring, mostly powers of 2 with
+  one outlier - meaning is not confirmed - lod_index).
+
+A round-trip writer (`IPLInstance` list -> raw bnry bytes) is
+feasible for the `inst` section alone using this confirmed layout,
+but "make our own binary IPLs" that GTA's engine will actually load
+needs the unconfirmed header fields and cull/zone/other section
+formats worked out first, or the writer would only ever be useful for
+Map Workshop's own round-trip (write then re-read with our own
+parser), not for producing files the real game accepts.

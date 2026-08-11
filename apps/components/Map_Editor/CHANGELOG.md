@@ -2251,3 +2251,54 @@ conclusively found despite extensive isolated testing.
 
   Full `QApplication` instantiation clean, `ast.parse` clean on both
   files.
+
+- **Aug 1, 2026 (cont'd)** — Debugged the continued binary IPL freeze
+  Keith reported after the earlier fix, per: "the is still an issue
+  with the binary ipl, even if I click on them, everything freezes,
+  we need to debug this, or atleast check our parser can decode the
+  binary.ipl, and read them, and in time write data to the binary.ipl,
+  and make our own binary ipls."
+
+  Found a fresh instance of the same performance bug class already
+  fixed once this session in `model_cache._read_entry`: both `_load_
+  binary_ipl_stream` (runs when clicking/loading a binary IPL) and
+  `_scan_binary_ipls_in_img_archives` (runs on *every* world load,
+  scanning every archive for binary entries) always created a fresh
+  `IMGFile` and called `.open()` unconditionally - re-parsing the
+  entire archive directory table from scratch every single time,
+  rather than reusing the already-open archive `model_cache` (or an
+  earlier call to either of these same methods) might already have
+  cached. Both now check `model_cache._opened_img_files` first and
+  only open fresh if genuinely not cached yet, caching what they do
+  open for next time. Added status messages + `processEvents()` calls
+  around the read/parse steps in `_load_binary_ipl_stream` too, so a
+  slow archive read is at least visible rather than silent.
+
+  Added "Verify Binary Parser" - a right-click diagnostic (both for
+  standalone binary entries and stream files associated with a
+  parent text IPL) that reads and parses one entry exactly like a
+  real load does, but never touches `_all_instances` or the world
+  view - reports success/failure, instance count, any parser
+  errors/warnings, and a preview of the first few instances (model
+  ID, resolved name where possible, position). Directly answers "at
+  least check our parser can decode the binary.ipl."
+
+  Logged the binary IPL *writer* ("in time write data to the
+  binary.ipl, and make our own binary ipls") to TODO.md with the full
+  confirmed binary layout from `BinaryIPLParser`'s own docstring
+  (magic, header size, per-instance record format) - not started, the
+  read side needs to stay proven reliable first per that same
+  docstring, and several header fields/other sections' formats aren't
+  confirmed yet, which a real writer producing GTA-loadable files
+  would need worked out.
+
+  Verified the archive-reuse fix directly: with no cache, a load
+  correctly opens the archive once; with the archive already cached
+  (matching the real load pipeline, where `index_img_files` runs
+  before this), a load correctly reuses it with zero additional
+  opens, while instance loading still works correctly either way.
+  Verified "Verify Binary Parser" against a real synthetic binary IPL:
+  correctly reports success, instance count, the real "cull/zone/
+  other sections not yet supported" warning, and a resolved model
+  name in the preview. Full `QApplication` instantiation clean,
+  `ast.parse` clean.
