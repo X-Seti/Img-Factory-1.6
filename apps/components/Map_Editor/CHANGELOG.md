@@ -2468,3 +2468,42 @@ conclusively found despite extensive isolated testing.
   syscall itself couldn't be executed from this Linux sandbox, so
   that specific path is unverified end-to-end. Full `QApplication`
   instantiation clean, `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Investigated a blank Map Workshop window
+  with "QOpenGLWidget: Failed to create context", per Keith: "we have
+  a blank window in the last push." First confirmed neither of the
+  last two pushes touched anything OpenGL-related at all - the entire
+  diff across both was the status bar memory label (a `QLabel` +
+  `QTimer`) and DXT1 decoding math, neither of which creates widgets
+  or touches GL/surface-format code.
+
+  Found a real, plausible pre-existing cause instead: both `DFFViewport`
+  and `MapViewport` (the actual viewport classes, `MapViewport` used
+  for each world pane in `ModelWorkshop`'s multi-pane layout) set their
+  OpenGL format via a *module-level* `QSurfaceFormat.setDefaultFormat`
+  call, executed once at import time. Per Qt's own documented
+  requirement, this only reliably takes effect if it runs *before*
+  `QApplication` is constructed - true for Map Workshop's own
+  standalone `__main__` path, but Keith confirmed Map Workshop runs
+  *embedded as a tab inside IMG Factory's own main window* - meaning
+  IMG Factory's `QApplication` already exists before these Map
+  Workshop modules are ever imported, making the module-level call too
+  late to reliably apply.
+
+  Fixed both classes to also call `self.setFormat(_fmt)` directly on
+  each widget instance in `__init__` - this works correctly regardless
+  of import-order timing, removing the dependency on when `QApplication`
+  happens to be constructed relative to module import entirely.
+
+  Verified the format-setting fix itself directly: constructed
+  `QApplication` first (matching Keith's embedded scenario exactly),
+  then imported both viewport modules afterward - both widgets
+  correctly receive the expected profile/version. Could not fully
+  verify actual context creation succeeds end-to-end, since this
+  sandbox has no real GPU/display server either (reproduced the
+  identical "Failed to create context" message here too, confirming
+  it's a genuine no-GPU-available condition rather than a crash) -
+  Keith's own machine is the real test. Full `QApplication`
+  instantiation clean (app doesn't crash even when context creation
+  fails, it renders blank rather than erroring out - matching the
+  reported symptom exactly), `ast.parse` clean on both files.
