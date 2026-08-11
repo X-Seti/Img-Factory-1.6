@@ -2433,3 +2433,38 @@ conclusively found despite extensive isolated testing.
   Verified: label confirmed showing a real reading ("Memory: 130 MB")
   immediately on construction, update timer confirmed active. Full
   `QApplication` instantiation clean, `ast.parse` clean on both files.
+
+- **Aug 1, 2026 (cont'd)** — Fixed the memory usage label to actually
+  be cross-platform, per Keith: "the memory fix would need to work on
+  any platform the user runs this app on." Previous fallback (when
+  psutil isn't installed) read `/proc/self/status` directly - Linux-
+  only, so a Windows or macOS user without psutil would see nothing
+  at all.
+
+  Now a proper 3-tier fallback, standard-library only past the first
+  tier: psutil if actually installed (most accurate); `resource.
+  getrusage(RUSAGE_SELF).ru_maxrss` (stdlib, covers both Linux and
+  macOS with no install needed on either - note this is *peak* RSS,
+  not live, so it only ever climbs, but that's still the useful
+  signal for spotting a freeze/leak, just won't drop back down after)
+  - correctly handles the platform-specific unit difference (Linux
+  reports KB, macOS reports bytes, decided via `sys.platform`); a
+  `ctypes` call to `GetProcessMemoryInfo` via `psapi.dll` (stdlib via
+  ctypes) for Windows, where `resource` doesn't exist at all. Clears
+  the label only if every tier genuinely fails.
+
+  Caught and fixed a real bug in my own first draft while testing:
+  both branches of the Linux/macOS unit conversion were accidentally
+  identical, silently defeating the whole platform check - found by
+  actually running the fallback path rather than trusting the code
+  by inspection.
+
+  Verified on this Linux environment: both the psutil path and the
+  stdlib fallback path (simulated psutil-not-installed) produce
+  sensible, close readings (130 MB vs 135 MB) confirming the KB->MB
+  conversion is correct. Verified the Windows `PROCESS_MEMORY_
+  COUNTERS` ctypes struct definition is syntactically valid and
+  matches the documented layout - the actual `GetProcessMemoryInfo`
+  syscall itself couldn't be executed from this Linux sandbox, so
+  that specific path is unverified end-to-end. Full `QApplication`
+  instantiation clean, `ast.parse` clean.

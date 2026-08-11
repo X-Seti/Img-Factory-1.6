@@ -7078,16 +7078,33 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         return status_bar
 
-    def _update_memory_status_label(self): #vers 1
+    def _update_memory_status_label(self): #vers 2
         """Refresh the status bar's memory usage label - per Keith:
-        "i think we also need to add a function on the statas bar, to
-        show memory usage." Tries psutil first (most reliable, cross-
-        platform, but not a pre-existing dependency of this project
-        so not assumed present), falls back to reading RSS directly
-        from /proc/self/status on Linux (no extra dependency needed
-        there), and just clears the label if neither works (e.g.
-        Windows without psutil installed) rather than showing a wrong
-        or crashing value."""
+        "the memory fix would need to work on any platform the user
+        runs this app on." Previously fell back to /proc/self/status
+        when psutil wasn't installed - Linux-only, so a Windows or
+        macOS user without psutil would just see nothing at all.
+
+        Now a proper 3-tier fallback, standard-library only past the
+        first tier:
+          1. psutil, if actually installed - most accurate, but not a
+             pre-existing dependency of this project, so never assumed.
+          2. resource.getrusage(RUSAGE_SELF).ru_maxrss (stdlib, Unix-
+             only - covers both Linux and macOS, no extra install
+             needed on either). Note this is *peak* RSS, not current -
+             it only ever grows even if memory is later freed - but
+             that's still directly useful here: seeing it climb during
+             a freeze/leak is exactly the signal Keith's after, it just
+             won't drop back down afterward the way a live RSS reading
+             would. Units differ by platform: Linux reports KB, macOS
+             reports bytes - sys.platform decides which conversion to
+             use, since ru_maxrss's own unit isn't documented in a
+             portable way.
+          3. ctypes call to GetProcessMemoryInfo via psapi.dll (stdlib
+             via ctypes - Windows, where the resource module doesn't
+             exist at all).
+        Clears the label if every tier fails, rather than showing a
+        wrong value."""
         label = getattr(self, 'status_memory_label', None)
         if label is None:
             return
@@ -7096,18 +7113,52 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             import psutil
             mb = psutil.Process().memory_info().rss / (1024 * 1024)
         except ImportError:
-            try:
-                with open('/proc/self/status', 'r') as f:
-                    for line in f:
-                        if line.startswith('VmRSS:'):
-                            kb = int(line.split()[1])
-                            mb = kb / 1024
-                            break
-            except Exception:
-                pass
+            mb = self._get_memory_mb_stdlib()
         except Exception:
             pass
         label.setText(f"Memory: {mb:.0f} MB" if mb is not None else "")
+
+    def _get_memory_mb_stdlib(self): #vers 1
+        """Standard-library-only memory reading, used when psutil
+        isn't installed - see _update_memory_status_label's docstring
+        for the full per-platform reasoning. Returns None if nothing
+        available works (should be rare - covers Linux/macOS/Windows,
+        the only remaining gap would be an unusual/embedded Python
+        build missing both `resource` and `ctypes`)."""
+        import sys
+        try:
+            import resource
+            rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+            return rss / (1024 * 1024) if sys.platform == 'darwin' else rss / 1024
+        except ImportError:
+            pass
+        except Exception:
+            pass
+        if sys.platform == 'win32':
+            try:
+                import ctypes
+                class PROCESS_MEMORY_COUNTERS(ctypes.Structure):
+                    _fields_ = [
+                        ("cb", ctypes.c_ulong),
+                        ("PageFaultCount", ctypes.c_ulong),
+                        ("PeakWorkingSetSize", ctypes.c_size_t),
+                        ("WorkingSetSize", ctypes.c_size_t),
+                        ("QuotaPeakPagedPoolUsage", ctypes.c_size_t),
+                        ("QuotaPagedPoolUsage", ctypes.c_size_t),
+                        ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t),
+                        ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
+                        ("PagefileUsage", ctypes.c_size_t),
+                        ("PeakPagefileUsage", ctypes.c_size_t),
+                    ]
+                counters = PROCESS_MEMORY_COUNTERS()
+                counters.cb = ctypes.sizeof(PROCESS_MEMORY_COUNTERS)
+                handle = ctypes.windll.kernel32.GetCurrentProcess()
+                if ctypes.windll.psapi.GetProcessMemoryInfo(
+                        handle, ctypes.byref(counters), counters.cb):
+                    return counters.WorkingSetSize / (1024 * 1024)
+            except Exception:
+                pass
+        return None
 
 
     def _refresh_icons(self): #vers 2
