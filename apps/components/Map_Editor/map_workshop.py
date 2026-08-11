@@ -18289,7 +18289,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         counts = getattr(self._object_browser_model, '_instance_counts', {})
         counts[model_id] = counts.get(model_id, 0) + 1
         self._object_browser_model._recompute()
-        self._apply_ipl_visibility_filter()
+        self._apply_ipl_visibility_filter(clear_display_lists=False)
         self._center_on_instance(new_inst)
         self._set_status(f"Added a new instance of '{obj.model_name}' at the origin "
                          f"(in memory only - not yet written to disk)")
@@ -18325,7 +18325,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         counts = getattr(self._object_browser_model, '_instance_counts', {})
         counts.pop(model_id, None)
         self._object_browser_model._recompute()
-        self._apply_ipl_visibility_filter()
+        self._apply_ipl_visibility_filter(clear_display_lists=False)
         self._set_status(f"Removed {removed} placement(s) "
                          f"(in memory only - not yet written to disk)")
 
@@ -18502,7 +18502,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         object") - without this, every single nudge re-framed the
         camera to fit the whole map's bounding box, fighting whatever
         position the user had just navigated the camera to."""
-        self._apply_ipl_visibility_filter(auto_fit=False)
+        self._apply_ipl_visibility_filter(auto_fit=False, clear_display_lists=False)
 
     def _on_instance_list_context_menu(self, pos): #vers 2
         """Right-click a row - Add/Remove Favourites always available
@@ -20954,6 +20954,18 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         ignore_scaling = getattr(self, '_ignore_scaling_chk', None)
         ignore_scaling = ignore_scaling.isChecked() if ignore_scaling is not None else False
 
+        # LOD display mode filter (Aug 1 2026, per Keith: "I have show
+        # norm selected, so it should ignore any LOD suffick files") -
+        # this table previously showed every raw line regardless of
+        # the Render/LOD dropdown's LOD setting entirely - only the
+        # 3D world view (_apply_lod_filter, working on parsed
+        # IPLInstance objects) respected it. Applied here directly on
+        # the raw text fields instead (model name is field index 1 in
+        # the 13-column inst layout), matching the same "starts with
+        # lod" convention resolve_lod_pairs already uses for GTA3/VC/
+        # SA name-based pairing.
+        lod_mode = getattr(self, '_lod_display_mode', 'normal')
+
         data_lines = []
         for line_no, raw_line in section_lines:
             line = raw_line.split("#")[0].strip()
@@ -20961,6 +20973,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if not line or low in (data_type, 'end'):
                 continue
             fields = [f.strip() for f in line.split(',')]
+            if data_type == 'inst' and lod_mode != 'both':
+                model_name = fields[1] if len(fields) > 1 else ''
+                is_lod = model_name.lower().startswith('lod')
+                if lod_mode == 'normal' and is_lod:
+                    continue
+                if lod_mode == 'lod' and not is_lod:
+                    continue
             data_lines.append((line_no, fields))
 
         table.setRowCount(len(data_lines))
@@ -21907,16 +21926,34 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             color = text_color
         name_item.setForeground(QBrush(color))
 
-    def _toggle_ipl_section(self, ipl_name, hidden): #vers 1
+    def _toggle_ipl_section(self, ipl_name, hidden): #vers 2
         """Show/hide all instances from one IPL file - recomputes the
         visible instance subset from the full loaded set and re-feeds
         it to the world-view panes and Instance List, without needing
-        to reload from disk."""
+        to reload from disk.
+
+        clear_display_lists=False (Aug 1 2026, per Keith: "loading
+        Lae.ipl... there is a ton of memory usage, and a very long
+        delay, between the last entry in the ipl, and it finally
+        showing anything") - this is the single most common way the
+        visibility filter gets triggered (every IPL show/hide toggle,
+        including the very first load of any IPL), and was calling
+        _apply_ipl_visibility_filter() with no arguments at all,
+        defaulting clear_display_lists to True - unconditionally
+        discarding and forcing recompilation of every already-visible
+        model's OpenGL display list on every single toggle. The same
+        bug already found and fixed in the TOBJ time-flow tick and
+        the binary IPL loader, just in what turned out to be the most
+        heavily-used call site of all. Toggling visibility never
+        needs to clear already-compiled lists at all - the existing
+        cache-check logic in _draw_world_instances already compiles
+        only whichever models are genuinely new, nothing needs
+        wiping first."""
         if hidden:
             self._hidden_ipls.add(ipl_name)
         else:
             self._hidden_ipls.discard(ipl_name)
-        self._apply_ipl_visibility_filter()
+        self._apply_ipl_visibility_filter(clear_display_lists=False)
 
     # --- World viewport, LOD, ribbon/menu framework (ported from map_workshop_old_version.py) ---
 
@@ -22710,7 +22747,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         'both'. Per-instance overrides (set via the Instance List)
         still take precedence over this for any instance they cover."""
         self._lod_display_mode = mode
-        self._apply_ipl_visibility_filter()
+        self._apply_ipl_visibility_filter(clear_display_lists=False)
 
     def _find_lod_primary_key(self, instance): #vers 1
         """Given an instance currently displayed in a row (which may be
@@ -22739,7 +22776,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             overrides.pop(primary_key, None)
         else:
             overrides[primary_key] = mode
-        self._apply_ipl_visibility_filter()
+        self._apply_ipl_visibility_filter(clear_display_lists=False)
 
     def _apply_viewport_movement_settings(self, pane, label): #vers 1
         """Apply the configured pan-button/rotate-button/invert-axis

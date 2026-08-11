@@ -2342,3 +2342,45 @@ conclusively found despite extensive isolated testing.
   called with `(auto_fit=False, clear_display_lists=False)`, IPL Inst
   File panel confirmed refreshed. Full `QApplication` instantiation
   clean, `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Two more real fixes from Keith loading
+  `LAe.ipl`: "I see LOD file in the IPL inst, I have show norm
+  selected, so it should ignore any LOD suffick files. however there
+  is a ton of memory usage, and a very long delay, between the last
+  entry in the ipl, and it finally showing anything."
+
+  **LOD filter missing from the IPL Inst File table**: the Render/LOD
+  dropdown's Show Normals/Show LOD only/Show Both setting only ever
+  applied to the 3D world view (`_apply_lod_filter`, working on parsed
+  `IPLInstance` objects) - the IPL Inst File table (raw text lines
+  from the currently selected file) never checked it at all, showing
+  every line regardless. Added the same "starts with lod" filtering
+  directly on the raw text fields (model name is field index 1),
+  matching the convention `resolve_lod_pairs` already uses. Verified
+  across all three modes with a real mixed IPL file (roadB48/
+  LODroadB48/streetlight1): Show Normals correctly excludes
+  LODroadB48, Show LOD only correctly shows only it, Show Both
+  correctly shows all three.
+
+  **The freeze, found in its most-used location yet**: `_toggle_ipl_
+  section` - triggered by *every single* IPL show/hide toggle,
+  including the very first load of any IPL - was calling `_apply_ipl_
+  visibility_filter()` with no arguments, defaulting `clear_display_
+  lists` to `True`. This is the identical bug already found and fixed
+  in the TOBJ time-flow tick, the 2DFX toggle, and the binary IPL
+  loader this session - but this call site is the single most
+  frequently hit of all of them, likely explaining a large share of
+  the freeze complaints throughout this whole session. Audited every
+  remaining `_apply_ipl_visibility_filter()` call site in the file (5
+  more: add/remove instance placements, the per-nudge edit refresh,
+  LOD display mode changes, per-instance LOD overrides) - none of
+  them change the underlying model set, only which instances are
+  shown or their transforms, so all five now also correctly pass
+  `clear_display_lists=False`. The genuine new-world-load path
+  (`_apply_loaded_world` calling `_refresh_world_view` directly, not
+  through this method) is unaffected and still correctly defaults to
+  clearing.
+
+  Verified: `_toggle_ipl_section` confirmed now passing
+  `clear_display_lists=False`. Full `QApplication` instantiation
+  clean, `ast.parse` clean.
