@@ -2607,3 +2607,39 @@ conclusively found despite extensive isolated testing.
 
   Verified: all three files parse cleanly, no leftover references to
   the reverted code, full `QApplication` instantiation still clean.
+
+- **Aug 1, 2026 (cont'd)** — Found and fixed a real, high-impact
+  performance bug behind the "long pause after loading closes" and
+  large memory jump Keith reported: "loading LAe.ipl sent the memory
+  from 5.6Gb to 8.2Gb interesting... once the loading dialog closed, a
+  long pause, thinking it was frozen, becuase the IPL file is
+  displayed, the long pause was about 2 mins."
+
+  `_refresh_world_view`'s geometry conversion (`DFFModel` ->
+  vertex/normal/uv/triangle/material Python lists the viewport
+  actually draws from) used a plain local dict, rebuilt fresh on
+  *every single call* to this method - not just when a new IPL loads,
+  but on every IPL show/hide toggle. `model_cache.get_geometry()`
+  itself was already cached (DFF parsing wasn't repeated), but the
+  conversion step was rebuilt from scratch every time regardless, for
+  every distinct model currently visible in the *whole* world, not
+  just whatever was actually just toggled - exactly explaining both
+  symptoms together: the multi-minute pause (rebuilding full vertex/
+  triangle lists for potentially hundreds of already-converted
+  models) and the multi-GB memory jump (each rebuild allocates a
+  fresh full set of these lists, on top of whatever hadn't been
+  garbage-collected from the previous rebuild yet).
+
+  Made this a real persistent cache on `self` instead
+  (`_geometry_conversion_cache`), surviving across calls - only
+  cleared in `_apply_loaded_world` when a genuinely new world loads
+  (a new game/DAT means the same model name could refer to entirely
+  different geometry), matching the same "toggling visibility never
+  needs a full rebuild, only a real new load does" reasoning already
+  applied to the display-list cache earlier this session.
+
+  Verified directly: 3 repeated calls to `_refresh_world_view` for the
+  same instance now correctly call `get_geometry()` only once (would
+  have been 3 times before); a stale cache entry is confirmed cleared
+  after simulating `_apply_loaded_world`'s new-world-load path. Full
+  `QApplication` instantiation clean, `ast.parse` clean.

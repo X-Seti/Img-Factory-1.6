@@ -19114,6 +19114,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             model_cache = ModelCache()
             self._model_cache = model_cache
         model_cache.index_img_files(loader.get_img_paths())
+        # A genuine new world load - the same model_name could now
+        # refer to entirely different geometry (a different game/DAT
+        # entirely), so any previously converted vertex/triangle data
+        # cached in _refresh_world_view is no longer valid.
+        self._geometry_conversion_cache = {}
         # Per Keith: model/texture scanning should happen when a
         # specific IPL is actually loaded, not for the whole world at
         # startup - with lazy_ipl_loading enabled above, loader.
@@ -22495,8 +22500,28 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 vp.clear_world_instances()
             return
 
-        # Convert each distinct model's geometry once, reuse across instances
-        converted = {}
+        # Convert each distinct model's geometry once, reuse across
+        # instances AND across calls (Aug 1 2026, per Keith: "loading
+        # LAe.ipl sent the memory from 5.6Gb to 8.2Gb... the loading
+        # dialog closed, a long pause... about 2 mins") - this was a
+        # plain local dict before, rebuilt fresh on every single call
+        # to this method (every IPL show/hide toggle, not just loading
+        # a new one) - model_cache.get_geometry() itself is cached
+        # (DFF parsing isn't redone), but the *conversion* to vertex/
+        # triangle/material Python lists below was being rebuilt from
+        # scratch every time regardless, for every distinct model
+        # currently visible in the whole world, not just whatever IPL
+        # was actually just toggled. For a map with many distinct
+        # models already loaded, that's exactly the described "long
+        # pause" and the large memory jump (each rebuild allocates a
+        # full new set of vertex/triangle lists for every model, not
+        # just the newly-added ones). Now a real cache on self,
+        # persisting across calls - cleared only in _apply_loaded_world
+        # when a genuinely new world loads (see clear_display_lists'
+        # own similar reasoning - toggling visibility never needs
+        # this rebuilt, only a real new load does).
+        converted = self._geometry_conversion_cache = getattr(
+            self, '_geometry_conversion_cache', {})
         entries = []
         all_textures = []
         seen_txds = set()
