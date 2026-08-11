@@ -7043,7 +7043,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 self.status_modified.setStyleSheet("")
 # - Panel Creation
 
-    def _create_status_bar(self): #vers 1
+    def _create_status_bar(self): #vers 2
         """Create bottom status bar - single line compact"""
         from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel
 
@@ -7059,12 +7059,55 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.status_label = QLabel("Ready")
         layout.addWidget(self.status_label)
 
-        if hasattr(self, 'status_info'):
-            size_kb = len(col_data) / 1024
-            tex_count = len(self.collision_list)
-            #self.status_col_info.setText(f"Collision: {tex_count} | col: {size_kb:.1f} KB")
+        # Right: memory usage (Aug 1 2026, per Keith: "i think we also
+        # need to add a function on the statas bar, to show memory
+        # usage" - asked right after a real freeze/high-memory
+        # incident, so this doubles as an early warning sign the next
+        # time something runs away, not just a curiosity). Updated on
+        # a timer rather than only at specific moments, so it reflects
+        # whatever's happening right now, including mid-freeze if the
+        # event loop still gets a chance to run the timer.
+        layout.addStretch()
+        self.status_memory_label = QLabel("")
+        self.status_memory_label.setToolTip("Current process memory usage (RSS)")
+        layout.addWidget(self.status_memory_label)
+        self._memory_status_timer = QTimer(self)
+        self._memory_status_timer.timeout.connect(self._update_memory_status_label)
+        self._memory_status_timer.start(2000)
+        self._update_memory_status_label()
 
         return status_bar
+
+    def _update_memory_status_label(self): #vers 1
+        """Refresh the status bar's memory usage label - per Keith:
+        "i think we also need to add a function on the statas bar, to
+        show memory usage." Tries psutil first (most reliable, cross-
+        platform, but not a pre-existing dependency of this project
+        so not assumed present), falls back to reading RSS directly
+        from /proc/self/status on Linux (no extra dependency needed
+        there), and just clears the label if neither works (e.g.
+        Windows without psutil installed) rather than showing a wrong
+        or crashing value."""
+        label = getattr(self, 'status_memory_label', None)
+        if label is None:
+            return
+        mb = None
+        try:
+            import psutil
+            mb = psutil.Process().memory_info().rss / (1024 * 1024)
+        except ImportError:
+            try:
+                with open('/proc/self/status', 'r') as f:
+                    for line in f:
+                        if line.startswith('VmRSS:'):
+                            kb = int(line.split()[1])
+                            mb = kb / 1024
+                            break
+            except Exception:
+                pass
+        except Exception:
+            pass
+        label.setText(f"Memory: {mb:.0f} MB" if mb is not None else "")
 
 
     def _refresh_icons(self): #vers 2

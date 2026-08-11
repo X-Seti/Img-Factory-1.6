@@ -297,3 +297,19 @@ needs the unconfirmed header fields and cull/zone/other section
 formats worked out first, or the writer would only ever be useful for
 Map Workshop's own round-trip (write then re-read with our own
 parser), not for producing files the real game accepts.
+
+## DXT3/DXT5 texture decoding still pure-Python (Aug 1 2026)
+
+_decode_dxt1 was rewritten to a vectorized numpy fast path (see
+CHANGELOG.md) after Keith's real crash trace showed a freeze/high
+memory usage deep inside its per-pixel decode loop. _decode_dxt3 and
+_decode_dxt5 have the identical pure-Python per-pixel loop pattern
+and very likely the same performance problem for large textures -
+not yet fixed, deliberately scoped out of this pass to keep the DXT1
+fix itself thoroughly verified (byte-for-byte correctness against
+the original loop, across exact-multiple-of-4, edge-clipping,
+truncated-data, and both color-ordering branches) rather than
+rushing three decoders through in one turn. Same approach (reshape/
+transpose/crop instead of a fancy-index scatter, which profiling
+showed was actually slower than the original loop) should apply
+directly to both.

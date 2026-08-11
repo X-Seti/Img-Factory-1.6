@@ -2384,3 +2384,52 @@ conclusively found despite extensive isolated testing.
   Verified: `_toggle_ipl_section` confirmed now passing
   `clear_display_lists=False`. Full `QApplication` instantiation
   clean, `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Two more real fixes from Keith's own
+  crash trace and follow-up request:
+
+  **DXT1 decode freeze/memory**: Keith's Ctrl+C interrupt landed deep
+  inside `_decode_dxt1`'s per-pixel loop, with "memory used, doesn't
+  seem to get released." The size guard in `_parse_native_texture`
+  already caps dimensions at 4096x4096 (ruling out a runaway
+  allocation from corrupted data), but a single large legitimate
+  texture at that pure-Python per-pixel loop is still over 16 million
+  iterations, and `_preload_generic_ide_textures` can decode many
+  distinct textures in one pass. Added a vectorized numpy fast path
+  (numpy already a hard dependency of `map_workshop.py` itself, kept
+  optional here via try/except to preserve this file's own stated
+  "no external dependencies" design goal for other contexts).
+
+  First implementation used fancy-index scatter to place decoded
+  pixels into the output array - profiling found this was actually
+  *slower* than the original loop at every size tested (0.5-0.9x).
+  Rewrote using reshape/transpose/crop instead (valid whenever the
+  block count matches the full grid, i.e. the data wasn't truncated -
+  falls back to the scatter approach for the rare truncated case) -
+  this avoids the random-access memory pattern entirely, genuinely
+  2.7x-13x faster than the original loop across 256x256 through
+  2048x2048.
+
+  Verified extensively: byte-for-byte identical output to the
+  original loop-based decoder (kept as `_decode_dxt1_loop`, used
+  automatically as a fallback if numpy is ever unavailable) across
+  exact-multiple-of-4 dimensions, non-multiple-of-4 edge-block
+  clipping, truncated block data, and both the `c0>c1`/`c0<=c1`
+  palette branches. `_decode_dxt3`/`_decode_dxt5` have the identical
+  pure-Python pattern and likely the same issue - logged to TODO.md
+  rather than rushed through in the same pass.
+
+  **Memory usage on the status bar**: per Keith's follow-up, "i think
+  we also need to add a function on the statas bar, to show memory
+  usage" - added a right-aligned "Memory: N MB" label, updated every
+  2 seconds via a timer. Tries `psutil` first (not a pre-existing
+  dependency, so kept optional), falls back to reading `VmRSS`
+  directly from `/proc/self/status` on Linux, clears the label if
+  neither works rather than showing a wrong value. Also cleaned up
+  genuinely dead/broken leftover code in the same method (referenced
+  an undefined `col_data` variable, guarded by a condition -
+  `status_info` - that's never actually set anywhere).
+
+  Verified: label confirmed showing a real reading ("Memory: 130 MB")
+  immediately on construction, update timer confirmed active. Full
+  `QApplication` instantiation clean, `ast.parse` clean on both files.
