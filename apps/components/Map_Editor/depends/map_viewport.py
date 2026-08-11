@@ -46,20 +46,8 @@ class MapViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
     free-rotating Perspective/3D pane or locked to Top/Side/Front for a
     multi-pane layout."""
 
-    def __init__(self, parent=None): #vers 2
+    def __init__(self, parent=None): #vers 1
         super().__init__(parent)
-        if OPENGL_AVAILABLE:
-            # Per-instance format (Aug 1 2026) - see DFFViewport's
-            # identical fix for the full reasoning: module-level
-            # setDefaultFormat only reliably takes effect if it runs
-            # before QApplication is constructed, which isn't
-            # guaranteed when this module loads into an already-
-            # running host application (Map Workshop embedded as a
-            # tab inside IMG Factory, per Keith's confirmed setup) -
-            # this is the class actually used for each world pane in
-            # that same multi-pane layout, so it needed the identical
-            # fix.
-            self.setFormat(_fmt)
         self.setMinimumSize(200, 200)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 

@@ -2575,3 +2575,35 @@ conclusively found despite extensive isolated testing.
   diff review, that the memory bar was never the actual cause. Full
   `QApplication` instantiation clean, `ast.parse` clean, no dangling
   references to the removed memory-bar code anywhere in the file.
+
+- **Aug 1, 2026 (cont'd)** — Reverted the GL context timing fixes too
+  (`DFFViewport`/`MapViewport` per-instance `setFormat()`, `launch.py`'s
+  `QSG_RHI_BACKEND` change), per Keith: "maybe revert back on more;
+  blank screen" - the window is still blank on his machine even with
+  those fixes in place, plus a new terminal log showing the same
+  "QOpenGLWidget: Failed to create context" repeated 4 times, then a
+  `KeyboardInterrupt` landing on `eventFilter`'s bare `def` line (same
+  arbitrary-landing-spot pattern as the earlier interrupt that landed
+  on `_update_memory_status_label`'s `def` line before that function
+  was ever entered) - consistent with the interrupt arriving while
+  genuinely stuck in native/GL code, not in any particular Python
+  function.
+
+  All three files (`launch.py`, `apps/methods/dff_viewport.py`,
+  `apps/components/Map_Editor/depends/map_viewport.py`) restored to
+  their exact state as of commit `66134bd` (before any of this
+  session's GL-related changes). This is a diagnostic step, not a
+  claimed fix - those changes addressed two real, genuine Qt timing
+  requirements (documented, verifiable from Qt's own behavior), but
+  neither actually resolved the blank window on Keith's real hardware,
+  so they're stripped back out to get to the simplest possible
+  baseline for isolating what's actually happening. The persistent
+  "Failed to create context" appearing identically in this sandbox's
+  own test both before and after every one of these GL-related changes
+  (this sandbox has no real GPU at all) reinforces that whatever is
+  actually failing on Keith's machine likely needs to be diagnosed
+  through what the terminal itself is willing to show, rather than
+  more speculative code changes.
+
+  Verified: all three files parse cleanly, no leftover references to
+  the reverted code, full `QApplication` instantiation still clean.

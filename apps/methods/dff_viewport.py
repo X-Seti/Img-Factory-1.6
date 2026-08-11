@@ -120,27 +120,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
     Shared base for Model Viewer, Model Workshop, Vehicle Workshop.
     """
 
-    def __init__(self, parent=None): #vers 2
+    def __init__(self, parent=None): #vers 1
         super().__init__(parent)
-        if OPENGL_AVAILABLE:
-            # Per-instance format, not just the module-level default
-            # (Aug 1 2026, per Keith: "we have a blank window in the
-            # last push... QOpenGLWidget: Failed to create context").
-            # QSurfaceFormat.setDefaultFormat (set at this module's
-            # import time, above) only reliably takes effect if it
-            # runs *before* QApplication is constructed - true when
-            # Map Workshop runs standalone (its own __main__ block
-            # constructs QApplication after this module is already
-            # imported... but genuinely too late whenever this module
-            # gets imported into an *already-running* host application
-            # instead - exactly Keith's confirmed setup, Map Workshop
-            # embedded as a tab inside IMG Factory's own main window,
-            # whose QApplication already exists before this module is
-            # ever imported). setFormat() directly on each widget
-            # instance works correctly regardless of that timing, so
-            # doing this too whenever an instance is actually created
-            # removes the dependency on import-order timing entirely.
-            self.setFormat(_fmt)
         self.setMinimumSize(200, 200)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
