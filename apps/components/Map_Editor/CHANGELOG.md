@@ -2206,3 +2206,48 @@ conclusively found despite extensive isolated testing.
   the light list.
 
   Full `QApplication` instantiation clean, `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Two more real bugs, one reported by
+  Keith directly with a traceback, one from his own question:
+
+  **Time-flow "freeze" (bug, not a limitation)**: "touching time,
+  tick, 12:00 [Play] Appears to freeze things? bug or limitation?"
+  Found `DFFViewport.set_world_instances` unconditionally discarded
+  every previously-compiled OpenGL display list on *every single
+  call* - correct for a genuine new world/IPL load, but this same
+  method also runs on every TOBJ time-flow tick and every 2DFX
+  toggle via `_refresh_world_view`, none of which change which
+  distinct models exist - only which instances of them are currently
+  visible. Recompiling every distinct model's display list once a
+  second (the default tick interval) for a map with many models is
+  exactly the freeze. Added `clear_display_lists` parameter, threaded
+  through `set_world_instances` -> `_refresh_world_view` ->
+  `_apply_ipl_visibility_filter`, defaulting to `True` (unchanged for
+  real loads) but passed `False` from the Time toggle, Time value
+  change, 2DFX master toggle, and every time-flow tick specifically.
+  Verified: a simulated time-flow tick now correctly reaches
+  `set_world_instances` with `clear_display_lists=False`, while a
+  plain/default call (a genuine load) still correctly defaults to
+  `True`.
+
+  **Lighting crash (`IndexError: tuple index out of range`)**: Keith
+  logged a real traceback as a `#TODO` comment - crashed at `ld[3]`
+  in `_setup_lighting`, which always expects a 4-element `(x,y,z,w)`
+  light direction. Traced to the Light Setup Dialog's live-preview
+  handler (`_apply_live`) building only a 3-element `(lx,ly,lz)`
+  direction vector from the position picker and assigning it straight
+  to `vp._light_dir`, overwriting `DFFViewport`'s correct 4-element
+  default and crashing the very next `paintGL` call. Found and fixed
+  three more of the same pattern while tracing it: the dialog's own
+  cancel-path fallback default, and `_load_viewport_light_settings`
+  (which only ever saves/loads `dir_x/y/z` in its JSON config, never
+  a `w` component). All four now consistently build 4-element tuples
+  with `w=0.0` (directional light), matching `DFFViewport`'s own
+  convention. Verified by directly reproducing Keith's exact crash
+  with the old 3-tuple (confirmed it raises the identical
+  `IndexError`) and confirming the new 4-tuple works correctly.
+  Removed Keith's `#TODO bug` comment now that the underlying issue
+  is fixed.
+
+  Full `QApplication` instantiation clean, `ast.parse` clean on both
+  files.

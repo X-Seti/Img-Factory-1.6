@@ -743,7 +743,7 @@ class COL3DViewport(QWidget): #vers 2
         # Viewport lighting state (used by _compute_face_shade in workshop)
         self._shading_enabled = True
         self._backface_cull   = True               # cull back faces in solid/textured
-        self._light_dir       = (0.5, 0.5, 0.8)   # normalised XYZ toward light
+        self._light_dir       = (0.5, 0.5, 0.8, 0.0)   # normalised XYZ toward light, W=0 (directional)
         self._light_ambient   = 0.30               # 0..1
         self._light_intensity = 1.0                # 0..2 multiplier
 
@@ -8857,16 +8857,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             f"Shading: {'ON (Lambertian)' if enabled else 'OFF (flat)'}")
 
 
-#TODO bug; Traceback (most recent call last):
-#  File "/home/x2/Documents/GitHub/Img-Factory-1.6/apps/methods/dff_viewport.py", line 603, in paintGL
-#    self._setup_lighting()
-#    ~~~~~~~~~~~~~~~~~~~~^^
-#  File "/home/x2/Documents/GitHub/Img-Factory-1.6/apps/methods/dff_viewport.py", line 569, in _setup_lighting
-#    _libGL.glLightfv(_GL_LIGHT0, _GL_POSITION, _f4(ld[0], ld[1], ld[2], ld[3]))
-#                                                                        ~~^^^
-#IndexError: tuple index out of range
-
-
     def _open_light_setup_dialog(self): #vers 2
         """Viewport light setup — visual position picker + sliders."""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
@@ -8877,7 +8867,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         import json, math, os
 
         vp = getattr(self, 'preview_widget', None)
-        _dir   = getattr(self, '_vp_light_dir',      (0.5, 0.5, 0.8))
+        # 4-tuple fallback default (Aug 1 2026, same IndexError fix as
+        # _apply_live below - _setup_lighting always expects (x,y,z,w))
+        _dir   = getattr(self, '_vp_light_dir',      (0.5, 0.5, 0.8, 0.0))
         _amb   = getattr(self, '_vp_light_ambient',  0.30)
         _int   = getattr(self, '_vp_light_intensity', 1.0)
         _sb    = getattr(self, '_shading_btn', None)
@@ -9037,7 +9029,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             lx = math.sin(az_r)*math.cos(el_r)
             ly = math.cos(az_r)*math.cos(el_r)
             lz = math.sin(el_r)
-            nd = (lx,ly,lz)
+            # 4-tuple (Aug 1 2026, per Keith's own traceback: "IndexError:
+            # tuple index out of range" at ld[3] in _setup_lighting) -
+            # this only ever built a 3-element (x,y,z) direction vector,
+            # but _setup_lighting always expects 4 (x,y,z,w - w=0.0 for
+            # a directional light, matching DFFViewport's own default
+            # self._light_dir = (0.5, 1.0, 0.7, 0.0)). Moving the light
+            # position picker here overwrote that correct 4-tuple with
+            # this incomplete one, crashing the very next paintGL call.
+            nd = (lx, ly, lz, 0.0)
             self._vp_light_dir      = nd
             self._vp_light_ambient  = amb_sl.value()/100
             self._vp_light_intensity = int_sl.value()/100
@@ -9113,7 +9113,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 lz = vl.get('dir_z', 0.8)
                 import math
                 ll = math.sqrt(lx*lx+ly*ly+lz*lz) or 1.0
-                self._vp_light_dir      = (lx/ll, ly/ll, lz/ll)
+                # 4-tuple (Aug 1 2026, same IndexError fix as
+                # _apply_live - the saved config only ever stores
+                # dir_x/y/z, never a w component, so this needs to add
+                # it back explicitly rather than just normalizing xyz)
+                self._vp_light_dir      = (lx/ll, ly/ll, lz/ll, 0.0)
                 self._vp_light_ambient  = vl.get('ambient',   0.30)
                 self._vp_light_intensity = vl.get('intensity', 1.0)
                 shade_on = vl.get('shading', True)
@@ -20565,22 +20569,29 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         never touches the actual .ipl file."""
         self._refresh_ipl_inst_file_panel()
 
-    def _on_tobj_time_toggled(self, checked): #vers 1
+    def _on_tobj_time_toggled(self, checked): #vers 2
         """Time switch for TOBJ objects - re-applies the visibility
-        filter so the new on/off state takes effect immediately."""
-        self._apply_ipl_visibility_filter(auto_fit=False)
+        filter so the new on/off state takes effect immediately.
+        clear_display_lists=False (Aug 1 2026) - toggling the switch
+        only changes which instances are visible, not the underlying
+        model set, so there's nothing to recompile."""
+        self._apply_ipl_visibility_filter(auto_fit=False, clear_display_lists=False)
 
-    def _on_tobj_time_changed(self, qtime): #vers 2
+    def _on_tobj_time_changed(self, qtime): #vers 3
         """Simulated time-of-day edit changed - only matters while the
         Time switch is on, but re-applying is cheap and avoids a
-        stale filter if the switch gets enabled right after."""
+        stale filter if the switch gets enabled right after.
+        clear_display_lists=False (Aug 1 2026) - same reasoning as
+        _on_tobj_time_toggled."""
         if getattr(self, '_tobj_time_chk', None) and self._tobj_time_chk.isChecked():
-            self._apply_ipl_visibility_filter(auto_fit=False)
+            self._apply_ipl_visibility_filter(auto_fit=False, clear_display_lists=False)
 
-    def _on_2dfx_master_toggled(self, checked): #vers 1
+    def _on_2dfx_master_toggled(self, checked): #vers 2
         """2DFX master on/off switch changed - re-runs the same
-        visibility pipeline so lights are added/cleared immediately."""
-        self._apply_ipl_visibility_filter(auto_fit=False)
+        visibility pipeline so lights are added/cleared immediately.
+        clear_display_lists=False (Aug 1 2026) - this only affects
+        2DFX light points, never the model geometry itself."""
+        self._apply_ipl_visibility_filter(auto_fit=False, clear_display_lists=False)
 
     def _start_time_flow(self, play_btn, stop_btn): #vers 1
         """Start the time-flow timer - per Keith: "we need a [play]
@@ -20601,16 +20612,27 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         play_btn.setEnabled(True)
         stop_btn.setEnabled(False)
 
-    def _on_time_flow_tick(self): #vers 1
+    def _on_time_flow_tick(self): #vers 2
         """One time-flow timer tick - advances the simulated time by
         self._time_flow_minutes_per_tick minutes (wrapping past
         midnight automatically, QTime.addSecs handles that), then
         re-applies the visibility filter so TOBJ switching is visible
-        live rather than only on manual time edits."""
+        live rather than only on manual time edits.
+
+        clear_display_lists=False (Aug 1 2026, per Keith: "touching
+        time, tick, 12:00 [Play] Appears to freeze things?") - a tick
+        only changes which TOBJ instances are currently visible, never
+        the set of distinct models that exist in the loaded world.
+        Without this, every single tick (once a second by default)
+        was unconditionally discarding and forcing recompilation of
+        every distinct model's OpenGL display list - for a map with
+        many distinct models, that's exactly the "freeze" Keith saw
+        the moment he pressed Play, not a real limitation of the
+        feature."""
         current = self._tobj_time_spin.time()
         new_time = current.addSecs(self._time_flow_minutes_per_tick * 60)
         self._tobj_time_spin.setTime(new_time)
-        self._apply_ipl_visibility_filter(auto_fit=False)
+        self._apply_ipl_visibility_filter(auto_fit=False, clear_display_lists=False)
 
     def _show_time_flow_settings_popup(self): #vers 1
         """Time flow speed settings - per Keith's TODO item: "Adjustable
@@ -21970,7 +21992,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         for pane in getattr(self, '_world_panes', []):
             pane.set_cull_boxes(culls, checked)
 
-    def _apply_ipl_visibility_filter(self, auto_fit=True): #vers 3
+    def _apply_ipl_visibility_filter(self, auto_fit=True, clear_display_lists=True): #vers 4
         """Recompute which instances are currently visible: every
         loaded instance whose source_ipl isn't in self._hidden_ipls,
         then layer LOD show/hide on top (global toggle + any per-
@@ -21981,7 +22003,19 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         triggered by every position/rotation/scale nudge in the Item
         Editor Dialog) refresh the view without re-framing the camera
         to the whole map's bounding box each time - see
-        DFFViewport.set_world_instances for the full reasoning."""
+        DFFViewport.set_world_instances for the full reasoning.
+
+        clear_display_lists=False (Aug 1 2026, per Keith: "touching
+        time, tick, 12:00 [Play] Appears to freeze things?") - lets a
+        caller that only changed instance-level visibility (TOBJ
+        time-flow ticks, the 2DFX master toggle) skip unconditionally
+        discarding and recompiling every distinct model's OpenGL
+        display list, since the set of distinct *models* in view
+        hasn't actually changed - just which instances of them are
+        currently shown. Recompiling every model's geometry once a
+        second (the default tick interval) for a map with many
+        distinct models was exactly the "freeze" - unnecessary
+        work, not a real limitation of the feature."""
         all_inst = getattr(self, '_all_instances', None)
         if all_inst is None:
             return
@@ -21993,7 +22027,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             pane.set_instances(visible)
         loader_stub = _FilteredLoaderStub(visible, getattr(self, '_world_loader', None))
         self._populate_instance_list(loader_stub)
-        self._refresh_world_view(visible, auto_fit=auto_fit)
+        self._refresh_world_view(visible, auto_fit=auto_fit, clear_display_lists=clear_display_lists)
         self._refresh_2dfx_lights(visible)
 
     def _refresh_2dfx_lights(self, visible_instances): #vers 1
@@ -22150,7 +22184,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         corrects for. No longer gated by game."""
         return (-x, -y, -z, w)
 
-    def _refresh_world_view(self, instances, auto_fit=True): #vers 3
+    def _refresh_world_view(self, instances, auto_fit=True, clear_display_lists=True): #vers 4
         """Push a full multi-instance 3D world view into the existing
         DFF viewport (self.preview_widget) - Aug 1 2026, per Keith:
         "wire every pane into the viewport, when I load ipl, these
@@ -22315,7 +22349,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if hasattr(vp, 'set_render_mode') and not getattr(self, '_world_render_mode_set', False):
             vp.set_render_mode('textured')
             self._world_render_mode_set = True
-        vp.set_world_instances(entries, auto_fit=auto_fit)
+        vp.set_world_instances(entries, auto_fit=auto_fit, clear_display_lists=clear_display_lists)
         self._populate_models_panel_from_ipl(instances)
 
     def _populate_models_panel_from_ipl(self, instances): #vers 1

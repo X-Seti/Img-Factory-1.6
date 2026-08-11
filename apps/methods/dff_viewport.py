@@ -1183,7 +1183,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
              self._triangles,self._materials,self._prelit,
              self._current_geom_flags) = (old_v,old_n,old_u,old_t,old_m,old_p,old_f)
 
-    def set_world_instances(self, entries, auto_fit=True): #vers 3
+    def set_world_instances(self, entries, auto_fit=True, clear_display_lists=True): #vers 4
         """Load a whole set of positioned instances for a full
         multi-instance world view (Aug 1 2026, per Keith: "wire every
         pane into the viewport, when I load ipl, these dont show").
@@ -1199,10 +1199,24 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         converting each instance's cached DFFModel geometry into this
         shape - same field names/format load_geometry() already uses
         internally, just per-instance instead of one shared set.
-        Discards any previously-built display lists (Aug 1 2026
-        perf fix) - a new world/IPL selection means the old models'
-        compiled geometry is no longer relevant, freeing that GPU
-        memory rather than letting the cache grow across every load.
+
+        clear_display_lists=False (Aug 1 2026, per Keith: "touching
+        time, tick, 12:00 [Play] Appears to freeze things?") - by
+        default this discards every previously-compiled display list
+        on every single call ("a new world/IPL selection means the
+        old models' compiled geometry is no longer relevant" - true
+        for a genuine new-world load, but this same method also gets
+        called on every single TOBJ time-flow tick and every 2DFX
+        light refresh via _refresh_world_view, none of which change
+        which distinct *models* exist - only which instances of them
+        are currently visible). Unconditionally recompiling every
+        model's display lists once a second (the default tick
+        interval) for a map with many distinct models is exactly the
+        "freeze" Keith saw when pressing Play - unnecessary work, not
+        a real limitation. Callers that know the model set itself
+        hasn't changed (just instance-level visibility) can now skip
+        the wipe and let already-compiled lists for still-visible
+        models keep being reused as-is.
 
         auto_fit=False (Aug 1 2026, per Keith: "When moving an object
         with the object editor... the viewpoint zooms out
@@ -1215,7 +1229,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         whatever position the user had just navigated to. Real loads/
         IPL switches still want the fit (finding the newly-visible
         content is the point there); edit-triggered refreshes don't."""
-        self._clear_world_display_lists()
+        if clear_display_lists:
+            self._clear_world_display_lists()
         self._world_instances = entries or []
         if self._world_instances and auto_fit:
             self._auto_fit_world()
