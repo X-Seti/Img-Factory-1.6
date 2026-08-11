@@ -2302,3 +2302,43 @@ conclusively found despite extensive isolated testing.
   other sections not yet supported" warning, and a resolved model
   name in the preview. Full `QApplication` instantiation clean,
   `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Found the actual remaining freeze cause,
+  using Keith's own real binary IPL files (164 files, including the
+  exact `crack.ipl`/`countn2_stream1.ipl` referenced in `BinaryIPLParser`'s
+  own docstring) - per: "verify seems to show some, but load, freezes,
+  nor can I see the IPL data in the IPL inst file."
+
+  First, tested the parser directly against the real files to rule it
+  out: `crack.ipl` parses to exactly 60 instances in 0.0004 seconds,
+  `countn2_stream1.ipl` to exactly 355 - both matching the parser's
+  own documented claims precisely, zero errors, tested across 5 files
+  of varying size (2KB-16KB) with consistent clean results. The
+  parser itself was never the problem.
+
+  Found the real cause in `_load_binary_ipl_stream`'s final step:
+  `self._apply_ipl_visibility_filter()` was called with no arguments
+  at all, defaulting both `auto_fit` and `clear_display_lists` to
+  `True`. `clear_display_lists=True` unconditionally discards and
+  forces recompilation of *every* already-visible model's OpenGL
+  display list, not just the newly-loaded stream's instances - for an
+  already-loaded map with many distinct models, that's exactly the
+  freeze, the identical bug class already fixed for TOBJ time-flow
+  ticks earlier this session, just missed in this specific call site.
+  `auto_fit=True` was also re-framing the camera to the whole map's
+  bounding box on every single stream load. Fixed by passing
+  `auto_fit=False, clear_display_lists=False` here too.
+
+  Also found `_load_binary_ipl_stream` never called `_refresh_ipl_
+  inst_file_panel()` at all - explaining "nor can I see the IPL data
+  in the IPL inst file": the pane shows whichever row is currently
+  selected in IPL Sections, but doesn't automatically re-read after
+  new data loads elsewhere, so newly-loaded data stayed invisible
+  until a manual re-click. Added the explicit call.
+
+  Verified end-to-end against the real `crack.ipl` through the actual
+  loading pipeline: total load time under 10 milliseconds, 60
+  instances correctly loaded, `_apply_ipl_visibility_filter` confirmed
+  called with `(auto_fit=False, clear_display_lists=False)`, IPL Inst
+  File panel confirmed refreshed. Full `QApplication` instantiation
+  clean, `ast.parse` clean.

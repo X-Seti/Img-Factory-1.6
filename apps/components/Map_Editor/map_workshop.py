@@ -20000,7 +20000,30 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             f"Loaded {entry_name}: {len(parser.instances)} instances "
             f"({resolved_count} model names resolved)")
         self._rebuild_ipl_sections_rows()
-        self._apply_ipl_visibility_filter()
+        # auto_fit=False, clear_display_lists=False (Aug 1 2026, per
+        # Keith testing with his own real binary IPL data: "load,
+        # freezes, nor can I see the IPL data in the IPL inst file") -
+        # this was calling _apply_ipl_visibility_filter() with no
+        # arguments, defaulting both to True. clear_display_lists=True
+        # unconditionally discards and forces recompilation of EVERY
+        # already-visible model's OpenGL display list, not just the
+        # newly-loaded stream's ~dozens-to-hundreds of instances - for
+        # an already-loaded map with many distinct models, that's
+        # exactly the freeze, the same bug class as the time-flow tick
+        # fix earlier this session, just missed in this specific call
+        # site. auto_fit=True was also re-framing the camera to the
+        # whole map's bounding box on every single stream load, which
+        # isn't wanted here either.
+        self._apply_ipl_visibility_filter(auto_fit=False, clear_display_lists=False)
+        # Explicit refresh (Aug 1 2026) - the IPL Inst File pane shows
+        # whichever row is currently selected in IPL Sections, but
+        # doesn't automatically re-read after new data loads
+        # elsewhere; without this, the newly-loaded stream's data
+        # stayed invisible there until the user manually re-clicked
+        # the row (which _refresh_ipl_inst_file_panel's own binary-IPL
+        # handling already handles correctly - just wasn't being
+        # triggered here automatically).
+        self._refresh_ipl_inst_file_panel()
 
     def _load_selected_ipl_sections(self, rows): #vers 1
         """Show/load every currently-hidden row among the given table
