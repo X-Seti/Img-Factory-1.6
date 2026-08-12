@@ -3005,3 +3005,37 @@ conclusively found despite extensive isolated testing.
   cost for render mode specifically rather than a wiring bug).
 
   Full `QApplication` instantiation clean, `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Followed up on render mode/LOD mode not
+  updating the viewport, per Keith's answer to a diagnostic question:
+  "Button/menu label changes but 3D view looks identical." That
+  confirms the menu wiring genuinely fires (the label update proves
+  it), narrowing the problem to somewhere between the mode being set
+  and the repaint actually landing.
+
+  Directly verified (via a mocked-GL test, since this sandbox has no
+  real GPU) that the display-list caching/compilation logic itself is
+  correct: switching `self._mode` does produce a different cache key
+  and does trigger a genuinely fresh compile, confirmed by call
+  count - two distinct display lists get compiled for `('model',
+  'textured')` vs `('model', 'wireframe')`, and re-selecting an
+  already-compiled mode correctly reuses the cache rather than
+  recompiling. Also checked every place `self._mode` gets set (only
+  the default and `set_render_mode` itself - no race/override) and
+  `paintGL`'s own start (no early-exit or cached state that could
+  block a mode change from reaching `_draw_world_instances`).
+
+  Couldn't find a code-level bug after this level of verification.
+  Added a defensive fix in both `_set_world_render_mode` and `_set_
+  lod_display_mode`: call `vp.repaint()` (synchronous, paints
+  immediately) right after the mode change, instead of relying solely
+  on `update()` (which only schedules a repaint for the next event
+  loop iteration). Can't confirm this is the actual cause without
+  visual access to Keith's running app, but it's the most plausible
+  remaining explanation once the rendering logic itself is ruled out,
+  and it's a safe, low-risk change regardless of whether it's the
+  real fix.
+
+  Verified: both handlers now correctly call `repaint()` once per
+  mode change. Full `QApplication` instantiation clean, `ast.parse`
+  clean.

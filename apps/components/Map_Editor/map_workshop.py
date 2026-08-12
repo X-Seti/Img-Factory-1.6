@@ -20876,6 +20876,21 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         vp = getattr(self, 'preview_widget', None)
         if vp is not None and hasattr(vp, 'set_render_mode'):
             vp.set_render_mode(mode)
+            # Force the queued repaint to actually process now (Aug 1
+            # 2026, per Keith: "Button/menu label changes but 3D view
+            # looks identical") - thoroughly verified the underlying
+            # display-list caching/compilation logic is correct (a
+            # mode switch does trigger a genuinely fresh compile with
+            # its own cache key, confirmed via a direct mocked-GL
+            # test), so the mismatch isn't there. update() only
+            # *schedules* a repaint for the next event loop iteration
+            # rather than painting immediately - this can't be
+            # confirmed as the actual cause without visual access to
+            # Keith's own running app, but it's the most plausible
+            # remaining explanation once the rendering logic itself is
+            # ruled out, and forcing it here is a safe, low-risk
+            # improvement regardless.
+            vp.repaint()
         self._world_render_mode_set = True
         btn.setText(f"Render: {label}")
         # Per Keith: "when I switch the render mode, it doesn't update
@@ -23297,12 +23312,20 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 result.append(inst)
         return result
 
-    def _set_lod_display_mode(self, mode): #vers 1
+    def _set_lod_display_mode(self, mode): #vers 2
         """Global LOD display mode - 'normal' (default), 'lod', or
         'both'. Per-instance overrides (set via the Instance List)
-        still take precedence over this for any instance they cover."""
+        still take precedence over this for any instance they cover.
+
+        Forces an immediate repaint (Aug 1 2026, per Keith: "Show
+        Normal, Show LOD, or both should also update the viewpoint" -
+        "Button/menu label changes but 3D view looks identical") -
+        same reasoning as _set_world_render_mode's identical fix."""
         self._lod_display_mode = mode
         self._apply_ipl_visibility_filter(clear_display_lists=False)
+        vp = getattr(self, 'preview_widget', None)
+        if vp is not None and hasattr(vp, 'repaint'):
+            vp.repaint()
 
     def _find_lod_primary_key(self, instance): #vers 1
         """Given an instance currently displayed in a row (which may be
