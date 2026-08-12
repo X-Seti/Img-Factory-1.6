@@ -18662,14 +18662,26 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             # further, but the dock's initial floating size still
             # needs setting explicitly here.
             dock.resize(620, 400)
+            # Initial position only (Aug 1 2026, per Keith: "Every
+            # time I click on an object in the viewpoint, the IPL
+            # object editor snaps back; it should stay wherever I
+            # leave it") - this dock.move() call used to sit *outside*
+            # this "dock is None" first-creation block, so it ran on
+            # every single call to this method (every object click),
+            # unconditionally snapping the dock back to a fixed
+            # position near the main window's top-left corner
+            # regardless of where the user had since dragged it.
+            # Moved inside here so it only ever runs once, when the
+            # dock is first created - after that, wherever the user
+            # leaves it is respected.
+            if dock.isFloating():
+                top_level = self.window()
+                dock.move(top_level.mapToGlobal(top_level.rect().topLeft()) +
+                         QPoint(8, 8))
             self._instance_edit_dock = dock
         panel = self._instance_edit_panel
         panel.show_for_instance(inst, getattr(self, '_world_loader', None), nav_info,
                                 getattr(self, '_model_cache', None))
-        if dock.isFloating():
-            top_level = self.window()
-            dock.move(top_level.mapToGlobal(top_level.rect().topLeft()) +
-                     QPoint(8, 8))
         dock.show()
         dock.raise_()
 
@@ -20963,6 +20975,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         font = table.font(); font.setFamily("monospace"); table.setFont(font)
         table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         table.customContextMenuRequested.connect(self._on_ipl_inst_file_context_menu)
+        table.cellClicked.connect(self._on_ipl_inst_file_cell_clicked)
         table.cellDoubleClicked.connect(self._on_ipl_inst_file_cell_double_clicked)
         lay.addWidget(table)
         self._ipl_inst_file_table = table
@@ -21509,6 +21522,19 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     f"{txd_name}.txd not found in any indexed IMG archive or as a "
                     f"loose file{ide_note}")
 
+
+    def _on_ipl_inst_file_cell_clicked(self, row, col): #vers 1
+        """Single-clicking any cell in a row centers the viewport on
+        that row's real instance - per Keith: "When I click any line
+        in the IPL inst file, it should take me to the object in the
+        viewpoint." Any column (not just Model, unlike the existing
+        double-click handler below, which also opens the edit panel -
+        a heavier action reserved for a more deliberate double-click,
+        not every single click)."""
+        match = self._find_instance_for_ipl_inst_file_row(row)
+        if match is not None:
+            self._center_viewport_on_instance(match)
+            self._center_on_instance(match)
 
     def _on_ipl_inst_file_cell_double_clicked(self, row, col): #vers 2
         """Double-clicking the Model column (1) finds that row's real

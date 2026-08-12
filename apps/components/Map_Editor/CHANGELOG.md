@@ -2964,3 +2964,44 @@ conclusively found despite extensive isolated testing.
   without an exception, confirming the old item is correctly not
   reused and the table is properly re-enabled afterward. Full
   `QApplication` instantiation clean, `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Two real fixes from Keith's latest
+  report:
+
+  **Item Editor Dialog snapping back to a fixed position** - per
+  Keith: "Every time I click on an object in the viewpoint, the IPL
+  object editor snaps back; it should stay wherever I leave it."
+  Found `dock.move(...)` sat *outside* the "dock is None" first-
+  creation block in `_show_instance_edit_panel`, so it ran on every
+  single call (every object click), unconditionally repositioning the
+  dock near the main window's top-left corner regardless of where the
+  user had since dragged it. Moved inside the first-creation block so
+  it only ever runs once. Verified: moving the dock, then selecting a
+  different object, correctly leaves it exactly where it was moved to.
+
+  **IPL Inst File single-click not centering the viewport** - per
+  Keith: "When I click any line in the IPL inst file, it should take
+  me to the object in the viewpoint." A double-click handler already
+  did this, but only for the Model column specifically, and only on
+  double-click. Added a `cellClicked` connection and a new single-
+  click handler covering any column. Verified: clicking any column
+  (not just Model) on a single click correctly centers the viewport
+  on that row's real instance.
+
+  Also investigated Keith's other two reports - render mode changes
+  (Wireframe/Non-texture/Semi-Solid/Textured) and LOD display mode
+  changes (Show Normal/LOD/Both) not updating the viewport. Reviewed
+  `_set_world_render_mode`/`DFFViewport.set_render_mode` and `_set_
+  lod_display_mode`/`_apply_ipl_visibility_filter` in full - both
+  correctly set their target state and call `self.update()` to
+  request a repaint, both are wired to their menu actions correctly,
+  and confirmed `preview_widget` (not the permanently-empty `_world_
+  panes`) is the only active viewport in this build, so there's no
+  wrong-viewport mismatch either. Didn't find an obvious code-level
+  bug on inspection - logged for further diagnosis with more specific
+  detail from Keith (e.g. whether the button label updates but the 3D
+  view visibly doesn't, versus the change never happening at all,
+  which would point toward a slow-repaint/display-list-recompilation
+  cost for render mode specifically rather than a wiring bug).
+
+  Full `QApplication` instantiation clean, `ast.parse` clean.
