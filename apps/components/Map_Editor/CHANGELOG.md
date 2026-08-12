@@ -2840,3 +2840,42 @@ conclusively found despite extensive isolated testing.
   with `additive=True`, preserving the first IPL's textures rather
   than wiping them. Full `QApplication` instantiation clean, `ast.
   parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Solved the "40% of models missing"
+  mystery and shipped everything Keith asked for once he found the
+  actual cause himself: "looking at the ipl's most of them are listed
+  LODs, so where are the normal models? Maybe in the stream.ipl...
+  if the look at the files, almost all the LODs are in the text
+  ipls." Confirmed against his own real files: `LAe.ipl` is 74%
+  LOD-named, with `LAe_stream0.ipl` through `LAe_stream5.ipl` (exactly
+  the 6 files he named) holding the actual normal-detail models. This
+  wasn't a filtering/parsing/caching bug at all - text IPLs and their
+  binary streams simply hold genuinely different content, and nothing
+  was loading the streams automatically.
+
+  **"Load Text plus Binary IPL set"** - new Advanced menu checkbox
+  (default on), new `load_text_plus_binary_ipl_set` setting. When a
+  text IPL loads, its known associated streams (already tracked via
+  the existing filename-prefix matching) now load automatically right
+  alongside it.
+
+  **"Show Full Loading Models (Debug)"** - new Advanced menu checkbox
+  (default off), new `show_verbose_loading_dialog` setting. Added
+  `_VerboseLoadingDialog` - a 500x400 scrolling list dialog matching
+  Keith's exact spec: "Loading {name}.ipl and N binary ipls." header,
+  one line per model as it loads, then "Loading linked ipl file
+  {stream}" headers with their own per-model lines for each stream in
+  turn.
+
+  **Render mode not refreshing the IPL Inst File table** - fixed:
+  `_set_world_render_mode` (the actual handler behind the merged
+  Render/LOD dropdown) now calls `_refresh_ipl_inst_file_panel()` too,
+  matching what an LOD-mode change already did.
+
+  Verified end-to-end: a realistic text-IPL-plus-stream scenario
+  correctly produces 4 total instances (2 from the text IPL, 2 auto-
+  loaded from its stream) where only 2 would have loaded before;
+  `_VerboseLoadingDialog` confirmed 500x400 with the exact line format
+  specified; render mode change confirmed triggering the panel
+  refresh; both new settings confirmed with correct defaults. Full
+  `QApplication` instantiation clean, `ast.parse` clean.

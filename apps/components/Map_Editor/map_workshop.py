@@ -3087,6 +3087,25 @@ class MapSettings:
         # reliable signal. Configurable rather than hardcoded at 300,
         # in case other maps/games need a different cutoff.
         'lod_draw_dist_threshold': 300.0,
+        # Load text IPL + its binary stream set together (Aug 1 2026,
+        # per Keith: "looking at the ipl's most of them are listed
+        # LODs, so where are the normal models? Maybe in the
+        # stream.ipl... if the look at the files, almost all the LODs
+        # are in the text ipls" - confirmed against his own real data:
+        # LAe.ipl is 74% LOD-named. The actual normal-detail models
+        # live in LAe.ipl's associated binary stream files (LAe_
+        # Stream0.ipl through LAe_Stream5.ipl), which previously
+        # needed loading one at a time via the right-click menu -
+        # this setting, when on, loads all of a text IPL's known
+        # associated streams automatically alongside it.
+        'load_text_plus_binary_ipl_set': True,
+        # Verbose per-model loading dialog (Aug 1 2026, per Keith:
+        # "The second option would be to show full loading models,
+        # debug... Show line entry for each model") - a scrolling
+        # 500x400 dialog listing every model as it loads, one line
+        # per instance, across the text IPL and each of its streams
+        # in turn.
+        'show_verbose_loading_dialog': False,
         'default_width':     320,
         'default_height':    200,
         'retro_palette':     'Amiga AGA WB',
@@ -4594,6 +4613,43 @@ class _SizeAdaptiveStackedWidget(QStackedWidget):
     def minimumSizeHint(self): #vers 1
         cw = self.currentWidget()
         return cw.minimumSizeHint() if cw is not None else super().minimumSizeHint()
+
+
+class _VerboseLoadingDialog(QDialog):
+    """Debug loading dialog listing every model as it loads, one line
+    per instance, across a text IPL and each of its associated binary
+    streams in turn - per Keith's exact spec: "Show line entry for
+    each model... Scrolling list in a 500x400 window, under loading
+    (name).ipl... Loading linked ipl file LAe_Stream0.ipl... Show line
+    entry for each model" (repeated per stream). Non-modal so the app
+    stays usable while it fills in; caller is responsible for calling
+    add_header()/add_line() as loading actually happens and close()
+    (or leaving it up) once done."""
+
+    def __init__(self, title, parent=None): #vers 1
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.resize(500, 400)
+        layout = QVBoxLayout(self)
+        self._list = QListWidget()
+        layout.addWidget(self._list)
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(self.close)
+        layout.addWidget(close_btn)
+
+    def add_header(self, text): #vers 1
+        item = QListWidgetItem(text)
+        font = item.font()
+        font.setBold(True)
+        item.setFont(font)
+        self._list.addItem(item)
+        self._list.scrollToBottom()
+        QApplication.processEvents()
+
+    def add_line(self, text): #vers 1
+        self._list.addItem(QListWidgetItem(f"  {text}"))
+        self._list.scrollToBottom()
+        QApplication.processEvents()
 
 
 class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
@@ -20369,6 +20425,37 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "always loads via the exe), then falls back to {game root}/\n"
             "models/generic.txd as a loose file.")
         load_generic_act.triggered.connect(self._on_load_generic_txd_clicked)
+        advanced_menu.addSeparator()
+
+        # Load Text plus Binary IPL set (Aug 1 2026, per Keith: "we
+        # need an option to load text ipl's plus the associated
+        # stream files") - see MapSettings.DEFAULTS for the full
+        # story on why this matters (most of a text IPL's own content
+        # can genuinely be LOD-only, with normal-detail models living
+        # in its binary streams instead).
+        load_streams_act = advanced_menu.addAction("Load Text plus Binary IPL set")
+        load_streams_act.setCheckable(True)
+        load_streams_act.setChecked(self.map_settings.get('load_text_plus_binary_ipl_set'))
+        load_streams_act.setToolTip(
+            "When loading a text IPL, also automatically load all of\n"
+            "its known associated binary stream files (e.g. LAe.ipl's\n"
+            "LAe_Stream0.ipl through LAe_Stream5.ipl) - many text IPLs\n"
+            "are mostly LOD content, with the normal-detail models\n"
+            "living in their streams instead.")
+        load_streams_act.toggled.connect(self._on_load_streams_setting_toggled)
+
+        # Show full loading models (debug) (Aug 1 2026, per Keith:
+        # "The second option would be to show full loading models,
+        # debug") - see MapSettings.DEFAULTS for the dialog spec.
+        verbose_loading_act = advanced_menu.addAction("Show Full Loading Models (Debug)")
+        verbose_loading_act.setCheckable(True)
+        verbose_loading_act.setChecked(self.map_settings.get('show_verbose_loading_dialog'))
+        verbose_loading_act.setToolTip(
+            "Show a scrolling debug dialog listing every model as it\n"
+            "loads, one line per instance, across the text IPL and\n"
+            "each of its associated binary streams in turn.")
+        verbose_loading_act.toggled.connect(self._on_verbose_loading_setting_toggled)
+
         advanced_btn.setMenu(advanced_menu)
         advanced_btn.setToolTip("Less-common/diagnostic actions")
         opts_row.addWidget(advanced_btn)
@@ -20743,6 +20830,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             vp.set_render_mode(mode)
         self._world_render_mode_set = True
         btn.setText(f"Render: {label}")
+        # Per Keith: "when I switch the render mode, it doesn't update
+        # the IPL inst file window" - Render and LOD live in the same
+        # merged dropdown, so a render-mode change should refresh the
+        # same table an LOD-mode change already does.
+        self._refresh_ipl_inst_file_panel()
 
     def _on_load_generic_txd_clicked(self): #vers 3
         """Load generic.txd and show it in the Textures dock. Looks
@@ -20781,6 +20873,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 tex_list.setItem(i, 2, QTableWidgetItem(
                     f"{tex.get('width', '?')}x{tex.get('height', '?')}"))
                 tex_list.setItem(i, 3, QTableWidgetItem(tex.get('format', '')))
+
+    def _on_load_streams_setting_toggled(self, checked): #vers 1
+        self.map_settings.set('load_text_plus_binary_ipl_set', checked)
+        self.map_settings.save()
+
+    def _on_verbose_loading_setting_toggled(self, checked): #vers 1
+        self.map_settings.set('show_verbose_loading_dialog', checked)
+        self.map_settings.save()
 
 
     def _create_ipl_inst_file_panel(self): #vers 3
@@ -22092,10 +22192,43 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._populate_object_browser(loader)
 
         model_cache = getattr(self, '_model_cache', None)
+
+        # Auto-load associated binary streams (Aug 1 2026, per Keith:
+        # "looking at the ipl's most of them are listed LODs, so where
+        # are the normal models? Maybe in the stream.ipl... we need an
+        # option to load text ipl's plus the associated stream files")
+        # - see MapSettings.DEFAULTS for the full explanation. Runs
+        # regardless of whether new_instances is empty (the text IPL
+        # itself might have been fully loaded already on a prior
+        # toggle, but its streams might not have been yet).
+        stream_entries = getattr(self, '_ipl_names_with_binary_stream', {}).get(display_name, [])
+        verbose = self.map_settings.get('show_verbose_loading_dialog')
+        dlg = None
+        if verbose and (new_instances or stream_entries):
+            dlg = _VerboseLoadingDialog(f"Loading {display_name}", self)
+            dlg.show()
+            n_streams = len(stream_entries) if self.map_settings.get('load_text_plus_binary_ipl_set') else 0
+            dlg.add_header(f"Loading {display_name} and {n_streams} binary ipls.")
+            for inst in new_instances:
+                dlg.add_line(f"{inst.model_id}, {inst.model_name}")
+
         if model_cache is not None and new_instances:
             self._preload_world_assets(
                 loader, model_cache, instances=new_instances,
                 title=f"Loading {display_name}…")
+
+        if self.map_settings.get('load_text_plus_binary_ipl_set'):
+            for archive_path, stream_name in sorted(stream_entries, key=lambda t: t[1]):
+                if stream_name in getattr(self, '_loaded_binary_ipls', set()):
+                    continue
+                if dlg is not None:
+                    dlg.add_header(f"Loading linked ipl file {stream_name}")
+                before_stream_count = len(getattr(self, '_all_instances', []))
+                self._load_binary_ipl_stream(archive_path, stream_name)
+                if dlg is not None:
+                    new_stream_instances = self._all_instances[before_stream_count:]
+                    for inst in new_stream_instances:
+                        dlg.add_line(f"{inst.model_id}, {inst.model_name}")
 
     def _write_ipl_error_log(self, result): #vers 1
         """Write a plain-text log of one IPL's parse errors/warnings
