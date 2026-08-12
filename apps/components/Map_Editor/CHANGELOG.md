@@ -2770,3 +2770,37 @@ conclusively found despite extensive isolated testing.
   the simulated mouse position moves from inside to outside the
   circle. Full `QApplication` instantiation clean, `ast.parse` clean
   on both files.
+
+- **Aug 1, 2026 (cont'd)** — Fixed a real crash Keith hit immediately:
+  "AttributeError: 'DFFViewport' object has no attribute
+  'set_lod_test_callback'." The earlier LOD Test implementation only
+  added the callback/circle/unprojection methods to `MapViewport` -
+  but `preview_widget` (what the toggle actually wires up to) is a
+  `DFFViewport`, a different class entirely with its own camera
+  system (raw OpenGL matrix-stack calls, not `MapViewport`'s explicit
+  numpy matrices).
+
+  Added the same capability to `DFFViewport` directly, reusing its
+  already-existing `_pick_ray` (built for sub-object picking, already
+  replicates `paintGL`'s exact camera transform via `gluUnProject`)
+  rather than building a parallel matrix system from scratch - lower
+  risk than the `MapViewport` implementation, though this also means
+  the ground-plane intersection math couldn't be independently round-
+  trip-verified the way `MapViewport`'s was, since `_pick_ray` needs a
+  real GL context to query matrices via `glGetDoublev`, unavailable in
+  this sandbox. `DFFViewport` works in GTA's native Z-up space
+  directly (unlike `MapViewport`'s Y-up conversion), so the ground
+  plane and circle are drawn in Z/XY terms here instead of Y/XZ.
+
+  Also: per Keith, "click it when nothing is loaded, just to see" -
+  confirmed the toggle is already safe with no world loaded (both
+  `_apply_ipl_visibility_filter` and `_on_lod_test_mouse_moved`
+  early-return cleanly); and "LOD can go on a new row, row 3" - moved
+  the checkbox off the already-crowded first options row into its own
+  new third row, matching the same pattern already used once for
+  Time/Nav.
+
+  Verified: toggling on/off with nothing loaded produces no crash (the
+  exact scenario Keith hit); `preview_widget` (the real `DFFViewport`
+  instance) now confirmed has all three new methods present. Full
+  `QApplication` instantiation clean, `ast.parse` clean on both files.

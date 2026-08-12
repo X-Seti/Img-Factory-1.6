@@ -20434,29 +20434,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         render_lod_btn.setToolTip("Choose how the world view renders geometry, and which detail level(s) to show")
         opts_row.addWidget(render_lod_btn)
 
-        # LOD Test mode (Aug 1 2026, per Keith: "i'd like to add a
-        # model switching test where there is a circle around the
-        # mouse pointer, size 300, anything in the circle is normal
-        # models, everything outside is lod. in realtime.") - draws a
-        # circle (radius = lod_draw_dist_threshold) on the ground
-        # following the mouse cursor in the main preview_widget, and
-        # switches which detail level renders for every affected
-        # instance based on live distance from that point, updated on
-        # every mouse move. Overrides the global Show Normals/LOD
-        # only/Both mode while active (that's a fixed choice for the
-        # whole map; this is deliberately dynamic and per-position).
-        lod_test_chk = QCheckBox("LOD Test")
-        lod_test_chk.setFixedHeight(18)
-        lod_test_chk.setStyleSheet(_compact_18)
-        lod_test_chk.setToolTip(
-            "Live LOD switching test - draws a circle around the mouse\n"
-            "cursor (radius = the LOD draw-distance threshold); models\n"
-            "inside render at normal detail, models outside render as\n"
-            "LOD, updated in real time as the mouse moves.")
-        lod_test_chk.toggled.connect(self._on_lod_test_toggled)
-        self._lod_test_chk = lod_test_chk
-        opts_row.addWidget(lod_test_chk)
-
         opts_row.addStretch()
         lay.addLayout(opts_row)
 
@@ -20512,6 +20489,30 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         opts_row2.addStretch()
         lay.addLayout(opts_row2)
+
+        # Row 3: LOD Test (Aug 1 2026, per Keith: "LOD can go on a new
+        # row, row 3") - draws a circle (radius = lod_draw_dist_
+        # threshold) on the ground following the mouse cursor in the
+        # main preview_widget, and switches which detail level renders
+        # for every affected instance based on live distance from that
+        # point, updated on every mouse move. Overrides the global
+        # Show Normals/LOD only/Both mode while active (that's a fixed
+        # choice for the whole map; this is deliberately dynamic and
+        # per-position).
+        opts_row3 = QHBoxLayout()
+        lod_test_chk = QCheckBox("LOD Test")
+        lod_test_chk.setFixedHeight(18)
+        lod_test_chk.setStyleSheet(_compact_18)
+        lod_test_chk.setToolTip(
+            "Live LOD switching test - draws a circle around the mouse\n"
+            "cursor (radius = the LOD draw-distance threshold); models\n"
+            "inside render at normal detail, models outside render as\n"
+            "LOD, updated in real time as the mouse moves.")
+        lod_test_chk.toggled.connect(self._on_lod_test_toggled)
+        self._lod_test_chk = lod_test_chk
+        opts_row3.addWidget(lod_test_chk)
+        opts_row3.addStretch()
+        lay.addLayout(opts_row3)
 
         dock = QDockWidget("IPL Controls", self)
         dock.setObjectName("IPL Controls")

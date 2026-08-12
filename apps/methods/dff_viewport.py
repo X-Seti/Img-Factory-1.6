@@ -626,6 +626,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         if has_world:
             self._draw_world_instances()
             self._draw_2dfx_lights()
+            if getattr(self, '_lod_test_center', None) is not None:
+                self._draw_lod_test_circle()
             if self._show_grid: self._draw_grid()
             self._draw_axes()
             return
@@ -1501,6 +1503,76 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._pan_x += screen_dx * cos_a - screen_dy * sin_a
             self._pan_y += screen_dx * sin_a + screen_dy * cos_a
         self._last_pos = event.pos(); self.update()
+
+        # LOD test mode (Aug 1 2026, per Keith's crash: "AttributeError:
+        # 'DFFViewport' object has no attribute 'set_lod_test_callback'"
+        # - the original LOD-test implementation only added this to
+        # MapViewport, but preview_widget (what the toggle actually
+        # wires up to) is a DFFViewport, a different class entirely
+        # with its own camera system - same feature, same callback
+        # pattern, added here too now).
+        callback = getattr(self, '_lod_test_callback', None)
+        if callback is not None:
+            ground_pos = self._screen_to_ground_position(event.pos().x(), event.pos().y())
+            if ground_pos is not None:
+                self.set_lod_test_center(ground_pos)
+                callback(ground_pos)
+
+    def _screen_to_ground_position(self, mx, my, ground_z=0.0): #vers 1
+        """Cast a ray from the camera through the given widget-space
+        pixel (via the already-existing _pick_ray, which replicates
+        paintGL's exact camera transform) and intersect it with the
+        horizontal plane z=ground_z - DFFViewport works in GTA's
+        native Z-up space directly (unlike MapViewport, which converts
+        to Y-up), so the ground plane is a fixed Z here rather than Y.
+        Returns None if the ray is parallel to the ground plane or
+        points away from it."""
+        ray = self._pick_ray(mx, my)
+        if ray is None:
+            return None
+        (ox, oy, oz), (dx, dy, dz) = ray
+        if abs(dz) < 1e-9:
+            return None
+        t = (ground_z - oz) / dz
+        if t < 0:
+            return None
+        return (ox + dx * t, oy + dy * t, oz + dz * t)
+
+    def set_lod_test_callback(self, callback): #vers 1
+        """Set (or clear, with None) the function called with the
+        current ground-position world point on every mouse move while
+        LOD test mode is active - mirrors MapViewport's identical
+        method (see its own docstring for the full feature context)."""
+        self._lod_test_callback = callback
+
+    def set_lod_test_center(self, world_pos): #vers 1
+        """Set (or clear, with None) the LOD test circle's center in
+        world space - mirrors MapViewport's identical method."""
+        self._lod_test_center = world_pos
+        self.update()
+
+    def _draw_lod_test_circle(self): #vers 1
+        """Draw a flat circle outline on the ground plane (z=center_z)
+        at self._lod_test_center, radius self._lod_test_radius -
+        mirrors MapViewport's identical method, adapted for this
+        class's native Z-up convention (circle drawn in the XY plane
+        here, XZ plane there)."""
+        if not OPENGL_AVAILABLE:
+            return
+        cx, cy, cz = self._lod_test_center
+        radius = getattr(self, '_lod_test_radius', 300.0)
+        segments = 64
+        glColor3f(0.2, 1.0, 0.3)
+        glLineWidth(2.0)
+        glPushMatrix()
+        glTranslatef(cx, cy, cz)
+        glBegin(GL_LINE_LOOP)
+        for i in range(segments):
+            angle = 2 * math.pi * i / segments
+            glVertex3f(radius * math.cos(angle), radius * math.sin(angle), 0.0)
+        glEnd()
+        glPopMatrix()
+        glLineWidth(1.0)
 
     def mouseReleaseEvent(self, event): #vers 1
         self._last_pos = event.pos()
