@@ -2879,3 +2879,46 @@ conclusively found despite extensive isolated testing.
   specified; render mode change confirmed triggering the panel
   refresh; both new settings confirmed with correct defaults. Full
   `QApplication` instantiation clean, `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Added a true single-instance fast path
+  for nudge edits, per Keith: "when moving any object using the IPL
+  object editor, it takes so long for anything to change; is there a
+  way to only update the object thats been moved, not freshing the
+  whole viewport."
+
+  Every nudge (position/rotation/scale) previously went through the
+  full `_apply_ipl_visibility_filter` -> `_refresh_world_view`
+  pipeline - re-running the LOD/TOBJ filters and rebuilding a fresh
+  entry dict (position, rotation, scale, model key) for *every*
+  visible instance in the whole map, just to reflect the one that
+  actually changed. Correct, but wasteful: every other instance's
+  geometry, display list, and transform are completely unaffected by
+  editing one object.
+
+  Added `DFFViewport.update_instance_transform(inst, pos, rot,
+  scale)` - finds the one already-rendered entry matching this
+  instance by identity and updates just its `pos`/`rot`/`scale`
+  fields in place, then triggers a repaint. Confirmed this is
+  actually correct by re-reading `_draw_world_instances`'s own
+  docstring: the compiled display list contains only raw local-space
+  geometry, with position/rotation/scale applied fresh every frame
+  via the surrounding `glPushMatrix`/translate/rotate/scale/
+  `glPopMatrix` - so updating the entry dict's transform fields
+  really does take effect on the next paint, no display-list
+  recompilation needed at all.
+
+  `_on_instance_edited` now tries this fast path first, falling back
+  to the full filter pipeline only if no matching entry is found
+  (e.g. the very first edit of a session, before any full refresh has
+  populated the viewport's instance list yet). Not applied to the
+  `MapViewport`-based world panes - their own rendering is already a
+  different, vectorized numpy point-cloud approach (not per-instance
+  display lists), unlikely to be the actual bottleneck here.
+
+  Verified directly: moving one instance (with two already-rendered
+  entries present) correctly updates only the moved one's position in
+  place, leaves the other completely untouched, and never calls the
+  full pipeline at all; with an empty/unpopulated viewport (no prior
+  refresh), correctly falls back to the full pipeline as expected.
+  Full `QApplication` instantiation clean, `ast.parse` clean on both
+  files.

@@ -1257,6 +1257,37 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._auto_fit_world()
         self.update()
 
+    def update_instance_transform(self, inst, pos, rot, scale): #vers 1
+        """Update just one already-rendered instance's position/
+        rotation/scale in place, without touching any other entry or
+        rebuilding the world-instances list at all - per Keith: "when
+        moving any object using the IPL object editor, it takes so
+        long for anything to change; is there a way to only update
+        the object thats been moved, not freshing the whole
+        viewport." Previously every nudge went through the full
+        _apply_ipl_visibility_filter -> _refresh_world_view pipeline,
+        rebuilding a fresh entry dict for every visible instance in
+        the whole map just to reflect one changed instance - correct
+        but wasteful for a single edit, since geometry/display lists
+        for every *other* instance are completely unaffected by it.
+
+        Finds the matching entry by identity (entry['instance'] is
+        inst, set when _refresh_world_view originally built the list -
+        see its own code) rather than by position/name, since those
+        are exactly what's changing and can't be used to look the
+        instance up. Returns True if a match was found and updated,
+        False otherwise (caller should fall back to the full pipeline
+        in that case - e.g. the very first time this instance is
+        edited before any full refresh has ever run)."""
+        for entry in getattr(self, '_world_instances', None) or []:
+            if entry.get('instance') is inst:
+                entry['pos'] = pos
+                entry['rot'] = rot
+                entry['scale'] = scale
+                self.update()
+                return True
+        return False
+
     def clear_world_instances(self): #vers 2
         self._clear_world_display_lists()
         self._world_instances = []

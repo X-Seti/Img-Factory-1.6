@@ -18651,20 +18651,34 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         dock.show()
         dock.raise_()
 
-    def _on_instance_edited(self, inst): #vers 2
+    def _on_instance_edited(self, inst): #vers 3
         """Called by _InstanceEditPanel whenever a position/rotation
-        nudge changes an instance in memory - refreshes the World View
+        nudge changes an instance in memory - updates the World View
         panes to reflect the new position (they cache instance data as
         plain tuples for fast rendering, built at the last filter
         application, so mutating the IPLInstance alone doesn't
-        propagate until this re-applies the current filter).
+        propagate until something pushes the new transform through).
 
-        auto_fit=False (Aug 1 2026, per Keith: "When moving an object
-        with the object editor... the viewpoint zooms out
-        automatically; the viewpoint should stay on the chosen
-        object") - without this, every single nudge re-framed the
-        camera to fit the whole map's bounding box, fighting whatever
-        position the user had just navigated the camera to."""
+        Fast path first (Aug 1 2026, per Keith: "when moving any
+        object using the IPL object editor, it takes so long for
+        anything to change; is there a way to only update the object
+        thats been moved, not freshing the whole viewport") -
+        DFFViewport.update_instance_transform finds the one already-
+        rendered entry matching this instance and updates just its
+        pos/rot/scale in place, without re-running the LOD/TOBJ
+        filters or rebuilding a fresh entry dict for every other
+        visible instance in the map. Falls back to the full _apply_
+        ipl_visibility_filter pipeline only if the fast path can't
+        find a match (e.g. the very first edit of a session, before
+        any full refresh has ever populated the viewport's own
+        instance list yet)."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is not None and hasattr(vp, 'update_instance_transform'):
+            pos = (inst.pos_x, inst.pos_y, inst.pos_z)
+            rot = self._effective_rotation(inst)
+            scale = (inst.scale_x, inst.scale_y, inst.scale_z)
+            if vp.update_instance_transform(inst, pos, rot, scale):
+                return
         self._apply_ipl_visibility_filter(auto_fit=False, clear_display_lists=False)
 
     def _on_instance_list_context_menu(self, pos): #vers 2
