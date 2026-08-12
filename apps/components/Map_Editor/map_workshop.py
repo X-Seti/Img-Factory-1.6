@@ -4624,32 +4624,54 @@ class _VerboseLoadingDialog(QDialog):
     entry for each model" (repeated per stream). Non-modal so the app
     stays usable while it fills in; caller is responsible for calling
     add_header()/add_line() as loading actually happens and close()
-    (or leaving it up) once done."""
+    (or leaving it up) once done.
 
-    def __init__(self, title, parent=None): #vers 1
+    Fixed header label above the scrolling list, not just another
+    list entry (Aug 1 2026, per Keith: "I might want to keep the
+    loading xxxx.ipl above, and the scrolling below") - add_header
+    updates this label instead of inserting a row, so which file is
+    currently loading stays visible and pinned regardless of how far
+    the model list has scrolled.
+
+    processEvents() throttled to roughly 10/second (Aug 1 2026, same
+    request - "there is a massive bottleneck on loading") rather than
+    called on every single add_line - calling it per model line for a
+    stream file with thousands of instances was itself a real,
+    measurable cost (each call has genuine overhead pumping the whole
+    Qt event queue), not just cosmetic. The dialog still updates
+    live, just not more often than it needs to for the human eye to
+    follow along."""
+
+    def __init__(self, title, parent=None): #vers 2
         super().__init__(parent)
         self.setWindowTitle(title)
         self.resize(500, 400)
         layout = QVBoxLayout(self)
+        self._header_label = QLabel("")
+        header_font = self._header_label.font()
+        header_font.setBold(True)
+        self._header_label.setFont(header_font)
+        layout.addWidget(self._header_label)
         self._list = QListWidget()
         layout.addWidget(self._list)
         close_btn = QPushButton("Close")
         close_btn.clicked.connect(self.close)
         layout.addWidget(close_btn)
+        import time as _time
+        self._time_module = _time
+        self._last_pump = 0.0
 
-    def add_header(self, text): #vers 1
-        item = QListWidgetItem(text)
-        font = item.font()
-        font.setBold(True)
-        item.setFont(font)
-        self._list.addItem(item)
-        self._list.scrollToBottom()
-        QApplication.processEvents()
+    def add_header(self, text): #vers 2
+        self._header_label.setText(text)
+        QApplication.processEvents()   # header changes are rare - always pump immediately
 
-    def add_line(self, text): #vers 1
+    def add_line(self, text): #vers 2
         self._list.addItem(QListWidgetItem(f"  {text}"))
-        self._list.scrollToBottom()
-        QApplication.processEvents()
+        now = self._time_module.monotonic()
+        if now - self._last_pump >= 0.1:
+            self._list.scrollToBottom()
+            QApplication.processEvents()
+            self._last_pump = now
 
 
 class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
@@ -22109,8 +22131,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if getattr(self, '_ipl_cell_click_in_progress', False):
             return
         self._ipl_cell_click_in_progress = True
+        table = self._ipl_sections_table
         try:
-            table = self._ipl_sections_table
             item = table.item(row, 0)
             if item is None:
                 return
@@ -22119,7 +22141,45 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 hidden = ipl_name in getattr(self, '_hidden_ipls', set())
                 new_hidden = not hidden
                 if not new_hidden:
-                    self._ensure_ipl_loaded(ipl_name)
+                    # Disable the whole table for the duration of the
+                    # actual load (Aug 1 2026, per Keith's crash:
+                    # "RuntimeError: wrapped C/C++ object of type
+                    # QTableWidgetItem has been deleted", plus "there
+                    # is a massive bottleneck on loading") - the
+                    # _ipl_cell_click_in_progress flag above only ever
+                    # guarded against re-entering *this* method, not
+                    # against a right-click (a different, unguarded
+                    # handler, _on_ipl_sections_context_menu) firing
+                    # while a slow load is still running and rebuilding
+                    # the table's rows underneath it. A disabled
+                    # QTableWidget receives no mouse events at all,
+                    # closing that whole class of race regardless of
+                    # which handler the click would have gone through.
+                    table.setEnabled(False)
+                    try:
+                        self._ensure_ipl_loaded(ipl_name)
+                    finally:
+                        table.setEnabled(True)
+                    # Re-locate the row by name, not the original row
+                    # index (Aug 1 2026, same crash) - _ensure_ipl_
+                    # loaded's auto-stream-loading calls _rebuild_ipl_
+                    # sections_rows() internally, which replaces every
+                    # row's items from scratch; the `item`/`row`
+                    # captured before this call are genuinely stale
+                    # afterward, not just theoretically at risk from
+                    # an external click - this was the real cause of
+                    # "wrapped C/C++ object of type QTableWidgetItem
+                    # has been deleted", this method's own code using
+                    # them again below without re-fetching first.
+                    item = None
+                    for r in range(table.rowCount()):
+                        candidate = table.item(r, 0)
+                        if candidate is not None and candidate.data(Qt.ItemDataRole.UserRole) == ipl_name:
+                            item = candidate
+                            row = r
+                            break
+                    if item is None:
+                        return   # row no longer exists post-rebuild - nothing left to update
                 item.setIcon(self._eye_closed_icon if new_hidden else self._eye_open_icon)
                 item.setToolTip(f"Show {ipl_name}" if new_hidden else f"Hide {ipl_name}")
                 name_item = table.item(row, 1)

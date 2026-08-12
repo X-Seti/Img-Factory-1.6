@@ -2922,3 +2922,45 @@ conclusively found despite extensive isolated testing.
   refresh), correctly falls back to the full pipeline as expected.
   Full `QApplication` instantiation clean, `ast.parse` clean on both
   files.
+
+- **Aug 1, 2026 (cont'd)** — Fixed the "wrapped C/C++ object of type
+  QTableWidgetItem has been deleted" crash Keith hit, and the "massive
+  bottleneck on loading" it was reported alongside.
+
+  Found the real root cause: `_on_ipl_section_cell_clicked` captured
+  `item`/`row` from the IPL Sections table *before* calling `_ensure_
+  ipl_loaded` - but that call (via the newly-added auto-stream-loading
+  feature) calls `_rebuild_ipl_sections_rows()` internally, once per
+  stream file, which replaces every row's items from scratch. The
+  code right after the load then used the original, now-genuinely-
+  stale `item`/`name_item` references without re-fetching them -
+  exactly the crash, and it was this method's own code doing it, not
+  external re-entrancy. Fixed by re-locating the row by `ipl_name`
+  (not the original row index, which can also shift) after the load
+  completes, returning cleanly if the row no longer exists at all.
+
+  Also disabled the whole table for the duration of the load (on top
+  of the fix above, as a second layer of protection) - the existing
+  `_ipl_cell_click_in_progress` flag only ever guarded against re-
+  entering this one method, not against a right-click (a completely
+  different, unguarded handler) firing while a slow load is still
+  rebuilding the table underneath it. A disabled `QTableWidget`
+  receives no mouse events at all, closing that class of race
+  regardless of which handler a click would go through.
+
+  For the reported "massive bottleneck": found `_VerboseLoadingDialog
+  .add_line` called `QApplication.processEvents()` on *every single*
+  model line - for a stream file with thousands of instances, that's
+  thousands of full event-queue pumps, each with real overhead, not
+  just a cosmetic issue. Throttled to roughly 10 updates/second
+  instead, still visibly live but no longer doing that work per line.
+  Also redesigned the dialog per Keith's request ("I might want to
+  keep the loading xxxx.ipl above, and the scrolling below") - the
+  current-file header is now a fixed label above the list, not a
+  scrolling entry that disappears as more models load underneath it.
+
+  Verified: the exact crash scenario (table rebuilt mid-load, exactly
+  matching what the real auto-stream-loading does) reproduced cleanly
+  without an exception, confirming the old item is correctly not
+  reused and the table is properly re-enabled afterward. Full
+  `QApplication` instantiation clean, `ast.parse` clean.
