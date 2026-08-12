@@ -22780,7 +22780,28 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             entries.append(entry)
 
         if all_textures and hasattr(vp, '_upload_textures'):
-            vp._upload_textures(all_textures, additive=False)
+            # additive mirrors clear_display_lists exactly (Aug 1
+            # 2026, per Keith: "the second part loads in (LAn.Ipl),
+            # and the textures on the first LAe.ipl get corrupted") -
+            # additive=False unconditionally called clear_textures()
+            # first, wiping every previously-uploaded texture
+            # (including the first IPL's) before uploading only the
+            # freshly-collected all_textures set for this call. That
+            # was harmless before the geometry-conversion caching fix
+            # earlier this session, since every call used to re-
+            # collect and re-upload every visible model's textures
+            # regardless - but now that an already-converted model
+            # (from a prior IPL, still cached) skips re-collecting its
+            # own textures entirely, wiping-then-partially-reuploading
+            # left its still-cached, still-referenced display list
+            # pointing at texture IDs that had just been deleted -
+            # exactly the corruption Keith saw. clear_display_lists
+            # already expresses the identical "is this a genuine new
+            # world load (safe to clear) vs a mere visibility/partial
+            # update (must preserve what's already uploaded)"
+            # distinction, so reusing it here keeps both caches
+            # consistent with each other.
+            vp._upload_textures(all_textures, additive=not clear_display_lists)
         # Only force the default render mode once, on the very first
         # world load (Aug 1 2026) - this used to run unconditionally
         # on every single refresh, which fires on every nudge edit and

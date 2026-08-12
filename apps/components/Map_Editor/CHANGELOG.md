@@ -2804,3 +2804,39 @@ conclusively found despite extensive isolated testing.
   exact scenario Keith hit); `preview_widget` (the real `DFFViewport`
   instance) now confirmed has all three new methods present. Full
   `QApplication` instantiation clean, `ast.parse` clean on both files.
+
+- **Aug 1, 2026 (cont'd)** — Found and fixed a real texture-corruption
+  bug, per Keith: "selecting 4 ipl files LAe.ipl, LAn.ipl, LAs.ipl,
+  LAw.ipl, the first LAe.ipl loads and looks ok, the second part loads
+  in (LAn.Ipl), and the textures on the first LAe.ipl get corrupted."
+
+  A direct, unintended consequence of the geometry-conversion caching
+  fix earlier this session: `_refresh_world_view` called `vp._upload_
+  textures(all_textures, additive=False)` unconditionally -
+  `additive=False` calls `clear_textures()` first, wiping *every*
+  previously-uploaded texture (including the first IPL's) before
+  re-uploading only the freshly-collected set for that call. This was
+  harmless before the caching fix (every call used to re-collect and
+  re-upload every visible model's textures regardless of whether
+  they'd already been loaded) - but once an already-converted model
+  (from a prior IPL, now cached) stopped re-collecting its own
+  textures, the wipe-then-partial-reupload left its still-cached,
+  still-referenced display list pointing at texture IDs that had just
+  been deleted - exactly the corruption Keith saw, and exactly the
+  kind of inconsistency that can slip in when two related caches
+  (geometry and textures) aren't kept in sync with each other.
+
+  Fixed by making `additive` mirror `clear_display_lists` exactly
+  (`additive=not clear_display_lists`) - the same "genuine new world
+  load (safe to clear) vs a mere visibility/partial update (must
+  preserve what's already uploaded)" distinction `clear_display_lists`
+  already expresses, now applied consistently to both caches.
+
+  Verified directly with a realistic two-IPL scenario: a genuine first
+  load (default `clear_display_lists=True`) correctly uploads with
+  `additive=False`; a second load bringing in a new IPL alongside the
+  first (`clear_display_lists=False`, matching how `_toggle_ipl_
+  section`'s own already-fixed call actually flows) correctly uploads
+  with `additive=True`, preserving the first IPL's textures rather
+  than wiping them. Full `QApplication` instantiation clean, `ast.
+  parse` clean.
