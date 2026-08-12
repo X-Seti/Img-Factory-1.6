@@ -3074,6 +3074,19 @@ class MapSettings:
         # on every successful load, surfaced as a dropdown on the DAT
         # tab's Load button for quick re-loading without re-browsing.
         'recent_dat_files':  [],
+        # LOD detection by draw distance (Aug 1 2026, per Keith's real
+        # LAe.ide data: "Some files in the LAe.ipl are LOD... they
+        # dont follow the same pattern as those prefixed as LODelname
+        # where the normal would be Modelname, so I guess the only
+        # clue is in the IDE file... the draw distance is higher than
+        # 300 to be an LOD... So we need a setting: detect LOD by
+        # draw distance higher than 300") - his own laeLODds03/
+        # laeLODds04 examples have "LOD" embedded mid-name, not as a
+        # prefix, so the existing "starts with lod" name check misses
+        # them entirely; their real IDE draw_dist (1500) is the only
+        # reliable signal. Configurable rather than hardcoded at 300,
+        # in case other maps/games need a different cutoff.
+        'lod_draw_dist_threshold': 300.0,
         'default_width':     320,
         'default_height':    200,
         'retro_palette':     'Amiga AGA WB',
@@ -21064,6 +21077,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # lod" convention resolve_lod_pairs already uses for GTA3/VC/
         # SA name-based pairing.
         lod_mode = getattr(self, '_lod_display_mode', 'normal')
+        threshold = self.map_settings.get('lod_draw_dist_threshold')
+        loader = getattr(self, '_world_loader', None)
 
         data_lines = []
         for line_no, raw_line in section_lines:
@@ -21075,6 +21090,22 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if data_type == 'inst' and lod_mode != 'both':
                 model_name = fields[1] if len(fields) > 1 else ''
                 is_lod = model_name.lower().startswith('lod')
+                # Draw-distance-based LOD check too (Aug 1 2026, per
+                # Keith's real LAe.ide: "they dont follow the same
+                # pattern as those prefixed as LODelname... the draw
+                # distance is higher than 300 to be an LOD") - the
+                # name-prefix check alone misses real examples like
+                # laeLODds03, where "LOD" sits mid-name rather than as
+                # a prefix.
+                if not is_lod and loader is not None and fields:
+                    try:
+                        obj = loader.get_object(int(fields[0]))
+                    except ValueError:
+                        obj = None
+                    if obj is not None:
+                        draw_dist = obj.extra.get('draw_dist')
+                        if draw_dist is not None and draw_dist > threshold:
+                            is_lod = True
                 if lod_mode == 'normal' and is_lod:
                     continue
                 if lod_mode == 'lod' and not is_lod:
@@ -22845,23 +22876,55 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 result.append(inst)
         return result
 
-    def _apply_lod_filter(self, instances): #vers 2
+    def _is_lod_by_draw_distance(self, inst): #vers 1
+        """Standalone draw-distance-based LOD check, per Keith's real
+        LAe.ide data: "Some files in the LAe.ipl are LOD, which
+        shouldn't be loading where normals only is set, but they dont
+        follow the same pattern as those prefixed as LODelname...
+        the draw distance is higher than 300 to be an LOD." His own
+        laeLODds03/laeLODds04 examples don't match the "LOD" name-
+        prefix convention resolve_lod_pairs relies on at all - they
+        likely have no "paired" normal-detail counterpart to actually
+        match against by name+position either, so pairing them isn't
+        the right model here; they just need to be individually
+        recognized as LOD-type via their own real draw_dist (verified
+        against his data: 1500 for his LOD examples, 150 for an
+        ordinary object in the same file - well either side of the
+        default 300 threshold). Threshold is configurable via
+        map_settings['lod_draw_dist_threshold'], not hardcoded."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            return False
+        obj = loader.get_object(inst.model_id)
+        if obj is None:
+            return False
+        draw_dist = obj.extra.get('draw_dist')
+        if draw_dist is None:
+            return False
+        threshold = self.map_settings.get('lod_draw_dist_threshold')
+        return draw_dist > threshold
+
+    def _apply_lod_filter(self, instances): #vers 3
         """Given an already-IPL-filtered instance list, decide for each
         LOD-paired primary instance which version(s) to keep - per-
         instance override (self._lod_overrides, keyed by id(primary
         instance), one of 'normal'/'lod'/'both'/None) takes precedence
         over the global mode (self._lod_display_mode). Instances with
-        no LOD pair at all pass through unchanged."""
+        no LOD pair at all pass through unchanged.
+
+        Also applies a separate, standalone draw-distance-based LOD
+        check (Aug 1 2026, see _is_lod_by_draw_distance) to any
+        instance not already covered by name-based pairing - filtered
+        by the same global mode, just without a specific normal-detail
+        counterpart to pair against."""
         pairs = getattr(self, '_lod_pairs', None)
-        if not pairs:
-            return instances
         overrides = getattr(self, '_lod_overrides', {})
         global_mode = getattr(self, '_lod_display_mode', 'normal')
-        paired_target_ids = {id(v) for v in pairs.values()}
+        paired_target_ids = {id(v) for v in pairs.values()} if pairs else set()
         result = []
         for inst in instances:
             iid = id(inst)
-            if iid in pairs:
+            if pairs and iid in pairs:
                 mode = overrides.get(iid) or global_mode
                 if mode == 'lod':
                     result.append(pairs[iid])
@@ -22870,12 +22933,17 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     result.append(pairs[iid])
                 else:  # 'normal'
                     result.append(inst)
-            elif iid in paired_target_ids:
+            elif pairs and iid in paired_target_ids:
                 # This instance IS someone's LOD target - it's only
                 # included via its primary above (in 'lod'/'both' mode),
                 # to avoid duplicates when both members of a pair pass
                 # the IPL filter.
                 continue
+            elif global_mode != 'both' and self._is_lod_by_draw_distance(inst):
+                if global_mode == 'lod':
+                    result.append(inst)
+                # global_mode == 'normal': excluded entirely, no
+                # counterpart to substitute in its place.
             else:
                 result.append(inst)
         return result

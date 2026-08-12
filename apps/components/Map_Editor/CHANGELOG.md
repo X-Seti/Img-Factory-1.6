@@ -2698,3 +2698,31 @@ conclusively found despite extensive isolated testing.
   300 threshold), and the `tobj` line correctly extracts drawdist/
   flags/time_on/time_off together. Full `QApplication` instantiation
   clean, `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Added draw-distance-based LOD detection,
+  per Keith's real LAe.ide data: "they dont follow the same pattern as
+  those prefixed as LODelname... the draw distance is higher than 300
+  to be an LOD... So we need a setting: detect LOD by draw distance
+  higher than 300."
+
+  His own `laeLODds03`/`laeLODds04` examples don't match the "LOD"
+  name-prefix convention `resolve_lod_pairs` relies on at all (LOD
+  sits mid-name, not as a prefix) - and likely have no matching
+  "normal detail" counterpart to pair against by name+position either,
+  so the existing pairing model doesn't fit them. Added `lod_draw_dist
+  _threshold` to `MapSettings` (default 300.0, configurable rather
+  than hardcoded) and a new `_is_lod_by_draw_distance` check, applied
+  as a separate pass in `_apply_lod_filter` (world view) alongside the
+  existing name-pair logic, for any instance not already covered by
+  pairing - filtered by the same global Show Normals/LOD only/Both
+  mode, just without a specific counterpart to substitute in for it.
+  The IPL Inst File table's own LOD filter (added earlier this
+  session, name-prefix only) got the identical draw-distance check
+  too.
+
+  Verified against Keith's exact real data end-to-end in both places:
+  `laeLODds03` (draw_dist=1500) correctly detected as LOD despite the
+  name mismatch, correctly excluded from Show Normals and correctly
+  the only entry under Show LOD only, while a normal object from the
+  same file (draw_dist=150) is correctly unaffected. Full
+  `QApplication` instantiation clean, `ast.parse` clean.
