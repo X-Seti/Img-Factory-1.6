@@ -20434,6 +20434,29 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         render_lod_btn.setToolTip("Choose how the world view renders geometry, and which detail level(s) to show")
         opts_row.addWidget(render_lod_btn)
 
+        # LOD Test mode (Aug 1 2026, per Keith: "i'd like to add a
+        # model switching test where there is a circle around the
+        # mouse pointer, size 300, anything in the circle is normal
+        # models, everything outside is lod. in realtime.") - draws a
+        # circle (radius = lod_draw_dist_threshold) on the ground
+        # following the mouse cursor in the main preview_widget, and
+        # switches which detail level renders for every affected
+        # instance based on live distance from that point, updated on
+        # every mouse move. Overrides the global Show Normals/LOD
+        # only/Both mode while active (that's a fixed choice for the
+        # whole map; this is deliberately dynamic and per-position).
+        lod_test_chk = QCheckBox("LOD Test")
+        lod_test_chk.setFixedHeight(18)
+        lod_test_chk.setStyleSheet(_compact_18)
+        lod_test_chk.setToolTip(
+            "Live LOD switching test - draws a circle around the mouse\n"
+            "cursor (radius = the LOD draw-distance threshold); models\n"
+            "inside render at normal detail, models outside render as\n"
+            "LOD, updated in real time as the mouse moves.")
+        lod_test_chk.toggled.connect(self._on_lod_test_toggled)
+        self._lod_test_chk = lod_test_chk
+        opts_row.addWidget(lod_test_chk)
+
         opts_row.addStretch()
         lay.addLayout(opts_row)
 
@@ -20846,6 +20869,77 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         clear_display_lists=False (Aug 1 2026) - this only affects
         2DFX light points, never the model geometry itself."""
         self._apply_ipl_visibility_filter(auto_fit=False, clear_display_lists=False)
+
+    def _on_lod_test_toggled(self, checked): #vers 1
+        """LOD Test mode on/off - per Keith: "i'd like to add a model
+        switching test where there is a circle around the mouse
+        pointer... in realtime." Wires/unwires the main preview_
+        widget's mouse-move callback; turning it off also clears the
+        circle and restores the normal global LOD mode's filtering
+        (whatever Show Normals/LOD only/Both was set to before)."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is None:
+            return
+        if checked:
+            vp._lod_test_radius = self.map_settings.get('lod_draw_dist_threshold')
+            vp.set_lod_test_callback(self._on_lod_test_mouse_moved)
+        else:
+            vp.set_lod_test_callback(None)
+            vp.set_lod_test_center(None)
+            self._apply_ipl_visibility_filter(auto_fit=False, clear_display_lists=False)
+
+    def _on_lod_test_mouse_moved(self, viewport_ground_pos): #vers 1
+        """Called on every mouse move while LOD Test mode is active,
+        with the ground position (in the viewport's own Y-up local
+        space) under the current cursor. Re-filters the currently
+        visible instances by live distance from that point: an
+        instance with a resolved LOD pair switches between its normal
+        and LOD version depending on whether it's inside or outside
+        the circle; a standalone LOD-type instance (draw-distance or
+        name based, no paired normal-detail counterpart to switch to)
+        only shows when outside; everything else is unaffected.
+
+        Pushes straight to _refresh_world_view rather than going
+        through the full _apply_ipl_visibility_filter wrapper, since
+        that would re-apply the global Show Normals/LOD only/Both mode
+        and undo the per-position switching this is specifically
+        doing instead - and skips the display-list clear for the same
+        real-time-responsiveness reason as every other visibility-only
+        refresh this session."""
+        # Y-up viewport local space -> GTA's native Z-up (x,y,z) -
+        # same swap _draw_cull_boxes documents in reverse (gx,gy,gz =
+        # cx,cz,cy for GTA->viewport; here going the other way).
+        vx, vy, vz = viewport_ground_pos
+        center_x, center_y, center_z = vx, vz, vy
+
+        all_inst = getattr(self, '_all_instances', None)
+        if all_inst is None:
+            return
+        hidden = getattr(self, '_hidden_ipls', set())
+        visible = [i for i in all_inst if i.source_ipl not in hidden] if hidden else all_inst
+        pairs = getattr(self, '_lod_pairs', None) or {}
+        paired_target_ids = {id(v) for v in pairs.values()}
+        threshold = self.map_settings.get('lod_draw_dist_threshold')
+
+        result = []
+        for inst in visible:
+            iid = id(inst)
+            if iid in paired_target_ids:
+                continue   # only reached via its primary below, avoids duplicates
+            dx = inst.pos_x - center_x
+            dy = inst.pos_y - center_y
+            dz = inst.pos_z - center_z
+            dist = (dx * dx + dy * dy + dz * dz) ** 0.5
+            inside = dist <= threshold
+            if iid in pairs:
+                result.append(inst if inside else pairs[iid])
+            elif self._is_lod_by_draw_distance(inst):
+                if not inside:
+                    result.append(inst)
+            else:
+                result.append(inst)
+
+        self._refresh_world_view(result, auto_fit=False, clear_display_lists=False)
 
     def _start_time_flow(self, play_btn, stop_btn): #vers 1
         """Start the time-flow timer - per Keith: "we need a [play]

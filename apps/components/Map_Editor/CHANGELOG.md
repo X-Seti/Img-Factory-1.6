@@ -2726,3 +2726,47 @@ conclusively found despite extensive isolated testing.
   the only entry under Show LOD only, while a normal object from the
   same file (draw_dist=150) is correctly unaffected. Full
   `QApplication` instantiation clean, `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Added the real-time LOD test tool, per
+  Keith: "i'd like to add a model switching test where there is a
+  circle around the mouse pointer, size 300, anything in the circle
+  is normal models, everything outside is lod. in realtime."
+
+  Added `MapViewport._unproject_point`/`_screen_to_ground_position` -
+  a general ray-plane intersection (inverse of the existing
+  `_project_point`, using the same explicit numpy view/projection
+  matrices) that finds the world-space ground position under the
+  mouse cursor, working correctly across all view modes (Top/Side/
+  Front/Perspective) rather than special-casing the ortho Top view.
+  Verified via round-trip tests (project a known world point to
+  screen, unproject back, confirm it matches) for both ortho and
+  perspective camera modes - exact match in both.
+
+  Added a circle overlay (`_draw_lod_test_circle`, radius = the same
+  `lod_draw_dist_threshold` setting from the earlier draw-distance
+  LOD detection work) drawn at that ground position, updated on every
+  mouse move via a new callback (`set_lod_test_callback`, mirroring
+  the existing `set_pick_callback` pattern - MapViewport doesn't need
+  to know anything about LOD pairing/detection itself).
+
+  Added a "LOD Test" toggle next to the Render/LOD dropdown in IPL
+  Controls. While active, `ModelWorkshop._on_lod_test_mouse_moved`
+  re-filters the currently visible instances by live distance from
+  the cursor's ground position on every move: an instance with a
+  resolved LOD pair switches between its normal and LOD version
+  depending on whether it's inside or outside the circle (genuine
+  model switching, not just show/hide); a standalone LOD-type
+  instance (draw-distance or name based, no paired counterpart to
+  switch to) only shows when outside. Pushes straight to `_refresh_
+  world_view` rather than the full visibility-filter wrapper, since
+  that would re-apply the global Show Normals/LOD only/Both mode and
+  undo the per-position switching.
+
+  Verified end-to-end: toggle correctly wires/unwires the callback
+  and pulls the radius from settings; a standalone LOD instance far
+  from the test point and a normal instance near it both correctly
+  show together; most directly, an instance with a real LOD pair
+  correctly switches from its normal version to its LOD version as
+  the simulated mouse position moves from inside to outside the
+  circle. Full `QApplication` instantiation clean, `ast.parse` clean
+  on both files.

@@ -289,6 +289,8 @@ class MapViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._draw_gizmo()
         if self._show_culls and self._culls:
             self._draw_cull_boxes()
+        if getattr(self, '_lod_test_center', None) is not None:
+            self._draw_lod_test_circle()
 
     def set_gizmo_position(self, pos): #vers 1
         """Show (or hide, if pos is None) an XYZ axis gizmo at a world
@@ -338,6 +340,43 @@ class MapViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 glVertex3f(dx, -hh, dz); glVertex3f(dx, hh, dz)
             glEnd()
             glPopMatrix()
+        glLineWidth(1.0)
+
+    def set_lod_test_center(self, world_pos): #vers 1
+        """Set (or clear, with None) the LOD test circle's center in
+        this viewport's own Y-up local space - per Keith: "i'd like to
+        add a model switching test where there is a circle around the
+        mouse pointer, size 300, anything in the circle is normal
+        models, everything outside is lod. in realtime." Called from
+        mouseMoveEvent (when the test mode is active) with the ground
+        position under the current cursor, computed via _screen_to_
+        ground_position."""
+        self._lod_test_center = world_pos
+        self.update()
+
+    def _draw_lod_test_circle(self): #vers 1
+        """Draw a flat circle outline on the ground plane at self.
+        _lod_test_center, radius self._lod_test_radius - the visual
+        boundary for the real-time LOD test: per Keith's own spec,
+        models inside render at normal detail, models outside render
+        as LOD. Drawing only, not the actual model-switching logic
+        (that's ModelWorkshop's job, via the same distance-from-center
+        computation applied to the real instance list, re-filtered on
+        every mouse move while test mode is active)."""
+        import math
+        cx, cy, cz = self._lod_test_center
+        radius = getattr(self, '_lod_test_radius', 300.0)
+        segments = 64
+        glColor3f(0.2, 1.0, 0.3)
+        glLineWidth(2.0)
+        glPushMatrix()
+        glTranslatef(cx, cy, cz)
+        glBegin(GL_LINE_LOOP)
+        for i in range(segments):
+            angle = 2 * math.pi * i / segments
+            glVertex3f(radius * math.cos(angle), 0.0, radius * math.sin(angle))
+        glEnd()
+        glPopMatrix()
         glLineWidth(1.0)
 
     def _draw_gizmo(self, size: float = 3.0): #vers 2
@@ -626,6 +665,55 @@ class MapViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         screen_y = (1 - ndc[1]) / 2 * self.height()   # NDC y-up -> Qt y-down
         return screen_x, screen_y
 
+    def _unproject_point(self, screen_x, screen_y, ndc_z): #vers 1
+        """Inverse of _project_point - given a screen pixel position
+        and an NDC depth (-1 near .. +1 far), returns the
+        corresponding world-space point in this viewport's own Y-up
+        local space. Used in pairs (two different ndc_z values at the
+        same screen x/y) to build a world-space ray for _screen_to_
+        ground_position, since a single screen point alone only fixes
+        x/y in NDC space - the depth is genuinely ambiguous without a
+        second reference or an intersection surface."""
+        import numpy as np
+        ndc_x = (screen_x / max(1, self.width())) * 2 - 1
+        ndc_y = 1 - (screen_y / max(1, self.height())) * 2   # Qt y-down -> NDC y-up
+        view = self._view_matrix()
+        proj = self._projection_matrix()
+        inv_vp = np.linalg.inv(proj @ view)
+        clip = np.array([ndc_x, ndc_y, ndc_z, 1.0])
+        world_h = inv_vp @ clip
+        if abs(world_h[3]) < 1e-9:
+            return None
+        return world_h[:3] / world_h[3]
+
+    def _screen_to_ground_position(self, screen_x, screen_y, ground_y=0.0): #vers 1
+        """Cast a ray from the camera through the given screen pixel
+        and intersect it with the horizontal plane y=ground_y (this
+        viewport's own Y-up local space) - the "where is the mouse
+        pointing at, on the ground" position needed for the LOD test
+        circle (Aug 1 2026, per Keith: "i'd like to add a model
+        switching test where there is a circle around the mouse
+        pointer... in realtime"). Works across all view modes (Top/
+        Side/Front/Perspective) via genuine ray-plane intersection
+        rather than special-casing the ortho Top view, even though
+        that's the most likely case this actually gets used in given
+        Map Workshop's own top-down map-editing focus. Returns None if
+        the ray is parallel to the ground plane (camera looking
+        exactly along it - a real but rare edge case) or points away
+        from it entirely."""
+        near = self._unproject_point(screen_x, screen_y, -1.0)
+        far  = self._unproject_point(screen_x, screen_y,  1.0)
+        if near is None or far is None:
+            return None
+        direction = far - near
+        denom = direction[1]
+        if abs(denom) < 1e-9:
+            return None
+        t = (ground_y - near[1]) / denom
+        if t < 0:
+            return None   # intersection is behind the near point (off-screen direction)
+        return near + direction * t
+
     def pick_instance_at(self, click_x, click_y, threshold_px=12): #vers 1
         """Find the loaded instance whose projected screen position is
         closest to a click, within threshold_px - returns the full
@@ -685,7 +773,7 @@ class MapViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                   'right': Qt.MouseButton.RightButton}
         return bool(buttons & mapping.get(name, Qt.MouseButton.MiddleButton))
 
-    def mouseMoveEvent(self, event): #vers 2
+    def mouseMoveEvent(self, event): #vers 3
         dx = event.pos().x() - self._last_pos.x()
         dy = event.pos().y() - self._last_pos.y()
         pan_button = getattr(self, '_pan_button', 'middle')
@@ -700,6 +788,32 @@ class MapViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._pan_x += (-dx if invert_x else dx) * scale
             self._pan_y -= (-dy if invert_y else dy) * scale
         self._last_pos = event.pos(); self.update()
+
+        # LOD test mode (Aug 1 2026, per Keith: "i'd like to add a
+        # model switching test where there is a circle around the
+        # mouse pointer, size 300, anything in the circle is normal
+        # models, everything outside is lod. in realtime.") - on
+        # every mouse move while active, recompute the ground position
+        # under the cursor and notify the callback (ModelWorkshop),
+        # which re-filters the real instance list by distance from
+        # that point. No-op (skipped entirely) when test mode isn't
+        # on, so normal mouse movement isn't doing this extra work all
+        # the time.
+        callback = getattr(self, '_lod_test_callback', None)
+        if callback is not None:
+            ground_pos = self._screen_to_ground_position(event.pos().x(), event.pos().y())
+            if ground_pos is not None:
+                self.set_lod_test_center(ground_pos)
+                callback(ground_pos)
+
+    def set_lod_test_callback(self, callback): #vers 1
+        """Set (or clear, with None) the function called with the
+        current ground-position world point on every mouse move while
+        LOD test mode is active - lets ModelWorkshop re-filter the
+        real instance list by distance without MapViewport needing to
+        know anything about LOD pairing/detection itself, matching the
+        same separation-of-concerns set_pick_callback already uses."""
+        self._lod_test_callback = callback
 
     def mouseReleaseEvent(self, event): #vers 3
         press_pos = getattr(self, '_press_pos', None)
