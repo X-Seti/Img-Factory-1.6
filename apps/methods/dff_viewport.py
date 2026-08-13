@@ -1690,6 +1690,91 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 pass
         self.update()
 
+    def keyPressEvent(self, event): #vers 1
+        """Arrow keys and numpad rotate the camera, held keys giving
+        continuous rotation - per Keith: "im thinking about adding
+        keyboard shortcuts, arrow keys, and numpad to rotate, but why
+        stop there, we could use the thumbsticks on a games
+        controller." A reliable alternative to right-click-drag
+        rotation regardless of whatever's causing the reported mouse-
+        button flakiness (middle-click pan and left-click-select both
+        "don't always work", right-click rotate "just fine" - couldn't
+        pin down a definitive code-level cause after reviewing the
+        button-matching logic; this sidesteps needing to for rotation
+        specifically, whatever the actual cause turns out to be).
+
+        Numpad keys detected via KeypadModifier specifically (Qt
+        doesn't otherwise distinguish a numpad "8" from a top-row "8"
+        by key code alone) so numpad and arrows can both be bound to
+        the same rotation without also hijacking normal typing/number
+        entry elsewhere in the app - this handler only ever fires
+        when the 3D viewport itself has keyboard focus, but scoping
+        the numpad detection this precisely still avoids any
+        surprises if that assumption is ever wrong somewhere.
+
+        Continuous rotation while a key is held (not one fixed step
+        per press) via a repeating QTimer, matching the smooth feel of
+        drag-based rotation rather than a discrete jump."""
+        key = event.key()
+        is_numpad = bool(event.modifiers() & Qt.KeyboardModifier.KeypadModifier)
+        rotate_keys = {
+            Qt.Key.Key_Left:  ('yaw', -1),
+            Qt.Key.Key_Right: ('yaw', 1),
+            Qt.Key.Key_Up:    ('pitch', -1),
+            Qt.Key.Key_Down:  ('pitch', 1),
+        }
+        if is_numpad:
+            rotate_keys.update({
+                Qt.Key.Key_4: ('yaw', -1),
+                Qt.Key.Key_6: ('yaw', 1),
+                Qt.Key.Key_8: ('pitch', -1),
+                Qt.Key.Key_2: ('pitch', 1),
+            })
+        if key in rotate_keys:
+            held = getattr(self, '_rotate_keys_held', None)
+            if held is None:
+                held = self._rotate_keys_held = {}
+            held[key] = rotate_keys[key]
+            self._ensure_rotate_key_timer()
+            return
+        super().keyPressEvent(event)
+
+    def keyReleaseEvent(self, event): #vers 1
+        held = getattr(self, '_rotate_keys_held', None)
+        if held is not None and event.key() in held and not event.isAutoRepeat():
+            del held[event.key()]
+        super().keyReleaseEvent(event)
+
+    def _ensure_rotate_key_timer(self): #vers 1
+        """Start the repeating rotation timer if it isn't already
+        running - stops itself automatically once no rotate keys are
+        held anymore, rather than running an idle timer permanently
+        for every viewport instance regardless of whether it's ever
+        used."""
+        timer = getattr(self, '_rotate_key_timer', None)
+        if timer is None:
+            from PyQt6.QtCore import QTimer
+            timer = self._rotate_key_timer = QTimer(self)
+            timer.timeout.connect(self._on_rotate_key_tick)
+        if not timer.isActive():
+            timer.start(16)   # ~60fps
+
+    def _on_rotate_key_tick(self): #vers 1
+        held = getattr(self, '_rotate_keys_held', None)
+        if not held:
+            timer = getattr(self, '_rotate_key_timer', None)
+            if timer is not None:
+                timer.stop()
+            return
+        sens = getattr(self, '_mouse_sensitivity', 1.0)
+        step = 2.0 * sens
+        for axis, direction in held.values():
+            if axis == 'yaw' and not self._view_locked:
+                self._yaw += step * direction
+            elif axis == 'pitch' and not self._view_locked:
+                self._pitch += step * direction
+        self.update()
+
     # - Model Workshop compatibility methods
     # These map COL3DViewport API onto DFFViewport equivalents
 

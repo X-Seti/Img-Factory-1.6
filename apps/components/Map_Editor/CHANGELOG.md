@@ -3090,3 +3090,45 @@ conclusively found despite extensive isolated testing.
   (64/128/256/512 sent through untouched, 1024/2048 both correctly
   reduced to 256x256). Full `QApplication` instantiation clean,
   `ast.parse` clean on both files.
+
+- **Aug 1, 2026 (cont'd)** — Added keyboard rotation shortcuts, per
+  Keith: "im thinking about adding keyboard shortcuts, arrow keys,
+  and numpad to rotate." Arrow keys and numpad both rotate the
+  camera (numpad detected via `KeypadModifier` specifically, so it
+  doesn't collide with top-row number keys used for anything else -
+  a plain "6" and a numpad "6" are otherwise the same key code in
+  Qt). Continuous rotation while a key is held via a repeating
+  ~60fps `QTimer` (stops itself automatically once no rotate key is
+  still held, rather than idling permanently), matching the smooth
+  feel of right-click-drag rotation rather than one fixed step per
+  press.
+
+  Also investigated the reported mouse button reliability issue
+  ("right click held down rotates just fine, middle mouse doesn't
+  always work, left click to select object doesn't always work") -
+  reviewed the full mouse event chain: object selection turns out to
+  be double-click-only (`_pick_world_instance`, a precise ray/
+  triangle test), and pan/rotate share an `elif` chain with `_view_
+  locked` checked only on the rotate branch. Neither directly
+  explains the specific "middle sometimes, right always" asymmetry
+  Keith described, and couldn't rule out an OS/window-manager-level
+  cause (e.g. middle-click-paste, a common X11 convention) without
+  being able to reproduce interactively. Logged to TODO.md with what
+  was and wasn't found, plus a diagnostic suggestion (checking
+  whether the same flakiness shows up in a different app's own
+  middle-click handling). The new keyboard shortcuts give a reliable
+  alternative for rotation specifically regardless of the mouse
+  issue's actual cause.
+
+  Logged game controller/thumbstick support to TODO.md as a real,
+  separate feature - Qt has no built-in gamepad API, would need
+  QtGamepad or a third-party library (availability unchecked), and a
+  polling loop reusing the same QTimer pattern the keyboard shortcuts
+  just established. Not started, scoped for later prioritization.
+
+  Verified: holding and releasing a rotate key correctly tracks/
+  untracks it and starts/stops the timer; continuous rotation while
+  held confirmed changing yaw across simulated ticks; numpad vs
+  top-row key distinction confirmed correct in both directions (a
+  plain "6" is not treated as a rotate key, a numpad "6" is). Full
+  `ast.parse` clean.

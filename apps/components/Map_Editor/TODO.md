@@ -313,3 +313,53 @@ rushing three decoders through in one turn. Same approach (reshape/
 transpose/crop instead of a fancy-index scatter, which profiling
 showed was actually slower than the original loop) should apply
 directly to both.
+
+## Mouse button reliability + game controller support (Aug 1 2026)
+
+Per Keith: "right click held down rotates just fine, middle mouse
+doesn't always work, left click to select object doesn't always work,
+im thinking about adding keyboard shortcuts, arrow keys, and numpad
+to rotate, but why stop there, we could use the thumbsticks on a
+games controller."
+
+- [DONE] Keyboard rotation (arrow keys + numpad, KeypadModifier-
+  detected so numpad doesn't collide with top-row number keys
+  elsewhere) - continuous rotation while held via a repeating QTimer,
+  matching the feel of right-click-drag. Gives a reliable alternative
+  to whatever's causing the mouse issues below, regardless of root
+  cause.
+
+- NOT fixed - mouse button reliability itself: reviewed DFFViewport's
+  mouseMoveEvent/mousePressEvent/mouseReleaseEvent in full. Object
+  selection is double-click-only (_pick_world_instance, a Möller-
+  Trumbore ray/triangle test against every visible instance's
+  geometry) - Keith describing this as "left click" suggests either a
+  UX mismatch (expecting single-click to also work) or that double-
+  click itself is what's landing inconsistently; the ray-pick logic
+  itself wasn't found to have an obvious bug on inspection, though a
+  precise ray needing to land exactly on a triangle is inherently
+  less forgiving than a "click near an object" selection would be.
+  Middle-click pan and right-click rotate use an `elif` chain in
+  mouseMoveEvent (only one can process per move event) and `_view_
+  locked` is checked for rotate but not pan - neither found to
+  directly explain "middle sometimes doesn't work, right always
+  does" though. Genuinely couldn't rule out an OS/window-manager/
+  driver-level cause (e.g. middle-click-paste being a common X11
+  convention that could intercept the button before this app ever
+  sees it) without being able to reproduce interactively - worth
+  Keith checking whether the same flakiness happens in a completely
+  different app's own middle-click handling, to help separate "this
+  app's bug" from "system-level middle-click behavior."
+
+- NOT started - game controller/thumbstick support. Real feature, not
+  a quick add: Qt itself has no built-in gamepad API (would need
+  QtGamepad specifically, a separate PyQt6 package not currently a
+  dependency - needs checking whether it's actually available/
+  installable in Keith's environment) or a third-party library like
+  pygame's joystick module or inputs/evdev directly. Also needs a
+  polling loop (gamepad state isn't event-driven the way keyboard/
+  mouse are) - would reuse the same QTimer-driven continuous-rotation
+  pattern the new keyboard shortcuts just established, reading stick
+  axis values each tick instead of a fixed per-tick step. Scoping
+  this out until the mouse/keyboard side is confirmed solid and
+  Keith wants to prioritize it specifically.
