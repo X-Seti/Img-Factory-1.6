@@ -93,6 +93,7 @@ Standalone tools import from their own methods/dff_viewport.py.
 
 import math
 import struct
+import numpy as np
 from typing import Dict, List, Optional
 
 from PyQt6.QtCore import Qt, QPoint
@@ -956,6 +957,32 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             rgba = tex.get('rgba_data', b'')
             w    = tex.get('width', 0); h = tex.get('height', 0)
             if not (name and rgba and w > 0 and h > 0): continue
+            # Skip re-uploading an already-loaded texture (Aug 1 2026,
+            # per Keith: "loading textures using alot of memory",
+            # plus a real crash at glTexImage2D) - this previously
+            # created a brand new GL texture object unconditionally on
+            # every single call, even for a name already in self.
+            # _tex_ids, silently orphaning the old GL texture ID's
+            # VRAM (self._tex_ids[name] = gl_id just overwrites the
+            # dict entry, never calling glDeleteTextures on what it
+            # replaced) - a genuine, severe leak. Most damaging under
+            # LOD Test mode specifically, where _refresh_world_view
+            # (and therefore this method, with additive=True) reruns
+            # on every single mouse move, re-uploading the same
+            # already-loaded textures repeatedly and leaking a fresh
+            # copy of each one's VRAM every time, until the driver
+            # eventually fails to allocate more and crashes exactly
+            # where Keith's traceback shows. A texture's pixel data
+            # for a given name doesn't change between calls, so
+            # there's nothing to gain from re-uploading it - name is
+            # a stable, sufficient cache key here.
+            if name in self._tex_ids:
+                continue
+            if getattr(self, '_texture_downscale_enabled', False):
+                threshold = getattr(self, '_texture_downscale_threshold', 512)
+                if w > threshold or h > threshold:
+                    target = getattr(self, '_texture_downscale_target', 256)
+                    rgba, w, h = self._downscale_rgba(rgba, w, h, target)
             wrap_u = tex.get('wrap_u', 1)
             wrap_v = tex.get('wrap_v', 1)
             gl_wrap_s = self._rw_wrap_to_gl(wrap_u)
@@ -987,6 +1014,51 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._pending_textures = []
         self._upload_textures(pending, additive=True)
         self.update()
+
+    def set_texture_downscale_settings(self, enabled, threshold=512, target=256): #vers 1
+        """Configure texture downscaling - per Keith: "loading
+        textures using alot of memory, so im thinking about a texture
+        reduction option, keep 64. 128, 256 untouched but render down
+        to 256x256 anything over 512x512." Stored as instance
+        attributes rather than threaded through every call, since
+        _upload_textures is the single central place all texture
+        uploads go through regardless of caller (the world-view
+        pipeline, _flush_pending_textures, and any other direct
+        caller) - setting it once here covers all of them."""
+        self._texture_downscale_enabled = enabled
+        self._texture_downscale_threshold = threshold
+        self._texture_downscale_target = target
+
+    def _downscale_rgba(self, rgba, w, h, target): #vers 1
+        """Downsample RGBA8888 pixel data to target x target using
+        numpy - per Keith's texture reduction request (see set_
+        texture_downscale_settings). Block-averaging for the clean-
+        multiple case (w and h both evenly divisible by target - true
+        for every size Keith actually mentioned: 512/256=2,
+        1024/256=4, 2048/256=8, all clean integer ratios for power-of-
+        2 game textures), which gives noticeably better quality than
+        nearest-neighbor since it blends each output pixel from its
+        whole source block rather than picking one sample and
+        discarding the rest. Falls back to simple nearest-neighbor
+        index sampling for any size that doesn't divide evenly (rare
+        for game textures, but not impossible) - always produces a
+        valid target x target result either way, never raises for a
+        mismatched size. Returns (new_rgba_bytes, target, target)."""
+        arr = np.frombuffer(rgba, dtype=np.uint8)
+        expected = w * h * 4
+        if arr.size != expected:
+            arr = np.resize(arr, expected)   # defensive - malformed input shouldn't crash the upload
+        arr = arr.reshape(h, w, 4)
+        if w % target == 0 and h % target == 0:
+            block_w = w // target
+            block_h = h // target
+            arr = arr.reshape(target, block_h, target, block_w, 4)
+            downsampled = arr.mean(axis=(1, 3)).astype(np.uint8)
+        else:
+            row_idx = (np.arange(target) * h // target)
+            col_idx = (np.arange(target) * w // target)
+            downsampled = arr[row_idx][:, col_idx]
+        return downsampled.tobytes(), target, target
 
     def clear_textures(self): #vers 2
         if OPENGL_AVAILABLE and self._tex_ids:

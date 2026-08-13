@@ -3039,3 +3039,54 @@ conclusively found despite extensive isolated testing.
   Verified: both handlers now correctly call `repaint()` once per
   mode change. Full `QApplication` instantiation clean, `ast.parse`
   clean.
+
+- **Aug 1, 2026 (cont'd)** — Three things from Keith's latest report:
+
+  **Status never returning to "Ready"** - per Keith: "Once map
+  workshop has loaded all the models, it should say ready, othereise
+  loading models still shows throughout the session." Nothing
+  previously reset the status bar after the last "Loading model:
+  X..." message from `_refresh_world_view`'s conversion loop -
+  added a final "Ready" status once that method genuinely completes.
+
+  **The real crash** (`glTexImage2D` failing, `RuntimeError` in
+  Keith's traceback via the LOD Test mouse-move callback) - found a
+  genuine, severe GPU memory leak in `_upload_textures`: it
+  unconditionally created a brand new GL texture object on *every*
+  call, even for a texture name already uploaded, silently orphaning
+  the old GL texture ID's VRAM (`self._tex_ids[name] = gl_id` just
+  overwrote the dict entry, never calling `glDeleteTextures` on what
+  it replaced). Harmless for a single load, catastrophic under LOD
+  Test mode specifically - `_refresh_world_view` reruns on *every*
+  mouse move while that's active, re-uploading the same already-
+  loaded textures repeatedly and leaking a fresh copy of each one's
+  VRAM every time, until the driver eventually failed to allocate
+  more - exactly Keith's crash. Fixed by skipping re-upload entirely
+  for a name already in `self._tex_ids` (a texture's pixel data for a
+  given name doesn't change between calls, so there's nothing to gain
+  from re-uploading it). Verified directly: 50 repeated upload calls
+  for the same texture (simulating LOD Test's mouse-move-triggered
+  reruns) now correctly produce exactly 1 GL texture, not 51.
+
+  **Texture downscale option** - per Keith: "im thinking about a
+  texture reduction option, keep 64. 128, 256 untouched but render
+  down to 256x256 anything over 512x512." Added "Reduce Large
+  Textures (256x256)" to the Advanced menu (off by default), with
+  configurable threshold/target settings (defaults matching Keith's
+  own numbers). Implemented `DFFViewport._downscale_rgba` - numpy
+  block-averaging for the clean-multiple case (every size Keith
+  actually mentioned divides evenly: 512/256=2, 1024/256=4,
+  2048/256=8), giving meaningfully better quality than nearest-
+  neighbor since each output pixel blends its whole source block
+  rather than discarding samples; falls back to simple nearest-
+  neighbor index sampling for any size that doesn't divide evenly.
+  Applied right before `glTexImage2D` in `_upload_textures`, so it
+  covers every texture upload regardless of caller.
+
+  Verified extensively: the block-average math directly checked
+  against a hand-built 4-color test image (each output pixel
+  correctly matches its source block's color exactly); the full
+  threshold logic checked against Keith's exact six-size spec
+  (64/128/256/512 sent through untouched, 1024/2048 both correctly
+  reduced to 256x256). Full `QApplication` instantiation clean,
+  `ast.parse` clean on both files.

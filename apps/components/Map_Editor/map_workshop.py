@@ -3106,6 +3106,18 @@ class MapSettings:
         # per instance, across the text IPL and each of its streams
         # in turn.
         'show_verbose_loading_dialog': False,
+        # Texture downscale (Aug 1 2026, per Keith: "loading textures
+        # using alot of memory, so im thinking about a texture
+        # reduction option, keep 64. 128, 256 untouched but render
+        # down to 256x256 anything over 512x512") - reduces GPU
+        # memory usage for maps with many large textures. Off by
+        # default since it's a quality/memory tradeoff Keith should
+        # opt into, not something forced on. Threshold and target size
+        # both configurable rather than hardcoded, though his own
+        # numbers are the defaults.
+        'texture_downscale_enabled': False,
+        'texture_downscale_threshold': 512,
+        'texture_downscale_target': 256,
         'default_width':     320,
         'default_height':    200,
         'retro_palette':     'Amiga AGA WB',
@@ -10647,6 +10659,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         from PyQt6.QtWidgets import QStackedWidget
         self.preview_widget = DFFViewport()
         self.preview_widget._workshop_ref = self
+        if hasattr(self.preview_widget, 'set_texture_downscale_settings'):
+            self.preview_widget.set_texture_downscale_settings(
+                self.map_settings.get('texture_downscale_enabled'),
+                self.map_settings.get('texture_downscale_threshold'),
+                self.map_settings.get('texture_downscale_target'))
         self._viewport_stack = QStackedWidget()
         self._viewport_stack.addWidget(self.preview_widget)   # index 0: single view
         inner_mw.setCentralWidget(self._viewport_stack)
@@ -20504,6 +20521,22 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "each of its associated binary streams in turn.")
         verbose_loading_act.toggled.connect(self._on_verbose_loading_setting_toggled)
 
+        # Texture downscale (Aug 1 2026, per Keith: "loading textures
+        # using alot of memory, so im thinking about a texture
+        # reduction option, keep 64. 128, 256 untouched but render
+        # down to 256x256 anything over 512x512") - see MapSettings.
+        # DEFAULTS for the full explanation.
+        downscale_act = advanced_menu.addAction("Reduce Large Textures (256x256)")
+        downscale_act.setCheckable(True)
+        downscale_act.setChecked(self.map_settings.get('texture_downscale_enabled'))
+        downscale_act.setToolTip(
+            "Reduce any texture larger than 512x512 down to 256x256\n"
+            "before uploading it to the GPU - saves significant VRAM\n"
+            "on maps with many large textures, at a quality cost for\n"
+            "those specific textures. Textures at 256x256 or smaller\n"
+            "are never touched.")
+        downscale_act.toggled.connect(self._on_texture_downscale_setting_toggled)
+
         advanced_btn.setMenu(advanced_menu)
         advanced_btn.setToolTip("Less-common/diagnostic actions")
         opts_row.addWidget(advanced_btn)
@@ -20944,6 +20977,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _on_verbose_loading_setting_toggled(self, checked): #vers 1
         self.map_settings.set('show_verbose_loading_dialog', checked)
         self.map_settings.save()
+
+    def _on_texture_downscale_setting_toggled(self, checked): #vers 1
+        self.map_settings.set('texture_downscale_enabled', checked)
+        self.map_settings.save()
+        vp = getattr(self, 'preview_widget', None)
+        if vp is not None and hasattr(vp, 'set_texture_downscale_settings'):
+            vp.set_texture_downscale_settings(
+                checked,
+                self.map_settings.get('texture_downscale_threshold'),
+                self.map_settings.get('texture_downscale_target'))
 
 
     def _create_ipl_inst_file_panel(self): #vers 3
@@ -23063,6 +23106,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._world_render_mode_set = True
         vp.set_world_instances(entries, auto_fit=auto_fit, clear_display_lists=clear_display_lists)
         self._populate_models_panel_from_ipl(instances)
+        # Per Keith: "Once map workshop has loaded all the models, it
+        # should say ready, othereise loading models still shows
+        # throughout the session" - nothing previously reset the
+        # status bar after the last "Loading model: X..." message
+        # from the loop above, leaving it stuck there for the rest of
+        # the session even once loading had genuinely finished.
+        self._set_status("Ready")
 
     def _populate_models_panel_from_ipl(self, instances): #vers 1
         """List every distinct model referenced by the currently
