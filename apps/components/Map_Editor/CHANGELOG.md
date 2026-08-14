@@ -3648,3 +3648,21 @@ conclusively found despite extensive isolated testing.
   `get_col_paths`/`get_collision`/`is_col_indexed` methods directly
   (no crash, correct empty-state output) - not yet tested against
   Keith's real data.
+
+- **Aug 14, 2026 (cont'd)** — Fixed a real crash Keith hit
+  immediately on launch: `TypeError: 'bool' object is not callable`
+  in `_on_col_render_option_toggled`. `col_specs` was passing the
+  FLAG name ("show_col_ghosted") instead of the SETTER name
+  ("set_show_col_ghosted") - `hasattr` still passed (the flag
+  attribute genuinely exists on `DFFViewport`), so it silently got
+  through the guard and then tried to call the bool's current value
+  as a function. Fixed `col_specs` to use the real
+  `set_show_col_ghosted`/`set_show_col_surface_mapped`/
+  `set_show_col_semi_solid`/`set_show_col_wireframe` setter names,
+  and hardened the handler itself to use `callable()` instead of
+  `hasattr()` so this exact class of mistake (attribute exists but
+  isn't the callable you meant) fails safely instead of reaching a
+  call at all. Smoke-tested the fixed and old-broken code paths
+  directly (no Qt/OpenGL needed) - confirmed the setter call now
+  works and the old bug pattern is now safely rejected rather than
+  crashing.

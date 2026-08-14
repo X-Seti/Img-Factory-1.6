@@ -21040,13 +21040,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # overlay on top of the model, never replacing it - see
         # DFFViewport._draw_collision_faces.
         col_specs = [
-            ('ghosted',        "Show Ghosted Col",        "show_col_ghosted",
+            ('ghosted',        "Show Ghosted Col",        "set_show_col_ghosted",
              "Overlay collision geometry as a low-opacity ghost"),
-            ('surface_mapped', "Show Surface Mapped Col",  "show_col_surface_mapped",
+            ('surface_mapped', "Show Surface Mapped Col",  "set_show_col_surface_mapped",
              "Overlay collision geometry coloured by surface/material type"),
-            ('semi_solid',     "Show Semi-Solid Col",      "show_col_semi_solid",
+            ('semi_solid',     "Show Semi-Solid Col",      "set_show_col_semi_solid",
              "Overlay collision geometry at higher opacity than Ghosted"),
-            ('wireframe',      "Show Wireframe Col",       "show_col_wireframe",
+            ('wireframe',      "Show Wireframe Col",       "set_show_col_wireframe",
              "Overlay collision geometry as edges only"),
         ]
         for mode, label_text, setter_name, tooltip in col_specs:
@@ -21347,7 +21347,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # same table an LOD-mode change already does.
         self._refresh_ipl_inst_file_panel()
 
-    def _on_col_render_option_toggled(self, setter_name, checked): #vers 2
+    def _on_col_render_option_toggled(self, setter_name, checked): #vers 3
         """One of the four collision overlay actions in the Render:
         dropdown menu was toggled (Aug 14 2026, moved here from four
         separate row-3 checkboxes per Keith: "the 4 col options should
@@ -21356,10 +21356,21 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         one shared handler instead of four near-identical ones, since
         the only real difference between them is which flag gets set.
         vp.repaint() forced immediately, same reasoning as
-        _set_world_render_mode."""
+        _set_world_render_mode.
+
+        Real crash fixed here (Aug 14 2026, Keith's traceback):
+        col_specs originally passed the FLAG name ("show_col_ghosted")
+        instead of the SETTER name ("set_show_col_ghosted") - hasattr
+        was still True (the flag attribute genuinely exists on
+        DFFViewport), so it silently passed the guard below and then
+        tried to call the bool flag's current value as a function -
+        "'bool' object is not callable". callable() (not hasattr)
+        below so the same class of mistake fails loudly/silently-
+        skips instead of reaching a call at all."""
         vp = getattr(self, 'preview_widget', None)
-        if vp is not None and hasattr(vp, setter_name):
-            getattr(vp, setter_name)(checked)
+        setter = getattr(vp, setter_name, None) if vp is not None else None
+        if callable(setter):
+            setter(checked)
             vp.repaint()
 
     def _on_load_generic_txd_clicked(self): #vers 3
