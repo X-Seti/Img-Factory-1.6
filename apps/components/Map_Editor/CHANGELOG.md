@@ -3602,3 +3602,49 @@ conclusively found despite extensive isolated testing.
   `_on_col_render_option_toggled`. Row 3 in IPL Controls reverts to
   reserved-for-future (Paths/Zones visibility), as it was before this
   feature existed. `ast.parse` clean.
+
+- **Aug 14, 2026 (cont'd)** — Fixed collision indexing only ever
+  finding 1 file, per Keith: "in SA it should be reading them from
+  the gta3.img... In VC, they can also be found in the gta3.img file,
+  just like the models, or linked in gta_vc.dat paths to cols with
+  the map files, in gta3, there in the map files only paths to map/".
+  The previous approach (blind-glob every *.col under the game root)
+  was wrong for all three games - it happened to find whatever loose
+  .col Keith's SA folder had lying around, but missed the real source
+  entirely.
+
+  Real per-game picture, now handled correctly:
+  - SA: ALL collision lives inside gta3.img (no COLFILE directives in
+    gta.dat at all) - `ModelCache.index_img_files` now also indexes
+    .col entries the same lightweight way as .dff/.txd (one model per
+    entry, named like the model).
+  - VC: per-object collision is ALSO in gta3.img (same indexing as
+    SA), plus a handful of shared collision (e.g. generic.col) still
+    reached via COLFILE directives in gta_vc.dat.
+  - GTA3: collision is ONLY reachable via COLFILE directives (paths
+    into data/maps/) - never in the IMG at all.
+
+  `GTAWorldLoader` gained `get_col_paths()` (mirrors the existing
+  `get_img_paths()` exactly - COLFILE entries were already being
+  logged for the DAT Browser, just not exposed as their own
+  accessor). `_refresh_world_view` now calls `loader.get_col_paths()`
+  instead of glob-scanning the game root, so standalone collision
+  indexing actually reflects what the loaded .dat(s) really
+  reference, not whatever unrelated .col files a folder happens to
+  contain. `ModelCache.get_collision` checks the IMG-embedded index
+  first, falls back to the standalone-file index.
+
+  Also fixed a real bug caught before it shipped: `COLFile.
+  get_model_by_name` compares `model.name`, but `COLModel` has no
+  such attribute (only `model.header.name`) - would have raised on
+  every single lookup, silently swallowed by the surrounding
+  try/except, making every IMG-embedded collision lookup fail
+  invisibly. Matches by `header.name` directly instead now, falling
+  back to the entry's first model when no name matches.
+
+  `ast.parse` clean on all three changed files (`model_cache.py`,
+  `gta_dat_parser.py`, `map_workshop.py`); also smoke-tested
+  `ModelCache()`/`GTAWorldLoader()` instantiation and the new
+  `get_col_paths`/`get_collision`/`is_col_indexed` methods directly
+  (no crash, correct empty-state output) - not yet tested against
+  Keith's real data.

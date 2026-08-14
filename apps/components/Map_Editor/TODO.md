@@ -513,14 +513,11 @@ zones actually reference needs research), not just parsing.
 
 ## Collision rendering follow-ups (Aug 14 2026)
 
-Ghosted/Semi-Solid/Wireframe/Surface Mapped Col overlays are in, but:
+Ghosted/Semi-Solid/Wireframe/Surface Mapped Col overlays are in, both
+IMG-embedded (SA/VC) and COLFILE-directive standalone (GTA3/VC) COL
+sources are now indexed - but:
 - Only COL mesh (vertices/faces) is drawn - spheres and boxes
   (COLSphere/COLBox) aren't rendered at all yet.
-- COL indexing only scans standalone .col files under the game root
-  (recursive glob) - .col entries embedded directly inside IMG
-  archives aren't indexed. Shouldn't matter for a typical SA install
-  (collision is loose files there) but worth knowing if a model's
-  collision doesn't show up on Keith's real data.
 - Not yet verified against Keith's real data at all - needs his
   confirmation that collision actually loads/draws correctly once he
-  tests it.
+  tests it, for all three games (SA/VC/GTA3).

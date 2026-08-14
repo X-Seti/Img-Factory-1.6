@@ -19689,20 +19689,29 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         model_cache.index_img_files(loader.get_img_paths())
 
         # Standalone .col indexing (Aug 14 2026, for the IPL Controls
-        # collision render options) - real GTA collision mostly lives
-        # in loose .col files under the game root (models/coll/*.col
-        # and similar), not inside the IMG archives index_img_files
-        # just scanned - same reasoning as the existing standalone-TXD
-        # game_root search this file already does elsewhere. A model
-        # with no matching collision found here just draws nothing for
-        # any of the collision overlay toggles - not treated as an
-        # error (see ModelCache.get_collision's own docstring).
-        game_root = getattr(self, '_game_root', None)
-        if game_root:
-            import glob
+        # collision render options) - per Keith: "Shows 1 col file; in
+        # SA it should be reading them from the gta3.img... In VC,
+        # they can also be found in the gta3.img file, just like the
+        # models, or linked in gta_vc.dat paths to cols with the map
+        # files, in gta3, there in the map files only paths to map/".
+        # index_img_files above now also indexes .col entries directly
+        # from the IMG archives (SA's only source, VC's main source) -
+        # this call covers the other half: standalone files reached
+        # via COLFILE directives in the .dat (GTA3's ONLY source, VC's
+        # shared/common collision e.g. generic.col, SA has none of
+        # these - see GTAWorldLoader.get_col_paths). Reading the
+        # .dat's own parsed directives instead of blind-globbing the
+        # game root for *.col - matches how every other asset path in
+        # this pipeline is already resolved, and won't pick up
+        # unrelated loose .col files a mod folder happens to contain.
+        # A model with no matching collision from either source just
+        # draws nothing for any of the collision overlay toggles - not
+        # treated as an error (see ModelCache.get_collision's own
+        # docstring).
+        col_paths = loader.get_col_paths()
+        if col_paths:
             self._set_status("Indexing COL files...")
             QApplication.processEvents()
-            col_paths = glob.glob(os.path.join(game_root, '**', '*.col'), recursive=True)
             model_cache.index_col_files(col_paths)
         # A genuine new world load - the same model_name could now
         # refer to entirely different geometry (a different game/DAT

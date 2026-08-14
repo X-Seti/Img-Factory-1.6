@@ -1570,6 +1570,28 @@ class GTAWorldLoader: #vers 3
                 paths.append(abs_path)
         return paths
 
+    def get_col_paths(self) -> List[str]: #vers 1
+        """Every standalone collision file path from COLFILE
+        directives in the loaded .dat(s), that actually exists on
+        disk - same accessor pattern as get_img_paths, reading the
+        same load_log (COLFILE entries are already appended there in
+        _process_dat, "so DAT Browser tree can display and open
+        them"). Aug 14 2026, per Keith: in GTA3 collision is ONLY
+        reachable this way (no COL entries in the IMG at all - the
+        .dat's COLFILE paths point into data/maps/); in VC most
+        per-object collision is in gta3.img like the models, but a
+        handful of shared collision (e.g. generic.col) is still
+        COLFILE-referenced; SA has zero COLFILE directives (all
+        collision lives in the IMG, indexed by ModelCache.
+        index_img_files instead - see its own docstring)."""
+        seen = set()
+        paths = []
+        for phase, entry_type, abs_path, exists in self.load_log:
+            if entry_type == "COLFILE" and exists and abs_path not in seen:
+                seen.add(abs_path)
+                paths.append(abs_path)
+        return paths
+
     def get_2dfx_for_model(self, model_id: int) -> List[IDEObject]:
         """2DFX effects (lights, particles, etc) attached to a model,
         matched by model_id - see effects_2dfx for why these are kept

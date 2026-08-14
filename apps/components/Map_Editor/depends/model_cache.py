@@ -18,6 +18,7 @@ from apps.methods.dff_parser import DFFParser, detect_dff
 from apps.methods.txd_parser import parse_txd
 from apps.methods.dff_classes import DFFModel
 from apps.components.Model_Editor.depends.col_workshop_classes import COLModel
+from apps.components.Model_Editor.depends.col_workshop_loader import COLFile
 
 
 class ModelCache:
@@ -33,17 +34,31 @@ class ModelCache:
         # get_geometry/get_textures for how duplicates get resolved.
         self._dff_index: Dict[str, List[Tuple[str, object]]] = {}
         self._txd_index: Dict[str, List[Tuple[str, object]]] = {}
+        # lowercase entry stem -> [(img_path, IMGEntry), ...] for .col
+        # entries found directly inside the game's own IMG archives
+        # (Aug 14 2026, per Keith: "In SA it should be reading them
+        # from the gta3.img... In VC, they can also be found in the
+        # gta3.img file, just like the models") - same lightweight
+        # container-name indexing as _dff_index/_txd_index (SA/VC
+        # collision entries are named to match their model, one model
+        # per .col entry, unlike the multi-model standalone archives
+        # _col_index below is for). Checked first by get_collision.
+        self._col_img_index: Dict[str, List[Tuple[str, object]]] = {}
         # lowercase model name -> [(col_file_path, model_index_in_file), ...]
-        # (Aug 14 2026) Keyed differently to _dff_index/_txd_index on
-        # purpose: DFF/TXD are indexed by their IMG entry name (the
-        # container itself IS the named asset). Real COL archives are
-        # multi-model (e.g. generic.col holds many separately-named
-        # collision models) - the container filename is meaningless
-        # for lookup, only each model's own header.name inside the
-        # file matches an instance's model_name. So this indexes by
-        # content, not container - built from standalone .col files
-        # found under the game root (see index_col_files), not from
-        # the IMG archives index_img_files scans.
+        # (Aug 14 2026) For standalone .col files reached via COLFILE
+        # directives in the .dat (GTAWorldLoader.get_col_paths) - per
+        # Keith: GTA3 collision is ONLY reachable this way (no COL in
+        # the IMG at all, paths point into data/maps/), VC also has a
+        # handful of shared collision this way (e.g. generic.col)
+        # alongside its IMG-embedded per-object collision, SA has none
+        # of these (zero COLFILE directives - see get_col_paths).
+        # Keyed differently to _col_img_index on purpose: these
+        # standalone files are genuinely multi-model (e.g. generic.col
+        # holds many separately-named collision models) - the
+        # container filename is meaningless for lookup, only each
+        # model's own header.name inside the file matches an
+        # instance's model_name, so this indexes by content, built by
+        # actually loading each file (see index_col_files).
         self._col_index: Dict[str, List[Tuple[str, int]]] = {}
         # lowercase model/txd name -> parsed result, or None if loading/
         # parsing failed (cached as None so it's not retried every time)
@@ -82,17 +97,25 @@ class ModelCache:
         # once per texture lookup.
         self._opened_img_files: Dict[str, 'object'] = {}
 
-    def index_img_files(self, img_paths: List[str]): #vers 1
+    def index_img_files(self, img_paths: List[str]): #vers 2
         """Scan a list of IMG archive paths, building name -> (path,
-        entry) indexes for .dff and .txd entries. Call once after a
-        world loads (or its IMG set changes) - reading directory
-        headers only, not entry contents, so this stays fast even for
-        large archives. Safe to call again to re-index (clears
-        previous indexes first)."""
+        entry) indexes for .dff, .txd, and .col entries. Call once
+        after a world loads (or its IMG set changes) - reading
+        directory headers only, not entry contents, so this stays
+        fast even for large archives. Safe to call again to re-index
+        (clears previous indexes first).
+
+        .col entries indexed here (Aug 14 2026) the same lightweight
+        way as .dff/.txd - see _col_img_index's own comment for why
+        that's correct for SA/VC's IMG-embedded collision specifically
+        (one model per entry, named like the model) but not for the
+        genuinely multi-model standalone archives index_col_files
+        handles separately."""
         from apps.methods.img_core_classes import IMGFile
 
         self._dff_index.clear()
         self._txd_index.clear()
+        self._col_img_index.clear()
         self.indexed_img_paths = []
         self.index_errors = []
 
@@ -116,6 +139,8 @@ class ModelCache:
                         self._dff_index.setdefault(stem_lower, []).append((img_path, entry))
                     elif ext_lower == 'txd':
                         self._txd_index.setdefault(stem_lower, []).append((img_path, entry))
+                    elif ext_lower == 'col':
+                        self._col_img_index.setdefault(stem_lower, []).append((img_path, entry))
                 self.indexed_img_paths.append(img_path)
             except Exception as e:
                 self.index_errors.append(f"{img_path}: {e}")
@@ -133,8 +158,6 @@ class ModelCache:
         should only pass files actually worth indexing (e.g. found
         under the game root), not call this speculatively. Safe to
         call again to re-index (clears previous index first)."""
-        from apps.components.Model_Editor.depends.col_workshop_loader import COLFile
-
         self._col_index.clear()
         self._opened_col_files.clear()
         self.indexed_col_paths = []
@@ -161,6 +184,7 @@ class ModelCache:
         entries from a previous world can't leak through."""
         self._dff_index.clear()
         self._txd_index.clear()
+        self._col_img_index.clear()
         self._col_index.clear()
         self._geometry_cache.clear()
         self._texture_cache.clear()
@@ -275,37 +299,75 @@ class ModelCache:
         self._texture_cache[key] = result
         return result
 
-    def get_collision(self, model_name: str) -> Optional[COLModel]: #vers 1
-        """Get the parsed COLModel for a model name, from the
-        standalone-.col index built by index_col_files - loading is
-        already done at index time (see its own docstring for why),
-        this just looks the already-parsed model up and caches the
-        result (None if not indexed/not found), same fallback
-        contract as get_geometry: a model legitimately might have no
-        collision data available, that's not an error to surface."""
+    def get_collision(self, model_name: str) -> Optional[COLModel]: #vers 2
+        """Get the parsed COLModel for a model name. Tries the IMG-
+        embedded index first (Aug 14 2026, per Keith: "In SA it should
+        be reading them from the gta3.img... In VC, they can also be
+        found in the gta3.img file, just like the models") - lazily
+        reads+parses the entry's bytes on first request here (index
+        time only recorded which entry has this name, same as
+        get_geometry does for DFF), picking the model matching
+        model_name if the entry happens to contain more than one, else
+        its first model. Falls back to the standalone-.col index
+        (already fully parsed at index_col_files time) for GTA3's
+        map/-folder collision and VC's shared collision files, which
+        aren't in any IMG at all. Same fallback contract as
+        get_geometry throughout: a model legitimately might have no
+        collision data available from either source, that's not an
+        error to surface."""
         key = model_name.lower()
         if key in self._collision_cache:
             return self._collision_cache[key]
 
         result = None
-        for col_path, model_index in self._col_index.get(key, []):
-            col_file = self._opened_col_files.get(col_path)
-            if col_file is None:
-                continue
+        for img_path, entry in self._col_img_index.get(key, []):
             try:
-                if 0 <= model_index < len(col_file.models):
-                    result = col_file.models[model_index]
+                data = self._read_entry(img_path, entry)
+                if not data:
+                    continue
+                col_file = COLFile()
+                if not col_file.load_from_data(data, name=f"{model_name}.col"):
+                    continue
+                if not col_file.models:
+                    continue
+                # Not col_file.get_model_by_name() (Aug 14 2026) - that
+                # method compares model.name, but COLModel has no such
+                # attribute (it's model.header.name) - would raise on
+                # every call. Match by header.name directly instead,
+                # falling back to the entry's first/only model when no
+                # name matches (the common case for these per-object
+                # IMG entries: exactly one model, whose header.name
+                # doesn't always exactly equal the DFF's model name).
+                result = next(
+                    (m for m in col_file.models
+                     if getattr(m.header, 'name', '').strip().lower() == key),
+                    col_file.models[0])
+                if result is not None:
                     break
             except Exception:
                 continue
+
+        if result is None:
+            for col_path, model_index in self._col_index.get(key, []):
+                col_file = self._opened_col_files.get(col_path)
+                if col_file is None:
+                    continue
+                try:
+                    if 0 <= model_index < len(col_file.models):
+                        result = col_file.models[model_index]
+                        break
+                except Exception:
+                    continue
+
         self._collision_cache[key] = result
         return result
 
-    def is_col_indexed(self, model_name: str) -> bool: #vers 1
-        """True if model_name has collision data available in the
-        indexed .col files - see is_dff_indexed for the same
-        indexed-vs-parsed distinction."""
-        return model_name.lower() in self._col_index
+    def is_col_indexed(self, model_name: str) -> bool: #vers 2
+        """True if model_name has collision data available from
+        either indexed source (IMG-embedded or standalone) - see
+        is_dff_indexed for the same indexed-vs-parsed distinction."""
+        key = model_name.lower()
+        return key in self._col_img_index or key in self._col_index
 
     def _read_entry(self, img_path: str, entry) -> Optional[bytes]:
         """Read one entry's raw bytes from its IMG archive - reuses a
@@ -340,11 +402,12 @@ class ModelCache:
         """Same as is_dff_indexed, for TXD files."""
         return txd_name.lower() in self._txd_index
 
-    def stats(self) -> str: #vers 2
+    def stats(self) -> str: #vers 3
         """One-line human-readable summary, for status bar/log use."""
-        return (f"{len(self._dff_index)} DFF, {len(self._txd_index)} TXD indexed "
+        return (f"{len(self._dff_index)} DFF, {len(self._txd_index)} TXD, "
+               f"{len(self._col_img_index)} COL indexed "
                f"across {len(self.indexed_img_paths)} archive(s), "
-               f"{len(self._col_index)} COL models indexed across "
-               f"{len(self.indexed_col_paths)} file(s); "
+               f"{len(self._col_index)} more COL models indexed across "
+               f"{len(self.indexed_col_paths)} standalone file(s); "
                f"{len(self._geometry_cache)} models, "
                f"{len(self._texture_cache)} TXDs loaded so far")
