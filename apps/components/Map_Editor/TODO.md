@@ -424,3 +424,21 @@ them (e.g. #1's Viewport pan/rotate button settings, Ribbon Manager
 access) into #3, then remove the dead duplicates. Right now anyone
 editing "the settings dialog" without knowing this history has a
 1-in-3 chance of editing something invisible to the actual user.
+
+## Path section parsing done - UI/visualization not started (Aug 1 2026)
+
+`path` section (traffic AI paths, GTA3/VC) now parses correctly - see
+CHANGELOG for the fix. Not yet done, needed to actually be useful:
+- Show path groups/nodes anywhere in the UI (Object Browser tab? a
+  new dedicated panel? overlay in the 3D world view as connected line
+  segments between nodes, similar in spirit to the existing cull box
+  wireframes)
+- Editing (move a node, add/remove a node, change flags)
+- Write-back to the .ipl file (the broader "write-back infrastructure
+  for any file type" TODO item already covers this in principle)
+- pick section support (separate, not yet started)
+- cull zones as editable/renamable/resizable boxes (separate, not yet
+  started - cull.ipl already parses via _parse_cull, but nothing lets
+  Keith actually edit what it parses)
+- IDE tobj/path/2dfx editor for Model Workshop (separate component
+  from Map Workshop, not yet started)

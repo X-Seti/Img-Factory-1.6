@@ -91,8 +91,13 @@ class GTAGame:
     }
 
     IPL_SECTIONS = {
-        "gta3": {"inst", "cull", "pick", "jump", "enex", "cars", "auzo"},
-        "vc":   {"inst", "cull", "pick", "jump", "enex", "cars", "auzo", "zone"},
+        # "path" (Aug 1 2026, per Keith: "we need to address... path
+        # for GTAIII and extended for VC") - GTA3/VC only. SA uses a
+        # completely different, binary, per-area path file format
+        # (not part of the text IPL at all), so it's deliberately
+        # excluded here.
+        "gta3": {"inst", "cull", "pick", "jump", "enex", "cars", "auzo", "path"},
+        "vc":   {"inst", "cull", "pick", "jump", "enex", "cars", "auzo", "zone", "path"},
         "sa":   {"inst", "cull", "pick", "jump", "enex", "cars", "auzo",
                  "zone", "occl", "mult", "grge", "tcyc", "scrn"},
         "sol":  {"inst", "cull", "pick", "jump", "enex", "cars", "auzo",
@@ -147,6 +152,44 @@ class IPLInstance:
     scale_z:     float = 1.0
     source_ipl:  str  = ""
     line_no:     int  = 0
+
+
+@dataclass
+class PathNode: #vers 1
+    """One sub-node within a path group (Aug 1 2026, per Keith: "we
+    need to address... path for GTAIII and extended for VC"). Twelve
+    fields per Project Cerbera's VC path documentation: node_type,
+    next, zero (always 0, unused), x/y/z (already converted from the
+    file's own precision units to standard world units - see
+    IPLParser._parse_path_node for the conversion), median, left,
+    right, flag1-3. x/y/z land in the same coordinate space as inst
+    positions, so a path node's position is directly comparable to
+    (and, e.g., nudge-editable alongside) instance/object positions."""
+    node_type:  int
+    next_id:    int
+    x:          float
+    y:          float
+    z:          float
+    median:     float = 0.0
+    left:       int   = 0
+    right:      int   = 0
+    flag1:      int   = 0
+    flag2:      int   = 0
+    flag3:      int   = 0
+
+
+@dataclass
+class PathGroup: #vers 1
+    """One path group - up to 12 PathNodes sharing a header line (two
+    values, meaning not fully documented publicly; preserved verbatim
+    as header_a/header_b rather than guessed at, since Project Cerbera
+    itself only confirms the group defines the vehicle type the sub-
+    nodes apply to, not what the specific header values mean)."""
+    header_a:   int
+    header_b:   int
+    nodes:      List[PathNode] = field(default_factory=list)
+    source_ipl: str = ""
+    line_no:    int = 0
 
 
 @dataclass
@@ -723,6 +766,7 @@ class IPLParser: #vers 2
         self.instances: List[IPLInstance] = []
         self.zones:     List[Dict]        = []
         self.culls:     List[Dict]        = []
+        self.paths:     List[PathGroup]   = []
         self.stats      = ParseStats()
         self._valid     = GTAGame.IPL_SECTIONS.get(game, GTAGame.IPL_SECTIONS[GTAGame.GTA3])
 
@@ -740,6 +784,7 @@ class IPLParser: #vers 2
         self.stats.total_lines = len(lines)
         current_section        = None
         basename               = os.path.basename(ipl_path)
+        current_path_group     = None   # Aug 1 2026, "path" section state
 
         for lineno, raw in enumerate(lines, 1):
             line = raw.split("#")[0].strip()
@@ -748,9 +793,11 @@ class IPLParser: #vers 2
             low = line.lower()
             if low == "end":
                 current_section = None
+                current_path_group = None
                 continue
             if low in self._valid or (re.match(r'^[a-z0-9_]{2,8}$', low) and "," not in line):
                 current_section = low
+                current_path_group = None
                 continue
             if current_section is None:
                 continue
@@ -768,7 +815,81 @@ class IPLParser: #vers 2
                 c = self._parse_cull(line, lineno)
                 if c:
                     self.culls.append(c)
+            elif current_section == "path":
+                # A raw (pre-.strip()) leading tab or space marks a
+                # sub-node line belonging to the current group; its
+                # absence marks a new group's own header line -
+                # exactly the distinction that .split("#")[0].strip()
+                # above already erased, so check the original raw
+                # text directly rather than the stripped `line`.
+                indented = raw[:1] in ('\t', ' ')
+                if not indented:
+                    current_path_group = self._parse_path_group_header(line, basename, lineno)
+                    if current_path_group is not None:
+                        self.paths.append(current_path_group)
+                elif current_path_group is not None:
+                    node = self._parse_path_node(line, lineno)
+                    if node is not None:
+                        current_path_group.nodes.append(node)
         return True
+
+    def _parse_path_group_header(self, line: str, source: str, lineno: int): #vers 1
+        """A path group's own header line - two comma-separated
+        integers (Aug 1 2026, per Keith's real uploaded paths.ipl:
+        "1, -1" / "0, -1" etc.) preceding up to 12 tab-indented
+        PathNode lines."""
+        try:
+            parts = [p.strip() for p in line.split(",")]
+            if len(parts) < 2:
+                self.stats.warnings.append(f"path group line {lineno}: expected 2 fields, got {len(parts)}")
+                return None
+            return PathGroup(
+                header_a=int(float(parts[0])), header_b=int(float(parts[1])),
+                source_ipl=source, line_no=lineno)
+        except (ValueError, IndexError) as e:
+            self.stats.warnings.append(f"path group line {lineno}: {e}")
+            return None
+
+    def _parse_path_node(self, line: str, lineno: int): #vers 1
+        """One sub-node line within a path group - twelve fields per
+        Project Cerbera's VC path documentation: Type, Next, 0, X, Y,
+        Z, Median, Left, Right, Flag1, Flag2, Flag3.
+
+        X/Y/Z scale conversion (Aug 1 2026, per Keith: "the path
+        coords arent the same scale as the IPL data, this needs to be
+        worked up") - confirmed against his real uploaded paths.ipl:
+        raw coordinates like (-13866.1, -10439.2) are roughly 16x too
+        large to be standard world units (VC's map is roughly -2000 to
+        +2000), and Project Cerbera's own VC path documentation states
+        these are stored in "precision units, which are sixteen times
+        smaller than standard units" - dividing by 16 brings them to
+        (-866.6, -652.5), squarely within VC's normal world bounds.
+        Applied here so a PathNode's x/y/z land in the same coordinate
+        space as everything else (inst positions, etc.), not the
+        file's own internal, differently-scaled units."""
+        try:
+            parts = [p.strip() for p in line.split(",")]
+            if len(parts) < 6:
+                self.stats.warnings.append(f"path node line {lineno}: expected >=6 fields, got {len(parts)}")
+                return None
+            node_type = int(float(parts[0]))
+            next_id   = int(float(parts[1]))
+            # parts[2] is the documented-always-zero, unused field
+            x = float(parts[3]) / 16.0
+            y = float(parts[4]) / 16.0
+            z = float(parts[5]) / 16.0
+            median = float(parts[6]) if len(parts) > 6 else 0.0
+            left   = int(float(parts[7])) if len(parts) > 7 else 0
+            right  = int(float(parts[8])) if len(parts) > 8 else 0
+            flag1  = int(float(parts[9]))  if len(parts) > 9  else 0
+            flag2  = int(float(parts[10])) if len(parts) > 10 else 0
+            flag3  = int(float(parts[11])) if len(parts) > 11 else 0
+            return PathNode(node_type=node_type, next_id=next_id, x=x, y=y, z=z,
+                             median=median, left=left, right=right,
+                             flag1=flag1, flag2=flag2, flag3=flag3)
+        except (ValueError, IndexError) as e:
+            self.stats.warnings.append(f"path node line {lineno}: {e}")
+            return None
 
     def _parse_inst(self, line: str, source: str, lineno: int) -> Optional[IPLInstance]: #vers 2
         try:
@@ -1032,6 +1153,7 @@ class GTAWorldLoader: #vers 3
         # removed from it.
         self.timed_objects: Dict[int, List[IDEObject]] = {}
         self.instances:  List[IPLInstance]    = []
+        self.paths:      List[PathGroup]      = []
         self.zones:      List[Dict]           = []
         self.culls:      List[Dict]           = []
         # (phase, type, abs_path, success)
@@ -1259,6 +1381,7 @@ class GTAWorldLoader: #vers 3
         ok = parser.parse(entry.abs_path)
         self.load_log.append(("on-demand", "IPL", entry.abs_path, ok))
         self.instances += parser.instances
+        self.paths     += parser.paths
         self.zones     += parser.zones
         self.culls     += parser.culls
         self.stats.errors   += parser.stats.errors
@@ -1281,6 +1404,7 @@ class GTAWorldLoader: #vers 3
         ok     = parser.parse(entry.abs_path)
         self.load_log.append((phase, "IPL", entry.abs_path, ok))
         self.instances += parser.instances
+        self.paths     += parser.paths
         self.zones     += parser.zones
         self.culls     += parser.culls
         self.stats.errors   += parser.stats.errors

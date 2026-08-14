@@ -3241,3 +3241,57 @@ conclusively found despite extensive isolated testing.
   `preview_widget` all confirmed correct; the Generic.txd button
   confirmed triggering the real handler. Full `QApplication`
   instantiation clean, `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Implemented `path` section parsing for
+  GTA3/VC, per Keith: "we need to address... path for GTAIII and
+  extended for VC. the path coords arent the same scale as the IPL
+  data, this needs to be worked up." `path` was completely absent
+  from `IPL_SECTIONS` before this - not recognized as a section at
+  all, regardless of scale.
+
+  Added `PathNode` (twelve fields per Project Cerbera's VC path
+  documentation: type, next, x/y/z, median, left, right, flag1-3) and
+  `PathGroup` (up to 12 nodes sharing a header line) dataclasses.
+  Implemented the actual parsing in `IPLParser`: a path group's own
+  header line ("1, -1") has no leading tab, its sub-node lines do -
+  the main parse loop's existing `line = raw.split("#")[0].strip()`
+  already erases that distinction by the time `line` is available, so
+  the new code checks the *raw*, pre-strip text specifically for
+  `path` section lines to tell a new group from a node belonging to
+  the current one.
+
+  Applied the /16 coordinate conversion confirmed last session (VC's
+  text `path` section stores coordinates in units "sixteen times
+  smaller than standard," per Project Cerbera) so a `PathNode`'s x/y/
+  z land in the same coordinate space as everything else (instance
+  positions, etc.), not the file's own differently-scaled internal
+  units.
+
+  Wired `paths` into `GTAWorldLoader` too (both the eager/dat-driven
+  and on-demand/lazy IPL load paths), matching `instances`' own
+  existing accumulation pattern, so parsed path data is actually
+  reachable going forward rather than only living inside a single
+  `IPLParser` instance.
+
+  Verified extensively against Keith's real uploaded `paths.ipl`
+  (1957 path groups, 23,484 total nodes): parse completes with zero
+  errors/warnings; the first node's converted coordinates match the
+  expected /16 calculation exactly `(-866.63125, -652.45,
+  10.0676875)`; the parsed group count (1957) exactly matches the
+  raw file's own group-header line count via independent line-by-line
+  verification; the empty `inst`/`cull`/`pick` sections earlier in
+  the same file correctly produce zero instances rather than
+  interfering; the very last group and node parse correctly too, not
+  just the first. Confirmed accumulating correctly through
+  `GTAWorldLoader._load_ipl` as well, not just the standalone parser.
+
+  Not yet done - see TODO.md: showing path data anywhere in the UI,
+  editing, write-back, and the rest of Keith's broader request (pick
+  support, cull zones as editable boxes, IDE tobj/path/2dfx editor
+  for Model Workshop) are all separate, unstarted pieces.
+
+  Along the way, caught and fixed a mistake in my own edit process -
+  a `str_replace` call accidentally deleted `IPLLoadResult`'s class
+  declaration and part of its docstring; caught immediately via the
+  syntax check that always runs after every edit, fixed before
+  moving on.
