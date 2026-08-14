@@ -3488,3 +3488,25 @@ conclusively found despite extensive isolated testing.
   to appear every time, both settings still save correctly; separately
   confirmed `_pick_background_color` now runs without crashing. Full
   `QApplication` instantiation clean, `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Added a hidden toolbar section to the
+  Ribbon Manager, per Keith: "in ribbon manager i'd like a hidden
+  section where anything placed there cant be seen." A special
+  "Hidden" toolbar is created automatically the first time the Ribbon
+  Manager opens, behaves like any other toolbar there (appears in the
+  toolbar list, actions can be dragged/moved into and out of it via
+  the existing "Move selected to:" mechanism) except it's never
+  actually shown on screen - `setVisible(False)` enforced both on
+  creation and via a `visibilityChanged` safeguard, so nothing (a
+  stray toggle, `QMainWindow`'s own state save/restore round-trip on
+  the next launch, etc.) can make it - or whatever's parked in it -
+  visible again without deliberately moving those actions back out
+  first.
+
+  Verified: toolbar creates correctly and starts invisible; calling
+  the getter again returns the same instance rather than creating
+  duplicates; directly forcing it visible confirmed the safeguard
+  immediately re-hides it; confirmed it shows up correctly in the
+  Ribbon Manager's own toolbar list so actions can actually be moved
+  into it. Full `QApplication` instantiation clean, `ast.parse`
+  clean.

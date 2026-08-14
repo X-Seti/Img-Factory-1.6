@@ -2758,6 +2758,8 @@ class RibbonManagerDialog(QDialog): #vers 1
         self.setWindowTitle("Ribbon Manager")
         self.setMinimumSize(660, 440)
         self._build_ui()
+        if self._ws is not None and hasattr(self._ws, '_get_or_create_hidden_toolbar'):
+            self._ws._get_or_create_hidden_toolbar()
         self._refresh_toolbar_list()
         # Snapshot current state for cancel
         if self._mw:
@@ -11435,6 +11437,37 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         """Open the Ribbon Manager dialog."""
         dlg = RibbonManagerDialog(self, parent=self)
         dlg.exec()
+
+    def _get_or_create_hidden_toolbar(self): #vers 1
+        """Return the special "Hidden" toolbar, creating it if it
+        doesn't exist yet - per Keith: "in ribbon manager i'd like a
+        hidden section where anything placed there cant be seen."
+        Behaves like any other toolbar in the Ribbon Manager (appears
+        in the toolbar list, actions can be dragged/moved into and out
+        of it via the existing "Move selected to:" mechanism) except
+        it's never actually shown - setVisible(False) is enforced both
+        on creation and via a visibilityChanged safeguard, so nothing
+        (a stray toggle, QMainWindow's own saveState()/restoreState()
+        round-trip on the next launch, etc.) can make it - or whatever
+        Keith has parked in it - visible again without deliberately
+        removing it from this toolbar first."""
+        mw = getattr(self, '_inner_mw', None)
+        if mw is None:
+            return None
+        existing = getattr(self, '_hidden_toolbar', None)
+        if existing is not None:
+            return existing
+        from PyQt6.QtWidgets import QToolBar
+        tb = QToolBar("Hidden", mw)
+        tb.setObjectName("Hidden")
+        tb.setMovable(False)
+        tb.setFloatable(False)
+        mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, tb)
+        tb.setVisible(False)
+        tb.visibilityChanged.connect(
+            lambda visible, t=tb: t.setVisible(False) if visible else None)
+        self._hidden_toolbar = tb
+        return tb
 
     def _save_toolbar_state(self): #vers 2
         """Save QMainWindow toolbar state to model_workshop.json."""
