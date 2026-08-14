@@ -521,3 +521,15 @@ sources are now indexed - but:
 - Not yet verified against Keith's real data at all - needs his
   confirmation that collision actually loads/draws correctly once he
   tests it, for all three games (SA/VC/GTA3).
+
+## Dead code found while checking col_workshop surface types (Aug 14 2026)
+
+`apps/components/Col_Editor/depends/col_3d_viewport.py` (IMG Factory
+1.5 era) references `face.vertex_indices` and `vertex.position.x/y/z`
+- the real, shared `COLModel`/`COLFace`/`COLVertex` classes
+(`col_workshop_classes.py`, identical copy in both Col_Editor and
+Model_Editor) use `face.a/b/c` and `vertex.x/y/z` directly instead.
+Would crash if ever run against real data. Confirmed nothing
+currently imports this module (grepped for it project-wide) - not
+affecting anything live, but worth a cleanup/removal pass since it's
+just sitting there broken.
