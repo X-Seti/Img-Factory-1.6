@@ -486,3 +486,27 @@ actual map was loaded, Map Workshop's real primary use case. If a
 genuine "4 world views from different angles" feature is wanted
 later, it would need its own sync logic built around `_world_
 instances` from scratch, not a fix to the existing single-model one.
+
+## IDE tobj/path "add to ipl objects" - scope unclear, need to ask Keith (Aug 1 2026)
+
+Per Keith's IDE section list: "tobj #to be added to ipl objects" and
+"path #to be added to ipl objects" (IDE path, not IPL path - a
+different section, model-related). tobj parsing itself is already
+done (TOBJ time-flow feature, earlier session). Not clear yet exactly
+what "added to ipl objects" means here - possibilities: (a) tobj/
+IDE-path model entries should appear in the same Object Browser
+listing as regular objs entries, currently separate/not shown there,
+(b) something about how tobj-driven instances get included in the
+IPL Inst File table specifically. Needs clarifying with Keith rather
+than guessing at the wrong integration.
+
+## PICK/JUMP/TCYC/AUZO/MULT still stub tabs (Aug 1 2026)
+
+Now have tabs in IPL Controls (disabled, with tooltips) but no real
+parsing/dataclasses - same treatment path/grge/enex got needs doing
+for each once real sample data is available to verify against
+(MULT is documented as unused by the game itself, may not be worth
+building beyond the stub). AUZO specifically per Keith: "show audio
+svg icons, plays the sound file" - real feature, needs its own sound-
+file-playback mechanism (which audio format/path convention SA audio
+zones actually reference needs research), not just parsing.

@@ -3408,3 +3408,51 @@ conclusively found despite extensive isolated testing.
   (icon kept), confirmed disabled/unclickable, tooltip confirmed
   explaining the reason. Full `QApplication` instantiation clean,
   `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Converted IPL Controls' INST/CULL/ZON/
+  PATH buttons into a real tab bar, and added `grge`/`enex` parsing,
+  per Keith: "in IPL Controls we have the labels, made into tabs...
+  but when loading SA maps, there would be more tabs" plus real
+  example `grge`/`enex` data.
+
+  Added `GrgeEntry` (11 fields: X1/Y1/Z1, front X/Y, X2/Y2/Z2, door
+  type, garage type, name) and `EnexEntry` (18 fields: enter X/Y/Z/
+  angle, size X/Y/Z, exit X/Y/Z/angle, target interior, flags, name,
+  sky, num peds, time on/off) dataclasses, cross-verified against
+  established GTA modding documentation (SannyBuilder forums for
+  GRGE, Grand Theft Wiki for ENEX) - both matched Keith's own real
+  example data field-for-field (his `grge` line's garage type 16 =
+  "Save garage," entirely consistent with its name "cjsafe"; all 10
+  of his real `enex` lines parsed with zero errors). Wired into
+  `IPLParser` and `GTAWorldLoader`'s accumulation, matching the
+  `path` pattern from last session.
+
+  Replaced the `QButtonGroup` row with a `QTabBar` covering all 11 SA
+  IPL sections: INST/CULL/ZON/PATH/GRGE/ENEX now enabled (PATH newly
+  enabled too, since last session's work made it real, no longer a
+  stub); PICK/JUMP/TCYC/AUZO/MULT added as disabled stub tabs with
+  explanatory tooltips (AUZO's notes Keith's audio-icon idea
+  specifically) rather than not existing at all - scales to many more
+  sections without the row running out of horizontal space.
+
+  Made the IPL Inst File table's columns dynamic per section instead
+  of permanently fixed at INST's 13-column layout - GRGE shows its
+  own 11 columns, ENEX its own 18, with headers matching each
+  section's real field names.
+
+  Logged two things needing Keith's input/further work to TODO.md:
+  what exactly "tobj/path added to ipl objects" means for the IDE
+  side (a few plausible interpretations, didn't want to guess wrong),
+  and that PICK/JUMP/TCYC/AUZO/MULT still need real parsing once
+  sample data exists to verify against.
+
+  Verified extensively: `_parse_grge`/`_parse_enex` tested directly
+  against Keith's exact real lines; a full test file with all 10 of
+  his real `enex` lines plus the `grge` line parses with zero errors/
+  warnings; confirmed accumulating correctly through `GTAWorldLoader`;
+  tab bar confirmed showing all 11 tabs with correct enabled/disabled
+  states, clicking an enabled tab correctly changes the display type,
+  clicking a disabled tab correctly no-ops; IPL Inst File table
+  confirmed showing the right dynamic headers and data for both GRGE
+  and ENEX end-to-end. Full `QApplication` instantiation clean, `ast.
+  parse` clean on both files.

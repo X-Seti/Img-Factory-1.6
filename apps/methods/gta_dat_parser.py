@@ -193,6 +193,64 @@ class PathGroup: #vers 1
 
 
 @dataclass
+class GrgeEntry: #vers 1
+    """One SA "grge" section entry - a garage (Aug 1 2026, per Keith's
+    real example data: "2502.31, -1699.36, 12.4323, 2508.61, -1699.36,
+    2502.31, -1691.01, 16.5666, 1, 16, cjsafe"). Eleven fields,
+    verified against SannyBuilder forum documentation and Keith's own
+    data (door_type=1, garage_type=16 = "Save garage (Ganton)",
+    name="cjsafe" - all consistent with each other): X1,Y1,Z1 (lower
+    corner), front_x,front_y (front-face corner), X2,Y2,Z2 (upper
+    corner), door_type, garage_type, name."""
+    x1:          float
+    y1:          float
+    z1:          float
+    front_x:     float
+    front_y:     float
+    x2:          float
+    y2:          float
+    z2:          float
+    door_type:   int
+    garage_type: int
+    name:        str
+    source_ipl:  str = ""
+    line_no:     int = 0
+
+
+@dataclass
+class EnexEntry: #vers 1
+    """One SA "enex" section entry - an entrance/exit marker (Aug 1
+    2026, per Keith's real example data: "2309.62, -1643.63, 13.8385,
+    0, 1.6, 1.6, 8, 2308.12, -1643.63, 13.8385, 93, 0, 260, "BAR2", 0,
+    2, 0, 24"). Eighteen fields, verified against Grand Theft Wiki's
+    ENEX documentation and confirmed matching Keith's own data field-
+    for-field: enter_x/y/z (marker position), enter_angle, size_x/y/z
+    (trigger box), exit_x/y/z (where the player ends up), exit_angle,
+    target_interior, flags, name (interior name string, e.g. "BAR2"),
+    sky, num_peds_to_spawn, time_on, time_off."""
+    enter_x:            float
+    enter_y:            float
+    enter_z:            float
+    enter_angle:        float
+    size_x:             float
+    size_y:             float
+    size_z:             float
+    exit_x:             float
+    exit_y:             float
+    exit_z:             float
+    exit_angle:         float
+    target_interior:    int
+    flags:               int
+    name:                 str
+    sky:                  int
+    num_peds_to_spawn:    int
+    time_on:              int
+    time_off:             int
+    source_ipl:           str = ""
+    line_no:              int = 0
+
+
+@dataclass
 class IPLLoadResult:
     """Result of one on-demand IPL load (GTAWorldLoader.load_ipl_by_
     name) - per Keith's request for per-IPL success/error reporting
@@ -767,6 +825,8 @@ class IPLParser: #vers 2
         self.zones:     List[Dict]        = []
         self.culls:     List[Dict]        = []
         self.paths:     List[PathGroup]   = []
+        self.grges:     List[GrgeEntry]   = []
+        self.enexes:    List[EnexEntry]   = []
         self.stats      = ParseStats()
         self._valid     = GTAGame.IPL_SECTIONS.get(game, GTAGame.IPL_SECTIONS[GTAGame.GTA3])
 
@@ -815,6 +875,14 @@ class IPLParser: #vers 2
                 c = self._parse_cull(line, lineno)
                 if c:
                     self.culls.append(c)
+            elif current_section == "grge":
+                g = self._parse_grge(line, basename, lineno)
+                if g is not None:
+                    self.grges.append(g)
+            elif current_section == "enex":
+                e = self._parse_enex(line, basename, lineno)
+                if e is not None:
+                    self.enexes.append(e)
             elif current_section == "path":
                 # A raw (pre-.strip()) leading tab or space marks a
                 # sub-node line belonging to the current group; its
@@ -889,6 +957,53 @@ class IPLParser: #vers 2
                              flag1=flag1, flag2=flag2, flag3=flag3)
         except (ValueError, IndexError) as e:
             self.stats.warnings.append(f"path node line {lineno}: {e}")
+            return None
+
+    def _parse_grge(self, line: str, source: str, lineno: int): #vers 1
+        """One SA "grge" (garage) line - eleven fields, per Keith's
+        real example data and confirmed SannyBuilder forum
+        documentation: X1,Y1,Z1, frontX,frontY, X2,Y2,Z2, DoorType,
+        GarageType, Name."""
+        try:
+            parts = [p.strip() for p in line.split(",")]
+            if len(parts) < 11:
+                self.stats.warnings.append(f"grge line {lineno}: expected 11 fields, got {len(parts)}")
+                return None
+            return GrgeEntry(
+                x1=float(parts[0]), y1=float(parts[1]), z1=float(parts[2]),
+                front_x=float(parts[3]), front_y=float(parts[4]),
+                x2=float(parts[5]), y2=float(parts[6]), z2=float(parts[7]),
+                door_type=int(float(parts[8])), garage_type=int(float(parts[9])),
+                name=parts[10].strip('"'), source_ipl=source, line_no=lineno)
+        except (ValueError, IndexError) as e:
+            self.stats.warnings.append(f"grge line {lineno}: {e}")
+            return None
+
+    def _parse_enex(self, line: str, source: str, lineno: int): #vers 1
+        """One SA "enex" (entrance/exit) line - eighteen fields, per
+        Keith's real example data and confirmed Grand Theft Wiki
+        documentation: X1,Y1,Z1, EnterAngle, SizeX,SizeY,SizeZ,
+        X2,Y2,Z2, ExitAngle, TargetInterior, Flags, Name, Sky,
+        NumPedsToSpawn, TimeOn, TimeOff. Name arrives as a literal
+        quoted string (e.g. "BAR2") - quotes stripped for storage."""
+        try:
+            parts = [p.strip() for p in line.split(",")]
+            if len(parts) < 18:
+                self.stats.warnings.append(f"enex line {lineno}: expected 18 fields, got {len(parts)}")
+                return None
+            return EnexEntry(
+                enter_x=float(parts[0]), enter_y=float(parts[1]), enter_z=float(parts[2]),
+                enter_angle=float(parts[3]),
+                size_x=float(parts[4]), size_y=float(parts[5]), size_z=float(parts[6]),
+                exit_x=float(parts[7]), exit_y=float(parts[8]), exit_z=float(parts[9]),
+                exit_angle=float(parts[10]),
+                target_interior=int(float(parts[11])), flags=int(float(parts[12])),
+                name=parts[13].strip('"'),
+                sky=int(float(parts[14])), num_peds_to_spawn=int(float(parts[15])),
+                time_on=int(float(parts[16])), time_off=int(float(parts[17])),
+                source_ipl=source, line_no=lineno)
+        except (ValueError, IndexError) as e:
+            self.stats.warnings.append(f"enex line {lineno}: {e}")
             return None
 
     def _parse_inst(self, line: str, source: str, lineno: int) -> Optional[IPLInstance]: #vers 2
@@ -1154,6 +1269,8 @@ class GTAWorldLoader: #vers 3
         self.timed_objects: Dict[int, List[IDEObject]] = {}
         self.instances:  List[IPLInstance]    = []
         self.paths:      List[PathGroup]      = []
+        self.grges:      List[GrgeEntry]       = []
+        self.enexes:     List[EnexEntry]       = []
         self.zones:      List[Dict]           = []
         self.culls:      List[Dict]           = []
         # (phase, type, abs_path, success)
@@ -1382,6 +1499,8 @@ class GTAWorldLoader: #vers 3
         self.load_log.append(("on-demand", "IPL", entry.abs_path, ok))
         self.instances += parser.instances
         self.paths     += parser.paths
+        self.grges     += parser.grges
+        self.enexes    += parser.enexes
         self.zones     += parser.zones
         self.culls     += parser.culls
         self.stats.errors   += parser.stats.errors
@@ -1405,6 +1524,8 @@ class GTAWorldLoader: #vers 3
         self.load_log.append((phase, "IPL", entry.abs_path, ok))
         self.instances += parser.instances
         self.paths     += parser.paths
+        self.grges     += parser.grges
+        self.enexes    += parser.enexes
         self.zones     += parser.zones
         self.culls     += parser.culls
         self.stats.errors   += parser.stats.errors

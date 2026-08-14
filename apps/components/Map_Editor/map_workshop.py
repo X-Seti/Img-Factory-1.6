@@ -20650,13 +20650,25 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._on_ipl_section_cell_clicked(row, 0)
 
     def _on_ipl_data_type_changed(self, data_type): #vers 1
-        """INST/CULL/ZONE/PATH radio changed - updates which kind of
-        data the IPL Inst File panel shows for the currently selected
-        IPL. Only called for the real, enabled options (INST/CULL/
-        ZONE) - PATH is disabled at the widget level since it isn't
-        parsed anywhere in this project yet."""
+        """INST/CULL/ZONE/... changed - updates which kind of data the
+        IPL Inst File panel shows for the currently selected IPL."""
         self._ipl_data_type = data_type
         self._refresh_ipl_inst_file_panel()
+
+    def _on_ipl_tab_changed(self, index): #vers 1
+        """QTabBar currentChanged - maps the tab index back to its
+        section key and reuses the existing change handler. Qt still
+        fires this for a click on a disabled tab in some styles/
+        platforms even though the tab itself won't actually become
+        current, so this stays a no-op for a disabled index rather
+        than assuming the click always lands on an enabled tab."""
+        bar = getattr(self, '_ipl_tab_bar', None)
+        keys = getattr(self, '_ipl_tab_keys', None)
+        if bar is None or keys is None or index < 0 or index >= len(keys):
+            return
+        if not bar.isTabEnabled(index):
+            return
+        self._on_ipl_data_type_changed(keys[index])
 
     def _create_ipl_controls_dock(self): #vers 1
         """Dedicated dock for IPL viewing/filtering controls, per
@@ -20679,40 +20691,50 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         lay.setSpacing(4)
         _compact_18 = "padding: 0px 4px; margin: 0px; border-width: 1px;"
 
-        # Row 1: INST/CULL/ZON/PATH data-type selector - switches which
+        # Row 1: IPL section tab bar (Aug 1 2026, per Keith: "in IPL
+        # Controls we have the labels, made into tabs... but when
+        # loading SA maps, there would be more tabs") - switches which
         # kind of IPL content the IPL Inst File panel shows for the
-        # currently selected IPL. INST/CULL/ZONE are real (all three
-        # are already parsed - GTAWorldLoader.instances/culls/zones);
-        # PATH is an honest stub, disabled with a tooltip explaining
-        # why, rather than a guess at an unverified format.
-        type_row = QHBoxLayout()
-        self._ipl_type_group = QButtonGroup(panel)
-        self._ipl_type_group.setExclusive(True)
-        type_specs = [
-            ('inst', "INST", "INST - Item Instances", True),
-            ('cull', "CULL", "CULL - Object Culling", True),
-            ('zone', "ZON",  "ZONE - Map Zones", True),
-            ('path', "PATH", "PATH - Pedestrian / Vehicle Paths", False),
+        # currently selected IPL. A real QTabBar rather than a fixed
+        # button row, since it scales to many more sections without
+        # the row running out of width - SA alone adds 7 more section
+        # types beyond the original 4. Enabled where real parsing
+        # exists (INST/CULL/ZONE always did; PATH/GRGE/ENEX newly
+        # added this turn, verified against Keith's own real SA data);
+        # disabled stub tabs for PICK/JUMP/TCYC/AUZO/MULT, each with a
+        # tooltip explaining it's not parsed yet rather than silently
+        # doing nothing.
+        from PyQt6.QtWidgets import QTabBar
+        ipl_tab_bar = QTabBar()
+        ipl_tab_bar.setExpanding(False)
+        ipl_tab_bar.setDrawBase(False)
+        tab_specs = [
+            ('inst', "INST", "INST - Item Instances", True, None),
+            ('cull', "CULL", "CULL - Object Culling", True, None),
+            ('zone', "ZON",  "ZONE - Map Zones", True, None),
+            ('path', "PATH", "PATH - Pedestrian / Vehicle Paths (GTA3/VC)", True, None),
+            ('grge', "GRGE", "GRGE - Garages (SA)", True, None),
+            ('enex', "ENEX", "ENEX - Entrances / Exits (SA)", True, None),
+            ('pick', "PICK", "PICK - Pickup Spawns (SA)", False,
+             "Not parsed yet - no verified real sample data to build this on."),
+            ('jump', "JUMP", "JUMP - Unique Stunt Jumps (SA)", False,
+             "Not parsed yet - no verified real sample data to build this on."),
+            ('tcyc', "TCYC", "TCYC - Timecycle/Weather Zones (SA)", False,
+             "Not parsed yet - no verified real sample data to build this on."),
+            ('auzo', "AUZO", "AUZO - Audio Zones (SA)", False,
+             "Not parsed yet - planned to eventually show audio SVG\nicons and play the referenced sound file, per Keith's request."),
+            ('mult', "MULT", "MULT - Unused (SA)", False,
+             "Documented as never actually used by the game itself\n(ignored at runtime) - stub kept for completeness only."),
         ]
-        for key, label_text, tooltip, enabled in type_specs:
-            btn = QPushButton(label_text)
-            btn.setCheckable(True)
-            btn.setChecked(key == 'inst')
-            btn.setEnabled(enabled)
-            btn.setFixedHeight(18)
-            btn.setStyleSheet(_compact_18)
-            if enabled:
-                btn.setToolTip(tooltip)
-            else:
-                btn.setToolTip(tooltip + "\n\nSTUB - path node data isn't parsed anywhere\n"
-                               "in this project yet, no real sample data has\n"
-                               "been verified against yet to build this on")
-            btn.toggled.connect(
-                lambda checked, k=key: self._on_ipl_data_type_changed(k) if checked else None)
-            self._ipl_type_group.addButton(btn)
-            type_row.addWidget(btn)
-        type_row.addStretch()
-        lay.addLayout(type_row)
+        self._ipl_tab_keys = [spec[0] for spec in tab_specs]
+        for key, label_text, tooltip, enabled, disabled_reason in tab_specs:
+            idx = ipl_tab_bar.addTab(label_text)
+            ipl_tab_bar.setTabEnabled(idx, enabled)
+            ipl_tab_bar.setTabToolTip(idx, tooltip if enabled else f"{tooltip}\n\n{disabled_reason}")
+        ipl_tab_bar.setCurrentIndex(0)
+        ipl_tab_bar.currentChanged.connect(self._on_ipl_tab_changed)
+        self._ipl_tab_bar = ipl_tab_bar
+        lay.addWidget(ipl_tab_bar)
         self._ipl_data_type = 'inst'
 
         # Row 2: Ignore Scaling / Generic.txd / LOD view
@@ -21640,6 +21662,29 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             table.setRowCount(0)
             return
 
+        # Per-section column headers (Aug 1 2026, per Keith: "in IPL
+        # Controls we have the labels, made into tabs... but when
+        # loading SA maps, there would be more tabs" - grge/enex now
+        # have real parsed field layouts, verified against Keith's
+        # own real example data, so the table adapts to show the
+        # right columns for whichever section is selected rather than
+        # staying fixed at inst's own 13-column layout).
+        headers_by_type = {
+            'inst': ["ID", "Model", "Int", "Pos X", "Pos Y", "Pos Z",
+                     "Scale X", "Scale Y", "Scale Z", "Rot X", "Rot Y", "Rot Z", "Rot W"],
+            'grge': ["X1", "Y1", "Z1", "Front X", "Front Y", "X2", "Y2", "Z2",
+                     "Door Type", "Garage Type", "Name"],
+            'enex': ["Enter X", "Enter Y", "Enter Z", "Enter Angle",
+                     "Size X", "Size Y", "Size Z", "Exit X", "Exit Y", "Exit Z",
+                     "Exit Angle", "Target Int", "Flags", "Name",
+                     "Sky", "Num Peds", "Time On", "Time Off"],
+        }
+        headers = headers_by_type.get(data_type, headers_by_type['inst'])
+        if table.columnCount() != len(headers):
+            table.setColumnCount(len(headers))
+        table.setHorizontalHeaderLabels(headers)
+        col_count = len(headers)
+
         ignore_scaling = getattr(self, '_ignore_scaling_chk', None)
         ignore_scaling = ignore_scaling.isChecked() if ignore_scaling is not None else False
 
@@ -21691,9 +21736,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         table.setRowCount(len(data_lines))
         for r, (line_no, fields) in enumerate(data_lines):
-            for c in range(13):
+            for c in range(col_count):
                 value = fields[c] if c < len(fields) else ""
-                if ignore_scaling and 6 <= c <= 8 and value == "1":
+                if ignore_scaling and 6 <= c <= 8 and value == "1" and data_type == 'inst':
                     value = "0"
                 item = QTableWidgetItem(value)
                 if c == 0:
