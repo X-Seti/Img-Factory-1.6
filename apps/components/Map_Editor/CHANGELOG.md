@@ -3510,3 +3510,38 @@ conclusively found despite extensive isolated testing.
   Ribbon Manager's own toolbar list so actions can actually be moved
   into it. Full `QApplication` instantiation clean, `ast.parse`
   clean.
+
+- **Aug 1, 2026 (cont'd)** — Added "Show Tobj" and moved Nav to
+  Settings, per Keith's follow-up: "have an option to toggle showing
+  tobj [Show Tobj], in row 3, timed objects will be shown, depending
+  on there time values. tojb can be shown along side the inst,
+  towards the botton, keeping the placement order of the ipl. if we
+  move Nav functions to Settings, then row 2 could be used."
+
+  Moved the "Nav" popup (mouse sensitivity, go-to-object zoom
+  distance) into a new Navigation tab in the real Settings dialog -
+  same widgets, same live-apply behavior as the original popup,
+  nothing new persisted that wasn't before. Removed the now-dead
+  `_show_nav_settings_popup` method and its IPL Controls button
+  entirely.
+
+  Added "Show Tobj" in the row 2 space this freed up. Unchecked
+  (default): TOBJ-type instances are excluded from the INST table
+  view entirely. Checked: they're collected separately and appended
+  after all the regular rows, filtered to only the ones currently
+  active for the simulated hour (reusing the exact same time_on/
+  time_off logic already driving the 3D world view's Time switch,
+  including the overnight-wrap case). Regular (non-TOBJ) rows are
+  completely unaffected either way - unchanged relative order, taken
+  directly from the file's own line order, exactly as before this
+  feature existed.
+
+  Verified end-to-end with a real TOBJ model (time_on=20, time_off=6,
+  an overnight-wrap case) mixed in with two ordinary instances: Show
+  Tobj off correctly excludes it entirely; on with the simulated hour
+  inside its active window correctly shows it appended at the bottom,
+  after both regular rows in their original order; on with the hour
+  outside its window correctly excludes it again. Navigation tab
+  confirmed present with both controls working and live-applying to
+  `preview_widget`. Full `QApplication` instantiation clean, `ast.
+  parse` clean.

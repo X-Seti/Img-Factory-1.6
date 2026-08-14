@@ -7940,6 +7940,52 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         as_lay.addStretch()
         tabs.addTab(assets_tab, "Map Assets")
 
+        # - Navigation tab (Aug 1 2026, per Keith: "if we move Nav
+        # functions to Settings, then row 2 could be used") - moved
+        # from IPL Controls' "Nav" popup button, freeing that row for
+        # the new "Show Tobj" toggle below. Same widgets, same live-
+        # apply behavior as the original popup (mouse_sensitivity/
+        # goto_zoom_distance were never persisted to MapSettings
+        # before either - in-memory only, resetting each session -
+        # kept identical here rather than expanding scope to add
+        # persistence as part of this move).
+        nav_tab = QWidget()
+        nav_lay = QVBoxLayout(nav_tab)
+        nav_vp = getattr(self, 'preview_widget', None)
+        nav_lay.addWidget(QLabel("Mouse Sensitivity"))
+        nav_row = QHBoxLayout()
+        nav_slider = QSlider(Qt.Orientation.Horizontal)
+        nav_slider.setRange(10, 300)   # 0.1x to 3.0x, as integer tenths
+        nav_slider.setValue(int(getattr(nav_vp, '_mouse_sensitivity', 1.0) * 100) if nav_vp else 100)
+        nav_value_lbl = QLabel(f"{nav_slider.value() / 100:.1f}x")
+        def _on_nav_sens_change(v):  #vers 1
+            if nav_vp is not None:
+                nav_vp._mouse_sensitivity = v / 100
+            nav_value_lbl.setText(f"{v / 100:.1f}x")
+        nav_slider.valueChanged.connect(_on_nav_sens_change)
+        nav_row.addWidget(nav_slider)
+        nav_row.addWidget(nav_value_lbl)
+        nav_lay.addLayout(nav_row)
+
+        nav_lay.addWidget(QLabel("Go-to-Object Zoom Distance"))
+        nav_zoom_row = QHBoxLayout()
+        nav_zoom_spin = QDoubleSpinBox()
+        nav_zoom_spin.setRange(1.0, 500.0)
+        nav_zoom_spin.setDecimals(1)
+        nav_zoom_spin.setSingleStep(5.0)
+        nav_zoom_spin.setValue(getattr(self, '_goto_zoom_distance', 40.0))
+        nav_zoom_spin.setToolTip(
+            "How far the camera sits from an object when double-clicking\n"
+            "it in the viewport (or picking it another way) - lower is\n"
+            "closer/more zoomed in.")
+        def _on_nav_zoom_change(v):  #vers 1
+            self._goto_zoom_distance = v
+        nav_zoom_spin.valueChanged.connect(_on_nav_zoom_change)
+        nav_zoom_row.addWidget(nav_zoom_spin)
+        nav_lay.addLayout(nav_zoom_row)
+        nav_lay.addStretch()
+        tabs.addTab(nav_tab, "Navigation")
+
         # Add tabs to dialog
         layout.addWidget(tabs)
 
@@ -20710,6 +20756,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._ipl_data_type = data_type
         self._refresh_ipl_inst_file_panel()
 
+    def _on_show_tobj_toggled(self, checked): #vers 1
+        """Show Tobj checked/unchecked - refreshes the INST table to
+        include/exclude TOBJ-type instances, per Keith: "have an
+        option to toggle showing tobj [Show Tobj]... timed objects
+        will be shown, depending on there time values." """
+        self._refresh_ipl_inst_file_panel()
+
     def _on_ipl_tab_changed(self, index): #vers 1
         """QTabBar currentChanged - maps the tab index back to its
         section key and reuses the existing change handler. Qt still
@@ -20991,13 +21044,36 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # single starting point rather than a full settings dialog,
         # since only sensitivity was explicitly asked for; more nav
         # settings can be added to this same popup as they come up.
-        nav_btn = QPushButton("Nav")
-        nav_btn.setFixedHeight(18)
-        nav_btn.setStyleSheet(_compact_18)
-        nav_btn.setToolTip("Viewport navigation settings (mouse sensitivity)")
-        nav_btn.clicked.connect(self._show_nav_settings_popup)
+        #
+        # Nav button moved to Settings > Navigation (Aug 1 2026, per
+        # Keith: "if we move Nav functions to Settings, then row 2
+        # could be used") - freeing this spot for Show Tobj below.
 
-        opts_row2.addWidget(nav_btn)
+        # Show Tobj (Aug 1 2026, per Keith: "have an option to toggle
+        # showing tobj [Show Tobj]... timed objects will be shown,
+        # depending on there time values. tojb can be shown along
+        # side the inst, towards the botton, keeping the placement
+        # order of the ipl") - unchecked by default, TOBJ-type
+        # instances stay out of the INST table view entirely. Checked,
+        # they're appended after the regular (non-TOBJ) rows, filtered
+        # to only the ones currently active per their own time_on/
+        # time_off against the simulated hour (same _apply_tobj_time_
+        # filter logic already driving the 3D world view's Time
+        # switch) - the regular rows above them keep their original
+        # IPL file line order unchanged either way.
+        show_tobj_chk = QCheckBox("Show Tobj")
+        show_tobj_chk.setFixedHeight(18)
+        show_tobj_chk.setStyleSheet(_compact_18)
+        show_tobj_chk.setToolTip(
+            "Show TOBJ (timed) instances in the INST table, appended\n"
+            "after the regular rows - filtered to only the ones\n"
+            "currently active for the simulated hour set by the Time\n"
+            "switch. Off by default, keeping TOBJ instances out of\n"
+            "this view entirely.")
+        show_tobj_chk.toggled.connect(self._on_show_tobj_toggled)
+        self._show_tobj_chk = show_tobj_chk
+
+        opts_row2.addWidget(show_tobj_chk)
         opts_row2.addWidget(dfx_chk)
         opts_row2.addWidget(time_chk)
         opts_row2.addWidget(time_edit)
@@ -21177,62 +21253,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 f"found/fetched, {len(all_textures)} textures total")
         self._generic_ide_textures_cache = (id(loader), all_textures, distinct_txds)
         return all_textures, distinct_txds
-
-    def _show_nav_settings_popup(self): #vers 2
-        """Small popup with viewport navigation settings - mouse
-        sensitivity (Aug 1 2026, per Keith: "need a way to toggle
-        these settings, mouse strength, other needed settings") and
-        the pick/goto-object zoom distance (per the TODO item: "Pick/
-        goto settings... needs a proper settings option for how close
-        'go to object' zooms in, rather than one fixed value for
-        everyone/every object size"). Applies to preview_widget.
-        _mouse_sensitivity (DFFViewport.mouseMoveEvent multiplies both
-        the rotate and pan deltas by it) and self._goto_zoom_distance
-        (_center_viewport_on_instance, used when double-clicking an
-        object in the viewport)."""
-        vp = getattr(self, 'preview_widget', None)
-        if vp is None:
-            return
-        dlg = QDialog(self)
-        dlg.setWindowTitle("Navigation Settings")
-        lay = QVBoxLayout(dlg)
-        lay.addWidget(QLabel("Mouse Sensitivity"))
-        row = QHBoxLayout()
-        slider = QSlider(Qt.Orientation.Horizontal)
-        slider.setRange(10, 300)   # 0.1x to 3.0x, as integer tenths
-        slider.setValue(int(getattr(vp, '_mouse_sensitivity', 1.0) * 100))
-        value_lbl = QLabel(f"{slider.value() / 100:.1f}x")
-        def on_change(v):
-            vp._mouse_sensitivity = v / 100
-            value_lbl.setText(f"{v / 100:.1f}x")
-        slider.valueChanged.connect(on_change)
-        row.addWidget(slider)
-        row.addWidget(value_lbl)
-        lay.addLayout(row)
-
-        lay.addWidget(QLabel("Go-to-Object Zoom Distance"))
-        zoom_row = QHBoxLayout()
-        zoom_spin = QDoubleSpinBox()
-        zoom_spin.setRange(1.0, 500.0)
-        zoom_spin.setDecimals(1)
-        zoom_spin.setSingleStep(5.0)
-        zoom_spin.setValue(getattr(self, '_goto_zoom_distance', 40.0))
-        zoom_spin.setToolTip(
-            "How far the camera sits from an object when double-clicking\n"
-            "it in the viewport (or picking it another way) - lower is\n"
-            "closer/more zoomed in. Not scaled to the object's own size\n"
-            "yet, so very large or very small objects may still need a\n"
-            "manual zoom adjustment afterward.")
-        def on_zoom_change(v):
-            self._goto_zoom_distance = v
-        zoom_spin.valueChanged.connect(on_zoom_change)
-        zoom_row.addWidget(zoom_spin)
-        lay.addLayout(zoom_row)
-
-        close_btn = QPushButton("Close")
-        close_btn.clicked.connect(dlg.accept)
-        lay.addWidget(close_btn)
-        dlg.exec()
 
     def _set_world_render_mode(self, mode, label, btn): #vers 1
         """Switch the world view's render mode - per Keith: "Add the
@@ -21758,12 +21778,52 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         loader = getattr(self, '_world_loader', None)
 
         data_lines = []
+        tobj_lines = []   # collected separately, appended after the loop (Show Tobj)
+        show_tobj_chk = getattr(self, '_show_tobj_chk', None)
+        show_tobj = show_tobj_chk.isChecked() if show_tobj_chk is not None else False
+        tobj_hour = None
+        if show_tobj and data_type == 'inst':
+            tobj_time_spin = getattr(self, '_tobj_time_spin', None)
+            if tobj_time_spin is not None:
+                tobj_hour = tobj_time_spin.time().hour()
         for line_no, raw_line in section_lines:
             line = raw_line.split("#")[0].strip()
             low = line.lower()
             if not line or low in (data_type, 'end'):
                 continue
             fields = [f.strip() for f in line.split(',')]
+            if data_type == 'inst' and fields and loader is not None:
+                # TOBJ handling (Aug 1 2026, per Keith: "have an
+                # option to toggle showing tobj [Show Tobj]... timed
+                # objects will be shown, depending on there time
+                # values. tojb can be shown along side the inst,
+                # towards the botton, keeping the placement order of
+                # the ipl") - a TOBJ-type instance never joins the
+                # regular data_lines list in its original file
+                # position; unchecked, it's dropped entirely, checked,
+                # it's collected here and appended after the main loop
+                # instead, filtered to only the ones currently active
+                # for the simulated hour. Regular (non-TOBJ) rows are
+                # completely unaffected either way, keeping their own
+                # original relative order exactly as the file has it.
+                try:
+                    tobj_obj = loader.get_object(int(fields[0]))
+                except ValueError:
+                    tobj_obj = None
+                if tobj_obj is not None and tobj_obj.section == 'tobj':
+                    if not show_tobj:
+                        continue
+                    time_on = tobj_obj.extra.get('time_on')
+                    time_off = tobj_obj.extra.get('time_off')
+                    active = True
+                    if tobj_hour is not None and time_on is not None and time_off is not None:
+                        if time_on <= time_off:
+                            active = time_on <= tobj_hour < time_off
+                        else:
+                            active = tobj_hour >= time_on or tobj_hour < time_off
+                    if active:
+                        tobj_lines.append((line_no, fields))
+                    continue
             if data_type == 'inst' and lod_mode != 'both':
                 model_name = fields[1] if len(fields) > 1 else ''
                 is_lod = model_name.lower().startswith('lod')
@@ -21788,6 +21848,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 if lod_mode == 'lod' and not is_lod:
                     continue
             data_lines.append((line_no, fields))
+        data_lines.extend(tobj_lines)
 
         table.setRowCount(len(data_lines))
         for r, (line_no, fields) in enumerate(data_lines):
@@ -21996,11 +22057,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._goto_zoom_distance, defaulting to 40.0 - the value
         Keith settled on earlier ("the zoom in is too strong, I have
         to zoom out alot to see the object", bumped from an original
-        15). Exposed as a setting in the Nav popup
-        (_show_nav_settings_popup) rather than staying a fixed value
-        for everyone/every object size, per the TODO item asking for
-        exactly that. Still not scaled to the actual object's own
-        size - a further refinement, not done here."""
+        15). Exposed as a setting in Settings > Navigation (moved
+        there from a standalone Nav popup) rather than staying a
+        fixed value for everyone/every object size, per the TODO item
+        asking for exactly that. Still not scaled to the actual
+        object's own size - a further refinement, not done here."""
         vp = getattr(self, 'preview_widget', None)
         if vp is None:
             return
