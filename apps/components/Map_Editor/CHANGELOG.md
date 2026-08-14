@@ -3931,3 +3931,35 @@ conclusively found despite extensive isolated testing.
   failing safely without blocking others, and duplicate-widget
   dedup) - all passed. Not yet tested in the real running app (no
   Qt/OpenGL environment available here).
+
+- **Aug 15, 2026 (cont'd)** — Added a docked-only cog icon to IPL
+  Controls row 3 (right side, after Show Paths), per Keith: "We could
+  just add a cog SVG icon when docked. On the right of row 3. ipl
+  control panel, but not to be shown in standalone." Opens IMG
+  Factory's own Settings dialog (which now includes Map Workshop's
+  own tabs, from the previous change this session) - visibility tied
+  to the same is_docked/standalone_mode check the existing tearoff
+  button already uses, kept in sync in _update_dock_button_visibility
+  too so toggling dock/undock at runtime updates it correctly, not
+  just at creation time.
+
+  Real separate bug found and fixed while tracing which method to
+  wire the cog to: `show_gui_settings` was defined twice in
+  imgfactory.py - the real one (builds the full tabbed SettingsDialog
+  with live theme switching) and, later in the same class body, an
+  unrelated small "Right Panel Width Settings" dialog under the exact
+  same method name. Python silently uses the second definition for
+  every call, so the menu's "Customize Interface" action and
+  _show_workshop_settings's own "fallback to regular settings" were
+  both actually opening the narrow width-only dialog this whole time,
+  never the real one. Renamed the shadowing method to
+  show_panel_width_settings (its own functionality unchanged, still
+  reachable under the new name) so show_gui_settings correctly
+  resolves to the real dialog again - the cog icon itself is wired to
+  main_window.show_settings specifically (a third, separately-defined
+  and unaffected entry point, confirmed via grep to exist exactly
+  once), not to the now-fixed but previously-broken show_gui_settings.
+
+  `ast.parse` clean on both files; confirmed via AST that
+  show_gui_settings/show_panel_width_settings/show_settings and every
+  newly-added method are each defined exactly once.

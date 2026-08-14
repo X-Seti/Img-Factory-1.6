@@ -6884,8 +6884,18 @@ class IMGFactory(QMainWindow):
         QMessageBox.about(self, "About IMG Factory", about_text)
 
 
-    def show_gui_settings(self): #vers 5
-        """Show GUI settings dialog - ADD THIS METHOD TO YOUR MAIN WINDOW CLASS"""
+    def show_panel_width_settings(self): #vers 5
+        """Right Panel Width Settings - a small standalone dialog for
+        just the right-panel width slider/presets. Renamed from
+        show_gui_settings (Aug 15 2026, real bug found while wiring
+        Map Workshop's docked-settings-tab cog icon) - it shared that
+        name with a different, earlier, more complete method (the
+        real tabbed app Settings dialog, still at that name a bit
+        higher up in this file) and, being defined second in the
+        class body, silently shadowed it everywhere: the menu's
+        "Customize Interface" action and _show_workshop_settings's
+        own fallback were both actually opening this narrow dialog
+        instead of the real one they were written to open."""
         try:
             from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QSpinBox, QPushButton, QGroupBox
 

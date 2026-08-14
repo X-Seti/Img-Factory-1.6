@@ -8411,7 +8411,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
 # - Docking functions
 
-    def _update_dock_button_visibility(self): #vers 2
+    def _update_dock_button_visibility(self): #vers 3
         """Show/hide dock and tearoff buttons based on docked state"""
         if hasattr(self, 'dock_btn'):
             # Hide D button when docked, show when standalone
@@ -8420,6 +8420,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if hasattr(self, 'tearoff_btn'):
             # T button only visible when docked and not in standalone mode
             self.tearoff_btn.setVisible(self.is_docked and not self.standalone_mode)
+
+        if hasattr(self, '_ipl_controls_settings_btn'):
+            # IPL Controls cog icon, same visibility rule as tearoff_btn
+            # (Aug 15 2026, per Keith: "not to be shown in standalone")
+            # - kept in sync here too, not just at creation time, so
+            # toggling dock/undock at runtime updates it correctly.
+            self._ipl_controls_settings_btn.setVisible(self.is_docked and not self.standalone_mode)
 
 
     def toggle_dock_mode(self): #vers 2
@@ -21299,9 +21306,38 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         show_paths_chk.toggled.connect(self._on_show_paths_toggled)
         self._show_paths_chk = show_paths_chk
 
+        # Cog icon, docked-only (Aug 15 2026, per Keith: "We could
+        # just add a cog SVG icon when docked. On the right of row 3.
+        # ipl control panel, but not to be shown in standalone.") -
+        # quick access to IMG Factory's own Settings dialog, which
+        # now includes Map Workshop's own settings as extra tabs (see
+        # get_settings_contribution) - standalone Map Workshop has no
+        # such dialog to open (there's no IMG Factory main window at
+        # all in that mode), hence docked-only. Wired to main_window.
+        # show_settings specifically, not show_gui_settings - tracing
+        # this button's wiring found show_gui_settings was itself
+        # broken (silently shadowed by a same-named, unrelated later
+        # method - see show_panel_width_settings's own docstring in
+        # imgfactory.py), fixed alongside this so the cog opens the
+        # right dialog rather than a small unrelated one.
+        from PyQt6.QtWidgets import QToolButton
+        ipl_settings_btn = QToolButton()
+        try:
+            ipl_settings_btn.setIcon(self.icon_factory.settings_icon(color=self._get_icon_color()))
+        except Exception:
+            pass
+        ipl_settings_btn.setIconSize(QSize(16, 16))
+        ipl_settings_btn.setFixedSize(20, 18)
+        ipl_settings_btn.setToolTip("Open App Settings (includes Map Workshop's own settings)")
+        ipl_settings_btn.setStyleSheet(_compact_18)
+        ipl_settings_btn.clicked.connect(self._on_ipl_controls_settings_clicked)
+        ipl_settings_btn.setVisible(self.is_docked and not self.standalone_mode)
+        self._ipl_controls_settings_btn = ipl_settings_btn
+
         opts_row3 = QHBoxLayout()
         opts_row3.addWidget(show_paths_chk)
         opts_row3.addStretch()
+        opts_row3.addWidget(ipl_settings_btn)
         lay.addLayout(opts_row3)
 
         dock = QDockWidget("IPL Controls", self)
@@ -23690,6 +23726,26 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             vp.set_show_paths(checked)
         if checked:
             self._refresh_path_visualization()
+
+    def _on_ipl_controls_settings_clicked(self): #vers 1
+        """IPL Controls' docked-only cog icon clicked (Aug 15 2026,
+        per Keith: "We could just add a cog SVG icon when docked...
+        but not to be shown in standalone") - opens IMG Factory's own
+        Settings dialog, which now includes Map Workshop's own
+        settings as extra tabs (see get_settings_contribution).
+        main_window.show_settings specifically - not show_gui_settings,
+        which turned out to be broken (silently shadowed by an
+        unrelated same-named method, see show_panel_width_settings's
+        docstring in imgfactory.py), fixed alongside this button so
+        it doesn't open the wrong, narrow dialog. Silently does
+        nothing if main_window doesn't have show_settings (e.g. some
+        other, non-IMG-Factory host embedding this widget) - the
+        button is already docked-only via is_docked/standalone_mode,
+        this is just a final defensive check before calling."""
+        mw = getattr(self, 'main_window', None)
+        show_settings = getattr(mw, 'show_settings', None)
+        if callable(show_settings):
+            show_settings()
 
     def _rotate_and_translate_offset(self, ox, oy, oz, qx, qy, qz, qw, px, py, pz): #vers 1
         """Rotate a local-space offset (ox,oy,oz) by quaternion
