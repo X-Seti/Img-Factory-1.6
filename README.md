@@ -5,6 +5,14 @@ PyQt6 · Python 3.11+ · Linux / Windows / macOS
 
 ---
 
+Information in this README is out of date. Will update soon.
+
+## Recent fixes (Augest 2026)
+
+## Recent fixes (July 2026)
+
+## Recent fixes (June 2026)
+
 ## Recent fixes (May 2026)
 
 - Model Workshop bleed-through when docked in IMG Factory — fixed
@@ -151,7 +159,7 @@ pip install -r requirements.txt
 ### Linux / WSL system libraries
 
 PyQt6 also needs system-level Qt6/XCB libraries that pip does not install.
-Without these the app will fail to start, or on WSL specifically may hang
+Without these, the app will fail to start, or on WSL specifically may hang
 with no error on launch.
 
 Run the setup script once after cloning — it detects your distro
@@ -183,9 +191,10 @@ apps/
     Ipl_Editor/       IPL Workshop
     Scm_Workshop/     SCM Workshop
     DP5_Workshop/     DP5 paint editor
+    Map_Editor/       Map Workshop
   methods/            Parsers, utilities, SVG icons
     asset_db.py       SQLite asset catalogue
-    gta_dat_parser.py DAT/IDE/IPL parser + IDEDatabase
+    gta_dat_parser.py DAT/IDE/IPL parser + IDE database
     img_core_classes.py IMG archive handler
     imgfactory_svg_icons.py All SVG icon definitions
   gui/                Main UI layout, taskbar, dockable toolbars
