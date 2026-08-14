@@ -14,6 +14,7 @@ Professional rendering matching Steve M's COL Editor II:
 
 import math
 from typing import Optional
+from collections import namedtuple
 from PyQt6.QtWidgets import QWidget
 from PyQt6.QtCore import Qt, QPoint, pyqtSignal
 from PyQt6.QtGui import QColor, QPainter, QPen
@@ -70,6 +71,17 @@ if OPENGL_AVAILABLE:
 # wheelEvent
 # zoom_in
 # zoom_out
+
+# Aug 14 2026 fix - COLBounds.min/max and COLBox.min/max/COLSphere.
+# center are all plain (x,y,z) tuples in the real col_workshop_
+# classes.py dataclasses, not objects with .x/.y/.z attributes (this
+# whole file was written against a different, never-matching COL
+# shape - see draw_face_mesh_shaded/draw_collision_box/draw_bounding_
+# box/fit_to_model for the rest of that same mistake). Wrapping a
+# tuple in this on read lets every existing min_v.x/max_v.y-style
+# line below stay exactly as written, rather than rewriting each one
+# to bracket indexing.
+_Vec3 = namedtuple('_Vec3', 'x y z')
 
 class COL3DViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
     """Pure OpenGL 3D viewport for COL collision models"""
@@ -319,7 +331,7 @@ class COL3DViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             return
         
         # Draw bounding box (transparent)
-        if self.show_bounds and hasattr(self.current_model, 'bounding_box'):
+        if self.show_bounds and hasattr(self.current_model, 'bounds'):
             self.draw_bounding_box()
         
         # Draw solid mesh faces with lighting
@@ -367,16 +379,16 @@ class COL3DViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glBegin(GL_TRIANGLES)
         
         for face_idx, face in enumerate(self.current_model.faces):
-            # COLFace has vertex_indices (tuple of 3 ints)
-            if not hasattr(face, 'vertex_indices'):
+            # COLFace has a/b/c vertex indices (Aug 14 2026 fix - was
+            # checking/reading a nonexistent vertex_indices attribute;
+            # the real col_workshop_classes.COLFace has separate a/b/c
+            # int fields instead, this always failed the hasattr check
+            # and every face was silently counted as invalid).
+            if not (hasattr(face, 'a') and hasattr(face, 'b') and hasattr(face, 'c')):
                 invalid_faces += 1
                 continue
-                
-            if len(face.vertex_indices) < 3:
-                invalid_faces += 1
-                continue
-            
-            idx0, idx1, idx2 = face.vertex_indices[:3]
+
+            idx0, idx1, idx2 = face.a, face.b, face.c
             
             # Validate indices (check bounds)
             if idx0 >= len(vertices) or idx1 >= len(vertices) or idx2 >= len(vertices):
@@ -388,11 +400,14 @@ class COL3DViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 invalid_faces += 1
                 continue
             
-            # Get vertex positions (COLVertex has .position with .x .y .z)
+            # Get vertex positions (Aug 14 2026 fix - COLVertex has
+            # plain x/y/z float fields directly, not a .position
+            # sub-object; same wrong assumption as vertex_indices
+            # above, same silent every-face-invalid failure).
             try:
-                v0 = vertices[idx0].position
-                v1 = vertices[idx1].position
-                v2 = vertices[idx2].position
+                v0 = vertices[idx0]
+                v1 = vertices[idx1]
+                v2 = vertices[idx2]
             except (AttributeError, IndexError) as e:
                 invalid_faces += 1
                 continue
@@ -447,14 +462,16 @@ class COL3DViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             
             glBegin(GL_TRIANGLES)
             for face in self.current_model.faces:
-                if hasattr(face, 'vertex_indices') and len(face.vertex_indices) >= 3:
-                    idx0, idx1, idx2 = face.vertex_indices[:3]
+                # Aug 14 2026 fix - same vertex_indices/.position bug
+                # as draw_face_mesh_shaded's solid-face loop above.
+                if hasattr(face, 'a') and hasattr(face, 'b') and hasattr(face, 'c'):
+                    idx0, idx1, idx2 = face.a, face.b, face.c
                     if idx0 < len(vertices) and idx1 < len(vertices) and idx2 < len(vertices):
                         if idx0 >= 0 and idx1 >= 0 and idx2 >= 0:
                             try:
-                                v0 = vertices[idx0].position
-                                v1 = vertices[idx1].position
-                                v2 = vertices[idx2].position
+                                v0 = vertices[idx0]
+                                v1 = vertices[idx1]
+                                v2 = vertices[idx2]
                                 glVertex3f(v0.x, v0.y, v0.z)
                                 glVertex3f(v1.x, v1.y, v1.z)
                                 glVertex3f(v2.x, v2.y, v2.z)
@@ -482,7 +499,9 @@ class COL3DViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         )
         
         glPushMatrix()
-        glTranslatef(sphere.center.x, sphere.center.y, sphere.center.z)
+        glTranslatef(*sphere.center)   # Aug 14 2026 fix - center is
+                                        # a plain (x,y,z) tuple, not
+                                        # an object with .x/.y/.z
         
         # Create smooth sphere using GLU quadric
         quadric = gluNewQuadric()
@@ -494,9 +513,12 @@ class COL3DViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glPopMatrix()
     
     
-    def draw_collision_box(self, box): #vers 2
+    def draw_collision_box(self, box): #vers 3
         """Draw collision box with transparency"""
-        if not hasattr(box, 'min_point') or not hasattr(box, 'max_point'):
+        # Aug 14 2026 fix - real COLBox fields are min/max, not
+        # min_point/max_point (this hasattr always failed, so the
+        # method always returned here and never drew anything).
+        if not hasattr(box, 'min') or not hasattr(box, 'max'):
             return
         
         glDisable(GL_LIGHTING)
@@ -510,8 +532,10 @@ class COL3DViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             0.25
         )
         
-        min_v = box.min_point
-        max_v = box.max_point
+        # Aug 14 2026 fix - box.min/box.max are plain (x,y,z) tuples,
+        # not objects with .x/.y/.z (see _Vec3's own comment above).
+        min_v = _Vec3(*box.min)
+        max_v = _Vec3(*box.max)
         
         # Draw box as solid with transparency
         glBegin(GL_QUADS)
@@ -555,9 +579,11 @@ class COL3DViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glEnd()
     
     
-    def draw_bounding_box(self): #vers 1
+    def draw_bounding_box(self): #vers 2
         """Draw model bounding box with transparency"""
-        bounds = self.current_model.bounding_box
+        # Aug 14 2026 fix - COLModel has no .bounding_box, the real
+        # field is .bounds (see COLModel in col_workshop_classes.py).
+        bounds = self.current_model.bounds
         
         glDisable(GL_LIGHTING)
         glEnable(GL_BLEND)
@@ -570,8 +596,10 @@ class COL3DViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             0.15
         )
         
-        min_v = bounds.min
-        max_v = bounds.max
+        # Aug 14 2026 fix - bounds.min/bounds.max are plain (x,y,z)
+        # tuples, not objects with .x/.y/.z (see _Vec3's own comment).
+        min_v = _Vec3(*bounds.min)
+        max_v = _Vec3(*bounds.max)
         
         # Draw wireframe box
         glLineWidth(1.5)
@@ -687,7 +715,11 @@ class COL3DViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         # Print diagnostic info
         if model:
             print(f"\n[COL Viewport] Model loaded:")
-            print(f"  Name: {getattr(model, 'name', 'Unknown')}")
+            # Aug 14 2026 fix - COLModel has no top-level .name, only
+            # model.header.name (same bug class as the vertex_indices/
+            # .position ones below - same root cause, guessing at
+            # field names instead of checking col_workshop_classes.py).
+            print(f"  Name: {getattr(getattr(model, 'header', None), 'name', 'Unknown')}")
             print(f"  Vertices: {len(getattr(model, 'vertices', []))}")
             print(f"  Faces: {len(getattr(model, 'faces', []))}")
             print(f"  Spheres: {len(getattr(model, 'spheres', []))}")
@@ -697,13 +729,18 @@ class COL3DViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             if hasattr(model, 'faces') and model.faces:
                 print(f"  Sample face indices (first 5):")
                 for i, face in enumerate(model.faces[:5]):
-                    if hasattr(face, 'vertex_indices'):
-                        print(f"    Face {i}: {face.vertex_indices}")
+                    # Aug 14 2026 fix - real COLFace has a/b/c int
+                    # fields, not vertex_indices (see draw_face_mesh_
+                    # shaded's fix above for the same mistake).
+                    if hasattr(face, 'a') and hasattr(face, 'b') and hasattr(face, 'c'):
+                        print(f"    Face {i}: ({face.a}, {face.b}, {face.c})")
             
             # Check vertex range
             if hasattr(model, 'vertices') and model.vertices:
                 if model.vertices:
-                    v0 = model.vertices[0].position
+                    # Aug 14 2026 fix - COLVertex has x/y/z directly,
+                    # not a .position sub-object.
+                    v0 = model.vertices[0]
                     print(f"  First vertex: ({v0.x:.2f}, {v0.y:.2f}, {v0.z:.2f})")
             
             self.fit_to_model()
@@ -730,17 +767,21 @@ class COL3DViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self.update()
     
     
-    def fit_to_model(self): #vers 1
+    def fit_to_model(self): #vers 2
         """Auto-fit camera to model bounds"""
-        if not self.current_model or not hasattr(self.current_model, 'bounding_box'):
+        if not self.current_model or not hasattr(self.current_model, 'bounds'):
             return
         
-        bounds = self.current_model.bounding_box
+        # Aug 14 2026 fix - COLModel has no .bounding_box (real field
+        # is .bounds), and bounds.min/max are plain (x,y,z) tuples,
+        # not objects with .x/.y/.z - same mistakes as draw_bounding_
+        # box above.
+        bounds = self.current_model.bounds
         
         # Calculate model size
-        size_x = bounds.max.x - bounds.min.x
-        size_y = bounds.max.y - bounds.min.y
-        size_z = bounds.max.z - bounds.min.z
+        size_x = bounds.max[0] - bounds.min[0]
+        size_y = bounds.max[1] - bounds.min[1]
+        size_z = bounds.max[2] - bounds.min[2]
         
         max_size = max(size_x, size_y, size_z)
         

@@ -522,14 +522,40 @@ sources are now indexed - but:
   confirmation that collision actually loads/draws correctly once he
   tests it, for all three games (SA/VC/GTA3).
 
-## Dead code found while checking col_workshop surface types (Aug 14 2026)
+## col_3d_viewport.py field-mismatch bugs - FIXED (Aug 14 2026)
 
-`apps/components/Col_Editor/depends/col_3d_viewport.py` (IMG Factory
-1.5 era) references `face.vertex_indices` and `vertex.position.x/y/z`
-- the real, shared `COLModel`/`COLFace`/`COLVertex` classes
-(`col_workshop_classes.py`, identical copy in both Col_Editor and
-Model_Editor) use `face.a/b/c` and `vertex.x/y/z` directly instead.
-Would crash if ever run against real data. Confirmed nothing
-currently imports this module (grepped for it project-wide) - not
-affecting anything live, but worth a cleanup/removal pass since it's
-just sitting there broken.
+Found while checking col_workshop surface types, fixed per Keith: "if
+you found a bug, we fix it". `apps/components/Col_Editor/depends/
+col_3d_viewport.py` (IMG Factory 1.5 era) was written against a COL
+shape that never matched the real, shared col_workshop_classes.py
+dataclasses - every one of these would have raised/silently failed
+against real data:
+- `face.vertex_indices` -> real COLFace has separate `a`/`b`/`c` int
+  fields (draw_face_mesh_shaded's solid-face loop, its wireframe
+  overlay, and the set_current_model diagnostic print - 3 sites)
+- `vertex.position.x/y/z` -> real COLVertex has `x`/`y`/`z` directly
+  (same 3 sites)
+- `model.name` -> COLModel has no top-level name, only
+  `model.header.name` (diagnostic print)
+- `model.bounding_box` / `hasattr(..., 'bounding_box')` -> real field
+  is `model.bounds` (draw_bounding_box, its two call-site guards,
+  fit_to_model) - this one meant draw_bounding_box() could never
+  actually run at all, guarded out every time
+- `sphere.center.x/y/z`, `box.min_point`/`box.max_point`,
+  `bounds.min.x`/`bounds.max.x` -> COLSphere.center and COLBounds/
+  COLBox min/max are plain (x,y,z) tuples, not objects with .x/.y/.z
+  attributes (draw_collision_sphere, draw_collision_box - whose
+  min_point/max_point hasattr check meant it always returned early
+  and never drew a box at all - and fit_to_model)
+
+Fixed all of them - real a/b/c and x/y/z field names throughout, a
+small `_Vec3 = namedtuple('_Vec3','x y z')` module-level helper so
+tuple fields (box/bounds min/max) can still be read with the
+existing `.x`/`.y`/`.z` call sites unchanged, `*sphere.center`
+unpacking for the single-use translate call. `ast.parse` clean;
+smoke-tested every fixed access pattern directly against real
+COLModel/COLHeader/COLBounds/COLVertex/COLFace/COLSphere/COLBox
+instances (no OpenGL context needed for the field-access logic
+itself) - passed. Still nothing currently imports this module
+(confirmed project-wide), so still unverified in the running app,
+but no longer known-broken if something does start using it.
