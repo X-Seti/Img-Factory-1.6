@@ -3348,3 +3348,36 @@ conclusively found despite extensive isolated testing.
   identically; confirmed no remaining references to the removed
   checkbox anywhere. Full `QApplication` instantiation clean, `ast.
   parse` clean on both files.
+
+- **Aug 1, 2026 (cont'd)** — Fixed the crash Keith hit immediately
+  after toggling Shading: "TypeError: ModelWorkshop._toggle_viewport_
+  shading() missing 1 required positional argument: 'enabled'." The
+  ribbon action's callback lambda discarded the checkbox state
+  entirely (`lambda v: self._toggle_viewport_shading()`) instead of
+  passing it through - fixed to `lambda v: self._toggle_viewport_
+  shading(v)`.
+
+  While fixing this, found `_toggle_viewport_shading` (and three
+  other call sites - the Light Setup Dialog's live-apply sync, its
+  preset-load restore, and its own internal checkbox sync) all read
+  `self._shading_btn`, an attribute that's never actually created -
+  the real one is `self._shading_act` (the `QAction` created via `_act
+  (..., attr='_shading_act')` in `_build_toolbars`). Every one of
+  these 4 call sites was silently no-opping (icon never updated,
+  checked-state never synced) rather than crashing, since `getattr(...,
+  default=None)` swallowed the mismatch quietly. Renamed all 4 to the
+  correct attribute - `QAction` supports the same `.isChecked()`/
+  `.setChecked()`/`.setIcon()`/`.blockSignals()` interface these sites
+  already expected, so no other logic needed to change.
+
+  Per Keith's context for keeping this feature - "this can be used to
+  generate pre-lighting, that can be saved back to the models" -
+  logged the pre-lighting bake/write-back idea to TODO.md as a real,
+  substantial future direction, not attempted this turn.
+
+  Verified: toggling the Shading ribbon action on/off no longer
+  crashes; `preview_widget._shading_enabled` correctly reflects the
+  new state; confirmed the icon-update path inside `_toggle_viewport_
+  shading` now actually finds and uses the real action instead of
+  silently no-opping. Full `QApplication` instantiation clean, `ast.
+  parse` clean.

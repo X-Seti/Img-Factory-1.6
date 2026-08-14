@@ -9345,7 +9345,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if vp:
             vp._shading_enabled = enabled
             vp.update()
-        btn = getattr(self, '_shading_btn', None)
+        btn = getattr(self, '_shading_act', None)
         if btn:
             try:
                 from apps.methods.imgfactory_svg_icons import SVGIconFactory as _SVG
@@ -9375,7 +9375,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         _dir   = getattr(self, '_vp_light_dir',      (0.5, 0.5, 0.8, 0.0))
         _amb   = getattr(self, '_vp_light_ambient',  0.30)
         _int   = getattr(self, '_vp_light_intensity', 1.0)
-        _sb    = getattr(self, '_shading_btn', None)
+        _sb    = getattr(self, '_shading_act', None)
         _shade_on = _sb.isChecked() if _sb else True
 
         # Internal state (az=azimuth 0-360, el=elevation 0-90)
@@ -9553,7 +9553,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         picker.on_change = _apply_live
 
         def _sync_shade(on):  #vers 1
-            sb2 = getattr(self,'_shading_btn',None)
+            sb2 = getattr(self,'_shading_act',None)
             if sb2: sb2.blockSignals(True); sb2.setChecked(on); sb2.blockSignals(False)
             self._toggle_viewport_shading(on)
         shade_cb.toggled.connect(_sync_shade)
@@ -9629,7 +9629,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     vp._light_dir       = self._vp_light_dir
                     vp._light_ambient   = self._vp_light_ambient
                     vp._shading_enabled = shade_on
-                sb = getattr(self, '_shading_btn', None)
+                sb = getattr(self, '_shading_act', None)
                 if sb:
                     sb.blockSignals(True)
                     sb.setChecked(shade_on)
@@ -11232,7 +11232,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         tb_rend.addSeparator()
         _act(tb_rend, "Toggle Shading",
              _icon(self.icon_factory.shading_sphere_icon, 'shading_icon'),
-             lambda v: self._toggle_viewport_shading(),
+             lambda v: self._toggle_viewport_shading(v),
              checkable=True, checked=True, attr='_shading_act')
         _act(tb_rend, "Light Setup",
              _icon(self.icon_factory.light_icon, 'light_setup_icon'),

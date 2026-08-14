@@ -455,3 +455,21 @@ QHBoxLayout is now empty but intact, ready for:
 - Show Zones (cull.ipl zones, once they have editable-box UI - see
   the earlier "cull zones as editable/renamable/resizable boxes" TODO
   entry)
+
+## Pre-lighting bake, saved back to models (Aug 1 2026)
+
+Per Keith, confirming Toggle Shading stays: "we want to keep toggle
+shading, this can be used to generate pre-lighting, that can be saved
+back to the models." Not started - the idea is using the viewport's
+existing Lambertian shading calculation (currently just a live
+preview effect) to actually bake per-vertex lit colors based on the
+current Light Setup Dialog configuration, then write those back into
+a model's own prelit color data (DFF geometry flag FLAGS_PRELIT /
+the geometry's prelight color array) rather than only ever affecting
+what's shown in this viewport. Would need: a "Bake Lighting" action
+separate from the toggle itself, the actual per-vertex lighting-to-
+color computation (probably reusing whatever the shading preview
+already computes per-triangle/per-vertex, if anything is currently
+stored that granularly rather than being a pure shader-style live
+effect), and DFF write-back (ties into the broader "write-back
+infrastructure for any file type" TODO item).
