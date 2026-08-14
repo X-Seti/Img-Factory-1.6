@@ -3565,6 +3565,29 @@ class MapSettingsDialog(QDialog):
         ld_lay.addStretch()
         tabs.addTab(loading_tab, "Loading")
 
+        # - Map Assets tab (Aug 1 2026, per Keith: "generic.txd
+        # loading can be added to settings also under map assits
+        # tab") - one-time action, not a persistent toggle, so a
+        # button rather than a checkbox, matching the existing
+        # Ribbon Manager button pattern in the Ribbons tab above.
+        assets_tab = QWidget()
+        as_lay = QVBoxLayout(assets_tab)
+        load_generic_btn = QPushButton("Load Generic.txd Manually")
+        load_generic_btn.setToolTip(
+            "Manually (re)load generic.txd - the shared texture archive\n"
+            "many models reference without having their own dedicated\n"
+            "TXD. Not normally needed - generic.ide's referenced TXDs\n"
+            "(including generic.txd itself) are already preloaded\n"
+            "automatically whenever a world loads. Tries the game's\n"
+            "indexed IMG archives first (e.g. gta3.img, which every game\n"
+            "always loads via the exe), then falls back to {game root}/\n"
+            "models/generic.txd as a loose file.")
+        if self._workshop is not None:
+            load_generic_btn.clicked.connect(self._workshop._on_load_generic_txd_clicked)
+        as_lay.addWidget(load_generic_btn)
+        as_lay.addStretch()
+        tabs.addTab(assets_tab, "Map Assets")
+
         # - Viewport tab (World View movement settings)
         viewport_tab = QWidget()
         vp_lay = QVBoxLayout(viewport_tab)
@@ -20582,43 +20605,17 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._time_play_btn = time_play_btn
         self._time_stop_btn = time_stop_btn
 
-        # Advanced menu (Aug 1 2026, per Keith: "as we're loading both
-        # Generic files and this works, we don't need to show this in
-        # a button, this can be replaced as an [Advanced] button") -
-        # the automatic generic.ide preloading (_preload_generic_ide_
-        # textures, wired into every world load) already handles
-        # generic.txd loading seamlessly, confirmed working in
-        # Keith's own testing - manually loading it is now a rare,
-        # advanced/diagnostic action rather than something that needs
-        # a prominent top-level button. Kept available as a menu item
-        # rather than removed outright, and this menu is a natural
-        # home for other advanced/less-common options as they come up.
-        advanced_btn = QPushButton("Advanced")
-        advanced_btn.setFixedHeight(18)
-        advanced_btn.setStyleSheet(_compact_18)
-        advanced_menu = QMenu(advanced_btn)
-        load_generic_act = advanced_menu.addAction("Load Generic.txd Manually")
-        load_generic_act.setToolTip(
-            "Manually (re)load generic.txd - the shared texture archive\n"
-            "many models reference without having their own dedicated\n"
-            "TXD. Not normally needed - generic.ide's referenced TXDs\n"
-            "(including generic.txd itself) are already preloaded\n"
-            "automatically whenever a world loads. Tries the game's\n"
-            "indexed IMG archives first (e.g. gta3.img, which every game\n"
-            "always loads via the exe), then falls back to {game root}/\n"
-            "models/generic.txd as a loose file.")
-        load_generic_act.triggered.connect(self._on_load_generic_txd_clicked)
-
-        # Load Text plus Binary IPL set, Show Full Loading Models
-        # (Debug), and Reduce Large Textures moved to Settings >
-        # Loading (Aug 1 2026, per Keith: "these settings, can be
-        # added to map_workshop's settings on the title bar (topbar)
-        # as a new tab in the settings dialog, this would tidy up the
-        # IPL controls") - see MapSettingsDialog's Loading tab.
-
-        advanced_btn.setMenu(advanced_menu)
-        advanced_btn.setToolTip("Less-common/diagnostic actions")
-        opts_row.addWidget(advanced_btn)
+        # The Advanced button/menu that used to sit here is gone (Aug
+        # 1 2026) - all four of its options (Load Generic.txd
+        # Manually, Load Text plus Binary IPL set, Show Full Loading
+        # Models, Reduce Large Textures) have moved to the Settings
+        # dialog's Loading and Map Assets tabs, per Keith: "these
+        # settings, can be added to map_workshop's settings on the
+        # title bar (topbar) as a new tab in the settings dialog, this
+        # would tidy up the IPL controls" and "generic.txd loading can
+        # be added to settings also under map assits tab" - nothing
+        # left for it to do, so removed rather than kept as an empty,
+        # non-functional button.
 
         # Merged Render/LOD button (Aug 1 2026, per Keith: "Render
         # view should me merged with LOD view, labeled as Render:

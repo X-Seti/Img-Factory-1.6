@@ -3189,3 +3189,20 @@ conclusively found despite extensive isolated testing.
   showing everything regardless of circle position, and the
   standalone-instance edge case confirmed staying visible everywhere.
   Full `QApplication` instantiation clean, `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Per Keith: "generic.txd loading can be
+  added to settings also under map assits tab." Added a new "Map
+  Assets" tab to the Settings dialog with a "Load Generic.txd
+  Manually" button (a one-time action rather than a persistent
+  toggle, so a button matching the existing "Ribbon Manager…" pattern
+  in the Ribbons tab, not a checkbox). Removed it from IPL Controls'
+  Advanced menu, and since that was the last item left in that menu
+  (the other three moved to Settings > Loading earlier), removed the
+  now-empty Advanced button entirely rather than leave a non-
+  functional leftover - completing the "tidy up the IPL controls"
+  goal from earlier in the session.
+
+  Verified: Map Assets tab present in the dialog; its button
+  correctly triggers the real `_on_load_generic_txd_clicked` handler
+  on click. Full `QApplication` instantiation clean, `ast.parse`
+  clean.
