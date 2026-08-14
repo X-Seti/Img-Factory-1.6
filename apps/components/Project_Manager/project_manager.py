@@ -41,7 +41,6 @@ except ImportError:
 # save_projects
 # get_project_settings
 # update_project_settings
-# add_project_menu_items
 
 class ProjectManager:
     """Manages multiple projects and their settings"""
@@ -680,76 +679,6 @@ def activate_selected_project(main_window, project_list, parent_dialog=None):
         )
 
 
-def add_project_menu_items(main_window):
-    """Add project management menu items to the main window"""
-    try:
-        # Check if main window already has a menu system
-        menubar = main_window.menuBar()
-        if not menubar:
-            main_window.log_message("❌ No menu bar found")
-            return False
-
-        # Find existing Project menu or create one
-        project_menu = None
-        for action in menubar.actions():
-            menu_text = action.text().replace("&", "")  # Remove accelerator
-            if menu_text == "Project":
-                project_menu = action.menu()
-                break
-
-        if not project_menu:
-            # Create Project menu if it doesn't exist
-            project_menu = menubar.addMenu("&Project")
-            main_window.log_message("Created Project menu")
-
-        # Add project management items
-        manage_projects_action = QAction("Manage Projects...", main_window)
-        manage_projects_action.setToolTip("Manage multiple projects")
-        manage_projects_action.triggered.connect(lambda: show_project_manager_dialog(main_window))
-        project_menu.addAction(manage_projects_action)
-
-        project_menu.addSeparator()
-
-        # Add quick actions for current project
-        set_project_folder_action = QAction("Set Current Project Folder...", main_window)
-        set_project_folder_action.setToolTip("Set folder for current project's exported files")
-        set_project_folder_action.triggered.connect(lambda: handle_set_project_folder(main_window))
-        project_menu.addAction(set_project_folder_action)
-
-        set_game_root_action = QAction("Set Current Game Root...", main_window)
-        set_game_root_action.setToolTip("Set GTA game installation directory for current project")
-        set_game_root_action.triggered.connect(lambda: handle_set_game_root_folder(main_window))
-        project_menu.addAction(set_game_root_action)
-
-        # Set Current Assets Folder (Aug 1 2026, per Keith: "option
-        # would be needed to setup an assets folder later, is that
-        # covered") - the New Project dialog's own Skip option meant
-        # someone could genuinely have no assets folder set at all,
-        # with no direct, discoverable way back to setting one later -
-        # only Set Current Game Root/Project Folder had this menu-
-        # level equivalent before now.
-        set_assets_folder_action = QAction("Set Current Assets Folder...", main_window)
-        set_assets_folder_action.setToolTip("Set (or change) the assets folder for the current project")
-        set_assets_folder_action.triggered.connect(lambda: handle_set_assets_folder(main_window))
-        project_menu.addAction(set_assets_folder_action)
-
-        # Store actions for later reference
-        main_window.manage_projects_action = manage_projects_action
-        main_window.set_project_folder_action = set_project_folder_action
-        main_window.set_game_root_action = set_game_root_action
-        main_window.set_assets_folder_action = set_assets_folder_action
-
-        # Initialize project manager
-        main_window.project_manager = ProjectManager(main_window)
-
-        main_window.log_message("Project management menu items added")
-        return True
-
-    except Exception as e:
-        main_window.log_message(f"Error adding project menu items: {str(e)}")
-        return False
-
-
 def handle_set_project_folder(main_window):
     """Handle Set Project Folder menu action for current project"""
     try:
@@ -1070,7 +999,6 @@ def create_assists_folder_structure(main_window, base_folder: str) -> bool:
 
 __all__ = [
     'ProjectManager',
-    'add_project_menu_items',
     'show_project_manager_dialog',
     'handle_set_project_folder',
     'handle_set_game_root_folder',

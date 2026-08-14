@@ -16,7 +16,6 @@ from apps.methods.imgfactory_svg_icons import (
     get_rebuild_icon, get_undobar_icon, get_undo_icon, get_redo_icon
 )
 
-from apps.gui.gui_menu_custom import CustomMenuManager, show_popup_menu_at_button
 
 # Temporary 3D viewport placeholder
 class COL3DViewport(QWidget):
@@ -807,8 +806,6 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         self.hover_corner = None
         self._initialize_features()
         self.enable_debug_check = False
-        self.custom_menu_manager = CustomMenuManager(main_window)
-        main_window.custom_menu_manager = self.custom_menu_manager
 
 
     @property
@@ -1274,17 +1271,10 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         self.tool_menu_btn.setVisible(False)
         self._tool_menu_popup = None
 
-    def _show_popup_menu(self): #vers 2
+    def _show_popup_menu(self): #vers 3
         """Show main popup menu via unified menu system."""
         try:
-            ms = getattr(self.main_window, 'menu_system', None)
-            if ms:
-                btn = getattr(self, 'menu_btn', None)
-                ms.show_popup(at_widget=btn)
-            elif hasattr(self, 'menu_btn'):
-                show_popup_menu_at_button(self.main_window, self.menu_btn)
-            else:
-                self.custom_menu_manager.show_popup_menu()
+            self.main_window.menu_system.show_popup(at_widget=self.menu_btn)
         except Exception as e:
             if hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Menu error: {str(e)}")

@@ -27,85 +27,6 @@ from apps.components.File_Editor.directory_tree_browser import integrate_directo
 # create_project_folder_structure
 # validate_game_root_folder
 
-def add_project_menu_items(main_window): #vers 3
-    """Add project-related items to File menu - WITH DIRECTORY BROWSER"""
-    try:
-        # Check if main window already has a menu system
-        menubar = main_window.menuBar()
-        if not menubar:
-            main_window.log_message("❌ No menu bar found")
-            return False
-
-        # Find existing File menu
-        file_menu = None
-        for action in menubar.actions():
-            menu_text = action.text().replace("&", "")  # Remove accelerator
-            if menu_text == "File":
-                file_menu = action.menu()
-                break
-
-        if not file_menu:
-            # Create File menu if it doesn't exist
-            file_menu = menubar.addMenu("&File")
-            main_window.log_message("Created File menu")
-
-        # Check if project items already exist (avoid duplicates)
-        existing_actions = [action.text() for action in file_menu.actions()]
-        if any("Project Folder" in text for text in existing_actions):
-            main_window.log_message("Project menu items already exist")
-            return True
-
-        # Add separator before project items (if menu has other items)
-        if file_menu.actions():
-            file_menu.addSeparator()
-
-        # Project Folder action
-        project_folder_action = QAction("Set Project Folder...", main_window)
-        project_folder_action.setToolTip("Set folder for organizing exported files")
-        project_folder_action.triggered.connect(lambda: handle_set_project_folder(main_window))
-        project_folder_action.setShortcut("Ctrl+Shift+P")
-        file_menu.addAction(project_folder_action)
-
-        # Game Root Folder action
-        game_root_action = QAction("Set Game Root Folder...", main_window)
-        game_root_action.setToolTip("Set GTA game installation directory")
-        game_root_action.triggered.connect(lambda: handle_set_game_root_folder(main_window))
-        game_root_action.setShortcut("Ctrl+Shift+G")
-        file_menu.addAction(game_root_action)
-
-
-
-        # Auto-detect Game action
-        auto_detect_action = QAction("Auto-Detect Game...", main_window)
-        auto_detect_action.setToolTip("Automatically find GTA installation")
-        auto_detect_action.triggered.connect(lambda: handle_auto_detect_game(main_window))
-        file_menu.addAction(auto_detect_action)
-
-        file_menu.addSeparator()
-
-        # Project Settings action
-        project_settings_action = QAction("Project Settings...", main_window)
-        project_settings_action.setToolTip("Configure project and export settings")
-        project_settings_action.triggered.connect(lambda: handle_project_settings(main_window))
-        file_menu.addAction(project_settings_action)
-
-        # Store actions for later reference
-        main_window.project_folder_action = project_folder_action
-        main_window.game_root_action = game_root_action
-        main_window.auto_detect_action = auto_detect_action
-        main_window.project_settings_action = project_settings_action
-
-        # Load saved settings
-        load_project_settings(main_window)
-
-        main_window.log_message("Project menu items added to existing File menu")
-
-        return True
-
-    except Exception as e:
-        main_window.log_message(f"Error adding project menu items: {str(e)}")
-        return False
-
 
 def handle_browse_game_directory(main_window): #vers 1
     """Handle Browse Game Directory menu action - switches to Directory Tree tab"""
@@ -859,7 +780,6 @@ def load_project_settings(main_window): #vers 1
 
 
 __all__ = [
-    'add_project_menu_items',
     'handle_set_project_folder',
     'handle_set_game_root_folder',
     'handle_project_settings',

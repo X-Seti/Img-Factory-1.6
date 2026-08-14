@@ -804,20 +804,10 @@ class IMGFactoryGUILayout:
             print(f"RW Ref error: {e}")
 
 
-    def _show_system_popup_menu(self, btn): #vers 2
-        """Show the imgfactory popup menu anchored to the Menu button (system UI mode).
-        Creates custom_menu_manager on demand if not already present.
-        """
-        try:
-            from apps.gui.gui_menu_custom import CustomMenuManager
-            # Create manager on demand if not already set up (system mode skips this)
-            if not hasattr(self.main_window, 'custom_menu_manager') or                not self.main_window.custom_menu_manager:
-                self.main_window.custom_menu_manager = CustomMenuManager(self.main_window)
-            pos = btn.mapToGlobal(btn.rect().bottomLeft())
-            self.main_window.custom_menu_manager.show_popup_menu(pos)
-        except Exception as e:
-            print(f"System menu error: {e}")
-            import traceback; traceback.print_exc()
+    # _show_system_popup_menu removed (Aug 1 2026) - confirmed never
+    # called from anywhere in the codebase. The real popup menu path
+    # is IMGFactoryGUILayoutCustom._show_popup_menu, which uses the
+    # unified menu system directly.
 
 
     def _show_system_settings(self): #vers 1

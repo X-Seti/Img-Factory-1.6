@@ -51,7 +51,6 @@ from apps.utils.app_settings_system import AppSettings, apply_theme_to_app, Sett
 # Components
 from apps.components.Img_Creator.img_creator import NewIMGDialog, IMGCreationThread
 from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser
-from apps.components.Project_Manager.project_manager import add_project_menu_items
 
 # Debug
 from apps.debug.debug_functions import set_col_debug_enabled, set_debug_main_window
@@ -102,9 +101,7 @@ from apps.gui.main_window import IMGFactoryMainWindow
 from apps.gui.col_display import update_col_info_bar_enhanced
 from apps.gui.gui_layout import IMGFactoryGUILayout
 from apps.gui.unified_button_theme import apply_unified_button_theme
-from apps.gui.gui_menu import IMGFactoryMenuBar
 from apps.gui.autosave_menu import integrate_autosave_menu
-from apps.components.Project_Manager.project_manager import add_project_menu_items
 from apps.gui.tearoff_integration import integrate_tearoff_system
 from apps.gui.gui_context import (open_col_file_dialog, open_col_batch_proc_dialog, open_col_editor_dialog, analyze_col_file_dialog)
 from apps.gui.gui_layout_custom import IMGFactoryGUILayoutCustom
@@ -626,8 +623,6 @@ class IMGFactory(QMainWindow):
         # Stub for selection callbacks before full button system loads
         if not hasattr(self, '_update_button_states'):
             self._update_button_states = lambda has_selection: None
-
-        add_project_menu_items(self)
 
         # Additional UI integrations
         integrate_tab_system(self)
