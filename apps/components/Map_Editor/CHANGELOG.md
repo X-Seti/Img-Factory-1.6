@@ -3675,3 +3675,32 @@ conclusively found despite extensive isolated testing.
   `OBJECT_BROWSER_BUTTON_H`, same compact 0px-vertical/bold styling
   as that panel's QToolButtons) - previously unstyled, falling back
   to the app's default (much taller) QTabBar look. `ast.parse` clean.
+
+- **Aug 14, 2026 (cont'd)** — Narrowed IPL Controls' section tabs
+  further, per Keith: "the INST, CULL tabs, can be narrower, just
+  enough to fit the text" - added `min-width: 0px` to the QTabBar::tab
+  stylesheet added earlier this session. Padding alone wasn't enough:
+  Qt's built-in style still enforces its own minimum tab width
+  underneath a stylesheet's padding unless min-width is explicitly
+  overridden, which is why short labels (INST/CULL/ZON) were still
+  sitting in extra whitespace despite the earlier fix.
+
+  Added double-click-to-open on the IPL Sections table, per Keith:
+  "you can select IPL files, maybe just double-click them to open
+  them on the filename... right click unload ipl, or just hide the
+  file from view - whatever is the most logical way of doing this."
+  Double-clicking any cell in a row now loads/shows that IPL if it's
+  currently hidden (reusing the existing single-click-on-eye-icon
+  "show" code path rather than duplicating it) - a no-op if it's
+  already visible, matching the ordinary meaning of double-clicking
+  something already open. The existing eye-icon column and its
+  right-click Hide/Show context-menu action (already present, already
+  functional on inspection) are unchanged - this adds a second,
+  more standard way in, it doesn't replace what was there.
+
+  Logged Keith's "Ghosted view could be useful for LOD and Normal"
+  aside to TODO.md rather than implementing speculatively - not
+  scoped enough yet (needs confirmation on which of Normal/LOD should
+  be the ghosted one) to build without guessing.
+
+  `ast.parse` clean on all three changes.

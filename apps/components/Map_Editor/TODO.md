@@ -559,3 +559,16 @@ instances (no OpenGL context needed for the field-access logic
 itself) - passed. Still nothing currently imports this module
 (confirmed project-wide), so still unverified in the running app,
 but no longer known-broken if something does start using it.
+
+## Ghosted render mode for LOD/Normal models (noted Aug 14 2026)
+
+Per Keith: "Ghosted view could be useful for LOD and Normal" - a
+passing suggestion, not yet scoped/implemented. Most likely reading:
+when the LOD filter is set to "Show Both" (Normal + LOD together),
+render one of the two ghosted so overlapping Normal/LOD meshes are
+visually distinguishable - same overlay concept as the Col ghosting
+already built (DFFViewport._draw_solid already takes an
+alpha_multiplier, used for semi_solid - a low-alpha "ghosted" variant
+would reuse the same mechanism). Needs Keith to confirm which of
+Normal/LOD should be the ghosted one (or if he means something else
+entirely) before building it.

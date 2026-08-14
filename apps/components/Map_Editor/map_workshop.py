@@ -20095,6 +20095,17 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         table.setToolTip("Toggle which IPL files' placements are shown in World View")
         table.cellClicked.connect(self._on_ipl_section_cell_clicked)
+        # Double-click any cell to open/show that IPL (Aug 14 2026,
+        # per Keith: "you can select IPL files, maybe just double-
+        # click them to open them on the filename... right click
+        # unload ipl, or just hide the file from view - whatever is
+        # the most logical way of doing this") - the eye-icon column
+        # and its Hide/Show right-click action stay as they are for
+        # hiding again, this just adds the more standard file-browser
+        # "double-click to open" affordance as another way in, since
+        # loading previously required a precise click on the narrow
+        # icon column specifically.
+        table.cellDoubleClicked.connect(self._on_ipl_section_cell_double_clicked)
         table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         table.customContextMenuRequested.connect(self._on_ipl_sections_context_menu)
         content_lay.addWidget(table)
@@ -20852,8 +20863,20 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # style as that panel's QToolButtons, applied here as
         # QTabBar::tab rules since a QTabBar's individual tabs aren't
         # separate widgets to style directly.
+        #
+        # min-width: 0px (Aug 14 2026, cont'd, per Keith: "the INST,
+        # CULL tabs, can be narrower, just enough to fit the text") -
+        # padding alone wasn't enough; Qt's built-in style still
+        # enforces its own minimum tab width (QCommonStyle's
+        # PM_TabBarTabHSpace-driven default, generally 70-90px)
+        # underneath whatever padding a stylesheet sets, unless
+        # min-width is set explicitly to override it. Short labels
+        # like INST/CULL/ZON were sitting inside that same oversized
+        # minimum despite the padding fix, wasting space; longer
+        # ones (PICK/JUMP/TCYC/AUZO) still size to their own text
+        # correctly with min-width unconstrained like this.
         ipl_tab_bar.setStyleSheet(
-            "QTabBar::tab { height: 18px; padding: 0px 6px; margin: 0px; "
+            "QTabBar::tab { height: 18px; min-width: 0px; padding: 0px 6px; margin: 0px; "
             "font-weight: bold; border-width: 1px; }"
             "QTabBar::tab:disabled { color: palette(mid); }")
         tab_specs = [
@@ -22805,6 +22828,29 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._refresh_ipl_inst_file_panel()
         finally:
             self._ipl_cell_click_in_progress = False
+
+    def _on_ipl_section_cell_double_clicked(self, row, col): #vers 1
+        """Double-click any cell in an IPL Sections row to open/show
+        that IPL (Aug 14 2026, per Keith: "you can select IPL files,
+        maybe just double-click them to open them on the filename...
+        right click unload ipl, or just hide the file from view -
+        whatever is the most logical way of doing this"). Always
+        shows - never toggles to hidden - matching the ordinary
+        meaning of double-clicking to open something already open:
+        does nothing further, rather than closing it. Reuses
+        _on_ipl_section_cell_clicked's own "show" branch (col 0) for
+        the actual load/unhide work rather than duplicating it - that
+        method already handles the lazy-load, the re-entrancy guard,
+        and the post-rebuild row re-lookup correctly."""
+        if getattr(self, '_ipl_cell_click_in_progress', False):
+            return
+        table = self._ipl_sections_table
+        item = table.item(row, 0)
+        if item is None:
+            return
+        ipl_name = item.data(Qt.ItemDataRole.UserRole)
+        if ipl_name in getattr(self, '_hidden_ipls', set()):
+            self._on_ipl_section_cell_clicked(row, 0)
 
     def _ensure_ipl_loaded(self, display_name): #vers 3
         """Actually load one IPL's content on demand, the first time
