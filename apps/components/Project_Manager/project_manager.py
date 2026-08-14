@@ -547,22 +547,38 @@ class NewProjectFlowDialog(QDialog): #vers 1
             self.main_window.project_manager.set_current_project(name)
             if game_root:
                 self.main_window.game_root = game_root
-            # Close this dialog BEFORE opening the DAT Browser (Aug 1
-            # 2026, per Keith: "DAT Browser re-opened, stayed on the
-            # intro screen, i had to open the dat_browser manullu") -
-            # show_dat_browser's own tab.setCurrentIndex() call was
-            # running while this dialog was still open and modal on
-            # top of the main window; the tab switch happened
-            # internally, but with this dialog still covering
-            # everything and closing only afterward via accept(), the
-            # DAT Browser tab never became visibly current - the
-            # previously-active tab (the welcome/intro screen) stayed
-            # on screen even though the underlying tab index had
-            # already changed underneath it.
+            # Close this dialog before opening the DAT Browser, so the
+            # panel switch happens on a fully visible main window.
             self.accept()
             try:
-                from apps.components.Dat_Browser.dat_browser import show_dat_browser
-                show_dat_browser(self.main_window)
+                # Use the SAME call the working intro/welcome screen
+                # button uses (Aug 1 2026, per Keith: "DAT Browser
+                # re-opened is shown in the terminal, but i still have
+                # to pick the dat_browser from the list, can we use
+                # the same call as the intro button") - dat_browser.
+                # py's own show_dat_browser operates on main_window.
+                # main_tab_widget (a QTabWidget), which isn't this
+                # app's actual current UI layout at all; the real
+                # mechanism is gui_layout_custom.py's own (lowercase)
+                # _show_dat_browser, which switches left_stack (a
+                # QStackedWidget behind a collapsible splitter panel)
+                # to the DAT Browser's page and expands the panel -
+                # the same function the intro screen's own "Open DAT
+                # Browser" card is wired to, confirmed working
+                # reliably where the other call wasn't.
+                from apps.gui.gui_layout_custom import _show_dat_browser
+                # _show_dat_browser deliberately never creates the
+                # widget itself ("Never recreate it here — just use
+                # the existing widget") - it's normally created at
+                # startup by integrate_dat_browser, which should
+                # already have run long before a project gets created
+                # here, but falling back to creating it first covers
+                # the edge case where that startup step didn't happen
+                # for some reason, rather than silently doing nothing.
+                if getattr(self.main_window, 'dat_browser', None) is None:
+                    from apps.components.Dat_Browser.dat_browser import integrate_dat_browser
+                    integrate_dat_browser(self.main_window)
+                _show_dat_browser(self.main_window)
             except Exception as e:
                 if hasattr(self.main_window, 'log_message'):
                     self.main_window.log_message(f"Could not open DAT Browser: {e}")
