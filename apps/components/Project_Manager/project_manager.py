@@ -676,10 +676,23 @@ def add_project_menu_items(main_window):
         set_game_root_action.triggered.connect(lambda: handle_set_game_root_folder(main_window))
         project_menu.addAction(set_game_root_action)
 
+        # Set Current Assets Folder (Aug 1 2026, per Keith: "option
+        # would be needed to setup an assets folder later, is that
+        # covered") - the New Project dialog's own Skip option meant
+        # someone could genuinely have no assets folder set at all,
+        # with no direct, discoverable way back to setting one later -
+        # only Set Current Game Root/Project Folder had this menu-
+        # level equivalent before now.
+        set_assets_folder_action = QAction("Set Current Assets Folder...", main_window)
+        set_assets_folder_action.setToolTip("Set (or change) the assets folder for the current project")
+        set_assets_folder_action.triggered.connect(lambda: handle_set_assets_folder(main_window))
+        project_menu.addAction(set_assets_folder_action)
+
         # Store actions for later reference
         main_window.manage_projects_action = manage_projects_action
         main_window.set_project_folder_action = set_project_folder_action
         main_window.set_game_root_action = set_game_root_action
+        main_window.set_assets_folder_action = set_assets_folder_action
 
         # Initialize project manager
         main_window.project_manager = ProjectManager(main_window)
@@ -751,6 +764,61 @@ def handle_set_project_folder(main_window):
 
     except Exception as e:
         main_window.log_message(f"Error setting project folder: {str(e)}")
+
+
+def handle_set_assets_folder(main_window): #vers 1
+    """Handle Set Assets Folder menu action for current project - per
+    Keith: "option would be needed to setup an assets folder later, is
+    that covered." The New Project dialog's Skip option meant a
+    project could genuinely have no assets folder at all; this is the
+    direct, menu-level way back to setting (or changing) one later,
+    matching handle_set_project_folder's own pattern exactly."""
+    try:
+        if not main_window.project_manager.current_project:
+            result = QMessageBox.question(
+                main_window,
+                "No Active Project",
+                "No project is currently active. Would you like to create a new project?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+            if result == QMessageBox.StandardButton.Yes:
+                create_new_project(main_window, None)
+                return
+            else:
+                return
+
+        current_assets = getattr(main_window, 'assists_path', None)
+        start_dir = current_assets if current_assets else os.path.expanduser("~")
+
+        folder = QFileDialog.getExistingDirectory(
+            main_window,
+            "Select Assets Folder - For importing/exporting models, textures, maps",
+            start_dir,
+            QFileDialog.Option.ShowDirsOnly
+        )
+
+        if folder:
+            main_window.project_manager.update_project_settings(
+                main_window.project_manager.current_project,
+                {"assists_path": folder}
+            )
+            main_window.assists_path = folder
+
+            if create_assists_folder_structure(main_window, folder):
+                main_window.log_message(f"Assets folder set for {main_window.project_manager.current_project}: {folder}")
+                QMessageBox.information(
+                    main_window,
+                    "Assets Folder Set",
+                    f"Assets folder configured for {main_window.project_manager.current_project}:\n{folder}\n\nFolder structure created:\n• Models/\n• Maps/\n• Collisions/\n• Textures/"
+                )
+            else:
+                main_window.log_message("Assets folder set but structure creation failed")
+        else:
+            main_window.log_message("Assets folder selection cancelled")
+
+    except Exception as e:
+        main_window.log_message(f"Error setting assets folder: {str(e)}")
+
 
 
 def handle_set_game_root_folder(main_window):
@@ -961,5 +1029,6 @@ __all__ = [
     'show_project_manager_dialog',
     'handle_set_project_folder',
     'handle_set_game_root_folder',
+    'handle_set_assets_folder',
     'create_assists_folder_structure'
 ]
