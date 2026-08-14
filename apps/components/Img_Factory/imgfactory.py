@@ -575,22 +575,12 @@ class IMGFactory(QMainWindow):
             except Exception as e:
                 mw.log_message(f"Save project error: {e}")
 
-        def _pm_manage(mw):
+        def _pm_set_assets(mw): #vers 1
             try:
-                from apps.components.Project_Manager.project_manager import show_project_manager_dialog
-                if not getattr(mw, 'project_manager', None):
-                    from apps.components.Project_Manager.project_manager import ProjectManager
-                    mw.project_manager = ProjectManager(mw)
-                show_project_manager_dialog(mw)
+                from apps.components.Project_Manager.project_manager import handle_set_assets_folder
+                handle_set_assets_folder(mw)
             except Exception as e:
-                mw.log_message(f"Manage project error: {e}")
-
-        def _pm_set(mw):
-            try:
-                from apps.components.Project_Manager.project_manager import handle_set_project_folder
-                handle_set_project_folder(mw)
-            except Exception as e:
-                mw.log_message(f"Set project error: {e}")
+                mw.log_message(f"Set assets folder error: {e}")
 
         callbacks = {
             "about": self.show_about,
@@ -607,8 +597,7 @@ class IMGFactory(QMainWindow):
             "new_project":    lambda: _pm_new(self),
             "open_project":   lambda: _pm_open(self),
             "save_project":   lambda: _pm_save(self),
-            "manage_project": lambda: _pm_manage(self),
-            "set_project":    lambda: _pm_set(self),
+            "set_assets_folder": lambda: _pm_set_assets(self),
         }
         self.menu_bar_system.set_callbacks(callbacks)
         integrate_drag_drop_system(self)

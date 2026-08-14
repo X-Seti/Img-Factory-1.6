@@ -238,14 +238,17 @@ class UnifiedMenuSystem: #vers 1
         self._add(m, "open_ai",      "AI Workshop",     None,      None)
         self._menus['tools'] = m
 
-    def _build_project_menu(self): #vers 1
+    def _build_project_menu(self): #vers 2
         m = QMenu("Project")
         self._add(m, "new_project",    "New Project…",      None, None)
         self._add(m, "open_project",   "Open Project…",     None, None)
         self._add(m, "save_project",   "Save Project",      None, "save_icon")
         m.addSeparator()
-        self._add(m, "set_game_root",  "Set Game Root…",    None, "folder_icon")
-        self._add(m, "set_proj_folder","Set Project Folder…",None,"folder_icon")
+        # Set Game Root/Set Project Folder removed (Aug 1 2026, per
+        # Keith: "we dont need set game folder or set project folder,
+        # as open project, new project and save project, cover this")
+        # - New/Open/Save Project already cover picking these paths.
+        self._add(m, "set_assets_folder", "Set Current Assets Folder…", None, "folder_icon")
         self._menus['project'] = m
 
     def _build_settings_menu(self): #vers 1
