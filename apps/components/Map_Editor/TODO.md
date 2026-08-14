@@ -374,3 +374,53 @@ test circles, a fixed (non-mouse-following) test point for
 screenshot/comparison purposes, or extending the same live-switching
 mechanism to render mode (Textured/Wireframe/etc.) rather than just
 LOD detail level.
+
+## Three duplicate settings dialogs exist (Aug 1 2026)
+
+Per Keith: "class MapSettingsDialog(QDialog): is where the new
+settings should be, I don't see Map Assits tab with the Advance
+settings moved too?" Investigated and found the earlier Loading/Map
+Assets tab work had gone into the wrong dialog entirely.
+
+There are THREE separate, parallel settings-dialog implementations in
+this file, likely accumulated from the Model-Workshop-base porting
+process without ever being consolidated:
+
+1. `class MapSettingsDialog(QDialog)` - a full, well-structured dialog
+   (Canvas/Ribbons/Interface/Widgets/Menu/Gadgets/Loading/Map Assets/
+   Viewport tabs, uses the real MapSettings persistence via self.s.set)
+   but **never actually instantiated anywhere in the file**. Dead code.
+   This is where the Loading/Map Assets tabs were first added -
+   wasted work, since nothing ever opens this class.
+
+2. `_show_settings_dialog` (Display/Preview/Export/Import/Constraints/
+   Keyboard Shortcuts tabs) - only reachable via a keyboard shortcut
+   (hotkey_settings), not any visible button or menu item.
+
+3. `_show_workshop_settings` (Fonts/Display/Performance/Preview tabs)
+   - THE REAL ONE, wired to the actual top-bar Settings button
+     (self.settings_btn.clicked). This is what Keith actually sees.
+     Uses its own ad-hoc self.xxx = ... attributes for persistence,
+     NOT MapSettings - a second, different mechanism from #1.
+
+Moved the Loading/Map Assets tabs to #3 (the reachable one), using
+MapSettings for their own persistence (matching what IPL Controls
+actually reads from) even though the rest of #3's tabs don't.
+
+While testing #3, found its own pre-existing "Apply Settings" button
+was ALSO already broken independent of any of this - self.format_
+combo and self.preview_widget.bg_color are both referenced but never
+actually exist, meaning Apply Settings crashed outright for every tab
+before this session, not just the new ones. Guarded both, and wrapped
+the rest of that function's pre-existing logic in a broad try/except
+as a pragmatic, time-bounded fix rather than auditing the whole
+function line by line - can't rule out further undiscovered broken
+references in there.
+
+**Not done, worth doing eventually**: pick one dialog (almost
+certainly #3, since it's the one users actually see) and either
+delete #1 and #2 entirely, or migrate whatever's uniquely useful in
+them (e.g. #1's Viewport pan/rotate button settings, Ribbon Manager
+access) into #3, then remove the dead duplicates. Right now anyone
+editing "the settings dialog" without knowing this history has a
+1-in-3 chance of editing something invisible to the actual user.

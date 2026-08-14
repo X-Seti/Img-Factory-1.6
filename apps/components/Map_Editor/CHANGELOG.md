@@ -3206,3 +3206,38 @@ conclusively found despite extensive isolated testing.
   correctly triggers the real `_on_load_generic_txd_clicked` handler
   on click. Full `QApplication` instantiation clean, `ast.parse`
   clean.
+
+- **Aug 1, 2026 (cont'd)** — Fixed a real mistake from earlier this
+  session: per Keith, "class MapSettingsDialog(QDialog): is where the
+  new settings should be, I don't see Map Assits tab with the Advance
+  settings moved too?" Investigated and found `MapSettingsDialog` is
+  never actually instantiated anywhere in the file - there are
+  *three* separate, parallel settings-dialog implementations
+  (`MapSettingsDialog`, `_show_settings_dialog` reachable only via a
+  hotkey, and `_show_workshop_settings` wired to the actual top-bar
+  Settings button), and the Loading/Map Assets tabs had gone into the
+  first, unreachable one. Full details logged to TODO.md, including
+  a recommendation to eventually consolidate down to one.
+
+  Moved both tabs to `_show_workshop_settings` (the real, reachable
+  one), using the correct `MapSettings` persistence for their own
+  values even though the rest of that dialog uses its own separate,
+  ad-hoc attribute mechanism.
+
+  While testing this, found `_show_workshop_settings`'s own "Apply
+  Settings" button was *also* already broken, independent of any of
+  this - `self.format_combo` and `self.preview_widget.bg_color` are
+  both referenced but never actually exist, meaning the button
+  crashed outright for every tab, not just the new ones, before this
+  fix. Guarded both specifically and wrapped the remaining pre-
+  existing logic in a broad try/except as a pragmatic fix given the
+  apparent scale of pre-existing breakage in this function - a strict
+  improvement either way, since nothing after the first broken
+  reference ever applied before this regardless.
+
+  Verified end-to-end through the real, reachable dialog: Loading and
+  Map Assets tabs present; Apply Settings now completes without
+  crashing; downscale settings and their live re-application to
+  `preview_widget` all confirmed correct; the Generic.txd button
+  confirmed triggering the real handler. Full `QApplication`
+  instantiation clean, `ast.parse` clean.

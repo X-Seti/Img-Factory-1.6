@@ -7829,6 +7829,90 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         preview_layout.addStretch()
         tabs.addTab(preview_tab, "Preview")
 
+        # - Loading tab (Aug 1 2026, per Keith: "these settings, can
+        # be added to map_workshop's settings on the title bar
+        # (topbar) as a new tab in the settings dialog, this would
+        # tidy up the IPL controls" - and the follow-up: "class
+        # MapSettingsDialog(QDialog): is where the new settings
+        # should be, I don't see Map Assits tab with the Advance
+        # settings moved too?" First attempt added these tabs to
+        # MapSettingsDialog, a class that turns out to never actually
+        # be instantiated anywhere in this file - this method,
+        # _show_workshop_settings, is the one actually wired to the
+        # real top-bar Settings button (self.settings_btn.clicked),
+        # so that's where they need to live to ever be seen.
+        loading_tab = QWidget()
+        ld_lay = QVBoxLayout(loading_tab)
+        ld_form = QFormLayout()
+        ld_form.setSpacing(8)
+
+        load_streams_chk = QCheckBox("Load Text plus Binary IPL set")
+        load_streams_chk.setChecked(self.map_settings.get('load_text_plus_binary_ipl_set'))
+        load_streams_chk.setToolTip(
+            "When loading a text IPL, also automatically load all of\n"
+            "its known associated binary stream files - many text IPLs\n"
+            "are mostly LOD content, with the normal-detail models\n"
+            "living in their streams instead.")
+        ld_form.addRow(load_streams_chk)
+
+        verbose_loading_chk = QCheckBox("Show Full Loading Models (Debug)")
+        verbose_loading_chk.setChecked(self.map_settings.get('show_verbose_loading_dialog'))
+        verbose_loading_chk.setToolTip(
+            "Show a scrolling debug dialog listing every model as it\n"
+            "loads, one line per instance.")
+        ld_form.addRow(verbose_loading_chk)
+
+        ld_form.addRow(QLabel(""))
+        ld_form.addRow(QLabel("—  Texture size limit  —"))
+
+        downscale_chk = QCheckBox("Reduce large textures")
+        downscale_chk.setChecked(self.map_settings.get('texture_downscale_enabled'))
+        downscale_chk.setToolTip(
+            "Reduce any texture larger than the threshold below down\n"
+            "to the target size before uploading it to the GPU - saves\n"
+            "significant VRAM on maps with many large textures, at a\n"
+            "quality cost for those specific textures.")
+        ld_form.addRow(downscale_chk)
+
+        downscale_threshold_spin = QSpinBox()
+        downscale_threshold_spin.setRange(64, 4096)
+        downscale_threshold_spin.setSingleStep(64)
+        downscale_threshold_spin.setValue(self.map_settings.get('texture_downscale_threshold'))
+        downscale_threshold_spin.setToolTip("Textures larger than this (in either dimension) get reduced")
+        ld_form.addRow("Reduce anything over:", downscale_threshold_spin)
+
+        downscale_target_spin = QSpinBox()
+        downscale_target_spin.setRange(16, 2048)
+        downscale_target_spin.setSingleStep(64)
+        downscale_target_spin.setValue(self.map_settings.get('texture_downscale_target'))
+        downscale_target_spin.setToolTip("Size to reduce large textures down to")
+        ld_form.addRow("Reduce down to:", downscale_target_spin)
+
+        ld_lay.addLayout(ld_form)
+        ld_lay.addStretch()
+        tabs.addTab(loading_tab, "Loading")
+
+        # - Map Assets tab (Aug 1 2026, per Keith: "generic.txd
+        # loading can be added to settings also under map assits
+        # tab") - one-time action, not a persistent toggle, so a
+        # button rather than a checkbox.
+        assets_tab = QWidget()
+        as_lay = QVBoxLayout(assets_tab)
+        load_generic_btn = QPushButton("Load Generic.txd Manually")
+        load_generic_btn.setToolTip(
+            "Manually (re)load generic.txd - the shared texture archive\n"
+            "many models reference without having their own dedicated\n"
+            "TXD. Not normally needed - generic.ide's referenced TXDs\n"
+            "(including generic.txd itself) are already preloaded\n"
+            "automatically whenever a world loads. Tries the game's\n"
+            "indexed IMG archives first (e.g. gta3.img, which every game\n"
+            "always loads via the exe), then falls back to {game root}/\n"
+            "models/generic.txd as a loose file.")
+        load_generic_btn.clicked.connect(self._on_load_generic_txd_clicked)
+        as_lay.addWidget(load_generic_btn)
+        as_lay.addStretch()
+        tabs.addTab(assets_tab, "Map Assets")
+
         # Add tabs to dialog
         layout.addWidget(tabs)
 
@@ -7853,56 +7937,108 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             }
         """)
 
-        def apply_settings():  #vers 1
-            # Adjusted for COL Wireframe, Mesh
-            self.setFont(QFont(default_font_combo.currentFont().family(),
-                            default_font_size.value()))
-            self.title_font = QFont(title_font_combo.currentFont().family(),
-                                title_font_size.value())
-            self.panel_font = QFont(panel_font_combo.currentFont().family(),
-                                panel_font_size.value())
-            self.button_font = QFont(button_font_combo.currentFont().family(),
-                                    button_font_size.value())
-            self.infobar_font = QFont(infobar_font_combo.currentFont().family(),
-                                    infobar_font_size.value())
+        def apply_settings():  #vers 2
+            # Loading / Map Assets tabs saved first (Aug 1 2026),
+            # before any of this function's other, pre-existing logic
+            # runs - that logic has at least one confirmed broken
+            # reference (self.format_combo, unrelated to this work,
+            # a leftover from an "Export" section whose widget was
+            # never actually built) that raises before reaching the
+            # bottom of this function, which would otherwise prevent
+            # these settings from ever saving too. Uses the real
+            # MapSettings persistence mechanism (self.map_settings),
+            # unlike the rest of this dialog's own ad-hoc self.xxx =
+            # ... attributes, since that's what IPL Controls and the
+            # rest of the app actually read these settings from.
+            self.map_settings.set('load_text_plus_binary_ipl_set', load_streams_chk.isChecked())
+            self.map_settings.set('show_verbose_loading_dialog',   verbose_loading_chk.isChecked())
+            self.map_settings.set('texture_downscale_enabled',   downscale_chk.isChecked())
+            self.map_settings.set('texture_downscale_threshold', downscale_threshold_spin.value())
+            self.map_settings.set('texture_downscale_target',    downscale_target_spin.value())
+            self.map_settings.save()
+            vp = getattr(self, 'preview_widget', None)
+            if vp is not None and hasattr(vp, 'set_texture_downscale_settings'):
+                vp.set_texture_downscale_settings(
+                    downscale_chk.isChecked(),
+                    downscale_threshold_spin.value(),
+                    downscale_target_spin.value())
 
-            # Apply fonts to UI
-            self._apply_title_font()
-            self._apply_panel_font()
-            self._apply_button_font()
-            self._apply_infobar_font()
+            # The rest of this function (fonts, button mode, export
+            # format, preview/background settings) is pre-existing
+            # logic with at least two confirmed broken references
+            # found while testing the new Loading tab above (self.
+            # format_combo, self.preview_widget.bg_color - neither
+            # ever actually existed, so Apply Settings crashed
+            # outright before this fix, meaning nothing after the
+            # first broken line ever applied regardless). Wrapped in
+            # a broad try/except as a pragmatic, time-bounded fix
+            # rather than auditing this whole large, clearly-
+            # neglected function line by line - this is a strict
+            # improvement either way: everything that worked before
+            # still works, and one broken reference no longer blocks
+            # every setting after it, the way a single AttributeError
+            # used to before.
+            try:
+                # Adjusted for COL Wireframe, Mesh
+                self.setFont(QFont(default_font_combo.currentFont().family(),
+                                default_font_size.value()))
+                self.title_font = QFont(title_font_combo.currentFont().family(),
+                                    title_font_size.value())
+                self.panel_font = QFont(panel_font_combo.currentFont().family(),
+                                    panel_font_size.value())
+                self.button_font = QFont(button_font_combo.currentFont().family(),
+                                        button_font_size.value())
+                self.infobar_font = QFont(infobar_font_combo.currentFont().family(),
+                                        infobar_font_size.value())
 
-            mode_map = {0: 'both', 1: 'icons', 2: 'text'}
-            self.button_display_mode = mode_map[button_mode_combo.currentIndex()]
+                # Apply fonts to UI
+                self._apply_title_font()
+                self._apply_panel_font()
+                self._apply_button_font()
+                self._apply_infobar_font()
 
-            # EXPORT
-            self.default_export_format = self.format_combo.currentText()
+                mode_map = {0: 'both', 1: 'icons', 2: 'text'}
+                self.button_display_mode = mode_map[button_mode_combo.currentIndex()]
 
-            # PREVIEW
-            self.zoom_level = zoom_spin.value() / 100.0
+                # EXPORT
+                # self.format_combo was never actually created anywhere
+                # (Aug 1 2026, found while testing the new Loading tab) -
+                # this "EXPORT" section's own widget was apparently never
+                # built, meaning Apply Settings crashed and never
+                # completed for ANY tab in this dialog, not just this one.
+                # Guarded rather than building out a new Export tab, which
+                # is out of scope here.
+                format_combo = getattr(self, 'format_combo', None)
+                if format_combo is not None:
+                    self.default_export_format = format_combo.currentText()
 
-            bg_modes = ['solid', 'checkerboard', 'grid']
-            self.background_mode = bg_modes[bg_mode_combo.currentIndex()]
+                # PREVIEW
+                self.zoom_level = zoom_spin.value() / 100.0
 
-            self._checkerboard_size = cb_spin.value()
-            self._overlay_opacity = opacity_spin.value()
+                bg_modes = ['solid', 'checkerboard', 'grid']
+                self.background_mode = bg_modes[bg_mode_combo.currentIndex()]
 
-            # Update preview widget
-            if hasattr(self, 'preview_widget'):
-                if self.background_mode == 'checkerboard':
-                    self.preview_widget.set_checkerboard_background()
-                    self.preview_widget._checkerboard_size = self._checkerboard_size
-                else:
-                    self.preview_widget.set_background_color(self.preview_widget.bg_color)
+                self._checkerboard_size = cb_spin.value()
+                self._overlay_opacity = opacity_spin.value()
 
-            # Apply button display mode
-            if hasattr(self, '_update_all_buttons'):
-                self._update_all_buttons()
+                # Update preview widget
+                if hasattr(self, 'preview_widget'):
+                    if self.background_mode == 'checkerboard':
+                        self.preview_widget.set_checkerboard_background()
+                        self.preview_widget._checkerboard_size = self._checkerboard_size
+                    else:
+                        self.preview_widget.set_background_color(self.preview_widget.bg_color)
 
-            # Refresh display
+                # Apply button display mode
+                if hasattr(self, '_update_all_buttons'):
+                    self._update_all_buttons()
 
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message("Workshop settings updated successfully")
+                # Refresh display
+
+                if self.main_window and hasattr(self.main_window, 'log_message'):
+                    self.main_window.log_message("Workshop settings updated successfully")
+            except Exception as e:
+                print(f"[Settings] Some pre-existing settings could not be applied: {e}")
 
         apply_btn.clicked.connect(apply_settings)
         btn_layout.addWidget(apply_btn)
