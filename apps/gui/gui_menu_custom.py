@@ -14,7 +14,7 @@ except ImportError:
     from PyQt6.QtWidgets import QAction
     from PyQt6.QtGui import QKeySequence
 import json
-from apps.components.Project_Manager.project_manager import ProjectManager, show_project_manager_dialog, create_new_project, delete_selected_project, rename_selected_project, activate_selected_project
+from apps.components.Project_Manager.project_manager import ProjectManager, show_project_manager_dialog, create_new_project, delete_selected_project, rename_selected_project, activate_selected_project, handle_set_assets_folder
 from apps.gui.file_menu_integration import handle_set_project_folder, handle_set_game_root_folder, create_project_folder_structure
 
 ##Functions list -
@@ -276,13 +276,33 @@ class CustomMenuManager:
         menu.addAction(settings_action)
     
     
-    def create_project_menu(self, menu): #vers 1
+    def create_project_menu(self, menu): #vers 2
         """Add Project menu actions with SVG icons"""
         from apps.methods.imgfactory_svg_icons import SVGIconFactory
 
         # Initialize project manager if it doesn't exist
         if not hasattr(self.main_window, 'project_manager'):
             self.main_window.project_manager = ProjectManager(self.main_window)
+
+        # Set Current Assets Folder (Aug 1 2026, per Keith: "set asset
+        # folder is missing from the project menu, and we dont need
+        # set game folder or set project folder, as open project, new
+        # project and save project, cover this") - the earlier fix
+        # went into add_project_menu_items (project_manager.py), a
+        # separate menu-builder that doesn't actually contribute to
+        # this real, visible menu at all (only "Project Manager..."
+        # lived here before now) - confirmed via imgfactory.py's own
+        # menu construction, which builds this menu through create_
+        # project_menu specifically, not that other function. Set
+        # Game Root/Set Project Folder were never in this real menu
+        # either, so nothing needs removing for that part of Keith's
+        # request - already true.
+        set_assets_folder_action = QAction(SVGIconFactory.folder_icon(), "Set Current Assets Folder...", self.main_window)
+        set_assets_folder_action.setToolTip("Set (or change) the assets folder for the current project")
+        set_assets_folder_action.triggered.connect(lambda: handle_set_assets_folder(self.main_window))
+        menu.addAction(set_assets_folder_action)
+
+        menu.addSeparator()
 
         project_manager_action = QAction(SVGIconFactory.get_settings_icon(), "Project Manager...", self.main_window)
         project_manager_action.triggered.connect(lambda: show_project_manager_dialog(self.main_window))
