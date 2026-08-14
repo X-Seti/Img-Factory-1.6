@@ -3704,3 +3704,65 @@ conclusively found despite extensive isolated testing.
   be the ghosted one) to build without guessing.
 
   `ast.parse` clean on all three changes.
+
+- **Aug 14, 2026 (cont'd)** — Built a shared, standalone binary
+  parser for SA's real path data, per Keith: "build the paths parser
+  as a shared method set, that can be used by other tools, besides
+  map workshop". New module `apps/methods/sa_path_parser.py` - no
+  Map Workshop/PyQt/GUI dependencies at all, just struct/dataclasses,
+  so anything in this codebase can import and use it directly.
+
+  Real finding first: SA does NOT use the IPL text `path` section for
+  actual path data at all - that format (gta_dat_parser.py's
+  PathNode/PathGroup, verified against Keith's own III/VC data) only
+  applies to GTA III/VC. SA's own text-format path files still exist
+  on disk but are unused leftovers (per GTAMods Wiki); the game reads
+  64 separate binary `nodesN.dat` files instead (one per 750x750-unit
+  map area, `-3000,-3000` origin, row-major, normally packed inside
+  gta3.img), an entirely different data model - nodes/links/navi-
+  nodes as a double-linked adjacency-list graph, not IPL rows.
+  Confirmed via https://gtamods.com/wiki/Paths_(GTA_SA) - full spec:
+  20-byte header (5 section counts), Section 1 path nodes (28 bytes,
+  vehicle then ped, position/link/area/node IDs, width, flood-fill,
+  a 32-bit flags word covering traffic level/highway/roadblock/boat/
+  emergency/spawn-probability/parking), Section 2 navi nodes (14
+  bytes, vehicle-only interpolation points with direction vectors
+  and lane/traffic-light flags), Sections 3/5/6 links/navi-links/
+  link-lengths (same entry count, combined into one SAPathLink record
+  here rather than three parallel arrays), Section 4 a fixed 768-byte
+  filler block, Section 7 per-link intersection flags.
+
+  New dataclasses: SAPathNode, SANaviNode, SAPathLink, SAPathFile -
+  each documented field traced to its wiki description, several as
+  computed properties (traffic_level, is_highway, is_roadblock,
+  is_boat, is_emergency_only, spawn_probability, is_parking on
+  SAPathNode; path_width, left_lanes/right_lanes, traffic_light_
+  behaviour, is_train_crossing on SANaviNode) rather than leaving
+  every caller to hand-decode the raw flags bitfields themselves.
+
+  Core parser `parse_nodes_dat(data, area_id)` never aborts on a
+  truncated/malformed section - collects problems in `parse_errors`
+  and keeps whatever parsed correctly before that point, matching
+  this codebase's established IDE/IPL text-parsing pattern. Loader
+  convenience functions: `load_nodes_dat(path)` (one file from disk),
+  `load_all_nodes_dat_from_dir(directory)` (every nodesN.dat in a
+  folder, keyed by area_id), and `find_nodes_dat_in_img(img)` +
+  `load_nodes_dat_from_img_entry(img, entry, area_id)` (lazy two-step
+  IMG-archive lookup, same lightweight-index-then-parse-on-demand
+  pattern as ModelCache.get_geometry/get_collision, since the wiki's
+  documented normal location for these is packed inside gta3.img).
+
+  Verified by hand-building a synthetic nodesN.dat blob matching the
+  spec exactly (1 vehicle node, 1 ped node, 1 navi node, 2 links with
+  navi-links/lengths/intersection flags) and round-tripping every
+  single field - position scaling, flags decoding via every computed
+  property, link navi-node/area resolution including the ped-link
+  None case, intersection flag bits - all correct. Also verified the
+  truncation-doesn't-crash path and all three loader functions
+  (file/dir/IMG) against real temp files and a fake IMG object.
+  `ast.parse` clean.
+
+  Not yet verified against Keith's own real nodesXX.dat sample
+  data (built straight from the documented spec) - and not yet
+  integrated into Map Workshop's PATH tab/viewport at all, that's
+  the next step once this shared parser itself is confirmed correct.
