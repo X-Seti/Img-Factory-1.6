@@ -392,54 +392,173 @@ def show_project_manager_dialog(main_window):
     dialog.exec()
 
 
+class NewProjectFlowDialog(QDialog): #vers 1
+    """Streamlined New Project dialog (Aug 1 2026), replacing the old
+    flow of three back-to-back native folder pickers (project folder,
+    game root, assets folder, each with no way to skip cleanly) with a
+    single dialog matching Keith's own proposed simplification, from
+    his own forum reply on the subject: "Pick the game folder
+    (optional) pick the assets folder or (skip). otherwise (Create in
+    root) assets folder in the game folder. Once you press [save],
+    you have the option to activate the game paths; this takes you to
+    the Dat_Browser."
+
+    Drops the separate "project folder" step from the old flow
+    entirely (Keith's own description of the simplified flow only
+    mentions game folder + assets folder) - create_project's own
+    project_folder parameter still exists and still gets passed
+    through, just always empty from this dialog now, matching what
+    Keith actually described wanting."""
+
+    def __init__(self, main_window, parent=None):
+        super().__init__(parent)
+        self.main_window = main_window
+        self.setWindowTitle("New Project")
+        self.setMinimumWidth(480)
+        self._build_ui()
+
+    def _build_ui(self): #vers 1
+        from PyQt6.QtWidgets import QRadioButton, QButtonGroup
+        lay = QVBoxLayout(self)
+
+        form = QFormLayout()
+        self._name_edit = QLineEdit()
+        self._name_edit.setPlaceholderText("Enter project name...")
+        form.addRow("Project Name:", self._name_edit)
+
+        game_row = QHBoxLayout()
+        self._game_edit = QLineEdit()
+        self._game_edit.setPlaceholderText("(optional) - browse to your GTA install folder")
+        game_browse_btn = QPushButton("Browse…")
+        game_browse_btn.clicked.connect(self._browse_game_folder)
+        game_row.addWidget(self._game_edit, stretch=1)
+        game_row.addWidget(game_browse_btn)
+        form.addRow("Game Folder:", game_row)
+
+        lay.addLayout(form)
+
+        lay.addWidget(QLabel("Assets Folder (for importing/exporting models, textures, maps):"))
+        self._assets_group = QButtonGroup(self)
+        self._assets_pick_radio = QRadioButton("Pick a folder…")
+        self._assets_root_radio = QRadioButton("Create in game folder (an \"Assets\" subfolder)")
+        self._assets_skip_radio = QRadioButton("Skip")
+        for i, rb in enumerate((self._assets_pick_radio, self._assets_root_radio, self._assets_skip_radio)):
+            self._assets_group.addButton(rb, i)
+            lay.addWidget(rb)
+        self._assets_root_radio.setChecked(True)   # sensible default matching Keith's "otherwise (Create in root)"
+
+        assets_row = QHBoxLayout()
+        self._assets_edit = QLineEdit()
+        self._assets_edit.setEnabled(False)
+        assets_browse_btn = QPushButton("Browse…")
+        assets_browse_btn.clicked.connect(self._browse_assets_folder)
+        assets_browse_btn.setEnabled(False)
+        self._assets_browse_btn = assets_browse_btn
+        assets_row.addWidget(self._assets_edit, stretch=1)
+        assets_row.addWidget(assets_browse_btn)
+        lay.addLayout(assets_row)
+        self._assets_pick_radio.toggled.connect(
+            lambda checked: (self._assets_edit.setEnabled(checked), assets_browse_btn.setEnabled(checked)))
+
+        lay.addStretch()
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self.reject)
+        save_btn = QPushButton("Save")
+        save_btn.clicked.connect(self._on_save)
+        btn_row.addWidget(cancel_btn)
+        btn_row.addWidget(save_btn)
+        lay.addLayout(btn_row)
+
+    def _browse_game_folder(self): #vers 1
+        path = QFileDialog.getExistingDirectory(
+            self, "Select Game Root Folder", os.path.expanduser("~"))
+        if path:
+            self._game_edit.setText(path)
+            # Once a game folder is picked, "create in game folder"
+            # becomes meaningful - nudge the radio selection there if
+            # the user hadn't already deliberately picked something
+            # else, since that's the sensible default with a game
+            # folder now known.
+            if not self._assets_pick_radio.isChecked():
+                self._assets_root_radio.setChecked(True)
+
+    def _browse_assets_folder(self): #vers 1
+        path = QFileDialog.getExistingDirectory(
+            self, "Select Assets Folder", os.path.expanduser("~"))
+        if path:
+            self._assets_edit.setText(path)
+
+    def _on_save(self): #vers 1
+        name = self._name_edit.text().strip()
+        if not name:
+            QMessageBox.warning(self, "Warning", "Please enter a project name.")
+            return
+        game_root = self._game_edit.text().strip()
+
+        if self._assets_pick_radio.isChecked():
+            assets_path = self._assets_edit.text().strip()
+        elif self._assets_root_radio.isChecked():
+            # "otherwise (Create in root) assets folder in the game
+            # folder" - only meaningful with a game folder actually
+            # set; falls back to skipped if there isn't one, same as
+            # explicitly choosing Skip, rather than erroring out.
+            assets_path = os.path.join(game_root, "Assets") if game_root else ""
+        else:
+            assets_path = ""
+
+        ok = self.main_window.project_manager.create_project(name, "", game_root, assets_path)
+        if not ok:
+            QMessageBox.critical(self, "Error", f"Failed to create project '{name}' - a project with that name may already exist.")
+            return
+
+        if assets_path:
+            create_assists_folder_structure(self.main_window, assets_path)
+
+        # "Once you press [save], you have the option to activate the
+        # game paths; this takes you to the Dat_Browser" - streamlines
+        # the old New Project -> Open Project -> Activate -> DAT
+        # Browser -> load root tree chain (from Keith's own forum
+        # reply describing the current flow) into one step right here.
+        activate = QMessageBox.question(
+            self, "Project Created",
+            f"Project '{name}' created successfully.\n\n"
+            "Activate this project's game paths now?\nThis will open the DAT Browser.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes)
+        if activate == QMessageBox.StandardButton.Yes:
+            self.main_window.project_manager.set_current_project(name)
+            if game_root:
+                self.main_window.game_root = game_root
+            try:
+                from apps.components.Dat_Browser.dat_browser import show_dat_browser
+                show_dat_browser(self.main_window)
+            except Exception as e:
+                if hasattr(self.main_window, 'log_message'):
+                    self.main_window.log_message(f"Could not open DAT Browser: {e}")
+
+        self.accept()
+
+
 def create_new_project(main_window, parent_dialog=None):
-    """Create a new project"""
-    name, ok = QInputDialog.getText(
-        main_window,
-        "New Project",
-        "Project Name:"
-    )
-    
-    if ok and name:
-        # Get project folder
-        project_folder = QFileDialog.getExistingDirectory(
-            main_window,
-            "Select Project Folder",
-            os.path.expanduser("~")
-        )
-        
-        # Get game root
-        game_root = QFileDialog.getExistingDirectory(
-            main_window,
-            "Select Game Root Folder",
-            os.path.expanduser("~")
-        )
-        
-        # Get assists path
-        assists_path = QFileDialog.getExistingDirectory(
-            main_window,
-            "Select Assists Folder (for importing/exporting models)",
-            os.path.expanduser("~")
-        )
-        
-        if main_window.project_manager.create_project(name, project_folder, game_root, assists_path):
-            # Refresh the project list in the dialog if it exists
-            if parent_dialog and hasattr(parent_dialog, 'findChildren'):
-                # Find the project list widget and refresh
-                for widget in parent_dialog.findChildren(QListWidget):
-                    if widget.count() == 0 or widget.item(0).text() != name:
-                        widget.clear()
-                        widget.addItems(list(main_window.project_manager.projects.keys()))
-            
-            # Create assists folder structure if path was provided
-            if assists_path:
-                create_assists_folder_structure(main_window, assists_path)
-            
-            QMessageBox.information(
-                main_window,
-                "Project Created",
-                f"Project '{name}' created successfully!"
-            )
+    """Create a new project - streamlined single-dialog flow (Aug 1
+    2026), replacing three sequential native folder pickers with no
+    clean way to skip any of them. See NewProjectFlowDialog for the
+    full story. parent_dialog kept for call-site compatibility (the
+    project list refresh below still needs it) even though the new
+    flow no longer threads it through to the dialog construction the
+    way the old one implicitly did via being called inline."""
+    dlg = NewProjectFlowDialog(main_window, parent=parent_dialog or main_window)
+    if dlg.exec() == QDialog.DialogCode.Accepted:
+        name = dlg._name_edit.text().strip()
+        # Refresh the project list in the dialog if it exists
+        if parent_dialog and hasattr(parent_dialog, 'findChildren'):
+            for widget in parent_dialog.findChildren(QListWidget):
+                if widget.count() == 0 or widget.item(0).text() != name:
+                    widget.clear()
+                    widget.addItems(list(main_window.project_manager.projects.keys()))
 
 
 def delete_selected_project(main_window, project_list, parent_dialog=None):
