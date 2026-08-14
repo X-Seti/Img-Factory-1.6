@@ -516,6 +516,21 @@ class NewProjectFlowDialog(QDialog): #vers 1
 
         if assets_path:
             create_assists_folder_structure(self.main_window, assets_path)
+        else:
+            # Note shown when no assets folder was set (Aug 1 2026,
+            # per Keith: "if the user has skipped the option to
+            # create a assets folder, i'd have a note saying you can
+            # aswell create this later by clicking on the project
+            # menu, set asset folder, find and apply it") - points
+            # directly at the "Set Current Assets Folder..." menu
+            # action added earlier, so skipping now doesn't leave
+            # someone wondering whether they've lost the option
+            # entirely.
+            QMessageBox.information(
+                self, "No Assets Folder Set",
+                "No assets folder was set for this project.\n\n"
+                "You can create one later from the menu:\n"
+                "Project → Set Current Assets Folder... → find and apply it.")
 
         # "Once you press [save], you have the option to activate the
         # game paths; this takes you to the Dat_Browser" - streamlines
