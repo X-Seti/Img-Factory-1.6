@@ -3937,3 +3937,9 @@ smart_file_router updated: train*.dat, flight*.dat, spath0.dat → Path Workshop
 **sentinel.txd reload reduced:**
 - Removed duplicate singleShot(500, _auto_load_shared_txds) in _meta_then_wheels
 - _toggle_show_wheels already calls _auto_load_shared_txds — was loading 4x per vehicle switch
+
+**Docked-tool settings tab contribution (app_settings_system.py, apps/utils):**
+- New SettingsDialog._collect_settings_contributions() - scans main_window.main_tab_widget for any open tab exposing get_settings_contribution() (duck-typed, no specific-tool import) and pulls its tabs + apply callback into the main app Settings dialog
+- First consumer: Map Workshop (get_settings_contribution() added in map_workshop.py, split out of the old monolithic _show_workshop_settings) - per Keith: "the map workshop settings dialogue when standalone, which isn't available when it's docked with img factory, so we need a way to push those settings into img factory's settings, as extra tabs"
+- Any future embedded tool (Model Workshop, COL Workshop, etc.) gets the same integration for free by implementing the same method name
+- Each contributed apply callback wrapped individually in _apply_settings so one tool's broken settings logic can't block another's or the dialog's own save

@@ -7555,22 +7555,30 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         btn = getattr(self, 'menu_btn', None)
         if btn: menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
 
-    def _show_workshop_settings(self): #vers 1
-
-        """Show complete workshop settings dialog"""
-        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
-                                    QTabWidget, QWidget, QGroupBox, QFormLayout,
+    def _build_workshop_settings_tabs(self): #vers 1
+        """Build the workshop settings QTabWidget (Fonts/Display/
+        Performance/Preview/Loading/Map Assets/Navigation) and the
+        Apply callback that reads all their widgets back and
+        persists the values - factored out of _show_workshop_settings
+        (Aug 15 2026, per Keith: "the map workshop settings dialogue
+        when standalone, which isn't available when it's docked with
+        img factory, so we need a way to push those settings into
+        img factory's settings, as extra tabs") so the exact same
+        tab content and Apply logic can be reused by two different
+        presentations: Map Workshop's own standalone QDialog
+        (_show_workshop_settings, unchanged from the outside) and IMG
+        Factory's own Settings dialog when Map Workshop is docked
+        (get_settings_contribution, new - see its own docstring for
+        how the returned tabs get detached and re-parented there).
+        Returns (tabs: QTabWidget, apply_settings: Callable[[], None]) -
+        the caller owns wiring apply_settings to whatever Apply/OK
+        button actually exists in its own context, and owns adding
+        `tabs` to its own layout."""
+        from PyQt6.QtWidgets import (QTabWidget, QWidget, QGroupBox, QFormLayout,
                                     QSpinBox, QComboBox, QSlider, QLabel, QCheckBox,
                                     QFontComboBox)
         from PyQt6.QtCore import Qt
         from PyQt6.QtGui import QFont
-
-        dialog = QDialog(self)
-        dialog.setWindowTitle(App_name + "Settings")
-        dialog.setMinimumWidth(650)
-        dialog.setMinimumHeight(550)
-
-        layout = QVBoxLayout(dialog)
 
         # Create tabs
         tabs = QTabWidget()
@@ -8024,30 +8032,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         nav_lay.addStretch()
         tabs.addTab(nav_tab, "Navigation")
 
-        # Add tabs to dialog
-        layout.addWidget(tabs)
-
-        # BUTTONS
-
-        btn_layout = QHBoxLayout()
-        btn_layout.addStretch()
-
-        # Apply button
-        apply_btn = QPushButton("Apply Settings")
-        apply_btn.setStyleSheet("""
-            QPushButton {
-                background: palette(highlight);
-                color: white;
-                padding: 10px 24px;
-                font-weight: bold;
-                border-radius: 4px;
-                font-size: 13px;
-            }
-            QPushButton:hover {
-                background: palette(highlight);
-            }
-        """)
-
         def apply_settings():  #vers 2
             # Loading / Map Assets tabs saved first (Aug 1 2026),
             # before any of this function's other, pre-existing logic
@@ -8171,6 +8155,47 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             except Exception as e:
                 print(f"[Settings] Some pre-existing settings could not be applied: {e}")
 
+        return tabs, apply_settings
+
+    def _show_workshop_settings(self): #vers 2
+        """Show complete workshop settings dialog - standalone-only
+        path now (Aug 15 2026): the tab content and Apply logic live
+        in _build_workshop_settings_tabs (shared with the docked
+        path - see get_settings_contribution), this just wraps that
+        in Map Workshop's own QDialog with its own Apply/Close
+        buttons, unchanged in behaviour from before the split."""
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QPushButton
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle(App_name + "Settings")
+        dialog.setMinimumWidth(650)
+        dialog.setMinimumHeight(550)
+
+        layout = QVBoxLayout(dialog)
+
+        tabs, apply_settings = self._build_workshop_settings_tabs()
+        layout.addWidget(tabs)
+
+        # BUTTONS
+
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+
+        # Apply button
+        apply_btn = QPushButton("Apply Settings")
+        apply_btn.setStyleSheet("""
+            QPushButton {
+                background: palette(highlight);
+                color: white;
+                padding: 10px 24px;
+                font-weight: bold;
+                border-radius: 4px;
+                font-size: 13px;
+            }
+            QPushButton:hover {
+                background: palette(highlight);
+            }
+        """)
         apply_btn.clicked.connect(apply_settings)
         btn_layout.addWidget(apply_btn)
 
@@ -8185,6 +8210,42 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # Show dialog
         dialog.exec()
 
+    def get_settings_contribution(self): #vers 1
+        """Return this workshop's settings as a list of (label,
+        widget) tab contributions plus a combined apply callback, for
+        embedding into IMG Factory's own Settings dialog when Map
+        Workshop is docked (Aug 15 2026, per Keith: "the map workshop
+        settings dialogue when standalone, which isn't available when
+        it's docked with img factory, so we need a way to push those
+        settings into img factory's settings, as extra tabs").
+
+        Reuses _build_workshop_settings_tabs - the exact same tab
+        content and Apply logic the standalone dialog uses, nothing
+        duplicated. The temporary QTabWidget it returns only exists
+        to reuse that per-tab construction code; each page is
+        detached here (tabText/widget/removeTab) so it can be handed
+        to the caller and re-parented into IMG Factory's own tab
+        widget instead - a QWidget can only belong to one QTabWidget
+        at a time, so leaving it attached would make the caller's own
+        addTab() silently do nothing. Qt reparents automatically when
+        the caller adds each widget to its own tab widget; nothing
+        else needs to happen to the now-empty temporary QTabWidget,
+        it's simply not returned and gets garbage-collected.
+
+        Any embedded tool wanting this same integration (Model
+        Workshop, COL Workshop, etc.) can implement the identical
+        method name/signature - IMG Factory's SettingsDialog looks
+        for get_settings_contribution generically, not specifically
+        for Map Workshop (see app_settings_system.py's own
+        docstring for that lookup)."""
+        tabs, apply_settings = self._build_workshop_settings_tabs()
+        contributions = []
+        while tabs.count():
+            label = tabs.tabText(0)
+            widget = tabs.widget(0)
+            tabs.removeTab(0)
+            contributions.append((label, widget))
+        return contributions, apply_settings
 
     def _apply_window_flags(self): #vers 1
         """Apply window flags based on settings"""

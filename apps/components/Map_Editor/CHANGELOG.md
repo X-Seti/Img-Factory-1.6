@@ -3873,3 +3873,61 @@ conclusively found despite extensive isolated testing.
   simulated directly against the actual file bytes (not synthetic
   data) - paths.ipl alone has 4106 groups / 49272 node rows across a
   53379-line path section, all correctly parsed. `ast.parse` clean.
+
+- **Aug 15, 2026 (cont'd)** — Made Map Workshop's own settings
+  (Fonts/Display/Performance/Preview/Loading/Map Assets/Navigation)
+  available through IMG Factory's own Settings dialog when docked,
+  per Keith: "the map workshop settings dialogue when standalone,
+  which isn't available when it's docked with img factory, so we
+  need a way to push those settings into img factory's settings, as
+  extra tabs."
+
+  Split the old ~630-line monolithic `_show_workshop_settings` (tab
+  construction + Apply logic tightly coupled inside one method) into
+  `_build_workshop_settings_tabs()` (builds all 7 tabs and the Apply
+  closure, returns `(tabs, apply_settings)`) plus a thin
+  `_show_workshop_settings` wrapper that's unchanged in behaviour for
+  the standalone dialog. New `get_settings_contribution()` detaches
+  each tab from the (otherwise-thrown-away) temporary QTabWidget and
+  returns `(label, widget)` pairs plus the apply callback for another
+  dialog to adopt - Qt reparents a widget automatically when it's
+  added to a different QTabWidget, so nothing special is needed
+  beyond `removeTab()` first.
+
+  A real self-inflicted bug happened mid-refactor and got caught
+  before shipping: a first-pass edit orphaned the `apply_settings`
+  closure's body under an accidentally-duplicated `_apply_window_
+  flags` method header - `ast.parse` caught the resulting
+  IndentationError immediately, traced it back to the exact split
+  point, and rewrote the whole region correctly in one pass. Verified
+  via AST afterward: every affected method (`_build_workshop_
+  settings_tabs`, `_show_workshop_settings`, `get_settings_
+  contribution`, `_apply_window_flags`) now defined exactly once,
+  and `_build_workshop_settings_tabs` has exactly one nested
+  `apply_settings` def and one clean top-level `return`.
+
+  IMG Factory side (`apps/utils/app_settings_system.py`): new
+  `SettingsDialog._collect_settings_contributions()` scans tabs in
+  `main_window.main_tab_widget`, duck-types for any widget exposing
+  `get_settings_contribution()` (not Map-Workshop-specific by name -
+  avoids a real circular import, since map_workshop.py already
+  imports `SettingsDialog` from this same module - and means any
+  future embedded tool, Model Workshop/COL Workshop/etc., gets the
+  same integration for free just by implementing the same method).
+  Wired into `__init__` (adds the extra tabs after the existing fixed
+  ones) and `_apply_settings` (invokes each contributed apply
+  callback, individually try/excepted so one tool's broken settings
+  logic can't block another's or the dialog's own settings from
+  saving). Confirmed all three real `SettingsDialog(...)` call sites
+  in imgfactory.py resolve `self.main_window` to the actual main
+  window instance (has `main_tab_widget`), so this activates
+  correctly for the real docked-Settings-button flow.
+
+  Verified: `ast.parse` clean on both files; every affected method
+  confirmed defined exactly once via AST; full logic smoke-test of
+  `_collect_settings_contributions` against 5 mocked scenarios (no
+  main_window, main_window without main_tab_widget, a real
+  contribution found among unrelated tabs, a broken contributor
+  failing safely without blocking others, and duplicate-widget
+  dedup) - all passed. Not yet tested in the real running app (no
+  Qt/OpenGL environment available here).
