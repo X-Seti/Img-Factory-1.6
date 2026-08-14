@@ -3132,3 +3132,60 @@ conclusively found despite extensive isolated testing.
   top-row key distinction confirmed correct in both directions (a
   plain "6" is not treated as a rotate key, a numpad "6" is). Full
   `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Two fixes from Keith's latest request:
+
+  **Settings dialog reorganization** - per Keith: "these settings, can
+  be added to map_workshop's settings on the title bar (topbar) as a
+  new tab in the settings dialog, this would tidy up the IPL
+  controls." Added a new "Loading" tab to the existing `MapSettings
+  Dialog` (opened from the top menu bar), moving "Load Text plus
+  Binary IPL set", "Show Full Loading Models (Debug)", and the
+  texture downscale option out of IPL Controls' Advanced menu.
+  Also made the texture downscale target genuinely configurable
+  rather than fixed at 256 with only on/off exposed ("texture size
+  limit, 256x256 but it's like to be able to change the limit") -
+  both the threshold and target size are now spinboxes. Removed the
+  three now-dead toggle handlers left behind in the old Advanced-menu
+  location.
+
+  While testing this, found the *entire* Settings dialog was already
+  broken and had been crashing on open (`_load_tool_icon` called but
+  never defined anywhere, in the leftover paint-tool "Gadgets" tab)
+  and on save (14 more widget attributes referenced in `_accept()`
+  but never actually created in `__init__` - marching ants, pixel
+  grid, palette rows/cols, platform mode, all leftover from the same
+  paint-tool legacy, not relevant to a 3D map editor). This meant
+  *no* setting in *any* tab could ever actually be saved via this
+  dialog before now, regardless of the new Loading tab. Fixed both
+  with defensive `getattr`/try-except guards rather than
+  reconstructing 15 unrelated paint-tool widgets - every genuinely-
+  used setting across every tab now saves correctly.
+
+  **LOD Test made bidirectional** - per Keith: "LOD test option
+  should work 2 ways, if normal models are loaded, those in the
+  circle get switch to LOD, where if Show LOD is set, then in the
+  circle show normal models." The circle previously always meant
+  "inside = normal, outside = LOD" regardless of the current global
+  Show Normals/LOD only mode. Now the circle always shows the
+  *opposite* detail level from whatever the global mode is already
+  displaying everywhere else - a live "what would the other detail
+  level look like here" preview from either starting mode. `both`
+  mode has no meaningful opposite (both are already shown everywhere)
+  so the circle is a no-op there. Also fixed a real bug caught while
+  rewriting this: a standalone instance with no LOD pair and no
+  draw-distance-based LOD status has nothing to switch to and should
+  always stay visible regardless of the circle - my first draft of
+  the bidirectional logic incorrectly hid it on one side.
+
+  Logged "this function in the future can be explanded" to TODO.md
+  as an open door for later, with a few possible directions noted.
+
+  Verified extensively: full Settings dialog open + Loading tab
+  present + save + live re-application to `preview_widget` confirmed
+  working end-to-end (was completely broken before this); LOD Test
+  bidirectional behavior confirmed correct in both starting modes
+  against a real paired normal/LOD instance, `both` mode confirmed
+  showing everything regardless of circle position, and the
+  standalone-instance edge case confirmed staying visible everywhere.
+  Full `QApplication` instantiation clean, `ast.parse` clean.

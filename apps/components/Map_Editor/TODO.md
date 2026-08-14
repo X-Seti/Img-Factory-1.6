@@ -363,3 +363,14 @@ games controller."
   axis values each tick instead of a fixed per-tick step. Scoping
   this out until the mouse/keyboard side is confirmed solid and
   Keith wants to prioritize it specifically.
+
+## LOD Test tool future expansion (Aug 1 2026)
+
+Per Keith: "this function in the future can be explanded. (todo)" -
+now bidirectional (see CHANGELOG). Not scoped yet, but logging the
+open door: possible directions include a configurable circle radius
+independent of the draw-distance threshold, multiple simultaneous
+test circles, a fixed (non-mouse-following) test point for
+screenshot/comparison purposes, or extending the same live-switching
+mechanism to render mode (Textured/Wireframe/etc.) rather than just
+LOD detail level.

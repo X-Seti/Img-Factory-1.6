@@ -3438,7 +3438,19 @@ class MapSettingsDialog(QDialog):
             if _ws and _ws.app_settings:
                 _tc = _ws.app_settings.get_theme_colors() or {}
                 _tbg = _tc.get('gadgetbar_bg', _tc.get('toolbar_bg', ''))
-            ico = _load_tool_icon(tool_id, icon_sz, tile_bg=_tbg, icon_col=_col)
+            # _load_tool_icon was never defined anywhere in this file
+            # (Aug 1 2026, found while testing the new Loading tab
+            # below) - the whole Settings dialog crashed on open
+            # before even reaching any other tab, since Gadgets is
+            # built first. Leftover from the paint-tool legacy this
+            # file inherited (text/crop/dither/symmetry are paint
+            # tools, not map-editing ones) - properly rebuilding this
+            # tab is out of scope here, but a plain fallback icon
+            # means the dialog opens instead of crashing outright.
+            try:
+                ico = _load_tool_icon(tool_id, icon_sz, tile_bg=_tbg, icon_col=_col)
+            except NameError:
+                ico = QIcon()
             btn.setIcon(ico)
             btn.setIconSize(QSize(icon_sz, icon_sz))
             lbl_short = label[:6]
@@ -3493,6 +3505,66 @@ class MapSettingsDialog(QDialog):
 
         tabs.addTab(gadgets_tab, "Gadgets")
 
+        # - Loading tab (Aug 1 2026, per Keith: "these settings, can
+        # be added to map_workshop's settings on the title bar
+        # (topbar) as a new tab in the settings dialog, this would
+        # tidy up the IPL controls") - previously lived as checkable
+        # actions in IPL Controls' Advanced menu; moved here instead,
+        # and the texture downscale target is now genuinely
+        # configurable rather than fixed at 256 with only on/off
+        # exposed ("texture size limit, 256x256 but it's like to be
+        # able to change the limit").
+        loading_tab = QWidget()
+        ld_lay = QVBoxLayout(loading_tab)
+        ld_form = QFormLayout()
+        ld_form.setSpacing(8)
+
+        self._load_streams_chk = QCheckBox("Load Text plus Binary IPL set")
+        self._load_streams_chk.setChecked(self.s.get('load_text_plus_binary_ipl_set'))
+        self._load_streams_chk.setToolTip(
+            "When loading a text IPL, also automatically load all of\n"
+            "its known associated binary stream files - many text IPLs\n"
+            "are mostly LOD content, with the normal-detail models\n"
+            "living in their streams instead.")
+        ld_form.addRow(self._load_streams_chk)
+
+        self._verbose_loading_chk = QCheckBox("Show Full Loading Models (Debug)")
+        self._verbose_loading_chk.setChecked(self.s.get('show_verbose_loading_dialog'))
+        self._verbose_loading_chk.setToolTip(
+            "Show a scrolling debug dialog listing every model as it\n"
+            "loads, one line per instance.")
+        ld_form.addRow(self._verbose_loading_chk)
+
+        ld_form.addRow(QLabel(""))
+        ld_form.addRow(QLabel("—  Texture size limit  —"))
+
+        self._downscale_chk = QCheckBox("Reduce large textures")
+        self._downscale_chk.setChecked(self.s.get('texture_downscale_enabled'))
+        self._downscale_chk.setToolTip(
+            "Reduce any texture larger than the threshold below down\n"
+            "to the target size before uploading it to the GPU - saves\n"
+            "significant VRAM on maps with many large textures, at a\n"
+            "quality cost for those specific textures.")
+        ld_form.addRow(self._downscale_chk)
+
+        self._downscale_threshold_spin = QSpinBox()
+        self._downscale_threshold_spin.setRange(64, 4096)
+        self._downscale_threshold_spin.setSingleStep(64)
+        self._downscale_threshold_spin.setValue(self.s.get('texture_downscale_threshold'))
+        self._downscale_threshold_spin.setToolTip("Textures larger than this (in either dimension) get reduced")
+        ld_form.addRow("Reduce anything over:", self._downscale_threshold_spin)
+
+        self._downscale_target_spin = QSpinBox()
+        self._downscale_target_spin.setRange(16, 2048)
+        self._downscale_target_spin.setSingleStep(64)
+        self._downscale_target_spin.setValue(self.s.get('texture_downscale_target'))
+        self._downscale_target_spin.setToolTip("Size to reduce large textures down to")
+        ld_form.addRow("Reduce down to:", self._downscale_target_spin)
+
+        ld_lay.addLayout(ld_form)
+        ld_lay.addStretch()
+        tabs.addTab(loading_tab, "Loading")
+
         # - Viewport tab (World View movement settings)
         viewport_tab = QWidget()
         vp_lay = QVBoxLayout(viewport_tab)
@@ -3542,29 +3614,63 @@ class MapSettingsDialog(QDialog):
         btns.addWidget(ok_btn); btns.addWidget(cancel_btn)
         root.addLayout(btns)
 
-    def _accept(self): #vers 1
+    def _accept(self): #vers 2
         self.s.set('default_width',    self._w_spin.value())
         self.s.set('default_height',   self._h_spin.value())
         self.s.set('default_zoom',     self._zoom_spin.value())
         self.s.set('undo_levels',      self._undo_spin.value())
-        self.s.set('show_pixel_grid',  self._grid_chk.isChecked())
-        self.s.set('zoom_to_fit_resize', self._fit_resize_chk.isChecked())
+        # The following 14 widgets (Aug 1 2026, found while testing
+        # the new Loading tab below) were referenced here but never
+        # actually created anywhere in __init__ - leftover paint-tool/
+        # pixel-grid/palette settings from the legacy this file
+        # inherited, not relevant to a 3D map editor. This meant
+        # _accept() crashed on the very first missing one and never
+        # saved ANY setting at all, in any tab, whenever the dialog
+        # was accepted - not just these unrelated ones. Guarded with
+        # getattr rather than reconstructing 14 paint-tool widgets
+        # that don't belong in this app; every other, genuinely-used
+        # setting below now saves correctly regardless.
+        grid_chk = getattr(self, '_grid_chk', None)
+        if grid_chk is not None:
+            self.s.set('show_pixel_grid', grid_chk.isChecked())
+        fit_resize_chk = getattr(self, '_fit_resize_chk', None)
+        if fit_resize_chk is not None:
+            self.s.set('zoom_to_fit_resize', fit_resize_chk.isChecked())
         self.s.set('menu_style',              self._menu_style_combo.currentText())
         self.s.set('menu_bar_height',         self._menu_bar_height_spin.value())
         self.s.set('menu_bar_font_size',      self._menu_bar_font_spin.value())
         self.s.set('menu_dropdown_font_size', self._menu_dropdown_font_spin.value())
-        self.s.set('img_pal_cols',       self._img_pal_cols_spin.value())
-        self.s.set('img_pal_rows',       self._img_pal_rows_spin.value())
-        self.s.set('user_pal_cols',      self._user_pal_cols_spin.value())
-        self.s.set('user_pal_rows',      self._user_pal_rows_spin.value())
-        self.s.set('platform_mode',      self._platform_combo.currentText())
-        self.s.set('show_cell_grid',     self._cell_grid_chk.isChecked())
-        self.s.set('grid_color',         self._grid_color_btn._chosen)
-        self.s.set('marching_ants_enabled', self._ants_chk.isChecked())
-        self.s.set('marching_ants_style',   self._ants_style_combo.currentText())
-        self.s.set('marching_ants_fg',      self._ants_fg_btn._chosen)
-        self.s.set('marching_ants_bg',      self._ants_bg_btn._chosen)
-        self.s.set('marching_ants_speed',   self._ants_speed_spin.value())
+        for attr, key in (
+            ('_img_pal_cols_spin', 'img_pal_cols'), ('_img_pal_rows_spin', 'img_pal_rows'),
+            ('_user_pal_cols_spin', 'user_pal_cols'), ('_user_pal_rows_spin', 'user_pal_rows'),
+        ):
+            w = getattr(self, attr, None)
+            if w is not None:
+                self.s.set(key, w.value())
+        platform_combo = getattr(self, '_platform_combo', None)
+        if platform_combo is not None:
+            self.s.set('platform_mode', platform_combo.currentText())
+        cell_grid_chk = getattr(self, '_cell_grid_chk', None)
+        if cell_grid_chk is not None:
+            self.s.set('show_cell_grid', cell_grid_chk.isChecked())
+        grid_color_btn = getattr(self, '_grid_color_btn', None)
+        if grid_color_btn is not None:
+            self.s.set('grid_color', grid_color_btn._chosen)
+        ants_chk = getattr(self, '_ants_chk', None)
+        if ants_chk is not None:
+            self.s.set('marching_ants_enabled', ants_chk.isChecked())
+        ants_style_combo = getattr(self, '_ants_style_combo', None)
+        if ants_style_combo is not None:
+            self.s.set('marching_ants_style', ants_style_combo.currentText())
+        ants_fg_btn = getattr(self, '_ants_fg_btn', None)
+        if ants_fg_btn is not None:
+            self.s.set('marching_ants_fg', ants_fg_btn._chosen)
+        ants_bg_btn = getattr(self, '_ants_bg_btn', None)
+        if ants_bg_btn is not None:
+            self.s.set('marching_ants_bg', ants_bg_btn._chosen)
+        ants_speed_spin = getattr(self, '_ants_speed_spin', None)
+        if ants_speed_spin is not None:
+            self.s.set('marching_ants_speed', ants_speed_spin.value())
         self.s.set('ribbon_icon_size_vert', self._ribbon_icon_vert_spin.value())
         self.s.set('ribbon_padding_vert',   self._ribbon_pad_vert_spin.value())
         self.s.set('ribbon_icon_size_horz', self._ribbon_icon_horz_spin.value())
@@ -3594,12 +3700,24 @@ class MapSettingsDialog(QDialog):
             invert_cfg[mode] = {'x': chk_x.isChecked(), 'y': chk_y.isChecked()}
         self.s.set('viewport_pan_invert', invert_cfg)
 
+        self.s.set('load_text_plus_binary_ipl_set', self._load_streams_chk.isChecked())
+        self.s.set('show_verbose_loading_dialog',   self._verbose_loading_chk.isChecked())
+        self.s.set('texture_downscale_enabled',   self._downscale_chk.isChecked())
+        self.s.set('texture_downscale_threshold', self._downscale_threshold_spin.value())
+        self.s.set('texture_downscale_target',    self._downscale_target_spin.value())
+
         self.s.save()
         # Re-apply immediately to any already-open World View panes, so
         # the change takes effect without needing to reopen/restart.
         if self._workshop is not None:
             for pane in getattr(self._workshop, '_world_panes', []):
                 self._workshop._apply_viewport_movement_settings(pane, pane._view_label)
+            vp = getattr(self._workshop, 'preview_widget', None)
+            if vp is not None and hasattr(vp, 'set_texture_downscale_settings'):
+                vp.set_texture_downscale_settings(
+                    self._downscale_chk.isChecked(),
+                    self._downscale_threshold_spin.value(),
+                    self._downscale_target_spin.value())
         self.accept()
 
 
@@ -20490,52 +20608,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "always loads via the exe), then falls back to {game root}/\n"
             "models/generic.txd as a loose file.")
         load_generic_act.triggered.connect(self._on_load_generic_txd_clicked)
-        advanced_menu.addSeparator()
 
-        # Load Text plus Binary IPL set (Aug 1 2026, per Keith: "we
-        # need an option to load text ipl's plus the associated
-        # stream files") - see MapSettings.DEFAULTS for the full
-        # story on why this matters (most of a text IPL's own content
-        # can genuinely be LOD-only, with normal-detail models living
-        # in its binary streams instead).
-        load_streams_act = advanced_menu.addAction("Load Text plus Binary IPL set")
-        load_streams_act.setCheckable(True)
-        load_streams_act.setChecked(self.map_settings.get('load_text_plus_binary_ipl_set'))
-        load_streams_act.setToolTip(
-            "When loading a text IPL, also automatically load all of\n"
-            "its known associated binary stream files (e.g. LAe.ipl's\n"
-            "LAe_Stream0.ipl through LAe_Stream5.ipl) - many text IPLs\n"
-            "are mostly LOD content, with the normal-detail models\n"
-            "living in their streams instead.")
-        load_streams_act.toggled.connect(self._on_load_streams_setting_toggled)
-
-        # Show full loading models (debug) (Aug 1 2026, per Keith:
-        # "The second option would be to show full loading models,
-        # debug") - see MapSettings.DEFAULTS for the dialog spec.
-        verbose_loading_act = advanced_menu.addAction("Show Full Loading Models (Debug)")
-        verbose_loading_act.setCheckable(True)
-        verbose_loading_act.setChecked(self.map_settings.get('show_verbose_loading_dialog'))
-        verbose_loading_act.setToolTip(
-            "Show a scrolling debug dialog listing every model as it\n"
-            "loads, one line per instance, across the text IPL and\n"
-            "each of its associated binary streams in turn.")
-        verbose_loading_act.toggled.connect(self._on_verbose_loading_setting_toggled)
-
-        # Texture downscale (Aug 1 2026, per Keith: "loading textures
-        # using alot of memory, so im thinking about a texture
-        # reduction option, keep 64. 128, 256 untouched but render
-        # down to 256x256 anything over 512x512") - see MapSettings.
-        # DEFAULTS for the full explanation.
-        downscale_act = advanced_menu.addAction("Reduce Large Textures (256x256)")
-        downscale_act.setCheckable(True)
-        downscale_act.setChecked(self.map_settings.get('texture_downscale_enabled'))
-        downscale_act.setToolTip(
-            "Reduce any texture larger than 512x512 down to 256x256\n"
-            "before uploading it to the GPU - saves significant VRAM\n"
-            "on maps with many large textures, at a quality cost for\n"
-            "those specific textures. Textures at 256x256 or smaller\n"
-            "are never touched.")
-        downscale_act.toggled.connect(self._on_texture_downscale_setting_toggled)
+        # Load Text plus Binary IPL set, Show Full Loading Models
+        # (Debug), and Reduce Large Textures moved to Settings >
+        # Loading (Aug 1 2026, per Keith: "these settings, can be
+        # added to map_workshop's settings on the title bar (topbar)
+        # as a new tab in the settings dialog, this would tidy up the
+        # IPL controls") - see MapSettingsDialog's Loading tab.
 
         advanced_btn.setMenu(advanced_menu)
         advanced_btn.setToolTip("Less-common/diagnostic actions")
@@ -20970,25 +21049,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     f"{tex.get('width', '?')}x{tex.get('height', '?')}"))
                 tex_list.setItem(i, 3, QTableWidgetItem(tex.get('format', '')))
 
-    def _on_load_streams_setting_toggled(self, checked): #vers 1
-        self.map_settings.set('load_text_plus_binary_ipl_set', checked)
-        self.map_settings.save()
-
-    def _on_verbose_loading_setting_toggled(self, checked): #vers 1
-        self.map_settings.set('show_verbose_loading_dialog', checked)
-        self.map_settings.save()
-
-    def _on_texture_downscale_setting_toggled(self, checked): #vers 1
-        self.map_settings.set('texture_downscale_enabled', checked)
-        self.map_settings.save()
-        vp = getattr(self, 'preview_widget', None)
-        if vp is not None and hasattr(vp, 'set_texture_downscale_settings'):
-            vp.set_texture_downscale_settings(
-                checked,
-                self.map_settings.get('texture_downscale_threshold'),
-                self.map_settings.get('texture_downscale_target'))
-
-
     def _create_ipl_inst_file_panel(self): #vers 3
         """Editable cells table for whichever IPL is currently selected
         in the [IPL] tab, filtered to whichever data type (INST/CULL/
@@ -21128,6 +21188,20 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         pairs = getattr(self, '_lod_pairs', None) or {}
         paired_target_ids = {id(v) for v in pairs.values()}
         threshold = self.map_settings.get('lod_draw_dist_threshold')
+        # Bidirectional, based on the current global mode (Aug 1
+        # 2026, per Keith: "LOD test option should work 2 ways, if
+        # normal models are loaded, those in the circle get switch to
+        # LOD, where if Show LOD is set, then in the circle show
+        # normal models") - the circle always shows the *opposite*
+        # detail level from whatever the global Show Normals/LOD only
+        # mode is already displaying everywhere else, so it works as
+        # a live "what would the other detail level look like here"
+        # preview regardless of which mode you started from. 'both'
+        # mode has no meaningful opposite to switch to (both are
+        # already shown everywhere) - inside_shows_lod stays unused
+        # for it, see the branch below.
+        global_mode = getattr(self, '_lod_display_mode', 'normal')
+        inside_shows_lod = (global_mode == 'normal')
 
         result = []
         for inst in visible:
@@ -21139,12 +21213,30 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             dz = inst.pos_z - center_z
             dist = (dx * dx + dy * dy + dz * dz) ** 0.5
             inside = dist <= threshold
+            if global_mode == 'both':
+                if iid in pairs:
+                    result.append(inst)
+                    result.append(pairs[iid])
+                else:
+                    result.append(inst)
+                continue
+            switch = inside if inside_shows_lod else not inside
             if iid in pairs:
-                result.append(inst if inside else pairs[iid])
+                result.append(pairs[iid] if switch else inst)
             elif self._is_lod_by_draw_distance(inst):
-                if not inside:
+                # Standalone LOD-type instance, no paired normal-
+                # detail counterpart to switch to - only shows on
+                # whichever side (inside/outside) currently represents
+                # "LOD is being shown here", same either-direction
+                # logic as the paired case above.
+                if switch:
                     result.append(inst)
             else:
+                # Standalone normal-type instance, no paired LOD
+                # counterpart to switch to either - always shows,
+                # regardless of the circle, since there's nothing to
+                # substitute it with (matches the pre-bidirectional
+                # behavior for this case exactly).
                 result.append(inst)
 
         self._refresh_world_view(result, auto_fit=False, clear_display_lists=False)
