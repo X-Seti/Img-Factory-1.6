@@ -8167,7 +8167,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QPushButton
 
         dialog = QDialog(self)
-        dialog.setWindowTitle(App_name + "Settings")
+        dialog.setWindowTitle(App_name + " Settings")
         dialog.setMinimumWidth(650)
         dialog.setMinimumHeight(550)
 
@@ -23727,25 +23727,25 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if checked:
             self._refresh_path_visualization()
 
-    def _on_ipl_controls_settings_clicked(self): #vers 1
+    def _on_ipl_controls_settings_clicked(self): #vers 2
         """IPL Controls' docked-only cog icon clicked (Aug 15 2026,
         per Keith: "We could just add a cog SVG icon when docked...
-        but not to be shown in standalone") - opens IMG Factory's own
-        Settings dialog, which now includes Map Workshop's own
-        settings as extra tabs (see get_settings_contribution).
-        main_window.show_settings specifically - not show_gui_settings,
-        which turned out to be broken (silently shadowed by an
-        unrelated same-named method, see show_panel_width_settings's
-        docstring in imgfactory.py), fixed alongside this button so
-        it doesn't open the wrong, narrow dialog. Silently does
-        nothing if main_window doesn't have show_settings (e.g. some
-        other, non-IMG-Factory host embedding this widget) - the
-        button is already docked-only via is_docked/standalone_mode,
-        this is just a final defensive check before calling."""
-        mw = getattr(self, 'main_window', None)
-        show_settings = getattr(mw, 'show_settings', None)
-        if callable(show_settings):
-            show_settings()
+        but not to be shown in standalone"). Calls
+        _show_workshop_settings directly - Map Workshop's own
+        settings dialog, the exact same one the titlebar's left
+        [Settings] button already opens (settings_btn.clicked.connect
+        (self._show_workshop_settings)) - not IMG Factory's global
+        Settings dialog (Aug 15 2026 fix, per Keith's follow-up:
+        "Right cog brings up theme settings from app_system_settings,
+        that's wrong, it should be map_workshops settings from the
+        left [settings] on the titlebar"). The get_settings_
+        contribution/_collect_settings_contributions integration from
+        earlier still stands and still does something real - it's
+        what makes Map Workshop's tabs show up inside IMG Factory's
+        OWN Settings dialog when that's opened through IMG Factory's
+        own menu - this cog is just a direct shortcut to Map
+        Workshop's own dialog, not a route through that bigger one."""
+        self._show_workshop_settings()
 
     def _rotate_and_translate_offset(self, ox, oy, oz, qx, qy, qz, qw, px, py, pz): #vers 1
         """Rotate a local-space offset (ox,oy,oz) by quaternion

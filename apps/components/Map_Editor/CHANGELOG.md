@@ -3963,3 +3963,24 @@ conclusively found despite extensive isolated testing.
   `ast.parse` clean on both files; confirmed via AST that
   show_gui_settings/show_panel_width_settings/show_settings and every
   newly-added method are each defined exactly once.
+
+- **Aug 15, 2026 (cont'd)** — Fixed the docked-only cog icon opening
+  the wrong dialog, per Keith: "Right cog brings up theme settings
+  from app_system_settings, that's wrong, it should be map_workshops
+  settings from the left [settings] on the titlebar." It was wired to
+  main_window.show_settings() (IMG Factory's global Settings dialog),
+  now calls _show_workshop_settings() directly - the exact same
+  method the titlebar's own left [Settings] button already calls.
+  The get_settings_contribution/_collect_settings_contributions
+  integration from earlier this session still stands unchanged - that
+  still makes Map Workshop's tabs appear inside IMG Factory's own
+  Settings dialog when opened through IMG Factory's own menu; the cog
+  is just a direct shortcut to Map Workshop's own dialog instead,
+  not a route through the bigger global one.
+
+  Also fixed a small cosmetic bug visible in Keith's screenshot: the
+  dialog's title read "Map WorkshopSettings" (no space) -
+  App_name + "Settings" concatenated with nothing between them; now
+  App_name + " Settings".
+
+  `ast.parse` clean.
