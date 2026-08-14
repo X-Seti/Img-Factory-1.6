@@ -17,6 +17,7 @@ from typing import Dict, List, Optional, Tuple
 from apps.methods.dff_parser import DFFParser, detect_dff
 from apps.methods.txd_parser import parse_txd
 from apps.methods.dff_classes import DFFModel
+from apps.components.Model_Editor.depends.col_workshop_classes import COLModel
 
 
 class ModelCache:
@@ -32,12 +33,30 @@ class ModelCache:
         # get_geometry/get_textures for how duplicates get resolved.
         self._dff_index: Dict[str, List[Tuple[str, object]]] = {}
         self._txd_index: Dict[str, List[Tuple[str, object]]] = {}
+        # lowercase model name -> [(col_file_path, model_index_in_file), ...]
+        # (Aug 14 2026) Keyed differently to _dff_index/_txd_index on
+        # purpose: DFF/TXD are indexed by their IMG entry name (the
+        # container itself IS the named asset). Real COL archives are
+        # multi-model (e.g. generic.col holds many separately-named
+        # collision models) - the container filename is meaningless
+        # for lookup, only each model's own header.name inside the
+        # file matches an instance's model_name. So this indexes by
+        # content, not container - built from standalone .col files
+        # found under the game root (see index_col_files), not from
+        # the IMG archives index_img_files scans.
+        self._col_index: Dict[str, List[Tuple[str, int]]] = {}
         # lowercase model/txd name -> parsed result, or None if loading/
         # parsing failed (cached as None so it's not retried every time)
         self._geometry_cache: Dict[str, Optional[DFFModel]] = {}
         self._dimensions_cache: Dict[str, Optional[Tuple[float, float, float]]] = {}
         self._texture_cache: Dict[str, Optional[Dict[str, dict]]] = {}
+        self._collision_cache: Dict[str, Optional[COLModel]] = {}
+        # col_file_path -> loaded COLFile (Aug 14 2026) - same reasoning
+        # as _opened_img_files: a multi-model .col can be large, don't
+        # re-read/re-parse it from disk once per model name inside it.
+        self._opened_col_files: Dict[str, object] = {}
         self.indexed_img_paths: List[str] = []
+        self.indexed_col_paths: List[str] = []
         self.index_errors: List[str] = []
         # img_path -> already-opened IMGFile (Aug 1 2026, per Keith's
         # real crash trace: a Ctrl+C interrupt during "the app
@@ -101,17 +120,56 @@ class ModelCache:
             except Exception as e:
                 self.index_errors.append(f"{img_path}: {e}")
 
-    def clear_indexes(self): #vers 2
-        """Drop all indexes and cached geometry/textures - call before
-        re-indexing for a newly loaded world, so stale entries from a
-        previous world can't leak through."""
+    def index_col_files(self, col_paths: List[str]): #vers 1
+        """Scan a list of standalone .col file paths, building a
+        model-name -> (col_path, model_index) index across every
+        model in every file (Aug 14 2026, for the IPL Controls
+        collision render options - "load solid collision, load
+        semi-solid, wireframe cols, and solid with surface mapping").
+        Unlike index_img_files, this genuinely loads and parses each
+        file up front (a .col has no separate lightweight directory
+        header to scan the way an IMG does - COLParser has to walk
+        the whole file to find each model's boundaries), so callers
+        should only pass files actually worth indexing (e.g. found
+        under the game root), not call this speculatively. Safe to
+        call again to re-index (clears previous index first)."""
+        from apps.components.Model_Editor.depends.col_workshop_loader import COLFile
+
+        self._col_index.clear()
+        self._opened_col_files.clear()
+        self.indexed_col_paths = []
+
+        for col_path in col_paths:
+            try:
+                col_file = COLFile()
+                if not col_file.load_from_file(col_path):
+                    self.index_errors.append(f"Failed to open {col_path}: {col_file.load_error}")
+                    continue
+                self._opened_col_files[col_path] = col_file
+                for i, model in enumerate(col_file.models):
+                    name = getattr(model.header, 'name', None)
+                    if not name:
+                        continue
+                    self._col_index.setdefault(name.strip().lower(), []).append((col_path, i))
+                self.indexed_col_paths.append(col_path)
+            except Exception as e:
+                self.index_errors.append(f"{col_path}: {e}")
+
+    def clear_indexes(self): #vers 3
+        """Drop all indexes and cached geometry/textures/collision -
+        call before re-indexing for a newly loaded world, so stale
+        entries from a previous world can't leak through."""
         self._dff_index.clear()
         self._txd_index.clear()
+        self._col_index.clear()
         self._geometry_cache.clear()
         self._texture_cache.clear()
         self._dimensions_cache.clear()
+        self._collision_cache.clear()
         self._opened_img_files.clear()
+        self._opened_col_files.clear()
         self.indexed_img_paths = []
+        self.indexed_col_paths = []
         self.index_errors = []
 
     def get_geometry(self, model_name: str) -> Optional[DFFModel]:
@@ -217,6 +275,38 @@ class ModelCache:
         self._texture_cache[key] = result
         return result
 
+    def get_collision(self, model_name: str) -> Optional[COLModel]: #vers 1
+        """Get the parsed COLModel for a model name, from the
+        standalone-.col index built by index_col_files - loading is
+        already done at index time (see its own docstring for why),
+        this just looks the already-parsed model up and caches the
+        result (None if not indexed/not found), same fallback
+        contract as get_geometry: a model legitimately might have no
+        collision data available, that's not an error to surface."""
+        key = model_name.lower()
+        if key in self._collision_cache:
+            return self._collision_cache[key]
+
+        result = None
+        for col_path, model_index in self._col_index.get(key, []):
+            col_file = self._opened_col_files.get(col_path)
+            if col_file is None:
+                continue
+            try:
+                if 0 <= model_index < len(col_file.models):
+                    result = col_file.models[model_index]
+                    break
+            except Exception:
+                continue
+        self._collision_cache[key] = result
+        return result
+
+    def is_col_indexed(self, model_name: str) -> bool: #vers 1
+        """True if model_name has collision data available in the
+        indexed .col files - see is_dff_indexed for the same
+        indexed-vs-parsed distinction."""
+        return model_name.lower() in self._col_index
+
     def _read_entry(self, img_path: str, entry) -> Optional[bytes]:
         """Read one entry's raw bytes from its IMG archive - reuses a
         cached, already-opened IMGFile per archive path (Aug 1 2026,
@@ -250,9 +340,11 @@ class ModelCache:
         """Same as is_dff_indexed, for TXD files."""
         return txd_name.lower() in self._txd_index
 
-    def stats(self) -> str: #vers 1
+    def stats(self) -> str: #vers 2
         """One-line human-readable summary, for status bar/log use."""
         return (f"{len(self._dff_index)} DFF, {len(self._txd_index)} TXD indexed "
-               f"across {len(self.indexed_img_paths)} archive(s); "
+               f"across {len(self.indexed_img_paths)} archive(s), "
+               f"{len(self._col_index)} COL models indexed across "
+               f"{len(self.indexed_col_paths)} file(s); "
                f"{len(self._geometry_cache)} models, "
                f"{len(self._texture_cache)} TXDs loaded so far")

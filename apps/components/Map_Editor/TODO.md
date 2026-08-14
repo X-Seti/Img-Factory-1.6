@@ -510,3 +510,17 @@ building beyond the stub). AUZO specifically per Keith: "show audio
 svg icons, plays the sound file" - real feature, needs its own sound-
 file-playback mechanism (which audio format/path convention SA audio
 zones actually reference needs research), not just parsing.
+
+## Collision rendering follow-ups (Aug 14 2026)
+
+Ghosted/Semi-Solid/Wireframe/Surface Mapped Col overlays are in, but:
+- Only COL mesh (vertices/faces) is drawn - spheres and boxes
+  (COLSphere/COLBox) aren't rendered at all yet.
+- COL indexing only scans standalone .col files under the game root
+  (recursive glob) - .col entries embedded directly inside IMG
+  archives aren't indexed. Shouldn't matter for a typical SA install
+  (collision is loose files there) but worth knowing if a model's
+  collision doesn't show up on Keith's real data.
+- Not yet verified against Keith's real data at all - needs his
+  confirmation that collision actually loads/draws correctly once he
+  tests it.

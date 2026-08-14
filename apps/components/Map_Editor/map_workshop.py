@@ -19687,6 +19687,23 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             model_cache = ModelCache()
             self._model_cache = model_cache
         model_cache.index_img_files(loader.get_img_paths())
+
+        # Standalone .col indexing (Aug 14 2026, for the IPL Controls
+        # collision render options) - real GTA collision mostly lives
+        # in loose .col files under the game root (models/coll/*.col
+        # and similar), not inside the IMG archives index_img_files
+        # just scanned - same reasoning as the existing standalone-TXD
+        # game_root search this file already does elsewhere. A model
+        # with no matching collision found here just draws nothing for
+        # any of the collision overlay toggles - not treated as an
+        # error (see ModelCache.get_collision's own docstring).
+        game_root = getattr(self, '_game_root', None)
+        if game_root:
+            import glob
+            self._set_status("Indexing COL files...")
+            QApplication.processEvents()
+            col_paths = glob.glob(os.path.join(game_root, '**', '*.col'), recursive=True)
+            model_cache.index_col_files(col_paths)
         # A genuine new world load - the same model_name could now
         # refer to entirely different geometry (a different game/DAT
         # entirely), so any previously converted vertex/triangle data
@@ -21084,16 +21101,54 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         opts_row2.addStretch()
         lay.addLayout(opts_row2)
 
-        # Row 3: reserved for future per-layer visibility toggles
-        # (Aug 1 2026, per Keith: "the LOD test function could be an
-        # SVG icon on the ribbon... this way it does have to use up
-        # space on the ipl control, but keep row3 for future
-        # functions, like show tojb, show Paths, show zons") - LOD
-        # Test itself moved to a ribbon icon in the Render toolbar
-        # (see _build_toolbars), freeing this row for those planned
-        # additions (TOBJ/path/zone visibility) rather than removing
-        # the row entirely.
+        # Row 3: collision render options (Aug 14 2026, per Keith:
+        # "add to collisions to the IPL control pane, under render
+        # options, load solid collision, load semi-solid, wireframe
+        # cols, and solid with surface mapping" -> "Ghost is a good
+        # idea; Show Ghosted Col, Show Surface Mapped Col, Show Semi-
+        # Solid Col, Show Wireframe Col") - four independent checkboxes
+        # (not an exclusive dropdown group like Render/LOD - any
+        # combination can be on together), same "Show X" checkbox
+        # style as Show Tobj above. All off by default. Draws as an
+        # overlay on top of the model, never replacing it - see
+        # DFFViewport._draw_collision_faces. Uses up the row Keith
+        # asked to keep reserved for exactly this kind of per-layer
+        # toggle; Paths/Zones visibility can still follow later on
+        # their own row.
+        col_ghost_chk = QCheckBox("Show Ghosted Col")
+        col_ghost_chk.setFixedHeight(18)
+        col_ghost_chk.setStyleSheet(_compact_18)
+        col_ghost_chk.setToolTip("Overlay collision geometry as a low-opacity ghost")
+        col_ghost_chk.toggled.connect(self._on_show_col_ghosted_toggled)
+
+        col_surface_chk = QCheckBox("Show Surface Mapped Col")
+        col_surface_chk.setFixedHeight(18)
+        col_surface_chk.setStyleSheet(_compact_18)
+        col_surface_chk.setToolTip("Overlay collision geometry coloured by surface/material type")
+        col_surface_chk.toggled.connect(self._on_show_col_surface_mapped_toggled)
+
+        col_semi_chk = QCheckBox("Show Semi-Solid Col")
+        col_semi_chk.setFixedHeight(18)
+        col_semi_chk.setStyleSheet(_compact_18)
+        col_semi_chk.setToolTip("Overlay collision geometry at higher opacity than Ghosted")
+        col_semi_chk.toggled.connect(self._on_show_col_semi_solid_toggled)
+
+        col_wire_chk = QCheckBox("Show Wireframe Col")
+        col_wire_chk.setFixedHeight(18)
+        col_wire_chk.setStyleSheet(_compact_18)
+        col_wire_chk.setToolTip("Overlay collision geometry as edges only")
+        col_wire_chk.toggled.connect(self._on_show_col_wireframe_toggled)
+
+        self._col_ghost_chk   = col_ghost_chk
+        self._col_surface_chk = col_surface_chk
+        self._col_semi_chk    = col_semi_chk
+        self._col_wire_chk    = col_wire_chk
+
         opts_row3 = QHBoxLayout()
+        opts_row3.addWidget(col_ghost_chk)
+        opts_row3.addWidget(col_surface_chk)
+        opts_row3.addWidget(col_semi_chk)
+        opts_row3.addWidget(col_wire_chk)
         opts_row3.addStretch()
         lay.addLayout(opts_row3)
 
@@ -21290,6 +21345,36 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # merged dropdown, so a render-mode change should refresh the
         # same table an LOD-mode change already does.
         self._refresh_ipl_inst_file_panel()
+
+    def _on_show_col_ghosted_toggled(self, checked): #vers 1
+        """Show Ghosted Col checked/unchecked (Aug 14 2026, per
+        Keith's four collision render options). vp.repaint() forced
+        immediately, same reasoning as _set_world_render_mode."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is not None and hasattr(vp, 'set_show_col_ghosted'):
+            vp.set_show_col_ghosted(checked)
+            vp.repaint()
+
+    def _on_show_col_surface_mapped_toggled(self, checked): #vers 1
+        """Show Surface Mapped Col checked/unchecked."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is not None and hasattr(vp, 'set_show_col_surface_mapped'):
+            vp.set_show_col_surface_mapped(checked)
+            vp.repaint()
+
+    def _on_show_col_semi_solid_toggled(self, checked): #vers 1
+        """Show Semi-Solid Col checked/unchecked."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is not None and hasattr(vp, 'set_show_col_semi_solid'):
+            vp.set_show_col_semi_solid(checked)
+            vp.repaint()
+
+    def _on_show_col_wireframe_toggled(self, checked): #vers 1
+        """Show Wireframe Col checked/unchecked."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is not None and hasattr(vp, 'set_show_col_wireframe'):
+            vp.set_show_col_wireframe(checked)
+            vp.repaint()
 
     def _on_load_generic_txd_clicked(self): #vers 3
         """Load generic.txd and show it in the Textures dock. Looks
@@ -23315,6 +23400,38 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         corrects for. No longer gated by game."""
         return (-x, -y, -z, w)
 
+    def _convert_collision_geometry(self, col_model): #vers 1
+        """Convert a COLModel (or None) into the flat (col_vertices,
+        col_triangles) shape DFFViewport's collision overlay draws
+        expect (Aug 14 2026, for the IPL Controls collision render
+        options). col_triangles entries are (v1,v2,v3,r,g,b) with the
+        material colour already resolved to 0-1 floats here (not left
+        for the viewport to look up) - keeps col_materials/COLGame
+        lookups out of dff_viewport.py entirely, matching how DFF
+        materials are already resolved before reaching the viewport.
+        Only the mesh (vertices/faces) is converted - COL's separate
+        sphere/box collision primitives aren't drawn yet, logged to
+        TODO.md. Returns ([], []) if col_model is None or has no
+        faces, same "nothing to draw, not an error" contract as the
+        rest of this pipeline."""
+        if col_model is None or not col_model.faces or not col_model.vertices:
+            return [], []
+        from apps.components.Model_Editor.depends.col_materials import get_material_colour, COLGame
+        ver = getattr(getattr(col_model, 'header', None), 'version', None)
+        game = COLGame.VC if getattr(ver, 'value', 3) == 1 else COLGame.SA
+        col_vertices = [(v.x, v.y, v.z) for v in col_model.vertices]
+        col_triangles = []
+        for f in col_model.faces:
+            try:
+                hexcol = get_material_colour(f.material, game)
+                r = int(hexcol[0:2], 16) / 255.0
+                g = int(hexcol[2:4], 16) / 255.0
+                b = int(hexcol[4:6], 16) / 255.0
+            except Exception:
+                r = g = b = 0.7
+            col_triangles.append((f.a, f.b, f.c, r, g, b))
+        return col_vertices, col_triangles
+
     def _refresh_world_view(self, instances, auto_fit=True, clear_display_lists=True): #vers 4
         """Push a full multi-instance 3D world view into the existing
         DFF viewport (self.preview_widget) - Aug 1 2026, per Keith:
@@ -23473,6 +23590,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                              t.material_id + mat_offset)
                             for t in g.triangles)
                         all_materials.extend(g.materials)
+                    col_vertices, col_triangles = self._convert_collision_geometry(
+                        model_cache.get_collision(model_name))
                     converted[model_name] = {
                         'vertices':  all_vertices,
                         'normals':   all_normals,
@@ -23480,6 +23599,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                         'triangles': all_triangles,
                         'materials': all_materials,
                         'prelit':    all_prelit,
+                        'col_vertices':  col_vertices,
+                        'col_triangles': col_triangles,
                     }
                 if loader is not None:
                     obj = loader.get_object(inst.model_id)

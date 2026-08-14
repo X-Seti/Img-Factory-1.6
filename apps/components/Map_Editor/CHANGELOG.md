@@ -3545,3 +3545,45 @@ conclusively found despite extensive isolated testing.
   confirmed present with both controls working and live-applying to
   `preview_widget`. Full `QApplication` instantiation clean, `ast.
   parse` clean.
+
+- **Aug 14, 2026** — Added collision render options to IPL Controls,
+  per Keith: "add to collisions to the IPL control pane, under render
+  options, load solid collision, load semi-solid, wireframe cols, and
+  solid with surface mapping" -> "Ghost is a good idea; Show Ghosted
+  Col, Show Surface Mapped Col, Show Semi-Solid Col, Show Wireframe
+  Col". Four independent checkboxes in the row 3 space reserved for
+  this back on Aug 1 - not an exclusive group like Render/LOD, any
+  combination can be on together. Each draws collision geometry as an
+  overlay on top of the model, never replacing it.
+
+  `ModelCache` gained a `_col_index` keyed by each COL model's own
+  internal name (`header.name`), not its container filename - real
+  COL archives are multi-model (e.g. generic.col holds many
+  separately-named collision models), so indexing by container name
+  the way `_dff_index`/`_txd_index` already do wouldn't map to
+  instance model names at all. `index_col_files()` loads and indexes
+  every model in a given list of `.col` paths; `_refresh_world_view`
+  now also globs the game root recursively for `*.col` files
+  alongside the existing IMG indexing, same pattern already used for
+  standalone TXD fallback search elsewhere in this file.
+
+  `DFFViewport` gained `show_col_ghosted/semi_solid/wireframe/
+  surface_mapped` flags, their setters, and `_draw_collision_faces` -
+  unlit (COL vertices carry no normals), flat colour for ghosted/
+  semi-solid/wireframe, per-face material colour for surface-mapped.
+  A separate `_col_display_lists` cache (same lazy-build-once-per-
+  model pattern as the model's own display lists) keeps collision
+  overlay drawing cheap regardless of how many instances share a
+  model. Only the mesh (vertices/faces) is drawn - COL's sphere/box
+  primitives aren't rendered yet, logged to TODO.md.
+
+  Material colours are resolved once per face, in `map_workshop.py`
+  (`_convert_collision_geometry`, reusing `col_materials.
+  get_material_colour`, game detected as VC vs SA from the COL
+  header's own version) - not inside `dff_viewport.py`, keeping COL-
+  material lookups out of the pure-GL viewport code entirely.
+
+  `ast.parse` clean on all three changed files (`model_cache.py`,
+  `dff_viewport.py`, `map_workshop.py`). Not yet tested against
+  Keith's real data - depends on his game folder actually having
+  standalone `.col` files under the game root for anything to show.

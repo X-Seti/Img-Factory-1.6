@@ -203,6 +203,30 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         # per instance per frame.
         self._world_display_lists = {}
 
+        # Collision overlay toggles (Aug 14 2026, per Keith: "add
+        # collisions to the IPL control pane... load solid collision,
+        # load semi-solid, wireframe cols, and solid with surface
+        # mapping" -> "Ghost is a good idea; Show Ghosted Col, Show
+        # Surface Mapped Col, Show Semi-Solid Col, Show Wireframe
+        # Col") - four independent checkboxes, not an exclusive
+        # group like render mode: any combination can be on at once
+        # (e.g. Wireframe Col over a Ghosted Col fill is a normal
+        # thing to want). Each draws as an overlay on top of the
+        # already-drawn model, never replacing it - "ghost" is the
+        # whole point, not just one of the four modes. All off by
+        # default.
+        self.show_col_ghosted        = False
+        self.show_col_semi_solid     = False
+        self.show_col_wireframe      = False
+        self.show_col_surface_mapped = False
+        # Separate display-list cache, keyed by (model_key, col mode) -
+        # mirrors _world_display_lists exactly but kept apart since a
+        # model's collision geometry is entirely different data
+        # (COLModel vertices/faces, not DFF) from its render mesh, and
+        # the two get cleared independently: toggling a collision
+        # checkbox never needs to touch the model's own display lists.
+        self._col_display_lists = {}
+
         # Wheels
         self._wheels_model      = None
         self._wheels_model_path = ''
@@ -706,6 +730,52 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             if has_u:
                 u = uvs[vi]; glTexCoord2f(u[0], u[1])
             v = verts[vi]; glVertex3f(v[0], v[1], v[2])
+
+    def _draw_collision_faces(self, mode): #vers 1
+        """Draw self._col_vertices/self._col_triangles as a ghost
+        overlay on top of whatever's already been drawn for this
+        instance (Aug 14 2026, per Keith: "Ghost is a good idea" -
+        collision never replaces the model, always draws over it).
+        mode: 'ghosted'|'semi_solid'|'wireframe'|'surface_mapped'.
+        Unlit throughout (COLVertex carries no normal, unlike DFF
+        geometry) - flat colour reads clearly enough for a collision
+        overlay and avoids needing to fabricate face normals just for
+        lighting. col_triangles entries are (v1,v2,v3,r,g,b) with
+        r,g,b already resolved to floats 0-1 by the caller (map_
+        workshop.py, via col_materials.get_material_colour) -
+        surface_mapped uses them per-face, the other three modes use
+        one flat colour so every mode stays visually distinct from
+        the model's own render style and from each other."""
+        if not OPENGL_AVAILABLE: return
+        verts = getattr(self, '_col_vertices', None)
+        tris  = getattr(self, '_col_triangles', None)
+        if not verts or not tris: return
+        glDisable(GL_LIGHTING)
+        if mode == 'wireframe':
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
+            glColor3f(1.0, 0.3, 0.3); glLineWidth(1.0)
+            glBegin(GL_TRIANGLES)
+            for v1, v2, v3, r, g, b in tris:
+                for vi in (v1, v2, v3):
+                    if vi < len(verts):
+                        v = verts[vi]; glVertex3f(v[0], v[1], v[2])
+            glEnd()
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
+        else:
+            alpha = {'ghosted': 0.25, 'semi_solid': 0.5, 'surface_mapped': 0.45}.get(mode, 0.3)
+            glEnable(GL_BLEND); glDepthMask(False)
+            glBegin(GL_TRIANGLES)
+            for v1, v2, v3, r, g, b in tris:
+                if mode == 'surface_mapped':
+                    glColor4f(r, g, b, alpha)
+                else:
+                    glColor4f(1.0, 0.55, 0.15, alpha)
+                for vi in (v1, v2, v3):
+                    if vi < len(verts):
+                        v = verts[vi]; glVertex3f(v[0], v[1], v[2])
+            glEnd()
+            glDepthMask(True); glDisable(GL_BLEND)
+        glEnable(GL_LIGHTING)
 
     def _draw_wireframe(self): #vers 1
         if not OPENGL_AVAILABLE: return
@@ -1253,6 +1323,33 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
     def set_assembly_mode(self, enabled: bool): #vers 1
         self._assembly_mode = enabled; self.update()
 
+    def set_show_col_ghosted(self, enabled: bool): #vers 1
+        self.show_col_ghosted = enabled; self.update()
+
+    def set_show_col_semi_solid(self, enabled: bool): #vers 1
+        self.show_col_semi_solid = enabled; self.update()
+
+    def set_show_col_wireframe(self, enabled: bool): #vers 1
+        self.show_col_wireframe = enabled; self.update()
+
+    def set_show_col_surface_mapped(self, enabled: bool): #vers 1
+        self.show_col_surface_mapped = enabled; self.update()
+
+    def _clear_col_display_lists(self): #vers 1
+        """Same reasoning as _clear_world_display_lists, kept as its
+        own method since collision lists live in a separate cache -
+        call when the world/IPL set genuinely changes (a model's
+        collision data can't change without that)."""
+        if OPENGL_AVAILABLE and self._col_display_lists and self.isValid():
+            try:
+                self.makeCurrent()
+                for list_id in self._col_display_lists.values():
+                    glDeleteLists(list_id, 1)
+                self.doneCurrent()
+            except Exception:
+                pass
+        self._col_display_lists = {}
+
     def set_show_lod(self, enabled: bool): #vers 1
         self._show_lod = enabled; self.update()
 
@@ -1324,6 +1421,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         content is the point there); edit-triggered refreshes don't."""
         if clear_display_lists:
             self._clear_world_display_lists()
+            self._clear_col_display_lists()
         self._world_instances = entries or []
         if self._world_instances and auto_fit:
             self._auto_fit_world()
@@ -1362,6 +1460,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def clear_world_instances(self): #vers 2
         self._clear_world_display_lists()
+        self._clear_col_display_lists()
         self._world_instances = []
         self.update()
 
@@ -1411,6 +1510,16 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._vertices,self._normals,self._uvs,
             self._triangles,self._materials,self._prelit,
             getattr(self,'_current_geom_flags',0))
+        # Which collision overlay modes are currently on (Aug 14 2026)
+        # - checked once per frame, not per instance, since none of
+        # these depend on anything instance-specific.
+        col_modes = []
+        if self.show_col_ghosted:        col_modes.append('ghosted')
+        if self.show_col_semi_solid:     col_modes.append('semi_solid')
+        if self.show_col_wireframe:      col_modes.append('wireframe')
+        if self.show_col_surface_mapped: col_modes.append('surface_mapped')
+        old_cv, old_ct = (getattr(self, '_col_vertices', None),
+                          getattr(self, '_col_triangles', None))
         for entry in self._world_instances:
             model_key = entry.get('model_key', id(entry))
             cache_key = (model_key, self._mode)
@@ -1438,10 +1547,33 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             sx, sy, sz = entry.get('scale', (1.0, 1.0, 1.0))
             glScalef(sx, sy, sz)
             glCallList(list_id)
+            # Collision overlay (Aug 14 2026) - drawn inside the same
+            # instance transform, right after the model itself, so it
+            # sits exactly where the model's own collision belongs.
+            # A separate display list per (model_key, col mode), built
+            # lazily the same way as the model's own lists - only
+            # entries with actual col_vertices/col_triangles (from a
+            # model that had matching collision data indexed) produce
+            # anything; the rest are silent no-ops via the length
+            # check in _draw_collision_faces.
+            if col_modes and entry.get('col_vertices') and entry.get('col_triangles'):
+                self._col_vertices  = entry.get('col_vertices')
+                self._col_triangles = entry.get('col_triangles')
+                for mode in col_modes:
+                    col_cache_key = (model_key, mode)
+                    col_list_id = self._col_display_lists.get(col_cache_key)
+                    if col_list_id is None:
+                        col_list_id = glGenLists(1)
+                        glNewList(col_list_id, GL_COMPILE)
+                        self._draw_collision_faces(mode)
+                        glEndList()
+                        self._col_display_lists[col_cache_key] = col_list_id
+                    glCallList(col_list_id)
             glPopMatrix()
         (self._vertices,self._normals,self._uvs,
          self._triangles,self._materials,self._prelit,
          self._current_geom_flags) = (old_v,old_n,old_u,old_t,old_m,old_p,old_f)
+        self._col_vertices, self._col_triangles = old_cv, old_ct
 
     def set_2dfx_lights(self, lights): #vers 1
         """Store the current set of 2DFX light points to render - per
