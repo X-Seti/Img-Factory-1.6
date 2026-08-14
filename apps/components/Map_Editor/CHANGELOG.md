@@ -3295,3 +3295,26 @@ conclusively found despite extensive isolated testing.
   declaration and part of its docstring; caught immediately via the
   syntax check that always runs after every edit, fixed before
   moving on.
+
+- **Aug 1, 2026 (cont'd)** — Verified "apply settings for show full
+  loading, and texture scaling" end-to-end: changed both settings in
+  the Loading tab, clicked Apply Settings, confirmed both save to
+  MapSettings, the texture downscale change live-applies to `preview_
+  widget`, and both correctly persist and show as checked when the
+  dialog is re-opened. Confirmed working correctly.
+
+  Added a dedicated LOD Test circle radius setting, per Keith: "we
+  also need a settings for the LOD test circle, its set as 300, would
+  be nice to have a settings in Map-Assists to adject the circle
+  size." The circle's radius was previously tied directly to `lod_
+  draw_dist_threshold` (the LOD detection cutoff), so adjusting one
+  meant adjusting both together. Added `lod_test_circle_radius` as
+  its own separate setting (same 300.0 default, so no behavior change
+  until actually adjusted) and a spinbox in Settings > Map Assets, per
+  Keith's exact requested placement, with a live update to any
+  already-active LOD Test session too, not just future ones.
+
+  Verified: default value matches prior behavior exactly (300);
+  changing and applying the setting saves correctly; toggling LOD
+  Test mode on after the change correctly picks up the new radius.
+  Full `QApplication` instantiation clean, `ast.parse` clean.

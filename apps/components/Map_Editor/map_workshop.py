@@ -3087,6 +3087,15 @@ class MapSettings:
         # reliable signal. Configurable rather than hardcoded at 300,
         # in case other maps/games need a different cutoff.
         'lod_draw_dist_threshold': 300.0,
+        # LOD Test circle radius (Aug 1 2026, per Keith: "we also need
+        # a settings for the LOD test circle, its set as 300, would be
+        # nice to have a settings in Map-Assists to adject the circle
+        # size") - previously tied directly to lod_draw_dist_threshold
+        # above (same 300.0 default value, so this doesn't change any
+        # existing behavior by default), now a separate setting so the
+        # circle's own visual size can be adjusted independently of
+        # the LOD detection threshold itself.
+        'lod_test_circle_radius': 300.0,
         # Load text IPL + its binary stream set together (Aug 1 2026,
         # per Keith: "looking at the ipl's most of them are listed
         # LODs, so where are the normal models? Maybe in the
@@ -7910,6 +7919,22 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "models/generic.txd as a loose file.")
         load_generic_btn.clicked.connect(self._on_load_generic_txd_clicked)
         as_lay.addWidget(load_generic_btn)
+
+        as_lay.addWidget(QLabel(""))
+        as_lay.addWidget(QLabel("—  LOD Test  —"))
+        lod_test_form = QFormLayout()
+        lod_test_radius_spin = QSpinBox()
+        lod_test_radius_spin.setRange(1, 10000)
+        lod_test_radius_spin.setSingleStep(50)
+        lod_test_radius_spin.setValue(int(self.map_settings.get('lod_test_circle_radius')))
+        lod_test_radius_spin.setToolTip(
+            "Radius of the circle drawn around the mouse cursor in LOD\n"
+            "Test mode - models inside switch to one detail level,\n"
+            "models outside switch to the other (see the LOD Test\n"
+            "checkbox in IPL Controls).")
+        lod_test_form.addRow("Circle radius:", lod_test_radius_spin)
+        as_lay.addLayout(lod_test_form)
+
         as_lay.addStretch()
         tabs.addTab(assets_tab, "Map Assets")
 
@@ -7955,6 +7980,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.map_settings.set('texture_downscale_enabled',   downscale_chk.isChecked())
             self.map_settings.set('texture_downscale_threshold', downscale_threshold_spin.value())
             self.map_settings.set('texture_downscale_target',    downscale_target_spin.value())
+            self.map_settings.set('lod_test_circle_radius', float(lod_test_radius_spin.value()))
+            vp2 = getattr(self, 'preview_widget', None)
+            if vp2 is not None and hasattr(vp2, '_lod_test_radius'):
+                vp2._lod_test_radius = float(lod_test_radius_spin.value())
             self.map_settings.save()
             vp = getattr(self, 'preview_widget', None)
             if vp is not None and hasattr(vp, 'set_texture_downscale_settings'):
@@ -21282,7 +21311,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if vp is None:
             return
         if checked:
-            vp._lod_test_radius = self.map_settings.get('lod_draw_dist_threshold')
+            vp._lod_test_radius = self.map_settings.get('lod_test_circle_radius')
             vp.set_lod_test_callback(self._on_lod_test_mouse_moved)
         else:
             vp.set_lod_test_callback(None)
