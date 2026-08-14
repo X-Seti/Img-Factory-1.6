@@ -3381,3 +3381,30 @@ conclusively found despite extensive isolated testing.
   shading` now actually finds and uses the real action instead of
   silently no-opping. Full `QApplication` instantiation clean, `ast.
   parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Disabled the 4-Pane View toggle, per
+  Keith: "4 panels icon, keep, but the function isnt needed, it
+  creates a strange beheavour." Icon stays visible in the Navigation
+  ribbon group exactly as requested; the action itself is now
+  disabled (greyed out, unclickable) with a tooltip explaining why.
+
+  Root cause of the "strange behaviour": `_sync_quad_from_main` (the
+  function that populates the 4 panes when switching to quad view)
+  only ever mirrors single-model geometry attributes (`_vertices`,
+  `_triangles`, etc.) - inherited directly from Model Workshop's
+  single-DFF-editing base this file was built on. It never syncs
+  `_world_instances`, the actual multi-instance map data Map
+  Workshop's real workflow uses, so switching to 4-Pane View while
+  an actual map is loaded (which is nearly always, for this app)
+  showed blank panes rather than anything useful.
+
+  Logged to TODO.md that a genuine world-aware version of this
+  feature would need its own sync logic built from scratch around
+  `_world_instances`, not a fix to the existing single-model one, in
+  case a real "4 world views from different angles" feature is wanted
+  later.
+
+  Verified: the action still exists and is visible in the toolbar
+  (icon kept), confirmed disabled/unclickable, tooltip confirmed
+  explaining the reason. Full `QApplication` instantiation clean,
+  `ast.parse` clean.

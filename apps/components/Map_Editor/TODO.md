@@ -473,3 +473,16 @@ already computes per-triangle/per-vertex, if anything is currently
 stored that granularly rather than being a pure shader-style live
 effect), and DFF write-back (ties into the broader "write-back
 infrastructure for any file type" TODO item).
+
+## 4-Pane View disabled - could be rebuilt world-aware later (Aug 1 2026)
+
+Per Keith: "4 panels icon, keep, but the function isnt needed, it
+creates a strange beheavour." Disabled rather than removed (icon
+stays visible, greyed out, tooltip explains why). Root cause: `_sync_
+quad_from_main` only ever mirrored single-model geometry attributes
+(inherited directly from Model Workshop's single-DFF editing base),
+never `_world_instances` - so it showed blank panes whenever an
+actual map was loaded, Map Workshop's real primary use case. If a
+genuine "4 world views from different angles" feature is wanted
+later, it would need its own sync logic built around `_world_
+instances` from scratch, not a fix to the existing single-model one.

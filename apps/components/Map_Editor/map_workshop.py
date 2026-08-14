@@ -11212,6 +11212,21 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         _act(tb_nav, "4-Pane View",
              _icon(self.icon_factory.quad_view_icon, 'quad_view_icon'),
              self._toggle_quad_view, checkable=True, attr='_quad_view_act')
+        # Disabled (Aug 1 2026, per Keith: "4 panels icon, keep, but
+        # the function isnt needed, it creates a strange beheavour")
+        # - icon stays visible, function itself doesn't run. The
+        # underlying issue: _sync_quad_from_main only ever mirrors
+        # single-model geometry attributes (_vertices/_triangles/etc,
+        # inherited directly from Model Workshop's base this was built
+        # on) into the 4 panes - it never syncs _world_instances, the
+        # actual multi-instance map data Map Workshop's real workflow
+        # uses, so switching to 4-Pane View while a map is loaded
+        # shows blank panes rather than the world.
+        self._quad_view_act.setEnabled(False)
+        self._quad_view_act.setToolTip(
+            "4-Pane View is currently disabled - it only ever mirrors\n"
+            "single-model geometry, not the loaded world/map, so it\n"
+            "showed blank panes rather than anything useful here.")
 
         # - Ribbon 5: Render
         tb_rend = _tb("Render", Qt.ToolBarArea.RightToolBarArea)
