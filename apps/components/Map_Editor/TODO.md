@@ -442,3 +442,16 @@ CHANGELOG for the fix. Not yet done, needed to actually be useful:
   Keith actually edit what it parses)
 - IDE tobj/path/2dfx editor for Model Workshop (separate component
   from Map Workshop, not yet started)
+
+## IPL Controls row 3 reserved for future visibility toggles (Aug 1 2026)
+
+Per Keith, after moving LOD Test to a ribbon icon: "keep row3 for
+future functions, like show tojb, show Paths, show zons." Row 3's
+QHBoxLayout is now empty but intact, ready for:
+- Show TOBJ (timed objects) visibility toggle
+- Show Paths (the new path section, once it has any UI presence at
+  all - see the earlier "Path section parsing done - UI/visualization
+  not started" TODO entry)
+- Show Zones (cull.ipl zones, once they have editable-box UI - see
+  the earlier "cull zones as editable/renamable/resizable boxes" TODO
+  entry)

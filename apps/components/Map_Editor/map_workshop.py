@@ -11241,6 +11241,23 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         _act(tb_rend, "Open GL Model Viewer (hardware 3D)",
              _icon(self.icon_factory.viewport_icon, 'gl_viewer_icon'),
              self._open_gl_viewer, attr='_gl_viewer_act')
+        tb_rend.addSeparator()
+        # LOD Test (Aug 1 2026, per Keith: "the LOD test function
+        # could be an SVG icon on the ribbon, 2 overlapping Circles,
+        # one hollow, other solid... this way it does have to use up
+        # space on the ipl control, but keep row3 for future
+        # functions, like show tojb, show Paths, show zons") - moved
+        # here from a checkbox on IPL Controls' row 3, freeing that
+        # row for the visibility toggles Keith mentions above.
+        _lod_test_act = _act(tb_rend, "LOD Test",
+             _icon(self.icon_factory.lod_test_icon, 'lod_test_icon'),
+             self._on_lod_test_toggled,
+             checkable=True, attr='_lod_test_act')
+        _lod_test_act.setToolTip(
+            "Live LOD switching test - draws a circle around the mouse\n"
+            "cursor (radius set in Settings > Map Assets); models\n"
+            "inside switch to one detail level, models outside switch\n"
+            "to the other, updated in real time as the mouse moves.")
 
         # Store toolbar refs
         self._tb_selection = tb_sel
@@ -20899,27 +20916,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         opts_row2.addStretch()
         lay.addLayout(opts_row2)
 
-        # Row 3: LOD Test (Aug 1 2026, per Keith: "LOD can go on a new
-        # row, row 3") - draws a circle (radius = lod_draw_dist_
-        # threshold) on the ground following the mouse cursor in the
-        # main preview_widget, and switches which detail level renders
-        # for every affected instance based on live distance from that
-        # point, updated on every mouse move. Overrides the global
-        # Show Normals/LOD only/Both mode while active (that's a fixed
-        # choice for the whole map; this is deliberately dynamic and
-        # per-position).
+        # Row 3: reserved for future per-layer visibility toggles
+        # (Aug 1 2026, per Keith: "the LOD test function could be an
+        # SVG icon on the ribbon... this way it does have to use up
+        # space on the ipl control, but keep row3 for future
+        # functions, like show tojb, show Paths, show zons") - LOD
+        # Test itself moved to a ribbon icon in the Render toolbar
+        # (see _build_toolbars), freeing this row for those planned
+        # additions (TOBJ/path/zone visibility) rather than removing
+        # the row entirely.
         opts_row3 = QHBoxLayout()
-        lod_test_chk = QCheckBox("LOD Test")
-        lod_test_chk.setFixedHeight(18)
-        lod_test_chk.setStyleSheet(_compact_18)
-        lod_test_chk.setToolTip(
-            "Live LOD switching test - draws a circle around the mouse\n"
-            "cursor (radius = the LOD draw-distance threshold); models\n"
-            "inside render at normal detail, models outside render as\n"
-            "LOD, updated in real time as the mouse moves.")
-        lod_test_chk.toggled.connect(self._on_lod_test_toggled)
-        self._lod_test_chk = lod_test_chk
-        opts_row3.addWidget(lod_test_chk)
         opts_row3.addStretch()
         lay.addLayout(opts_row3)
 

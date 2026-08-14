@@ -361,6 +361,22 @@ class SVGIconFactory: #vers 8
     
 
     @staticmethod
+    def lod_test_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """LOD Test icon - two overlapping circles, one hollow, one
+        solid (Aug 1 2026, per Keith: "the LOD test function could be
+        an SVG icon on the ribbon, 2 overlapping Circles, one hollow,
+        other solid") - the hollow circle represents normal-detail
+        models, the solid circle represents LOD models, overlapping
+        to suggest the live switching between them the tool actually
+        does."""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <circle cx="9" cy="12" r="6.5" fill="none" stroke="currentColor" stroke-width="1.6"/>
+            <circle cx="15" cy="12" r="6.5" fill="currentColor"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+    
+
+    @staticmethod
     def properties_icon(size: int = 20, color: str = None) -> QIcon: #vers 7
         """Properties/theme icon"""
         svg_data = '''<svg viewBox="0 0 24 24">

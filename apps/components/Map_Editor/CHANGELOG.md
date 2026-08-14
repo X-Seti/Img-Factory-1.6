@@ -3318,3 +3318,33 @@ conclusively found despite extensive isolated testing.
   changing and applying the setting saves correctly; toggling LOD
   Test mode on after the change correctly picks up the new radius.
   Full `QApplication` instantiation clean, `ast.parse` clean.
+
+- **Aug 1, 2026 (cont'd)** — Moved the LOD Test toggle from an IPL
+  Controls checkbox to a ribbon icon, per Keith: "the LOD test
+  function could be an SVG icon on the ribbon, 2 overlapping Circles,
+  one hollow, other solid. with the tooltip. this way it does have to
+  use up space on the ipl control, but keep row3 for future
+  functions, like show tojb, show Paths, show zons."
+
+  Added `SVGIconFactory.lod_test_icon` - two overlapping circles, one
+  hollow (normal-detail models) and one solid (LOD models), matching
+  Keith's exact spec and suggesting the live switching the tool
+  actually performs. Added as a checkable action in the Render ribbon
+  group (alongside the other render/viewport-mode toggles it
+  conceptually belongs with - Toggle Mesh, Toggle Backface, Cycle
+  Render Style, Toggle Shading), wired to the same `_on_lod_test_
+  toggled` handler already built earlier this session, with a fuller
+  descriptive tooltip than the terse action name alone.
+
+  Removed the old checkbox from IPL Controls row 3 - left the row's
+  layout intact and empty rather than removing it, reserved for the
+  visibility toggles Keith mentioned (TOBJ/paths/zones), logged to
+  TODO.md.
+
+  Verified: new icon renders without error; ribbon action correctly
+  checkable with the full descriptive tooltip; toggling it on wires
+  the same mouse-move callback the old checkbox did, toggling it off
+  clears the callback and re-applies the visibility filter
+  identically; confirmed no remaining references to the removed
+  checkbox anywhere. Full `QApplication` instantiation clean, `ast.
+  parse` clean on both files.
