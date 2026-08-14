@@ -21945,7 +21945,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # field layout for a node line (Type, Next, 0/unused, X, Y, Z,
         # Median, Left, Right, Flag1-3, per Project Cerbera's VC path
         # doc, the same source gta_dat_parser.py's own verified
-        # PathNode/_parse_path_node already use). A group header line
+        # PathNode/_parse_path_node already use), plus a 13th "Flag4?"
+        # column (Aug 15 2026, per Keith's real paths.ipl/paths2-5.ipl
+        # uploads: every node line genuinely has 13 comma-separated
+        # values, not the 12 the documented spec lists - the verified
+        # parser already tolerates this by only reading the first 12
+        # and ignoring the rest, but this raw display table shouldn't
+        # silently hide a value that's actually in the file just
+        # because nobody's identified what it means yet). A group header line
         # only has 2 fields and lands in columns 0-1 (labelled to
         # cover both meanings), same generic per-line rendering as
         # every other section - see the is_group_header styling below
@@ -21960,7 +21967,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                      "Exit Angle", "Target Int", "Flags", "Name",
                      "Sky", "Num Peds", "Time On", "Time Off"],
             'path': ["Type / Group A", "Next / Group B", "Zero", "X", "Y", "Z",
-                     "Median", "Left", "Right", "Flag1", "Flag2", "Flag3"],
+                     "Median", "Left", "Right", "Flag1", "Flag2", "Flag3", "Flag4?"],
         }
         headers = headers_by_type.get(data_type, headers_by_type['inst'])
         if table.columnCount() != len(headers):
@@ -22885,8 +22892,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             item = table.item(row, 0)
             if item is None:
                 return
+            display_name = item.data(Qt.ItemDataRole.UserRole)
             if col == 0:
-                ipl_name = item.data(Qt.ItemDataRole.UserRole)
+                ipl_name = display_name
                 hidden = ipl_name in getattr(self, '_hidden_ipls', set())
                 new_hidden = not hidden
                 if not new_hidden:
@@ -22935,9 +22943,77 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 if name_item is not None:
                     self._style_ipl_name_item(name_item, new_hidden)
                 self._toggle_ipl_section(ipl_name, new_hidden)
+            self._auto_switch_ipl_tab_if_empty(display_name)
             self._refresh_ipl_inst_file_panel()
         finally:
             self._ipl_cell_click_in_progress = False
+
+    def _ipl_section_has_data(self, raw_text, section_name): #vers 1
+        """True if `section_name` exists in raw_text AND has at least
+        one real data line - not just the bare keyword/end pair (Aug
+        15 2026, per Keith's real paths*.ipl uploads: every one has
+        an "inst\\nend" and "cull\\nend" with literally nothing
+        between them, section genuinely present but empty, which
+        _extract_ipl_section_text alone can't tell apart from "has
+        real data" - it only reports found-vs-not-found)."""
+        section_lines = self._extract_ipl_section_text(raw_text, section_name)
+        if not section_lines:
+            return False
+        for line_no, raw_line in section_lines:
+            line = raw_line.split("#")[0].strip()
+            low = line.lower()
+            if not line or low in (section_name, 'end'):
+                continue
+            return True
+        return False
+
+    def _auto_switch_ipl_tab_if_empty(self, display_name): #vers 1
+        """If the currently active IPL Controls tab (INST/CULL/PATH/
+        etc) has no real data in the just-selected file, switch to
+        the first enabled tab that does (Aug 15 2026, per Keith: "I
+        tried something before I went to bed: clicking on any of the
+        path files, the IPL file display should also include path
+        data" - his real paths.ipl/paths2-5.ipl uploads are dedicated
+        path files with empty inst/cull sections and all the real
+        content in path, so clicking one while still on the default
+        INST tab showed a genuinely-empty-but-technically-found inst
+        section: zero rows, zero explanation, easy to read as broken
+        rather than correct-but-wrong-tab).
+
+        No-op (leaves the current tab alone) for binary IPLs - no raw
+        text file to scan the way a text IPL has - and if the current
+        tab already has real data for this file, so switching a tab
+        that's genuinely showing something useful is never
+        overridden just because another tab also has data."""
+        bar = getattr(self, '_ipl_tab_bar', None)
+        keys = getattr(self, '_ipl_tab_keys', None)
+        loader = getattr(self, '_world_loader', None)
+        if bar is None or keys is None or loader is None or not display_name:
+            return
+        stem = getattr(self, '_ipl_display_to_stem', {}).get(display_name)
+        if stem is None or stem.startswith('img:'):
+            return
+        entry = loader.available_ipls.get(stem)
+        if entry is None or not entry.exists:
+            return
+        try:
+            with open(entry.abs_path, 'r', encoding='ascii', errors='ignore') as f:
+                raw_text = f.read()
+        except Exception:
+            return
+
+        current_type = getattr(self, '_ipl_data_type', 'inst')
+        if self._ipl_section_has_data(raw_text, current_type):
+            return
+        for idx, key in enumerate(keys):
+            if key == current_type or not bar.isTabEnabled(idx):
+                continue
+            if self._ipl_section_has_data(raw_text, key):
+                bar.blockSignals(True)
+                bar.setCurrentIndex(idx)
+                bar.blockSignals(False)
+                self._ipl_data_type = key
+                return
 
     def _on_ipl_section_cell_double_clicked(self, row, col): #vers 1
         """Double-click any cell in an IPL Sections row to open/show

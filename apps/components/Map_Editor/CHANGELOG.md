@@ -3833,3 +3833,43 @@ conclusively found despite extensive isolated testing.
 
   `ast.parse` clean on all changes; MapSettings get/set/DEFAULTS
   gating behavior smoke-tested in isolation.
+
+- **Aug 15, 2026** — Fixed the real remaining gap in the PATH-file
+  display fix from yesterday, per Keith's actual uploaded paths.ipl/
+  paths2.ipl/paths3.ipl/paths4.ipl/paths5.ipl: "clicking on any of
+  the path files, the IPL file display should also include path
+  data." Yesterday's fix only handled a section being entirely
+  *absent* from a file; these real files all have `inst`/`cull`
+  sections that are genuinely *present but empty* (literally just
+  "inst\nend" with nothing between them, per Keith's own uploads) -
+  a different case that still fell straight through to zero rows
+  with no explanation, since the section was technically "found".
+
+  New `_ipl_section_has_data()` checks for at least one real data
+  line, not just found-vs-not-found. New
+  `_auto_switch_ipl_tab_if_empty()`, called right when a file is
+  selected/opened (both single-click-select and double-click-open,
+  since double-click delegates into the same click handler): if the
+  currently active tab (INST by default) has no real data in the
+  clicked file, automatically switches to the first enabled tab that
+  does - never overrides a tab that's already showing something
+  real, and no-ops for binary IPLs (no raw text to scan). Verified
+  against all 5 of Keith's real uploaded files: every one correctly
+  auto-switches from INST to PATH.
+
+  Also caught and fixed a real display-completeness gap while
+  verifying against the real data: node lines in Keith's real files
+  genuinely have 13 comma-separated fields, not the 12 the documented
+  Project Cerbera spec lists - `_parse_path_node` (verified, already
+  shipped) already tolerates this correctly by only reading the first
+  12 and ignoring the rest, but the raw-display table's 12-column
+  'path' header was silently truncating that real 13th value. Added
+  a 13th "Flag4?" column so the table shows everything actually in
+  the file rather than hiding a value nobody's identified the meaning
+  of yet.
+
+  Verified end-to-end against all 5 real uploaded files: extraction,
+  auto-switch decision, and the full group-header/node-row split all
+  simulated directly against the actual file bytes (not synthetic
+  data) - paths.ipl alone has 4106 groups / 49272 node rows across a
+  53379-line path section, all correctly parsed. `ast.parse` clean.
