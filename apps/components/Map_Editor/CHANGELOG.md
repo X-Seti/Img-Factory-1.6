@@ -3456,3 +3456,35 @@ conclusively found despite extensive isolated testing.
   confirmed showing the right dynamic headers and data for both GRGE
   and ENEX end-to-end. Full `QApplication` instantiation clean, `ast.
   parse` clean on both files.
+
+- **Aug 1, 2026 (cont'd)** — Properly fixed the `bg_color` error
+  Keith kept seeing when saving settings: "[Settings] Some pre-
+  existing settings could not be applied: 'DFFViewport' object has no
+  attribute 'bg_color'... trying to save, full loading debug or
+  texture size reducing, gives that error." This had been left as a
+  swallowed warning by the earlier defensive try/except - functional
+  underneath, but visibly alarming every single time, exactly what
+  Keith reported.
+
+  Traced the actual root cause: `self.preview_widget.bg_color` never
+  existed anywhere - that plain `bg_color` attribute (no underscore)
+  belongs to a completely different class, `ZoomablePreview` (a 2D
+  `QLabel`-based preview widget from the paint-tool legacy this file
+  inherited), not `DFFViewport` (the real `preview_widget`). No color-
+  picker UI exists anywhere in this dialog to supply a specific solid
+  color, so both the "checkerboard" and "solid"/else branches now
+  correctly reset to the theme-default color via `set_checkerboard_
+  background()` - the right call for this despite its name (`DFFView
+  port` has no real checkerboard rendering at all, per its own
+  docstring). Found and fixed a second, separate instance of the
+  identical bug in `_pick_background_color` (a "Pick Background
+  Color" action, untriggered by Keith's report but would have crashed
+  identically if ever used) - now uses `DFFViewport`'s own `_get_bg_
+  color()` to supply a real `QColor`.
+
+  Verified: reproduced Keith's exact scenario (Apply Settings with
+  both "Show Full Loading" and texture downscale changed) with stdout
+  captured - confirmed zero `bg_color` output where the warning used
+  to appear every time, both settings still save correctly; separately
+  confirmed `_pick_background_color` now runs without crashing. Full
+  `QApplication` instantiation clean, `ast.parse` clean.

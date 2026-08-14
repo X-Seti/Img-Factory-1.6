@@ -8052,11 +8052,27 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
                 # Update preview widget
                 if hasattr(self, 'preview_widget'):
+                    # Aug 1 2026, per Keith: "[Settings] Some pre-
+                    # existing settings could not be applied:
+                    # 'DFFViewport' object has no attribute
+                    # bg_color... trying to save, full loading debug
+                    # or texture size reducing, gives that error." -
+                    # self.preview_widget.bg_color never existed; that
+                    # attribute belongs to a completely different
+                    # class (ZoomablePreview, a 2D QLabel-based
+                    # preview from the paint-tool legacy this file
+                    # inherited), not DFFViewport (the real preview_
+                    # widget). No actual color-picker UI exists
+                    # anywhere in this dialog to supply a specific
+                    # solid color, so both branches now reset to the
+                    # theme-default color - set_checkerboard_
+                    # background is the correct call for this despite
+                    # its name (DFFViewport has no real checkerboard
+                    # rendering at all, per its own docstring: "clear
+                    # any colour override back to theme").
+                    self.preview_widget.set_checkerboard_background()
                     if self.background_mode == 'checkerboard':
-                        self.preview_widget.set_checkerboard_background()
                         self.preview_widget._checkerboard_size = self._checkerboard_size
-                    else:
-                        self.preview_widget.set_background_color(self.preview_widget.bg_color)
 
                 # Apply button display mode
                 if hasattr(self, '_update_all_buttons'):
@@ -12099,9 +12115,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.preview_widget.pan(dx, dy)
 
 
-    def _pick_background_color(self): #vers 1
-        """Open color picker for background"""
-        color = QColorDialog.getColor(self.preview_widget.bg_color, self, "Pick Background Color")
+    def _pick_background_color(self): #vers 2
+        """Open color picker for background - per Keith's report on
+        the identical bg_color bug in apply_settings above,
+        self.preview_widget.bg_color never existed here either; use
+        DFFViewport's own _get_bg_color(), which correctly returns a
+        QColor for either the current override or the theme default."""
+        vp = getattr(self, 'preview_widget', None)
+        current = vp._get_bg_color() if vp is not None and hasattr(vp, '_get_bg_color') else Qt.GlobalColor.black
+        color = QColorDialog.getColor(current, self, "Pick Background Color")
         if color.isValid():
             self.preview_widget.set_background_color(color)
 
