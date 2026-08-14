@@ -3666,3 +3666,12 @@ conclusively found despite extensive isolated testing.
   directly (no Qt/OpenGL needed) - confirmed the setter call now
   works and the old bug pattern is now safely rejected rather than
   crashing.
+
+- **Aug 14, 2026 (cont'd)** — Matched IPL Controls' section QTabBar
+  (INST/CULL/ZON/PATH/GRGE/etc) to Object Browser's IMG/DAT/IDE/IPL
+  tab-button sizing, per Keith: "the tabs in the iPL control panel
+  need to be the same size as the ones in the object browser". Added
+  an explicit `QTabBar::tab` stylesheet (18px height matching
+  `OBJECT_BROWSER_BUTTON_H`, same compact 0px-vertical/bold styling
+  as that panel's QToolButtons) - previously unstyled, falling back
+  to the app's default (much taller) QTabBar look. `ast.parse` clean.

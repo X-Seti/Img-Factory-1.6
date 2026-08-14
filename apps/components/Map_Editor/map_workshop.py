@@ -20842,6 +20842,20 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         ipl_tab_bar = QTabBar()
         ipl_tab_bar.setExpanding(False)
         ipl_tab_bar.setDrawBase(False)
+        # Match Object Browser's IMG/DAT/IDE/IPL tab-button sizing
+        # (Aug 14 2026, per Keith: "the tabs in the IPL control panel
+        # need to be the same size as the ones in the object
+        # browser") - same 18px height as OBJECT_BROWSER_BUTTON_H
+        # (_build_object_browser, not reachable as a shared constant
+        # from here since it's method-local there, hardcoded to the
+        # same value instead) and the same compact 0px-vertical/bold
+        # style as that panel's QToolButtons, applied here as
+        # QTabBar::tab rules since a QTabBar's individual tabs aren't
+        # separate widgets to style directly.
+        ipl_tab_bar.setStyleSheet(
+            "QTabBar::tab { height: 18px; padding: 0px 6px; margin: 0px; "
+            "font-weight: bold; border-width: 1px; }"
+            "QTabBar::tab:disabled { color: palette(mid); }")
         tab_specs = [
             ('inst', "INST", "INST - Item Instances", True, None),
             ('cull', "CULL", "CULL - Object Culling", True, None),
