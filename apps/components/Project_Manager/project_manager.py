@@ -532,12 +532,26 @@ class NewProjectFlowDialog(QDialog): #vers 1
             self.main_window.project_manager.set_current_project(name)
             if game_root:
                 self.main_window.game_root = game_root
+            # Close this dialog BEFORE opening the DAT Browser (Aug 1
+            # 2026, per Keith: "DAT Browser re-opened, stayed on the
+            # intro screen, i had to open the dat_browser manullu") -
+            # show_dat_browser's own tab.setCurrentIndex() call was
+            # running while this dialog was still open and modal on
+            # top of the main window; the tab switch happened
+            # internally, but with this dialog still covering
+            # everything and closing only afterward via accept(), the
+            # DAT Browser tab never became visibly current - the
+            # previously-active tab (the welcome/intro screen) stayed
+            # on screen even though the underlying tab index had
+            # already changed underneath it.
+            self.accept()
             try:
                 from apps.components.Dat_Browser.dat_browser import show_dat_browser
                 show_dat_browser(self.main_window)
             except Exception as e:
                 if hasattr(self.main_window, 'log_message'):
                     self.main_window.log_message(f"Could not open DAT Browser: {e}")
+            return
 
         self.accept()
 
