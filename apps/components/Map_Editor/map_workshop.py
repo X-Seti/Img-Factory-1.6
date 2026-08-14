@@ -21018,6 +21018,36 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             action.triggered.connect(lambda checked, m=mode: self._set_lod_display_mode(m) if checked else None)
             lod_group.addAction(action)
 
+        render_lod_menu.addSeparator()
+
+        # Collision overlay options (Aug 14 2026, moved into this same
+        # dropdown per Keith: "the 4 col options should be in the
+        # Render: dropdown, with LOD and Normal models, Normal models,
+        # list first, then LOD, and COL under") - NOT in a QActionGroup
+        # (unlike render_group/lod_group above) since these four are
+        # independently toggleable, not mutually exclusive - any
+        # combination can be on together (e.g. Wireframe Col over a
+        # Ghosted Col fill is a normal thing to want). Draws as an
+        # overlay on top of the model, never replacing it - see
+        # DFFViewport._draw_collision_faces.
+        col_specs = [
+            ('ghosted',        "Show Ghosted Col",        "show_col_ghosted",
+             "Overlay collision geometry as a low-opacity ghost"),
+            ('surface_mapped', "Show Surface Mapped Col",  "show_col_surface_mapped",
+             "Overlay collision geometry coloured by surface/material type"),
+            ('semi_solid',     "Show Semi-Solid Col",      "show_col_semi_solid",
+             "Overlay collision geometry at higher opacity than Ghosted"),
+            ('wireframe',      "Show Wireframe Col",       "show_col_wireframe",
+             "Overlay collision geometry as edges only"),
+        ]
+        for mode, label_text, setter_name, tooltip in col_specs:
+            action = render_lod_menu.addAction(label_text)
+            action.setCheckable(True)
+            action.setChecked(False)
+            action.setToolTip(tooltip)
+            action.triggered.connect(
+                lambda checked, s=setter_name: self._on_col_render_option_toggled(s, checked))
+
         render_lod_btn.setMenu(render_lod_menu)
         render_lod_btn.setToolTip("Choose how the world view renders geometry, and which detail level(s) to show")
         opts_row.addWidget(render_lod_btn)
@@ -21101,54 +21131,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         opts_row2.addStretch()
         lay.addLayout(opts_row2)
 
-        # Row 3: collision render options (Aug 14 2026, per Keith:
-        # "add to collisions to the IPL control pane, under render
-        # options, load solid collision, load semi-solid, wireframe
-        # cols, and solid with surface mapping" -> "Ghost is a good
-        # idea; Show Ghosted Col, Show Surface Mapped Col, Show Semi-
-        # Solid Col, Show Wireframe Col") - four independent checkboxes
-        # (not an exclusive dropdown group like Render/LOD - any
-        # combination can be on together), same "Show X" checkbox
-        # style as Show Tobj above. All off by default. Draws as an
-        # overlay on top of the model, never replacing it - see
-        # DFFViewport._draw_collision_faces. Uses up the row Keith
-        # asked to keep reserved for exactly this kind of per-layer
-        # toggle; Paths/Zones visibility can still follow later on
-        # their own row.
-        col_ghost_chk = QCheckBox("Show Ghosted Col")
-        col_ghost_chk.setFixedHeight(18)
-        col_ghost_chk.setStyleSheet(_compact_18)
-        col_ghost_chk.setToolTip("Overlay collision geometry as a low-opacity ghost")
-        col_ghost_chk.toggled.connect(self._on_show_col_ghosted_toggled)
-
-        col_surface_chk = QCheckBox("Show Surface Mapped Col")
-        col_surface_chk.setFixedHeight(18)
-        col_surface_chk.setStyleSheet(_compact_18)
-        col_surface_chk.setToolTip("Overlay collision geometry coloured by surface/material type")
-        col_surface_chk.toggled.connect(self._on_show_col_surface_mapped_toggled)
-
-        col_semi_chk = QCheckBox("Show Semi-Solid Col")
-        col_semi_chk.setFixedHeight(18)
-        col_semi_chk.setStyleSheet(_compact_18)
-        col_semi_chk.setToolTip("Overlay collision geometry at higher opacity than Ghosted")
-        col_semi_chk.toggled.connect(self._on_show_col_semi_solid_toggled)
-
-        col_wire_chk = QCheckBox("Show Wireframe Col")
-        col_wire_chk.setFixedHeight(18)
-        col_wire_chk.setStyleSheet(_compact_18)
-        col_wire_chk.setToolTip("Overlay collision geometry as edges only")
-        col_wire_chk.toggled.connect(self._on_show_col_wireframe_toggled)
-
-        self._col_ghost_chk   = col_ghost_chk
-        self._col_surface_chk = col_surface_chk
-        self._col_semi_chk    = col_semi_chk
-        self._col_wire_chk    = col_wire_chk
-
+        # Row 3: reserved for future per-layer visibility toggles
+        # (Aug 1 2026, per Keith: "the LOD test function could be an
+        # SVG icon on the ribbon... this way it does have to use up
+        # space on the ipl control, but keep row3 for future
+        # functions, like show tojb, show Paths, show zons") - the
+        # collision render options that briefly lived here (Aug 14
+        # 2026) moved into the Render: dropdown per Keith: "the 4 col
+        # options should be in the Render: dropdown" - see render_lod_
+        # menu above. Still reserved for Paths/Zones visibility.
         opts_row3 = QHBoxLayout()
-        opts_row3.addWidget(col_ghost_chk)
-        opts_row3.addWidget(col_surface_chk)
-        opts_row3.addWidget(col_semi_chk)
-        opts_row3.addWidget(col_wire_chk)
         opts_row3.addStretch()
         lay.addLayout(opts_row3)
 
@@ -21346,34 +21338,19 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # same table an LOD-mode change already does.
         self._refresh_ipl_inst_file_panel()
 
-    def _on_show_col_ghosted_toggled(self, checked): #vers 1
-        """Show Ghosted Col checked/unchecked (Aug 14 2026, per
-        Keith's four collision render options). vp.repaint() forced
-        immediately, same reasoning as _set_world_render_mode."""
+    def _on_col_render_option_toggled(self, setter_name, checked): #vers 2
+        """One of the four collision overlay actions in the Render:
+        dropdown menu was toggled (Aug 14 2026, moved here from four
+        separate row-3 checkboxes per Keith: "the 4 col options should
+        be in the Render: dropdown"). setter_name is the matching
+        DFFViewport.set_show_col_* method name (see col_specs above) -
+        one shared handler instead of four near-identical ones, since
+        the only real difference between them is which flag gets set.
+        vp.repaint() forced immediately, same reasoning as
+        _set_world_render_mode."""
         vp = getattr(self, 'preview_widget', None)
-        if vp is not None and hasattr(vp, 'set_show_col_ghosted'):
-            vp.set_show_col_ghosted(checked)
-            vp.repaint()
-
-    def _on_show_col_surface_mapped_toggled(self, checked): #vers 1
-        """Show Surface Mapped Col checked/unchecked."""
-        vp = getattr(self, 'preview_widget', None)
-        if vp is not None and hasattr(vp, 'set_show_col_surface_mapped'):
-            vp.set_show_col_surface_mapped(checked)
-            vp.repaint()
-
-    def _on_show_col_semi_solid_toggled(self, checked): #vers 1
-        """Show Semi-Solid Col checked/unchecked."""
-        vp = getattr(self, 'preview_widget', None)
-        if vp is not None and hasattr(vp, 'set_show_col_semi_solid'):
-            vp.set_show_col_semi_solid(checked)
-            vp.repaint()
-
-    def _on_show_col_wireframe_toggled(self, checked): #vers 1
-        """Show Wireframe Col checked/unchecked."""
-        vp = getattr(self, 'preview_widget', None)
-        if vp is not None and hasattr(vp, 'set_show_col_wireframe'):
-            vp.set_show_col_wireframe(checked)
+        if vp is not None and hasattr(vp, setter_name):
+            getattr(vp, setter_name)(checked)
             vp.repaint()
 
     def _on_load_generic_txd_clicked(self): #vers 3

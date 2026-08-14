@@ -3587,3 +3587,18 @@ conclusively found despite extensive isolated testing.
   `dff_viewport.py`, `map_workshop.py`). Not yet tested against
   Keith's real data - depends on his game folder actually having
   standalone `.col` files under the game root for anything to show.
+
+- **Aug 14, 2026 (cont'd)** — Moved the four collision render options
+  out of their own IPL Controls row and into the Render: dropdown
+  itself, per Keith: "the 4 col options should be in the Render:
+  dropdown, with LOD and Normal models, Normal models, list first,
+  then LOD, and COL under". Menu order is now: render style (Texture/
+  Non-texture/Semi-Solid/Wireframe), separator, LOD filter (Show LOD
+  only/Show Normals/Show Both), separator, then the four Col options
+  (Show Ghosted Col/Show Surface Mapped Col/Show Semi-Solid Col/Show
+  Wireframe Col) - not in a QActionGroup like the two groups above
+  them, since these four stay independently toggleable together. The
+  four near-identical toggle handlers collapsed into one shared
+  `_on_col_render_option_toggled`. Row 3 in IPL Controls reverts to
+  reserved-for-future (Paths/Zones visibility), as it was before this
+  feature existed. `ast.parse` clean.
