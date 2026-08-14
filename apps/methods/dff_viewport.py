@@ -227,6 +227,21 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         # checkbox never needs to touch the model's own display lists.
         self._col_display_lists = {}
 
+        # Path visualization (Aug 14 2026, per Keith: "when
+        # displaying the paths in the viewpoint, I was expecting red
+        # lines and nodes. And a way to change the colour of the path
+        # lines in settings") - each entry in _path_groups is a
+        # simple list of (x,y,z) tuples for one group's nodes, already
+        # in world-space/consecutive-node order (map_workshop.py's
+        # own conversion step - this widget stays pure-GL, no
+        # PathGroup/PathNode dataclass dependency here). Off by
+        # default, matching every other optional overlay in this
+        # widget (Show Tobj, the Col overlays).
+        self.show_paths = False
+        self._path_groups = []
+        self._path_line_color = (1.0, 0.0, 0.0)   # red, per Keith's expectation
+        self._path_node_color = (1.0, 0.8, 0.0)   # amber - distinct from the line itself
+
         # Wheels
         self._wheels_model      = None
         self._wheels_model_path = ''
@@ -651,6 +666,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         if has_world:
             self._draw_world_instances()
             self._draw_2dfx_lights()
+            if self.show_paths:
+                self._draw_paths()
             if getattr(self, '_lod_test_center', None) is not None:
                 self._draw_lod_test_circle()
             if self._show_grid: self._draw_grid()
@@ -670,6 +687,46 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._draw_selection_overlay()
         if self._show_grid: self._draw_grid()
         self._draw_axes()
+
+    def _draw_paths(self): #vers 1
+        """Draw every loaded path group as a connected line strip
+        (red by default, per Keith: "I was expecting red lines and
+        nodes") plus a small marker at each node - line colour
+        configurable via set_path_line_color, node markers use a
+        fixed contrasting amber rather than their own setting (Keith
+        only asked for the line colour to be adjustable). Consecutive
+        nodes within a group are drawn connected in their on-disk
+        order - the file's own real node sequence, not a resolved
+        cross-group link graph (Section 3/5/6's full adjacency data
+        isn't threaded through to here), so a group with genuine
+        branches or cross-group external links won't show those extra
+        connections, only its own internal sequence. Good enough to
+        see where paths run and get a real red/nodes visual per
+        Keith's ask; full graph-aware rendering can follow later if
+        needed once this is confirmed useful."""
+        if not OPENGL_AVAILABLE or not self._path_groups: return
+        glDisable(GL_LIGHTING)
+        glDisable(GL_DEPTH_TEST)   # paths read clearer drawn on top, same as 2DFX lights
+        r, g, b = self._path_line_color
+        glLineWidth(2.0)
+        glColor3f(r, g, b)
+        for group in self._path_groups:
+            if len(group) < 2:
+                continue
+            glBegin(GL_LINE_STRIP)
+            for x, y, z in group:
+                glVertex3f(x, y, z)
+            glEnd()
+        nr, ng, nb = self._path_node_color
+        glColor3f(nr, ng, nb)
+        glPointSize(6.0)
+        glBegin(GL_POINTS)
+        for group in self._path_groups:
+            for x, y, z in group:
+                glVertex3f(x, y, z)
+        glEnd()
+        glEnable(GL_DEPTH_TEST)
+        glEnable(GL_LIGHTING)
 
     def _draw_grid(self): #vers 1
         if not OPENGL_AVAILABLE: return
@@ -1334,6 +1391,27 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def set_show_col_surface_mapped(self, enabled: bool): #vers 1
         self.show_col_surface_mapped = enabled; self.update()
+
+    def set_show_paths(self, enabled: bool): #vers 1
+        self.show_paths = enabled; self.update()
+
+    def set_path_groups(self, groups): #vers 1
+        """Replace the path data drawn when show_paths is on. Each
+        entry is a plain list of (x,y,z) tuples for one group's nodes
+        in order - conversion from PathGroup/PathNode (or gta_dat_
+        parser.py's parsed loader.paths) happens in map_workshop.py,
+        this widget only ever deals in plain coordinate lists, same
+        separation as everywhere else in this file (no PathGroup/
+        PathNode/COLModel dataclass imports here)."""
+        self._path_groups = groups or []
+        self.update()
+
+    def set_path_line_color(self, r: float, g: float, b: float): #vers 1
+        """Aug 14 2026, per Keith: "a way to change the colour of the
+        path lines in settings" - r/g/b as 0-1 floats, matching every
+        other colour this widget already works in (glColor3f etc)."""
+        self._path_line_color = (r, g, b)
+        self.update()
 
     def _clear_col_display_lists(self): #vers 1
         """Same reasoning as _clear_world_display_lists, kept as its

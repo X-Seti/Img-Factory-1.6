@@ -3766,3 +3766,70 @@ conclusively found despite extensive isolated testing.
   data (built straight from the documented spec) - and not yet
   integrated into Map Workshop's PATH tab/viewport at all, that's
   the next step once this shared parser itself is confirmed correct.
+
+- **Aug 14, 2026 (cont'd)** — Fixed the empty "IPL Inst File" panel
+  when a PATH-only file (e.g. VC's real dedicated paths.ipl) was
+  selected, per Keith: "When I click paths.ipl or any other paths
+  file, no listing is shown". Root cause: `headers_by_type` had no
+  'path' entry at all - silently fell back to inst's 13-column ID/
+  Model/Int/Pos.../Rot... layout, which doesn't match a path
+  section's real two-line-shape structure (2-field group headers vs
+  up to 12-field node lines) at all. Added a proper path-specific
+  column layout (Type/Group A, Next/Group B, Zero, X, Y, Z, Median,
+  Left, Right, Flag1-3, mirroring the raw on-disk field order Project
+  Cerbera's VC path doc and gta_dat_parser.py's own verified
+  PathNode/_parse_path_node already use) and told the two line shapes
+  apart the same way the real parser does internally (checking the
+  raw pre-strip leading-whitespace, not the already-stripped line) -
+  group-header rows now render bold with a distinct tint instead of
+  looking like broken/near-empty node rows. Also added a placeholder
+  row ("no <TYPE> section in this file - try another tab above") for
+  the genuinely-correct-empty case (a file really has no data for
+  whichever tab is currently active), so that state reads as
+  informative rather than indistinguishable from a bug.
+
+  Renamed "IPL Inst File" to "IPL File Display" throughout the user-
+  visible UI (dock title, collapsible-dock label, the dynamic title
+  that switches to "IDE Objects"), per Keith: "Maybe we should rename
+  'IPL inst file' to just 'IPL File Display' or something better...
+  This makes more sense if we're using this to display any type of
+  IPL file". `objectName` deliberately left as the old string so
+  saved dock-layout state isn't silently dropped.
+
+  Added path visualization to the 3D world view, per Keith: "when
+  displaying the paths in the viewpoint, I was expecting red lines
+  and nodes. And a way to change the colour of the path lines in
+  settings." New "Show Paths" checkbox in IPL Controls row 3 (the row
+  reserved for exactly this back on Aug 1). `DFFViewport` gained
+  `show_paths`/`set_show_paths`/`set_path_groups`/
+  `set_path_line_color` and a `_draw_paths` method - unlit GL_LINE_
+  STRIP per path group (red by default) plus amber GL_POINTS node
+  markers, drawn on top of the world view alongside the existing 2DFX
+  lights pass. New `_refresh_path_visualization` in map_workshop.py
+  converts `loader.paths` (already-parsed PathGroup list) into plain
+  coordinate lists, filtered by `_hidden_ipls` the same way instances
+  already are, and wired into `_apply_ipl_visibility_filter` so
+  toggling any IPL's visibility keeps the path overlay in sync
+  automatically. Lines connect each group's nodes in their own
+  on-disk sequential order, not the fully resolved Section 3/5/6 link
+  graph - flagged as a known simplification, not a bug, in the
+  method's own docstring.
+
+  Path line colour is a real Settings entry now (Render Settings
+  dialog, "Path Lines" group, same colour-picker pattern as the
+  existing Background picker) - persisted via `map_settings.
+  get/set('path_line_color', ...)`. Caught a real gotcha before it
+  shipped silently broken: `MapSettings.set()` only actually stores a
+  value `if key in self.DEFAULTS` - 'path_line_color' had to be added
+  to `MapSettings.DEFAULTS` or every call to save the chosen colour
+  would have silently no-op'd, forever. Verified the get/set/DEFAULTS
+  gating logic in isolation to confirm the fix actually works and to
+  document the trap for next time.
+
+  GTA3/VC text-section path data only (matches loader.paths' own
+  scope) - SA's real path data is the separate binary nodesXX.dat
+  format (apps/methods/sa_path_parser.py, built earlier this
+  session), not wired into this viewport pass yet.
+
+  `ast.parse` clean on all changes; MapSettings get/set/DEFAULTS
+  gating behavior smoke-tested in isolation.

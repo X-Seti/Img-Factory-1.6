@@ -3098,6 +3098,13 @@ class MapSettings:
         # circle's own visual size can be adjusted independently of
         # the LOD detection threshold itself.
         'lod_test_circle_radius': 300.0,
+        # Path line colour in the 3D view (Aug 14 2026, per Keith: "a
+        # way to change the colour of the path lines in settings") -
+        # (r,g,b) 0-255 ints, matching bg_color_override's own
+        # representation; converted to 0-1 floats at the point of use
+        # (DFFViewport.set_path_line_color). Red by default, matching
+        # what Keith said he was expecting to see.
+        'path_line_color': (255, 0, 0),
         # Load text IPL + its binary stream set together (Aug 1 2026,
         # per Keith: "looking at the ipl's most of them are listed
         # LODs, so where are the normal models? Maybe in the
@@ -5199,7 +5206,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         #Works
         ipl_inst_file_dock = self._create_ipl_inst_file_panel()
         ipl_inst_file_dock.setMinimumWidth(250)
-        self._make_dock_collapsible(ipl_inst_file_dock, "IPL Inst File")
+        self._make_dock_collapsible(ipl_inst_file_dock, "IPL File Display")
         outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, ipl_inst_file_dock)
 
         ipl_controls_dock = self._create_ipl_controls_dock()
@@ -7055,6 +7062,31 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         bg.addWidget(reset_btn)
         lay.addWidget(bg_grp)
 
+        # Path line colour (Aug 14 2026, per Keith: "a way to change
+        # the colour of the path lines in settings") - same pattern
+        # as the Background picker just above, persisted via
+        # map_settings so it survives between sessions, applied to
+        # the viewport via DFFViewport.set_path_line_color (0-1
+        # floats, unlike the 0-255 ints used for bg_color - converted
+        # at the point of use, not stored differently, to match
+        # whichever representation each consumer actually wants).
+        path_grp = QGroupBox("Path Lines")
+        pg = QHBoxLayout(path_grp)
+        saved_path_color = self.map_settings.get('path_line_color') or (255, 0, 0)
+        pr, pg_, pb = saved_path_color
+        path_preview = QPushButton("  ")
+        path_preview.setFixedSize(60, 28)
+        path_preview.setStyleSheet(f"background-color: rgb({pr},{pg_},{pb});")
+        def _pick_path_color():  #vers 1
+            c = QColorDialog.getColor(QColor(pr, pg_, pb), dlg, "Path Line Colour")
+            if c.isValid():
+                path_preview.setStyleSheet(f"background-color: {c.name()};")
+                path_preview.setProperty("chosen", (c.red(), c.green(), c.blue()))
+        path_preview.clicked.connect(_pick_path_color)
+        pg.addWidget(QLabel("Colour:"))
+        pg.addWidget(path_preview)
+        lay.addWidget(path_grp)
+
         # Buttons
         btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
                                 QDialogButtonBox.StandardButton.Cancel)
@@ -7069,6 +7101,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 chosen = bg_preview.property("chosen")
                 if chosen:
                     pw.set_background_color(chosen)
+            path_chosen = path_preview.property("chosen")
+            if path_chosen:
+                self.map_settings.set('path_line_color', path_chosen)
+                if hasattr(pw, 'set_path_line_color'):
+                    pcr, pcg, pcb = path_chosen
+                    pw.set_path_line_color(pcr / 255.0, pcg / 255.0, pcb / 255.0)
             dlg.accept()
         btns.accepted.connect(_apply)
         lay.addWidget(btns)
@@ -18744,7 +18782,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         else:
             self._ipl_inst_file_mode = 'ipl'
             if title_lbl is not None:
-                title_lbl.setText("IPL Inst File")
+                title_lbl.setText("IPL File Display")
             table = getattr(self, '_ipl_inst_file_table', None)
             if table is not None and table.columnCount() != 13:
                 table.setColumnCount(13)
@@ -21177,16 +21215,31 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         opts_row2.addStretch()
         lay.addLayout(opts_row2)
 
-        # Row 3: reserved for future per-layer visibility toggles
-        # (Aug 1 2026, per Keith: "the LOD test function could be an
-        # SVG icon on the ribbon... this way it does have to use up
-        # space on the ipl control, but keep row3 for future
-        # functions, like show tojb, show Paths, show zons") - the
-        # collision render options that briefly lived here (Aug 14
-        # 2026) moved into the Render: dropdown per Keith: "the 4 col
-        # options should be in the Render: dropdown" - see render_lod_
-        # menu above. Still reserved for Paths/Zones visibility.
+        # Row 3: per-layer visibility toggles (Aug 1 2026, per Keith:
+        # "keep row3 for future functions, like show tojb, show
+        # Paths, show zons") - Show Tobj ended up on row 2 alongside
+        # 2DFX/Time (they're closely related toggles); Show Paths
+        # lands here now (Aug 14 2026, per Keith: "when displaying
+        # the paths in the viewpoint, I was expecting red lines and
+        # nodes") - draws every loaded IPL's path groups as connected
+        # line strips + node markers in the 3D view (DFFViewport.
+        # _draw_paths), line colour configurable in Settings (see
+        # _create_settings_dialog's path-colour picker). Off by
+        # default, matching every other optional overlay. Show Zones
+        # can still follow later on this same row.
+        show_paths_chk = QCheckBox("Show Paths")
+        show_paths_chk.setFixedHeight(18)
+        show_paths_chk.setStyleSheet(_compact_18)
+        show_paths_chk.setToolTip(
+            "Show every loaded IPL's path data (vehicle/ped route\n"
+            "nodes, GTA3/VC only for now - SA's real path data is in\n"
+            "binary nodesXX.dat files, not yet wired into this view)\n"
+            "as connected lines with node markers in the 3D view.")
+        show_paths_chk.toggled.connect(self._on_show_paths_toggled)
+        self._show_paths_chk = show_paths_chk
+
         opts_row3 = QHBoxLayout()
+        opts_row3.addWidget(show_paths_chk)
         opts_row3.addStretch()
         lay.addLayout(opts_row3)
 
@@ -21497,7 +21550,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         lay.addWidget(table)
         self._ipl_inst_file_table = table
 
-        dock = QDockWidget("IPL Inst File", self)
+        dock = QDockWidget("IPL File Display", self)
+        # objectName kept as the old "IPL Inst File" (Aug 14 2026, per
+        # Keith: "rename 'IPL inst file' to just 'IPL File Display' or
+        # something better") - only the user-visible title changed;
+        # objectName is what Qt's dock-layout save/restore keys off,
+        # so changing it too would silently drop anyone's saved dock
+        # geometry for this panel on next launch.
         dock.setObjectName("IPL Inst File")
         dock.setWidget(panel)
         dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
@@ -21853,7 +21912,22 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         data_type = getattr(self, '_ipl_data_type', 'inst')
         section_lines = self._extract_ipl_section_text(raw_text, data_type)
         if section_lines is None:
-            table.setRowCount(0)
+            # Aug 14 2026 fix, per Keith: "When I click paths.ipl or
+            # any other paths file, no listing is shown in 'IPL inst
+            # file' pane" - a file with no matching section for the
+            # currently active tab (e.g. a VC paths.ipl genuinely has
+            # no "inst" section at all - only "path") used to leave
+            # the table silently empty with zero explanation, easy to
+            # read as "broken" rather than "correct, wrong tab
+            # selected". A single placeholder row makes the actual
+            # state visible instead of indistinguishable from a bug.
+            table.setRowCount(1)
+            table.setColumnCount(1)
+            table.setHorizontalHeaderLabels([""])
+            placeholder = QTableWidgetItem(
+                f"(no {data_type.upper()} section in this file - try another tab above)")
+            placeholder.setFlags(placeholder.flags() & ~Qt.ItemFlag.ItemIsSelectable)
+            table.setItem(0, 0, placeholder)
             return
 
         # Per-section column headers (Aug 1 2026, per Keith: "in IPL
@@ -21863,6 +21937,19 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # own real example data, so the table adapts to show the
         # right columns for whichever section is selected rather than
         # staying fixed at inst's own 13-column layout).
+        #
+        # 'path' (Aug 14 2026 fix - was missing entirely, silently
+        # falling back to inst's 13-column ID/Model/Int/Pos.../Rot...
+        # layout, which doesn't remotely match a path section's real
+        # two different line shapes) - columns mirror the raw on-disk
+        # field layout for a node line (Type, Next, 0/unused, X, Y, Z,
+        # Median, Left, Right, Flag1-3, per Project Cerbera's VC path
+        # doc, the same source gta_dat_parser.py's own verified
+        # PathNode/_parse_path_node already use). A group header line
+        # only has 2 fields and lands in columns 0-1 (labelled to
+        # cover both meanings), same generic per-line rendering as
+        # every other section - see the is_group_header styling below
+        # for how the two line shapes are told apart visually.
         headers_by_type = {
             'inst': ["ID", "Model", "Int", "Pos X", "Pos Y", "Pos Z",
                      "Scale X", "Scale Y", "Scale Z", "Rot X", "Rot Y", "Rot Z", "Rot W"],
@@ -21872,6 +21959,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                      "Size X", "Size Y", "Size Z", "Exit X", "Exit Y", "Exit Z",
                      "Exit Angle", "Target Int", "Flags", "Name",
                      "Sky", "Num Peds", "Time On", "Time Off"],
+            'path': ["Type / Group A", "Next / Group B", "Zero", "X", "Y", "Z",
+                     "Median", "Left", "Right", "Flag1", "Flag2", "Flag3"],
         }
         headers = headers_by_type.get(data_type, headers_by_type['inst'])
         if table.columnCount() != len(headers):
@@ -21911,6 +22000,17 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if not line or low in (data_type, 'end'):
                 continue
             fields = [f.strip() for f in line.split(',')]
+            # Path section: group-header line vs indented sub-node
+            # line (Aug 14 2026 fix) - same distinction gta_dat_
+            # parser.py's own real parser makes ("A raw (pre-.strip())
+            # leading tab or space marks a sub-node line... exactly
+            # the distinction that .split('#')[0].strip() above
+            # already erased, so check the original raw text
+            # directly"). Needed here too, for the same reason: a
+            # group header (2 fields: header_a/header_b) and a node
+            # line (up to 12 fields) are structurally different rows,
+            # not just short/long versions of the same thing.
+            is_group_header = data_type == 'path' and raw_line[:1] not in ('\t', ' ')
             if data_type == 'inst' and fields and loader is not None:
                 # TOBJ handling (Aug 1 2026, per Keith: "have an
                 # option to toggle showing tobj [Show Tobj]... timed
@@ -21941,7 +22041,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                         else:
                             active = tobj_hour >= time_on or tobj_hour < time_off
                     if active:
-                        tobj_lines.append((line_no, fields))
+                        tobj_lines.append((line_no, fields, False))
                     continue
             if data_type == 'inst' and lod_mode != 'both':
                 model_name = fields[1] if len(fields) > 1 else ''
@@ -21966,11 +22066,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     continue
                 if lod_mode == 'lod' and not is_lod:
                     continue
-            data_lines.append((line_no, fields))
+            data_lines.append((line_no, fields, is_group_header))
         data_lines.extend(tobj_lines)
 
         table.setRowCount(len(data_lines))
-        for r, (line_no, fields) in enumerate(data_lines):
+        for r, (line_no, fields, is_group_header) in enumerate(data_lines):
             for c in range(col_count):
                 value = fields[c] if c < len(fields) else ""
                 if ignore_scaling and 6 <= c <= 8 and value == "1" and data_type == 'inst':
@@ -21978,6 +22078,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 item = QTableWidgetItem(value)
                 if c == 0:
                     item.setData(Qt.ItemDataRole.UserRole, line_no)
+                if is_group_header:
+                    # Path group-header row (2 fields, not a node) -
+                    # bold + a faint tint so it reads as a distinct
+                    # "this line starts a new group" marker rather
+                    # than a node row that just happens to have 10
+                    # blank trailing columns (Aug 14 2026 fix).
+                    font = item.font()
+                    font.setBold(True)
+                    item.setFont(font)
+                    item.setBackground(QBrush(QColor(60, 60, 90)))
                 table.setItem(r, c, item)
 
     def _on_ipl_inst_file_context_menu(self, pos): #vers 2
@@ -23302,6 +23412,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._populate_instance_list(loader_stub)
         self._refresh_world_view(visible, auto_fit=auto_fit, clear_display_lists=clear_display_lists)
         self._refresh_2dfx_lights(visible)
+        self._refresh_path_visualization()
 
     def _refresh_2dfx_lights(self, visible_instances): #vers 1
         """Collect 2DFX light-type (effect_type == 0) entries for the
@@ -23379,6 +23490,69 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 size = fx.extra.get('corona_size', 1.0)
                 lights.append((wx, wy, wz, r, g, b, a, size))
         vp.set_2dfx_lights(lights)
+
+    def _refresh_path_visualization(self): #vers 1
+        """Push the currently visible IPLs' path data to the
+        viewport's line/node overlay (Aug 14 2026, per Keith: "when
+        displaying the paths in the viewpoint, I was expecting red
+        lines and nodes"). No-op (and clears any existing lines) if
+        Show Paths is off, matching every other optional-overlay
+        refresh pattern in this file (2DFX's own master_chk check
+        just above is the same shape).
+
+        loader.paths (gta_dat_parser.py's already-parsed PathGroup
+        list, GTA3/VC text-section format only - SA's real path data
+        is the separate binary nodesXX.dat format, apps/methods/
+        sa_path_parser.py, not wired into this view yet) is filtered
+        by source_ipl against self._hidden_ipls, same convention
+        IPLInstance.source_ipl already uses for instance filtering -
+        a path group from a currently-hidden IPL doesn't draw, same
+        as that IPL's instances don't. Each group converts to a
+        plain list of (x,y,z) tuples in the group's own on-disk node
+        order - see DFFViewport._draw_paths for why that's drawn as
+        a simple connected line rather than the fully resolved link
+        graph."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is None or not hasattr(vp, 'set_path_groups'):
+            return
+        show_paths_chk = getattr(self, '_show_paths_chk', None)
+        if show_paths_chk is not None and not show_paths_chk.isChecked():
+            vp.set_path_groups([])
+            return
+        # Apply the saved line colour every refresh, not just when the
+        # Settings dialog is used to change it (Aug 14 2026) - so a
+        # colour picked in a previous session is already in effect
+        # the first time paths are shown this session, without
+        # needing a separate "apply saved settings on startup" hook.
+        if hasattr(vp, 'set_path_line_color'):
+            saved_color = self.map_settings.get('path_line_color') or (255, 0, 0)
+            cr, cg, cb = saved_color
+            vp.set_path_line_color(cr / 255.0, cg / 255.0, cb / 255.0)
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            vp.set_path_groups([])
+            return
+        hidden = getattr(self, '_hidden_ipls', set())
+        groups = [
+            [(n.x, n.y, n.z) for n in g.nodes]
+            for g in getattr(loader, 'paths', [])
+            if g.source_ipl not in hidden and g.nodes
+        ]
+        vp.set_path_groups(groups)
+
+    def _on_show_paths_toggled(self, checked): #vers 1
+        """Show Paths checked/unchecked - per Keith: "when displaying
+        the paths in the viewpoint, I was expecting red lines and
+        nodes". vp.set_show_paths handles the actual on/off; the
+        line data itself only needs recomputing when checked (turning
+        it off just needs the flag flipped, _draw_paths already
+        no-ops when show_paths is False, no need to also clear
+        _path_groups on every uncheck)."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is not None and hasattr(vp, 'set_show_paths'):
+            vp.set_show_paths(checked)
+        if checked:
+            self._refresh_path_visualization()
 
     def _rotate_and_translate_offset(self, ox, oy, oz, qx, qy, qz, qw, px, py, pz): #vers 1
         """Rotate a local-space offset (ox,oy,oz) by quaternion
