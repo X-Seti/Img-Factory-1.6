@@ -4634,3 +4634,48 @@ conclusively found despite extensive isolated testing.
   float amber (1.0, 0.8, 0.0) - `204/255 == 0.8` exactly, no drift
   introduced by the int/float round-trip. `ast.parse` clean on both
   files; confirmed via AST no duplicate method definitions.
+
+- **Aug 16, 2026 (cont'd)** — Made GTA III paths actually show when
+  Show Paths is ticked, per Keith: "GTA3 paths arnt showing, i know I
+  am selecting ipl files, to load map sections, but the path entires
+  are in the ide files, so how do we load those? for gta3 parse the
+  paths from the ide files, and show them when show paths is
+  ticked?" The IDE-embedded parsing itself was already correct and
+  verified (`loader.ide_paths`, added earlier this session) - it was
+  just never resolved to world-space or fed into the viewport at all.
+
+  Unlike VC's paths (already absolute coordinates), a GTA III path
+  group's node positions are RELATIVE to wherever its own model_id is
+  actually PLACED via an INST line - resolving them to world space
+  needed real position+rotation transform math, not just a coordinate
+  copy. `_refresh_path_visualization` now also: builds an `instances_
+  by_model` lookup from the currently-visible (non-hidden) instances;
+  for every `IDEPathGroup`, finds every matching placed instance
+  (multiple placements of the same model each get their own
+  independent copy of the path, correctly transformed by THAT
+  instance's own position/rotation); rotates each node's local offset
+  by the instance's effective (conjugated) rotation - same convention
+  already established this session for rendering the instance's own
+  geometry - and adds the instance's position to get the final world
+  coordinate; builds the same Type/Next segment graph VC paths
+  already use. Results are appended into the same `segments` list VC
+  paths build, so "Show Paths" renders both formats together
+  transparently through the one existing pipeline.
+
+  New `_rotate_vector_by_quaternion` - the same rotation matrix
+  `DFFViewport._quat_to_gl_matrix` already builds for `glMultMatrixf`,
+  derived into an equivalent CPU-side single-vector form. Verified
+  mathematically identical before trusting it for real data: cross-
+  checked against a full 4x4 column-major matrix multiply using the
+  actual existing function, 20 random quaternion/vector pairs, max
+  error <1e-6; also confirmed a pure 90-degree yaw rotation only
+  affects X/Y and leaves Z unchanged, as it should.
+
+  Verified end-to-end using both real uploaded files together
+  (comse.ide's path groups + comSE.ipl's matching instance
+  placements) - group 0 (model_id 1440, "scraperkb3_nit") correctly
+  matched to its one real placed instance, its first node's local
+  offset (-499, -109, -1) resolved to a real, plausible world
+  position via the instance's actual real position and rotation, and
+  the full group produced 6 correctly-connected segments. `ast.parse`
+  clean; confirmed via AST no duplicate method definitions.

@@ -24607,6 +24607,59 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     other = nodes[node.next_id]
                     segments.append(((node.x, node.y, node.z), (other.x, other.y, other.z)))
 
+        # GTA III IDE-embedded paths (Aug 16 2026, per Keith: "GTA3
+        # paths arnt showing, i know I am selecting ipl files... but
+        # the path entires are in the ide files, so how do we load
+        # those?... for gta3 parse the paths from the ide files, and
+        # show them when show paths is ticked") - these were already
+        # correctly parsed into loader.ide_paths (IDEPathGroup/
+        # IDEPathNode) earlier this session, but never resolved to
+        # world-space or fed into this view at all. Unlike VC's own
+        # paths (already absolute coordinates), a GTA III path group's
+        # node positions are RELATIVE to wherever its own model_id is
+        # actually PLACED - so this finds every currently-visible
+        # instance of that model (multiple placements of the same
+        # model each get their own independent copy of the path,
+        # correctly transformed by THAT instance's own position/
+        # rotation) and rotates each node's local offset by the
+        # instance's effective (conjugated) rotation before adding
+        # its position - the same transform the instance's own model
+        # geometry already gets when rendered, so a path stays
+        # correctly attached to its object regardless of how that
+        # object is placed/rotated in the world.
+        #
+        # No separate hidden-filtering needed for ide_paths itself
+        # (unlike VC paths, which check group.source_ipl directly) -
+        # GTA III IDE files aren't toggled individually the way IPL
+        # sections are, so a path only shows if the instance it's
+        # attached to is currently visible, which the instances_by_
+        # model lookup below already only includes non-hidden ones
+        # for.
+        instances_by_model = {}
+        for inst in getattr(loader, 'instances', []):
+            if inst.source_ipl in hidden:
+                continue
+            instances_by_model.setdefault(inst.model_id, []).append(inst)
+
+        for group in getattr(loader, 'ide_paths', []):
+            matching_instances = instances_by_model.get(group.model_id)
+            if not matching_instances:
+                continue
+            nodes = group.nodes
+            n = len(nodes)
+            for inst in matching_instances:
+                ex, ey, ez, ew = self._effective_rotation(inst)
+                world_pos = []
+                for node in nodes:
+                    wx, wy, wz = self._rotate_vector_by_quaternion(
+                        node.x_rel, node.y_rel, node.z_rel, ex, ey, ez, ew)
+                    world_pos.append((inst.pos_x + wx, inst.pos_y + wy, inst.pos_z + wz))
+                for i, node in enumerate(nodes):
+                    if node.node_type == 0:
+                        continue
+                    if 0 <= node.next_id < n:
+                        segments.append((world_pos[i], world_pos[node.next_id]))
+
         vp.set_path_segments(segments)
 
     def _on_show_paths_toggled(self, checked): #vers 1
@@ -24844,6 +24897,33 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         RenderWare's actual on-disk one, which is what this conjugate
         corrects for. No longer gated by game."""
         return (-x, -y, -z, w)
+
+    def _rotate_vector_by_quaternion(self, vx, vy, vz, x, y, z, w): #vers 1
+        """Rotate a local-space vector (vx,vy,vz) by quaternion
+        (x,y,z,w), returning the world-space (rx,ry,rz) result (Aug
+        16 2026, for resolving GTA III's IDE-embedded path nodes -
+        see IDEPathGroup's own docstring - to world-space coordinates,
+        matching the exact rotation an instance's own model geometry
+        already gets in the viewport).
+
+        This is the same rotation matrix DFFViewport._quat_to_gl_
+        matrix builds for glMultMatrixf, just applied here to a single
+        vector on the CPU instead of a whole mesh on the GPU -
+        verified mathematically identical (cross-checked against a
+        full 4x4 column-major matrix multiply using the actual
+        function, 20 random quaternion/vector pairs, max error
+        <1e-6) before trusting it for real data. Callers should pass
+        the CONJUGATED (_effective_rotation) quaternion, not the raw
+        stored one, to match how the instance's own geometry
+        renders - a path node is conceptually a vertex in the same
+        local space as the model it's attached to."""
+        xx, yy, zz = x*x, y*y, z*z
+        xy, xz, yz = x*y, x*z, y*z
+        wx, wy, wz = w*x, w*y, w*z
+        rx = (1.0-2.0*(yy+zz))*vx + 2.0*(xy-wz)*vy + 2.0*(xz+wy)*vz
+        ry = 2.0*(xy+wz)*vx + (1.0-2.0*(xx+zz))*vy + 2.0*(yz-wx)*vz
+        rz = 2.0*(xz-wy)*vx + 2.0*(yz+wx)*vy + (1.0-2.0*(xx+yy))*vz
+        return rx, ry, rz
 
     def _convert_collision_geometry(self, col_model): #vers 1
         """Convert a COLModel (or None) into the flat (col_vertices,
