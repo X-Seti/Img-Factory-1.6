@@ -307,6 +307,42 @@ class EnexEntry: #vers 1
 
 
 @dataclass
+class CullEntry: #vers 1
+    """One GTA3/VC "cull" section entry - a cull zone (Aug 16 2026,
+    per Keith's real cull.ipl upload). Eleven fields, confirmed
+    against multiple independent wiki sources (GTA Wiki Fandom,
+    GTAMods, Grand Theft Wiki all agree) and verified field-for-field
+    against Keith's real data: CenterX/Y/Z, X1/Y1/Z1 (one box corner),
+    X2/Y2/Z2 (the opposite corner), flags, wanted_level_drop.
+
+    The center position is a real, documented oddity, not a mistake
+    in this dataclass: per the wiki, "changing the zone's center
+    coordinates does not directly affect the zone itself" - the box
+    shape is defined entirely by the two corner points, center is
+    only used for distance calculations (e.g. how far the player is
+    from the zone) and isn't required to be the box's geometric
+    centre at all, so it's stored verbatim rather than derived.
+
+    This replaces a previous version that returned a plain dict with
+    an entirely wrong field layout (assumed 7 fields - a center/
+    width/height box - when real cull.ipl lines have 11, two real
+    corner points, not a width+height pair at all)."""
+    center_x:          float
+    center_y:          float
+    center_z:          float
+    x1:                float
+    y1:                float
+    z1:                float
+    x2:                float
+    y2:                float
+    z2:                float
+    flags:             int   = 0
+    wanted_level_drop: int   = 0
+    source_ipl:        str   = ""
+    line_no:           int   = 0
+
+
+@dataclass
 class IPLLoadResult:
     """Result of one on-demand IPL load (GTAWorldLoader.load_ipl_by_
     name) - per Keith's request for per-IPL success/error reporting
@@ -942,7 +978,7 @@ class IPLParser: #vers 2
         self.game       = game
         self.instances: List[IPLInstance] = []
         self.zones:     List[Dict]        = []
-        self.culls:     List[Dict]        = []
+        self.culls:     List[CullEntry]   = []
         self.paths:     List[PathGroup]   = []
         self.grges:     List[GrgeEntry]   = []
         self.enexes:    List[EnexEntry]   = []
@@ -991,7 +1027,7 @@ class IPLParser: #vers 2
                 if z:
                     self.zones.append(z)
             elif current_section == "cull":
-                c = self._parse_cull(line, lineno)
+                c = self._parse_cull(line, basename, lineno)
                 if c:
                     self.culls.append(c)
             elif current_section == "grge":
@@ -1194,14 +1230,26 @@ class IPLParser: #vers 2
             pass
         return None
 
-    def _parse_cull(self, line: str, lineno: int) -> Optional[Dict]: #vers 1
+    def _parse_cull(self, line: str, source: str, lineno: int) -> Optional[CullEntry]: #vers 2
+        """Parse one "cull" section line - CenterX/Y/Z, X1/Y1/Z1,
+        X2/Y2/Z2, Flags, WantedLevelDrop (11 fields). Fixed (Aug 16
+        2026, per Keith's real cull.ipl upload) - the previous version
+        expected only 7 fields (a center/width/height box), which
+        never matched real data at all (every real line has 11
+        fields, two genuine corner points, not a width+height pair) -
+        confirmed against multiple independent wiki sources and
+        verified field-for-field against Keith's real file."""
         try:
             p = [x.strip() for x in line.split(",")]
-            if len(p) < 7:
+            if len(p) < 9:
                 return None
-            return {"center_x": float(p[0]), "center_y": float(p[1]), "center_z": float(p[2]),
-                    "unknown1": float(p[3]), "width": float(p[4]),
-                    "unknown2": float(p[5]), "height": float(p[6])}
+            return CullEntry(
+                center_x=float(p[0]), center_y=float(p[1]), center_z=float(p[2]),
+                x1=float(p[3]), y1=float(p[4]), z1=float(p[5]),
+                x2=float(p[6]), y2=float(p[7]), z2=float(p[8]),
+                flags=int(float(p[9])) if len(p) > 9 else 0,
+                wanted_level_drop=int(float(p[10])) if len(p) > 10 else 0,
+                source_ipl=source, line_no=lineno)
         except (ValueError, IndexError):
             pass
         return None
@@ -1397,7 +1445,7 @@ class GTAWorldLoader: #vers 3
         self.grges:      List[GrgeEntry]       = []
         self.enexes:     List[EnexEntry]       = []
         self.zones:      List[Dict]           = []
-        self.culls:      List[Dict]           = []
+        self.culls:      List[CullEntry]      = []
         # (phase, type, abs_path, success)
         self.load_log:   List[Tuple[str, str, str, bool]] = []
         self.stats       = ParseStats()

@@ -4438,3 +4438,62 @@ conclusively found despite extensive isolated testing.
   confirmed re-adding a file doesn't create a duplicate row.
   `ast.parse` clean; confirmed via AST no duplicate method
   definitions introduced.
+
+- **Aug 16, 2026 (cont'd)** — Fixed the real, confirmed `_parse_cull`
+  bug, per Keith: "continue with the cull files next." The previous
+  version expected 7 fields (a center/width/height box) - real
+  cull.ipl lines have 11 fields, two genuine corner points, not a
+  width+height pair at all. Confirmed against three independent wiki
+  sources (GTA Wiki Fandom, GTAMods, Grand Theft Wiki all agree):
+  `CenterX, CenterY, CenterZ, X1, Y1, Z1, X2, Y2, Z2, Flags,
+  WantedLevelDrop`. New `CullEntry` dataclass (replacing a plain
+  dict, matching the established `GrgeEntry`/`EnexEntry` pattern) -
+  `self.culls` type hints updated to `List[CullEntry]` everywhere
+  except `BinaryIPLParser`'s (left as `List[Dict]`, genuinely unused -
+  binary IPL cull parsing isn't implemented at all, a separate,
+  unstarted feature, not touched here).
+
+  Real finding along the way: the viewport Keith actually uses
+  (`DFFViewport`) has never had ANY cull-box rendering at all - the
+  existing `_toggle_cull_boxes`/cull-box drawing only ever reached
+  `MapViewport` (`depends/map_viewport.py`), a separate class only
+  reachable through the disabled 4-Pane View feature. Built real
+  rendering into `DFFViewport` instead, mirroring the already-proven
+  Show Paths pattern exactly: `show_cull_boxes`/`_cull_boxes`/
+  `_cull_box_color` state, `set_cull_boxes`/`set_show_cull_boxes`/
+  `set_cull_box_color` setters, `_draw_cull_boxes` (wireframe box
+  corner-to-corner using the box's own real two corners directly, no
+  center/width assumption needed since the real shape is just two
+  points) wired into `paintGL` alongside `_draw_paths`. New "Show
+  Cull Zones" checkbox in IPL Controls row 3 next to Show Paths;
+  `_refresh_cull_box_visualization`/`_on_show_cull_boxes_toggled` in
+  map_workshop.py mirror `_refresh_path_visualization`'s exact
+  structure (much simpler here - a cull zone is an independent box,
+  no per-node graph to resolve), wired into `_apply_ipl_visibility_
+  filter` so toggling any IPL's visibility keeps cull boxes in sync
+  automatically, same as paths already do.
+
+  Also fixed the same `headers_by_type` gap `'path'`/`'zone'` both
+  had before they were fixed - `'cull'` was missing entirely,
+  silently falling back to inst's wrong 13-column layout in IPL File
+  Display. Added `cull_box_color` to `MapSettings.DEFAULTS` (amber-
+  yellow default, distinct from paths' red) - caught this before it
+  shipped broken: `MapSettings.set()` only actually stores a value if
+  the key is pre-registered in `DEFAULTS`, the exact bug class fixed
+  systemically earlier this session, so this had to be added or the
+  colour picker would've silently never saved anything.
+
+  Also cleaned up an unrelated leftover duplicated docstring
+  paragraph spotted in `_refresh_path_visualization` while working
+  nearby.
+
+  Verified end-to-end against Keith's real cull.ipl: 631 cull zones
+  parsed correctly (previous version parsed 0 usable entries, since
+  every real line has 11 fields but the old code required at least 7
+  meaningfully-wrong ones), first entry checked field-for-field. Cull
+  box coordinate conversion (`CullEntry` -> `(x1,y1,z1,x2,y2,z2)`
+  tuple) and hidden-IPL filtering both verified directly against the
+  real parsed data; `cull_box_color`'s `DEFAULTS` registration/get/
+  set round-trip verified in isolation. `ast.parse` clean on all
+  three changed files; confirmed via AST no duplicate method
+  definitions introduced anywhere.

@@ -301,6 +301,25 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._path_line_color = (1.0, 0.0, 0.0)   # red, per Keith's expectation
         self._path_node_color = (1.0, 0.8, 0.0)   # amber - distinct from the line itself
 
+        # Cull zone boxes (Aug 16 2026, per Keith: "continue with the
+        # cull files next", following the same "so I can view them"
+        # pattern as Show Paths/the .zon wiring) - the older MapView-
+        # port class (depends/map_viewport.py) already had cull-box
+        # drawing, but it's only ever reachable through the disabled
+        # 4-Pane View feature, not this, the actual primary viewport
+        # - cull boxes have never been visible to Keith in practice.
+        # Each entry in _cull_boxes is a plain (x1,y1,z1,x2,y2,z2)
+        # tuple - map_workshop.py's own conversion step reads the
+        # real CullEntry dataclass fields (fixed this session - see
+        # CullEntry's own docstring for the "was a wrong 7-field
+        # center/width/height guess, real format has 11 fields, two
+        # genuine corner points" story), this widget only ever deals
+        # in plain corner coordinates, same separation as paths/Col
+        # overlays elsewhere in this file.
+        self.show_cull_boxes = False
+        self._cull_boxes = []
+        self._cull_box_color = (1.0, 0.85, 0.2)   # amber-yellow, distinct from paths' red
+
         # Wheels
         self._wheels_model      = None
         self._wheels_model_path = ''
@@ -727,6 +746,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._draw_2dfx_lights()
             if self.show_paths:
                 self._draw_paths()
+            if self.show_cull_boxes:
+                self._draw_cull_boxes()
             if getattr(self, '_lod_test_center', None) is not None:
                 self._draw_lod_test_circle()
             if self._show_grid: self._draw_grid()
@@ -805,6 +826,41 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                     glVertex3f(*pt)
         glEnd()
         glDisable(GL_BLEND)
+        glEnable(GL_DEPTH_TEST)
+        glEnable(GL_LIGHTING)
+
+    def _draw_cull_boxes(self): #vers 1
+        """Draw every loaded cull zone as a wireframe box, corner-to-
+        corner (Aug 16 2026, per Keith: "continue with the cull files
+        next"). Uses the box's own two real corner points directly
+        (x1,y1,z1)-(x2,y2,z2) - the older MapViewport class's own
+        _draw_cull_boxes assumed a center+width/height shape (matching
+        the wrong 7-field parse that was fixed alongside this), this
+        one draws the actual documented box, no assumption needed.
+        Raw GTA-native (x,y,z) coordinates passed straight to
+        glVertex3f, same convention _draw_paths already uses in this
+        widget - no manual Z-up/Y-up axis swap here, unlike the older
+        MapViewport class, since this viewport's own camera/projection
+        setup already accounts for that at a higher level."""
+        if not OPENGL_AVAILABLE or not self._cull_boxes: return
+        glDisable(GL_LIGHTING)
+        glDisable(GL_DEPTH_TEST)
+        r, g, b = self._cull_box_color
+        glColor3f(r, g, b)
+        glLineWidth(1.5)
+        for x1, y1, z1, x2, y2, z2 in self._cull_boxes:
+            glBegin(GL_LINE_LOOP)
+            glVertex3f(x1, y1, z1); glVertex3f(x2, y1, z1)
+            glVertex3f(x2, y2, z1); glVertex3f(x1, y2, z1)
+            glEnd()
+            glBegin(GL_LINE_LOOP)
+            glVertex3f(x1, y1, z2); glVertex3f(x2, y1, z2)
+            glVertex3f(x2, y2, z2); glVertex3f(x1, y2, z2)
+            glEnd()
+            glBegin(GL_LINES)
+            for cx, cy in ((x1, y1), (x2, y1), (x2, y2), (x1, y2)):
+                glVertex3f(cx, cy, z1); glVertex3f(cx, cy, z2)
+            glEnd()
         glEnable(GL_DEPTH_TEST)
         glEnable(GL_LIGHTING)
 
@@ -1495,6 +1551,22 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         path lines in settings" - r/g/b as 0-1 floats, matching every
         other colour this widget already works in (glColor3f etc)."""
         self._path_line_color = (r, g, b)
+        self.update()
+
+    def set_show_cull_boxes(self, enabled: bool): #vers 1
+        self.show_cull_boxes = enabled; self.update()
+
+    def set_cull_boxes(self, boxes): #vers 1
+        """Replace the cull-zone boxes drawn when show_cull_boxes is
+        on. Each entry is a plain (x1,y1,z1,x2,y2,z2) corner-pair
+        tuple - conversion from the real CullEntry dataclass happens
+        in map_workshop.py's _refresh_cull_box_visualization, this
+        widget only ever deals in plain coordinates."""
+        self._cull_boxes = boxes or []
+        self.update()
+
+    def set_cull_box_color(self, r: float, g: float, b: float): #vers 1
+        self._cull_box_color = (r, g, b)
         self.update()
 
     def _clear_col_display_lists(self): #vers 1

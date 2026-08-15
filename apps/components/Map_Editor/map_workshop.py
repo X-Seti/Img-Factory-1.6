@@ -3180,6 +3180,12 @@ class MapSettings(QObject):
         # (DFFViewport.set_path_line_color). Red by default, matching
         # what Keith said he was expecting to see.
         'path_line_color': (255, 0, 0),
+        # Cull zone box colour in the 3D view (Aug 16 2026, per Keith:
+        # "continue with the cull files next") - same representation
+        # as path_line_color ((r,g,b) 0-255 ints, converted to 0-1
+        # floats at the point of use). Amber-yellow by default,
+        # distinct from paths' red.
+        'cull_box_color': (255, 217, 51),
         # Viewport camera keybindings (Aug 16 2026, per Keith: "A new
         # tab is needed in map workshop settings to define keys") -
         # stored as {action: {'key': int(Qt.Key), 'numpad': bool}},
@@ -21878,6 +21884,25 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         show_paths_chk.toggled.connect(self._on_show_paths_toggled)
         self._show_paths_chk = show_paths_chk
 
+        # Show Cull Zones (Aug 16 2026, per Keith: "continue with the
+        # cull files next") - draws every loaded IPL's cull zones as
+        # wireframe boxes in the 3D view (DFFViewport._draw_cull_
+        # boxes), box colour configurable in Settings same as path
+        # line colour. Off by default, matching every other optional
+        # overlay. The older cull-box drawing this project already
+        # had (MapViewport, the disabled 4-Pane View's own class) is
+        # unaffected/untouched - this is a separate, new
+        # implementation for the actual primary viewport, which never
+        # had any cull-box rendering of its own before.
+        show_cull_chk = QCheckBox("Show Cull Zones")
+        show_cull_chk.setFixedHeight(18)
+        show_cull_chk.setStyleSheet(_compact_18)
+        show_cull_chk.setToolTip(
+            "Show every loaded IPL's cull zones (GTA3/VC) as\n"
+            "wireframe boxes in the 3D view.")
+        show_cull_chk.toggled.connect(self._on_show_cull_boxes_toggled)
+        self._show_cull_chk = show_cull_chk
+
         # Cog icon, docked-only (Aug 15 2026, per Keith: "We could
         # just add a cog SVG icon when docked. On the right of row 3.
         # ipl control panel, but not to be shown in standalone.") -
@@ -21908,6 +21933,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         opts_row3 = QHBoxLayout()
         opts_row3.addWidget(show_paths_chk)
+        opts_row3.addWidget(show_cull_chk)
         opts_row3.addStretch()
         opts_row3.addWidget(ipl_settings_btn)
         lay.addLayout(opts_row3)
@@ -22647,6 +22673,18 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             # map.zon/navig.zon.
             'zone': ["Name", "Type", "Min X", "Min Y", "Min Z",
                      "Max X", "Max Y", "Max Z", "Island", "Text Key"],
+            # 'cull' (Aug 16 2026 fix, per Keith: "continue with the
+            # cull files next") - was missing entirely, same gap
+            # 'path'/'zone' both had before they were fixed - silently
+            # fell back to inst's wrong 13-column layout. Columns
+            # mirror the real, corrected CullEntry field order
+            # (CenterX/Y/Z, X1/Y1/Z1, X2/Y2/Z2, Flags, WantedLevelDrop
+            # - see CullEntry's own docstring for the "was a wrong
+            # 7-field center/width/height guess" story), verified
+            # against Keith's real cull.ipl.
+            'cull': ["Center X", "Center Y", "Center Z",
+                     "X1", "Y1", "Z1", "X2", "Y2", "Z2",
+                     "Flags", "Wanted Drop"],
         }
         headers = headers_by_type.get(data_type, headers_by_type['inst'])
         if table.columnCount() != len(headers):
@@ -24281,6 +24319,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._refresh_world_view(visible, auto_fit=auto_fit, clear_display_lists=clear_display_lists)
         self._refresh_2dfx_lights(visible)
         self._refresh_path_visualization()
+        self._refresh_cull_box_visualization()
 
     def _refresh_2dfx_lights(self, visible_instances): #vers 1
         """Collect 2DFX light-type (effect_type == 0) entries for the
@@ -24384,22 +24423,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         has node 8 linking straight to node 11, skipping 9-10
         entirely).
 
-        Builds the REAL per-node link graph (Aug 16 2026 rework, per
-        Keith's real screenshot: "they don't look linked, node to
-        node, instead one point" - long spurious lines fanning out
-        from roughly one area). The previous version just connected
-        each group's nodes in raw on-disk order as one polyline - the
-        wrong topology, not just an incomplete one. Confirmed against
-        Project Cerbera's own VC paths.ipl format doc (and its own
-        worked "Group B" example, verified field-for-field): each
-        node has a Type (0=Null/ignored, 1=External/links to another
-        group by exact position match, 2=Internal/links within this
-        group) and a Next value that's a 0-11 INDEX into that SAME
-        group's own fixed 12-node array - not "the next line in the
-        file", and not necessarily sequential (Cerbera's own example
-        has node 8 linking straight to node 11, skipping 9-10
-        entirely).
-
         Every non-Null node with a valid Next index becomes one
         segment (node[i] -> node[next_id]) - covers both Internal and
         External nodes' own in-group continuation identically (an
@@ -24472,6 +24495,48 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             vp.set_show_paths(checked)
         if checked:
             self._refresh_path_visualization()
+
+    def _refresh_cull_box_visualization(self): #vers 1
+        """Push the currently visible IPLs' cull zones to the
+        viewport's wireframe-box overlay (Aug 16 2026, per Keith:
+        "continue with the cull files next"). No-op (and clears any
+        existing boxes) if Show Cull Zones is off, same pattern as
+        _refresh_path_visualization/_refresh_2dfx_lights.
+
+        Much simpler than paths - a cull zone is just an independent
+        box, no per-node graph to resolve - so this is a flat
+        loader.culls -> corner-tuple conversion, filtered by
+        source_ipl against self._hidden_ipls, same convention every
+        other per-IPL overlay in this file already uses."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is None or not hasattr(vp, 'set_cull_boxes'):
+            return
+        show_cull_chk = getattr(self, '_show_cull_chk', None)
+        if show_cull_chk is not None and not show_cull_chk.isChecked():
+            vp.set_cull_boxes([])
+            return
+        if hasattr(vp, 'set_cull_box_color'):
+            saved_color = self.map_settings.get('cull_box_color') or (255, 217, 51)
+            cr, cg, cb = saved_color
+            vp.set_cull_box_color(cr / 255.0, cg / 255.0, cb / 255.0)
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            vp.set_cull_boxes([])
+            return
+        hidden = getattr(self, '_hidden_ipls', set())
+        boxes = [(c.x1, c.y1, c.z1, c.x2, c.y2, c.z2)
+                for c in getattr(loader, 'culls', [])
+                if c.source_ipl not in hidden]
+        vp.set_cull_boxes(boxes)
+
+    def _on_show_cull_boxes_toggled(self, checked): #vers 1
+        """Show Cull Zones checked/unchecked - per Keith: "continue
+        with the cull files next"."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is not None and hasattr(vp, 'set_show_cull_boxes'):
+            vp.set_show_cull_boxes(checked)
+        if checked:
+            self._refresh_cull_box_visualization()
 
     def _on_ipl_controls_settings_clicked(self): #vers 2
         """IPL Controls' docked-only cog icon clicked (Aug 15 2026,
