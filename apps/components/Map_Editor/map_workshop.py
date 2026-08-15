@@ -20620,13 +20620,38 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         delete_btn.setFixedHeight(18)
         delete_btn.setStyleSheet(_compact_18)
         delete_btn.setEnabled(False)
-        for b in (open_btn, close_btn, new_btn, delete_btn):
+        # Open Zone File... (Aug 16 2026, per Keith: "just need to
+        # wire the zon files, so I can click and view them") - .zon
+        # files (info.zon/map.zon/navig.zon and similar) aren't
+        # referenced by the .dat's own IPL directives the way normal
+        # IPLs are, so they never show up in loader.available_ipls on
+        # their own - this lets Keith pick one (or several) directly
+        # and registers it into the exact same available_ipls/
+        # _ipl_display_to_stem machinery every other IPL already uses,
+        # so the existing click/eye-icon/view pipeline just works for
+        # it unmodified (IPLParser.parse() is already format-agnostic
+        # - it just reads whatever section keywords it finds, and
+        # "zone" sections were already correctly parsed - verified
+        # field-for-field against Keith's real info.zon/map.zon/
+        # navig.zon earlier this session, nothing wrong there, only
+        # the loading/viewing wiring was missing).
+        open_zone_btn = QPushButton(get_add_icon(sm_buttonheight, icon_color), "Open Zone...")
+        open_zone_btn.setToolTip(
+            "Load one or more standalone .zon files (info.zon, map.zon,\n"
+            "navig.zon, etc.) - they'll appear in this list like any\n"
+            "other IPL file, viewable the same way.")
+        open_zone_btn.setIconSize(QSize(18, 18))
+        open_zone_btn.setFixedHeight(18)
+        open_zone_btn.setStyleSheet(_compact_18)
+        open_zone_btn.clicked.connect(self._on_ipl_tab_open_zone_clicked)
+        for b in (open_btn, close_btn, new_btn, delete_btn, open_zone_btn):
             title_row.addWidget(b)
         title_row.addStretch()
         lay.addWidget(title_row_widget)
         self._register_collapsible_button_row(
             title_row_widget, [(open_btn, "Open"), (close_btn, "Close"),
-                                (new_btn, "New"), (delete_btn, "Delete")])
+                                (new_btn, "New"), (delete_btn, "Delete"),
+                                (open_zone_btn, "Open Zone...")])
         if not hasattr(self, '_object_browser_tab_rows'):
             self._object_browser_tab_rows = {}
         self._object_browser_tab_rows['ipl'] = title_row_widget
@@ -21393,6 +21418,52 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         ipl_name = item.data(Qt.ItemDataRole.UserRole)
         if ipl_name not in getattr(self, '_hidden_ipls', set()):
             self._on_ipl_section_cell_clicked(row, 0)
+
+    def _on_ipl_tab_open_zone_clicked(self): #vers 1
+        """Open Zone File... - lets Keith pick one or more standalone
+        .zon files and adds them to the IPL Sections list (Aug 16
+        2026, per Keith: "just need to wire the zon files, so I can
+        click and view them"). Registers each as a real DATEntry in
+        loader.available_ipls (same shape every normal IPL entry
+        already has) so the whole existing click/eye-icon/IPL File
+        Display pipeline works for it unmodified - IPLParser.parse()
+        already reads "zone" sections correctly regardless of the
+        file's own extension, verified against Keith's real info.zon/
+        map.zon/navig.zon earlier this session, so nothing needs
+        touching there, only this loading step was missing.
+
+        New entries start hidden, matching every other IPL's default
+        state (nothing shown until explicitly opened) - and are
+        appended to the display order only if not already present, so
+        re-opening an already-added .zon file is a harmless no-op
+        rather than creating a duplicate row."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            self._set_status("Load a world first before opening a zone file")
+            return
+        from PyQt6.QtWidgets import QFileDialog
+        paths, _ = QFileDialog.getOpenFileNames(
+            self, "Open Zone File(s)", "", "Zone files (*.zon);;All files (*)")
+        if not paths:
+            return
+        from apps.methods.gta_dat_parser import DATEntry
+        added_any = False
+        for path in paths:
+            if not os.path.isfile(path):
+                continue
+            display_name = os.path.basename(path)
+            stem = os.path.splitext(display_name)[0].lower()
+            entry = DATEntry(directive="ZONE", path=path, abs_path=path,
+                            exists=True, source_dat="")
+            loader.available_ipls[stem] = entry
+            self._ipl_display_to_stem[display_name] = stem
+            if display_name not in self._ipl_display_order:
+                self._ipl_display_order.append(display_name)
+            self._hidden_ipls.add(display_name)
+            added_any = True
+        if added_any:
+            self._rebuild_ipl_sections_rows()
+            self._set_status(f"Added {len(paths)} zone file(s) - click to view")
 
     def _on_ipl_data_type_changed(self, data_type): #vers 1
         """INST/CULL/ZONE/... changed - updates which kind of data the
@@ -22566,6 +22637,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                      "Sky", "Num Peds", "Time On", "Time Off"],
             'path': ["Type / Group A", "Next / Group B", "Zero", "X", "Y", "Z",
                      "Median", "Left", "Right", "Flag1", "Flag2", "Flag3", "Flag4?"],
+            # 'zone' (Aug 16 2026 fix, per Keith: "just need to wire
+            # the zon files, so I can click and view them") - was
+            # missing entirely, same gap 'path' had before it was
+            # fixed - silently fell back to inst's wrong 13-column
+            # layout. Columns mirror _parse_zone's own raw field
+            # order (Name, Type, MinX/Y/Z, MaxX/Y/Z, Island[,
+            # TextKey]), verified against Keith's real info.zon/
+            # map.zon/navig.zon.
+            'zone': ["Name", "Type", "Min X", "Min Y", "Min Z",
+                     "Max X", "Max Y", "Max Z", "Island", "Text Key"],
         }
         headers = headers_by_type.get(data_type, headers_by_type['inst'])
         if table.columnCount() != len(headers):

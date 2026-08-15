@@ -4397,3 +4397,44 @@ conclusively found despite extensive isolated testing.
   same world-space resolution step), a floating-dialog "stay on top"
   toggle, and the deliberately-deferred flight.dat/flight2.dat/
   flight3.dat/spath0.dat files.
+
+- **Aug 16, 2026 (cont'd)** — Wired up standalone .zon file viewing,
+  per Keith: "just need to wire the zon files, so I can click and
+  view them." Zone parsing itself was already correct (`_parse_zone`
+  verified against all 3 of Keith's real .zon files earlier this
+  session), and `IPLParser.parse()` is fully format-agnostic - it
+  just reads whatever section keywords it finds regardless of a
+  file's own extension - so nothing needed fixing there. The actual
+  gap was purely wiring: .zon files aren't referenced by a .dat's own
+  IPL directives the way normal IPLs are, so they never appeared in
+  `loader.available_ipls` for the existing click/eye-icon/view
+  pipeline to find.
+
+  New "Open Zone..." button in the IPL tab's title row (alongside
+  Open/Close/New/Delete) - `_on_ipl_tab_open_zone_clicked` lets Keith
+  pick one or more .zon files via a file dialog and registers each as
+  a real `DATEntry` in `loader.available_ipls` (the exact same shape
+  every normal IPL entry already has), plus the matching `_ipl_
+  display_to_stem`/`_ipl_display_order`/`_hidden_ipls` bookkeeping
+  every other IPL row needs - so the whole existing table/click/view
+  machinery works for a .zon file completely unmodified. New entries
+  start hidden (matching every other IPL's default state), and
+  re-opening an already-added file is a harmless no-op rather than
+  creating a duplicate row.
+
+  Also fixed a real, separate display gap while wiring this: the IPL
+  File Display table's `headers_by_type` had no `'zone'` entry at
+  all - the exact same gap `'path'` had before it was fixed earlier
+  this session - silently falling back to inst's wrong 13-column
+  layout. Added the correct columns (Name/Type/Min X-Z/Max X-Z/
+  Island/Text Key, mirroring `_parse_zone`'s own raw field order).
+
+  Verified end-to-end against real data: parsed Keith's actual
+  `info.zon` through the unmodified `IPLParser` pipeline (165 zones,
+  first entry checked field-for-field), and the full registration
+  logic (available_ipls/_ipl_display_to_stem/_ipl_display_order/
+  _hidden_ipls) simulated against all 3 real uploaded .zon files -
+  correct stems, correct paths, correct hidden-by-default state, and
+  confirmed re-adding a file doesn't create a duplicate row.
+  `ast.parse` clean; confirmed via AST no duplicate method
+  definitions introduced.
