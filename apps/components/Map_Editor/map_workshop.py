@@ -23884,6 +23884,46 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         or not that particular model happens to build its list first.
         Switches the viewport to 'textured' render mode so
         _draw_world_instances actually uses this."""
+        # Reentrancy guard (Aug 16 2026, per Keith: "any models in
+        # some places disappeared, this sometimes happens, as you
+        # load a new part in, the preveus is effected") - this method
+        # calls QApplication.processEvents() inside its own per-
+        # instance loop (below, for "Loading model: X..." status
+        # feedback during a slow conversion pass), which pumps the Qt
+        # event queue and can let an already-queued event run before
+        # this call finishes - most concretely, _on_time_flow_tick's
+        # QTimer (once a second while TOBJ Play is active), which
+        # calls straight back into _apply_ipl_visibility_filter ->
+        # this same method. Without a guard, a nested call like that
+        # builds and applies its own complete `entries` list via
+        # vp.set_world_instances() while the outer call is still
+        # mid-loop; when the outer call resumes and finishes, it then
+        # overwrites the viewport with its OWN entries list - built
+        # from whatever `instances` it was originally given, which
+        # may be missing whichever IPL/part only became visible
+        # *during* the nested call, and, if a real timing coincidence
+        # placed the nested call second, could equally overwrite a
+        # more up-to-date set with a stale one. Either way: models
+        # that should be visible silently vanish, without any error,
+        # exactly the "sometimes" (timing-dependent, not
+        # deterministic) symptom described. Skipping the nested call
+        # entirely is safe here - nothing it would have done is lost
+        # forever, the next TOBJ tick (or whatever else re-enters)
+        # follows a second later regardless.
+        if getattr(self, '_refresh_world_view_in_progress', False):
+            return
+        self._refresh_world_view_in_progress = True
+        try:
+            self._refresh_world_view_impl(instances, auto_fit, clear_display_lists)
+        finally:
+            self._refresh_world_view_in_progress = False
+
+    def _refresh_world_view_impl(self, instances, auto_fit, clear_display_lists): #vers 1
+        """The actual body of _refresh_world_view, split out only so
+        the reentrancy guard above can wrap it in a try/finally
+        without a second level of indentation across this whole
+        (long) method - not meant to be called directly by anything
+        else; call _refresh_world_view instead."""
         vp = getattr(self, 'preview_widget', None)
         model_cache = getattr(self, '_model_cache', None)
         loader = getattr(self, '_world_loader', None)

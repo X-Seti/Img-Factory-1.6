@@ -3984,3 +3984,45 @@ conclusively found despite extensive isolated testing.
   App_name + " Settings".
 
   `ast.parse` clean.
+
+- **Aug 16, 2026** — Fixed a real, non-deterministic bug: "any models
+  in some places disappeared, this sometimes happens, as you load a
+  new part in, the preveus is effected" (Keith). Root cause: a
+  reentrancy hazard in `_refresh_world_view`. It calls `QApplication.
+  processEvents()` inside its own per-instance conversion loop (to
+  keep "Loading model: X..." status feedback responsive during a
+  slow pass) - that pumps the Qt event queue and can let an already-
+  queued event run *before* the current call finishes. The clearest,
+  most concrete trigger: `_on_time_flow_tick`'s QTimer (once a second
+  while TOBJ Play is active) calls straight back into `_apply_ipl_
+  visibility_filter` -> this same method. Without a guard, a nested
+  call like that builds and applies its own complete `entries` list
+  via `vp.set_world_instances()` while the outer call is still mid-
+  loop; when the outer call resumes and finishes, it then overwrites
+  the viewport with its OWN `entries` - potentially missing whatever
+  became visible *during* the nested call, or (depending on which
+  call happens to finish last) overwriting a more current render with
+  a stale one. Either way: models vanish silently, no error, exactly
+  matching the "sometimes" (timing-dependent) symptom.
+
+  Split `_refresh_world_view` into a thin reentrancy-guarded wrapper
+  (checks/sets `self._refresh_world_view_in_progress`, skips instead
+  of proceeding if a call is already running) and `_refresh_world_
+  view_impl` (the original ~215-line body, otherwise untouched -
+  same parameter names throughout, no internal changes needed).
+  Skipping a nested call is safe here: nothing it would have done is
+  lost forever, whatever triggered it (a TOBJ tick, another visibility
+  toggle, etc.) will follow up again shortly regardless, and the
+  outer call's own `instances` argument already reflects the current
+  desired visibility state (any state change like a hide/show toggle
+  happens synchronously *before* triggering a refresh, not during
+  one) - there's nothing for a nested call to catch that the outer
+  call doesn't already have.
+
+  Verified via AST: `_refresh_world_view` (60 lines, guard only) and
+  `_refresh_world_view_impl` (215 lines, full original body) both
+  defined exactly once, nothing else in the file affected. Smoke-
+  tested the guard logic directly against a simulated reentrant-call
+  scenario - confirmed the nested call is skipped, the outer call
+  completes normally with consistent state, and the guard flag
+  correctly resets afterward. `ast.parse` clean.
