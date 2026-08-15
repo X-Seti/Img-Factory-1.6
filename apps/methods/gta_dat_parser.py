@@ -97,7 +97,13 @@ class GTAGame:
         # (not part of the text IPL at all), so it's deliberately
         # excluded here.
         "gta3": {"inst", "cull", "pick", "jump", "enex", "cars", "auzo", "path"},
-        "vc":   {"inst", "cull", "pick", "jump", "enex", "cars", "auzo", "zone", "path"},
+        # "occl" added to VC (Aug 16 2026 fix) - was missing entirely
+        # even though occlu.ipl is a real VC file (confirmed via
+        # GTAMods/Grand Theft Wiki: "OCCL is a section... in Vice
+        # City, San Andreas, and GTA IV" - VC was simply left off this
+        # set by mistake, occl sections in a real VC IPL would have
+        # silently gone unrecognised).
+        "vc":   {"inst", "cull", "pick", "jump", "enex", "cars", "auzo", "zone", "path", "occl"},
         "sa":   {"inst", "cull", "pick", "jump", "enex", "cars", "auzo",
                  "zone", "occl", "mult", "grge", "tcyc", "scrn"},
         "sol":  {"inst", "cull", "pick", "jump", "enex", "cars", "auzo",
@@ -340,6 +346,35 @@ class CullEntry: #vers 1
     wanted_level_drop: int   = 0
     source_ipl:        str   = ""
     line_no:           int   = 0
+
+
+@dataclass
+class OcclEntry: #vers 1
+    """One "occl" section entry - an occlusion culling zone (Aug 16
+    2026, per Keith's real occlu.ipl upload). Seven fields, confirmed
+    against GTAMods/Grand Theft Wiki (both agree word-for-word) and
+    verified field-for-field against Keith's real data: MidX, MidY,
+    BottomZ, WidthX, WidthY, Height, Rotation - an axis-aligned box in
+    plan (X/Y extent from the center, per the wiki: "MidX, MidY") but
+    NOT axis-aligned in world space, since Rotation turns the whole
+    box around its own vertical (Z) axis - genuinely different from
+    CullEntry's two-corner-points shape, which has no rotation at
+    all. Used "to create occlusion culling zones... since it is
+    wasteful to render models behind opaque models, these zones can
+    disable the rendering of any models that are directly behind
+    them" - per the wiki, deleting buildings near an occlusion zone
+    without also removing the zone itself causes visible pop-in,
+    since the zone keeps hiding whatever used to be behind the
+    building that's no longer there."""
+    mid_x:      float
+    mid_y:      float
+    bottom_z:   float
+    width_x:    float
+    width_y:    float
+    height:     float
+    rotation:   float = 0.0
+    source_ipl: str   = ""
+    line_no:    int   = 0
 
 
 @dataclass
@@ -982,6 +1017,7 @@ class IPLParser: #vers 2
         self.paths:     List[PathGroup]   = []
         self.grges:     List[GrgeEntry]   = []
         self.enexes:    List[EnexEntry]   = []
+        self.occls:     List[OcclEntry]   = []
         self.stats      = ParseStats()
         self._valid     = GTAGame.IPL_SECTIONS.get(game, GTAGame.IPL_SECTIONS[GTAGame.GTA3])
 
@@ -1038,6 +1074,10 @@ class IPLParser: #vers 2
                 e = self._parse_enex(line, basename, lineno)
                 if e is not None:
                     self.enexes.append(e)
+            elif current_section == "occl":
+                o = self._parse_occl(line, basename, lineno)
+                if o is not None:
+                    self.occls.append(o)
             elif current_section == "path":
                 # A raw (pre-.strip()) leading tab or space marks a
                 # sub-node line belonging to the current group; its
@@ -1264,6 +1304,28 @@ class IPLParser: #vers 2
             pass
         return None
 
+    def _parse_occl(self, line: str, source: str, lineno: int) -> Optional[OcclEntry]: #vers 1
+        """Parse one "occl" section line - MidX, MidY, BottomZ,
+        WidthX, WidthY, Height, Rotation (7 fields). Confirmed against
+        GTAMods/Grand Theft Wiki (word-for-word agreement between the
+        two) and verified field-for-field against Keith's real
+        occlu.ipl upload. "occl" wasn't even a recognised section
+        keyword for VC before this (see IPL_SECTIONS' own fix note) -
+        a real occlu.ipl's occl lines would have silently gone
+        unrecognised regardless of this parser existing."""
+        try:
+            p = [x.strip() for x in line.split(",")]
+            if len(p) < 6:
+                return None
+            return OcclEntry(
+                mid_x=float(p[0]), mid_y=float(p[1]), bottom_z=float(p[2]),
+                width_x=float(p[3]), width_y=float(p[4]), height=float(p[5]),
+                rotation=float(p[6]) if len(p) > 6 else 0.0,
+                source_ipl=source, line_no=lineno)
+        except (ValueError, IndexError):
+            pass
+        return None
+
 
 class IDEDatabase: #vers 1
     """Lightweight standalone IDE database — loads all .ide files from a
@@ -1456,6 +1518,7 @@ class GTAWorldLoader: #vers 3
         self.enexes:     List[EnexEntry]       = []
         self.zones:      List[Dict]           = []
         self.culls:      List[CullEntry]      = []
+        self.occls:      List[OcclEntry]      = []
         # (phase, type, abs_path, success)
         self.load_log:   List[Tuple[str, str, str, bool]] = []
         self.stats       = ParseStats()
@@ -1687,6 +1750,7 @@ class GTAWorldLoader: #vers 3
         self.enexes    += parser.enexes
         self.zones     += parser.zones
         self.culls     += parser.culls
+        self.occls     += parser.occls
         self.stats.errors   += parser.stats.errors
         self.stats.warnings += parser.stats.warnings
         self.loaded_ipls.add(ipl_stem)
@@ -1712,13 +1776,15 @@ class GTAWorldLoader: #vers 3
         self.enexes    += parser.enexes
         self.zones     += parser.zones
         self.culls     += parser.culls
+        self.occls     += parser.occls
         self.stats.errors   += parser.stats.errors
         self.stats.warnings += parser.stats.warnings
 
-    def _reset(self): #vers 5
+    def _reset(self): #vers 6
         self.objects.clear(); self.effects_2dfx.clear()
         self.timed_objects.clear(); self.instances.clear()
         self.zones.clear();   self.culls.clear()
+        self.occls.clear()
         self.ide_paths.clear()
         self.available_ipls.clear(); self.loaded_ipls.clear()
         self.load_log.clear(); self.stats = ParseStats()

@@ -4553,3 +4553,50 @@ conclusively found despite extensive isolated testing.
   three changed files; confirmed via AST no duplicate method
   definitions; confirmed no stale references anywhere in the project
   to the old `_on_ipl_tab_open_zone_clicked`/`open_zone_btn` names.
+
+- **Aug 16, 2026 (cont'd)** — Added occlusion zone support, per
+  Keith: "lets add occl next" (continuing the cull/zon viewport work).
+  "occl" wasn't even a recognised VC section keyword before this -
+  confirmed via GTAMods/Grand Theft Wiki (word-for-word agreement):
+  `OCCL is a section... in Vice City, San Andreas, and GTA IV` - VC
+  was simply left off `IPL_SECTIONS` by mistake. Fixed, plus new
+  `_parse_occl` (7 fields: MidX, MidY, BottomZ, WidthX, WidthY,
+  Height, Rotation) and `OcclEntry` dataclass, wired into `IPLParser`
+  and `GTAWorldLoader` (`self.occls`, both accumulation sites,
+  cleared in `_reset`).
+
+  Viewport rendering needed real rotation math, not just reused
+  cull/zone box drawing - an occlusion zone rotates around its own
+  vertical (Z) axis (unlike cull/zone's plain axis-aligned two-corner
+  boxes), so `_draw_occl_boxes` computes all 4 XY corners explicitly
+  from half-extents rotated by `rotation` degrees around (mid_x,
+  mid_y), extruded from bottom_z to bottom_z+height. Verified the
+  rotation math by hand before trusting it: a 10x4 rectangle rotated
+  90 degrees correctly becomes 4x10 (dimensions swap exactly as they
+  should), 0-degree rotation matches a plain axis-aligned box,
+  off-center placement offsets correctly. Flagged honestly in the
+  method's own docstring: the rotation *direction* (clockwise vs
+  counter-clockwise) isn't independently confirmed against real
+  in-game behaviour - only the field values/parsing are verified,
+  the rendering interpretation is a reasonable standard-rotation
+  guess, not a confirmed fact, same honesty standard as the GTA III
+  IDE path coordinates' unconfirmed scale factor.
+
+  New "Show Occlusion" checkbox (pink) in IPL Controls row 3,
+  `_refresh_occl_box_visualization`/`_on_show_occl_boxes_toggled`
+  mirroring the cull/zone pattern exactly, wired into `_apply_ipl_
+  visibility_filter`. Added `occl_box_color` to `MapSettings.
+  DEFAULTS` (same silent-noop trap avoided each time this session)
+  and the missing `headers_by_type['occl']` entry (same gap path/
+  zone/cull all had before being fixed) so IPL File Display shows the
+  correct columns instead of the wrong inst-style layout.
+
+  Verified end-to-end against Keith's real occlu.ipl: 344 zones
+  parsed correctly, first entry checked field-for-field. Box
+  conversion and hidden-IPL filtering verified directly against the
+  real parsed data; `occl_box_color`'s DEFAULTS round-trip verified
+  in isolation. `ast.parse` clean; confirmed via AST no duplicate
+  method definitions. This closes out cull+zon+occl viewport
+  visibility from the original multi-part request - editing dialogs
+  for cull/zon/occl (matching the Path Group Editor) remain open in
+  TODO.md.

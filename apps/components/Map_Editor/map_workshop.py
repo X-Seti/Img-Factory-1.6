@@ -3191,6 +3191,11 @@ class MapSettings(QObject):
         # viewpoint") - same representation as path_line_color/
         # cull_box_color. Sky blue by default, distinct from both.
         'zone_box_color': (77, 179, 255),
+        # Occlusion zone box colour in the 3D view (Aug 16 2026,
+        # continuing the cull/zon viewport work) - same representation
+        # as the other overlay colours. Pink by default, distinct from
+        # paths/cull/zone.
+        'occl_box_color': (255, 102, 204),
         # Viewport camera keybindings (Aug 16 2026, per Keith: "A new
         # tab is needed in map workshop settings to define keys") -
         # stored as {action: {'key': int(Qt.Key), 'numpad': bool}},
@@ -21941,6 +21946,20 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         show_zone_chk.toggled.connect(self._on_show_zone_boxes_toggled)
         self._show_zone_chk = show_zone_chk
 
+        # Show Occlusion (Aug 16 2026, continuing the cull/zon
+        # viewport work) - draws every loaded occlusion zone as a
+        # rotated wireframe box (DFFViewport._draw_occl_boxes) -
+        # "occl" was never even a recognised VC section keyword
+        # before this fix, let alone rendered.
+        show_occl_chk = QCheckBox("Show Occlusion")
+        show_occl_chk.setFixedHeight(18)
+        show_occl_chk.setStyleSheet(_compact_18)
+        show_occl_chk.setToolTip(
+            "Show every loaded occlusion zone (VC/SA) as a wireframe\n"
+            "box in the 3D view.")
+        show_occl_chk.toggled.connect(self._on_show_occl_boxes_toggled)
+        self._show_occl_chk = show_occl_chk
+
         # Cog icon, docked-only (Aug 15 2026, per Keith: "We could
         # just add a cog SVG icon when docked. On the right of row 3.
         # ipl control panel, but not to be shown in standalone.") -
@@ -21973,6 +21992,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         opts_row3.addWidget(show_paths_chk)
         opts_row3.addWidget(show_cull_chk)
         opts_row3.addWidget(show_zone_chk)
+        opts_row3.addWidget(show_occl_chk)
         opts_row3.addStretch()
         opts_row3.addWidget(ipl_settings_btn)
         lay.addLayout(opts_row3)
@@ -22724,6 +22744,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             'cull': ["Center X", "Center Y", "Center Z",
                      "X1", "Y1", "Z1", "X2", "Y2", "Z2",
                      "Flags", "Wanted Drop"],
+            # 'occl' (Aug 16 2026, continuing the cull/zon viewport
+            # work) - was missing entirely, same gap path/zone/cull
+            # all had. Columns mirror OcclEntry's field order
+            # (MidX/Y, BottomZ, WidthX/Y, Height, Rotation), verified
+            # against Keith's real occlu.ipl.
+            'occl': ["Mid X", "Mid Y", "Bottom Z",
+                     "Width X", "Width Y", "Height", "Rotation"],
         }
         headers = headers_by_type.get(data_type, headers_by_type['inst'])
         if table.columnCount() != len(headers):
@@ -24360,6 +24387,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._refresh_path_visualization()
         self._refresh_cull_box_visualization()
         self._refresh_zone_box_visualization()
+        self._refresh_occl_box_visualization()
 
     def _refresh_2dfx_lights(self, visible_instances): #vers 1
         """Collect 2DFX light-type (effect_type == 0) entries for the
@@ -24621,6 +24649,45 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             vp.set_show_zone_boxes(checked)
         if checked:
             self._refresh_zone_box_visualization()
+
+    def _refresh_occl_box_visualization(self): #vers 1
+        """Push the currently visible IPLs' occlusion zones to the
+        viewport's rotated wireframe-box overlay (Aug 16 2026,
+        continuing the cull/zon viewport work). No-op (and clears any
+        existing boxes) if Show Occlusion is off, same pattern as
+        _refresh_cull_box_visualization/_refresh_zone_box_
+        visualization. Filtered by source_ipl against self.
+        _hidden_ipls, same convention every other per-IPL overlay
+        uses."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is None or not hasattr(vp, 'set_occl_boxes'):
+            return
+        show_occl_chk = getattr(self, '_show_occl_chk', None)
+        if show_occl_chk is not None and not show_occl_chk.isChecked():
+            vp.set_occl_boxes([])
+            return
+        if hasattr(vp, 'set_occl_box_color'):
+            saved_color = self.map_settings.get('occl_box_color') or (255, 102, 204)
+            cr, cg, cb = saved_color
+            vp.set_occl_box_color(cr / 255.0, cg / 255.0, cb / 255.0)
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            vp.set_occl_boxes([])
+            return
+        hidden = getattr(self, '_hidden_ipls', set())
+        boxes = [(o.mid_x, o.mid_y, o.bottom_z, o.width_x, o.width_y, o.height, o.rotation)
+                for o in getattr(loader, 'occls', [])
+                if o.source_ipl not in hidden]
+        vp.set_occl_boxes(boxes)
+
+    def _on_show_occl_boxes_toggled(self, checked): #vers 1
+        """Show Occlusion checked/unchecked - continuing the cull/zon
+        viewport work."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is not None and hasattr(vp, 'set_show_occl_boxes'):
+            vp.set_show_occl_boxes(checked)
+        if checked:
+            self._refresh_occl_box_visualization()
 
     def _on_ipl_controls_settings_clicked(self): #vers 2
         """IPL Controls' docked-only cog icon clicked (Aug 15 2026,

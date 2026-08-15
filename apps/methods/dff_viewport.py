@@ -334,6 +334,20 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._zone_boxes = []
         self._zone_box_color = (0.3, 0.7, 1.0)   # sky blue, distinct from cull's amber and paths' red
 
+        # Occlusion zones (Aug 16 2026, continuing the cull/zon work -
+        # "occl" was never even a recognised VC section keyword
+        # before this, let alone rendered) - each entry is a plain
+        # (mid_x, mid_y, bottom_z, width_x, width_y, height, rotation)
+        # tuple, NOT axis-aligned like cull/zone boxes: rotation turns
+        # the box around its own vertical (Z) axis, so this needs its
+        # own draw method (computing 4 rotated corners from the
+        # center+half-extents) rather than reusing _draw_wireframe_
+        # boxes, which only ever takes two already-axis-aligned
+        # corner points.
+        self.show_occl_boxes = False
+        self._occl_boxes = []
+        self._occl_box_color = (1.0, 0.4, 0.8)   # pink, distinct from cull/zone/paths
+
         # Wheels
         self._wheels_model      = None
         self._wheels_model_path = ''
@@ -764,6 +778,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 self._draw_cull_boxes()
             if self.show_zone_boxes:
                 self._draw_zone_boxes()
+            if self.show_occl_boxes:
+                self._draw_occl_boxes()
             if getattr(self, '_lod_test_center', None) is not None:
                 self._draw_lod_test_circle()
             if self._show_grid: self._draw_grid()
@@ -893,6 +909,59 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             glEnd()
             glBegin(GL_LINES)
             for cx, cy in ((x1, y1), (x2, y1), (x2, y2), (x1, y2)):
+                glVertex3f(cx, cy, z1); glVertex3f(cx, cy, z2)
+            glEnd()
+        glEnable(GL_DEPTH_TEST)
+        glEnable(GL_LIGHTING)
+
+    def _draw_occl_boxes(self): #vers 1
+        """Draw every loaded occlusion zone as a wireframe box (Aug
+        16 2026, continuing the cull/zon viewport work - "occl" was
+        never even a recognised VC section keyword before this, let
+        alone rendered anywhere). Unlike cull/zone boxes, an
+        occlusion zone can be ROTATED around its own vertical (Z)
+        axis - can't reuse _draw_wireframe_boxes' two-corner shape,
+        computes all 4 XY corners explicitly instead: half-extents
+        from width_x/width_y, rotated by `rotation` around
+        (mid_x, mid_y), extruded from bottom_z to bottom_z+height.
+
+        Rotation is treated as degrees, standard 2D rotation matrix
+        around Z - matches the field's evident purpose (turning an
+        axis-aligned box to match a rotated building) and its real
+        value range in Keith's data (up to ~180, consistent with
+        degrees, not radians), but the exact sign/direction
+        convention GTA itself uses (clockwise vs counter-clockwise)
+        is NOT independently confirmed against real in-game
+        behaviour - only the field values and their parsing are
+        verified, this rendering interpretation is a reasonable but
+        unverified best guess, same honesty standard as the GTA III
+        IDE path coordinates' unconfirmed scale factor."""
+        if not OPENGL_AVAILABLE or not self._occl_boxes: return
+        glDisable(GL_LIGHTING)
+        glDisable(GL_DEPTH_TEST)
+        r, g, b = self._occl_box_color
+        glColor3f(r, g, b)
+        glLineWidth(1.5)
+        for mid_x, mid_y, bottom_z, width_x, width_y, height, rotation in self._occl_boxes:
+            hw, hh = width_x / 2.0, width_y / 2.0
+            rad = math.radians(rotation)
+            cos_r, sin_r = math.cos(rad), math.sin(rad)
+            corners_xy = []
+            for dx, dy in ((-hw, -hh), (hw, -hh), (hw, hh), (-hw, hh)):
+                rx = dx * cos_r - dy * sin_r
+                ry = dx * sin_r + dy * cos_r
+                corners_xy.append((mid_x + rx, mid_y + ry))
+            z1, z2 = bottom_z, bottom_z + height
+            glBegin(GL_LINE_LOOP)
+            for cx, cy in corners_xy:
+                glVertex3f(cx, cy, z1)
+            glEnd()
+            glBegin(GL_LINE_LOOP)
+            for cx, cy in corners_xy:
+                glVertex3f(cx, cy, z2)
+            glEnd()
+            glBegin(GL_LINES)
+            for cx, cy in corners_xy:
                 glVertex3f(cx, cy, z1); glVertex3f(cx, cy, z2)
             glEnd()
         glEnable(GL_DEPTH_TEST)
@@ -1618,6 +1687,23 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def set_zone_box_color(self, r: float, g: float, b: float): #vers 1
         self._zone_box_color = (r, g, b)
+        self.update()
+
+    def set_show_occl_boxes(self, enabled: bool): #vers 1
+        self.show_occl_boxes = enabled; self.update()
+
+    def set_occl_boxes(self, boxes): #vers 1
+        """Replace the occlusion-zone boxes drawn when show_occl_
+        boxes is on. Each entry is a plain (mid_x, mid_y, bottom_z,
+        width_x, width_y, height, rotation) tuple - conversion from
+        the real OcclEntry dataclass happens in map_workshop.py's
+        _refresh_occl_box_visualization, this widget only ever deals
+        in plain coordinates."""
+        self._occl_boxes = boxes or []
+        self.update()
+
+    def set_occl_box_color(self, r: float, g: float, b: float): #vers 1
+        self._occl_box_color = (r, g, b)
         self.update()
 
     def _clear_col_display_lists(self): #vers 1
