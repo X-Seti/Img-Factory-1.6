@@ -320,6 +320,20 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._cull_boxes = []
         self._cull_box_color = (1.0, 0.85, 0.2)   # amber-yellow, distinct from paths' red
 
+        # Zone boxes (Aug 16 2026, per Keith: "ive loaded zon files,
+        # these show in the IPL File Display and the ZON tab is
+        # highlighted, but I cant see them in the viewpoint") - .zon
+        # loading/table-display was wired earlier this session, but
+        # nothing ever pushed the parsed zones to the 3D view - this
+        # is genuinely new, zones never had ANY viewport rendering at
+        # all before, unlike cull (which at least had dead code
+        # reaching an unreachable disabled feature). Same shape as
+        # cull boxes (min/max corners, axis-aligned) so this mirrors
+        # _draw_cull_boxes directly, just a different default colour.
+        self.show_zone_boxes = False
+        self._zone_boxes = []
+        self._zone_box_color = (0.3, 0.7, 1.0)   # sky blue, distinct from cull's amber and paths' red
+
         # Wheels
         self._wheels_model      = None
         self._wheels_model_path = ''
@@ -748,6 +762,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 self._draw_paths()
             if self.show_cull_boxes:
                 self._draw_cull_boxes()
+            if self.show_zone_boxes:
+                self._draw_zone_boxes()
             if getattr(self, '_lod_test_center', None) is not None:
                 self._draw_lod_test_circle()
             if self._show_grid: self._draw_grid()
@@ -829,26 +845,44 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glEnable(GL_DEPTH_TEST)
         glEnable(GL_LIGHTING)
 
-    def _draw_cull_boxes(self): #vers 1
+    def _draw_cull_boxes(self): #vers 2
         """Draw every loaded cull zone as a wireframe box, corner-to-
         corner (Aug 16 2026, per Keith: "continue with the cull files
         next"). Uses the box's own two real corner points directly
         (x1,y1,z1)-(x2,y2,z2) - the older MapViewport class's own
         _draw_cull_boxes assumed a center+width/height shape (matching
         the wrong 7-field parse that was fixed alongside this), this
-        one draws the actual documented box, no assumption needed.
-        Raw GTA-native (x,y,z) coordinates passed straight to
-        glVertex3f, same convention _draw_paths already uses in this
-        widget - no manual Z-up/Y-up axis swap here, unlike the older
-        MapViewport class, since this viewport's own camera/projection
-        setup already accounts for that at a higher level."""
-        if not OPENGL_AVAILABLE or not self._cull_boxes: return
+        one draws the actual documented box, no assumption needed."""
+        self._draw_wireframe_boxes(self._cull_boxes, self._cull_box_color)
+
+    def _draw_zone_boxes(self): #vers 1
+        """Draw every loaded map zone as a wireframe box (Aug 16
+        2026, per Keith: "ive loaded zon files... but I cant see them
+        in the viewpoint") - zones never had any viewport rendering
+        at all before (unlike cull, which at least had unreachable
+        dead code). Same axis-aligned min/max-corner shape as cull
+        boxes, so this just calls the same shared drawing helper with
+        the zone data/colour instead of duplicating the loop."""
+        self._draw_wireframe_boxes(self._zone_boxes, self._zone_box_color)
+
+    def _draw_wireframe_boxes(self, boxes, color): #vers 1
+        """Shared wireframe-box drawing helper (Aug 16 2026 refactor,
+        while adding zone boxes right after cull boxes - factored out
+        rather than duplicating the same loop a second time) - boxes
+        is a list of (x1,y1,z1,x2,y2,z2) corner-pair tuples, color an
+        (r,g,b) 0-1 tuple. Raw GTA-native (x,y,z) coordinates passed
+        straight to glVertex3f, same convention _draw_paths already
+        uses in this widget - no manual Z-up/Y-up axis swap here,
+        unlike the older MapViewport class, since this viewport's own
+        camera/projection setup already accounts for that at a higher
+        level."""
+        if not OPENGL_AVAILABLE or not boxes: return
         glDisable(GL_LIGHTING)
         glDisable(GL_DEPTH_TEST)
-        r, g, b = self._cull_box_color
+        r, g, b = color
         glColor3f(r, g, b)
         glLineWidth(1.5)
-        for x1, y1, z1, x2, y2, z2 in self._cull_boxes:
+        for x1, y1, z1, x2, y2, z2 in boxes:
             glBegin(GL_LINE_LOOP)
             glVertex3f(x1, y1, z1); glVertex3f(x2, y1, z1)
             glVertex3f(x2, y2, z1); glVertex3f(x1, y2, z1)
@@ -1567,6 +1601,23 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def set_cull_box_color(self, r: float, g: float, b: float): #vers 1
         self._cull_box_color = (r, g, b)
+        self.update()
+
+    def set_show_zone_boxes(self, enabled: bool): #vers 1
+        self.show_zone_boxes = enabled; self.update()
+
+    def set_zone_boxes(self, boxes): #vers 1
+        """Replace the map-zone boxes drawn when show_zone_boxes is
+        on. Each entry is a plain (x1,y1,z1,x2,y2,z2) corner-pair
+        tuple - conversion from the parsed zone dict (Name/Type/
+        Min/Max/Island fields) happens in map_workshop.py's
+        _refresh_zone_box_visualization, this widget only ever deals
+        in plain coordinates."""
+        self._zone_boxes = boxes or []
+        self.update()
+
+    def set_zone_box_color(self, r: float, g: float, b: float): #vers 1
+        self._zone_box_color = (r, g, b)
         self.update()
 
     def _clear_col_display_lists(self): #vers 1

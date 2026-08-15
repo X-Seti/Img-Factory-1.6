@@ -4497,3 +4497,59 @@ conclusively found despite extensive isolated testing.
   set round-trip verified in isolation. `ast.parse` clean on all
   three changed files; confirmed via AST no duplicate method
   definitions introduced anywhere.
+
+- **Aug 16, 2026 (cont'd)** — Fixed zones not showing in the
+  viewport, per Keith: "ive loaded zon files, these show in the IPL
+  File Display and the ZON tab is highlighted, but I cant see them in
+  the viewpoint." Real gap: zone loading/table-display was wired
+  earlier this session, but nothing ever pushed parsed zones to the
+  3D view - zones never had ANY viewport rendering at all before,
+  unlike cull (which at least had unreachable dead code).
+
+  Added real zone-box rendering to `DFFViewport`, mirroring the cull-
+  box pattern from moments ago exactly: `show_zone_boxes`/`_zone_
+  boxes`/`_zone_box_color` state, `set_zone_boxes`/`set_show_zone_
+  boxes`/`set_zone_box_color` setters, `_draw_zone_boxes` wired into
+  `paintGL`. Refactored the box-drawing loop itself into a shared
+  `_draw_wireframe_boxes(boxes, color)` helper while adding this,
+  rather than duplicating the same loop a second time - `_draw_cull_
+  boxes` now just calls it too. New "Show Zones" checkbox in IPL
+  Controls row 3 (sky blue, distinct from cull's amber and paths'
+  red); `_refresh_zone_box_visualization`/`_on_show_zone_boxes_
+  toggled` in map_workshop.py mirror the cull versions, wired into
+  `_apply_ipl_visibility_filter`.
+
+  Real, separate gap found and fixed while wiring this: `_parse_zone`
+  was the one section type in this whole parser that never tracked
+  `source_ipl`/`line_no` at all (every other type - inst/cull/grge/
+  enex/path - already does) - meaning zone boxes couldn't have been
+  filtered by which IPL is currently hidden/visible even once
+  rendering existed. Added both fields to `_parse_zone`'s signature
+  and returned dict, updated its one call site.
+
+  Also merged the "Open Zone..." button into a single "Open File..."
+  button, per Keith: "open zone, and open ipl, both can be merged,
+  looking for ipl, and zon files" - one file dialog now accepts
+  either `.ipl` or `.zon` files (combined filter, both still
+  selectable individually too), `_on_ipl_tab_open_zone_clicked`
+  renamed to `_on_ipl_tab_open_file_clicked` and widened accordingly
+  - both file types are read through the exact same format-agnostic
+  `IPLParser.parse()` path, so nothing else needed to change; the
+  registered `DATEntry`'s `directive` is set to `"ZONE"` or `"IPL"`
+  based on the picked file's own extension.
+
+  Also added `zone_box_color` to `MapSettings.DEFAULTS` (sky blue
+  default) - caught before shipping broken, the same `set()`-silently-
+  no-ops-on-unregistered-keys trap fixed systemically earlier this
+  session.
+
+  Verified end-to-end against real data: zone box conversion and
+  hidden-IPL filtering checked directly against the real parsed
+  info.zon (165 zones, first entry's corners checked field-for-
+  field), `source_ipl`/`line_no` tracking confirmed correct (zero
+  regression on the existing fields), and the file-type-detection
+  logic for the merged Open File... dialog verified for both
+  extensions including a mixed-case `.ZON`. `ast.parse` clean on all
+  three changed files; confirmed via AST no duplicate method
+  definitions; confirmed no stale references anywhere in the project
+  to the old `_on_ipl_tab_open_zone_clicked`/`open_zone_btn` names.

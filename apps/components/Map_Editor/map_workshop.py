@@ -3186,6 +3186,11 @@ class MapSettings(QObject):
         # floats at the point of use). Amber-yellow by default,
         # distinct from paths' red.
         'cull_box_color': (255, 217, 51),
+        # Zone box colour in the 3D view (Aug 16 2026, per Keith:
+        # "ive loaded zon files... but I cant see them in the
+        # viewpoint") - same representation as path_line_color/
+        # cull_box_color. Sky blue by default, distinct from both.
+        'zone_box_color': (77, 179, 255),
         # Viewport camera keybindings (Aug 16 2026, per Keith: "A new
         # tab is needed in map workshop settings to define keys") -
         # stored as {action: {'key': int(Qt.Key), 'numpad': bool}},
@@ -20641,23 +20646,37 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # field-for-field against Keith's real info.zon/map.zon/
         # navig.zon earlier this session, nothing wrong there, only
         # the loading/viewing wiring was missing).
-        open_zone_btn = QPushButton(get_add_icon(sm_buttonheight, icon_color), "Open Zone...")
-        open_zone_btn.setToolTip(
-            "Load one or more standalone .zon files (info.zon, map.zon,\n"
-            "navig.zon, etc.) - they'll appear in this list like any\n"
-            "other IPL file, viewable the same way.")
-        open_zone_btn.setIconSize(QSize(18, 18))
-        open_zone_btn.setFixedHeight(18)
-        open_zone_btn.setStyleSheet(_compact_18)
-        open_zone_btn.clicked.connect(self._on_ipl_tab_open_zone_clicked)
-        for b in (open_btn, close_btn, new_btn, delete_btn, open_zone_btn):
+        # Open File... (Aug 16 2026, per Keith: "open zone, and open
+        # ipl, both can be merged, looking for ipl, and zon files") -
+        # originally a .zon-only picker, widened into one combined
+        # dialog that accepts either .ipl or .zon files directly -
+        # both are read through the exact same IPLParser.parse() path
+        # (it's format-agnostic, just reads whatever section keywords
+        # it finds regardless of extension), and neither is
+        # necessarily referenced by the .dat's own IPL directives the
+        # way normally-discovered IPLs are, so both need the same
+        # manual "add this file directly" entry point. Registers the
+        # picked file(s) into the exact same available_ipls/_ipl_
+        # display_to_stem machinery every other IPL already uses, so
+        # the existing click/eye-icon/view pipeline works for either
+        # file type unmodified.
+        open_file_btn = QPushButton(get_add_icon(sm_buttonheight, icon_color), "Open File...")
+        open_file_btn.setToolTip(
+            "Load one or more standalone .ipl or .zon files (info.zon,\n"
+            "map.zon, navig.zon, cull.ipl, etc.) - they'll appear in\n"
+            "this list like any other IPL file, viewable the same way.")
+        open_file_btn.setIconSize(QSize(18, 18))
+        open_file_btn.setFixedHeight(18)
+        open_file_btn.setStyleSheet(_compact_18)
+        open_file_btn.clicked.connect(self._on_ipl_tab_open_file_clicked)
+        for b in (open_btn, close_btn, new_btn, delete_btn, open_file_btn):
             title_row.addWidget(b)
         title_row.addStretch()
         lay.addWidget(title_row_widget)
         self._register_collapsible_button_row(
             title_row_widget, [(open_btn, "Open"), (close_btn, "Close"),
                                 (new_btn, "New"), (delete_btn, "Delete"),
-                                (open_zone_btn, "Open Zone...")])
+                                (open_file_btn, "Open File...")])
         if not hasattr(self, '_object_browser_tab_rows'):
             self._object_browser_tab_rows = {}
         self._object_browser_tab_rows['ipl'] = title_row_widget
@@ -21425,31 +21444,35 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if ipl_name not in getattr(self, '_hidden_ipls', set()):
             self._on_ipl_section_cell_clicked(row, 0)
 
-    def _on_ipl_tab_open_zone_clicked(self): #vers 1
-        """Open Zone File... - lets Keith pick one or more standalone
-        .zon files and adds them to the IPL Sections list (Aug 16
-        2026, per Keith: "just need to wire the zon files, so I can
-        click and view them"). Registers each as a real DATEntry in
-        loader.available_ipls (same shape every normal IPL entry
-        already has) so the whole existing click/eye-icon/IPL File
-        Display pipeline works for it unmodified - IPLParser.parse()
-        already reads "zone" sections correctly regardless of the
-        file's own extension, verified against Keith's real info.zon/
-        map.zon/navig.zon earlier this session, so nothing needs
-        touching there, only this loading step was missing.
+    def _on_ipl_tab_open_file_clicked(self): #vers 2
+        """Open File... - lets Keith pick one or more standalone .ipl
+        or .zon files and adds them to the IPL Sections list (Aug 16
+        2026, per Keith: "open zone, and open ipl, both can be
+        merged, looking for ipl, and zon files" - widened from a
+        .zon-only picker per that request). Registers each as a real
+        DATEntry in loader.available_ipls (same shape every normal
+        IPL entry already has) so the whole existing click/eye-icon/
+        IPL File Display pipeline works for it unmodified -
+        IPLParser.parse() already reads "inst"/"zone"/"cull"/etc.
+        sections correctly regardless of the file's own extension,
+        verified against Keith's real info.zon/map.zon/navig.zon
+        earlier this session, so nothing needs touching there, only
+        this loading step was missing.
 
         New entries start hidden, matching every other IPL's default
         state (nothing shown until explicitly opened) - and are
         appended to the display order only if not already present, so
-        re-opening an already-added .zon file is a harmless no-op
-        rather than creating a duplicate row."""
+        re-opening an already-added file is a harmless no-op rather
+        than creating a duplicate row."""
         loader = getattr(self, '_world_loader', None)
         if loader is None:
-            self._set_status("Load a world first before opening a zone file")
+            self._set_status("Load a world first before opening a file")
             return
         from PyQt6.QtWidgets import QFileDialog
         paths, _ = QFileDialog.getOpenFileNames(
-            self, "Open Zone File(s)", "", "Zone files (*.zon);;All files (*)")
+            self, "Open IPL/Zone File(s)", "",
+            "IPL/Zone files (*.ipl *.zon);;IPL files (*.ipl);;"
+            "Zone files (*.zon);;All files (*)")
         if not paths:
             return
         from apps.methods.gta_dat_parser import DATEntry
@@ -21459,7 +21482,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 continue
             display_name = os.path.basename(path)
             stem = os.path.splitext(display_name)[0].lower()
-            entry = DATEntry(directive="ZONE", path=path, abs_path=path,
+            directive = "ZONE" if path.lower().endswith('.zon') else "IPL"
+            entry = DATEntry(directive=directive, path=path, abs_path=path,
                             exists=True, source_dat="")
             loader.available_ipls[stem] = entry
             self._ipl_display_to_stem[display_name] = stem
@@ -21469,7 +21493,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             added_any = True
         if added_any:
             self._rebuild_ipl_sections_rows()
-            self._set_status(f"Added {len(paths)} zone file(s) - click to view")
+            self._set_status(f"Added {len(paths)} file(s) - click to view")
 
     def _on_ipl_data_type_changed(self, data_type): #vers 1
         """INST/CULL/ZONE/... changed - updates which kind of data the
@@ -21903,6 +21927,20 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         show_cull_chk.toggled.connect(self._on_show_cull_boxes_toggled)
         self._show_cull_chk = show_cull_chk
 
+        # Show Zones (Aug 16 2026, per Keith: "ive loaded zon files...
+        # but I cant see them in the viewpoint") - draws every loaded
+        # .zon/IPL zone entry as a wireframe box (DFFViewport._draw_
+        # zone_boxes), same pattern as Show Cull Zones right above -
+        # zones never had any viewport rendering at all before this.
+        show_zone_chk = QCheckBox("Show Zones")
+        show_zone_chk.setFixedHeight(18)
+        show_zone_chk.setStyleSheet(_compact_18)
+        show_zone_chk.setToolTip(
+            "Show every loaded map zone (from .zon files or an IPL's\n"
+            "own zone section) as a wireframe box in the 3D view.")
+        show_zone_chk.toggled.connect(self._on_show_zone_boxes_toggled)
+        self._show_zone_chk = show_zone_chk
+
         # Cog icon, docked-only (Aug 15 2026, per Keith: "We could
         # just add a cog SVG icon when docked. On the right of row 3.
         # ipl control panel, but not to be shown in standalone.") -
@@ -21934,6 +21972,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         opts_row3 = QHBoxLayout()
         opts_row3.addWidget(show_paths_chk)
         opts_row3.addWidget(show_cull_chk)
+        opts_row3.addWidget(show_zone_chk)
         opts_row3.addStretch()
         opts_row3.addWidget(ipl_settings_btn)
         lay.addLayout(opts_row3)
@@ -24320,6 +24359,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._refresh_2dfx_lights(visible)
         self._refresh_path_visualization()
         self._refresh_cull_box_visualization()
+        self._refresh_zone_box_visualization()
 
     def _refresh_2dfx_lights(self, visible_instances): #vers 1
         """Collect 2DFX light-type (effect_type == 0) entries for the
@@ -24537,6 +24577,50 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             vp.set_show_cull_boxes(checked)
         if checked:
             self._refresh_cull_box_visualization()
+
+    def _refresh_zone_box_visualization(self): #vers 1
+        """Push the currently visible IPLs' map zones to the
+        viewport's wireframe-box overlay (Aug 16 2026, per Keith:
+        "ive loaded zon files... but I cant see them in the
+        viewpoint"). No-op (and clears any existing boxes) if Show
+        Zones is off, same pattern as _refresh_cull_box_visualization.
+
+        Filtered by source_ipl against self._hidden_ipls, same
+        convention every other per-IPL overlay uses - this only works
+        now because _parse_zone was fixed alongside this to actually
+        track source_ipl/line_no at all (it was the one section type
+        that never carried this, so zone boxes couldn't have been
+        shown/hidden per-file consistently even before this method
+        existed)."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is None or not hasattr(vp, 'set_zone_boxes'):
+            return
+        show_zone_chk = getattr(self, '_show_zone_chk', None)
+        if show_zone_chk is not None and not show_zone_chk.isChecked():
+            vp.set_zone_boxes([])
+            return
+        if hasattr(vp, 'set_zone_box_color'):
+            saved_color = self.map_settings.get('zone_box_color') or (77, 179, 255)
+            cr, cg, cb = saved_color
+            vp.set_zone_box_color(cr / 255.0, cg / 255.0, cb / 255.0)
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            vp.set_zone_boxes([])
+            return
+        hidden = getattr(self, '_hidden_ipls', set())
+        boxes = [(z['min_x'], z['min_y'], z['min_z'], z['max_x'], z['max_y'], z['max_z'])
+                for z in getattr(loader, 'zones', [])
+                if z.get('source_ipl') not in hidden]
+        vp.set_zone_boxes(boxes)
+
+    def _on_show_zone_boxes_toggled(self, checked): #vers 1
+        """Show Zones checked/unchecked - per Keith: "ive loaded zon
+        files... but I cant see them in the viewpoint"."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is not None and hasattr(vp, 'set_show_zone_boxes'):
+            vp.set_show_zone_boxes(checked)
+        if checked:
+            self._refresh_zone_box_visualization()
 
     def _on_ipl_controls_settings_clicked(self): #vers 2
         """IPL Controls' docked-only cog icon clicked (Aug 15 2026,

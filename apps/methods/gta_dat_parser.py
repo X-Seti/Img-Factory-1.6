@@ -1023,7 +1023,7 @@ class IPLParser: #vers 2
                     self.instances.append(obj)
                     self.stats.instances += 1
             elif current_section == "zone":
-                z = self._parse_zone(line, lineno)
+                z = self._parse_zone(line, basename, lineno)
                 if z:
                     self.zones.append(z)
             elif current_section == "cull":
@@ -1216,7 +1216,16 @@ class IPLParser: #vers 2
             self.stats.warnings.append(f"Skipped INST line {lineno}: {line[:70]}")
         return None
 
-    def _parse_zone(self, line: str, lineno: int) -> Optional[Dict]: #vers 1
+    def _parse_zone(self, line: str, source: str, lineno: int) -> Optional[Dict]: #vers 2
+        """Parse one "zone" section line - Name, Type, MinX/Y/Z,
+        MaxX/Y/Z, Island[, TextKey]. Now carries source_ipl/line_no
+        (Aug 16 2026 fix, per Keith: "ive loaded zon files... but I
+        cant see them in the viewpoint") - every other section type
+        this parser handles (inst/cull/grge/enex/path) already tracks
+        which file a parsed entry came from, for per-IPL visibility
+        filtering; zone was the one exception, meaning zone boxes
+        couldn't be shown/hidden per-file consistently with
+        everything else even once viewport rendering existed."""
         try:
             p = [x.strip() for x in line.split(",")]
             if len(p) < 8:
@@ -1225,7 +1234,8 @@ class IPLParser: #vers 2
                     "min_x": float(p[2]), "min_y": float(p[3]), "min_z": float(p[4]),
                     "max_x": float(p[5]), "max_y": float(p[6]), "max_z": float(p[7]),
                     "island": int(p[8]) if len(p) > 8 else 0,
-                    "text_key": p[9] if len(p) > 9 else ""}
+                    "text_key": p[9] if len(p) > 9 else "",
+                    "source_ipl": source, "line_no": lineno}
         except (ValueError, IndexError):
             pass
         return None
