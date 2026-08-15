@@ -21917,7 +21917,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # filter logic already driving the 3D world view's Time
         # switch) - the regular rows above them keep their original
         # IPL file line order unchanged either way.
-        show_tobj_chk = QCheckBox("Show Tobj")
+        show_tobj_chk = QCheckBox("Tobj")
         show_tobj_chk.setFixedHeight(18)
         show_tobj_chk.setStyleSheet(_compact_18)
         show_tobj_chk.setToolTip(
@@ -21952,7 +21952,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # _create_settings_dialog's path-colour picker). Off by
         # default, matching every other optional overlay. Show Zones
         # can still follow later on this same row.
-        show_paths_chk = QCheckBox("Show Paths")
+        show_paths_chk = QCheckBox("Paths")
         show_paths_chk.setFixedHeight(18)
         show_paths_chk.setStyleSheet(_compact_18)
         show_paths_chk.setToolTip(
@@ -21973,7 +21973,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # unaffected/untouched - this is a separate, new
         # implementation for the actual primary viewport, which never
         # had any cull-box rendering of its own before.
-        show_cull_chk = QCheckBox("Show Cull Zones")
+        show_cull_chk = QCheckBox("Cull")
         show_cull_chk.setFixedHeight(18)
         show_cull_chk.setStyleSheet(_compact_18)
         show_cull_chk.setToolTip(
@@ -21987,7 +21987,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # .zon/IPL zone entry as a wireframe box (DFFViewport._draw_
         # zone_boxes), same pattern as Show Cull Zones right above -
         # zones never had any viewport rendering at all before this.
-        show_zone_chk = QCheckBox("Show Zones")
+        show_zone_chk = QCheckBox("Zon")
         show_zone_chk.setFixedHeight(18)
         show_zone_chk.setStyleSheet(_compact_18)
         show_zone_chk.setToolTip(
@@ -22001,7 +22001,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # rotated wireframe box (DFFViewport._draw_occl_boxes) -
         # "occl" was never even a recognised VC section keyword
         # before this fix, let alone rendered.
-        show_occl_chk = QCheckBox("Show Occlusion")
+        show_occl_chk = QCheckBox("Occlusion")
         show_occl_chk.setFixedHeight(18)
         show_occl_chk.setStyleSheet(_compact_18)
         show_occl_chk.setToolTip(
@@ -22024,6 +22024,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # method - see show_panel_width_settings's own docstring in
         # imgfactory.py), fixed alongside this so the cog opens the
         # right dialog rather than a small unrelated one.
+        # I've shorterned Paths, Cull, Zon and Occlusion'
+        # TODO; Cull does not show in the IPL file display
+
         from PyQt6.QtWidgets import QToolButton
         ipl_settings_btn = QToolButton()
         try:
@@ -22038,6 +22041,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         ipl_settings_btn.setVisible(self.is_docked and not self.standalone_mode)
         self._ipl_controls_settings_btn = ipl_settings_btn
 
+
         opts_row3 = QHBoxLayout()
         opts_row3.addWidget(show_paths_chk)
         opts_row3.addWidget(show_cull_chk)
@@ -22045,6 +22049,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         opts_row3.addWidget(show_occl_chk)
         opts_row3.addStretch()
         opts_row3.addWidget(ipl_settings_btn)
+        # TODO This needs to be moved to the [IMG] [DAT] [IDE] [IPL] <other buttons> [*] on the far right of the Object Browser.
+
         lay.addLayout(opts_row3)
 
         dock = QDockWidget("IPL Controls", self)

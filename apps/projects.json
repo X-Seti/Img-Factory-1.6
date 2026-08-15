@@ -26,10 +26,10 @@
   "GTASA-PC": {
     "name": "GTASA-PC",
     "project_folder": "/home/x2/Desktop/gta_resouce/PC/GTASA-PC",
-    "game_root": "/home/x2/Desktop/gta_resouce/PC/GTASA-PC",
+    "game_root": "/home/x2/Desktop/gta_resouce/PC/GTASA-PC/",
     "assists_path": "/home/x2/Desktop/gta_resouce",
     "created_date": "2026-05-10T16:39:18.222221",
-    "last_used": "2026-05-19T12:39:35.477953"
+    "last_used": "2026-08-15T23:31:35.017266"
   },
   "GTASOL 76.5": {
     "name": "GTASOL 76.5",
@@ -53,6 +53,30 @@
     "game_root": "/home/x2/Desktop/gta_resouce/PC/GTAVC-PC/",
     "assists_path": "/home/x2/Projects/",
     "created_date": "2026-08-04T16:48:22.902388",
-    "last_used": "2026-08-10T15:33:34.540252"
+    "last_used": "2026-08-11T04:23:51.466765"
+  },
+  "GTA Test folder": {
+    "name": "GTA Test folder",
+    "project_folder": "",
+    "game_root": "/home/x2/Desktop/gta_resouce/PC/GTAVC-PC/",
+    "assists_path": "/home/x2/Desktop/gta_resouce/PC/GTAVC-PC/Assets",
+    "created_date": "2026-08-14T11:48:32.429387",
+    "last_used": "2026-08-14T11:56:25.738631"
+  },
+  "testing": {
+    "name": "testing",
+    "project_folder": "",
+    "game_root": "/home/x2/Desktop/gta_resouce/PC/GTALC-PC/",
+    "assists_path": "/home/x2/Desktop/gta_resouce/PC/GTALC-PC/Assets",
+    "created_date": "2026-08-14T11:57:02.688126",
+    "last_used": "2026-08-14T11:57:09.103261"
+  },
+  "test": {
+    "name": "test",
+    "project_folder": "",
+    "game_root": "/home/x2/Desktop/gta_resouce/PC/GTAVC-PC/",
+    "assists_path": "",
+    "created_date": "2026-08-14T11:59:03.596774",
+    "last_used": "2026-08-14T16:32:26.398101"
   }
 }
