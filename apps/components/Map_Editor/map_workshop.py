@@ -20658,7 +20658,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         icon_color = self._get_icon_color()
         open_btn = QPushButton(get_add_icon(sm_buttonheight, icon_color), "Open")
         open_btn.setToolTip("Load the selected IPL's content on demand -\n"
-                            "same as clicking its eye icon to show it")
+                            "same as clicking its eye icon to show it") # TODO this needs to aupport zon files.
         open_btn.setIconSize(QSize(18, 18))
         open_btn.setFixedHeight(18)
         open_btn.setStyleSheet(_compact_18)
@@ -20715,7 +20715,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # display_to_stem machinery every other IPL already uses, so
         # the existing click/eye-icon/view pipeline works for either
         # file type unmodified.
-        open_file_btn = QPushButton(get_add_icon(sm_buttonheight, icon_color), "Open File...")
+        open_file_btn = QPushButton(get_add_icon(sm_buttonheight, icon_color), "")
+        # TODO this needs to be combined with the first open function, that can support ipl, ide, and zon files.
+
         open_file_btn.setToolTip(
             "Load one or more standalone .ipl or .zon files (info.zon,\n"
             "map.zon, navig.zon, cull.ipl, etc.) - they'll appear in\n"
