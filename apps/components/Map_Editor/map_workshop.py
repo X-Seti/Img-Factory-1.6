@@ -32,7 +32,7 @@ from PyQt6.QtWidgets import (QApplication, QSlider, QCheckBox,
     QDockWidget, QFontComboBox, QSizePolicy, QMenuBar, QStatusBar, QProgressDialog, QStackedWidget, QGridLayout
 )
 
-from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPoint, QRect, QByteArray, QPointF, QTimer, QAbstractTableModel
+from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPoint, QRect, QByteArray, QPointF, QTimer, QAbstractTableModel, QObject
 from PyQt6.QtGui import QFont, QIcon, QPixmap, QImage, QPainter, QPen, QBrush, QColor, QCursor
 
 # Shared DFFViewport — import from methods/, fallback to local methods/
@@ -3039,11 +3039,25 @@ class RibbonManagerDialog(QDialog): #vers 1
         self.reject()
 
 
-class MapSettings:
+class MapSettings(QObject):
     """
     Lightweight JSON settings for DP5 Workshop.
     Stored at ~/.config/imgfactory/map_workshop.json
     Completely separate from the global AppSettings/theme system.
+
+    Now a QObject (Aug 16 2026, per Keith: settings should "save
+    those options, so the next session remembers them") purely to
+    host a debounced auto-save timer - a real, confirmed bug found
+    while investigating: at least two existing call sites (the Render
+    Settings dialog's path-line-colour picker, and set_menu_
+    orientation's menu_style/show_menubar) called .set() but never
+    followed up with .save(), so those particular choices were
+    silently lost on next launch even though they applied correctly
+    within the current session. Auditing all ~18 call sites
+    individually would only fix the ones found *this* time, not the
+    next one somebody adds - set() now schedules its own save
+    automatically, closing the whole class of bug at the source
+    rather than patching each symptom.
     """
 
     DEFAULTS = {
@@ -3117,6 +3131,21 @@ class MapSettings:
         # this setting, when on, loads all of a text IPL's known
         # associated streams automatically alongside it.
         'load_text_plus_binary_ipl_set': True,
+        # Preload IMG archives to OS disk cache on DAT load (Aug 16
+        # 2026, per Keith: "thinking about the long pause between,
+        # dialog loading ipl, names, and a long pause, its accessing
+        # the gta3.img file... plus a new option to preload the
+        # gta3.img file, when clicking in dat_browser, gta_vc.dat,
+        # gta3.dat or SA gta.dat file, this might speed things up") -
+        # off by default (it's an extra one-time upfront cost -
+        # sequentially reading through the whole archive once, doing
+        # nothing with the bytes except letting the OS cache them in
+        # RAM - that trades a longer initial DAT-load wait for faster
+        # per-IPL model/texture reads afterward, not universally a
+        # win depending on how much of the map gets loaded and how
+        # much RAM is available to cache it in). See _preload_img_
+        # archives_to_os_cache.
+        'preload_img_on_dat_load': False,
         # Verbose per-model loading dialog (Aug 1 2026, per Keith:
         # "The second option would be to show full loading models,
         # debug... Show line entry for each model") - a scrolling
@@ -3237,13 +3266,26 @@ class MapSettings:
         'ribbon_tool_order': [],
     }
 
-    def __init__(self): #vers 1
+    def __init__(self): #vers 2
+        super().__init__()
         cfg_dir = Path.home() / '.config' / 'imgfactory'
         cfg_dir.mkdir(parents=True, exist_ok=True)
         self._path = cfg_dir / 'map_workshop.json'
         self._data = dict(self.DEFAULTS)
         self._load()
-
+        # Debounced auto-save (Aug 16 2026, see class docstring) -
+        # singleShot, restarted on every set() call, so rapid-fire
+        # changes (dragging a table column border fires sectionResized
+        # - and thus set() - continuously, once per pixel-ish change,
+        # not just once on release) coalesce into a single disk write
+        # ~800ms after the last change, rather than one write per
+        # call. 800ms is comfortably longer than any realistic pause
+        # mid-drag, short enough that a genuinely final change is
+        # still safely on disk well before someone would plausibly
+        # force-quit the app.
+        self._save_timer = QTimer(self)
+        self._save_timer.setSingleShot(True)
+        self._save_timer.timeout.connect(self._save_now)
 
     def _load(self): #vers 1
         try:
@@ -3254,7 +3296,18 @@ class MapSettings:
         except Exception:
             pass
 
-    def save(self): #vers 1
+    def save(self): #vers 2
+        """Force an immediate write, bypassing the debounce - kept as
+        the explicit public API existing call sites already use
+        (still harmless/correct to call, just redundant now that
+        set() schedules its own save automatically), and useful
+        anywhere an immediate guaranteed write matters more than
+        debounce delay (e.g. right before an app close)."""
+        if self._save_timer.isActive():
+            self._save_timer.stop()
+        self._save_now()
+
+    def _save_now(self): #vers 1
         try:
             self._path.write_text(json.dumps(self._data, indent=2))
         except Exception:
@@ -3264,9 +3317,10 @@ class MapSettings:
         return self._data.get(key, default if default is not None
                               else self.DEFAULTS.get(key))
 
-    def set(self, key, value): #vers 1
+    def set(self, key, value): #vers 2
         if key in self.DEFAULTS:
             self._data[key] = value
+            self._save_timer.start(800)
 
 
 class MapSettingsDialog(QDialog):
@@ -7912,6 +7966,17 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "living in their streams instead.")
         ld_form.addRow(load_streams_chk)
 
+        preload_img_chk = QCheckBox("Preload IMG archives on DAT load")
+        preload_img_chk.setChecked(self.map_settings.get('preload_img_on_dat_load'))
+        preload_img_chk.setToolTip(
+            "When loading a game's main .dat file (gta3.dat/gta_vc.dat/\n"
+            "gta.dat), sequentially read through every IMG archive it\n"
+            "references once, letting the OS cache them in RAM ahead\n"
+            "of time. Trades a longer upfront wait for faster per-IPL\n"
+            "model/texture loading afterward - off by default since\n"
+            "it's not always a net win.")
+        ld_form.addRow(preload_img_chk)
+
         verbose_loading_chk = QCheckBox("Show Full Loading Models (Debug)")
         verbose_loading_chk.setChecked(self.map_settings.get('show_verbose_loading_dialog'))
         verbose_loading_chk.setToolTip(
@@ -8046,6 +8111,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             # ... attributes, since that's what IPL Controls and the
             # rest of the app actually read these settings from.
             self.map_settings.set('load_text_plus_binary_ipl_set', load_streams_chk.isChecked())
+            self.map_settings.set('preload_img_on_dat_load', preload_img_chk.isChecked())
             self.map_settings.set('show_verbose_loading_dialog',   verbose_loading_chk.isChecked())
             self.map_settings.set('texture_downscale_enabled',   downscale_chk.isChecked())
             self.map_settings.set('texture_downscale_threshold', downscale_threshold_spin.value())
@@ -19823,6 +19889,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._model_cache = model_cache
         model_cache.index_img_files(loader.get_img_paths())
 
+        if self.map_settings.get('preload_img_on_dat_load'):
+            self._preload_img_archives_to_os_cache(loader.get_img_paths())
+
         # Standalone .col indexing (Aug 14 2026, for the IPL Controls
         # collision render options) - per Keith: "Shows 1 col file; in
         # SA it should be reading them from the gta3.img... In VC,
@@ -23554,6 +23623,58 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if hasattr(self, '_status_bar'):
             self._status_bar.setVisible(on)
 
+
+    def _preload_img_archives_to_os_cache(self, img_paths): #vers 1
+        """Sequentially read through every given IMG archive once,
+        discarding the bytes - the only purpose is letting the OS
+        cache the file in RAM ahead of time, so later per-model reads
+        during actual IPL loading hit cache instead of disk (Aug 16
+        2026, per Keith: "thinking about the long pause between,
+        dialog loading ipl, names, and a long pause, its accessing
+        the gta3.img file... plus a new option to preload the
+        gta3.img file, when clicking in dat_browser... this might
+        speed things up"). Optional (Settings > Loading > "Preload
+        IMG archives on DAT load", off by default) since it trades a
+        longer upfront wait for faster per-IPL loading afterward, not
+        a universal win.
+
+        Explicit per-archive status messages ("Preloading gta3.img
+        (128.4 MB)... 45%") rather than a generic "Loading..." - per
+        Keith's own framing of the problem: "any feedback besides a
+        long pause helps". Reads in 8 MB chunks with a status update
+        + processEvents() every chunk, matching the responsiveness
+        pattern already used elsewhere in this loading pipeline. Never
+        raises - a single unreadable/missing archive is skipped and
+        logged, not treated as fatal (loading can still proceed and
+        read that archive normally later, just without the head
+        start)."""
+        CHUNK = 8 * 1024 * 1024
+        for img_path in img_paths:
+            try:
+                size = os.path.getsize(img_path)
+            except OSError:
+                continue
+            if size <= 0:
+                continue
+            name = os.path.basename(img_path)
+            size_mb = size / (1024 * 1024)
+            try:
+                with open(img_path, 'rb') as f:
+                    read_so_far = 0
+                    while True:
+                        chunk = f.read(CHUNK)
+                        if not chunk:
+                            break
+                        read_so_far += len(chunk)
+                        pct = int(100 * read_so_far / size)
+                        self._set_status(
+                            f"Preloading {name} ({size_mb:.1f} MB)... {pct}%")
+                        QApplication.processEvents()
+            except OSError as e:
+                self._set_status(f"Preloading {name} failed: {e}")
+                QApplication.processEvents()
+                continue
+        self._set_status("Ready")
 
     def _preload_world_assets(self, loader, model_cache, instances=None, title=None): #vers 2
         """Eagerly load+parse (and cache) geometry and textures for

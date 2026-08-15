@@ -4128,3 +4128,55 @@ conclusively found despite extensive isolated testing.
   `ast.parse` clean on both files; confirmed no other code anywhere
   in the project still references the old `_path_groups`/
   `set_path_groups` names.
+
+- **Aug 16, 2026 (cont'd)** — Fixed settings not surviving to the
+  next session, per Keith's screenshot of the Loading tab: "the
+  settings function for showing debug and TXD size. saves those
+  options, so the next session remembers them." Found the real,
+  systemic cause auditing every `MapSettings.set()` call site (~18 of
+  them): at least two were confirmed genuinely broken - the Render
+  Settings dialog's path-line-colour picker, and `set_menu_
+  orientation`'s menu_style/show_menubar - both called `.set()` but
+  never followed up with `.save()`, so those specific choices were
+  silently lost on next launch even though they worked correctly
+  within the current session. Rather than patch each found instance
+  (which only fixes the ones caught this time, not the next one
+  someone adds), `MapSettings` now debounces and auto-saves inside
+  `set()` itself - made a `QObject` purely to host a `QTimer`
+  (`setSingleShot`, restarted on every `.set()` call so rapid-fire
+  changes coalesce into one write ~800ms after the last change,
+  rather than one write per call - checked first: `sectionResized`
+  fires continuously during a live column-drag, not just on release,
+  so an unconditional immediate save on every `.set()` would have
+  been a real stutter risk). `save()` still exists as the explicit
+  public API every existing call site already uses (now redundant
+  but harmless - forces an immediate write, bypassing the debounce).
+
+  Also added the new option Keith asked for alongside this: Settings
+  > Loading > "Preload IMG archives on DAT load" (off by default) -
+  `_preload_img_archives_to_os_cache`, triggered right after IMG
+  indexing in `_apply_loaded_world` when loading a game's main .dat
+  file (gta3.dat/gta_vc.dat/gta.dat). Sequentially reads through every
+  referenced IMG archive once in 8MB chunks, discarding the bytes -
+  the only purpose is letting the OS cache the file in RAM ahead of
+  time, so later per-model reads during actual IPL loading hit cache
+  instead of disk. Doubles as the status-bar feedback Keith separately
+  asked for ("any feedback besides a long pause helps") - explicit
+  per-archive messages ("Preloading gta3.img (128.4 MB)... 45%")
+  rather than a silent gap. Never fatal - an unreadable/missing
+  archive is skipped and logged, loading proceeds regardless.
+
+  Verified: debounce/coalescing logic smoke-tested against a mock
+  replicating real Qt `QTimer` start/restart semantics (rapid-fire
+  calls produce exactly one write with the final value, not one per
+  call; explicit `.save()` still writes immediately; a fresh instance
+  correctly loads persisted values; the exact original bug pattern -
+  `.set()` with no `.save()` at all - now persists correctly too).
+  Chunked preload progress logic verified against a real 20MB+ temp
+  file (correct byte-exact total, correct percentage sequence,
+  graceful OSError handling for a missing file). `ast.parse` clean;
+  confirmed via AST no duplicate class/method definitions introduced.
+  PyQt6 unavailable in this sandbox, so nothing here has run inside a
+  real Qt event loop - worth confirming on Keith's end that the
+  debounced save timer and the preload's processEvents() calls behave
+  as expected in the actual running app.
