@@ -592,3 +592,39 @@ QTableWidget/QDockWidget in the app and wiring each one's relevant
 signal (splitterMoved, sectionResized where not already done,
 dockLocationChanged, etc.) through to MapSettings, plus restoring
 each on startup. Not started.
+
+## Floating dialog windows: pin/stay-on-top option (noted Aug 16 2026)
+
+Per Keith: "option tick on top of floating dialog windows to stay on
+top" - a checkbox/toggle on floating dialogs (Item Editor Dialog,
+Path Group Editor, etc.) to keep them above the main window rather
+than getting buried when clicking back into the 3D view. Not started.
+
+## Path format conversion between GTA3/VC/SA (noted Aug 16 2026)
+
+Per Keith, describing another user's request: "When looking at path
+files for GTA 3, vc or SA, have the ability to convert between them.
+With GTA 3 path files, have the ability to copy and save as
+paths.ipl; this means scanning all the GTA IDE files for the path
+data." Depends on GTA III's IDE-embedded path groups (now parsed,
+see CHANGELOG) actually being resolved to real world-space
+coordinates first - each group's XRel/YRel/ZRel are relative to
+wherever that group's own model_id is actually PLACED via an INST
+line, so converting to VC's absolute-coordinate paths.ipl format
+means: for every loaded IPL, find every instance whose model_id
+matches an IDEPathGroup, apply that instance's own position+rotation
+transform to each relative node position, and write the result out
+in VC's PathGroup/PathNode text format. Not started - needs the
+instance-transform resolution step built first (also needed for
+correctly rendering GTA III paths in the viewport at all, since
+right now the parsed IDEPathGroup data has no rendering path of its
+own yet either).
+
+## Deferred: other path-adjacent files (noted Aug 16 2026, per Keith:
+
+"there are also other path files, i put them in last, those can be
+added later, add todo") - flight.dat, flight2.dat, flight3.dat (SA
+aircraft flight paths?), spath0.dat (a numbered SA sub-path file? -
+naming suggests spath1.dat/spath2.dat/etc likely also exist).
+Uploaded but not yet inspected/parsed - deliberately lower priority
+per Keith's own framing. Not started.

@@ -193,6 +193,62 @@ class PathGroup: #vers 1
 
 
 @dataclass
+class IDEPathNode: #vers 1
+    """One sub-node within a GTA III IDE-embedded path group (Aug 16
+    2026, per Keith: "gta3 game files need special treatment; the
+    IPL path data is stored within the .ide map files" and his real
+    uploaded comse.ide/comSE.ipl sample). Nine fields per Project
+    Cerbera's own "PATH (IDE Section)" documentation, confirmed
+    field-for-field against that real file: NodeType, NextNode,
+    IsCrossRoad, XRel, YRel, ZRel, Median, LeftLanes, RightLanes -
+    genuinely different from VC/SA's own path node shape, not just a
+    shorter version of it (no separate Flag1-3, an added IsCrossRoad
+    flag VC doesn't have).
+
+    x_rel/y_rel/z_rel are relative to wherever the *placed instance*
+    of this group's own model actually sits in the world (see
+    IDEPathGroup's own docstring) - unlike VC/SA path nodes, which
+    already carry absolute world coordinates directly. No confirmed
+    scale-division factor for these (unlike SA's documented /8 or
+    VC's confirmed /16) - Keith's real sample values are already
+    plausible small building-relative offsets (tens to low hundreds
+    of units), so stored as read with no scaling applied; revisit if
+    real placed-instance rendering later shows otherwise."""
+    node_type:    int
+    next_id:      int
+    is_crossroad: int
+    x_rel:        float
+    y_rel:        float
+    z_rel:        float
+    median:       float = 0.0
+    left:         int   = 0
+    right:        int   = 0
+
+
+@dataclass
+class IDEPathGroup: #vers 1
+    """One GTA III IDE-embedded path group - bound to a specific
+    object definition rather than living freestanding in an IPL, per
+    Project Cerbera: "GTA III uses an IDE-related paths system, which
+    binds paths to certain objects." group_type is "ped" or "car"
+    (confirmed both appear in Keith's real comse.ide); model_id/
+    model_name identify which OBJS entry this group belongs to - a
+    group only becomes a real, world-space path once that model_id is
+    actually placed somewhere via a normal INST line in a matching
+    .ipl (the same model can be placed multiple times, each placement
+    getting its own copy of this same relative path, transformed by
+    that instance's own position/rotation - not resolved to world
+    space here, that's a separate step once instance data is
+    available too)."""
+    group_type:  str
+    model_id:    int
+    model_name:  str
+    nodes:       List[IDEPathNode] = field(default_factory=list)
+    source_ide:  str = ""
+    line_no:     int = 0
+
+
+@dataclass
 class GrgeEntry: #vers 1
     """One SA "grge" section entry - a garage (Aug 1 2026, per Keith's
     real example data: "2502.31, -1699.36, 12.4323, 2508.61, -1699.36,
@@ -416,10 +472,18 @@ class IDEParser: #vers 2
     def __init__(self, game: str = GTAGame.GTA3):
         self.game    = game
         self.objects: List[IDEObject] = []
+        # GTA III's own IDE-embedded path groups (Aug 16 2026, per
+        # Keith: "gta3 game files need special treatment; the IPL
+        # path data is stored within the .ide map files" and his real
+        # comse.ide/comSE.ipl sample) - a completely separate list
+        # from self.objects, since a path group isn't an IDEObject at
+        # all (no txd/section/extra fields that make sense for it) -
+        # see IDEPathGroup's own docstring for the full format story.
+        self.ide_paths: List[IDEPathGroup] = []
         self.stats   = ParseStats()
         self._valid  = GTAGame.IDE_SECTIONS.get(game, GTAGame.IDE_SECTIONS[GTAGame.GTA3])
 
-    def parse(self, ide_path: str) -> bool: #vers 2
+    def parse(self, ide_path: str) -> bool: #vers 3
         if not os.path.isfile(ide_path):
             self.stats.errors.append(f"IDE not found: {ide_path}")
             return False
@@ -432,6 +496,7 @@ class IDEParser: #vers 2
 
         self.stats.total_lines = len(lines)
         current_section        = None
+        current_ide_path_group = None   # Aug 16 2026 - "path" section state
         basename               = os.path.basename(ide_path)
 
         for lineno, raw in enumerate(lines, 1):
@@ -441,11 +506,31 @@ class IDEParser: #vers 2
             low = line.lower()
             if low == "end":
                 current_section = None
+                current_ide_path_group = None
                 continue
             if low in self._valid or (re.match(r'^[a-z0-9_]{2,8}$', low) and "," not in line):
                 current_section = low
+                current_ide_path_group = None
                 continue
             if current_section is None:
+                continue
+
+            if current_section == "path":
+                # A group header ("ped, 1440, scraperkb3_nit") is
+                # never indented in the raw line; a node line always
+                # is (same tab-indentation convention IPLParser's own
+                # VC path handling uses, and the same reason it must
+                # be checked against `raw`, not `line` - .strip()
+                # above already erased any leading whitespace by this
+                # point).
+                if raw[:1] not in ('\t', ' '):
+                    current_ide_path_group = self._parse_ide_path_group_header(line, basename, lineno)
+                    if current_ide_path_group is not None:
+                        self.ide_paths.append(current_ide_path_group)
+                elif current_ide_path_group is not None:
+                    node = self._parse_ide_path_node(line, lineno)
+                    if node is not None:
+                        current_ide_path_group.nodes.append(node)
                 continue
 
             obj = self._parse_line(current_section, line, basename, lineno)
@@ -454,6 +539,40 @@ class IDEParser: #vers 2
                 self.stats.objects_loaded += 1
 
         return True
+
+    def _parse_ide_path_group_header(self, line: str, source: str, lineno: int): #vers 1
+        """Parse a GTA III IDE path group's header line - "GroupType,
+        Id, ModelName" per Project Cerbera's own "PATH (IDE Section)"
+        doc, confirmed against Keith's real comse.ide (both "ped" and
+        "car" group types appear there)."""
+        try:
+            p = [x.strip() for x in line.split(",")]
+            if len(p) < 3:
+                return None
+            return IDEPathGroup(
+                group_type=p[0].lower(), model_id=int(p[1]), model_name=p[2],
+                source_ide=source, line_no=lineno)
+        except (ValueError, IndexError):
+            return None
+
+    def _parse_ide_path_node(self, line: str, lineno: int): #vers 1
+        """Parse one GTA III IDE path node line - "NodeType, NextNode,
+        IsCrossRoad, XRel, YRel, ZRel, Median, LeftLanes, RightLanes"
+        (9 fields), per Project Cerbera's own doc, confirmed against
+        Keith's real comse.ide field-for-field."""
+        try:
+            p = [x.strip() for x in line.split(",")]
+            if len(p) < 6:
+                return None
+            return IDEPathNode(
+                node_type=int(float(p[0])), next_id=int(float(p[1])),
+                is_crossroad=int(float(p[2])),
+                x_rel=float(p[3]), y_rel=float(p[4]), z_rel=float(p[5]),
+                median=float(p[6]) if len(p) > 6 else 0.0,
+                left=int(float(p[7])) if len(p) > 7 else 0,
+                right=int(float(p[8])) if len(p) > 8 else 0)
+        except (ValueError, IndexError):
+            return None
 
     def _parse_line(self, section: str, line: str, source: str, lineno: int) -> Optional[IDEObject]: #vers 2
         try:
@@ -1269,6 +1388,12 @@ class GTAWorldLoader: #vers 3
         self.timed_objects: Dict[int, List[IDEObject]] = {}
         self.instances:  List[IPLInstance]    = []
         self.paths:      List[PathGroup]      = []
+        # GTA III's own IDE-embedded path groups (Aug 16 2026) - kept
+        # separate from self.paths (VC/SA's own IPL-section path
+        # format) since they're a genuinely different shape (relative
+        # to a placed instance, not standalone world coordinates) -
+        # see IDEPathGroup's own docstring for the full story.
+        self.ide_paths:  List[IDEPathGroup]   = []
         self.grges:      List[GrgeEntry]       = []
         self.enexes:     List[EnexEntry]       = []
         self.zones:      List[Dict]           = []
@@ -1466,6 +1591,7 @@ class GTAWorldLoader: #vers 3
             if obj.section == "tobj":
                 self.timed_objects.setdefault(obj.model_id, []).append(obj)
             self.objects[obj.model_id] = obj   # later overrides earlier
+        self.ide_paths += parser.ide_paths
         self.stats.errors   += parser.stats.errors
         self.stats.warnings += parser.stats.warnings
 
@@ -1531,10 +1657,11 @@ class GTAWorldLoader: #vers 3
         self.stats.errors   += parser.stats.errors
         self.stats.warnings += parser.stats.warnings
 
-    def _reset(self): #vers 4
+    def _reset(self): #vers 5
         self.objects.clear(); self.effects_2dfx.clear()
         self.timed_objects.clear(); self.instances.clear()
         self.zones.clear();   self.culls.clear()
+        self.ide_paths.clear()
         self.available_ipls.clear(); self.loaded_ipls.clear()
         self.load_log.clear(); self.stats = ParseStats()
 

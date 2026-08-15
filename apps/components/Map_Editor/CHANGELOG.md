@@ -4341,3 +4341,59 @@ conclusively found despite extensive isolated testing.
   table-widget behaviour has run for real - worth confirming on
   Keith's end that the cell-widget table renders and edits correctly
   in the live app.
+
+- **Aug 16, 2026 (cont'd)** — Added GTA III's own IDE-embedded path
+  parsing, per Keith: "gta3 game files need special treatment; the
+  IPL path data is stored within the .ide map files" (real sample:
+  comse.ide/comSE.ipl). Confirmed via Project Cerbera's own "PATH
+  (IDE Section)" documentation and cross-checked field-for-field
+  against the real file - this was previously completely unparsed:
+  "path" was already a listed valid IDE_SECTIONS keyword, but
+  `IDEParser._parse_line` had no branch for it at all, so every path
+  line in every GTA III .ide file silently produced nothing.
+
+  Real format, genuinely different from VC/SA's own path node shape
+  (not just a shorter version of it): a group header line is
+  `GroupType, Id, ModelName` ("ped, 1440, scraperkb3_nit" or "car,
+  ...", both confirmed present in the real file) - paths are bound to
+  a specific OBJS model definition, not freestanding, per Cerbera:
+  "GTA III uses an IDE-related paths system, which binds paths to
+  certain objects." Node lines (9 fields, tab-indented, same raw-
+  whitespace distinguishing convention as VC's own path parsing) are
+  `NodeType, NextNode, IsCrossRoad, XRel, YRel, ZRel, Median,
+  LeftLanes, RightLanes` - XRel/YRel/ZRel are relative to wherever
+  that model_id is actually PLACED via an INST line, not absolute
+  world coordinates like VC/SA.
+
+  New `IDEPathNode`/`IDEPathGroup` dataclasses (apps/methods/
+  gta_dat_parser.py, near the existing VC-style PathNode/PathGroup -
+  kept as separate classes, not reused, given the real shape
+  difference). `IDEParser` gained a `current_ide_path_group` state
+  machine (mirroring `IPLParser`'s own `current_path_group` handling
+  for VC paths) plus `_parse_ide_path_group_header`/`_parse_ide_path_
+  node`, and a new `self.ide_paths` list. Wired into `GTAWorldLoader`
+  (`self.ide_paths` init + cleared in `_reset()` + accumulated in
+  `_load_ide`, the one real consumption site - the other 4 `IDEParser`
+  instantiations in the file are all `IDEDatabase`'s lightweight
+  standalone model lookups, which don't need path data).
+
+  Verified end-to-end against the real uploaded comse.ide: 14 groups
+  parsed (3 ped + 11 car, matching both GroupTypes appearing in real
+  data), first group's header and all 12 of its nodes checked field-
+  for-field including a Null (type 0) node's exact values, model_id/
+  model_name confirmed on a `car` group too. Also confirmed zero
+  regression in ordinary objs/tobj/2dfx parsing (136/9/151 entries -
+  exactly matching the file's own section boundaries) - the new path-
+  section branch sits alongside the existing per-line dispatch
+  without disturbing it. `ast.parse` clean.
+
+  NOT yet done, logged to TODO.md: resolving these relative node
+  positions to actual world-space coordinates (needs finding each
+  group's matching INST placement(s) and applying that instance's own
+  position+rotation transform - multiple placements of the same
+  model each get their own copy of the path) - so GTA III paths don't
+  render in the viewport yet, only parse correctly. Also logged: the
+  path-format conversion/export-to-paths.ipl feature (depends on the
+  same world-space resolution step), a floating-dialog "stay on top"
+  toggle, and the deliberately-deferred flight.dat/flight2.dat/
+  flight3.dat/spath0.dat files.
