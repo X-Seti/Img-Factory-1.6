@@ -3970,6 +3970,193 @@ class _CornerOverlay(QWidget):
         painter.end()
 
 
+class _PathGroupEditDialog(QDialog): #vers 1
+    """Path Group Editor - add/move/delete/connect nodes within one
+    path group (Aug 16 2026, per Keith: "we need to add edit
+    functions for connecting, moving, adding, or deleting nodes, a
+    dialog like the object editor"). Edits the real, live PathGroup/
+    PathNode objects in place (they're the same objects loader.paths
+    and the 3D viewport's path overlay already read from), so Apply
+    immediately refreshes both the viewport and the IPL File Display
+    table. Doesn't write back to the actual .ipl file on disk -
+    matching the Item Editor Dialog's own honest-stub Save button,
+    and the project's broader "write-back infrastructure not built
+    yet" TODO - only the in-memory PathGroup this session renders
+    from changes, not the file itself.
+
+    Always exactly 12 node rows, per the format's own rule ("there
+    will always be twelve nodes in each group" - Project Cerbera's
+    doc, already verified against real data earlier this session):
+    - "Adding" a node = turning a currently-Null (Type=0) row into a
+      real one by giving it a Type and X/Y/Z.
+    - "Deleting" = the reverse - the Delete button resets a row back
+      to Null with zeroed fields, same shape a real null-node line
+      has in the file.
+    - "Connecting" = the Next column - set it to the row index (0-11)
+      within THIS group that node should link to, per the real
+      format (see _refresh_path_visualization's own docstring for
+      the full Type/Next semantics this mirrors exactly).
+    - "Moving" = editing X/Y/Z directly.
+    Header A/B (the group's own two-field identifier line) are also
+    editable, in their own row above the node table."""
+
+    def __init__(self, group, workshop, parent=None): #vers 1
+        super().__init__(parent)
+        self.group = group
+        self.workshop = workshop
+        self.setWindowTitle(
+            f"Path Group Editor — Group ({group.header_a}, {group.header_b}) — {group.source_ipl}")
+        self.setMinimumSize(820, 440)
+        lay = QVBoxLayout(self)
+
+        lay.addWidget(QLabel(
+            "Type: 0=Null (ignored/padding), 1=External (links to another "
+            "group by exact position match), 2=Internal (links within this "
+            "group). Next: which row (0-11) in THIS group this node's own "
+            "link points to, or -1 for none."))
+
+        header_row = QHBoxLayout()
+        header_row.addWidget(QLabel("Group Header (A, B):"))
+        self._header_a_spin = QSpinBox()
+        self._header_a_spin.setRange(-1, 999999)
+        self._header_a_spin.setValue(group.header_a)
+        self._header_b_spin = QSpinBox()
+        self._header_b_spin.setRange(-1, 999999)
+        self._header_b_spin.setValue(group.header_b)
+        header_row.addWidget(self._header_a_spin)
+        header_row.addWidget(self._header_b_spin)
+        header_row.addStretch()
+        lay.addLayout(header_row)
+
+        headers = ["Slot", "Type", "Next", "X", "Y", "Z", "Median",
+                   "Left", "Right", "Flag1", "Flag2", "Flag3"]
+        self._table = QTableWidget(12, len(headers))
+        self._table.setHorizontalHeaderLabels(headers)
+        self._table.verticalHeader().setVisible(False)
+
+        nodes = list(group.nodes)[:12]
+        from apps.methods.gta_dat_parser import PathNode
+        while len(nodes) < 12:
+            nodes.append(PathNode(node_type=0, next_id=-1, x=0.0, y=0.0, z=0.0,
+                                  median=0.0, left=0, right=0,
+                                  flag1=0, flag2=0, flag3=0))
+
+        self._type_combos  = []
+        self._next_spins   = []
+        self._pos_spins    = []   # [(x,y,z,median), ...] per row
+        self._left_spins   = []
+        self._right_spins  = []
+        self._flag_spins   = []   # [(f1,f2,f3), ...] per row
+
+        for i, node in enumerate(nodes):
+            slot_item = QTableWidgetItem(str(i))
+            slot_item.setFlags(slot_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            self._table.setItem(i, 0, slot_item)
+
+            type_combo = QComboBox()
+            type_combo.addItems(["0 – Null", "1 – External", "2 – Internal"])
+            type_combo.setCurrentIndex(min(max(node.node_type, 0), 2))
+            self._table.setCellWidget(i, 1, type_combo)
+            self._type_combos.append(type_combo)
+
+            next_spin = QSpinBox()
+            next_spin.setRange(-1, 11)
+            next_spin.setValue(node.next_id)
+            next_spin.setToolTip("Row index (0-11) this node links to, or -1 for none")
+            self._table.setCellWidget(i, 2, next_spin)
+            self._next_spins.append(next_spin)
+
+            pos_row = []
+            for col, val in ((3, node.x), (4, node.y), (5, node.z), (6, node.median)):
+                spin = QDoubleSpinBox()
+                spin.setRange(-999999.0, 999999.0)
+                spin.setDecimals(2)
+                spin.setValue(val)
+                self._table.setCellWidget(i, col, spin)
+                pos_row.append(spin)
+            self._pos_spins.append(pos_row)
+
+            left_spin = QSpinBox(); left_spin.setRange(0, 255); left_spin.setValue(node.left)
+            self._table.setCellWidget(i, 7, left_spin)
+            self._left_spins.append(left_spin)
+            right_spin = QSpinBox(); right_spin.setRange(0, 255); right_spin.setValue(node.right)
+            self._table.setCellWidget(i, 8, right_spin)
+            self._right_spins.append(right_spin)
+
+            flag_row = []
+            for col, val in ((9, node.flag1), (10, node.flag2), (11, node.flag3)):
+                spin = QSpinBox()
+                spin.setRange(0, 255)
+                spin.setValue(val)
+                self._table.setCellWidget(i, col, spin)
+                flag_row.append(spin)
+            self._flag_spins.append(flag_row)
+
+        self._table.resizeColumnsToContents()
+        lay.addWidget(self._table)
+
+        btn_row = QHBoxLayout()
+        delete_btn = QPushButton("Delete Selected Row (set to Null)")
+        delete_btn.setToolTip(
+            "Resets the currently selected row back to a Null node -\n"
+            "Type 0, Next -1, all position/flag fields zeroed, matching\n"
+            "a real null-padding line in the file.")
+        delete_btn.clicked.connect(self._delete_selected_row)
+        btn_row.addWidget(delete_btn)
+        btn_row.addStretch()
+        apply_btn = QPushButton("Apply")
+        apply_btn.setToolTip(
+            "Updates this path group in memory - the 3D viewport and\n"
+            "IPL File Display table refresh immediately. Does not write\n"
+            "to the .ipl file on disk (not implemented yet).")
+        apply_btn.clicked.connect(self._apply)
+        btn_row.addWidget(apply_btn)
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(self.close)
+        btn_row.addWidget(close_btn)
+        lay.addLayout(btn_row)
+
+    def _delete_selected_row(self): #vers 1
+        row = self._table.currentRow()
+        if row < 0:
+            return
+        self._type_combos[row].setCurrentIndex(0)
+        self._next_spins[row].setValue(-1)
+        for spin in self._pos_spins[row]:
+            spin.setValue(0.0)
+        self._left_spins[row].setValue(0)
+        self._right_spins[row].setValue(0)
+        for spin in self._flag_spins[row]:
+            spin.setValue(0)
+
+    def _apply(self): #vers 1
+        from apps.methods.gta_dat_parser import PathNode
+        self.group.header_a = self._header_a_spin.value()
+        self.group.header_b = self._header_b_spin.value()
+        new_nodes = []
+        for i in range(12):
+            x, y, z, median = (s.value() for s in self._pos_spins[i])
+            new_nodes.append(PathNode(
+                node_type=self._type_combos[i].currentIndex(),
+                next_id=self._next_spins[i].value(),
+                x=x, y=y, z=z, median=median,
+                left=self._left_spins[i].value(),
+                right=self._right_spins[i].value(),
+                flag1=self._flag_spins[i][0].value(),
+                flag2=self._flag_spins[i][1].value(),
+                flag3=self._flag_spins[i][2].value(),
+            ))
+        self.group.nodes = new_nodes
+        if hasattr(self.workshop, '_refresh_path_visualization'):
+            self.workshop._refresh_path_visualization()
+        if hasattr(self.workshop, '_refresh_ipl_inst_file_panel'):
+            self.workshop._refresh_ipl_inst_file_panel()
+        if hasattr(self.workshop, '_set_status'):
+            self.workshop._set_status(
+                f"Path group ({self.group.header_a}, {self.group.header_b}) "
+                f"updated in memory - not yet saved to file")
+
+
 class _InstanceEditPanel(QWidget):
     """Non-modal, persistent object info/edit panel - shown in the top-
     left corner (per Keith's request for a 'pop-out dialog or embedded
@@ -22539,6 +22726,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         show_textures_action = menu.addAction("Show Textures")
         menu.addSeparator()
         save_as_action = menu.addAction("Save IPL Data As...")
+        # Path group editing (Aug 16 2026, per Keith: "we need to add
+        # edit functions for connecting, moving, adding, or deleting
+        # nodes, a dialog like the object editor") - only offered
+        # when the currently active tab is actually PATH, since a row
+        # here only maps to a real PathGroup in that mode.
+        edit_path_group_action = None
+        if getattr(self, '_ipl_data_type', 'inst') == 'path':
+            menu.addSeparator()
+            edit_path_group_action = menu.addAction("Edit Path Group...")
         chosen = menu.exec(table.viewport().mapToGlobal(pos))
         if chosen is None:
             return
@@ -22577,6 +22773,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             inst = self._find_instance_for_ipl_inst_file_row(row)
             if inst is not None:
                 self._show_textures_for_instance(inst)
+        elif edit_path_group_action is not None and chosen is edit_path_group_action:
+            self._edit_path_group_for_row(row)
 
     def _find_instance_for_ipl_inst_file_row(self, row): #vers 1
         """Look up the real IPLInstance for a row in the IPL Inst File
@@ -22602,6 +22800,56 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if inst.model_name == target_model:
                 return inst
         return None
+
+    def _find_path_group_for_line(self, display_name, line_no): #vers 1
+        """Find the real, live PathGroup a clicked IPL File Display
+        row belongs to, given the currently-selected file's name and
+        that row's own source-file line number (Aug 16 2026, for the
+        path-group editor's entry point). A path group's node rows
+        don't carry their own group reference - only line_no, per-line
+        - so this finds it the same way the file itself does: the
+        group whose header line is the closest one at-or-before this
+        row's line, among groups from this same file. Matches a
+        group-header row against itself correctly too (its own
+        line_no equals its PathGroup.line_no exactly)."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            return None
+        candidates = [g for g in getattr(loader, 'paths', [])
+                     if g.source_ipl == display_name and g.line_no <= line_no]
+        if not candidates:
+            return None
+        return max(candidates, key=lambda g: g.line_no)
+
+    def _edit_path_group_for_row(self, row): #vers 1
+        """Open the Path Group Editor for whichever path group the
+        given IPL File Display row belongs to (Aug 16 2026, per
+        Keith: "we need to add edit functions for connecting, moving,
+        adding, or deleting nodes, a dialog like the object editor").
+        Resolves the currently-selected file from the IPL Sections
+        table (same lookup Save IPL Data As already uses) and the
+        row's own stored line_no (set on every row's column-0 item
+        during _refresh_ipl_inst_file_panel) to find the real,
+        editable PathGroup object via _find_path_group_for_line."""
+        table = getattr(self, '_ipl_inst_file_table', None)
+        if table is None:
+            return
+        line_item = table.item(row, 0)
+        line_no = line_item.data(Qt.ItemDataRole.UserRole) if line_item is not None else None
+        if line_no is None:
+            return
+        sections_table = getattr(self, '_ipl_sections_table', None)
+        sec_row = sections_table.currentRow() if sections_table is not None else -1
+        sec_item = sections_table.item(sec_row, 0) if sec_row >= 0 else None
+        display_name = sec_item.data(Qt.ItemDataRole.UserRole) if sec_item is not None else None
+        if not display_name:
+            return
+        group = self._find_path_group_for_line(display_name, line_no)
+        if group is None:
+            self._set_status("Couldn't find a path group for this row")
+            return
+        dlg = _PathGroupEditDialog(group, self, parent=self)
+        dlg.exec()
 
     def _show_textures_for_instance(self, inst): #vers 2
         """Load one instance's model's textures into the Textures

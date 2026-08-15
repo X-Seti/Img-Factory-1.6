@@ -4287,3 +4287,57 @@ conclusively found despite extensive isolated testing.
   confirming on Keith's end that key capture, the timer-driven
   continuous pan/zoom, and settings persistence all feel right in
   the real app.
+
+- **Aug 16, 2026 (cont'd)** — Added the Path Group Editor, per Keith:
+  "we need to add edit functions for connecting, moving, adding, or
+  deleting nodes, a dialog like the object editor." New "Edit Path
+  Group..." right-click action in the IPL File Display table, shown
+  only when the PATH tab is active.
+
+  New `_PathGroupEditDialog` (QDialog): a 12-row table (Slot/Type/
+  Next/X/Y/Z/Median/Left/Right/Flag1-3), one row per node slot -
+  always exactly 12, per the format's own rule (already verified
+  against Project Cerbera's real worked example earlier this
+  session). Type is a dropdown (0 Null/1 External/2 Internal); Next
+  is a 0-11 (or -1) spinbox - this IS the "connecting" mechanism,
+  matching the real format exactly (a node's own Next field, not a
+  separate visual connect-tool). "Adding" a node = turning a Null row
+  into a real one by setting its Type/X/Y/Z. "Deleting" = the Delete
+  Selected Row button, resets a row back to Null with every field
+  zeroed - the same shape a real null-padding line has on disk.
+  "Moving" = editing X/Y/Z directly. Group header (the two-field A/B
+  identifier line) editable in its own row above the table.
+
+  Apply edits the real, live `PathGroup`/`PathNode` objects in
+  `loader.paths` in place (the same objects the viewport's path
+  overlay and the IPL File Display table already read from) and
+  immediately calls `_refresh_path_visualization()` +
+  `_refresh_ipl_inst_file_panel()`, so a change is visible right
+  away. Does NOT write back to the .ipl file on disk - matching the
+  Item Editor Dialog's own honest-stub Save button and the project's
+  broader "write-back infrastructure not built yet" TODO; the status
+  bar message after Apply says so explicitly ("...updated in memory -
+  not yet saved to file") rather than implying more than it does.
+
+  New `_find_path_group_for_line(display_name, line_no)` resolves a
+  clicked table row to its real PathGroup: a node row doesn't carry
+  its own group reference, only its own source-file line number, so
+  this finds the group whose header line is the closest one at-or-
+  before that row's line, scoped to the currently-selected file only
+  (two different files' groups never cross-match even at the same
+  line number). Handles a group-header row matching itself correctly,
+  and a row past the last known group still resolving to that last
+  group (its own trailing node rows).
+
+  Verified against real `PathNode`/`PathGroup` classes (not mocks):
+  node-list padding to exactly 12 slots for a group with fewer parsed
+  nodes, the full rebuild-all-12-from-UI-values Apply logic, and the
+  Delete-to-Null reset shape - all correct. `_find_path_group_for_line`
+  smoke-tested against a realistic 3-group-plus-different-file
+  scenario (mid-group node rows, exact header-row match, past-last-
+  group fallback, cross-file isolation) - all correct. `ast.parse`
+  clean; confirmed via AST no duplicate class/method definitions.
+  PyQt6 unavailable in this sandbox, so none of the actual dialog/
+  table-widget behaviour has run for real - worth confirming on
+  Keith's end that the cell-widget table renders and edits correctly
+  in the live app.
