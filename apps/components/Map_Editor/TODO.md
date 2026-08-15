@@ -572,3 +572,23 @@ alpha_multiplier, used for semi_solid - a low-alpha "ghosted" variant
 would reuse the same mechanism). Needs Keith to confirm which of
 Normal/LOD should be the ghosted one (or if he means something else
 entirely) before building it.
+
+## Remember all UI state (noted Aug 16 2026)
+
+Per Keith: "Every UI change, splitter position, and cell size should
+be remembered." A broader, systemic version of persistence gaps
+already found/fixed piecemeal this session (settings not saving -
+MapSettings.set() now auto-saves, debounced; individual column-width
+persistence already exists for Object Browser and IPL Sections
+specifically via ipl_sections_column_widths/object_browser_column_
+widths). Not yet done as a general policy: splitter positions
+(_outer_mw's dock splitters, any QSplitter in this UI), other tables'
+column widths beyond the two already covered, dock geometry/
+floating-vs-docked state, tab order, collapsed/expanded state of the
+collapsible dock headers, and anything else that currently resets to
+a hardcoded default every launch instead of remembering what the user
+last had. Substantial scope - needs auditing every QSplitter/
+QTableWidget/QDockWidget in the app and wiring each one's relevant
+signal (splitterMoved, sectionResized where not already done,
+dockLocationChanged, etc.) through to MapSettings, plus restoring
+each on startup. Not started.

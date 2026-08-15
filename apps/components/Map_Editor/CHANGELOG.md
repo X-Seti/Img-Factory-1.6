@@ -4180,3 +4180,39 @@ conclusively found despite extensive isolated testing.
   real Qt event loop - worth confirming on Keith's end that the
   debounced save timer and the preload's processEvents() calls behave
   as expected in the actual running app.
+
+- **Aug 16, 2026 (cont'd)** — Added the second option Keith asked
+  for: DAT Browser's right-click menu on a main .dat file now has
+  "Load with Map Workshop, preload IMG(s) file…" alongside the
+  existing "Load with Map Workshop…" - per Keith: "in Dat Browser,
+  right click dat file, open in map workshop, add another option to
+  open in map workshop, preload img(s) file". Forces the IMG-preload-
+  to-OS-cache behaviour (added earlier this session) for just that
+  one load, independent of - and without changing - the persistent
+  Settings > Loading > "Preload IMG archives on DAT load" checkbox, a
+  quick one-off choice right from the menu instead of needing to
+  visit Settings first.
+
+  New `force_preload_img` parameter threaded through the full call
+  chain: `dat_browser.py`'s new `_load_dat_in_map_workshop_preload_
+  img` -> `imgfactory.py`'s `open_map_workshop_docked` ->
+  `map_workshop.py`'s `open_map_workshop` -> `_load_game_dat_file`,
+  which stores it as `self._force_preload_img_once` right before
+  calling `_apply_loaded_world` - consumed (read then immediately
+  reset to False) there, alongside the existing persistent-setting
+  check, so it only ever applies to the one load that requested it
+  and never silently leaks into a later, unrelated load.
+
+  Also logged a new TODO per Keith: "Every UI change, splitter
+  position, and cell size should be remembered" - a broader, systemic
+  ask beyond this session's settings-persistence and column-width
+  fixes (splitter positions, dock geometry, tab order, collapsed-
+  header state, and any other table's column widths not already
+  covered). Substantial scope, not started.
+
+  `ast.parse` clean on all three changed files (`map_workshop.py`,
+  `imgfactory.py`, `dat_browser.py`); confirmed via AST no duplicate
+  definitions introduced in any of them; smoke-tested the consume-
+  once flag logic directly (a forced load preloads that one time,
+  the flag resets immediately after, a subsequent normal load does
+  NOT inherit the forced behaviour).

@@ -19765,13 +19765,23 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         menu.exec(self.tb_load_btn.mapToGlobal(
             self.tb_load_btn.rect().bottomLeft()))
 
-    def _load_game_dat_file(self, preset_dat_path: str = None): #vers 1
+    def _load_game_dat_file(self, preset_dat_path: str = None, force_preload_img: bool = False): #vers 2
         """Load a GTA game's world data starting from one specific .dat
         file, rather than a whole game folder - per Keith's request
         that the standalone flow ask for the actual gta_xx.dat/
         default.dat file path directly. Also the entry point for the
         DAT Browser tree's 'Load with Map Workshop' right-click on a
         specific .dat entry, via preset_dat_path.
+
+        force_preload_img=True (Aug 16 2026, per Keith: "in Dat
+        Browser, right click dat file, open in map workshop, add
+        another option to open in map workshop, preload img(s)
+        file") - a one-off override for this specific load only, from
+        the DAT Browser's second context-menu action, independent of
+        the persistent Settings > Loading > "Preload IMG archives on
+        DAT load" checkbox (which stays exactly as the user left it -
+        this doesn't change or save that setting, just forces the
+        same behaviour for this one load).
 
         The game is detected purely from the .dat file's own basename
         (detect_game_from_dat_filename) rather than scanning a folder -
@@ -19808,6 +19818,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._game_root = game_root
         if ok:
             self._add_recent_dat_file(dat_path)
+        self._force_preload_img_once = force_preload_img
         self._apply_loaded_world(loader, game, ok, "Load Game DAT File")
 
     def _add_recent_dat_file(self, dat_path): #vers 1
@@ -19889,7 +19900,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._model_cache = model_cache
         model_cache.index_img_files(loader.get_img_paths())
 
-        if self.map_settings.get('preload_img_on_dat_load'):
+        # force_preload_img_once (Aug 16 2026) - a per-load override
+        # from the DAT Browser's "Open in Map Workshop, preload
+        # img(s) file" context-menu action, independent of the
+        # persistent Loading-tab setting. Consumed (reset to False)
+        # here so it only ever applies to the load that requested it,
+        # not silently sticking for every load after.
+        force_once = getattr(self, '_force_preload_img_once', False)
+        self._force_preload_img_once = False
+        if self.map_settings.get('preload_img_on_dat_load') or force_once:
             self._preload_img_archives_to_os_cache(loader.get_img_paths())
 
         # Standalone .col indexing (Aug 14 2026, for the IPL Controls
@@ -26309,20 +26328,24 @@ def open_model_workshop(main_window, dff_path=None,
             main_window.log_message(f"Model Workshop error: {e}")
         return None
 
-def open_map_workshop(main_window, game_root=None, dat_path=None): #vers 1
+def open_map_workshop(main_window, game_root=None, dat_path=None, force_preload_img=False): #vers 2
     """Open Map Workshop and load a GTA world - either a whole game
     folder (game_root) or one specific .dat file (dat_path), matching
     the signature apps/components/Img_Factory/imgfactory.py's
     open_map_workshop_docked() actually calls this with (game_root
     from Dat Browser's currently-loaded game root; dat_path from
-    right-clicking a .dat entry in the Dat Browser tree). An earlier
-    version of this function was just `open_map_workshop =
-    open_model_workshop` (a plain alias) - fixed the ImportError, but
-    open_model_workshop's own signature (dff_path/original_dff_name,
-    routing only .dff/.col/.img) doesn't accept game_root/dat_path at
-    all, so the call itself still failed with "got an unexpected
-    keyword argument 'game_root'". This is a real, separate
-    implementation instead."""
+    right-clicking a .dat entry in the Dat Browser tree).
+    force_preload_img (Aug 16 2026) - passed through to dat_path's
+    _load_game_dat_file call only; a per-load override for the
+    Loading tab's persistent "Preload IMG archives on DAT load"
+    setting, from the DAT Browser's second "...preload img(s) file"
+    context-menu action. An earlier version of this function was just
+    `open_map_workshop = open_model_workshop` (a plain alias) - fixed
+    the ImportError, but open_model_workshop's own signature
+    (dff_path/original_dff_name, routing only .dff/.col/.img) doesn't
+    accept game_root/dat_path at all, so the call itself still failed
+    with "got an unexpected keyword argument 'game_root'". This is a
+    real, separate implementation instead."""
     try:
         if main_window and hasattr(main_window, 'main_tab_widget'):
             from PyQt6.QtWidgets import QWidget, QVBoxLayout
@@ -26353,7 +26376,7 @@ def open_map_workshop(main_window, game_root=None, dat_path=None): #vers 1
         if game_root:
             workshop._load_game_folder(game_root)
         elif dat_path:
-            workshop._load_game_dat_file(dat_path)
+            workshop._load_game_dat_file(dat_path, force_preload_img=force_preload_img)
 
         return workshop
     except Exception as e:

@@ -1666,15 +1666,20 @@ class IMGFactory(QMainWindow):
         except Exception as e:
             self.log_message(f"Model Workshop error: {str(e)}")
 
-    def open_map_workshop_docked(self, game_root=None, dat_path=None): #vers 2
+    def open_map_workshop_docked(self, game_root=None, dat_path=None, force_preload_img=False): #vers 3
         """Open Map Workshop in its own tab with icon - game_root, if
         given, is auto-loaded (e.g. passed in from Dat Browser's
         currently-loaded game root). dat_path, if given instead, loads
         from that specific .dat file directly (e.g. right-clicking a
-        .dat entry in the DAT Browser tree)."""
+        .dat entry in the DAT Browser tree). force_preload_img (Aug 16
+        2026, per Keith: "add another option to open in map workshop,
+        preload img(s) file") - passed through to dat_path's load
+        only, a one-off override for the Loading tab's persistent
+        preload setting."""
         try:
             from apps.components.Map_Editor.map_workshop import open_map_workshop
-            open_map_workshop(self, game_root=game_root, dat_path=dat_path)
+            open_map_workshop(self, game_root=game_root, dat_path=dat_path,
+                             force_preload_img=force_preload_img)
         except Exception as e:
             self.log_message(f"Map Workshop error: {str(e)}")
 

@@ -2368,6 +2368,26 @@ class DATBrowserWidget(QWidget): #vers 3
             if hasattr(self, 'main_window') and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Map Workshop error: {e}")
 
+    def _load_dat_in_map_workshop_preload_img(self, dat_path: str): #vers 1
+        """Same as _load_dat_in_map_workshop, but forces Map
+        Workshop's "preload IMG archives to OS cache" behaviour for
+        just this one load (Aug 16 2026, per Keith: "in Dat Browser,
+        right click dat file, open in map workshop, add another
+        option to open in map workshop, preload img(s) file") -
+        independent of, and doesn't change, the persistent Loading-tab
+        setting; a quick one-off choice right from this menu instead
+        of needing to go into Settings first."""
+        try:
+            mw = self.main_window
+            if not mw: return
+            if hasattr(mw, 'open_map_workshop_docked'):
+                mw.open_map_workshop_docked(dat_path=dat_path, force_preload_img=True)
+            elif hasattr(mw, 'log_message'):
+                mw.log_message("Map Workshop not available")
+        except Exception as e:
+            if hasattr(self, 'main_window') and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Map Workshop error: {e}")
+
     def _open_img_in_model_workshop(self, abs_path: str): #vers 1
         """Open IMG file in Model Workshop — workshop browses entries internally."""
         try:
@@ -3652,11 +3672,21 @@ class DATBrowserWidget(QWidget): #vers 3
             dat_abs_path = getattr(self.loader.main_dat, "dat_path", "") if self.loader else ""
             mw = self.main_window
             load_map_act = menu.addAction("🗺  Load with Map Workshop…")
+            # Second option (Aug 16 2026, per Keith: "add another
+            # option to open in map workshop, preload img(s) file") -
+            # forces Map Workshop's IMG-preload-to-OS-cache behaviour
+            # for just this one load, without needing to visit
+            # Settings first to turn the persistent option on.
+            load_map_preload_act = menu.addAction(
+                "🗺  Load with Map Workshop, preload IMG(s) file…")
             if dat_abs_path and os.path.isfile(dat_abs_path) and mw:
                 load_map_act.triggered.connect(
                     lambda _=False, p=dat_abs_path: self._load_dat_in_map_workshop(p))
+                load_map_preload_act.triggered.connect(
+                    lambda _=False, p=dat_abs_path: self._load_dat_in_map_workshop_preload_img(p))
             else:
                 load_map_act.setEnabled(False)
+                load_map_preload_act.setEnabled(False)
             menu.addSeparator()
 
         #    IMG / CDIMAGE specific options                                
