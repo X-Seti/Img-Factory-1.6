@@ -4026,3 +4026,49 @@ conclusively found despite extensive isolated testing.
   scenario - confirmed the nested call is skipped, the outer call
   completes normally with consistent state, and the guard flag
   correctly resets afterward. `ast.parse` clean.
+
+- **Aug 16, 2026 (cont'd)** — Two real, concrete perf fixes, per
+  Keith comparing Map Workshop against MooMapper (an old GTA mapping
+  tool he found again): "the speed of this program is impressive; it
+  handles data way faster than map_workshop."
+
+  1. `_populate_object_browser` (fires on every incremental IPL load,
+     not just the initial full-world load) rebuilt a `Counter` over
+     *every* instance loaded so far, every single time - cumulative
+     O(n^2) work across a session as more parts load, each load a
+     little slower than the last purely from re-scanning an ever-
+     growing list, unrelated to how much that specific load actually
+     needed. Now incremental: `self._object_instance_counts`/
+     `_object_instance_count_up_to` track how far the Counter has
+     already been built, a call only processes the new slice since
+     last time. Self-corrects (rebuilds fully) if `loader.instances`
+     is ever shorter than what's already counted; `_apply_loaded_world`
+     also explicitly resets both for a genuine new-world load.
+
+  2. `_rebuild_ipl_sections_rows` (fires on every binary-stream load,
+     potentially several times per single incremental IPL load if it
+     has multiple streams) re-opened and re-read the first 64 bytes
+     of *every* known IPL file on every single call, to redetect a
+     text/binary format that can't have changed since the last
+     rebuild. Now cached per ipl_name (`self._ipl_format_cache`) -
+     only genuinely-resolved results are cached (an empty/not-yet-
+     known result is deliberately never cached, so a file that
+     becomes resolvable once more of the world has loaded still gets
+     a fresh chance on the next rebuild rather than being stuck
+     unresolved forever). Also reset in `_apply_loaded_world`.
+
+  Also softened the path-line rendering per Keith's MooMapper
+  comparison ("notice how it blends in with the map"): thinner lines
+  (2.0px -> 1.2px), smaller node markers (6px -> 3.5px), and alpha
+  blending (0.75) so paths read as part of the scene rather than a
+  bold opaque overlay. Left depth-testing disabled (paths still
+  always draw on top, not genuinely occluded by geometry in front of
+  them) - a bigger, separate change with real risk on hilly terrain
+  if path Z values don't track ground height closely everywhere,
+  worth trying only once this smaller change is confirmed to help.
+
+  Both perf fixes smoke-tested in isolation against realistic
+  multi-load scenarios (incremental accumulation, in-place mutation
+  vs full rebuild, explicit new-world reset, stale-cache safety net
+  for the Counter; cached-vs-unresolved-retry behavior for the format
+  cache) - all correct. `ast.parse` clean on both files.

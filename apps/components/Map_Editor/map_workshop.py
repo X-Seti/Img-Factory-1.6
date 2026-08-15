@@ -18748,16 +18748,45 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._object_browser_dock = dock
         return dock
 
-    def _populate_object_browser(self, loader): #vers 1
+    def _populate_object_browser(self, loader): #vers 2
         """Fill the Object Browser from a completed load - instance
         counts per model (for Most Used) computed once here, not
-        recomputed on every filter change."""
+        recomputed on every filter change.
+
+        Counter built incrementally across calls (Aug 16 2026, perf
+        fix per Keith comparing against MooMapper's snappier feel:
+        "the speed of this program is impressive; it handles data way
+        faster than map_workshop") - self._object_instance_counts/
+        _object_instance_count_up_to track how many of loader.
+        instances have already been counted, so a call only Counter-
+        updates the NEW slice since last time, not the whole list.
+        This method fires on every incremental IPL load (_ensure_ipl_
+        loaded, "Load Selected"), so a session loading many IPLs one
+        at a time was previously re-scanning the whole, ever-growing
+        instance list from scratch on every single load - cumulative
+        O(n^2) work across a session, each load a little slower than
+        the last purely from this, unrelated to how much work that
+        specific load actually needed. Self-corrects (recomputes
+        fully) if loader.instances is ever shorter than what's
+        already been counted - a genuinely new/reset loader, not just
+        more instances added - as a safety net; _apply_loaded_world
+        also explicitly resets both for a true new-world load."""
         model = getattr(self, '_object_browser_model', None)
         if model is None:
             return
         model.set_model_cache(getattr(self, '_model_cache', None))
         from collections import Counter
-        counts = Counter(inst.model_id for inst in loader.instances)
+        counts = getattr(self, '_object_instance_counts', None)
+        up_to = getattr(self, '_object_instance_count_up_to', 0)
+        total = len(loader.instances)
+        if counts is None or up_to > total:
+            counts = Counter(inst.model_id for inst in loader.instances)
+            up_to = total
+        elif up_to < total:
+            counts.update(inst.model_id for inst in loader.instances[up_to:])
+            up_to = total
+        self._object_instance_counts = counts
+        self._object_instance_count_up_to = up_to
         favourites = self.map_settings.get('favourite_objects') or []
         model.set_objects(list(loader.objects.values()), counts, favourites)
 
@@ -19824,6 +19853,21 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # entirely), so any previously converted vertex/triangle data
         # cached in _refresh_world_view is no longer valid.
         self._geometry_conversion_cache = {}
+        # Same reasoning, for _populate_object_browser's incremental
+        # instance-count cache (Aug 16 2026 perf fix) - a genuine new
+        # world means loader.instances starts over from empty too, so
+        # the "already counted up to N" marker must reset alongside it
+        # rather than relying solely on the length-mismatch safety net
+        # in _populate_object_browser itself.
+        from collections import Counter as _Counter
+        self._object_instance_counts = _Counter()
+        self._object_instance_count_up_to = 0
+        # Same reasoning, for _rebuild_ipl_sections_rows' per-file
+        # format-detection cache (Aug 16 2026 perf fix) - a genuine
+        # new world means every IPL's format needs redetecting fresh
+        # (could be a different game/folder entirely), not reused
+        # from whatever the previous world's files were.
+        self._ipl_format_cache = {}
         # Per Keith: model/texture scanning should happen when a
         # specific IPL is actually loaded, not for the whole world at
         # startup - with lazy_ipl_loading enabled above, loader.
@@ -20419,7 +20463,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 f"Found {found_count} binary IPL(s) in indexed IMG archives "
                 f"({associated_count} matched to a parent text IPL, {standalone_count} standalone)")
 
-    def _rebuild_ipl_sections_rows(self): #vers 2
+    def _rebuild_ipl_sections_rows(self): #vers 3
         """(Re)build every row from self._ipl_display_order - shared by
         the initial populate and by _move_ipl_section, so reordering
         doesn't duplicate the row-construction logic.
@@ -20433,12 +20477,24 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         inst section so far - cull/zone/other sections in a binary IPL
         aren't read yet, but this at least surfaces which files are
         binary rather than leaving them looking like silently-empty
-        text IPLs)."""
+        text IPLs).
+
+        Per-file format detection now cached (Aug 16 2026, perf fix
+        per Keith comparing against MooMapper's snappier feel) - this
+        method is called on every binary-stream load (_load_binary_
+        ipl_stream), potentially several times per single incremental
+        IPL load if it has multiple streams, and every single call
+        was re-opening and re-reading the first 64 bytes of every
+        OTHER already-known text IPL too, to redetect a format that
+        can't have changed since the last rebuild. self._ipl_format_
+        cache stores (fmt_text, fmt_tooltip) per ipl_name once
+        computed, reused on every later rebuild."""
         table = self._ipl_sections_table
         table.setRowCount(len(self._ipl_display_order))
         hidden = getattr(self, '_hidden_ipls', set())
         loader = getattr(self, '_world_loader', None)
         from apps.methods.gta_dat_parser import detect_ipl_format
+        format_cache = self._ipl_format_cache = getattr(self, '_ipl_format_cache', {})
         for row, ipl_name in enumerate(self._ipl_display_order):
             is_hidden = ipl_name in hidden
             eye_item = QTableWidgetItem()
@@ -20451,31 +20507,44 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._style_ipl_name_item(name_item, is_hidden)
             table.setItem(row, 1, name_item)
 
-            fmt_text = ""
-            fmt_tooltip = ""
-            if ipl_name in getattr(self, '_binary_ipl_names', set()) or \
-                    ipl_name in getattr(self, '_loaded_binary_ipls', set()):
-                fmt_text = os.path.splitext(ipl_name)[0]
-                fmt_tooltip = ipl_name
-            elif ipl_name in getattr(self, '_ipl_names_with_binary_stream', {}):
-                stream_entries = sorted(self._ipl_names_with_binary_stream[ipl_name], key=lambda t: t[1])
-                stream_names = [name for _archive, name in stream_entries]
-                first_name = os.path.splitext(stream_names[0])[0]
-                remaining = stream_names[1:]
-                fmt_text = f"{first_name} +{len(remaining)}" if remaining else first_name
-                if remaining:
-                    fmt_tooltip = "\n".join(remaining)
+            if ipl_name in format_cache:
+                fmt_text, fmt_tooltip = format_cache[ipl_name]
             else:
-                stem = getattr(self, '_ipl_display_to_stem', {}).get(ipl_name)
-                entry = loader.available_ipls.get(stem) if (loader and stem) else None
-                if entry is not None and entry.exists:
-                    try:
-                        with open(entry.abs_path, 'rb') as f:
-                            head = f.read(64)
-                        if detect_ipl_format(head) == 'binary':
-                            fmt_text = "Binary IPL"
-                    except Exception:
-                        pass
+                fmt_text = ""
+                fmt_tooltip = ""
+                if ipl_name in getattr(self, '_binary_ipl_names', set()) or \
+                        ipl_name in getattr(self, '_loaded_binary_ipls', set()):
+                    fmt_text = os.path.splitext(ipl_name)[0]
+                    fmt_tooltip = ipl_name
+                elif ipl_name in getattr(self, '_ipl_names_with_binary_stream', {}):
+                    stream_entries = sorted(self._ipl_names_with_binary_stream[ipl_name], key=lambda t: t[1])
+                    stream_names = [name for _archive, name in stream_entries]
+                    first_name = os.path.splitext(stream_names[0])[0]
+                    remaining = stream_names[1:]
+                    fmt_text = f"{first_name} +{len(remaining)}" if remaining else first_name
+                    if remaining:
+                        fmt_tooltip = "\n".join(remaining)
+                else:
+                    stem = getattr(self, '_ipl_display_to_stem', {}).get(ipl_name)
+                    entry = loader.available_ipls.get(stem) if (loader and stem) else None
+                    if entry is not None and entry.exists:
+                        try:
+                            with open(entry.abs_path, 'rb') as f:
+                                head = f.read(64)
+                            if detect_ipl_format(head) == 'binary':
+                                fmt_text = "Binary IPL"
+                        except Exception:
+                            pass
+                # Only cache once genuinely resolved (Aug 16 2026) -
+                # a row can start out with no format info at all (not
+                # yet known as binary/streamed, entry not found/
+                # readable yet) and become resolvable on a LATER
+                # rebuild once more of the world has loaded; caching
+                # an empty "not yet known" result forever would freeze
+                # it that way even after the real answer becomes
+                # available.
+                if fmt_text:
+                    format_cache[ipl_name] = (fmt_text, fmt_tooltip)
             fmt_item = QTableWidgetItem(fmt_text)
             fmt_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             if fmt_tooltip:

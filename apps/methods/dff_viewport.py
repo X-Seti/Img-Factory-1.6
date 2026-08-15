@@ -688,7 +688,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         if self._show_grid: self._draw_grid()
         self._draw_axes()
 
-    def _draw_paths(self): #vers 1
+    def _draw_paths(self): #vers 2
         """Draw every loaded path group as a connected line strip
         (red by default, per Keith: "I was expecting red lines and
         nodes") plus a small marker at each node - line colour
@@ -703,13 +703,29 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         connections, only its own internal sequence. Good enough to
         see where paths run and get a real red/nodes visual per
         Keith's ask; full graph-aware rendering can follow later if
-        needed once this is confirmed useful."""
+        needed once this is confirmed useful.
+
+        Thinner/smaller/semi-transparent (Aug 16 2026, per Keith,
+        comparing against MooMapper's own path overlay: "notice how
+        it blends in with the map") - was a flat 2px opaque line with
+        6px opaque dots, closer to a bold HUD overlay than something
+        that reads as part of the world. Depth test is still left
+        disabled here, same as before, not changed alongside this -
+        genuinely occluding paths behind buildings/terrain (so they
+        sit "in" the world rather than always drawing on top) is a
+        bigger, riskier change on real data (path Z values might not
+        track terrain height closely enough everywhere to avoid
+        making paths patchily invisible instead of just less bold) -
+        worth trying separately once this smaller change is
+        confirmed, not bundled into the same one."""
         if not OPENGL_AVAILABLE or not self._path_groups: return
         glDisable(GL_LIGHTING)
         glDisable(GL_DEPTH_TEST)   # paths read clearer drawn on top, same as 2DFX lights
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         r, g, b = self._path_line_color
-        glLineWidth(2.0)
-        glColor3f(r, g, b)
+        glLineWidth(1.2)
+        glColor4f(r, g, b, 0.75)
         for group in self._path_groups:
             if len(group) < 2:
                 continue
@@ -718,13 +734,14 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 glVertex3f(x, y, z)
             glEnd()
         nr, ng, nb = self._path_node_color
-        glColor3f(nr, ng, nb)
-        glPointSize(6.0)
+        glColor4f(nr, ng, nb, 0.75)
+        glPointSize(3.5)
         glBegin(GL_POINTS)
         for group in self._path_groups:
             for x, y, z in group:
                 glVertex3f(x, y, z)
         glEnd()
+        glDisable(GL_BLEND)
         glEnable(GL_DEPTH_TEST)
         glEnable(GL_LIGHTING)
 
