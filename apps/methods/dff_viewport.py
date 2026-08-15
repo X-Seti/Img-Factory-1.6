@@ -100,6 +100,49 @@ from PyQt6.QtCore import Qt, QPoint
 from PyQt6.QtWidgets import QWidget, QLabel
 from PyQt6.QtGui import QColor
 
+# Default viewport camera keybindings (Aug 16 2026, per Keith: "the
+# arrow keys dont pan or move the view left, right, up or down; the
+# arrow keys rotate instead. We need to be able to operate the tools
+# with keys, zoom in and out; it could be the numpad + -. A new tab
+# is needed in map workshop settings to define keys.") - arrow keys
+# now pan (previously rotated - see the class docstring on
+# keyPressEvent for that history), numpad 4/6/8/2 keep rotating
+# (unchanged), numpad +/- zoom. Each binding is {'key': int(Qt.Key),
+# 'numpad': bool} - numpad flag matters for digit/+/- keys (Qt
+# doesn't otherwise distinguish a numpad "4" from a top-row "4" by
+# key code alone) but not for the dedicated arrow keys. Overridable
+# per-instance via set_key_bindings() - map_workshop.py's Settings >
+# Keybindings tab persists a user's chosen bindings in MapSettings
+# and injects them the same way other viewport settings (background
+# colour, path line colour, etc.) already get pushed in.
+DEFAULT_KEY_BINDINGS = {
+    'pan_left':          {'key': int(Qt.Key.Key_Left),  'numpad': False},
+    'pan_right':         {'key': int(Qt.Key.Key_Right), 'numpad': False},
+    'pan_up':            {'key': int(Qt.Key.Key_Up),    'numpad': False},
+    'pan_down':          {'key': int(Qt.Key.Key_Down),  'numpad': False},
+    'rotate_yaw_left':   {'key': int(Qt.Key.Key_4),     'numpad': True},
+    'rotate_yaw_right':  {'key': int(Qt.Key.Key_6),     'numpad': True},
+    'rotate_pitch_up':   {'key': int(Qt.Key.Key_8),     'numpad': True},
+    'rotate_pitch_down': {'key': int(Qt.Key.Key_2),     'numpad': True},
+    'zoom_in':           {'key': int(Qt.Key.Key_Plus),  'numpad': True},
+    'zoom_out':          {'key': int(Qt.Key.Key_Minus), 'numpad': True},
+}
+# Human-readable labels for the Settings > Keybindings tab - kept
+# alongside the bindings themselves rather than duplicated there,
+# since both need to agree on exactly which actions exist.
+KEY_BINDING_LABELS = {
+    'pan_left':          "Pan Left",
+    'pan_right':         "Pan Right",
+    'pan_up':            "Pan Up",
+    'pan_down':          "Pan Down",
+    'rotate_yaw_left':   "Rotate Left (Yaw)",
+    'rotate_yaw_right':  "Rotate Right (Yaw)",
+    'rotate_pitch_up':   "Rotate Up (Pitch)",
+    'rotate_pitch_down': "Rotate Down (Pitch)",
+    'zoom_in':           "Zoom In",
+    'zoom_out':          "Zoom Out",
+}
+
 try:
     from PyQt6.QtOpenGLWidgets import QOpenGLWidget
     from PyQt6.QtGui import QSurfaceFormat
@@ -162,6 +205,9 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._pan_x = 0.0
         self._pan_y = 0.0
         self._last_pos = QPoint()
+        # Configurable keyboard camera controls (Aug 16 2026) - see
+        # DEFAULT_KEY_BINDINGS' own comment above for the full story.
+        self._key_bindings = dict(DEFAULT_KEY_BINDINGS)
 
         # Render state
         self._mode          = 'solid'
@@ -1841,18 +1887,14 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             # delta was being interpreted directly as a world-space
             # offset with no yaw compensation at all - "left" only
             # felt consistent from whatever one specific angle the
-            # camera happened to start at. Pre-rotating the screen
-            # delta by -yaw here exactly cancels the scene's own +yaw
-            # rotation once applied, keeping the net pan direction
-            # locked to actual screen-space regardless of viewing
-            # angle.
+            # camera happened to start at. _apply_pan_step (below)
+            # pre-rotates the screen delta by -yaw to exactly cancel
+            # the scene's own +yaw rotation once applied, keeping the
+            # net pan direction locked to actual screen-space
+            # regardless of viewing angle - shared with keyboard
+            # panning (keyPressEvent) so both feel identical.
             scale = self._dist * 0.002 * sens
-            screen_dx = dx * scale
-            screen_dy = -dy * scale
-            rad = math.radians(-self._yaw)
-            cos_a, sin_a = math.cos(rad), math.sin(rad)
-            self._pan_x += screen_dx * cos_a - screen_dy * sin_a
-            self._pan_y += screen_dx * sin_a + screen_dy * cos_a
+            self._apply_pan_step(dx * scale, -dy * scale)
         self._last_pos = event.pos(); self.update()
 
         # LOD test mode (Aug 1 2026, per Keith's crash: "AttributeError:
@@ -1938,89 +1980,127 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 pass
         self.update()
 
-    def keyPressEvent(self, event): #vers 1
-        """Arrow keys and numpad rotate the camera, held keys giving
-        continuous rotation - per Keith: "im thinking about adding
-        keyboard shortcuts, arrow keys, and numpad to rotate, but why
-        stop there, we could use the thumbsticks on a games
-        controller." A reliable alternative to right-click-drag
-        rotation regardless of whatever's causing the reported mouse-
-        button flakiness (middle-click pan and left-click-select both
-        "don't always work", right-click rotate "just fine" - couldn't
-        pin down a definitive code-level cause after reviewing the
-        button-matching logic; this sidesteps needing to for rotation
-        specifically, whatever the actual cause turns out to be).
+    def keyPressEvent(self, event): #vers 2
+        """Configurable camera controls, held keys giving continuous
+        motion - per Keith: originally "arrow keys, and numpad to
+        rotate" (Aug 1 2026), later corrected: "the arrow keys dont
+        pan or move the view left, right, up or down; the arrow keys
+        rotate instead. We need to be able to operate the tools with
+        keys, zoom in and out; it could be the numpad + -" (Aug 16
+        2026). Default bindings now: arrows pan, numpad 4/6/8/2
+        rotate (unchanged from the original request), numpad +/-
+        zoom - see DEFAULT_KEY_BINDINGS. A reliable keyboard
+        alternative to drag-based camera control regardless of
+        whatever's causing the reported mouse-button flakiness
+        (middle-click pan and left-click-select both "don't always
+        work", right-click rotate "just fine").
 
-        Numpad keys detected via KeypadModifier specifically (Qt
-        doesn't otherwise distinguish a numpad "8" from a top-row "8"
-        by key code alone) so numpad and arrows can both be bound to
-        the same rotation without also hijacking normal typing/number
-        entry elsewhere in the app - this handler only ever fires
-        when the 3D viewport itself has keyboard focus, but scoping
-        the numpad detection this precisely still avoids any
-        surprises if that assumption is ever wrong somewhere.
+        Bindings are looked up from self._key_bindings (defaults to
+        DEFAULT_KEY_BINDINGS, overridable via set_key_bindings) rather
+        than hardcoded here, so Settings > Keybindings can rebind any
+        of them. Numpad keys detected via KeypadModifier specifically
+        (Qt doesn't otherwise distinguish a numpad "4" from a top-row
+        "4" by key code alone) - only bindings with 'numpad': True
+        require it, so arrow keys (numpad: False) still work
+        regardless of NumLock state.
 
-        Continuous rotation while a key is held (not one fixed step
-        per press) via a repeating QTimer, matching the smooth feel of
-        drag-based rotation rather than a discrete jump."""
+        Continuous motion while a key is held (not one fixed step per
+        press) via a repeating QTimer, matching the smooth feel of
+        drag-based rotation/pan rather than a discrete jump."""
         key = event.key()
         is_numpad = bool(event.modifiers() & Qt.KeyboardModifier.KeypadModifier)
-        rotate_keys = {
-            Qt.Key.Key_Left:  ('yaw', -1),
-            Qt.Key.Key_Right: ('yaw', 1),
-            Qt.Key.Key_Up:    ('pitch', -1),
-            Qt.Key.Key_Down:  ('pitch', 1),
-        }
-        if is_numpad:
-            rotate_keys.update({
-                Qt.Key.Key_4: ('yaw', -1),
-                Qt.Key.Key_6: ('yaw', 1),
-                Qt.Key.Key_8: ('pitch', -1),
-                Qt.Key.Key_2: ('pitch', 1),
-            })
-        if key in rotate_keys:
-            held = getattr(self, '_rotate_keys_held', None)
-            if held is None:
-                held = self._rotate_keys_held = {}
-            held[key] = rotate_keys[key]
-            self._ensure_rotate_key_timer()
-            return
+        bindings = getattr(self, '_key_bindings', None) or DEFAULT_KEY_BINDINGS
+        for action, spec in bindings.items():
+            if spec['key'] == key and spec['numpad'] == is_numpad:
+                held = getattr(self, '_camera_keys_held', None)
+                if held is None:
+                    held = self._camera_keys_held = {}
+                held[key] = action
+                self._ensure_camera_key_timer()
+                return
         super().keyPressEvent(event)
 
     def keyReleaseEvent(self, event): #vers 1
-        held = getattr(self, '_rotate_keys_held', None)
+        held = getattr(self, '_camera_keys_held', None)
         if held is not None and event.key() in held and not event.isAutoRepeat():
             del held[event.key()]
         super().keyReleaseEvent(event)
 
-    def _ensure_rotate_key_timer(self): #vers 1
-        """Start the repeating rotation timer if it isn't already
-        running - stops itself automatically once no rotate keys are
-        held anymore, rather than running an idle timer permanently
-        for every viewport instance regardless of whether it's ever
-        used."""
-        timer = getattr(self, '_rotate_key_timer', None)
+    def set_key_bindings(self, bindings: dict): #vers 1
+        """Replace the viewport's camera keybindings (Aug 16 2026,
+        per Keith's Settings > Keybindings request) - expects the
+        same {action: {'key': int, 'numpad': bool}} shape as
+        DEFAULT_KEY_BINDINGS; any action missing from the given dict
+        keeps its default binding rather than becoming unbound, so a
+        partial/older saved-settings dict doesn't silently disable
+        actions added after it was saved."""
+        merged = dict(DEFAULT_KEY_BINDINGS)
+        merged.update(bindings or {})
+        self._key_bindings = merged
+
+    def _apply_pan_step(self, screen_dx, screen_dy): #vers 1
+        """Apply one yaw-compensated pan step, in already-scaled
+        screen-space units (positive screen_dx = pan right, positive
+        screen_dy = pan up) - shared by mouseMoveEvent's middle-drag
+        pan and keyPressEvent's keyboard pan (Aug 16 2026 refactor;
+        see mouseMoveEvent's own comment for the full yaw-compensation
+        reasoning) so both feel identical rather than risking drift
+        between two separately-maintained copies of the same math."""
+        rad = math.radians(-self._yaw)
+        cos_a, sin_a = math.cos(rad), math.sin(rad)
+        self._pan_x += screen_dx * cos_a - screen_dy * sin_a
+        self._pan_y += screen_dx * sin_a + screen_dy * cos_a
+
+    def _ensure_camera_key_timer(self): #vers 1
+        """Start the repeating camera-control timer if it isn't
+        already running - stops itself automatically once no camera
+        keys are held anymore, rather than running an idle timer
+        permanently for every viewport instance regardless of
+        whether it's ever used."""
+        timer = getattr(self, '_camera_key_timer', None)
         if timer is None:
             from PyQt6.QtCore import QTimer
-            timer = self._rotate_key_timer = QTimer(self)
-            timer.timeout.connect(self._on_rotate_key_tick)
+            timer = self._camera_key_timer = QTimer(self)
+            timer.timeout.connect(self._on_camera_key_tick)
         if not timer.isActive():
             timer.start(16)   # ~60fps
 
-    def _on_rotate_key_tick(self): #vers 1
-        held = getattr(self, '_rotate_keys_held', None)
+    def _on_camera_key_tick(self): #vers 1
+        """One tick of continuous keyboard camera control - dispatches
+        each currently-held action to the matching pan/rotate/zoom
+        delta. Several actions can be held at once (e.g. panning
+        diagonally by holding two arrow keys), each applied
+        independently per tick."""
+        held = getattr(self, '_camera_keys_held', None)
         if not held:
-            timer = getattr(self, '_rotate_key_timer', None)
+            timer = getattr(self, '_camera_key_timer', None)
             if timer is not None:
                 timer.stop()
             return
         sens = getattr(self, '_mouse_sensitivity', 1.0)
-        step = 2.0 * sens
-        for axis, direction in held.values():
-            if axis == 'yaw' and not self._view_locked:
-                self._yaw += step * direction
-            elif axis == 'pitch' and not self._view_locked:
-                self._pitch += step * direction
+        rotate_step = 2.0 * sens
+        pan_step = self._dist * 0.016 * sens
+        for action in held.values():
+            if action == 'rotate_yaw_left' and not self._view_locked:
+                self._yaw -= rotate_step
+            elif action == 'rotate_yaw_right' and not self._view_locked:
+                self._yaw += rotate_step
+            elif action == 'rotate_pitch_up' and not self._view_locked:
+                self._pitch -= rotate_step
+            elif action == 'rotate_pitch_down' and not self._view_locked:
+                self._pitch += rotate_step
+            elif action == 'pan_left':
+                self._apply_pan_step(-pan_step, 0)
+            elif action == 'pan_right':
+                self._apply_pan_step(pan_step, 0)
+            elif action == 'pan_up':
+                self._apply_pan_step(0, pan_step)
+            elif action == 'pan_down':
+                self._apply_pan_step(0, -pan_step)
+            elif action == 'zoom_in':
+                self._dist = max(0.1, self._dist * 0.985)
+            elif action == 'zoom_out':
+                self._dist = min(50000.0, self._dist * 1.015)
         self.update()
 
     # - Model Workshop compatibility methods

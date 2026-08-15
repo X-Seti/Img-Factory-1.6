@@ -4216,3 +4216,74 @@ conclusively found despite extensive isolated testing.
   once flag logic directly (a forced load preloads that one time,
   the flag resets immediately after, a subsequent normal load does
   NOT inherit the forced behaviour).
+
+- **Aug 16, 2026 (cont'd)** — Reworked keyboard camera controls per
+  Keith: "the arrow keys dont pan or move the view left, right, up or
+  down; the arrow keys rotate instead. We need to be able to operate
+  the tools with keys, zoom in and out; it could be the numpad + -.
+  A new tab is needed in map workshop settings to define keys."
+
+  Arrow keys now pan (previously rotated - an Aug 1 2026 addition per
+  Keith's own earlier request, now corrected); numpad 4/6/8/2 keep
+  rotating (unchanged); numpad +/- zoom (new). All camera-key
+  handling in `DFFViewport` rewritten from a hardcoded rotate-only
+  dict to a configurable, action-based system:
+  `DEFAULT_KEY_BINDINGS`/`KEY_BINDING_LABELS` (module-level), each
+  binding `{'key': int(Qt.Key), 'numpad': bool}`; `self._key_bindings`
+  (defaults to `DEFAULT_KEY_BINDINGS`, overridable via new
+  `set_key_bindings()`, which merges partial overrides over the
+  defaults so an older/partial saved dict never silently unbinds an
+  action added later). `keyPressEvent`/`keyReleaseEvent` reworked to
+  look up the pressed key+numpad-state against the configured
+  bindings generically. One shared repeating timer/tick handler
+  (`_ensure_camera_key_timer`/`_on_camera_key_tick`, replacing the
+  old rotate-only ones) dispatches every currently-held action to its
+  pan/rotate/zoom delta each frame - several can be held at once
+  (e.g. two arrow keys for diagonal pan). Extracted the yaw-
+  compensated pan math (previously only in `mouseMoveEvent`'s middle-
+  drag handler) into a shared `_apply_pan_step()` so keyboard pan and
+  mouse-drag pan are guaranteed identical, not two separately-
+  maintained copies of the same formula.
+
+  New Settings > Keybindings tab (`_build_workshop_settings_tabs`) -
+  one row per action, each a click-to-rebind `_KeyCaptureButton`
+  (grabs keyboard on click, captures the next key+numpad-state, Esc
+  cancels) plus a per-row Reset-to-default button. Labels/actions
+  read from `DEFAULT_KEY_BINDINGS`/`KEY_BINDING_LABELS` directly
+  (imported, not duplicated) so this tab can never list an action the
+  viewport doesn't actually know about. `apply_settings` reads every
+  button's live `.binding()`, stores only the ones that genuinely
+  differ from default in `MapSettings` (`viewport_key_bindings`, new
+  DEFAULTS entry) - an empty/partial saved dict always means "use the
+  built-in defaults for anything not explicitly listed", never
+  "unbind everything else". Saved bindings are restored once at
+  `preview_widget` construction (same pattern already used for
+  texture-downscale settings) so a previous session's customisation
+  takes effect immediately on next launch, not only after re-opening
+  Settings and clicking Apply.
+
+  Caught and removed a piece of genuinely dead code in my own first
+  draft before shipping: a `pending_bindings` dict was being written
+  by `key_captured`/reset but never actually read anywhere -
+  `apply_settings` already reads each button's live state directly
+  via `.binding()`, making the extra dict pure unread overhead.
+  Removed rather than left in as confusing unused state.
+
+  Verified: binding-match logic (arrows pan regardless of numpad
+  state; numpad 4 rotates only WITH the numpad modifier, never a
+  top-row "4"; numpad +/- zoom by default, not regular +/-) and
+  `set_key_bindings`' merge-over-defaults behaviour smoke-tested
+  directly. Reset-button closures verified NOT to suffer the classic
+  late-binding bug (each row's Reset correctly restores THAT row's
+  own default, confirmed by simulating a multi-action rebind-then-
+  reset sequence). Delta computation (only genuinely-changed actions
+  get saved) verified against a realistic multi-action scenario.
+  `ast.parse` clean; confirmed via AST no duplicate class/method
+  definitions introduced. Confirmed no stale references remain
+  anywhere in the project to the old `_rotate_keys_held`/
+  `_rotate_key_timer`/`_on_rotate_key_tick`/`_ensure_rotate_key_timer`
+  names this replaced. PyQt6 unavailable in this sandbox, so none of
+  the actual widget/event-loop behaviour has run for real - worth
+  confirming on Keith's end that key capture, the timer-driven
+  continuous pan/zoom, and settings persistence all feel right in
+  the real app.

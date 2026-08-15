@@ -3039,6 +3039,67 @@ class RibbonManagerDialog(QDialog): #vers 1
         self.reject()
 
 
+def _key_display_name(key: int, is_numpad: bool) -> str: #vers 1
+    """Human-readable name for a Qt.Key int + numpad flag, for the
+    Keybindings tab's capture buttons and any other UI that needs to
+    show a bound key (Aug 16 2026). QKeySequence already knows how to
+    render most key codes sensibly ("Left", "+", "4") - just prefixed
+    with "Numpad " when the numpad flag is set, since QKeySequence
+    has no notion of that distinction itself (same reason keyPressEvent
+    checks KeypadModifier separately from the key code)."""
+    from PyQt6.QtGui import QKeySequence
+    name = QKeySequence(key).toString() or f"Key {key}"
+    return f"Numpad {name}" if is_numpad else name
+
+
+class _KeyCaptureButton(QPushButton):
+    """A button showing a currently-bound key; click it, then press
+    any key to rebind - Aug 16 2026, per Keith: "A new tab is needed
+    in map workshop settings to define keys." Escape cancels an
+    in-progress capture without changing the binding. Emits
+    key_captured(key: int, is_numpad: bool) once a real key is
+    captured - the Keybindings tab connects this per-action to update
+    its own pending-bindings dict, applied for real only when Apply
+    Settings is clicked (matching every other setting in this
+    dialog - nothing here writes to MapSettings directly)."""
+    key_captured = pyqtSignal(int, bool)
+
+    def __init__(self, key: int, is_numpad: bool, parent=None): #vers 1
+        super().__init__(parent)
+        self._key = key
+        self._is_numpad = is_numpad
+        self._capturing = False
+        self._update_text()
+        self.clicked.connect(self._start_capture)
+
+    def _update_text(self): #vers 1
+        self.setText(_key_display_name(self._key, self._is_numpad))
+
+    def _start_capture(self): #vers 1
+        self._capturing = True
+        self.setText("Press a key…")
+        self.grabKeyboard()
+
+    def keyPressEvent(self, event): #vers 1
+        if not self._capturing:
+            super().keyPressEvent(event)
+            return
+        if event.key() == Qt.Key.Key_Escape:
+            self._capturing = False
+            self.releaseKeyboard()
+            self._update_text()
+            return
+        self._key = event.key()
+        self._is_numpad = bool(event.modifiers() & Qt.KeyboardModifier.KeypadModifier)
+        self._capturing = False
+        self.releaseKeyboard()
+        self._update_text()
+        self.key_captured.emit(self._key, self._is_numpad)
+
+    def binding(self) -> dict: #vers 1
+        return {'key': self._key, 'numpad': self._is_numpad}
+
+
 class MapSettings(QObject):
     """
     Lightweight JSON settings for DP5 Workshop.
@@ -3119,6 +3180,17 @@ class MapSettings(QObject):
         # (DFFViewport.set_path_line_color). Red by default, matching
         # what Keith said he was expecting to see.
         'path_line_color': (255, 0, 0),
+        # Viewport camera keybindings (Aug 16 2026, per Keith: "A new
+        # tab is needed in map workshop settings to define keys") -
+        # stored as {action: {'key': int(Qt.Key), 'numpad': bool}},
+        # same shape DFFViewport.DEFAULT_KEY_BINDINGS/set_key_bindings
+        # already use. Empty dict here means "use DFFViewport's own
+        # built-in defaults" (arrows pan, numpad 4/6/8/2 rotate,
+        # numpad +/- zoom) - only actions the user has actually
+        # rebound in Settings > Keybindings get stored, so a future
+        # new default action added to DFFViewport isn't silently
+        # unbound for existing users who never touched this setting.
+        'viewport_key_bindings': {},
         # Load text IPL + its binary stream set together (Aug 1 2026,
         # per Keith: "looking at the ipl's most of them are listed
         # LODs, so where are the normal models? Maybe in the
@@ -8097,6 +8169,62 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         nav_lay.addStretch()
         tabs.addTab(nav_tab, "Navigation")
 
+        # TAB 8: KEYBINDINGS (Aug 16 2026, per Keith: "A new tab is
+        # needed in map workshop settings to define keys") - one row
+        # per camera-control action (DFFViewport.DEFAULT_KEY_BINDINGS/
+        # KEY_BINDING_LABELS - imported here rather than duplicated,
+        # so this tab can never list an action the viewport itself
+        # doesn't actually know about), each with a _KeyCaptureButton
+        # showing the currently-effective binding (the live viewport's
+        # own self._key_bindings if one exists, since that already
+        # reflects any earlier-this-session change plus the saved
+        # settings merged over defaults - falling back to the saved
+        # MapSettings partial-override dict merged over DEFAULT_KEY_
+        # BINDINGS if no live viewport is available yet) and a Reset
+        # button per row. Rebinding here only updates each button's
+        # own internal state (via key_captured/_update_text) until
+        # Apply Settings is clicked - apply_settings reads each
+        # button's live binding() directly, same "nothing commits
+        # until Apply" contract as every other tab in this dialog.
+        from apps.methods.dff_viewport import DEFAULT_KEY_BINDINGS, KEY_BINDING_LABELS
+
+        keys_tab = QWidget()
+        keys_lay = QVBoxLayout(keys_tab)
+        keys_lay.addWidget(QLabel(
+            "Click a key to rebind it, then press the new key.\nEsc cancels."))
+
+        live_bindings = getattr(nav_vp, '_key_bindings', None) if nav_vp else None
+        if live_bindings is None:
+            saved_overrides = self.map_settings.get('viewport_key_bindings') or {}
+            live_bindings = dict(DEFAULT_KEY_BINDINGS)
+            live_bindings.update(saved_overrides)
+
+        key_capture_buttons = {}   # action -> _KeyCaptureButton, apply_settings reads .binding() from these
+
+        keys_form = QFormLayout()
+        keys_form.setSpacing(8)
+        for action, default_spec in DEFAULT_KEY_BINDINGS.items():
+            current = live_bindings.get(action, default_spec)
+            btn = _KeyCaptureButton(current['key'], current['numpad'])
+            key_capture_buttons[action] = btn
+
+            reset_btn = QPushButton("Reset")
+            reset_btn.setToolTip("Reset this action to its default key")
+            def _make_reset(b=btn, d=default_spec):
+                def _reset():
+                    b._key = d['key']; b._is_numpad = d['numpad']
+                    b._update_text()
+                return _reset
+            reset_btn.clicked.connect(_make_reset())
+
+            row = QHBoxLayout()
+            row.addWidget(btn)
+            row.addWidget(reset_btn)
+            keys_form.addRow(KEY_BINDING_LABELS.get(action, action), row)
+        keys_lay.addLayout(keys_form)
+        keys_lay.addStretch()
+        tabs.addTab(keys_tab, "Keybindings")
+
         def apply_settings():  #vers 2
             # Loading / Map Assets tabs saved first (Aug 1 2026),
             # before any of this function's other, pre-existing logic
@@ -8120,6 +8248,24 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             vp2 = getattr(self, 'preview_widget', None)
             if vp2 is not None and hasattr(vp2, '_lod_test_radius'):
                 vp2._lod_test_radius = float(lod_test_radius_spin.value())
+
+            # Keybindings (Aug 16 2026) - read every button's current
+            # binding (whether rebound this dialog session or not),
+            # store only the ones that differ from DFFViewport's own
+            # DEFAULT_KEY_BINDINGS (so a future new default action
+            # isn't silently unbound for existing users who never
+            # touched this tab - see viewport_key_bindings' own
+            # DEFAULTS comment), and push the full merged set to the
+            # live viewport immediately via set_key_bindings.
+            key_overrides = {}
+            for _action, _btn in key_capture_buttons.items():
+                _binding = _btn.binding()
+                if _binding != DEFAULT_KEY_BINDINGS.get(_action):
+                    key_overrides[_action] = _binding
+            self.map_settings.set('viewport_key_bindings', key_overrides)
+            if vp2 is not None and hasattr(vp2, 'set_key_bindings'):
+                vp2.set_key_bindings(key_overrides)
+
             self.map_settings.save()
             vp = getattr(self, 'preview_widget', None)
             if vp is not None and hasattr(vp, 'set_texture_downscale_settings'):
@@ -11206,6 +11352,17 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 self.map_settings.get('texture_downscale_enabled'),
                 self.map_settings.get('texture_downscale_threshold'),
                 self.map_settings.get('texture_downscale_target'))
+        # Restore any saved camera keybinding overrides (Aug 16 2026) -
+        # a fresh DFFViewport already starts with its own built-in
+        # DEFAULT_KEY_BINDINGS, this only needs to apply on top of
+        # that when the user actually customised something in a
+        # previous session; set_key_bindings itself merges partial
+        # overrides over the defaults, same contract as everywhere
+        # else this gets applied (Settings > Keybindings' own Apply).
+        if hasattr(self.preview_widget, 'set_key_bindings'):
+            saved_key_overrides = self.map_settings.get('viewport_key_bindings')
+            if saved_key_overrides:
+                self.preview_widget.set_key_bindings(saved_key_overrides)
         self._viewport_stack = QStackedWidget()
         self._viewport_stack.addWidget(self.preview_widget)   # index 0: single view
         inner_mw.setCentralWidget(self._viewport_stack)
