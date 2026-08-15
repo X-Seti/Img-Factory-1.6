@@ -230,15 +230,28 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         # Path visualization (Aug 14 2026, per Keith: "when
         # displaying the paths in the viewpoint, I was expecting red
         # lines and nodes. And a way to change the colour of the path
-        # lines in settings") - each entry in _path_groups is a
-        # simple list of (x,y,z) tuples for one group's nodes, already
-        # in world-space/consecutive-node order (map_workshop.py's
-        # own conversion step - this widget stays pure-GL, no
-        # PathGroup/PathNode dataclass dependency here). Off by
+        # lines in settings") - each entry in _path_segments is a pair
+        # of (x,y,z) endpoints, ((x1,y1,z1),(x2,y2,z2)), one real
+        # graph edge - NOT a polyline/list-of-consecutive-nodes
+        # (Aug 16 2026 rework, per Keith's real screenshot: "they
+        # don't look linked, node to node, instead one point" - long
+        # spurious lines fanning from one area. Root cause: a path
+        # group's raw on-disk node order does NOT match its actual
+        # connectivity - confirmed against Project Cerbera's own VC
+        # paths.ipl format doc: each node has its own "Next" field, a
+        # 0-11 index into that SAME group's fixed 12-node array
+        # (verified against Cerbera's own worked example, e.g. node 8
+        # linking to node 11, skipping 9-10 entirely) - naive
+        # "connect node i to node i+1" was simply the wrong topology,
+        # not just missing a few links. map_workshop.py's conversion
+        # step now builds the real edge list per node.node_type/
+        # next_id (see _refresh_path_visualization) - this widget
+        # stays pure-GL, no PathGroup/PathNode dataclass dependency
+        # here, just consumes whatever segments it's given). Off by
         # default, matching every other optional overlay in this
         # widget (Show Tobj, the Col overlays).
         self.show_paths = False
-        self._path_groups = []
+        self._path_segments = []
         self._path_line_color = (1.0, 0.0, 0.0)   # red, per Keith's expectation
         self._path_node_color = (1.0, 0.8, 0.0)   # amber - distinct from the line itself
 
@@ -688,22 +701,25 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         if self._show_grid: self._draw_grid()
         self._draw_axes()
 
-    def _draw_paths(self): #vers 2
-        """Draw every loaded path group as a connected line strip
-        (red by default, per Keith: "I was expecting red lines and
-        nodes") plus a small marker at each node - line colour
-        configurable via set_path_line_color, node markers use a
-        fixed contrasting amber rather than their own setting (Keith
-        only asked for the line colour to be adjustable). Consecutive
-        nodes within a group are drawn connected in their on-disk
-        order - the file's own real node sequence, not a resolved
-        cross-group link graph (Section 3/5/6's full adjacency data
-        isn't threaded through to here), so a group with genuine
-        branches or cross-group external links won't show those extra
-        connections, only its own internal sequence. Good enough to
-        see where paths run and get a real red/nodes visual per
-        Keith's ask; full graph-aware rendering can follow later if
-        needed once this is confirmed useful.
+    def _draw_paths(self): #vers 3
+        """Draw every real path link (red by default, per Keith: "I
+        was expecting red lines and nodes") plus a small marker at
+        each unique node position - line colour configurable via
+        set_path_line_color, node markers use a fixed contrasting
+        amber rather than their own setting (Keith only asked for the
+        line colour to be adjustable).
+
+        Draws self._path_segments (a flat list of ((x1,y1,z1),
+        (x2,y2,z2)) edge pairs, already resolved to the real per-node
+        Next-index graph by map_workshop.py's conversion step - see
+        that method's own docstring for the full "why raw file order
+        was wrong" story) as independent GL_LINES, not a connected
+        polyline - real path links routinely aren't one continuous
+        sequence (a node's Next can point anywhere else in its own
+        12-node group, and separate groups only connect where an
+        External node's position exactly matches another group's),
+        so nothing here should assume adjacency between one segment
+        and the next.
 
         Thinner/smaller/semi-transparent (Aug 16 2026, per Keith,
         comparing against MooMapper's own path overlay: "notice how
@@ -718,7 +734,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         making paths patchily invisible instead of just less bold) -
         worth trying separately once this smaller change is
         confirmed, not bundled into the same one."""
-        if not OPENGL_AVAILABLE or not self._path_groups: return
+        if not OPENGL_AVAILABLE or not self._path_segments: return
         glDisable(GL_LIGHTING)
         glDisable(GL_DEPTH_TEST)   # paths read clearer drawn on top, same as 2DFX lights
         glEnable(GL_BLEND)
@@ -726,20 +742,21 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         r, g, b = self._path_line_color
         glLineWidth(1.2)
         glColor4f(r, g, b, 0.75)
-        for group in self._path_groups:
-            if len(group) < 2:
-                continue
-            glBegin(GL_LINE_STRIP)
-            for x, y, z in group:
-                glVertex3f(x, y, z)
-            glEnd()
+        glBegin(GL_LINES)
+        for (x1, y1, z1), (x2, y2, z2) in self._path_segments:
+            glVertex3f(x1, y1, z1)
+            glVertex3f(x2, y2, z2)
+        glEnd()
         nr, ng, nb = self._path_node_color
         glColor4f(nr, ng, nb, 0.75)
         glPointSize(3.5)
         glBegin(GL_POINTS)
-        for group in self._path_groups:
-            for x, y, z in group:
-                glVertex3f(x, y, z)
+        seen = set()
+        for a, b_pt in self._path_segments:
+            for pt in (a, b_pt):
+                if pt not in seen:
+                    seen.add(pt)
+                    glVertex3f(*pt)
         glEnd()
         glDisable(GL_BLEND)
         glEnable(GL_DEPTH_TEST)
@@ -1412,15 +1429,19 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
     def set_show_paths(self, enabled: bool): #vers 1
         self.show_paths = enabled; self.update()
 
-    def set_path_groups(self, groups): #vers 1
+    def set_path_segments(self, segments): #vers 2
         """Replace the path data drawn when show_paths is on. Each
-        entry is a plain list of (x,y,z) tuples for one group's nodes
-        in order - conversion from PathGroup/PathNode (or gta_dat_
-        parser.py's parsed loader.paths) happens in map_workshop.py,
-        this widget only ever deals in plain coordinate lists, same
+        entry is a pair of (x,y,z) endpoint tuples, one real graph
+        edge (Aug 16 2026 rework - was a per-group ordered coordinate
+        list drawn as a connected polyline, wrong topology for real
+        path data; see _draw_paths' own docstring for the full
+        story). Conversion from PathGroup/PathNode (gta_dat_parser.
+        py's parsed loader.paths) into this flat edge-list shape
+        happens in map_workshop.py's _refresh_path_visualization -
+        this widget only ever deals in plain coordinate pairs, same
         separation as everywhere else in this file (no PathGroup/
         PathNode/COLModel dataclass imports here)."""
-        self._path_groups = groups or []
+        self._path_segments = segments or []
         self.update()
 
     def set_path_line_color(self, r: float, g: float, b: float): #vers 1

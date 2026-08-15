@@ -4072,3 +4072,59 @@ conclusively found despite extensive isolated testing.
   vs full rebuild, explicit new-world reset, stale-cache safety net
   for the Counter; cached-vs-unresolved-retry behavior for the format
   cache) - all correct. `ast.parse` clean on both files.
+
+- **Aug 16, 2026 (cont'd)** — Fixed the real path-rendering topology
+  bug behind Keith's screenshot: "testing paths, they don't look
+  linked, nod to each other nod, instead one point" - long spurious
+  lines fanning out from roughly one area, not a road-like network.
+
+  Root cause: the previous renderer connected each path group's nodes
+  in raw on-disk order (a simple polyline, node[i] to node[i+1]) -
+  the WRONG topology, not just an incomplete one. Verified against
+  Project Cerbera's own VC paths.ipl format documentation (fetched
+  and cross-checked, including Cerbera's own worked "Group B"
+  editing example, field-for-field): each node has a Type
+  (0=Null/ignored - exists only as padding so every group has exactly
+  twelve node slots; 1=External - links to another group's node
+  sharing the exact same position; 2=Internal - links within this
+  group) and a Next value that's a 0-11 INDEX into that SAME group's
+  own fixed 12-node array - not "the next line in the file", and not
+  necessarily sequential (Cerbera's real example has node 8 linking
+  straight to node 11, skipping 9 and 10 entirely - exactly the kind
+  of jump that would produce a long spurious line under the old
+  file-order assumption).
+
+  Rewrote the whole pipeline to build the real per-node link graph:
+  `_refresh_path_visualization` now walks every non-Null node and, if
+  its Next index is valid, emits one real edge (node[i] -> node
+  [next_id]) - covers Internal and External nodes identically, since
+  an External node still has its own ordinary Next field for
+  continuing within its own group. Deliberately does NOT add a
+  separate "connect matching External positions across groups" pass -
+  tried it first, but by the format's own definition two matched
+  External nodes are at the exact same position, so a segment between
+  them is always zero-length/invisible; verified directly (a first
+  draft with this pass produced only degenerate same-point segments).
+  The visual continuity between groups comes for free anyway: each
+  group's own segments already end/start at that shared coordinate,
+  so two groups' lines visually meet without an artificial connector.
+
+  `DFFViewport` reworked to match: `_path_groups` (ordered coordinate
+  lists, drawn as GL_LINE_STRIP) replaced with `_path_segments` (flat
+  list of independent (start,end) edge pairs, drawn as GL_LINES) -
+  `set_path_groups` renamed to `set_path_segments`. Node markers now
+  dedupe by exact position (a `set` of seen points) rather than
+  drawing one marker per segment-endpoint occurrence, so a heavily-
+  linked node doesn't get its dot drawn many times over.
+
+  Verified end-to-end against Project Cerbera's own real worked
+  example (hand-built as actual `PathNode`/`PathGroup` objects, not
+  just isolated field values): the resulting 10 segments match
+  exactly, in order, against the documented node-by-node link
+  structure - `(0,1),(1,2),(2,3),(3,4),(4,5),(5,6),(6,7),(7,8),
+  (8,11),(10,0)` - confirming the skip-around Next-index behavior
+  (8->11) is now handled correctly, not just the simple sequential
+  cases. Hidden-IPL filtering re-verified unaffected by the rework.
+  `ast.parse` clean on both files; confirmed no other code anywhere
+  in the project still references the old `_path_groups`/
+  `set_path_groups` names.

@@ -23733,7 +23733,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 lights.append((wx, wy, wz, r, g, b, a, size))
         vp.set_2dfx_lights(lights)
 
-    def _refresh_path_visualization(self): #vers 1
+    def _refresh_path_visualization(self): #vers 2
         """Push the currently visible IPLs' path data to the
         viewport's line/node overlay (Aug 14 2026, per Keith: "when
         displaying the paths in the viewpoint, I was expecting red
@@ -23742,24 +23742,66 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         refresh pattern in this file (2DFX's own master_chk check
         just above is the same shape).
 
-        loader.paths (gta_dat_parser.py's already-parsed PathGroup
-        list, GTA3/VC text-section format only - SA's real path data
-        is the separate binary nodesXX.dat format, apps/methods/
-        sa_path_parser.py, not wired into this view yet) is filtered
-        by source_ipl against self._hidden_ipls, same convention
-        IPLInstance.source_ipl already uses for instance filtering -
-        a path group from a currently-hidden IPL doesn't draw, same
-        as that IPL's instances don't. Each group converts to a
-        plain list of (x,y,z) tuples in the group's own on-disk node
-        order - see DFFViewport._draw_paths for why that's drawn as
-        a simple connected line rather than the fully resolved link
-        graph."""
+        Builds the REAL per-node link graph (Aug 16 2026 rework, per
+        Keith's real screenshot: "they don't look linked, node to
+        node, instead one point" - long spurious lines fanning out
+        from roughly one area). The previous version just connected
+        each group's nodes in raw on-disk order as one polyline - the
+        wrong topology, not just an incomplete one. Confirmed against
+        Project Cerbera's own VC paths.ipl format doc (and its own
+        worked "Group B" example, verified field-for-field): each
+        node has a Type (0=Null/ignored, 1=External/links to another
+        group by exact position match, 2=Internal/links within this
+        group) and a Next value that's a 0-11 INDEX into that SAME
+        group's own fixed 12-node array - not "the next line in the
+        file", and not necessarily sequential (Cerbera's own example
+        has node 8 linking straight to node 11, skipping 9-10
+        entirely).
+
+        Builds the REAL per-node link graph (Aug 16 2026 rework, per
+        Keith's real screenshot: "they don't look linked, node to
+        node, instead one point" - long spurious lines fanning out
+        from roughly one area). The previous version just connected
+        each group's nodes in raw on-disk order as one polyline - the
+        wrong topology, not just an incomplete one. Confirmed against
+        Project Cerbera's own VC paths.ipl format doc (and its own
+        worked "Group B" example, verified field-for-field): each
+        node has a Type (0=Null/ignored, 1=External/links to another
+        group by exact position match, 2=Internal/links within this
+        group) and a Next value that's a 0-11 INDEX into that SAME
+        group's own fixed 12-node array - not "the next line in the
+        file", and not necessarily sequential (Cerbera's own example
+        has node 8 linking straight to node 11, skipping 9-10
+        entirely).
+
+        Every non-Null node with a valid Next index becomes one
+        segment (node[i] -> node[next_id]) - covers both Internal and
+        External nodes' own in-group continuation identically (an
+        External node still has its own ordinary Next field for
+        continuing its own group). No separate cross-group "connect
+        matching External positions" pass: per the doc, two matched
+        External nodes are BY DEFINITION at the exact same position -
+        a segment between them would always be zero-length/invisible,
+        so there's nothing extra to draw there. The visual
+        continuity between groups comes for free: each group's own
+        segments already end/start at that shared coordinate, so two
+        groups' lines visually meet without needing an artificial
+        connector (verified directly - an earlier draft that added
+        this pass anyway produced only degenerate same-point-to-
+        itself segments, confirming they're genuinely never useful
+        to draw). loader.paths (gta_dat_parser.py's already-parsed
+        PathGroup list, GTA3/VC text-section format only - SA's real
+        path data is the separate binary nodesXX.dat format, apps/
+        methods/sa_path_parser.py, not wired into this view yet) is
+        filtered by source_ipl against self._hidden_ipls first, same
+        convention IPLInstance.source_ipl already uses for instance
+        filtering."""
         vp = getattr(self, 'preview_widget', None)
-        if vp is None or not hasattr(vp, 'set_path_groups'):
+        if vp is None or not hasattr(vp, 'set_path_segments'):
             return
         show_paths_chk = getattr(self, '_show_paths_chk', None)
         if show_paths_chk is not None and not show_paths_chk.isChecked():
-            vp.set_path_groups([])
+            vp.set_path_segments([])
             return
         # Apply the saved line colour every refresh, not just when the
         # Settings dialog is used to change it (Aug 14 2026) - so a
@@ -23772,15 +23814,24 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             vp.set_path_line_color(cr / 255.0, cg / 255.0, cb / 255.0)
         loader = getattr(self, '_world_loader', None)
         if loader is None:
-            vp.set_path_groups([])
+            vp.set_path_segments([])
             return
         hidden = getattr(self, '_hidden_ipls', set())
-        groups = [
-            [(n.x, n.y, n.z) for n in g.nodes]
-            for g in getattr(loader, 'paths', [])
-            if g.source_ipl not in hidden and g.nodes
-        ]
-        vp.set_path_groups(groups)
+        visible_groups = [g for g in getattr(loader, 'paths', [])
+                           if g.source_ipl not in hidden and g.nodes]
+
+        segments = []
+        for group in visible_groups:
+            nodes = group.nodes
+            n = len(nodes)
+            for node in nodes:
+                if node.node_type == 0:
+                    continue   # Null node - ignored, per the format doc
+                if 0 <= node.next_id < n:
+                    other = nodes[node.next_id]
+                    segments.append(((node.x, node.y, node.z), (other.x, other.y, other.z)))
+
+        vp.set_path_segments(segments)
 
     def _on_show_paths_toggled(self, checked): #vers 1
         """Show Paths checked/unchecked - per Keith: "when displaying
@@ -23789,7 +23840,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         line data itself only needs recomputing when checked (turning
         it off just needs the flag flipped, _draw_paths already
         no-ops when show_paths is False, no need to also clear
-        _path_groups on every uncheck)."""
+        _path_segments on every uncheck)."""
         vp = getattr(self, 'preview_widget', None)
         if vp is not None and hasattr(vp, 'set_show_paths'):
             vp.set_show_paths(checked)
