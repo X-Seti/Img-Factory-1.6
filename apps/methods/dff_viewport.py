@@ -300,6 +300,13 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._path_segments = []
         self._path_line_color = (1.0, 0.0, 0.0)   # red, per Keith's expectation
         self._path_node_color = (1.0, 0.8, 0.0)   # amber - distinct from the line itself
+        # Line thickness/node size (Aug 16 2026, per Keith: "under
+        # rander in settings, line thinkness, and node circle size,
+        # and color change option") - defaults match the values that
+        # used to be hardcoded (2.0->1.2px line, 6->3.5px node, from
+        # the earlier "blend in with the map" softening pass).
+        self._path_line_thickness = 1.2
+        self._path_node_size = 3.5
 
         # Cull zone boxes (Aug 16 2026, per Keith: "continue with the
         # cull files next", following the same "so I can view them"
@@ -800,13 +807,17 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         if self._show_grid: self._draw_grid()
         self._draw_axes()
 
-    def _draw_paths(self): #vers 3
+    def _draw_paths(self): #vers 4
         """Draw every real path link (red by default, per Keith: "I
         was expecting red lines and nodes") plus a small marker at
-        each unique node position - line colour configurable via
-        set_path_line_color, node markers use a fixed contrasting
-        amber rather than their own setting (Keith only asked for the
-        line colour to be adjustable).
+        each unique node position - line colour/thickness and node
+        size/colour all configurable via Settings > Render (Aug 16
+        2026, per Keith: "I like the path colors as a default but
+        under rander in settings, line thinkness, and node circle
+        size, and color change option" - node colour was previously
+        fixed/unconfigurable, "Keith only asked for the line colour
+        to be adjustable" no longer holds now that node colour was
+        explicitly requested too).
 
         Draws self._path_segments (a flat list of ((x1,y1,z1),
         (x2,y2,z2)) edge pairs, already resolved to the real per-node
@@ -839,7 +850,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         r, g, b = self._path_line_color
-        glLineWidth(1.2)
+        glLineWidth(self._path_line_thickness)
         glColor4f(r, g, b, 0.75)
         glBegin(GL_LINES)
         for (x1, y1, z1), (x2, y2, z2) in self._path_segments:
@@ -848,7 +859,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glEnd()
         nr, ng, nb = self._path_node_color
         glColor4f(nr, ng, nb, 0.75)
-        glPointSize(3.5)
+        glPointSize(self._path_node_size)
         glBegin(GL_POINTS)
         seen = set()
         for a, b_pt in self._path_segments:
@@ -1654,6 +1665,26 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         path lines in settings" - r/g/b as 0-1 floats, matching every
         other colour this widget already works in (glColor3f etc)."""
         self._path_line_color = (r, g, b)
+        self.update()
+
+    def set_path_node_color(self, r: float, g: float, b: float): #vers 1
+        """Aug 16 2026, per Keith: "...and color change option" -
+        node markers were previously a fixed amber with no way to
+        change them; now configurable the same way line colour
+        already was."""
+        self._path_node_color = (r, g, b)
+        self.update()
+
+    def set_path_line_thickness(self, px: float): #vers 1
+        """Aug 16 2026, per Keith: "under rander in settings, line
+        thinkness..." - px is the raw glLineWidth value."""
+        self._path_line_thickness = max(0.1, px)
+        self.update()
+
+    def set_path_node_size(self, px: float): #vers 1
+        """Aug 16 2026, per Keith: "...and node circle size..." - px
+        is the raw glPointSize value."""
+        self._path_node_size = max(0.1, px)
         self.update()
 
     def set_show_cull_boxes(self, enabled: bool): #vers 1

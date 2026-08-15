@@ -4600,3 +4600,37 @@ conclusively found despite extensive isolated testing.
   visibility from the original multi-part request - editing dialogs
   for cull/zon/occl (matching the Path Group Editor) remain open in
   TODO.md.
+
+- **Aug 16, 2026 (cont'd)** — Made path line thickness, node size, and
+  node colour all configurable in Settings > Render, per Keith: "I
+  like the path colors as a default but under rander in settings,
+  line thinkness, and node circle size, and color change option."
+  Line colour was already configurable (added earlier this session);
+  node colour was previously fixed amber with no way to change it -
+  widened to match, since Keith explicitly grouped it with node size
+  in the same request.
+
+  `DFFViewport` gained `set_path_node_color`/`set_path_line_
+  thickness`/`set_path_node_size` (alongside the existing `set_path_
+  line_color`), `_draw_paths` reads `self._path_line_thickness`/
+  `self._path_node_size` instead of the previously hardcoded 1.2px/
+  3.5px. `MapSettings.DEFAULTS` gained `path_node_color` ((255, 204,
+  0) - the exact same amber that was hardcoded before, just now
+  overridable), `path_line_thickness` (1.2), `path_node_size` (3.5).
+
+  Render Settings dialog's "Path Lines" group rebuilt from a single-
+  row colour picker into a proper form: Line Colour, Node Colour
+  (new), Line Thickness (new spinbox, 0.1-20.0), Node Size (new
+  spinbox, 0.1-30.0). `_apply()` saves and pushes all four to the
+  live viewport immediately; `_refresh_path_visualization` re-applies
+  all four on every refresh (not just after visiting Settings), same
+  self-healing pattern the line colour already used, so a previous
+  session's choices take effect immediately on next launch.
+
+  Verified: `DEFAULTS` registration/get/set round-trip for all three
+  new keys (the same silent-noop trap caught and fixed several times
+  already this session), and confirmed the new `path_node_color`
+  default (255, 204, 0) converts back to the exact original hardcoded
+  float amber (1.0, 0.8, 0.0) - `204/255 == 0.8` exactly, no drift
+  introduced by the int/float round-trip. `ast.parse` clean on both
+  files; confirmed via AST no duplicate method definitions.

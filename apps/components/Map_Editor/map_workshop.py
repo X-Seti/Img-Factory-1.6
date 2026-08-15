@@ -3180,6 +3180,16 @@ class MapSettings(QObject):
         # (DFFViewport.set_path_line_color). Red by default, matching
         # what Keith said he was expecting to see.
         'path_line_color': (255, 0, 0),
+        # Path node colour, line thickness, node size (Aug 16 2026,
+        # per Keith: "I like the path colors as a default but under
+        # rander in settings, line thinkness, and node circle size,
+        # and color change option") - node colour was previously
+        # fixed/unconfigurable; thickness/size defaults match the
+        # values that used to be hardcoded in DFFViewport._draw_paths
+        # (from the earlier "blend in with the map" softening pass).
+        'path_node_color': (255, 204, 0),
+        'path_line_thickness': 1.2,
+        'path_node_size': 3.5,
         # Cull zone box colour in the 3D view (Aug 16 2026, per Keith:
         # "continue with the cull files next") - same representation
         # as path_line_color ((r,g,b) 0-255 ints, converted to 0-1
@@ -7391,16 +7401,19 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         bg.addWidget(reset_btn)
         lay.addWidget(bg_grp)
 
-        # Path line colour (Aug 14 2026, per Keith: "a way to change
-        # the colour of the path lines in settings") - same pattern
-        # as the Background picker just above, persisted via
-        # map_settings so it survives between sessions, applied to
-        # the viewport via DFFViewport.set_path_line_color (0-1
-        # floats, unlike the 0-255 ints used for bg_color - converted
-        # at the point of use, not stored differently, to match
-        # whichever representation each consumer actually wants).
+        # Path lines/nodes: colour, thickness, size (Aug 14/16 2026,
+        # per Keith: "a way to change the colour of the path lines in
+        # settings" then "I like the path colors as a default but
+        # under rander in settings, line thinkness, and node circle
+        # size, and color change option") - same persisted-via-
+        # map_settings pattern as the Background picker above, applied
+        # to the viewport via DFFViewport's matching set_path_*
+        # methods (0-1 floats for colours, unlike the 0-255 ints used
+        # for storage - converted at the point of use, not stored
+        # differently, to match whichever representation each
+        # consumer actually wants).
         path_grp = QGroupBox("Path Lines")
-        pg = QHBoxLayout(path_grp)
+        path_form = QFormLayout(path_grp)
         saved_path_color = self.map_settings.get('path_line_color') or (255, 0, 0)
         pr, pg_, pb = saved_path_color
         path_preview = QPushButton("  ")
@@ -7412,8 +7425,33 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 path_preview.setStyleSheet(f"background-color: {c.name()};")
                 path_preview.setProperty("chosen", (c.red(), c.green(), c.blue()))
         path_preview.clicked.connect(_pick_path_color)
-        pg.addWidget(QLabel("Colour:"))
-        pg.addWidget(path_preview)
+        path_form.addRow("Line Colour:", path_preview)
+
+        saved_node_color = self.map_settings.get('path_node_color') or (255, 204, 0)
+        npr, npg, npb = saved_node_color
+        node_preview = QPushButton("  ")
+        node_preview.setFixedSize(60, 28)
+        node_preview.setStyleSheet(f"background-color: rgb({npr},{npg},{npb});")
+        def _pick_node_color():  #vers 1
+            c = QColorDialog.getColor(QColor(npr, npg, npb), dlg, "Path Node Colour")
+            if c.isValid():
+                node_preview.setStyleSheet(f"background-color: {c.name()};")
+                node_preview.setProperty("chosen", (c.red(), c.green(), c.blue()))
+        node_preview.clicked.connect(_pick_node_color)
+        path_form.addRow("Node Colour:", node_preview)
+
+        line_thickness_spin = QDoubleSpinBox()
+        line_thickness_spin.setRange(0.1, 20.0)
+        line_thickness_spin.setSingleStep(0.1)
+        line_thickness_spin.setValue(self.map_settings.get('path_line_thickness') or 1.2)
+        path_form.addRow("Line Thickness:", line_thickness_spin)
+
+        node_size_spin = QDoubleSpinBox()
+        node_size_spin.setRange(0.1, 30.0)
+        node_size_spin.setSingleStep(0.5)
+        node_size_spin.setValue(self.map_settings.get('path_node_size') or 3.5)
+        path_form.addRow("Node Size:", node_size_spin)
+
         lay.addWidget(path_grp)
 
         # Buttons
@@ -7436,6 +7474,18 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 if hasattr(pw, 'set_path_line_color'):
                     pcr, pcg, pcb = path_chosen
                     pw.set_path_line_color(pcr / 255.0, pcg / 255.0, pcb / 255.0)
+            node_chosen = node_preview.property("chosen")
+            if node_chosen:
+                self.map_settings.set('path_node_color', node_chosen)
+                if hasattr(pw, 'set_path_node_color'):
+                    ncr, ncg, ncb = node_chosen
+                    pw.set_path_node_color(ncr / 255.0, ncg / 255.0, ncb / 255.0)
+            self.map_settings.set('path_line_thickness', line_thickness_spin.value())
+            if hasattr(pw, 'set_path_line_thickness'):
+                pw.set_path_line_thickness(line_thickness_spin.value())
+            self.map_settings.set('path_node_size', node_size_spin.value())
+            if hasattr(pw, 'set_path_node_size'):
+                pw.set_path_node_size(node_size_spin.value())
             dlg.accept()
         btns.accepted.connect(_apply)
         lay.addWidget(btns)
@@ -24520,15 +24570,24 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if show_paths_chk is not None and not show_paths_chk.isChecked():
             vp.set_path_segments([])
             return
-        # Apply the saved line colour every refresh, not just when the
-        # Settings dialog is used to change it (Aug 14 2026) - so a
-        # colour picked in a previous session is already in effect
-        # the first time paths are shown this session, without
-        # needing a separate "apply saved settings on startup" hook.
+        # Apply the saved line colour/thickness and node colour/size
+        # every refresh, not just when the Settings dialog is used to
+        # change them (Aug 14/16 2026) - so a value picked in a
+        # previous session is already in effect the first time paths
+        # are shown this session, without needing a separate "apply
+        # saved settings on startup" hook.
         if hasattr(vp, 'set_path_line_color'):
             saved_color = self.map_settings.get('path_line_color') or (255, 0, 0)
             cr, cg, cb = saved_color
             vp.set_path_line_color(cr / 255.0, cg / 255.0, cb / 255.0)
+        if hasattr(vp, 'set_path_node_color'):
+            saved_node_color = self.map_settings.get('path_node_color') or (255, 204, 0)
+            ncr, ncg, ncb = saved_node_color
+            vp.set_path_node_color(ncr / 255.0, ncg / 255.0, ncb / 255.0)
+        if hasattr(vp, 'set_path_line_thickness'):
+            vp.set_path_line_thickness(self.map_settings.get('path_line_thickness') or 1.2)
+        if hasattr(vp, 'set_path_node_size'):
+            vp.set_path_node_size(self.map_settings.get('path_node_size') or 3.5)
         loader = getattr(self, '_world_loader', None)
         if loader is None:
             vp.set_path_segments([])
