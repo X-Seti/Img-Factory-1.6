@@ -872,69 +872,114 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glEnable(GL_DEPTH_TEST)
         glEnable(GL_LIGHTING)
 
-    def _draw_cull_boxes(self): #vers 2
-        """Draw every loaded cull zone as a wireframe box, corner-to-
-        corner (Aug 16 2026, per Keith: "continue with the cull files
-        next"). Uses the box's own two real corner points directly
-        (x1,y1,z1)-(x2,y2,z2) - the older MapViewport class's own
-        _draw_cull_boxes assumed a center+width/height shape (matching
-        the wrong 7-field parse that was fixed alongside this), this
-        one draws the actual documented box, no assumption needed."""
-        self._draw_wireframe_boxes(self._cull_boxes, self._cull_box_color)
+    def _draw_cull_boxes(self): #vers 3
+        """Draw every loaded cull zone as a ghosted (semi-transparent
+        filled + outlined) box, corner-to-corner (Aug 16 2026, per
+        Keith: "instead of wireframe boxes, we go for ghosted, see
+        through boxes, like the semi solid" - was plain wireframe
+        until this request). Uses the box's own two real corner
+        points directly (x1,y1,z1)-(x2,y2,z2) - the older MapViewport
+        class's own _draw_cull_boxes assumed a center+width/height
+        shape (matching the wrong 7-field parse that was fixed
+        alongside the original wireframe version), this draws the
+        actual documented box, no assumption needed."""
+        self._draw_ghosted_boxes(self._cull_boxes, self._cull_box_color)
 
-    def _draw_zone_boxes(self): #vers 1
-        """Draw every loaded map zone as a wireframe box (Aug 16
-        2026, per Keith: "ive loaded zon files... but I cant see them
-        in the viewpoint") - zones never had any viewport rendering
-        at all before (unlike cull, which at least had unreachable
-        dead code). Same axis-aligned min/max-corner shape as cull
-        boxes, so this just calls the same shared drawing helper with
-        the zone data/colour instead of duplicating the loop."""
-        self._draw_wireframe_boxes(self._zone_boxes, self._zone_box_color)
+    def _draw_zone_boxes(self): #vers 2
+        """Draw every loaded map zone as a ghosted box (Aug 16 2026) -
+        zones never had any viewport rendering at all before their
+        original wireframe version. Same axis-aligned min/max-corner
+        shape as cull boxes, so this just calls the same shared
+        drawing helper with the zone data/colour instead of
+        duplicating the loop."""
+        self._draw_ghosted_boxes(self._zone_boxes, self._zone_box_color)
 
-    def _draw_wireframe_boxes(self, boxes, color): #vers 1
-        """Shared wireframe-box drawing helper (Aug 16 2026 refactor,
-        while adding zone boxes right after cull boxes - factored out
-        rather than duplicating the same loop a second time) - boxes
-        is a list of (x1,y1,z1,x2,y2,z2) corner-pair tuples, color an
-        (r,g,b) 0-1 tuple. Raw GTA-native (x,y,z) coordinates passed
-        straight to glVertex3f, same convention _draw_paths already
-        uses in this widget - no manual Z-up/Y-up axis swap here,
-        unlike the older MapViewport class, since this viewport's own
-        camera/projection setup already accounts for that at a higher
-        level."""
+    def _draw_ghosted_boxes(self, boxes, color): #vers 1
+        """Shared ghosted axis-aligned-box drawing helper for cull/
+        zone (Aug 16 2026, per Keith: "instead of wireframe boxes, we
+        go for ghosted, see through boxes, like the semi solid" -
+        replaces the earlier _draw_wireframe_boxes) - boxes is a list
+        of (x1,y1,z1,x2,y2,z2) corner-pair tuples, color an (r,g,b)
+        0-1 tuple. Derives the 4 XY corners from the two opposite
+        points and hands off to _draw_ghosted_box_from_corners, the
+        same per-box fill+outline routine _draw_occl_boxes' rotated
+        boxes use - only the corner computation differs between an
+        axis-aligned box and a rotated one, not how it's actually
+        drawn once corners exist."""
         if not OPENGL_AVAILABLE or not boxes: return
         glDisable(GL_LIGHTING)
         glDisable(GL_DEPTH_TEST)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         r, g, b = color
-        glColor3f(r, g, b)
-        glLineWidth(1.5)
         for x1, y1, z1, x2, y2, z2 in boxes:
-            glBegin(GL_LINE_LOOP)
-            glVertex3f(x1, y1, z1); glVertex3f(x2, y1, z1)
-            glVertex3f(x2, y2, z1); glVertex3f(x1, y2, z1)
-            glEnd()
-            glBegin(GL_LINE_LOOP)
-            glVertex3f(x1, y1, z2); glVertex3f(x2, y1, z2)
-            glVertex3f(x2, y2, z2); glVertex3f(x1, y2, z2)
-            glEnd()
-            glBegin(GL_LINES)
-            for cx, cy in ((x1, y1), (x2, y1), (x2, y2), (x1, y2)):
-                glVertex3f(cx, cy, z1); glVertex3f(cx, cy, z2)
-            glEnd()
+            corners_xy = [(x1, y1), (x2, y1), (x2, y2), (x1, y2)]
+            self._draw_ghosted_box_from_corners(corners_xy, z1, z2, r, g, b)
+        glDisable(GL_BLEND)
         glEnable(GL_DEPTH_TEST)
         glEnable(GL_LIGHTING)
 
-    def _draw_occl_boxes(self): #vers 1
-        """Draw every loaded occlusion zone as a wireframe box (Aug
-        16 2026, continuing the cull/zon viewport work - "occl" was
-        never even a recognised VC section keyword before this, let
-        alone rendered anywhere). Unlike cull/zone boxes, an
-        occlusion zone can be ROTATED around its own vertical (Z)
-        axis - can't reuse _draw_wireframe_boxes' two-corner shape,
-        computes all 4 XY corners explicitly instead: half-extents
-        from width_x/width_y, rotated by `rotation` around
-        (mid_x, mid_y), extruded from bottom_z to bottom_z+height.
+    def _draw_ghosted_box_from_corners(self, corners_xy, z1, z2, r, g, b,
+                                        fill_alpha=0.32, edge_alpha=0.85): #vers 1
+        """Draw one ghosted (semi-transparent filled faces + a more
+        opaque wireframe outline for definition) box from 4 already-
+        computed (x,y) corner points in loop order and a z1/z2
+        extrusion range (Aug 16 2026, per Keith: "instead of
+        wireframe boxes, we go for ghosted, see through boxes, like
+        the semi solid") - matches the existing collision Semi-Solid
+        render mode's own convention (_draw_solid's alpha_multiplier
+        path: filled alpha-blended triangles plus a subtle darker
+        edge pass), just for a simple box instead of arbitrary mesh
+        triangles. Shared by both the axis-aligned cull/zone case
+        (_draw_ghosted_boxes) and the rotated occlusion case (_draw_
+        occl_boxes) - only the corner computation differs between
+        them, not this actual drawing routine. Caller is responsible
+        for glEnable(GL_BLEND)/blend func and disabling lighting/
+        depth test around a whole batch, not repeated per box here."""
+        glColor4f(r, g, b, fill_alpha)
+        glBegin(GL_QUADS)
+        for cx, cy in corners_xy:
+            glVertex3f(cx, cy, z1)
+        glEnd()
+        glBegin(GL_QUADS)
+        for cx, cy in corners_xy:
+            glVertex3f(cx, cy, z2)
+        glEnd()
+        for i in range(4):
+            cx0, cy0 = corners_xy[i]
+            cx1, cy1 = corners_xy[(i + 1) % 4]
+            glBegin(GL_QUADS)
+            glVertex3f(cx0, cy0, z1); glVertex3f(cx1, cy1, z1)
+            glVertex3f(cx1, cy1, z2); glVertex3f(cx0, cy0, z2)
+            glEnd()
+        glColor4f(r, g, b, edge_alpha)
+        glLineWidth(1.2)
+        glBegin(GL_LINE_LOOP)
+        for cx, cy in corners_xy:
+            glVertex3f(cx, cy, z1)
+        glEnd()
+        glBegin(GL_LINE_LOOP)
+        for cx, cy in corners_xy:
+            glVertex3f(cx, cy, z2)
+        glEnd()
+        glBegin(GL_LINES)
+        for cx, cy in corners_xy:
+            glVertex3f(cx, cy, z1); glVertex3f(cx, cy, z2)
+        glEnd()
+
+    def _draw_occl_boxes(self): #vers 2
+        """Draw every loaded occlusion zone as a ghosted (semi-
+        transparent filled + outlined) box (Aug 16 2026, per Keith:
+        "instead of wireframe boxes, we go for ghosted, see through
+        boxes, like the semi solid" - was plain wireframe until this
+        request). Unlike cull/zone boxes, an occlusion zone can be
+        ROTATED around its own vertical (Z) axis - computes all 4 XY
+        corners explicitly: half-extents from width_x/width_y,
+        rotated by `rotation` around (mid_x, mid_y), extruded from
+        bottom_z to bottom_z+height - then hands off to the same
+        _draw_ghosted_box_from_corners the axis-aligned cull/zone
+        boxes use, since once corners exist the actual fill+outline
+        drawing is identical regardless of rotation.
 
         Rotation is treated as degrees, standard 2D rotation matrix
         around Z - matches the field's evident purpose (turning an
@@ -950,9 +995,9 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         if not OPENGL_AVAILABLE or not self._occl_boxes: return
         glDisable(GL_LIGHTING)
         glDisable(GL_DEPTH_TEST)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         r, g, b = self._occl_box_color
-        glColor3f(r, g, b)
-        glLineWidth(1.5)
         for mid_x, mid_y, bottom_z, width_x, width_y, height, rotation in self._occl_boxes:
             hw, hh = width_x / 2.0, width_y / 2.0
             rad = math.radians(rotation)
@@ -963,18 +1008,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 ry = dx * sin_r + dy * cos_r
                 corners_xy.append((mid_x + rx, mid_y + ry))
             z1, z2 = bottom_z, bottom_z + height
-            glBegin(GL_LINE_LOOP)
-            for cx, cy in corners_xy:
-                glVertex3f(cx, cy, z1)
-            glEnd()
-            glBegin(GL_LINE_LOOP)
-            for cx, cy in corners_xy:
-                glVertex3f(cx, cy, z2)
-            glEnd()
-            glBegin(GL_LINES)
-            for cx, cy in corners_xy:
-                glVertex3f(cx, cy, z1); glVertex3f(cx, cy, z2)
-            glEnd()
+            self._draw_ghosted_box_from_corners(corners_xy, z1, z2, r, g, b)
+        glDisable(GL_BLEND)
         glEnable(GL_DEPTH_TEST)
         glEnable(GL_LIGHTING)
 

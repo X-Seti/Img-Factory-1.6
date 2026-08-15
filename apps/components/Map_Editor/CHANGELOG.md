@@ -4679,3 +4679,30 @@ conclusively found despite extensive isolated testing.
   position via the instance's actual real position and rotation, and
   the full group produced 6 correctly-connected segments. `ast.parse`
   clean; confirmed via AST no duplicate method definitions.
+
+- **Aug 16, 2026 (cont'd)** — Switched cull/zone/occlusion boxes from
+  plain wireframe to ghosted, semi-transparent filled boxes, per
+  Keith: "instead of wireframe boxes, we go for ghosted, see through
+  boxes, like the semi solid." Matches the existing collision Semi-
+  Solid render mode's own visual convention (`_draw_solid`'s
+  `alpha_multiplier` path: filled alpha-blended triangles plus a
+  subtle, more-opaque edge pass for definition) rather than
+  inventing a new look.
+
+  New shared `_draw_ghosted_box_from_corners(corners_xy, z1, z2, r,
+  g, b)` draws one box (6 filled alpha-blended `GL_QUADS` faces plus
+  a slightly more opaque wireframe outline) from 4 already-computed
+  (x,y) corner points and a z1/z2 extrusion range - used by both the
+  axis-aligned case (`_draw_ghosted_boxes`, replacing the old `_draw_
+  wireframe_boxes`, cull/zone derive their 4 corners from the box's
+  own two opposite points) and the rotated occlusion case (`_draw_
+  occl_boxes`, unchanged rotation math, just now hands its already-
+  computed rotated corners to the same shared drawer instead of
+  drawing wireframe-only) - only the corner computation differs
+  between an axis-aligned box and a rotated one, not how it's
+  actually drawn once corners exist, so the fill+outline logic isn't
+  duplicated three times.
+
+  `ast.parse` clean; confirmed via AST no duplicate method
+  definitions and no stale references anywhere in the project to the
+  removed `_draw_wireframe_boxes` name.
