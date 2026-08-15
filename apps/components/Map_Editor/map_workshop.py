@@ -20726,14 +20726,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         open_file_btn.setFixedHeight(18)
         open_file_btn.setStyleSheet(_compact_18)
         open_file_btn.clicked.connect(self._on_ipl_tab_open_file_clicked)
-        for b in (open_btn, close_btn, new_btn, delete_btn, open_file_btn):
+        for b in (open_file_btn, close_btn, new_btn, delete_btn):
             title_row.addWidget(b)
         title_row.addStretch()
         lay.addWidget(title_row_widget)
         self._register_collapsible_button_row(
-            title_row_widget, [(open_btn, "Open"), (close_btn, "Close"),
-                                (new_btn, "New"), (delete_btn, "Delete"),
-                                (open_file_btn, "Open File...")])
+            title_row_widget, [(open_file_btn, "Open"), (close_btn, "Close"),
+                                (new_btn, "New"), (delete_btn, "Delete")])
         if not hasattr(self, '_object_browser_tab_rows'):
             self._object_browser_tab_rows = {}
         self._object_browser_tab_rows['ipl'] = title_row_widget
