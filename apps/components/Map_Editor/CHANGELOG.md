@@ -5130,3 +5130,89 @@ conclusively found despite extensive isolated testing.
   second IPL's 8 instances are both correctly present and unaffected
   throughout. `ast.parse` clean; confirmed via AST exactly one
   definition of the fixed method.
+
+- **Aug 16, 2026 (cont'd)** — Three fixes from Keith's latest report
+  ("Bug appears to have been fixed; everything is loading, nothing is
+  disappearing" - confirming the binary-stream data-loss fix from
+  last turn - plus three new items).
+
+  **GTA3 path rendering mess** (per his real screenshot: "makes a
+  nice mess in the viewpoint", hundreds of long, criss-crossing lines
+  spanning the whole loaded city). Real cause: `_refresh_path_
+  visualization`'s GTA III world-space resolution matched a path
+  group's `model_id` against every currently-visible instance CITY-
+  WIDE, with no notion of which district a group or an instance
+  actually belongs to - harmless for a single small IDE file in
+  isolation (confirmed against the one real sample available -
+  `comse.ide`/`comSE.ipl` - every `model_id` there has exactly one
+  placement, so a global lookup happens to be correct by coincidence
+  for that file alone), but a whole-city load pulls in many
+  districts' own IDE files together, and different districts'
+  "null node" path-anchor markers (Keith's own real comse.ide has
+  per-district names like `comsenullnodea02` through
+  `comsenullnodea11`) plausibly reuse the same small numeric
+  `model_id` ranges across different, unrelated districts, the same
+  way ID ranges get reused across many other GTA III/VC IDE files
+  generally. A global lookup would then match a path group meant for
+  one district's own specific junction against a completely unrelated
+  instance elsewhere in the city sharing the same numeric `model_id`
+  - producing a technically well-formed, locally-correct-shaped path
+  attached to a wildly wrong, distant world position, exactly what
+  "long, criss-crossing lines spanning the whole map" looks like.
+
+  Fixed by scoping each group's instance lookup to its own area -
+  matching the group's own `source_ide` filename stem against each
+  candidate instance's `source_ipl` stem (case-insensitive), the same
+  area-name-matching convention already established for associating a
+  binary IPL stream with its parent text IPL, not a new invention.
+  Falls back to the unscoped candidate list only if `source_ide` is
+  somehow empty or scoping leaves nothing, rather than silently
+  dropping a real group entirely. Verified the real `comse.ide`/
+  `comSE.ipl` stems actually match (`comse` <-> `comse`) and re-ran
+  the full pipeline against real data - the known-working single-
+  district case still produces the same 80 segments as before,
+  confirming the fix doesn't break what already worked; longest
+  segment distance stayed a plausible ~691 units, not spanning the
+  map. Being upfront about confidence here: this is a well-reasoned
+  fix based on sound logic and confirmed not to break the one real
+  case available, but the actual multi-district collision scenario
+  couldn't be directly reproduced without Keith's real, larger city-
+  wide dataset - worth confirming this actually clears up the mess
+  on his end.
+
+  **`.zon` files always at the bottom**, per Keith: "Next are the zon
+  files, always at the bottom of the ipl list" - a stronger, always-
+  enforced guarantee than just "happens to end up there from
+  insertion order", which the stream-nesting reorder from a few turns
+  ago could otherwise disturb over time as more streams get loaded
+  after a `.zon` file was already opened. Enforced in `_rebuild_ipl_
+  sections_rows` itself (the one place every row actually gets
+  rendered from) via a stable partition - everything else in its
+  existing relative order, then every `.zon` in its existing relative
+  order - rather than a full re-sort, so this never reorders anything
+  else. Updates `self._ipl_display_order` in place to match, keeping
+  Move Up/Down, the saved `ipl_sections_order` setting, and everything
+  else that reads this list consistent with what's on screen.
+  Verified: an interleaved order gets correctly partitioned with both
+  groups' relative order preserved; no-`.zon`-present and already-
+  sorted cases are both correctly no-ops (idempotent, no spurious
+  reordering).
+
+  **Settings saved but not loaded on the next session**, per Keith:
+  "the settings are being saved for map workshop, there just not
+  being loaded." Real mechanism found: `MapSettings.set()` debounces
+  its own auto-save by 800ms - closing the Map Workshop tab (or
+  quitting the app) shortly after changing a setting could leave that
+  change still pending, unwritten, at the exact moment the widget
+  actually closes. Confirmed `closeEvent` never flushed this - fixed
+  by calling `self.map_settings.save()` (an immediate, non-debounced
+  write) right at the start of `closeEvent`, guaranteed to run
+  regardless of whether anything was actually still pending (cheap,
+  safe no-op otherwise).
+
+  `ast.parse` clean; confirmed via AST no duplicate method
+  definitions introduced anywhere (including confirming the file's
+  two separate, legitimately-different `closeEvent` methods - one on
+  `ModelWorkshop`, fixed here; the other on an unrelated dialog class
+  further down dealing with document-modification state, correctly
+  untouched).

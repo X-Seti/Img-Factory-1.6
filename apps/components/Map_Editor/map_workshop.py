@@ -9516,8 +9516,26 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.showMaximized()
 
 
-    def closeEvent(self, event): #vers 2
-        """Handle close — _save_toolbar_state fires via window_closed signal."""
+    def closeEvent(self, event): #vers 3
+        """Handle close — _save_toolbar_state fires via window_closed
+        signal. Flushes any still-pending debounced settings save
+        (Aug 16 2026, per Keith: "the settings are being saved for
+        map workshop, there just not being loaded" - real mechanism
+        found: MapSettings.set() debounces its own auto-save by
+        800ms, so a setting changed right before closing the tab (or
+        quitting the app) could still have an unwritten pending save
+        at the moment this widget actually closes - nothing was ever
+        flushing it, so whatever was LAST actually written to disk
+        (not the most recent change) is what the next session would
+        load. self.map_settings.save() forces an immediate write,
+        bypassing the debounce, cheap/safe to call even when there's
+        nothing pending (same as a no-op write of the current
+        state)."""
+        if hasattr(self, 'map_settings'):
+            try:
+                self.map_settings.save()
+            except Exception:
+                pass
         self.window_closed.emit()
         try:
             mw = getattr(self, 'main_window', None) or getattr(self, '_imgfactory', None)
@@ -21124,7 +21142,30 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         OTHER already-known text IPL too, to redetect a format that
         can't have changed since the last rebuild. self._ipl_format_
         cache stores (fmt_text, fmt_tooltip) per ipl_name once
-        computed, reused on every later rebuild."""
+        computed, reused on every later rebuild.
+
+        .zon files always sort to the very bottom (Aug 16 2026, per
+        Keith: "Next are the zon files, always at the bottom of the
+        ipl list" - a stronger, always-enforced guarantee than just
+        "happens to end up there from insertion order", which the
+        stream-nesting reorder added earlier this session could
+        otherwise disturb over time as more streams get loaded after
+        a .zon file was already opened). Enforced here, at the one
+        place every row actually gets rendered from, rather than only
+        at the moment a .zon gets added - a stable partition
+        (everything else, in its existing relative order, then every
+        .zon, in ITS existing relative order) rather than a full
+        re-sort, so this never reorders anything else. self._ipl_
+        display_order itself is updated in place to match, not just
+        the rendering - keeps Move Up/Down, the saved 'ipl_sections_
+        order' setting, and everything else that reads this list
+        consistent with what's actually on screen."""
+        order = self._ipl_display_order
+        non_zon = [n for n in order if not n.lower().endswith('.zon')]
+        zon_only = [n for n in order if n.lower().endswith('.zon')]
+        if zon_only and order != non_zon + zon_only:
+            self._ipl_display_order = non_zon + zon_only
+
         table = self._ipl_sections_table
         table.setRowCount(len(self._ipl_display_order))
         hidden = getattr(self, '_hidden_ipls', set())
@@ -25164,10 +25205,59 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 continue
             instances_by_model.setdefault(inst.model_id, []).append(inst)
 
+        # Scope each group's model_id lookup to its OWN area (Aug 16
+        # 2026, per Keith's real screenshot: "GTA3 paths node is not
+        # being rendered correctly, makes a nice mess in the
+        # viewpoint" - hundreds of long, criss-crossing lines spanning
+        # the whole loaded city). Real cause: the original version
+        # looked up group.model_id against EVERY currently-visible
+        # instance city-wide, with no notion of which district a
+        # group or an instance actually belongs to. That's harmless
+        # for a single small IDE file in isolation (confirmed against
+        # the one real sample available - every model_id there has
+        # exactly one placement, so a global lookup happens to be
+        # correct by coincidence), but a whole-city load pulls in
+        # MANY districts' own IDE files together, and different
+        # districts' "null node" path-anchor markers (per Keith's own
+        # real comse.ide: unique per-district names like
+        # "comsenullnodea02" through "comsenullnodea11") plausibly
+        # reuse the same small numeric model_id ranges across
+        # different, unrelated districts, the same way ID ranges get
+        # reused across many other GTA III/VC IDE files generally.
+        # A global lookup would then match a path group meant for one
+        # district's own specific junction against a COMPLETELY
+        # UNRELATED instance elsewhere in the city that just happens
+        # to share the same numeric model_id - producing a technically
+        # well-formed, locally-correct-shaped path attached to a wildly
+        # wrong, distant world position, which is exactly what "long,
+        # criss-crossing lines spanning the whole map" looks like.
+        #
+        # Scoped by matching the group's own source_ide's filename
+        # stem against each candidate instance's source_ipl's own
+        # stem (case-insensitive) - the same area-name-matching
+        # convention already established for associating a binary IPL
+        # stream with its parent text IPL (_scan_binary_ipls_in_img_
+        # archives), not a new invention. Falls back to the
+        # unscoped/global candidate list only if source_ide is
+        # somehow empty (shouldn't normally happen - it's always set
+        # at parse time) or scoping it down leaves nothing, rather
+        # than silently dropping a real group with no world-space
+        # instance to show it from at all.
+        def _area_stem(name):
+            return os.path.splitext(name)[0].lower() if name else ''
+
         for group in getattr(loader, 'ide_paths', []):
-            matching_instances = instances_by_model.get(group.model_id)
-            if not matching_instances:
+            all_candidates = instances_by_model.get(group.model_id)
+            if not all_candidates:
                 continue
+            group_area = _area_stem(group.source_ide)
+            if group_area:
+                matching_instances = [i for i in all_candidates
+                                      if _area_stem(i.source_ipl) == group_area]
+                if not matching_instances:
+                    matching_instances = all_candidates
+            else:
+                matching_instances = all_candidates
             nodes = group.nodes
             n = len(nodes)
             for inst in matching_instances:
