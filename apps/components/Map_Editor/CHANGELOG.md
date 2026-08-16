@@ -5311,3 +5311,44 @@ conclusively found despite extensive isolated testing.
   `ast.parse` clean; confirmed via AST no duplicate method
   definitions and confirmed `_open_render_settings_dialog` no longer
   exists anywhere in this file at all.
+
+- **Aug 16, 2026 (cont'd)** — Reverted the previous GTA III path
+  area-scoping fix, per Keith's real, complete `gta3.IDE` upload
+  ("gta3.ide appears to have all the ide files, in one file" - every
+  path section for the whole game, combined). That fix was based on
+  a theory that turned out wrong: parsed all 870 real path groups
+  across 553 unique `model_id`s in this real data and confirmed zero
+  cases of two different objects sharing one `model_id` - GTA III's
+  object IDs are genuinely unique game-wide, not just per-district,
+  matching the well-documented standard convention (confirmed via
+  web research on GTA3/VC/SA's shared, ~23,000-ID-total scheme).
+
+  What actually happens, and is completely legitimate: a single
+  object can have 2-3 separate path groups attached to it (309 of the
+  553 `model_id`s have 2 groups, 4 have 3) - real examples include
+  named road-piece objects like `rd_Corner1`/`rd_Road1A5`, which
+  plausibly need multiple groups for different lanes/directions
+  through the same piece. The earlier area-scoping fix (matching a
+  group's `source_ide` stem against candidate instances' `source_ipl`
+  stems) was solving a district-collision problem that this real data
+  proves doesn't exist - reverted back to a clean global `model_id`
+  lookup, removing the now-inaccurate reasoning in the code's own
+  comments along with it.
+
+  Also researched PATH's actual documented relationship to instances
+  before touching anything further: multiple independent sources
+  confirm GTA III's PATH section is "attached to existing objects in
+  a similar manner to 2DFX" - the same simple model_id-based
+  attachment this app's own 2DFX rendering already uses successfully,
+  with no area/district scoping of its own either, reinforcing that
+  the global lookup is the right model, not an area-scoped one.
+
+  The real cause of Keith's "long criss-crossing lines" mess is still
+  open - this verification confirms the IDE side (parsing, model_id
+  uniqueness, multi-group-per-object handling) is solid, so the bug
+  must be in the instance-matching or position/rotation transform for
+  whichever instances actually place these objects - not visible from
+  IDE data alone, needs the corresponding IPL/instance data to
+  continue investigating with real data rather than guessing further.
+
+  Verified via AST no duplicate method definitions; `ast.parse` clean.

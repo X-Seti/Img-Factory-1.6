@@ -25278,65 +25278,51 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # attached to is currently visible, which the instances_by_
         # model lookup below already only includes non-hidden ones
         # for.
+        #
+        # model_id is a reliable global key with no per-area scoping
+        # needed (Aug 16 2026, verified against Keith's real,
+        # complete gta3.IDE - all path sections for the whole game
+        # combined into one file): parsed all 870 real path groups
+        # across 553 unique model_ids and confirmed zero cases of two
+        # DIFFERENT objects sharing one model_id - GTA III's object
+        # IDs are genuinely unique game-wide, not just per-district,
+        # matching the well-documented standard convention. What
+        # DOES legitimately happen: a single object can have 2-3
+        # separate path groups attached to it (309 of the 553 model_
+        # ids have 2, 4 have 3) - real examples include named road-
+        # piece objects like "rd_Corner1"/"rd_Road1A5", which
+        # plausibly need multiple groups for different lanes/
+        # directions through the same piece. An earlier version of
+        # this method scoped the lookup by matching each group's
+        # source_ide filename stem against candidate instances'
+        # source_ipl stems, on the theory that different districts'
+        # own path-anchor markers might reuse small numeric model_id
+        # ranges - that theory is now disproven by this real data, so
+        # the scoping was removed again; it was solving a problem
+        # that doesn't actually exist. The real cause of Keith's
+        # "long criss-crossing lines" mess is still open - being
+        # investigated with his real IPL/instance data next, since
+        # this verification confirms the IDE side (parsing, model_id
+        # unique-ness) is solid and the bug must be elsewhere (most
+        # likely in the instance-matching or position/rotation
+        # transform for whichever instances actually place these
+        # objects, which isn't visible from IDE data alone).
         instances_by_model = {}
         for inst in getattr(loader, 'instances', []):
             if inst.source_ipl in hidden:
                 continue
             instances_by_model.setdefault(inst.model_id, []).append(inst)
 
-        # Scope each group's model_id lookup to its OWN area (Aug 16
-        # 2026, per Keith's real screenshot: "GTA3 paths node is not
-        # being rendered correctly, makes a nice mess in the
-        # viewpoint" - hundreds of long, criss-crossing lines spanning
-        # the whole loaded city). Real cause: the original version
-        # looked up group.model_id against EVERY currently-visible
-        # instance city-wide, with no notion of which district a
-        # group or an instance actually belongs to. That's harmless
-        # for a single small IDE file in isolation (confirmed against
-        # the one real sample available - every model_id there has
-        # exactly one placement, so a global lookup happens to be
-        # correct by coincidence), but a whole-city load pulls in
-        # MANY districts' own IDE files together, and different
-        # districts' "null node" path-anchor markers (per Keith's own
-        # real comse.ide: unique per-district names like
-        # "comsenullnodea02" through "comsenullnodea11") plausibly
-        # reuse the same small numeric model_id ranges across
-        # different, unrelated districts, the same way ID ranges get
-        # reused across many other GTA III/VC IDE files generally.
-        # A global lookup would then match a path group meant for one
-        # district's own specific junction against a COMPLETELY
-        # UNRELATED instance elsewhere in the city that just happens
-        # to share the same numeric model_id - producing a technically
-        # well-formed, locally-correct-shaped path attached to a wildly
-        # wrong, distant world position, which is exactly what "long,
-        # criss-crossing lines spanning the whole map" looks like.
-        #
-        # Scoped by matching the group's own source_ide's filename
-        # stem against each candidate instance's source_ipl's own
-        # stem (case-insensitive) - the same area-name-matching
-        # convention already established for associating a binary IPL
-        # stream with its parent text IPL (_scan_binary_ipls_in_img_
-        # archives), not a new invention. Falls back to the
-        # unscoped/global candidate list only if source_ide is
-        # somehow empty (shouldn't normally happen - it's always set
-        # at parse time) or scoping it down leaves nothing, rather
-        # than silently dropping a real group with no world-space
-        # instance to show it from at all.
-        def _area_stem(name):
-            return os.path.splitext(name)[0].lower() if name else ''
-
+        # Scope each group's model_id lookup to every currently-
+        # visible instance sharing that model_id, globally - no per-
+        # area scoping (Aug 16 2026, reverted after Keith uploaded
+        # his real, complete gta3.IDE - see model_id verification
+        # note below for the full story of why an earlier area-
+        # scoped version was removed again).
         for group in getattr(loader, 'ide_paths', []):
-            all_candidates = instances_by_model.get(group.model_id)
-            if not all_candidates:
+            matching_instances = instances_by_model.get(group.model_id)
+            if not matching_instances:
                 continue
-            group_area = _area_stem(group.source_ide)
-            if group_area:
-                matching_instances = [i for i in all_candidates
-                                      if _area_stem(i.source_ipl) == group_area]
-                if not matching_instances:
-                    matching_instances = all_candidates
-            else:
-                matching_instances = all_candidates
             nodes = group.nodes
             n = len(nodes)
             for inst in matching_instances:
