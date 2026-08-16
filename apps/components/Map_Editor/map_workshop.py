@@ -7358,222 +7358,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._open_file(self.current_file_path)
 
 
-    def _open_render_settings_dialog(self): #vers 2
-        """Render & background settings dialog."""
-        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
-                                     QComboBox, QPushButton, QColorDialog,
-                                     QGroupBox, QDialogButtonBox)
-        from PyQt6.QtGui import QColor
-
-        pw = getattr(self, 'preview_widget', None)
-        if not pw: return
-
-        dlg = QDialog(self)
-        dlg.setWindowTitle("Render Settings")
-        dlg.setMinimumWidth(360)
-        lay = QVBoxLayout(dlg)
-
-        # Object rendering style
-        style_grp = QGroupBox("Object Rendering")
-        sg = QHBoxLayout(style_grp)
-        sg.addWidget(QLabel("Style:"))
-        style_combo = QComboBox()
-        style_combo.addItems(["Wireframe", "Solid", "Textured"])
-        mapping = {"wireframe": "Wireframe", "solid": "Solid", "textured": "Textured"}
-        cur_mode = getattr(pw, '_mode', 'solid')
-        style_combo.setCurrentText(mapping.get(cur_mode, "Solid"))
-        sg.addWidget(style_combo)
-        lay.addWidget(style_grp)
-
-        # Background
-        bg_grp = QGroupBox("Background")
-        bg = QHBoxLayout(bg_grp)
-        override = getattr(pw, '_bg_color_override', None)
-        r, g, b = override if override is not None else (
-            pw._get_ui_color('bg_panel').red(),
-            pw._get_ui_color('bg_panel').green(),
-            pw._get_ui_color('bg_panel').blue())
-        bg_preview = QPushButton("  ")
-        bg_preview.setFixedSize(60, 28)
-        bg_preview.setStyleSheet(f"background-color: rgb({r},{g},{b});")
-        def _pick_bg():  #vers 1
-            c = QColorDialog.getColor(QColor(r, g, b), dlg, "Background Colour")
-            if c.isValid():
-                bg_preview.setStyleSheet(f"background-color: {c.name()};")
-                bg_preview.setProperty("chosen", (c.red(), c.green(), c.blue()))
-        bg_preview.clicked.connect(_pick_bg)
-        bg.addWidget(QLabel("Colour:"))
-        bg.addWidget(bg_preview)
-        reset_btn = QPushButton("Use Theme")
-        reset_btn.clicked.connect(lambda: bg_preview.setProperty("reset_to_theme", True))
-        bg.addWidget(reset_btn)
-        lay.addWidget(bg_grp)
-
-        # Path lines/nodes: colour, thickness, size (Aug 14/16 2026,
-        # per Keith: "a way to change the colour of the path lines in
-        # settings" then "I like the path colors as a default but
-        # under rander in settings, line thinkness, and node circle
-        # size, and color change option") - same persisted-via-
-        # map_settings pattern as the Background picker above, applied
-        # to the viewport via DFFViewport's matching set_path_*
-        # methods (0-1 floats for colours, unlike the 0-255 ints used
-        # for storage - converted at the point of use, not stored
-        # differently, to match whichever representation each
-        # consumer actually wants).
-        path_grp = QGroupBox("Path Lines")
-        path_form = QFormLayout(path_grp)
-        saved_path_color = self.map_settings.get('path_line_color') or (255, 0, 0)
-        pr, pg_, pb = saved_path_color
-        path_preview = QPushButton("  ")
-        path_preview.setFixedSize(60, 28)
-        path_preview.setStyleSheet(f"background-color: rgb({pr},{pg_},{pb});")
-        def _pick_path_color():  #vers 1
-            c = QColorDialog.getColor(QColor(pr, pg_, pb), dlg, "Path Line Colour")
-            if c.isValid():
-                path_preview.setStyleSheet(f"background-color: {c.name()};")
-                path_preview.setProperty("chosen", (c.red(), c.green(), c.blue()))
-        path_preview.clicked.connect(_pick_path_color)
-        path_form.addRow("Line Colour:", path_preview)
-
-        saved_node_color = self.map_settings.get('path_node_color') or (255, 204, 0)
-        npr, npg, npb = saved_node_color
-        node_preview = QPushButton("  ")
-        node_preview.setFixedSize(60, 28)
-        node_preview.setStyleSheet(f"background-color: rgb({npr},{npg},{npb});")
-        def _pick_node_color():  #vers 1
-            c = QColorDialog.getColor(QColor(npr, npg, npb), dlg, "Path Node Colour")
-            if c.isValid():
-                node_preview.setStyleSheet(f"background-color: {c.name()};")
-                node_preview.setProperty("chosen", (c.red(), c.green(), c.blue()))
-        node_preview.clicked.connect(_pick_node_color)
-        path_form.addRow("Node Colour:", node_preview)
-
-        line_thickness_spin = QDoubleSpinBox()
-        line_thickness_spin.setRange(0.1, 20.0)
-        line_thickness_spin.setSingleStep(0.1)
-        line_thickness_spin.setValue(self.map_settings.get('path_line_thickness') or 1.2)
-        path_form.addRow("Line Thickness:", line_thickness_spin)
-
-        node_size_spin = QDoubleSpinBox()
-        node_size_spin.setRange(0.1, 30.0)
-        node_size_spin.setSingleStep(0.5)
-        node_size_spin.setValue(self.map_settings.get('path_node_size') or 3.5)
-        path_form.addRow("Node Size:", node_size_spin)
-
-        lay.addWidget(path_grp)
-
-        # Cull/Zone/Occlusion box colours (Aug 16 2026, per Keith:
-        # "Zon settings for box colour, same with occlusion") - these
-        # three box types have had real ghosted-box viewport
-        # rendering (and their own MapSettings colour entries -
-        # cull_box_color/zone_box_color/occl_box_color) since a few
-        # turns ago, but this dialog never actually exposed a way to
-        # CHANGE any of them - same gap path line/node colour had
-        # before it got its own picker here. Cull/occlusion get a
-        # colour picker only (their render style is fixed ghosted,
-        # per Keith's own "in zons" framing when he asked for the
-        # render-style dropdown - only zones got that); zone ALSO
-        # already has its own Ghosted/Wireframe/Translucent dropdown
-        # elsewhere in this same dialog (the Render dropdown, not
-        # here), unaffected by this addition.
-        boxes_grp = QGroupBox("Cull / Zone / Occlusion Boxes")
-        boxes_form = QFormLayout(boxes_grp)
-
-        saved_cull_color = self.map_settings.get('cull_box_color') or (255, 217, 51)
-        clr, clg, clb = saved_cull_color
-        cull_preview = QPushButton("  ")
-        cull_preview.setFixedSize(60, 28)
-        cull_preview.setStyleSheet(f"background-color: rgb({clr},{clg},{clb});")
-        def _pick_cull_color():  #vers 1
-            c = QColorDialog.getColor(QColor(clr, clg, clb), dlg, "Cull Box Colour")
-            if c.isValid():
-                cull_preview.setStyleSheet(f"background-color: {c.name()};")
-                cull_preview.setProperty("chosen", (c.red(), c.green(), c.blue()))
-        cull_preview.clicked.connect(_pick_cull_color)
-        boxes_form.addRow("Cull Colour:", cull_preview)
-
-        saved_zone_color = self.map_settings.get('zone_box_color') or (77, 179, 255)
-        zlr, zlg, zlb = saved_zone_color
-        zone_preview = QPushButton("  ")
-        zone_preview.setFixedSize(60, 28)
-        zone_preview.setStyleSheet(f"background-color: rgb({zlr},{zlg},{zlb});")
-        def _pick_zone_color():  #vers 1
-            c = QColorDialog.getColor(QColor(zlr, zlg, zlb), dlg, "Zone Box Colour")
-            if c.isValid():
-                zone_preview.setStyleSheet(f"background-color: {c.name()};")
-                zone_preview.setProperty("chosen", (c.red(), c.green(), c.blue()))
-        zone_preview.clicked.connect(_pick_zone_color)
-        boxes_form.addRow("Zone Colour:", zone_preview)
-
-        saved_occl_color = self.map_settings.get('occl_box_color') or (255, 102, 204)
-        olr, olg, olb = saved_occl_color
-        occl_preview = QPushButton("  ")
-        occl_preview.setFixedSize(60, 28)
-        occl_preview.setStyleSheet(f"background-color: rgb({olr},{olg},{olb});")
-        def _pick_occl_color():  #vers 1
-            c = QColorDialog.getColor(QColor(olr, olg, olb), dlg, "Occlusion Box Colour")
-            if c.isValid():
-                occl_preview.setStyleSheet(f"background-color: {c.name()};")
-                occl_preview.setProperty("chosen", (c.red(), c.green(), c.blue()))
-        occl_preview.clicked.connect(_pick_occl_color)
-        boxes_form.addRow("Occlusion Colour:", occl_preview)
-
-        lay.addWidget(boxes_grp)
-
-        # Buttons
-        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
-                                QDialogButtonBox.StandardButton.Cancel)
-        btns.rejected.connect(dlg.reject)
-        def _apply():  #vers 1
-            s = style_combo.currentText()
-            rev = {"Wireframe": "wireframe", "Solid": "solid", "Textured": "textured"}
-            pw.set_render_mode(rev.get(s, "solid"))
-            if bg_preview.property("reset_to_theme"):
-                pw.set_checkerboard_background()
-            else:
-                chosen = bg_preview.property("chosen")
-                if chosen:
-                    pw.set_background_color(chosen)
-            path_chosen = path_preview.property("chosen")
-            if path_chosen:
-                self.map_settings.set('path_line_color', path_chosen)
-                if hasattr(pw, 'set_path_line_color'):
-                    pcr, pcg, pcb = path_chosen
-                    pw.set_path_line_color(pcr / 255.0, pcg / 255.0, pcb / 255.0)
-            node_chosen = node_preview.property("chosen")
-            if node_chosen:
-                self.map_settings.set('path_node_color', node_chosen)
-                if hasattr(pw, 'set_path_node_color'):
-                    ncr, ncg, ncb = node_chosen
-                    pw.set_path_node_color(ncr / 255.0, ncg / 255.0, ncb / 255.0)
-            self.map_settings.set('path_line_thickness', line_thickness_spin.value())
-            if hasattr(pw, 'set_path_line_thickness'):
-                pw.set_path_line_thickness(line_thickness_spin.value())
-            self.map_settings.set('path_node_size', node_size_spin.value())
-            if hasattr(pw, 'set_path_node_size'):
-                pw.set_path_node_size(node_size_spin.value())
-            cull_chosen = cull_preview.property("chosen")
-            if cull_chosen:
-                self.map_settings.set('cull_box_color', cull_chosen)
-                if hasattr(pw, 'set_cull_box_color'):
-                    ccr, ccg, ccb = cull_chosen
-                    pw.set_cull_box_color(ccr / 255.0, ccg / 255.0, ccb / 255.0)
-            zone_chosen = zone_preview.property("chosen")
-            if zone_chosen:
-                self.map_settings.set('zone_box_color', zone_chosen)
-                if hasattr(pw, 'set_zone_box_color'):
-                    zcr, zcg, zcb = zone_chosen
-                    pw.set_zone_box_color(zcr / 255.0, zcg / 255.0, zcb / 255.0)
-            occl_chosen = occl_preview.property("chosen")
-            if occl_chosen:
-                self.map_settings.set('occl_box_color', occl_chosen)
-                if hasattr(pw, 'set_occl_box_color'):
-                    ocr, ocg, ocb = occl_chosen
-                    pw.set_occl_box_color(ocr / 255.0, ocg / 255.0, ocb / 255.0)
-            dlg.accept()
-        btns.accepted.connect(_apply)
-        lay.addWidget(btns)
-        dlg.exec()
 
 
     # - Method aliases — drop Qt signal args (*_, **__) before forwarding
@@ -8198,6 +7982,149 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         display_layout.addStretch()
         tabs.addTab(display_tab, "Display")
 
+        # TAB: RENDER (Aug 16 2026, per Keith: "there is no render in
+        # map workshop settings?" - a real discoverability problem:
+        # this content used to live in a completely SEPARATE dialog
+        # (_open_render_settings_dialog, opened only via the "Render
+        # Settings" ribbon button), not as a tab here at all - every
+        # earlier reference to "Settings > Render" in this session was
+        # genuinely misleading, since it implied a tab that never
+        # existed. Migrated the entire dialog's content here verbatim
+        # (Object Rendering style, Background colour, Path Lines,
+        # Cull/Zone/Occlusion Box colours) rather than leaving a
+        # confusing second place to find the same settings - the old
+        # dialog method is removed entirely, and the ribbon button
+        # that used to open it now opens this Settings dialog instead
+        # (see the button's own updated wiring for the full story).
+        render_tab = QWidget()
+        render_layout = QVBoxLayout(render_tab)
+        pw = getattr(self, 'preview_widget', None)
+
+        style_grp = QGroupBox("Object Rendering")
+        sg = QHBoxLayout(style_grp)
+        sg.addWidget(QLabel("Style:"))
+        style_combo = QComboBox()
+        style_combo.addItems(["Wireframe", "Solid", "Textured"])
+        mapping = {"wireframe": "Wireframe", "solid": "Solid", "textured": "Textured"}
+        cur_mode = getattr(pw, '_mode', 'solid') if pw else 'solid'
+        style_combo.setCurrentText(mapping.get(cur_mode, "Solid"))
+        sg.addWidget(style_combo)
+        render_layout.addWidget(style_grp)
+
+        bg_grp = QGroupBox("Background")
+        bg = QHBoxLayout(bg_grp)
+        if pw is not None:
+            override = getattr(pw, '_bg_color_override', None)
+            r, g, b = override if override is not None else (
+                pw._get_ui_color('bg_panel').red(),
+                pw._get_ui_color('bg_panel').green(),
+                pw._get_ui_color('bg_panel').blue())
+        else:
+            r, g, b = 30, 30, 30
+        bg_preview = QPushButton("  ")
+        bg_preview.setFixedSize(60, 28)
+        bg_preview.setStyleSheet(f"background-color: rgb({r},{g},{b});")
+        def _pick_bg():  #vers 1
+            c = QColorDialog.getColor(QColor(r, g, b), tabs, "Background Colour")
+            if c.isValid():
+                bg_preview.setStyleSheet(f"background-color: {c.name()};")
+                bg_preview.setProperty("chosen", (c.red(), c.green(), c.blue()))
+        bg_preview.clicked.connect(_pick_bg)
+        bg.addWidget(QLabel("Colour:"))
+        bg.addWidget(bg_preview)
+        reset_btn = QPushButton("Use Theme")
+        reset_btn.clicked.connect(lambda: bg_preview.setProperty("reset_to_theme", True))
+        bg.addWidget(reset_btn)
+        render_layout.addWidget(bg_grp)
+
+        path_grp = QGroupBox("Path Lines")
+        path_form = QFormLayout(path_grp)
+        saved_path_color = self.map_settings.get('path_line_color') or (255, 0, 0)
+        pr, pg_, pb = saved_path_color
+        path_preview = QPushButton("  ")
+        path_preview.setFixedSize(60, 28)
+        path_preview.setStyleSheet(f"background-color: rgb({pr},{pg_},{pb});")
+        def _pick_path_color():  #vers 1
+            c = QColorDialog.getColor(QColor(pr, pg_, pb), tabs, "Path Line Colour")
+            if c.isValid():
+                path_preview.setStyleSheet(f"background-color: {c.name()};")
+                path_preview.setProperty("chosen", (c.red(), c.green(), c.blue()))
+        path_preview.clicked.connect(_pick_path_color)
+        path_form.addRow("Line Colour:", path_preview)
+
+        saved_node_color = self.map_settings.get('path_node_color') or (255, 204, 0)
+        npr, npg, npb = saved_node_color
+        node_preview = QPushButton("  ")
+        node_preview.setFixedSize(60, 28)
+        node_preview.setStyleSheet(f"background-color: rgb({npr},{npg},{npb});")
+        def _pick_node_color():  #vers 1
+            c = QColorDialog.getColor(QColor(npr, npg, npb), tabs, "Path Node Colour")
+            if c.isValid():
+                node_preview.setStyleSheet(f"background-color: {c.name()};")
+                node_preview.setProperty("chosen", (c.red(), c.green(), c.blue()))
+        node_preview.clicked.connect(_pick_node_color)
+        path_form.addRow("Node Colour:", node_preview)
+
+        line_thickness_spin = QDoubleSpinBox()
+        line_thickness_spin.setRange(0.1, 20.0)
+        line_thickness_spin.setSingleStep(0.1)
+        line_thickness_spin.setValue(self.map_settings.get('path_line_thickness') or 1.2)
+        path_form.addRow("Line Thickness:", line_thickness_spin)
+
+        node_size_spin = QDoubleSpinBox()
+        node_size_spin.setRange(0.1, 30.0)
+        node_size_spin.setSingleStep(0.5)
+        node_size_spin.setValue(self.map_settings.get('path_node_size') or 3.5)
+        path_form.addRow("Node Size:", node_size_spin)
+
+        render_layout.addWidget(path_grp)
+
+        boxes_grp = QGroupBox("Cull / Zone / Occlusion Boxes")
+        boxes_form = QFormLayout(boxes_grp)
+
+        saved_cull_color = self.map_settings.get('cull_box_color') or (255, 217, 51)
+        clr, clg, clb = saved_cull_color
+        cull_preview = QPushButton("  ")
+        cull_preview.setFixedSize(60, 28)
+        cull_preview.setStyleSheet(f"background-color: rgb({clr},{clg},{clb});")
+        def _pick_cull_color():  #vers 1
+            c = QColorDialog.getColor(QColor(clr, clg, clb), tabs, "Cull Box Colour")
+            if c.isValid():
+                cull_preview.setStyleSheet(f"background-color: {c.name()};")
+                cull_preview.setProperty("chosen", (c.red(), c.green(), c.blue()))
+        cull_preview.clicked.connect(_pick_cull_color)
+        boxes_form.addRow("Cull Colour:", cull_preview)
+
+        saved_zone_color = self.map_settings.get('zone_box_color') or (77, 179, 255)
+        zlr, zlg, zlb = saved_zone_color
+        zone_preview = QPushButton("  ")
+        zone_preview.setFixedSize(60, 28)
+        zone_preview.setStyleSheet(f"background-color: rgb({zlr},{zlg},{zlb});")
+        def _pick_zone_color():  #vers 1
+            c = QColorDialog.getColor(QColor(zlr, zlg, zlb), tabs, "Zone Box Colour")
+            if c.isValid():
+                zone_preview.setStyleSheet(f"background-color: {c.name()};")
+                zone_preview.setProperty("chosen", (c.red(), c.green(), c.blue()))
+        zone_preview.clicked.connect(_pick_zone_color)
+        boxes_form.addRow("Zone Colour:", zone_preview)
+
+        saved_occl_color = self.map_settings.get('occl_box_color') or (255, 102, 204)
+        olr, olg, olb = saved_occl_color
+        occl_preview = QPushButton("  ")
+        occl_preview.setFixedSize(60, 28)
+        occl_preview.setStyleSheet(f"background-color: rgb({olr},{olg},{olb});")
+        def _pick_occl_color():  #vers 1
+            c = QColorDialog.getColor(QColor(olr, olg, olb), tabs, "Occlusion Box Colour")
+            if c.isValid():
+                occl_preview.setStyleSheet(f"background-color: {c.name()};")
+                occl_preview.setProperty("chosen", (c.red(), c.green(), c.blue()))
+        occl_preview.clicked.connect(_pick_occl_color)
+        boxes_form.addRow("Occlusion Colour:", occl_preview)
+
+        render_layout.addWidget(boxes_grp)
+        render_layout.addStretch()
+        tabs.addTab(render_tab, "Render")
+
         # TAB 3: placeholder
         # TAB 4: PERFORMANCE
 
@@ -8611,6 +8538,61 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     downscale_threshold_spin.value(),
                     downscale_target_spin.value())
 
+            # Render tab (Aug 16 2026, per Keith: "there is no render
+            # in map workshop settings?" - migrated verbatim from the
+            # old separate _open_render_settings_dialog, now removed;
+            # applied here in the same "safe zone" as Loading/
+            # Keybindings above, before the pre-existing code with
+            # known broken references further down this function, so
+            # a crash there still can't block these from applying or
+            # saving).
+            if vp is not None:
+                s = style_combo.currentText()
+                rev = {"Wireframe": "wireframe", "Solid": "solid", "Textured": "textured"}
+                vp.set_render_mode(rev.get(s, "solid"))
+                if bg_preview.property("reset_to_theme"):
+                    vp.set_checkerboard_background()
+                else:
+                    chosen = bg_preview.property("chosen")
+                    if chosen:
+                        vp.set_background_color(chosen)
+            path_chosen = path_preview.property("chosen")
+            if path_chosen:
+                self.map_settings.set('path_line_color', path_chosen)
+                if vp is not None and hasattr(vp, 'set_path_line_color'):
+                    pcr, pcg, pcb = path_chosen
+                    vp.set_path_line_color(pcr / 255.0, pcg / 255.0, pcb / 255.0)
+            node_chosen = node_preview.property("chosen")
+            if node_chosen:
+                self.map_settings.set('path_node_color', node_chosen)
+                if vp is not None and hasattr(vp, 'set_path_node_color'):
+                    ncr, ncg, ncb = node_chosen
+                    vp.set_path_node_color(ncr / 255.0, ncg / 255.0, ncb / 255.0)
+            self.map_settings.set('path_line_thickness', line_thickness_spin.value())
+            if vp is not None and hasattr(vp, 'set_path_line_thickness'):
+                vp.set_path_line_thickness(line_thickness_spin.value())
+            self.map_settings.set('path_node_size', node_size_spin.value())
+            if vp is not None and hasattr(vp, 'set_path_node_size'):
+                vp.set_path_node_size(node_size_spin.value())
+            cull_chosen = cull_preview.property("chosen")
+            if cull_chosen:
+                self.map_settings.set('cull_box_color', cull_chosen)
+                if vp is not None and hasattr(vp, 'set_cull_box_color'):
+                    ccr, ccg, ccb = cull_chosen
+                    vp.set_cull_box_color(ccr / 255.0, ccg / 255.0, ccb / 255.0)
+            zone_chosen = zone_preview.property("chosen")
+            if zone_chosen:
+                self.map_settings.set('zone_box_color', zone_chosen)
+                if vp is not None and hasattr(vp, 'set_zone_box_color'):
+                    zcr, zcg, zcb = zone_chosen
+                    vp.set_zone_box_color(zcr / 255.0, zcg / 255.0, zcb / 255.0)
+            occl_chosen = occl_preview.property("chosen")
+            if occl_chosen:
+                self.map_settings.set('occl_box_color', occl_chosen)
+                if vp is not None and hasattr(vp, 'set_occl_box_color'):
+                    ocr, ocg, ocb = occl_chosen
+                    vp.set_occl_box_color(ocr / 255.0, ocg / 255.0, ocb / 255.0)
+
             # The rest of this function (fonts, button mode, export
             # format, preview/background settings) is pre-existing
             # logic with at least two confirmed broken references
@@ -8706,13 +8688,20 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         return tabs, apply_settings
 
-    def _show_workshop_settings(self): #vers 2
+    def _show_workshop_settings(self, initial_tab=None): #vers 3
         """Show complete workshop settings dialog - standalone-only
         path now (Aug 15 2026): the tab content and Apply logic live
         in _build_workshop_settings_tabs (shared with the docked
         path - see get_settings_contribution), this just wraps that
         in Map Workshop's own QDialog with its own Apply/Close
-        buttons, unchanged in behaviour from before the split."""
+        buttons, unchanged in behaviour from before the split.
+
+        initial_tab (Aug 16 2026) - optional tab label to pre-select
+        on open, matched by its exact displayed name (not a hardcoded
+        index, so this doesn't break if tabs get reordered later).
+        Used by the "Render Settings" ribbon button, now that Render
+        is a real tab here instead of its own separate dialog - jumps
+        straight to it instead of always landing on the first tab."""
         from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QPushButton
 
         dialog = QDialog(self)
@@ -8723,6 +8712,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         layout = QVBoxLayout(dialog)
 
         tabs, apply_settings = self._build_workshop_settings_tabs()
+        if initial_tab:
+            for i in range(tabs.count()):
+                if tabs.tabText(i) == initial_tab:
+                    tabs.setCurrentIndex(i)
+                    break
         layout.addWidget(tabs)
 
         # BUTTONS
@@ -9680,7 +9674,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.settings_btn.setIcon(self.icon_factory.settings_icon(color=icon_color))
         self.settings_btn.setText("Settings")
         self.settings_btn.setIconSize(QSize(_ICO_SZ, _ICO_SZ))
-        self.settings_btn.clicked.connect(self._show_workshop_settings)
+        self.settings_btn.clicked.connect(lambda checked=False: self._show_workshop_settings())
         self.settings_btn.setToolTip("Workshop Settings")
         layout.addWidget(self.settings_btn)
 
@@ -12042,7 +12036,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         tb_rend = _tb("Render", Qt.ToolBarArea.RightToolBarArea)
         _act(tb_rend, "Render Settings",
              _icon(self.icon_factory.render_settings_icon, 'render_settings_icon'),
-             self._open_render_settings_dialog)
+             lambda checked=False: self._show_workshop_settings('Render'))
         _act(tb_rend, "Toggle Mesh",
              _icon(self.icon_factory.mesh_icon, 'toggle_mesh_icon'),
              lambda v: pw.set_show_mesh(v),

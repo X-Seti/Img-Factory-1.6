@@ -5261,3 +5261,53 @@ conclusively found despite extensive isolated testing.
   new colour keys; confirmed `occl` is correctly present in `tab_
   specs`, positioned right after `enex`. `ast.parse` clean; confirmed
   via AST exactly one definition of the settings-dialog method.
+
+- **Aug 16, 2026 (cont'd)** — Fixed a real discoverability problem,
+  per Keith's screenshot of the actual Settings dialog: "there is no
+  render in map workshop settings?" Every earlier reference this
+  session to "Settings > Render" was genuinely misleading - that
+  content lived in a completely separate dialog
+  (`_open_render_settings_dialog`, opened only via the "Render
+  Settings" ribbon button under Object Browser), not as a tab in the
+  actual "Map Workshop Settings" dialog Keith was looking at (Fonts/
+  Display/Performance/Preview/Loading/Map Assets/Navigation/
+  Keybindings, per his own screenshot) at all.
+
+  Migrated the entire old dialog's content - Object Rendering style,
+  Background colour, Path Lines (colour/thickness/node colour/size),
+  and Cull/Zone/Occlusion Box colours - verbatim into a new "Render"
+  tab in `_build_workshop_settings_tabs`, positioned right after
+  Display. The old separate `_open_render_settings_dialog` method is
+  removed entirely (216 lines) rather than left as a confusing second
+  place to find the same settings - confirmed via `grep` zero
+  remaining references anywhere in the live file. Apply logic merged
+  into the shared `apply_settings()` function, in the same "safe
+  zone" as Loading/Keybindings (applied and saved before the later
+  pre-existing code with known broken references further down that
+  same function, so a crash there still can't block these from
+  taking effect).
+
+  The "Render Settings" ribbon button now opens the main Settings
+  dialog instead of a separate one - `_show_workshop_settings` gained
+  an optional `initial_tab` parameter (matched by exact tab label,
+  not a hardcoded index, so this can't silently break if tabs get
+  reordered later) so the button still jumps straight to Render
+  rather than always landing on the first tab. Caught and fixed a
+  real, if currently-harmless, fragility while wiring this: the
+  titlebar's own [Settings] button connected `clicked` directly to
+  `self._show_workshop_settings` with no lambda - Qt's `clicked`
+  signal passes a `checked: bool` argument, which would land in the
+  new `initial_tab` parameter's position. It happened to work by
+  coincidence (`False` is falsy, so the tab-selection code's own `if
+  initial_tab:` guard skipped correctly regardless), but wasn't
+  correct by design - fixed to go through an explicit `lambda
+  checked=False: self._show_workshop_settings()` instead, matching
+  the same safe pattern already used for the Render button itself.
+
+  Confirmed the other, similarly-named methods found via a project-
+  wide search (`Model_Editor/model_workshop.py`, `Col_Editor/
+  col_workshop.py`) are sibling tools' own separate, unrelated
+  implementations - correctly untouched, out of this fix's scope.
+  `ast.parse` clean; confirmed via AST no duplicate method
+  definitions and confirmed `_open_render_settings_dialog` no longer
+  exists anywhere in this file at all.
