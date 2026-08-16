@@ -5216,3 +5216,48 @@ conclusively found despite extensive isolated testing.
   `ModelWorkshop`, fixed here; the other on an unrelated dialog class
   further down dealing with document-modification state, correctly
   untouched).
+
+- **Aug 16, 2026 (cont'd)** — Fixed "occlusion data not showing in
+  ipl display", per Keith's real screenshot. Real cause: `"occl"` had
+  full parsing (`_parse_occl`) and real viewport rendering (Show
+  Occlusion, ghosted boxes) since a few turns ago, but was never
+  actually added to `tab_specs` - the IPL Controls tab bar simply had
+  no "OCCL" button at all, so there was no way to select it and view
+  its raw data in IPL File Display, unlike every other parsed section
+  type. Added it right after ENEX, enabled like the other real
+  section types (not a disabled stub like PICK/JUMP/TCYC/AUZO/MULT).
+  Nothing else needed changing - `headers_by_type['occl']`, the raw-
+  text extraction, and the auto-tab-switch logic are all already
+  generic and correctly pick up any key present in `self._ipl_tab_
+  keys`, which is itself just derived from `tab_specs`.
+
+  Added colour pickers for cull/zone/occlusion box colours to
+  Settings > Render, per Keith: "Zon settings for box colour, same
+  with occlusion." All three (`cull_box_color`/`zone_box_color`/
+  `occl_box_color`) have had real viewport rendering and their own
+  `MapSettings` entries for several turns, but this dialog never
+  actually exposed a way to change any of them - the same gap path
+  line/node colour had before it got a picker earlier this session.
+  New "Cull / Zone / Occlusion Boxes" group, one colour picker each,
+  same pattern as the existing Path Lines group (a coloured preview
+  button, `QColorDialog` on click, saved + pushed to the live
+  viewport on Apply). Confirmed no additional "apply on startup/
+  refresh" wiring was needed - `_refresh_cull_box_visualization`/
+  `_refresh_zone_box_visualization`/`_refresh_occl_box_visualization`
+  already re-apply their saved colour on every call (built in
+  alongside the original rendering work), so a colour picked here
+  takes effect immediately through the existing pipeline once saved.
+  Zone's own separate Ghosted/Wireframe/Translucent render-style
+  dropdown (in the Render menu, not this dialog) is unaffected by
+  this addition - purely about colour.
+
+  Path line/node colour and thickness/size themselves were already
+  built (confirmed present, not re-added) - Keith's "Settings objects
+  for nodes and lines (paths) line/node colour and thinkness" request
+  matches what already exists exactly; flagging in case it wasn't
+  visible/found on his end rather than assuming it needs rebuilding.
+
+  Verified: `DEFAULTS` registration/get/set round-trip for all three
+  new colour keys; confirmed `occl` is correctly present in `tab_
+  specs`, positioned right after `enex`. `ast.parse` clean; confirmed
+  via AST exactly one definition of the settings-dialog method.

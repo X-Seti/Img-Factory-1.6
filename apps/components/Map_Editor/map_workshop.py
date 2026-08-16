@@ -7462,6 +7462,64 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         lay.addWidget(path_grp)
 
+        # Cull/Zone/Occlusion box colours (Aug 16 2026, per Keith:
+        # "Zon settings for box colour, same with occlusion") - these
+        # three box types have had real ghosted-box viewport
+        # rendering (and their own MapSettings colour entries -
+        # cull_box_color/zone_box_color/occl_box_color) since a few
+        # turns ago, but this dialog never actually exposed a way to
+        # CHANGE any of them - same gap path line/node colour had
+        # before it got its own picker here. Cull/occlusion get a
+        # colour picker only (their render style is fixed ghosted,
+        # per Keith's own "in zons" framing when he asked for the
+        # render-style dropdown - only zones got that); zone ALSO
+        # already has its own Ghosted/Wireframe/Translucent dropdown
+        # elsewhere in this same dialog (the Render dropdown, not
+        # here), unaffected by this addition.
+        boxes_grp = QGroupBox("Cull / Zone / Occlusion Boxes")
+        boxes_form = QFormLayout(boxes_grp)
+
+        saved_cull_color = self.map_settings.get('cull_box_color') or (255, 217, 51)
+        clr, clg, clb = saved_cull_color
+        cull_preview = QPushButton("  ")
+        cull_preview.setFixedSize(60, 28)
+        cull_preview.setStyleSheet(f"background-color: rgb({clr},{clg},{clb});")
+        def _pick_cull_color():  #vers 1
+            c = QColorDialog.getColor(QColor(clr, clg, clb), dlg, "Cull Box Colour")
+            if c.isValid():
+                cull_preview.setStyleSheet(f"background-color: {c.name()};")
+                cull_preview.setProperty("chosen", (c.red(), c.green(), c.blue()))
+        cull_preview.clicked.connect(_pick_cull_color)
+        boxes_form.addRow("Cull Colour:", cull_preview)
+
+        saved_zone_color = self.map_settings.get('zone_box_color') or (77, 179, 255)
+        zlr, zlg, zlb = saved_zone_color
+        zone_preview = QPushButton("  ")
+        zone_preview.setFixedSize(60, 28)
+        zone_preview.setStyleSheet(f"background-color: rgb({zlr},{zlg},{zlb});")
+        def _pick_zone_color():  #vers 1
+            c = QColorDialog.getColor(QColor(zlr, zlg, zlb), dlg, "Zone Box Colour")
+            if c.isValid():
+                zone_preview.setStyleSheet(f"background-color: {c.name()};")
+                zone_preview.setProperty("chosen", (c.red(), c.green(), c.blue()))
+        zone_preview.clicked.connect(_pick_zone_color)
+        boxes_form.addRow("Zone Colour:", zone_preview)
+
+        saved_occl_color = self.map_settings.get('occl_box_color') or (255, 102, 204)
+        olr, olg, olb = saved_occl_color
+        occl_preview = QPushButton("  ")
+        occl_preview.setFixedSize(60, 28)
+        occl_preview.setStyleSheet(f"background-color: rgb({olr},{olg},{olb});")
+        def _pick_occl_color():  #vers 1
+            c = QColorDialog.getColor(QColor(olr, olg, olb), dlg, "Occlusion Box Colour")
+            if c.isValid():
+                occl_preview.setStyleSheet(f"background-color: {c.name()};")
+                occl_preview.setProperty("chosen", (c.red(), c.green(), c.blue()))
+        occl_preview.clicked.connect(_pick_occl_color)
+        boxes_form.addRow("Occlusion Colour:", occl_preview)
+
+        lay.addWidget(boxes_grp)
+
         # Buttons
         btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
                                 QDialogButtonBox.StandardButton.Cancel)
@@ -7494,6 +7552,24 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.map_settings.set('path_node_size', node_size_spin.value())
             if hasattr(pw, 'set_path_node_size'):
                 pw.set_path_node_size(node_size_spin.value())
+            cull_chosen = cull_preview.property("chosen")
+            if cull_chosen:
+                self.map_settings.set('cull_box_color', cull_chosen)
+                if hasattr(pw, 'set_cull_box_color'):
+                    ccr, ccg, ccb = cull_chosen
+                    pw.set_cull_box_color(ccr / 255.0, ccg / 255.0, ccb / 255.0)
+            zone_chosen = zone_preview.property("chosen")
+            if zone_chosen:
+                self.map_settings.set('zone_box_color', zone_chosen)
+                if hasattr(pw, 'set_zone_box_color'):
+                    zcr, zcg, zcb = zone_chosen
+                    pw.set_zone_box_color(zcr / 255.0, zcg / 255.0, zcb / 255.0)
+            occl_chosen = occl_preview.property("chosen")
+            if occl_chosen:
+                self.map_settings.set('occl_box_color', occl_chosen)
+                if hasattr(pw, 'set_occl_box_color'):
+                    ocr, ocg, ocb = occl_chosen
+                    pw.set_occl_box_color(ocr / 255.0, ocg / 255.0, ocb / 255.0)
             dlg.accept()
         btns.accepted.connect(_apply)
         lay.addWidget(btns)
@@ -22157,6 +22233,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             ('path', "PATH", "PATH - Pedestrian / Vehicle Paths (GTA3/VC)", True, None),
             ('grge', "GRGE", "GRGE - Garages (SA)", True, None),
             ('enex', "ENEX", "ENEX - Entrances / Exits (SA)", True, None),
+            # 'occl' (Aug 16 2026 fix, per Keith: "occlusion data not
+            # showing in ipl display") - occlusion has had full
+            # parsing (_parse_occl) and viewport rendering (Show
+            # Occlusion, ghosted boxes) since a few turns ago, but was
+            # never actually added as a selectable tab here - there
+            # was simply no way to pick "OCCL" to view its raw data in
+            # IPL File Display at all, unlike every other parsed
+            # section type.
+            ('occl', "OCCL", "OCCL - Occlusion Zones (VC/SA)", True, None),
             ('pick', "PICK", "PICK - Pickup Spawns (SA)", False,
              "Not parsed yet - no verified real sample data to build this on."),
             ('jump', "JUMP", "JUMP - Unique Stunt Jumps (SA)", False,
