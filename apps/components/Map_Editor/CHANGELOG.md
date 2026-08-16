@@ -4890,3 +4890,52 @@ conclusively found despite extensive isolated testing.
   normal non-overlapping call behaves identically to before. `ast.
   parse` clean; confirmed via AST exactly one definition of each
   method.
+
+- **Aug 16, 2026 (cont'd)** — Extended "Save IPL Data As..." to cover
+  every section, not just inst, per Keith: "we need a way to save the
+  .ipl date [data], save back to original file, but this would
+  overwrite existing data, so a save as right click option" ->
+  clarified: "Need it to cover all sections, not just inst." (The
+  right-click-to-a-new-file behaviour itself already existed and
+  already never overwrites the source unless the user explicitly
+  picks that path in the save dialog - the actual gap was that only
+  `inst` data was ever written.)
+
+  New `_save_ipl_data_as_full` replaces the old inst-only method at
+  the IPL File Display's general-purpose "Save IPL Data As..." right-
+  click action (the binary-IPL-diagnostic "Save Binary IPL as
+  Text..." action elsewhere keeps using the original inst-only
+  method - binary IPLs only ever have inst data by definition, so
+  nothing changes there). For every section type this app parses
+  into structured, editable data (inst/cull/zone/path/grge/enex/
+  occl), writes from the LIVE in-memory representation - so edits
+  made via e.g. the Path Group Editor are correctly reflected in the
+  output, not just a re-dump of the original file. For section types
+  not yet parsed into structured data (pick/jump/tcyc/auzo/mult),
+  copies the original raw text straight through unchanged, so
+  nothing real in the source file is silently dropped even though
+  editing isn't supported for those yet. Section order in the output
+  matches the original file's own order, determined by actually
+  scanning it (same section-keyword detection rule the real parser
+  itself uses) rather than a fixed/guessed order.
+
+  inst lines use the correct field layout per game, confirmed against
+  `IPLParser._parse_inst`'s own three verified formats: SA (no scale,
+  has lod_index), VC (has scale+interior, no lod_index), GTA3 (has
+  scale, no interior/lod_index) - the original inst-only method
+  always wrote SA's format regardless of which game the loaded world
+  actually was, silently wrong for VC/GTA3 saves.
+
+  Verified with real round-trip tests, not just written and assumed
+  correct: parsed Keith's real cull.ipl, serialized all 631 cull
+  entries with the new format, wrote to a temp file, re-parsed that
+  file with the actual `IPLParser`, and confirmed every single entry
+  matches the original field-for-field. Same full round-trip for
+  GTA3-format inst data using the real comSE.ipl (566 instances, all
+  fields matching after save+reparse). Section-order detection
+  verified against cull.ipl's real structure (correctly detected
+  `inst, cull, pick, path` in that exact order). Pass-through logic
+  for an unparsed section (`pick`) verified to preserve the section's
+  raw lines exactly, including the position it belongs in relative to
+  the sections around it. `ast.parse` clean; confirmed via AST no
+  duplicate method definitions.

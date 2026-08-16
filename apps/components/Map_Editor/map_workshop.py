@@ -21295,6 +21295,210 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return
         self._set_status(f"Saved {len(matching)} instances from {ipl_name} to {path}")
 
+    def _save_ipl_data_as_full(self, ipl_name): #vers 1
+        """Save ALL of an IPL's sections to a new file, not just inst
+        (Aug 16 2026, per Keith: "we need a way to save the .ipl
+        date, save back to original file, but this would overwrite
+        existing data, so a save as right click option" -> "Need it
+        to cover all sections, not just inst"). The dialog always
+        lets the user pick the destination (defaulting to the
+        original filename, but never writing there without the user
+        explicitly choosing to) - this never silently overwrites the
+        source file Keith was concerned about.
+
+        For every section type this app actually parses into
+        structured, editable data (inst/cull/zone/path/grge/enex/
+        occl), writes from the LIVE in-memory representation - so any
+        edits made via e.g. the Path Group Editor are correctly
+        reflected in the output, not just a re-dump of the original
+        file. For section types not yet parsed into structured data
+        at all (pick/jump/tcyc/auzo/mult), copies the ORIGINAL raw
+        text straight through unchanged, so nothing real in the
+        source file is silently lost even though editing isn't
+        supported for those yet.
+
+        Section order in the output matches the original file's own
+        order, determined by actually scanning it rather than a
+        fixed/guessed order - keeps a diff against the original
+        minimal for anyone comparing the two. Falls back to a
+        reasonable default order only when there's no raw file to
+        scan at all (e.g. a purely in-memory/binary-sourced entry -
+        though in practice binary IPLs only ever have inst data, so
+        this rarely matters).
+
+        inst lines use the correct per-game field layout (SA: no
+        scale, has lod_index; VC: has scale+interior, no lod_index;
+        GTA3: has scale, no interior/lod_index) - see IPLParser.
+        _parse_inst's own docstring for the three confirmed formats
+        this mirrors exactly."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            return
+        import re
+        from apps.methods.gta_dat_parser import GTAGame
+        stem = getattr(self, '_ipl_display_to_stem', {}).get(ipl_name)
+        entry = loader.available_ipls.get(stem) if stem else None
+        raw_text = ""
+        if entry is not None and entry.exists:
+            try:
+                with open(entry.abs_path, 'r', encoding='ascii', errors='ignore') as f:
+                    raw_text = f.read()
+            except Exception:
+                raw_text = ""
+
+        # Original section order, scanned directly from the file -
+        # same keyword-detection rule the real parser uses (a short
+        # lowercase token, no comma) rather than a hardcoded list of
+        # known section names, so this doesn't need updating if a
+        # new section type is ever added.
+        section_order = []
+        for raw_line in raw_text.splitlines():
+            line = raw_line.split("#")[0].strip()
+            low = line.lower()
+            if low and low != 'end' and re.match(r'^[a-z0-9_]{2,8}$', low) and ',' not in line:
+                if low not in section_order:
+                    section_order.append(low)
+        if not section_order:
+            section_order = ['inst', 'cull', 'zone', 'path', 'grge', 'enex', 'occl']
+
+        STRUCTURED = {'inst', 'cull', 'zone', 'path', 'grge', 'enex', 'occl'}
+        game = getattr(loader, 'game', None)
+        all_inst = getattr(self, '_all_instances', None) or []
+
+        def _fmt(v):
+            return f"{v:.6f}" if isinstance(v, float) else str(v)
+
+        lines_out = []
+        total_written = 0
+        for section in section_order:
+            if section not in STRUCTURED:
+                # Not yet parsed into structured data - copy the
+                # original section's raw text through unchanged.
+                raw_section = self._extract_ipl_section_text(raw_text, section)
+                if raw_section:
+                    lines_out.extend(raw for _lineno, raw in raw_section)
+                continue
+
+            if section == 'inst':
+                matching = [i for i in all_inst if i.source_ipl == ipl_name]
+                lines_out.append("inst")
+                for inst in matching:
+                    if game in (GTAGame.SA, GTAGame.SOL):
+                        lines_out.append(
+                            f"{inst.model_id}, {inst.model_name}, {inst.interior}, "
+                            f"{_fmt(inst.pos_x)}, {_fmt(inst.pos_y)}, {_fmt(inst.pos_z)}, "
+                            f"{_fmt(inst.rot_x)}, {_fmt(inst.rot_y)}, {_fmt(inst.rot_z)}, {_fmt(inst.rot_w)}, "
+                            f"{inst.lod_index}")
+                    elif game == GTAGame.VC:
+                        lines_out.append(
+                            f"{inst.model_id}, {inst.model_name}, {inst.interior}, "
+                            f"{_fmt(inst.pos_x)}, {_fmt(inst.pos_y)}, {_fmt(inst.pos_z)}, "
+                            f"{_fmt(inst.scale_x)}, {_fmt(inst.scale_y)}, {_fmt(inst.scale_z)}, "
+                            f"{_fmt(inst.rot_x)}, {_fmt(inst.rot_y)}, {_fmt(inst.rot_z)}, {_fmt(inst.rot_w)}")
+                    else:   # GTA3
+                        lines_out.append(
+                            f"{inst.model_id}, {inst.model_name}, "
+                            f"{_fmt(inst.pos_x)}, {_fmt(inst.pos_y)}, {_fmt(inst.pos_z)}, "
+                            f"{_fmt(inst.scale_x)}, {_fmt(inst.scale_y)}, {_fmt(inst.scale_z)}, "
+                            f"{_fmt(inst.rot_x)}, {_fmt(inst.rot_y)}, {_fmt(inst.rot_z)}, {_fmt(inst.rot_w)}")
+                    total_written += 1
+                lines_out.append("end")
+
+            elif section == 'cull':
+                matching = [c for c in getattr(loader, 'culls', []) if c.source_ipl == ipl_name]
+                lines_out.append("cull")
+                for c in matching:
+                    lines_out.append(
+                        f"{_fmt(c.center_x)}, {_fmt(c.center_y)}, {_fmt(c.center_z)}, "
+                        f"{_fmt(c.x1)}, {_fmt(c.y1)}, {_fmt(c.z1)}, "
+                        f"{_fmt(c.x2)}, {_fmt(c.y2)}, {_fmt(c.z2)}, "
+                        f"{c.flags}, {c.wanted_level_drop}")
+                    total_written += 1
+                lines_out.append("end")
+
+            elif section == 'zone':
+                matching = [z for z in getattr(loader, 'zones', [])
+                           if z.get('source_ipl') == ipl_name]
+                lines_out.append("zone")
+                for z in matching:
+                    fields = [z['name'], str(z['type']),
+                             _fmt(z['min_x']), _fmt(z['min_y']), _fmt(z['min_z']),
+                             _fmt(z['max_x']), _fmt(z['max_y']), _fmt(z['max_z']),
+                             str(z.get('island', 0))]
+                    if z.get('text_key'):
+                        fields.append(z['text_key'])
+                    lines_out.append(', '.join(fields))
+                    total_written += 1
+                lines_out.append("end")
+
+            elif section == 'path':
+                matching = [g for g in getattr(loader, 'paths', []) if g.source_ipl == ipl_name]
+                lines_out.append("path")
+                for g in matching:
+                    lines_out.append(f"{g.header_a}, {g.header_b}")
+                    for n in g.nodes:
+                        lines_out.append(
+                            f"\t{n.node_type}, {n.next_id}, 0, "
+                            f"{_fmt(n.x)}, {_fmt(n.y)}, {_fmt(n.z)}, "
+                            f"{_fmt(n.median)}, {n.left}, {n.right}, "
+                            f"{n.flag1}, {n.flag2}, {n.flag3}")
+                    total_written += 1
+                lines_out.append("end")
+
+            elif section == 'grge':
+                matching = [g for g in getattr(loader, 'grges', []) if g.source_ipl == ipl_name]
+                lines_out.append("grge")
+                for g in matching:
+                    lines_out.append(
+                        f"{_fmt(g.x1)}, {_fmt(g.y1)}, {_fmt(g.z1)}, "
+                        f"{_fmt(g.front_x)}, {_fmt(g.front_y)}, "
+                        f"{_fmt(g.x2)}, {_fmt(g.y2)}, {_fmt(g.z2)}, "
+                        f"{g.door_type}, {g.garage_type}, {g.name}")
+                    total_written += 1
+                lines_out.append("end")
+
+            elif section == 'enex':
+                matching = [e for e in getattr(loader, 'enexes', []) if e.source_ipl == ipl_name]
+                lines_out.append("enex")
+                for e in matching:
+                    lines_out.append(
+                        f"{_fmt(e.enter_x)}, {_fmt(e.enter_y)}, {_fmt(e.enter_z)}, {_fmt(e.enter_angle)}, "
+                        f"{_fmt(e.size_x)}, {_fmt(e.size_y)}, {_fmt(e.size_z)}, "
+                        f"{_fmt(e.exit_x)}, {_fmt(e.exit_y)}, {_fmt(e.exit_z)}, {_fmt(e.exit_angle)}, "
+                        f"{e.target_interior}, {e.flags}, \"{e.name}\", "
+                        f"{e.sky}, {e.num_peds_to_spawn}, {e.time_on}, {e.time_off}")
+                    total_written += 1
+                lines_out.append("end")
+
+            elif section == 'occl':
+                matching = [o for o in getattr(loader, 'occls', []) if o.source_ipl == ipl_name]
+                lines_out.append("occl")
+                for o in matching:
+                    lines_out.append(
+                        f"{_fmt(o.mid_x)}, {_fmt(o.mid_y)}, {_fmt(o.bottom_z)}, "
+                        f"{_fmt(o.width_x)}, {_fmt(o.width_y)}, {_fmt(o.height)}, {_fmt(o.rotation)}")
+                    total_written += 1
+                lines_out.append("end")
+
+        if not lines_out:
+            QMessageBox.information(self, "Save IPL Data As...",
+                f"No loaded data found for {ipl_name}.")
+            return
+        default_name = ipl_name if ipl_name.lower().endswith('.ipl') else ipl_name + '.ipl'
+        path, _filter = QFileDialog.getSaveFileName(
+            self, "Save IPL Data As...", default_name, "IPL files (*.ipl);;All files (*)")
+        if not path:
+            return
+        try:
+            with open(path, 'w', encoding='ascii', errors='replace') as f:
+                f.write('\n'.join(lines_out) + '\n')
+        except Exception as e:
+            QMessageBox.warning(self, "Save IPL Data As...", f"Failed to save: {e}")
+            return
+        self._set_status(
+            f"Saved {total_written} entries across {len(section_order)} section(s) "
+            f"from {ipl_name} to {path}")
+
     def _verify_binary_ipl_parser(self, archive_path, entry_name): #vers 1
         """Diagnostic dry run - reads and parses one binary IPL entry
         exactly like a real load does, but never touches self._all_
@@ -23044,7 +23248,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             item = sections_table.item(sec_row, 0) if sec_row >= 0 else None
             display_name = item.data(Qt.ItemDataRole.UserRole) if item is not None else None
             if display_name:
-                self._save_ipl_data_as_text(display_name)
+                self._save_ipl_data_as_full(display_name)
         elif chosen is show_textures_action:
             inst = self._find_instance_for_ipl_inst_file_row(row)
             if inst is not None:
