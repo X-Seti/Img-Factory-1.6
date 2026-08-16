@@ -5079,3 +5079,54 @@ conclusively found despite extensive isolated testing.
   sections_rows`' own per-row logic (format-cache lookups, etc.)
   still correctly reads the raw, unindented `ipl_name` rather than
   the new cosmetic display text.
+
+- **Aug 16, 2026 (cont'd)** — Found and fixed the actual root cause
+  of "loading zons, or other ipl files, seems to partly remove other
+  objects," per Keith's own conclusive diagnostic: saving the
+  stream's own row (`lae_stream0.ipl`) after loading a different text
+  IPL came back with EVERY section completely empty -
+  `inst\nend\ncull\nend\nzone\nend...` - zero entries anywhere,
+  confirming genuine data loss, specifically for binary stream
+  instances (his earlier before/after diff of `LAe.ipl` itself was
+  byte-identical, correctly ruling out the text data - the gap was
+  never checking the stream's own separately-tracked data until now).
+
+  Real mechanism, fully traced and confirmed: `_load_binary_ipl_
+  stream` added a newly-loaded stream's instances directly to
+  `self._all_instances` ONLY - never to `loader.instances`, the
+  loader's own canonical list. Four separate places in this file
+  rebuild `self._all_instances = list(loader.instances)` whenever a
+  DIFFERENT IPL loads (`_ensure_ipl_loaded` itself is one of them) -
+  every one of those rebuilds was silently discarding any binary-
+  stream-sourced instance, since `loader.instances` never actually
+  contained them; they only ever lived in a second, parallel,
+  easily-desynced copy that nothing else knew to preserve. Simply
+  showing a different text IPL (`LAe2.ipl`) after `LAe`'s stream had
+  already loaded was enough to trigger a rebuild that wiped it out
+  entirely - exactly matching every real screenshot and diagnostic
+  file Keith provided across this whole investigation.
+
+  Fixed at the root: `_load_binary_ipl_stream` now extends `loader.
+  instances` directly (the one list every rebuild site already
+  treats as authoritative) instead of maintaining a separate parallel
+  list - `self._all_instances` is then simply rebuilt from it, same
+  as everywhere else. Closes the gap for all four rebuild sites at
+  once, rather than needing to patch each one individually to also
+  remember a second list. As a side benefit, `_unload_ipl_section`
+  (added last turn) now correctly and explicitly filters out a
+  stream's instances by name too, since they're finally present in
+  `loader.instances` for its own filtering logic to find (it
+  happened to "work" before only because the stream was never there
+  to begin with, via the same bug, not through genuine correctness).
+
+  Verified with a full, real end-to-end simulation using actual
+  `IPLInstance` objects, not just reasoning about it: first confirmed
+  the ORIGINAL code genuinely reproduces the exact failure (stream
+  instance count silently drops from 5 to 0 the moment a second,
+  unrelated text IPL loads afterward - proving the test was
+  validating the real bug, not an assumption) - then confirmed the
+  fixed version keeps all 5 stream instances intact through the exact
+  same sequence, while the parent text IPL's own 10 instances and the
+  second IPL's 8 instances are both correctly present and unaffected
+  throughout. `ast.parse` clean; confirmed via AST exactly one
+  definition of the fixed method.

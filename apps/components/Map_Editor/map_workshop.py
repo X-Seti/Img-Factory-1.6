@@ -21833,11 +21833,29 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 inst.model_name = obj.model_name
                 resolved_count += 1
 
-        all_inst = getattr(self, '_all_instances', None)
-        if all_inst is None:
-            self._all_instances = []
-            all_inst = self._all_instances
-        all_inst.extend(parser.instances)
+        # Merge into loader.instances (Aug 16 2026, per Keith's real
+        # before/after diagnostic - LAe.ipl's own text data stayed
+        # byte-identical across a reload, but its stream's data came
+        # back completely empty: "inst\nend\ncull\nend..." for every
+        # single section, zero entries anywhere) - THE actual root
+        # cause of "loading other map parts, the binary data is
+        # lost": this used to extend self._all_instances directly and
+        # ONLY self._all_instances, never loader.instances itself.
+        # Four separate places in this file rebuild self._all_
+        # instances = list(loader.instances) whenever a DIFFERENT
+        # text IPL loads (_ensure_ipl_loaded itself is one of them,
+        # so simply showing LAe2.ipl after LAe's stream had loaded
+        # was enough to trigger this) - every one of those rebuilds
+        # was silently discarding any binary-stream-sourced instance,
+        # since loader.instances never actually contained them; they
+        # only ever lived in a second, parallel, easily-forgotten-
+        # about copy that nothing else knew to preserve. Adding to
+        # loader.instances directly - the one list every rebuild
+        # point already treats as the authoritative source - closes
+        # the gap at its root rather than trying to patch every
+        # individual rebuild site to also remember this second list.
+        loader.instances.extend(parser.instances)
+        self._all_instances = list(loader.instances)
 
         if entry_name not in self._ipl_display_to_stem:
             stem = f"img:{os.path.basename(archive_path)}:{entry_name}".lower()
