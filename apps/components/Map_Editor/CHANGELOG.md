@@ -5018,3 +5018,64 @@ conclusively found despite extensive isolated testing.
   reopening the Map Workshop tab - genuinely ambiguous which,
   without more detail worth chasing further via guesswork rather
   than tracing a confirmed path, unlike every other fix this session.
+
+- **Aug 16, 2026 (cont'd)** — Reordered the IPL Sections list to nest
+  binary streams under their parent text IPL, per Keith: "I'd
+  reorder the IPL list to show LAe.ipl > tab 4 spaces, show the
+  binary under LAe.ipl... instead of placing the binary on the
+  bottom." Exact mockup: `LAe.ipl (Loaded)` followed by its indented
+  `    lae_stream0.ipl (Loaded)` etc, then `LAe2.ipl` (not loaded, no
+  suffix) with its own indented streams below it once loaded.
+
+  New `_insert_stream_into_display_order` - a newly-loaded stream now
+  gets inserted immediately after its parent text IPL (and after any
+  of that parent's already-inserted sibling streams, so multiple
+  streams for the same parent stay in the order they were loaded,
+  not reversed), instead of the previous plain append to the very
+  end of the whole list. `_load_binary_ipl_stream` reverse-looks-up
+  which parent a given (archive_path, entry_name) belongs to (`self.
+  _ipl_names_with_binary_stream` is keyed the other way round -
+  parent -> its streams, the direction the "Load Binary Stream"
+  submenu needs) and calls the new insert helper; falls back to a
+  plain append only if the parent genuinely isn't in the list at all
+  (shouldn't normally happen).
+
+  `_rebuild_ipl_sections_rows` now renders an indented, "(Loaded)"-
+  suffixed display name for stream rows (a row only exists once
+  actually loaded, so the suffix is effectively unconditional for
+  those, matching Keith's own mockup) and a plain, conditionally-
+  suffixed name for text IPL rows (loaded or not, since a text IPL's
+  row exists in the list before it's ever loaded, unlike streams).
+  Purely cosmetic - the eye icon's own stored data (used by every
+  existing lookup/matching path: `_ipl_display_to_stem`, `_hidden_
+  ipls`, `source_ipl` filtering, etc.) still holds the exact real,
+  unindented filename with no suffix, untouched.
+
+  `.zon` files (and any other genuinely standalone entries) are
+  unaffected by this reordering - they were never part of the parent/
+  stream relationship this targets, so they keep accumulating at the
+  bottom of the list exactly as before, per Keith's own explicit
+  note: "placing all the .zon on the button would make it easy to
+  find them" - already true, nothing needed changing there.
+
+  Confirmed the two other things Keith flagged in the same message
+  ("clicking on them we need view, and save as for binary aswell")
+  already work - both `_refresh_ipl_inst_file_panel` (view) and the
+  IPL Sections context menu's Save actions already handle binary/
+  stream rows via the existing `stem.startswith('img:')`/`_loaded_
+  binary_ipls` checks, which streams satisfy the same way standalone
+  binary IPLs do (matching what Keith found himself: "I just noticed
+  a copy of the binary on the bottom for binary where I can save").
+
+  Verified with a direct smoke-test matching Keith's own mockup
+  scenario exactly: loading all 4 of one parent's streams one at a
+  time produces the identical grouped order he described; loading a
+  second parent's streams afterward correctly nests under IT without
+  disturbing the first parent's group; re-inserting an already-
+  present stream is a harmless no-op. Display-text/loaded-suffix
+  logic verified separately, producing text identical to his mockup
+  character-for-character. `ast.parse` clean; confirmed via AST no
+  duplicate method definitions; confirmed the rest of `_rebuild_ipl_
+  sections_rows`' own per-row logic (format-cache lookups, etc.)
+  still correctly reads the raw, unindented `ipl_name` rather than
+  the new cosmetic display text.

@@ -21131,6 +21131,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         loader = getattr(self, '_world_loader', None)
         from apps.methods.gta_dat_parser import detect_ipl_format
         format_cache = self._ipl_format_cache = getattr(self, '_ipl_format_cache', {})
+        # Reverse lookup (stream entry name -> parent text IPL's own
+        # display name), built once per rebuild rather than per-row
+        # (Aug 16 2026, for the indented "nested under its parent"
+        # display below) - _ipl_names_with_binary_stream is keyed the
+        # other way round (parent -> its streams), since that's the
+        # direction the "Load Binary Stream" submenu needs it in.
+        stream_to_parent = {}
+        for parent, streams in getattr(self, '_ipl_names_with_binary_stream', {}).items():
+            for _archive, stream_name in streams:
+                stream_to_parent[stream_name] = parent
         for row, ipl_name in enumerate(self._ipl_display_order):
             is_hidden = ipl_name in hidden
             eye_item = QTableWidgetItem()
@@ -21139,7 +21149,29 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             eye_item.setToolTip(f"Show {ipl_name}" if is_hidden else f"Hide {ipl_name}")
             eye_item.setData(Qt.ItemDataRole.UserRole, ipl_name)
             table.setItem(row, 0, eye_item)
-            name_item = QTableWidgetItem(ipl_name)
+
+            # Indented, "(Loaded)"-suffixed display text for rows
+            # nested under a parent (Aug 16 2026, per Keith: "I'd
+            # reorder the IPL list to show LAe.ipl > tab 4 spaces,
+            # show the binary under LAe.ipl" - his own mockup shows
+            # "LAe.ipl (Loaded)" / indented "lae_stream0.ipl (Loaded)"
+            # rows underneath it, vs plain "LAe2.ipl" with no
+            # suffix for one not yet loaded). Only ever cosmetic -
+            # eye_item's own UserRole data above still stores the
+            # exact real filename, unindented and without the
+            # suffix, so every existing lookup/matching path
+            # (_ipl_display_to_stem, _hidden_ipls, source_ipl
+            # filtering, etc.) keeps working unchanged; this only
+            # affects what's actually painted in the Name column.
+            if ipl_name in stream_to_parent:
+                is_loaded_display = ipl_name in getattr(self, '_loaded_binary_ipls', set())
+                display_text = "    " + ipl_name + (" (Loaded)" if is_loaded_display else "")
+            else:
+                stem_for_load_check = getattr(self, '_ipl_display_to_stem', {}).get(ipl_name)
+                is_text_loaded = (loader is not None and stem_for_load_check is not None
+                                  and stem_for_load_check in loader.loaded_ipls)
+                display_text = ipl_name + (" (Loaded)" if is_text_loaded else "")
+            name_item = QTableWidgetItem(display_text)
             self._style_ipl_name_item(name_item, is_hidden)
             table.setItem(row, 1, name_item)
 
@@ -21690,6 +21722,34 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         QMessageBox.information(self, "Verify Binary Parser", "\n".join(lines))
 
+    def _insert_stream_into_display_order(self, parent_display_name, entry_name): #vers 1
+        """Insert a newly-loaded binary stream's row immediately after
+        its parent text IPL - and after any of that parent's already-
+        inserted sibling streams, so multiple loaded streams for the
+        same parent stay in a stable relative order rather than being
+        inserted in reverse - instead of appending to the end of the
+        whole list (Aug 16 2026, per Keith: "I'd reorder the IPL list
+        to show LAe.ipl > tab 4 spaces, show the binary under
+        LAe.ipl... instead of placing the binary on the bottom").
+        Falls back to a plain append only if the parent genuinely
+        isn't in the list at all (shouldn't normally happen - a
+        stream's parent is always a real, already-known text IPL by
+        the time this gets called)."""
+        order = self._ipl_display_order
+        if entry_name in order:
+            return
+        try:
+            parent_idx = order.index(parent_display_name)
+        except ValueError:
+            order.append(entry_name)
+            return
+        insert_at = parent_idx + 1
+        known_siblings = {name for _ap, name in
+                          self._ipl_names_with_binary_stream.get(parent_display_name, [])}
+        while insert_at < len(order) and order[insert_at] in known_siblings:
+            insert_at += 1
+        order.insert(insert_at, entry_name)
+
     def _load_binary_ipl_stream(self, archive_path, entry_name): #vers 1
         """Actually load one binary IPL stream entry's instance data -
         per Keith: "we need to be able to load these binary IPLs, so
@@ -21782,7 +21842,24 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if entry_name not in self._ipl_display_to_stem:
             stem = f"img:{os.path.basename(archive_path)}:{entry_name}".lower()
             self._ipl_display_to_stem[entry_name] = stem
-        if entry_name not in self._ipl_display_order:
+        # Insert right after this stream's parent text IPL (Aug 16
+        # 2026, per Keith: "I'd reorder the IPL list to show LAe.ipl >
+        # tab 4 spaces, show the binary under LAe.ipl" - was a plain
+        # append to the end of the list before, scattering a parent's
+        # streams wherever they each happened to finish loading rather
+        # than keeping them visually grouped with it) - see _insert_
+        # stream_into_display_order's own docstring for the exact
+        # placement logic (finds the parent, skips past any already-
+        # inserted sibling streams so multiple streams for the same
+        # parent stay in a stable relative order).
+        parent_display_name = None
+        for parent, streams in self._ipl_names_with_binary_stream.items():
+            if (archive_path, entry_name) in streams:
+                parent_display_name = parent
+                break
+        if parent_display_name is not None:
+            self._insert_stream_into_display_order(parent_display_name, entry_name)
+        elif entry_name not in self._ipl_display_order:
             self._ipl_display_order.append(entry_name)
         self._hidden_ipls.discard(entry_name)
         self._binary_ipl_names.discard(entry_name)   # now genuinely loaded, not just listed
