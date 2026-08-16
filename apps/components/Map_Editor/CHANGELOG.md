@@ -4939,3 +4939,46 @@ conclusively found despite extensive isolated testing.
   raw lines exactly, including the position it belongs in relative to
   the sections around it. `ast.parse` clean; confirmed via AST no
   duplicate method definitions.
+
+- **Aug 16, 2026 (cont'd)** — Fixed a real crash on Settings > Apply,
+  per Keith: "'ModelWorkshop' object has no attribute '_apply_
+  button_mode_to_button'" (hit after reducing texture size to 128 and
+  enabling the verbose loading debug checkbox, but not actually
+  caused by either of those - a pre-existing, unrelated gap that any
+  Apply click would eventually reach). `_update_all_buttons` (a DP5
+  paint-tool-era method, present since the very first port from
+  Model Workshop) calls `self._apply_button_mode_to_button(...)` for
+  whichever of `open_btn`/`save_btn`/`save_col_btn` happen to exist
+  as attributes - but the method itself was only ever actually
+  DEFINED in `Txd_Editor/txd_workshop.py`, never ported alongside the
+  call site into `ModelWorkshop` (Map Workshop). Confirmed the exact
+  same gap exists in `Model_Editor/model_workshop.py`, `Col_Editor/
+  col_workshop.py`, and `gui/gui_layout_custom.py` too - all copy-
+  pasted from the same original template, not something introduced
+  by this specific port. Fixed for Map Workshop by porting the real,
+  working implementation from `txd_workshop.py` directly (unchanged) -
+  `button_display_mode` already existed here, read/written by several
+  other methods already, so this slots in as a genuine fix rather
+  than needing a new dependency. The other three files' identical gap
+  noted but not fixed here - out of this session's actual scope,
+  flagging in case worth a follow-up.
+
+  On "settings are not being saved": confirmed this crash did NOT
+  actually block Keith's specific changes (texture size, debug
+  loading) from saving. `apply_settings`'s own existing comment
+  already documents exactly this failure class from once before (a
+  different broken reference, `self.format_combo`) - the Loading/Map
+  Assets tab settings are deliberately applied FIRST in the function,
+  specifically so a later crash elsewhere in the same function can't
+  block them. Confirmed `texture_downscale_enabled/threshold/target`
+  and `show_verbose_loading_dialog` are all registered in `MapSettings.
+  DEFAULTS`, so `.set()`'s own debounced auto-save (independent of
+  this function's control flow) would have persisted them regardless
+  of the later crash. The alarming error message likely read as "the
+  whole apply failed" when only the later, less critical button-
+  styling step actually did.
+
+  Verified via AST (exactly one definition of `_apply_button_mode_to_
+  button`/`_update_all_buttons`); confirmed `QIcon`/`QSize` (used by
+  the ported method) are already imported at module level, no new
+  import needed. `ast.parse` clean.

@@ -9069,6 +9069,62 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 self._apply_button_mode_to_button(button, btn_text)
         self._update_dock_button_visibility()
 
+    def _apply_button_mode_to_button(self, button, text): #vers 1
+        """Apply display mode to a single button with proper spacing
+        (Aug 16 2026, per Keith's real crash pressing Apply in
+        Settings: "'ModelWorkshop' object has no attribute
+        '_apply_button_mode_to_button'" - _update_all_buttons has
+        called this since the very first port from Model Workshop,
+        but the method itself was only ever ACTUALLY defined in
+        Txd_Editor/txd_workshop.py, never ported over here alongside
+        the call site - every other workshop class copy-pasted from
+        the same DP5 template (Model_Editor/model_workshop.py,
+        Col_Editor/col_workshop.py, gui/gui_layout_custom.py) has the
+        identical gap, not something introduced by this port
+        specifically. Ported directly from the real, working txd_
+        workshop.py implementation, unmodified - button_display_mode
+        already exists here (set in __init__, read/written by several
+        other methods already), so this slots in as a genuine fix,
+        not a new dependency.
+
+        Skips QAction-based ribbon buttons - those are handled
+        natively by QToolBar.setToolButtonStyle via _update_
+        transform_text_panel_visibility instead. Uses an explicit
+        isinstance check (not hasattr) since hasattr(QAction_
+        instance, 'setFixedSize') was observed returning True on at
+        least one PyQt6 build, letting QActions through and crashing
+        on the QPushButton-only calls below."""
+        from PyQt6.QtGui import QAction
+        if isinstance(button, QAction) or not hasattr(button, 'setFixedSize'):
+            return
+        if not hasattr(button, '_original_icon'):
+            button._original_icon = button.icon()
+
+        if self.button_display_mode == 'icons':
+            button.setText("")
+            if not button._original_icon.isNull():
+                button.setIcon(button._original_icon)
+                button.setIconSize(QSize(20, 20))
+            button.setFixedSize(40, 40)
+
+        elif self.button_display_mode == 'text':
+            button.setText(text)
+            button.setIcon(QIcon())
+            button.setMinimumWidth(60)
+            button.setMaximumWidth(16777215)
+            button.setMinimumHeight(0)
+            button.setMaximumHeight(16777215)
+
+        elif self.button_display_mode == 'both':
+            button.setText(text)
+            if not button._original_icon.isNull():
+                button.setIcon(button._original_icon)
+                button.setIconSize(QSize(20, 20))
+            button.setMinimumWidth(0)
+            button.setMaximumWidth(16777215)
+            button.setMinimumHeight(0)
+            button.setMaximumHeight(16777215)
+
     def paintEvent(self, event): #vers 3
         """Paint corner resize triangles — only in standalone/frameless mode."""
         super().paintEvent(event)
