@@ -3201,6 +3201,14 @@ class MapSettings(QObject):
         # viewpoint") - same representation as path_line_color/
         # cull_box_color. Sky blue by default, distinct from both.
         'zone_box_color': (77, 179, 255),
+        # Zone box render style (Aug 16 2026, per Keith: "in zons, the
+        # render dropdown could show, Zon - Ghosted, Zon - Wireframe,
+        # Zon - translucent") - 'ghosted' (filled+outlined, default),
+        # 'wireframe' (edges only), or 'translucent' (filled only, no
+        # outline, more see-through than ghosted). Scoped to zone
+        # boxes only, per Keith's own request - cull/occlusion boxes
+        # aren't affected by this setting.
+        'zone_render_style': 'ghosted',
         # Occlusion zone box colour in the 3D view (Aug 16 2026,
         # continuing the cull/zon viewport work) - same representation
         # as the other overlay colours. Pink by default, distinct from
@@ -11616,6 +11624,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             saved_key_overrides = self.map_settings.get('viewport_key_bindings')
             if saved_key_overrides:
                 self.preview_widget.set_key_bindings(saved_key_overrides)
+        # Restore the saved zone render style (Aug 16 2026, per
+        # Keith's "Zon - Ghosted/Wireframe/Translucent" dropdown) -
+        # same reasoning as the keybindings restore just above.
+        if hasattr(self.preview_widget, 'set_zone_render_style'):
+            self.preview_widget.set_zone_render_style(
+                self.map_settings.get('zone_render_style'))
         self._viewport_stack = QStackedWidget()
         self._viewport_stack.addWidget(self.preview_widget)   # index 0: single view
         inner_mw.setCentralWidget(self._viewport_stack)
@@ -21858,6 +21872,32 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             action.triggered.connect(
                 lambda checked, s=setter_name: self._on_col_render_option_toggled(s, checked))
 
+        render_lod_menu.addSeparator()
+
+        # Zone render style (Aug 16 2026, per Keith: "in zons, the
+        # render dropdown could show, Zon - Ghosted, Zon - Wireframe,
+        # Zon - translucent") - exclusive, like render_group/lod_group
+        # above (pick one style), not independently toggleable like
+        # the Col options (a zone box only ever renders one way at a
+        # time). Scoped to zone boxes specifically, per Keith's own
+        # "in zons" framing - cull/occlusion boxes keep their fixed
+        # ghosted look from the previous request, not touched here.
+        zon_render_group = QActionGroup(render_lod_menu)
+        zon_render_group.setExclusive(True)
+        zon_render_specs = [
+            ('ghosted',     "Zon - Ghosted",     "Filled, semi-transparent boxes with a defined outline (default)"),
+            ('wireframe',   "Zon - Wireframe",   "Edges only, no fill"),
+            ('translucent', "Zon - Translucent", "Filled, more see-through boxes with no outline"),
+        ]
+        for mode, label_text, tooltip in zon_render_specs:
+            action = render_lod_menu.addAction(label_text)
+            action.setCheckable(True)
+            action.setChecked(mode == self.map_settings.get('zone_render_style'))
+            action.setToolTip(tooltip)
+            action.triggered.connect(
+                lambda checked, m=mode: self._set_zone_render_style(m) if checked else None)
+            zon_render_group.addAction(action)
+
         render_lod_btn.setMenu(render_lod_menu)
         render_lod_btn.setToolTip("Choose how the world view renders geometry, and which detail level(s) to show")
         opts_row.addWidget(render_lod_btn)
@@ -24768,6 +24808,19 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             vp.set_show_zone_boxes(checked)
         if checked:
             self._refresh_zone_box_visualization()
+
+    def _set_zone_render_style(self, mode): #vers 1
+        """Zon render style changed via the Render dropdown (Aug 16
+        2026, per Keith: "in zons, the render dropdown could show,
+        Zon - Ghosted, Zon - Wireframe, Zon - translucent") -
+        persisted immediately (debounced auto-save, same as every
+        other MapSettings.set() call) and pushed to the live viewport
+        right away, no separate Apply step needed since this is a
+        dropdown choice, not a form field."""
+        self.map_settings.set('zone_render_style', mode)
+        vp = getattr(self, 'preview_widget', None)
+        if vp is not None and hasattr(vp, 'set_zone_render_style'):
+            vp.set_zone_render_style(mode)
 
     def _refresh_occl_box_visualization(self): #vers 1
         """Push the currently visible IPLs' occlusion zones to the

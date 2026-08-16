@@ -340,6 +340,14 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self.show_zone_boxes = False
         self._zone_boxes = []
         self._zone_box_color = (0.3, 0.7, 1.0)   # sky blue, distinct from cull's amber and paths' red
+        # Zon render style (Aug 16 2026, per Keith: "in zons, the
+        # render dropdown could show, Zon - Ghosted, Zon - Wireframe,
+        # Zon - translucent") - one of 'ghosted' (filled+outlined,
+        # default), 'wireframe' (edges only), 'translucent' (filled
+        # only, no outline, more see-through than ghosted). Scoped to
+        # zone boxes only, per Keith's own request - cull/occlusion
+        # keep their fixed ghosted look.
+        self._zone_render_style = 'ghosted'
 
         # Occlusion zones (Aug 16 2026, continuing the cull/zon work -
         # "occl" was never even a recognised VC section keyword
@@ -885,27 +893,64 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         actual documented box, no assumption needed."""
         self._draw_ghosted_boxes(self._cull_boxes, self._cull_box_color)
 
-    def _draw_zone_boxes(self): #vers 2
-        """Draw every loaded map zone as a ghosted box (Aug 16 2026) -
-        zones never had any viewport rendering at all before their
-        original wireframe version. Same axis-aligned min/max-corner
-        shape as cull boxes, so this just calls the same shared
-        drawing helper with the zone data/colour instead of
-        duplicating the loop."""
-        self._draw_ghosted_boxes(self._zone_boxes, self._zone_box_color)
+    def _draw_zone_boxes(self): #vers 3
+        """Draw every loaded map zone, style selectable via self.
+        _zone_render_style (Aug 16 2026, per Keith: "in zons, the
+        render dropdown could show, Zon - Ghosted, Zon - Wireframe,
+        Zon - translucent") - 'wireframe' draws edges only (no fill,
+        no corner spheres skipped either - see _draw_box_wireframe_
+        from_corners); 'ghosted' (default) and 'translucent' both go
+        through the same shared _draw_ghosted_box_from_corners, just
+        with different fill_alpha/draw_outline - translucent is more
+        see-through and has no outline at all, letting the corner
+        spheres alone mark the box's extent."""
+        if not OPENGL_AVAILABLE or not self._zone_boxes: return
+        style = self._zone_render_style
+        glDisable(GL_LIGHTING)
+        glDisable(GL_DEPTH_TEST)
+        r, g, b = self._zone_box_color
+        if style == 'wireframe':
+            glColor3f(r, g, b)
+            glLineWidth(1.5)
+            for x1, y1, z1, x2, y2, z2 in self._zone_boxes:
+                corners_xy = [(x1, y1), (x2, y1), (x2, y2), (x1, y2)]
+                self._draw_box_wireframe_from_corners(corners_xy, z1, z2)
+                self._draw_box_corner_spheres(corners_xy, z1, z2, r, g, b)
+        else:
+            glEnable(GL_BLEND)
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+            fill_alpha = 0.16 if style == 'translucent' else 0.32
+            draw_outline = style != 'translucent'
+            for x1, y1, z1, x2, y2, z2 in self._zone_boxes:
+                corners_xy = [(x1, y1), (x2, y1), (x2, y2), (x1, y2)]
+                self._draw_ghosted_box_from_corners(
+                    corners_xy, z1, z2, r, g, b,
+                    fill_alpha=fill_alpha, draw_outline=draw_outline)
+                self._draw_box_corner_spheres(corners_xy, z1, z2, r, g, b)
+            glDisable(GL_BLEND)
+        glEnable(GL_DEPTH_TEST)
+        glEnable(GL_LIGHTING)
 
-    def _draw_ghosted_boxes(self, boxes, color): #vers 1
-        """Shared ghosted axis-aligned-box drawing helper for cull/
-        zone (Aug 16 2026, per Keith: "instead of wireframe boxes, we
-        go for ghosted, see through boxes, like the semi solid" -
-        replaces the earlier _draw_wireframe_boxes) - boxes is a list
-        of (x1,y1,z1,x2,y2,z2) corner-pair tuples, color an (r,g,b)
-        0-1 tuple. Derives the 4 XY corners from the two opposite
-        points and hands off to _draw_ghosted_box_from_corners, the
-        same per-box fill+outline routine _draw_occl_boxes' rotated
-        boxes use - only the corner computation differs between an
-        axis-aligned box and a rotated one, not how it's actually
-        drawn once corners exist."""
+    def _draw_ghosted_boxes(self, boxes, color): #vers 2
+        """Shared ghosted axis-aligned-box drawing helper for cull
+        (Aug 16 2026, per Keith: "instead of wireframe boxes, we go
+        for ghosted, see through boxes, like the semi solid" -
+        replaces the earlier _draw_wireframe_boxes; zone moved to its
+        own _draw_zone_boxes once it gained selectable render styles)
+        - boxes is a list of (x1,y1,z1,x2,y2,z2) corner-pair tuples,
+        color an (r,g,b) 0-1 tuple. Derives the 4 XY corners from the
+        two opposite points and hands off to _draw_ghosted_box_from_
+        corners, the same per-box fill+outline routine _draw_occl_
+        boxes' rotated boxes use - only the corner computation
+        differs between an axis-aligned box and a rotated one, not
+        how it's actually drawn once corners exist. Also draws a
+        small solid sphere at each of the box's 8 corners (Aug 16
+        2026, per Keith: "the boxes we see need little solid spheres
+        on each corner so you can move the 6 sides, bigger, shorter,
+        longer, deeper, higher" - visual handles only for now, not
+        yet draggable/interactive; that's a bigger follow-up matching
+        the project's already-open "gizmo-based free object movement"
+        TODO, same class of feature)."""
         if not OPENGL_AVAILABLE or not boxes: return
         glDisable(GL_LIGHTING)
         glDisable(GL_DEPTH_TEST)
@@ -915,27 +960,33 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         for x1, y1, z1, x2, y2, z2 in boxes:
             corners_xy = [(x1, y1), (x2, y1), (x2, y2), (x1, y2)]
             self._draw_ghosted_box_from_corners(corners_xy, z1, z2, r, g, b)
+            self._draw_box_corner_spheres(corners_xy, z1, z2, r, g, b)
         glDisable(GL_BLEND)
         glEnable(GL_DEPTH_TEST)
         glEnable(GL_LIGHTING)
 
     def _draw_ghosted_box_from_corners(self, corners_xy, z1, z2, r, g, b,
-                                        fill_alpha=0.32, edge_alpha=0.85): #vers 1
-        """Draw one ghosted (semi-transparent filled faces + a more
-        opaque wireframe outline for definition) box from 4 already-
-        computed (x,y) corner points in loop order and a z1/z2
-        extrusion range (Aug 16 2026, per Keith: "instead of
+                                        fill_alpha=0.32, edge_alpha=0.85,
+                                        draw_outline=True): #vers 2
+        """Draw one ghosted (semi-transparent filled faces + an
+        optional, more opaque wireframe outline for definition) box
+        from 4 already-computed (x,y) corner points in loop order and
+        a z1/z2 extrusion range (Aug 16 2026, per Keith: "instead of
         wireframe boxes, we go for ghosted, see through boxes, like
         the semi solid") - matches the existing collision Semi-Solid
         render mode's own convention (_draw_solid's alpha_multiplier
         path: filled alpha-blended triangles plus a subtle darker
         edge pass), just for a simple box instead of arbitrary mesh
-        triangles. Shared by both the axis-aligned cull/zone case
-        (_draw_ghosted_boxes) and the rotated occlusion case (_draw_
-        occl_boxes) - only the corner computation differs between
-        them, not this actual drawing routine. Caller is responsible
-        for glEnable(GL_BLEND)/blend func and disabling lighting/
-        depth test around a whole batch, not repeated per box here."""
+        triangles. draw_outline=False (Aug 16 2026, for Zon -
+        Translucent) skips the edge pass entirely - just the filled
+        faces, letting the corner spheres alone mark the box's shape.
+        Shared by the axis-aligned cull/zone case (_draw_ghosted_
+        boxes/_draw_zone_boxes) and the rotated occlusion case
+        (_draw_occl_boxes) - only the corner computation differs
+        between them, not this actual drawing routine. Caller is
+        responsible for glEnable(GL_BLEND)/blend func and disabling
+        lighting/depth test around a whole batch, not repeated per
+        box here."""
         glColor4f(r, g, b, fill_alpha)
         glBegin(GL_QUADS)
         for cx, cy in corners_xy:
@@ -952,6 +1003,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             glVertex3f(cx0, cy0, z1); glVertex3f(cx1, cy1, z1)
             glVertex3f(cx1, cy1, z2); glVertex3f(cx0, cy0, z2)
             glEnd()
+        if not draw_outline:
+            return
         glColor4f(r, g, b, edge_alpha)
         glLineWidth(1.2)
         glBegin(GL_LINE_LOOP)
@@ -967,7 +1020,62 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             glVertex3f(cx, cy, z1); glVertex3f(cx, cy, z2)
         glEnd()
 
-    def _draw_occl_boxes(self): #vers 2
+    def _draw_box_wireframe_from_corners(self, corners_xy, z1, z2): #vers 1
+        """Edges-only box drawing from 4 already-computed (x,y)
+        corner points and a z1/z2 extrusion range (Aug 16 2026, for
+        Zon - Wireframe) - the plain wireframe look every box type
+        had before the Semi-Solid-style ghosted rework; kept around
+        as an explicit style choice for zones specifically, per
+        Keith's own request, rather than removed entirely. Caller
+        sets colour/line width beforehand - this only emits
+        vertices."""
+        glBegin(GL_LINE_LOOP)
+        for cx, cy in corners_xy:
+            glVertex3f(cx, cy, z1)
+        glEnd()
+        glBegin(GL_LINE_LOOP)
+        for cx, cy in corners_xy:
+            glVertex3f(cx, cy, z2)
+        glEnd()
+        glBegin(GL_LINES)
+        for cx, cy in corners_xy:
+            glVertex3f(cx, cy, z1); glVertex3f(cx, cy, z2)
+        glEnd()
+
+    def _draw_box_corner_spheres(self, corners_xy, z1, z2, r, g, b, radius=0.35): #vers 1
+        """Draw a small solid sphere at each of a box's 8 corners
+        (Aug 16 2026, per Keith: "the boxes we see need little solid
+        spheres on each corner so you can move the 6 sides, bigger,
+        shorter, longer, deeper, higher" - visual handles only for
+        now, not yet clickable/draggable; actually moving a corner to
+        resize the box is a separate, larger follow-up matching the
+        project's already-open "gizmo-based free object movement"
+        TODO - same class of feature: mouse picking, drag math, and
+        live data mutation, none of which exist yet for anything in
+        this viewport).
+
+        Uses GLU's gluSphere (GLU already imported wildcard at module
+        level, alongside GL) at a deliberately low poly count (6
+        slices, 4 stacks) - a scene can easily have hundreds of boxes
+        visible at once (8 corners each), and immediate-mode gluSphere
+        calls aren't free; kept cheap per-corner rather than smooth,
+        since these are meant to read as small handles, not as
+        rendered objects in their own right. A single QuadricObj is
+        created once and reused (lazily, on first use) rather than
+        recreated every call."""
+        quadric = getattr(self, '_corner_sphere_quadric', None)
+        if quadric is None:
+            quadric = gluNewQuadric()
+            self._corner_sphere_quadric = quadric
+        glColor4f(r, g, b, 1.0)
+        for cx, cy in corners_xy:
+            for cz in (z1, z2):
+                glPushMatrix()
+                glTranslatef(cx, cy, cz)
+                gluSphere(quadric, radius, 6, 4)
+                glPopMatrix()
+
+    def _draw_occl_boxes(self): #vers 3
         """Draw every loaded occlusion zone as a ghosted (semi-
         transparent filled + outlined) box (Aug 16 2026, per Keith:
         "instead of wireframe boxes, we go for ghosted, see through
@@ -979,7 +1087,10 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         bottom_z to bottom_z+height - then hands off to the same
         _draw_ghosted_box_from_corners the axis-aligned cull/zone
         boxes use, since once corners exist the actual fill+outline
-        drawing is identical regardless of rotation.
+        drawing is identical regardless of rotation. Also draws
+        corner-sphere handles, same as cull/zone (see _draw_box_
+        corner_spheres) - the spheres themselves aren't rotated
+        (they're just points), only the box's corner positions are.
 
         Rotation is treated as degrees, standard 2D rotation matrix
         around Z - matches the field's evident purpose (turning an
@@ -1009,6 +1120,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 corners_xy.append((mid_x + rx, mid_y + ry))
             z1, z2 = bottom_z, bottom_z + height
             self._draw_ghosted_box_from_corners(corners_xy, z1, z2, r, g, b)
+            self._draw_box_corner_spheres(corners_xy, z1, z2, r, g, b)
         glDisable(GL_BLEND)
         glEnable(GL_DEPTH_TEST)
         glEnable(GL_LIGHTING)
@@ -1753,6 +1865,17 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def set_zone_box_color(self, r: float, g: float, b: float): #vers 1
         self._zone_box_color = (r, g, b)
+        self.update()
+
+    def set_zone_render_style(self, style: str): #vers 1
+        """Aug 16 2026, per Keith: "in zons, the render dropdown
+        could show, Zon - Ghosted, Zon - Wireframe, Zon -
+        translucent" - style is one of 'ghosted'/'wireframe'/
+        'translucent', see _draw_zone_boxes for what each looks
+        like. Falls back to 'ghosted' for an unrecognised value
+        rather than silently drawing nothing."""
+        self._zone_render_style = style if style in (
+            'ghosted', 'wireframe', 'translucent') else 'ghosted'
         self.update()
 
     def set_show_occl_boxes(self, enabled: bool): #vers 1

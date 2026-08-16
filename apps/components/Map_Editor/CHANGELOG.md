@@ -4706,3 +4706,60 @@ conclusively found despite extensive isolated testing.
   `ast.parse` clean; confirmed via AST no duplicate method
   definitions and no stale references anywhere in the project to the
   removed `_draw_wireframe_boxes` name.
+
+- **Aug 16, 2026 (cont'd)** — Pulled Keith's own manual edits first
+  (checkbox label shortening - Paths/Cull/Zon/Occlusion instead of
+  the longer "Show..." labels; a partial in-progress merge of the
+  Open/Open File buttons, left as his own WIP with his own TODO
+  markers - not touched further here; noted TODOs about relocating
+  row 3's checkboxes and combining Open with IDE-file support too).
+  Investigated his new "Cull does not show in the IPL file display"
+  note: traced the full real-data pipeline (raw-text section
+  extraction, has-data check, header layout, tab wiring) against his
+  actual uploaded cull.ipl - everything checks out correctly, 632
+  real data lines correctly found and would display with the right
+  11-column layout. Likely observed before his local copy had the
+  earlier `headers_by_type['cull']` fix from this session - flagged
+  for Keith to retest against latest rather than guessed-and-changed
+  further without being able to reproduce it.
+
+  Added a Zon-specific render style dropdown, per Keith: "in zons,
+  the render dropdown could show, Zon - Ghosted, Zon - Wireframe,
+  Zon - translucent" - new exclusive `QActionGroup` in the same
+  Render dropdown (after the Col overlay options), three mutually-
+  exclusive choices persisted via `MapSettings` (`zone_render_style`,
+  default `'ghosted'`) and applied immediately (no separate Apply
+  step, matching how the Col toggles already work) plus restored on
+  next launch (same pattern as the keybindings restore). Scoped to
+  zone boxes specifically, per Keith's own "in zons" framing - cull/
+  occlusion boxes keep their fixed ghosted look, not touched.
+  `DFFViewport._draw_zone_boxes` now dispatches on `self._zone_
+  render_style`: `'wireframe'` draws edges only (the pre-ghosted
+  look, kept as an explicit choice rather than removed);
+  `'translucent'` reuses the ghosted fill path but more see-through
+  (alpha 0.16 vs 0.32) and with the edge outline skipped entirely
+  (new `draw_outline` param on `_draw_ghosted_box_from_corners`).
+
+  Added small solid corner-sphere handles to every cull/zone/occlusion
+  box, per Keith: "the boxes we see need little solid spheres on each
+  corner so you can move the 6 sides, bigger, shorter, longer, deeper,
+  higher." New `_draw_box_corner_spheres` draws a real `gluSphere` (GLU
+  already imported wildcard at module level) at each of a box's 8
+  corners, low poly count (6 slices/4 stacks) since a scene can easily
+  have hundreds of boxes visible at once. Visual handles ONLY for now
+  - actually clicking and dragging a corner to resize the box is a
+  separate, larger follow-up, the same class of feature as the
+  project's already-open "gizmo-based free object movement" TODO
+  (mouse picking, drag math, live data mutation - none of which exist
+  yet for anything in this viewport) - logged clearly rather than
+  implied as done.
+
+  Verified: `zone_render_style`'s `DEFAULTS` round-trip, the
+  unrecognised-value-falls-back-to-ghosted guard, and the fill-alpha/
+  outline dispatch per style, all in isolation. `ast.parse` clean;
+  confirmed via AST no duplicate method definitions. PyOpenGL isn't
+  available in this sandbox, so `gluSphere`/`gluNewQuadric` calls
+  themselves haven't run for real - these are long-standing, standard
+  GLU function names, but worth confirming they render correctly (and
+  checking actual frame-rate impact with many boxes visible at once)
+  on Keith's end.
