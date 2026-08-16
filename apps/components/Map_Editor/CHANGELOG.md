@@ -4763,3 +4763,78 @@ conclusively found despite extensive isolated testing.
   GLU function names, but worth confirming they render correctly (and
   checking actual frame-rate impact with many boxes visible at once)
   on Keith's end.
+
+- **Aug 16, 2026 (cont'd)** — Fixed a real bug, per Keith: "there is
+  a bug where, loading zons, or other ipl files, seems to partly
+  remove other objects." A second, related bug to the reentrancy fix
+  already shipped earlier this session for `_refresh_world_view` -
+  that fix guards `_refresh_world_view`'s OWN internal work from
+  running twice concurrently, but `_apply_ipl_visibility_filter`
+  itself (the caller) was never guarded, and its OTHER steps
+  (`_populate_instance_list`, `_refresh_2dfx_lights`, and this
+  session's newer path/cull/zone/occl overlay refreshes) weren't
+  covered by the earlier fix at all.
+
+  Real mechanism: `_apply_ipl_visibility_filter` computes `visible`
+  ONCE at the top, before calling the slow `_refresh_world_view`
+  (which pumps the Qt event queue via `QApplication.processEvents()`
+  partway through its own per-instance loop). If something re-enters
+  `_apply_ipl_visibility_filter` during that pump (e.g. double-
+  clicking a just-added zon/ipl row, or a TOBJ tick), the nested call
+  computes its own fresh `visible` snapshot and - since `_refresh_
+  world_view`'s own guard makes ITS internal step a no-op the second
+  time - finishes fast, applying that fresh snapshot to `_populate_
+  instance_list`/`_refresh_2dfx_lights`/etc. Control then returns to
+  the outer call, which resumes and finishes its OWN `_refresh_world_
+  view` using its now-STALE `visible` (captured before whatever
+  changed), then goes on to call `_populate_instance_list`/`_refresh_
+  2dfx_lights` again with that same stale set - overwriting the
+  nested call's more current result. The path/cull/zone/occl overlay
+  refreshes never showed this symptom (they re-read current state
+  fresh every call, not a captured parameter), which is exactly why
+  it read as "objects" going missing specifically, not paths or
+  boxes.
+
+  Fixed with the same shape as the earlier `_refresh_world_view` fix:
+  split into a thin reentrancy-guarded wrapper (`_apply_ipl_
+  visibility_filter`, checks/sets `self._apply_ipl_visibility_filter_
+  in_progress`) and `_apply_ipl_visibility_filter_impl` (the original
+  body, unchanged). A skipped nested call is safe/lossless -
+  whatever triggered it will follow up again shortly regardless.
+  Verified via AST (both methods defined exactly once) and a smoke-
+  test directly simulating the described scenario (an outer call mid-
+  way through processing when `_hidden_ipls` changes and a reentrant
+  call fires) - confirmed the nested call is skipped and the guard
+  flag resets cleanly afterward.
+
+  Also moved the IPL Controls cog settings button to the Object
+  Browser's Add/Delete/Rename icon row, right after Rename, per
+  Keith: "the Cog settings on the 3rd row, move this to the Object
+  Browser, far right instead, after rename icon" (matching his own
+  TODO note left in the code: "This needs to be moved to the [IMG]
+  [DAT] [IDE] [IPL] <other buttons> [*] on the far right of the
+  Object Browser"). Construction moved from IPL Controls row 3 (now
+  just the four Show checkboxes) into `_create_object_browser_dock`'s
+  `action_row` - same docked-only visibility rule, same wiring to
+  `_on_ipl_controls_settings_clicked`, `self._ipl_controls_settings_
+  btn` attribute unchanged so `_update_dock_button_visibility`'s
+  existing runtime dock/undock sync (a plain `hasattr`/`getattr`
+  lookup by attribute name) keeps working regardless of where the
+  button was originally built. Resized to match its new siblings
+  (18x18, same as Add/Del/Rename) rather than its old bespoke 20x18.
+
+  Pulled and merged Keith's own commits first (checkbox labels
+  shortened - Paths/Cull/Zon/Occlusion; a partial in-progress Open/
+  Open File button merge left as his own WIP, not touched further).
+  Investigated his "Cull does not show in the IPL file display" note
+  by tracing the full real-data pipeline against his actual cull.ipl
+  - everything checks out correctly; likely observed before his local
+  copy had the earlier `headers_by_type['cull']` fix - flagged to
+  retest rather than guessed at further since it couldn't be
+  reproduced.
+
+  `ast.parse` clean; confirmed via AST no duplicate method
+  definitions; confirmed `_ipl_controls_settings_btn`'s only other
+  reference (`_update_dock_button_visibility`'s runtime visibility
+  sync) is a plain attribute lookup, unaffected by moving where the
+  button gets constructed.

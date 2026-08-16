@@ -19133,6 +19133,34 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             btn.setFixedSize(OBJECT_BROWSER_BUTTON_W, OBJECT_BROWSER_BUTTON_H)
             btn.setEnabled(False)
             action_row.addWidget(btn)
+
+        # Cog icon, after Rename (Aug 16 2026, per Keith: "the Cog
+        # settings on the 3rd row, move this to the Object Browser,
+        # far right instead, after rename icon" - moved from IPL
+        # Controls row 3, per his own TODO note there: "This needs to
+        # be moved to the [IMG] [DAT] [IDE] [IPL] <other buttons> [*]
+        # on the far right of the Object Browser"). Docked-only (Aug
+        # 15 2026, original placement's own reasoning still holds) -
+        # quick access to IMG Factory's own Settings dialog, which
+        # includes Map Workshop's own settings as extra tabs (see
+        # get_settings_contribution); standalone Map Workshop has no
+        # such dialog to open (no IMG Factory main window at all in
+        # that mode). Unlike Add/Del/Rename (disabled until a row is
+        # selected), this is always enabled - opening Settings doesn't
+        # depend on anything being selected.
+        ipl_settings_btn = QToolButton()
+        try:
+            ipl_settings_btn.setIcon(self.icon_factory.settings_icon(color=icon_color))
+        except Exception:
+            pass
+        ipl_settings_btn.setIconSize(QSize(16, 16))
+        ipl_settings_btn.setFixedSize(OBJECT_BROWSER_BUTTON_W, OBJECT_BROWSER_BUTTON_H)
+        ipl_settings_btn.setToolTip("Open App Settings (includes Map Workshop's own settings)")
+        ipl_settings_btn.clicked.connect(self._on_ipl_controls_settings_clicked)
+        ipl_settings_btn.setVisible(self.is_docked and not self.standalone_mode)
+        action_row.addWidget(ipl_settings_btn)
+        self._ipl_controls_settings_btn = ipl_settings_btn
+
         # Only shown when docked - in standalone mode the titlebar's own
         # Add/Del/Rename icons cover this, so showing both would be
         # redundant (per Keith's explicit request). The mode buttons
@@ -22051,46 +22079,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         show_occl_chk.toggled.connect(self._on_show_occl_boxes_toggled)
         self._show_occl_chk = show_occl_chk
 
-        # Cog icon, docked-only (Aug 15 2026, per Keith: "We could
-        # just add a cog SVG icon when docked. On the right of row 3.
-        # ipl control panel, but not to be shown in standalone.") -
-        # quick access to IMG Factory's own Settings dialog, which
-        # now includes Map Workshop's own settings as extra tabs (see
-        # get_settings_contribution) - standalone Map Workshop has no
-        # such dialog to open (there's no IMG Factory main window at
-        # all in that mode), hence docked-only. Wired to main_window.
-        # show_settings specifically, not show_gui_settings - tracing
-        # this button's wiring found show_gui_settings was itself
-        # broken (silently shadowed by a same-named, unrelated later
-        # method - see show_panel_width_settings's own docstring in
-        # imgfactory.py), fixed alongside this so the cog opens the
-        # right dialog rather than a small unrelated one.
-        # I've shorterned Paths, Cull, Zon and Occlusion'
-        # TODO; Cull does not show in the IPL file display
-
-        from PyQt6.QtWidgets import QToolButton
-        ipl_settings_btn = QToolButton()
-        try:
-            ipl_settings_btn.setIcon(self.icon_factory.settings_icon(color=self._get_icon_color()))
-        except Exception:
-            pass
-        ipl_settings_btn.setIconSize(QSize(16, 16))
-        ipl_settings_btn.setFixedSize(20, 18)
-        ipl_settings_btn.setToolTip("Open App Settings (includes Map Workshop's own settings)")
-        ipl_settings_btn.setStyleSheet(_compact_18)
-        ipl_settings_btn.clicked.connect(self._on_ipl_controls_settings_clicked)
-        ipl_settings_btn.setVisible(self.is_docked and not self.standalone_mode)
-        self._ipl_controls_settings_btn = ipl_settings_btn
-
-
         opts_row3 = QHBoxLayout()
         opts_row3.addWidget(show_paths_chk)
         opts_row3.addWidget(show_cull_chk)
         opts_row3.addWidget(show_zone_chk)
         opts_row3.addWidget(show_occl_chk)
         opts_row3.addStretch()
-        opts_row3.addWidget(ipl_settings_btn)
-        # TODO This needs to be moved to the [IMG] [DAT] [IDE] [IPL] <other buttons> [*] on the far right of the Object Browser.
 
         lay.addLayout(opts_row3)
 
@@ -24444,12 +24438,42 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         for pane in getattr(self, '_world_panes', []):
             pane.set_cull_boxes(culls, checked)
 
-    def _apply_ipl_visibility_filter(self, auto_fit=True, clear_display_lists=True): #vers 4
+    def _apply_ipl_visibility_filter(self, auto_fit=True, clear_display_lists=True): #vers 5
         """Recompute which instances are currently visible: every
         loaded instance whose source_ipl isn't in self._hidden_ipls,
         then layer LOD show/hide on top (global toggle + any per-
         instance overrides) - push the final result to the world-view
         panes and Instance List.
+
+        Reentrancy guard (Aug 16 2026, per Keith: "there is a bug
+        where, loading zons, or other ipl files, seems to partly
+        remove other objects") - a second, related bug to the one
+        already fixed in _refresh_world_view. That fix guards _refresh_
+        world_view's OWN internal work from running twice concurrently,
+        but this method's OTHER steps (_populate_instance_list,
+        _refresh_2dfx_lights, and the path/cull/zone/occl overlay
+        refreshes) were never covered by it. Real mechanism: this
+        method computes `visible` ONCE at the top, before calling the
+        slow _refresh_world_view (which pumps the Qt event queue via
+        QApplication.processEvents() partway through its own per-
+        instance loop) - if something re-enters THIS method during
+        that pump (e.g. double-clicking a just-added row, or a TOBJ
+        tick), the nested call computes its own fresh `visible`
+        snapshot and - since _refresh_world_view's own guard makes its
+        internal step a no-op the second time - finishes fast, using
+        that fresh snapshot for _populate_instance_list/_refresh_2dfx_
+        lights/etc. Control then returns to the outer call, which
+        resumes and finishes its OWN _refresh_world_view using its
+        STALE `visible` (captured before whatever changed), then goes
+        on to call _populate_instance_list/_refresh_2dfx_lights again
+        with that same stale set - overwriting the nested call's more
+        current result. The path/cull/zone/occl overlay refreshes
+        don't show this symptom (they re-read current state fresh
+        every call, not a captured parameter), which is exactly why
+        Keith's report reads as "objects" specifically, not paths or
+        boxes. Same fix shape as before: skip a nested call entirely
+        rather than let it interleave - nothing it would have done is
+        lost, whatever triggered it fires again shortly regardless.
 
         auto_fit=False lets a caller (specifically _on_instance_edited,
         triggered by every position/rotation/scale nudge in the Item
@@ -24468,6 +24492,20 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         second (the default tick interval) for a map with many
         distinct models was exactly the "freeze" - unnecessary
         work, not a real limitation of the feature."""
+        if getattr(self, '_apply_ipl_visibility_filter_in_progress', False):
+            return
+        self._apply_ipl_visibility_filter_in_progress = True
+        try:
+            self._apply_ipl_visibility_filter_impl(auto_fit, clear_display_lists)
+        finally:
+            self._apply_ipl_visibility_filter_in_progress = False
+
+    def _apply_ipl_visibility_filter_impl(self, auto_fit, clear_display_lists): #vers 1
+        """The actual body of _apply_ipl_visibility_filter, split out
+        only so the reentrancy guard above can wrap it in a try/
+        finally without a second level of indentation - not meant to
+        be called directly by anything else; call _apply_ipl_
+        visibility_filter instead."""
         all_inst = getattr(self, '_all_instances', None)
         if all_inst is None:
             return
