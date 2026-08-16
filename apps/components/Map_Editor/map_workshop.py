@@ -24438,42 +24438,49 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         for pane in getattr(self, '_world_panes', []):
             pane.set_cull_boxes(culls, checked)
 
-    def _apply_ipl_visibility_filter(self, auto_fit=True, clear_display_lists=True): #vers 5
+    def _apply_ipl_visibility_filter(self, auto_fit=True, clear_display_lists=True): #vers 6
         """Recompute which instances are currently visible: every
         loaded instance whose source_ipl isn't in self._hidden_ipls,
         then layer LOD show/hide on top (global toggle + any per-
         instance overrides) - push the final result to the world-view
         panes and Instance List.
 
-        Reentrancy guard (Aug 16 2026, per Keith: "there is a bug
-        where, loading zons, or other ipl files, seems to partly
-        remove other objects") - a second, related bug to the one
-        already fixed in _refresh_world_view. That fix guards _refresh_
-        world_view's OWN internal work from running twice concurrently,
-        but this method's OTHER steps (_populate_instance_list,
-        _refresh_2dfx_lights, and the path/cull/zone/occl overlay
-        refreshes) were never covered by it. Real mechanism: this
-        method computes `visible` ONCE at the top, before calling the
-        slow _refresh_world_view (which pumps the Qt event queue via
-        QApplication.processEvents() partway through its own per-
-        instance loop) - if something re-enters THIS method during
-        that pump (e.g. double-clicking a just-added row, or a TOBJ
-        tick), the nested call computes its own fresh `visible`
-        snapshot and - since _refresh_world_view's own guard makes its
-        internal step a no-op the second time - finishes fast, using
-        that fresh snapshot for _populate_instance_list/_refresh_2dfx_
-        lights/etc. Control then returns to the outer call, which
-        resumes and finishes its OWN _refresh_world_view using its
-        STALE `visible` (captured before whatever changed), then goes
-        on to call _populate_instance_list/_refresh_2dfx_lights again
-        with that same stale set - overwriting the nested call's more
-        current result. The path/cull/zone/occl overlay refreshes
-        don't show this symptom (they re-read current state fresh
-        every call, not a captured parameter), which is exactly why
-        Keith's report reads as "objects" specifically, not paths or
-        boxes. Same fix shape as before: skip a nested call entirely
-        rather than let it interleave - nothing it would have done is
-        lost, whatever triggered it fires again shortly regardless.
+        Reentrancy guard, corrected (Aug 16 2026, per Keith's real
+        screenshots: "loading zons, or other ipl files, seems to
+        partly remove other objects" - persisted after the first
+        attempt at this fix, because that first attempt used the
+        wrong strategy). The original version (matching _refresh_
+        world_view's own guard shape) skipped a nested call outright,
+        reasoning that "whatever triggered it fires again shortly
+        regardless" - true for a periodic trigger like a TOBJ tick,
+        but FALSE for the actual trigger Keith's screenshots show:
+        clicking an eye icon to show a newly-loaded IPL is a ONE-TIME
+        event with nothing to naturally retry it. If that click's own
+        call happened to arrive while an unrelated periodic tick's
+        call was still mid-flight (pumping the Qt event queue inside
+        _refresh_world_view), the old guard would silently DROP the
+        click's call entirely - the tick's stale, pre-click snapshot
+        would be all that ever rendered, and nothing would ever
+        follow up, since nothing else was going to call this again
+        on the newly-shown IPL's behalf. That's "partly remove other
+        objects" from the opposite direction than the first fix
+        addressed: not an overwrite-by-a-stale-later-call, but a
+        silently-dropped-request.
+
+        Fixed with queue-and-retry instead of skip-and-drop: a call
+        arriving while another is in progress no longer runs
+        immediately (avoiding the original concurrent-overlap
+        corruption), but doesn't just vanish either - it's recorded
+        as "one more pass is needed" (keeping only the latest
+        requested auto_fit/clear_display_lists, since only the final
+        desired state matters). Once the in-progress pass finishes,
+        immediately run one more full pass - which, since _all_
+        instances/_hidden_ipls are read fresh at the start of the
+        impl, automatically reflects everything that changed while
+        busy, including the click's own effect. Loops (not just one
+        follow-up) in case yet another call arrives during that
+        follow-up pass too, so nothing queued during a busy stretch
+        can still be lost, however many piled up.
 
         auto_fit=False lets a caller (specifically _on_instance_edited,
         triggered by every position/rotation/scale nudge in the Item
@@ -24493,10 +24500,17 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         distinct models was exactly the "freeze" - unnecessary
         work, not a real limitation of the feature."""
         if getattr(self, '_apply_ipl_visibility_filter_in_progress', False):
+            self._apply_ipl_visibility_filter_pending = (auto_fit, clear_display_lists)
             return
         self._apply_ipl_visibility_filter_in_progress = True
         try:
             self._apply_ipl_visibility_filter_impl(auto_fit, clear_display_lists)
+            while True:
+                pending = getattr(self, '_apply_ipl_visibility_filter_pending', None)
+                if pending is None:
+                    break
+                self._apply_ipl_visibility_filter_pending = None
+                self._apply_ipl_visibility_filter_impl(*pending)
         finally:
             self._apply_ipl_visibility_filter_in_progress = False
 

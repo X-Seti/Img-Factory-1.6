@@ -4838,3 +4838,55 @@ conclusively found despite extensive isolated testing.
   reference (`_update_dock_button_visibility`'s runtime visibility
   sync) is a plain attribute lookup, unaffected by moving where the
   button gets constructed.
+
+- **Aug 16, 2026 (cont'd)** — Corrected the `_apply_ipl_visibility_
+  filter` reentrancy fix from earlier today, per Keith's real
+  screenshots confirming after pulling that fix: "loading zons, or
+  other ipl files, seems to partly remove other objects" - still
+  happening. The first attempt used the wrong strategy for this
+  specific method.
+
+  That first fix mirrored `_refresh_world_view`'s own guard shape:
+  skip a nested call outright, reasoning "whatever triggered it fires
+  again shortly regardless." True for `_refresh_world_view`'s actual
+  callers (periodic TOBJ ticks, continuous LOD-Test mouse-move) - but
+  FALSE for what Keith's screenshots actually show: clicking an eye
+  icon to show a newly-loaded IPL is a ONE-TIME event with nothing to
+  naturally retry it. If that click's call happened to arrive while
+  an unrelated periodic tick's call was still mid-flight (pumping the
+  Qt event queue inside its own `_refresh_world_view`), the old guard
+  silently DROPPED the click's call entirely - the tick's stale, pre-
+  click snapshot was all that ever rendered, and nothing ever
+  followed up, since nothing else was going to call this again on
+  the newly-shown IPL's behalf specifically. Confirmed by the
+  screenshots themselves: by the fourth one, the IPL Sections list
+  showed seven files all marked visible, but the viewport still only
+  rendered a small subset - the "many files visible, tiny rendered
+  area" mismatch is the direct fingerprint of dropped, not merely
+  delayed, updates.
+
+  Replaced skip-and-drop with queue-and-retry: a call arriving while
+  another is in progress no longer runs immediately (still avoiding
+  the original concurrent-overlap corruption that motivated the
+  first fix), but doesn't vanish either - recorded as "one more pass
+  needed" (`_apply_ipl_visibility_filter_pending`, keeping only the
+  latest requested auto_fit/clear_display_lists, since only the
+  final desired state matters). Once the in-progress pass finishes,
+  a follow-up pass runs immediately - which, since `_all_instances`/
+  `_hidden_ipls` are read fresh at the start of `_impl`, automatically
+  reflects everything that changed while busy. Loops (not just one
+  follow-up) so multiple calls piling up during a busy stretch all
+  still get accounted for by a single final pass, not lost.
+
+  Verified against the exact failure scenario: simulated a routine
+  tick's pass already in progress, a one-time click's call arriving
+  mid-flight (changing the hidden set), confirmed the click's call
+  gets queued rather than dropped, and a follow-up pass automatically
+  runs afterward reflecting the post-click state - the bug is gone.
+  Separately verified the original corruption-prevention property
+  still holds: `_impl` is never entered concurrently even with
+  multiple overlapping reentrant attempts stacked up (only the latest
+  queued call survives each overlap, correctly coalesced), and a
+  normal non-overlapping call behaves identically to before. `ast.
+  parse` clean; confirmed via AST exactly one definition of each
+  method.
