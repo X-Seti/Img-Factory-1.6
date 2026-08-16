@@ -628,3 +628,71 @@ aircraft flight paths?), spath0.dat (a numbered SA sub-path file? -
 naming suggests spath1.dat/spath2.dat/etc likely also exist).
 Uploaded but not yet inspected/parsed - deliberately lower priority
 per Keith's own framing. Not started.
+
+## File-type support audit against Keith's real, complete GTA III data (Aug 16 2026)
+
+Per Keith: "here are all the data files, we can also check if we have
+supported all of them, if there are any files we haven't addressed,
+add them to the TODO list, for GTA3/GTAIII" - full inventory from his
+uploaded data_all_files.7z (a real, complete GTA III install's data
+folder, loaded end-to-end via GTAWorldLoader to confirm: 8689
+instances, 870 IDE path groups, 3081 objects, zero errors).
+
+### Already supported (confirmed working against this real data)
+.ide, .ipl (inst/cull/zone/path/occl - grge/enex recognized but no SA
+sample data exists in a GTA III install to confirm), .col, .dat
+(gta3.dat itself), .zon, binary IPL streams, GTA III's own IDE-
+embedded path format.
+
+### Genuinely relevant, not yet supported - map/path-adjacent data
+- `paths/CHASE0.DAT` through `CHASE19.DAT` (not sequential - files
+  found: 0,1,2,3,4,5,6,7,10,11,14,16,18,19) - binary, ~150KB each,
+  mission-specific vehicle chase paths. Format not investigated yet.
+- `paths/flight.dat`, `flight2.dat`, `flight3.dat`, `flight4.dat` -
+  aircraft flight paths (4 files total, not 3 as earlier assumed
+  before this real inventory) - explicitly deferred by Keith earlier
+  ("there are also other path files, i put them in last, those can be
+  added later, add todo"), still not started.
+- `paths/tracks.dat`, `tracks2.dat` - train track waypoints. Simple
+  text format confirmed by inspection: a line-count header, then one
+  "X Y Z" line per waypoint (e.g. "168\n766.427 -696.178 21.8339\n...")
+  - looks like the easiest of this whole group to add first.
+- `train.dat`, `train2.dat` - train route/config data, presumably
+  related to tracks.dat/tracks2.dat above.
+- `CULLZONE.DAT` - GTA III's own binary cull-zone equivalent, exists
+  alongside the real, working cull.ipl - confirmed unused by the game
+  itself (same situation already documented for VC's own Cullzone.dat
+  earlier this session) - informational only, real priority is low.
+- `water.dat`, `waterpro.dat`, `GTAiii_water.dat`, `GTAiii_waterpro.dat`
+  - water level/property data, not parsed at all currently. Two pairs
+  of near-identical files (water.dat and GTAiii_water.dat are the same
+  size, 2639 bytes - likely the same content or a versioned pair).
+- `object.dat` - object physics properties (mass, elasticity, air
+  resistance, uproot limit, collision damage multiplier per object
+  name) - plain text, human-readable, confirmed by inspection. Not
+  parsed at all currently - would let Map Workshop show/edit an
+  object's physical behaviour alongside its visual placement.
+- `CAPS.DAT` - only 16 bytes, purpose not determined - too small to
+  be meaningful map/path data, likely a minor engine-internal config
+  value; probably not worth pursuing unless a specific need comes up.
+
+### Confirmed out of scope for Map Workshop (not map/world data)
+`carcols.dat` (vehicle paint colours), `handling.cfg` (vehicle
+physics), `weapon.dat` (weapon stats), `ped.dat`/`pedgrp.dat`/
+`pedstats.dat` (pedestrian behaviour), `fistfite.dat` (melee combat
+moves), `surface.dat` (surface/audio material properties),
+`animviewer.dat` (animation viewer tool config), `main.scm` (compiled
+mission script) - all real GTA III systems, none of them map/world
+placement data, all belong to entirely different tools/systems than
+what Map Workshop does.
+
+### Already covered by a different tool
+`timecyc.dat` (weather/lighting cycles) - Timecyc Workshop already
+exists as its own standalone tool for this, not Map Workshop's scope.
+
+### Unclear, not investigated
+`default.dat` - a second, alternate main .dat file with the same
+directive structure as gta3.dat (IDE/COLFILE/etc.) - purpose relative
+to gta3.dat not determined (possibly a menu/loading-screen or testing
+configuration) - not investigated further, low priority unless a
+specific need comes up.
