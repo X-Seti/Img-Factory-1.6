@@ -21219,6 +21219,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         ipl_name = item.data(Qt.ItemDataRole.UserRole)
         order = getattr(self, '_ipl_display_order', [])
         idx = order.index(ipl_name) if ipl_name in order else -1
+        loader = getattr(self, '_world_loader', None)
+        stem = getattr(self, '_ipl_display_to_stem', {}).get(ipl_name)
 
         menu = QMenu(table)
         is_hidden = ipl_name in getattr(self, '_hidden_ipls', set())
@@ -21294,6 +21296,30 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             save_text_act.triggered.connect(
                 lambda checked=False, n=ipl_name: self._save_ipl_data_as_text(n))
 
+        # Save IPL Data As... / Unload (Aug 16 2026, per Keith: "also
+        # loading.ipl, how about an option to unload.ipl by right
+        # clicking them, also move the save as function there
+        # aswell") - both now live on this, the actual IPL Sections
+        # right-click menu (previously Save As only existed on the
+        # separate IPL File Display table's own right-click), a more
+        # natural home since both are whole-file operations, same as
+        # Show/Hide/Load Selected right above.
+        menu.addSeparator()
+        is_loaded = (stem is not None and loader is not None and stem in loader.loaded_ipls) \
+            or ipl_name in getattr(self, '_loaded_binary_ipls', set())
+        save_full_act = menu.addAction("Save IPL Data As...")
+        save_full_act.setEnabled(is_loaded)
+        save_full_act.triggered.connect(
+            lambda checked=False, n=ipl_name: self._save_ipl_data_as_full(n))
+        unload_act = menu.addAction("Unload")
+        unload_act.setToolTip(
+            "Remove this IPL's loaded data from memory entirely - distinct\n"
+            "from Hide, which only stops it from being drawn; the data stays\n"
+            "loaded either way. Unloading lets it be loaded again fresh later.")
+        unload_act.setEnabled(is_loaded)
+        unload_act.triggered.connect(
+            lambda checked=False, n=ipl_name: self._unload_ipl_section(n))
+
         menu.addSeparator()
         up_act = menu.addAction("Move Up")
         up_act.setEnabled(idx > 0)
@@ -21302,6 +21328,49 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         down_act.setEnabled(0 <= idx < len(order) - 1)
         down_act.triggered.connect(lambda checked=False, n=ipl_name: self._move_ipl_section(n, 1))
         menu.exec(table.viewport().mapToGlobal(pos))
+
+    def _unload_ipl_section(self, ipl_name): #vers 1
+        """Actually remove an IPL's loaded content from memory -
+        freeing it up, distinct from Hide (which only filters what's
+        drawn; the data stays loaded either way). Per Keith: "how
+        about an option to unload.ipl by right clicking them."
+
+        Removes this ipl's own entries from every loader list that
+        tracks source_ipl (instances/culls/zones/paths/grges/enexes/
+        occls), discards it from loader.loaded_ipls/self._loaded_
+        binary_ipls so it can genuinely be loaded again fresh later
+        (not silently skipped as "already loaded" by _ensure_ipl_
+        loaded's own early-return check), rebuilds self._all_
+        instances from the now-smaller loader.instances, and hides it
+        (an "unloaded" IPL still showing as visible would be a
+        contradiction) before refreshing the viewport and table."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            return
+        stem = getattr(self, '_ipl_display_to_stem', {}).get(ipl_name)
+
+        loader.instances[:] = [i for i in loader.instances if i.source_ipl != ipl_name]
+        loader.culls[:] = [c for c in getattr(loader, 'culls', [])
+                           if getattr(c, 'source_ipl', None) != ipl_name]
+        loader.zones[:] = [z for z in getattr(loader, 'zones', [])
+                           if z.get('source_ipl') != ipl_name]
+        loader.paths[:] = [p for p in getattr(loader, 'paths', []) if p.source_ipl != ipl_name]
+        loader.grges[:] = [g for g in getattr(loader, 'grges', []) if g.source_ipl != ipl_name]
+        loader.enexes[:] = [e for e in getattr(loader, 'enexes', []) if e.source_ipl != ipl_name]
+        loader.occls[:] = [o for o in getattr(loader, 'occls', []) if o.source_ipl != ipl_name]
+
+        if stem is not None:
+            loader.loaded_ipls.discard(stem)
+        loaded_binary = getattr(self, '_loaded_binary_ipls', None)
+        if loaded_binary is not None:
+            loaded_binary.discard(ipl_name)
+
+        self._all_instances = list(loader.instances)
+        self._hidden_ipls.add(ipl_name)
+        self._populate_object_browser(loader)
+        self._rebuild_ipl_sections_rows()
+        self._apply_ipl_visibility_filter()
+        self._set_status(f"Unloaded {ipl_name}")
 
     def _save_ipl_data_as_text(self, ipl_name): #vers 2
         """Export an IPL's actual loaded instances out as a standard

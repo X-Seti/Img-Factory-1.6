@@ -4982,3 +4982,39 @@ conclusively found despite extensive isolated testing.
   button`/`_update_all_buttons`); confirmed `QIcon`/`QSize` (used by
   the ported method) are already imported at module level, no new
   import needed. `ast.parse` clean.
+
+- **Aug 16, 2026 (cont'd)** — Added "Unload" and moved "Save IPL Data
+  As..." onto the IPL Sections table's own right-click menu, per
+  Keith: "also loading.ipl, how about an option to unload.ipl by
+  right clicking them, also move the save as function there aswell."
+
+  New `_unload_ipl_section` - genuinely removes an IPL's loaded
+  content from memory (distinct from Hide, which only stops it being
+  drawn; the data stays loaded either way). Removes this IPL's own
+  entries from every loader list that tracks `source_ipl` (instances/
+  culls/zones/paths/grges/enexes/occls), discards it from `loader.
+  loaded_ipls`/`self._loaded_binary_ipls` so it can genuinely be
+  loaded again fresh later (not silently skipped as "already loaded"
+  by `_ensure_ipl_loaded`'s own early-return check), rebuilds `self.
+  _all_instances`, and hides it (an "unloaded" IPL still showing as
+  visible would be a contradiction) before refreshing the viewport
+  and table. Both new actions (`Unload`, `Save IPL Data As...` - now
+  using the comprehensive `_save_ipl_data_as_full` from earlier this
+  session, not the old inst-only version) only enabled when the row
+  is actually loaded - unloading or saving something that was never
+  loaded doesn't make sense.
+
+  Verified the unload filtering logic against real dataclasses
+  (`IPLInstance`/`CullEntry`): confirmed it removes only the target
+  IPL's entries across instances/culls/zones/`loaded_ipls`, leaving
+  every other loaded IPL's data completely untouched. `ast.parse`
+  clean; confirmed via AST no duplicate method definitions.
+
+  Did NOT chase the separate "settings revert on reload" report in
+  this pass - no Map-Workshop-specific "reload" action exists
+  anywhere in this file, so it most likely refers to IMG Factory's
+  own top-toolbar Reload button (which reloads the currently-open
+  IMG/DAT, unrelated to Map Workshop's own settings) or closing/
+  reopening the Map Workshop tab - genuinely ambiguous which,
+  without more detail worth chasing further via guesswork rather
+  than tracing a confirmed path, unlike every other fix this session.
