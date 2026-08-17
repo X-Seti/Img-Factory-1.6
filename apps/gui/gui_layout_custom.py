@@ -2294,31 +2294,48 @@ RwTexDictionary (0x0016) chunk header [12 bytes]
 <tr><td>cars</td><td>Vehicle definitions: ID, model, txd, type, handling, flags...</td></tr>
 <tr><td>peds</td><td>Pedestrian definitions</td></tr>
 <tr><td>txdp</td><td>TXD parent references (SA: texture sharing between models)</td></tr>
-<tr><td>2dfx</td><td>2D effects (lights, particles, escalators)</td></tr>
+<tr><td>2dfx</td><td>2D effects (lights, particles, escalators) — attached to an existing object by model ID, not standalone; every placed instance of that model gets its own copy of the effect</td></tr>
 <tr><td>anim</td><td>Animation definitions</td></tr>
+<tr><td>path <span class="wrn">(GTA III only)</span></td><td>See "GTA III's own IDE-embedded paths" below — a completely different mechanism from VC/SA's IPL-embedded paths, unique to this one game.</td></tr>
 </table>
 
 <h3>IPL — Item Placement (instance list)</h3>
-<p>Defines where objects are placed in the world. Also plain text.</p>
+<p>Defines where objects are placed in the world. Also plain text, one section keyword per block, verified field-by-field against real game files (GTA III, VC, SA) rather than assumed from documentation alone.</p>
 <table>
-<tr><th>Section</th><th>Content</th></tr>
-<tr><td>inst</td><td>Object instances: ID, model, interior, pos xyz, rot xyzw, lot</td></tr>
-<tr><td>cull</td><td>Occlusion zones</td></tr>
-<tr><td>zone</td><td>Named zones</td></tr>
-<tr><td>pick</td><td>Weapon pickups</td></tr>
-<tr><td>path</td><td>AI paths (deprecated in SA — moved to nodes.dat)</td></tr>
+<tr><th>Section</th><th>Fields</th><th>Notes</th></tr>
+<tr><td>inst</td><td>SA: ID, model, interior, pos xyz, rot xyzw, lod_index (11 fields, no scale).<br>VC: ID, model, interior, pos xyz, scale xyz, rot xyzw (13 fields, no lod_index).<br>GTA III: ID, model, pos xyz, scale xyz, rot xyzw (12 fields, no interior/lod_index).</td><td>Three genuinely different per-game layouts — writing the wrong one back out silently drops or misplaces fields.</td></tr>
+<tr><td>cull</td><td>CenterX/Y/Z, X1/Y1/Z1 (corner), X2/Y2/Z2 (opposite corner), Flags, WantedLevelDrop (11 fields)</td><td><b>Object culling zones</b> — hides/shows objects based on the camera being inside a defined box. Not the same thing as occlusion (below) despite the similar-sounding name.</td></tr>
+<tr><td>occl</td><td>MidX, MidY, BottomZ, WidthX, WidthY, Height, Rotation (7 fields) — VC/SA only</td><td><b>Occlusion culling zones</b> — a rotatable box (around its own vertical axis) used to stop rendering whatever's directly behind it, for performance. Genuinely distinct from <code>cull</code>: rotatable, and serves a different purpose (visibility optimisation, not zone-based show/hide).</td></tr>
+<tr><td>zone</td><td>Name, Type, MinX/Y/Z, MaxX/Y/Z, Island, TextKey (TextKey optional — often absent in real files)</td><td>Named, axis-aligned world regions (radar zones, gang territories, etc).</td></tr>
+<tr><td>path <span class="wrn">(VC/SA)</span></td><td>Group header: two ints. Per node: NodeType, Next, IsExternal, X, Y, Z, Median, LeftLanes, RightLanes, Flag1-3 (12 fields)</td><td>Absolute world coordinates, <b>divided by 16</b> from their raw stored value — confirmed by cross-referencing a real, independently-converted reference path file against these same coordinates. Deprecated/replaced by nodes.dat in later SA revisions per some documentation, though this app still reads it where present.</td></tr>
+<tr><td>grge <span class="wrn">(SA)</span></td><td>X1/Y1/Z1 (lower corner), FrontX/FrontY (front-face marker, 2D only), X2/Y2/Z2 (upper corner), DoorType, GarageType, Name (11 fields)</td><td></td></tr>
+<tr><td>enex <span class="wrn">(SA)</span></td><td>EnterX/Y/Z, EnterAngle, SizeX/Y/Z, ExitX/Y/Z, ExitAngle, TargetInterior, Flags, "Name" (quoted), Sky, NumPedsToSpawn, TimeOn, TimeOff (17 fields)</td><td>Entrance/exit marker pairs (building doors, etc).</td></tr>
+<tr><td>pick</td><td colspan="2">Weapon/item pickup spawns — recognised as a valid section, not yet structurally parsed (no verified real sample data).</td></tr>
 </table>
-<p class="note">Binary IPL: SA uses a binary variant for streaming IPL data inside GTA3.img. Identified by magic <code>bnry</code> at offset 0.</p>
+<p class="note">Binary IPL: SA uses a binary variant for streaming IPL data inside GTA3.img (and equivalent archives). Identified by magic <code>bnry</code> at offset 0. A binary stream's own model-name resolution comes from the already-loaded IDE object database (matched by numeric ID), not stored in the stream itself.</p>
+
+<h3>GTA III's own IDE-embedded paths — a genuinely different system</h3>
+<p>Unlike VC/SA, GTA III has <b>no</b> "path" section in its IPL files at all — confirmed directly against real GTA III game data (a "path" keyword never once appears in any real GTA III .ipl). Instead, GTA III's own IDE files carry an object-attached path system: a <code>path</code> section inside the <b>.ide</b> file, bound to a specific model ID — attached to an existing placed object the same way <code>2dfx</code> is, rather than existing as free-standing world-space data.</p>
+<table>
+<tr><th>Field</th><th>Meaning</th></tr>
+<tr><td>Group header</td><td>GroupType (ped/car), Id, ModelName</td></tr>
+<tr><td>Per node (9 fields)</td><td>NodeType, NextNode, IsCrossRoad, XRel, YRel, ZRel, Median, LeftLanes, RightLanes</td></tr>
+</table>
+<p class="note">Coordinates are <b>relative</b> to wherever that model ID is actually placed via an INST line (not absolute like VC/SA) — resolving a group to world-space means finding every instance placement of that model ID, then rotating the relative offset by that specific instance's own placement rotation and adding its position, so a path stays correctly attached to its object however that object is placed or rotated. The same <b>÷16 scale</b> VC's own path coordinates use also applies here to the relative offsets — confirmed by comparing against a real, independently-converted reference path set for the same city (median/max intra-group node distances matched within ~10% only once this scale was applied; without it, resolved paths came out roughly 15x too large and consequently nowhere near the roads they belonged to). A single model ID can legitimately have 2-3 separate path groups attached to it (different lanes/directions through one object) — this is normal, not a data error; genuine collisions between two <i>different</i> objects sharing one model ID do not occur, confirmed against a complete real GTA III world load (870 real path groups, 553 unique model IDs, zero collisions).</p>
 
 <h3>DAT Files</h3>
 <table>
 <tr><th>File</th><th>Content</th></tr>
-<tr><td>gta.dat / gta3.dat</td><td>Master load list — lists all IDE, IPL, IMG files to load</td></tr>
+<tr><td>gta.dat / gta3.dat</td><td>Master load list — lists all IDE, IPL, IMG, COLFILE, MAPZONE entries to load, in the order they should load</td></tr>
 <tr><td>handling.cfg</td><td>Vehicle physics parameters</td></tr>
 <tr><td>timecyc.dat</td><td>Time-of-day colour cycling for sky, sun, fog</td></tr>
-<tr><td>object.dat</td><td>Object breakability and fire properties</td></tr>
+<tr><td>object.dat</td><td>Per-object physics properties: mass, turn mass, air resistance, elasticity, percent submerged, uproot limit, collision damage multiplier. Plain text, human-readable.</td></tr>
 <tr><td>pedstats.dat</td><td>Pedestrian behaviour statistics</td></tr>
 <tr><td>weapon.dat</td><td>Weapon parameters and damage values</td></tr>
+<tr><td>paths/tracks.dat, tracks2.dat</td><td>Train track waypoints — a line-count header, then one "X Y Z" line per waypoint. Simplest of the non-IPL path formats.</td></tr>
+<tr><td>paths/flight.dat, flight2-4.dat</td><td>Aircraft flight paths (4 files) — not yet parsed.</td></tr>
+<tr><td>paths/CHASE0-19.DAT</td><td>Mission-specific vehicle chase paths — binary, not yet investigated.</td></tr>
+<tr><td>CULLZONE.DAT</td><td>A binary equivalent to the IPL "cull" section — confirmed present in real game data but unused by the game itself at runtime (verified for both VC and GTA III).</td></tr>
 </table>
 
 <h3>DAT Browser (IMG Factory)</h3>
@@ -2431,6 +2448,20 @@ RwTexDictionary (0x0016) chunk header [12 bytes]
 <h3>Ctrl+Up / Ctrl+Down — Entry Reordering</h3>
 <p>Selected entries can be moved up or down in the entry list using Ctrl+Up / Ctrl+Down, or via the right-click context menu. This changes the order in <code>img_file.entries</code> — a rebuild is needed to write the new order to disk.</p>
 
+<h3>Map Workshop — GTA III Paths Render as a Criss-Crossed Mess, Miles Off the Roads</h3>
+<ul>
+<li><b>Symptom:</b> Path lines span far beyond where any road actually is, wildly criss-crossing rather than following streets.</li>
+<li><b>Cause:</b> GTA III's IDE-embedded path node relative offsets are stored in the same ×16-scaled units VC's own IPL path coordinates use — this scale was applied correctly for VC's paths but missed entirely when GTA III's own (structurally different) path system was resolved to world-space, leaving every node roughly 16x too far from the object it's actually attached to.</li>
+<li><b>Fix:</b> Divide the relative XYZ offset by 16 before rotating it by the placing instance's own rotation and adding that instance's position. Confirmed against a real, independently-converted reference path set for the same city — resolved node spacing matched within ~10% once this scale was applied (versus ~15x too large without it).</li>
+</ul>
+
+<h3>Map Workshop — Objects From a Binary IPL Stream Vanish After Loading a Different Map Section</h3>
+<ul>
+<li><b>Symptom:</b> A binary-streamed IPL's instances render correctly right after loading, then disappear entirely once a different, unrelated IPL file gets shown.</li>
+<li><b>Cause:</b> Newly-loaded binary stream instances were appended to a second, parallel in-memory list, never merged into the loader's own canonical instance list. Several places rebuild the working instance list fresh from that canonical list whenever any IPL loads — every one of those rebuilds silently discarded the stream's own instances, since they were never actually part of the list being rebuilt from.</li>
+<li><b>Fix:</b> Merge newly-loaded binary stream instances into the loader's own canonical list directly, rather than a separate list nothing else knows to preserve.</li>
+</ul>
+
 <h2>IMG Factory Version Matrix</h2>
 <table>
 <tr><th>Component</th><th>Current Version</th><th>Notes</th></tr>
@@ -2441,6 +2472,7 @@ RwTexDictionary (0x0016) chunk header [12 bytes]
 <tr><td>rw_versions.py</td><td>is_valid_rw_version vers 6</td><td>Version validation</td></tr>
 <tr><td>rebuild.py</td><td>_perform_native_rebuild vers 9</td><td>V1 pair + V2 single-file rebuild</td></tr>
 <tr><td>export.py / img_export_entry.py</td><td>export_entry vers 3</td><td>Uses read_entry_data for correct path</td></tr>
+<tr><td>map_workshop.py</td><td>ModelWorkshop</td><td>GTA3/VC/SA world viewer &amp; editor — inst/cull/zone/path/grge/enex/occl parsing and rendering, GTA III IDE-embedded paths, binary IPL streams</td></tr>
 <tr><td>app_settings_system.py</td><td>SettingsDialog vers 15</td><td>Shared across IMG Factory tools</td></tr>
 <tr><td>scan_img.py</td><td>vers 1 + RecentScansDialog vers 2</td><td>Recursive folder scanner + history</td></tr>
 </table>
