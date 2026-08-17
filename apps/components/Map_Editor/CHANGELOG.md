@@ -5519,3 +5519,30 @@ conclusively found despite extensive isolated testing.
 
   `ast.parse` clean; confirmed via AST no duplicate method
   definitions.
+
+- **Aug 16, 2026 (cont'd)** — Made path node markers round instead of
+  square, per Keith: "we could make the path nodes round circles,
+  makes it easy to click on them." Standard OpenGL technique, not a
+  custom shape: enabled `GL_POINT_SMOOTH` (anti-aliases each point
+  into a circle rather than leaving its square corners visible)
+  around the node-drawing pass in `_draw_paths`, `GL_NICEST` hint for
+  the best-quality rounding available - worth asking for since node
+  size can go up to 30px via Settings > Render, large enough that
+  visible squared-off corners would actually be noticeable at that
+  size. State cleanly disabled again afterward, matching the
+  established enable/disable-around-the-draw-call pattern already
+  used for everything else in this method.
+
+  This is the visual half of what Keith described - actual click-to-
+  select or drag interaction on a node is separate, unbuilt work (the
+  same class of feature as the still-open corner-sphere-dragging
+  TODO: real mouse picking and drag math, neither of which exist yet
+  anywhere in this viewport) - noted honestly rather than implied as
+  covered by this change.
+
+  `ast.parse` clean; confirmed via AST no duplicate method
+  definitions. PyOpenGL isn't available in this sandbox, so
+  `GL_POINT_SMOOTH` itself hasn't rendered for real here - it's a
+  long-standing, standard part of the legacy OpenGL 1.x API though,
+  the same confidence level already applied to `gluSphere` earlier
+  this session.

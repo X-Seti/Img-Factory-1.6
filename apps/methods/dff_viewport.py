@@ -868,6 +868,22 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         nr, ng, nb = self._path_node_color
         glColor4f(nr, ng, nb, 0.75)
         glPointSize(self._path_node_size)
+        # Round points instead of the default squares (Aug 16 2026,
+        # per Keith: "we could make the path nodes round circles,
+        # makes it easy to click on them" - a real, standard OpenGL
+        # feature for this, not a custom shape: GL_POINT_SMOOTH
+        # anti-aliases each point into a circle rather than leaving
+        # its square corners visible. GL_NICEST asks for the best-
+        # quality rounding available, since these are large enough
+        # (node_size can go up to 30px, per Settings > Render) that
+        # visible squared-off corners would be obvious at that size.
+        # This is the visual half of Keith's own stated reason
+        # ("easy to click on them") - actual click-to-select/drag
+        # interaction on a node is separate, unbuilt work (same class
+        # as the still-open corner-sphere-dragging TODO), not
+        # included here.
+        glEnable(GL_POINT_SMOOTH)
+        glHint(GL_POINT_SMOOTH_HINT, GL_NICEST)
         glBegin(GL_POINTS)
         seen = set()
         for a, b_pt in self._path_segments:
@@ -876,6 +892,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                     seen.add(pt)
                     glVertex3f(*pt)
         glEnd()
+        glDisable(GL_POINT_SMOOTH)
         glDisable(GL_BLEND)
         glEnable(GL_DEPTH_TEST)
         glEnable(GL_LIGHTING)
