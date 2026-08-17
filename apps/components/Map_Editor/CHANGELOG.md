@@ -5442,3 +5442,44 @@ conclusively found despite extensive isolated testing.
   nodes in the same group unaffected, only their absolute position
   changes). `ast.parse` clean; confirmed via AST no duplicate method
   definitions.
+
+- **Aug 16, 2026 (cont'd)** — Added Delete and New Path Group actions
+  alongside the existing Edit Path Group, per Keith: "we don't have
+  the ability to edit the paths, delete, add, make paths from
+  scratch." Both wired into the same PATH-tab-gated right-click menu
+  Edit Path Group already lives in.
+
+  New `_delete_path_group_for_row` - resolves the group the same way
+  Edit does (`_find_path_group_for_line`), removes it from `loader.
+  paths` entirely (a real removal, distinct from clearing a single
+  node to Null the way the Path Group Editor's own per-row Delete
+  already could), refreshes the viewport.
+
+  New `_new_path_group` - creates a fresh group with all 12 node slots
+  starting as Null, positioned at the viewport's current focus point
+  (rather than the world origin, which could be far from anything
+  visible) so a newly-created group is easy to find. Opens straight
+  into the existing Path Group Editor dialog for immediate editing.
+  Line number picked well clear of any real data line numbers (max
+  existing + 1000) so it can never collide with a genuine row.
+  Disclosed a real limitation rather than hiding it: the IPL File
+  Display's PATH tab is built from the original file's raw text, not
+  live PathGroup objects, so a brand-new group won't show as a row
+  there until saved out and the file reloaded - it does show in the
+  3D viewport immediately, and is fully editable via the dialog this
+  opens right after creating it, same honest-stub pattern already
+  established for the Path Group Editor itself (edits the live
+  object; Save IPL Data As... is how a result gets written back out).
+
+  Scoped to VC/SA-style `loader.paths` (the "path" IPL text section) -
+  GTA III's own IDE-embedded paths aren't covered by this (they
+  attach to instances by model_id rather than belonging to a specific
+  IPL file at all, a fundamentally different creation/deletion model
+  that would need its own, separate design).
+
+  Verified against real dataclasses: a new group constructs with
+  exactly 12 Null nodes at the given position; deleting a group
+  removes only the target from a list, leaving others untouched; the
+  line-number collision-avoidance logic picks a value clear of real
+  data. `ast.parse` clean; confirmed via AST no duplicate method
+  definitions.

@@ -23672,9 +23672,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # when the currently active tab is actually PATH, since a row
         # here only maps to a real PathGroup in that mode.
         edit_path_group_action = None
+        delete_path_group_action = None
+        new_path_group_action = None
         if getattr(self, '_ipl_data_type', 'inst') == 'path':
             menu.addSeparator()
             edit_path_group_action = menu.addAction("Edit Path Group...")
+            delete_path_group_action = menu.addAction("Delete Path Group")
+            new_path_group_action = menu.addAction("New Path Group...")
         chosen = menu.exec(table.viewport().mapToGlobal(pos))
         if chosen is None:
             return
@@ -23715,6 +23719,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 self._show_textures_for_instance(inst)
         elif edit_path_group_action is not None and chosen is edit_path_group_action:
             self._edit_path_group_for_row(row)
+        elif delete_path_group_action is not None and chosen is delete_path_group_action:
+            self._delete_path_group_for_row(row)
+        elif new_path_group_action is not None and chosen is new_path_group_action:
+            self._new_path_group()
 
     def _find_instance_for_ipl_inst_file_row(self, row): #vers 1
         """Look up the real IPLInstance for a row in the IPL Inst File
@@ -23788,6 +23796,93 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if group is None:
             self._set_status("Couldn't find a path group for this row")
             return
+        dlg = _PathGroupEditDialog(group, self, parent=self)
+        dlg.exec()
+
+    def _delete_path_group_for_row(self, row): #vers 1
+        """Delete whichever path group the given IPL File Display row
+        belongs to, entirely (Aug 16 2026, per Keith: "we don't have
+        the ability to edit the paths, delete, add, make paths from
+        scratch"). Same row-to-group resolution as _edit_path_group_
+        for_row, but removes the group from loader.paths outright
+        instead of opening it for editing - a real removal, not just
+        clearing it to Null nodes the way the Path Group Editor's own
+        per-row Delete already could. Live in-memory only, same as
+        every other edit this app makes - Save IPL Data As... is how
+        a deletion gets written back out to a real file."""
+        table = getattr(self, '_ipl_inst_file_table', None)
+        if table is None:
+            return
+        line_item = table.item(row, 0)
+        line_no = line_item.data(Qt.ItemDataRole.UserRole) if line_item is not None else None
+        if line_no is None:
+            return
+        sections_table = getattr(self, '_ipl_sections_table', None)
+        sec_row = sections_table.currentRow() if sections_table is not None else -1
+        sec_item = sections_table.item(sec_row, 0) if sec_row >= 0 else None
+        display_name = sec_item.data(Qt.ItemDataRole.UserRole) if sec_item is not None else None
+        if not display_name:
+            return
+        group = self._find_path_group_for_line(display_name, line_no)
+        if group is None:
+            self._set_status("Couldn't find a path group for this row")
+            return
+        loader = getattr(self, '_world_loader', None)
+        if loader is not None and group in loader.paths:
+            loader.paths.remove(group)
+        self._refresh_path_visualization()
+        self._set_status(f"Deleted path group ({group.header_a}, {group.header_b})")
+
+    def _new_path_group(self): #vers 1
+        """Create a brand-new, empty path group for the currently-
+        selected IPL, then open it straight in the Path Group Editor
+        to fill in (Aug 16 2026, per Keith: "we don't have the
+        ability to edit the paths, delete, add, make paths from
+        scratch"). All 12 node slots start as Null (matching the
+        Path Group Editor's own convention for an empty slot),
+        positioned at the viewport's current focus point (self.
+        preview_widget's own pan centre - a brand new group appearing
+        at the world origin, possibly far from anything visible,
+        would be much harder to find than one appearing right where
+        the user is already looking).
+
+        Real limitation, disclosed rather than silently hidden: the
+        IPL File Display table for the PATH tab is built from the
+        original file's raw text (_extract_ipl_section_text), not
+        from live PathGroup objects - a brand-new, purely in-memory
+        group has no corresponding raw text, so it won't appear as a
+        row there until saved out (Save IPL Data As... already
+        covers the path section) and the file reloaded. It DOES
+        appear in the 3D viewport immediately, since path rendering
+        reads loader.paths directly, not raw text - and it's fully
+        editable in the Path Group Editor dialog this opens
+        immediately after creating it."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            return
+        from apps.methods.gta_dat_parser import PathGroup, PathNode
+        sections_table = getattr(self, '_ipl_sections_table', None)
+        sec_row = sections_table.currentRow() if sections_table is not None else -1
+        sec_item = sections_table.item(sec_row, 0) if sec_row >= 0 else None
+        display_name = sec_item.data(Qt.ItemDataRole.UserRole) if sec_item is not None else None
+        if not display_name:
+            self._set_status("Select a loaded IPL first")
+            return
+
+        pw = getattr(self, 'preview_widget', None)
+        cx = -getattr(pw, '_pan_x', 0.0) if pw is not None else 0.0
+        cy = -getattr(pw, '_pan_y', 0.0) if pw is not None else 0.0
+        cz = 0.0
+
+        existing = [g for g in loader.paths if g.source_ipl == display_name]
+        new_line_no = (max((g.line_no for g in existing), default=0) + 1000)
+
+        nodes = [PathNode(node_type=0, next_id=-1, x=cx, y=cy, z=cz) for _ in range(12)]
+        group = PathGroup(header_a=0, header_b=-1, nodes=nodes,
+                          source_ipl=display_name, line_no=new_line_no)
+        loader.paths.append(group)
+        self._refresh_path_visualization()
+        self._set_status(f"Created new path group in {display_name} - edit its nodes now")
         dlg = _PathGroupEditDialog(group, self, parent=self)
         dlg.exec()
 
