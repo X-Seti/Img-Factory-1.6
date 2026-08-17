@@ -8706,12 +8706,30 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         dialog = QDialog(self)
         dialog.setWindowTitle(App_name + " Settings")
-        dialog.setMinimumWidth(650)
+        # Widened from 650 (Aug 16 2026, per Keith: "he can't find the
+        # settings, they should be in map-workshop settings, I've
+        # looked here, there not found?" - the real, likely cause:
+        # 650px was sized for the original 8 tabs (Fonts/Display/
+        # Performance/Preview/Loading/Map Assets/Navigation/
+        # Keybindings); adding Render as a 9th tab a few turns ago
+        # could easily push the tab bar past that width, and Qt's
+        # default behaviour when a tab bar doesn't fit is to show
+        # small scroll arrows rather than grow the dialog - meaning
+        # Render could have been sitting there the whole time, just
+        # scrolled out of view with no obvious indication it needed
+        # scrolling to reach. Widened with real margin for future
+        # tabs, and usesScrollButtons explicitly disabled below so
+        # this specific failure mode - a tab existing but silently
+        # hidden behind an easy-to-miss scroll arrow - can't recur:
+        # every tab stays visible, at worst slightly narrower, never
+        # invisible.
+        dialog.setMinimumWidth(850)
         dialog.setMinimumHeight(550)
 
         layout = QVBoxLayout(dialog)
 
         tabs, apply_settings = self._build_workshop_settings_tabs()
+        tabs.setUsesScrollButtons(False)
         if initial_tab:
             for i in range(tabs.count()):
                 if tabs.tabText(i) == initial_tab:

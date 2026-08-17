@@ -5483,3 +5483,39 @@ conclusively found despite extensive isolated testing.
   line-number collision-avoidance logic picks a value clear of real
   data. `ast.parse` clean; confirmed via AST no duplicate method
   definitions.
+
+- **Aug 16, 2026 (cont'd)** — Fixed the Render tab being invisible
+  despite genuinely existing, per Keith: "he can't find the settings,
+  they should be in map-workshop settings, I've looked here, there
+  not found?" (his friend, giving fresh, uncoached feedback, couldn't
+  find the same Render tab added earlier this session - and Keith
+  himself couldn't spot it either on looking).
+
+  Root cause: the "Map Workshop Settings" dialog's minimum width
+  (650px) was sized for the original 8 tabs (Fonts/Display/
+  Performance/Preview/Loading/Map Assets/Navigation/Keybindings).
+  Adding Render as a 9th tab could easily push the tab bar past that
+  width - and Qt's default behaviour when a tab bar doesn't fit its
+  container is to show small scroll arrows rather than grow the
+  dialog to fit. That means Render could have been sitting there the
+  entire time, just scrolled out of view with no obvious visual cue
+  that scrolling the tab bar itself (not the dialog's own content)
+  was needed to reach it - genuinely easy to miss, exactly matching
+  "I've looked here, there not found."
+
+  Fixed two ways together: widened the dialog's minimum width from
+  650 to 850 (real margin for future tabs, not just enough for today's
+  9), and explicitly disabled `usesScrollButtons` on the tab widget so
+  this specific failure mode can't recur even if more tabs get added
+  later - every tab stays visible, at worst slightly narrower, never
+  hidden behind an easy-to-miss arrow. Confirmed `App_name` is
+  literally `"Map Workshop"`, so the dialog's own title is exactly
+  "Map Workshop Settings" - matching Keith's wording and his earlier
+  screenshot precisely, confirming this is the right dialog. Also
+  confirmed both the standalone dialog and the docked-mode settings
+  contribution share the exact same underlying tab-building method
+  (`_build_workshop_settings_tabs`), so this fix covers both entry
+  points, not just one of them.
+
+  `ast.parse` clean; confirmed via AST no duplicate method
+  definitions.
