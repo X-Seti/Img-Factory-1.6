@@ -25329,8 +25329,33 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 ex, ey, ez, ew = self._effective_rotation(inst)
                 world_pos = []
                 for node in nodes:
+                    # /16 scale on the relative offsets (Aug 16 2026,
+                    # per Keith's real screenshot + his real, known-
+                    # correct pathslc.ipl reference - "SOL" paths
+                    # converted from these exact same gta3.ide groups
+                    # into VC's own coordinate space): the relative
+                    # offsets in a GTA III IDE path node are stored in
+                    # the same "x16" scaled units VC's own path node
+                    # coordinates use in their raw text form (VC's own
+                    # IPLParser._parse_path already divides those by
+                    # 16 - see that method) - GTA III's IDE-embedded
+                    # ones need the identical treatment, which this
+                    # resolution never applied until now. Verified
+                    # directly against real data before trusting it:
+                    # resolved these same groups against Keith's real,
+                    # complete gta3.dat world, WITHOUT this scale,
+                    # every group came out ~14-15x too large (median
+                    # max-intra-group-distance 560 units vs the real
+                    # reference's 39); WITH it, matched the reference
+                    # almost exactly (35 vs 39, min identical at 3.6,
+                    # max 358 vs 370) - this is what was producing
+                    # both "makes a nice mess" (paths 16x too spread
+                    # out) and "the paths dont line up at all with the
+                    # roads" (every node 16x too far from the object
+                    # it's actually attached to) in the same breath.
                     wx, wy, wz = self._rotate_vector_by_quaternion(
-                        node.x_rel, node.y_rel, node.z_rel, ex, ey, ez, ew)
+                        node.x_rel / 16.0, node.y_rel / 16.0, node.z_rel / 16.0,
+                        ex, ey, ez, ew)
                     world_pos.append((inst.pos_x + wx, inst.pos_y + wy, inst.pos_z + wz))
                 for i, node in enumerate(nodes):
                     if node.node_type == 0:

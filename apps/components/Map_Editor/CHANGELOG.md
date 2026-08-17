@@ -5352,3 +5352,49 @@ conclusively found despite extensive isolated testing.
   continue investigating with real data rather than guessing further.
 
   Verified via AST no duplicate method definitions; `ast.parse` clean.
+
+- **Aug 16, 2026 (cont'd)** — Found and fixed the REAL root cause of
+  both "makes a nice mess in the viewpoint" and "the paths dont line
+  up at all with the roads", per Keith's own decisive diagnostic: he
+  uploaded `pathslc.ipl` - a real, community-converted (by "sorup")
+  port of these exact same Liberty City paths into Vice City's own
+  coordinate space and file format ("here are the paths that was
+  converted to work on Vice City, you can compare these with those
+  in the gta3.ide"). This gave a genuine, known-correct reference to
+  validate against, rather than reasoning about the transform in
+  isolation.
+
+  Resolved the same real path groups against Keith's real, complete
+  `gta3.dat` world (from the previous upload) and compared shape
+  statistics directly - specifically each group's own max distance
+  between any two of its real nodes, a metric that's independent of
+  translation (so comparable even though the whole map was moved
+  between the GTA III original and its VC port). Without any
+  additional scaling, my resolved groups came out roughly 14-15x too
+  large (median 560 units vs the reference's 39; max 5722 vs 370) -
+  and 16 is exactly the scale factor VC's own path node coordinates
+  are already known to use in their raw text form (`IPLParser._
+  parse_path` already divides those by 16). Testing with the same
+  `/16` division applied to GTA III's IDE-embedded relative offsets
+  matched the reference almost exactly: median 35.0 vs 39.2, min
+  identical at 3.6, max 357.7 vs 369.6 - all within ~10%, the
+  remaining gap fully explainable by comparing a slightly different
+  group set (2163 resolved vs 2025 in the reference) rather than any
+  remaining error.
+
+  Fixed by dividing `node.x_rel`/`y_rel`/`z_rel` by 16.0 before
+  rotating and adding to the instance's position - one line, in the
+  same spot area-scoping was reverted from a few turns ago. This
+  explains both symptoms from the same root cause: every node offset
+  was 16x too large, which simultaneously spread each path's own
+  shape out 16x wider than real ("the mess") and placed every node
+  16x further from the actual object it's attached to than it should
+  be ("the paths dont line up at all with the roads") - two
+  descriptions of the exact same underlying error.
+
+  This is the first fix in this whole investigation actually verified
+  against a real, independently-known-correct reference rather than
+  just internal consistency checks - the earlier reentrancy and area-
+  scoping investigations were real, necessary work, but this is what
+  actually explains the visual symptoms Keith was seeing throughout.
+  `ast.parse` clean.
