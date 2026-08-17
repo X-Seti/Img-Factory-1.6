@@ -21463,6 +21463,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         unload_act.triggered.connect(
             lambda checked=False, n=ipl_name: self._unload_ipl_section(n))
 
+        shift_act = menu.addAction("Shift Coordinates...")
+        shift_act.setToolTip(
+            "Move every position this IPL holds (instances, cull/zone/\n"
+            "occlusion boxes, path nodes, garages, entrances/exits) by a\n"
+            "fixed offset - for aligning converted/ported map data to its\n"
+            "real intended location as a single rigid-body move.")
+        shift_act.setEnabled(is_loaded)
+        shift_act.triggered.connect(
+            lambda checked=False, n=ipl_name: self._prompt_shift_ipl_coordinates(n))
+
         menu.addSeparator()
         up_act = menu.addAction("Move Up")
         up_act.setEnabled(idx > 0)
@@ -21514,6 +21524,116 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._rebuild_ipl_sections_rows()
         self._apply_ipl_visibility_filter()
         self._set_status(f"Unloaded {ipl_name}")
+
+    def _shift_ipl_coordinates(self, ipl_name, dx, dy, dz): #vers 1
+        """Translate every real position an IPL's loaded data holds
+        by a fixed (dx,dy,dz) offset - added so converted/ported map
+        data (per Keith: "we are planning to add coords shifting
+        abilities, this should work accoss all loading ipls, zon or
+        path, this will allow me to drag those vc convert paths to
+        where LC really is" - his real pathslc.ipl, a Liberty City
+        path set converted into Vice City's own coordinate space by a
+        third party, needs to be moved as a whole to wherever SOL
+        actually placed Liberty City within VC's world) can be
+        aligned to its real intended location as a single rigid-body
+        move, without hand-editing every coordinate in the file.
+
+        Applies to every loader list that tracks source_ipl - inst,
+        cull, zone, the VC/GTA3 IPL "path" text section (loader.paths
+        - what pathslc.ipl itself actually contains), grge, enex, and
+        occl - covering every section type an IPL can hold, per
+        Keith's own "across all loading ipls, zon or path" framing,
+        not just instances.
+
+        Only ever shifts real WORLD POSITIONS, never dimensions,
+        angles, or flags - a cull/occlusion box's width/height, a
+        path node's median (a lane-width value, not a position), an
+        occlusion zone's rotation, and similar non-positional fields
+        are left untouched; shifting those would distort the shape
+        instead of just relocating it. GTA III's own IDE-embedded
+        paths aren't included here - they have no source_ipl of their
+        own (attached to instances by model_id, not to a specific IPL
+        file - see IDEPathGroup's own docstring), so they'd move
+        automatically along with whichever instance actually places
+        them, the same way the instance's own visual model already
+        does; there's nothing separate to shift for those.
+
+        Live in-memory only, same as every other edit this app makes
+        - Save IPL Data As... is how a shifted result gets written
+        back out to a real file."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            return
+        moved = 0
+        for inst in loader.instances:
+            if inst.source_ipl == ipl_name:
+                inst.pos_x += dx; inst.pos_y += dy; inst.pos_z += dz
+                moved += 1
+        for c in getattr(loader, 'culls', []):
+            if getattr(c, 'source_ipl', None) == ipl_name:
+                c.center_x += dx; c.center_y += dy; c.center_z += dz
+                c.x1 += dx; c.y1 += dy; c.z1 += dz
+                c.x2 += dx; c.y2 += dy; c.z2 += dz
+                moved += 1
+        for z in getattr(loader, 'zones', []):
+            if z.get('source_ipl') == ipl_name:
+                z['min_x'] += dx; z['min_y'] += dy; z['min_z'] += dz
+                z['max_x'] += dx; z['max_y'] += dy; z['max_z'] += dz
+                moved += 1
+        for p in getattr(loader, 'paths', []):
+            if p.source_ipl == ipl_name:
+                for node in p.nodes:
+                    node.x += dx; node.y += dy; node.z += dz
+                moved += 1
+        for g in getattr(loader, 'grges', []):
+            if g.source_ipl == ipl_name:
+                g.x1 += dx; g.y1 += dy; g.z1 += dz
+                g.front_x += dx; g.front_y += dy
+                g.x2 += dx; g.y2 += dy; g.z2 += dz
+                moved += 1
+        for e in getattr(loader, 'enexes', []):
+            if e.source_ipl == ipl_name:
+                e.enter_x += dx; e.enter_y += dy; e.enter_z += dz
+                e.exit_x += dx; e.exit_y += dy; e.exit_z += dz
+                moved += 1
+        for o in getattr(loader, 'occls', []):
+            if o.source_ipl == ipl_name:
+                o.mid_x += dx; o.mid_y += dy; o.bottom_z += dz
+                moved += 1
+
+        self._all_instances = list(loader.instances)
+        self._apply_ipl_visibility_filter()
+        self._set_status(
+            f"Shifted {ipl_name} by ({dx:g}, {dy:g}, {dz:g}) - {moved} entries moved")
+
+    def _prompt_shift_ipl_coordinates(self, ipl_name): #vers 1
+        """Small dialog collecting a (dx,dy,dz) offset, then applies
+        it via _shift_ipl_coordinates - the actual entry point wired
+        to the IPL Sections right-click menu's "Shift Coordinates..."
+        action."""
+        from PyQt6.QtWidgets import QDialog, QFormLayout, QDoubleSpinBox, QDialogButtonBox
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Shift Coordinates - {ipl_name}")
+        form = QFormLayout(dlg)
+
+        dx_spin = QDoubleSpinBox(); dx_spin.setRange(-100000.0, 100000.0); dx_spin.setDecimals(3)
+        dy_spin = QDoubleSpinBox(); dy_spin.setRange(-100000.0, 100000.0); dy_spin.setDecimals(3)
+        dz_spin = QDoubleSpinBox(); dz_spin.setRange(-100000.0, 100000.0); dz_spin.setDecimals(3)
+        form.addRow("Delta X:", dx_spin)
+        form.addRow("Delta Y:", dy_spin)
+        form.addRow("Delta Z:", dz_spin)
+
+        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                QDialogButtonBox.StandardButton.Cancel)
+        btns.accepted.connect(dlg.accept)
+        btns.rejected.connect(dlg.reject)
+        form.addRow(btns)
+
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            dx, dy, dz = dx_spin.value(), dy_spin.value(), dz_spin.value()
+            if dx or dy or dz:
+                self._shift_ipl_coordinates(ipl_name, dx, dy, dz)
 
     def _save_ipl_data_as_text(self, ipl_name): #vers 2
         """Export an IPL's actual loaded instances out as a standard

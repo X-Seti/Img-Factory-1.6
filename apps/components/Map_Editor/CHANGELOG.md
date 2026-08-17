@@ -5398,3 +5398,47 @@ conclusively found despite extensive isolated testing.
   scoping investigations were real, necessary work, but this is what
   actually explains the visual symptoms Keith was seeing throughout.
   `ast.parse` clean.
+
+- **Aug 16, 2026 (cont'd)** — Added a "Shift Coordinates..." action
+  to the IPL Sections right-click menu, per Keith: "we are planning
+  to add coords shifting abilities, this should work accoss all
+  loading ipls, zon or path, this will allow me to drag those vc
+  convert paths to where LC really is" - his real pathslc.ipl (a
+  third-party conversion of these exact Liberty City paths into VC's
+  own coordinate space) needs moving as a whole to wherever SOL
+  actually placed Liberty City within VC's world, rather than hand-
+  editing every coordinate in the file.
+
+  New `_shift_ipl_coordinates(ipl_name, dx, dy, dz)` applies a fixed
+  offset to every real WORLD POSITION an IPL's loaded data holds -
+  inst, cull, zone, the VC/GTA3 IPL "path" text section (what
+  `pathslc.ipl` itself actually contains), grge, enex, and occl -
+  covering every section type an IPL can hold, per Keith's own
+  "across all loading ipls, zon or path" framing, not just instances.
+  Deliberately only ever shifts positions, never dimensions, angles,
+  or flags - a cull/occlusion box's width/height, a path node's
+  median (a lane-width value, not a position), an occlusion zone's
+  rotation, and similar fields are left untouched, so this is a
+  genuine rigid-body move rather than a shape-distorting one. GTA
+  III's own IDE-embedded paths aren't included - they have no
+  `source_ipl` of their own (attached to instances by `model_id`, not
+  to a specific IPL file), so they move automatically along with
+  whichever instance places them, the same way that instance's own
+  visual model already does when its position changes - nothing
+  separate needs shifting for those.
+
+  New `_prompt_shift_ipl_coordinates` - small dialog collecting a
+  (dx,dy,dz) offset (wide range, ±100,000, matching the real scale of
+  Keith's own pathslc.ipl coordinates), applies it and refreshes the
+  viewport immediately. Both new actions only enabled when the row is
+  actually loaded, same as Unload/Save IPL Data As... alongside them.
+  Live in-memory only, same as every other edit this app makes - Save
+  IPL Data As... (already covers every section type) is how a shifted
+  result gets written back out to a real file.
+
+  Verified against real `pathslc.ipl` data: applied a shift, confirmed
+  every node moved by exactly the given delta, confirmed the shift is
+  a pure rigid-body translation (relative shape/distances between
+  nodes in the same group unaffected, only their absolute position
+  changes). `ast.parse` clean; confirmed via AST no duplicate method
+  definitions.
