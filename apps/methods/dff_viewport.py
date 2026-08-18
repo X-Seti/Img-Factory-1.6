@@ -2634,15 +2634,65 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             # tracking variables.
             self.update()
 
-    def wheelEvent(self, event): #vers 3
+    def wheelEvent(self, event): #vers 4
+        """Zoom in/out, optionally toward the mouse cursor rather than
+        the current pan centre (Aug 18 2026, per Keith: "when I zoom
+        in, or zoom out, have a settings option to zoom in to the
+        mouse pointer. so if i move the point to the top, and zoom
+        in, it zooms in that area").
+
+        Standard "zoom to cursor" technique, reusing the already-
+        proven _screen_to_ground_position (same ray-cast machinery
+        already used for LOD Test mode and path node dragging, not
+        new geometry code) rather than deriving new trigonometry:
+        find the world-space ground point under the cursor BEFORE
+        changing _dist, apply the zoom, find where that same screen
+        pixel now points to AFTER the zoom, then shift _pan_x/_pan_y
+        by the difference. Since _pan_x/_pan_y already directly
+        offset the world in the exact same coordinate space _screen_
+        to_ground_position resolves into (both go through the same
+        glTranslatef(pan_x, pan_y, 0) in the modelview chain), the
+        shift needed is just that raw delta - no yaw compensation
+        needed here (unlike _apply_pan_step, which takes a raw
+        screen-space input and has to pre-rotate it; this delta is
+        already in world space, coming out of a real ray-plane
+        intersection). Net effect: the world point that was under the
+        cursor before the wheel event is still under it afterward,
+        so zooming visually pulls in toward wherever the mouse
+        actually is instead of always toward the fixed pan centre.
+
+        Off by default (self._zoom_to_cursor, matching the setting's
+        own MapSettings default) - preserves the existing, always-
+        zooms-toward-pan-centre behaviour unless explicitly turned on."""
+        zoom_to_cursor = getattr(self, '_zoom_to_cursor', False)
+        before_pos = None
+        if zoom_to_cursor:
+            pos = event.position()
+            before_pos = self._screen_to_ground_position(pos.x(), pos.y())
+
         f = 0.85 if event.angleDelta().y() > 0 else 1.15
         self._dist = max(0.1, min(50000.0, self._dist*f))
+
+        if before_pos is not None:
+            pos = event.position()
+            after_pos = self._screen_to_ground_position(pos.x(), pos.y())
+            if after_pos is not None:
+                self._pan_x += after_pos[0] - before_pos[0]
+                self._pan_y += after_pos[1] - before_pos[1]
+
         if self._projection == 'ortho':
             try:
                 self.resizeGL(self.width(), self.height())
             except Exception:
                 pass
         self.update()
+
+    def set_zoom_to_cursor(self, enabled: bool): #vers 1
+        """Toggle zoom-toward-mouse-cursor (Aug 18 2026, per Keith's
+        own request - see wheelEvent's own docstring for the full
+        mechanism). Off by default, matching the existing, always-
+        zooms-toward-pan-centre behaviour."""
+        self._zoom_to_cursor = enabled
 
     def keyPressEvent(self, event): #vers 2
         """Configurable camera controls, held keys giving continuous

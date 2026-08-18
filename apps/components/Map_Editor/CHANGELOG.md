@@ -5772,3 +5772,71 @@ conclusively found despite extensive isolated testing.
 
   `ast.parse` clean; confirmed via AST exactly one definition of
   every touched/new method.
+
+- **Aug 18, 2026 (cont'd)** — Two more pieces from Keith's ongoing
+  feedback.
+
+  **Zoom to mouse cursor**, per Keith: "when I zoom in, or zoom out,
+  have a settings option to zoom in to the mouse pointer. so if i
+  move the point to the top, and zoom in, it zooms in that area."
+  New `DFFViewport.wheelEvent` behaviour (off by default, a new
+  `zoom_to_cursor` `MapSettings` entry + checkbox in Settings >
+  Navigation turns it on): finds the world-space ground point under
+  the cursor before changing `_dist`, applies the zoom, finds where
+  that same screen pixel now points to afterward, then shifts `_pan_
+  x`/`_pan_y` by the difference - reuses the already-proven `_screen_
+  to_ground_position` (same ray-cast machinery already used for LOD
+  Test mode and path node dragging) rather than deriving new
+  trigonometry. Verified the exact sign of the pan compensation with
+  a standalone simplified camera-transform model before trusting it
+  in the real code (an easy thing to get backwards) - stress-tested
+  across 4 varied scenarios (zoom in/out, different angles, different
+  starting pan/screen positions), all confirming `self._pan_x +=
+  (after_pos - before_pos)` is the correct direction.
+
+  **IPL Controls row 3 redesigned from 6 checkboxes into 5 buttons**,
+  per Keith: "looking at the bottom-right object control panel, we
+  can make clickable buttons instead; one click shows the paths,
+  right-click paths allows edit mode, and the other buttons with tick
+  marks can work the same way, saving space... When pressing the
+  button once, the background slightly changes to show it's selected;
+  a margin ants pattern around the button shows edit mode; right-
+  click on, right-click off. left click show, left click hde." New
+  reusable `_MapOverlayToggleButton(QToolButton)` - left-click toggles
+  shown/hidden (a subtle background tint marks the shown state);
+  right-click toggles edit mode for overlay types that actually have
+  one (a dashed border marks it - a static border, not a literal
+  animated "marching ants" effect, which would need a QTimer-driven
+  paintEvent redraw; noted honestly as a possible follow-up polish
+  rather than silently simplified without saying so). Right-clicking
+  a button with no edit mode (Cull/Zone/Occlusion/Tracks - none of
+  them have any editing feature built yet) shows a plain status
+  message instead of doing nothing silently.
+
+  The previous separate Paths/Edit Paths checkbox pair merged into
+  one Paths button (left-click show/hide, right-click toggles the
+  existing path-node-drag editing) - the only overlay type that
+  actually has a real edit mode today. `show_toggled(bool)`/`edit_
+  toggled(bool)` signals fire exactly like a `QCheckBox`'s own
+  `toggled` signal, so every existing handler (`_on_show_paths_
+  toggled` etc) needed zero changes; a compatibility `isChecked()`
+  method means every existing caller reading a checkbox's checked
+  state also kept working unmodified. `QToolButton` added to this
+  file's own module-level import (previously only imported locally in
+  a couple of other functions) - the new class is defined at module
+  level and would otherwise fail with a `NameError` the first time
+  Map Workshop's own module actually loaded, a real mistake caught
+  and fixed before it could ship.
+
+  Verified the button's own state-machine logic (left/right-click
+  cycling, `supports_edit=False` correctly routing to a status
+  message instead of a state change, `set_shown`'s emit behaviour,
+  `isChecked()` compatibility with existing callers) via a standalone
+  simulation, since PyQt6 isn't available in this sandbox to
+  instantiate the real `QToolButton` subclass directly. `ast.parse`
+  clean on both touched files; confirmed via AST no duplicate method/
+  class definitions, and confirmed (via direct search) no remaining
+  references anywhere in the file to the removed `_edit_paths_chk`
+  checkbox or to `.setChecked()`/`.toggled` on any of the five
+  buttons - only the compatible `.isChecked()`/`show_toggled`/`edit_
+  toggled` API the new widget actually provides.

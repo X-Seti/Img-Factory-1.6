@@ -29,7 +29,7 @@ if str(project_root) not in sys.path:
 # Import PyQt6
 from PyQt6.QtWidgets import (QApplication, QSlider, QCheckBox,
     QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QListWidget, QDialog, QFormLayout, QSpinBox,  QListWidgetItem, QLabel, QPushButton, QFrame, QFileDialog, QLineEdit, QTextEdit, QMessageBox, QScrollArea, QGroupBox, QTableWidget, QTableWidgetItem, QColorDialog, QHeaderView, QAbstractItemView, QMenu, QComboBox, QInputDialog, QTabWidget, QDoubleSpinBox, QRadioButton, QStyledItemDelegate, QTimeEdit,
-    QDockWidget, QFontComboBox, QSizePolicy, QMenuBar, QStatusBar, QProgressDialog, QStackedWidget, QGridLayout
+    QDockWidget, QFontComboBox, QSizePolicy, QMenuBar, QStatusBar, QProgressDialog, QStackedWidget, QGridLayout, QToolButton
 )
 
 from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPoint, QRect, QByteArray, QPointF, QTimer, QAbstractTableModel, QObject
@@ -3219,6 +3219,11 @@ class MapSettings(QObject):
         # matches the hardcoded silver/grey DFFViewport already uses,
         # loosely evoking real rail.
         'track_color': (191, 191, 204),
+        # Zoom to mouse cursor (Aug 18 2026, per Keith: "have a
+        # settings option to zoom in to the mouse pointer") - off by
+        # default, preserving the existing always-zooms-toward-pan-
+        # centre behaviour unless explicitly turned on.
+        'zoom_to_cursor': False,
         # Viewport camera keybindings (Aug 16 2026, per Keith: "A new
         # tab is needed in map workshop settings to define keys") -
         # stored as {action: {'key': int(Qt.Key), 'numpad': bool}},
@@ -4007,6 +4012,101 @@ class _CornerOverlay(QWidget):
             painter.setBrush(QBrush(hover_c if self._hover_corner == name else accent))
             painter.drawPath(path)
         painter.end()
+
+
+class _MapOverlayToggleButton(QToolButton): #vers 1
+    """One compact button replacing a pair of checkboxes (show/hide +
+    edit mode) for a single map overlay type (Aug 18 2026, per Keith:
+    "looking at the bottom-right object control panel, we can make
+    clickable buttons instead; one click shows the paths, right-click
+    paths allows edit mode, and the other buttons with tick marks can
+    work the same way, saving space... When pressing the button once,
+    the background slightly changes to show it's selected; a margin
+    ants pattern around the button shows edit mode; right-click on,
+    right-click off. left click show, left click hde.").
+
+    Left-click toggles shown/hidden (a subtle background tint marks
+    the shown state); right-click toggles edit mode, only for overlay
+    types that actually have one (a dashed border marks it - a real,
+    literal "marching ants" ANIMATION would need a QTimer-driven
+    paintEvent redraw, which felt like more complexity than this
+    first pass needed; this is a static dashed border, not yet
+    animated - noted honestly rather than silently simplified without
+    saying so). Right-clicking a button with no edit mode at all
+    (Cull/Zone/Occlusion/Tracks - none of them have any editing
+    feature built yet) shows a plain status message rather than doing
+    nothing silently, so the UI doesn't feel unresponsive.
+
+    show_toggled(bool)/edit_toggled(bool) fire on each respective
+    state change - callers wire these exactly like a QCheckBox's own
+    toggled signal, so every existing handler (_on_show_paths_toggled
+    etc) needed zero changes to work with this replacement."""
+    show_toggled = pyqtSignal(bool)
+    edit_toggled = pyqtSignal(bool)
+
+    def __init__(self, label, supports_edit=False, parent=None): #vers 1
+        super().__init__(parent)
+        self.setText(label)
+        self.setFixedHeight(20)
+        self._shown = False
+        self._editing = False
+        self._supports_edit = supports_edit
+        tip = f"Left-click: show/hide {label}."
+        if supports_edit:
+            tip += f"\nRight-click: toggle edit mode for {label}."
+        self.setToolTip(tip)
+        self._apply_style()
+
+    def mousePressEvent(self, event): #vers 1
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._shown = not self._shown
+            self._apply_style()
+            self.show_toggled.emit(self._shown)
+        elif event.button() == Qt.MouseButton.RightButton:
+            if self._supports_edit:
+                self._editing = not self._editing
+                self._apply_style()
+                self.edit_toggled.emit(self._editing)
+            else:
+                mw = self.window()
+                if mw is not None and hasattr(mw, '_set_status'):
+                    mw._set_status(f"No edit mode available for {self.text()} yet")
+        # Deliberately not calling super().mousePressEvent() - this
+        # widget fully owns its own click behaviour rather than also
+        # triggering QToolButton's own default checked/pressed
+        # handling, which would fight with the manual state above.
+
+    def set_shown(self, shown: bool, emit: bool = True): #vers 1
+        """Programmatic state change (e.g. one button's own handler
+        turning another button on, the way "Edit Paths" used to force
+        "Show Paths" on) - emits show_toggled by default, matching
+        QCheckBox.setChecked's own real behaviour (existing callers
+        like _on_edit_paths_toggled rely on that signal firing to
+        also trigger the actual viewport update, not just a visual
+        state change)."""
+        self._shown = shown
+        self._apply_style()
+        if emit:
+            self.show_toggled.emit(self._shown)
+
+    def isChecked(self) -> bool: #vers 1
+        """QCheckBox-compatible accessor (Aug 18 2026) - every caller
+        that used to read a checkbox's own .isChecked() (_refresh_
+        path_visualization and others) keeps working unmodified
+        against this replacement widget."""
+        return self._shown
+
+    def set_editing(self, editing: bool): #vers 1
+        self._editing = editing
+        self._apply_style()
+
+
+    def _apply_style(self): #vers 1
+        bg = "rgba(120, 170, 255, 90)" if self._shown else "transparent"
+        border = "2px dashed #ffaa00" if self._editing else "1px solid rgba(255,255,255,40)"
+        self.setStyleSheet(
+            f"QToolButton {{ background-color: {bg}; border: {border}; "
+            f"border-radius: 3px; padding: 1px 6px; }}")
 
 
 class _PathGroupEditDialog(QDialog): #vers 1
@@ -8532,6 +8632,25 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         nav_zoom_spin.valueChanged.connect(_on_nav_zoom_change)
         nav_zoom_row.addWidget(nav_zoom_spin)
         nav_lay.addLayout(nav_zoom_row)
+
+        # Zoom to cursor (Aug 18 2026, per Keith: "when I zoom in, or
+        # zoom out, have a settings option to zoom in to the mouse
+        # pointer. so if i move the point to the top, and zoom in, it
+        # zooms in that area") - the actual zoom-compensation math
+        # lives in DFFViewport.wheelEvent itself (see that method's
+        # own docstring for the full mechanism); this is just the
+        # setting that turns it on, persisted properly via MapSettings
+        # (unlike the sensitivity/go-to-zoom controls just above,
+        # which are pre-existing, unrelated gaps not touched here).
+        zoom_cursor_chk = QCheckBox("Zoom to mouse cursor")
+        zoom_cursor_chk.setChecked(bool(self.map_settings.get('zoom_to_cursor')))
+        zoom_cursor_chk.setToolTip(
+            "When zooming with the mouse wheel, zoom toward wherever\n"
+            "the cursor is instead of always toward the current pan\n"
+            "centre - move the cursor to an area first, then zoom in\n"
+            "to pull in on that specific spot.")
+        nav_lay.addWidget(zoom_cursor_chk)
+
         nav_lay.addStretch()
         tabs.addTab(nav_tab, "Navigation")
 
@@ -8614,6 +8733,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             vp2 = getattr(self, 'preview_widget', None)
             if vp2 is not None and hasattr(vp2, '_lod_test_radius'):
                 vp2._lod_test_radius = float(lod_test_radius_spin.value())
+            self.map_settings.set('zoom_to_cursor', zoom_cursor_chk.isChecked())
+            if vp2 is not None and hasattr(vp2, 'set_zoom_to_cursor'):
+                vp2.set_zoom_to_cursor(zoom_cursor_chk.isChecked())
 
             # Keybindings (Aug 16 2026) - read every button's current
             # binding (whether rebound this dialog session or not),
@@ -11901,6 +12023,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # not re-connected on every refresh.
         if hasattr(self.preview_widget, 'set_path_node_drag_callback'):
             self.preview_widget.set_path_node_drag_callback(self._on_path_node_dragged)
+        # Restore the saved zoom-to-cursor setting (Aug 18 2026, per
+        # Keith's "zoom in to the mouse pointer" request) - same
+        # restore-at-construction pattern as the zone render style
+        # just above, so a previous session's choice is already in
+        # effect the first time the viewport is scrolled this
+        # session.
+        if hasattr(self.preview_widget, 'set_zoom_to_cursor'):
+            self.preview_widget.set_zoom_to_cursor(bool(self.map_settings.get('zoom_to_cursor')))
         self._viewport_stack = QStackedWidget()
         self._viewport_stack.addWidget(self.preview_widget)   # index 0: single view
         inner_mw.setCentralWidget(self._viewport_stack)
@@ -22901,104 +23031,64 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # _create_settings_dialog's path-colour picker). Off by
         # default, matching every other optional overlay. Show Zones
         # can still follow later on this same row.
-        show_paths_chk = QCheckBox("Paths")
-        show_paths_chk.setFixedHeight(18)
-        show_paths_chk.setStyleSheet(_compact_18)
-        show_paths_chk.setToolTip(
-            "Show every loaded IPL's path data (vehicle/ped route\n"
-            "nodes, GTA3/VC only for now - SA's real path data is in\n"
-            "binary nodesXX.dat files, not yet wired into this view)\n"
-            "as connected lines with node markers in the 3D view.")
-        show_paths_chk.toggled.connect(self._on_show_paths_toggled)
-        self._show_paths_chk = show_paths_chk
-
-        # Edit Paths (Aug 17 2026, per Keith: "lets address the
-        # unbuilt work, editing paths first") - click-to-select-and-
-        # drag path node editing directly in the 3D view. Scoped to
-        # VC/SA-style path data only (same scope New/Delete Path
-        # Group already settled on) - GTA III's own IDE-embedded
-        # paths attach to instances by model_id, no position of their
-        # own to drag, not covered here.
-        edit_paths_chk = QCheckBox("Edit Paths")
-        edit_paths_chk.setFixedHeight(18)
-        edit_paths_chk.setStyleSheet(_compact_18)
-        edit_paths_chk.setToolTip(
-            "Click a path node to pick it up, drag to reposition it\n"
-            "along the ground, release to commit the change. VC/SA-\n"
-            "style path data only - GTA III's own IDE-embedded paths\n"
-            "aren't editable this way (they attach to instances by\n"
-            "model ID, not a position of their own).")
-        edit_paths_chk.toggled.connect(self._on_edit_paths_toggled)
-        self._edit_paths_chk = edit_paths_chk
+        # Show/Edit Paths - one button covering both, per Keith:
+        # "looking at the bottom-right object control panel, we can
+        # make clickable buttons instead; one click shows the paths,
+        # right-click paths allows edit mode... saving space" (Aug 18
+        # 2026) - replaces the previous separate Paths/Edit Paths
+        # checkbox pair. Left-click shows every loaded IPL's path
+        # data (vehicle/ped route nodes, GTA3/VC only for now - SA's
+        # real path data is in binary nodesXX.dat files, not yet
+        # wired into this view) as connected lines with node markers.
+        # Right-click toggles click-to-select-and-drag path node
+        # editing directly in the 3D view - scoped to VC/SA-style
+        # path data only (same scope New/Delete Path Group already
+        # settled on); GTA III's own IDE-embedded paths attach to
+        # instances by model_id, no position of their own to drag,
+        # not covered here.
+        show_paths_btn = _MapOverlayToggleButton("Paths", supports_edit=True)
+        show_paths_btn.show_toggled.connect(self._on_show_paths_toggled)
+        show_paths_btn.edit_toggled.connect(self._on_edit_paths_toggled)
+        self._show_paths_chk = show_paths_btn
 
         # Show Tracks (Aug 17 2026, per Keith: "then the other path
         # .dat files you pointed out earlier") - train track waypoints
         # from data/paths/tracks.dat/tracks2.dat, loaded once at world
         # load time (not per-IPL - these files aren't tied to any
-        # specific area or IPL section at all).
-        show_tracks_chk = QCheckBox("Tracks")
-        show_tracks_chk.setFixedHeight(18)
-        show_tracks_chk.setStyleSheet(_compact_18)
-        show_tracks_chk.setToolTip(
-            "Show train track waypoints (data/paths/tracks.dat,\n"
-            "tracks2.dat) as connected lines in the 3D view.")
-        show_tracks_chk.toggled.connect(self._on_show_tracks_toggled)
-        self._show_tracks_chk = show_tracks_chk
+        # specific area or IPL section at all). No edit mode yet -
+        # right-clicking shows a plain status message rather than
+        # doing nothing (see _MapOverlayToggleButton's own docstring).
+        show_tracks_btn = _MapOverlayToggleButton("Tracks", supports_edit=False)
+        show_tracks_btn.show_toggled.connect(self._on_show_tracks_toggled)
+        self._show_tracks_chk = show_tracks_btn
 
         # Show Cull Zones (Aug 16 2026, per Keith: "continue with the
         # cull files next") - draws every loaded IPL's cull zones as
-        # wireframe boxes in the 3D view (DFFViewport._draw_cull_
-        # boxes), box colour configurable in Settings same as path
-        # line colour. Off by default, matching every other optional
-        # overlay. The older cull-box drawing this project already
-        # had (MapViewport, the disabled 4-Pane View's own class) is
-        # unaffected/untouched - this is a separate, new
-        # implementation for the actual primary viewport, which never
-        # had any cull-box rendering of its own before.
-        show_cull_chk = QCheckBox("Cull")
-        show_cull_chk.setFixedHeight(18)
-        show_cull_chk.setStyleSheet(_compact_18)
-        show_cull_chk.setToolTip(
-            "Show every loaded IPL's cull zones (GTA3/VC) as\n"
-            "wireframe boxes in the 3D view.")
-        show_cull_chk.toggled.connect(self._on_show_cull_boxes_toggled)
-        self._show_cull_chk = show_cull_chk
+        # ghosted boxes in the 3D view. No edit mode yet.
+        show_cull_btn = _MapOverlayToggleButton("Cull", supports_edit=False)
+        show_cull_btn.show_toggled.connect(self._on_show_cull_boxes_toggled)
+        self._show_cull_chk = show_cull_btn
 
         # Show Zones (Aug 16 2026, per Keith: "ive loaded zon files...
         # but I cant see them in the viewpoint") - draws every loaded
-        # .zon/IPL zone entry as a wireframe box (DFFViewport._draw_
-        # zone_boxes), same pattern as Show Cull Zones right above -
-        # zones never had any viewport rendering at all before this.
-        show_zone_chk = QCheckBox("Zon")
-        show_zone_chk.setFixedHeight(18)
-        show_zone_chk.setStyleSheet(_compact_18)
-        show_zone_chk.setToolTip(
-            "Show every loaded map zone (from .zon files or an IPL's\n"
-            "own zone section) as a wireframe box in the 3D view.")
-        show_zone_chk.toggled.connect(self._on_show_zone_boxes_toggled)
-        self._show_zone_chk = show_zone_chk
+        # .zon/IPL zone entry as a box in the 3D view. No edit mode yet.
+        show_zone_btn = _MapOverlayToggleButton("Zon", supports_edit=False)
+        show_zone_btn.show_toggled.connect(self._on_show_zone_boxes_toggled)
+        self._show_zone_chk = show_zone_btn
 
         # Show Occlusion (Aug 16 2026, continuing the cull/zon
         # viewport work) - draws every loaded occlusion zone as a
-        # rotated wireframe box (DFFViewport._draw_occl_boxes) -
-        # "occl" was never even a recognised VC section keyword
-        # before this fix, let alone rendered.
-        show_occl_chk = QCheckBox("Occlusion")
-        show_occl_chk.setFixedHeight(18)
-        show_occl_chk.setStyleSheet(_compact_18)
-        show_occl_chk.setToolTip(
-            "Show every loaded occlusion zone (VC/SA) as a wireframe\n"
-            "box in the 3D view.")
-        show_occl_chk.toggled.connect(self._on_show_occl_boxes_toggled)
-        self._show_occl_chk = show_occl_chk
+        # rotated box in the 3D view. No edit mode yet.
+        show_occl_btn = _MapOverlayToggleButton("Occlusion", supports_edit=False)
+        show_occl_btn.show_toggled.connect(self._on_show_occl_boxes_toggled)
+        self._show_occl_chk = show_occl_btn
 
         opts_row3 = QHBoxLayout()
-        opts_row3.addWidget(show_paths_chk)
-        opts_row3.addWidget(edit_paths_chk)
-        opts_row3.addWidget(show_tracks_chk)
-        opts_row3.addWidget(show_cull_chk)
-        opts_row3.addWidget(show_zone_chk)
-        opts_row3.addWidget(show_occl_chk)
+        opts_row3.addWidget(show_paths_btn)
+        opts_row3.addWidget(show_tracks_btn)
+        opts_row3.addWidget(show_cull_btn)
+        opts_row3.addWidget(show_zone_btn)
+        opts_row3.addWidget(show_occl_btn)
         opts_row3.addStretch()
 
         lay.addLayout(opts_row3)
@@ -25873,21 +25963,24 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._refresh_path_visualization()
         self._set_status(f"Moved path node to ({new_x:.1f}, {new_y:.1f}, {new_z:.1f})")
 
-    def _on_edit_paths_toggled(self, checked): #vers 1
-        """Edit Paths checked/unchecked (Aug 17 2026, per Keith: "lets
-        address the unbuilt work, editing paths first") - toggles
-        DFFViewport's own click-to-select-and-drag path node
-        interaction on/off. Turning it on also turns Show Paths on
-        (editing invisible nodes makes no sense) but doesn't turn Show
-        Paths back off when Edit Paths is unchecked - the person may
-        still want to see the paths after they're done editing them."""
+    def _on_edit_paths_toggled(self, checked): #vers 2
+        """Right-click on the Paths button toggled edit mode (Aug 18
+        2026 - merged from the previous separate Edit Paths checkbox
+        into the Paths button's own right-click, per Keith: "one
+        click shows the paths, right-click paths allows edit mode...
+        saving space") - toggles DFFViewport's own click-to-select-
+        and-drag path node interaction on/off. Turning it on also
+        turns Show Paths on (editing invisible nodes makes no sense)
+        but doesn't turn Show Paths back off when Edit Paths is
+        turned off - the person may still want to see the paths
+        after they're done editing them."""
         vp = getattr(self, 'preview_widget', None)
         if vp is not None and hasattr(vp, 'set_path_edit_mode'):
             vp.set_path_edit_mode(checked)
         if checked:
             show_paths_chk = getattr(self, '_show_paths_chk', None)
             if show_paths_chk is not None and not show_paths_chk.isChecked():
-                show_paths_chk.setChecked(True)   # triggers _on_show_paths_toggled itself
+                show_paths_chk.set_shown(True)   # triggers _on_show_paths_toggled itself
 
     def _refresh_track_visualization(self): #vers 1
         """Push loaded train track waypoints to the viewport's own
