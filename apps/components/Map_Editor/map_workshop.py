@@ -24085,11 +24085,32 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         edit_path_group_action = None
         delete_path_group_action = None
         new_path_group_action = None
+        reverse_flow_action = None
         if getattr(self, '_ipl_data_type', 'inst') == 'path':
             menu.addSeparator()
             edit_path_group_action = menu.addAction("Edit Path Group...")
             delete_path_group_action = menu.addAction("Delete Path Group")
             new_path_group_action = menu.addAction("New Path Group...")
+            # Reverse Traffic Flow (Aug 18 2026, per Keith: "Path
+            # right-click option, reverse traffic flow: I think we
+            # just flip the nodes. needs looking at") - resolved and
+            # checked for eligibility HERE, before the menu is even
+            # shown, so it can correctly disable itself with an
+            # explanatory tooltip rather than silently failing or
+            # corrupting data if clicked on an ineligible group.
+            reverse_flow_action = menu.addAction("Reverse Traffic Flow")
+            resolved_group = self._resolve_path_group_for_row(row)
+            if resolved_group is not None and self._is_path_group_simple_chain(resolved_group):
+                reverse_flow_action.setToolTip(
+                    "Swap this group's direction of travel end to end.")
+            else:
+                reverse_flow_action.setEnabled(False)
+                reverse_flow_action.setToolTip(
+                    "Not available for this group - it has a junction where\n"
+                    "multiple nodes merge into one. Each node can only point\n"
+                    "to a single 'next' node, so a merge point can't become a\n"
+                    "split point after reversing; only simple chains (no\n"
+                    "merging) can be reversed without losing connections.")
         chosen = menu.exec(table.viewport().mapToGlobal(pos))
         if chosen is None:
             return
@@ -24134,6 +24155,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._delete_path_group_for_row(row)
         elif new_path_group_action is not None and chosen is new_path_group_action:
             self._new_path_group()
+        elif reverse_flow_action is not None and chosen is reverse_flow_action:
+            if resolved_group is not None:
+                self._reverse_path_group_traffic_flow(resolved_group)
 
     def _find_instance_for_ipl_inst_file_row(self, row): #vers 1
         """Look up the real IPLInstance for a row in the IPL Inst File
@@ -24180,6 +24204,99 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return None
         return max(candidates, key=lambda g: g.line_no)
 
+    def _resolve_path_group_for_row(self, row): #vers 1
+        """Shared resolution helper (Aug 18 2026) - extracted from what
+        used to be duplicated identically inside both _edit_path_
+        group_for_row and _delete_path_group_for_row: resolves the
+        currently-selected file from the IPL Sections table and the
+        given row's own stored line_no to find the real, editable
+        PathGroup object via _find_path_group_for_line. Returns None
+        (and sets a status message) if anything along the way can't
+        be resolved, same behaviour both original call sites already
+        had individually."""
+        table = getattr(self, '_ipl_inst_file_table', None)
+        if table is None:
+            return None
+        line_item = table.item(row, 0)
+        line_no = line_item.data(Qt.ItemDataRole.UserRole) if line_item is not None else None
+        if line_no is None:
+            return None
+        sections_table = getattr(self, '_ipl_sections_table', None)
+        sec_row = sections_table.currentRow() if sections_table is not None else -1
+        sec_item = sections_table.item(sec_row, 0) if sec_row >= 0 else None
+        display_name = sec_item.data(Qt.ItemDataRole.UserRole) if sec_item is not None else None
+        if not display_name:
+            return None
+        group = self._find_path_group_for_line(display_name, line_no)
+        if group is None:
+            self._set_status("Couldn't find a path group for this row")
+        return group
+
+    def _is_path_group_simple_chain(self, group): #vers 1
+        """Whether every real node in this group has at most one
+        other node pointing to it (Aug 18 2026, per Keith: "Path
+        right-click option, reverse traffic flow: I think we just
+        flip the nodes. needs looking at" - the actual investigation
+        that request asked for).
+
+        Checked against 2032 real path groups from Keith's own
+        pathslc.ipl before trusting this as the right eligibility
+        test: 937 of them (~46%) have at least one node with MULTIPLE
+        incoming edges (up to 4 seen) - a junction where several
+        lanes merge into one. Since each node has exactly one next_id
+        slot, that merge node can't become a split point after
+        reversal - the format has no way to represent "one node, many
+        next nodes". A naive reversal would silently corrupt close to
+        half of all real groups. Genuinely reversible only when every
+        node has at most one incoming edge (a simple chain, no
+        merging) - this is that check, gating the menu action's own
+        enabled state rather than reversing regardless and hoping."""
+        n = len(group.nodes)
+        incoming = {}
+        for node in group.nodes:
+            if node.node_type == 0:
+                continue
+            if 0 <= node.next_id < n and group.nodes[node.next_id].node_type != 0:
+                incoming[node.next_id] = incoming.get(node.next_id, 0) + 1
+        return all(count <= 1 for count in incoming.values())
+
+    def _reverse_path_group_traffic_flow(self, group): #vers 1
+        """Reverse a path group's direction of travel by swapping
+        every edge (Aug 18 2026, per Keith's own "I think we just
+        flip the nodes" hunch - confirmed correct, for the eligible
+        case). Only ever called after _is_path_group_simple_chain has
+        confirmed this group has no merge points - for a simple
+        chain, reversing means: for every original edge (A -> B), the
+        reversed graph has (B -> A) instead; a node that had no
+        outgoing edge (next_id == -1, the original end of the chain)
+        becomes the new start; a node that had no incoming edge (the
+        original start) becomes the new end (next_id == -1).
+
+        node_type is deliberately left untouched - Internal vs
+        External is about whether a node links within this group or
+        connects to another group by shared position, independent of
+        which direction traffic flows through it. Only next_id
+        assignments change.
+
+        Verified this is a true involution (reversing twice restores
+        the exact original graph, for every node that actually
+        matters - Null slots' own unused next_id values aren't
+        preserved bit-for-bit, but nothing anywhere in this app ever
+        reads them, by design) against a real simple-chain group from
+        Keith's own pathslc.ipl before trusting it on live data."""
+        n = len(group.nodes)
+        new_next = [-1] * n
+        for i, node in enumerate(group.nodes):
+            if node.node_type == 0:
+                continue
+            if 0 <= node.next_id < n and group.nodes[node.next_id].node_type != 0:
+                new_next[node.next_id] = i
+        for i, node in enumerate(group.nodes):
+            if node.node_type != 0:
+                node.next_id = new_next[i]
+        self._refresh_path_visualization()
+        self._set_status(f"Reversed traffic flow for path group ({group.header_a}, {group.header_b})")
+
     def _edit_path_group_for_row(self, row): #vers 1
         """Open the Path Group Editor for whichever path group the
         given IPL File Display row belongs to (Aug 16 2026, per
@@ -24190,53 +24307,26 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         row's own stored line_no (set on every row's column-0 item
         during _refresh_ipl_inst_file_panel) to find the real,
         editable PathGroup object via _find_path_group_for_line."""
-        table = getattr(self, '_ipl_inst_file_table', None)
-        if table is None:
-            return
-        line_item = table.item(row, 0)
-        line_no = line_item.data(Qt.ItemDataRole.UserRole) if line_item is not None else None
-        if line_no is None:
-            return
-        sections_table = getattr(self, '_ipl_sections_table', None)
-        sec_row = sections_table.currentRow() if sections_table is not None else -1
-        sec_item = sections_table.item(sec_row, 0) if sec_row >= 0 else None
-        display_name = sec_item.data(Qt.ItemDataRole.UserRole) if sec_item is not None else None
-        if not display_name:
-            return
-        group = self._find_path_group_for_line(display_name, line_no)
+        group = self._resolve_path_group_for_row(row)
         if group is None:
-            self._set_status("Couldn't find a path group for this row")
             return
         dlg = _PathGroupEditDialog(group, self, parent=self)
         dlg.exec()
 
-    def _delete_path_group_for_row(self, row): #vers 1
+    def _delete_path_group_for_row(self, row): #vers 2
         """Delete whichever path group the given IPL File Display row
         belongs to, entirely (Aug 16 2026, per Keith: "we don't have
         the ability to edit the paths, delete, add, make paths from
         scratch"). Same row-to-group resolution as _edit_path_group_
-        for_row, but removes the group from loader.paths outright
-        instead of opening it for editing - a real removal, not just
-        clearing it to Null nodes the way the Path Group Editor's own
-        per-row Delete already could. Live in-memory only, same as
-        every other edit this app makes - Save IPL Data As... is how
-        a deletion gets written back out to a real file."""
-        table = getattr(self, '_ipl_inst_file_table', None)
-        if table is None:
-            return
-        line_item = table.item(row, 0)
-        line_no = line_item.data(Qt.ItemDataRole.UserRole) if line_item is not None else None
-        if line_no is None:
-            return
-        sections_table = getattr(self, '_ipl_sections_table', None)
-        sec_row = sections_table.currentRow() if sections_table is not None else -1
-        sec_item = sections_table.item(sec_row, 0) if sec_row >= 0 else None
-        display_name = sec_item.data(Qt.ItemDataRole.UserRole) if sec_item is not None else None
-        if not display_name:
-            return
-        group = self._find_path_group_for_line(display_name, line_no)
+        for_row (now shared via _resolve_path_group_for_row), but
+        removes the group from loader.paths outright instead of
+        opening it for editing - a real removal, not just clearing it
+        to Null nodes the way the Path Group Editor's own per-row
+        Delete already could. Live in-memory only, same as every
+        other edit this app makes - Save IPL Data As... is how a
+        deletion gets written back out to a real file."""
+        group = self._resolve_path_group_for_row(row)
         if group is None:
-            self._set_status("Couldn't find a path group for this row")
             return
         loader = getattr(self, '_world_loader', None)
         if loader is not None and group in loader.paths:

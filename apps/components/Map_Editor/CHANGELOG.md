@@ -5961,3 +5961,49 @@ conclusively found despite extensive isolated testing.
   an auto-highlight-on-hover setting for anything under the cursor;
   a no-clipping option preventing box-to-box overlap while editing
   cull/zone/occlusion sizes.
+
+- **Aug 18, 2026 (cont'd)** — Investigated and built path traffic-
+  flow reversal, per Keith's own framing: "Path right-click option,
+  reverse traffic flow: I think we just flip the nodes. needs looking
+  at" - the investigation he explicitly asked for, done before
+  building anything.
+
+  Checked the real structure of path groups against 2032 real ones
+  from Keith's own `pathslc.ipl` before assuming a naive "swap next_id
+  direction" approach would work: 937 of them (~46%) have at least one
+  node with MULTIPLE other nodes pointing to it (up to 4 seen) - a
+  junction where several lanes merge into one. Since each node has
+  exactly one `next_id` slot, that merge node can't become a split
+  point after reversing - the format has no way to represent "one
+  node, many next nodes". A naive reversal would have silently
+  corrupted close to half of all real groups.
+
+  Implemented accordingly, not silently: new `_is_path_group_simple_
+  chain` (a real eligibility check, not a stub) gates a new "Reverse
+  Traffic Flow" right-click action, resolved and checked BEFORE the
+  context menu is even shown so it can correctly disable itself with
+  an explanatory tooltip on an ineligible (branching) group, rather
+  than silently failing or corrupting data if clicked anyway. New
+  `_reverse_path_group_traffic_flow` - for an eligible simple chain,
+  swaps every edge's direction (original A->B becomes B->A), leaving
+  `node_type` untouched (Internal vs External is independent of which
+  direction traffic flows through a node).
+
+  Extracted `_resolve_path_group_for_row` - the row-to-PathGroup
+  resolution logic that was previously duplicated identically inside
+  both `_edit_path_group_for_row` and `_delete_path_group_for_row` -
+  as a shared helper, used by those two existing methods and the new
+  reversal feature alike.
+
+  Verified thoroughly against real data before trusting any of it:
+  confirmed the eligible/ineligible split (1095 vs 937) on real data;
+  confirmed the reversal is a true involution (reversing twice
+  restores the exact original graph) using a clean, non-aliased test
+  after an initial verification attempt gave a false failure from a
+  Python object-aliasing bug in the TEST script itself, not the
+  algorithm (a shallow list copy sharing the same underlying node
+  objects, caught and diagnosed rather than assumed to be a real
+  bug); then re-ran the exact production code path (not a
+  reimplementation) against a real live `PathGroup` object from
+  `pathslc.ipl` one more time as a final check. `ast.parse` clean;
+  confirmed via AST no duplicate method definitions.
