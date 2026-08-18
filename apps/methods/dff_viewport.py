@@ -334,6 +334,32 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._dragging_path_node_current_pos = None
         self._path_node_drag_callback = None
 
+        # Whole-IPL-section dragging (Aug 18 2026, per Keith's own
+        # priority order for the interactive editing layer - "editing
+        # paths first" [done], then this: "Moving IPL file whole
+        # entires to anywhere on the map"). Click-drag any instance
+        # belonging to a loaded IPL to move that IPL's ENTIRE data as
+        # one rigid body - reuses update_instance_transform (built
+        # earlier for the Item Editor Dialog's own fast-path nudges)
+        # for cheap, real-time visual feedback on every instance
+        # belonging to the dragged IPL without touching the real
+        # IPLInstance data until release, and reuses the already-
+        # existing, already-verified _shift_ipl_coordinates (the
+        # dialog-based Shift Coordinates tool) to actually commit the
+        # move - including paths/cull/zone/occl, not just instances -
+        # once the drag finishes. First version's own honest scope
+        # limit: only INSTANCES get live visual feedback during the
+        # drag itself (cull/zone/occl boxes and paths have no
+        # equivalent identity-based "just update this one cached
+        # entry" mechanism the way instances do) - those snap to
+        # their correct new position on release, not mid-drag.
+        self._ipl_drag_mode = False
+        self._dragging_ipl_name = None
+        self._dragging_ipl_start_state = []   # list of (inst, pos, rot, scale) at drag start
+        self._dragging_ipl_ground_start = None
+        self._dragging_ipl_delta = (0.0, 0.0, 0.0)
+        self._ipl_drag_callback = None
+
         # Train track waypoints (Aug 17 2026, per Keith: "then the
         # other path .dat files you pointed out earlier") - each
         # track is drawn as one continuous polyline (ordered waypoint
@@ -1934,6 +1960,33 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         elsewhere in this file, not a new convention)."""
         self._path_node_drag_callback = callback
 
+    def set_ipl_drag_mode(self, enabled: bool): #vers 1
+        """Toggle click-drag whole-IPL-section moving (Aug 18 2026,
+        per Keith's own priority order for the interactive editing
+        layer). While on, clicking any instance belonging to a loaded
+        IPL and dragging moves that IPL's entire data as one rigid
+        body, along the ground at the clicked instance's own starting
+        height (same "2D drag, height-preserving" reasoning as path
+        node editing - see set_path_edit_mode's own docstring) until
+        release, which commits the final offset via set_ipl_drag_
+        callback."""
+        self._ipl_drag_mode = enabled
+        if not enabled:
+            self._dragging_ipl_name = None
+            self._dragging_ipl_start_state = []
+            self._dragging_ipl_ground_start = None
+        self.update()
+
+    def set_ipl_drag_callback(self, callback): #vers 1
+        """Set (or clear, with None) the function called when a whole-
+        IPL drag completes: callback(ipl_name, dx, dy, dz). map_
+        workshop.py wires this once to a method that calls the
+        already-existing _shift_ipl_coordinates (the same one the
+        dialog-based Shift Coordinates tool already uses) - mirrors
+        set_path_node_drag_callback/set_lod_test_callback's own
+        widget-owns-interaction, caller-owns-data split."""
+        self._ipl_drag_callback = callback
+
     def set_show_tracks(self, enabled: bool): #vers 1
         self.show_tracks = enabled; self.update()
 
@@ -2463,6 +2516,40 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                     # movement happens at all.
                     self.update()
                 return
+            # Whole-IPL-section dragging (Aug 18 2026) - also its own
+            # independent toggle, checked right after path node
+            # editing so the two mutually-exclusive interactive modes
+            # don't fight over the same click (a person would only
+            # ever have one of them on at a time in practice, but
+            # checking both explicitly here rather than assuming
+            # keeps that intentional, not accidental).
+            if getattr(self, '_ipl_drag_mode', False):
+                mx, my = event.pos().x(), event.pos().y()
+                idx = self._pick_world_instance(mx, my)
+                if idx is not None:
+                    entry = self._world_instances[idx]
+                    inst = entry.get('instance')
+                    ipl_name = getattr(inst, 'source_ipl', None) if inst is not None else None
+                    if ipl_name:
+                        self._dragging_ipl_name = ipl_name
+                        # A list of (inst, pos, rot, scale) tuples, NOT
+                        # a dict keyed by inst - IPLInstance is a plain
+                        # @dataclass (eq=True by default), which makes
+                        # it UNHASHABLE, so using it as a dict key
+                        # would crash the very first time this actually
+                        # ran. Caught by directly verifying this exact
+                        # logic against real IPLInstance objects before
+                        # trusting it, not just reasoning about it.
+                        self._dragging_ipl_start_state = [
+                            (e['instance'], e['pos'], e['rot'], e['scale'])
+                            for e in self._world_instances
+                            if getattr(e.get('instance'), 'source_ipl', None) == ipl_name
+                        ]
+                        self._dragging_ipl_ground_start = self._screen_to_ground_position(
+                            mx, my, ground_z=entry['pos'][2])
+                        self._dragging_ipl_delta = (0.0, 0.0, 0.0)
+                        self.update()
+                return
             mode = getattr(self, '_select_mode', 'object')
             if mode == 'object':
                 return
@@ -2535,6 +2622,33 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                     (new_pos if a == old_pos else a, new_pos if b == old_pos else b)
                     for a, b in self._path_segments]
                 self._dragging_path_node_current_pos = new_pos
+        elif (event.buttons() & Qt.MouseButton.LeftButton
+              and getattr(self, '_dragging_ipl_name', None) is not None):
+            # Whole-IPL drag in progress (Aug 18 2026) - same ground-
+            # plane-at-starting-height constraint as path node
+            # dragging, reusing the exact same _screen_to_ground_
+            # position call. Computes ONE delta (current ground pos
+            # minus the ground pos captured at drag start), then
+            # applies that SAME delta to every instance captured in
+            # _dragging_ipl_start_state via update_instance_transform
+            # - cheap (just updates each instance's own cached
+            # display entry, no geometry/display-list rebuilding),
+            # and crucially never touches the real IPLInstance data
+            # until the drag actually completes (mouseReleaseEvent) -
+            # if released with no real movement, or the mode gets
+            # turned off mid-drag, nothing was ever actually mutated.
+            start_ground = self._dragging_ipl_ground_start
+            if start_ground is not None:
+                cur_ground = self._screen_to_ground_position(
+                    event.pos().x(), event.pos().y(), ground_z=start_ground[2])
+                if cur_ground is not None:
+                    ddx = cur_ground[0] - start_ground[0]
+                    ddy = cur_ground[1] - start_ground[1]
+                    ddz = cur_ground[2] - start_ground[2]
+                    self._dragging_ipl_delta = (ddx, ddy, ddz)
+                    for inst, opos, orot, oscale in self._dragging_ipl_start_state:
+                        new_pos = (opos[0] + ddx, opos[1] + ddy, opos[2] + ddz)
+                        self.update_instance_transform(inst, new_pos, orot, oscale)
         self._last_pos = event.pos(); self.update()
 
         # LOD test mode (Aug 1 2026, per Keith's crash: "AttributeError:
@@ -2632,6 +2746,32 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             # reason, the held-node highlight state above still needs
             # to clear from the screen, not just from self's own
             # tracking variables.
+            self.update()
+
+        # Commit a completed whole-IPL drag (Aug 18 2026) - calls the
+        # registered callback with the final (ipl_name, dx, dy, dz),
+        # which map_workshop.py wires to the already-existing, already
+        # -verified _shift_ipl_coordinates (the same method the
+        # dialog-based Shift Coordinates tool uses) - that's what
+        # actually mutates the real data (instances AND paths/cull/
+        # zone/occl, everything belonging to this IPL, not just the
+        # instances that got live visual feedback during the drag
+        # itself) and triggers a full, correctly-synced refresh. A
+        # release with zero actual movement (delta all zeros - e.g. a
+        # plain click that picked up an IPL but never dragged it) is
+        # skipped entirely rather than calling the callback with a
+        # no-op move, avoiding a pointless undo-stack entry for
+        # nothing having actually happened.
+        ipl_name = getattr(self, '_dragging_ipl_name', None)
+        if ipl_name is not None:
+            dx, dy, dz = getattr(self, '_dragging_ipl_delta', (0.0, 0.0, 0.0))
+            callback = getattr(self, '_ipl_drag_callback', None)
+            if callback is not None and (dx or dy or dz):
+                callback(ipl_name, dx, dy, dz)
+            self._dragging_ipl_name = None
+            self._dragging_ipl_start_state = []
+            self._dragging_ipl_ground_start = None
+            self._dragging_ipl_delta = (0.0, 0.0, 0.0)
             self.update()
 
     def wheelEvent(self, event): #vers 4

@@ -5840,3 +5840,61 @@ conclusively found despite extensive isolated testing.
   checkbox or to `.setChecked()`/`.toggled` on any of the five
   buttons - only the compatible `.isChecked()`/`show_toggled`/`edit_
   toggled` API the new widget actually provides.
+
+- **Aug 18, 2026 (cont'd)** — Built whole-IPL-section dragging in the
+  3D viewport, the next item in Keith's own priority order for the
+  interactive editing layer ("editing paths first" [done], then
+  "Moving IPL file whole entires to anywhere on the map").
+
+  New "Drag IPL" checkbox in IPL Controls row 3. While active,
+  clicking any instance and dragging moves that instance's ENTIRE
+  IPL - every instance, path node, cull/zone/occlusion box, garage,
+  entrance/exit belonging to that same file - as one rigid body,
+  constrained to the ground plane at the clicked instance's own
+  starting height (same reasoning as path node dragging: a 2D mouse
+  drag can't unambiguously set 3 coordinates, and this data is
+  ground-level by nature).
+
+  Built almost entirely on existing, already-proven infrastructure
+  rather than new mechanisms: `_pick_world_instance` (already used
+  for double-click-to-edit) identifies which instance and thus which
+  IPL was clicked; `update_instance_transform` (built earlier for the
+  Item Editor Dialog's own fast-path nudges) gives cheap, real-time
+  visual feedback on every instance belonging to the dragged IPL
+  during the drag itself, without touching any real `IPLInstance`
+  data until release; and the commit on release calls the already-
+  existing, already-verified `_shift_ipl_coordinates` - the exact
+  same method the dialog-based Shift Coordinates tool already uses -
+  so paths/cull/zone/occlusion/garages all move correctly too, not
+  just the instances that got live preview. A release with zero
+  actual movement (a plain click, never dragged) is skipped entirely
+  rather than committing a no-op move.
+
+  Honest scope limit: only instances get live visual feedback mid-
+  drag - cull/zone/occlusion boxes and paths have no equivalent
+  identity-based "just update this one cached entry" mechanism the
+  way instances do, so they snap to their correct new position on
+  release rather than animating smoothly throughout the drag.
+
+  **Caught and fixed a real, would-have-crashed-on-first-use bug
+  before it shipped**: the original design tracked each dragged
+  instance's starting state in a dict keyed by the `IPLInstance`
+  object itself. `IPLInstance` is a plain `@dataclass` (default
+  `eq=True`), which Python makes unhashable automatically unless
+  `frozen=True` is set - using it as a dict key would have raised
+  `TypeError: unhashable type: 'IPLInstance'` the very first time
+  anyone actually tried to drag an IPL. Found by directly verifying
+  the logic against real `IPLInstance` objects rather than only
+  reasoning about the design - confirmed the crash would occur, then
+  fixed all five affected sites by switching to a plain list of
+  `(inst, pos, rot, scale)` tuples instead (iterated, not looked up
+  by key, so hashability was never actually needed).
+
+  Verified the complete corrected press → move → release flow end-to
+  -end against real `IPLInstance` objects: press correctly captures
+  only the dragged IPL's own instances; move correctly offsets only
+  those instances' cached display positions while leaving a different
+  IPL's instances (and the real underlying data) completely
+  untouched; release correctly commits through the real shift logic,
+  producing final positions that exactly match what was already shown
+  during the live preview. `ast.parse` clean on both touched files.

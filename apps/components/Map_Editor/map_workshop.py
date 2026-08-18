@@ -12023,6 +12023,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # not re-connected on every refresh.
         if hasattr(self.preview_widget, 'set_path_node_drag_callback'):
             self.preview_widget.set_path_node_drag_callback(self._on_path_node_dragged)
+        # Wire the whole-IPL drag callback once too, here at
+        # construction (Aug 18 2026, per Keith's own priority order
+        # for the interactive editing layer - "Moving IPL file whole
+        # entires to anywhere on the map") - same one-time-wiring
+        # pattern as the path node drag callback directly above.
+        if hasattr(self.preview_widget, 'set_ipl_drag_callback'):
+            self.preview_widget.set_ipl_drag_callback(self._on_ipl_dragged)
         # Restore the saved zoom-to-cursor setting (Aug 18 2026, per
         # Keith's "zoom in to the mouse pointer" request) - same
         # restore-at-construction pattern as the zone render style
@@ -21952,6 +21959,35 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._set_status(
             f"Shifted {ipl_name} by ({dx:g}, {dy:g}, {dz:g}) - {moved} entries moved")
 
+    def _on_ipl_dragged(self, ipl_name, dx, dy, dz): #vers 1
+        """Commit a completed whole-IPL click-drag in the 3D viewport
+        (Aug 18 2026, per Keith's own priority order for the
+        interactive editing layer: "Moving IPL file whole entires to
+        anywhere on the map"). Wired once to DFFViewport.set_ipl_
+        drag_callback at construction (see that method's own
+        docstring) - called exactly once per drag, on mouse release,
+        with the final (dx,dy,dz) the viewport computed from the
+        cursor's own ground-plane movement.
+
+        Deliberately just calls the already-existing, already-
+        verified _shift_ipl_coordinates - the same method the dialog-
+        based Shift Coordinates tool already uses - rather than a
+        second, parallel implementation. That single method already
+        correctly moves everything belonging to the IPL (instances,
+        cull/zone/occlusion boxes, VC/SA path nodes, garages,
+        entrances/exits), not just the instances that got live visual
+        feedback during the drag itself, and already triggers the
+        right refresh - genuinely nothing new needed here beyond
+        connecting the viewport's own mouse interaction to it."""
+        self._shift_ipl_coordinates(ipl_name, dx, dy, dz)
+
+    def _on_ipl_drag_mode_toggled(self, checked): #vers 1
+        """Drag IPL checked/unchecked - toggles DFFViewport's own
+        click-drag whole-IPL-section moving on/off."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is not None and hasattr(vp, 'set_ipl_drag_mode'):
+            vp.set_ipl_drag_mode(checked)
+
     def _prompt_shift_ipl_coordinates(self, ipl_name): #vers 1
         """Small dialog collecting a (dx,dy,dz) offset, then applies
         it via _shift_ipl_coordinates - the actual entry point wired
@@ -23083,12 +23119,33 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         show_occl_btn.show_toggled.connect(self._on_show_occl_boxes_toggled)
         self._show_occl_chk = show_occl_btn
 
+        # Drag IPL (Aug 18 2026, per Keith's own priority order for
+        # the interactive editing layer, right after path editing:
+        # "Moving IPL file whole entires to anywhere on the map").
+        # Click-drag any instance belonging to a loaded IPL to move
+        # that IPL's entire data - not a show/hide toggle tied to one
+        # specific overlay type the way the buttons above are, so a
+        # plain checkbox rather than a _MapOverlayToggleButton.
+        drag_ipl_chk = QCheckBox("Drag IPL")
+        drag_ipl_chk.setFixedHeight(18)
+        drag_ipl_chk.setStyleSheet(_compact_18)
+        drag_ipl_chk.setToolTip(
+            "Click-drag any instance to move its ENTIRE IPL (every\n"
+            "instance, path, cull/zone/occlusion box, garage, entrance/\n"
+            "exit belonging to that file) as one rigid body. Same\n"
+            "underlying move as the right-click Shift Coordinates\n"
+            "dialog, just driven by dragging in the 3D view instead\n"
+            "of typing numbers.")
+        drag_ipl_chk.toggled.connect(self._on_ipl_drag_mode_toggled)
+        self._drag_ipl_chk = drag_ipl_chk
+
         opts_row3 = QHBoxLayout()
         opts_row3.addWidget(show_paths_btn)
         opts_row3.addWidget(show_tracks_btn)
         opts_row3.addWidget(show_cull_btn)
         opts_row3.addWidget(show_zone_btn)
         opts_row3.addWidget(show_occl_btn)
+        opts_row3.addWidget(drag_ipl_chk)
         opts_row3.addStretch()
 
         lay.addLayout(opts_row3)
