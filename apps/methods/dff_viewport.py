@@ -937,6 +937,33 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glEnable(GL_DEPTH_TEST)
         glEnable(GL_LIGHTING)
 
+        # Highlight the currently held/dragged node, if any (Aug 18
+        # 2026, per Keith: "Clicking nodes brings up nothing?" - the
+        # real gap was that a successful pick never drew anything
+        # differently at all, so a click that didn't also move the
+        # mouse produced no visible change even though picking up the
+        # node had actually worked). Drawn as its own separate,
+        # larger, white point on top of everything else above, so
+        # picking a node up is visible the instant it happens, before
+        # any drag movement.
+        held_pos = getattr(self, '_dragging_path_node_current_pos', None)
+        if held_pos is not None and OPENGL_AVAILABLE:
+            glDisable(GL_LIGHTING)
+            glDisable(GL_DEPTH_TEST)
+            glEnable(GL_BLEND)
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+            glEnable(GL_POINT_SMOOTH)
+            glHint(GL_POINT_SMOOTH_HINT, GL_NICEST)
+            glColor4f(1.0, 1.0, 1.0, 0.95)
+            glPointSize(self._path_node_size * 1.8)
+            glBegin(GL_POINTS)
+            glVertex3f(*held_pos)
+            glEnd()
+            glDisable(GL_POINT_SMOOTH)
+            glDisable(GL_BLEND)
+            glEnable(GL_DEPTH_TEST)
+            glEnable(GL_LIGHTING)
+
     def _draw_cull_boxes(self): #vers 3
         """Draw every loaded cull zone as a ghosted (semi-transparent
         filled + outlined) box, corner-to-corner (Aug 16 2026, per
@@ -2420,6 +2447,21 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 if pos is not None:
                     self._dragging_path_node_start_key = pos
                     self._dragging_path_node_current_pos = pos
+                    # Real UX gap found (Aug 18 2026, per Keith:
+                    # "Clicking nodes brings up nothing?") - a
+                    # successful pick never triggered a repaint here,
+                    # and nothing was ever drawn differently for the
+                    # currently-held node either (see _draw_paths'
+                    # own highlight logic, added alongside this fix)
+                    # - so a click that didn't happen to also move
+                    # the mouse enough to shift the node's ground
+                    # projection produced literally zero visible
+                    # change, even though the pick itself had
+                    # actually succeeded. This call plus the new
+                    # highlight together mean picking a node up is
+                    # now visible immediately, before any drag
+                    # movement happens at all.
+                    self.update()
                 return
             mode = getattr(self, '_select_mode', 'object')
             if mode == 'object':
@@ -2584,6 +2626,13 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 callback(group_ref, node_index, fx, fy, fz)
             self._dragging_path_node_start_key = None
             self._dragging_path_node_current_pos = None
+            # Explicit repaint here too (Aug 18 2026), not just relying
+            # on the callback's own downstream refresh - if the owner
+            # lookup or callback happened to be unavailable for any
+            # reason, the held-node highlight state above still needs
+            # to clear from the screen, not just from self's own
+            # tracking variables.
+            self.update()
 
     def wheelEvent(self, event): #vers 3
         f = 0.85 if event.angleDelta().y() > 0 else 1.15

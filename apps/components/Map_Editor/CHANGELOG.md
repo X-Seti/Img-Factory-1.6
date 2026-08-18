@@ -5648,3 +5648,66 @@ conclusively found despite extensive isolated testing.
 
   `ast.parse` clean on all three touched files; confirmed via AST no
   duplicate method definitions anywhere in the new code.
+
+- **Aug 18, 2026** — First response to Keith's real testing feedback
+  (6 items from actually using path editing/tracks in practice).
+  Addressed the two most concrete, highest-confidence items now;
+  the rest need more investigation or are substantial UI redesigns
+  worth scoping properly rather than rushing.
+
+  **(4) "Clicking nodes brings up nothing?"** - real UX gap found: a
+  successful node pick never triggered a repaint, and nothing was
+  ever drawn differently for the currently-held node either - so a
+  click that didn't also happen to move the mouse enough to shift the
+  node's ground position produced literally zero visible change,
+  even though the pick itself had actually worked under the hood.
+  Fixed two ways: `mousePressEvent` now calls `self.update()`
+  immediately on a successful pick, and `_draw_paths` gained a
+  dedicated highlight pass - the currently-held node draws as its own
+  larger (1.8x), white, semi-transparent point on top of everything
+  else, visible the instant a node is picked up, before any drag
+  movement happens. `mouseReleaseEvent` also gained its own explicit
+  `self.update()` so the highlight reliably clears even if the
+  downstream commit callback happens to be unavailable for any
+  reason, not solely relying on that callback's own refresh.
+
+  **(1) "Any settings added do not save or are not loaded in the next
+  session"** - added a second, independent safety net for the
+  debounced auto-save: `ModelWorkshop.__init__` now also hooks
+  `QApplication.aboutToQuit` to force an immediate `map_settings.
+  save()`, alongside the existing `closeEvent` flush from a few turns
+  ago. Real gap this closes: the `closeEvent` flush only fires if
+  Map Workshop's own `closeEvent` actually runs, which depends on the
+  whole app quitting through a clean per-widget close sequence - if
+  it exits some other way instead, that flush would never run and the
+  debounced save's 800ms window could still be open. Confirmed the
+  affected settings (`path_line_thickness`/`path_node_size`/`cull_
+  box_color`/`zone_box_color`/`occl_box_color`/`track_color`) are all
+  genuinely registered in `MapSettings.DEFAULTS` - ruling out the
+  "unregistered key silently no-op'd" trap this exact class of bug
+  has hit before, and confirming only one `MapSettings()` construction
+  site exists (ruling out a second, desynced instance too). Being
+  upfront: this is an additive safety net addressing the most
+  plausible gap found, not a confirmed root-cause fix the way the
+  binary-stream/`/16`-scale bugs earlier this session were - worth
+  Keith retesting specifically to confirm this actually resolves it.
+
+  **(2) Middle-mouse drag stopping near models** - investigated but
+  not yet resolved. Re-read the current middle-button pan handling in
+  `mouseMoveEvent` carefully (unchanged by any of today's or recent
+  work, own `elif` branch, no interaction with the new path-node-drag
+  code) and found nothing obviously wrong there. Genuinely unclear
+  what's causing this without more specific reproduction detail -
+  logged rather than guessed at with an unverified fix.
+
+  **(3) Render Settings should show Tracks/other path types as their
+  own columns**, **(5)/(6) convert the IPL Controls checkboxes into
+  clickable buttons with click=show/hide, right-click=edit mode, and
+  a marching-ants-style border for the edit-mode state** - both real,
+  reasonable requests, but substantial UI work in their own right
+  (the button redesign specifically touches every one of the row 3
+  toggles, not just one) - not started this pass, flagged honestly
+  rather than attempted half-scoped.
+
+  `ast.parse` clean; confirmed via AST no duplicate method
+  definitions.

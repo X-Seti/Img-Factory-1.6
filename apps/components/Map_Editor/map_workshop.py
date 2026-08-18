@@ -5272,6 +5272,22 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # required by the grafted-in Object Browser/Instance List/Editing
         # Panel/World Viewport/Control Panel methods.
         self.map_settings = MapSettings()
+        # Extra safety net for the debounced save (Aug 18 2026, per
+        # Keith: "Any settings added do not save or are not loaded
+        # in the next session" - closeEvent's own explicit flush only
+        # fires if THIS widget's closeEvent actually runs, which
+        # depends on quitting the whole app going through a clean per-
+        # widget close sequence; if it instead exits some other way
+        # (killing the process, a hard QApplication.quit() that
+        # doesn't cascade closeEvent to every child first), that
+        # flush would never run and the debounced save's 800ms window
+        # could still be open. Hooking the application's own
+        # aboutToQuit signal catches that gap too, independent of
+        # whether this widget's own closeEvent ever fires - belt and
+        # suspenders, not a replacement for the closeEvent flush.
+        app = QApplication.instance()
+        if app is not None:
+            app.aboutToQuit.connect(lambda: self.map_settings.save())
 
         self.main_window = main_window
 
