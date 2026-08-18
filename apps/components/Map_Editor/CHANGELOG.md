@@ -6327,3 +6327,52 @@ conclusively found despite extensive isolated testing.
   duplicate method definitions, and confirmed via direct search zero
   remaining references anywhere in the file to the 5 removed snap
   action attributes.
+
+- **Aug 19, 2026 (cont'd)** — Completed the fuller Move/Rotate
+  dialogs with per-section-type tick-boxes and +/- nudge buttons, per
+  Keith: "[Move ipl] any direction; using -/+ z value -/+ x value,
+  -/+ y value. right-click options for move ipl, move paths, move
+  zones, move tracks, move cull, move occlusion. Tick the options you
+  want to move" (and the same for Rotate).
+
+  Found this half-built on resuming: `_shift_ipl_coordinates` already
+  had a working `include_types` parameter (from an earlier pass whose
+  details didn't make it into a recorded summary before a context
+  boundary), but `_rotate_ipl_coordinates` hadn't been updated to
+  match, and neither dialog actually exposed tick-boxes or nudge
+  buttons to the person at all - the backend could do selective
+  moves, nothing in the UI let anyone actually use it. Completed
+  properly rather than re-guessing from scratch: added the matching
+  `include_types` parameter to `_rotate_ipl_coordinates` (identical
+  pattern to the shift version), then rebuilt both dialogs.
+
+  New shared `_add_ipl_section_type_checkboxes` (Instances/Paths/
+  Zones/Cull/Garages/Entrances-Exits/Occlusion, all checked by
+  default, plus a separate Tracks checkbox) used by both dialogs
+  rather than duplicated. Each axis/angle spinbox gained its own -/+
+  buttons for incremental nudging (1 unit or 5 degrees per click).
+
+  New `_shift_all_tracks`/`_rotate_all_tracks` - Tracks isn't one of
+  `include_types`' own keys, and deliberately so: train tracks
+  (data/paths/tracks.dat) are never tied to any specific IPL's own
+  `source_ipl` at all, so "move tracks for this one IPL" has no real
+  per-IPL data to act on. Ticking Tracks instead moves every loaded
+  track globally, with the checkbox's own tooltip saying so plainly
+  (and defaulting to unchecked, since that's a bigger, separate
+  effect than the rest of the tick-boxes) rather than quietly
+  scoping to "nearby" tracks in a way the data doesn't actually
+  support.
+
+  **Caught and fixed a real editing mistake before it could ship**:
+  an earlier replacement accidentally deleted the `_on_ipl_dragged`
+  method's own signature line and docstring opening, leaving its
+  docstring's tail floating with no method definition above it -
+  would have been a straight `SyntaxError` on import. Caught by the
+  routine `ast.parse` check immediately after the edit, diagnosed
+  precisely, and restored before moving on to anything else.
+
+  Verified the selective-move filtering logic directly against real
+  `IPLInstance`/`CullEntry` objects: ticking only Instances correctly
+  left a Cull box untouched, ticking both moved both. `ast.parse`
+  clean; confirmed via AST no duplicate method definitions anywhere,
+  including `_on_ipl_dragged` after the fix.

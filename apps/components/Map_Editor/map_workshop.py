@@ -22077,7 +22077,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._set_status(
             f"Shifted {ipl_name} by ({dx:g}, {dy:g}, {dz:g}) - {moved} entries moved")
 
-    def _rotate_ipl_coordinates(self, ipl_name, pivot_x, pivot_y, angle_deg): #vers 1
+    def _rotate_ipl_coordinates(self, ipl_name, pivot_x, pivot_y, angle_deg, include_types=None): #vers 2
         """Rotate every real position an IPL's loaded data holds
         around a given (pivot_x, pivot_y) point, by angle_deg around
         the vertical (Z) axis (Aug 19 2026, per Keith's own priority
@@ -22085,7 +22085,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         make it rotate ipl"). The rigid-body-move counterpart to
         _shift_ipl_coordinates - same per-section-type coverage, same
         live-in-memory-only design (Save IPL Data As... writes a
-        result back out).
+        result back out), and now the same include_types selective-
+        section support (Aug 19 2026, per Keith: "Right-click options
+        for move ipl, move paths, move zones, move tracks, move cull,
+        move occlusion. Tick the options you want to move" - his own
+        wording for Move applied equally to Rotate, matching how the
+        two dialogs mirror each other everywhere else already). See
+        _shift_ipl_coordinates' own docstring for the full reasoning
+        on why Tracks isn't one of these selectable keys - genuinely
+        global data, never tied to any specific IPL's own source_ipl.
 
         Verified both pieces of math independently before trusting
         them on live data: the position-around-pivot rotation
@@ -22111,6 +22119,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         loader = getattr(self, '_world_loader', None)
         if loader is None:
             return
+        want = include_types if include_types is not None else \
+            {'inst', 'cull', 'zone', 'path', 'grge', 'enex', 'occl'}
         rad = math.radians(angle_deg)
         cos_a, sin_a = math.cos(rad), math.sin(rad)
 
@@ -22119,76 +22129,157 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return pivot_x + dx * cos_a - dy * sin_a, pivot_y + dx * sin_a + dy * cos_a
 
         moved = 0
-        for inst in loader.instances:
-            if inst.source_ipl != ipl_name:
-                continue
-            inst.pos_x, inst.pos_y = rotate_xy(inst.pos_x, inst.pos_y)
-            ex, ey, ez, ew = self._conjugate_rotation_for_game(
-                inst.rot_x, inst.rot_y, inst.rot_z, inst.rot_w)
-            roll, pitch, yaw = quat_to_euler_degrees(ex, ey, ez, ew)
-            nx, ny, nz, nw = euler_degrees_to_quat(roll, pitch, yaw + angle_deg)
-            inst.rot_x, inst.rot_y, inst.rot_z, inst.rot_w = \
-                self._conjugate_rotation_for_game(nx, ny, nz, nw)
-            moved += 1
+        if 'inst' in want:
+            for inst in loader.instances:
+                if inst.source_ipl != ipl_name:
+                    continue
+                inst.pos_x, inst.pos_y = rotate_xy(inst.pos_x, inst.pos_y)
+                ex, ey, ez, ew = self._conjugate_rotation_for_game(
+                    inst.rot_x, inst.rot_y, inst.rot_z, inst.rot_w)
+                roll, pitch, yaw = quat_to_euler_degrees(ex, ey, ez, ew)
+                nx, ny, nz, nw = euler_degrees_to_quat(roll, pitch, yaw + angle_deg)
+                inst.rot_x, inst.rot_y, inst.rot_z, inst.rot_w = \
+                    self._conjugate_rotation_for_game(nx, ny, nz, nw)
+                moved += 1
 
-        for c in getattr(loader, 'culls', []):
-            if getattr(c, 'source_ipl', None) != ipl_name:
-                continue
-            half_w = (c.x2 - c.x1) / 2.0
-            half_h = (c.y2 - c.y1) / 2.0
-            c.center_x, c.center_y = rotate_xy(c.center_x, c.center_y)
-            c.x1, c.y1 = c.center_x - half_w, c.center_y - half_h
-            c.x2, c.y2 = c.center_x + half_w, c.center_y + half_h
-            moved += 1
+        if 'cull' in want:
+            for c in getattr(loader, 'culls', []):
+                if getattr(c, 'source_ipl', None) != ipl_name:
+                    continue
+                half_w = (c.x2 - c.x1) / 2.0
+                half_h = (c.y2 - c.y1) / 2.0
+                c.center_x, c.center_y = rotate_xy(c.center_x, c.center_y)
+                c.x1, c.y1 = c.center_x - half_w, c.center_y - half_h
+                c.x2, c.y2 = c.center_x + half_w, c.center_y + half_h
+                moved += 1
 
-        for z in getattr(loader, 'zones', []):
-            if z.get('source_ipl') != ipl_name:
-                continue
-            half_w = (z['max_x'] - z['min_x']) / 2.0
-            half_h = (z['max_y'] - z['min_y']) / 2.0
-            cx, cy = rotate_xy((z['min_x'] + z['max_x']) / 2.0, (z['min_y'] + z['max_y']) / 2.0)
-            z['min_x'], z['min_y'] = cx - half_w, cy - half_h
-            z['max_x'], z['max_y'] = cx + half_w, cy + half_h
-            moved += 1
+        if 'zone' in want:
+            for z in getattr(loader, 'zones', []):
+                if z.get('source_ipl') != ipl_name:
+                    continue
+                half_w = (z['max_x'] - z['min_x']) / 2.0
+                half_h = (z['max_y'] - z['min_y']) / 2.0
+                cx, cy = rotate_xy((z['min_x'] + z['max_x']) / 2.0, (z['min_y'] + z['max_y']) / 2.0)
+                z['min_x'], z['min_y'] = cx - half_w, cy - half_h
+                z['max_x'], z['max_y'] = cx + half_w, cy + half_h
+                moved += 1
 
-        for p in getattr(loader, 'paths', []):
-            if p.source_ipl != ipl_name:
-                continue
-            for node in p.nodes:
-                node.x, node.y = rotate_xy(node.x, node.y)
-            moved += 1
+        if 'path' in want:
+            for p in getattr(loader, 'paths', []):
+                if p.source_ipl != ipl_name:
+                    continue
+                for node in p.nodes:
+                    node.x, node.y = rotate_xy(node.x, node.y)
+                moved += 1
 
-        for g in getattr(loader, 'grges', []):
-            if g.source_ipl != ipl_name:
-                continue
-            half_w = (g.x2 - g.x1) / 2.0
-            half_h = (g.y2 - g.y1) / 2.0
-            cx, cy = rotate_xy((g.x1 + g.x2) / 2.0, (g.y1 + g.y2) / 2.0)
-            g.x1, g.y1 = cx - half_w, cy - half_h
-            g.x2, g.y2 = cx + half_w, cy + half_h
-            g.front_x, g.front_y = rotate_xy(g.front_x, g.front_y)
-            moved += 1
+        if 'grge' in want:
+            for g in getattr(loader, 'grges', []):
+                if g.source_ipl != ipl_name:
+                    continue
+                half_w = (g.x2 - g.x1) / 2.0
+                half_h = (g.y2 - g.y1) / 2.0
+                cx, cy = rotate_xy((g.x1 + g.x2) / 2.0, (g.y1 + g.y2) / 2.0)
+                g.x1, g.y1 = cx - half_w, cy - half_h
+                g.x2, g.y2 = cx + half_w, cy + half_h
+                g.front_x, g.front_y = rotate_xy(g.front_x, g.front_y)
+                moved += 1
 
-        for e in getattr(loader, 'enexes', []):
-            if e.source_ipl != ipl_name:
-                continue
-            e.enter_x, e.enter_y = rotate_xy(e.enter_x, e.enter_y)
-            e.exit_x, e.exit_y = rotate_xy(e.exit_x, e.exit_y)
-            e.enter_angle += angle_deg
-            e.exit_angle += angle_deg
-            moved += 1
+        if 'enex' in want:
+            for e in getattr(loader, 'enexes', []):
+                if e.source_ipl != ipl_name:
+                    continue
+                e.enter_x, e.enter_y = rotate_xy(e.enter_x, e.enter_y)
+                e.exit_x, e.exit_y = rotate_xy(e.exit_x, e.exit_y)
+                e.enter_angle += angle_deg
+                e.exit_angle += angle_deg
+                moved += 1
 
-        for o in getattr(loader, 'occls', []):
-            if o.source_ipl != ipl_name:
-                continue
-            o.mid_x, o.mid_y = rotate_xy(o.mid_x, o.mid_y)
-            o.rotation += angle_deg
-            moved += 1
+        if 'occl' in want:
+            for o in getattr(loader, 'occls', []):
+                if o.source_ipl != ipl_name:
+                    continue
+                o.mid_x, o.mid_y = rotate_xy(o.mid_x, o.mid_y)
+                o.rotation += angle_deg
+                moved += 1
 
         self._all_instances = list(loader.instances)
         self._apply_ipl_visibility_filter()
         self._set_status(
             f"Rotated {ipl_name} by {angle_deg:g}\u00b0 around ({pivot_x:g}, {pivot_y:g}) - {moved} entries moved")
+
+    def _shift_all_tracks(self, dx, dy, dz): #vers 1
+        """Translate every loaded train track waypoint by a fixed
+        offset (Aug 19 2026, per Keith's own "move tracks" tick-box
+        request). Genuinely separate from _shift_ipl_coordinates -
+        train tracks (data/paths/tracks.dat) are never tied to any
+        specific IPL's own source_ipl at all (see load_tracks_dat's
+        own docstring), so "move tracks for this IPL" has no
+        per-IPL scope to narrow to; ticking Tracks moves every
+        loaded track globally, which the dialog's own tooltip makes
+        clear rather than leaving it ambiguous."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            return 0
+        moved = 0
+        for waypoints in getattr(loader, 'tracks', {}).values():
+            for wp in waypoints:
+                wp.x += dx; wp.y += dy; wp.z += dz
+                moved += 1
+        if moved:
+            self._refresh_track_visualization()
+        return moved
+
+    def _rotate_all_tracks(self, pivot_x, pivot_y, angle_deg): #vers 1
+        """Rotate every loaded train track waypoint around a given
+        pivot (Aug 19 2026) - the rotation counterpart to _shift_all_
+        tracks, same reasoning for why this is separate from _rotate_
+        ipl_coordinates rather than one of its own include_types."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            return 0
+        rad = math.radians(angle_deg)
+        cos_a, sin_a = math.cos(rad), math.sin(rad)
+        moved = 0
+        for waypoints in getattr(loader, 'tracks', {}).values():
+            for wp in waypoints:
+                dx, dy = wp.x - pivot_x, wp.y - pivot_y
+                wp.x = pivot_x + dx * cos_a - dy * sin_a
+                wp.y = pivot_y + dx * sin_a + dy * cos_a
+                moved += 1
+        if moved:
+            self._refresh_track_visualization()
+        return moved
+
+    def _add_ipl_section_type_checkboxes(self, form): #vers 1
+        """Shared tick-box builder for the Move/Rotate IPL dialogs
+        (Aug 19 2026, per Keith: "right-click options for move ipl,
+        move paths, move zones, move tracks, move cull, move
+        occlusion. Tick the options you want to move"). Returns a
+        dict of {key: QCheckBox}, all checked by default (matching
+        "move everything" - the pre-existing, unconditional behaviour
+        before this option existed), added to the given form layout.
+        Shared between both dialogs rather than built twice, since
+        they need the exact same set."""
+        boxes = {}
+        labels = [
+            ('inst', "Instances"), ('path', "Paths"), ('zone', "Zones"),
+            ('cull', "Cull"), ('grge', "Garages"), ('enex', "Entrances/Exits"),
+            ('occl', "Occlusion"),
+        ]
+        for key, label in labels:
+            chk = QCheckBox(label)
+            chk.setChecked(True)
+            form.addRow(chk)
+            boxes[key] = chk
+        tracks_chk = QCheckBox("Tracks (all loaded, global)")
+        tracks_chk.setChecked(False)
+        tracks_chk.setToolTip(
+            "Train tracks aren't tied to any specific IPL, so this\n"
+            "moves EVERY loaded track, not just ones near this IPL.\n"
+            "Off by default for that reason.")
+        form.addRow(tracks_chk)
+        boxes['tracks'] = tracks_chk
+        return boxes
 
     def _on_ipl_dragged(self, ipl_name, dx, dy, dz): #vers 1
         """Commit a completed whole-IPL click-drag in the 3D viewport
@@ -22312,23 +22403,47 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         elif chosen is lock_y_act:
             vp.set_ipl_drag_axis_lock('y')
 
-    def _prompt_shift_ipl_coordinates(self, ipl_name): #vers 1
-        """Small dialog collecting a (dx,dy,dz) offset, then applies
-        it via _shift_ipl_coordinates - the actual entry point wired
-        to the IPL Sections right-click menu's "Shift Coordinates..."
-        action."""
-        from PyQt6.QtWidgets import QDialog, QFormLayout, QDoubleSpinBox, QDialogButtonBox
+    def _prompt_shift_ipl_coordinates(self, ipl_name): #vers 2
+        """Dialog collecting a (dx,dy,dz) offset, then applies it via
+        _shift_ipl_coordinates - the entry point wired to the IPL
+        Sections right-click menu's "Shift Coordinates..." action and
+        to Move mode's own click interaction.
+
+        Aug 19 2026, per Keith: "[Move ipl] any direction; using -/+
+        z value -/+ x value, -/+ y value. right-click options for
+        move ipl, move paths, move zones, move tracks, move cull,
+        move occlusion. Tick the options you want to move" - each
+        axis spinbox gained its own -/+ buttons for incremental
+        nudging (a fixed 1-unit step per click, adjustable by editing
+        the spinbox directly for anything larger/more precise), and
+        a tick-box per section type controls what actually moves via
+        _shift_ipl_coordinates' own include_types parameter, plus a
+        separate Tracks tick-box (off by default - see _shift_all_
+        tracks' own docstring for why train tracks need their own,
+        separate global handling rather than being one more include_
+        types key)."""
+        from PyQt6.QtWidgets import QDialog, QFormLayout, QDoubleSpinBox, QDialogButtonBox, QHBoxLayout, QToolButton
 
         dlg = QDialog(self)
-        dlg.setWindowTitle(f"Shift Coordinates - {ipl_name}")
+        dlg.setWindowTitle(f"Move - {ipl_name}")
         form = QFormLayout(dlg)
 
-        dx_spin = QDoubleSpinBox(); dx_spin.setRange(-100000.0, 100000.0); dx_spin.setDecimals(3)
-        dy_spin = QDoubleSpinBox(); dy_spin.setRange(-100000.0, 100000.0); dy_spin.setDecimals(3)
-        dz_spin = QDoubleSpinBox(); dz_spin.setRange(-100000.0, 100000.0); dz_spin.setDecimals(3)
-        form.addRow("Delta X:", dx_spin)
-        form.addRow("Delta Y:", dy_spin)
-        form.addRow("Delta Z:", dz_spin)
+        def _axis_row(label):
+            spin = QDoubleSpinBox(); spin.setRange(-100000.0, 100000.0); spin.setDecimals(3)
+            minus_btn = QToolButton(); minus_btn.setText("-")
+            plus_btn = QToolButton(); plus_btn.setText("+")
+            minus_btn.clicked.connect(lambda: spin.setValue(spin.value() - 1.0))
+            plus_btn.clicked.connect(lambda: spin.setValue(spin.value() + 1.0))
+            row = QHBoxLayout()
+            row.addWidget(minus_btn); row.addWidget(spin); row.addWidget(plus_btn)
+            form.addRow(label, row)
+            return spin
+
+        dx_spin = _axis_row("Delta X:")
+        dy_spin = _axis_row("Delta Y:")
+        dz_spin = _axis_row("Delta Z:")
+
+        type_boxes = self._add_ipl_section_type_checkboxes(form)
 
         btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
                                 QDialogButtonBox.StandardButton.Cancel)
@@ -22338,11 +22453,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         if dlg.exec() == QDialog.DialogCode.Accepted:
             dx, dy, dz = dx_spin.value(), dy_spin.value(), dz_spin.value()
-            if dx or dy or dz:
-                self._shift_ipl_coordinates(ipl_name, dx, dy, dz)
+            if not (dx or dy or dz):
+                return
+            include = {k for k, chk in type_boxes.items() if k != 'tracks' and chk.isChecked()}
+            if include:
+                self._shift_ipl_coordinates(ipl_name, dx, dy, dz, include_types=include)
+            if type_boxes['tracks'].isChecked():
+                self._shift_all_tracks(dx, dy, dz)
 
-    def _prompt_rotate_ipl_coordinates(self, ipl_name): #vers 1
-        """Small dialog collecting a rotation angle (around a pivot
+    def _prompt_rotate_ipl_coordinates(self, ipl_name): #vers 2
+        """Dialog collecting a rotation angle (around a pivot
         automatically computed as the centroid of the IPL's own
         instance positions - a sensible default rather than making
         the person manually locate and type a pivot point every time),
@@ -22350,7 +22470,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         Rotate mode's own click interaction (see set_ipl_drag_mode's
         docstring for the 3-state Drag/Move/Rotate cycle this belongs
         to) - mirrors _prompt_shift_ipl_coordinates' own structure and
-        wiring pattern exactly, just for angle instead of XYZ."""
+        wiring pattern exactly, just for angle instead of XYZ, per
+        Keith's own "Right-click options for move ipl, move paths,
+        move zones, move tracks, move cull, move occlusion" applied
+        equally to Rotate."""
         loader = getattr(self, '_world_loader', None)
         if loader is None:
             return
@@ -22361,7 +22484,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return
         pivot_x, pivot_y = sum(xs) / len(xs), sum(ys) / len(ys)
 
-        from PyQt6.QtWidgets import QDialog, QFormLayout, QDoubleSpinBox, QDialogButtonBox, QLabel
+        from PyQt6.QtWidgets import QDialog, QFormLayout, QDoubleSpinBox, QDialogButtonBox, QLabel, QHBoxLayout, QToolButton
 
         dlg = QDialog(self)
         dlg.setWindowTitle(f"Rotate - {ipl_name}")
@@ -22372,7 +22495,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         angle_spin = QDoubleSpinBox(); angle_spin.setRange(-360.0, 360.0); angle_spin.setDecimals(2)
         angle_spin.setSuffix("\u00b0")
-        form.addRow("Angle:", angle_spin)
+        minus_btn = QToolButton(); minus_btn.setText("-")
+        plus_btn = QToolButton(); plus_btn.setText("+")
+        minus_btn.clicked.connect(lambda: angle_spin.setValue(angle_spin.value() - 5.0))
+        plus_btn.clicked.connect(lambda: angle_spin.setValue(angle_spin.value() + 5.0))
+        angle_row = QHBoxLayout()
+        angle_row.addWidget(minus_btn); angle_row.addWidget(angle_spin); angle_row.addWidget(plus_btn)
+        form.addRow("Angle:", angle_row)
+
+        type_boxes = self._add_ipl_section_type_checkboxes(form)
 
         btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
                                 QDialogButtonBox.StandardButton.Cancel)
@@ -22382,8 +22513,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         if dlg.exec() == QDialog.DialogCode.Accepted:
             angle = angle_spin.value()
-            if angle:
-                self._rotate_ipl_coordinates(ipl_name, pivot_x, pivot_y, angle)
+            if not angle:
+                return
+            include = {k for k, chk in type_boxes.items() if k != 'tracks' and chk.isChecked()}
+            if include:
+                self._rotate_ipl_coordinates(ipl_name, pivot_x, pivot_y, angle, include_types=include)
+            if type_boxes['tracks'].isChecked():
+                self._rotate_all_tracks(pivot_x, pivot_y, angle)
 
     def _save_ipl_data_as_text(self, ipl_name): #vers 2
         """Export an IPL's actual loaded instances out as a standard
