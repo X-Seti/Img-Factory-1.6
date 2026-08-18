@@ -20954,6 +20954,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         QApplication.processEvents()
         self._refresh_img_tab(loader)
         self._refresh_ipl_inst_file_panel()
+        # Hide the Occlusion overlay button entirely for GTA III worlds
+        # (Aug 19 2026, per Keith: "because we're working with, gta3,
+        # we don[']t need to see the [o]cclusions button" - occlusion
+        # zones (the "occl" IPL section) are VC/SA-only by format,
+        # confirmed earlier this session against real game data - a
+        # GTA III world can never have any occlusion data to show at
+        # all, so the button is pure clutter there, not just unused.
+        if hasattr(self, '_show_occl_chk'):
+            self._show_occl_chk.setVisible(game != 'gta3')
         self._set_status(
             f"Loaded {game.upper()} world: {len(loader.objects)} objects, "
             f"{len(loader.instances)} instances, {loader.stats.ipl_files} IPL files")
