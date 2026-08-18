@@ -5594,3 +5594,57 @@ conclusively found despite extensive isolated testing.
   `PathNode` object the segments were built from - not a copy. `ast.
   parse` clean on both files; confirmed via AST no duplicate method
   definitions anywhere in the new code.
+
+- **Aug 17, 2026 (cont'd)** — Added train track support (data/paths/
+  tracks.dat, tracks2.dat), per Keith: "then the other path .dat
+  files you pointed out earlier" - the second item from his own
+  priority list, right after path node editing.
+
+  New `TrackWaypoint` dataclass and `GTAWorldLoader.load_tracks_dat`/
+  `_parse_tracks_file` - a real, verified parser, not guessed at:
+  inspected Keith's own real tracks.dat/tracks2.dat directly first
+  (plain text, a waypoint count on line 1, then exactly that many
+  "X Y Z" lines - genuinely the simplest path-adjacent format in this
+  app, no section keywords, no node graph, just an ordered point
+  list). Confirmed these files are never referenced anywhere in a
+  real, complete gta.dat/gta3.dat's own directive list - the game
+  loads them from a fixed, well-known relative path instead
+  (data/paths/) - so `load_tracks_dat` is called unconditionally at
+  the end of `load_from_dat`, not gated by any directive, with case-
+  insensitive lookup for both the "paths" subdirectory and the
+  filenames themselves (Linux is case-sensitive; real game data
+  packaging isn't always consistent about casing).
+
+  Viewport rendering (`_draw_tracks`) is simpler than every other
+  path overlay in this app - one continuous line strip per track, no
+  node markers at all, since a train track has no meaningful "node"
+  concept the way a vehicle/ped path does; the polyline itself is the
+  whole picture. New "Tracks" checkbox in IPL Controls row 3, colour
+  configurable via a new `track_color` `MapSettings` entry (silver/
+  grey default, loosely evoking real rail). Unlike every other
+  overlay refresh in this file, `_refresh_track_visualization`
+  doesn't filter by `self._hidden_ipls` at all - these files aren't
+  tied to any IPL or area, so there's no per-IPL visibility concept
+  to apply; loaded once at world-load time, shown or not as a whole.
+
+  Verified against Keith's real files before trusting any of it: 168
+  and 557 waypoints parsed (matching each file's own stated count
+  exactly), first waypoint's coordinates matched byte-for-byte, and
+  the full `load_tracks_dat` → polyline-conversion pipeline run
+  end-to-end against the real directory structure. Noted in passing,
+  not required for correctness but a nice organic confirmation the
+  data makes sense: tracks2.dat's polyline starts and ends at nearly
+  the same point (-742.018,-834.251 both ends, Z differing only in
+  the last few digits) - consistent with a real, closed subway loop.
+
+  Also inspected `train.dat` while scoping this (expected to be
+  closely related to tracks.dat) and found a substantially different,
+  more complex format - comma-separated station data with a
+  `999,999,999` sentinel pattern and what look like linked-track
+  position references. Real format, not yet understood well enough to
+  implement without guessing - left for a proper follow-up rather
+  than rushed into this pass; noted in TODO.md with what's actually
+  known about it so far.
+
+  `ast.parse` clean on all three touched files; confirmed via AST no
+  duplicate method definitions anywhere in the new code.

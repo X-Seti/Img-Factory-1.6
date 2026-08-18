@@ -378,6 +378,31 @@ class OcclEntry: #vers 1
 
 
 @dataclass
+class TrackWaypoint: #vers 1
+    """One waypoint from a real GTA III/VC/SA train track file
+    (data/paths/tracks.dat, tracks2.dat, etc - Aug 17 2026, per
+    Keith: "then the other path .dat files you pointed out earlier",
+    following on from real path node editing). Confirmed via direct
+    inspection of Keith's own real tracks.dat/tracks2.dat: a plain
+    text file, first line is a waypoint COUNT, then exactly that many
+    "X Y Z" lines (space-separated floats), one waypoint per line, in
+    real world-space coordinates - no scale factor involved, unlike
+    IPL/IDE path data. Genuinely simpler than every other path format
+    in this app - just an ordered list of points forming one
+    continuous track, no node types, no Next-index graph, no per-
+    game format variation. Not referenced anywhere in gta.dat/
+    gta3.dat's own directive list - the game loads these from a
+    fixed, well-known relative path (data/paths/) rather than a
+    listed directive, confirmed by their absence from a real,
+    complete gta3.dat."""
+    x: float
+    y: float
+    z: float
+    source_file: str = ""
+    index:       int = 0
+
+
+@dataclass
 class IPLLoadResult:
     """Result of one on-demand IPL load (GTAWorldLoader.load_ipl_by_
     name) - per Keith's request for per-IPL success/error reporting
@@ -1519,6 +1544,13 @@ class GTAWorldLoader: #vers 3
         self.zones:      List[Dict]           = []
         self.culls:      List[CullEntry]      = []
         self.occls:      List[OcclEntry]      = []
+        # Train track waypoints (Aug 17 2026) - keyed by source
+        # filename (e.g. "tracks.dat", "tracks2.dat"), each value an
+        # ordered list of TrackWaypoint - not part of the IDE/IPL
+        # section system at all, loaded separately by load_tracks_dat
+        # since these files aren't referenced in gta.dat/gta3.dat's
+        # own directive list.
+        self.tracks:     Dict[str, List[TrackWaypoint]] = {}
         # (phase, type, abs_path, success)
         self.load_log:   List[Tuple[str, str, str, bool]] = []
         self.stats       = ParseStats()
@@ -1636,7 +1668,71 @@ class GTAWorldLoader: #vers 3
         self._process_dat(self.main_dat, "main")
         self.stats.objects_loaded = len(self.objects)
         self.stats.instances      = len(self.instances)
+        self.load_tracks_dat(data_dir)
         return True
+
+    def load_tracks_dat(self, data_dir: str): #vers 1
+        """Load train track waypoints from data/paths/tracks.dat and
+        tracks2.dat (Aug 17 2026, per Keith: "then the other path
+        .dat files you pointed out earlier"). Not referenced anywhere
+        in gta.dat/gta3.dat's own directive list (confirmed absent
+        from a real, complete gta3.dat) - the game loads these from
+        this fixed, well-known relative path instead, so this is
+        called unconditionally at the end of load_from_dat rather
+        than gated by any directive. Case-insensitive lookup for both
+        the "paths" subdirectory and the two filenames themselves,
+        matching this file's own established convention for locating
+        real files on a case-sensitive filesystem (Linux) against
+        data that may have been packaged with different casing."""
+        if not data_dir or not os.path.isdir(data_dir):
+            return
+        paths_dir = None
+        for name in os.listdir(data_dir):
+            if name.lower() == 'paths' and os.path.isdir(os.path.join(data_dir, name)):
+                paths_dir = os.path.join(data_dir, name)
+                break
+        if paths_dir is None:
+            return
+        wanted = {'tracks.dat', 'tracks2.dat'}
+        for name in os.listdir(paths_dir):
+            if name.lower() not in wanted:
+                continue
+            abs_path = os.path.join(paths_dir, name)
+            waypoints = self._parse_tracks_file(abs_path, name)
+            if waypoints:
+                self.tracks[name] = waypoints
+                self.load_log.append(("tracks", "TRACKS", abs_path, True))
+
+    def _parse_tracks_file(self, abs_path: str, source_name: str): #vers 1
+        """Parse one tracks.dat-format file - a waypoint count on the
+        first line, then exactly that many "X Y Z" lines (see
+        TrackWaypoint's own docstring for the full format confirmation
+        against Keith's real tracks.dat/tracks2.dat). Genuinely
+        simpler than every other path format handled in this file -
+        no section keywords, no node graph, just an ordered point
+        list forming one continuous track."""
+        try:
+            with open(abs_path, 'r', encoding='ascii', errors='ignore') as f:
+                lines = [ln.strip() for ln in f if ln.strip()]
+        except Exception:
+            return []
+        if not lines:
+            return []
+        try:
+            count = int(lines[0])
+        except ValueError:
+            return []
+        waypoints = []
+        for i, line in enumerate(lines[1:1 + count]):
+            parts = line.split()
+            if len(parts) < 3:
+                continue
+            try:
+                x, y, z = float(parts[0]), float(parts[1]), float(parts[2])
+            except ValueError:
+                continue
+            waypoints.append(TrackWaypoint(x=x, y=y, z=z, source_file=source_name, index=i))
+        return waypoints
 
     def _process_dat(self, dat: DATParser, phase: str): #vers 5
         ide_list = [e for e in dat.entries if e.directive == "IDE"]

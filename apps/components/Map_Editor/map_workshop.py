@@ -3214,6 +3214,11 @@ class MapSettings(QObject):
         # as the other overlay colours. Pink by default, distinct from
         # paths/cull/zone.
         'occl_box_color': (255, 102, 204),
+        # Train track line colour (Aug 17 2026, per Keith: "then the
+        # other path .dat files you pointed out earlier") - default
+        # matches the hardcoded silver/grey DFFViewport already uses,
+        # loosely evoking real rail.
+        'track_color': (191, 191, 204),
         # Viewport camera keybindings (Aug 16 2026, per Keith: "A new
         # tab is needed in map workshop settings to define keys") -
         # stored as {action: {'key': int(Qt.Key), 'numpad': bool}},
@@ -22740,6 +22745,20 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         edit_paths_chk.toggled.connect(self._on_edit_paths_toggled)
         self._edit_paths_chk = edit_paths_chk
 
+        # Show Tracks (Aug 17 2026, per Keith: "then the other path
+        # .dat files you pointed out earlier") - train track waypoints
+        # from data/paths/tracks.dat/tracks2.dat, loaded once at world
+        # load time (not per-IPL - these files aren't tied to any
+        # specific area or IPL section at all).
+        show_tracks_chk = QCheckBox("Tracks")
+        show_tracks_chk.setFixedHeight(18)
+        show_tracks_chk.setStyleSheet(_compact_18)
+        show_tracks_chk.setToolTip(
+            "Show train track waypoints (data/paths/tracks.dat,\n"
+            "tracks2.dat) as connected lines in the 3D view.")
+        show_tracks_chk.toggled.connect(self._on_show_tracks_toggled)
+        self._show_tracks_chk = show_tracks_chk
+
         # Show Cull Zones (Aug 16 2026, per Keith: "continue with the
         # cull files next") - draws every loaded IPL's cull zones as
         # wireframe boxes in the 3D view (DFFViewport._draw_cull_
@@ -22790,6 +22809,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         opts_row3 = QHBoxLayout()
         opts_row3.addWidget(show_paths_chk)
         opts_row3.addWidget(edit_paths_chk)
+        opts_row3.addWidget(show_tracks_chk)
         opts_row3.addWidget(show_cull_chk)
         opts_row3.addWidget(show_zone_chk)
         opts_row3.addWidget(show_occl_chk)
@@ -25682,6 +25702,47 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             show_paths_chk = getattr(self, '_show_paths_chk', None)
             if show_paths_chk is not None and not show_paths_chk.isChecked():
                 show_paths_chk.setChecked(True)   # triggers _on_show_paths_toggled itself
+
+    def _refresh_track_visualization(self): #vers 1
+        """Push loaded train track waypoints to the viewport's own
+        polyline overlay (Aug 17 2026, per Keith: "then the other
+        path .dat files you pointed out earlier"). No-op (and clears
+        any existing lines) if Show Tracks is off, matching every
+        other optional-overlay refresh pattern in this file. Unlike
+        every other refresh method here, this doesn't filter by
+        self._hidden_ipls at all - tracks.dat/tracks2.dat aren't tied
+        to any specific IPL or area (confirmed absent from gta.dat/
+        gta3.dat's own directive list entirely - see load_tracks_dat's
+        own docstring), so there's no per-IPL visibility concept to
+        apply here; loaded once at world-load time, either shown or
+        not as a whole."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is None or not hasattr(vp, 'set_track_polylines'):
+            return
+        show_tracks_chk = getattr(self, '_show_tracks_chk', None)
+        if show_tracks_chk is not None and not show_tracks_chk.isChecked():
+            vp.set_track_polylines([])
+            return
+        if hasattr(vp, 'set_track_color'):
+            saved_color = self.map_settings.get('track_color') or (191, 191, 204)
+            tcr, tcg, tcb = saved_color
+            vp.set_track_color(tcr / 255.0, tcg / 255.0, tcb / 255.0)
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            vp.set_track_polylines([])
+            return
+        polylines = [[(wp.x, wp.y, wp.z) for wp in waypoints]
+                    for waypoints in getattr(loader, 'tracks', {}).values()]
+        vp.set_track_polylines(polylines)
+
+    def _on_show_tracks_toggled(self, checked): #vers 1
+        """Show Tracks checked/unchecked - per Keith: "then the other
+        path .dat files you pointed out earlier"."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is not None and hasattr(vp, 'set_show_tracks'):
+            vp.set_show_tracks(checked)
+        if checked:
+            self._refresh_track_visualization()
 
     def _on_show_paths_toggled(self, checked): #vers 1
         """Show Paths checked/unchecked - per Keith: "when displaying

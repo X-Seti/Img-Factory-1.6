@@ -334,6 +334,18 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._dragging_path_node_current_pos = None
         self._path_node_drag_callback = None
 
+        # Train track waypoints (Aug 17 2026, per Keith: "then the
+        # other path .dat files you pointed out earlier") - each
+        # track is drawn as one continuous polyline (ordered waypoint
+        # list, unlike VC/GTA3 paths' own Type/Next node graph - real
+        # tracks.dat/tracks2.dat data confirmed this is genuinely just
+        # a simple ordered point sequence, nothing more complex).
+        # Silver/grey by default, distinct from every other overlay
+        # colour this widget already uses, loosely evoking real rail.
+        self.show_tracks = False
+        self._track_polylines = []   # list of [(x,y,z), ...] - one per track file
+        self._track_color = (0.75, 0.75, 0.8)
+
         # Cull zone boxes (Aug 16 2026, per Keith: "continue with the
         # cull files next", following the same "so I can view them"
         # pattern as Show Paths/the .zon wiring) - the older MapView-
@@ -821,6 +833,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 self._draw_zone_boxes()
             if self.show_occl_boxes:
                 self._draw_occl_boxes()
+            if self.show_tracks:
+                self._draw_tracks()
             if getattr(self, '_lod_test_center', None) is not None:
                 self._draw_lod_test_circle()
             if self._show_grid: self._draw_grid()
@@ -1892,6 +1906,47 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         interaction, caller-owns-data split already established
         elsewhere in this file, not a new convention)."""
         self._path_node_drag_callback = callback
+
+    def set_show_tracks(self, enabled: bool): #vers 1
+        self.show_tracks = enabled; self.update()
+
+    def set_track_polylines(self, polylines): #vers 1
+        """Replace the track data drawn when show_tracks is on. Each
+        entry is an ordered list of (x,y,z) waypoints forming one
+        continuous track (Aug 17 2026) - conversion from TrackWaypoint
+        (gta_dat_parser.py's parsed loader.tracks) happens in map_
+        workshop.py, same separation as every other overlay in this
+        widget (no TrackWaypoint dataclass import here)."""
+        self._track_polylines = polylines or []
+        self.update()
+
+    def set_track_color(self, r: float, g: float, b: float): #vers 1
+        self._track_color = (r, g, b)
+        self.update()
+
+    def _draw_tracks(self): #vers 1
+        """Draw every loaded train track as one continuous line strip
+        per track (Aug 17 2026) - simpler than _draw_paths, since real
+        tracks.dat/tracks2.dat data confirmed this is genuinely just
+        an ordered waypoint sequence, no node-type/Next-index graph to
+        resolve. No node markers - a train track has no meaningful
+        "node" concept the way a vehicle/ped path does; the polyline
+        itself is the whole picture."""
+        if not OPENGL_AVAILABLE or not self._track_polylines: return
+        glDisable(GL_LIGHTING)
+        glDisable(GL_DEPTH_TEST)
+        r, g, b = self._track_color
+        glColor3f(r, g, b)
+        glLineWidth(1.5)
+        for polyline in self._track_polylines:
+            if len(polyline) < 2:
+                continue
+            glBegin(GL_LINE_STRIP)
+            for x, y, z in polyline:
+                glVertex3f(x, y, z)
+            glEnd()
+        glEnable(GL_DEPTH_TEST)
+        glEnable(GL_LIGHTING)
 
     def _pick_path_node(self, mx: float, my: float): #vers 1
         """Return the (x,y,z) position of the closest path node to

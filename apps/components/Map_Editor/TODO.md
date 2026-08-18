@@ -653,12 +653,21 @@ embedded path format.
   before this real inventory) - explicitly deferred by Keith earlier
   ("there are also other path files, i put them in last, those can be
   added later, add todo"), still not started.
-- `paths/tracks.dat`, `tracks2.dat` - train track waypoints. Simple
-  text format confirmed by inspection: a line-count header, then one
-  "X Y Z" line per waypoint (e.g. "168\n766.427 -696.178 21.8339\n...")
-  - looks like the easiest of this whole group to add first.
-- `train.dat`, `train2.dat` - train route/config data, presumably
-  related to tracks.dat/tracks2.dat above.
+- `paths/tracks.dat`, `tracks2.dat` - **DONE (Aug 17 2026)**: train
+  track waypoints, real parser verified against Keith's own files
+  (168/557 waypoints, exact coordinate match), full viewport
+  rendering (Tracks checkbox, one line strip per track, no node
+  markers). Not referenced in gta.dat/gta3.dat's own directive list -
+  loaded from a fixed, well-known relative path instead.
+- `train.dat`, `train2.dat` - inspected while adding tracks.dat
+  support above: NOT the same simple waypoint format. Comma-separated,
+  no count header, 14 values per line - looks like station position
+  (X,Y,Z), a `999,999,999` sentinel (possibly "no linked track" for
+  some entries), two more (X,Y,Z) triplets (possibly linked-track
+  positions), then 2 more values (unclear - possibly a speed/angle/
+  door parameter). Real data, not yet understood well enough to
+  parse correctly - needs more investigation before implementing,
+  not a simple follow-on from tracks.dat despite the similar name.
 - `CULLZONE.DAT` - GTA III's own binary cull-zone equivalent, exists
   alongside the real, working cull.ipl - confirmed unused by the game
   itself (same situation already documented for VC's own Cullzone.dat
