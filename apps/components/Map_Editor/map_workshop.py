@@ -20957,6 +20957,37 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # all, so the button is pure clutter there, not just unused.
         if hasattr(self, '_show_occl_chk'):
             self._show_occl_chk.setVisible(game != 'gta3')
+        # Hide IPL Controls tabs the loaded game can never actually
+        # have data for (Aug 19 2026, per Keith: "Let's continue with
+        # hiding functions not supported by GTA3, including some of
+        # the IPL Object pane tabs [GRGE] [ENEX] [JUMP] [TCYC] [AUZO]
+        # and [MULT], these are GTA SA only... [PICK] in ipl file,
+        # [OCCL] tabs, This is VC and SA only"). Same reasoning as the
+        # Occlusion button above, extended to every game-restricted
+        # section type, not just occlusion - each of these formats is
+        # confirmed real (via this session's own file-format research)
+        # to belong to only the specific game(s) noted, so showing
+        # them for an incompatible game is pure clutter with nothing
+        # to ever actually display. Switches back to the always-safe
+        # "inst" tab first if the currently-active tab is one that's
+        # about to be hidden, so the active tab never just vanishes
+        # out from under the person.
+        tab_bar = getattr(self, '_ipl_tab_bar', None)
+        tab_keys = getattr(self, '_ipl_tab_keys', None)
+        if tab_bar is not None and tab_keys:
+            sa_only = {'grge', 'enex', 'jump', 'tcyc', 'auzo', 'mult'}
+            vc_sa_only = {'pick', 'occl'}
+            hidden_keys = set()
+            if game != 'sa':
+                hidden_keys |= sa_only
+            if game not in ('vc', 'sa'):
+                hidden_keys |= vc_sa_only
+            current_idx = tab_bar.currentIndex()
+            if 0 <= current_idx < len(tab_keys) and tab_keys[current_idx] in hidden_keys:
+                inst_idx = tab_keys.index('inst') if 'inst' in tab_keys else 0
+                tab_bar.setCurrentIndex(inst_idx)
+            for idx, key in enumerate(tab_keys):
+                tab_bar.setTabVisible(idx, key not in hidden_keys)
         self._set_status(
             f"Loaded {game.upper()} world: {len(loader.objects)} objects, "
             f"{len(loader.instances)} instances, {loader.stats.ipl_files} IPL files")
@@ -22679,10 +22710,23 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._rebuild_ipl_sections_rows()
             self._set_status(f"Added {len(paths)} file(s) - click to view")
 
-    def _on_ipl_data_type_changed(self, data_type): #vers 1
+    def _on_ipl_data_type_changed(self, data_type): #vers 2
         """INST/CULL/ZONE/... changed - updates which kind of data the
-        IPL Inst File panel shows for the currently selected IPL."""
+        IPL Inst File panel shows for the currently selected IPL.
+
+        Also renames the dock's own title to "Paths Display" while the
+        PATH tab is active (Aug 19 2026, per Keith: "I'd even change
+        IPL File Display to Paths Display when [Paths] is clicked"),
+        reverting to "IPL File Display" for every other tab - only
+        while _ipl_inst_file_mode is still 'ipl' (not 'ide'), so this
+        doesn't fight with _on_object_browser_tab_changed's own
+        "IDE Objects" title when that mode is active instead."""
         self._ipl_data_type = data_type
+        if getattr(self, '_ipl_inst_file_mode', 'ipl') == 'ipl':
+            dock = getattr(self, '_ipl_inst_file_dock', None)
+            title_lbl = getattr(dock, '_title_label', None) if dock is not None else None
+            if title_lbl is not None:
+                title_lbl.setText("Paths Display" if data_type == 'path' else "IPL File Display")
         self._refresh_ipl_inst_file_panel()
 
     def _on_show_tobj_toggled(self, checked): #vers 1
@@ -23791,6 +23835,74 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 table.scrollToItem(item)
                 return
 
+    def _populate_gta3_ide_paths_table(self, table, loader, display_name): #vers 1
+        """Build the IPL Inst File table from GTA III's own IDE-
+        embedded path groups instead of raw IPL text, scoped to
+        whichever groups have a real instance placement within this
+        specific IPL (Aug 19 2026 - see the fuller explanation at
+        this method's own call site in _refresh_ipl_inst_file_panel).
+
+        Column layout mirrors IDEPathNode's own real 9-field shape
+        (NodeType, NextNode, IsCrossRoad, XRel, YRel, ZRel, Median,
+        Left, Right) - genuinely different from VC/SA's own path node
+        shape (no Flag1-3, an added IsCrossRoad field VC doesn't
+        have), so this uses its own header set rather than forcing
+        GTA III's real 9 fields into the existing 13-column VC/SA
+        layout. A group-header row repurposes the first 3 columns for
+        (group_type, model_id, model_name) instead of a real node,
+        same bold+tinted styling convention _refresh_ipl_inst_file_
+        panel's own VC-style path rendering already uses to mark a
+        header row as distinct from a node row.
+
+        Deliberately does not set any per-row line_no UserRole data
+        the way the VC-style path rows do - these rows have no
+        corresponding entry in loader.paths at all (they're IDE-
+        sourced, not IPL-sourced), so the existing Edit/Delete/New/
+        Reverse Traffic Flow context-menu actions - all built around
+        resolving a row back to a real loader.paths group - are hidden
+        entirely for this case rather than shown and left to silently
+        fail (see _on_ipl_inst_file_context_menu's own added guard)."""
+        instances_in_ipl = {inst.model_id for inst in getattr(loader, 'instances', [])
+                            if inst.source_ipl == display_name}
+        groups = [g for g in getattr(loader, 'ide_paths', [])
+                 if g.model_id in instances_in_ipl]
+
+        headers = ["Type / GroupType", "Next / ModelID", "IsCrossroad / ModelName",
+                  "X Rel", "Y Rel", "Z Rel", "Median", "Left", "Right"]
+
+        if not groups:
+            table.setRowCount(1)
+            table.setColumnCount(1)
+            table.setHorizontalHeaderLabels([""])
+            placeholder = QTableWidgetItem(
+                "(no path groups attached to any object placed in this IPL)")
+            placeholder.setFlags(placeholder.flags() & ~Qt.ItemFlag.ItemIsSelectable)
+            table.setItem(0, 0, placeholder)
+            return
+
+        table.setColumnCount(len(headers))
+        table.setHorizontalHeaderLabels(headers)
+        rows = []
+        for group in groups:
+            rows.append((group.group_type, str(group.model_id), group.model_name,
+                        "", "", "", "", "", "", True))
+            for node in group.nodes:
+                rows.append((str(node.node_type), str(node.next_id), str(node.is_crossroad),
+                            f"{node.x_rel:.4f}", f"{node.y_rel:.4f}", f"{node.z_rel:.4f}",
+                            f"{node.median:.2f}", str(node.left), str(node.right), False))
+
+        table.setRowCount(len(rows))
+        for r, row_values in enumerate(rows):
+            is_group_header = row_values[-1]
+            for c in range(len(headers)):
+                item = QTableWidgetItem(row_values[c])
+                if is_group_header:
+                    font = item.font()
+                    font.setBold(True)
+                    item.setFont(font)
+                    item.setBackground(QBrush(QColor(60, 60, 90)))
+                table.setItem(r, c, item)
+
     def _refresh_ipl_inst_file_panel(self): #vers 3
         """Re-read the currently selected IPL's raw file content,
         filtered to the currently selected data type (INST/CULL/ZONE -
@@ -23821,6 +23933,31 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return
         display_name = item.data(Qt.ItemDataRole.UserRole)
         stem = getattr(self, '_ipl_display_to_stem', {}).get(display_name)
+
+        # GTA III's own IDE-embedded paths (Aug 19 2026, per Keith:
+        # "showing paths in GTA3 viewpoint works, but the path data
+        # exists in IDE files. We have an empty (No paths) shown in
+        # the IPL File Display. For GTA3 only, show the paths in the
+        # IDE files"). Real cause of the empty display: this whole
+        # panel reads a selected IPL's own raw TEXT for whatever
+        # section is active - correct for every other game and every
+        # other section type, but genuinely wrong for GTA III's own
+        # paths specifically, which live in a completely different
+        # file (IDE, not IPL) and attach to an object by model_id
+        # rather than belonging to any specific IPL file at all (see
+        # IDEPathGroup's own docstring). A GTA III IPL file's raw text
+        # never has a "path" section to find, by design, not by bug -
+        # so this branch bypasses the raw-text approach entirely for
+        # this one specific case and reads loader.ide_paths instead,
+        # scoped to whichever groups have at least one real instance
+        # placement within THIS specific IPL (source_ipl == display_
+        # name) - the same "which IPL does this group's real-world
+        # placement belong to" question _refresh_path_visualization
+        # already answers when resolving these groups for the 3D view.
+        if (getattr(self, '_ipl_data_type', 'inst') == 'path'
+                and getattr(loader, 'game', None) == 'gta3'):
+            self._populate_gta3_ide_paths_table(table, loader, display_name)
+            return
 
         # Binary IPLs (Aug 1 2026, per Keith: "when clicking on a
         # binary ipl, I should still beable to see the ipl lines
@@ -24115,12 +24252,20 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # edit functions for connecting, moving, adding, or deleting
         # nodes, a dialog like the object editor") - only offered
         # when the currently active tab is actually PATH, since a row
-        # here only maps to a real PathGroup in that mode.
+        # here only maps to a real PathGroup in that mode. Also
+        # excludes GTA III worlds (Aug 19 2026) - the PATH tab there
+        # shows loader.ide_paths-derived rows instead (see _populate_
+        # gta3_ide_paths_table), which have no corresponding entry in
+        # loader.paths at all for these actions to ever resolve
+        # against - showing them here would just be a guaranteed
+        # "Couldn't find a path group for this row" every time.
         edit_path_group_action = None
         delete_path_group_action = None
         new_path_group_action = None
         reverse_flow_action = None
-        if getattr(self, '_ipl_data_type', 'inst') == 'path':
+        loader_for_menu = getattr(self, '_world_loader', None)
+        if (getattr(self, '_ipl_data_type', 'inst') == 'path'
+                and getattr(loader_for_menu, 'game', None) != 'gta3'):
             menu.addSeparator()
             edit_path_group_action = menu.addAction("Edit Path Group...")
             delete_path_group_action = menu.addAction("Delete Path Group")

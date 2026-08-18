@@ -6064,3 +6064,72 @@ conclusively found despite extensive isolated testing.
   code needed changing. `ast.parse` clean; confirmed via search no
   stale `.toggled`/`.setChecked()` references remain anywhere for
   either widget.
+
+- **Aug 19, 2026** — Three items from Keith's real testing feedback,
+  after pulling and merging his own ribbon adjustments (removed
+  "Create Primitive" alongside the Extrude Faces icon dropped a few
+  turns ago - not something Map Workshop needs either).
+
+  **GTA III's IDE-embedded paths now show in the IPL File Display**,
+  per Keith: "showing paths in GTA3 viewpoint works, but the path
+  data exists in IDE files. We have an empty (No paths) shown in the
+  IPL File Display. For GTA3 only, show the paths in the IDE files."
+  Real cause: this panel reads a selected IPL's own raw text for
+  whichever section is active - correct for every other case, but
+  genuinely wrong for GTA III specifically, whose paths live in a
+  completely different file (IDE, not IPL) and attach to an object by
+  model_id rather than belonging to any IPL file at all. A GTA III
+  IPL's raw text never has a "path" section by design, not by bug.
+  New `_populate_gta3_ide_paths_table`, triggered only for `data_type
+  == 'path' and loader.game == 'gta3'`, bypassing the raw-text
+  approach entirely: finds every `loader.ide_paths` group with a real
+  instance placement in the currently-selected IPL (same "which IPL
+  does this group's real-world placement belong to" logic `_refresh_
+  path_visualization` already uses for the 3D view), and renders it
+  with GTA III's own real 9-field node layout (NodeType/NextNode/
+  IsCrossRoad/XRel/YRel/ZRel/Median/Left/Right) rather than forcing it
+  into VC/SA's 13-column layout, which doesn't match this format at
+  all. Group-header rows get the same bold+tinted styling the
+  existing VC-style path rendering already uses. The Edit/Delete/New/
+  Reverse Traffic Flow context-menu actions are hidden entirely for
+  this case (added a `loader.game != 'gta3'` guard) rather than shown
+  and left to silently fail every time - these rows have no
+  corresponding entry in `loader.paths` for those actions to resolve
+  against at all.
+
+  Also, per Keith's own suggestion in the same message: the dock
+  itself now renames to "Paths Display" while the PATH tab is active,
+  for any game, reverting to "IPL File Display" otherwise.
+
+  **Hid IPL Controls tabs the loaded game can never have data for**,
+  per Keith: "hiding functions not supported by GTA3, including some
+  of the IPL Object pane tabs [GRGE] [ENEX] [JUMP] [TCYC] [AUZO] and
+  [MULT], these are GTA SA only... [PICK] in ipl file, [OCCL] tabs,
+  This is VC and SA only." `_apply_loaded_world` now hides GRGE/ENEX/
+  JUMP/TCYC/AUZO/MULT unless the loaded game is SA, and PICK/OCCL
+  unless it's VC or SA - each confirmed real by this session's own
+  file-format research, not assumed. Switches back to the always-safe
+  INST tab first if the currently-active tab is one that's about to
+  be hidden, so the active tab never just vanishes. Same reasoning
+  extends the Occlusion overlay button hiding added a few turns ago
+  to the IPL Controls tab bar itself, not just that one button.
+
+  Verified extensively against real data before trusting any of it:
+  the tab-hiding set computation and the "switch away from a tab
+  about to be hidden" logic, tested in isolation across GTA3/VC/SA;
+  the GTA3 IDE-path row-building logic run against Keith's own real,
+  complete `gta3.dat` world - `comSE.ipl` correctly resolved to 79
+  real path groups (948 total node rows) out of 213 unique model IDs
+  among 566 real instances placed in that file, every row's column
+  count and group-header content checked against its real source
+  group, and the empty-case (an IPL with no attached path groups)
+  confirmed to correctly produce the placeholder message path rather
+  than a crash or a blank table with no explanation.
+
+  `ast.parse` clean; confirmed via AST no duplicate method
+  definitions anywhere in the new or touched code.
+
+  **Not yet started**: the third item from the same message - the
+  Drag/Move/Rotate three-state cycle for whole-IPL dragging ("click
+  to make it move ipl, click again to make it rotate ipl"). Flagged
+  honestly rather than rushed alongside everything above.
