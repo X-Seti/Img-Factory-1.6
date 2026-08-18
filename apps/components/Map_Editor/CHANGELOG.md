@@ -6422,3 +6422,63 @@ conclusively found despite extensive isolated testing.
   already built (the per-section-type tick-boxes from the previous
   session) - pointed out in case it hadn't been pulled/tested yet
   rather than assumed already seen.
+
+- **Aug 19, 2026 (cont'd)** — Implemented the careful Ctrl/Shift Drag
+  workflow Keith worked through step by step: "we can build on this;
+  holding [left control] left click entire .ipl is dragged / holding
+  [left shift] and select multi entire ipls, ... if there all
+  selected, it drags them all."
+
+  **Ctrl+click+drag** an instance now immediately drags just that one
+  IPL - the original behaviour, unchanged in effect, just gated
+  behind Ctrl now instead of being what a plain click always did.
+  **Shift+click** an instance doesn't drag anything by itself - it
+  toggles that instance's own whole IPL into/out of a running multi-
+  selection, one Shift+click per IPL to add or remove it. A later
+  **plain click+drag** (no modifier), as long as that selection is
+  non-empty, drags every one of the selected IPLs together as one
+  combined rigid-body move. A plain click+drag with nothing selected
+  now deliberately does nothing at all - Ctrl is the explicit,
+  intentional gesture for a single-IPL drag, so an unmodified click
+  doesn't risk starting a drag by accident.
+
+  Generalised `_dragging_ipl_name` (a single string) to `_dragging_
+  ipl_names` (a set) throughout - `mousePressEvent`'s pick logic now
+  branches on `event.modifiers()` to build either a one-name or
+  multi-name drag set; `mouseMoveEvent`'s live-preview logic and
+  `mouseReleaseEvent`'s commit logic both work over the whole set
+  unchanged in structure, just iterating where they used to reference
+  one name directly - the commit callback fires once per dragged IPL
+  name, all with the same delta, reusing `_shift_ipl_coordinates`
+  unchanged for each one rather than needing a new "shift several
+  IPLs at once" method.
+
+  **Caught and fixed a real, pre-existing bug while generalising this
+  code**: Snap: Centre of Model's own exclusion check referenced a
+  bare `ipl_name` that was never actually defined anywhere within
+  `mouseMoveEvent`'s own scope at all (it only ever existed as a local
+  variable inside the separate `mousePressEvent` method) - a
+  `NameError` waiting to happen the first time anyone actually dragged
+  with that snap mode turned on. Found while updating this same
+  exclusion check to work against the new multi-name set instead of
+  one name, not gone looking for it specifically - fixed as part of
+  the same edit.
+
+  New `set_ipl_selection_callback`/`_on_ipl_selection_changed` - the
+  status bar reports the current Shift-built selection (names for up
+  to 4 IPLs, just a count beyond that) so there's some feedback that
+  a Shift+click actually registered, without building a whole
+  separate always-visible selection panel for this first version.
+
+  Verified the complete workflow end-to-end against real
+  `IPLInstance` objects: Shift+click selection building, a plain drag
+  correctly copying (not aliasing) the current selection, `start_
+  state` correctly covering every selected IPL's own instances while
+  excluding an unselected one, the commit callback firing once per
+  dragged name with the same delta, Ctrl+click's single-IPL drag
+  staying independent of whatever else is selected, and the real
+  position mutation itself landing correctly on both selected
+  instances while leaving the unselected one untouched. `ast.parse`
+  clean; confirmed via AST no duplicate method definitions and, via
+  direct search, zero remaining references anywhere in the file to
+  the old singular `_dragging_ipl_name` attribute.

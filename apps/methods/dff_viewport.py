@@ -363,13 +363,35 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         # entry" mechanism the way instances do) - those snap to
         # their correct new position on release, not mid-drag.
         self._ipl_drag_mode = False
-        self._dragging_ipl_name = None
+        # Multi-IPL selection/drag (Aug 19 2026, per Keith's own
+        # careful workflow spec: "holding [left control] left click
+        # entire .ipl is dragged / holding [left shift] and select
+        # multi entire ipls, ... if there all selected, it drags them
+        # all"). Ctrl+click starts an immediate single-IPL drag (the
+        # original, already-built behaviour, just now gated behind
+        # Ctrl instead of being the only option a plain click gave).
+        # Shift+click doesn't drag anything by itself - it toggles
+        # that instance's own whole IPL into/out of _multi_selected_
+        # ipl_names, building up a selection across as many separate
+        # Shift+clicks as wanted. A later plain click+drag (no
+        # modifier held), as long as that selection is non-empty,
+        # drags every one of those selected IPLs together as one
+        # combined rigid-body move - _dragging_ipl_names holds
+        # whichever IPL name(s) are actually being dragged at any
+        # given moment (set at press time, either {the one Ctrl-
+        # clicked IPL} or a copy of the whole multi-selection),
+        # generalised from a single name to a set so the same
+        # mouseMove/mouseRelease logic below works unchanged whether
+        # one IPL or several are being moved together.
+        self._multi_selected_ipl_names = set()
+        self._dragging_ipl_names = set()
         self._dragging_ipl_start_state = []   # list of (inst, pos, rot, scale) at drag start
         self._dragging_ipl_ground_start = None
         self._dragging_ipl_delta = (0.0, 0.0, 0.0)
         self._dragging_ipl_clicked_inst = None
         self._dragging_ipl_clicked_start_pos = None
         self._ipl_drag_callback = None
+        self._ipl_selection_callback = None
         # Axis lock (Aug 18 2026, per Keith: "[Drag ipl] right-click
         # options, like lock z, only move x, y"). Z is already always
         # effectively locked by the existing ground-plane-constrained
@@ -2133,11 +2155,12 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         callback."""
         self._ipl_drag_mode = enabled
         if not enabled:
-            self._dragging_ipl_name = None
+            self._dragging_ipl_names = set()
             self._dragging_ipl_start_state = []
             self._dragging_ipl_ground_start = None
             self._dragging_ipl_clicked_inst = None
             self._dragging_ipl_clicked_start_pos = None
+            self._multi_selected_ipl_names = set()
         self.update()
 
     def set_ipl_drag_callback(self, callback): #vers 1
@@ -2179,6 +2202,17 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         corresponding numeric dialog - mirrors every other widget-
         owns-interaction, caller-owns-data callback in this file."""
         self._ipl_click_callback = callback
+
+    def set_ipl_selection_callback(self, callback): #vers 1
+        """Set (or clear, with None) the function called whenever the
+        Shift+click multi-IPL selection changes: callback(set_of_ipl_
+        names) - see the fuller multi-select workflow explanation
+        where self._multi_selected_ipl_names is first declared in
+        __init__. map_workshop.py wires this once to a method that
+        shows the current selection in the status bar - mirrors every
+        other widget-owns-interaction, caller-owns-data callback in
+        this file."""
+        self._ipl_selection_callback = callback
 
     def set_hover_highlight_enabled(self, enabled: bool): #vers 1
         """Toggle auto-highlight-on-hover (Aug 19 2026, per Keith's
@@ -2827,12 +2861,66 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                             # numeric-dialog callback and stops right
                             # here - no drag-state tracking starts at
                             # all for these two modes, unlike Drag
-                            # mode just below.
+                            # mode just below. Unaffected by the
+                            # Ctrl/Shift multi-select workflow below -
+                            # that's specific to Drag mode's own click-
+                            # and-hold gesture, which Move/Rotate don't
+                            # use at all.
                             callback = getattr(self, '_ipl_click_callback', None)
                             if callback is not None:
                                 callback(ipl_name)
                             return
-                        self._dragging_ipl_name = ipl_name
+
+                        # Multi-IPL selection/drag workflow (Aug 19
+                        # 2026, per Keith's own careful spec - see the
+                        # fuller explanation where self._multi_
+                        # selected_ipl_names is first declared in
+                        # __init__).
+                        modifiers = event.modifiers()
+                        if modifiers & Qt.KeyboardModifier.ShiftModifier:
+                            # Shift+click: toggle this IPL into/out of
+                            # the multi-selection, don't start a drag
+                            # at all - building the selection is its
+                            # own, separate gesture from actually
+                            # dragging it.
+                            if ipl_name in self._multi_selected_ipl_names:
+                                self._multi_selected_ipl_names.discard(ipl_name)
+                            else:
+                                self._multi_selected_ipl_names.add(ipl_name)
+                            callback = getattr(self, '_ipl_selection_callback', None)
+                            if callback is not None:
+                                callback(set(self._multi_selected_ipl_names))
+                            self.update()
+                            return
+                        elif modifiers & Qt.KeyboardModifier.ControlModifier:
+                            # Ctrl+click: drag just this one IPL
+                            # immediately, regardless of whatever else
+                            # is currently multi-selected - a quick,
+                            # explicit single-IPL shortcut that doesn't
+                            # touch or require the selection at all.
+                            drag_names = {ipl_name}
+                        elif self._multi_selected_ipl_names:
+                            # Plain click+drag with an active multi-
+                            # selection: drag every selected IPL
+                            # together as one combined rigid-body
+                            # move, regardless of which specific
+                            # instance was actually clicked to start
+                            # the drag - the intent is "move the whole
+                            # group I've built up", not tied to one
+                            # particular clicked point beyond anchoring
+                            # the drag's own ground-plane projection.
+                            drag_names = set(self._multi_selected_ipl_names)
+                        else:
+                            # Plain click+drag with nothing selected:
+                            # deliberately does nothing. Ctrl is now
+                            # the explicit, intentional gesture for
+                            # "drag this one IPL" - an unmodified click
+                            # no longer drags anything by itself, to
+                            # avoid an accidental drag from what might
+                            # have just been an ordinary click.
+                            return
+
+                        self._dragging_ipl_names = drag_names
                         # A list of (inst, pos, rot, scale) tuples, NOT
                         # a dict keyed by inst - IPLInstance is a plain
                         # @dataclass (eq=True by default), which makes
@@ -2844,15 +2932,15 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                         self._dragging_ipl_start_state = [
                             (e['instance'], e['pos'], e['rot'], e['scale'])
                             for e in self._world_instances
-                            if getattr(e.get('instance'), 'source_ipl', None) == ipl_name
+                            if getattr(e.get('instance'), 'source_ipl', None) in drag_names
                         ]
                         # The specific instance actually clicked (Aug
                         # 19 2026, for Snap: Centre of Model) - stored
                         # separately from the full start_state list
-                        # above, which covers EVERY instance in the
-                        # dragged IPL; the snap check below needs to
-                        # know which one specifically to search a
-                        # snap target near, not the whole IPL's own
+                        # above, which covers EVERY instance across
+                        # every dragged IPL; the snap check below needs
+                        # to know which one specifically to search a
+                        # snap target near, not the whole group's own
                         # centroid or every one of its instances at
                         # once.
                         self._dragging_ipl_clicked_inst = inst
@@ -2935,20 +3023,24 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                     for a, b in self._path_segments]
                 self._dragging_path_node_current_pos = new_pos
         elif (event.buttons() & Qt.MouseButton.LeftButton
-              and getattr(self, '_dragging_ipl_name', None) is not None):
-            # Whole-IPL drag in progress (Aug 18 2026) - same ground-
-            # plane-at-starting-height constraint as path node
-            # dragging, reusing the exact same _screen_to_ground_
-            # position call. Computes ONE delta (current ground pos
-            # minus the ground pos captured at drag start), then
-            # applies that SAME delta to every instance captured in
-            # _dragging_ipl_start_state via update_instance_transform
-            # - cheap (just updates each instance's own cached
-            # display entry, no geometry/display-list rebuilding),
-            # and crucially never touches the real IPLInstance data
-            # until the drag actually completes (mouseReleaseEvent) -
-            # if released with no real movement, or the mode gets
-            # turned off mid-drag, nothing was ever actually mutated.
+              and getattr(self, '_dragging_ipl_names', None)):
+            # Whole-IPL drag in progress (Aug 18 2026, generalised Aug
+            # 19 2026 to cover one OR several IPLs being dragged
+            # together at once - see the fuller multi-select workflow
+            # explanation where self._multi_selected_ipl_names is
+            # first declared in __init__) - same ground-plane-at-
+            # starting-height constraint as path node dragging,
+            # reusing the exact same _screen_to_ground_position call.
+            # Computes ONE delta (current ground pos minus the ground
+            # pos captured at drag start), then applies that SAME
+            # delta to every instance captured in _dragging_ipl_
+            # start_state via update_instance_transform - cheap (just
+            # updates each instance's own cached display entry, no
+            # geometry/display-list rebuilding), and crucially never
+            # touches the real IPLInstance data until the drag
+            # actually completes (mouseReleaseEvent) - if released
+            # with no real movement, or the mode gets turned off mid-
+            # drag, nothing was ever actually mutated.
             start_ground = self._dragging_ipl_ground_start
             if start_ground is not None:
                 cur_ground = self._screen_to_ground_position(
@@ -2977,13 +3069,22 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                         # clicked instance's own WOULD-BE position
                         # (its start position plus the current delta)
                         # comes within a small threshold of any OTHER
-                        # instance's real position (excluding this
-                        # IPL's own instances, so it can't snap to a
-                        # sibling within the same file being dragged),
-                        # the delta gets nudged so it lands EXACTLY on
-                        # that instance's position instead of merely
-                        # close to it.
+                        # instance's real position (excluding any of
+                        # the IPL(s) actually being dragged, so it
+                        # can't snap to one of its own siblings - a
+                        # real bug fixed here too: this used to
+                        # reference a bare "ipl_name" that was never
+                        # actually defined anywhere within THIS
+                        # method's own scope at all, a NameError
+                        # waiting to happen the first time anyone
+                        # actually dragged with this snap mode on,
+                        # caught while generalising this same check to
+                        # cover a whole SET of dragged IPLs rather
+                        # than just one), the delta gets nudged so it
+                        # lands EXACTLY on that instance's position
+                        # instead of merely close to it.
                         clicked_start = getattr(self, '_dragging_ipl_clicked_start_pos', None)
+                        dragged_names = getattr(self, '_dragging_ipl_names', set())
                         if clicked_start is not None:
                             wx = clicked_start[0] + ddx
                             wy = clicked_start[1] + ddy
@@ -2991,7 +3092,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                             best_dist2, best_pos = None, None
                             for e in self._world_instances:
                                 other_inst = e.get('instance')
-                                if other_inst is None or other_inst.source_ipl == ipl_name:
+                                if other_inst is None or other_inst.source_ipl in dragged_names:
                                     continue
                                 ox, oy, oz = e['pos']
                                 d2 = (ox-wx)**2 + (oy-wy)**2 + (oz-wz)**2
@@ -3139,27 +3240,30 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             # tracking variables.
             self.update()
 
-        # Commit a completed whole-IPL drag (Aug 18 2026) - calls the
-        # registered callback with the final (ipl_name, dx, dy, dz),
-        # which map_workshop.py wires to the already-existing, already
-        # -verified _shift_ipl_coordinates (the same method the
-        # dialog-based Shift Coordinates tool uses) - that's what
-        # actually mutates the real data (instances AND paths/cull/
-        # zone/occl, everything belonging to this IPL, not just the
-        # instances that got live visual feedback during the drag
-        # itself) and triggers a full, correctly-synced refresh. A
-        # release with zero actual movement (delta all zeros - e.g. a
-        # plain click that picked up an IPL but never dragged it) is
-        # skipped entirely rather than calling the callback with a
-        # no-op move, avoiding a pointless undo-stack entry for
-        # nothing having actually happened.
-        ipl_name = getattr(self, '_dragging_ipl_name', None)
-        if ipl_name is not None:
+        # Commit a completed whole-IPL drag (Aug 18 2026, generalised
+        # Aug 19 2026 to cover one or several IPLs at once) - calls
+        # the registered callback once PER dragged IPL name, with the
+        # same final (dx, dy, dz) for each - map_workshop.py wires
+        # this to the already-existing, already-verified _shift_ipl_
+        # coordinates (the same method the dialog-based Shift
+        # Coordinates tool uses) - that's what actually mutates the
+        # real data (instances AND paths/cull/zone/occl, everything
+        # belonging to each IPL, not just the instances that got live
+        # visual feedback during the drag itself) and triggers a
+        # full, correctly-synced refresh for each one. A release with
+        # zero actual movement (delta all zeros - e.g. a plain click
+        # that picked up a selection but never dragged it) is skipped
+        # entirely rather than calling the callback with a no-op
+        # move, avoiding a pointless undo-stack entry for nothing
+        # having actually happened.
+        dragged_names = getattr(self, '_dragging_ipl_names', None)
+        if dragged_names:
             dx, dy, dz = getattr(self, '_dragging_ipl_delta', (0.0, 0.0, 0.0))
             callback = getattr(self, '_ipl_drag_callback', None)
             if callback is not None and (dx or dy or dz):
-                callback(ipl_name, dx, dy, dz)
-            self._dragging_ipl_name = None
+                for ipl_name in dragged_names:
+                    callback(ipl_name, dx, dy, dz)
+            self._dragging_ipl_names = set()
             self._dragging_ipl_start_state = []
             self._dragging_ipl_ground_start = None
             self._dragging_ipl_delta = (0.0, 0.0, 0.0)

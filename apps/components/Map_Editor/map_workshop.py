@@ -12093,6 +12093,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # ipl" 3-state cycle) - same one-time-wiring pattern.
         if hasattr(self.preview_widget, 'set_ipl_click_callback'):
             self.preview_widget.set_ipl_click_callback(self._on_ipl_click_for_move_or_rotate)
+        # Wire the multi-IPL selection-change callback too (Aug 19
+        # 2026, per Keith's Ctrl/Shift Drag workflow spec) - fires
+        # every time a Shift+click adds/removes an IPL from the
+        # current selection, so the status bar can confirm what's
+        # actually selected without needing a whole separate UI panel
+        # for this first version.
+        if hasattr(self.preview_widget, 'set_ipl_selection_callback'):
+            self.preview_widget.set_ipl_selection_callback(self._on_ipl_selection_changed)
         # Restore the saved zoom-to-cursor setting (Aug 18 2026, per
         # Keith's "zoom in to the mouse pointer" request) - same
         # restore-at-construction pattern as the zone render style
@@ -22362,6 +22370,26 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         elif mode == 'rotate':
             self._prompt_rotate_ipl_coordinates(ipl_name)
 
+    def _on_ipl_selection_changed(self, selected_names): #vers 1
+        """Fired by DFFViewport.set_ipl_selection_callback whenever a
+        Shift+click adds/removes an IPL from the current multi-select
+        (Aug 19 2026, per Keith's own careful workflow spec: "holding
+        [left shift] and select multi entire ipls... if there all
+        selected, it drags them all"). Status-bar-only feedback for
+        this first version - shows how many IPLs are currently
+        selected, and their names for a small selection, rather than
+        a whole separate always-visible panel just to confirm a
+        selection state that's usually about to be used immediately
+        (drag them, or Shift+click to deselect one)."""
+        if not selected_names:
+            self._set_status("IPL selection cleared")
+            return
+        names = sorted(selected_names)
+        if len(names) <= 4:
+            self._set_status(f"{len(names)} IPL(s) selected: {', '.join(names)}")
+        else:
+            self._set_status(f"{len(names)} IPLs selected")
+
     def _on_hover_context_menu(self, inst): #vers 1
         """Fired by DFFViewport.set_hover_context_callback on a right-
         click while an instance is currently hover-highlighted (Aug
@@ -23552,7 +23580,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         ipl_mode_btn.setStyleSheet(_compact_18)
         ipl_mode_btn.setToolTip(
             "Click to cycle: Off \u2192 Drag \u2192 Move \u2192 Rotate \u2192 Off.\n"
-            "Drag: click-drag an instance to move its whole IPL live.\n"
+            "Drag: Ctrl+click-drag an instance to move its whole IPL\n"
+            "immediately. Or Shift+click several instances to build a\n"
+            "multi-IPL selection (no drag yet), then plain click-drag\n"
+            "any of them to move every selected IPL together as one.\n"
             "Move: click an instance to open Shift Coordinates for its IPL.\n"
             "Rotate: click an instance to open Rotate for its IPL.\n"
             "Right-click while in Drag: axis-lock options.")
