@@ -12259,11 +12259,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         # - Ribbon 3: Edit Geometry
         tb_geo = _tb("Edit Geometry")
-        _act(tb_geo, "Create Primitive",
-             _icon(lambda color=icon_color: MaxSVGIcons.create_primitive_icon(
-                 size=20, color=color), 'create_primitive_icon'),
-             callback=self._create_primitive_dialog, attr='_prim_act')
-        tb_geo.addSeparator()
         _act(tb_geo, "Mirror",
              _icon(lambda color=icon_color: MaxSVGIcons.mirror_icon(
                  size=20, color=color), 'mirror_icon'),
@@ -12367,7 +12362,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._sel_vert_act, self._sel_edge_act,
             self._sel_face_act, self._sel_poly_act,
             self._backface_cull_act, self._front_paint_act,
-            self._prim_act, self._extrude_act,
             self._shading_act, self._light_setup_act,
         ]
         # Legacy compat for code that checks _dff_only_toolbar_btns
