@@ -4798,41 +4798,95 @@ class _InstanceEditPanel(QWidget):
             spin.setValue(val)
             spin.blockSignals(False)
 
-    def _on_position_nudged(self, axis, delta, absolute=None): #vers 1
+    def _on_position_nudged(self, axis, delta, absolute=None): #vers 2
         if self._inst is None:
             return
         attr = f"pos_{axis}"
-        new_val = absolute if absolute is not None else getattr(self._inst, attr) + delta
-        setattr(self._inst, attr, new_val)
+        inst = self._inst
+        old_val = getattr(inst, attr)
+        new_val = absolute if absolute is not None else old_val + delta
+        setattr(inst, attr, new_val)
         self._refresh_position_spins()
-        self._workshop._on_instance_edited(self._inst)
+        self._workshop._on_instance_edited(inst)
+        # Undo support (Aug 18 2026, per Keith: "we need to get the
+        # undo function working") - captures old_val BEFORE the
+        # mutation above (the only point it's still available), then
+        # closes over it along with inst/self so undo/redo can
+        # restore either value directly and refresh both the
+        # viewport and this panel's own spin display (only if it's
+        # still actually showing this same instance - selection may
+        # have moved on by the time undo/redo actually runs).
+        def _undo():
+            setattr(inst, attr, old_val)
+            if self._inst is inst:
+                self._refresh_position_spins()
+            self._workshop._on_instance_edited(inst)
+        def _redo():
+            setattr(inst, attr, new_val)
+            if self._inst is inst:
+                self._refresh_position_spins()
+            self._workshop._on_instance_edited(inst)
+        model_name = getattr(inst, 'model_name', '?')
+        self._workshop._push_map_undo(_undo, _redo, f"Move {model_name} ({axis.upper()})")
 
-    def _on_rotation_nudged(self, axis, delta, absolute=None): #vers 2
+    def _on_rotation_nudged(self, axis, delta, absolute=None): #vers 3
         """Edits the *effective* rotation shown in the spin boxes, then
         converts back through the same conjugate (its own inverse) to
         get what should actually be stored in inst.rot_x/y/z/w - see
         _refresh_rotation_spins."""
         if self._inst is None:
             return
-        ex, ey, ez, ew = self._workshop._conjugate_rotation_for_game(
-            self._inst.rot_x, self._inst.rot_y, self._inst.rot_z, self._inst.rot_w)
+        inst = self._inst
+        old_quat = (inst.rot_x, inst.rot_y, inst.rot_z, inst.rot_w)
+        ex, ey, ez, ew = self._workshop._conjugate_rotation_for_game(*old_quat)
         roll, pitch, yaw = quat_to_euler_degrees(ex, ey, ez, ew)
         current = {'x': roll, 'y': pitch, 'z': yaw}
         current[axis] = absolute if absolute is not None else current[axis] + delta
         nx, ny, nz, nw = euler_degrees_to_quat(current['x'], current['y'], current['z'])
         x, y, z, w = self._workshop._conjugate_rotation_for_game(nx, ny, nz, nw)
-        self._inst.rot_x, self._inst.rot_y, self._inst.rot_z, self._inst.rot_w = x, y, z, w
+        new_quat = (x, y, z, w)
+        inst.rot_x, inst.rot_y, inst.rot_z, inst.rot_w = new_quat
         self._refresh_rotation_spins()
-        self._workshop._on_instance_edited(self._inst)
+        self._workshop._on_instance_edited(inst)
+        # Undo support - stores the raw quaternion directly (what's
+        # actually persisted on the instance), not the euler angles
+        # shown in the UI, so restoring it can't accumulate rounding
+        # drift from repeatedly converting through euler and back.
+        def _undo():
+            inst.rot_x, inst.rot_y, inst.rot_z, inst.rot_w = old_quat
+            if self._inst is inst:
+                self._refresh_rotation_spins()
+            self._workshop._on_instance_edited(inst)
+        def _redo():
+            inst.rot_x, inst.rot_y, inst.rot_z, inst.rot_w = new_quat
+            if self._inst is inst:
+                self._refresh_rotation_spins()
+            self._workshop._on_instance_edited(inst)
+        model_name = getattr(inst, 'model_name', '?')
+        self._workshop._push_map_undo(_undo, _redo, f"Rotate {model_name} ({axis.upper()})")
 
-    def _on_scale_nudged(self, axis, delta, absolute=None): #vers 1
+    def _on_scale_nudged(self, axis, delta, absolute=None): #vers 2
         if self._inst is None:
             return
         attr = f"scale_{axis}"
-        new_val = absolute if absolute is not None else getattr(self._inst, attr) + delta
-        setattr(self._inst, attr, new_val)
+        inst = self._inst
+        old_val = getattr(inst, attr)
+        new_val = absolute if absolute is not None else old_val + delta
+        setattr(inst, attr, new_val)
         self._refresh_scale_spins()
-        self._workshop._on_instance_edited(self._inst)
+        self._workshop._on_instance_edited(inst)
+        def _undo():
+            setattr(inst, attr, old_val)
+            if self._inst is inst:
+                self._refresh_scale_spins()
+            self._workshop._on_instance_edited(inst)
+        def _redo():
+            setattr(inst, attr, new_val)
+            if self._inst is inst:
+                self._refresh_scale_spins()
+            self._workshop._on_instance_edited(inst)
+        model_name = getattr(inst, 'model_name', '?')
+        self._workshop._push_map_undo(_undo, _redo, f"Scale {model_name} ({axis.upper()})")
 
     def _refresh_scale_spins(self): #vers 1
         inst = self._inst
@@ -4841,15 +4895,29 @@ class _InstanceEditPanel(QWidget):
             spin.setValue(getattr(inst, f"scale_{axis}"))
             spin.blockSignals(False)
 
-    def _on_set_scale_zero_clicked(self): #vers 1
+    def _on_set_scale_zero_clicked(self): #vers 2
         """Set this instance's scale to (0,0,0) - per Keith's spec,
         matching how some converted IPLs represent 'no real scale
         data' instead of the normal (1,1,1) unit scale."""
         if self._inst is None:
             return
-        self._inst.scale_x = self._inst.scale_y = self._inst.scale_z = 0.0
+        inst = self._inst
+        old_scale = (inst.scale_x, inst.scale_y, inst.scale_z)
+        inst.scale_x = inst.scale_y = inst.scale_z = 0.0
         self._refresh_scale_spins()
-        self._workshop._on_instance_edited(self._inst)
+        self._workshop._on_instance_edited(inst)
+        def _undo():
+            inst.scale_x, inst.scale_y, inst.scale_z = old_scale
+            if self._inst is inst:
+                self._refresh_scale_spins()
+            self._workshop._on_instance_edited(inst)
+        def _redo():
+            inst.scale_x = inst.scale_y = inst.scale_z = 0.0
+            if self._inst is inst:
+                self._refresh_scale_spins()
+            self._workshop._on_instance_edited(inst)
+        model_name = getattr(inst, 'model_name', '?')
+        self._workshop._push_map_undo(_undo, _redo, f"Zero scale on {model_name}")
 
     def _on_2dfx_button_clicked(self): #vers 1
         """Show this instance's 2DFX effects in a popup - replaces the
@@ -4903,11 +4971,24 @@ class _InstanceEditPanel(QWidget):
             "Position/Rotation/Scale edits already apply live as you\n"
             "nudge them - there's nothing separate to Apply yet.")
 
-    def _on_undo_clicked(self): #vers 1
-        QMessageBox.information(self, "Undo",
-            "STUB - undo/redo for mapping changes (instance placement,\n"
-            "rotation, IPL edits) isn't implemented yet - needs its own\n"
-            "instance/IPL-state design (see TODO.md).")
+    def _on_undo_clicked(self): #vers 2
+        """Undo/redo for mapping changes (Aug 18 2026, per Keith: "we
+        need to get the undo function working") - was an honest stub
+        before this. Delegates to self._workshop (ModelWorkshop) - the
+        undo/redo stacks themselves live there, not on this panel,
+        since this panel gets recreated every time a different
+        instance is selected and would otherwise lose all undo
+        history on every selection change. A plain left-click undoes;
+        Shift+click (checked via the QApplication's own current
+        modifier state, since QPushButton.clicked doesn't carry
+        click-time modifiers itself) redoes - one button covering
+        both directions rather than needing a second dedicated redo
+        button, matching how Ctrl+Z/Ctrl+Shift+Z work in most other
+        editors."""
+        if QApplication.keyboardModifiers() & Qt.KeyboardModifier.ShiftModifier:
+            self._workshop._map_redo()
+        else:
+            self._workshop._map_undo()
 
     def _on_save_clicked(self): #vers 1
         QMessageBox.information(self, "Save",
@@ -20011,8 +20092,97 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             rot = self._effective_rotation(inst)
             scale = (inst.scale_x, inst.scale_y, inst.scale_z)
             if vp.update_instance_transform(inst, pos, rot, scale):
+                # GTA III paths follow their attached object (Aug 18
+                # 2026, per Keith: "when I move models in GTA3,
+                # shouldn't the paths attached to them move as well")
+                # - real gap: this fast path returns before ever
+                # calling _refresh_path_visualization, and GTA III's
+                # own IDE-embedded paths are resolved fresh from the
+                # placing instance's CURRENT position every time that
+                # runs (see IDEPathGroup's own docstring) - so moving
+                # an instance never re-resolved whatever path was
+                # attached to it, leaving the path visually stuck at
+                # the object's old position. Only pays the extra
+                # refresh cost when the moved instance's model_id
+                # actually has a path group attached to it - a cheap
+                # check against loader.ide_paths, and the common case
+                # (moving an ordinary building/prop with no path of
+                # its own) stays exactly as fast as before, preserving
+                # the original reason this fast path exists at all
+                # (Keith's own earlier "takes so long for anything to
+                # change" complaint).
+                loader = getattr(self, '_world_loader', None)
+                if loader is not None and any(
+                        g.model_id == inst.model_id for g in getattr(loader, 'ide_paths', [])):
+                    self._refresh_path_visualization()
                 return
         self._apply_ipl_visibility_filter(auto_fit=False, clear_display_lists=False)
+
+    def _push_map_undo(self, undo_fn, redo_fn, description=""): #vers 1
+        """Record one undoable map edit (Aug 18 2026, per Keith: "we
+        need to get the undo function working"). Lives on ModelWorkshop
+        itself, not on _InstanceEditPanel (which gets recreated every
+        time a different instance is selected and would lose all undo
+        history on every selection change if the stack lived there).
+        Genuinely separate from self.undo_stack/_push_undo/_undo_last_
+        action - those are scoped entirely to COL model editing
+        (inherited from this tool's Model Workshop base, hardcoded to
+        current_col_file.models[model_index]) - a completely different
+        data shape than a map edit, not reusable here at all.
+
+        Each entry is a pair of no-arg callables that know how to
+        reverse/reapply one specific change, not a generic before/
+        after data snapshot - lets different map edit types (instance
+        position/rotation/scale nudges today, path node drags and
+        more later) share the same undo mechanism without needing a
+        different implementation per edit type. A fresh edit clears
+        the redo stack, matching standard undo/redo convention -
+        redoing something the user has since diverged from would be
+        ambiguous/surprising."""
+        self.map_undo_stack = getattr(self, 'map_undo_stack', [])
+        self.map_redo_stack = getattr(self, 'map_redo_stack', [])
+        self.map_undo_stack.append(
+            {'undo': undo_fn, 'redo': redo_fn, 'description': description})
+        if len(self.map_undo_stack) > 100:
+            self.map_undo_stack.pop(0)
+        self.map_redo_stack.clear()
+
+    def _map_undo(self): #vers 1
+        """Reverse the most recent map edit, per Keith: "we need to
+        get the undo function working" - the real implementation
+        behind what used to be an honest stub on _InstanceEditPanel's
+        own Undo button (_on_undo_clicked)."""
+        stack = getattr(self, 'map_undo_stack', [])
+        if not stack:
+            self._set_status("Nothing to undo")
+            return
+        entry = stack.pop()
+        try:
+            entry['undo']()
+        except Exception as e:
+            self._set_status(f"Undo failed: {e}")
+            return
+        redo_stack = self.map_redo_stack = getattr(self, 'map_redo_stack', [])
+        redo_stack.append(entry)
+        desc = entry.get('description', '')
+        self._set_status(f"Undo: {desc}" if desc else "Undo applied")
+
+    def _map_redo(self): #vers 1
+        """Reapply the most recently undone map edit."""
+        stack = getattr(self, 'map_redo_stack', [])
+        if not stack:
+            self._set_status("Nothing to redo")
+            return
+        entry = stack.pop()
+        try:
+            entry['redo']()
+        except Exception as e:
+            self._set_status(f"Redo failed: {e}")
+            return
+        undo_stack = self.map_undo_stack = getattr(self, 'map_undo_stack', [])
+        undo_stack.append(entry)
+        desc = entry.get('description', '')
+        self._set_status(f"Redo: {desc}" if desc else "Redo applied")
 
     def _on_instance_list_context_menu(self, pos): #vers 2
         """Right-click a row - Add/Remove Favourites always available

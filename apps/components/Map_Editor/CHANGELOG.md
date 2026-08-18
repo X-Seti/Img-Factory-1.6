@@ -5711,3 +5711,64 @@ conclusively found despite extensive isolated testing.
 
   `ast.parse` clean; confirmed via AST no duplicate method
   definitions.
+
+- **Aug 18, 2026 (cont'd)** — Two real pieces from Keith's follow-up
+  message.
+
+  **GTA III paths now follow their attached object when it moves**,
+  per Keith: "when I move models in GTA3, shouldn't the paths
+  attached to them move as well." Real, confirmed bug: `_on_instance_
+  edited`'s own fast path (built specifically for performance, per
+  Keith's earlier "takes so long for anything to change" complaint)
+  returns immediately after updating the viewport's cached transform,
+  never calling `_refresh_path_visualization`. Since GTA III's own
+  IDE-embedded paths are resolved fresh from the placing instance's
+  CURRENT position every single time that runs, moving an instance
+  never re-resolved whatever path was attached to it - the path
+  stayed visually stuck at the object's old position. Fixed by
+  checking whether the moved instance's `model_id` actually has a
+  path group attached to it (a cheap check against `loader.ide_
+  paths`) and only paying the extra refresh cost in that case - the
+  common case of moving an ordinary building/prop with no path of its
+  own stays exactly as fast as before, preserving the original reason
+  the fast path exists. Verified against the real complete `gta3.dat`
+  world: 553 of 8689 real instances have a path attached, correctly
+  distinguished from the rest.
+
+  **A real, working undo/redo system**, per Keith: "we need to get
+  the undo function working" - was previously an honest stub
+  (`_on_undo_clicked`: "STUB - undo/redo for mapping changes... isn't
+  implemented yet"). New `_push_map_undo`/`_map_undo`/`_map_redo` on
+  `ModelWorkshop` itself (not on `_InstanceEditPanel`, which gets
+  recreated every time a different instance is selected and would
+  lose all history on every selection change if the stack lived
+  there) - genuinely separate from the existing `self.undo_stack`,
+  which turned out to be scoped entirely to COL model editing
+  (inherited from this tool's Model Workshop base, hardcoded to
+  `current_col_file.models[model_index]`), not reusable for map edits
+  at all. Command-pattern design: each entry is a pair of no-arg
+  callables that know how to reverse/reapply one specific change,
+  not a generic snapshot - lets different edit types share the same
+  mechanism without a different implementation per type. A fresh
+  edit clears the redo stack (standard convention).
+
+  Wired into all four instance-editing actions in `_InstanceEditPanel`
+  (position/rotation/scale nudges, set-scale-to-zero) - each captures
+  its own "before" value right before mutating (the only point it's
+  still available), and the undo/redo closures also refresh that
+  panel's own spin boxes if it's still showing the same instance.
+  Rotation undo stores the raw quaternion directly rather than the
+  euler angles shown in the UI, avoiding any rounding drift from
+  repeatedly converting through euler and back. The existing Undo
+  button (`_on_undo_clicked`) now does real work: plain click undoes,
+  Shift+click redoes.
+
+  Verified the core undo/redo mechanics directly against a real
+  `IPLInstance`: single undo/redo round-trip, multiple sequential
+  undos unwinding in reverse order and redo reapplying forward, a
+  fresh edit after undo correctly clearing the redo stack, and empty-
+  stack undo/redo handled gracefully with a status message rather
+  than crashing.
+
+  `ast.parse` clean; confirmed via AST exactly one definition of
+  every touched/new method.
