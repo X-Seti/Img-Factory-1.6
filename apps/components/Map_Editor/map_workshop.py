@@ -12273,13 +12273,23 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             setattr(self, attr, act)
             return act
 
-        _snap_act('_snap_grid_act',     'grid',     'Snap: Grid Points', 'snap_grid_icon',     'snap_grid_icon')
-        _snap_act('_snap_pivot_act',    'pivot',    'Snap: Pivot',       'snap_pivot_icon',    'snap_pivot_icon')
-        _snap_act('_snap_vertex_act',   'vertex',   'Snap: Vertex',      'snap_vertex_icon',   'snap_vertex_icon')
-        _snap_act('_snap_endpoint_act', 'endpoint', 'Snap: Endpoint',    'snap_endpoint_icon', 'snap_endpoint_icon')
-        _snap_act('_snap_midpoint_act', 'midpoint', 'Snap: Midpoint',    'snap_midpoint_icon', 'snap_midpoint_icon')
-        _snap_act('_snap_edge_act',     'edge',     'Snap: Edge',        'snap_edge_icon',     'snap_edge_icon')
-        _snap_act('_snap_face_act',     'face',     'Snap: Face',        'snap_face_icon',     'snap_face_icon')
+        _snap_act('_snap_edge_act', 'edge', 'Snap: Edge of Model', 'snap_edge_icon', 'snap_edge_icon')
+        _snap_act('_snap_centre_act', 'centre', 'Snap: Centre of Model', 'snap_pivot_icon', 'snap_pivot_icon')
+        # Edge of Model disabled with an honest explanation (Aug 19
+        # 2026) - see _snap_targets' own docstring in dff_viewport.py
+        # for the full reasoning: no loaded-model bounding box data
+        # exists anywhere in this viewport yet to snap an edge to, and
+        # faking it with an arbitrary offset would be worse than
+        # admitting it isn't built.
+        self._snap_edge_act.setEnabled(False)
+        self._snap_edge_act.setToolTip(
+            "Not yet available - needs each model's own loaded\n"
+            "geometry bounding box, which this viewport doesn't\n"
+            "compute yet. Snap: Centre of Model is fully working.")
+        self._snap_centre_act.setToolTip(
+            "While dragging a whole IPL, snaps the clicked instance's\n"
+            "position to align exactly with the nearest other\n"
+            "instance's own position, once within a small distance.")
         tb_snap.addSeparator()
         _act(tb_snap, "Axis Constraints",
              _icon(lambda color=icon_color: MaxSVGIcons.snap_axis_constraint_icon(

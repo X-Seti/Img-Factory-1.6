@@ -6282,3 +6282,48 @@ conclusively found despite extensive isolated testing.
   duplicate method definitions, including the handler that was still
   missing (and would have crashed on first right-click) at the point
   this feature was last checked in.
+
+- **Aug 19, 2026 (cont'd)** — Built Snap: Centre of Model for whole-
+  IPL dragging, per Keith: "[Drag ipl] any direction; if the snap
+  options are on, icons already exist on ribbons; use Edge of model,
+  Centre of model, then we can remove the snaps we dont need from
+  the ribbons; we don't need extrude or emboss ribbon icons either."
+
+  Confirmed before touching anything: the existing 7 Snap Target
+  ribbon buttons (Grid/Pivot/Vertex/Endpoint/Midpoint/Edge/Face,
+  inherited from Model Workshop's own mesh-editing base) had never
+  been wired to any real behaviour at all - `_snap_targets`' own
+  existing comment already said so explicitly ("the actual snap-
+  during-drag math... is a follow-up task, not wired yet"). Removed
+  5 of the 7 (Grid/Pivot/Vertex/Endpoint/Midpoint) entirely, kept
+  Edge and repurposed the 7th into Centre of Model.
+
+  **Snap: Centre of Model is now genuinely functional** - while
+  dragging a whole IPL, once the clicked instance's own would-be
+  position comes within 3 units of any other instance's real
+  position (excluding the dragged IPL's own instances, so it can't
+  snap to one of its own siblings), the drag delta gets nudged to
+  land exactly on that instance's position instead of merely close
+  to it. Verified this search-and-snap logic directly: correctly
+  snaps to a real nearby target in a different IPL, correctly leaves
+  the delta untouched when nothing is within range, and correctly
+  excludes a same-IPL sibling even when it would otherwise be the
+  closest candidate.
+
+  **Snap: Edge of Model stays a real, honest gap, not faked** - its
+  own ribbon button is present but disabled with an explanatory
+  tooltip, since a genuine "snap to a model's own edge" needs that
+  model's loaded geometry bounding box, which doesn't exist anywhere
+  in this viewport currently (confirmed via direct search before
+  writing anything). Approximating it with an arbitrary offset would
+  have looked like real geometry-based snapping while actually being
+  a guess - worse than being upfront that it isn't built yet.
+
+  Removed the Create Primitive/Extrude Faces ribbon icons a few turns
+  back already covered "we don't need extrude or emboss" - no further
+  action needed there this pass.
+
+  `ast.parse` clean on both touched files; confirmed via AST no
+  duplicate method definitions, and confirmed via direct search zero
+  remaining references anywhere in the file to the 5 removed snap
+  action attributes.

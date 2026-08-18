@@ -367,6 +367,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._dragging_ipl_start_state = []   # list of (inst, pos, rot, scale) at drag start
         self._dragging_ipl_ground_start = None
         self._dragging_ipl_delta = (0.0, 0.0, 0.0)
+        self._dragging_ipl_clicked_inst = None
+        self._dragging_ipl_clicked_start_pos = None
         self._ipl_drag_callback = None
         # Axis lock (Aug 18 2026, per Keith: "[Drag ipl] right-click
         # options, like lock z, only move x, y"). Z is already always
@@ -503,14 +505,27 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._selected_faces = set()    # set of triangle indices
         self._select_mode    = 'object'  # 'vertex'|'edge'|'face'|'poly'|'object'
 
-        # Snap target toggles — 3ds Max style, independently toggleable
-        # (not single-select like _select_mode). All off by default; this
-        # is state only for now, the actual snap-during-drag math that
-        # reads these flags is a follow-up task, not wired yet.
-        self._snap_targets = {
-            'grid': False, 'pivot': False, 'vertex': False,
-            'endpoint': False, 'midpoint': False, 'edge': False, 'face': False,
-        }
+        # Snap target toggles (Aug 19 2026, per Keith: "if the snap
+        # options are on, icons already exist on ribbons; use Edge of
+        # model, Centre of model, then we can remove the snaps we
+        # dont need from the ribbons" - simplified down from the
+        # original 7 mesh-editing-style targets (grid/pivot/vertex/
+        # endpoint/midpoint/edge/face) inherited from Model Workshop's
+        # own base, none of which were ever actually wired to any real
+        # behaviour here - confirmed by this code's own prior comment
+        # ("the actual snap-during-drag math... is a follow-up task,
+        # not wired yet") before removing anything, not assumed.
+        # 'centre' is the one made genuinely functional this pass -
+        # see DFFViewport's own whole-IPL-drag mouseMoveEvent logic.
+        # 'edge' stays as a real toggle but its own ribbon button is
+        # disabled with an explanatory tooltip rather than faked: a
+        # genuine "snap to the edge of a model" needs that model's own
+        # loaded geometry bounding box, which doesn't exist anywhere
+        # in this viewport yet - approximating it with an arbitrary
+        # offset would look like real geometry-based snapping while
+        # actually being a guess, which is worse than being upfront
+        # that it isn't built yet.
+        self._snap_targets = {'edge': False, 'centre': False}
         self._snap_axis_constraint = False   # "Enable Axis Constraints in Snaps"
 
         # Multi-pane view lock (3ds Max style Top/Front/Side/Perspective panes)
@@ -2071,6 +2086,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._dragging_ipl_name = None
             self._dragging_ipl_start_state = []
             self._dragging_ipl_ground_start = None
+            self._dragging_ipl_clicked_inst = None
+            self._dragging_ipl_clicked_start_pos = None
         self.update()
 
     def set_ipl_drag_callback(self, callback): #vers 1
@@ -2763,6 +2780,17 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                             for e in self._world_instances
                             if getattr(e.get('instance'), 'source_ipl', None) == ipl_name
                         ]
+                        # The specific instance actually clicked (Aug
+                        # 19 2026, for Snap: Centre of Model) - stored
+                        # separately from the full start_state list
+                        # above, which covers EVERY instance in the
+                        # dragged IPL; the snap check below needs to
+                        # know which one specifically to search a
+                        # snap target near, not the whole IPL's own
+                        # centroid or every one of its instances at
+                        # once.
+                        self._dragging_ipl_clicked_inst = inst
+                        self._dragging_ipl_clicked_start_pos = entry['pos']
                         self._dragging_ipl_ground_start = self._screen_to_ground_position(
                             mx, my, ground_z=entry['pos'][2])
                         self._dragging_ipl_delta = (0.0, 0.0, 0.0)
@@ -2876,6 +2904,37 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                         ddx = 0.0
                     elif axis_lock == 'y':
                         ddy = 0.0
+                    if self._snap_targets.get('centre'):
+                        # Snap: Centre of Model (Aug 19 2026, per
+                        # Keith: "if the snap options are on... use
+                        # Edge of model, Centre of model") - once the
+                        # clicked instance's own WOULD-BE position
+                        # (its start position plus the current delta)
+                        # comes within a small threshold of any OTHER
+                        # instance's real position (excluding this
+                        # IPL's own instances, so it can't snap to a
+                        # sibling within the same file being dragged),
+                        # the delta gets nudged so it lands EXACTLY on
+                        # that instance's position instead of merely
+                        # close to it.
+                        clicked_start = getattr(self, '_dragging_ipl_clicked_start_pos', None)
+                        if clicked_start is not None:
+                            wx = clicked_start[0] + ddx
+                            wy = clicked_start[1] + ddy
+                            wz = clicked_start[2] + ddz
+                            best_dist2, best_pos = None, None
+                            for e in self._world_instances:
+                                other_inst = e.get('instance')
+                                if other_inst is None or other_inst.source_ipl == ipl_name:
+                                    continue
+                                ox, oy, oz = e['pos']
+                                d2 = (ox-wx)**2 + (oy-wy)**2 + (oz-wz)**2
+                                if best_dist2 is None or d2 < best_dist2:
+                                    best_dist2, best_pos = d2, (ox, oy, oz)
+                            if best_pos is not None and best_dist2 < 9.0:   # within 3 units
+                                ddx = best_pos[0] - clicked_start[0]
+                                ddy = best_pos[1] - clicked_start[1]
+                                ddz = best_pos[2] - clicked_start[2]
                     self._dragging_ipl_delta = (ddx, ddy, ddz)
                     for inst, opos, orot, oscale in self._dragging_ipl_start_state:
                         new_pos = (opos[0] + ddx, opos[1] + ddy, opos[2] + ddz)
@@ -3038,6 +3097,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._dragging_ipl_start_state = []
             self._dragging_ipl_ground_start = None
             self._dragging_ipl_delta = (0.0, 0.0, 0.0)
+            self._dragging_ipl_clicked_inst = None
+            self._dragging_ipl_clicked_start_pos = None
             self.update()
 
     def wheelEvent(self, event): #vers 4
