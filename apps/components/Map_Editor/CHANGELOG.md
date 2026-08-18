@@ -6231,3 +6231,54 @@ conclusively found despite extensive isolated testing.
   Verified the generalised title computation directly against every
   real tab key before trusting it. `ast.parse` clean on both touched
   files; confirmed via AST no duplicate method definitions.
+
+- **Aug 19, 2026 (cont'd)** — Built auto-highlight-on-hover, per
+  Keith: "Auto object highlight setting in map_workshop settings:
+  this could be a model, path node, anything in the viewpoint; once
+  highlighted, right-click for options." Scoped to instances only
+  for this first version - path nodes already have their own
+  dedicated pick-up-and-drag interaction in Edit Paths mode, a
+  genuinely different, more specific gesture than a general hover
+  highlight, so left for a future pass rather than merged in without
+  a clear picture of how the two should coexist if both were active.
+
+  New `MapSettings` entry `auto_highlight_hover` (off by default - a
+  real, continuous per-mouse-move cost) + a checkbox in Settings >
+  Navigation, applied the same way `zoom_to_cursor` already is
+  (restored at construction, applied on "Apply Settings").
+
+  **Caught and fixed a real bug before it could ship**: `mouseMoveEvent`
+  never fires at all without a button held unless `setMouseTracking
+  (True)` is set on the widget - it wasn't, anywhere in this file.
+  Without that one line, hover detection would have looked complete
+  in the code but silently never actually run. Added it to `__init__`.
+
+  Hover detection reuses the already-proven `_pick_world_instance`
+  (same picking used for double-click-to-edit and whole-IPL
+  dragging) in `mouseMoveEvent`, only when no mouse button is held at
+  all, so it never fights with the existing rotate/pan/drag
+  interactions, which already have their own meaning for mouse
+  movement. New `_draw_hover_highlight` marks the hovered instance
+  with a semi-transparent yellow sphere, reusing the exact same
+  `gluSphere`/lazily-created-quadric technique already proven for the
+  cull/zone/occlusion box corner handles, rather than a new,
+  separate rendering approach.
+
+  Right-click-for-options distinguishes a genuine click from a
+  right-click-drag (camera rotation already uses right-click-drag)
+  by comparing the release position against where the press started,
+  with a small pixel tolerance for a hand that isn't perfectly still
+  between the two - verified this distinguishing logic directly
+  across four cases (a real click, a large drag, a click with
+  nothing hovered, and no press position recorded at all) before
+  trusting it. `_on_hover_context_menu` reuses the two already-
+  existing per-instance actions rather than inventing new ones: Info
+  opens the same Item Editor Dialog double-clicking already does,
+  Show Textures loads that model's textures exactly as the IPL Inst
+  File table's own right-click menu already does - both genuinely
+  shared code paths, not copies.
+
+  `ast.parse` clean on both touched files; confirmed via AST no
+  duplicate method definitions, including the handler that was still
+  missing (and would have crashed on first right-click) at the point
+  this feature was last checked in.

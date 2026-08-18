@@ -3229,6 +3229,10 @@ class MapSettings(QObject):
         # (blue) faces") - off by default, preserving each box type's
         # own configured colour unless explicitly turned on.
         'box_axis_colors': False,
+        # Auto-highlight on hover (Aug 19 2026, per Keith: "Auto
+        # object highlight setting in map_workshop settings") - off
+        # by default, a real continuous per-mouse-move cost.
+        'auto_highlight_hover': False,
         # Viewport camera keybindings (Aug 16 2026, per Keith: "A new
         # tab is needed in map workshop settings to define keys") -
         # stored as {action: {'key': int(Qt.Key), 'numpad': bool}},
@@ -8665,6 +8669,23 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "to pull in on that specific spot.")
         nav_lay.addWidget(zoom_cursor_chk)
 
+        # Auto-highlight on hover (Aug 19 2026, per Keith: "Auto
+        # object highlight setting in map_workshop settings: this
+        # could be a model, path node, anything in the viewpoint;
+        # once highlighted, right-click for options"). Scoped to
+        # instances only for this first version - see DFFViewport.
+        # _hover_highlight_enabled's own docstring for why path nodes
+        # aren't included yet.
+        hover_highlight_chk = QCheckBox("Auto-highlight object under cursor")
+        hover_highlight_chk.setChecked(bool(self.map_settings.get('auto_highlight_hover')))
+        hover_highlight_chk.setToolTip(
+            "Highlights whatever instance the mouse is currently over\n"
+            "in the 3D view, even without clicking. Right-click a\n"
+            "highlighted instance for a quick options menu (Info,\n"
+            "Show Textures). Currently instances only, not path nodes\n"
+            "or other viewport elements yet.")
+        nav_lay.addWidget(hover_highlight_chk)
+
         nav_lay.addStretch()
         tabs.addTab(nav_tab, "Navigation")
 
@@ -8750,6 +8771,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.map_settings.set('zoom_to_cursor', zoom_cursor_chk.isChecked())
             if vp2 is not None and hasattr(vp2, 'set_zoom_to_cursor'):
                 vp2.set_zoom_to_cursor(zoom_cursor_chk.isChecked())
+            self.map_settings.set('auto_highlight_hover', hover_highlight_chk.isChecked())
+            if vp2 is not None and hasattr(vp2, 'set_hover_highlight_enabled'):
+                vp2.set_hover_highlight_enabled(hover_highlight_chk.isChecked())
 
             # Keybindings (Aug 16 2026) - read every button's current
             # binding (whether rebound this dialog session or not),
@@ -12060,6 +12084,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # session.
         if hasattr(self.preview_widget, 'set_zoom_to_cursor'):
             self.preview_widget.set_zoom_to_cursor(bool(self.map_settings.get('zoom_to_cursor')))
+        # Restore the saved auto-highlight-on-hover setting too (Aug
+        # 19 2026), same pattern, and wire its own right-click-for-
+        # options callback once here as well.
+        if hasattr(self.preview_widget, 'set_hover_highlight_enabled'):
+            self.preview_widget.set_hover_highlight_enabled(
+                bool(self.map_settings.get('auto_highlight_hover')))
+        if hasattr(self.preview_widget, 'set_hover_context_callback'):
+            self.preview_widget.set_hover_context_callback(self._on_hover_context_menu)
         self._viewport_stack = QStackedWidget()
         self._viewport_stack.addWidget(self.preview_widget)   # index 0: single view
         inner_mw.setCentralWidget(self._viewport_stack)
@@ -21930,7 +21962,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._apply_ipl_visibility_filter()
         self._set_status(f"Unloaded {ipl_name}")
 
-    def _shift_ipl_coordinates(self, ipl_name, dx, dy, dz): #vers 1
+    def _shift_ipl_coordinates(self, ipl_name, dx, dy, dz, include_types=None): #vers 2
         """Translate every real position an IPL's loaded data holds
         by a fixed (dx,dy,dz) offset - added so converted/ported map
         data (per Keith: "we are planning to add coords shifting
@@ -21949,6 +21981,21 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         occl - covering every section type an IPL can hold, per
         Keith's own "across all loading ipls, zon or path" framing,
         not just instances.
+
+        include_types (Aug 19 2026, per Keith: "right-click options
+        for move ipl, move paths, move zones, move tracks, move cull,
+        move occlusion. Tick the options you want to move") - an
+        optional set of section-type keys ('inst', 'path', 'zone',
+        'cull', 'grge', 'enex', 'occl') to actually move; None (the
+        default) moves everything, matching this method's own
+        original, unconditional behaviour before this option existed.
+        Tracks aren't included as a selectable type here - they're
+        genuinely global (data/paths/tracks.dat, never tied to any
+        specific IPL's own source_ipl at all - see load_tracks_dat's
+        own docstring), so "move tracks for this one IPL" has no
+        actual data to act on; noted honestly rather than faked as a
+        tick-box that would either do nothing or silently move every
+        track regardless of which IPL was selected.
 
         Only ever shifts real WORLD POSITIONS, never dimensions,
         angles, or flags - a cull/occlusion box's width/height, a
@@ -21969,42 +22016,51 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         loader = getattr(self, '_world_loader', None)
         if loader is None:
             return
+        want = include_types if include_types is not None else \
+            {'inst', 'cull', 'zone', 'path', 'grge', 'enex', 'occl'}
         moved = 0
-        for inst in loader.instances:
-            if inst.source_ipl == ipl_name:
-                inst.pos_x += dx; inst.pos_y += dy; inst.pos_z += dz
-                moved += 1
-        for c in getattr(loader, 'culls', []):
-            if getattr(c, 'source_ipl', None) == ipl_name:
-                c.center_x += dx; c.center_y += dy; c.center_z += dz
-                c.x1 += dx; c.y1 += dy; c.z1 += dz
-                c.x2 += dx; c.y2 += dy; c.z2 += dz
-                moved += 1
-        for z in getattr(loader, 'zones', []):
-            if z.get('source_ipl') == ipl_name:
-                z['min_x'] += dx; z['min_y'] += dy; z['min_z'] += dz
-                z['max_x'] += dx; z['max_y'] += dy; z['max_z'] += dz
-                moved += 1
-        for p in getattr(loader, 'paths', []):
-            if p.source_ipl == ipl_name:
-                for node in p.nodes:
-                    node.x += dx; node.y += dy; node.z += dz
-                moved += 1
-        for g in getattr(loader, 'grges', []):
-            if g.source_ipl == ipl_name:
-                g.x1 += dx; g.y1 += dy; g.z1 += dz
-                g.front_x += dx; g.front_y += dy
-                g.x2 += dx; g.y2 += dy; g.z2 += dz
-                moved += 1
-        for e in getattr(loader, 'enexes', []):
-            if e.source_ipl == ipl_name:
-                e.enter_x += dx; e.enter_y += dy; e.enter_z += dz
-                e.exit_x += dx; e.exit_y += dy; e.exit_z += dz
-                moved += 1
-        for o in getattr(loader, 'occls', []):
-            if o.source_ipl == ipl_name:
-                o.mid_x += dx; o.mid_y += dy; o.bottom_z += dz
-                moved += 1
+        if 'inst' in want:
+            for inst in loader.instances:
+                if inst.source_ipl == ipl_name:
+                    inst.pos_x += dx; inst.pos_y += dy; inst.pos_z += dz
+                    moved += 1
+        if 'cull' in want:
+            for c in getattr(loader, 'culls', []):
+                if getattr(c, 'source_ipl', None) == ipl_name:
+                    c.center_x += dx; c.center_y += dy; c.center_z += dz
+                    c.x1 += dx; c.y1 += dy; c.z1 += dz
+                    c.x2 += dx; c.y2 += dy; c.z2 += dz
+                    moved += 1
+        if 'zone' in want:
+            for z in getattr(loader, 'zones', []):
+                if z.get('source_ipl') == ipl_name:
+                    z['min_x'] += dx; z['min_y'] += dy; z['min_z'] += dz
+                    z['max_x'] += dx; z['max_y'] += dy; z['max_z'] += dz
+                    moved += 1
+        if 'path' in want:
+            for p in getattr(loader, 'paths', []):
+                if p.source_ipl == ipl_name:
+                    for node in p.nodes:
+                        node.x += dx; node.y += dy; node.z += dz
+                    moved += 1
+        if 'grge' in want:
+            for g in getattr(loader, 'grges', []):
+                if g.source_ipl == ipl_name:
+                    g.x1 += dx; g.y1 += dy; g.z1 += dz
+                    g.front_x += dx; g.front_y += dy
+                    g.x2 += dx; g.y2 += dy; g.z2 += dz
+                    moved += 1
+        if 'enex' in want:
+            for e in getattr(loader, 'enexes', []):
+                if e.source_ipl == ipl_name:
+                    e.enter_x += dx; e.enter_y += dy; e.enter_z += dz
+                    e.exit_x += dx; e.exit_y += dy; e.exit_z += dz
+                    moved += 1
+        if 'occl' in want:
+            for o in getattr(loader, 'occls', []):
+                if o.source_ipl == ipl_name:
+                    o.mid_x += dx; o.mid_y += dy; o.bottom_z += dz
+                    moved += 1
 
         self._all_instances = list(loader.instances)
         self._apply_ipl_visibility_filter()
@@ -22187,6 +22243,27 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._prompt_shift_ipl_coordinates(ipl_name)
         elif mode == 'rotate':
             self._prompt_rotate_ipl_coordinates(ipl_name)
+
+    def _on_hover_context_menu(self, inst): #vers 1
+        """Fired by DFFViewport.set_hover_context_callback on a right-
+        click while an instance is currently hover-highlighted (Aug
+        19 2026, per Keith: "once highlighted, right-click for
+        options"). Reuses the two existing, already-built per-
+        instance actions rather than inventing new ones: Info opens
+        the same Item Editor Dialog double-clicking an instance
+        already does (_show_instance_edit_panel), Show Textures loads
+        that model's textures into the Textures dock exactly as the
+        IPL Inst File table's own right-click menu already does
+        (_show_textures_for_instance) - both genuinely shared code
+        paths, not copies."""
+        menu = QMenu(self)
+        info_act = menu.addAction("Info")
+        textures_act = menu.addAction("Show Textures")
+        chosen = menu.exec(QCursor.pos())
+        if chosen is info_act:
+            self._show_instance_edit_panel(inst)
+        elif chosen is textures_act:
+            self._show_textures_for_instance(inst)
 
     def _on_drag_ipl_context_menu(self, pos): #vers 2
         """Right-click on the IPL mode button - axis-lock choices

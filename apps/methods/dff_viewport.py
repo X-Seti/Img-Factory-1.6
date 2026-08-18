@@ -166,6 +166,15 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def __init__(self, parent=None): #vers 2
         super().__init__(parent)
+        # Mouse tracking (Aug 19 2026, for auto-highlight-on-hover) -
+        # off by default in Qt, meaning mouseMoveEvent normally only
+        # fires while a button is actually held. Without this, the
+        # hover-detection branch added to mouseMoveEvent below would
+        # never receive an event to run at all when no button is
+        # pressed, silently doing nothing regardless of the setting -
+        # caught this before it could ship as a feature that looked
+        # complete but never actually fired.
+        self.setMouseTracking(True)
         if OPENGL_AVAILABLE:
             # Per-instance format, not just the module-level default
             # (Aug 1 2026, per Keith: "we have a blank window in the
@@ -384,6 +393,25 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         # mouse-drag ones.
         self._ipl_interaction_mode = 'drag'
         self._ipl_click_callback = None
+
+        # Auto-highlight on hover (Aug 19 2026, per Keith: "Auto
+        # object highlight setting in map_workshop settings: this
+        # could be a model, path node, anything in the viewpoint;
+        # once highlighted, right-click for options"). Off by
+        # default - a real, continuous per-mouse-move cost (same
+        # class of cost LOD Test mode's own callback already pays,
+        # not a new kind of expense this app hasn't already accepted
+        # elsewhere), so opt-in rather than always-on. Scoped to
+        # instances only for this first version, not "anything" quite
+        # yet - path nodes already have their own dedicated pick-up-
+        # and-drag interaction in Edit Paths mode, a genuinely
+        # different, more specific gesture than a general hover
+        # highlight, so left for a future pass rather than merged in
+        # here without a clear picture of how the two should coexist
+        # if both were active at once.
+        self._hover_highlight_enabled = False
+        self._hovered_instance_idx = None
+        self._hover_context_callback = None
 
         # Train track waypoints (Aug 17 2026, per Keith: "then the
         # other path .dat files you pointed out earlier") - each
@@ -893,6 +921,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 self._draw_occl_boxes()
             if self.show_tracks:
                 self._draw_tracks()
+            if getattr(self, '_hovered_instance_idx', None) is not None:
+                self._draw_hover_highlight()
             if getattr(self, '_lod_test_center', None) is not None:
                 self._draw_lod_test_circle()
             if self._show_grid: self._draw_grid()
@@ -2083,6 +2113,26 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         owns-interaction, caller-owns-data callback in this file."""
         self._ipl_click_callback = callback
 
+    def set_hover_highlight_enabled(self, enabled: bool): #vers 1
+        """Toggle auto-highlight-on-hover (Aug 19 2026, per Keith's
+        own request - see the fuller explanation where self._hover_
+        highlight_enabled is first declared in __init__). Clears any
+        currently-hovered instance when turned off, so a stale
+        highlight can't linger on screen after the feature itself is
+        disabled."""
+        self._hover_highlight_enabled = enabled
+        if not enabled:
+            self._hovered_instance_idx = None
+        self.update()
+
+    def set_hover_context_callback(self, callback): #vers 1
+        """Set (or clear, with None) the function called on a right-
+        click while something is currently hovered: callback(inst).
+        map_workshop.py wires this once to open a context menu for
+        that instance - mirrors every other widget-owns-interaction,
+        caller-owns-data callback in this file."""
+        self._hover_context_callback = callback
+
     def set_show_tracks(self, enabled: bool): #vers 1
         self.show_tracks = enabled; self.update()
 
@@ -2121,6 +2171,45 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             for x, y, z in polyline:
                 glVertex3f(x, y, z)
             glEnd()
+        glEnable(GL_DEPTH_TEST)
+        glEnable(GL_LIGHTING)
+
+    def _draw_hover_highlight(self): #vers 1
+        """Draw a marker around whatever instance is currently hovered
+        (Aug 19 2026, per Keith: "Auto object highlight setting in
+        map_workshop settings: this could be a model, path node,
+        anything in the viewpoint; once highlighted, right-click for
+        options" - the visual half of that request; scoped to
+        instances only for this first version, see the fuller
+        explanation where self._hover_highlight_enabled is first
+        declared in __init__ for why path nodes aren't included yet).
+
+        A bright, semi-transparent wireframe sphere at the instance's
+        own position, reusing the exact same gluSphere technique and
+        lazily-created-once quadric object already proven for the
+        cull/zone/occlusion box corner handles - a genuinely simple,
+        cheap indicator rather than a full model-shaped outline, which
+        would need this instance's own loaded geometry/bounding box,
+        not otherwise needed just to show "this one is hovered"."""
+        idx = getattr(self, '_hovered_instance_idx', None)
+        if idx is None or idx >= len(self._world_instances):
+            return
+        entry = self._world_instances[idx]
+        x, y, z = entry['pos']
+        quadric = getattr(self, '_corner_sphere_quadric', None)
+        if quadric is None:
+            quadric = gluNewQuadric()
+            self._corner_sphere_quadric = quadric
+        glDisable(GL_LIGHTING)
+        glDisable(GL_DEPTH_TEST)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        glColor4f(1.0, 1.0, 0.2, 0.55)
+        glPushMatrix()
+        glTranslatef(x, y, z)
+        gluSphere(quadric, 1.5, 10, 8)
+        glPopMatrix()
+        glDisable(GL_BLEND)
         glEnable(GL_DEPTH_TEST)
         glEnable(GL_LIGHTING)
 
@@ -2593,8 +2682,17 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             pass
         self.update()
 
-    def mousePressEvent(self, event): #vers 3
+    def mousePressEvent(self, event): #vers 4
         self._last_pos = event.pos()
+        if event.button() == Qt.MouseButton.RightButton:
+            # Tracks where a right-click started (Aug 19 2026, for
+            # hover-highlight's own right-click-for-options request) -
+            # right-click-and-drag already means "rotate the camera"
+            # (see mouseMoveEvent), so a genuine click needs telling
+            # apart from the start of a drag; compared against the
+            # release position in mouseReleaseEvent to decide which
+            # one actually happened.
+            self._right_press_pos = event.pos()
         if event.button() == Qt.MouseButton.LeftButton:
             # Path node editing (Aug 17 2026) - its own independent
             # toggle, not part of the vertex/edge/face _select_mode
@@ -2782,6 +2880,21 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                     for inst, opos, orot, oscale in self._dragging_ipl_start_state:
                         new_pos = (opos[0] + ddx, opos[1] + ddy, opos[2] + ddz)
                         self.update_instance_transform(inst, new_pos, orot, oscale)
+        elif (event.buttons() == Qt.MouseButton.NoButton
+              and getattr(self, '_hover_highlight_enabled', False)):
+            # Auto-highlight on hover (Aug 19 2026, per Keith's own
+            # request) - only when no button is held at all, so it
+            # never fights with rotate/pan/drag, which all already
+            # have their own meaning for mouse movement. Reuses the
+            # exact same _pick_world_instance already proven for
+            # double-click-to-edit and whole-IPL dragging, rather than
+            # a new picking mechanism. The unconditional self.update()
+            # a few lines below already repaints on every mouseMoveEvent
+            # regardless, so this branch only needs to update the
+            # stored hover state itself, not trigger its own separate
+            # repaint too.
+            idx = self._pick_world_instance(event.pos().x(), event.pos().y())
+            self._hovered_instance_idx = idx
         self._last_pos = event.pos(); self.update()
 
         # LOD test mode (Aug 1 2026, per Keith's crash: "AttributeError:
@@ -2854,8 +2967,28 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glPopMatrix()
         glLineWidth(1.0)
 
-    def mouseReleaseEvent(self, event): #vers 2
+    def mouseReleaseEvent(self, event): #vers 3
         self._last_pos = event.pos()
+        if event.button() == Qt.MouseButton.RightButton:
+            # Right-click for options on a hovered instance (Aug 19
+            # 2026, per Keith: "once highlighted, right-click for
+            # options"). A real click (barely moved since press) is
+            # told apart from a right-click-drag (camera rotation) by
+            # comparing against the position stored at press time -
+            # small pixel tolerance for a hand that isn't perfectly
+            # still between press and release, not a strict pixel-
+            # for-pixel match.
+            press_pos = getattr(self, '_right_press_pos', None)
+            self._right_press_pos = None
+            if press_pos is not None:
+                moved = (event.pos() - press_pos).manhattanLength()
+                hovered_idx = getattr(self, '_hovered_instance_idx', None)
+                callback = getattr(self, '_hover_context_callback', None)
+                if moved <= 4 and hovered_idx is not None and callback is not None:
+                    entry = self._world_instances[hovered_idx]
+                    inst = entry.get('instance')
+                    if inst is not None:
+                        callback(inst)
         # Commit a completed path node drag (Aug 17 2026) - looks up
         # the real (group_ref, node_index) via the ORIGINAL start
         # position (self._path_node_owner_map's own keys never change
