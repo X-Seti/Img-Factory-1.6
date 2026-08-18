@@ -489,6 +489,34 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         # for the exact per-face colour logic).
         self._box_axis_colors = False
 
+        # Unique colour per box (Aug 19 2026, per Keith: "add colour
+        # zone boxes" - with real reference screenshots showing
+        # several distinct, individually-coloured cull/zone boxes
+        # side by side, not one uniform colour per box TYPE the way
+        # this app already does, and not axis-face colouring either -
+        # each individual box gets its own colour so adjacent/
+        # overlapping zones are easy to tell apart at a glance). A
+        # fixed, varied palette assigned by each box's own index
+        # within its loaded list, cycling if there are more boxes
+        # than palette entries - deterministic (the same box always
+        # gets the same colour within one session, not randomised
+        # every refresh) rather than a true random colour per box,
+        # which would flicker differently on every reload. Takes
+        # priority under axis_colored when both would otherwise
+        # apply to the same box - see _draw_ghosted_box_from_corners's
+        # own docstring for the exact precedence.
+        self._box_unique_colors = False
+        self._box_color_palette = [
+            (1.0, 0.55, 0.0),   # orange
+            (0.2, 0.8, 0.2),    # green
+            (1.0, 0.2, 0.8),    # magenta/pink
+            (0.85, 0.15, 0.15), # red
+            (0.25, 0.45, 1.0),  # blue
+            (0.95, 0.85, 0.1),  # yellow
+            (0.6, 0.25, 0.85),  # purple
+            (0.1, 0.75, 0.75),  # teal
+        ]
+
         # Wheels
         self._wheels_model      = None
         self._wheels_model_path = ''
@@ -1080,7 +1108,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         actual documented box, no assumption needed."""
         self._draw_ghosted_boxes(self._cull_boxes, self._cull_box_color)
 
-    def _draw_zone_boxes(self): #vers 3
+    def _draw_zone_boxes(self): #vers 4
         """Draw every loaded map zone, style selectable via self.
         _zone_render_style (Aug 16 2026, per Keith: "in zons, the
         render dropdown could show, Zon - Ghosted, Zon - Wireframe,
@@ -1090,31 +1118,45 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         through the same shared _draw_ghosted_box_from_corners, just
         with different fill_alpha/draw_outline - translucent is more
         see-through and has no outline at all, letting the corner
-        spheres alone mark the box's extent."""
+        spheres alone mark the box's extent.
+
+        Per-box unique colouring (Aug 19 2026, per Keith: "add colour
+        zone boxes") applies here too, same _palette_color_for_index
+        lookup and same axis-colored-takes-priority rule as cull's
+        own _draw_ghosted_boxes - color set per-box inside each loop
+        below rather than once outside it, so the wireframe style
+        (which sets its own GL colour explicitly) can vary per box
+        too, not just the filled styles."""
         if not OPENGL_AVAILABLE or not self._zone_boxes: return
         style = self._zone_render_style
         glDisable(GL_LIGHTING)
         glDisable(GL_DEPTH_TEST)
         r, g, b = self._zone_box_color
+        axis_colored = getattr(self, '_box_axis_colors', False)
+        unique_colors = getattr(self, '_box_unique_colors', False)
         if style == 'wireframe':
-            glColor3f(r, g, b)
             glLineWidth(1.5)
-            for x1, y1, z1, x2, y2, z2 in self._zone_boxes:
+            for i, (x1, y1, z1, x2, y2, z2) in enumerate(self._zone_boxes):
+                box_r, box_g, box_b = self._palette_color_for_index(i) \
+                    if (unique_colors and not axis_colored) else (r, g, b)
+                glColor3f(box_r, box_g, box_b)
                 corners_xy = [(x1, y1), (x2, y1), (x2, y2), (x1, y2)]
                 self._draw_box_wireframe_from_corners(corners_xy, z1, z2)
-                self._draw_box_corner_spheres(corners_xy, z1, z2, r, g, b)
+                self._draw_box_corner_spheres(corners_xy, z1, z2, box_r, box_g, box_b)
         else:
             glEnable(GL_BLEND)
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
             fill_alpha = 0.16 if style == 'translucent' else 0.32
             draw_outline = style != 'translucent'
-            for x1, y1, z1, x2, y2, z2 in self._zone_boxes:
+            for i, (x1, y1, z1, x2, y2, z2) in enumerate(self._zone_boxes):
+                box_r, box_g, box_b = self._palette_color_for_index(i) \
+                    if (unique_colors and not axis_colored) else (r, g, b)
                 corners_xy = [(x1, y1), (x2, y1), (x2, y2), (x1, y2)]
                 self._draw_ghosted_box_from_corners(
-                    corners_xy, z1, z2, r, g, b,
+                    corners_xy, z1, z2, box_r, box_g, box_b,
                     fill_alpha=fill_alpha, draw_outline=draw_outline,
-                    axis_colored=getattr(self, '_box_axis_colors', False))
-                self._draw_box_corner_spheres(corners_xy, z1, z2, r, g, b)
+                    axis_colored=axis_colored)
+                self._draw_box_corner_spheres(corners_xy, z1, z2, box_r, box_g, box_b)
             glDisable(GL_BLEND)
         glEnable(GL_DEPTH_TEST)
         glEnable(GL_LIGHTING)
@@ -1145,11 +1187,15 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         r, g, b = color
-        for x1, y1, z1, x2, y2, z2 in boxes:
+        axis_colored = getattr(self, '_box_axis_colors', False)
+        unique_colors = getattr(self, '_box_unique_colors', False)
+        for i, (x1, y1, z1, x2, y2, z2) in enumerate(boxes):
+            box_r, box_g, box_b = self._palette_color_for_index(i) \
+                if (unique_colors and not axis_colored) else (r, g, b)
             corners_xy = [(x1, y1), (x2, y1), (x2, y2), (x1, y2)]
-            self._draw_ghosted_box_from_corners(corners_xy, z1, z2, r, g, b,
-                axis_colored=getattr(self, '_box_axis_colors', False))
-            self._draw_box_corner_spheres(corners_xy, z1, z2, r, g, b)
+            self._draw_ghosted_box_from_corners(corners_xy, z1, z2, box_r, box_g, box_b,
+                axis_colored=axis_colored)
+            self._draw_box_corner_spheres(corners_xy, z1, z2, box_r, box_g, box_b)
         glDisable(GL_BLEND)
         glEnable(GL_DEPTH_TEST)
         glEnable(GL_LIGHTING)
@@ -1329,7 +1375,11 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         r, g, b = self._occl_box_color
-        for mid_x, mid_y, bottom_z, width_x, width_y, height, rotation in self._occl_boxes:
+        axis_colored = getattr(self, '_box_axis_colors', False)
+        unique_colors = getattr(self, '_box_unique_colors', False)
+        for i, (mid_x, mid_y, bottom_z, width_x, width_y, height, rotation) in enumerate(self._occl_boxes):
+            box_r, box_g, box_b = self._palette_color_for_index(i) \
+                if (unique_colors and not axis_colored) else (r, g, b)
             hw, hh = width_x / 2.0, width_y / 2.0
             rad = math.radians(rotation)
             cos_r, sin_r = math.cos(rad), math.sin(rad)
@@ -1339,9 +1389,9 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 ry = dx * sin_r + dy * cos_r
                 corners_xy.append((mid_x + rx, mid_y + ry))
             z1, z2 = bottom_z, bottom_z + height
-            self._draw_ghosted_box_from_corners(corners_xy, z1, z2, r, g, b,
-                axis_colored=getattr(self, '_box_axis_colors', False))
-            self._draw_box_corner_spheres(corners_xy, z1, z2, r, g, b)
+            self._draw_ghosted_box_from_corners(corners_xy, z1, z2, box_r, box_g, box_b,
+                axis_colored=axis_colored)
+            self._draw_box_corner_spheres(corners_xy, z1, z2, box_r, box_g, box_b)
         glDisable(GL_BLEND)
         glEnable(GL_DEPTH_TEST)
         glEnable(GL_LIGHTING)
@@ -2350,6 +2400,22 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         type is being edited."""
         self._box_axis_colors = enabled
         self.update()
+
+    def set_box_unique_colors(self, enabled: bool): #vers 1
+        """Toggle unique-colour-per-box (Aug 19 2026, per Keith's own
+        request - see the fuller explanation where self._box_unique_
+        colors is first declared in __init__)."""
+        self._box_unique_colors = enabled
+        self.update()
+
+    def _palette_color_for_index(self, idx: int): #vers 1
+        """Deterministic colour lookup for unique-per-box colouring -
+        cycles through self._box_color_palette by index, so the same
+        box (same position within its own loaded list) always gets
+        the same colour within a session rather than a true random
+        colour that would flicker differently on every reload."""
+        palette = self._box_color_palette
+        return palette[idx % len(palette)]
 
     def _clear_col_display_lists(self): #vers 1
         """Same reasoning as _clear_world_display_lists, kept as its

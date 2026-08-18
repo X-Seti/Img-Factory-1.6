@@ -6376,3 +6376,49 @@ conclusively found despite extensive isolated testing.
   left a Cull box untouched, ticking both moved both. `ast.parse`
   clean; confirmed via AST no duplicate method definitions anywhere,
   including `_on_ipl_dragged` after the fix.
+
+- **Aug 19, 2026 (cont'd)** — Built unique-colour-per-box, per Keith:
+  "add colour zone boxes" (with real reference screenshots of several
+  distinctly-coloured cull/zone boxes side by side, confirming this
+  means each individual box getting its own colour, not the axis-
+  face colouring already built - a different, additional visual
+  mode).
+
+  New `_box_unique_colors` setting + an 8-colour fixed palette
+  (orange/green/magenta/red/blue/yellow/purple/teal), assigned
+  deterministically by each box's own index within its loaded list
+  (cycling past 8) via a new `_palette_color_for_index` - the same
+  box always gets the same colour within a session, not a true
+  random colour that would flicker differently on every reload.
+  Applied to all three box types (`_draw_ghosted_boxes`/cull, `_draw_
+  zone_boxes`, `_draw_occl_boxes`) - zone's own wireframe style
+  needed its per-box `glColor3f` call moved inside its drawing loop
+  (was set once outside it) to actually support per-box colour there
+  too, not just the filled ghosted/translucent styles. Takes a back
+  seat to axis-coloured faces if both are on at once, matching how
+  the two visual modes were always going to need a defined
+  precedence rather than fighting over the same box. New checkbox in
+  Settings > Render's "Cull / Zone / Occlusion Boxes" group, wired
+  the same save/restore/apply pattern as the existing axis-colours
+  checkbox exactly.
+
+  Verified the palette-cycling logic directly: deterministic (same
+  index always the same colour), correctly wraps past the 8-entry
+  palette length. `ast.parse` clean on both touched files; confirmed
+  via AST no duplicate method definitions.
+
+  **Also from the same message, addressed as clarification rather
+  than code**: Keith's own question about whether Drag currently
+  moves "a single object or selected objects using Shift" surfaced a
+  real mismatch - the existing Drag mode actually moves the ENTIRE
+  IPL a clicked instance belongs to, not a single object or a multi-
+  selection. Flagged this honestly rather than assuming or silently
+  building around it. His descriptions of Move/Rotate selecting IPLs
+  via Shift-click in the IPL Sections list (plus a "select all IPLs"
+  right-click option) describe a genuinely different selection model
+  than what exists (currently: click an instance in the viewport) -
+  a real, separate piece of scope, not started this pass. His "add
+  the option to also rotate paths, zones, and cull" was confirmed
+  already built (the per-section-type tick-boxes from the previous
+  session) - pointed out in case it hadn't been pulled/tested yet
+  rather than assumed already seen.

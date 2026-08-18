@@ -3229,6 +3229,10 @@ class MapSettings(QObject):
         # (blue) faces") - off by default, preserving each box type's
         # own configured colour unless explicitly turned on.
         'box_axis_colors': False,
+        # Unique colour per box (Aug 19 2026, per Keith: "add colour
+        # zone boxes", with real reference screenshots of several
+        # distinctly-coloured cull/zone boxes) - off by default.
+        'box_unique_colors': False,
         # Auto-highlight on hover (Aug 19 2026, per Keith: "Auto
         # object highlight setting in map_workshop settings") - off
         # by default, a real continuous per-mouse-move cost.
@@ -8341,6 +8345,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "at a glance, regardless of the box's own type colour.")
         boxes_form.addRow(axis_colors_chk)
 
+        unique_colors_chk = QCheckBox("Unique colour per box")
+        unique_colors_chk.setChecked(bool(self.map_settings.get('box_unique_colors')))
+        unique_colors_chk.setToolTip(
+            "Each individual cull/zone/occlusion box gets its own\n"
+            "colour from a fixed palette instead of every box of the\n"
+            "same type sharing one colour - makes adjacent/overlapping\n"
+            "zones easy to tell apart. Takes a back seat to axis-\n"
+            "coloured faces above if both are on at once.")
+        boxes_form.addRow(unique_colors_chk)
+
         render_layout.addWidget(boxes_grp)
         render_layout.addStretch()
         tabs.addTab(render_tab, "Render")
@@ -8857,6 +8871,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.map_settings.set('box_axis_colors', axis_colors_chk.isChecked())
             if vp is not None and hasattr(vp, 'set_box_axis_colors'):
                 vp.set_box_axis_colors(axis_colors_chk.isChecked())
+            self.map_settings.set('box_unique_colors', unique_colors_chk.isChecked())
+            if vp is not None and hasattr(vp, 'set_box_unique_colors'):
+                vp.set_box_unique_colors(unique_colors_chk.isChecked())
 
             # The rest of this function (fonts, button mode, export
             # format, preview/background settings) is pre-existing
@@ -26855,6 +26872,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             vp.set_cull_box_color(cr / 255.0, cg / 255.0, cb / 255.0)
         if hasattr(vp, 'set_box_axis_colors'):
             vp.set_box_axis_colors(bool(self.map_settings.get('box_axis_colors')))
+        if hasattr(vp, 'set_box_unique_colors'):
+            vp.set_box_unique_colors(bool(self.map_settings.get('box_unique_colors')))
         loader = getattr(self, '_world_loader', None)
         if loader is None:
             vp.set_cull_boxes([])
@@ -26901,6 +26920,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             vp.set_zone_box_color(cr / 255.0, cg / 255.0, cb / 255.0)
         if hasattr(vp, 'set_box_axis_colors'):
             vp.set_box_axis_colors(bool(self.map_settings.get('box_axis_colors')))
+        if hasattr(vp, 'set_box_unique_colors'):
+            vp.set_box_unique_colors(bool(self.map_settings.get('box_unique_colors')))
         loader = getattr(self, '_world_loader', None)
         if loader is None:
             vp.set_zone_boxes([])
@@ -26955,6 +26976,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             vp.set_occl_box_color(cr / 255.0, cg / 255.0, cb / 255.0)
         if hasattr(vp, 'set_box_axis_colors'):
             vp.set_box_axis_colors(bool(self.map_settings.get('box_axis_colors')))
+        if hasattr(vp, 'set_box_unique_colors'):
+            vp.set_box_unique_colors(bool(self.map_settings.get('box_unique_colors')))
         loader = getattr(self, '_world_loader', None)
         if loader is None:
             vp.set_occl_boxes([])
