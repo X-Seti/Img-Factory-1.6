@@ -6482,3 +6482,63 @@ conclusively found despite extensive isolated testing.
   clean; confirmed via AST no duplicate method definitions and, via
   direct search, zero remaining references anywhere in the file to
   the old singular `_dragging_ipl_name` attribute.
+
+- **Aug 19, 2026 (cont'd)** — Refined the multi-IPL workflow after
+  Keith's own second pass at it: "Rethinking this; Shift + left-click
+  selects the entire .ipls in the Object Browser, with right-click
+  options: Load All, Unload All, Select All, Deselect All; shown in
+  the status bar... Left Control key, click and hold left mouse drags
+  entire IPL(s)."
+
+  **Selection moved to (also) work from the IPL Sections table
+  itself**, not just Shift+clicking instances in the 3D view -
+  discovered Ctrl/Shift+click multi-select was already enabled there
+  from an earlier request (`ExtendedSelection` mode), so the missing
+  pieces were the confirmation/feedback and the actual wiring into
+  the drag workflow, not the underlying Qt selection mechanism
+  itself. New `itemSelectionChanged` handler (`_on_ipl_sections_
+  selection_changed`) reads the table's own selected rows and syncs
+  them into the SAME shared selection set the viewport's own
+  Shift+click already builds (new `DFFViewport.set_multi_selected_
+  ipl_names`) - both selection surfaces feed one underlying set, so
+  it doesn't matter which one was actually used to build it.
+
+  New right-click actions on the IPL Sections table: **Select All**/
+  **Deselect All** (the table's own `selectAll()`/`clearSelection()`),
+  and **Load All**/**Unload All** - deliberately whole-list actions,
+  distinct from the already-existing "Load Selected", not scoped to
+  whatever's currently selected at all. New `_unload_all_ipl_sections`
+  doesn't just loop the existing single-IPL `_unload_ipl_section` (that
+  method does its own full refresh on every call, so looping it would
+  repeat that refresh once per IPL for nothing) - does the same
+  underlying per-list removal work directly across every loaded IPL,
+  then refreshes exactly once at the end.
+
+  **Simplified the Drag gesture itself** after this second pass:
+  Ctrl+click+hold+drag is now the one and only way to actually start
+  a drag - "drags entire IPL(s)" (plural) means it drags whatever's
+  currently selected if there's an active selection, or falls back to
+  just the clicked instance's own IPL if nothing's selected. A plain
+  click with no modifier now does nothing at all - dropped the
+  earlier version's "plain click drags the selection, Ctrl drags just
+  one" split, which needed two different triggers for what's really
+  the same underlying action (Ctrl now covers both cases on its own,
+  simpler and less to remember).
+
+  Status bar wording now matches Keith's own example exactly ("N
+  entire ipl(s) selected") - the existing `_on_ipl_selection_changed`
+  (from a session or two ago's viewport-side Shift+click work) is
+  reused directly for the table's own selection changes too, rather
+  than duplicating the same formatting in a second method.
+
+  Verified directly against real `IPLInstance` objects before
+  trusting any of it: Ctrl+click-with-selection drags the whole
+  selection even when the actually-clicked instance isn't part of it
+  (confirming the "drags entire IPL(s)" intent, not just "drags
+  whichever one you happened to click"), Ctrl+click-with-nothing-
+  selected correctly falls back to the one clicked IPL, the per-name
+  commit loop still fires correctly for a multi-IPL result, and
+  Unload All's own filtering correctly removes every instance across
+  multiple loaded IPLs while leaving an unloaded one completely
+  untouched. `ast.parse` clean on both touched files; confirmed via
+  AST no duplicate method definitions.

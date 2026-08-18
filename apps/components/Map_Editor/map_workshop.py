@@ -21454,6 +21454,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         table.cellDoubleClicked.connect(self._on_ipl_section_cell_double_clicked)
         table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         table.customContextMenuRequested.connect(self._on_ipl_sections_context_menu)
+        # Status bar feedback whenever the row selection changes (Aug
+        # 19 2026, per Keith: "shown in the status bar; example: 5
+        # entire ipl(s) selected") - Ctrl/Shift+click multi-select was
+        # already enabled on this table from an earlier request; this
+        # just adds the confirmation that a selection actually
+        # registered, the same way _on_ipl_selection_changed already
+        # does for the viewport's own Shift+click multi-select.
+        table.itemSelectionChanged.connect(self._on_ipl_sections_selection_changed)
         content_lay.addWidget(table)
         self._ipl_sections_table = table
 
@@ -21855,6 +21863,27 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             load_act.triggered.connect(
                 lambda checked=False, rows=selected_rows: self._load_selected_ipl_sections(rows))
 
+        # Select All / Deselect All / Load All / Unload All (Aug 19
+        # 2026, per Keith: "Shift + left-click selects the entire
+        # .ipls in the Object Browser... right-click options: Load
+        # All, Unload All, Select All, Deselect All"). Select/Deselect
+        # act on the table's own row-selection state (Ctrl/Shift+click
+        # multi-select was already enabled here from an earlier
+        # request); Load All/Unload All are deliberately whole-list
+        # actions, distinct from Load Selected just above - every IPL
+        # in the file regardless of what's currently selected, not
+        # scoped to a selection at all.
+        menu.addSeparator()
+        select_all_act = menu.addAction("Select All")
+        select_all_act.triggered.connect(table.selectAll)
+        deselect_all_act = menu.addAction("Deselect All")
+        deselect_all_act.triggered.connect(table.clearSelection)
+        load_all_act = menu.addAction("Load All")
+        load_all_act.triggered.connect(
+            lambda checked=False: self._load_selected_ipl_sections(range(table.rowCount())))
+        unload_all_act = menu.addAction("Unload All")
+        unload_all_act.triggered.connect(self._unload_all_ipl_sections)
+
         # Load Binary Stream (Aug 1 2026, per Keith: "we need to be
         # able to load these binary IPLs, so right click, show the
         # list, to load from") - a submenu listing every associated
@@ -21996,6 +22025,51 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._rebuild_ipl_sections_rows()
         self._apply_ipl_visibility_filter()
         self._set_status(f"Unloaded {ipl_name}")
+
+    def _unload_all_ipl_sections(self): #vers 1
+        """Unload every currently-loaded IPL at once (Aug 19 2026, per
+        Keith: "right-click options: Load All, Unload All, Select
+        All, Deselect All"). Deliberately not just calling _unload_
+        ipl_section once per loaded IPL in a loop - that method does
+        its own full table/viewport refresh on every single call, so
+        looping it would repeat that refresh once per IPL for no
+        benefit; this does the same underlying per-list removal work
+        directly, then refreshes exactly once at the end."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            return
+        display_names = list(getattr(self, '_ipl_display_to_stem', {}).keys())
+        loaded_names = [n for n in display_names if n not in getattr(self, '_hidden_ipls', set())]
+        if not loaded_names:
+            self._set_status("No loaded IPLs to unload")
+            return
+        loaded_set = set(loaded_names)
+
+        loader.instances[:] = [i for i in loader.instances if i.source_ipl not in loaded_set]
+        loader.culls[:] = [c for c in getattr(loader, 'culls', [])
+                           if getattr(c, 'source_ipl', None) not in loaded_set]
+        loader.zones[:] = [z for z in getattr(loader, 'zones', [])
+                           if z.get('source_ipl') not in loaded_set]
+        loader.paths[:] = [p for p in getattr(loader, 'paths', []) if p.source_ipl not in loaded_set]
+        loader.grges[:] = [g for g in getattr(loader, 'grges', []) if g.source_ipl not in loaded_set]
+        loader.enexes[:] = [e for e in getattr(loader, 'enexes', []) if e.source_ipl not in loaded_set]
+        loader.occls[:] = [o for o in getattr(loader, 'occls', []) if o.source_ipl not in loaded_set]
+
+        stem_map = getattr(self, '_ipl_display_to_stem', {})
+        for name in loaded_names:
+            stem = stem_map.get(name)
+            if stem is not None:
+                loader.loaded_ipls.discard(stem)
+        loaded_binary = getattr(self, '_loaded_binary_ipls', None)
+        if loaded_binary is not None:
+            loaded_binary.difference_update(loaded_set)
+
+        self._all_instances = list(loader.instances)
+        self._hidden_ipls.update(loaded_set)
+        self._populate_object_browser(loader)
+        self._rebuild_ipl_sections_rows()
+        self._apply_ipl_visibility_filter()
+        self._set_status(f"Unloaded {len(loaded_names)} IPL(s)")
 
     def _shift_ipl_coordinates(self, ipl_name, dx, dy, dz, include_types=None): #vers 2
         """Translate every real position an IPL's loaded data holds
@@ -22370,7 +22444,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         elif mode == 'rotate':
             self._prompt_rotate_ipl_coordinates(ipl_name)
 
-    def _on_ipl_selection_changed(self, selected_names): #vers 1
+    def _on_ipl_selection_changed(self, selected_names): #vers 2
         """Fired by DFFViewport.set_ipl_selection_callback whenever a
         Shift+click adds/removes an IPL from the current multi-select
         (Aug 19 2026, per Keith's own careful workflow spec: "holding
@@ -22380,15 +22454,46 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         selected, and their names for a small selection, rather than
         a whole separate always-visible panel just to confirm a
         selection state that's usually about to be used immediately
-        (drag them, or Shift+click to deselect one)."""
+        (drag them, or Shift+click to deselect one). Also reused
+        directly by _on_ipl_sections_selection_changed for the IPL
+        Sections table's own Shift/Ctrl+click multi-select - same
+        underlying selection set, same status message either way it
+        got built."""
         if not selected_names:
             self._set_status("IPL selection cleared")
             return
         names = sorted(selected_names)
         if len(names) <= 4:
-            self._set_status(f"{len(names)} IPL(s) selected: {', '.join(names)}")
+            self._set_status(f"{len(names)} entire ipl(s) selected: {', '.join(names)}")
         else:
-            self._set_status(f"{len(names)} IPLs selected")
+            self._set_status(f"{len(names)} entire ipl(s) selected")
+
+    def _on_ipl_sections_selection_changed(self): #vers 1
+        """Fired whenever the IPL Sections table's own row selection
+        changes (Aug 19 2026, per Keith: "Shift + left-click selects
+        the entire .ipls in the Object Browser... shown in the status
+        bar; example: 5 entire ipl(s) selected"). Reads the currently
+        selected rows' own IPL names, syncs them into the viewport's
+        shared multi-selection set (the same one Shift+click on an
+        instance in the 3D view already builds - see DFFViewport.
+        set_multi_selected_ipl_names' own docstring), then reuses _on_
+        ipl_selection_changed directly for the status message rather
+        than duplicating its formatting."""
+        table = getattr(self, '_ipl_sections_table', None)
+        if table is None:
+            return
+        names = set()
+        for row in {idx.row() for idx in table.selectedIndexes()}:
+            item = table.item(row, 0)
+            if item is not None:
+                name = item.data(Qt.ItemDataRole.UserRole)
+                if name:
+                    names.add(name)
+        vp = getattr(self, 'preview_widget', None)
+        if vp is not None and hasattr(vp, 'set_multi_selected_ipl_names'):
+            vp.set_multi_selected_ipl_names(names)
+        self._on_ipl_selection_changed(names)
+
 
     def _on_hover_context_menu(self, inst): #vers 1
         """Fired by DFFViewport.set_hover_context_callback on a right-
@@ -23580,10 +23685,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         ipl_mode_btn.setStyleSheet(_compact_18)
         ipl_mode_btn.setToolTip(
             "Click to cycle: Off \u2192 Drag \u2192 Move \u2192 Rotate \u2192 Off.\n"
-            "Drag: Ctrl+click-drag an instance to move its whole IPL\n"
-            "immediately. Or Shift+click several instances to build a\n"
-            "multi-IPL selection (no drag yet), then plain click-drag\n"
-            "any of them to move every selected IPL together as one.\n"
+            "Drag: Shift+click instances (or IPL Sections rows) to\n"
+            "build a multi-IPL selection - no drag yet, just selecting.\n"
+            "Then Ctrl+click-drag any instance to drag the whole\n"
+            "selection together, or just that one IPL if nothing's\n"
+            "selected. A plain click alone does nothing.\n"
             "Move: click an instance to open Shift Coordinates for its IPL.\n"
             "Rotate: click an instance to open Rotate for its IPL.\n"
             "Right-click while in Drag: axis-lock options.")

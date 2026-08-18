@@ -2214,6 +2214,20 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         this file."""
         self._ipl_selection_callback = callback
 
+    def set_multi_selected_ipl_names(self, names): #vers 1
+        """Directly set the current multi-IPL selection from outside
+        (Aug 19 2026, per Keith: "Shift + left-click selects the
+        entire .ipls in the Object Browser" - a second, list-based way
+        to build the same selection this viewport's own Shift+click-
+        on-an-instance gesture builds, so map_workshop.py can sync
+        whichever rows are selected in the IPL Sections table into
+        this same underlying set). Both selection mechanisms feed the
+        one set - a Ctrl+drag or plain click-drag in the viewport
+        picks up whatever's currently selected regardless of which of
+        the two ways it was actually selected."""
+        self._multi_selected_ipl_names = set(names) if names else set()
+        self.update()
+
     def set_hover_highlight_enabled(self, enabled: bool): #vers 1
         """Toggle auto-highlight-on-hover (Aug 19 2026, per Keith's
         own request - see the fuller explanation where self._hover_
@@ -2872,10 +2886,26 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                             return
 
                         # Multi-IPL selection/drag workflow (Aug 19
-                        # 2026, per Keith's own careful spec - see the
-                        # fuller explanation where self._multi_
-                        # selected_ipl_names is first declared in
-                        # __init__).
+                        # 2026, per Keith's own careful, two-part spec
+                        # - see the fuller explanation where self.
+                        # _multi_selected_ipl_names is first declared
+                        # in __init__). Shift+click builds a selection
+                        # (own IPL Sections table row-clicks feed the
+                        # exact same set too, via set_multi_selected_
+                        # ipl_names). Ctrl+click+hold+drag is the ONE
+                        # way to actually start a drag - "Left Control
+                        # key, click and hold left mouse drags entire
+                        # IPL(s)" (plural), so it drags the CURRENT
+                        # selection if one exists, or falls back to
+                        # just the clicked instance's own IPL if
+                        # nothing's selected. A plain click with
+                        # neither modifier does nothing at all now -
+                        # Ctrl is the single, universal, explicit
+                        # gesture for "drag", simpler and less
+                        # ambiguous than the earlier version of this
+                        # same workflow, which split "drag one" and
+                        # "drag the selection" across two different
+                        # triggers (Ctrl vs a plain click).
                         modifiers = event.modifiers()
                         if modifiers & Qt.KeyboardModifier.ShiftModifier:
                             # Shift+click: toggle this IPL into/out of
@@ -2893,32 +2923,12 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                             self.update()
                             return
                         elif modifiers & Qt.KeyboardModifier.ControlModifier:
-                            # Ctrl+click: drag just this one IPL
-                            # immediately, regardless of whatever else
-                            # is currently multi-selected - a quick,
-                            # explicit single-IPL shortcut that doesn't
-                            # touch or require the selection at all.
-                            drag_names = {ipl_name}
-                        elif self._multi_selected_ipl_names:
-                            # Plain click+drag with an active multi-
-                            # selection: drag every selected IPL
-                            # together as one combined rigid-body
-                            # move, regardless of which specific
-                            # instance was actually clicked to start
-                            # the drag - the intent is "move the whole
-                            # group I've built up", not tied to one
-                            # particular clicked point beyond anchoring
-                            # the drag's own ground-plane projection.
-                            drag_names = set(self._multi_selected_ipl_names)
+                            drag_names = set(self._multi_selected_ipl_names) \
+                                if self._multi_selected_ipl_names else {ipl_name}
                         else:
-                            # Plain click+drag with nothing selected:
-                            # deliberately does nothing. Ctrl is now
-                            # the explicit, intentional gesture for
-                            # "drag this one IPL" - an unmodified click
-                            # no longer drags anything by itself, to
-                            # avoid an accidental drag from what might
-                            # have just been an ordinary click.
+                            # No modifier at all: does nothing.
                             return
+
 
                         self._dragging_ipl_names = drag_names
                         # A list of (inst, pos, rot, scale) tuples, NOT
