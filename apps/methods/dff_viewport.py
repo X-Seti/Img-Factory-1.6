@@ -359,6 +359,18 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._dragging_ipl_ground_start = None
         self._dragging_ipl_delta = (0.0, 0.0, 0.0)
         self._ipl_drag_callback = None
+        # Axis lock (Aug 18 2026, per Keith: "[Drag ipl] right-click
+        # options, like lock z, only move x, y"). Z is already always
+        # effectively locked by the existing ground-plane-constrained
+        # drag design (the plane is fixed at the clicked instance's
+        # own starting height, so the resolved delta's own Z
+        # component is always 0 regardless of this setting - there's
+        # no separate "lock Z" toggle needed for that). This
+        # specifically covers the two REMAINING practical choices:
+        # locking X (so only Y actually moves) or locking Y (so only
+        # X moves) - None means free X/Y movement, the existing
+        # default behaviour.
+        self._ipl_drag_axis_lock = None
 
         # Train track waypoints (Aug 17 2026, per Keith: "then the
         # other path .dat files you pointed out earlier") - each
@@ -2026,6 +2038,17 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         widget-owns-interaction, caller-owns-data split."""
         self._ipl_drag_callback = callback
 
+    def set_ipl_drag_axis_lock(self, axis): #vers 1
+        """Set the axis-lock mode for whole-IPL dragging (Aug 18
+        2026, per Keith: "[Drag ipl] right-click options, like lock
+        z, only move x, y"). axis is None (free X/Y - the existing
+        default), 'x' (lock X - only Y actually moves), or 'y' (lock
+        Y - only X moves). Z is already always effectively locked by
+        the ground-plane-constrained drag design itself, independent
+        of this setting - see the fuller explanation where self.
+        _ipl_drag_axis_lock is first declared in __init__."""
+        self._ipl_drag_axis_lock = axis if axis in ('x', 'y') else None
+
     def set_show_tracks(self, enabled: bool): #vers 1
         self.show_tracks = enabled; self.update()
 
@@ -2695,6 +2718,19 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                     ddx = cur_ground[0] - start_ground[0]
                     ddy = cur_ground[1] - start_ground[1]
                     ddz = cur_ground[2] - start_ground[2]
+                    # Axis lock (Aug 18 2026) - applied as a simple
+                    # post-processing mask on the already-computed
+                    # delta, rather than changing the underlying
+                    # ground-plane projection itself: zero out
+                    # whichever axis is locked before it ever reaches
+                    # the live preview or gets stored for the eventual
+                    # commit, so a locked axis genuinely never moves,
+                    # not just visually suppressed.
+                    axis_lock = getattr(self, '_ipl_drag_axis_lock', None)
+                    if axis_lock == 'x':
+                        ddx = 0.0
+                    elif axis_lock == 'y':
+                        ddy = 0.0
                     self._dragging_ipl_delta = (ddx, ddy, ddz)
                     for inst, opos, orot, oscale in self._dragging_ipl_start_state:
                         new_pos = (opos[0] + ddx, opos[1] + ddy, opos[2] + ddz)

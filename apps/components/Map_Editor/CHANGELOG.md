@@ -6007,3 +6007,39 @@ conclusively found despite extensive isolated testing.
   reimplementation) against a real live `PathGroup` object from
   `pathslc.ipl` one more time as a final check. `ast.parse` clean;
   confirmed via AST no duplicate method definitions.
+
+- **Aug 18, 2026 (cont'd)** — Added axis-lock right-click options for
+  whole-IPL dragging, per Keith: "[Drag ipl] right-click options,
+  like lock z, only move x, y."
+
+  Z is already always effectively locked by the drag's own existing
+  ground-plane-constrained design (the projection plane is fixed at
+  the clicked instance's own starting height, so the resolved delta's
+  Z component is always 0 regardless) - no separate toggle was needed
+  for that part of the request. This adds the two remaining practical
+  choices: right-click the Drag IPL checkbox for "Free movement (X
+  and Y)" (the existing default), "Lock X (only Y moves)", or "Lock Y
+  (only X moves)."
+
+  New `DFFViewport.set_ipl_drag_axis_lock`/`self._ipl_drag_axis_lock`
+  - applied as a simple post-processing mask on the already-computed
+  ground-plane delta in `mouseMoveEvent` (zeroing whichever axis is
+  locked before it ever reaches the live preview or gets stored),
+  rather than changing the underlying projection math itself. Since
+  `mouseReleaseEvent`'s own commit reads that same already-masked
+  `_dragging_ipl_delta` value directly, the final commit automatically
+  respects the lock too - no separate masking needed there. New
+  `_on_drag_ipl_context_menu` in map_workshop.py wires a right-click
+  menu to the checkbox via Qt's standard custom-context-menu
+  mechanism (a plain `QCheckBox`, not the `_MapOverlayToggleButton`
+  used for the show/edit-mode buttons - Drag IPL isn't a show/hide
+  toggle tied to one specific overlay type, so it doesn't fit that
+  widget's own left/right-click split).
+
+  Verified the masking logic directly: free movement passes both
+  axes through unchanged; locking X zeroes X while preserving Y;
+  locking Y zeroes Y while preserving X; Z stays 0 under every lock
+  mode, confirming it was never actually affected by this feature at
+  all (already handled by the pre-existing ground-plane constraint).
+  `ast.parse` clean on both touched files; confirmed via AST no
+  duplicate method definitions.

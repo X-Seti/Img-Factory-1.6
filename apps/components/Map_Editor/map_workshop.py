@@ -22001,6 +22001,39 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if vp is not None and hasattr(vp, 'set_ipl_drag_mode'):
             vp.set_ipl_drag_mode(checked)
 
+    def _on_drag_ipl_context_menu(self, pos): #vers 1
+        """Right-click on the Drag IPL checkbox - axis-lock choices
+        (Aug 18 2026, per Keith: "[Drag ipl] right-click options,
+        like lock z, only move x, y"). Z is already always
+        effectively locked by the drag's own ground-plane-constrained
+        design (see DFFViewport.set_ipl_drag_axis_lock's own
+        docstring for the full reasoning) - this menu covers the two
+        remaining practical choices, locking X or Y specifically, plus
+        Free (both) to clear either lock."""
+        vp = getattr(self, 'preview_widget', None)
+        current = getattr(vp, '_ipl_drag_axis_lock', None) if vp is not None else None
+
+        menu = QMenu(self)
+        free_act = menu.addAction("Free movement (X and Y)")
+        free_act.setCheckable(True)
+        free_act.setChecked(current is None)
+        lock_x_act = menu.addAction("Lock X (only Y moves)")
+        lock_x_act.setCheckable(True)
+        lock_x_act.setChecked(current == 'x')
+        lock_y_act = menu.addAction("Lock Y (only X moves)")
+        lock_y_act.setCheckable(True)
+        lock_y_act.setChecked(current == 'y')
+
+        chosen = menu.exec(self._drag_ipl_chk.mapToGlobal(pos))
+        if chosen is None or vp is None or not hasattr(vp, 'set_ipl_drag_axis_lock'):
+            return
+        if chosen is free_act:
+            vp.set_ipl_drag_axis_lock(None)
+        elif chosen is lock_x_act:
+            vp.set_ipl_drag_axis_lock('x')
+        elif chosen is lock_y_act:
+            vp.set_ipl_drag_axis_lock('y')
+
     def _prompt_shift_ipl_coordinates(self, ipl_name): #vers 1
         """Small dialog collecting a (dx,dy,dz) offset, then applies
         it via _shift_ipl_coordinates - the actual entry point wired
@@ -23150,6 +23183,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "dialog, just driven by dragging in the 3D view instead\n"
             "of typing numbers.")
         drag_ipl_chk.toggled.connect(self._on_ipl_drag_mode_toggled)
+        drag_ipl_chk.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        drag_ipl_chk.customContextMenuRequested.connect(self._on_drag_ipl_context_menu)
         self._drag_ipl_chk = drag_ipl_chk
 
         opts_row3 = QHBoxLayout()
