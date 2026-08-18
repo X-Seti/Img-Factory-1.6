@@ -5546,3 +5546,51 @@ conclusively found despite extensive isolated testing.
   long-standing, standard part of the legacy OpenGL 1.x API though,
   the same confidence level already applied to `gluSphere` earlier
   this session.
+
+- **Aug 17, 2026** — Built real interactive path node editing (click
+  to select, drag to move, release to commit), per Keith: "lets
+  address the unbuilt work, editing paths first" - the first of three
+  pieces from his own priority order (path editing, then whole-IPL-
+  section dragging, then rotating map sections - the latter two not
+  started yet).
+
+  Built on the app's existing, already-proven vertex-picking system
+  rather than inventing new picking math: new `_pick_path_node`
+  reuses the exact same `_pick_ray`/`_closest_point_on_ray`
+  infrastructure `_pick_vertex`/`_pick_world_instance` already use.
+  Dragging is constrained to the ground plane at the node's own
+  starting height (not free in 3D - a 2D mouse drag can't
+  unambiguously set 3 coordinates, and path nodes are ground-level by
+  nature) via `_screen_to_ground_position`, the same ray-plane math
+  already proven for LOD Test mode - no new geometry code needed for
+  either the picking or the dragging.
+
+  New viewport state: `set_path_node_owners` (position -> (PathGroup,
+  node_index) mapping, built alongside the segments list every
+  refresh from the exact same coordinates, so a lookup here always
+  matches something actually drawn), `set_path_edit_mode` (the on/off
+  toggle), `set_path_node_drag_callback` (mirrors the existing
+  `set_lod_test_callback` pattern - widget owns the interaction,
+  caller owns the data). During a drag, only the viewport's own
+  display list gets updated per mouse-move (cheap, immediate visual
+  feedback); the real commit - mutating the actual live `PathNode`
+  object and doing a full refresh - happens exactly once, on release.
+
+  New "Edit Paths" checkbox in IPL Controls row 3, next to Show
+  Paths - turning it on also turns Show Paths on (editing invisible
+  nodes makes no sense) but doesn't turn Show Paths back off when Edit
+  Paths is unchecked. Scoped to VC/SA-style `loader.paths` only, same
+  scope New/Delete Path Group already settled on - GTA III's own IDE-
+  embedded paths attach to instances by model ID rather than holding
+  a position of their own, a fundamentally different edit model not
+  covered here, disclosed in the checkbox's own tooltip rather than
+  silently unsupported.
+
+  Verified against real `pathslc.ipl` data before trusting it: built
+  the owner map and segments exactly as `_refresh_path_visualization`
+  does, confirmed every segment endpoint resolves back through the
+  owner map with zero misses, then confirmed mutating through a
+  resolved `(group, index)` pair actually changes the same live
+  `PathNode` object the segments were built from - not a copy. `ast.
+  parse` clean on both files; confirmed via AST no duplicate method
+  definitions anywhere in the new code.

@@ -11792,6 +11792,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if hasattr(self.preview_widget, 'set_zone_render_style'):
             self.preview_widget.set_zone_render_style(
                 self.map_settings.get('zone_render_style'))
+        # Wire the path node drag callback once, here at construction
+        # (Aug 17 2026, per Keith: "lets address the unbuilt work,
+        # editing paths first") - same one-time-wiring pattern as
+        # set_lod_test_callback elsewhere in this same constructor,
+        # not re-connected on every refresh.
+        if hasattr(self.preview_widget, 'set_path_node_drag_callback'):
+            self.preview_widget.set_path_node_drag_callback(self._on_path_node_dragged)
         self._viewport_stack = QStackedWidget()
         self._viewport_stack.addWidget(self.preview_widget)   # index 0: single view
         inner_mw.setCentralWidget(self._viewport_stack)
@@ -22714,6 +22721,25 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         show_paths_chk.toggled.connect(self._on_show_paths_toggled)
         self._show_paths_chk = show_paths_chk
 
+        # Edit Paths (Aug 17 2026, per Keith: "lets address the
+        # unbuilt work, editing paths first") - click-to-select-and-
+        # drag path node editing directly in the 3D view. Scoped to
+        # VC/SA-style path data only (same scope New/Delete Path
+        # Group already settled on) - GTA III's own IDE-embedded
+        # paths attach to instances by model_id, no position of their
+        # own to drag, not covered here.
+        edit_paths_chk = QCheckBox("Edit Paths")
+        edit_paths_chk.setFixedHeight(18)
+        edit_paths_chk.setStyleSheet(_compact_18)
+        edit_paths_chk.setToolTip(
+            "Click a path node to pick it up, drag to reposition it\n"
+            "along the ground, release to commit the change. VC/SA-\n"
+            "style path data only - GTA III's own IDE-embedded paths\n"
+            "aren't editable this way (they attach to instances by\n"
+            "model ID, not a position of their own).")
+        edit_paths_chk.toggled.connect(self._on_edit_paths_toggled)
+        self._edit_paths_chk = edit_paths_chk
+
         # Show Cull Zones (Aug 16 2026, per Keith: "continue with the
         # cull files next") - draws every loaded IPL's cull zones as
         # wireframe boxes in the 3D view (DFFViewport._draw_cull_
@@ -22763,6 +22789,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         opts_row3 = QHBoxLayout()
         opts_row3.addWidget(show_paths_chk)
+        opts_row3.addWidget(edit_paths_chk)
         opts_row3.addWidget(show_cull_chk)
         opts_row3.addWidget(show_zone_chk)
         opts_row3.addWidget(show_occl_chk)
@@ -25444,6 +25471,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return
         show_paths_chk = getattr(self, '_show_paths_chk', None)
         if show_paths_chk is not None and not show_paths_chk.isChecked():
+            if hasattr(vp, 'set_path_node_owners'):
+                vp.set_path_node_owners({})
             vp.set_path_segments([])
             return
         # Apply the saved line colour/thickness and node colour/size
@@ -25466,6 +25495,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             vp.set_path_node_size(self.map_settings.get('path_node_size') or 3.5)
         loader = getattr(self, '_world_loader', None)
         if loader is None:
+            if hasattr(vp, 'set_path_node_owners'):
+                vp.set_path_node_owners({})
             vp.set_path_segments([])
             return
         hidden = getattr(self, '_hidden_ipls', set())
@@ -25473,12 +25504,25 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                            if g.source_ipl not in hidden and g.nodes]
 
         segments = []
+        # (position -> (group, node_index)) for interactive path node
+        # dragging (Aug 17 2026, see DFFViewport.set_path_node_owners'
+        # own docstring for the full mechanism) - built from the exact
+        # same node.x/y/z values used for segments just below, so a
+        # position looked up via this map always matches something
+        # actually drawn, no separate tracking to drift out of sync.
+        # Scoped to VC/SA-style loader.paths only, matching every
+        # other path-editing feature this session (New/Delete Path
+        # Group) - GTA III's own IDE-embedded paths (built further
+        # down) aren't included, since they have no position of their
+        # own to drag (attached to an instance by model_id instead).
+        node_owners = {}
         for group in visible_groups:
             nodes = group.nodes
             n = len(nodes)
-            for node in nodes:
+            for i, node in enumerate(nodes):
                 if node.node_type == 0:
                     continue   # Null node - ignored, per the format doc
+                node_owners[(node.x, node.y, node.z)] = (group, i)
                 if 0 <= node.next_id < n:
                     other = nodes[node.next_id]
                     segments.append(((node.x, node.y, node.z), (other.x, other.y, other.z)))
@@ -25596,7 +25640,48 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     if 0 <= node.next_id < n:
                         segments.append((world_pos[i], world_pos[node.next_id]))
 
+        if hasattr(vp, 'set_path_node_owners'):
+            vp.set_path_node_owners(node_owners)
         vp.set_path_segments(segments)
+
+    def _on_path_node_dragged(self, group, node_index, new_x, new_y, new_z): #vers 1
+        """Commit a completed path node drag to the real, live
+        PathNode data (Aug 17 2026, per Keith: "lets address the
+        unbuilt work, editing paths first"). Wired once to DFFViewport.
+        set_path_node_drag_callback (see that method's own docstring)
+        - called exactly once per drag, on mouse release, with the
+        group object and node index the viewport resolved via its own
+        position-owner map, plus the final dropped position. Mutates
+        group.nodes[node_index] directly (the exact same live object
+        the Path Group Editor dialog already edits, no separate code
+        path or write-back step needed) then does a full path refresh
+        so the segments list, the owner map, and the drawn lines are
+        all rebuilt consistently from the one now-updated source of
+        truth, rather than trying to patch the viewport's own display
+        state to match by hand."""
+        try:
+            node = group.nodes[node_index]
+        except (IndexError, AttributeError):
+            return
+        node.x, node.y, node.z = new_x, new_y, new_z
+        self._refresh_path_visualization()
+        self._set_status(f"Moved path node to ({new_x:.1f}, {new_y:.1f}, {new_z:.1f})")
+
+    def _on_edit_paths_toggled(self, checked): #vers 1
+        """Edit Paths checked/unchecked (Aug 17 2026, per Keith: "lets
+        address the unbuilt work, editing paths first") - toggles
+        DFFViewport's own click-to-select-and-drag path node
+        interaction on/off. Turning it on also turns Show Paths on
+        (editing invisible nodes makes no sense) but doesn't turn Show
+        Paths back off when Edit Paths is unchecked - the person may
+        still want to see the paths after they're done editing them."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is not None and hasattr(vp, 'set_path_edit_mode'):
+            vp.set_path_edit_mode(checked)
+        if checked:
+            show_paths_chk = getattr(self, '_show_paths_chk', None)
+            if show_paths_chk is not None and not show_paths_chk.isChecked():
+                show_paths_chk.setChecked(True)   # triggers _on_show_paths_toggled itself
 
     def _on_show_paths_toggled(self, checked): #vers 1
         """Show Paths checked/unchecked - per Keith: "when displaying

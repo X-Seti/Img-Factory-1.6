@@ -308,6 +308,32 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._path_line_thickness = 1.2
         self._path_node_size = 3.5
 
+        # Interactive path node editing (Aug 17 2026, per Keith: "lets
+        # address the unbuilt work, editing paths first" - a real
+        # click-to-select-and-drag interaction for path nodes, the
+        # first piece of the larger "editing paths / moving whole IPL
+        # sections / rotating map sections" request, tackled in the
+        # order Keith himself prioritised). Scoped to VC/SA-style
+        # loader.paths only (the same scope New/Delete Path Group
+        # already settled on) - GTA III's own IDE-embedded paths
+        # attach to instances by model_id rather than holding a
+        # position of their own, a fundamentally different edit model
+        # not covered here.
+        #
+        # _path_node_owner_map keys each unique node's rounded (x,y,z)
+        # position to (group_ref, node_index) - the real, live
+        # PathGroup object and which of its 12 node slots this is -
+        # so a completed drag can be committed back to the actual
+        # data, not just this widget's own display cache. Populated
+        # by map_workshop.py's _refresh_path_visualization via set_
+        # path_node_owners, built alongside the segments list every
+        # refresh so the two never drift apart.
+        self._path_edit_mode = False
+        self._path_node_owner_map = {}
+        self._dragging_path_node_start_key = None
+        self._dragging_path_node_current_pos = None
+        self._path_node_drag_callback = None
+
         # Cull zone boxes (Aug 16 2026, per Keith: "continue with the
         # cull files next", following the same "so I can view them"
         # pattern as Show Paths/the .zon wiring) - the older MapView-
@@ -1824,6 +1850,71 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._path_segments = segments or []
         self.update()
 
+    def set_path_node_owners(self, owner_map): #vers 1
+        """Set the (position -> (group_ref, node_index)) mapping used
+        to resolve a picked/dragged node back to its real, live
+        PathGroup/PathNode data (Aug 17 2026, for interactive path
+        node editing - see the fuller explanation in __init__ where
+        self._path_node_owner_map is first declared). Built by map_
+        workshop.py's _refresh_path_visualization alongside the flat
+        segments list set_path_segments takes, using the exact same
+        (x,y,z) tuples - so a position looked up here always matches
+        a position actually present in _path_segments, no rounding or
+        tolerance needed for the dict lookup itself (only picking,
+        which is a nearest-point search over screen-space distance,
+        needs a tolerance)."""
+        self._path_node_owner_map = owner_map or {}
+
+    def set_path_edit_mode(self, enabled: bool): #vers 1
+        """Toggle click-to-select-and-drag path node editing (Aug 17
+        2026, per Keith: "lets address the unbuilt work, editing
+        paths first"). While on, a left-click near a rendered path
+        node picks it up and drags it along the ground plane at that
+        node's own height (not free in 3D - a 2D mouse drag can't
+        unambiguously set 3 coordinates at once, and path nodes are
+        ground-level positions by nature, so constraining to height-
+        preserving horizontal movement is the actually useful
+        behaviour, not a limitation) until release, which commits the
+        new position to the real PathGroup/PathNode data via
+        set_path_node_drag_callback."""
+        self._path_edit_mode = enabled
+        if not enabled:
+            self._dragging_path_node_start_key = None
+            self._dragging_path_node_current_pos = None
+        self.update()
+
+    def set_path_node_drag_callback(self, callback): #vers 1
+        """Set (or clear, with None) the function called when a path
+        node drag completes: callback(group_ref, node_index, new_x,
+        new_y, new_z). map_workshop.py wires this once to a method
+        that mutates the real PathNode and refreshes - mirrors the
+        existing set_lod_test_callback pattern (a widget-owns-
+        interaction, caller-owns-data split already established
+        elsewhere in this file, not a new convention)."""
+        self._path_node_drag_callback = callback
+
+    def _pick_path_node(self, mx: float, my: float): #vers 1
+        """Return the (x,y,z) position of the closest path node to
+        the ray through (mx,my), within a small screen-space-
+        equivalent tolerance, or None - same pattern as _pick_vertex/
+        _pick_world_instance just above (reuses the exact same _pick_
+        ray/_closest_point_on_ray infrastructure), testing against
+        self._path_node_owner_map's own keys rather than mesh
+        vertices or instance positions."""
+        ray = self._pick_ray(mx, my)
+        if ray is None or not self._path_node_owner_map:
+            return None
+        origin, direction = ray
+        tol2 = (self._dist * 0.02) ** 2
+        best_pos, best_t, best_d2 = None, None, tol2
+        for pos in self._path_node_owner_map.keys():
+            t, d2 = self._closest_point_on_ray(origin, direction, pos)
+            if t < 0:
+                continue
+            if d2 < best_d2 or (best_pos is not None and d2 <= best_d2 and t < best_t):
+                best_pos, best_t, best_d2 = pos, t, d2
+        return best_pos
+
     def set_path_line_color(self, r: float, g: float, b: float): #vers 1
         """Aug 14 2026, per Keith: "a way to change the colour of the
         path lines in settings" - r/g/b as 0-1 floats, matching every
@@ -2260,9 +2351,21 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             pass
         self.update()
 
-    def mousePressEvent(self, event): #vers 2
+    def mousePressEvent(self, event): #vers 3
         self._last_pos = event.pos()
         if event.button() == Qt.MouseButton.LeftButton:
+            # Path node editing (Aug 17 2026) - its own independent
+            # toggle, not part of the vertex/edge/face _select_mode
+            # system below (a path node isn't part of any loaded
+            # mesh), checked first and handled completely separately
+            # rather than trying to fold it into that system.
+            if getattr(self, '_path_edit_mode', False):
+                mx, my = event.pos().x(), event.pos().y()
+                pos = self._pick_path_node(mx, my)
+                if pos is not None:
+                    self._dragging_path_node_start_key = pos
+                    self._dragging_path_node_current_pos = pos
+                return
             mode = getattr(self, '_select_mode', 'object')
             if mode == 'object':
                 return
@@ -2310,6 +2413,31 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             # panning (keyPressEvent) so both feel identical.
             scale = self._dist * 0.002 * sens
             self._apply_pan_step(dx * scale, -dy * scale)
+        elif (event.buttons() & Qt.MouseButton.LeftButton
+              and getattr(self, '_dragging_path_node_start_key', None) is not None):
+            # Path node drag in progress (Aug 17 2026) - constrained
+            # to the ground plane at the node's OWN starting height
+            # (see set_path_edit_mode's own docstring for why this is
+            # the right constraint, not a shortcut), reusing _screen_
+            # to_ground_position exactly as LOD Test mode already
+            # does just below - same proven ray-plane math, different
+            # caller. Updates self._path_segments directly for
+            # immediate visual feedback every frame, without touching
+            # the real PathNode data or triggering a full map_
+            # workshop.py refresh until the drag actually completes
+            # (mouseReleaseEvent) - redoing that full resolve/rebuild
+            # on every single mouse-move pixel would be needless work
+            # for something that only needs to happen once, at the
+            # end.
+            start_z = self._dragging_path_node_start_key[2]
+            new_pos = self._screen_to_ground_position(
+                event.pos().x(), event.pos().y(), ground_z=start_z)
+            if new_pos is not None:
+                old_pos = self._dragging_path_node_current_pos
+                self._path_segments = [
+                    (new_pos if a == old_pos else a, new_pos if b == old_pos else b)
+                    for a, b in self._path_segments]
+                self._dragging_path_node_current_pos = new_pos
         self._last_pos = event.pos(); self.update()
 
         # LOD test mode (Aug 1 2026, per Keith's crash: "AttributeError:
@@ -2320,7 +2448,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         # with its own camera system - same feature, same callback
         # pattern, added here too now).
         callback = getattr(self, '_lod_test_callback', None)
-        if callback is not None:
+        if callback is not None and not getattr(self, '_dragging_path_node_start_key', None):
             ground_pos = self._screen_to_ground_position(event.pos().x(), event.pos().y())
             if ground_pos is not None:
                 self.set_lod_test_center(ground_pos)
@@ -2382,8 +2510,25 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glPopMatrix()
         glLineWidth(1.0)
 
-    def mouseReleaseEvent(self, event): #vers 1
+    def mouseReleaseEvent(self, event): #vers 2
         self._last_pos = event.pos()
+        # Commit a completed path node drag (Aug 17 2026) - looks up
+        # the real (group_ref, node_index) via the ORIGINAL start
+        # position (self._path_node_owner_map's own keys never change
+        # mid-drag; only the live segments/current-drag-position did,
+        # for visual feedback), so this lookup is unaffected by
+        # however far the node actually moved.
+        start_key = getattr(self, '_dragging_path_node_start_key', None)
+        if start_key is not None:
+            final_pos = getattr(self, '_dragging_path_node_current_pos', None)
+            owner = self._path_node_owner_map.get(start_key)
+            callback = getattr(self, '_path_node_drag_callback', None)
+            if owner is not None and final_pos is not None and callback is not None:
+                group_ref, node_index = owner
+                fx, fy, fz = final_pos
+                callback(group_ref, node_index, fx, fy, fz)
+            self._dragging_path_node_start_key = None
+            self._dragging_path_node_current_pos = None
 
     def wheelEvent(self, event): #vers 3
         f = 0.85 if event.angleDelta().y() > 0 else 1.15
