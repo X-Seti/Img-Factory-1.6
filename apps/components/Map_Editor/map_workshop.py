@@ -12047,6 +12047,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # pattern as the path node drag callback directly above.
         if hasattr(self.preview_widget, 'set_ipl_drag_callback'):
             self.preview_widget.set_ipl_drag_callback(self._on_ipl_dragged)
+        # Wire the Move/Rotate click callback too (Aug 19 2026, per
+        # Keith's "1 click turns into move ipl, click again rotate
+        # ipl" 3-state cycle) - same one-time-wiring pattern.
+        if hasattr(self.preview_widget, 'set_ipl_click_callback'):
+            self.preview_widget.set_ipl_click_callback(self._on_ipl_click_for_move_or_rotate)
         # Restore the saved zoom-to-cursor setting (Aug 18 2026, per
         # Keith's "zoom in to the mouse pointer" request) - same
         # restore-at-construction pattern as the zone render style
@@ -22006,6 +22011,119 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._set_status(
             f"Shifted {ipl_name} by ({dx:g}, {dy:g}, {dz:g}) - {moved} entries moved")
 
+    def _rotate_ipl_coordinates(self, ipl_name, pivot_x, pivot_y, angle_deg): #vers 1
+        """Rotate every real position an IPL's loaded data holds
+        around a given (pivot_x, pivot_y) point, by angle_deg around
+        the vertical (Z) axis (Aug 19 2026, per Keith's own priority
+        order for the interactive editing layer - "click again to
+        make it rotate ipl"). The rigid-body-move counterpart to
+        _shift_ipl_coordinates - same per-section-type coverage, same
+        live-in-memory-only design (Save IPL Data As... writes a
+        result back out).
+
+        Verified both pieces of math independently before trusting
+        them on live data: the position-around-pivot rotation
+        (distance from pivot preserved across several test angles,
+        a known 90-degree case checked against its exact expected
+        result) and the orientation rotation (reuses the already-
+        proven quat_to_euler_degrees/euler_degrees_to_quat pair - the
+        exact same functions _on_rotation_nudged already uses for the
+        Item Editor Dialog's own per-instance rotation - confirmed a
+        90-degree yaw addition to an identity quaternion produces the
+        exact expected (0,0,sin45,cos45) result, and that four
+        successive 90-degree rotations return to identity).
+
+        Honest, real limitation for cull/zone/garages: none of those
+        three have a rotation field of their own in the file format
+        at all - only occlusion boxes (which do) and instances/paths/
+        entrances-exits (position + a real orientation concept) can
+        genuinely tilt. For cull/zone/garages, only their own centre
+        point orbits the pivot; the box itself is rebuilt axis-
+        aligned around that new centre afterward, same width/height/
+        depth as before - moved, not spun, because the format simply
+        has nowhere to store a spun box's own angle."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            return
+        rad = math.radians(angle_deg)
+        cos_a, sin_a = math.cos(rad), math.sin(rad)
+
+        def rotate_xy(x, y):
+            dx, dy = x - pivot_x, y - pivot_y
+            return pivot_x + dx * cos_a - dy * sin_a, pivot_y + dx * sin_a + dy * cos_a
+
+        moved = 0
+        for inst in loader.instances:
+            if inst.source_ipl != ipl_name:
+                continue
+            inst.pos_x, inst.pos_y = rotate_xy(inst.pos_x, inst.pos_y)
+            ex, ey, ez, ew = self._conjugate_rotation_for_game(
+                inst.rot_x, inst.rot_y, inst.rot_z, inst.rot_w)
+            roll, pitch, yaw = quat_to_euler_degrees(ex, ey, ez, ew)
+            nx, ny, nz, nw = euler_degrees_to_quat(roll, pitch, yaw + angle_deg)
+            inst.rot_x, inst.rot_y, inst.rot_z, inst.rot_w = \
+                self._conjugate_rotation_for_game(nx, ny, nz, nw)
+            moved += 1
+
+        for c in getattr(loader, 'culls', []):
+            if getattr(c, 'source_ipl', None) != ipl_name:
+                continue
+            half_w = (c.x2 - c.x1) / 2.0
+            half_h = (c.y2 - c.y1) / 2.0
+            c.center_x, c.center_y = rotate_xy(c.center_x, c.center_y)
+            c.x1, c.y1 = c.center_x - half_w, c.center_y - half_h
+            c.x2, c.y2 = c.center_x + half_w, c.center_y + half_h
+            moved += 1
+
+        for z in getattr(loader, 'zones', []):
+            if z.get('source_ipl') != ipl_name:
+                continue
+            half_w = (z['max_x'] - z['min_x']) / 2.0
+            half_h = (z['max_y'] - z['min_y']) / 2.0
+            cx, cy = rotate_xy((z['min_x'] + z['max_x']) / 2.0, (z['min_y'] + z['max_y']) / 2.0)
+            z['min_x'], z['min_y'] = cx - half_w, cy - half_h
+            z['max_x'], z['max_y'] = cx + half_w, cy + half_h
+            moved += 1
+
+        for p in getattr(loader, 'paths', []):
+            if p.source_ipl != ipl_name:
+                continue
+            for node in p.nodes:
+                node.x, node.y = rotate_xy(node.x, node.y)
+            moved += 1
+
+        for g in getattr(loader, 'grges', []):
+            if g.source_ipl != ipl_name:
+                continue
+            half_w = (g.x2 - g.x1) / 2.0
+            half_h = (g.y2 - g.y1) / 2.0
+            cx, cy = rotate_xy((g.x1 + g.x2) / 2.0, (g.y1 + g.y2) / 2.0)
+            g.x1, g.y1 = cx - half_w, cy - half_h
+            g.x2, g.y2 = cx + half_w, cy + half_h
+            g.front_x, g.front_y = rotate_xy(g.front_x, g.front_y)
+            moved += 1
+
+        for e in getattr(loader, 'enexes', []):
+            if e.source_ipl != ipl_name:
+                continue
+            e.enter_x, e.enter_y = rotate_xy(e.enter_x, e.enter_y)
+            e.exit_x, e.exit_y = rotate_xy(e.exit_x, e.exit_y)
+            e.enter_angle += angle_deg
+            e.exit_angle += angle_deg
+            moved += 1
+
+        for o in getattr(loader, 'occls', []):
+            if o.source_ipl != ipl_name:
+                continue
+            o.mid_x, o.mid_y = rotate_xy(o.mid_x, o.mid_y)
+            o.rotation += angle_deg
+            moved += 1
+
+        self._all_instances = list(loader.instances)
+        self._apply_ipl_visibility_filter()
+        self._set_status(
+            f"Rotated {ipl_name} by {angle_deg:g}\u00b0 around ({pivot_x:g}, {pivot_y:g}) - {moved} entries moved")
+
     def _on_ipl_dragged(self, ipl_name, dx, dy, dz): #vers 1
         """Commit a completed whole-IPL click-drag in the 3D viewport
         (Aug 18 2026, per Keith's own priority order for the
@@ -22028,22 +22146,60 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         connecting the viewport's own mouse interaction to it."""
         self._shift_ipl_coordinates(ipl_name, dx, dy, dz)
 
-    def _on_ipl_drag_mode_toggled(self, checked): #vers 1
-        """Drag IPL checked/unchecked - toggles DFFViewport's own
-        click-drag whole-IPL-section moving on/off."""
-        vp = getattr(self, 'preview_widget', None)
-        if vp is not None and hasattr(vp, 'set_ipl_drag_mode'):
-            vp.set_ipl_drag_mode(checked)
+    def _on_ipl_mode_button_clicked(self): #vers 1
+        """Cycle the IPL interaction button through Off -> Drag ->
+        Move -> Rotate -> Off (Aug 19 2026, per Keith: "1 click turns
+        into move ipl, click again rotate ipl, click back to drag
+        ipl") - replaces what used to be a simple Drag IPL on/off
+        checkbox. Off is a real, distinct state (not just "back to
+        Drag") preserving the old checkbox's own ability to fully
+        disable this feature - clicking an instance while genuinely
+        not trying to move/rotate/drag anything shouldn't ever
+        accidentally trigger one of these."""
+        states = ['off', 'drag', 'move', 'rotate']
+        current = getattr(self, '_ipl_interaction_mode', 'off')
+        idx = states.index(current) if current in states else 0
+        new_mode = states[(idx + 1) % len(states)]
+        self._ipl_interaction_mode = new_mode
 
-    def _on_drag_ipl_context_menu(self, pos): #vers 1
-        """Right-click on the Drag IPL checkbox - axis-lock choices
+        btn = getattr(self, '_ipl_mode_btn', None)
+        if btn is not None:
+            btn.setText(f"IPL: {new_mode.capitalize()}")
+
+        vp = getattr(self, 'preview_widget', None)
+        if vp is not None:
+            if hasattr(vp, 'set_ipl_drag_mode'):
+                vp.set_ipl_drag_mode(new_mode != 'off')
+            if hasattr(vp, 'set_ipl_interaction_mode'):
+                vp.set_ipl_interaction_mode(new_mode if new_mode != 'off' else 'drag')
+        self._set_status(f"IPL interaction mode: {new_mode.capitalize()}")
+
+    def _on_ipl_click_for_move_or_rotate(self, ipl_name): #vers 1
+        """Fired by DFFViewport.set_ipl_click_callback when an
+        instance is picked while the IPL mode button is in Move or
+        Rotate state (Aug 19 2026) - opens the corresponding existing
+        numeric dialog for that instance's own IPL, reusing _prompt_
+        shift_ipl_coordinates/_prompt_rotate_ipl_coordinates exactly
+        as the IPL Sections right-click menu already does, rather
+        than building a second, parallel entry point for either."""
+        mode = getattr(self, '_ipl_interaction_mode', 'drag')
+        if mode == 'move':
+            self._prompt_shift_ipl_coordinates(ipl_name)
+        elif mode == 'rotate':
+            self._prompt_rotate_ipl_coordinates(ipl_name)
+
+    def _on_drag_ipl_context_menu(self, pos): #vers 2
+        """Right-click on the IPL mode button - axis-lock choices
         (Aug 18 2026, per Keith: "[Drag ipl] right-click options,
         like lock z, only move x, y"). Z is already always
         effectively locked by the drag's own ground-plane-constrained
         design (see DFFViewport.set_ipl_drag_axis_lock's own
         docstring for the full reasoning) - this menu covers the two
         remaining practical choices, locking X or Y specifically, plus
-        Free (both) to clear either lock."""
+        Free (both) to clear either lock. Only meaningfully applies
+        to Drag mode (Move/Rotate are dialog-based, not mouse-drag),
+        but shown regardless of the button's current state - harmless
+        to set in advance of switching to Drag."""
         vp = getattr(self, 'preview_widget', None)
         current = getattr(vp, '_ipl_drag_axis_lock', None) if vp is not None else None
 
@@ -22058,7 +22214,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         lock_y_act.setCheckable(True)
         lock_y_act.setChecked(current == 'y')
 
-        chosen = menu.exec(self._drag_ipl_chk.mapToGlobal(pos))
+        btn = getattr(self, '_ipl_mode_btn', None)
+        chosen = menu.exec(btn.mapToGlobal(pos) if btn is not None else self.mapToGlobal(pos))
         if chosen is None or vp is None or not hasattr(vp, 'set_ipl_drag_axis_lock'):
             return
         if chosen is free_act:
@@ -22096,6 +22253,50 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             dx, dy, dz = dx_spin.value(), dy_spin.value(), dz_spin.value()
             if dx or dy or dz:
                 self._shift_ipl_coordinates(ipl_name, dx, dy, dz)
+
+    def _prompt_rotate_ipl_coordinates(self, ipl_name): #vers 1
+        """Small dialog collecting a rotation angle (around a pivot
+        automatically computed as the centroid of the IPL's own
+        instance positions - a sensible default rather than making
+        the person manually locate and type a pivot point every time),
+        then applies it via _rotate_ipl_coordinates. Entry point for
+        Rotate mode's own click interaction (see set_ipl_drag_mode's
+        docstring for the 3-state Drag/Move/Rotate cycle this belongs
+        to) - mirrors _prompt_shift_ipl_coordinates' own structure and
+        wiring pattern exactly, just for angle instead of XYZ."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            return
+        xs = [inst.pos_x for inst in loader.instances if inst.source_ipl == ipl_name]
+        ys = [inst.pos_y for inst in loader.instances if inst.source_ipl == ipl_name]
+        if not xs:
+            self._set_status(f"No instances found in {ipl_name} to rotate around")
+            return
+        pivot_x, pivot_y = sum(xs) / len(xs), sum(ys) / len(ys)
+
+        from PyQt6.QtWidgets import QDialog, QFormLayout, QDoubleSpinBox, QDialogButtonBox, QLabel
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Rotate - {ipl_name}")
+        form = QFormLayout(dlg)
+        form.addRow(QLabel(
+            f"Pivot: centre of {ipl_name}'s own instances "
+            f"({pivot_x:.1f}, {pivot_y:.1f})"))
+
+        angle_spin = QDoubleSpinBox(); angle_spin.setRange(-360.0, 360.0); angle_spin.setDecimals(2)
+        angle_spin.setSuffix("\u00b0")
+        form.addRow("Angle:", angle_spin)
+
+        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                QDialogButtonBox.StandardButton.Cancel)
+        btns.accepted.connect(dlg.accept)
+        btns.rejected.connect(dlg.reject)
+        form.addRow(btns)
+
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            angle = angle_spin.value()
+            if angle:
+                self._rotate_ipl_coordinates(ipl_name, pivot_x, pivot_y, angle)
 
     def _save_ipl_data_as_text(self, ipl_name): #vers 2
         """Export an IPL's actual loaded instances out as a standard
@@ -23069,6 +23270,38 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         render_lod_btn.setToolTip("Choose how the world view renders geometry, and which detail level(s) to show")
         opts_row.addWidget(render_lod_btn)
 
+        # Drag/Move/Rotate IPL - a single button cycling through 4
+        # states (Aug 19 2026, per Keith's own priority order for the
+        # interactive editing layer, and: "1 click turns into move
+        # ipl, click again rotate ipl, click back to drag ipl" - also
+        # moved here, right after the Render row, per his own
+        # request: "move this button from row 3 to after Render Row
+        # 1"). Off (the neutral starting state, preserving the old
+        # checkbox's own ability to fully disable this feature) ->
+        # Drag (click-drag an instance to move its entire IPL as one
+        # rigid body, live in the viewport - the original, already-
+        # built behaviour) -> Move (a plain click instead immediately
+        # opens the existing Shift Coordinates dialog for that
+        # instance's own IPL - precise numeric XYZ entry) -> Rotate
+        # (a plain click opens a new, analogous Rotate dialog - angle
+        # entry, pivot automatically the centre of that IPL's own
+        # instances) -> back to Off.
+        ipl_mode_btn = QPushButton("IPL: Off")
+        ipl_mode_btn.setFixedHeight(18)
+        ipl_mode_btn.setStyleSheet(_compact_18)
+        ipl_mode_btn.setToolTip(
+            "Click to cycle: Off \u2192 Drag \u2192 Move \u2192 Rotate \u2192 Off.\n"
+            "Drag: click-drag an instance to move its whole IPL live.\n"
+            "Move: click an instance to open Shift Coordinates for its IPL.\n"
+            "Rotate: click an instance to open Rotate for its IPL.\n"
+            "Right-click while in Drag: axis-lock options.")
+        ipl_mode_btn.clicked.connect(self._on_ipl_mode_button_clicked)
+        ipl_mode_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        ipl_mode_btn.customContextMenuRequested.connect(self._on_drag_ipl_context_menu)
+        self._ipl_mode_btn = ipl_mode_btn
+        self._ipl_interaction_mode = 'off'
+        opts_row.addWidget(ipl_mode_btn)
+
         opts_row.addStretch()
         lay.addLayout(opts_row)
 
@@ -23208,35 +23441,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         show_occl_btn.show_toggled.connect(self._on_show_occl_boxes_toggled)
         self._show_occl_chk = show_occl_btn
 
-        # Drag IPL (Aug 18 2026, per Keith's own priority order for
-        # the interactive editing layer, right after path editing:
-        # "Moving IPL file whole entires to anywhere on the map").
-        # Click-drag any instance belonging to a loaded IPL to move
-        # that IPL's entire data - not a show/hide toggle tied to one
-        # specific overlay type the way the buttons above are, so a
-        # plain checkbox rather than a _MapOverlayToggleButton.
-        drag_ipl_chk = QCheckBox("Drag IPL")
-        drag_ipl_chk.setFixedHeight(18)
-        drag_ipl_chk.setStyleSheet(_compact_18)
-        drag_ipl_chk.setToolTip(
-            "Click-drag any instance to move its ENTIRE IPL (every\n"
-            "instance, path, cull/zone/occlusion box, garage, entrance/\n"
-            "exit belonging to that file) as one rigid body. Same\n"
-            "underlying move as the right-click Shift Coordinates\n"
-            "dialog, just driven by dragging in the 3D view instead\n"
-            "of typing numbers.")
-        drag_ipl_chk.toggled.connect(self._on_ipl_drag_mode_toggled)
-        drag_ipl_chk.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        drag_ipl_chk.customContextMenuRequested.connect(self._on_drag_ipl_context_menu)
-        self._drag_ipl_chk = drag_ipl_chk
-
         opts_row3 = QHBoxLayout()
         opts_row3.addWidget(show_paths_btn)
         opts_row3.addWidget(show_tracks_btn)
         opts_row3.addWidget(show_cull_btn)
         opts_row3.addWidget(show_zone_btn)
         opts_row3.addWidget(show_occl_btn)
-        opts_row3.addWidget(drag_ipl_chk)
         opts_row3.addStretch()
 
         lay.addLayout(opts_row3)

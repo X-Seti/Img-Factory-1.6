@@ -371,6 +371,19 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         # X moves) - None means free X/Y movement, the existing
         # default behaviour.
         self._ipl_drag_axis_lock = None
+        # 3-state Drag/Move/Rotate cycle (Aug 19 2026, per Keith: "1
+        # click turns into move ipl, click again rotate ipl, click
+        # back to drag ipl"). 'drag' (the existing default) means a
+        # click-and-hold on an instance starts the live-preview mouse
+        # drag already built; 'move'/'rotate' mean a plain click
+        # instead immediately fires ipl_click_callback with the
+        # picked IPL's name and does NOT start any drag tracking at
+        # all - map_workshop.py opens the corresponding numeric
+        # dialog (Shift Coordinates / Rotate) from that callback,
+        # since those two are precise-numeric-entry interactions, not
+        # mouse-drag ones.
+        self._ipl_interaction_mode = 'drag'
+        self._ipl_click_callback = None
 
         # Train track waypoints (Aug 17 2026, per Keith: "then the
         # other path .dat files you pointed out earlier") - each
@@ -2049,6 +2062,25 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         _ipl_drag_axis_lock is first declared in __init__."""
         self._ipl_drag_axis_lock = axis if axis in ('x', 'y') else None
 
+    def set_ipl_interaction_mode(self, mode): #vers 1
+        """Set which of the 3-state Drag/Move/Rotate cycle is active
+        for whole-IPL interaction (Aug 19 2026, per Keith's own
+        priority order for the interactive editing layer). See the
+        fuller explanation where self._ipl_interaction_mode is first
+        declared in __init__ for exactly how each mode changes what a
+        click does. Falls back to 'drag' for anything unrecognised."""
+        self._ipl_interaction_mode = mode if mode in ('drag', 'move', 'rotate') else 'drag'
+
+    def set_ipl_click_callback(self, callback): #vers 1
+        """Set (or clear, with None) the function called when an
+        instance is picked while in Move or Rotate mode: callback(
+        ipl_name). Never called in Drag mode - that one still goes
+        through the existing set_ipl_drag_callback on release instead.
+        map_workshop.py wires this once to a method that opens the
+        corresponding numeric dialog - mirrors every other widget-
+        owns-interaction, caller-owns-data callback in this file."""
+        self._ipl_click_callback = callback
+
     def set_show_tracks(self, enabled: bool): #vers 1
         self.show_tracks = enabled; self.update()
 
@@ -2604,6 +2636,19 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                     inst = entry.get('instance')
                     ipl_name = getattr(inst, 'source_ipl', None) if inst is not None else None
                     if ipl_name:
+                        interaction_mode = getattr(self, '_ipl_interaction_mode', 'drag')
+                        if interaction_mode != 'drag':
+                            # Move/Rotate mode (Aug 19 2026) - a plain
+                            # click immediately hands the picked IPL's
+                            # name off to map_workshop.py's own
+                            # numeric-dialog callback and stops right
+                            # here - no drag-state tracking starts at
+                            # all for these two modes, unlike Drag
+                            # mode just below.
+                            callback = getattr(self, '_ipl_click_callback', None)
+                            if callback is not None:
+                                callback(ipl_name)
+                            return
                         self._dragging_ipl_name = ipl_name
                         # A list of (inst, pos, rot, scale) tuples, NOT
                         # a dict keyed by inst - IPLInstance is a plain

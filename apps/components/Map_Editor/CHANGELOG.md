@@ -6133,3 +6133,65 @@ conclusively found despite extensive isolated testing.
   Drag/Move/Rotate three-state cycle for whole-IPL dragging ("click
   to make it move ipl, click again to make it rotate ipl"). Flagged
   honestly rather than rushed alongside everything above.
+
+- **Aug 19, 2026 (cont'd)** — Built the Drag/Move/Rotate three-state
+  cycle for whole-IPL interaction, per Keith: "Same button process
+  for drag ipl: 1 click turns into move ipl, click again rotate ipl,
+  click back to drag ipl" - plus moved it "from row 3 to after Render
+  Row 1" as he asked.
+
+  New `_rotate_ipl_coordinates(ipl_name, pivot_x, pivot_y, angle_deg)`
+  - the rotation counterpart to the already-existing `_shift_ipl_
+  coordinates`, same per-section-type coverage and live-in-memory-
+  only design. Verified both pieces of its math independently before
+  trusting them on real data: position-around-pivot rotation (a
+  known 90-degree case checked against its exact expected result,
+  distance from pivot preserved across several test angles) and
+  orientation rotation (reuses the already-proven `quat_to_euler_
+  degrees`/`euler_degrees_to_quat` pair - the exact functions `_on_
+  rotation_nudged` already uses for the Item Editor Dialog's own
+  rotation nudging - confirmed a 90-degree yaw addition to an
+  identity quaternion produces the exact expected result, and that
+  four successive 90-degree rotations return to identity). Then ran
+  the complete production logic against real `IPLInstance` objects
+  one more time: distance from pivot preserved for multiple instances
+  at once, and an identity-oriented instance's own orientation came
+  out rotated by exactly the requested angle, not approximately.
+
+  Honest, real format limitation carried over from `_shift_ipl_
+  coordinates`' own design: cull/zone/garages have no rotation field
+  of their own in the file format at all - only their own centre
+  point orbits the pivot, then the box is rebuilt axis-aligned around
+  that new centre afterward (moved, not spun) - only occlusion boxes
+  (which do have their own `rotation` field) and instances/paths/
+  entrances-exits (which have a real orientation/angle concept) can
+  genuinely tilt.
+
+  New `_prompt_rotate_ipl_coordinates` dialog mirrors the existing
+  Shift Coordinates dialog's own structure - pivot automatically
+  computed as the centroid of the target IPL's own instance
+  positions (no need to manually locate and type one), angle entry,
+  applies via `_rotate_ipl_coordinates` on Accept.
+
+  The interaction itself: `DFFViewport` gained `_ipl_interaction_
+  mode` ('drag'/'move'/'rotate') and `set_ipl_click_callback` - in
+  Drag mode, a click-and-hold still starts the existing live-preview
+  mouse drag unchanged; in Move/Rotate mode, a plain click instead
+  immediately fires the new click callback with the picked IPL's
+  name and starts no drag tracking at all. map_workshop.py's new
+  `_on_ipl_click_for_move_or_rotate` opens Shift Coordinates or
+  Rotate accordingly, reusing both existing dialogs rather than
+  building new ones. The button itself cycles Off -> Drag -> Move ->
+  Rotate -> Off on each click (`_on_ipl_mode_button_clicked`) - Off
+  is a real, distinct state, not just "back to Drag", preserving the
+  old checkbox's own ability to fully disable the feature so an
+  ordinary click doesn't risk accidentally triggering a move/rotate/
+  drag. Moved from row 3 into row 1, right after the Render dropdown,
+  replacing the previous plain "Drag IPL" checkbox entirely - the
+  right-click axis-lock menu built a turn ago now hangs off this same
+  button instead.
+
+  `ast.parse` clean on both touched files; confirmed via AST no
+  duplicate method definitions, and confirmed via direct search zero
+  remaining references anywhere in the file to the removed `_drag_
+  ipl_chk` attribute or `_on_ipl_drag_mode_toggled` handler.
