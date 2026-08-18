@@ -23042,15 +23042,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # lights show regardless of the Time switch/hour at all; when
         # on, the existing time-based night gating still applies
         # exactly as before.
-        dfx_chk = QCheckBox("2DFX")
-        dfx_chk.setChecked(True)
-        dfx_chk.setFixedHeight(24)
-        dfx_chk.setStyleSheet(_compact_18)
+        dfx_chk = _MapOverlayToggleButton("2DFX", supports_edit=False)
+        dfx_chk.set_shown(True, emit=False)
         dfx_chk.setToolTip(
             "Show 2DFX lights in the world view - when off, no 2DFX\n"
             "lights show at all, regardless of the Time switch. When\n"
             "on, the existing day/night time gating still applies.")
-        dfx_chk.toggled.connect(self._on_2dfx_master_toggled)
+        dfx_chk.show_toggled.connect(self._on_2dfx_master_toggled)
         self._2dfx_master_chk = dfx_chk
 
 
@@ -23078,16 +23076,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # filter logic already driving the 3D world view's Time
         # switch) - the regular rows above them keep their original
         # IPL file line order unchanged either way.
-        show_tobj_chk = QCheckBox("Tobj")
-        show_tobj_chk.setFixedHeight(18)
-        show_tobj_chk.setStyleSheet(_compact_18)
+        show_tobj_chk = _MapOverlayToggleButton("Tobj", supports_edit=False)
         show_tobj_chk.setToolTip(
             "Show TOBJ (timed) instances in the INST table, appended\n"
             "after the regular rows - filtered to only the ones\n"
             "currently active for the simulated hour set by the Time\n"
             "switch. Off by default, keeping TOBJ instances out of\n"
             "this view entirely.")
-        show_tobj_chk.toggled.connect(self._on_show_tobj_toggled)
+        show_tobj_chk.show_toggled.connect(self._on_show_tobj_toggled)
         self._show_tobj_chk = show_tobj_chk
 
         opts_row2.addWidget(show_tobj_chk)

@@ -6043,3 +6043,24 @@ conclusively found despite extensive isolated testing.
   all (already handled by the pre-existing ground-plane constraint).
   `ast.parse` clean on both touched files; confirmed via AST no
   duplicate method definitions.
+
+- **Aug 19, 2026** — Converted the 2DFX and Tobj checkboxes to the
+  same `_MapOverlayToggleButton` widget as the other row 2/3 toggles,
+  per Keith: "the 2dfx, tojb buttons need the same adjustments, as
+  the other buttons." Both were plain `QCheckBox`, left behind when
+  Paths/Tracks/Cull/Zone/Occlusion got converted earlier - now
+  consistent styling/behaviour across every overlay toggle in IPL
+  Controls. Neither has any edit mode (2DFX is a pure show/hide
+  master switch; Tobj controls what appears in the INST table, not a
+  3D-view overlay with anything to edit), so both use `supports_
+  edit=False`, matching Cull/Zone/Occlusion/Tracks' own treatment -
+  right-click shows the same "no edit mode yet" status message.
+
+  Confirmed via direct search that both widgets' only other real
+  usages elsewhere in the file (`show_tobj_chk.isChecked()` in the
+  TOBJ table filter, `master_chk.isChecked()` in the 2DFX light
+  refresh) are already covered by the compatibility `isChecked()`
+  method built when this widget class was first added - no other
+  code needed changing. `ast.parse` clean; confirmed via search no
+  stale `.toggled`/`.setChecked()` references remain anywhere for
+  either widget.
