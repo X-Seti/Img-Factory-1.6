@@ -3224,6 +3224,11 @@ class MapSettings(QObject):
         # default, preserving the existing always-zooms-toward-pan-
         # centre behaviour unless explicitly turned on.
         'zoom_to_cursor': False,
+        # Axis-colored box faces (Aug 18 2026, per Keith: "Cull, Occl,
+        # Zon boxes have coloured sides: x (green), y (red) and z
+        # (blue) faces") - off by default, preserving each box type's
+        # own configured colour unless explicitly turned on.
+        'box_axis_colors': False,
         # Viewport camera keybindings (Aug 16 2026, per Keith: "A new
         # tab is needed in map workshop settings to define keys") -
         # stored as {action: {'key': int(Qt.Key), 'numpad': bool}},
@@ -8323,6 +8328,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         occl_preview.clicked.connect(_pick_occl_color)
         boxes_form.addRow("Occlusion Colour:", occl_preview)
 
+        axis_colors_chk = QCheckBox("Colour box faces by axis (X=green, Y=red, Z=blue)")
+        axis_colors_chk.setChecked(bool(self.map_settings.get('box_axis_colors')))
+        axis_colors_chk.setToolTip(
+            "Overrides each box type's own colour above with a fixed\n"
+            "per-face scheme instead, so orientation is easy to read\n"
+            "while resizing/editing a box - which face is which axis\n"
+            "at a glance, regardless of the box's own type colour.")
+        boxes_form.addRow(axis_colors_chk)
+
         render_layout.addWidget(boxes_grp)
         render_layout.addStretch()
         tabs.addTab(render_tab, "Render")
@@ -8816,6 +8830,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 if vp is not None and hasattr(vp, 'set_occl_box_color'):
                     ocr, ocg, ocb = occl_chosen
                     vp.set_occl_box_color(ocr / 255.0, ocg / 255.0, ocb / 255.0)
+            self.map_settings.set('box_axis_colors', axis_colors_chk.isChecked())
+            if vp is not None and hasattr(vp, 'set_box_axis_colors'):
+                vp.set_box_axis_colors(axis_colors_chk.isChecked())
 
             # The rest of this function (fonts, button mode, export
             # format, preview/background settings) is pre-existing
@@ -12246,10 +12263,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
              _icon(lambda color=icon_color: MaxSVGIcons.create_primitive_icon(
                  size=20, color=color), 'create_primitive_icon'),
              callback=self._create_primitive_dialog, attr='_prim_act')
-        _act(tb_geo, "Extrude Faces",
-             _icon(lambda color=icon_color: MaxSVGIcons.extrude_icon(
-                 size=20, color=color), 'extrude_icon'),
-             callback=self._extrude_dialog, attr='_extrude_act')
         tb_geo.addSeparator()
         _act(tb_geo, "Mirror",
              _icon(lambda color=icon_color: MaxSVGIcons.mirror_icon(
@@ -26117,6 +26130,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             saved_color = self.map_settings.get('cull_box_color') or (255, 217, 51)
             cr, cg, cb = saved_color
             vp.set_cull_box_color(cr / 255.0, cg / 255.0, cb / 255.0)
+        if hasattr(vp, 'set_box_axis_colors'):
+            vp.set_box_axis_colors(bool(self.map_settings.get('box_axis_colors')))
         loader = getattr(self, '_world_loader', None)
         if loader is None:
             vp.set_cull_boxes([])
@@ -26161,6 +26176,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             saved_color = self.map_settings.get('zone_box_color') or (77, 179, 255)
             cr, cg, cb = saved_color
             vp.set_zone_box_color(cr / 255.0, cg / 255.0, cb / 255.0)
+        if hasattr(vp, 'set_box_axis_colors'):
+            vp.set_box_axis_colors(bool(self.map_settings.get('box_axis_colors')))
         loader = getattr(self, '_world_loader', None)
         if loader is None:
             vp.set_zone_boxes([])
@@ -26213,6 +26230,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             saved_color = self.map_settings.get('occl_box_color') or (255, 102, 204)
             cr, cg, cb = saved_color
             vp.set_occl_box_color(cr / 255.0, cg / 255.0, cb / 255.0)
+        if hasattr(vp, 'set_box_axis_colors'):
+            vp.set_box_axis_colors(bool(self.map_settings.get('box_axis_colors')))
         loader = getattr(self, '_world_loader', None)
         if loader is None:
             vp.set_occl_boxes([])

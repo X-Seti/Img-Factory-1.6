@@ -5898,3 +5898,66 @@ conclusively found despite extensive isolated testing.
   untouched; release correctly commits through the real shift logic,
   producing final positions that exactly match what was already shown
   during the live preview. `ast.parse` clean on both touched files.
+
+- **Aug 18, 2026 (cont'd)** — A large multi-part feature/feedback
+  message from Keith arrived covering the drag-IPL mode cycle, axis-
+  lock right-click options, snap-to-edge/centre reuse, numeric Move/
+  Rotate panels with per-section-type tick-boxes, water/radar
+  recalculation, radar/minimap generation, path traffic-flow
+  reversal, auto-highlight-on-hover, and axis-coloured box faces with
+  a no-clip editing option - genuinely too much to build responsibly
+  in one pass without rushing several of them. Picked off the pieces
+  that were concrete and self-contained enough to build and verify
+  properly this turn; the rest logged accurately for later rather
+  than guessed at half-scoped.
+
+  **Axis-coloured box faces**, per Keith: "Cull, Occl, Zon boxes have
+  coloured sides: x (green), y (red) and z (blue) faces, which makes
+  that easy to see." New optional per-face colour mode for the shared
+  `_draw_ghosted_box_from_corners` (used by all three box types) -
+  top/bottom caps blue, and of the 4 side faces, the pair connecting
+  corners 0-1/2-3 red, the pair connecting corners 1-2/3-0 green.
+  Verified this index-based mapping holds correctly not just for the
+  axis-aligned case (cull/zone) but for rotated boxes too (occlusion)
+  before trusting it - corners_xy is always built by rotating the same
+  four local corner offsets in the same order, so which index pair is
+  the "local X face" vs "local Y face" is fixed by construction,
+  independent of the box's current rotation in world space. New
+  `box_axis_colors` `MapSettings` entry + checkbox in Settings >
+  Render's "Cull / Zone / Occlusion Boxes" group - off by default,
+  overrides each box type's own configured colour when on (a global
+  setting covering all three at once, not per-type, since the whole
+  point is a consistent way to read orientation regardless of which
+  box is being looked at). Applied from all three box refresh methods
+  (not just one) so it takes effect correctly regardless of which
+  specific box type happens to be visible at the time.
+
+  **Removed the Extrude Faces ribbon icon**, per Keith: "we don't
+  need extrude or emboss ribbon icons either." Couldn't find an
+  "Emboss" button anywhere in this file to remove alongside it -
+  confirmed via direct search, flagging rather than guessing which
+  other button he might have meant.
+
+  Verified the axis-face-colour logic directly (uniform colour
+  preserved when the setting is off; caps blue, sides 0/2 red, sides
+  1/3 green when on, matching the spec exactly) before wiring it into
+  the real drawing code. `ast.parse` clean on both touched files;
+  confirmed via AST no duplicate method definitions.
+
+  **Logged, not built**, per Keith's own explicit deferral for two of
+  them: water/radar recalculation on IPL moves, and a map-to-radar
+  (top-down capture) generation feature - both added to TODO.md with
+  his own framing preserved.
+
+  **Not yet scoped or started, flagged honestly rather than rushed**:
+  cycling Drag/Move/Rotate modes on the same button; right-click axis-
+  lock options (lock Z, X/Y-only) for IPL dragging; reusing the
+  existing snap-to-edge/snap-to-centre ribbon tools for IPL dragging;
+  numeric +/- Move and Rotate panels with per-section-type (paths/
+  zones/tracks/cull/occlusion) tick-boxes controlling what actually
+  moves; a path right-click "reverse traffic flow" option (Keith's
+  own note: "I think we just flip the nodes. needs looking at" -
+  a genuine investigation task, not a fully-specified feature yet);
+  an auto-highlight-on-hover setting for anything under the cursor;
+  a no-clipping option preventing box-to-box overlap while editing
+  cull/zone/occlusion sizes.

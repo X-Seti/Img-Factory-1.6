@@ -426,6 +426,13 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self.show_occl_boxes = False
         self._occl_boxes = []
         self._occl_box_color = (1.0, 0.4, 0.8)   # pink, distinct from cull/zone/paths
+        # Axis-colored box faces (Aug 18 2026, per Keith: "Cull, Occl,
+        # Zon boxes have coloured sides: x (green), y (red) and z
+        # (blue) faces, which makes that easy to see") - off by
+        # default, overrides each box type's own configured colour
+        # when on (see _draw_ghosted_box_from_corners's own docstring
+        # for the exact per-face colour logic).
+        self._box_axis_colors = False
 
         # Wheels
         self._wheels_model      = None
@@ -1035,7 +1042,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 corners_xy = [(x1, y1), (x2, y1), (x2, y2), (x1, y2)]
                 self._draw_ghosted_box_from_corners(
                     corners_xy, z1, z2, r, g, b,
-                    fill_alpha=fill_alpha, draw_outline=draw_outline)
+                    fill_alpha=fill_alpha, draw_outline=draw_outline,
+                    axis_colored=getattr(self, '_box_axis_colors', False))
                 self._draw_box_corner_spheres(corners_xy, z1, z2, r, g, b)
             glDisable(GL_BLEND)
         glEnable(GL_DEPTH_TEST)
@@ -1069,7 +1077,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         r, g, b = color
         for x1, y1, z1, x2, y2, z2 in boxes:
             corners_xy = [(x1, y1), (x2, y1), (x2, y2), (x1, y2)]
-            self._draw_ghosted_box_from_corners(corners_xy, z1, z2, r, g, b)
+            self._draw_ghosted_box_from_corners(corners_xy, z1, z2, r, g, b,
+                axis_colored=getattr(self, '_box_axis_colors', False))
             self._draw_box_corner_spheres(corners_xy, z1, z2, r, g, b)
         glDisable(GL_BLEND)
         glEnable(GL_DEPTH_TEST)
@@ -1077,7 +1086,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def _draw_ghosted_box_from_corners(self, corners_xy, z1, z2, r, g, b,
                                         fill_alpha=0.32, edge_alpha=0.85,
-                                        draw_outline=True): #vers 2
+                                        draw_outline=True, axis_colored=False): #vers 3
         """Draw one ghosted (semi-transparent filled faces + an
         optional, more opaque wireframe outline for definition) box
         from 4 already-computed (x,y) corner points in loop order and
@@ -1096,8 +1105,35 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         between them, not this actual drawing routine. Caller is
         responsible for glEnable(GL_BLEND)/blend func and disabling
         lighting/depth test around a whole batch, not repeated per
-        box here."""
-        glColor4f(r, g, b, fill_alpha)
+        box here.
+
+        axis_colored=True (Aug 18 2026, per Keith: "Cull, Occl, Zon
+        boxes have coloured sides: x (green), y (red) and z (blue)
+        faces, which makes that easy to see") - overrides the passed
+        (r,g,b) with a fixed per-face colour instead: the top/bottom
+        caps (the box's own Z extent) are blue, and of the 4 side
+        faces, the two connecting corners[0]-corners[1] and
+        corners[2]-corners[3] are red (these vary in X while Y stays
+        constant along each - i.e. their face normal points along Y),
+        the other two (corners[1]-corners[2], corners[3]-corners[0])
+        are green (X-constant, normal along X). This holds correctly
+        for rotated boxes (occlusion) too, not just axis-aligned ones
+        (cull/zone) - verified with a standalone rotation test before
+        trusting it: corners_xy is always built by rotating the SAME
+        four local corner offsets in the SAME order, so which pair of
+        indices is the "local X face" vs "local Y face" is fixed by
+        construction and doesn't depend on the box's current rotation
+        in world space, even though the actual (x,y) values do."""
+        def _face_color(default_alpha, side_index=None):
+            if not axis_colored:
+                return (r, g, b, default_alpha)
+            if side_index is None:
+                return (0.2, 0.4, 1.0, default_alpha)   # Z (top/bottom caps) - blue
+            return (1.0, 0.25, 0.25, default_alpha) if side_index % 2 == 0 \
+                else (0.25, 1.0, 0.25, default_alpha)    # Y (red) / X (green)
+
+        cr, cg, cb, ca = _face_color(fill_alpha)
+        glColor4f(cr, cg, cb, ca)
         glBegin(GL_QUADS)
         for cx, cy in corners_xy:
             glVertex3f(cx, cy, z1)
@@ -1109,6 +1145,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         for i in range(4):
             cx0, cy0 = corners_xy[i]
             cx1, cy1 = corners_xy[(i + 1) % 4]
+            fr, fg, fb, fa = _face_color(fill_alpha, side_index=i)
+            glColor4f(fr, fg, fb, fa)
             glBegin(GL_QUADS)
             glVertex3f(cx0, cy0, z1); glVertex3f(cx1, cy1, z1)
             glVertex3f(cx1, cy1, z2); glVertex3f(cx0, cy0, z2)
@@ -1229,7 +1267,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 ry = dx * sin_r + dy * cos_r
                 corners_xy.append((mid_x + rx, mid_y + ry))
             z1, z2 = bottom_z, bottom_z + height
-            self._draw_ghosted_box_from_corners(corners_xy, z1, z2, r, g, b)
+            self._draw_ghosted_box_from_corners(corners_xy, z1, z2, r, g, b,
+                axis_colored=getattr(self, '_box_axis_colors', False))
             self._draw_box_corner_spheres(corners_xy, z1, z2, r, g, b)
         glDisable(GL_BLEND)
         glEnable(GL_DEPTH_TEST)
@@ -2136,6 +2175,17 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def set_occl_box_color(self, r: float, g: float, b: float): #vers 1
         self._occl_box_color = (r, g, b)
+        self.update()
+
+    def set_box_axis_colors(self, enabled: bool): #vers 1
+        """Toggle axis-colored box faces (Aug 18 2026, per Keith's own
+        request - see _draw_ghosted_box_from_corners's own docstring
+        for the full colour scheme). Overrides each box type's own
+        configured colour when on, for every cull/zone/occlusion box
+        at once - not a per-type setting, since the whole point is a
+        consistent way to read orientation regardless of which box
+        type is being edited."""
+        self._box_axis_colors = enabled
         self.update()
 
     def _clear_col_display_lists(self): #vers 1

@@ -705,3 +705,17 @@ directive structure as gta3.dat (IDE/COLFILE/etc.) - purpose relative
 to gta3.dat not determined (possibly a menu/loading-screen or testing
 configuration) - not investigated further, low priority unless a
 specific need comes up.
+
+
+## Deferred by Keith himself (Aug 18 2026) - not urgent, logged as asked
+- When moving IPL content (whole-IPL drag/shift), water level data and
+  the radar/minimap would both need recalculating to stay in sync with
+  the new positions - Keith explicitly said this is fine to defer:
+  "When moving IPL content, I would like time to recalculate the water
+  and radar, but that is for the TODO." Not started, not investigated.
+- Generate-map-to-radar option - Keith's own framing: "Radar would be
+  a top-down view; generate map-to-radar option." A new export/render
+  feature (an orthographic top-down capture of the loaded world,
+  presumably for producing an in-game radar/minimap texture) - not
+  started, not investigated, genuinely new scope beyond editing the
+  map itself.
