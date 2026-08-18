@@ -6542,3 +6542,48 @@ conclusively found despite extensive isolated testing.
   multiple loaded IPLs while leaving an unloaded one completely
   untouched. `ast.parse` clean on both touched files; confirmed via
   AST no duplicate method definitions.
+
+- **Aug 19, 2026 (cont'd)** — Extended Move/Rotate to respect the
+  multi-IPL selection, per Keith: "lets add the Paths, ZOnes, Cuil
+  for move and rotate" - the per-section-type tick-boxes themselves
+  already existed; what was still single-IPL-only was the selection
+  Move/Rotate actually operate on, unlike Drag's own Ctrl+drag which
+  already picked up the whole current selection.
+
+  `_prompt_shift_ipl_coordinates`/`_prompt_rotate_ipl_coordinates`
+  now both accept either a single IPL name (a plain string - the IPL
+  Sections right-click menu's own call, unchanged) or any collection
+  of several (the same shared multi-IPL selection Drag's own Ctrl+
+  drag already uses). `_on_ipl_click_for_move_or_rotate` now checks
+  that selection first - if it's non-empty, the dialog applies to
+  every selected IPL at once instead of just the one clicked
+  instance's own IPL, exactly matching how Ctrl+drag already ignores
+  which specific instance started the drag and moves the whole
+  selection together.
+
+  Rotate's own pivot, for a multi-IPL selection, is now the ONE
+  shared centroid across every selected IPL's instances combined -
+  not each IPL's own separate centre - so a multi-IPL rotate spins
+  the whole group together around one common point, matching how the
+  equivalent multi-IPL drag already moves everything as one rigid
+  body rather than each IPL drifting toward its own destination.
+
+  **Real correctness issue caught and handled deliberately, not
+  guessed at**: Tracks is genuinely global data (not tied to any
+  single IPL's own `source_ipl` at all - already true before this
+  change). Looping the tracks shift/rotate call once per selected IPL
+  name would have applied the same offset to the same global tracks
+  multiple times over for a multi-IPL selection - both dialogs' own
+  accept handlers call `_shift_all_tracks`/`_rotate_all_tracks`
+  exactly once per Accept, outside the per-IPL loop entirely, not
+  once per name.
+
+  Verified directly against real `IPLInstance` objects before
+  trusting any of it: a 2-IPL shift correctly calls `_shift_ipl_
+  coordinates` once per name and moves both IPLs' real instances,
+  the tracks shift fires exactly once despite 2 IPLs being moved (the
+  specific bug this design deliberately avoided), the single-IPL
+  string-input case still works unchanged, and the combined-centroid
+  pivot for a real 2-IPL, 4-instance selection came out correctly
+  distinct from either IPL's own separate centre. `ast.parse` clean;
+  confirmed via AST no duplicate method definitions.

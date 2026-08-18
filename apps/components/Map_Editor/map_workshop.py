@@ -22430,19 +22430,35 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 vp.set_ipl_interaction_mode(new_mode if new_mode != 'off' else 'drag')
         self._set_status(f"IPL interaction mode: {new_mode.capitalize()}")
 
-    def _on_ipl_click_for_move_or_rotate(self, ipl_name): #vers 1
+    def _on_ipl_click_for_move_or_rotate(self, ipl_name): #vers 2
         """Fired by DFFViewport.set_ipl_click_callback when an
         instance is picked while the IPL mode button is in Move or
-        Rotate state (Aug 19 2026) - opens the corresponding existing
-        numeric dialog for that instance's own IPL, reusing _prompt_
-        shift_ipl_coordinates/_prompt_rotate_ipl_coordinates exactly
-        as the IPL Sections right-click menu already does, rather
-        than building a second, parallel entry point for either."""
+        Rotate state (Aug 19 2026, extended per Keith: "same functions
+        can be added to move and rotate" - the same Ctrl/Shift multi-
+        IPL selection Drag already uses) - opens the corresponding
+        existing numeric dialog, reusing _prompt_shift_ipl_
+        coordinates/_prompt_rotate_ipl_coordinates exactly as the IPL
+        Sections right-click menu already does, rather than building
+        a second, parallel entry point for either.
+
+        If there's an active multi-IPL selection (the same shared set
+        Drag's own Ctrl+drag now uses, built via Shift+click either on
+        instances in the viewport or on rows in the IPL Sections
+        table), the dialog applies to every one of the selected IPLs
+        at once, matching how Ctrl+drag already ignores which specific
+        instance was clicked and moves the WHOLE selection together.
+        With nothing selected, falls back to just the one clicked
+        IPL, same as before this extension."""
         mode = getattr(self, '_ipl_interaction_mode', 'drag')
+        if mode not in ('move', 'rotate'):
+            return
+        vp = getattr(self, 'preview_widget', None)
+        selection = getattr(vp, '_multi_selected_ipl_names', None) if vp is not None else None
+        target = set(selection) if selection else ipl_name
         if mode == 'move':
-            self._prompt_shift_ipl_coordinates(ipl_name)
+            self._prompt_shift_ipl_coordinates(target)
         elif mode == 'rotate':
-            self._prompt_rotate_ipl_coordinates(ipl_name)
+            self._prompt_rotate_ipl_coordinates(target)
 
     def _on_ipl_selection_changed(self, selected_names): #vers 2
         """Fired by DFFViewport.set_ipl_selection_callback whenever a
@@ -22553,11 +22569,20 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         elif chosen is lock_y_act:
             vp.set_ipl_drag_axis_lock('y')
 
-    def _prompt_shift_ipl_coordinates(self, ipl_name): #vers 2
+    def _prompt_shift_ipl_coordinates(self, ipl_names): #vers 3
         """Dialog collecting a (dx,dy,dz) offset, then applies it via
         _shift_ipl_coordinates - the entry point wired to the IPL
         Sections right-click menu's "Shift Coordinates..." action and
         to Move mode's own click interaction.
+
+        ipl_names (Aug 19 2026, per Keith: "same functions can be
+        added to move and rotate... [the] Ctrl/Shift multi-IPL
+        workflow already built for Drag") accepts either a single IPL
+        name (a plain string - the IPL Sections right-click menu's
+        own call, always exactly one) or any iterable of several (a
+        multi-IPL selection built the same way Drag's own selection
+        is - Shift+click instances or IPL Sections rows). One dialog,
+        one set of values, applied to every one of them.
 
         Aug 19 2026, per Keith: "[Move ipl] any direction; using -/+
         z value -/+ x value, -/+ y value. right-click options for
@@ -22571,12 +22596,28 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         separate Tracks tick-box (off by default - see _shift_all_
         tracks' own docstring for why train tracks need their own,
         separate global handling rather than being one more include_
-        types key)."""
+        types key - and, now that this dialog can cover several IPLs
+        at once, why the tracks shift below only ever runs ONCE per
+        Accept, outside the per-IPL loop, not once per selected IPL -
+        tracks aren't tied to any single one of them, so applying the
+        same shift several times over would move them several times
+        too far)."""
+        if isinstance(ipl_names, str):
+            names = [ipl_names]
+        else:
+            names = sorted(set(ipl_names))
+        if not names:
+            return
+
         from PyQt6.QtWidgets import QDialog, QFormLayout, QDoubleSpinBox, QDialogButtonBox, QHBoxLayout, QToolButton
 
         dlg = QDialog(self)
-        dlg.setWindowTitle(f"Move - {ipl_name}")
+        title = f"Move - {names[0]}" if len(names) == 1 else f"Move - {len(names)} IPLs"
+        dlg.setWindowTitle(title)
         form = QFormLayout(dlg)
+        if len(names) > 1:
+            from PyQt6.QtWidgets import QLabel
+            form.addRow(QLabel(f"Applies to all {len(names)} selected IPLs"))
 
         def _axis_row(label):
             spin = QDoubleSpinBox(); spin.setRange(-100000.0, 100000.0); spin.setDecimals(3)
@@ -22607,41 +22648,66 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 return
             include = {k for k, chk in type_boxes.items() if k != 'tracks' and chk.isChecked()}
             if include:
-                self._shift_ipl_coordinates(ipl_name, dx, dy, dz, include_types=include)
+                for name in names:
+                    self._shift_ipl_coordinates(name, dx, dy, dz, include_types=include)
             if type_boxes['tracks'].isChecked():
                 self._shift_all_tracks(dx, dy, dz)
 
-    def _prompt_rotate_ipl_coordinates(self, ipl_name): #vers 2
+    def _prompt_rotate_ipl_coordinates(self, ipl_names): #vers 4
         """Dialog collecting a rotation angle (around a pivot
-        automatically computed as the centroid of the IPL's own
-        instance positions - a sensible default rather than making
-        the person manually locate and type a pivot point every time),
-        then applies it via _rotate_ipl_coordinates. Entry point for
-        Rotate mode's own click interaction (see set_ipl_drag_mode's
-        docstring for the 3-state Drag/Move/Rotate cycle this belongs
-        to) - mirrors _prompt_shift_ipl_coordinates' own structure and
-        wiring pattern exactly, just for angle instead of XYZ, per
-        Keith's own "Right-click options for move ipl, move paths,
-        move zones, move tracks, move cull, move occlusion" applied
-        equally to Rotate."""
+        automatically computed as the combined centroid of every
+        selected IPL's own instance positions together - a sensible
+        default rather than making the person manually locate and
+        type a pivot point every time), then applies it via _rotate_
+        ipl_coordinates. Entry point for Rotate mode's own click
+        interaction (see set_ipl_drag_mode's docstring for the 3-state
+        Drag/Move/Rotate cycle this belongs to) - mirrors _prompt_
+        shift_ipl_coordinates' own structure and wiring pattern
+        exactly, just for angle instead of XYZ, per Keith's own
+        "Right-click options for move ipl, move paths, move zones,
+        move tracks, move cull, move occlusion" applied equally to
+        Rotate.
+
+        ipl_names accepts either a single IPL name (a plain string) or
+        any iterable of several (a multi-IPL selection, same as _
+        prompt_shift_ipl_coordinates' own docstring explains) - when
+        several are given, the pivot is the ONE shared centroid across
+        ALL of their instances combined, not each IPL's own separate
+        centre, so a multi-IPL rotate spins the whole group together
+        around one common point rather than each IPL spinning in
+        place around its own centre independently - matching how the
+        equivalent multi-IPL Drag already moves everything together
+        as one rigid body, not each IPL drifting toward its own
+        separate destination."""
+        if isinstance(ipl_names, str):
+            names = [ipl_names]
+        else:
+            names = sorted(set(ipl_names))
+        if not names:
+            return
         loader = getattr(self, '_world_loader', None)
         if loader is None:
             return
-        xs = [inst.pos_x for inst in loader.instances if inst.source_ipl == ipl_name]
-        ys = [inst.pos_y for inst in loader.instances if inst.source_ipl == ipl_name]
+        names_set = set(names)
+        xs = [inst.pos_x for inst in loader.instances if inst.source_ipl in names_set]
+        ys = [inst.pos_y for inst in loader.instances if inst.source_ipl in names_set]
         if not xs:
-            self._set_status(f"No instances found in {ipl_name} to rotate around")
+            label = names[0] if len(names) == 1 else f"the {len(names)} selected IPLs"
+            self._set_status(f"No instances found in {label} to rotate around")
             return
         pivot_x, pivot_y = sum(xs) / len(xs), sum(ys) / len(ys)
 
         from PyQt6.QtWidgets import QDialog, QFormLayout, QDoubleSpinBox, QDialogButtonBox, QLabel, QHBoxLayout, QToolButton
 
         dlg = QDialog(self)
-        dlg.setWindowTitle(f"Rotate - {ipl_name}")
+        title = f"Rotate - {names[0]}" if len(names) == 1 else f"Rotate - {len(names)} IPLs"
+        dlg.setWindowTitle(title)
         form = QFormLayout(dlg)
-        form.addRow(QLabel(
-            f"Pivot: centre of {ipl_name}'s own instances "
-            f"({pivot_x:.1f}, {pivot_y:.1f})"))
+        if len(names) > 1:
+            form.addRow(QLabel(f"Applies to all {len(names)} selected IPLs"))
+        pivot_desc = (f"centre of {names[0]}'s own instances" if len(names) == 1
+                     else f"combined centre of all {len(names)} selected IPLs' instances")
+        form.addRow(QLabel(f"Pivot: {pivot_desc} ({pivot_x:.1f}, {pivot_y:.1f})"))
 
         angle_spin = QDoubleSpinBox(); angle_spin.setRange(-360.0, 360.0); angle_spin.setDecimals(2)
         angle_spin.setSuffix("\u00b0")
@@ -22667,7 +22733,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 return
             include = {k for k, chk in type_boxes.items() if k != 'tracks' and chk.isChecked()}
             if include:
-                self._rotate_ipl_coordinates(ipl_name, pivot_x, pivot_y, angle, include_types=include)
+                for name in names:
+                    self._rotate_ipl_coordinates(name, pivot_x, pivot_y, angle, include_types=include)
             if type_boxes['tracks'].isChecked():
                 self._rotate_all_tracks(pivot_x, pivot_y, angle)
 
