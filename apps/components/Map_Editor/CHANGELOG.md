@@ -6195,3 +6195,39 @@ conclusively found despite extensive isolated testing.
   duplicate method definitions, and confirmed via direct search zero
   remaining references anywhere in the file to the removed `_drag_
   ipl_chk` attribute or `_on_ipl_drag_mode_toggled` handler.
+
+- **Aug 19, 2026 (cont'd)** — Two more items from Keith's follow-up.
+
+  **Corrected axis-colour box faces to X=green, Y=red, Z=blue** - the
+  colour scheme went through a brief back-and-forth this same turn
+  (Keith's initial correction said "Z sides blue, Y sides green, X
+  sides red", swapping X and Y from what had been built a few turns
+  earlier - then a follow-up message swapped them straight back:
+  "X=red/Y=green, swap them around to X-Green, Y-Red"). Final,
+  settled state matches the very first spec from a few turns ago:
+  green sides vary in Y (X-constant faces), red sides vary in X
+  (Y-constant faces), blue caps are the Z extent. Updated both the
+  actual `_draw_ghosted_box_from_corners` colour logic and the
+  Settings > Render checkbox's own label text to match. Re-verified
+  the final assignment directly rather than assuming the two edits
+  cancelled out correctly.
+
+  **Generalised the "<TAB> Display" dock rename to every tab, not
+  just PATH**, per Keith: "when looking at cull, or zon, the IPL File
+  Display should show to ZON Display or CULL Display for
+  consistancy." `_on_ipl_data_type_changed` now reads the active
+  tab's own label directly off the tab bar (`tabText`) rather than a
+  second, separately-maintained copy of the label strings that could
+  drift out of sync with `tab_specs`' own labels - INST keeps the
+  original "IPL File Display" name (the default, already-familiar
+  view this dock is named after, not a specialised section type the
+  way the others are), PATH keeps "Paths Display" (Keith's own
+  originally-requested wording for that one specifically), and every
+  other tab becomes "<LABEL> Display" - CULL Display, ZON Display,
+  GRGE Display, OCCL Display, and so on automatically, with no need
+  to add a new case here every time a tab gets added or renamed in
+  the future.
+
+  Verified the generalised title computation directly against every
+  real tab key before trusting it. `ast.parse` clean on both touched
+  files; confirmed via AST no duplicate method definitions.

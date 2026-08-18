@@ -22911,23 +22911,44 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._rebuild_ipl_sections_rows()
             self._set_status(f"Added {len(paths)} file(s) - click to view")
 
-    def _on_ipl_data_type_changed(self, data_type): #vers 2
+    def _on_ipl_data_type_changed(self, data_type): #vers 3
         """INST/CULL/ZONE/... changed - updates which kind of data the
         IPL Inst File panel shows for the currently selected IPL.
 
-        Also renames the dock's own title to "Paths Display" while the
-        PATH tab is active (Aug 19 2026, per Keith: "I'd even change
-        IPL File Display to Paths Display when [Paths] is clicked"),
-        reverting to "IPL File Display" for every other tab - only
-        while _ipl_inst_file_mode is still 'ipl' (not 'ide'), so this
-        doesn't fight with _on_object_browser_tab_changed's own
+        Also renames the dock's own title to "<TAB> Display" for
+        whichever tab is active - e.g. "CULL Display", "ZON Display"
+        (Aug 19 2026, per Keith: "when looking at cull, or zon, the
+        IPL File Display should show to ZON Display or CULL Display
+        for consistancy" - generalising the "Paths Display" rename
+        from a few turns ago, which only covered the PATH tab, to
+        every tab). INST keeps the original "IPL File Display" name
+        rather than becoming "INST Display" - it's the default,
+        already-familiar view this dock is named after, not one of
+        the more specialised section types the others represent.
+        Reads the label directly off the tab bar's own tabText
+        (single source of truth - tab_specs' own label strings, not a
+        second, separately-maintained mapping that could drift out of
+        sync with it) rather than hardcoding a second copy of every
+        label here.
+
+        Only while _ipl_inst_file_mode is still 'ipl' (not 'ide'), so
+        this doesn't fight with _on_object_browser_tab_changed's own
         "IDE Objects" title when that mode is active instead."""
         self._ipl_data_type = data_type
         if getattr(self, '_ipl_inst_file_mode', 'ipl') == 'ipl':
             dock = getattr(self, '_ipl_inst_file_dock', None)
             title_lbl = getattr(dock, '_title_label', None) if dock is not None else None
             if title_lbl is not None:
-                title_lbl.setText("Paths Display" if data_type == 'path' else "IPL File Display")
+                if data_type == 'inst':
+                    title_lbl.setText("IPL File Display")
+                else:
+                    tab_bar = getattr(self, '_ipl_tab_bar', None)
+                    tab_keys = getattr(self, '_ipl_tab_keys', None)
+                    label = data_type.upper()
+                    if tab_bar is not None and tab_keys and data_type in tab_keys:
+                        label = tab_bar.tabText(tab_keys.index(data_type))
+                    title_lbl.setText(
+                        "Paths Display" if data_type == 'path' else f"{label} Display")
         self._refresh_ipl_inst_file_panel()
 
     def _on_show_tobj_toggled(self, checked): #vers 1

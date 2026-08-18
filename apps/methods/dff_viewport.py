@@ -1132,17 +1132,19 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         lighting/depth test around a whole batch, not repeated per
         box here.
 
-        axis_colored=True (Aug 18 2026, per Keith: "Cull, Occl, Zon
-        boxes have coloured sides: x (green), y (red) and z (blue)
-        faces, which makes that easy to see") - overrides the passed
-        (r,g,b) with a fixed per-face colour instead: the top/bottom
-        caps (the box's own Z extent) are blue, and of the 4 side
-        faces, the two connecting corners[0]-corners[1] and
-        corners[2]-corners[3] are red (these vary in X while Y stays
-        constant along each - i.e. their face normal points along Y),
-        the other two (corners[1]-corners[2], corners[3]-corners[0])
-        are green (X-constant, normal along X). This holds correctly
-        for rotated boxes (occlusion) too, not just axis-aligned ones
+        axis_colored=True (Aug 19 2026, per Keith's colour spec: "box
+        sides colour Z sides blue, Y sides green, X sides red", then
+        corrected right back: "X=red/Y=green, swap them around to
+        X-Green, Y-Red" - so X=green, Y=red, Z=blue is the actual,
+        final intended scheme) - overrides the passed (r,g,b) with a
+        fixed per-face colour instead: the top/bottom caps (the box's
+        own Z extent) are blue, and of the 4 side faces, the two
+        connecting corners[0]-corners[1] and corners[2]-corners[3]
+        are red (these vary in X while Y stays constant along each -
+        i.e. their face normal points along Y), the other two
+        (corners[1]-corners[2], corners[3]-corners[0]) are green
+        (X-constant, normal along X). This holds correctly for
+        rotated boxes (occlusion) too, not just axis-aligned ones
         (cull/zone) - verified with a standalone rotation test before
         trusting it: corners_xy is always built by rotating the SAME
         four local corner offsets in the SAME order, so which pair of
