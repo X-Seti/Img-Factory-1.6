@@ -15,6 +15,7 @@ import shutil
 import struct
 import sys
 import io
+import base64
 import numpy as np
 from pathlib import Path
 from typing import Optional, List, Dict, Tuple
@@ -3237,6 +3238,15 @@ class MapSettings(QObject):
         # object highlight setting in map_workshop settings") - off
         # by default, a real continuous per-mouse-move cost.
         'auto_highlight_hover': False,
+        # Dock/splitter layout (Aug 19 2026, per Keith: "General
+        # UI-state persistence — splitter positions, dock layout, tab
+        # order not remembered between sessions") - a base64-encoded
+        # QByteArray from QMainWindow.saveState(), which already
+        # captures every dock's own position/size/floating state/tab
+        # grouping in one go (see _save_dock_state's own docstring).
+        # Empty string means "nothing saved yet, use the built-in
+        # default layout".
+        'workshop_dock_state': '',
         # Viewport camera keybindings (Aug 16 2026, per Keith: "A new
         # tab is needed in map workshop settings to define keys") -
         # stored as {action: {'key': int(Qt.Key), 'numpad': bool}},
@@ -5647,6 +5657,23 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         # Apply theme ONCE at the end
         self._apply_theme()
+
+        # Restore a previously-saved dock/splitter layout, if one
+        # exists (Aug 19 2026, per Keith: "General UI-state
+        # persistence — splitter positions, dock layout, tab order
+        # not remembered between sessions"). QTimer.singleShot(0, ...)
+        # rather than calling this directly here - setup_ui() itself
+        # is a fairly short method that delegates most of the actual
+        # dock construction through several further layers of its own
+        # sub-methods (the real "World View" dock, for instance, is
+        # created hundreds of lines away in a different method
+        # entirely) - scheduling this for the very next event loop
+        # iteration guarantees every dock this widget will ever create
+        # already exists by the time it actually runs, regardless of
+        # how deeply that construction chain is nested, without
+        # needing to hunt down and depend on the exact last line of
+        # whichever sub-method happens to run last today.
+        QTimer.singleShot(0, self._restore_dock_state)
 
 
     def setup_ui(self): #vers 14
@@ -9935,7 +9962,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.showMaximized()
 
 
-    def closeEvent(self, event): #vers 3
+    def closeEvent(self, event): #vers 4
         """Handle close — _save_toolbar_state fires via window_closed
         signal. Flushes any still-pending debounced settings save
         (Aug 16 2026, per Keith: "the settings are being saved for
@@ -9949,7 +9976,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         load. self.map_settings.save() forces an immediate write,
         bypassing the debounce, cheap/safe to call even when there's
         nothing pending (same as a no-op write of the current
-        state)."""
+        state).
+
+        Also saves the dock/splitter layout now (Aug 19 2026, per
+        Keith: "General UI-state persistence — splitter positions,
+        dock layout, tab order not remembered between sessions") -
+        see _save_dock_state's own docstring for the full mechanism."""
+        self._save_dock_state()
         if hasattr(self, 'map_settings'):
             try:
                 self.map_settings.save()
@@ -9963,6 +9996,57 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         except Exception:
             pass
         event.accept()
+
+    def _save_dock_state(self): #vers 1
+        """Capture the current dock layout - every dock's own position,
+        size, floating state, and tab grouping/order within a shared
+        area - via Qt's own built-in QMainWindow.saveState(), rather
+        than hand-tracking each dock's own geometry separately (Aug 19
+        2026, per Keith: "General UI-state persistence — splitter
+        positions, dock layout, tab order not remembered between
+        sessions"). Works because every dock in this workshop already
+        has a stable, unique setObjectName() call (confirmed via
+        direct search before relying on this - Object Browser,
+        Instance List, IPL Object Editor, Control Panel, IPL Controls,
+        IPL Inst File, Editing Panel, World View - all already set),
+        which is what QMainWindow's own save/restoreState actually
+        keys off internally to match a saved dock back to the real
+        widget on restore.
+
+        QMainWindow.saveState() returns a QByteArray, not something
+        JSON (MapSettings' own storage format) can hold directly -
+        base64-encoded into a plain string for storage, decoded back
+        into a real QByteArray on restore."""
+        inner_mw = getattr(self, '_inner_mw', None)
+        if inner_mw is None or not hasattr(self, 'map_settings'):
+            return
+        try:
+            state_bytes = bytes(inner_mw.saveState())
+            encoded = base64.b64encode(state_bytes).decode('ascii')
+            self.map_settings.set('workshop_dock_state', encoded)
+        except Exception:
+            pass
+
+    def _restore_dock_state(self): #vers 1
+        """Restore a previously-saved dock layout, if one exists (Aug
+        19 2026) - see _save_dock_state's own docstring for the full
+        mechanism. Called once, at the end of construction, after
+        every dock has already been created and added to _inner_mw -
+        QMainWindow.restoreState() can only correctly reposition docks
+        that already exist with matching object names; calling this
+        any earlier, before all the real dock widgets exist yet,
+        would have nothing real to restore onto."""
+        inner_mw = getattr(self, '_inner_mw', None)
+        if inner_mw is None or not hasattr(self, 'map_settings'):
+            return
+        encoded = self.map_settings.get('workshop_dock_state')
+        if not encoded:
+            return
+        try:
+            state_bytes = base64.b64decode(encoded.encode('ascii'))
+            inner_mw.restoreState(QByteArray(state_bytes))
+        except Exception:
+            pass
 
 
 # - Panel Setup

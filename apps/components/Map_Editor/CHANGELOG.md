@@ -6647,3 +6647,52 @@ conclusively found despite extensive isolated testing.
   real, substantial, explicitly deferred requirements, not started.
 
   `ast.parse` clean.
+
+- **Aug 19, 2026 (cont'd)** — Added dock/splitter layout persistence,
+  per Keith: "General UI-state persistence — splitter positions, dock
+  layout, tab order not remembered between sessions."
+
+  Uses Qt's own built-in `QMainWindow.saveState()`/`restoreState()`
+  rather than hand-tracking each dock's own position/size/floating
+  state separately - one call captures everything at once (position,
+  size, floating, and tab grouping/order within a shared area), and
+  works because every dock in this workshop already had a stable,
+  unique `setObjectName()` call in place (confirmed via direct search
+  before relying on this, not assumed - Object Browser, Instance
+  List, IPL Object Editor, Control Panel, IPL Controls, IPL Inst
+  File, Editing Panel, World View), which is what `restoreState()`
+  actually keys off to match a saved dock back to the real widget.
+
+  New `workshop_dock_state` `MapSettings` entry stores a base64-
+  encoded copy of the `QByteArray` `saveState()` returns - JSON
+  (`MapSettings`' own storage format) can't hold a `QByteArray`
+  directly. New `_save_dock_state` (called from `closeEvent`,
+  alongside the existing settings flush) and `_restore_dock_state`.
+
+  The restore is scheduled via `QTimer.singleShot(0, ...)` right
+  after `__init__`'s own final step, rather than called directly
+  inline - `setup_ui()` itself delegates most of the actual dock
+  construction through several further layers of its own sub-methods
+  (the real "World View" dock, for instance, gets created hundreds of
+  lines away in a completely different method), so scheduling this
+  for the very next event loop iteration guarantees every dock
+  already exists by the time it actually runs, regardless of how
+  deeply that construction chain is nested - avoids needing to hunt
+  down and depend on the exact last line of whichever sub-method
+  happens to run last today, which would be fragile to future
+  changes in construction order.
+
+  Verified the base64 encode/decode round-trip directly (PyQt6
+  unavailable in this sandbox to test the real `saveState()`/
+  `restoreState()` calls) - arbitrary binary data survives encode-
+  then-decode exactly, and separately survives a full round-trip
+  through actual `json.dumps`/`json.loads` (the real storage
+  mechanism `MapSettings` itself uses), confirming the base64 layer
+  correctly bridges `QByteArray`'s binary data through JSON's own
+  text-only format without any corruption. The empty-string default
+  (no saved layout yet) correctly short-circuits via a plain falsy
+  check rather than attempting to decode nothing.
+
+  `ast.parse` clean; confirmed via AST no duplicate method
+  definitions (the two `closeEvent` matches are two different
+  classes, each with their own, not a real duplicate).
