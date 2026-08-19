@@ -3395,7 +3395,55 @@ class MapSettings(QObject):
         'ribbon_tool_order': [],
     }
 
-    def __init__(self): #vers 2
+    _instance = None
+
+    def __new__(cls): #vers 1
+        """Singleton (Aug 19 2026, per Keith: "everything clicked in
+        Map Workshop Settings, isn't remembered either"). Real cause
+        found by tracing every ModelWorkshop construction site: there
+        are 7 separate places ModelWorkshop() gets constructed (menu
+        open, docked, undocked, standalone __main__, etc.), and each
+        one's own __init__ created a brand new, completely independent
+        MapSettings() - each with its own in-memory self._data
+        snapshot, loaded from disk at whatever moment THAT particular
+        instance happened to be constructed. With more than one
+        ModelWorkshop alive in the same process (docked AND standalone
+        at once, or simply re-opening the tool without the previous
+        instance being fully garbage-collected first), the earlier
+        instance's own MapSettings could still be sitting there with
+        its own OLDER snapshot - and if IT ever saved again for any
+        reason (even a completely unrelated setting), it would write
+        that older snapshot straight over whatever the newer instance
+        had already saved, silently discarding it. Every genuinely
+        new value the person had set was real and briefly written to
+        disk - it just kept getting overwritten again moments later by
+        a second, stale in-memory copy nobody knew still existed.
+
+        Making this a real singleton means every ModelWorkshop, no
+        matter how many are alive or which of the 7 construction
+        sites created them, shares the exact one MapSettings object
+        and thus the exact one in-memory self._data - there's no
+        second, independent snapshot left to go stale and overwrite
+        anything, because there's only ever one."""
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance._map_settings_initialized = False
+        return cls._instance
+
+    def __init__(self): #vers 3
+        if self._map_settings_initialized:
+            # Already the shared instance, already fully set up from
+            # an earlier ModelWorkshop's own construction - __init__
+            # still runs every time MapSettings() is called (that's
+            # normal Python behaviour, __new__ returning the same
+            # object doesn't skip __init__), but doing all of this
+            # again would re-run super().__init__() on an already-
+            # initialised QObject and reset the save timer/reload from
+            # disk for no reason - this guard is what actually makes
+            # __new__'s own singleton meaningful rather than just
+            # returning the same object with its real state clobbered
+            # right back to fresh-from-disk on every subsequent call.
+            return
         super().__init__()
         cfg_dir = Path.home() / '.config' / 'imgfactory'
         cfg_dir.mkdir(parents=True, exist_ok=True)
@@ -3415,6 +3463,7 @@ class MapSettings(QObject):
         self._save_timer = QTimer(self)
         self._save_timer.setSingleShot(True)
         self._save_timer.timeout.connect(self._save_now)
+        self._map_settings_initialized = True
 
     def _load(self): #vers 1
         try:

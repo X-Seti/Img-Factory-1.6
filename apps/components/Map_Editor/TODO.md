@@ -719,3 +719,29 @@ specific need comes up.
   presumably for producing an in-game radar/minimap texture) - not
   started, not investigated, genuinely new scope beyond editing the
   map itself.
+
+## Logged per Keith (Aug 19 2026) - real, deferred requirements, not started
+- When an IPL's whole map section is moved/shifted/rotated/dragged,
+  the corresponding coordinates in the mission SCM file need updating
+  too - currently only the loaded map data itself (instances/paths/
+  cull/zone/etc) actually moves; anything hardcoded into compiled
+  mission scripts referencing absolute world positions would silently
+  go stale relative to the moved map. Real, substantial scope - SCM
+  is a compiled binary format, not something this app currently reads
+  or writes at all.
+- Regenerate/re-render the radar/minimap to match a map section's new
+  position after any move, shift, drag, or rotate - the radar is a
+  fixed, pre-baked top-down image (or set of them) that was only ever
+  correct for the original, unmoved layout. Same real dependency as
+  the still-open "generate map-to-radar" feature already logged
+  earlier - this specific request is about keeping that radar image
+  in sync automatically whenever the underlying map moves, not just
+  generating one once.
+- waterpro.dat needs updating to match new model positions after a
+  move/shift/rotate, the same way the loaded map data itself already
+  does - water plane/property data is positional too and would go
+  stale relative to a moved map section otherwise. Real, substantial
+  scope - waterpro.dat isn't parsed or written by this app at all
+  yet (still an open TODO item on its own, logged earlier this
+  session), so updating it in sync with a move is a second layer of
+  work on top of a format this app doesn't understand yet at all.

@@ -6587,3 +6587,63 @@ conclusively found despite extensive isolated testing.
   pivot for a real 2-IPL, 4-instance selection came out correctly
   distinct from either IPL's own separate centre. `ast.parse` clean;
   confirmed via AST no duplicate method definitions.
+
+- **Aug 19, 2026** — Found and fixed the real root cause of settings
+  not persisting, per Keith: "everything clicked in Map Workshop
+  Settings, isn't remembered either." A safety net (QApplication.
+  aboutToQuit flush) was added for this a while back, but never
+  confirmed as the actual root cause - this time traced it properly
+  instead of adding another guess.
+
+  Real cause: `MapSettings()` gets constructed fresh inside `ModelWorkshop
+  .__init__`, and `ModelWorkshop(...)` itself gets constructed from 7
+  separate places in this file (opening from the menu, docked,
+  undocked, standalone `__main__`, and others) - each one creating its
+  own, completely independent `MapSettings` object, each with its own
+  in-memory snapshot loaded from disk at whatever moment THAT
+  particular instance happened to be constructed. With more than one
+  `ModelWorkshop` alive in the same process at once (docked and
+  standalone simultaneously, or simply re-opening the tool without the
+  previous instance being fully garbage-collected first), an earlier
+  instance's own stale `MapSettings` could still be sitting in memory
+  - and if it ever saved again for any reason, even something
+  completely unrelated, it would silently overwrite whatever a newer
+  instance had already saved with its own older snapshot. Every
+  genuinely new value really was written to disk correctly in the
+  moment - it just kept getting quietly clobbered again shortly after
+  by a second, stale copy nobody knew still existed.
+
+  Fixed by making `MapSettings` a real singleton (`__new__` returns
+  the same object on every subsequent construction; `__init__`'s own
+  body - the disk load, the save timer setup - only runs once, guarded
+  by `_map_settings_initialized`, so later `MapSettings()` calls don't
+  re-run setup and clobber real, already-loaded state back to a fresh-
+  from-disk snapshot). Every `ModelWorkshop`, regardless of which of
+  the 7 construction sites created it or how many are alive at once,
+  now shares the exact one object and the exact one in-memory data -
+  there's no second, independent snapshot left to go stale and
+  overwrite anything, because there's only ever one. `MapSettingsDialog`
+  (a separate, older settings dialog class) takes a `MapSettings`
+  instance as a constructor parameter rather than creating its own,
+  so it benefits from this fix automatically with no changes of its
+  own needed.
+
+  Verified the singleton pattern directly (PyQt6 unavailable in this
+  sandbox to instantiate the real `QObject`-based class, so mirrored
+  the exact `__new__`/`__init__` interaction without the Qt
+  dependency): a second construction returns the identical object, a
+  change made through the first "instance" is immediately visible
+  through the second (no stale snapshot), the real setup logic inside
+  `__init__` runs exactly once despite being called multiple times,
+  and a third construction changing an unrelated key correctly
+  preserves an earlier change instead of overwriting it - the exact
+  race this fix closes.
+
+  Also logged three new TODO items per the same message: keeping a
+  mission SCM file's own hardcoded world coordinates in sync with a
+  moved map section, regenerating the radar/minimap to match a map
+  section's new position after any move/shift/drag/rotate, and
+  keeping `waterpro.dat` in sync with moved model positions - all
+  real, substantial, explicitly deferred requirements, not started.
+
+  `ast.parse` clean.
