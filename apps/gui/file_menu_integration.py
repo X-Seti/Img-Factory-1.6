@@ -442,7 +442,7 @@ def handle_auto_detect_game(main_window): #vers 3
 def handle_project_settings(main_window): #vers 2
     """Handle Project Settings menu action with override option"""
     try:
-        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QFormLayout, QLineEdit, QPushButton, QLabel, QGroupBox, QHBoxLayout, QCheckBox
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QFormLayout, QLineEdit, QPushButton, QLabel, QGroupBox, QHBoxLayout, QCheckBox, QWidget, QFileDialog
         
         dialog = QDialog(main_window)
         dialog.setWindowTitle("Project Settings")
@@ -479,6 +479,54 @@ def handle_project_settings(main_window): #vers 2
         override_layout.addWidget(gta_override_label)
         
         layout.addWidget(override_group)
+        
+        # Game Path Presets group (Aug 19 2026, per Keith: "I'd like
+        # to add, in [Menu] Project settings -> Game path presets,
+        # the locations of those games installed on your system, so
+        # you can pick them in Dat Browser for quick access."). GTA3/
+        # VC/SA only - GTASOL deliberately excluded, per "lets ignore
+        # GTASOL for now" - not merely hidden from a group that still
+        # has a row for it, genuinely not one of the rows at all.
+        presets_group = QGroupBox("Game Path Presets")
+        presets_layout = QFormLayout(presets_group)
+        presets_hint = QLabel(
+            "Stores each game's install folder once here, so Dat "
+            "Browser's own Game selector can jump straight to it "
+            "instead of browsing for the folder every time.")
+        presets_hint.setWordWrap(True)
+        presets_hint.setStyleSheet("font-size: 8pt; color: palette(mid); margin-bottom: 5px;")
+        presets_layout.addRow(presets_hint)
+
+        current_presets = get_game_path_presets()
+        preset_row_widgets = {}
+        for game_key, game_label in GAME_PATH_PRESET_GAMES:
+            path_edit = QLineEdit(current_presets.get(game_key, ""))
+            path_edit.setReadOnly(True)
+            path_edit.setPlaceholderText("Not set")
+            browse_btn = QPushButton("Browse...")
+
+            def make_browse_handler(key, edit):
+                def handler():
+                    folder = QFileDialog.getExistingDirectory(
+                        dialog, f"Select {dict(GAME_PATH_PRESET_GAMES)[key]} install folder",
+                        edit.text() or os.path.expanduser("~"))
+                    if folder:
+                        edit.setText(folder)
+                        set_game_path_preset(key, folder)
+                        main_window.log_message(
+                            f"Saved {dict(GAME_PATH_PRESET_GAMES)[key]} path preset: {folder}")
+                return handler
+            browse_btn.clicked.connect(make_browse_handler(game_key, path_edit))
+
+            row_widget = QWidget()
+            row_layout = QHBoxLayout(row_widget)
+            row_layout.setContentsMargins(0, 0, 0, 0)
+            row_layout.addWidget(path_edit)
+            row_layout.addWidget(browse_btn)
+            presets_layout.addRow(f"{game_label}:", row_widget)
+            preset_row_widgets[game_key] = path_edit
+
+        layout.addWidget(presets_group)
         
         # Quick actions group
         actions_group = QGroupBox("Quick Actions")
@@ -779,11 +827,58 @@ def load_project_settings(main_window): #vers 1
         main_window.log_message(f"Error loading settings: {str(e)}")
 
 
+# Game Path Presets (Aug 19 2026, per Keith: "I'd like to add, in
+# [Menu] Project settings -> Game path presets, the locations of
+# those games installed on your system, so you can pick them in Dat
+# Browser for quick access") - GTA3/VC/SA only, per his own "lets
+# ignore GTASOL for now": GTASOL is deliberately not one of these
+# keys at all, not merely hidden from a list that still includes it.
+# Stored in the same QSettings("IMG Factory", "Project Settings")
+# group every other project setting on this page already uses,
+# rather than a new, separate storage mechanism.
+GAME_PATH_PRESET_GAMES = [
+    ('GTA3', 'GTA III'),
+    ('VC', 'Vice City'),
+    ('SA', 'San Andreas'),
+]
+
+
+def get_game_path_presets(): #vers 1
+    """Return the currently stored {game_key: path} presets - only
+    keys that actually have a real, non-empty saved path are
+    included, so callers can simply check `if key in presets` rather
+    than also checking for an empty string."""
+    settings = QSettings("IMG Factory", "Project Settings")
+    presets = {}
+    for game_key, _label in GAME_PATH_PRESET_GAMES:
+        path = settings.value(f"game_path_preset_{game_key}", "")
+        if path:
+            presets[game_key] = path
+    return presets
+
+
+def set_game_path_preset(game_key: str, path: str): #vers 1
+    """Store (or clear, with an empty path) one game's preset path.
+    game_key must be one of GAME_PATH_PRESET_GAMES' own keys ('GTA3'/
+    'VC'/'SA') - silently ignored otherwise, same "only known keys
+    are ever actually stored" convention MapSettings.set() already
+    uses in Map Workshop, for the same reason: a typo'd or otherwise
+    unrecognised key should never silently create a new, permanent
+    settings entry nothing else will ever read back."""
+    if game_key not in dict(GAME_PATH_PRESET_GAMES):
+        return
+    settings = QSettings("IMG Factory", "Project Settings")
+    settings.setValue(f"game_path_preset_{game_key}", path)
+
+
 __all__ = [
     'handle_set_project_folder',
     'handle_set_game_root_folder',
     'handle_project_settings',
     'save_project_settings',
-    'load_project_settings'
+    'load_project_settings',
+    'get_game_path_presets',
+    'set_game_path_preset',
+    'GAME_PATH_PRESET_GAMES'
 ]
             
