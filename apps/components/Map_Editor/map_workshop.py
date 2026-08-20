@@ -19676,25 +19676,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         panel = QWidget()
 
         main_layout = QHBoxLayout(panel)
-        main_layout.setContentsMargins(4, 4, 4, 4)
+        main_layout.setContentsMargins(2, 2, 2, 2)
 
-        # Per Keith: "I think there is a hidden splitter in the middle
-        # between both panes, I cant resize the objects browser
-        # window" - there was: a QSplitter with an empty, entirely
-        # unused right_panel (nothing was ever added to its layout)
-        # taking up half the space and interfering with resizing.
-        # Removed entirely - left_panel's content goes straight into
-        # main_layout now.
         left_panel = QWidget()
         left_layout = QVBoxLayout(left_panel)
-        left_layout.setContentsMargins(4, 4, 4, 4)
+        left_layout.setContentsMargins(2, 2, 2, 2)
         main_layout.addWidget(left_panel)
 
-        # Compact single-row layout: search field (stretching) + mode
-        # icon buttons (All/Most Used/Favourites/Generic) + Add/Del/
-        # Rename icons, replacing what was previously three separate
-        # rows (search, then Add/Del/Rename, then text-label mode
-        # buttons) - per Keith's TODOs asking for exactly this.
         icon_color = self._get_icon_color()
 
         top_row_widget = QWidget()
@@ -19705,10 +19693,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         group.setExclusive(True)
         self._object_mode_buttons = {}
 
-        # IMG/DAT/IDE/IPL - compact colored-text buttons (the label
-        # text itself IS the icon, no separate graphic - per Keith's
-        # request to save space) for the tabs merged in from the old
-        # standalone Editing Panel dock. Order matches Keith's request:
         # IMG, DAT, IDE, IPL, then All/Most Used/Favourites/Generic.
         tab_colors = {'img': '#c060e0', 'dat': '#e0a030', 'ide': '#4090e0', 'ipl': '#40b060'}
         tab_labels = {'img': "IMG", 'dat': "DAT", 'ide': "IDE", 'ipl': "IPL"}
@@ -19719,6 +19703,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             btn.setStyleSheet(f"QToolButton {{ color: {tab_colors[tab_key]}; font-weight: bold; }}")
             btn.setToolTip(f"{tab_labels[tab_key]} tab")
             btn.setCheckable(True)
+            btn.setMaximumWidth(28)
             btn.setFixedHeight(OBJECT_BROWSER_BUTTON_H)
             btn.clicked.connect(lambda checked, k=tab_key: self._on_object_browser_tab_changed(k))
             group.addButton(btn)
@@ -19752,19 +19737,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             top_row.addWidget(btn)
             self._object_mode_buttons[mode] = btn
             # Estimated width needed in icon+text mode, computed directly
-            # from font metrics rather than by actually switching the
-            # button's style to measure it (avoids flicker/cascading
-            # resize events - see _update_mode_button_style).
+
             from PyQt6.QtGui import QFontMetrics
             text_w = QFontMetrics(btn.font()).horizontalAdvance(mode_labels[mode])
             self._object_mode_button_text_widths[mode] = OBJECT_BROWSER_ICON_SIZE + text_w + 16
 
         # Add/Delete/Rename icon row - previously these actions only
-        # existed as right-click context menu entries with no visible
-        # affordance at all (Keith couldn't find them in a screenshot -
-        # rightly so, since nothing hinted they existed). Real, visible
-        # SVG icon buttons, operating on whichever row is currently
-        # selected; disabled entirely when nothing is selected.
+
         action_row_widget = QWidget()
         action_row = QHBoxLayout(action_row_widget)
         action_row.setContentsMargins(0, 0, 0, 0)
@@ -19783,20 +19762,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             btn.setEnabled(False)
             action_row.addWidget(btn)
 
-        # Cog icon, after Rename (Aug 16 2026, per Keith: "the Cog
-        # settings on the 3rd row, move this to the Object Browser,
-        # far right instead, after rename icon" - moved from IPL
-        # Controls row 3, per his own TODO note there: "This needs to
-        # be moved to the [IMG] [DAT] [IDE] [IPL] <other buttons> [*]
-        # on the far right of the Object Browser"). Docked-only (Aug
-        # 15 2026, original placement's own reasoning still holds) -
-        # quick access to IMG Factory's own Settings dialog, which
-        # includes Map Workshop's own settings as extra tabs (see
-        # get_settings_contribution); standalone Map Workshop has no
-        # such dialog to open (no IMG Factory main window at all in
-        # that mode). Unlike Add/Del/Rename (disabled until a row is
-        # selected), this is always enabled - opening Settings doesn't
-        # depend on anything being selected.
         ipl_settings_btn = QToolButton()
         try:
             ipl_settings_btn.setIcon(self.icon_factory.settings_icon(color=icon_color))
@@ -19901,7 +19866,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         title_bar = QWidget()
         title_lay = QHBoxLayout(title_bar)
-        title_lay.setContentsMargins(6, 2, 6, 2)
+        title_lay.setContentsMargins(2, 2, 2, 2)
         title_label = QLabel("Object Browser")
         title_lay.addWidget(title_label)
         search = QLineEdit()
@@ -20016,33 +19981,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 table = getattr(self, '_ipl_inst_file_table', None)
                 if table is not None:
                     table.setRowCount(0)
-        #TODO add support for GTASA
-        #end
-        #cull TODO cull zones for LC, VC and SA.
-        #end
-        #path TODO Paths support for SA paths.ipl VC paths.ipl and LC where the path data is in the IDE file.
-        #end
-        #grge TODO add support for Garage locations
-        #-1941.04, 251.714, 33.4274, -1941.04, 239.541, -1930.66, 251.714, 38.6634, 1, 1, mdsSFSe
-        #-1908.93, 292.353, 40.0413, -1908.93, 277.989, -1900.11, 292.353, 45.539, 1, 5, sprsfse
-        #-2112.48, -21.214, 34.303, -2102.48, -21.214, -2112.48, -11.214, 40.303, 1, 1, brgSFSE
-        #-2043.1, 118.609, 27.821, -2021.91, 118.609, -2043.1, 129.609, 32.821, 1, 41, LCKSfse
-        #-2057.35, 150.803, 27.8286, -2038.91, 150.803, -2057.35, 182.876, 33.2286, 1, 1, hbgdSFS
-        #end
-        #enex TODO needs supporting
-        #-2027.73, -40.5488, 37.8263, 0, 3, 3, 8, -2027.83, -44.0454, 37.0263, 4139.7, 0, 4, "SVSFBG", 0, 2, 0, #24
-        #-2242.69, -88.2558, 34.3578, 0, 1.6, 1.6, 8, -2245.38, -88.2558, 34.3578, 3691.82, 0, 4, "BAR2", 0, 2, 0, 24
-        #end
-        #pick TODO Pick
-        #end
-        #jump TODO Jump?
-        #end
-        #tcyc TODO timecycle effects
-        #end
-        #auzo TODO add support for sound effects
-        #end
-        #mult
-        #end
         else:
             self._ipl_inst_file_mode = 'ipl'
             if title_lbl is not None:
@@ -24177,10 +24115,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         opts_row3.addWidget(show_zone_btn)
         opts_row3.addWidget(show_occl_btn)
         opts_row3.addStretch()
-
         lay.addLayout(opts_row3)
-
-        opts_row4 = QHBoxLayout()
 
         # Show SA Nodes (Aug 19 2026, per Keith's real NODES0-63.DAT
         # data - "lets do those next") - draws SA's real vehicle/ped
@@ -24194,6 +24129,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         show_sa_nodes_btn.show_toggled.connect(self._on_show_sa_nodes_toggled)
         self._show_sa_nodes_chk = show_sa_nodes_btn # Show only with gta.dat loaded (SA)
 
+        opts_row4 = QHBoxLayout()
         opts_row4.addWidget(show_sa_nodes_btn)
         lay.addLayout(opts_row4)
 
