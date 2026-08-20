@@ -6917,3 +6917,55 @@ conclusively found despite extensive isolated testing.
 
   `ast.parse` clean; confirmed via AST no duplicate method
   definitions.
+
+- **Aug 19, 2026 (cont'd)** — Built ROADBLOX.DAT and CHASE*.DAT
+  parsers, per Keith's real samples: "lets do those next."
+
+  **ROADBLOX.DAT** (SA police roadblock placements) - format found
+  via real, published documentation (GTAMods wiki), confirmed against
+  Keith's own real file: a 4-byte int32 count followed by a fixed 325
+  (area_id: int16, node_id: uint16) slots, matching the real file's
+  exact 1304-byte size (4 + 325*4) - only the first `count` slots are
+  meaningful. New `RoadblockEntry` dataclass, `GTAWorldLoader.load_sa_
+  roadblox` (SA-only), `self.sa_roadblocks`. Went beyond "it parses
+  without error": cross-referenced all 325 real entries in Keith's
+  own real ROADBLOX.DAT directly against his own real, complete
+  NODES0-63.DAT set - every single one resolves to a genuinely valid
+  vehicle node index within its own stated area, confirming the
+  format's real, direct relationship to the SA node system this
+  session already verified, not just a plausible-looking byte layout.
+
+  **CHASE*.DAT** (GTA III introduction-cutscene chase-scene car
+  paths) - format found via real, published documentation (GTAMods
+  wiki: "near identical to its successor, RRR, in San Andreas"),
+  confirmed against Keith's own real CHASE0.DAT: no header or count
+  at all, just a plain, fixed 28-byte record repeated for the whole
+  file - the real file's own size (151200 bytes) divided cleanly by
+  28 with zero remainder (5400.0 exactly), and real decoded positions
+  form a tight, plausible cluster of GTA III world coordinates that
+  change smoothly frame-to-frame, confirming this isn't a
+  coincidental byte alignment. New `ChaseFrame` dataclass (velocity,
+  right/top orientation basis vectors, steering/gas/brake/handbrake,
+  world position, all per-frame), `GTAWorldLoader.load_chase_dat`
+  (GTA III-only) + `_parse_chase_file`, `self.chase_paths` keyed by
+  source filename. Scans for any `CHASE<N>.DAT` present (regex
+  match) rather than a fixed list of exactly 20 - Keith's own real
+  upload only had 14 of the 20 possible index numbers present, so a
+  fixed "must have all 20" list would have silently skipped real,
+  present files.
+
+  Verified both end-to-end via `GTAWorldLoader` directly against
+  every one of Keith's own real files: all 325 real ROADBLOX.DAT
+  entries load and resolve correctly; all 14 real CHASE*.DAT files
+  load with plausible frame counts (2400 or 5400 depending on the
+  car/path) and world-coordinate ranges. `ast.parse` clean; confirmed
+  via AST no duplicate method/class definitions.
+
+  **SA's own train.dat/train2.dat remain genuinely undocumented** -
+  no published spec found despite another focused search attempt;
+  the real, empirically-observed structural pattern from the last
+  session (two XYZ triplets whose Z values mirror each other, a
+  999,999,999 sentinel, two trailing scalars) stands, but isn't being
+  turned into a parser without either a real spec or enough
+  additional real samples to test a hypothesis against with
+  confidence.

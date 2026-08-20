@@ -378,6 +378,76 @@ class OcclEntry: #vers 1
 
 
 @dataclass
+class ChaseFrame: #vers 1
+    """One recorded frame from a real GTA III CHASE*.DAT file (Aug 19
+    2026, per Keith's real sample - "lets do those next"). Format
+    confirmed against real, published documentation (GTAMods wiki -
+    "near identical to its successor, RRR, in San Andreas") AND
+    cross-checked directly against Keith's own real CHASE0.DAT: a
+    fixed 28-byte record, no header/count at all - the file's own
+    size divided cleanly by 28 with zero remainder (151200 / 28 =
+    5400.0 exactly), and real decoded positions land in a tight,
+    plausible cluster of real GTA III world coordinates that change
+    smoothly frame-to-frame, matching a recorded vehicle path for the
+    introduction cutscene's chase scene (13 unique cars, one CHASE*.
+    DAT file per car/path index) rather than a coincidental byte
+    alignment.
+
+    vel_x/y/z: INT16, divide by 16383.5 for the real float velocity.
+    right_x/y/z, top_x/y/z: INT8, divide by 127.0 - the vehicle's own
+    right and top orientation basis vectors for that frame (together
+    with the implicit forward vector, these fully describe the
+    vehicle's 3D rotation for that frame, the same way DFF frame
+    matrices store an object's orientation as basis vectors rather
+    than Euler angles or a quaternion).
+    steering: INT8, divide by 20.0. gas/brake: INT8, divide by 100.0.
+    handbrake: bool (1/0 in the file). pos_x/y/z: standard IEEE-754
+    float, real world-space position for that frame - no scale
+    factor, matching tracks.dat/flight.dat's own real-world-units
+    convention rather than IPL/IDE path data's own /16-scaled
+    convention."""
+    vel_x: float = 0.0
+    vel_y: float = 0.0
+    vel_z: float = 0.0
+    right_x: float = 0.0
+    right_y: float = 0.0
+    right_z: float = 0.0
+    top_x: float = 0.0
+    top_y: float = 0.0
+    top_z: float = 0.0
+    steering: float = 0.0
+    gas: float = 0.0
+    brake: float = 0.0
+    handbrake: bool = False
+    pos_x: float = 0.0
+    pos_y: float = 0.0
+    pos_z: float = 0.0
+    source_file: str = ""
+    frame_index: int = 0
+
+
+@dataclass
+class RoadblockEntry: #vers 1
+    """One police roadblock placement from SA's real ROADBLOX.DAT
+    (Aug 19 2026, per Keith's real sample - "lets do those next").
+    Format confirmed against real, published documentation (GTAMods
+    wiki) AND cross-checked directly against Keith's own real data:
+    a 4-byte int32 count, followed by up to 325 fixed (area_id: int16,
+    node_id: uint16) slots - only the first `count` are meaningful,
+    matching the file's own exact 1304-byte size (4 + 325*4). Each
+    entry references a real vehicle path node from the SA node system
+    (see sa_nodes/SAPathFile) - a roadblock spawns AT that node's own
+    position when the game decides to place one there. Verified this
+    isn't just a plausible-looking format match: cross-referenced all
+    325 real entries in Keith's own real ROADBLOX.DAT against his own
+    real, complete NODES0-63.DAT set - every single one resolves to a
+    real, valid vehicle node index within its own stated area, not
+    just a format that happens to parse without error."""
+    area_id: int = 0
+    node_id: int = 0
+
+
+@dataclass
 class TrackWaypoint: #vers 1
     """One waypoint from a real GTA III/VC/SA train track file
     (data/paths/tracks.dat, tracks2.dat, etc - Aug 17 2026, per
@@ -1583,6 +1653,21 @@ class GTAWorldLoader: #vers 3
         # reasoning as self.tracks just above). Populated by
         # load_sa_nodes, SA only.
         self.sa_nodes:   Dict[int, object] = {}
+        # Police roadblock placements (Aug 19 2026, per Keith's real
+        # ROADBLOX.DAT sample) - SA-only, references real vehicle
+        # path nodes from self.sa_nodes above (see RoadblockEntry's
+        # own docstring for the full format confirmation). Populated
+        # by load_sa_roadblox, SA only.
+        self.sa_roadblocks: List[RoadblockEntry] = []
+        # GTA III chase-scene car paths (Aug 19 2026, per Keith's
+        # real CHASE0-19.DAT sample) - keyed by source filename (e.g.
+        # "CHASE0.DAT"), each value the full ordered list of real,
+        # per-frame ChaseFrame records for that one car's own
+        # recorded path through the introduction cutscene. GTA III
+        # only, same "loaded separately, not part of the IDE/IPL
+        # section system" reasoning as self.tracks. Populated by
+        # load_chase_dat.
+        self.chase_paths: Dict[str, List[object]] = {}
         # (phase, type, abs_path, success)
         self.load_log:   List[Tuple[str, str, str, bool]] = []
         self.stats       = ParseStats()
@@ -1712,6 +1797,15 @@ class GTAWorldLoader: #vers 3
             # unlike load_tracks_dat just above which applies across
             # multiple games.
             self.load_sa_nodes(game_root, data_dir)
+            self.load_sa_roadblox(data_dir)
+        if self.game == GTAGame.GTA3:
+            # GTA III-only (Aug 19 2026, per Keith's real CHASE0-19.
+            # DAT sample) - the introduction cutscene's own chase-
+            # scene car paths, a format specific to III (its own
+            # successor RRR/carrec.img is a completely different SA/
+            # GTA IV mechanism entirely, not something this app reads
+            # or writes today).
+            self.load_chase_dat(data_dir)
         return True
 
     def load_tracks_dat(self, data_dir: str): #vers 2
@@ -1841,6 +1935,144 @@ class GTAWorldLoader: #vers 3
                     self.sa_nodes.update(loose)
                     self.load_log.append(
                         ("nodes", "SA_NODES_LOOSE", paths_dir, True))
+
+    def load_sa_roadblox(self, data_dir: str): #vers 1
+        """Load SA's real police-roadblock placement data from data/
+        paths/ROADBLOX.DAT (Aug 19 2026, per Keith's real sample -
+        "lets do those next"). Format confirmed against real,
+        published documentation (GTAMods wiki) AND cross-checked
+        directly: a 4-byte int32 count followed by up to 325 fixed
+        (area_id: int16, node_id: uint16) slots, matching the real
+        file's own exact 1304-byte size (4 + 325*4) - only the first
+        `count` slots are meaningful, the rest is fixed padding always
+        present regardless of how many roadblocks are actually
+        defined. Verified all 325 real entries in Keith's own real
+        file resolve to a genuinely valid vehicle node index within
+        their own stated area, cross-referenced against his own real,
+        complete NODES0-63.DAT set - not just a format that happens
+        to parse without error.
+
+        Same case-insensitive "paths" subdirectory lookup convention
+        already established by load_tracks_dat/load_sa_nodes."""
+        if not data_dir or not os.path.isdir(data_dir):
+            return
+        paths_dir = None
+        for name in os.listdir(data_dir):
+            if name.lower() == 'paths' and os.path.isdir(os.path.join(data_dir, name)):
+                paths_dir = os.path.join(data_dir, name)
+                break
+        if paths_dir is None:
+            return
+        abs_path = None
+        for name in os.listdir(paths_dir):
+            if name.lower() == 'roadblox.dat':
+                abs_path = os.path.join(paths_dir, name)
+                break
+        if abs_path is None:
+            return
+        try:
+            with open(abs_path, 'rb') as f:
+                data = f.read()
+            if len(data) < 4:
+                return
+            count = struct.unpack_from('<i', data, 0)[0]
+            if count < 0 or count > 325:
+                # Documented as a real, valid way to disable the file
+                # entirely ("count can be set to -1... roadblocks
+                # will be ignored") - and a corrupt/unexpected value
+                # beyond the fixed 325-slot capacity is never trusted
+                # either way, rather than reading past the file's own
+                # real bounds.
+                return
+            entries = []
+            for i in range(count):
+                off = 4 + i * 4
+                if off + 4 > len(data):
+                    break
+                area_id, node_id = struct.unpack_from('<hH', data, off)
+                entries.append(RoadblockEntry(area_id=area_id, node_id=node_id))
+            self.sa_roadblocks = entries
+            self.load_log.append(("roadblox", "SA_ROADBLOX", abs_path, True))
+        except Exception as e:
+            self.stats.errors.append(f"Could not read SA roadblox data from {abs_path}: {e}")
+
+    def load_chase_dat(self, data_dir: str): #vers 1
+        """Load every real GTA III CHASE*.DAT chase-scene car path
+        found in data/paths/ (Aug 19 2026, per Keith's real sample -
+        "lets do those next"). Format confirmed against real,
+        published documentation (GTAMods wiki) AND cross-checked
+        directly against Keith's own real CHASE0.DAT: no header or
+        count at all, just a plain, fixed-size 28-byte record repeated
+        for the whole file - the real file's own size divided cleanly
+        by 28 with zero remainder, and real decoded positions form a
+        tight, plausible cluster of GTA III world coordinates that
+        change smoothly frame-to-frame, not a coincidental byte
+        alignment. GTA III only - its own successor mechanism (RRR
+        files inside carrec.img) is a completely different SA/GTA IV
+        format this app doesn't read.
+
+        Scans for ANY file matching CHASE<N>.DAT (case-insensitive) in
+        the paths directory, rather than a fixed list of exactly 20 -
+        Keith's own real upload only had 14 of the 20 possible index
+        numbers present (some indices are simply unused in a real
+        install), so a fixed "must have all 20" list would silently
+        skip real, present files. Same case-insensitive "paths"
+        subdirectory lookup convention already established by load_
+        tracks_dat/load_sa_nodes/load_sa_roadblox."""
+        if not data_dir or not os.path.isdir(data_dir):
+            return
+        paths_dir = None
+        for name in os.listdir(data_dir):
+            if name.lower() == 'paths' and os.path.isdir(os.path.join(data_dir, name)):
+                paths_dir = os.path.join(data_dir, name)
+                break
+        if paths_dir is None:
+            return
+        chase_re = re.compile(r'^chase\d+\.dat$', re.IGNORECASE)
+        for name in os.listdir(paths_dir):
+            if not chase_re.match(name):
+                continue
+            abs_path = os.path.join(paths_dir, name)
+            frames = self._parse_chase_file(abs_path, name)
+            if frames:
+                self.chase_paths[name] = frames
+                self.load_log.append(("chase", "CHASE_PATH", abs_path, True))
+
+    def _parse_chase_file(self, abs_path: str, source_name: str): #vers 1
+        """Parse one CHASE*.DAT file - a plain sequence of fixed
+        28-byte records, no header (see ChaseFrame's own docstring
+        for the full field layout and real-data confirmation).
+        Ignores any trailing partial record (a file whose size isn't
+        an exact multiple of 28 - shouldn't happen for a real,
+        uncorrupted file, but division here is int-truncating, so a
+        stray few extra bytes at the end are simply never read as a
+        record rather than raising or reading past the file)."""
+        try:
+            with open(abs_path, 'rb') as f:
+                data = f.read()
+        except Exception as e:
+            self.stats.errors.append(f"Could not read {abs_path}: {e}")
+            return []
+        record_count = len(data) // 28
+        frames = []
+        for i in range(record_count):
+            off = i * 28
+            try:
+                vx, vy, vz = struct.unpack_from('<hhh', data, off)
+                (right_x, right_y, right_z, top_x, top_y, top_z,
+                 steer, gas, brake, handbrake) = struct.unpack_from('<10b', data, off + 6)
+                pos_x, pos_y, pos_z = struct.unpack_from('<fff', data, off + 16)
+            except struct.error:
+                break
+            frames.append(ChaseFrame(
+                vel_x=vx / 16383.5, vel_y=vy / 16383.5, vel_z=vz / 16383.5,
+                right_x=right_x / 127.0, right_y=right_y / 127.0, right_z=right_z / 127.0,
+                top_x=top_x / 127.0, top_y=top_y / 127.0, top_z=top_z / 127.0,
+                steering=steer / 20.0, gas=gas / 100.0, brake=brake / 100.0,
+                handbrake=bool(handbrake),
+                pos_x=pos_x, pos_y=pos_y, pos_z=pos_z,
+                source_file=source_name, frame_index=i))
+        return frames
 
     def _parse_tracks_file(self, abs_path: str, source_name: str): #vers 2
         """Parse one tracks.dat-shaped file - a waypoint count on the
