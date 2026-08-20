@@ -539,6 +539,37 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             (0.1, 0.75, 0.75),  # teal
         ]
 
+        # Box corner resize (Aug 19 2026, per Keith's own priority
+        # order - "lets continue to complete that list. starting with
+        # No-clip" - box resizing itself is the real prerequisite,
+        # per this same feature's own earlier docstring: "actually
+        # moving a corner to resize the box is a separate, larger
+        # follow-up... mouse picking, drag math, and live data
+        # mutation, none of which exist yet"). Scoped to cull/zone
+        # only for this first version - both are simple, axis-aligned
+        # two-corner boxes with no rotation of their own to complicate
+        # things; occlusion boxes DO have their own rotation field, so
+        # "drag a corner" there would mean interpreting the drag in
+        # the box's own rotated local space rather than world space
+        # directly, a genuinely different, harder problem left for a
+        # separate pass rather than guessed at here.
+        #
+        # _pickable_box_corners is rebuilt fresh every _draw_cull_
+        # boxes/_draw_zone_boxes call (same "rebuild every refresh"
+        # pattern _path_node_owner_map already uses) - each entry maps
+        # a real, currently-drawn corner sphere's own world position
+        # to (box_type, box_ref, opposite corner's own position), so a
+        # click can resolve straight back to which real box/corner was
+        # actually picked.
+        self._box_edit_mode = False
+        self._pickable_box_corners = {}
+        self._dragging_box_corner_key = None
+        self._dragging_box_corner_info = None   # (box_type, box_ref, fixed_opposite_xy, z1, z2)
+        self._dragging_box_corner_current_pos = None
+        self._box_resize_callback = None
+        self._no_clip_boxes = False
+
+
         # Wheels
         self._wheels_model      = None
         self._wheels_model_path = ''
@@ -978,6 +1009,13 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._draw_2dfx_lights()
             if self.show_paths:
                 self._draw_paths()
+            # Cleared once per full render pass, right before either
+            # box type might register into it (Aug 19 2026, for box-
+            # corner resizing) - clearing inside _draw_cull_boxes or
+            # _draw_zone_boxes individually would wipe out whichever
+            # box type's own entries got registered first when the
+            # other one's draw call ran right after it.
+            self._pickable_box_corners = {}
             if self.show_cull_boxes:
                 self._draw_cull_boxes()
             if self.show_zone_boxes:
@@ -1156,6 +1194,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         r, g, b = self._zone_box_color
         axis_colored = getattr(self, '_box_axis_colors', False)
         unique_colors = getattr(self, '_box_unique_colors', False)
+        owners = getattr(self, '_zone_box_owners', [])
         if style == 'wireframe':
             glLineWidth(1.5)
             for i, (x1, y1, z1, x2, y2, z2) in enumerate(self._zone_boxes):
@@ -1165,6 +1204,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 corners_xy = [(x1, y1), (x2, y1), (x2, y2), (x1, y2)]
                 self._draw_box_wireframe_from_corners(corners_xy, z1, z2)
                 self._draw_box_corner_spheres(corners_xy, z1, z2, box_r, box_g, box_b)
+                if i < len(owners):
+                    self._register_pickable_box_corners('zone', i, corners_xy, z1, z2, owners[i])
         else:
             glEnable(GL_BLEND)
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
@@ -1179,9 +1220,32 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                     fill_alpha=fill_alpha, draw_outline=draw_outline,
                     axis_colored=axis_colored)
                 self._draw_box_corner_spheres(corners_xy, z1, z2, box_r, box_g, box_b)
+                if i < len(owners):
+                    self._register_pickable_box_corners('zone', i, corners_xy, z1, z2, owners[i])
             glDisable(GL_BLEND)
         glEnable(GL_DEPTH_TEST)
         glEnable(GL_LIGHTING)
+
+    def _register_pickable_box_corners(self, box_type, box_index, corners_xy, z1, z2, box_ref): #vers 1
+        """Register one box's own 8 corners as pickable for resizing
+        (Aug 19 2026, for box-corner resizing - see the fuller
+        explanation where self._pickable_box_corners is first
+        declared in __init__). Shared by cull's own _draw_ghosted_
+        boxes and both of zone's own render-style branches (wireframe
+        and ghosted/translucent) rather than duplicating the same
+        opposite-corner bookkeeping three times over."""
+        if box_ref is None:
+            return
+        for ci, (cx, cy) in enumerate(corners_xy):
+            ox, oy = corners_xy[(ci + 2) % 4]   # diagonally opposite XY corner
+            for cz, oz in ((z1, z2), (z2, z1)):
+                key = (box_type, box_index, ci, cz)
+                self._pickable_box_corners[key] = {
+                    'pos': (cx, cy, cz),
+                    'opposite': (ox, oy, oz),
+                    'box_type': box_type,
+                    'box_ref': box_ref,
+                }
 
     def _draw_ghosted_boxes(self, boxes, color): #vers 2
         """Shared ghosted axis-aligned-box drawing helper for cull
@@ -1211,6 +1275,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         r, g, b = color
         axis_colored = getattr(self, '_box_axis_colors', False)
         unique_colors = getattr(self, '_box_unique_colors', False)
+        owners = getattr(self, '_cull_box_owners', [])
         for i, (x1, y1, z1, x2, y2, z2) in enumerate(boxes):
             box_r, box_g, box_b = self._palette_color_for_index(i) \
                 if (unique_colors and not axis_colored) else (r, g, b)
@@ -1218,6 +1283,13 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._draw_ghosted_box_from_corners(corners_xy, z1, z2, box_r, box_g, box_b,
                 axis_colored=axis_colored)
             self._draw_box_corner_spheres(corners_xy, z1, z2, box_r, box_g, box_b)
+            # Register each of this box's 8 corners as pickable (Aug
+            # 19 2026, for box-corner resizing) - fails safe if the
+            # owners list is missing or shorter than boxes (that box
+            # just isn't resizable this refresh), not with an
+            # IndexError.
+            if i < len(owners):
+                self._register_pickable_box_corners('cull', i, corners_xy, z1, z2, owners[i])
         glDisable(GL_BLEND)
         glEnable(GL_DEPTH_TEST)
         glEnable(GL_LIGHTING)
@@ -2133,6 +2205,56 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._dragging_path_node_current_pos = None
         self.update()
 
+    def set_box_edit_mode(self, enabled: bool): #vers 1
+        """Toggle click-to-select-and-drag box corner resizing (Aug
+        19 2026, per Keith's own priority order - box resize is the
+        real prerequisite for no-clip box editing, see the fuller
+        explanation where self._box_edit_mode is first declared in
+        __init__). While on, a left-click near a rendered cull/zone
+        box corner picks it up and drags it along the ground plane at
+        that corner's own height (not free in 3D - same "2D drag,
+        height-preserving" reasoning as path node editing) until
+        release, which commits the new corner position - and thus the
+        box's own new size - to the real CullEntry/zone dict via
+        set_box_resize_callback. The diagonally opposite corner (both
+        in XY and in Z) stays fixed throughout the drag, the same way
+        dragging one corner of a selection rectangle keeps the
+        opposite corner anchored."""
+        self._box_edit_mode = enabled
+        if not enabled:
+            self._dragging_box_corner_key = None
+            self._dragging_box_corner_info = None
+            self._dragging_box_corner_current_pos = None
+        self.update()
+
+    def set_box_resize_callback(self, callback): #vers 1
+        """Set (or clear, with None) the function called when a box
+        corner drag completes: callback(box_type, box_ref, new_x1,
+        new_y1, new_x2, new_y2). map_workshop.py applies this to the
+        real, live CullEntry/zone dict and triggers a refresh -
+        mirrors set_path_node_drag_callback's own widget-owns-
+        interaction, caller-owns-data split exactly."""
+        self._box_resize_callback = callback
+
+    def set_no_clip_boxes(self, enabled: bool): #vers 1
+        """Toggle no-clip during box resizing (Aug 19 2026, per
+        Keith: "have a no-clipping option where you can't move one
+        box into another"). When on, a resize that would make the
+        dragged box's own new extents overlap any OTHER currently-
+        loaded cull/zone box is simply rejected for that mouse-move -
+        the box holds its last known-good, non-overlapping size
+        instead of jumping to the new, colliding one, rather than
+        attempting to compute some "closest non-overlapping size"
+        automatically (a harder geometric problem, especially with
+        several other boxes potentially blocking from different
+        directions at once, that a rushed first version could easily
+        get subtly wrong in a way that's worse than simply holding
+        still). See _box_resize_would_overlap's own docstring for the
+        actual AABB overlap test. Off by default - most resizing
+        genuinely doesn't need this, and the check adds a real per-
+        mouse-move cost testing against every other loaded box."""
+        self._no_clip_boxes = enabled
+
     def set_path_node_drag_callback(self, callback): #vers 1
         """Set (or clear, with None) the function called when a path
         node drag completes: callback(group_ref, node_index, new_x,
@@ -2350,6 +2472,66 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 best_pos, best_t, best_d2 = pos, t, d2
         return best_pos
 
+    def _pick_box_corner(self, mx: float, my: float): #vers 1
+        """Return the key (into self._pickable_box_corners) of the
+        closest box corner to the ray through (mx,my), within a small
+        screen-space-equivalent tolerance, or None (Aug 19 2026, for
+        box-corner resizing) - same _pick_ray/_closest_point_on_ray
+        pattern _pick_path_node just above already uses, testing
+        against each entry's own 'pos' value rather than the dict's
+        keys directly (a box corner's own identity is the composite
+        (box_type, box_index, corner_index, z) key itself, not its
+        position - unlike path nodes, where position IS the key)."""
+        ray = self._pick_ray(mx, my)
+        if ray is None or not self._pickable_box_corners:
+            return None
+        origin, direction = ray
+        tol2 = (self._dist * 0.02) ** 2
+        best_key, best_t, best_d2 = None, None, tol2
+        for key, info in self._pickable_box_corners.items():
+            t, d2 = self._closest_point_on_ray(origin, direction, info['pos'])
+            if t < 0:
+                continue
+            if d2 < best_d2 or (best_key is not None and d2 <= best_d2 and t < best_t):
+                best_key, best_t, best_d2 = key, t, d2
+        return best_key
+
+    def _box_resize_would_overlap(self, box_type, box_index, x1, y1, x2, y2, z1, z2): #vers 1
+        """Standard AABB-vs-AABB overlap test: would a box with these
+        new proposed extents intersect any OTHER currently-loaded
+        cull or zone box (Aug 19 2026, for Snap: No-Clip - see set_
+        no_clip_boxes' own docstring for the full behaviour this
+        gates). Checks against both self._cull_boxes and self._zone_
+        boxes together, not just same-type boxes - Keith's own
+        wording ("you can't move one box into another") wasn't scoped
+        to same-type collisions only, and there's no real reason a
+        cull box overlapping a zone box would be any less of "a mess"
+        than two cull boxes overlapping each other. Excludes only the
+        specific (box_type, box_index) actually being resized, so a
+        box is never considered to be overlapping itself.
+
+        Strict inequalities (< / >, not <=/>=) - boxes that merely
+        touch edge-to-edge with zero actual overlap volume are not
+        considered colliding, only boxes that genuinely intersect in
+        3D space are."""
+        def overlaps(other):
+            ox1, oy1, oz1, ox2, oy2, oz2 = other
+            return (x1 < ox2 and x2 > ox1 and
+                    y1 < oy2 and y2 > oy1 and
+                    z1 < oz2 and z2 > oz1)
+
+        for i, box in enumerate(self._cull_boxes):
+            if box_type == 'cull' and i == box_index:
+                continue
+            if overlaps(box):
+                return True
+        for i, box in enumerate(self._zone_boxes):
+            if box_type == 'zone' and i == box_index:
+                continue
+            if overlaps(box):
+                return True
+        return False
+
     def set_path_line_color(self, r: float, g: float, b: float): #vers 1
         """Aug 14 2026, per Keith: "a way to change the colour of the
         path lines in settings" - r/g/b as 0-1 floats, matching every
@@ -2389,6 +2571,19 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._cull_boxes = boxes or []
         self.update()
 
+    def set_cull_box_owners(self, owners): #vers 1
+        """Set the real CullEntry object for each entry in self.
+        _cull_boxes, same index/order (Aug 19 2026, for box-corner
+        resizing - see the fuller explanation where self._pickable_
+        box_corners is first declared in __init__). Mirrors set_path_
+        node_owners' own already-proven pattern: this widget still
+        never imports CullEntry itself or deals in it directly for
+        drawing - the plain-tuple set_cull_boxes call is completely
+        unchanged - this is purely a parallel identity list so a
+        resize commit can be applied to the real, live object it
+        actually came from."""
+        self._cull_box_owners = owners or []
+
     def set_cull_box_color(self, r: float, g: float, b: float): #vers 1
         self._cull_box_color = (r, g, b)
         self.update()
@@ -2405,6 +2600,13 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         in plain coordinates."""
         self._zone_boxes = boxes or []
         self.update()
+
+    def set_zone_box_owners(self, owners): #vers 1
+        """Set the real zone dict for each entry in self._zone_boxes,
+        same index/order (Aug 19 2026) - mirrors set_cull_box_owners'
+        own docstring exactly, just for zones' own plain-dict
+        representation instead of a CullEntry dataclass."""
+        self._zone_box_owners = owners or []
 
     def set_zone_box_color(self, r: float, g: float, b: float): #vers 1
         self._zone_box_color = (r, g, b)
@@ -2852,6 +3054,16 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                     # movement happens at all.
                     self.update()
                 return
+            if getattr(self, '_box_edit_mode', False):
+                mx, my = event.pos().x(), event.pos().y()
+                key = self._pick_box_corner(mx, my)
+                if key is not None:
+                    info = self._pickable_box_corners[key]
+                    self._dragging_box_corner_key = key
+                    self._dragging_box_corner_info = info
+                    self._dragging_box_corner_current_pos = info['pos']
+                    self.update()
+                return
             # Whole-IPL-section dragging (Aug 18 2026) - also its own
             # independent toggle, checked right after path node
             # editing so the two mutually-exclusive interactive modes
@@ -3032,6 +3244,46 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                     (new_pos if a == old_pos else a, new_pos if b == old_pos else b)
                     for a, b in self._path_segments]
                 self._dragging_path_node_current_pos = new_pos
+        elif (event.buttons() & Qt.MouseButton.LeftButton
+              and getattr(self, '_dragging_box_corner_key', None) is not None):
+            # Box corner resize drag in progress (Aug 19 2026) - same
+            # ground-plane-at-starting-height constraint as path node
+            # dragging (2D drag, height-preserving - a 2D mouse can't
+            # unambiguously set both XY and Z at once). Live preview
+            # mutates the actual (x1,y1,z1,x2,y2,z2) tuple sitting in
+            # self._cull_boxes/self._zone_boxes at the dragged corner's
+            # own box_index directly - unlike _pickable_box_corners
+            # (rebuilt fresh from scratch every single paintGL call,
+            # so mutating IT wouldn't survive to the next frame), the
+            # box tuple lists themselves are genuinely persistent
+            # between frames, only ever replaced wholesale when map_
+            # workshop.py calls set_cull_boxes/set_zone_boxes again -
+            # so swapping just this one box's own tuple is enough for
+            # the very next paintGL call to draw the resized box
+            # immediately, without needing a second, parallel "live
+            # preview" data structure the way path nodes needed one.
+            info = self._dragging_box_corner_info
+            box_type, box_index, corner_idx, start_z = self._dragging_box_corner_key
+            new_pos = self._screen_to_ground_position(
+                event.pos().x(), event.pos().y(), ground_z=start_z)
+            if new_pos is not None:
+                ox, oy, oz = info['opposite']
+                x1, x2 = sorted((new_pos[0], ox))
+                y1, y2 = sorted((new_pos[1], oy))
+                z1, z2 = sorted((start_z, oz))
+                box_list = self._cull_boxes if box_type == 'cull' else self._zone_boxes
+                if (not self._no_clip_boxes or not self._box_resize_would_overlap(
+                        box_type, box_index, x1, y1, x2, y2, z1, z2)):
+                    if 0 <= box_index < len(box_list):
+                        box_list[box_index] = (x1, y1, z1, x2, y2, z2)
+                    self._dragging_box_corner_current_pos = new_pos
+                # else: no-clip is on and this would overlap another
+                # box - box_list[box_index] is simply left untouched,
+                # holding its last known-good, non-overlapping size
+                # for this frame rather than jumping to the colliding
+                # one; the very next mouse-move tries again from
+                # wherever the cursor has moved to by then.
+                self.update()
         elif (event.buttons() & Qt.MouseButton.LeftButton
               and getattr(self, '_dragging_ipl_names', None)):
             # Whole-IPL drag in progress (Aug 18 2026, generalised Aug
@@ -3248,6 +3500,30 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             # reason, the held-node highlight state above still needs
             # to clear from the screen, not just from self's own
             # tracking variables.
+            self.update()
+
+        # Commit a completed box corner resize (Aug 19 2026) - the
+        # committed values are read straight out of box_list[box_
+        # index] (whatever the live-preview mouseMoveEvent logic last
+        # actually wrote there - already the final, resolved x1/y1/
+        # z1/x2/y2/z2, with no-clip's own rejection already baked in
+        # if that was on), rather than recomputed here - avoids
+        # duplicating the same min/max-against-opposite-corner and
+        # no-clip-overlap logic a second time for what should be
+        # exactly the same result.
+        corner_key = getattr(self, '_dragging_box_corner_key', None)
+        if corner_key is not None:
+            box_type, box_index, corner_idx, start_z = corner_key
+            info = getattr(self, '_dragging_box_corner_info', None)
+            callback = getattr(self, '_box_resize_callback', None)
+            box_list = self._cull_boxes if box_type == 'cull' else self._zone_boxes
+            if (info is not None and callback is not None
+                    and 0 <= box_index < len(box_list)):
+                x1, y1, z1, x2, y2, z2 = box_list[box_index]
+                callback(box_type, info['box_ref'], x1, y1, x2, y2, z1, z2)
+            self._dragging_box_corner_key = None
+            self._dragging_box_corner_info = None
+            self._dragging_box_corner_current_pos = None
             self.update()
 
         # Commit a completed whole-IPL drag (Aug 18 2026, generalised

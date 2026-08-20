@@ -3234,6 +3234,10 @@ class MapSettings(QObject):
         # zone boxes", with real reference screenshots of several
         # distinctly-coloured cull/zone boxes) - off by default.
         'box_unique_colors': False,
+        # No-clip box resizing (Aug 19 2026, per Keith: "have a
+        # no-clipping option where you can't move one box into
+        # another") - off by default.
+        'no_clip_boxes': False,
         # Auto-highlight on hover (Aug 19 2026, per Keith: "Auto
         # object highlight setting in map_workshop settings") - off
         # by default, a real continuous per-mouse-move cost.
@@ -8431,6 +8435,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "coloured faces above if both are on at once.")
         boxes_form.addRow(unique_colors_chk)
 
+        no_clip_chk = QCheckBox("No-clip box resizing")
+        no_clip_chk.setChecked(bool(self.map_settings.get('no_clip_boxes')))
+        no_clip_chk.setToolTip(
+            "While dragging a cull/zone box's own corner to resize it\n"
+            "(right-click Cull or Zon to turn on box edit mode), a\n"
+            "resize that would make the box overlap any other loaded\n"
+            "cull/zone box is rejected - the box holds its last good\n"
+            "size instead of jumping into the other one.")
+        boxes_form.addRow(no_clip_chk)
+
         render_layout.addWidget(boxes_grp)
         render_layout.addStretch()
         tabs.addTab(render_tab, "Render")
@@ -8950,6 +8964,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.map_settings.set('box_unique_colors', unique_colors_chk.isChecked())
             if vp is not None and hasattr(vp, 'set_box_unique_colors'):
                 vp.set_box_unique_colors(unique_colors_chk.isChecked())
+            self.map_settings.set('no_clip_boxes', no_clip_chk.isChecked())
+            if vp is not None and hasattr(vp, 'set_no_clip_boxes'):
+                vp.set_no_clip_boxes(no_clip_chk.isChecked())
 
             # The rest of this function (fonts, button mode, export
             # format, preview/background settings) is pre-existing
@@ -12214,6 +12231,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # not re-connected on every refresh.
         if hasattr(self.preview_widget, 'set_path_node_drag_callback'):
             self.preview_widget.set_path_node_drag_callback(self._on_path_node_dragged)
+        # Wire the box-corner resize callback too (Aug 19 2026, for
+        # No-Clip box editing's own prerequisite - box resizing
+        # itself), same one-time-wiring pattern.
+        if hasattr(self.preview_widget, 'set_box_resize_callback'):
+            self.preview_widget.set_box_resize_callback(self._on_box_resized)
         # Wire the whole-IPL drag callback once too, here at
         # construction (Aug 18 2026, per Keith's own priority order
         # for the interactive editing layer - "Moving IPL file whole
@@ -12250,6 +12272,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 bool(self.map_settings.get('auto_highlight_hover')))
         if hasattr(self.preview_widget, 'set_hover_context_callback'):
             self.preview_widget.set_hover_context_callback(self._on_hover_context_menu)
+        # Restore the saved no-clip-box-resizing setting too (Aug 19
+        # 2026) - same one-time-restore pattern; doesn't affect
+        # drawing at all (only the resize-drag behaviour), so this
+        # doesn't need re-applying on every cull/zone visualization
+        # refresh the way box_axis_colors/box_unique_colors do.
+        if hasattr(self.preview_widget, 'set_no_clip_boxes'):
+            self.preview_widget.set_no_clip_boxes(bool(self.map_settings.get('no_clip_boxes')))
         self._viewport_stack = QStackedWidget()
         self._viewport_stack.addWidget(self.preview_widget)   # index 0: single view
         inner_mw.setCentralWidget(self._viewport_stack)
@@ -24020,16 +24049,20 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         # Show Cull Zones (Aug 16 2026, per Keith: "continue with the
         # cull files next") - draws every loaded IPL's cull zones as
-        # ghosted boxes in the 3D view. No edit mode yet.
-        show_cull_btn = _MapOverlayToggleButton("Cull", supports_edit=False)
+        # ghosted boxes in the 3D view. Right-click edit mode added
+        # Aug 19 2026 for box-corner resizing.
+        show_cull_btn = _MapOverlayToggleButton("Cull", supports_edit=True)
         show_cull_btn.show_toggled.connect(self._on_show_cull_boxes_toggled)
+        show_cull_btn.edit_toggled.connect(self._on_edit_boxes_toggled)
         self._show_cull_chk = show_cull_btn
 
         # Show Zones (Aug 16 2026, per Keith: "ive loaded zon files...
         # but I cant see them in the viewpoint") - draws every loaded
-        # .zon/IPL zone entry as a box in the 3D view. No edit mode yet.
-        show_zone_btn = _MapOverlayToggleButton("Zon", supports_edit=False)
+        # .zon/IPL zone entry as a box in the 3D view. Right-click
+        # edit mode added Aug 19 2026 for box-corner resizing.
+        show_zone_btn = _MapOverlayToggleButton("Zon", supports_edit=True)
         show_zone_btn.show_toggled.connect(self._on_show_zone_boxes_toggled)
+        show_zone_btn.edit_toggled.connect(self._on_edit_boxes_toggled)
         self._show_zone_chk = show_zone_btn
 
         # Show Occlusion (Aug 16 2026, continuing the cull/zon
@@ -27110,6 +27143,41 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._refresh_path_visualization()
         self._set_status(f"Moved path node to ({new_x:.1f}, {new_y:.1f}, {new_z:.1f})")
 
+    def _on_box_resized(self, box_type, box_ref, x1, y1, x2, y2, z1, z2): #vers 1
+        """Commit a completed box-corner resize drag to the real,
+        live CullEntry or zone dict (Aug 19 2026, per Keith's own
+        priority order - box resizing is the real prerequisite for
+        No-Clip box editing). Wired once to DFFViewport.set_box_
+        resize_callback - called exactly once per drag, on mouse
+        release, with box_ref the exact live object the viewport's
+        own set_cull_box_owners/set_zone_box_owners parallel list
+        already carries, and the final, already-min/max-resolved
+        (x1,y1,x2,y2,z1,z2) extents (no-clip's own rejection, if that
+        was on, already baked into whatever the viewport last
+        actually held during the drag - nothing to re-check here).
+
+        Deliberately leaves CullEntry's own center_x/center_y/center_z
+        completely untouched - per that dataclass's own documented
+        real-world oddity ("changing the zone's center coordinates
+        does not directly affect the zone itself... stored verbatim
+        rather than derived"), the center is never required to be the
+        box's own geometric middle, so silently recomputing it here
+        during a resize would be an invented side effect nothing
+        asked for, not a correction of something wrong."""
+        if box_type == 'cull':
+            box_ref.x1, box_ref.y1, box_ref.z1 = x1, y1, z1
+            box_ref.x2, box_ref.y2, box_ref.z2 = x2, y2, z2
+            self._refresh_cull_box_visualization()
+        elif box_type == 'zone':
+            box_ref['min_x'], box_ref['min_y'], box_ref['min_z'] = x1, y1, z1
+            box_ref['max_x'], box_ref['max_y'], box_ref['max_z'] = x2, y2, z2
+            self._refresh_zone_box_visualization()
+        else:
+            return
+        self._set_status(
+            f"Resized {box_type} box to "
+            f"({x1:.1f}, {y1:.1f}, {z1:.1f}) - ({x2:.1f}, {y2:.1f}, {z2:.1f})")
+
     def _on_edit_paths_toggled(self, checked): #vers 2
         """Right-click on the Paths button toggled edit mode (Aug 18
         2026 - merged from the previous separate Edit Paths checkbox
@@ -27128,6 +27196,38 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             show_paths_chk = getattr(self, '_show_paths_chk', None)
             if show_paths_chk is not None and not show_paths_chk.isChecked():
                 show_paths_chk.set_shown(True)   # triggers _on_show_paths_toggled itself
+
+    def _on_edit_boxes_toggled(self, checked): #vers 1
+        """Right-click on either the Cull or Zon button toggled box-
+        corner resize edit mode (Aug 19 2026, per Keith's own
+        priority order - box resizing is the real prerequisite for
+        No-Clip box editing). Both buttons share this ONE handler and
+        toggle the SAME underlying DFFViewport.set_box_edit_mode -
+        cull and zone boxes both go through the same shared corner-
+        picking mechanism in the viewport (a click picks whichever
+        corner is closest, regardless of which box type it belongs
+        to), so there's only one real edit-mode state to toggle, not
+        two independent ones. Keeps both buttons' own visual edit-
+        state in sync with each other via set_editing (which, unlike
+        set_shown, deliberately does NOT re-emit edit_toggled - doing
+        so here would recurse back into this same handler) - right-
+        clicking either one turns edit mode on/off for both, matching
+        how they're really one shared toggle underneath, not two.
+        Turning it on also turns on Show for whichever of Cull/Zone
+        isn't already shown (editing invisible boxes makes no sense),
+        same reasoning _on_edit_paths_toggled already uses for Show
+        Paths, but doesn't turn either back off when edit mode is
+        turned off - the person may still want to see the boxes after
+        they're done resizing them."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is not None and hasattr(vp, 'set_box_edit_mode'):
+            vp.set_box_edit_mode(checked)
+        for chk_attr in ('_show_cull_chk', '_show_zone_chk'):
+            chk = getattr(self, chk_attr, None)
+            if chk is not None:
+                chk.set_editing(checked)
+                if checked and not chk.isChecked():
+                    chk.set_shown(True)
 
     def _refresh_track_visualization(self): #vers 1
         """Push loaded train track waypoints to the viewport's own
@@ -27216,10 +27316,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             vp.set_cull_boxes([])
             return
         hidden = getattr(self, '_hidden_ipls', set())
-        boxes = [(c.x1, c.y1, c.z1, c.x2, c.y2, c.z2)
-                for c in getattr(loader, 'culls', [])
-                if c.source_ipl not in hidden]
+        culls = [c for c in getattr(loader, 'culls', []) if c.source_ipl not in hidden]
+        boxes = [(c.x1, c.y1, c.z1, c.x2, c.y2, c.z2) for c in culls]
         vp.set_cull_boxes(boxes)
+        if hasattr(vp, 'set_cull_box_owners'):
+            vp.set_cull_box_owners(culls)
 
     def _on_show_cull_boxes_toggled(self, checked): #vers 1
         """Show Cull Zones checked/unchecked - per Keith: "continue
@@ -27264,10 +27365,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             vp.set_zone_boxes([])
             return
         hidden = getattr(self, '_hidden_ipls', set())
+        zones = [z for z in getattr(loader, 'zones', []) if z.get('source_ipl') not in hidden]
         boxes = [(z['min_x'], z['min_y'], z['min_z'], z['max_x'], z['max_y'], z['max_z'])
-                for z in getattr(loader, 'zones', [])
-                if z.get('source_ipl') not in hidden]
+                for z in zones]
         vp.set_zone_boxes(boxes)
+        if hasattr(vp, 'set_zone_box_owners'):
+            vp.set_zone_box_owners(zones)
 
     def _on_show_zone_boxes_toggled(self, checked): #vers 1
         """Show Zones checked/unchecked - per Keith: "ive loaded zon

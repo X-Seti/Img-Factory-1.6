@@ -6696,3 +6696,96 @@ conclusively found despite extensive isolated testing.
   `ast.parse` clean; confirmed via AST no duplicate method
   definitions (the two `closeEvent` matches are two different
   classes, each with their own, not a real duplicate).
+
+- **Aug 19, 2026 (cont'd)** — Built real box-corner resizing for
+  cull/zone boxes, the genuine prerequisite for No-Clip box editing
+  (per Keith: "lets continue to complete that list. starting with
+  No-clip" - the corner-sphere handles had been purely visual since
+  Aug 16, "actually moving a corner to resize the box is a separate,
+  larger follow-up... mouse picking, drag math, and live data
+  mutation, none of which exist yet"). Then built No-Clip itself on
+  top of it.
+
+  New `set_cull_box_owners`/`set_zone_box_owners` on `DFFViewport` -
+  a parallel identity list (same index/order as the existing plain-
+  tuple `set_cull_boxes`/`set_zone_boxes`), mirroring `set_path_node_
+  owners`' own already-proven pattern exactly: the widget still never
+  imports `CullEntry` or deals in it directly for drawing, this is
+  purely so a resize commit can be applied back to the real, live
+  object it actually came from. `_refresh_cull_box_visualization`/
+  `_refresh_zone_box_visualization` updated to build and pass these
+  alongside the existing tuple lists.
+
+  New `_register_pickable_box_corners` (shared by cull's own `_draw_
+  ghosted_boxes` and both of zone's own render-style branches -
+  wireframe and ghosted/translucent - rather than duplicating the
+  same opposite-corner bookkeeping three times), building `self.
+  _pickable_box_corners` fresh every full render pass (cleared once,
+  right before either box type might register into it - clearing
+  inside either individual draw method would have wiped whichever box
+  type registered first when the other one's draw call ran right
+  after it).
+
+  New `_pick_box_corner` (same `_pick_ray`/`_closest_point_on_ray`
+  pattern `_pick_path_node` already uses) and the full click-drag-
+  release interaction in `mousePressEvent`/`mouseMoveEvent`/`mouse
+  ReleaseEvent` - a 2D, height-preserving drag (same reasoning as
+  path node editing: a 2D mouse can't unambiguously set 3 coordinates
+  at once), with the diagonally opposite corner (both in XY and in Z)
+  staying fixed throughout, the same way dragging one corner of a
+  selection rectangle keeps the opposite one anchored. Live preview
+  mutates the actual box tuple sitting in `self._cull_boxes`/`self.
+  _zone_boxes` directly at the dragged corner's own box index - these
+  lists are genuinely persistent between frames (only ever replaced
+  wholesale when map_workshop.py calls the setter again), so this was
+  enough for the very next `paintGL` call to draw the resize
+  immediately without needing a second, parallel "live preview" data
+  structure the way path nodes needed one.
+
+  **No-Clip** (`set_no_clip_boxes`, new `no_clip_boxes` `MapSettings`
+  entry + Settings > Render checkbox), per Keith: "have a no-clipping
+  option where you can't move one box into another." New `_box_
+  resize_would_overlap` - a standard AABB-vs-AABB overlap test
+  (strict inequalities, so boxes that merely touch edge-to-edge with
+  zero actual overlap volume aren't flagged) against both `_cull_
+  boxes` and `_zone_boxes` together, not scoped to same-type
+  collisions only - Keith's own wording wasn't scoped that way, and
+  there's no real reason a cull box overlapping a zone box would be
+  any less of a mess than two cull boxes overlapping each other.
+  Deliberately simplified from an initially-considered "clamp to the
+  closest non-overlapping size": a resize that would overlap is
+  simply rejected for that frame, holding the box's last known-good
+  size - computing an automatic closest-fit clamp is a genuinely
+  harder geometric problem (especially with several other boxes
+  potentially blocking from different directions at once) that a
+  rushed version could easily get subtly wrong in a way worse than
+  simply holding still.
+
+  New `_on_box_resized` (map_workshop.py) commits the final extents
+  straight to the real `CullEntry`/zone dict, then does a full
+  visualization refresh. Deliberately leaves `CullEntry`'s own
+  `center_x/center_y/center_z` completely untouched during a resize -
+  per that dataclass's own documented real-world oddity ("changing
+  the zone's center coordinates does not directly affect the zone
+  itself... stored verbatim rather than derived"), recomputing it
+  here would be an invented side effect nothing asked for.
+
+  Cull and Zone's own `_MapOverlayToggleButton`s gained real right-
+  click edit mode (`supports_edit=True`, were `False` - "no edit mode
+  yet" was accurate until this pass) - new shared `_on_edit_boxes_
+  toggled` handles both buttons through the one underlying viewport
+  toggle (cull and zone share the same corner-picking mechanism, so
+  there's only one real edit-mode state, not two independent ones),
+  keeping both buttons' own visual edit-state in sync with each other
+  via `set_editing` (which deliberately doesn't re-emit its own
+  signal, avoiding recursion back into this same handler).
+
+  Verified thoroughly against real data before trusting any of it:
+  the AABB overlap test across 4 real cases (genuine overlap, clear
+  separation, edge-touching with zero volume, same XY footprint but
+  separated in Z), and the full commit path against a real `CullEntry`
+  and a real zone dict - confirming the dragged corner updates
+  correctly, the opposite corner and untouched fields stay exactly as
+  they were, and `CullEntry`'s own center fields are genuinely left
+  alone rather than silently recomputed. `ast.parse` clean on both
+  touched files; confirmed via AST no duplicate method definitions.
