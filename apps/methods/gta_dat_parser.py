@@ -394,12 +394,35 @@ class TrackWaypoint: #vers 1
     gta3.dat's own directive list - the game loads these from a
     fixed, well-known relative path (data/paths/) rather than a
     listed directive, confirmed by their absence from a real,
-    complete gta3.dat."""
+    complete gta3.dat.
+
+    Also shared, unchanged, by flight.dat/flight2/3/4.dat (Aug 19
+    2026, per Keith's real LC/VC/SA samples) and spath0.dat - all
+    confirmed to be the exact same "count then X Y Z lines" shape,
+    verified directly against real files rather than assumed from the
+    tracks.dat naming alone.
+
+    flag (Aug 19 2026, per Keith's real SA tracks.dat/tracks2/3/4.dat
+    samples) - a 4th value some lines carry, previously silently
+    dropped entirely rather than stored. Confirmed via direct
+    inspection of all 4 real SA tracks files: always present when it
+    appears (every SA tracks*.dat line actually has 4 values, not 3 -
+    VC/GTA III's own tracks.dat/tracks2.dat samples only ever had 3,
+    hence the format being understood as 3 originally), always 0 or
+    1, and in the largest file (tracks.dat, 926 points) exactly 6
+    points carry a 1 while every other point (and every point in the
+    3 smaller files) carries 0 - a strong, plausible match for "this
+    is a real station stop" given SA has 6 real train stations, but
+    presented as a hypothesis rather than a confirmed fact - no
+    published documentation of this specific field was found. None
+    for files (like flight*.dat/spath0.dat) that only ever have 3
+    values per line."""
     x: float
     y: float
     z: float
     source_file: str = ""
     index:       int = 0
+    flag:        Optional[int] = None
 
 
 @dataclass
@@ -1691,19 +1714,37 @@ class GTAWorldLoader: #vers 3
             self.load_sa_nodes(game_root, data_dir)
         return True
 
-    def load_tracks_dat(self, data_dir: str): #vers 1
-        """Load train track waypoints from data/paths/tracks.dat and
-        tracks2.dat (Aug 17 2026, per Keith: "then the other path
-        .dat files you pointed out earlier"). Not referenced anywhere
-        in gta.dat/gta3.dat's own directive list (confirmed absent
-        from a real, complete gta3.dat) - the game loads these from
-        this fixed, well-known relative path instead, so this is
-        called unconditionally at the end of load_from_dat rather
-        than gated by any directive. Case-insensitive lookup for both
-        the "paths" subdirectory and the two filenames themselves,
-        matching this file's own established convention for locating
-        real files on a case-sensitive filesystem (Linux) against
-        data that may have been packaged with different casing."""
+    def load_tracks_dat(self, data_dir: str): #vers 2
+        """Load train track waypoints, and (Aug 19 2026, per Keith's
+        real LC/VC/SA path-folder samples) every other file confirmed
+        to share the exact same "count then X Y Z[ flag] lines" shape
+        - flight.dat/flight2.dat/flight3.dat/flight4.dat (per Keith:
+        "some are Airplane paths") and spath0.dat, alongside the
+        original tracks.dat/tracks2.dat. Also fixed a real gap this
+        same pass: SA genuinely has FOUR tracks files (tracks3.dat/
+        tracks4.dat too, confirmed present and same format in Keith's
+        real SA sample) - the original `wanted` set only covered two,
+        silently missing two real, valid track files for SA every
+        time this ran.
+
+        Not referenced anywhere in gta.dat/gta3.dat's own directive
+        list for any of these (confirmed absent from a real, complete
+        gta3.dat) - the game loads these from this fixed, well-known
+        relative path instead, so this is called unconditionally at
+        the end of load_from_dat rather than gated by any directive.
+        Case-insensitive lookup for both the "paths" subdirectory and
+        the filenames themselves, matching this file's own
+        established convention for locating real files on a case-
+        sensitive filesystem (Linux) against data that may have been
+        packaged with different casing.
+
+        flight*.dat/spath0.dat are stored in self.tracks too (same
+        dict, same TrackWaypoint shape) rather than a separate
+        collection - they're genuinely the same format and the same
+        "an ordered point list, no node graph" nature as tracks.dat
+        itself, just a different in-game purpose (aircraft paths vs
+        rail paths) - a caller that wants to tell them apart can
+        still do so via each TrackWaypoint's own source_file."""
         if not data_dir or not os.path.isdir(data_dir):
             return
         paths_dir = None
@@ -1713,7 +1754,9 @@ class GTAWorldLoader: #vers 3
                 break
         if paths_dir is None:
             return
-        wanted = {'tracks.dat', 'tracks2.dat'}
+        wanted = {'tracks.dat', 'tracks2.dat', 'tracks3.dat', 'tracks4.dat',
+                  'flight.dat', 'flight2.dat', 'flight3.dat', 'flight4.dat',
+                  'spath0.dat'}
         for name in os.listdir(paths_dir):
             if name.lower() not in wanted:
                 continue
@@ -1799,14 +1842,20 @@ class GTAWorldLoader: #vers 3
                     self.load_log.append(
                         ("nodes", "SA_NODES_LOOSE", paths_dir, True))
 
-    def _parse_tracks_file(self, abs_path: str, source_name: str): #vers 1
-        """Parse one tracks.dat-format file - a waypoint count on the
-        first line, then exactly that many "X Y Z" lines (see
-        TrackWaypoint's own docstring for the full format confirmation
-        against Keith's real tracks.dat/tracks2.dat). Genuinely
+    def _parse_tracks_file(self, abs_path: str, source_name: str): #vers 2
+        """Parse one tracks.dat-shaped file - a waypoint count on the
+        first line, then exactly that many "X Y Z" (or "X Y Z FLAG")
+        lines (see TrackWaypoint's own docstring for the full format
+        confirmation, including the 4th value's own confirmation
+        against Keith's real SA tracks.dat/tracks2/3/4.dat samples -
+        VC/GTA III's own tracks.dat/tracks2.dat only ever had 3 per
+        line, which is why this only expected 3 originally). Genuinely
         simpler than every other path format handled in this file -
         no section keywords, no node graph, just an ordered point
-        list forming one continuous track."""
+        list. A 4th value, when present, is captured into TrackWaypoint
+        .flag rather than silently discarded (the previous behaviour) -
+        None when a line only has 3 values, matching flight*.dat/
+        spath0.dat's own real, confirmed shape (never a 4th value)."""
         try:
             with open(abs_path, 'r', encoding='ascii', errors='ignore') as f:
                 lines = [ln.strip() for ln in f if ln.strip()]
@@ -1827,7 +1876,13 @@ class GTAWorldLoader: #vers 3
                 x, y, z = float(parts[0]), float(parts[1]), float(parts[2])
             except ValueError:
                 continue
-            waypoints.append(TrackWaypoint(x=x, y=y, z=z, source_file=source_name, index=i))
+            flag = None
+            if len(parts) >= 4:
+                try:
+                    flag = int(parts[3])
+                except ValueError:
+                    flag = None
+            waypoints.append(TrackWaypoint(x=x, y=y, z=z, source_file=source_name, index=i, flag=flag))
         return waypoints
 
     def _process_dat(self, dat: DATParser, phase: str): #vers 5

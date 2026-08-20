@@ -6848,3 +6848,72 @@ conclusively found despite extensive isolated testing.
   nodesN.dat equivalent at all (III uses its own IDE-embedded system,
   VC uses the text IPL "path" section, both already fully supported
   elsewhere in this app).
+
+- **Aug 19, 2026 (cont'd)** — Investigated real path-related .dat data
+  Keith uploaded for all 3 games at once (LC_Paths_Folder.7z, VC_data
+  _paths.7z, VC_map_folder_dat.7z, SA_other_Dat.7z), verified sa_path_
+  parser.py against real data for the first time, found and fixed a
+  real gap in tracks.dat handling, and extended tracks.dat/tracks2/3/
+  4.dat and flight*.dat/spath0.dat loading together.
+
+  **sa_path_parser.py verified against real, complete data for the
+  first time** - all 64 real NODES0-63.DAT files (SA_other_Dat.7z)
+  parsed with zero errors: 30,587 vehicle nodes, 37,650 ped nodes,
+  31,466 navi nodes, 143,622 links, all plausible for a full SA map.
+  Real node positions and link targets checked directly, not just
+  "it didn't crash" - a genuine first confirmation this parser, built
+  from documentation alone back on Aug 14, actually matches real
+  on-disk data.
+
+  **Confirmed flight.dat/flight2/3/4.dat and spath0.dat are the exact
+  same "count then X Y Z lines" shape as tracks.dat** - verified
+  directly against 9 real files across LC and VC (every header count
+  matched its own actual data-line count exactly). Also confirmed VC
+  and SA's own spath0.dat are byte-for-byte identical (same 79
+  points) - possibly a shared template/test file rather than either
+  game's own real map data, noted rather than assumed either way.
+
+  **Real gap found and fixed**: SA genuinely has FOUR tracks files
+  (tracks3.dat/tracks4.dat too, confirmed present in Keith's real SA
+  sample, same format as tracks.dat/tracks2.dat) - `load_tracks_dat`'s
+  own `wanted` set only ever looked for two, silently missing two
+  real, valid files every time it ran against a real SA install.
+
+  **Real data previously silently dropped, now captured**: every real
+  SA tracks*.dat line actually has 4 values, not 3 (`X Y Z FLAG`) -
+  VC/GTA III's own tracks.dat/tracks2.dat samples only ever had 3,
+  which is why the format was understood as 3-only originally. The
+  existing parser's own `len(parts) < 3` check already tolerated the
+  extra value without crashing, but silently threw it away rather
+  than storing it. New `TrackWaypoint.flag` (`Optional[int]`, `None`
+  when a line only has 3 values) captures it. Checked its real range
+  across all 4 real SA files: always 0 or 1, and in the largest file
+  (tracks.dat, 926 points) exactly 6 points carry a 1 while every
+  other point (and every point in the 3 smaller files) carries 0 - a
+  plausible match for "this is a real station stop" given SA has 6
+  real train stations, presented as a hypothesis rather than a
+  confirmed fact since no published documentation of this specific
+  field was found anywhere.
+
+  **Investigated and catalogued, not yet built on**:
+  - `VC_map_folder_dat.7z`'s 8 `map0.dat`-`map7.dat` files are
+    confirmed byte-identical to each other (same MD5) and already the
+    ordinary `gta_vc.dat`-style directive format this app already
+    fully understands - nothing new needed, not 8 separate map areas
+    as the folder name might suggest.
+  - SA's own `train.dat`/`train2.dat` are a real, different format
+    from GTA III/VC's own `train.dat` (a documented, unrelated
+    cinematic-camera format for the Portland El/subway train view,
+    confirmed never actually read by the game even in III/VC - VC's
+    own copies are leftovers from III). SA's version is genuinely
+    undocumented anywhere found - real comma-separated numeric data
+    (14-15 values/line) with a clear internal pattern (two XYZ
+    triplets whose own Z values are exact mirror negatives of each
+    other, alongside a 999,999,999 sentinel and two trailing scalars)
+    but no confirmed field meanings yet.
+  - GTA III's real `CHASE0-19.DAT` (14 of 20 present in the real
+    upload) and SA's `ROADBLOX.DAT` - both real, binary, not yet
+    investigated in depth this pass.
+
+  `ast.parse` clean; confirmed via AST no duplicate method
+  definitions.
