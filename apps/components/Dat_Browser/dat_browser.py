@@ -759,6 +759,8 @@ class DATBrowserWidget(QWidget): #vers 3
             "Auto-detect", "GTA III", "Vice City", "San Andreas", "GTASOL",
             "Game Root (Dir Tree)",
         ])
+        #TODO "GTA III", "Vice City", "San Andreas", should be the presets. so merge the presets into the game_combo
+
         self._game_combo.setFixedWidth(155)
         self._game_combo.setToolTip(
             "Select game, Auto-detect, or use Game Root from Dir Tree")
@@ -782,7 +784,7 @@ class DATBrowserWidget(QWidget): #vers 3
         # dropdown menu next to Browse rather than yet another combo
         # box competing for toolbar space with the existing Game
         # selector.
-        presets_btn = QPushButton("Presets \u25be")
+        presets_btn = QPushButton("Presets \u25be") #TODO this can go, once merged into game_combo
         presets_btn.setToolTip(
             "Jump straight to a game's saved install path (set these\n"
             "in Menu \u2192 Project Settings \u2192 Game Path Presets)")
