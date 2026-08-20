@@ -23753,6 +23753,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             ('occl', "OCCL", "OCCL - Occlusion Zones (VC/SA)", True, None),
             ('pick', "PICK", "PICK - Pickup Spawns (SA)", False,
              "Not parsed yet - no verified real sample data to build this on."),
+            ('cars', "CARS", "CARS - CAR placement (SA)", False,
+             "Not parsed yet - no verified real sample data to build this on."),
             ('jump', "JUMP", "JUMP - Unique Stunt Jumps (SA)", False,
              "Not parsed yet - no verified real sample data to build this on."),
             ('tcyc', "TCYC", "TCYC - Timecycle/Weather Zones (SA)", False,
@@ -24143,18 +24145,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         show_tracks_btn.show_toggled.connect(self._on_show_tracks_toggled)
         self._show_tracks_chk = show_tracks_btn
 
-        # Show SA Nodes (Aug 19 2026, per Keith's real NODES0-63.DAT
-        # data - "lets do those next") - draws SA's real vehicle/ped
-        # path node graph as disconnected line segments. SA only -
-        # loader.sa_nodes is simply empty for III/VC, so this is
-        # harmless (draws nothing) rather than needing to be hidden
-        # per-game, matching how several other game-specific overlays
-        # already just no-op rather than being conditionally shown.
-        # No edit mode yet.
-        show_sa_nodes_btn = _MapOverlayToggleButton("SA Nodes", supports_edit=False)
-        show_sa_nodes_btn.show_toggled.connect(self._on_show_sa_nodes_toggled)
-        self._show_sa_nodes_chk = show_sa_nodes_btn
-
         # Show Cull Zones (Aug 16 2026, per Keith: "continue with the
         # cull files next") - draws every loaded IPL's cull zones as
         # ghosted boxes in the 3D view. Right-click edit mode added
@@ -24183,13 +24173,29 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         opts_row3 = QHBoxLayout()
         opts_row3.addWidget(show_paths_btn)
         opts_row3.addWidget(show_tracks_btn)
-        opts_row3.addWidget(show_sa_nodes_btn)
         opts_row3.addWidget(show_cull_btn)
         opts_row3.addWidget(show_zone_btn)
         opts_row3.addWidget(show_occl_btn)
         opts_row3.addStretch()
 
         lay.addLayout(opts_row3)
+
+        opts_row4 = QHBoxLayout()
+
+        # Show SA Nodes (Aug 19 2026, per Keith's real NODES0-63.DAT
+        # data - "lets do those next") - draws SA's real vehicle/ped
+        # path node graph as disconnected line segments. SA only -
+        # loader.sa_nodes is simply empty for III/VC, so this is
+        # harmless (draws nothing) rather than needing to be hidden
+        # per-game, matching how several other game-specific overlays
+        # already just no-op rather than being conditionally shown.
+        # No edit mode yet.
+        show_sa_nodes_btn = _MapOverlayToggleButton("SA Nodes", supports_edit=False)
+        show_sa_nodes_btn.show_toggled.connect(self._on_show_sa_nodes_toggled)
+        self._show_sa_nodes_chk = show_sa_nodes_btn # Show only with gta.dat loaded (SA)
+
+        opts_row4.addWidget(show_sa_nodes_btn)
+        lay.addLayout(opts_row4)
 
         dock = QDockWidget("IPL Controls", self)
         dock.setObjectName("IPL Controls")
