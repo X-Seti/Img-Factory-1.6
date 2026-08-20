@@ -176,6 +176,9 @@ standalone = False
 # show_file_properties
 # show_file_search_dialog
 
+#TODO; The folder list folders need to be closed, until the folder is opened to show it's contents.
+#Have different View options, SHow everything with icons, detailed list, short list, replicating a proper file browser.
+
 class DirectoryTreeBrowser(QWidget):
     """Complete directory tree browser widget"""
     # Signals
