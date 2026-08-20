@@ -22006,10 +22006,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         idx = order.index(ipl_name) if ipl_name in order else -1
         loader = getattr(self, '_world_loader', None)
         stem = getattr(self, '_ipl_display_to_stem', {}).get(ipl_name)
-
+        is_loaded = (stem is not None and loader is not None and stem in loader.loaded_ipls) \
+            or ipl_name in getattr(self, '_loaded_binary_ipls', set())
         menu = QMenu(table)
         is_hidden = ipl_name in getattr(self, '_hidden_ipls', set())
-        vis_act = menu.addAction("Show" if is_hidden else "Hide")
+        vis_act = menu.addAction("Load (Show)" if is_hidden else "Hide")
         vis_act.triggered.connect(
             lambda checked=False, r=index.row(): self._on_ipl_section_cell_clicked(r, 0))
 
@@ -22019,6 +22020,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # the one that was right-clicked, and only loads rows that are
         # actually hidden (re-triggering the toggle on an already-
         # visible row would hide it instead, the opposite of "load").
+        unload_act = menu.addAction("Unload (Remove)")
+        unload_act.setToolTip(
+            "Remove this IPL's loaded data from memory entirely - distinct\n"
+            "from Hide, which only stops it from being drawn; the data stays\n"
+            "loaded either way. Unloading lets it be loaded again fresh later.")
+        unload_act.setEnabled(is_loaded)
+        unload_act.triggered.connect(
+            lambda checked=False, n=ipl_name: self._unload_ipl_section(n))
+
         selected_rows = sorted({r.row() for r in table.selectionModel().selectedRows()})
         if len(selected_rows) > 1:
             load_act = menu.addAction(f"Load Selected ({len(selected_rows)})")
@@ -22102,6 +22112,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             save_text_act.triggered.connect(
                 lambda checked=False, n=ipl_name: self._save_ipl_data_as_text(n))
 
+        #TODO; When working with SA files, have the ability to click on a text ipl, convert to binary.ipl.
+        #save options, save to img file, save to desktop.
+
+        savebin_act = menu.addAction("Save Text as Binary IPL...")
+        savebin_act.setEnabled(is_loaded)
+        savebin_act.triggered.connect(
+            lambda checked=False, n=ipl_name: self._save_ipl_data_as_binary(n))
+
         # Save IPL Data As... / Unload (Aug 16 2026, per Keith: "also
         # loading.ipl, how about an option to unload.ipl by right
         # clicking them, also move the save as function there
@@ -22110,21 +22128,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # separate IPL File Display table's own right-click), a more
         # natural home since both are whole-file operations, same as
         # Show/Hide/Load Selected right above.
-        menu.addSeparator()
-        is_loaded = (stem is not None and loader is not None and stem in loader.loaded_ipls) \
-            or ipl_name in getattr(self, '_loaded_binary_ipls', set())
         save_full_act = menu.addAction("Save IPL Data As...")
         save_full_act.setEnabled(is_loaded)
         save_full_act.triggered.connect(
             lambda checked=False, n=ipl_name: self._save_ipl_data_as_full(n))
-        unload_act = menu.addAction("Unload")
-        unload_act.setToolTip(
-            "Remove this IPL's loaded data from memory entirely - distinct\n"
-            "from Hide, which only stops it from being drawn; the data stays\n"
-            "loaded either way. Unloading lets it be loaded again fresh later.")
-        unload_act.setEnabled(is_loaded)
-        unload_act.triggered.connect(
-            lambda checked=False, n=ipl_name: self._unload_ipl_section(n))
+
+        menu.addSeparator()
 
         shift_act = menu.addAction("Shift Coordinates...")
         shift_act.setToolTip(
@@ -22135,6 +22144,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         shift_act.setEnabled(is_loaded)
         shift_act.triggered.connect(
             lambda checked=False, n=ipl_name: self._prompt_shift_ipl_coordinates(n))
+
+        rotate_act = menu.addAction("Rotate Coordinates...")
+        rotate_act.setToolTip(
+            "Rotote every position this IPL holds (instances, cull/zone/\n"
+            "occlusion boxes, path nodes, garages, entrances/exits")
+        rotate_act.setEnabled(is_loaded)
+        rotate_act.triggered.connect(
+            lambda checked=False, n=ipl_name: self._prompt_rotate_ipl_coordinates(n))
 
         menu.addSeparator()
         up_act = menu.addAction("Move Up")
