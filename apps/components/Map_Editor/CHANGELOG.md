@@ -6789,3 +6789,62 @@ conclusively found despite extensive isolated testing.
   they were, and `CullEntry`'s own center fields are genuinely left
   alone rather than silently recomputed. `ast.parse` clean on both
   touched files; confirmed via AST no duplicate method definitions.
+
+- **Aug 19, 2026** — Wired SA's real nodesN.dat vehicle/ped path data
+  into GTAWorldLoader, per Keith: "i'd be nice to see whats in those
+  node.dat files, for SA". Loader-level integration only this pass -
+  loading, not yet visualization or an editor.
+
+  Investigated first rather than assuming: an earlier claim this
+  session that "the game ignores nodesN.dat" turned out to be
+  incomplete and needed correcting - the real, confirmed picture
+  (multiple independent sources: GTAMods, open.mp, Grand Theft Wiki,
+  all agreeing) is that the game genuinely DOES use nodesN.dat data
+  for real vehicle/ped AI pathfinding, but specifically the 64 area
+  files packed INSIDE gta3.img (or another archive) - it's only the
+  SEPARATE, loose copies sitting in data/paths/ on disk that are
+  unused leftovers, believed to be dev-time output from a path
+  compiler removed before the game shipped. apps/methods/sa_path_
+  parser.py's own existing docstrings already had this distinction
+  right; this session's own earlier summary of it didn't, and got
+  corrected properly rather than left standing.
+
+  New `GTAWorldLoader.load_sa_nodes(game_root, data_dir)`, SA-only
+  (gated by `self.game == GTAGame.SA`, called once at the end of
+  load_from_dat) - tries the real, in-archive location first
+  (game_root/models/gta3.img, case-insensitive fallback matching load
+  _tracks_dat's own established convention), using sa_path_parser's
+  already-built find_nodes_dat_in_img/load_nodes_dat_from_img_entry.
+  Falls back to the loose data/paths/ directory only if the archive
+  isn't found/openable - genuinely useful for reference/comparison
+  even though that copy isn't the one the game itself reads. New
+  `self.sa_nodes: Dict[area_id, SAPathFile]`, all 64 areas loaded
+  together rather than one at a time on demand - links between path
+  nodes can cross between areas, so resolving a link's own target
+  position correctly needs the whole combined set already loaded.
+
+  The `IMGFile` import is local to `load_sa_nodes` itself, not at
+  gta_dat_parser.py's own module level - `img_core_classes.py` pulls
+  in PyQt6, and this module is deliberately kept GUI-free at import
+  time (per sa_path_parser.py's own stated design goal: usable
+  headless, by other tools besides Map Workshop) - only a caller that
+  actually calls this specific method pays that import cost.
+
+  Verified against synthetic data (the same honesty standard sa_path_
+  parser.py's own existing code already holds itself to - not yet
+  verified against a real gta3.img/nodesN.dat sample): the IMG-
+  scanning and entry-loading functions against mock IMG objects, and
+  the new load_sa_nodes method itself against real filesystem paths -
+  confirmed it fails gracefully (no crash, empty result) against
+  nonexistent or empty directories, and correctly falls back to a
+  real loose nodesN.dat file when no archive is present. `ast.parse`
+  clean; confirmed via AST no duplicate method definitions.
+
+  **Not yet built**: visualization (rendering path nodes/links in the
+  3D viewport - a separate piece needing cross-area link resolution
+  and a rendering approach, since paths form a graph, not a simple
+  line strip) and the "LC, VC" part of Keith's same message, which
+  needs clarifying first - GTA III and VC don't actually have a
+  nodesN.dat equivalent at all (III uses its own IDE-embedded system,
+  VC uses the text IPL "path" section, both already fully supported
+  elsewhere in this app).

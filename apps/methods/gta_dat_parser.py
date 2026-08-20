@@ -1551,6 +1551,15 @@ class GTAWorldLoader: #vers 3
         # since these files aren't referenced in gta.dat/gta3.dat's
         # own directive list.
         self.tracks:     Dict[str, List[TrackWaypoint]] = {}
+        # SA vehicle/ped path node data (Aug 19 2026, per Keith: "i'd
+        # be nice to see whats in those node.dat files, for SA") -
+        # keyed by area_id (0-63), each value a fully-parsed SAPathFile
+        # (apps/methods/sa_path_parser.py - a genuinely separate binary
+        # format from III/VC's own self.paths, SA-only, not part of
+        # the IDE/IPL section system at all, same "loaded separately"
+        # reasoning as self.tracks just above). Populated by
+        # load_sa_nodes, SA only.
+        self.sa_nodes:   Dict[int, object] = {}
         # (phase, type, abs_path, success)
         self.load_log:   List[Tuple[str, str, str, bool]] = []
         self.stats       = ParseStats()
@@ -1669,6 +1678,17 @@ class GTAWorldLoader: #vers 3
         self.stats.objects_loaded = len(self.objects)
         self.stats.instances      = len(self.instances)
         self.load_tracks_dat(data_dir)
+        if self.game == GTAGame.SA:
+            # SA-only (Aug 19 2026, per Keith: "i'd be nice to see
+            # whats in those node.dat files, for SA") - vehicle/ped
+            # path nodes are a completely different, binary-only
+            # format specific to SA (III uses IDE-embedded paths, VC
+            # uses the text IPL "path" section - neither has a
+            # nodesN.dat equivalent at all), so this is gated the same
+            # way GTA III's own IDE-path resolution already is,
+            # unlike load_tracks_dat just above which applies across
+            # multiple games.
+            self.load_sa_nodes(game_root, data_dir)
         return True
 
     def load_tracks_dat(self, data_dir: str): #vers 1
@@ -1702,6 +1722,82 @@ class GTAWorldLoader: #vers 3
             if waypoints:
                 self.tracks[name] = waypoints
                 self.load_log.append(("tracks", "TRACKS", abs_path, True))
+
+    def load_sa_nodes(self, game_root: str = "", data_dir: str = ""): #vers 1
+        """Load every real, game-used nodesN.dat area file for SA (Aug
+        19 2026, per Keith: "i'd be nice to see whats in those
+        node.dat files, for SA"). Confirmed via direct research before
+        writing this, not assumed: the wiki-documented "the game
+        ignores nodesN.dat" claim specifically refers to LOOSE copies
+        sitting in data/paths/ on disk - the real, actually-used copies
+        the game reads for genuine vehicle/ped pathfinding are the 64
+        area files packed INSIDE gta3.img (or another archive), at the
+        standard game_root/models/gta3.img location. Tries that real
+        location first via apps.methods.sa_path_parser's already-built
+        find_nodes_dat_in_img/load_nodes_dat_from_img_entry (a local
+        import here, not at this module's own top level - img_core_
+        classes.py pulls in PyQt6, and this module is deliberately
+        kept GUI-free at import time so it stays usable in a headless
+        context; only a caller that actually needs this pays that
+        cost). Falls back to the loose data/paths/ directory (via sa_
+        path_parser's own load_all_nodes_dat_from_dir) only if the
+        archive isn't found/openable - genuinely useful as a fallback
+        for comparison/reference even though the wiki says the game
+        itself won't read that particular copy, so this doesn't
+        refuse to load it, it just can't be presented as the "real"
+        in-game data the way the archive copy can.
+
+        Populates self.sa_nodes keyed by area_id. All 64 areas are
+        loaded together (not one at a time on demand) because links
+        between path nodes can cross between areas - resolving a
+        link's own target position correctly needs the whole combined
+        set already loaded, not just the one area file a caller might
+        currently be looking at."""
+        from apps.methods.sa_path_parser import (
+            find_nodes_dat_in_img, load_nodes_dat_from_img_entry,
+            load_all_nodes_dat_from_dir)
+        loaded_any = False
+        if game_root:
+            img_path = os.path.join(game_root, 'models', 'gta3.img')
+            if not os.path.isfile(img_path):
+                # Case-insensitive fallback - same reasoning load_
+                # tracks_dat already uses for its own subdirectory
+                # lookup, real installs on Linux won't always match
+                # the documented casing exactly.
+                models_dir = os.path.join(game_root, 'models')
+                if os.path.isdir(models_dir):
+                    for name in os.listdir(models_dir):
+                        if name.lower() == 'gta3.img':
+                            img_path = os.path.join(models_dir, name)
+                            break
+            if os.path.isfile(img_path):
+                try:
+                    from apps.methods.img_core_classes import IMGFile
+                    arc = IMGFile(img_path)
+                    arc.open()
+                    entries = find_nodes_dat_in_img(arc)
+                    for area_id, entry in entries.items():
+                        parsed = load_nodes_dat_from_img_entry(arc, entry, area_id)
+                        if parsed is not None:
+                            self.sa_nodes[area_id] = parsed
+                            loaded_any = True
+                    if loaded_any:
+                        self.load_log.append(
+                            ("nodes", "SA_NODES", img_path, True))
+                except Exception as e:
+                    self.stats.errors.append(f"Could not read SA nodes from {img_path}: {e}")
+        if not loaded_any and data_dir:
+            paths_dir = None
+            for name in os.listdir(data_dir) if os.path.isdir(data_dir) else []:
+                if name.lower() == 'paths' and os.path.isdir(os.path.join(data_dir, name)):
+                    paths_dir = os.path.join(data_dir, name)
+                    break
+            if paths_dir:
+                loose = load_all_nodes_dat_from_dir(paths_dir)
+                if loose:
+                    self.sa_nodes.update(loose)
+                    self.load_log.append(
+                        ("nodes", "SA_NODES_LOOSE", paths_dir, True))
 
     def _parse_tracks_file(self, abs_path: str, source_name: str): #vers 1
         """Parse one tracks.dat-format file - a waypoint count on the
