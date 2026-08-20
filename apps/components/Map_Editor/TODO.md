@@ -645,29 +645,37 @@ sample data exists in a GTA III install to confirm), .col, .dat
 embedded path format.
 
 ### Genuinely relevant, not yet supported - map/path-adjacent data
-- `paths/CHASE0.DAT` through `CHASE19.DAT` (not sequential - files
-  found: 0,1,2,3,4,5,6,7,10,11,14,16,18,19) - binary, ~150KB each,
-  mission-specific vehicle chase paths. Format not investigated yet.
+- `paths/CHASE0.DAT` through `CHASE19.DAT` - **DONE (Aug 19 2026)**:
+  GTA III introduction-cutscene chase-car paths, real parser verified
+  against all 14 of Keith's real files (fixed 28-byte records, no
+  header - format confirmed via GTAMods wiki, cross-checked directly:
+  file sizes divide cleanly by 28, decoded positions form plausible,
+  smoothly-changing GTA III world-coordinate clusters). New
+  `ChaseFrame`/`GTAWorldLoader.load_chase_dat`. Not yet wired into
+  any viewport visualization or editor UI - loading only so far.
 - `paths/flight.dat`, `flight2.dat`, `flight3.dat`, `flight4.dat` -
-  aircraft flight paths (4 files total, not 3 as earlier assumed
-  before this real inventory) - explicitly deferred by Keith earlier
-  ("there are also other path files, i put them in last, those can be
-  added later, add todo"), still not started.
-- `paths/tracks.dat`, `tracks2.dat` - **DONE (Aug 17 2026)**: train
-  track waypoints, real parser verified against Keith's own files
-  (168/557 waypoints, exact coordinate match), full viewport
-  rendering (Tracks checkbox, one line strip per track, no node
-  markers). Not referenced in gta.dat/gta3.dat's own directive list -
-  loaded from a fixed, well-known relative path instead.
-- `train.dat`, `train2.dat` - inspected while adding tracks.dat
-  support above: NOT the same simple waypoint format. Comma-separated,
-  no count header, 14 values per line - looks like station position
-  (X,Y,Z), a `999,999,999` sentinel (possibly "no linked track" for
-  some entries), two more (X,Y,Z) triplets (possibly linked-track
-  positions), then 2 more values (unclear - possibly a speed/angle/
-  door parameter). Real data, not yet understood well enough to
-  parse correctly - needs more investigation before implementing,
-  not a simple follow-on from tracks.dat despite the similar name.
+  **DONE (Aug 19 2026)**: confirmed the exact same simple "count then
+  X Y Z lines" format as tracks.dat, verified against all real LC/VC
+  samples, now loaded via the same `load_tracks_dat`/`self.tracks`
+  path (`source_file` distinguishes them from actual train tracks).
+- `paths/tracks.dat`, `tracks2.dat`, `tracks3.dat`, `tracks4.dat` -
+  **DONE**, extended Aug 19 2026: confirmed SA genuinely has 4 tracks
+  files, not 2 (a real gap in the original loader, fixed) - and that
+  every real SA line actually carries a 4th value (a flag) the
+  original parser tolerated but silently discarded - now captured
+  (`TrackWaypoint.flag`). In the largest file exactly 6 points carry
+  a 1 (plausibly SA's 6 real train stations, unconfirmed hypothesis).
+- `paths/spath0.dat` - **DONE (Aug 19 2026)**: same simple format as
+  tracks.dat, confirmed via real VC/SA samples (which are themselves
+  byte-identical to each other, 79 points - possibly a shared
+  template rather than either game's real data), now loaded the same
+  way.
+- `paths/ROADBLOX.DAT` - **DONE (Aug 19 2026)**: SA police roadblock
+  placements, real published format found and confirmed against
+  Keith's real file - every one of its 325 real entries cross-checked
+  directly against his own real NODES0-63.DAT set and confirmed to
+  resolve to a genuinely valid vehicle node. New `RoadblockEntry`/
+  `GTAWorldLoader.load_sa_roadblox`.
 - `CULLZONE.DAT` - GTA III's own binary cull-zone equivalent, exists
   alongside the real, working cull.ipl - confirmed unused by the game
   itself (same situation already documented for VC's own Cullzone.dat
@@ -684,6 +692,30 @@ embedded path format.
 - `CAPS.DAT` - only 16 bytes, purpose not determined - too small to
   be meaningful map/path data, likely a minor engine-internal config
   value; probably not worth pursuing unless a specific need comes up.
+
+### Least important - genuinely couldn't figure out the format (Aug
+19 2026, per Keith: "the ones we don't understand, put to the side in
+the TODO, least important")
+- `paths/train.dat`, `train2.dat` (SA) - the one real gap left after
+  this session's own real-data investigation pass. Confirmed this is
+  NOT the same format as GTA III/VC's own `train.dat` (a completely
+  different, published, unrelated cinematic-camera format for the
+  Portland El/subway train view - itself confirmed never actually
+  read by the game even in III/VC, so not a real lead to follow for
+  SA's own version either). Two separate, dedicated web searches for
+  SA's own real train.dat format turned up nothing published
+  anywhere. Real, empirically-observed pattern from Keith's own real
+  file, for whoever picks this up next: comma-separated, no count
+  header, 14 real values per line - looks like a station position
+  (X,Y,Z), a `999,999,999` sentinel (possibly "no linked track" for
+  some entries), two more (X,Y,Z) triplets whose own Z values are
+  always exact mirror negatives of each other in every real line
+  checked (a real, consistent pattern, not noise), then 2 more
+  trailing values (unclear - possibly speed/length and a flag).
+  Genuinely not enough to trust a parser built on guesswork alone -
+  would need either a real published spec surfacing somewhere, or
+  enough additional real sample files to test a specific hypothesis
+  against with actual confidence, before implementing anything here.
 
 ### Confirmed out of scope for Map Workshop (not map/world data)
 `carcols.dat` (vehicle paint colours), `handling.cfg` (vehicle
