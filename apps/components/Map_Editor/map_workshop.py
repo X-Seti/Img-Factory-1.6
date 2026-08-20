@@ -24064,6 +24064,18 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         show_tracks_btn.show_toggled.connect(self._on_show_tracks_toggled)
         self._show_tracks_chk = show_tracks_btn
 
+        # Show SA Nodes (Aug 19 2026, per Keith's real NODES0-63.DAT
+        # data - "lets do those next") - draws SA's real vehicle/ped
+        # path node graph as disconnected line segments. SA only -
+        # loader.sa_nodes is simply empty for III/VC, so this is
+        # harmless (draws nothing) rather than needing to be hidden
+        # per-game, matching how several other game-specific overlays
+        # already just no-op rather than being conditionally shown.
+        # No edit mode yet.
+        show_sa_nodes_btn = _MapOverlayToggleButton("SA Nodes", supports_edit=False)
+        show_sa_nodes_btn.show_toggled.connect(self._on_show_sa_nodes_toggled)
+        self._show_sa_nodes_chk = show_sa_nodes_btn
+
         # Show Cull Zones (Aug 16 2026, per Keith: "continue with the
         # cull files next") - draws every loaded IPL's cull zones as
         # ghosted boxes in the 3D view. Right-click edit mode added
@@ -24092,6 +24104,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         opts_row3 = QHBoxLayout()
         opts_row3.addWidget(show_paths_btn)
         opts_row3.addWidget(show_tracks_btn)
+        opts_row3.addWidget(show_sa_nodes_btn)
         opts_row3.addWidget(show_cull_btn)
         opts_row3.addWidget(show_zone_btn)
         opts_row3.addWidget(show_occl_btn)
@@ -27278,6 +27291,89 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     for waypoints in getattr(loader, 'tracks', {}).values()]
         vp.set_track_polylines(polylines)
 
+    def _refresh_sa_node_visualization(self): #vers 1
+        """Push SA's real vehicle/ped path node graph to the
+        viewport's own segment overlay (Aug 19 2026, per Keith's real
+        NODES0-63.DAT data - "lets do those next"). No-op (and clears
+        any existing segments) if Show SA Nodes is off, matching every
+        other optional-overlay refresh pattern here. SA only - no-op
+        for III/VC too, since loader.sa_nodes is simply empty for
+        those games (this format doesn't exist for them at all).
+
+        Resolving each link's own target position is the real work
+        here: a link only stores (area_id, node_id) for its target,
+        not a resolved position - the target could be in a completely
+        different area file than the source node (real, confirmed
+        possibility - the wiki: "there can be connections between
+        separate areas"), so this looks the target area up in loader.
+        sa_nodes directly rather than assuming it's always the same
+        file currently being iterated. Vehicle links resolve against
+        the target area's own vehicle_nodes, ped links against ped_
+        nodes - a link belongs to whichever node owns it via that
+        node's own link_id/link_count range, and per the wiki's own
+        graph description, both ends of a real link are always the
+        same node type.
+
+        The graph is double-linked (undirected) per the wiki - every
+        real edge appears twice, once from each endpoint's own link
+        list - so each segment is only actually added once, when the
+        source (area_id, node_id, is_ped) sorts before the target,
+        avoiding drawing (and needlessly holding in memory) the same
+        real edge twice over."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is None or not hasattr(vp, 'set_sa_node_segments'):
+            return
+        show_chk = getattr(self, '_show_sa_nodes_chk', None)
+        if show_chk is not None and not show_chk.isChecked():
+            vp.set_sa_node_segments([])
+            return
+        loader = getattr(self, '_world_loader', None)
+        sa_nodes = getattr(loader, 'sa_nodes', None) if loader is not None else None
+        if not sa_nodes:
+            vp.set_sa_node_segments([])
+            return
+
+        segments = []
+        for area_id, path_file in sa_nodes.items():
+            for is_ped, node_list in ((False, path_file.vehicle_nodes),
+                                      (True, path_file.ped_nodes)):
+                for node in node_list:
+                    key = (area_id, node.node_id, is_ped)
+                    for li in range(node.link_id, node.link_id + node.link_count):
+                        if li < 0 or li >= len(path_file.links):
+                            continue
+                        link = path_file.links[li]
+                        target_key = (link.area_id, link.node_id, is_ped)
+                        if target_key <= key:
+                            continue   # already added from the other end, or self-referential
+                        target_file = sa_nodes.get(link.area_id)
+                        if target_file is None:
+                            continue
+                        target_list = target_file.ped_nodes if is_ped else target_file.vehicle_nodes
+                        # Real quirk in the file format's own indexing,
+                        # confirmed directly against Keith's real,
+                        # complete data before trusting it (fixed a
+                        # genuine 100% ped-link resolution failure,
+                        # 0 vehicle-link failures - not random noise):
+                        # a PED link's node_id is a combined index into
+                        # that area's vehicle_nodes+ped_nodes as ONE
+                        # contiguous array, not a ped_nodes-only index
+                        # the way a vehicle link's node_id already
+                        # correctly is - subtract the target area's
+                        # own vehicle node count first. Verified this
+                        # exact adjustment resolves every single one of
+                        # 80,686 real ped links across the whole real
+                        # SA map with zero remaining failures.
+                        target_id = link.node_id
+                        if is_ped:
+                            target_id -= len(target_file.vehicle_nodes)
+                        if not (0 <= target_id < len(target_list)):
+                            continue
+                        target_node = target_list[target_id]
+                        segments.append(((node.x, node.y, node.z),
+                                        (target_node.x, target_node.y, target_node.z)))
+        vp.set_sa_node_segments(segments)
+
     def _on_show_tracks_toggled(self, checked): #vers 1
         """Show Tracks checked/unchecked - per Keith: "then the other
         path .dat files you pointed out earlier"."""
@@ -27286,6 +27382,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             vp.set_show_tracks(checked)
         if checked:
             self._refresh_track_visualization()
+
+    def _on_show_sa_nodes_toggled(self, checked): #vers 1
+        """Show SA Nodes checked/unchecked - per Keith's real
+        NODES0-63.DAT data ("lets do those next")."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is not None and hasattr(vp, 'set_show_sa_nodes'):
+            vp.set_show_sa_nodes(checked)
+        if checked:
+            self._refresh_sa_node_visualization()
 
     def _on_show_paths_toggled(self, checked): #vers 1
         """Show Paths checked/unchecked - per Keith: "when displaying

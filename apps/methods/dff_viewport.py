@@ -449,6 +449,24 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._track_polylines = []   # list of [(x,y,z), ...] - one per track file
         self._track_color = (0.75, 0.75, 0.8)
 
+        # SA path node graph (Aug 19 2026, per Keith's real NODES0-63.
+        # DAT data - "lets do those next" following the whole real
+        # path-file investigation this session). Unlike tracks (one
+        # continuous ordered line strip per file), SA's own path data
+        # is a genuine graph - disconnected line segments, one per
+        # link between two nodes, not a single strip - so this is a
+        # flat list of (start_xyz, end_xyz) segment pairs rather than
+        # a list of polylines. Resolution (looking up each link's own
+        # target node position, including across different area
+        # files, since links can cross area boundaries) happens in
+        # map_workshop.py, not here - this widget only ever draws
+        # already-resolved plain coordinate pairs, matching every
+        # other overlay's own "widget draws plain data, caller
+        # resolves it from the real objects" split.
+        self.show_sa_nodes = False
+        self._sa_node_segments = []   # list of ((x1,y1,z1),(x2,y2,z2))
+        self._sa_node_color = (0.3, 0.9, 0.5)   # green, distinct from tracks' own silver-grey
+
         # Cull zone boxes (Aug 16 2026, per Keith: "continue with the
         # cull files next", following the same "so I can view them"
         # pattern as Show Paths/the .zon wiring) - the older MapView-
@@ -1024,6 +1042,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 self._draw_occl_boxes()
             if self.show_tracks:
                 self._draw_tracks()
+            if self.show_sa_nodes:
+                self._draw_sa_nodes()
             if getattr(self, '_hovered_instance_idx', None) is not None:
                 self._draw_hover_highlight()
             if getattr(self, '_lod_test_center', None) is not None:
@@ -2408,6 +2428,51 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             for x, y, z in polyline:
                 glVertex3f(x, y, z)
             glEnd()
+        glEnable(GL_DEPTH_TEST)
+        glEnable(GL_LIGHTING)
+
+    def set_show_sa_nodes(self, enabled: bool): #vers 1
+        self.show_sa_nodes = enabled; self.update()
+
+    def set_sa_node_segments(self, segments): #vers 1
+        """Replace the SA path-node graph data drawn when show_sa_
+        nodes is on. Each entry is a plain ((x1,y1,z1),(x2,y2,z2))
+        segment pair - one per real link between two nodes (Aug 19
+        2026, per Keith's real NODES0-63.DAT data). Resolution (each
+        link's own target node position, including across different
+        area files) happens in map_workshop.py - this widget never
+        imports SAPathNode/SAPathLink/SAPathFile, matching every
+        other overlay's own plain-data split."""
+        self._sa_node_segments = segments or []
+        self.update()
+
+    def set_sa_node_color(self, r: float, g: float, b: float): #vers 1
+        self._sa_node_color = (r, g, b)
+        self.update()
+
+    def _draw_sa_nodes(self): #vers 1
+        """Draw SA's real vehicle/ped path node graph as disconnected
+        line segments (Aug 19 2026, per Keith's real NODES0-63.DAT
+        data - "lets do those next") - genuinely different from
+        _draw_tracks' own single-continuous-strip-per-file approach:
+        this is a real graph (nodes can have more than 2 links, and
+        links aren't necessarily chained in any particular order), not
+        an ordered sequence, so GL_LINES (independent segment pairs)
+        is the correct primitive here, not GL_LINE_STRIP. No node
+        markers for this first version, matching _draw_tracks' own
+        reasoning - the segments themselves already show every real
+        node's own position as a line endpoint."""
+        if not OPENGL_AVAILABLE or not self._sa_node_segments: return
+        glDisable(GL_LIGHTING)
+        glDisable(GL_DEPTH_TEST)
+        r, g, b = self._sa_node_color
+        glColor3f(r, g, b)
+        glLineWidth(1.0)
+        glBegin(GL_LINES)
+        for (x1, y1, z1), (x2, y2, z2) in self._sa_node_segments:
+            glVertex3f(x1, y1, z1)
+            glVertex3f(x2, y2, z2)
+        glEnd()
         glEnable(GL_DEPTH_TEST)
         glEnable(GL_LIGHTING)
 

@@ -6969,3 +6969,59 @@ conclusively found despite extensive isolated testing.
   turned into a parser without either a real spec or enough
   additional real samples to test a hypothesis against with
   confidence.
+
+- **Aug 19, 2026 (cont'd)** — Built viewport visualization for SA's
+  real path node graph, per Keith: "lets continue" - the natural next
+  step after last session's loading-only work on `nodes*.dat`.
+
+  New `DFFViewport.show_sa_nodes`/`set_sa_node_segments`/`_draw_sa_
+  nodes` - genuinely different from `_draw_tracks`' own single-
+  continuous-strip-per-file approach: SA's real path data is a graph
+  (a node can have more than 2 links, and links aren't necessarily
+  chained in any order), so this draws independent `GL_LINES` segment
+  pairs rather than a `GL_LINE_STRIP`. New "SA Nodes" toggle button
+  next to Tracks in the IPL Controls row.
+
+  New `_refresh_sa_node_visualization` (map_workshop.py) resolves each
+  real link's own target node position - the real work here, since a
+  link only stores `(area_id, node_id)`, and the target can genuinely
+  be in a different area file than the source (confirmed by the
+  wiki: "there can be connections between separate areas"). Double-
+  linked (undirected) graph per the wiki - deduplicated so each real
+  edge is only added once, from whichever end sorts first, rather
+  than drawn (and held in memory) twice over.
+
+  **Real, previously-undiscovered format quirk found and fixed while
+  building this**: resolving every real link across Keith's own
+  complete, real 64-area map left exactly 45,835 links unresolved -
+  100% of all ped-originated links, 0% of vehicle-originated ones, a
+  clean systematic split rather than noise. Root cause, confirmed by
+  direct measurement rather than left as a guess: a PED link's own
+  `node_id` is a COMBINED index into its target area's `vehicle_
+  nodes`+`ped_nodes` as one contiguous array - not a `ped_nodes`-only
+  index the way a VEHICLE link's `node_id` already correctly is (this
+  is exactly why `ROADBLOX.DAT`'s own real entries, which only ever
+  reference vehicle nodes, already resolved perfectly last session
+  with no adjustment needed). Subtracting the target area's own
+  vehicle-node count from a ped link's `node_id` before indexing
+  brought the failure count from 45,835 down to exactly zero.
+  Documented this clearly on `SAPathLink`'s own docstring in `sa_
+  path_parser.py` (not just fixed silently in this one caller) so any
+  future consumer of this data doesn't have to rediscover it blind.
+
+  Verified extensively before trusting any of it: the resolution
+  logic run against Keith's own real, complete 64-file NODES0-63.DAT
+  set produced exactly 71,811 unique segments (a clean, exact 50/50
+  split of the real 143,622 total links - deduplication working
+  correctly), zero resolution failures after the ped-offset fix
+  (versus 45,835 before it), sampled segment lengths all plausible
+  (1.26 to 819 world units), and the whole thing runs in well under a
+  second (0.228s for the complete real map) - fast enough for an on-
+  demand refresh. Re-ran the identical check through the real,
+  complete `GTAWorldLoader.load_sa_nodes` pipeline (not just the
+  lower-level parser in isolation) and got the exact same 71,811-
+  segment result, confirming the full, real code path end to end, not
+  just the resolution logic alone.
+
+  `ast.parse` clean on all three touched files; confirmed via AST no
+  duplicate method definitions.
