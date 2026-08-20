@@ -1120,6 +1120,62 @@ class BinaryIPLParser: #vers 2
         return True
 
 
+def write_binary_ipl_inst_only(instances: List['IPLInstance']) -> bytes: #vers 1
+    """Write instances out as binary-format IPL data - inst section
+    only (Aug 20 2026, per Keith's own TODO comment: "When working
+    with SA files, have the ability to click on a text ipl, convert
+    to binary.ipl"). The write-side counterpart to BinaryIPLParser,
+    built directly from that class's own confirmed structure - same
+    magic, header size, and 40-byte inst record layout.
+
+    REAL, IMPORTANT LIMITATION, stated here as plainly as in the UI
+    itself: only 2 of the binary header's 18 int32 fields are actually
+    confirmed (index 0 = inst_count, index 6 = the constant 76 - see
+    BinaryIPLParser's own docstring for the full reasoning behind
+    those two and why the other 16 aren't). This writer sets every
+    other header field to 0 - the most conservative, least-assuming
+    choice available, not a confirmed-correct value, because what
+    those 16 fields actually mean (very possibly counts/offsets for
+    other sections a real game-shipped file might expect to find,
+    per the published "binary IPL supports inst and cars" scope) has
+    never been determined. A per-instance record's own second int32
+    field (documented on BinaryIPLParser as "not interior... a per-
+    instance flags bitmask" with unconfirmed bit meanings) is also
+    written as 0 here for the same reason. This has been verified by
+    round-tripping synthetic data back through BinaryIPLParser itself
+    and confirming an exact match (see the direct test run before this
+    was trusted) - but that only proves the OUTPUT'S OWN INST SECTION
+    is byte-correct and self-consistent, not that a real, unmodified
+    game would accept the whole file without incident; no real binary
+    IPL sample exists in this environment to test that against, and
+    the file has never been tested in an actual running game.
+
+    cars is not written at all - not parsed by this app on the read
+    side either, so there's nothing here to convert it from; every
+    other IPL section (cull/zone/path/occl/grge/enex) genuinely has
+    no binary-IPL representation at all per the format's own real,
+    published scope (confirmed via research before this was built,
+    not assumed) - inst is the only thing a binary IPL can hold that
+    this app's own text-IPL data also has."""
+    header = bytearray(76)
+    header[0:4] = b'bnry'
+    struct.pack_into('<i', header, 4, len(instances))
+    struct.pack_into('<i', header, 4 + 6 * 4, 76)
+    # Every other header int32 (indices 1-5, 7-17) stays 0 - see this
+    # function's own docstring for why that's a deliberate, honest
+    # default rather than a confirmed-correct value.
+
+    body = bytearray(len(instances) * 40)
+    for i, inst in enumerate(instances):
+        off = i * 40
+        struct.pack_into('<7f', body, off,
+                         inst.pos_x, inst.pos_y, inst.pos_z,
+                         inst.rot_x, inst.rot_y, inst.rot_z, inst.rot_w)
+        struct.pack_into('<3i', body, off + 28,
+                         inst.model_id, 0, inst.lod_index)
+    return bytes(header) + bytes(body)
+
+
 class IPLParser: #vers 2
     """
     Parses a single GTA3/VC/SA .ipl file.

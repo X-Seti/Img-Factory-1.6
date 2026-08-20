@@ -334,6 +334,14 @@ class DirectoryTreeBrowser(QWidget):
         self.tree.customContextMenuRequested.connect(self.show_context_menu)
         self.tree.itemClicked.connect(self.on_item_clicked)
         self.tree.itemDoubleClicked.connect(self.on_item_double_clicked)
+        # Lazy-loading (Aug 20 2026, per Keith: "The folder list
+        # folders need to be closed, until the folder is opened to
+        # show it's contents") - populate_tree_recursive only ever
+        # fills in one level plus lazy placeholders now; this is what
+        # actually fires when a placeholder's own parent folder gets
+        # expanded, swapping the placeholder for that folder's real
+        # contents (see _on_tree_item_expanded's own docstring).
+        self.tree.itemExpanded.connect(self._on_tree_item_expanded)
         self.tree._browser = self
         self._setup_tree_dragdrop(self.tree, 'left')
 
@@ -757,6 +765,18 @@ class DirectoryTreeBrowser(QWidget):
             self._second_tree.setSelectionMode(QTreeWidget.SelectionMode.ExtendedSelection)
             self._second_tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
             self._second_tree.customContextMenuRequested.connect(self.show_context_menu)
+            # Lazy-loading (Aug 20 2026) - the main tree's own signal
+            # (wired in setup_tree_view) only ever covers that one
+            # widget; _populate_second_tree reuses populate_tree/
+            # populate_tree_recursive via a temporary self.tree swap,
+            # so this panel already gets the same lazy placeholders,
+            # but without its OWN itemExpanded connection those
+            # placeholders would sit there forever, never actually
+            # populating when this panel's own folders get expanded.
+            # _on_tree_item_expanded itself is tree-agnostic (works
+            # from the clicked item directly, never touches self.tree),
+            # so it's safe to reuse the exact same handler here.
+            self._second_tree.itemExpanded.connect(self._on_tree_item_expanded)
             self._second_tree._browser = self
             self._setup_tree_dragdrop(self._second_tree, 'right')
             right_layout.addWidget(self._second_tree)
@@ -971,25 +991,75 @@ class DirectoryTreeBrowser(QWidget):
         self.log_message(f"Using workspace directory as fallback: {workspace_dir}")
 
 
-    def populate_tree(self, root_path: str): #vers 1
-        """Populate tree with directory contents"""
+    def populate_tree(self, root_path: str): #vers 2
+        """Populate tree with directory contents. Lazy-loading (Aug
+        20 2026, per Keith's own TODO comment: "The folder list
+        folders need to be closed, until the folder is opened to show
+        it's contents") - only the root's own direct children are
+        populated eagerly now; every folder that has any real
+        contents gets a single placeholder child instead of its real
+        contents being walked immediately, and only gets genuinely
+        populated the first time it's actually expanded (see _on_
+        tree_item_expanded). Was eagerly recursing 3 whole levels deep
+        on every single load before this - for a large real game
+        install's own directory tree, that could mean walking and
+        building thousands of tree items the person may never even
+        look at, every single time a root path was set."""
         try:
             self.tree.clear()
             root_item = QTreeWidgetItem(self.tree)
             root_item.setText(0, os.path.basename(root_path) or root_path)
             root_item.setData(0, Qt.ItemDataRole.UserRole, root_path)
             root_item.setIcon(0, get_folder_icon())
-            self.populate_tree_recursive(root_item, root_path, max_depth=3)
+            self.populate_tree_recursive(root_item, root_path)
             root_item.setExpanded(True)
-            for i in range(min(root_item.childCount(), 5)):
-                child = root_item.child(i)
-                if child and child.childCount() > 0:
-                    child.setExpanded(True)
-            total_items = self.count_tree_items(root_item)
-            self.log_message(f"Loaded: {root_path} ({total_items} items)")
+            self.log_message(f"Loaded: {root_path}")
         except Exception as e:
             self.log_message(f"Error populating tree: {str(e)}")
 
+    def _on_tree_item_expanded(self, item): #vers 1
+        """Populate a folder's real contents the first time it's
+        actually expanded (Aug 20 2026, per Keith's own lazy-loading
+        request - see populate_tree's own docstring for the full
+        reasoning). Detects "not populated yet" by checking for the
+        single dummy placeholder child _add_lazy_placeholder left
+        behind (marked via a dedicated UserRole+1 flag, not by text
+        content, so a real folder or file that happens to be named
+        the same as the placeholder text is never mistaken for one) -
+        removes it, then populates this folder's own real, direct
+        children the same way populate_tree_recursive already always
+        has, each of THOSE getting their own fresh placeholder if they
+        have contents of their own, so expanding stays lazy at every
+        depth, not just the first level."""
+        if item.childCount() != 1:
+            return
+        child = item.child(0)
+        if not child.data(0, Qt.ItemDataRole.UserRole + 1):
+            return   # a real child, not the placeholder - already populated
+        item.removeChild(child)
+        dir_path = item.data(0, Qt.ItemDataRole.UserRole)
+        if dir_path:
+            self.populate_tree_recursive(item, dir_path)
+
+    def _add_lazy_placeholder(self, parent_item, dir_path): #vers 1
+        """Add a single, cheap placeholder child to parent_item so its
+        own expand arrow shows, without actually reading dir_path's
+        real contents yet (Aug 20 2026, per Keith's own lazy-loading
+        request). Uses os.scandir's own iterator directly rather than
+        os.listdir - only needs to know whether at least one entry
+        exists at all, not build a full list of them, so this stays
+        cheap even for a folder with thousands of real entries inside
+        it that won't actually be read until it's genuinely expanded."""
+        try:
+            with os.scandir(dir_path) as it:
+                has_contents = next(it, None) is not None
+        except (PermissionError, OSError):
+            has_contents = False
+        if not has_contents:
+            return
+        placeholder = QTreeWidgetItem(parent_item)
+        placeholder.setText(0, "Loading...")
+        placeholder.setData(0, Qt.ItemDataRole.UserRole + 1, True)
 
     def count_tree_items(self, item): #vers 1
         """Count total items in tree"""
@@ -1002,11 +1072,17 @@ class DirectoryTreeBrowser(QWidget):
 
 
     def populate_tree_recursive(self, parent_item: QTreeWidgetItem,
-                                dir_path: str, max_depth: int = 3,
-                                current_depth: int = 0): #vers 1
-        """Recursively populate tree"""
-        if current_depth >= max_depth:
-            return
+                                dir_path: str): #vers 2
+        """Populate parent_item with dir_path's own direct children
+        only - one level, not recursive any more despite the method's
+        own name (kept for every existing external caller rather than
+        renamed, and because it still recurses conceptually via lazy
+        placeholders + _on_tree_item_expanded, just spread out over
+        real user interaction instead of all at once upfront). Each
+        folder child that has any real contents of its own gets a
+        single lazy placeholder (see _add_lazy_placeholder) instead of
+        being walked immediately - see populate_tree's own docstring
+        for the full reasoning behind this Aug 20 2026 change."""
         try:
             all_items = os.listdir(dir_path)
             if not self.browser_settings.get('show_hidden', False):
@@ -1056,7 +1132,7 @@ class DirectoryTreeBrowser(QWidget):
                     tree_item.setText(self.COL_PERMS, _perms_str(st.st_mode))
                 except Exception:
                     pass
-                self.populate_tree_recursive(tree_item, item_path, max_depth, current_depth + 1)
+                self._add_lazy_placeholder(tree_item, item_path)
             for file in files:
                 item_path = os.path.join(dir_path, file)
                 tree_item = QTreeWidgetItem(parent_item)

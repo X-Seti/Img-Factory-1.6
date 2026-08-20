@@ -22965,6 +22965,85 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return
         self._set_status(f"Saved {len(matching)} instances from {ipl_name} to {path}")
 
+    def _save_ipl_data_as_binary(self, ipl_name): #vers 1
+        """Convert an IPL's actual loaded instances to real binary-
+        IPL format and save the result (Aug 20 2026, per Keith's own
+        TODO comment: "When working with SA files, have the ability
+        to click on a text ipl, convert to binary.ipl. save options,
+        save to img file, save to desktop"). This version covers
+        "save to desktop" (a plain file save dialog) - saving directly
+        into an open IMG archive is a separate, larger piece of work
+        (needs IMG write support this app doesn't currently expose
+        for adding a brand new entry) not attempted this pass.
+
+        Instances only - see write_binary_ipl_inst_only's own
+        docstring for the full reasoning, but the short version: real
+        binary IPL only ever supports inst and cars sections at all
+        (confirmed via research, not assumed) - cull/zone/path/occl/
+        grge/enex genuinely have no binary representation to convert
+        TO, and cars isn't parsed by this app on the read side either,
+        so there's nothing loaded to write for it. Not gated to SA-
+        loaded IPLs specifically (binary IPL is real but SA/GTA IV/
+        Bully-SE only) - the person doing the converting knows which
+        IPL they're working with far better than a rigid game check
+        would, and a converted file simply wouldn't be useful outside
+        SA regardless of whether this lets them try.
+
+        Real, honest limitation surfaced directly in the confirmation
+        dialog itself, not just in a code comment - only 2 of the
+        binary header's 18 fields are actually confirmed, and this
+        writer's own choice for the other 16 (zero) is the most
+        conservative option available, not a confirmed-correct one.
+        This has been verified by round-tripping synthetic data back
+        through this app's own already-trusted binary reader and
+        getting an exact match - but that only proves the file's own
+        inst section is internally correct, not that a real,
+        unmodified game will accept the whole file without incident;
+        it has never been tested in an actual running game."""
+        all_inst = getattr(self, '_all_instances', None) or []
+        matching = [i for i in all_inst if i.source_ipl == ipl_name]
+        if not matching:
+            QMessageBox.information(self, "Save Text as Binary IPL",
+                f"No loaded instances found for {ipl_name}.")
+            return
+
+        confirm = QMessageBox.warning(
+            self, "Save Text as Binary IPL - Experimental",
+            f"Converting {len(matching)} instance(s) from {ipl_name} to real "
+            f"binary IPL format.\n\n"
+            f"Only the instance placements themselves are included - cull/"
+            f"zone/path/occlusion/garage/entrance-exit data has no binary-"
+            f"IPL representation at all in the real format and won't be in "
+            f"the saved file.\n\n"
+            f"Only part of the binary header format is actually confirmed. "
+            f"The unconfirmed parts are written as 0 (the most conservative "
+            f"choice available, not a verified-correct one). This has been "
+            f"checked by reading the result back through this app's own "
+            f"binary IPL reader and getting an exact match, but it has "
+            f"never been tested in an actual running game - there's a real "
+            f"chance the game itself may not accept it correctly.\n\n"
+            f"Continue?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel)
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+
+        default_name = os.path.splitext(ipl_name)[0] + ".ipl"
+        path, _filter = QFileDialog.getSaveFileName(
+            self, "Save Text as Binary IPL", default_name, "IPL files (*.ipl);;All files (*)")
+        if not path:
+            return
+        try:
+            from apps.methods.gta_dat_parser import write_binary_ipl_inst_only
+            data = write_binary_ipl_inst_only(matching)
+            with open(path, 'wb') as f:
+                f.write(data)
+        except Exception as e:
+            QMessageBox.warning(self, "Save Text as Binary IPL", f"Failed to save: {e}")
+            return
+        self._set_status(
+            f"Saved {len(matching)} instances from {ipl_name} to binary IPL: {path}")
+
     def _save_ipl_data_as_full(self, ipl_name): #vers 1
         """Save ALL of an IPL's sections to a new file, not just inst
         (Aug 16 2026, per Keith: "we need a way to save the .ipl

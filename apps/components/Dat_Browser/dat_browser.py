@@ -759,7 +759,13 @@ class DATBrowserWidget(QWidget): #vers 3
             "Auto-detect", "GTA III", "Vice City", "San Andreas", "GTASOL",
             "Game Root (Dir Tree)",
         ])
-        #TODO "GTA III", "Vice City", "San Andreas", should be the presets. so merge the presets into the game_combo
+        # GTA III/Vice City/San Andreas entries ARE the presets now
+        # (Aug 20 2026, per Keith: "should be the presets. so merge
+        # the presets into the game_combo") - selecting one of them
+        # directly loads its saved Game Path Preset, if one exists.
+        # See _on_game_combo_changed's own docstring for the full
+        # mechanism - the separate "Presets" button/menu this
+        # replaced is gone entirely, not just hidden.
 
         self._game_combo.setFixedWidth(155)
         self._game_combo.setToolTip(
@@ -774,22 +780,6 @@ class DATBrowserWidget(QWidget): #vers 3
         browse_btn.setToolTip("Browse for game root folder")
         browse_btn.clicked.connect(self._browse_game_root)
         self._browse_btn = browse_btn
-
-        # Game path presets quick-access (Aug 19 2026, per Keith: "I'd
-        # like to add, in [Menu] Project settings -> Game path
-        # presets, the locations of those games installed on your
-        # system, so you can pick them in Dat Browser for quick
-        # access") - reads whatever's been saved via Project Settings'
-        # own new Game Path Presets group, offered here as a small
-        # dropdown menu next to Browse rather than yet another combo
-        # box competing for toolbar space with the existing Game
-        # selector.
-        presets_btn = QPushButton("Presets \u25be") #TODO this can go, once merged into game_combo
-        presets_btn.setToolTip(
-            "Jump straight to a game's saved install path (set these\n"
-            "in Menu \u2192 Project Settings \u2192 Game Path Presets)")
-        presets_btn.clicked.connect(self._show_game_path_presets_menu)
-        self._presets_btn = presets_btn
 
         self._load_btn = QPushButton("Load")
         self._load_btn.setEnabled(False)
@@ -811,7 +801,6 @@ class DATBrowserWidget(QWidget): #vers 3
 
         toolbar.addWidget(QLabel("Game:"))
         toolbar.addWidget(self._game_combo)
-        toolbar.addWidget(presets_btn)
         toolbar.addWidget(self._path_edit, 1)
         toolbar.addWidget(browse_btn)
         toolbar.addWidget(self._load_btn)
@@ -1497,12 +1486,42 @@ class DATBrowserWidget(QWidget): #vers 3
 
         #    Browse / load                                                       
 
-    def _on_game_combo_changed(self, idx: int): #vers 1
+    def _on_game_combo_changed(self, idx: int): #vers 2
         """React immediately when the game combo selection changes.\n
         Index 5 = 'Game Root (Dir Tree)': grab the dir-tree path, auto-detect
         the game, switch the combo to the real entry, and start loading —
         no Browse or Load click required.
+
+        Indices 1/2/3 = GTA III/Vice City/San Andreas (Aug 20 2026, per
+        Keith's own TODO comment: '"GTA III", "Vice City", "San Andreas",
+        should be the presets. so merge the presets into the game_combo')
+        - the combo entries themselves now ARE the presets: selecting one
+        directly checks Menu > Project Settings > Game Path Presets for a
+        saved path for that game and, if one exists, fills it straight
+        into _path_edit and starts loading immediately - no separate
+        Presets button/menu needed any more (removed from the toolbar,
+        per Keith's own follow-up note: "this can go, once merged into
+        game_combo"). A game with no saved preset yet just leaves the
+        path field as it was, same as selecting that entry always did
+        before this - nothing forces a preset to exist.
         """
+        game_key_by_idx = {1: 'GTA3', 2: 'VC', 3: 'SA'}
+        if idx in game_key_by_idx:
+            self._browse_btn.setVisible(True)
+            self._load_btn.setVisible(True)
+            from apps.gui.file_menu_integration import get_game_path_presets
+            presets = get_game_path_presets()
+            path = presets.get(game_key_by_idx[idx])
+            if path:
+                self._path_edit.setText(path)
+                names = {1: "GTA III", 2: "Vice City", 3: "San Andreas"}
+                self._status_lbl.setText(f"Preset: {names[idx]}")
+                self._load_btn.setEnabled(True)
+                if getattr(self, '_auto_load_on_root', False):
+                    from PyQt6.QtCore import QTimer
+                    QTimer.singleShot(300, self._start_load)
+            return
+
         if idx != 5:
             # Show Browse/Load normally for all other entries
             self._browse_btn.setVisible(True)
@@ -1632,7 +1651,7 @@ class DATBrowserWidget(QWidget): #vers 3
         loader.start()
         self._shared_txd_loader = loader  # keep reference
 
-    def _browse_game_root(self): #vers 2
+    def _browse_game_root(self): #vers 3
         path = QFileDialog.getExistingDirectory(
             self, "Select GTA game root folder",
             self._path_edit.text() or os.path.expanduser("~"))
@@ -1642,7 +1661,19 @@ class DATBrowserWidget(QWidget): #vers 3
         game = detect_game(path)
         if game:
             idx = {GTAGame.GTA3: 1, GTAGame.VC: 2, GTAGame.SA: 3, GTAGame.SOL: 4}.get(game, 0)
+            # Signals blocked here (Aug 20 2026) - setting the combo
+            # programmatically after a real folder browse must NOT
+            # re-trigger _on_game_combo_changed's own new preset-
+            # population logic (selecting GTA III/VC/SA there now
+            # fills _path_edit from a saved preset) - that would
+            # silently overwrite the real, just-browsed path with a
+            # stale preset path instead, the opposite of what
+            # detecting a real folder should do. Matches the same
+            # blockSignals pattern _on_game_combo_changed's own Dir
+            # Tree handling already uses for the identical reason.
+            self._game_combo.blockSignals(True)
             self._game_combo.setCurrentIndex(idx)
+            self._game_combo.blockSignals(False)
             names = {1: "GTA III", 2: "Vice City", 3: "San Andreas", 4: "GTASOL"}
             self._status_lbl.setText(f"Detected: {names.get(idx, 'unknown')}")
             if getattr(self, '_auto_load_on_root', False):
@@ -1651,61 +1682,6 @@ class DATBrowserWidget(QWidget): #vers 3
         else:
             self._status_lbl.setText("Game not auto-detected — select manually.")
         self._load_btn.setEnabled(True)
-
-    def _show_game_path_presets_menu(self): #vers 1
-        """Show whichever game path presets have actually been saved
-        via Menu -> Project Settings -> Game Path Presets (Aug 19
-        2026, per Keith: "I'd like to add... the locations of those
-        games installed on your system, so you can pick them in Dat
-        Browser for quick access"). GTA3/VC/SA only, matching the
-        presets themselves - no GTASOL entry to skip here at all, per
-        Keith's own "lets ignore GTASOL for now".
-
-        Selecting one populates _path_edit and the Game combo exactly
-        the same way _browse_game_root already does after a manual
-        folder pick, then auto-loads if that preference is already
-        on - reuses that exact same, already-established behaviour
-        rather than inventing a second, parallel way to react to a
-        newly-set game root."""
-        from apps.gui.file_menu_integration import get_game_path_presets, GAME_PATH_PRESET_GAMES
-        presets = get_game_path_presets()
-        menu = QMenu(self)
-        if not presets:
-            no_presets_act = menu.addAction("No presets saved yet")
-            no_presets_act.setEnabled(False)
-            menu.addSeparator()
-            open_settings_act = menu.addAction("Open Project Settings...")
-            chosen = menu.exec(self._presets_btn.mapToGlobal(
-                self._presets_btn.rect().bottomLeft()))
-            if chosen is open_settings_act:
-                mw = self.main_window
-                if mw is not None:
-                    from apps.gui.file_menu_integration import handle_project_settings
-                    handle_project_settings(mw)
-            return
-
-        game_key_to_combo_idx = {'GTA3': 1, 'VC': 2, 'SA': 3}
-        actions = {}
-        for game_key, game_label in GAME_PATH_PRESET_GAMES:
-            if game_key not in presets:
-                continue
-            act = menu.addAction(f"{game_label}  —  {presets[game_key]}")
-            actions[act] = (game_key, presets[game_key])
-
-        chosen = menu.exec(self._presets_btn.mapToGlobal(
-            self._presets_btn.rect().bottomLeft()))
-        if chosen is None or chosen not in actions:
-            return
-        game_key, path = actions[chosen]
-        self._path_edit.setText(path)
-        idx = game_key_to_combo_idx.get(game_key, 0)
-        self._game_combo.setCurrentIndex(idx)
-        names = {1: "GTA III", 2: "Vice City", 3: "San Andreas"}
-        self._status_lbl.setText(f"Preset: {names.get(idx, game_key)}")
-        self._load_btn.setEnabled(True)
-        if getattr(self, '_auto_load_on_root', False):
-            from PyQt6.QtCore import QTimer
-            QTimer.singleShot(300, self._start_load)
 
     def _start_load(self): #vers 4
         game_idx = self._game_combo.currentIndex()
