@@ -7090,3 +7090,21 @@ conclusively found despite extensive isolated testing.
   `ast.parse` clean; confirmed via AST no duplicate method
   definitions, and via direct search that each of the three section
   keywords now has exactly one dispatch branch, not zero or two.
+
+- **Aug 20, 2026 (cont'd)** — Verified the new AUZO parser against a
+  real, populated `Audiozon.ipl` file for the first time (previously
+  only checked against synthetic data, since no real sample existed
+  yet). All 155 real audio zone entries parsed with zero failures -
+  152 cube-shape, 3 sphere-shape.
+
+  Beyond "it parses without error": the real zone NAMES independently
+  confirm both the parser and the `AUZO_TYPES` table are genuinely
+  correct, not just superficially plausible. All 3 real sphere-shape
+  zones happen to be exactly the ones with clearly self-describing
+  names - `BEACH` uses `sound_id=5` (documented: "Beach party bkgd
+  song"), `AWARDS` uses `sound_id=10` ("Awards ceremony music"),
+  `LOWRIDE` uses `sound_id=13` ("Low Rider Challenge bkgd song") -
+  each real zone's own name semantically matches its own documented
+  sound description exactly, an independent confirmation the
+  GTAMods-sourced table is correct that doesn't depend on trusting
+  the documentation alone.
