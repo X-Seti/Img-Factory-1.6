@@ -377,6 +377,106 @@ class OcclEntry: #vers 1
     line_no:    int   = 0
 
 
+# Audio Zone Types (Aug 20 2026, per Keith: "Implement support for
+# the remaining SA, audiozone placements with sound svg icons; play
+# the sounds") - the real, published environment-type/music-track
+# table for AUZO's own ID field, confirmed via GTAMods wiki. Any ID
+# from 0-70 inclusive not present in this dict generates no
+# background sound at all, per the wiki's own note - that's a real,
+# documented "silent zone" case, not a gap in this table.
+AUZO_TYPES = {
+    0: ("drugged", None), 1: ("plain", None), 2: ("forest", None),
+    3: ("city", None), 4: ("living room", "St Mark's violin music"),
+    5: ("drugged", "Beach party bkgd song"), 6: ("living room", None),
+    7: ("drugged", None), 8: ("hangar", "Unused loud hum"),
+    9: ("drugged", None), 10: ("drugged", "Awards ceremony music"),
+    11: ("drugged", None), 12: ("drugged", "Loud hum heard on ships"),
+    13: ("drugged", "Low Rider Challenge bkgd song"), 14: ("living room", None),
+    15: ("living room", "Static sound heard on military bases"),
+    16: ("living room", None), 17: ("stone room", "Casino bkgd medley"),
+    18: ("room", None), 19: ("hangar", "Quiet hum heard in Area 69"),
+    20: ("hangar", "Fan-like clicking heard in Abattoir"),
+    21: ("living room", "Quiet hum heard in 24-7s"), 22: ("room", None),
+    23: ("hangar", "Loud hum heard in Dam interior"),
+    24: ("living room", "Racing sounds heard in ITB lobby"),
+    25: ("living room", "Quiet hum heard in Planning Dept"),
+    26: ("living room", "Quiet hum heard in safe houses"), 27: ("room", None),
+    28: ("room", "Dance Club bkgd medley"),
+    29: ("stone room", "Dance Club bkgd medley"),
+    30: ("living room", "Stream or User Tracks Player"), 31: ("drugged", None),
+    32: ("living room", None), 33: ("stone room", None),
+    34: ("room", "Pleasure Domes bkgd medley"), 35: ("living room", None),
+    36: ("padded cell", "Loud hum heard in Jet interior"),
+    37: ("room", "Muzak-type bkgd heard in unused diner interiors"),
+    38: ("drugged", None), 39: ("room", "Quiet hum heard in police stations"),
+    40: ("living room", None), 41: ("arena", "Stadium event bkgd medley"),
+    42: ("living room", None), 43: ("living room", None),
+    44: ("living room", "Fast Food Joint bkgd sounds"), 45: ("living room", None),
+    46: ("living room", None), 47: ("living room", None),
+    48: ("stone room", "Ammunation PA loop"), 49: ("room", None),
+    50: ("hangar", "Quiet hum heard in warehouses"),
+    51: ("drugged", "Very loud hum heard in cargo plane?"),
+    52: ("living room", "Playback FM"), 53: ("living room", "K-ROSE"),
+    54: ("living room", "KDST"), 55: ("living room", "Bounce FM"),
+    56: ("living room", "SFUR"), 57: ("living room", "Radio Los Santos"),
+    58: ("living room", "Radio X"), 59: ("living room", "CSR"),
+    60: ("living room", "K-JAH West"), 61: ("living room", "MasterSounds"),
+    62: ("living room", "WCTR"), 63: ("living room", None),
+    64: ("living room", "Unused quiet hum"), 65: ("living room", None),
+    66: ("room", "Strip Club background melody"),
+    67: ("living room", "Unused background melody"),
+}
+
+
+@dataclass
+class AuzoEntry: #vers 1
+    """One "auzo" section entry - a San Andreas audio zone (Aug 20
+    2026, per Keith: "Implement support for the remaining SA,
+    audiozone placements with sound svg icons; play the sounds").
+    Format confirmed against GTAMods wiki: two real shapes exist, told
+    apart here by how many numeric fields follow the name/id/switch
+    (is_sphere True when there are exactly 4 more - X,Y,Z,Radius -
+    False when there are 6 - X1,Y1,Z1,X2,Y2,Z2, matching the two
+    documented layouts exactly rather than guessing from field count
+    alone). Cube fields (x2/y2/z2) are None for a sphere entry and
+    vice versa (radius is None for a cube entry) - never populated
+    with a meaningless default like 0.0 that could be mistaken for a
+    real, deliberate zero-sized value.
+
+    Real, honest limitation: sound_id only maps to a documented
+    environment type and (sometimes) a music/ambience TRACK NAME via
+    AUZO_TYPES - not an actual playable audio sample. The real SA
+    audio itself lives inside the game's own compiled audio bank
+    archives (a completely separate, unrelated binary format this app
+    doesn't read at all), so there is no actual sound data anywhere
+    in the loaded IPL/IDE data this could point to and play - "play
+    the sounds" for now means a placeholder tone confirming which
+    zone was clicked, not the real, in-game San Andreas audio."""
+    name:       str
+    sound_id:   int
+    switch:     int
+    is_sphere:  bool
+    x1: float = 0.0
+    y1: float = 0.0
+    z1: float = 0.0
+    x2: Optional[float] = None
+    y2: Optional[float] = None
+    z2: Optional[float] = None
+    radius: Optional[float] = None
+    source_ipl: str = ""
+    line_no:    int = 0
+
+    @property
+    def environment_type(self): #vers 1
+        info = AUZO_TYPES.get(self.sound_id)
+        return info[0] if info else None
+
+    @property
+    def music_description(self): #vers 1
+        info = AUZO_TYPES.get(self.sound_id)
+        return info[1] if info else None
+
+
 @dataclass
 class ChaseFrame: #vers 1
     """One recorded frame from a real GTA III CHASE*.DAT file (Aug 19
@@ -935,21 +1035,74 @@ class IDEParser: #vers 2
                 return IDEObject(model_id, model_name, txd_name,
                                  "weapon", section, extra, source, lineno)
 
-            elif section in ("hier", "anim", "tanm"):
-                # GTA3/VC hier: id, model, txd                             (3 fields)
-                # SA      hier: id, model, txd, animFile, drawDist         (5 fields)
+            elif section == "hier":
+                # HIER's real, published format (Aug 20 2026,
+                # confirmed via GTAMods) is universal across EVERY
+                # game - always exactly 3 fields (Id, ModelName,
+                # TxdName), no SA-specific extras at all. The
+                # previous version of this branch's own comment
+                # claimed "SA hier: id, model, txd, animFile,
+                # drawDist (5 fields)" and read those extra fields
+                # for SA - that was a real, mistaken conflation with
+                # ANIM's own, genuinely separate SA-specific format
+                # (which DOES have those extra fields, plus a 6th
+                # Flags field this same conflation was also missing
+                # entirely - see the dedicated "anim" branch just
+                # below). A real hier line only ever has 3 fields to
+                # begin with, so this mistake never actually crashed
+                # anything (the old code's own `if len(parts) > 3`
+                # guard just never fired against real data) - but it
+                # was still wrong, not just imprecise.
+                if len(parts) < 3:
+                    return None
+                return IDEObject(int(parts[0]), parts[1], parts[2],
+                                 "hierarchy", section, {}, source, lineno)
+
+            elif section == "tanm":
+                # TANM is GTA IV-only (added there specifically for
+                # time-controlled animated objects, per GTAMods'
+                # own ANIM page) - this app doesn't support GTA IV at
+                # all (GTAGame only has GTA3/VC/SA/SOL), so a real
+                # "tanm" section keyword should never actually appear
+                # in any file this app loads. Kept as its own no-op-
+                # shaped branch (falls through to returning None via
+                # the same length guard hier now uses) rather than
+                # silently grouped with hier/anim's own real, different
+                # formats - harmless either way in practice, but
+                # honest about not actually understanding this
+                # section's own real shape rather than quietly
+                # guessing at it using anim's or hier's own fields.
+                return None
+
+            elif section == "anim":
+                # ANIM's real, published SA format (Aug 20 2026,
+                # confirmed via GTAMods, and directly verified against
+                # two of Keith's own real IDE samples - "10744,
+                # BS_building_SFS, bs_sfs, SFs, 130, 128" and "14642,
+                # mafcas_spiral_dad, mafcasspiral, int_veg, 100, 0",
+                # both matching field-for-field): Id, ModelName,
+                # TxdName, AnimationName, DrawDistance, Flags - a real
+                # 6 fields, genuinely different from hier's own always-
+                # 3-field shape despite superficially similar-looking
+                # first 3 fields. The previous version of this code
+                # read up to DrawDistance (field 5 of 6) but never
+                # Flags (field 6) at all - silently dropping it every
+                # single time an anim line was parsed, for every real
+                # anim entry in every real SA IDE file.
                 if len(parts) < 3:
                     return None
                 model_id   = int(parts[0])
                 model_name = parts[1]
                 txd_name   = parts[2]
                 extra: Dict[str, Any] = {}
-                if self.game in (GTAGame.SA, GTAGame.SOL):
-                    if len(parts) > 3:
-                        extra["anim_file"] = parts[3]
-                    if len(parts) > 4:
-                        try: extra["draw_dist"] = float(parts[4])
-                        except ValueError: pass
+                if len(parts) > 3:
+                    extra["anim_file"] = parts[3]
+                if len(parts) > 4:
+                    try: extra["draw_dist"] = float(parts[4])
+                    except ValueError: pass
+                if len(parts) > 5:
+                    try: extra["flags"] = int(parts[5])
+                    except ValueError: pass
                 return IDEObject(model_id, model_name, txd_name,
                                  "hierarchy", section, extra, source, lineno)
 
@@ -1192,6 +1345,7 @@ class IPLParser: #vers 2
         self.grges:     List[GrgeEntry]   = []
         self.enexes:    List[EnexEntry]   = []
         self.occls:     List[OcclEntry]   = []
+        self.auzos:     List[AuzoEntry]   = []
         self.stats      = ParseStats()
         self._valid     = GTAGame.IPL_SECTIONS.get(game, GTAGame.IPL_SECTIONS[GTAGame.GTA3])
 
@@ -1252,6 +1406,10 @@ class IPLParser: #vers 2
                 o = self._parse_occl(line, basename, lineno)
                 if o is not None:
                     self.occls.append(o)
+            elif current_section == "auzo":
+                a = self._parse_auzo(line, basename, lineno)
+                if a is not None:
+                    self.auzos.append(a)
             elif current_section == "path":
                 # A raw (pre-.strip()) leading tab or space marks a
                 # sub-node line belonging to the current group; its
@@ -1500,6 +1658,37 @@ class IPLParser: #vers 2
             pass
         return None
 
+    def _parse_auzo(self, line: str, source: str, lineno: int) -> Optional[AuzoEntry]: #vers 1
+        """Parse one "auzo" section line - either the cube shape
+        (Name, ID, Switch, X1, Y1, Z1, X2, Y2, Z2 - 9 fields) or the
+        sphere shape (Name, ID, Switch, X, Y, Z, Radius - 7 fields),
+        told apart by field count (see AuzoEntry's own docstring for
+        the full format confirmation against GTAMods). Name may
+        itself legitimately contain a comma-adjacent quoted string in
+        some real IPL data the way ENEX's own Name field does, but the
+        wiki's own real examples show plain, unquoted zone names with
+        no commas inside them, so a simple comma-split (matching cull/
+        occl/zone's own established parsing here) is correct for this
+        section specifically, unlike ENEX which needs its own quote-
+        aware splitting."""
+        try:
+            p = [x.strip() for x in line.split(",")]
+            if len(p) == 9:
+                return AuzoEntry(
+                    name=p[0], sound_id=int(p[1]), switch=int(p[2]), is_sphere=False,
+                    x1=float(p[3]), y1=float(p[4]), z1=float(p[5]),
+                    x2=float(p[6]), y2=float(p[7]), z2=float(p[8]),
+                    source_ipl=source, line_no=lineno)
+            elif len(p) == 7:
+                return AuzoEntry(
+                    name=p[0], sound_id=int(p[1]), switch=int(p[2]), is_sphere=True,
+                    x1=float(p[3]), y1=float(p[4]), z1=float(p[5]),
+                    radius=float(p[6]),
+                    source_ipl=source, line_no=lineno)
+        except (ValueError, IndexError):
+            pass
+        return None
+
 
 class IDEDatabase: #vers 1
     """Lightweight standalone IDE database — loads all .ide files from a
@@ -1693,6 +1882,7 @@ class GTAWorldLoader: #vers 3
         self.zones:      List[Dict]           = []
         self.culls:      List[CullEntry]      = []
         self.occls:      List[OcclEntry]      = []
+        self.auzos:      List[AuzoEntry]      = []
         # Train track waypoints (Aug 17 2026) - keyed by source
         # filename (e.g. "tracks.dat", "tracks2.dat"), each value an
         # ordered list of TrackWaypoint - not part of the IDE/IPL
@@ -2286,6 +2476,7 @@ class GTAWorldLoader: #vers 3
         self.zones     += parser.zones
         self.culls     += parser.culls
         self.occls     += parser.occls
+        self.auzos     += parser.auzos
         self.stats.errors   += parser.stats.errors
         self.stats.warnings += parser.stats.warnings
         self.loaded_ipls.add(ipl_stem)
@@ -2312,6 +2503,7 @@ class GTAWorldLoader: #vers 3
         self.zones     += parser.zones
         self.culls     += parser.culls
         self.occls     += parser.occls
+        self.auzos     += parser.auzos
         self.stats.errors   += parser.stats.errors
         self.stats.warnings += parser.stats.warnings
 
@@ -2320,6 +2512,7 @@ class GTAWorldLoader: #vers 3
         self.timed_objects.clear(); self.instances.clear()
         self.zones.clear();   self.culls.clear()
         self.occls.clear()
+        self.auzos.clear()
         self.ide_paths.clear()
         self.available_ipls.clear(); self.loaded_ipls.clear()
         self.load_log.clear(); self.stats = ParseStats()
@@ -2764,6 +2957,9 @@ class GTAWorldXRef: #vers 1
                 anim = extra.get("anim_file", "")
                 if anim:
                     parts.append(f"anim - {anim}")
+                flags = extra.get("flags")
+                if flags is not None:
+                    parts.append(f"flags - {flags}")
 
             #    Draw distance (objs / tobj / weap / hier / anim)             
             dd = extra.get("draw_dist")

@@ -7025,3 +7025,68 @@ conclusively found despite extensive isolated testing.
 
   `ast.parse` clean on all three touched files; confirmed via AST no
   duplicate method definitions.
+
+- **Aug 20, 2026** — Built SA's real `auzo` (audio zone) IPL section
+  support, and found+fixed a real, silent field-loss bug in IDE's
+  `anim` section while investigating Keith's own real data samples.
+
+  **AUZO (audio zones)**, per Keith: "Implement support for the
+  remaining SA, audiozone placements with sound svg icons; play the
+  sounds." Format confirmed via GTAMods wiki: two real shapes, told
+  apart by field count - cube (`Name, ID, Switch, X1,Y1,Z1, X2,Y2,Z2`
+  - 9 fields) and sphere (`Name, ID, Switch, X,Y,Z, Radius` - 7
+  fields). New `AuzoEntry` dataclass + `_parse_auzo`, wired into the
+  section dispatch (`auzo` was already a recognised keyword for every
+  game, but had zero actual parsing logic - real `auzo` lines were
+  being silently skipped entirely). New `AUZO_TYPES` - the real,
+  published ID→environment-type/music-description table (0-67; any
+  ID 0-70 not listed is documented as a genuine "no background sound"
+  zone, not a gap in the table).
+
+  Verified the parser against realistic synthetic lines covering both
+  shapes, a real documented radio-station ID (57 → "Radio Los Santos"),
+  the documented silent-zone case, and a malformed line (wrong field
+  count, correctly returns None rather than crashing).
+
+  Real, honest limitation on "play the sounds": `AUZO_TYPES` only
+  gives a documented environment type and (sometimes) a track/ambience
+  NAME - not actual playable audio data. The real SA audio lives
+  inside the game's own compiled audio bank archives, a completely
+  separate, unrelated binary format this app doesn't read at all -
+  visualization with sound-svg icons is achievable now that the real
+  position/ID data parses correctly, but actually playing the real,
+  in-game San Andreas audio for a given zone is real, separate,
+  substantial scope this pass doesn't attempt.
+
+  **Real bug found and fixed in IDE's own `anim` section** while
+  checking Keith's own two real samples ("10744, BS_building_SFS,
+  bs_sfs, SFs, 130, 128" and "14642, mafcas_spiral_dad, mafcasspiral,
+  int_veg, 100, 0") against the existing parser. GTAMods confirms
+  ANIM's real, published SA format is 6 fields - `Id, ModelName,
+  TxdName, AnimationName, DrawDistance, Flags` - but the existing code
+  only ever read up to DrawDistance (field 5), silently discarding
+  Flags (field 6) on every single real anim entry parsed, in every
+  real SA IDE file, since this code was first written.
+
+  Root cause: `hier`/`anim`/`tanm` were incorrectly handled as one,
+  shared format. GTAMods confirms HIER's own real format is universal
+  across every game - always exactly 3 fields (`Id, ModelName,
+  TxdName`), no SA-specific extras at all - the previous code's own
+  comment claiming "SA hier: 5 fields" was a real, mistaken
+  conflation with ANIM's own separate, genuinely different, SA-only 6-
+  field format. Split into three properly separate branches: `hier`
+  now correctly stays 3-fields-only for every game, `anim` gets its
+  own correct 6-field SA parsing (now including Flags), and `tanm`
+  (confirmed GTA IV-only, a format this app doesn't support at all)
+  returns None honestly rather than being silently grouped with
+  hier/anim's own real, different fields.
+
+  Verified directly against both of Keith's own real anim samples
+  (Flags now correctly captured as 128 and 0 respectively, previously
+  silently dropped both times) and a synthetic real-shaped hier line
+  (correctly parses with an empty extras dict, no incorrect attempt
+  to read fields that were never actually there for hier at all).
+
+  `ast.parse` clean; confirmed via AST no duplicate method
+  definitions, and via direct search that each of the three section
+  keywords now has exactly one dispatch branch, not zero or two.
