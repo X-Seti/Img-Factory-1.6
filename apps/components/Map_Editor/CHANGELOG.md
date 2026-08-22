@@ -7108,3 +7108,61 @@ conclusively found despite extensive isolated testing.
   sound description exactly, an independent confirmation the
   GTAMods-sourced table is correct that doesn't depend on trusting
   the documentation alone.
+
+- **Aug 20, 2026 (cont'd)** — Built the viewport visualization half of
+  Keith's own AUZO request: "audiozone placements with sound svg
+  icons." Real SA audio zones now show as a billboarded (always
+  facing the camera, correct regardless of camera rotation/tilt, not
+  a simpler upright-only approximation) sound-icon quad at each real
+  zone's own centre position.
+
+  New `DFFViewport.show_auzo_zones`/`set_auzo_zones`/`_draw_auzo_
+  zones`, new "Auzo" toggle button alongside "SA Nodes" on the same
+  row Keith already added. `_ensure_auzo_icon_texture` reuses the
+  app's own already-proven SVG-to-QPixmap pipeline (apps/components/
+  Map_Editor/depends/svg_icon_factory.py's own `volume_up_icon`/
+  `_create_icon` - the same `QSvgRenderer`+`QPixmap`+`QPainter`
+  approach already used for every other SVG icon in this app) rather
+  than building a second, separate SVG rendering path - converts the
+  result to raw RGBA via `QImage`, then uploads it the exact same way
+  real model textures already are. Lazy-loaded once and cached (a
+  reserved cache key that can never collide with a real model texture
+  name), not re-uploaded every frame. Billboard orientation extracted
+  directly from the current modelview matrix's own right/up basis
+  vectors - the general, always-correct technique, not a simpler
+  "always upright, only yaw" shortcut that would look wrong from
+  above/below.
+
+  New `_refresh_auzo_visualization` (map_workshop.py) resolves each
+  real `AuzoEntry`'s own centre (cube: midpoint of its two corners;
+  sphere: its own single XYZ directly) plus its already-real
+  `environment_type`/`music_description` properties - the viewport
+  only ever receives plain, already-resolved tuples, never the real
+  dataclass.
+
+  Verified against real, complete `Audiozon.ipl` data (the same 155-
+  entry file already used to verify the parser itself): every real
+  zone's centre resolved correctly (cube-shape midpoints independently
+  confirmed to fall strictly between their own two real corners), and
+  the results make real, plausible sense - e.g. real zone `clothgp`
+  resolves to `sound_id=54` ("KDST" radio station), `CSprt` to
+  `sound_id=59` ("CSR") - genuinely sensible real-world pairings, not
+  just numbers that happen not to crash. Also verified the billboard
+  quad math directly (no real OpenGL context available in this
+  sandbox): a known, simple camera orientation produces an exact,
+  correctly-sized square centred precisely on the real zone position,
+  and a rotated camera basis still centres the resulting quad on the
+  exact same real position, confirming the billboard math holds
+  regardless of camera orientation.
+
+  Still open, per this feature's own honest, stated limitation:
+  actually playing the real, in-game San Andreas audio for a clicked
+  zone - `AUZO_TYPES` only gives a documented environment type and
+  sometimes a track/ambience name, not real playable audio data,
+  since that lives in SA's own separate, unread compiled audio bank
+  archives. Click-to-info/placeholder-tone interaction (so clicking
+  an icon actually does something, even short of real audio) is also
+  not yet wired - this pass covers the visual overlay only.
+
+  `ast.parse` clean on both touched files; confirmed via AST no
+  duplicate method definitions.

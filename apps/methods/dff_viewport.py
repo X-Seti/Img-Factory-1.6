@@ -467,6 +467,22 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._sa_node_segments = []   # list of ((x1,y1,z1),(x2,y2,z2))
         self._sa_node_color = (0.3, 0.9, 0.5)   # green, distinct from tracks' own silver-grey
 
+        # SA audio zones (Aug 20 2026, per Keith: "Implement support
+        # for the remaining SA, audiozone placements with sound svg
+        # icons; play the sounds"). Each entry is a plain (center_x,
+        # center_y, center_z, name, sound_id, environment_type,
+        # music_description) tuple - resolution (cube-vs-sphere
+        # center point, AUZO_TYPES lookup) happens in map_workshop.py,
+        # this widget only ever deals in plain, already-resolved data,
+        # matching every other overlay's own split. Rendered as a
+        # billboarded (always facing the camera) sound-icon texture
+        # quad at each zone's own center rather than a wireframe box/
+        # sphere outline the way cull/zone/occl already are - Keith's
+        # own request was specifically for icons, not shape outlines.
+        self.show_auzo_zones = False
+        self._auzo_zones = []
+        self._auzo_icon_tex_id = None   # lazy-loaded once, cached (see _ensure_auzo_icon_texture)
+
         # Cull zone boxes (Aug 16 2026, per Keith: "continue with the
         # cull files next", following the same "so I can view them"
         # pattern as Show Paths/the .zon wiring) - the older MapView-
@@ -1044,6 +1060,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 self._draw_tracks()
             if self.show_sa_nodes:
                 self._draw_sa_nodes()
+            if self.show_auzo_zones:
+                self._draw_auzo_zones()
             if getattr(self, '_hovered_instance_idx', None) is not None:
                 self._draw_hover_highlight()
             if getattr(self, '_lod_test_center', None) is not None:
@@ -2449,6 +2467,116 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
     def set_sa_node_color(self, r: float, g: float, b: float): #vers 1
         self._sa_node_color = (r, g, b)
         self.update()
+
+    def set_show_auzo_zones(self, enabled: bool): #vers 1
+        self.show_auzo_zones = enabled; self.update()
+
+    def set_auzo_zones(self, zones): #vers 1
+        """Replace the audio zone data drawn when show_auzo_zones is
+        on. Each entry is a plain (center_x, center_y, center_z, name,
+        sound_id, environment_type, music_description) tuple -
+        conversion from the real AuzoEntry dataclass (cube-vs-sphere
+        center resolution, AUZO_TYPES lookup) happens in map_
+        workshop.py's own refresh method, this widget only ever deals
+        in plain, already-resolved data."""
+        self._auzo_zones = zones or []
+        self.update()
+
+    def _ensure_auzo_icon_texture(self): #vers 1
+        """Lazily load a sound-icon SVG into a real OpenGL texture the
+        first time an audio zone actually needs to be drawn, caching
+        the result so this only ever happens once per session (Aug 20
+        2026, per Keith: "audiozone placements with sound svg
+        icons"). Reuses the app's own already-proven SVG-to-QPixmap
+        pipeline (apps/components/Map_Editor/depends/svg_icon_factory.
+        py's own volume_up_icon/_create_icon, the exact same QSvgRenderer
+        + QPixmap + QPainter approach already used for every other SVG
+        icon in this app) rather than building a second, separate SVG
+        rendering path - converts the resulting QPixmap to raw RGBA
+        bytes via QImage, then uploads it the same way real model
+        textures already are (same glGenTextures/glTexImage2D calls,
+        same _tex_ids-style single-entry cache pattern, just keyed
+        under its own reserved name rather than a real model texture
+        name, so it can never collide with one).
+
+        Local import here, not at this module's own top level - the
+        SVG icon factory lives under apps/components/Map_Editor/,
+        and this is a shared apps/methods/ module; importing a
+        components/-level module at the top of a methods/ module
+        would point the dependency the wrong way round. Only a caller
+        that actually needs the sound icon (i.e., Show Auzo Zones
+        actually turned on) pays this import's own cost."""
+        if self._auzo_icon_tex_id is not None:
+            return self._auzo_icon_tex_id
+        try:
+            from apps.components.Map_Editor.depends.svg_icon_factory import SVGIconFactory
+            from PyQt6.QtGui import QImage
+            icon = SVGIconFactory.volume_up_icon(size=64, color='#ffcc33')
+            pixmap = icon.pixmap(64, 64)
+            image = pixmap.toImage().convertToFormat(QImage.Format.Format_RGBA8888)
+            w, h = image.width(), image.height()
+            ptr = image.bits()
+            ptr.setsize(image.sizeInBytes())
+            rgba = bytes(ptr)
+            self.makeCurrent()
+            gl_id = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_2D, gl_id)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba)
+            glBindTexture(GL_TEXTURE_2D, 0)
+            self.doneCurrent()
+            self._auzo_icon_tex_id = gl_id
+        except Exception as e:
+            print(f"[DFFViewport] Failed to load auzo sound icon texture: {e}")
+            self._auzo_icon_tex_id = False   # tried and failed - don't keep retrying every frame
+        return self._auzo_icon_tex_id
+
+    def _draw_auzo_zones(self): #vers 1
+        """Draw a billboarded (always facing the camera) sound-icon
+        quad at each real audio zone's own center position (Aug 20
+        2026, per Keith: "audiozone placements with sound svg icons").
+        Billboard orientation extracted directly from the current
+        modelview matrix's own right/up basis vectors (the standard,
+        general technique for "always face the camera" billboards,
+        correct regardless of the camera's current rotation/tilt,
+        unlike a simpler "always upright, only yaw" approximation)."""
+        if not OPENGL_AVAILABLE or not self._auzo_zones:
+            return
+        tex_id = self._ensure_auzo_icon_texture()
+        if not tex_id:
+            return
+        mv = glGetFloatv(GL_MODELVIEW_MATRIX)
+        # Column-major: right = row 0 of the rotation part, up = row 1
+        right = (mv[0][0], mv[1][0], mv[2][0])
+        up    = (mv[0][1], mv[1][1], mv[2][1])
+        half = 1.5   # world-unit half-size of the billboard quad
+        glDisable(GL_LIGHTING)
+        glEnable(GL_TEXTURE_2D)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        glBindTexture(GL_TEXTURE_2D, tex_id)
+        glColor4f(1.0, 1.0, 1.0, 1.0)
+        for cx, cy, cz, name, sound_id, env_type, music in self._auzo_zones:
+            corners = []
+            for su, sv in ((-1, -1), (1, -1), (1, 1), (-1, 1)):
+                corners.append((
+                    cx + (right[0]*su + up[0]*sv) * half,
+                    cy + (right[1]*su + up[1]*sv) * half,
+                    cz + (right[2]*su + up[2]*sv) * half,
+                ))
+            glBegin(GL_QUADS)
+            glTexCoord2f(0, 1); glVertex3f(*corners[0])
+            glTexCoord2f(1, 1); glVertex3f(*corners[1])
+            glTexCoord2f(1, 0); glVertex3f(*corners[2])
+            glTexCoord2f(0, 0); glVertex3f(*corners[3])
+            glEnd()
+        glBindTexture(GL_TEXTURE_2D, 0)
+        glDisable(GL_BLEND)
+        glDisable(GL_TEXTURE_2D)
+        glEnable(GL_LIGHTING)
 
     def _draw_sa_nodes(self): #vers 1
         """Draw SA's real vehicle/ped path node graph as disconnected

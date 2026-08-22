@@ -24129,8 +24129,20 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         show_sa_nodes_btn.show_toggled.connect(self._on_show_sa_nodes_toggled)
         self._show_sa_nodes_chk = show_sa_nodes_btn # Show only with gta.dat loaded (SA)
 
+        # Show Auzo (Aug 20 2026, per Keith: "Implement support for
+        # the remaining SA, audiozone placements with sound svg
+        # icons; play the sounds") - draws a sound-icon billboard at
+        # each real SA audio zone's own centre. SA only (auzo isn't
+        # real, populated data for III/VC), same "harmless no-op
+        # rather than a per-game hide" reasoning as SA Nodes just
+        # above. No edit mode yet.
+        show_auzo_btn = _MapOverlayToggleButton("Auzo", supports_edit=False)
+        show_auzo_btn.show_toggled.connect(self._on_show_auzo_toggled)
+        self._show_auzo_chk = show_auzo_btn
+
         opts_row4 = QHBoxLayout()
         opts_row4.addWidget(show_sa_nodes_btn)
+        opts_row4.addWidget(show_auzo_btn)
         lay.addLayout(opts_row4)
 
         dock = QDockWidget("IPL Controls", self)
@@ -27395,6 +27407,47 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                                         (target_node.x, target_node.y, target_node.z)))
         vp.set_sa_node_segments(segments)
 
+    def _refresh_auzo_visualization(self): #vers 1
+        """Push loaded SA audio zones to the viewport's own sound-
+        icon overlay (Aug 20 2026, per Keith: "Implement support for
+        the remaining SA, audiozone placements with sound svg icons;
+        play the sounds"). No-op (and clears any existing icons) if
+        Show Auzo Zones is off, matching every other optional-overlay
+        refresh pattern here. SA only - loader.auzos is simply empty
+        for III/VC (auzo doesn't exist as real, populated data for
+        those games the way it does for SA), so this is harmless
+        rather than needing a separate per-game gate.
+
+        Resolves each real AuzoEntry's own center position here
+        (cube: midpoint of its two corners; sphere: its own single
+        XYZ directly) and its AUZO_TYPES lookup (environment_type/
+        music_description, both already real properties on AuzoEntry
+        itself) - the viewport only ever receives plain, already-
+        resolved tuples, never the real dataclass, matching every
+        other overlay's own split."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is None or not hasattr(vp, 'set_auzo_zones'):
+            return
+        show_chk = getattr(self, '_show_auzo_chk', None)
+        if show_chk is not None and not show_chk.isChecked():
+            vp.set_auzo_zones([])
+            return
+        loader = getattr(self, '_world_loader', None)
+        auzos = getattr(loader, 'auzos', None) if loader is not None else None
+        if not auzos:
+            vp.set_auzo_zones([])
+            return
+        zones = []
+        for a in auzos:
+            if a.is_sphere:
+                cx, cy, cz = a.x1, a.y1, a.z1
+            else:
+                cx = (a.x1 + a.x2) / 2.0
+                cy = (a.y1 + a.y2) / 2.0
+                cz = (a.z1 + a.z2) / 2.0
+            zones.append((cx, cy, cz, a.name, a.sound_id, a.environment_type, a.music_description))
+        vp.set_auzo_zones(zones)
+
     def _on_show_tracks_toggled(self, checked): #vers 1
         """Show Tracks checked/unchecked - per Keith: "then the other
         path .dat files you pointed out earlier"."""
@@ -27412,6 +27465,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             vp.set_show_sa_nodes(checked)
         if checked:
             self._refresh_sa_node_visualization()
+
+    def _on_show_auzo_toggled(self, checked): #vers 1
+        """Show Auzo checked/unchecked - per Keith's real audio zone
+        data ("Implement support for the remaining SA, audiozone
+        placements with sound svg icons; play the sounds")."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is not None and hasattr(vp, 'set_show_auzo_zones'):
+            vp.set_show_auzo_zones(checked)
+        if checked:
+            self._refresh_auzo_visualization()
 
     def _on_show_paths_toggled(self, checked): #vers 1
         """Show Paths checked/unchecked - per Keith: "when displaying
