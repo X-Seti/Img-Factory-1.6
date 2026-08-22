@@ -4177,12 +4177,18 @@ class _MapOverlayToggleButton(QToolButton): #vers 1
         self._apply_style()
 
 
-    def _apply_style(self): #vers 1
+    def _apply_style(self): #vers 2
+        # Slightly tightened padding (Aug 20 2026, per Keith: "All
+        # buttons need to be compact; this should be a rule across
+        # all projects" - "under that the rest of those buttons can
+        # be compacted alightly aswell") - was 1px 6px, giving these
+        # buttons more horizontal breathing room than the rest of the
+        # now-more-compact IPL Controls row actually needs.
         bg = "rgba(120, 170, 255, 90)" if self._shown else "transparent"
         border = "2px dashed #ffaa00" if self._editing else "1px solid rgba(255,255,255,40)"
         self.setStyleSheet(
             f"QToolButton {{ background-color: {bg}; border: {border}; "
-            f"border-radius: 3px; padding: 1px 6px; }}")
+            f"border-radius: 3px; padding: 1px 4px; }}")
 
 
 class _PathGroupEditDialog(QDialog): #vers 1
@@ -23739,7 +23745,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # feature existed. When on, only TOBJ instances whose time_on/
         # time_off range includes the selected hour show - non-TOBJ
         # instances are never affected either way.
-        time_chk = QCheckBox("Time")
+        # Time (Aug 20 2026, per Keith: "Time can be clickable like
+        # the others" - was a plain QCheckBox, now a compact
+        # QToolButton styled and behaving the same clickable-toggle
+        # way as Tobj/2DFX right next to it, rather than a checkbox
+        # that visually stands apart from them).
+        time_chk = QToolButton()
+        time_chk.setText("Time")
+        time_chk.setCheckable(True)
         time_chk.setFixedHeight(24)
         time_chk.setStyleSheet(_compact_18)
         time_chk.setToolTip(
@@ -23761,6 +23774,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         time_edit = QTimeEdit(QTime(12, 0))
         time_edit.setDisplayFormat("HH:mm")
         time_edit.setFixedHeight(24)
+        # Fixed, compact width (Aug 20 2026, per Keith: "the 12:00
+        # value box doesn't need to take up all the width") - was
+        # unconstrained, so it stretched to fill whatever space this
+        # HBoxLayout row had left over; a real "HH:mm" value plus its
+        # own up/down spin arrows only ever needs about this much.
+        time_edit.setFixedWidth(58)
         time_edit.setEnabled(False)
         time_edit.setToolTip("Simulated time of day for the Time switch above")
         time_chk.toggled.connect(time_edit.setEnabled)
@@ -23776,18 +23795,28 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # by self._time_flow_minutes_per_tick every self._time_flow_
         # interval_ms, re-applying the TOBJ filter on each tick so
         # switching is visible live rather than only on manual edits.
-        time_play_btn = QPushButton("Play")
-        time_play_btn.setFixedHeight(24)
+        #
+        # Play/Stop/Settings now real SVG icons, not text (Aug 20
+        # 2026, per Keith: "Play and Stop can be SVG icons, and the *
+        # that's time settings, can be a click icon") - reuses this
+        # file's own already-constructed self.icon_factory (the same
+        # SVGIconFactory instance every other icon button in this
+        # file already draws from), square icon-only buttons rather
+        # than text ones, matching the same compacting principle.
+        time_play_btn = QPushButton()
+        time_play_btn.setIcon(self.icon_factory.launch_icon(16))
+        time_play_btn.setFixedSize(24, 24)
         time_play_btn.setStyleSheet(_compact_18)
         time_play_btn.setToolTip("Start advancing time automatically")
-        time_stop_btn = QPushButton("Stop")
-        time_stop_btn.setFixedHeight(24)
+        time_stop_btn = QPushButton()
+        time_stop_btn.setIcon(self.icon_factory.stop_icon(16))
+        time_stop_btn.setFixedSize(24, 24)
         time_stop_btn.setStyleSheet(_compact_18)
         time_stop_btn.setEnabled(False)
         time_stop_btn.setToolTip("Stop advancing time")
-        time_settings_btn = QPushButton("*")
-        time_settings_btn.setFixedHeight(24)
-        time_settings_btn.setFixedWidth(24)
+        time_settings_btn = QPushButton()
+        time_settings_btn.setIcon(self.icon_factory.settings_icon(16))
+        time_settings_btn.setFixedSize(24, 24)
         time_settings_btn.setStyleSheet(_compact_18)
         time_settings_btn.setToolTip("Time flow settings (speed)")
         self._time_flow_timer = QTimer(self)

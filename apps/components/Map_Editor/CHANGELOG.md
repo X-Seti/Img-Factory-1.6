@@ -7166,3 +7166,44 @@ conclusively found despite extensive isolated testing.
 
   `ast.parse` clean on both touched files; confirmed via AST no
   duplicate method definitions.
+
+- **Aug 20, 2026** — Compacted the IPL Controls Tobj/2DFX/Time/Play/
+  Stop/Settings row, per Keith: "Time can be clickable like the
+  others, and the 12:00 value box doesn't need to take up all the
+  width, Play and Stop can be SVG icons, and the * that's time
+  settings, can be a click icon" - plus a slight, broader tightening
+  of every `_MapOverlayToggleButton`'s own padding (Paths/Tracks/
+  Cull/Zon/Occlusion/SA Nodes/Auzo), per his own stated general rule:
+  "All buttons need to be compact; this should be a rule across all
+  projects."
+
+  **Time** switched from a plain `QCheckBox` to a `QToolButton` (same
+  widget class Tobj/2DFX already use), so it now looks and clicks the
+  same clickable-toggle way as the buttons right next to it instead
+  of visually standing apart as an ordinary checkbox.
+
+  **The HH:mm time value box** gained a fixed, compact width (58px) -
+  was completely unconstrained before, so it stretched to fill
+  whatever leftover space this row's own `QHBoxLayout` happened to
+  have, taking up far more room than an "HH:mm" value plus its own
+  spin arrows actually needs.
+
+  **Play/Stop/Settings** are real SVG icon buttons now, not text -
+  reuses this file's own already-constructed `self.icon_factory`
+  (the same `SVGIconFactory` instance every other icon button in this
+  file already draws from - `launch_icon`/`stop_icon`/`settings_icon`,
+  all already existing, real icons, not new ones needed for this),
+  square 24×24 icon-only buttons rather than "Play"/"Stop"/"*" text.
+  Confirmed `_start_time_flow`/`_stop_time_flow` only ever toggle
+  `setEnabled` on these two buttons, never their text, before making
+  this change - so nothing else needed updating to keep working
+  correctly with icon-only buttons.
+
+  **General button padding tightened slightly** on `_MapOverlayToggleButton`
+  itself (`padding: 1px 6px` → `1px 4px`) - applies automatically to
+  every button already using this shared class, not just this one
+  row, per Keith's own explicit "should be a rule across all
+  projects" framing.
+
+  `ast.parse` clean; confirmed via AST no duplicate method
+  definitions.
