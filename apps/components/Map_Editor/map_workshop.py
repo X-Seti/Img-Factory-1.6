@@ -23001,11 +23001,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         For every section type this app actually parses into
         structured, editable data (inst/cull/zone/path/grge/enex/
-        occl), writes from the LIVE in-memory representation - so any
-        edits made via e.g. the Path Group Editor are correctly
+        occl/auzo), writes from the LIVE in-memory representation - so
+        any edits made via e.g. the Path Group Editor are correctly
         reflected in the output, not just a re-dump of the original
         file. For section types not yet parsed into structured data
-        at all (pick/jump/tcyc/auzo/mult), copies the ORIGINAL raw
+        at all (pick/jump/tcyc/mult), copies the ORIGINAL raw
         text straight through unchanged, so nothing real in the
         source file is silently lost even though editing isn't
         supported for those yet.
@@ -23054,7 +23054,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if not section_order:
             section_order = ['inst', 'cull', 'zone', 'path', 'grge', 'enex', 'occl']
 
-        STRUCTURED = {'inst', 'cull', 'zone', 'path', 'grge', 'enex', 'occl'}
+        STRUCTURED = {'inst', 'cull', 'zone', 'path', 'grge', 'enex', 'occl', 'auzo'}
         game = getattr(loader, 'game', None)
         all_inst = getattr(self, '_all_instances', None) or []
 
@@ -23170,6 +23170,41 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     lines_out.append(
                         f"{_fmt(o.mid_x)}, {_fmt(o.mid_y)}, {_fmt(o.bottom_z)}, "
                         f"{_fmt(o.width_x)}, {_fmt(o.width_y)}, {_fmt(o.height)}, {_fmt(o.rotation)}")
+                    total_written += 1
+                lines_out.append("end")
+
+            elif section == 'auzo':
+                # Real, structured AUZO write-back (Aug 20 2026, per
+                # Keith: "lets finish any stubbed functions like auzo,
+                # and anything else") - found while checking this
+                # method's own docstring against its real code: auzo
+                # had been added to structured parsing/visualization
+                # earlier this session, but this specific method's own
+                # STRUCTURED set was never updated to match, so a real
+                # auzo zone would have silently fallen through to the
+                # raw-text copy-through branch above instead - harmless
+                # today (nothing edits auzo data yet, so the raw text
+                # and the live data are always identical), but a real,
+                # silent data-loss trap waiting for the moment auzo
+                # editing exists and someone actually changes a zone
+                # then saves via this dialog. Writes each real shape
+                # back to its own correct, real line format (see
+                # AuzoEntry's own docstring) - cube: Name, ID, Switch,
+                # X1,Y1,Z1, X2,Y2,Z2 (9 fields); sphere: Name, ID,
+                # Switch, X,Y,Z, Radius (7 fields) - never forcing one
+                # shape into the other's own field count.
+                matching = [a for a in getattr(loader, 'auzos', []) if a.source_ipl == ipl_name]
+                lines_out.append("auzo")
+                for a in matching:
+                    if a.is_sphere:
+                        lines_out.append(
+                            f"{a.name}, {a.sound_id}, {a.switch}, "
+                            f"{_fmt(a.x1)}, {_fmt(a.y1)}, {_fmt(a.z1)}, {_fmt(a.radius)}")
+                    else:
+                        lines_out.append(
+                            f"{a.name}, {a.sound_id}, {a.switch}, "
+                            f"{_fmt(a.x1)}, {_fmt(a.y1)}, {_fmt(a.z1)}, "
+                            f"{_fmt(a.x2)}, {_fmt(a.y2)}, {_fmt(a.z2)}")
                     total_written += 1
                 lines_out.append("end")
 

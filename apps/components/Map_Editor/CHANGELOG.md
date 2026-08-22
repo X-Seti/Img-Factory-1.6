@@ -7245,3 +7245,46 @@ conclusively found despite extensive isolated testing.
 
   `ast.parse` clean; confirmed via AST no duplicate method
   definitions.
+
+- **Aug 20, 2026 (cont'd)** — Went looking for other stubs "like
+  auzo" per Keith's own request, and found one real, concrete case:
+  `_save_ipl_data_as_full`'s own `STRUCTURED` set (which decides
+  whether a section writes from live, structured data or just copies
+  the original raw text through unchanged) had never been updated to
+  include `auzo` after it was actually built earlier this session -
+  its own docstring even still listed auzo among the "not yet parsed"
+  section types. Harmless today (nothing edits auzo data yet, so the
+  raw text and the live data are always identical) but a real, silent
+  data-loss trap waiting for the moment auzo editing exists and
+  someone changes a zone then saves via this dialog - exactly the
+  same category of staleness as the IPL File Display tab bug fixed
+  earlier today, just in a different method.
+
+  Added `auzo` to `STRUCTURED`, and a real writing branch - each real
+  zone writes back to its own correct, real line format depending on
+  its own shape (cube: `Name, ID, Switch, X1,Y1,Z1, X2,Y2,Z2` - 9
+  fields; sphere: `Name, ID, Switch, X,Y,Z, Radius` - 7 fields),
+  matching `AuzoEntry`'s own confirmed real format exactly rather
+  than forcing one shape into the other's own field count. Corrected
+  the method's own stale docstring to match.
+
+  Verified with a full round-trip against the real, complete
+  `Audiozon.ipl` data: wrote all 155 real entries out through the new
+  logic, re-parsed every written line back through the same real
+  parser, and confirmed every single field (name, sound_id, switch,
+  shape, and either the cube corners or the sphere radius) matches
+  the original exactly.
+
+  Also audited every other `pick`/`cars`/`jump`/`tcyc`/`mult` disabled
+  IPL File Display tab and the DFF Mirror/Align/Import/Export stubs
+  elsewhere in this file - none of the map-data tabs are stale the
+  way auzo's own tab and this write-back gap were (pick/cars/jump/
+  tcyc have genuinely never had real sample data to parse from, `mult`
+  is correctly documented as unused by the game itself); the DFF
+  Mirror/Align/Import(MDL/FBX/3DS/DAE)/Export stubs are inherited
+  Model Workshop-domain 3D-geometry/file-format features, a
+  genuinely separate, substantial undertaking from this session's own
+  map-data-format focus, not touched this pass.
+
+  `ast.parse` clean; confirmed via AST no duplicate method
+  definitions.
