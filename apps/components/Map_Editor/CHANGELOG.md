@@ -7288,3 +7288,62 @@ conclusively found despite extensive isolated testing.
 
   `ast.parse` clean; confirmed via AST no duplicate method
   definitions.
+
+- **Aug 20, 2026 (cont'd)** — Built "Dots" render mode, per Keith:
+  "One request in the Render options in IPL controls is to load just
+  the IPL data as dots, just placement without models or textures."
+
+  A genuinely separate, much faster path, not just a different
+  drawing style layered on top of already-loaded geometry - "load"
+  was the key word in the request. New `_refresh_world_view_impl`
+  fast path (checked and returned from before the `model_cache`
+  guard, so this genuinely never needs it to be ready) builds each
+  instance entry with ONLY position/rotation/model_key - no
+  vertices/triangles/materials/UVs at all - skipping the entire
+  per-model DFF/TXD conversion-and-preload pipeline below it
+  completely for every single instance while this mode is active,
+  not merely displaying already-loaded geometry differently. A real,
+  substantial speed win for navigating a huge map's worth of
+  instances, matching Keith's own framing of the request.
+
+  New `DFFViewport._draw_world_instances` fast path for `self._mode
+  == 'dots'` - a genuinely separate branch from the normal per-
+  instance display-list-compile loop below it, not threaded through
+  it: dots-mode entries have no real geometry to compile into a
+  display list in the first place (letting them fall through to the
+  normal logic would just silently compile and cache an empty,
+  invisible list per model). A point doesn't need per-instance
+  rotation or scale applied either (looks identical regardless), so
+  this also skips the whole glPushMatrix/rotate/scale/glPopMatrix
+  dance - one single `glBegin(GL_POINTS)/glEnd()` block covering
+  every instance at once, genuinely cheaper than the normal approach,
+  not just visually simpler.
+
+  New "Dots" entry in the existing Render dropdown's own exclusive
+  render-style group (alongside Texture/Non-texture/Semi-Solid/
+  Wireframe) - reuses the same menu/button/mode-switching
+  infrastructure already built for those, no new UI plumbing needed.
+
+  **Real mistake caught before it shipped**: an early version checked
+  `self._world_render_mode` (on `ModelWorkshop`) to decide whether
+  dots mode was active - that attribute doesn't exist anywhere in
+  this file at all. The real current mode is stored on the viewport
+  itself (`vp._mode`, set via the already-existing `set_render_mode`)
+  - fixed to read `getattr(vp, '_mode', 'textured')` before this was
+  ever tested, not discovered by it failing silently later.
+
+  Verified the entry-building and entry-consumption logic directly
+  against real `IPLInstance` objects (including a real, non-identity
+  rotation): confirmed each built entry contains only `pos`/`rot`/
+  `scale`/`model_key` - genuinely no `vertices`/`triangles`/
+  `materials` keys at all, matching the "no models or textures
+  loaded" requirement rather than just "not drawn" - and that the
+  position values extracted from these entries are exactly correct.
+
+  `ast.parse` clean on both touched files; confirmed via AST no
+  duplicate method definitions.
+
+  Also noted, not acted on: Keith confirmed the DFF import/export
+  format stubs found in the earlier stub audit (MDL/FBX/3DS/DAE, PAK,
+  etc.) should stay as real, intentional stubs - genuinely planned
+  future format support, not dead code to clean up.

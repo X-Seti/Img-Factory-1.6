@@ -3031,6 +3031,35 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         serves every instance of that model regardless of where
         they're each positioned."""
         if not OPENGL_AVAILABLE: return
+        # Dots render mode (Aug 20 2026, per Keith: "load just the IPL
+        # data as dots, just placement without models or textures") -
+        # a genuinely separate, much simpler fast path, not threaded
+        # through the per-instance display-list loop below at all.
+        # Dots-mode entries (built in map_workshop.py's own _refresh_
+        # world_view_impl) never have real vertices/triangles/
+        # materials to begin with - letting them fall through to the
+        # normal display-list-compile logic below would just compile
+        # and cache an empty, invisible list per model, showing
+        # nothing at all rather than the actual visible dots Keith
+        # asked for. A point doesn't need rotation or scale applied
+        # either (it looks identical regardless), so this skips the
+        # per-instance glPushMatrix/rotate/scale/glPopMatrix dance
+        # entirely too - one single glBegin(GL_POINTS)/glEnd() block
+        # for every instance at once, genuinely cheaper than the
+        # normal per-instance-matrix approach, not just visually
+        # simpler.
+        if self._mode == 'dots':
+            glDisable(GL_LIGHTING)
+            glDisable(GL_TEXTURE_2D)
+            glPointSize(4.0)
+            glColor3f(1.0, 0.8, 0.2)
+            glBegin(GL_POINTS)
+            for entry in self._world_instances:
+                px, py, pz = entry.get('pos', (0.0, 0.0, 0.0))
+                glVertex3f(px, py, pz)
+            glEnd()
+            glEnable(GL_LIGHTING)
+            return
         old_v,old_n,old_u,old_t,old_m,old_p,old_f = (
             self._vertices,self._normals,self._uvs,
             self._triangles,self._materials,self._prelit,

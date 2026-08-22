@@ -23904,6 +23904,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             ('solid',      "Non-texture", "Flat/lit shading, no textures"),
             ('semi_solid', "Semi-Solid",  "Flat/lit shading with reduced opacity - a ghosted, see-through look"),
             ('wireframe',  "Wireframe",   "Edges only, no fill"),
+            ('dots',       "Dots",        "Just a point at each instance's own placement - no model or\n"
+                                          "texture loading at all, for viewing/navigating a huge map fast"),
         ]
         for mode, label_text, tooltip in render_specs:
             action = render_lod_menu.addAction(label_text)
@@ -28013,20 +28015,52 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         finally:
             self._refresh_world_view_in_progress = False
 
-    def _refresh_world_view_impl(self, instances, auto_fit, clear_display_lists): #vers 1
+    def _refresh_world_view_impl(self, instances, auto_fit, clear_display_lists): #vers 2
         """The actual body of _refresh_world_view, split out only so
         the reentrancy guard above can wrap it in a try/finally
         without a second level of indentation across this whole
         (long) method - not meant to be called directly by anything
         else; call _refresh_world_view instead."""
         vp = getattr(self, 'preview_widget', None)
-        model_cache = getattr(self, '_model_cache', None)
-        loader = getattr(self, '_world_loader', None)
-        if vp is None or model_cache is None or not hasattr(vp, 'set_world_instances'):
+        if vp is None or not hasattr(vp, 'set_world_instances'):
             return
         if not instances:
             if vp is not None and hasattr(vp, 'clear_world_instances'):
                 vp.clear_world_instances()
+            return
+
+        # Dots render mode (Aug 20 2026, per Keith: "One request in
+        # the Render options in IPL controls is to load just the IPL
+        # data as dots, just placement without models or textures") -
+        # a real, deliberate fast path checked BEFORE the model_cache
+        # guard below, not after - the whole point of this mode is
+        # that it never needs model_cache at all, so this shouldn't
+        # depend on it being ready any more than any other guard here
+        # already doesn't need to. Builds each entry with ONLY
+        # position/rotation/model_key - no vertices/triangles/
+        # materials/UVs at all, so none of the expensive DFF/TXD
+        # loading and geometry-conversion work below this ever runs
+        # for a single instance while this mode is active. Skips the
+        # whole "convert each distinct model's geometry, preload every
+        # TXD" pipeline entirely, not just displaying already-loaded
+        # geometry differently - a real, substantial speed win for a
+        # huge map's worth of instances, not merely a different
+        # drawing style layered on top of the same underlying load.
+        if getattr(vp, '_mode', 'textured') == 'dots':
+            dots_entries = [
+                {'pos': (inst.pos_x, inst.pos_y, inst.pos_z),
+                 'rot': self._effective_rotation(inst),
+                 'scale': (1.0, 1.0, 1.0),
+                 'model_key': inst.model_id}
+                for inst in instances
+            ]
+            vp.set_world_instances(dots_entries, auto_fit=auto_fit,
+                                   clear_display_lists=clear_display_lists)
+            return
+
+        model_cache = getattr(self, '_model_cache', None)
+        loader = getattr(self, '_world_loader', None)
+        if model_cache is None:
             return
 
         # Convert each distinct model's geometry once, reuse across
