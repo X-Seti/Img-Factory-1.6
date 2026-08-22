@@ -7207,3 +7207,41 @@ conclusively found despite extensive isolated testing.
 
   `ast.parse` clean; confirmed via AST no duplicate method
   definitions.
+
+- **Aug 20, 2026 (cont'd)** — Fixed a real bug Keith caught: "when
+  auzo is highlighted and audiozon.ipl is loaded, I see no data in
+  the IPL Display below the object browser." Real cause: the AUZO
+  tab in IPL File Display was still marked disabled with a stale
+  "Not parsed yet" tooltip left over from before auzo actually got
+  built earlier this session - there was never any way to select it
+  as a tab at all, regardless of whether the separate viewport
+  overlay toggle was on.
+
+  Enabled the tab, and built a dedicated `_populate_auzo_table` -
+  bypasses the raw-text-column-splitting approach cull/zone/occl
+  still use below it (a real auzo line's own field count genuinely
+  varies by shape - 7 for sphere, 9 for cube - so a fixed-column split
+  would either truncate a cube line or leave misleading blanks on a
+  sphere one), reading the already-parsed, structured `loader.auzos`
+  directly instead, the same "structured data, not raw text" approach
+  already used for binary IPLs and GTA III's own IDE-paths in this
+  same panel. One unified 12-column layout covers both real shapes at
+  once (a shared "X2 / Radius" column, populated one way or the
+  other depending on the real entry's own shape) plus the already-
+  real `environment_type`/`music_description` lookups this session
+  already built.
+
+  Verified the exact row-building logic against the real, complete
+  `Audiozon.ipl` data (the same 155-entry file already used to verify
+  the parser and the viewport visualization) - every real row
+  produces exactly 12 values matching the 12 headers, cube entries
+  correctly populate X2/Y2/Z2 with Radius left blank, sphere entries
+  correctly populate Radius with Y2/Z2 left blank.
+
+  Also fixed the Time value box's own width, per Keith: "the 12:0
+  (then shows up/down arrows) needs about 5 px to show 12:00" - the
+  fixed width added earlier this session (58px) was cutting off the
+  trailing digit; bumped to 63px.
+
+  `ast.parse` clean; confirmed via AST no duplicate method
+  definitions.

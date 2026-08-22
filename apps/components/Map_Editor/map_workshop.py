@@ -23703,8 +23703,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
              "Not parsed yet - no verified real sample data to build this on."),
             ('tcyc', "TCYC", "TCYC - Timecycle/Weather Zones (SA)", False,
              "Not parsed yet - no verified real sample data to build this on."),
-            ('auzo', "AUZO", "AUZO - Audio Zones (SA)", False,
-             "Not parsed yet - planned to eventually show audio SVG\nicons and play the referenced sound file, per Keith's request."),
+            ('auzo', "AUZO", "AUZO - Audio Zones (SA)", True, None),
             ('mult', "MULT", "MULT - Unused (SA)", False,
              "Documented as never actually used by the game itself\n(ignored at runtime) - stub kept for completeness only."),
         ]
@@ -23779,7 +23778,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # unconstrained, so it stretched to fill whatever space this
         # HBoxLayout row had left over; a real "HH:mm" value plus its
         # own up/down spin arrows only ever needs about this much.
-        time_edit.setFixedWidth(58)
+        time_edit.setFixedWidth(63)
         time_edit.setEnabled(False)
         time_edit.setToolTip("Simulated time of day for the Time switch above")
         time_chk.toggled.connect(time_edit.setEnabled)
@@ -24836,6 +24835,60 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     item.setBackground(QBrush(QColor(60, 60, 90)))
                 table.setItem(r, c, item)
 
+    def _populate_auzo_table(self, table, loader, display_name): #vers 1
+        """Build the IPL Inst File table from SA's real, already-
+        parsed audio zones for this specific IPL (Aug 20 2026, per
+        Keith: "when auzo is highlighted and audiozon.ipl is loaded,
+        I see no data in the IPL Display" - see the fuller
+        explanation at this method's own call site in _refresh_ipl_
+        inst_file_panel for why this reads loader.auzos directly
+        rather than re-splitting the IPL's own raw text the way
+        cull/zone/occl below still do).
+
+        One unified column set covers both real auzo shapes at once -
+        a cube entry's own X2/Y2/Z2 columns are populated and its
+        Radius column left blank; a sphere entry's own Radius column
+        is populated (shown under the shared "X2 / Radius" header) and
+        its Y2/Z2 columns left blank - rather than needing two
+        entirely separate table layouts for what's still fundamentally
+        one section type. Environment/Music columns read directly
+        from AuzoEntry's own already-real environment_type/music_
+        description properties (the AUZO_TYPES lookup this session
+        already built and verified against Keith's own real Audiozon.
+        ipl data) - blank for a sound_id with no documented entry (a
+        real, honest "no background sound" zone, not a missing
+        lookup)."""
+        auzos = [a for a in getattr(loader, 'auzos', [])
+                if a.source_ipl == display_name]
+
+        headers = ["Name", "Sound ID", "Switch", "Shape",
+                  "X1", "Y1", "Z1", "X2 / Radius", "Y2", "Z2",
+                  "Environment", "Music / Ambience"]
+
+        if not auzos:
+            table.setRowCount(1)
+            table.setColumnCount(1)
+            table.setHorizontalHeaderLabels([""])
+            placeholder = QTableWidgetItem("(no audio zones in this IPL)")
+            placeholder.setFlags(placeholder.flags() & ~Qt.ItemFlag.ItemIsSelectable)
+            table.setItem(0, 0, placeholder)
+            return
+
+        table.setColumnCount(len(headers))
+        table.setHorizontalHeaderLabels(headers)
+        table.setRowCount(len(auzos))
+        for r, a in enumerate(auzos):
+            shape = "Sphere" if a.is_sphere else "Cube"
+            x2_or_radius = f"{a.radius:.4f}" if a.is_sphere else f"{a.x2:.4f}"
+            y2 = "" if a.is_sphere else f"{a.y2:.4f}"
+            z2 = "" if a.is_sphere else f"{a.z2:.4f}"
+            values = [a.name, str(a.sound_id), str(a.switch), shape,
+                     f"{a.x1:.4f}", f"{a.y1:.4f}", f"{a.z1:.4f}",
+                     x2_or_radius, y2, z2,
+                     a.environment_type or "", a.music_description or ""]
+            for c, value in enumerate(values):
+                table.setItem(r, c, QTableWidgetItem(value))
+
     def _refresh_ipl_inst_file_panel(self): #vers 3
         """Re-read the currently selected IPL's raw file content,
         filtered to the currently selected data type (INST/CULL/ZONE -
@@ -24890,6 +24943,25 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if (getattr(self, '_ipl_data_type', 'inst') == 'path'
                 and getattr(loader, 'game', None) == 'gta3'):
             self._populate_gta3_ide_paths_table(table, loader, display_name)
+            return
+
+        # SA audio zones (Aug 20 2026, per Keith: "when auzo is
+        # highlighted and audiozon.ipl is loaded, I see no data in
+        # the IPL Display"). Bypasses the raw-text-splitting approach
+        # below entirely, the same way GTA III's own IDE-paths do just
+        # above - a real auzo line's own field count genuinely varies
+        # by shape (7 for sphere, 9 for cube), so splitting the raw
+        # text on commas at a fixed column count the way cull/zone/
+        # occl below already do would either truncate a cube line or
+        # leave a sphere line's own trailing columns blank in a
+        # misleading way. Reads the already-parsed, structured loader.
+        # auzos directly instead (each real AuzoEntry already knows
+        # its own shape, and already has environment_type/music_
+        # description as real properties) - the same "read the
+        # already-parsed data, not raw text" approach already used for
+        # binary IPLs just below, for the same underlying reason.
+        if getattr(self, '_ipl_data_type', 'inst') == 'auzo':
+            self._populate_auzo_table(table, loader, display_name)
             return
 
         # Binary IPLs (Aug 1 2026, per Keith: "when clicking on a
@@ -25021,6 +25093,22 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             # against Keith's real occlu.ipl.
             'occl': ["Mid X", "Mid Y", "Bottom Z",
                      "Width X", "Width Y", "Height", "Rotation"],
+            # 'auzo' (Aug 20 2026, per Keith: "when auzo is highlighted
+            # and audiozon.ipl is loaded, I see no data in the IPL
+            # Display" - real cause: this tab was still marked
+            # disabled with a stale "Not parsed yet" tooltip from
+            # before auzo actually got built earlier this session, so
+            # there was never any way to select it here at all).
+            # Unlike cull/zone/occl's own fixed-width layouts, a real
+            # auzo line is genuinely variable-width (7 fields for a
+            # sphere zone, 9 for a cube one - see AuzoEntry's own
+            # docstring) - one unified column set covers both shapes
+            # at once (Radius left blank for a cube entry, X2/Y2/Z2
+            # left blank for a sphere one, rather than forcing either
+            # shape into the other's own column count).
+            'auzo': ["Name", "Sound ID", "Switch", "Shape",
+                     "X1", "Y1", "Z1", "X2 / Radius", "Y2", "Z2",
+                     "Environment", "Music / Ambience"],
         }
         headers = headers_by_type.get(data_type, headers_by_type['inst'])
         if table.columnCount() != len(headers):
