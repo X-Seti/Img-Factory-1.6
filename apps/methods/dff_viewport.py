@@ -3396,6 +3396,54 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._yaw=45.0; self._pitch=25.0; self._pan_x=0.0; self._pan_y=0.0
         self._auto_fit(); self.update()
 
+    def capture_radar_tile(self, center_x: float, center_y: float, tile_size: float): #vers 1
+        """Capture one, exact, correctly-oriented top-down orthographic
+        snapshot of the currently loaded world, centred on a real
+        RadarTile's own world-space centre (Aug 20 2026, per Keith:
+        "look at radar editor for how the radar works" - the actual
+        rendering half of map-to-radar generation).
+
+        pitch=0/yaw=0 is the real, numerically-verified top-down,
+        north-up orientation for this viewport's own camera convention
+        - NOT pitch=90 (an earlier, wrong first guess caught before it
+        was ever implemented: the full lookAt+rotate transform chain
+        was worked out on paper with real coordinates first, which
+        showed pitch=90 is actually a SIDE-on view here, not top-down
+        at all - pitch=0 is the one where a taller world point stays
+        centred on screen rather than shifting sideways, matching what
+        a real top-down capture needs). pan_x/pan_y are the NEGATIVE
+        of the desired world centre (also verified numerically, not
+        assumed) - the scene itself is translated by this amount
+        before the fixed camera views it, so this is what actually
+        puts the desired world point at screen centre.
+
+        Saves and restores every camera state variable touched
+        afterward - a batch tile-generation run must not permanently
+        disrupt whatever view the person had open before starting it.
+        Returns a QImage (the raw captured framebuffer), leaving what
+        to do with it (crop to a real radarNN.txd, save as PNG, etc.)
+        to the caller."""
+        saved = (self._yaw, self._pitch, self._dist, self._pan_x,
+                 self._pan_y, self._projection)
+        try:
+            self._yaw = 0.0
+            self._pitch = 0.0
+            self._dist = tile_size
+            self._pan_x = -center_x
+            self._pan_y = -center_y
+            self._projection = 'ortho'
+            self.makeCurrent()
+            self.resizeGL(self.width(), self.height())
+            self.paintGL()
+            image = self.grabFramebuffer()
+        finally:
+            self._yaw, self._pitch, self._dist, self._pan_x, \
+                self._pan_y, self._projection = saved
+            self.makeCurrent()
+            self.resizeGL(self.width(), self.height())
+            self.update()
+        return image
+
     def set_view_lock(self, locked: bool, label: str = "", yaw: float = None,
                        pitch: float = None, projection: str = 'perspective'): #vers 1
         """Lock/unlock this pane to a fixed preset view (3ds Max style Top/

@@ -7751,3 +7751,82 @@ conclusively found despite extensive isolated testing.
 
   `ast.parse` clean; confirmed via AST no duplicate method/function/
   class definitions.
+
+- **Aug 20, 2026 (cont'd)** — Built the first real piece of "map-to-
+  radar generation" (item 2 of Keith's own 3-item list), after he
+  pointed at a real radar editor tool ("look at radar editor for how
+  the radar works") when a plain web search hadn't turned up a
+  precise, confirmed technical spec.
+
+  Found the real numbers this time, from real, direct sources rather
+  than guessed: a published mod readme's own literal install
+  instructions confirm the exact real tile file range - "radar00.txd,
+  radar01.txd, radar02.txd...radar143.txd" (144 files). A real,
+  published third-party radar-generation tool (gtastuff.com's own
+  Radar Generator, built for this exact task) independently labels
+  its own vanilla-SA grid option "6000 (Vanilla 12x12)" - 12*12=144,
+  consistent with the file-naming range above from a completely
+  separate source, not just one claim taken on faith. Combined with
+  SA's own real 6000x6000 world bounds (confirmed earlier this
+  session from a real water.dat example line spanning the whole map),
+  that's exactly 500 world units per tile.
+
+  New `RadarTile`/`compute_radar_grid()` (`gta_dat_parser.py`) -
+  computes the real world-space bounding box for every tile in the
+  grid, defaults matching vanilla SA exactly, but also reachable at
+  larger sizes (12000/24x24, 24000/48x48, 48000/96x96 - the same
+  real, published tool's own larger-map options, same 500-unit-per-
+  tile ratio preserved) for a map that's been expanded beyond vanilla
+  bounds. Verified directly: exactly 144 tiles, correct NW/SE corner
+  positions, every tile exactly 500x500, zero gaps or overlaps (total
+  area matches the real 6000x6000 bound exactly), every test world
+  coordinate maps to exactly one tile, and the larger-map option
+  preserves the same 500-unit ratio.
+
+  New `DFFViewport.capture_radar_tile()` - a real, correctly-oriented
+  top-down orthographic capture, reusing the viewport's own existing
+  `set_view_lock`-style ortho mode rather than building a separate
+  rendering path. **Two real camera-math mistakes caught before
+  either was ever implemented**, by working out the actual lookAt+
+  rotate transform chain numerically with real coordinates rather
+  than guessing: (1) `pitch=90` was the first, wrong guess for "top-
+  down" - the real math shows `pitch=0` is what actually keeps a
+  taller world point centred on screen rather than shifting it
+  sideways (pitch=90 in this viewport's own convention is a SIDE-on
+  view, not top-down at all); (2) confirmed `yaw=0` gives the correct
+  north-up/east-right screen orientation, and that centring the view
+  on a specific world point needs `pan_x/pan_y` set to the NEGATIVE
+  of that point, not the point itself - both checked numerically, not
+  assumed from how the parameters are named.
+
+  New `_generate_radar_tiles`/`_on_generate_radar_tiles_clicked`
+  (`map_workshop.py`) + a "Generate Radar Tiles..." button next to
+  the existing Render mode control - iterates the real grid, calls
+  the new capture method for each tile, saves each as a real PNG
+  named by its own real (row, col) position rather than a single
+  presumed index number.
+
+  **Real, honest uncertainty carried forward, not resolved**: the
+  exact tile INDEX numbering order (row-major vs column-major, which
+  corner is index 0) was never found confirmed anywhere despite real,
+  repeated research - `RadarTile` assumes north-west-first, row-
+  major, stated plainly as an assumption in its own docstring, not a
+  confirmed fact. Naming saved files by their own real (row, col)
+  rather than a single index number was a deliberate choice so a
+  wrong ordering guess doesn't silently mislabel which physical tile
+  is which - Keith can re-verify/correct this against a real
+  `radarNN.txd` from an actual install without needing anything re-
+  run.
+
+  **Real scope check, stated plainly**: this generates plain PNG
+  tiles, a real, useful starting point - it does not yet slice/pack
+  the result into a real, loadable TXD, and doesn't touch item 3 (SCM
+  coordinate sync) at all, which remains fully unstarted. The actual
+  rendering itself (`capture_radar_tile`, needing a real OpenGL
+  context) could not be run end-to-end in this sandbox the way the
+  pure-Python grid math could be - the grid/camera MATH underneath it
+  is thoroughly, numerically verified; the actual rendered pixel
+  output has not been.
+
+  `ast.parse` clean on both touched files; confirmed via AST no
+  duplicate method/function/class definitions.

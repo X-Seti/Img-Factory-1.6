@@ -23273,6 +23273,81 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._set_status(
             f"Saved {len(matching)} instances from {ipl_name} to binary IPL: {path}")
 
+    def _on_generate_radar_tiles_clicked(self): #vers 1
+        """Prompt for an output folder, then run _generate_radar_tiles
+        (Aug 20 2026, per Keith: "look at radar editor for how the
+        radar works")."""
+        output_dir = QFileDialog.getExistingDirectory(
+            self, "Select Output Folder for Radar Tiles",
+            os.path.expanduser("~"))
+        if not output_dir:
+            return
+        self._generate_radar_tiles(output_dir)
+
+    def _generate_radar_tiles(self, output_dir): #vers 1
+        """Generate every real radar/minimap tile for the currently
+        loaded world (Aug 20 2026, per Keith: "look at radar editor
+        for how the radar works" - the actual generation half of
+        "map-to-radar generation", following the earlier item-1/2/3
+        list request).
+
+        Real, confirmed numbers this uses, not guessed (see RadarTile/
+        compute_radar_grid's own docstrings in gta_dat_parser.py for
+        the full breakdown of what was actually confirmed vs.
+        assumed): vanilla SA is a 6000x6000-unit world divided into a
+        real, documented 12x12 grid of 144 tiles (radar00.txd through
+        radar143.txd), 500 world units per tile. One real, honest
+        remaining uncertainty carried over from that research and not
+        resolved here either: the exact tile INDEX numbering order
+        (which corner is index 0, row-major vs column-major) wasn't
+        found confirmed anywhere - this assumes north-west-corner-
+        first, row-major, matching RadarTile's own stated assumption -
+        each saved file is named by its own (row, col) position
+        instead of a single presumed index number, specifically so a
+        wrong index-ordering guess doesn't silently mislabel a tile
+        with the wrong number - Keith can rename/reorder based on a
+        real radarNN.txd from an actual install if this assumption
+        turns out wrong, without needing this to be re-run."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None or not getattr(loader, 'instances', None):
+            QMessageBox.information(self, "Generate Radar Tiles",
+                "No world currently loaded - load a game root first.")
+            return
+        vp = getattr(self, 'preview_widget', None)
+        if vp is None or not hasattr(vp, 'capture_radar_tile'):
+            QMessageBox.warning(self, "Generate Radar Tiles",
+                "The 3D viewport isn't available to render tiles from.")
+            return
+
+        from apps.methods.gta_dat_parser import compute_radar_grid
+        tiles = compute_radar_grid()
+        os.makedirs(output_dir, exist_ok=True)
+
+        progress = QProgressDialog(
+            "Generating radar tiles...", "Cancel", 0, len(tiles), self)
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+        saved = 0
+        for tile in tiles:
+            if progress.wasCanceled():
+                break
+            progress.setValue(tile.index)
+            progress.setLabelText(
+                f"Tile {tile.index} (row {tile.row}, col {tile.col})...")
+            QApplication.processEvents()
+            cx = (tile.min_x + tile.max_x) / 2.0
+            cy = (tile.min_y + tile.max_y) / 2.0
+            tile_size = tile.max_x - tile.min_x
+            try:
+                image = vp.capture_radar_tile(cx, cy, tile_size)
+                out_path = os.path.join(
+                    output_dir, f"radar_r{tile.row:02d}_c{tile.col:02d}.png")
+                image.save(out_path)
+                saved += 1
+            except Exception as e:
+                print(f"[Radar Generator] Failed tile {tile.index}: {e}")
+        progress.setValue(len(tiles))
+        self._set_status(f"Generated {saved} of {len(tiles)} radar tiles to {output_dir}")
+
     def _save_ipl_data_as_full(self, ipl_name): #vers 1
         """Save ALL of an IPL's sections to a new file, not just inst
         (Aug 16 2026, per Keith: "we need a way to save the .ipl
@@ -24278,6 +24353,24 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         render_lod_btn.setMenu(render_lod_menu)
         render_lod_btn.setToolTip("Choose how the world view renders geometry, and which detail level(s) to show")
         opts_row.addWidget(render_lod_btn)
+
+        # Generate Radar Tiles (Aug 20 2026, per Keith: "look at radar
+        # editor for how the radar works" - the actual rendering half
+        # of map-to-radar generation, continuing the earlier water/
+        # radar/SCM list). A real, whole-map action rather than a
+        # per-instance/per-IPL one, so it lives here alongside the
+        # Render mode control rather than in a per-IPL context menu.
+        radar_gen_btn = QPushButton("Generate Radar Tiles...")
+        radar_gen_btn.setFixedHeight(18)
+        radar_gen_btn.setStyleSheet(_compact_18)
+        radar_gen_btn.setToolTip(
+            "Render a real, 12x12 grid of top-down tiles covering the\n"
+            "loaded world (matching vanilla SA's own real radar00.txd\n"
+            "-radar143.txd grid) and save each as a PNG - a starting\n"
+            "point for the game's own radar/minimap tiles, not an\n"
+            "automatic TXD replacement.")
+        radar_gen_btn.clicked.connect(self._on_generate_radar_tiles_clicked)
+        opts_row.addWidget(radar_gen_btn)
 
         # Drag/Move/Rotate IPL - a single button cycling through 4
         # states (Aug 19 2026, per Keith's own priority order for the

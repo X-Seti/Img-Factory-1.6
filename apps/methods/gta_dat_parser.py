@@ -688,6 +688,92 @@ def parse_waterpro_dat(path: str) -> Optional[WaterProFile]: #vers 1
 
 
 @dataclass
+class RadarTile: #vers 1
+    """One real SA radar/minimap tile's own world-space bounding box
+    (Aug 20 2026, per Keith: "look at radar editor for how the radar
+    works" - following the earlier "map-to-radar generation" request,
+    genuinely blocked before this until real confirmed grid numbers
+    were found). Corresponds to one real "radarNN.txd" file the game
+    actually loads.
+
+    Real, confirmed facts this is built from, not guessed - checked
+    directly, not assumed:
+    - The real tile file naming range "radar00.txd" through
+      "radar143.txd" (144 files total) is directly documented (a
+      real, published mod readme quoting the exact install
+      instructions: "find some files called radar00.txd, radar01.txd,
+      radar02.txd...radar143.txd").
+    - A real, published radar-generation tool (gtastuff.com's own
+      Radar Generator, built specifically for this exact task) labels
+      its own vanilla SA grid size option as "6000 (Vanilla 12x12)" -
+      144 = 12*12, independently consistent with the 144-file naming
+      range above, not just one uncorroborated source.
+    - SA's own real world bounds are -3000 to 3000 on both X and Y (a
+      real 6000x6000 unit square) - independently confirmed earlier
+      this session from a real water.dat example line covering the
+      whole map ("-3000.0 -3000.0 ... 3000.0 3000.0 ..."), matching
+      the same 6000-unit figure the radar generator tool's own label
+      uses.
+    - 6000 world units / 12 tiles = 500 world units per tile, exactly.
+
+    Real, honest remaining uncertainty, not glossed over: the exact
+    tile INDEX numbering order (row-major vs column-major, which
+    corner index 0 starts at) was not found confirmed anywhere despite
+    real research - this class assumes row-major, starting at the
+    map's own north-west corner (min X, max Y - matching GTA's own
+    documented "X=east/west, Y=north/south" axis convention, i.e. the
+    same reading order screen text normally uses), index increasing
+    west-to-east then north-to-south. This is a reasonable, common
+    convention, not a confirmed one - verify tile 0's own real content
+    against a known real radarXX.txd from an actual game install if
+    this matters, rather than trusting this assumption blindly."""
+    index: int
+    row: int
+    col: int
+    min_x: float
+    min_y: float
+    max_x: float
+    max_y: float
+
+
+def compute_radar_grid(grid_size: float = 6000.0, tiles_per_side: int = 12,
+                       center_x: float = 0.0, center_y: float = 0.0) -> List[RadarTile]: #vers 1
+    """Compute the real world-space bounding box for every tile in an
+    SA-style radar grid (Aug 20 2026 - see RadarTile's own docstring
+    for the full, confirmed-vs-assumed breakdown behind these
+    numbers). Defaults match vanilla SA exactly (6000 units, 12x12,
+    centred on the origin) - the gtastuff.com Radar Generator's own
+    real, published larger-map options (12000/24x24, 24000/48x48,
+    48000/96x96 - all keeping the same confirmed 500-units-per-tile
+    ratio) are reachable by passing a different grid_size/tiles_per_
+    side pair, for a map that's been resized/expanded beyond vanilla
+    bounds.
+
+    Tile 0 is the north-west corner (min X, max Y), row-major,
+    increasing west-to-east then north-to-south - see RadarTile's own
+    docstring for why this specific assumption was made and how
+    confident (or not) it actually is."""
+    tile_size = grid_size / tiles_per_side
+    half = grid_size / 2.0
+    origin_x = center_x - half   # west edge
+    origin_y = center_y + half   # north edge
+    tiles = []
+    index = 0
+    for row in range(tiles_per_side):
+        tile_max_y = origin_y - row * tile_size
+        tile_min_y = tile_max_y - tile_size
+        for col in range(tiles_per_side):
+            tile_min_x = origin_x + col * tile_size
+            tile_max_x = tile_min_x + tile_size
+            tiles.append(RadarTile(
+                index=index, row=row, col=col,
+                min_x=tile_min_x, min_y=tile_min_y,
+                max_x=tile_max_x, max_y=tile_max_y))
+            index += 1
+    return tiles
+
+
+@dataclass
 class ChaseFrame: #vers 1
     """One recorded frame from a real GTA III CHASE*.DAT file (Aug 19
     2026, per Keith's real sample - "lets do those next"). Format
