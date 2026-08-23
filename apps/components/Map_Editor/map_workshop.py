@@ -3101,14 +3101,21 @@ class _KeyCaptureButton(QPushButton):
         return {'key': self._key, 'numpad': self._is_numpad}
 
 
-def _model_workshop_config_dir() -> Path: #vers 1
+def _model_workshop_config_dir() -> Path: #vers 2
     """The one, shared, correct location for every Map/Model Workshop
-    config file in this app - app-folder-relative (this module's own
-    real directory), not ~/.config (Aug 20 2026, per Keith: "that
-    will not work for standland, all config files would need to be
-    with the own app folder"). A standalone deployment needs the
-    whole app, settings included, to be self-contained and portable
-    rather than scattered into the running user's own home directory.
+    config file in this app - a dedicated config/ subfolder alongside
+    this app's own depends/ folder (Aug 20 2026, per Keith: "we could
+    add a config folder in the same folder as app_name/depends/
+    app_name.py new folder app_name/config/ json/conf files" -
+    following on from "that will not work for standland, all config
+    files would need to be with the own app folder"). Matches the
+    already-established depends/ pattern - JSON/conf data kept
+    structurally separate from .py source the same way depends/
+    already separates helper modules from the main app file, rather
+    than dumping data files loose alongside the source. A standalone
+    deployment needs the whole app, settings included, to be self-
+    contained and portable rather than scattered into the running
+    user's own home directory.
 
     Introduced as a single shared helper - rather than fixed
     individually - because this exact same ~/.config/imgfactory
@@ -3125,7 +3132,7 @@ def _model_workshop_config_dir() -> Path: #vers 1
     won't travel with the app folder in that one specific case, which
     is still strictly better than every config-writing call in this
     file failing outright."""
-    cfg_dir = Path(__file__).resolve().parent
+    cfg_dir = Path(__file__).resolve().parent / 'config'
     try:
         cfg_dir.mkdir(parents=True, exist_ok=True)
         # Confirm it's actually writable, not just that mkdir didn't

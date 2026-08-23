@@ -7535,3 +7535,41 @@ conclusively found despite extensive isolated testing.
 
   `ast.parse` clean; confirmed via AST no duplicate definition of the
   new shared helper.
+
+- **Aug 20, 2026 (cont'd)** — Moved Map/Model Workshop's own config
+  files into a dedicated `config/` subfolder, per Keith: "we could add
+  a config folder in the same folder as app_name/depends/ app_name.py
+  new folder app_name/config/ json/conf files." Matches the already-
+  established `depends/` pattern - JSON/conf data now kept
+  structurally separate from `.py` source the same way `depends/`
+  already separates helper modules from the main app file, instead of
+  sitting loose directly alongside the `.py` source as the previous
+  version of this same fix (earlier today) had it.
+
+  Only `_model_workshop_config_dir()`'s own target needed changing -
+  every one of the ~20 config-writing call sites already routes
+  through this one shared helper (see that fix's own earlier entry),
+  so this took effect everywhere automatically with a single, small
+  edit rather than needing another file-wide sweep.
+
+  Updated `.gitignore` to match (now excludes the whole `config/`
+  folder rather than naming each individual file inside it).
+
+  Verified the path-resolution logic directly against a real, fake
+  app-folder layout (`.../Map_Editor/map_workshop.py` +
+  `.../Map_Editor/config/`) - confirms it resolves to a real `config`
+  subfolder alongside the app's own source file, and that a settings
+  file writes correctly inside it.
+
+  Scope note, not yet done: Keith's own wider complaint (multiple
+  differently-named `~/.config/imgfactory*` folders scattered across
+  the whole app - `"IMG Factory"`, `"IMG-Factory"`, `"XSeti"`/
+  `"IMGFactory"`, `"img-factory"`) spans several files well outside
+  Map Workshop's own domain (`imgfactory.py`, `notepad.py`, `open.py`,
+  `file_menu_integration.py`, plus 3 stale, out-of-sync duplicate
+  copies of `img_factory_settings.py`) - this pass covers Map/Model
+  Workshop's own config only, confirmed with Keith before touching
+  those other, shared files.
+
+  `ast.parse` clean; confirmed via AST no duplicate method
+  definitions.
