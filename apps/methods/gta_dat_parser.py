@@ -478,6 +478,126 @@ class AuzoEntry: #vers 1
 
 
 @dataclass
+class WaterCorner: #vers 1
+    """One corner point of a real SA water.dat shape (Aug 20 2026,
+    per Keith: "lets get all the functions in" - Water/radar
+    recalculation on map moves is the first of the 3 items on his own
+    list, and this is the real prerequisite for the "water" half:
+    water.dat wasn't parsed at all before this). Format confirmed
+    against a detailed, community-verified GTAForums documentation
+    thread (steve-m, 2005 - extensively tested and refined by many
+    contributors over years, not a single unverified source): 7
+    floats per corner - X, Y, Z (world position), then current_x/
+    current_y (water current/flow speed along each axis), wave_
+    unknown ("influences waves, maximum is 1.0" - the source itself
+    documents this field's own exact effect as unconfirmed), and
+    wave_height."""
+    x: float
+    y: float
+    z: float
+    current_x: float
+    current_y: float
+    wave_unknown: float
+    wave_height: float
+
+
+@dataclass
+class WaterShape: #vers 1
+    """One real water.dat shape entry - SA's own text format only
+    (Aug 20 2026, see WaterCorner's own docstring for the fuller
+    format-confirmation story). A real shape is EITHER a triangle (3
+    corners) or a quad (4 corners) - documented and independently re-
+    confirmed by testers: "the game only uses cubes, rectangles and
+    triangles... at least one corner must be 90°" for a triangle.
+    water_type is a real, confirmed 2-bit flag value (documented
+    directly, not guessed): bit 0 = visible, bit 1 = shallow/pool
+    (vs invisible/deep-ocean) - 0=invisible ocean, 1=visible ocean,
+    2=invisible pool, 3=visible pool. Corner order matters for a real,
+    game-crash-preventing reason documented directly - the source's
+    own emphatic warning: "All X and Y coordinates of corner points
+    must be even, rounded numbers... otherwise the game will crash
+    when you approach the water" - this app reads coordinates as
+    given, verbatim, rather than silently "fixing" them, since
+    correctness here is the modder's own responsibility and this app
+    altering values without being asked risks introducing exactly
+    this crash."""
+    corners:    List[WaterCorner]
+    water_type: int
+    source_file: str = ""
+    line_no:    int = 0
+
+    @property
+    def is_visible(self): #vers 1
+        return bool(self.water_type & 1)
+
+    @property
+    def is_shallow(self): #vers 1
+        """True = a "pool" (6 units deep per the source's own
+        documented depth), False = "ocean" (infinite depth)."""
+        return bool(self.water_type & 2)
+
+
+def parse_water_dat(path: str) -> List[WaterShape]: #vers 1
+    """Parse a real SA water.dat file (Aug 20 2026 - see WaterShape's
+    own docstring for the full format confirmation). Standalone
+    module-level function, not tied to IPLParser/IDEParser - water.
+    dat is neither an IPL nor IDE section, it's its own, separate top-
+    level file referenced from gta.dat's own WATER directive,
+    matching sa_path_parser.py's own established "standalone function
+    for a standalone file format" convention rather than being force-
+    fit into either of those classes.
+
+    The file's own first non-blank, non-comment line must literally
+    be the word "processed" (confirmed directly: "The water.dat file
+    starts with the word 'processed' in the first line") - skipped,
+    not treated as data. Every subsequent real line is whitespace-
+    split and its own value count used to tell a triangle (3*7+1=22
+    values) from a quad (4*7+1=29) - real lines that match neither
+    count are skipped rather than guessed at. '#'-prefixed lines are
+    real, documented comments (same convention as IPL/IDE files) and
+    skipped, matching the source's own explicit confirmation of this."""
+    shapes: List[WaterShape] = []
+    try:
+        with open(path, 'r', encoding='ascii', errors='ignore') as f:
+            lines = f.readlines()
+    except Exception:
+        return shapes
+
+    basename = os.path.basename(path)
+    seen_processed = False
+    for lineno, raw_line in enumerate(lines, start=1):
+        line = raw_line.split('#', 1)[0].strip()
+        if not line:
+            continue
+        if not seen_processed:
+            if line.lower() == 'processed':
+                seen_processed = True
+            continue
+        parts = line.split()
+        if len(parts) == 22:
+            n_corners = 3
+        elif len(parts) == 29:
+            n_corners = 4
+        else:
+            continue
+        try:
+            values = [float(p) for p in parts[:-1]]
+            water_type = int(float(parts[-1]))
+        except ValueError:
+            continue
+        corners = []
+        for i in range(n_corners):
+            off = i * 7
+            corners.append(WaterCorner(
+                x=values[off], y=values[off + 1], z=values[off + 2],
+                current_x=values[off + 3], current_y=values[off + 4],
+                wave_unknown=values[off + 5], wave_height=values[off + 6]))
+        shapes.append(WaterShape(corners=corners, water_type=water_type,
+                                 source_file=basename, line_no=lineno))
+    return shapes
+
+
+@dataclass
 class ChaseFrame: #vers 1
     """One recorded frame from a real GTA III CHASE*.DAT file (Aug 19
     2026, per Keith's real sample - "lets do those next"). Format
@@ -744,6 +864,15 @@ class DATParser: #vers 2
     def ide_entries(self)  -> List[DATEntry]: return self.get_by_directive("IDE")
     def ipl_entries(self)  -> List[DATEntry]: return self.get_by_directive("IPL")
     def col_entries(self)  -> List[DATEntry]: return self.get_by_directive("COLFILE")
+    def water_entries(self) -> List[DATEntry]: #vers 1
+        """Real WATER directive entries (Aug 20 2026) - the generic
+        "any directive not specifically matched above" branch in
+        parse() already captures these correctly (WATER <path>, same
+        shape as every other simple single-path directive), this is
+        just a named accessor matching col_entries' own established
+        pattern rather than callers needing to know the raw directive
+        string themselves."""
+        return self.get_by_directive("WATER")
     def img_entries(self)  -> List[DATEntry]:
         return self.get_by_directive("IMG") + self.get_by_directive("CDIMAGE")
 
@@ -1905,6 +2034,15 @@ class GTAWorldLoader: #vers 3
         # own docstring for the full format confirmation). Populated
         # by load_sa_roadblox, SA only.
         self.sa_roadblocks: List[RoadblockEntry] = []
+        # Real water plane shapes (Aug 20 2026, per Keith: "lets get
+        # all the functions in" - water/radar recalculation on map
+        # moves, item 1 of 3 on his own list). SA's own text water.dat
+        # only for now (see WaterShape's own docstring for the full
+        # format confirmation) - III/VC use a completely different,
+        # binary waterpro.dat format not yet parsed by this app, so
+        # this stays empty for those games rather than guessing.
+        # Populated by load_water_dat.
+        self.water_shapes: List[object] = []
         # GTA III chase-scene car paths (Aug 19 2026, per Keith's
         # real CHASE0-19.DAT sample) - keyed by source filename (e.g.
         # "CHASE0.DAT"), each value the full ordered list of real,
@@ -2044,6 +2182,7 @@ class GTAWorldLoader: #vers 3
             # multiple games.
             self.load_sa_nodes(game_root, data_dir)
             self.load_sa_roadblox(data_dir)
+            self.load_water_dat()
         if self.game == GTAGame.GTA3:
             # GTA III-only (Aug 19 2026, per Keith's real CHASE0-19.
             # DAT sample) - the introduction cutscene's own chase-
@@ -2241,6 +2380,33 @@ class GTAWorldLoader: #vers 3
             self.load_log.append(("roadblox", "SA_ROADBLOX", abs_path, True))
         except Exception as e:
             self.stats.errors.append(f"Could not read SA roadblox data from {abs_path}: {e}")
+
+    def load_water_dat(self): #vers 1
+        """Load SA's real water.dat (Aug 20 2026, per Keith: "lets
+        get all the functions in" - water/radar recalculation on map
+        moves, item 1 of 3 on his own list). Finds the REAL path from
+        gta.dat's own already-parsed WATER directive entries (main_
+        dat.water_entries()) rather than assuming a fixed "data/
+        water.dat" location - the directive is real, documented (per
+        GTAMods' own gta.dat page: "these entries link to external
+        water plane placement files"), and the generic directive-
+        parsing branch in DATParser.parse() already captures it
+        correctly (WATER <path>, same shape as every other simple
+        single-path directive) even though nothing looked for it by
+        name until this method existed. Uses the first real,
+        resolved, existing entry found - a real gta.dat could list
+        more than one WATER line (GTAMods: "the WATER identifier can
+        hold more than one parameter"), but SA's own real water1.dat
+        is documented as a dead, unused leftover, so taking the
+        first real match is the correct choice, not an oversimplification."""
+        entries = getattr(self.main_dat, 'water_entries', lambda: [])()
+        for entry in entries:
+            if entry.exists:
+                shapes = parse_water_dat(entry.abs_path)
+                if shapes:
+                    self.water_shapes = shapes
+                    self.load_log.append(("water", "WATER", entry.abs_path, True))
+                    return
 
     def load_chase_dat(self, data_dir: str): #vers 1
         """Load every real GTA III CHASE*.DAT chase-scene car path

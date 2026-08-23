@@ -7573,3 +7573,58 @@ conclusively found despite extensive isolated testing.
 
   `ast.parse` clean; confirmed via AST no duplicate method
   definitions.
+
+- **Aug 20, 2026** — Built real SA `water.dat` parsing, the first
+  concrete piece of Keith's own 3-item list ("lets get all the
+  functions in... Water/radar recalculation when a map section
+  moves, Map-to-radar generation, SCM coordinate sync on map moves") -
+  a genuine prerequisite for the "water" half of item 1, since
+  `water.dat` wasn't parsed at all before this.
+
+  Format confirmed against a detailed, community-verified GTAForums
+  documentation thread (steve-m, 2005, refined by many contributors
+  over years - not a single unverified source): file starts with the
+  literal word `processed`, then one shape per line - either a
+  triangle (3 corners) or a quad (4 corners), each corner 7 floats
+  (X, Y, Z, water current X/Y, an unconfirmed wave-influence value,
+  wave height), plus a trailing water-type parameter (0-3, a real 2-
+  bit flag: bit 0 = visible, bit 1 = shallow/pool vs deep/ocean).
+  `#`-prefixed lines are real, documented comments, same convention
+  as IPL/IDE files.
+
+  New `WaterCorner`/`WaterShape` dataclasses + standalone `parse_
+  water_dat()` (`gta_dat_parser.py`) - not tied to IPLParser/IDEParser,
+  matching `sa_path_parser.py`'s own "standalone function for a
+  standalone file format" convention, since water.dat is neither an
+  IPL nor IDE section. New `DATParser.water_entries()` (matches `col_
+  entries()`'s own established pattern) - the real `WATER` directive
+  in `gta.dat` (confirmed via GTAMods' own `gta.dat` documentation:
+  "these entries link to external water plane placement files") was
+  already being captured correctly by the existing generic directive-
+  parsing fallback, just never had a named accessor. New `GTAWorldLoader.
+  load_water_dat()` (SA-only for now - III/VC use a completely
+  different, binary `waterpro.dat` format, not yet parsed) resolves
+  the real path from `gta.dat`'s own parsed directives rather than
+  assuming a fixed location, wired into `load_from_dat`.
+
+  Verified thoroughly: the parser against the exact real example data
+  quoted in the documentation thread (a visible-ocean quad, a
+  shallow-pool quad, a comment line correctly skipped with line
+  numbering staying accurate), a triangle (3-corner) shape, malformed/
+  short lines (skipped, not crashed), a nonexistent file (empty
+  result, not crashed), and the complete, real end-to-end pipeline -
+  a real `gta.dat` with a genuine `WATER` directive (Windows-style
+  backslash path) correctly resolving through to the real, parsed
+  water shape data via `GTAWorldLoader.load_from_dat` itself, not
+  just the parser function in isolation.
+
+  **Real scope check, stated plainly**: this is loading only - the
+  actual "recalculate water when a map section moves" logic, "map-to-
+  radar generation", and "SCM coordinate sync on map moves" (the
+  other 2 of Keith's own 3 listed items) are each still substantial,
+  separate, unstarted pieces of work - this pass covers the genuine
+  prerequisite for one third of one third of the full request, not
+  the request itself.
+
+  `ast.parse` clean; confirmed via AST no duplicate method/function/
+  class definitions.
