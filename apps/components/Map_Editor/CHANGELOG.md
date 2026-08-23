@@ -7628,3 +7628,67 @@ conclusively found despite extensive isolated testing.
 
   `ast.parse` clean; confirmed via AST no duplicate method/function/
   class definitions.
+
+- **Aug 20, 2026 (cont'd)** — Built water.dat viewport visualization
+  and whole-map move/rotate support - the second concrete piece of
+  Keith's own "lets get all the functions in" list, continuing on
+  from parsing.
+
+  **Viewport visualization**: new `DFFViewport.show_water`/`set_water_
+  shapes`/`_draw_water_shapes` + "Water" toggle button (alongside SA
+  Nodes/Auzo on Keith's own row4). Drawn as flat, translucent
+  `GL_TRIANGLE_FAN` polygons (correct for both a real triangle and a
+  real quad shape) rather than a wireframe box the way cull/zone/
+  occlusion already are - a real water shape genuinely is a flat
+  plane, not a volume, so a box would misrepresent it entirely.
+  Colour distinguishes real water type at a glance - deep blue for
+  ocean (infinite depth), lighter cyan for a pool (6 units deep, per
+  the documented format) - genuinely invisible water (a real,
+  intentional, documented case) still drawn at lower alpha as an
+  editing aid rather than skipped, since this shows where water
+  actually is, not what a player would see in-game.
+
+  **Real uncertainty checked directly, not assumed away**: verified
+  the `GL_TRIANGLE_FAN` fan-from-corner-0 approach against real
+  example data from the same documentation the format itself was
+  confirmed from, and found at least one real 4-corner line whose own
+  corner order is a self-intersecting "bowtie" shape when connected
+  edge-to-edge in sequence (confirmed via the shoelace formula -
+  zero net area) - the documented "NE-NW-SE-SW" order doesn't hold
+  for every real line. Fanning from corner 0 still produces a valid,
+  non-crossing pair of triangles regardless, and is a reasonable
+  editing-aid approximation, but this is honestly NOT a confirmed-
+  exact match to whatever triangulation the real game engine uses
+  internally - documented directly in the code, not glossed over.
+
+  **Whole-map move/rotate support**: new `_shift_all_water`/`_rotate_
+  all_water` + a "Water (all loaded, global)" checkbox in the same
+  Move/Rotate dialogs already used for whole-IPL editing - same
+  "global data, off by default, moves everything not just this IPL"
+  pattern already established for Tracks. Real, extra safety note
+  surfaced directly in the checkbox's own tooltip: the real water.dat
+  format requires X/Y corner coordinates to be even, rounded numbers
+  or the game can crash near that water - this move/rotate does NOT
+  silently round the result back to an even number, matching this
+  app's own established "never silently alter values" principle, so
+  the warning is explicit rather than letting that surprise someone
+  later.
+
+  Verified directly: shift math (exact per-corner offset applied to
+  all 4 real corners), rotate math (a real 90° rotation around the
+  origin produces the exact expected result), and the visualization
+  data conversion (real `WaterShape`/`WaterCorner` objects correctly
+  converted to the plain tuples the viewport actually consumes).
+
+  **Real scope check, stated plainly, same as last entry**: this is
+  visualization + move/rotate support, not the actual "recalculate
+  water correctly for a moved map section" decision logic (which
+  water shapes should even move when a specific IPL moves is
+  genuinely undefined for global, IPL-unscoped data - handled here by
+  making it an explicit, opt-in global choice, matching Tracks, not
+  by guessing at an automatic per-IPL association that doesn't really
+  exist in the data). Map-to-radar generation and SCM coordinate sync
+  (items 2 and 3 of Keith's own list) remain fully unstarted.
+
+  `ast.parse` clean on both touched files; confirmed via AST no
+  duplicate method definitions.

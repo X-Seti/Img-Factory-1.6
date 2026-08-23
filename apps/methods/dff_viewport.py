@@ -491,6 +491,20 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._auzo_zones = []
         self._auzo_icon_tex_id = None   # lazy-loaded once, cached (see _ensure_auzo_icon_texture)
 
+        # Water shapes (Aug 20 2026, per Keith: "lets get all the
+        # functions in" - water/radar recalculation on map moves).
+        # Each entry is a plain list of (x,y,z) corner tuples (3 or 4
+        # per shape) plus a water_type int - resolution (converting
+        # from the real WaterShape/WaterCorner dataclasses) happens in
+        # map_workshop.py, matching every other overlay's own "widget
+        # draws plain data, caller resolves it" split. Drawn as flat,
+        # translucent polygons rather than 3D boxes, since a real
+        # water shape genuinely is a flat plane, not a volume - a
+        # wireframe box the way cull/zone/occlusion already draw
+        # would misrepresent the real shape.
+        self.show_water = False
+        self._water_shapes = []
+
         # Cull zone boxes (Aug 16 2026, per Keith: "continue with the
         # cull files next", following the same "so I can view them"
         # pattern as Show Paths/the .zon wiring) - the older MapView-
@@ -1070,6 +1084,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 self._draw_sa_nodes()
             if self.show_auzo_zones:
                 self._draw_auzo_zones()
+            if self.show_water:
+                self._draw_water_shapes()
             if getattr(self, '_hovered_instance_idx', None) is not None:
                 self._draw_hover_highlight()
             if getattr(self, '_lod_test_center', None) is not None:
@@ -2584,6 +2600,94 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glBindTexture(GL_TEXTURE_2D, 0)
         glDisable(GL_BLEND)
         glDisable(GL_TEXTURE_2D)
+        glEnable(GL_LIGHTING)
+
+    def set_show_water(self, enabled: bool): #vers 1
+        self.show_water = enabled; self.update()
+
+    def set_water_shapes(self, shapes): #vers 1
+        """Replace the water shape data drawn when show_water is on.
+        Each entry is a plain (corners, water_type) tuple - corners a
+        list of 3 or 4 (x,y,z) tuples, water_type the real 0-3 flag
+        value (see WaterShape's own docstring in gta_dat_parser.py).
+        Resolution from the real WaterShape/WaterCorner dataclasses
+        happens in map_workshop.py - this widget only ever deals in
+        plain, already-resolved data."""
+        self._water_shapes = shapes or []
+        self.update()
+
+    def _draw_water_shapes(self): #vers 2
+        """Draw real water.dat shapes as flat, translucent polygons
+        (Aug 20 2026, per Keith: "lets get all the functions in" -
+        water/radar recalculation on map moves). A real water shape
+        genuinely is a flat plane (3 or 4 corners, see WaterShape's
+        own docstring), not a volume - drawn as GL_TRIANGLE_FAN
+        (correct for both a triangle and a quad, unlike GL_QUADS
+        which would only handle the 4-corner case) rather than a
+        wireframe box the way cull/zone/occlusion boxes already are,
+        since a box would misrepresent the real shape entirely, not
+        just look different.
+
+        Honest, real uncertainty checked directly rather than assumed
+        away: fanning from corners[0] is a reasonable, standard choice
+        for turning an arbitrary quad into 2 triangles, but checking
+        it against real example data from the same documentation this
+        format was confirmed from (see WaterShape's own docstring)
+        found at least one real 4-corner line whose own corner order,
+        connected edge-to-edge in sequence, is a self-intersecting
+        "bowtie" shape (confirmed via the shoelace formula - zero net
+        area) rather than a simple, convex quad - the documented "NE-
+        NW-SE-SW" corner order doesn't hold for every real line found.
+        Fanning from corners[0] still produces a valid, non-crossing
+        pair of triangles regardless (it never assumes a particular
+        edge-walk order the way a naive "just connect them in
+        sequence" approach would), and is a reasonable approximation
+        for an editing aid showing roughly where water is - but this
+        is NOT a confirmed-exact match to whatever specific
+        triangulation the real game engine itself uses internally for
+        every possible real corner ordering, and that distinction is
+        worth remembering if a specific shape's own polygon fill ever
+        looks visually wrong for its real corner data.
+
+        Colour distinguishes real water type at a glance rather than
+        one flat colour for everything - deep blue for ocean
+        (is_shallow False, real infinite depth per the documented
+        format), lighter cyan-ish for a pool (is_shallow True, real
+        6-unit depth) - a real, meaningful distinction in the data
+        itself, not an arbitrary choice. Genuinely invisible water
+        (is_visible False - real, valid, intentional per the
+        documented format, used so a modder's own custom/animated
+        texture can show through) still gets drawn here at a lower
+        alpha rather than skipped entirely - this is an editing aid
+        showing where water actually IS, not a simulation of what a
+        player would see in-game."""
+        if not OPENGL_AVAILABLE or not self._water_shapes:
+            return
+        glDisable(GL_LIGHTING)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        glDisable(GL_CULL_FACE)
+        for corners, water_type in self._water_shapes:
+            is_shallow = bool(water_type & 2)
+            is_visible = bool(water_type & 1)
+            if is_shallow:
+                r, g, b = 0.3, 0.75, 0.85   # pool - lighter cyan
+            else:
+                r, g, b = 0.1, 0.25, 0.65   # ocean - deep blue
+            alpha = 0.45 if is_visible else 0.2
+            glColor4f(r, g, b, alpha)
+            glBegin(GL_TRIANGLE_FAN)
+            for cx, cy, cz in corners:
+                glVertex3f(cx, cy, cz)
+            glEnd()
+            glColor4f(r, g, b, min(alpha + 0.35, 1.0))
+            glLineWidth(1.2)
+            glBegin(GL_LINE_LOOP)
+            for cx, cy, cz in corners:
+                glVertex3f(cx, cy, cz)
+            glEnd()
+        glEnable(GL_CULL_FACE)
+        glDisable(GL_BLEND)
         glEnable(GL_LIGHTING)
 
     def _draw_sa_nodes(self): #vers 1

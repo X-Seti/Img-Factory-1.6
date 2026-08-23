@@ -22670,6 +22670,62 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._refresh_track_visualization()
         return moved
 
+    def _shift_all_water(self, dx, dy, dz): #vers 1
+        """Translate every loaded water.dat shape's own corners by a
+        fixed offset (Aug 20 2026, per Keith's own "lets get all the
+        functions in" - water/radar recalculation on map moves).
+        Genuinely separate from _shift_ipl_coordinates for the exact
+        same reason _shift_all_tracks already is - water.dat is
+        global, world-space data never tied to any specific IPL's own
+        source_ipl at all (see WaterShape's own docstring), so "move
+        water for this IPL" has no per-IPL scope to narrow to;
+        ticking Water moves every loaded shape globally, same "Tracks
+        (global)" pattern already established, not a new one.
+
+        Deliberately does NOT round/snap the resulting X/Y to even
+        numbers after shifting, even though the real water.dat format
+        has a real, documented, game-crashing requirement that they
+        be even (see WaterShape's own docstring - "the game will
+        crash when you approach the water" otherwise) - matches this
+        app's own already-stated principle of reading/writing
+        coordinates verbatim rather than silently "fixing" them,
+        since guessing at a correction here risks being wrong in a
+        way that's harder to notice than leaving the real, exact
+        numbers visible. The dialog's own checkbox carries this
+        warning directly instead."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            return 0
+        moved = 0
+        for shape in getattr(loader, 'water_shapes', []):
+            for corner in shape.corners:
+                corner.x += dx; corner.y += dy; corner.z += dz
+                moved += 1
+        return moved
+
+    def _rotate_all_water(self, pivot_x, pivot_y, angle_deg): #vers 1
+        """Rotate every loaded water.dat shape's own corners around a
+        given pivot (Aug 20 2026) - the rotation counterpart to
+        _shift_all_water, same reasoning for why this is separate
+        from _rotate_ipl_coordinates rather than one of its own
+        include_types, and same deliberate non-rounding of the
+        resulting X/Y (a rotation is, if anything, MORE likely than a
+        translate to produce non-even results, so the dialog's own
+        warning matters even more here)."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            return 0
+        rad = math.radians(angle_deg)
+        cos_a, sin_a = math.cos(rad), math.sin(rad)
+        moved = 0
+        for shape in getattr(loader, 'water_shapes', []):
+            for corner in shape.corners:
+                dx, dy = corner.x - pivot_x, corner.y - pivot_y
+                corner.x = pivot_x + dx * cos_a - dy * sin_a
+                corner.y = pivot_y + dx * sin_a + dy * cos_a
+                moved += 1
+        return moved
+
     def _add_ipl_section_type_checkboxes(self, form): #vers 1
         """Shared tick-box builder for the Move/Rotate IPL dialogs
         (Aug 19 2026, per Keith: "right-click options for move ipl,
@@ -22699,6 +22755,29 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "Off by default for that reason.")
         form.addRow(tracks_chk)
         boxes['tracks'] = tracks_chk
+        # Water (Aug 20 2026, per Keith: "lets get all the functions
+        # in" - water/radar recalculation on map moves) - same
+        # global-data, off-by-default reasoning as Tracks just above,
+        # plus a real, extra warning: the real water.dat format
+        # requires X/Y corner coordinates to be even, rounded numbers
+        # or the game crashes on approach - this move/rotate does NOT
+        # round the result back to an even number afterward (matches
+        # this app's own "never silently alter values" principle),
+        # so the tooltip says so plainly rather than letting that
+        # surprise someone later.
+        water_chk = QCheckBox("Water (all loaded, global)")
+        water_chk.setChecked(False)
+        water_chk.setToolTip(
+            "water.dat shapes aren't tied to any specific IPL either,\n"
+            "so this moves EVERY loaded water shape, not just ones\n"
+            "near this IPL. Off by default for that reason.\n\n"
+            "Warning: the real water.dat format requires X/Y corner\n"
+            "coordinates to be even, rounded numbers or the game can\n"
+            "crash near that water - this does NOT round the result\n"
+            "back to an even number for you, so check the values\n"
+            "afterward if precision matters here.")
+        form.addRow(water_chk)
+        boxes['water'] = water_chk
         return boxes
 
     def _on_ipl_dragged(self, ipl_name, dx, dy, dz): #vers 1
@@ -22967,12 +23046,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             dx, dy, dz = dx_spin.value(), dy_spin.value(), dz_spin.value()
             if not (dx or dy or dz):
                 return
-            include = {k for k, chk in type_boxes.items() if k != 'tracks' and chk.isChecked()}
+            include = {k for k, chk in type_boxes.items()
+                      if k not in ('tracks', 'water') and chk.isChecked()}
             if include:
                 for name in names:
                     self._shift_ipl_coordinates(name, dx, dy, dz, include_types=include)
             if type_boxes['tracks'].isChecked():
                 self._shift_all_tracks(dx, dy, dz)
+            if type_boxes['water'].isChecked():
+                self._shift_all_water(dx, dy, dz)
+                self._refresh_water_visualization()
 
     def _prompt_rotate_ipl_coordinates(self, ipl_names): #vers 4
         """Dialog collecting a rotation angle (around a pivot
@@ -23052,12 +23135,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             angle = angle_spin.value()
             if not angle:
                 return
-            include = {k for k, chk in type_boxes.items() if k != 'tracks' and chk.isChecked()}
+            include = {k for k, chk in type_boxes.items()
+                      if k not in ('tracks', 'water') and chk.isChecked()}
             if include:
                 for name in names:
                     self._rotate_ipl_coordinates(name, pivot_x, pivot_y, angle, include_types=include)
             if type_boxes['tracks'].isChecked():
                 self._rotate_all_tracks(pivot_x, pivot_y, angle)
+            if type_boxes['water'].isChecked():
+                self._rotate_all_water(pivot_x, pivot_y, angle)
+                self._refresh_water_visualization()
 
     def _save_ipl_data_as_text(self, ipl_name): #vers 2
         """Export an IPL's actual loaded instances out as a standard
@@ -24403,9 +24490,20 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         show_auzo_btn.show_toggled.connect(self._on_show_auzo_toggled)
         self._show_auzo_chk = show_auzo_btn
 
+        # Show Water (Aug 20 2026, per Keith: "lets get all the
+        # functions in" - water/radar recalculation on map moves) -
+        # draws real water.dat shapes as flat, translucent polygons.
+        # SA only for now (III/VC's own binary waterpro.dat format
+        # isn't parsed by this app yet), same harmless-no-op reasoning
+        # as SA Nodes/Auzo. No edit mode yet.
+        show_water_btn = _MapOverlayToggleButton("Water", supports_edit=False)
+        show_water_btn.show_toggled.connect(self._on_show_water_toggled)
+        self._show_water_chk = show_water_btn
+
         opts_row4 = QHBoxLayout()
         opts_row4.addWidget(show_sa_nodes_btn)
         opts_row4.addWidget(show_auzo_btn)
+        opts_row4.addWidget(show_water_btn)
         lay.addLayout(opts_row4)
 
         dock = QDockWidget("IPL Controls", self)
@@ -27800,6 +27898,38 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             zones.append((cx, cy, cz, a.name, a.sound_id, a.environment_type, a.music_description))
         vp.set_auzo_zones(zones)
 
+    def _refresh_water_visualization(self): #vers 1
+        """Push loaded water.dat shapes to the viewport's own overlay
+        (Aug 20 2026, per Keith: "lets get all the functions in" -
+        water/radar recalculation on map moves). No-op (and clears
+        any existing shapes) if Show Water is off, matching every
+        other optional-overlay refresh pattern here. SA only for now
+        - loader.water_shapes is simply empty for III/VC (that binary
+        waterpro.dat format isn't parsed by this app yet), so this is
+        harmless rather than needing a separate per-game gate.
+
+        Converts each real WaterShape/WaterCorner into a plain
+        (corners, water_type) tuple - corners a list of (x,y,z)
+        tuples - the viewport only ever receives plain, already-
+        resolved data, never the real dataclasses."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is None or not hasattr(vp, 'set_water_shapes'):
+            return
+        show_chk = getattr(self, '_show_water_chk', None)
+        if show_chk is not None and not show_chk.isChecked():
+            vp.set_water_shapes([])
+            return
+        loader = getattr(self, '_world_loader', None)
+        water_shapes = getattr(loader, 'water_shapes', None) if loader is not None else None
+        if not water_shapes:
+            vp.set_water_shapes([])
+            return
+        shapes = [
+            ([(c.x, c.y, c.z) for c in w.corners], w.water_type)
+            for w in water_shapes
+        ]
+        vp.set_water_shapes(shapes)
+
     def _on_show_tracks_toggled(self, checked): #vers 1
         """Show Tracks checked/unchecked - per Keith: "then the other
         path .dat files you pointed out earlier"."""
@@ -27827,6 +27957,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             vp.set_show_auzo_zones(checked)
         if checked:
             self._refresh_auzo_visualization()
+
+    def _on_show_water_toggled(self, checked): #vers 1
+        """Show Water checked/unchecked - per Keith's own "lets get
+        all the functions in" (water/radar recalculation on map
+        moves)."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is not None and hasattr(vp, 'set_show_water'):
+            vp.set_show_water(checked)
+        if checked:
+            self._refresh_water_visualization()
 
     def _on_show_paths_toggled(self, checked): #vers 1
         """Show Paths checked/unchecked - per Keith: "when displaying
