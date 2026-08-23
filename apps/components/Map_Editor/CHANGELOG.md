@@ -7347,3 +7347,41 @@ conclusively found despite extensive isolated testing.
   format stubs found in the earlier stub audit (MDL/FBX/3DS/DAE, PAK,
   etc.) should stay as real, intentional stubs - genuinely planned
   future format support, not dead code to clean up.
+
+- **Aug 20, 2026 (cont'd)** — Upgraded Dots render mode from plain
+  points to small, axis-coloured cubes, per Keith: "dots look good,
+  maybe 3 colour cubes, like the zons, Green, Red and Blue sides."
+
+  New `DFFViewport._ensure_dots_cube_display_list` - a small (1x1x1
+  world unit) cube, compiled ONCE into a display list and cached
+  (`self._dots_cube_list_id`), reused via translate-only for every
+  instance in Dots mode - genuinely still fast for a huge map's worth
+  of markers, not just visually upgraded at the cost of the whole
+  point of this render mode. Deliberately not cleared alongside
+  `self._world_display_lists` on a new world load - this one static
+  shape never depends on which world/models are currently loaded, so
+  it only ever compiles once per session.
+
+  Colours copied directly from `_draw_ghosted_box_from_corners`'s own
+  already-established scheme (X green, Y red, Z/top-bottom blue) -
+  same RGB triples, not approximated - so a Dots-mode cube and a
+  cull/zone/occlusion box read as the same colour language across the
+  whole app, matching Keith's own explicit "like the zons" framing.
+
+  Deliberately NOT built by reusing `_draw_ghosted_box_from_corners`
+  itself, despite the matching colours - that method carries real
+  transparency/blending overhead sized for a handful of large zone
+  boxes per map, not thousands of tiny per-instance markers; a
+  dedicated, lean, opaque cube keeps Dots mode's own fast-navigation
+  purpose intact.
+
+  Verified the cube's own geometry directly before trusting it: every
+  face confirmed planar, every one of the 8 corners confirmed used in
+  exactly 3 faces (valid closed-cube topology), total surface area
+  confirmed to be exactly 6.0 (correct for a 1×1×1 cube), and every
+  face's colour confirmed to match its own correct constant axis (Z
+  faces blue, Y faces red, X faces green) - not just "looks roughly
+  right."
+
+  `ast.parse` clean; confirmed via AST no duplicate method
+  definitions.

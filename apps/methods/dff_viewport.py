@@ -257,6 +257,14 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         # work only happens once per model per render mode, not once
         # per instance per frame.
         self._world_display_lists = {}
+        # Dots mode's own cube shape (Aug 20 2026) - deliberately NOT
+        # cleared alongside self._world_display_lists on a new world
+        # load (see clear_world_instances just below) - unlike those,
+        # this one static shape never depends on which world/models
+        # are currently loaded at all, so it's compiled once per
+        # session and reused across every world load, not needlessly
+        # rebuilt every time a new IPL loads.
+        self._dots_cube_list_id = None
 
         # Collision overlay toggles (Aug 14 2026, per Keith: "add
         # collisions to the IPL control pane... load solid collision,
@@ -3015,6 +3023,64 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             0.0,              0.0,             0.0,             1.0,
         ]
 
+    def _ensure_dots_cube_display_list(self): #vers 1
+        """Lazily build (once, cached) a display list for the small,
+        axis-coloured cube Dots mode draws at every instance's own
+        position (Aug 20 2026, per Keith: "dots look good, maybe 3
+        colour cubes, like the zons, Green, Red and Blue sides") -
+        genuinely built once and reused via translate-only for every
+        instance (see _draw_world_instances' own dots-mode branch),
+        not rebuilt per instance or per frame - a huge map's worth of
+        instances all share this exact same compiled shape.
+
+        Colours match cull/zone/occlusion boxes' own already-
+        established axis scheme exactly (see _draw_ghosted_box_from_
+        corners' own docstring for the full colour-choice history) -
+        X sides green (0.25,1.0,0.25), Y sides red (1.0,0.25,0.25), Z
+        sides (top/bottom) blue (0.2,0.4,1.0) - same RGB triples,
+        copied directly from that method rather than approximated, so
+        a cube here and a zone box elsewhere read as the same colour
+        language rather than two similar-but-not-quite-matching
+        schemes.
+
+        Small, fixed half-size (0.5 world units - a 1x1x1 cube) -
+        these are meant to read as placement markers at normal map-
+        viewing zoom, not compete visually with real building-sized
+        geometry the way a full-scale model would."""
+        if self._dots_cube_list_id is not None:
+            return self._dots_cube_list_id
+        h = 0.5   # half-size
+        # 8 corners of a cube centred on the origin
+        corners = [
+            (-h, -h, -h), (h, -h, -h), (h, h, -h), (-h, h, -h),   # bottom (z1)
+            (-h, -h,  h), (h, -h,  h), (h, h,  h), (-h, h,  h),   # top (z2)
+        ]
+        # Each face as (indices into corners, colour) - X faces green,
+        # Y faces red, Z (top/bottom) faces blue, matching _draw_
+        # ghosted_box_from_corners' own scheme exactly.
+        green = (0.25, 1.0, 0.25)
+        red   = (1.0, 0.25, 0.25)
+        blue  = (0.2, 0.4, 1.0)
+        faces = [
+            ([0, 1, 2, 3], blue),    # bottom (Z-)
+            ([4, 5, 6, 7], blue),    # top (Z+)
+            ([0, 1, 5, 4], red),     # Y- side (normal along Y)
+            ([2, 3, 7, 6], red),     # Y+ side (normal along Y)
+            ([1, 2, 6, 5], green),   # X+ side (normal along X)
+            ([3, 0, 4, 7], green),   # X- side (normal along X)
+        ]
+        list_id = glGenLists(1)
+        glNewList(list_id, GL_COMPILE)
+        glBegin(GL_QUADS)
+        for indices, (fr, fg, fb) in faces:
+            glColor3f(fr, fg, fb)
+            for idx in indices:
+                glVertex3f(*corners[idx])
+        glEnd()
+        glEndList()
+        self._dots_cube_list_id = list_id
+        return list_id
+
     def _draw_world_instances(self): #vers 2
         """Per instance: glPushMatrix/translate/rotate/scale, then
         replay a pre-compiled display list (Aug 1 2026 perf fix, per
@@ -3032,32 +3098,45 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         they're each positioned."""
         if not OPENGL_AVAILABLE: return
         # Dots render mode (Aug 20 2026, per Keith: "load just the IPL
-        # data as dots, just placement without models or textures") -
-        # a genuinely separate, much simpler fast path, not threaded
-        # through the per-instance display-list loop below at all.
-        # Dots-mode entries (built in map_workshop.py's own _refresh_
-        # world_view_impl) never have real vertices/triangles/
-        # materials to begin with - letting them fall through to the
-        # normal display-list-compile logic below would just compile
-        # and cache an empty, invisible list per model, showing
-        # nothing at all rather than the actual visible dots Keith
-        # asked for. A point doesn't need rotation or scale applied
-        # either (it looks identical regardless), so this skips the
-        # per-instance glPushMatrix/rotate/scale/glPopMatrix dance
-        # entirely too - one single glBegin(GL_POINTS)/glEnd() block
-        # for every instance at once, genuinely cheaper than the
-        # normal per-instance-matrix approach, not just visually
-        # simpler.
+        # data as dots, just placement without models or textures",
+        # then: "dots look good, maybe 3 colour cubes, like the zons,
+        # Green, Red and Blue sides") - a genuinely separate, much
+        # simpler fast path, not threaded through the per-instance
+        # display-list loop below at all. Dots-mode entries (built in
+        # map_workshop.py's own _refresh_world_view_impl) never have
+        # real vertices/triangles/materials to begin with - letting
+        # them fall through to the normal display-list-compile logic
+        # below would just compile and cache an empty, invisible list
+        # per model, showing nothing at all rather than the actual
+        # visible markers Keith asked for.
+        #
+        # Small axis-coloured cubes now, not plain points - matches
+        # the same X=green/Y=red/Z=blue face-colour convention already
+        # used for cull/zone/occlusion boxes (see _draw_ghosted_box_
+        # from_corners' own docstring for that established scheme),
+        # for visual consistency across every box-shaped overlay in
+        # this app, not a new, different colour scheme invented just
+        # for this one. Deliberately NOT reusing that same shared
+        # helper here, though - it has real transparency/blending
+        # overhead built for a handful of large zone boxes per map,
+        # whereas Dots mode needs to stay fast for potentially
+        # thousands of tiny per-instance markers at once; a cube looks
+        # identical regardless of rotation/scale the same way a plain
+        # point did, so this still skips the whole glPushMatrix/
+        # rotate/scale/glPopMatrix dance entirely too, replacing it
+        # with translate-only (see _ensure_dots_cube_display_list's
+        # own docstring for the one-compiled-shape-reused-everywhere
+        # approach that keeps this genuinely fast).
         if self._mode == 'dots':
+            list_id = self._ensure_dots_cube_display_list()
             glDisable(GL_LIGHTING)
             glDisable(GL_TEXTURE_2D)
-            glPointSize(4.0)
-            glColor3f(1.0, 0.8, 0.2)
-            glBegin(GL_POINTS)
             for entry in self._world_instances:
                 px, py, pz = entry.get('pos', (0.0, 0.0, 0.0))
-                glVertex3f(px, py, pz)
-            glEnd()
+                glPushMatrix()
+                glTranslatef(px, py, pz)
+                glCallList(list_id)
+                glPopMatrix()
             glEnable(GL_LIGHTING)
             return
         old_v,old_n,old_u,old_t,old_m,old_p,old_f = (
