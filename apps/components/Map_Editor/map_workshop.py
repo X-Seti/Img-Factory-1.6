@@ -2800,7 +2800,7 @@ class RibbonManagerDialog(QDialog): #vers 1
             import json
             from pathlib import Path
             _saved_px = json.loads(
-                (Path.home()/'.config'/'imgfactory'/'model_workshop.json').read_text()
+                (_model_workshop_config_dir() / 'model_workshop.json').read_text()
             ).get('icon_scale', 20)
         except Exception:
             pass
@@ -2991,7 +2991,7 @@ class RibbonManagerDialog(QDialog): #vers 1
         name, ok = QInputDialog.getText(self, "Save Preset", "Preset name:")
         if not ok or not name.strip():
             return
-        path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+        path = _model_workshop_config_dir() / 'model_workshop.json'
         try:
             data = json.loads(path.read_text())
         except Exception:
@@ -3009,7 +3009,7 @@ class RibbonManagerDialog(QDialog): #vers 1
         from pathlib import Path
         if not self._mw:
             return
-        path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+        path = _model_workshop_config_dir() / 'model_workshop.json'
         try:
             data = json.loads(path.read_text())
         except Exception:
@@ -3101,10 +3101,55 @@ class _KeyCaptureButton(QPushButton):
         return {'key': self._key, 'numpad': self._is_numpad}
 
 
+def _model_workshop_config_dir() -> Path: #vers 1
+    """The one, shared, correct location for every Map/Model Workshop
+    config file in this app - app-folder-relative (this module's own
+    real directory), not ~/.config (Aug 20 2026, per Keith: "that
+    will not work for standland, all config files would need to be
+    with the own app folder"). A standalone deployment needs the
+    whole app, settings included, to be self-contained and portable
+    rather than scattered into the running user's own home directory.
+
+    Introduced as a single shared helper - rather than fixed
+    individually - because this exact same ~/.config/imgfactory
+    construction was found duplicated across roughly 20 separate call
+    sites throughout this file (model_workshop.json's own load/save
+    for quad-view layout, texlist folder, and several other settings)
+    - editing each one by hand risked missing one or introducing a
+    subtle inconsistency between sites; one function every site now
+    calls means there's exactly one place this can ever be wrong.
+
+    Falls back to the old ~/.config/imgfactory location only if the
+    app's own folder genuinely isn't writable (a real, if less common,
+    possibility - e.g. a read-only system install) - settings simply
+    won't travel with the app folder in that one specific case, which
+    is still strictly better than every config-writing call in this
+    file failing outright."""
+    cfg_dir = Path(__file__).resolve().parent
+    try:
+        cfg_dir.mkdir(parents=True, exist_ok=True)
+        # Confirm it's actually writable, not just that mkdir didn't
+        # raise (mkdir with exist_ok=True succeeds even against a
+        # directory that exists but denies write access to us).
+        probe = cfg_dir / '.write_test'
+        probe.write_text('')
+        probe.unlink()
+        return cfg_dir
+    except Exception as e:
+        print(f"[Map/Model Workshop config] App folder not writable "
+              f"({e}), falling back to ~/.config/imgfactory")
+        fallback = Path.home() / '.config' / 'imgfactory'
+        fallback.mkdir(parents=True, exist_ok=True)
+        return fallback
+
+
 class MapSettings(QObject):
     """
     Lightweight JSON settings for DP5 Workshop.
-    Stored at ~/.config/imgfactory/map_workshop.json
+    Stored alongside this module itself (see _model_workshop_config_
+    dir's own docstring - app-folder-relative for standalone
+    deployments, not ~/.config), falling back to ~/.config/imgfactory
+    only if that isn't writable.
     Completely separate from the global AppSettings/theme system.
 
     Now a QObject (Aug 16 2026, per Keith: settings should "save
@@ -3483,9 +3528,13 @@ class MapSettings(QObject):
             # right back to fresh-from-disk on every subsequent call.
             return
         super().__init__()
-        cfg_dir = Path.home() / '.config' / 'imgfactory'
-        cfg_dir.mkdir(parents=True, exist_ok=True)
-        self._path = cfg_dir / 'map_workshop.json'
+        # App-folder-relative, not ~/.config (Aug 20 2026, per Keith:
+        # "that will not work for standland, all config files would
+        # need to be with the own app folder") - see _model_workshop_
+        # config_dir's own docstring for the full reasoning (now the
+        # one, shared helper every config-writing site in this file
+        # uses, not just this one).
+        self._path = _model_workshop_config_dir() / 'map_workshop.json'
         self._data = dict(self.DEFAULTS)
         self._load()
         # Debounced auto-save (Aug 16 2026, see class docstring) -
@@ -10955,7 +11004,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         def _save():  #vers 1
             _apply_live()
-            cfg_path = os.path.expanduser('~/.config/imgfactory/model_workshop.json')
+            cfg_path = str(_model_workshop_config_dir() / 'model_workshop.json')
             try:
                 try: cfg = json.load(open(cfg_path))
                 except Exception: cfg = {}
@@ -10986,8 +11035,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _load_viewport_light_settings(self): #vers 1
         """Load saved viewport light settings from model_workshop.json."""
         import json, os
-        cfg_path = os.path.expanduser(
-            '~/.config/imgfactory/model_workshop.json')
+        cfg_path = str(_model_workshop_config_dir() / 'model_workshop.json')
         try:
             cfg = json.load(open(cfg_path))
             vl = cfg.get('viewport_light', {})
@@ -12296,7 +12344,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         try:
             import json
             from pathlib import Path
-            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            path = _model_workshop_config_dir() / 'model_workshop.json'
             try:
                 data = json.loads(path.read_text())
             except Exception:
@@ -12775,7 +12823,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         try:
             import json
             from pathlib import Path
-            data = json.loads((Path.home()/'.config'/'imgfactory'/'model_workshop.json').read_text())
+            data = json.loads((_model_workshop_config_dir() / 'model_workshop.json').read_text())
             slider.setValue(data.get('icon_scale', 20))
         except Exception:
             slider.setValue(20)
@@ -12821,7 +12869,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         try:
             import json
             from pathlib import Path
-            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            path = _model_workshop_config_dir() / 'model_workshop.json'
             try:
                 data = json.loads(path.read_text())
             except Exception:
@@ -12858,7 +12906,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         try:
             import json
             from pathlib import Path
-            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            path = _model_workshop_config_dir() / 'model_workshop.json'
             try:
                 data = json.loads(path.read_text())
             except Exception:
@@ -12912,7 +12960,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         try:
             import json
             from pathlib import Path
-            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            path = _model_workshop_config_dir() / 'model_workshop.json'
             try:
                 data = json.loads(path.read_text())
             except Exception:
@@ -12941,7 +12989,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             import json
             from pathlib import Path
             from PyQt6.QtCore import QByteArray
-            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            path = _model_workshop_config_dir() / 'model_workshop.json'
             if not path.exists():
                 return
             data = json.loads(path.read_text())
@@ -12994,7 +13042,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         try:
             import json
             from pathlib import Path
-            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            path = _model_workshop_config_dir() / 'model_workshop.json'
             try:
                 data = json.loads(path.read_text())
             except Exception:
@@ -13015,7 +13063,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             import json
             from pathlib import Path
             from PyQt6.QtCore import QByteArray
-            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            path = _model_workshop_config_dir() / 'model_workshop.json'
             if path.exists():
                 data = json.loads(path.read_text())
                 state_hex = data.get('outer_layout_state')
@@ -13067,7 +13115,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         try:
             import json
             from pathlib import Path
-            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            path = _model_workshop_config_dir() / 'model_workshop.json'
             if path.exists():
                 data = json.loads(path.read_text())
                 saved_locations = data.get('info_ribbon_locations', {})
@@ -13398,7 +13446,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if not panes:
             return
         try:
-            cfg_dir = os.path.expanduser('~/.config/imgfactory')
+            # App-folder-relative, not ~/.config (Aug 20 2026, per
+            # Keith: "that will not work for standland, all config
+            # files would need to be with the own app folder") - same
+            # real reasoning/fix as MapSettings' own __init__ just
+            # above in this file.
+            cfg_dir = os.path.dirname(os.path.abspath(__file__))
             os.makedirs(cfg_dir, exist_ok=True)
             cfg_path = os.path.join(cfg_dir, 'model_workshop.json')
             data = {}
@@ -13430,7 +13483,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if not panes:
             return
         try:
-            cfg_path = os.path.expanduser('~/.config/imgfactory/model_workshop.json')
+            cfg_path = str(_model_workshop_config_dir() / 'model_workshop.json')
             if not os.path.exists(cfg_path):
                 return
             with open(cfg_path) as f:
@@ -14743,7 +14796,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         try:
             import json
             from pathlib import Path
-            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            path = _model_workshop_config_dir() / 'model_workshop.json'
             if path.exists():
                 return json.loads(path.read_text()).get('icon_set', 'default')
         except Exception:
@@ -15957,9 +16010,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 mw.log_message(f"Model Workshop: texlist folder -> {folder}")
 
     def _save_texlist_setting(self): #vers 1
-        """Persist the texlist folder path to ~/.config/imgfactory/model_workshop.json"""
+        """Persist the texlist folder path to model_workshop.json (see _model_workshop_config_dir)"""
         import json
-        cfg_dir = os.path.expanduser('~/.config/imgfactory')
+        cfg_dir = str(_model_workshop_config_dir())
         os.makedirs(cfg_dir, exist_ok=True)
         try:
             p = os.path.join(cfg_dir, 'model_workshop.json')
@@ -15972,9 +16025,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             pass
 
     def _load_texlist_setting(self): #vers 1
-        """Load the texlist folder path from ~/.config/imgfactory/model_workshop.json"""
+        """Load the texlist folder path from model_workshop.json (see _model_workshop_config_dir)"""
         import json
-        p = os.path.expanduser('~/.config/imgfactory/model_workshop.json')
+        p = str(_model_workshop_config_dir() / 'model_workshop.json')
         if os.path.isfile(p):
             try:
                 data = json.load(open(p))
@@ -19524,7 +19577,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # Save hotkeys to config
         try:
             import json, os
-            cfg_path = os.path.expanduser('~/.config/imgfactory/model_workshop.json')
+            cfg_path = str(_model_workshop_config_dir() / 'model_workshop.json')
             try:
                 cfg = json.load(open(cfg_path))
             except Exception:

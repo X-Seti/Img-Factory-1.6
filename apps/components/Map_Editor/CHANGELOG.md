@@ -7496,3 +7496,42 @@ conclusively found despite extensive isolated testing.
 
   `ast.parse` clean; confirmed via AST no duplicate method
   definitions.
+
+- **Aug 20, 2026 (cont'd)** — Moved every config file this app writes
+  out of `~/.config/imgfactory` and into the app's own folder, per
+  Keith: "that will not work for standland, all config files would
+  need to be with the own app folder." A standalone deployment needs
+  the whole app, settings included, to be self-contained and portable
+  rather than scattered into the running user's own home directory.
+
+  New shared `_model_workshop_config_dir()` - the one, single source
+  of truth every config-writing site in this file now calls, rather
+  than fixing each site's own independent path construction
+  individually. This exact same `~/.config/imgfactory` construction
+  turned out to be duplicated across roughly 20 separate call sites
+  throughout this file (`model_workshop.json`'s own load/save for
+  quad-view layout, texlist folder, viewport light settings, and
+  several other settings) in at least 5 visibly different coding
+  styles (`Path.home()/...`, `os.path.expanduser(...)`, a multi-line
+  variant) - editing each one by hand risked missing one or
+  introducing a subtle inconsistency between sites, so this became one
+  shared helper instead. Falls back to the old `~/.config/imgfactory`
+  location only if the app's own folder genuinely isn't writable (a
+  real check, not just "mkdir didn't raise" - writes and deletes a
+  real probe file) - settings simply won't travel with the app folder
+  in that one specific case, strictly better than every config-
+  writing call in this file failing outright.
+
+  `MapSettings.__init__` (`map_workshop.json`) now uses this same
+  helper too, replacing its own earlier, this-class-only version of
+  the identical fix from earlier today.
+
+  Verified via a full bulk-replacement pass with before/after counts
+  matched (19 real replacements across the 5 distinct patterns found),
+  a deep `py_compile` check (stronger than `ast.parse` alone) on the
+  whole file, and a final comprehensive sweep confirming zero
+  remaining stray `~/.config/imgfactory` references anywhere in the
+  file outside the one, intentional, documented fallback branch.
+
+  `ast.parse` clean; confirmed via AST no duplicate definition of the
+  new shared helper.
