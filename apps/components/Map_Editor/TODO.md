@@ -777,3 +777,41 @@ specific need comes up.
   yet (still an open TODO item on its own, logged earlier this
   session), so updating it in sync with a move is a second layer of
   work on top of a format this app doesn't understand yet at all.
+
+## SCM compiler (Aug 20 2026, per Keith: "We haven't begun the SCM
+compiler yet, do that for the todo")
+- The real, missing prerequisite underneath the "SCM coordinate sync
+  on map moves" goal already logged above - that entry describes WHAT
+  needs to happen (hardcoded mission-script coordinates staying in
+  sync with a moved map section); this is the actual, separate piece
+  of infrastructure that would have to exist first before that's even
+  attemptable at all: this app cannot currently read a compiled
+  main.scm (or any other .scm) in any structured way, let alone
+  identify which specific opcode arguments within it are real world
+  coordinates as opposed to any other kind of numeric argument, edit
+  those values, and write a correctly-recompiled .scm back out.
+- Genuinely the largest, hardest piece of unstarted work logged in
+  this file - SCM is compiled bytecode (a real instruction-pointer-
+  driven virtual machine format with its own opcode table, distinct
+  per game - GTA III/VC share one opcode set, SA has its own,
+  different one, per GTAMods' own documented "SCM language III/VC
+  definitions" vs "SA SCM" as two separate, real reference pages) -
+  not a plain data file with a fixed, describable byte layout the way
+  every other format this app has built support for this session
+  actually is. Real work this would need, roughly in order: (1) a
+  real opcode table for each game (a substantial reference dataset in
+  its own right, not something to hand-transcribe casually);
+  (2) a disassembler that walks a compiled .scm's own byte stream via
+  its own real opcode table, correctly handling each opcode's own
+  real argument count/types (a wrong argument-width assumption for
+  even one opcode misaligns every following instruction, a compounding
+  failure mode this format is specifically vulnerable to); (3) a way
+  to actually identify which specific decoded argument values are
+  real world coordinates (as opposed to any other numeric argument an
+  opcode might take) with real confidence, not a guess; (4) a
+  correctly-recompiling assembler that can write a modified script
+  back out as valid, working bytecode. None of this exists in this
+  app yet, and no part of it should be attempted, tested, or
+  estimated further until this is picked up as its own, dedicated
+  piece of work - logged here as a placeholder for that, not a
+  scoped, ready-to-start task.
