@@ -7439,3 +7439,60 @@ conclusively found despite extensive isolated testing.
 
   `ast.parse` clean; confirmed via AST no duplicate method
   definitions.
+
+- **Aug 20, 2026 (cont'd)** — Investigated Keith's own follow-up
+  report: "I've added colour box faces by axis, saved the settings,
+  reloaded map_workshop.py and its unticked, same for Show full
+  loading (debug), Reduce Large Textures set to 256, and Zoom to
+  pointer, these are not being loaded from the config file, it saved,
+  when i press save settings."
+
+  Checked every part of the real chain for these 4 specific settings
+  directly, not assumed: confirmed `MapSettings.DEFAULTS` has the
+  right keys for all 4, confirmed the real, live dialog's own widgets
+  (`axis_colors_chk`/`verbose_loading_chk`/`downscale_target_spin`/
+  `zoom_cursor_chk`) correctly read `self.map_settings.get(...)` when
+  built, confirmed `apply_settings` correctly calls `self.map_
+  settings.set(...)` for every one of them, confirmed the real "Apply
+  Settings" button is genuinely wired to this exact function (not a
+  dead/unused alternate settings path - two other, never-called
+  settings methods were found and ruled out), confirmed there's only
+  one real `MapSettings` class/singleton in this file. All of it
+  checked out correct.
+
+  Given that, the most likely remaining explanation for multiple,
+  genuinely unrelated settings all failing to load together isn't a
+  bug specific to any one of them - it's a single shared point of
+  failure. `_save_now`'s own previous write (`Path.write_text`
+  directly to the real file) wasn't atomic - if the app closed or
+  crashed mid-write, the file could be left truncated/invalid, and
+  `_load`'s own `except Exception: pass` swallowed that completely
+  silently, with the very next launch falling back to every single
+  DEFAULTS value at once - which would look exactly like several
+  unrelated settings all "not being loaded" together, matching what
+  Keith described.
+
+  `_save_now` now writes to a temp file first, then atomically renames
+  it over the real path (`os.replace`, in the same directory so the
+  rename can't fall back to a non-atomic cross-filesystem copy) - a
+  genuine interruption during a save can now only ever leave the OLD
+  file intact or the NEW one fully written, never a corrupt file in
+  between. `_load` now prints a real diagnostic if loading ever fails,
+  instead of failing completely silently - makes a future occurrence
+  actually diagnosable instead of invisible.
+
+  Verified both directly: a normal save/load round-trip, a simulated
+  corrupt/truncated file (confirmed graceful fallback to safe
+  defaults with a visible error, not a crash), and confirmed no
+  leftover `.tmp` file remains after a successful save.
+
+  Stated honestly, not overclaimed: this is a real, genuine fix for a
+  plausible root cause, verified as correct on its own terms - it
+  isn't a confirmed reproduction of Keith's own exact failure, since
+  every other part of the actual save/load chain for these 4 settings
+  was already checked and found correct. If the issue persists after
+  this, the real map_workshop.json's own contents would be the next,
+  most direct thing to look at.
+
+  `ast.parse` clean; confirmed via AST no duplicate method
+  definitions.

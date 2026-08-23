@@ -3503,14 +3503,46 @@ class MapSettings(QObject):
         self._save_timer.timeout.connect(self._save_now)
         self._map_settings_initialized = True
 
-    def _load(self): #vers 1
+    def _load(self): #vers 2
+        """Load previously-saved settings from disk (Aug 20 2026, per
+        Keith: "I've added colour box faces by axis, saved the
+        settings, reloaded map_workshop.py and its unticked, same for
+        Show full loading (debug), Reduce Large Textures set to 256,
+        and Zoom to pointer, these are not being loaded from the
+        config file, it saved, when i press save settings").
+
+        Every widget/apply-side wiring for these 4 specific settings
+        was checked directly and found correct (DEFAULTS has all the
+        right keys, the dialog's own widgets read self.map_settings.
+        get(...) on open, apply_settings calls self.map_settings.
+        set(...) for every one of them) - so the real, most likely
+        explanation left is a single shared point of failure that
+        would affect many unrelated settings at once, not something
+        specific to these 4: a corrupt/incomplete map_workshop.json.
+        The previous version of _save_now below wrote directly to the
+        real file (not atomically) - if the app closed or crashed
+        mid-write (a real possibility even though write_text is
+        normally fast - a forced quit, an OS-level interruption), the
+        file could be left truncated/invalid, and this method's own
+        `except Exception: pass` swallowed that completely silently -
+        no error, no log, nothing - meaning the very next launch would
+        silently fall back to every single DEFAULTS value at once,
+        exactly matching several genuinely unrelated settings all
+        appearing "not loaded" together the way Keith described.
+        Printing here at least makes a real, current failure visible
+        (in the console/log) rather than invisible, so a future
+        occurrence can be diagnosed directly instead of guessed at -
+        see _save_now's own docstring for the actual prevention (an
+        atomic write, so a genuinely corrupt file shouldn't occur
+        again going forward)."""
         try:
             if self._path.exists():
                 loaded = json.loads(self._path.read_text())
                 self._data.update({k: v for k, v in loaded.items()
                                    if k in self.DEFAULTS})
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[MapSettings] Failed to load {self._path}: {e} "
+                  f"- falling back to defaults for every setting.")
 
     def save(self): #vers 2
         """Force an immediate write, bypassing the debounce - kept as
@@ -3523,11 +3555,28 @@ class MapSettings(QObject):
             self._save_timer.stop()
         self._save_now()
 
-    def _save_now(self): #vers 1
+    def _save_now(self): #vers 2
+        """Write the current settings to disk (Aug 20 2026 - see
+        _load's own docstring for the full "why atomic now" reasoning
+        this is the actual prevention for). Writes to a temp file in
+        the same directory first, then atomically renames it over the
+        real path (os.replace - a real filesystem-level atomic
+        operation on every platform this app runs on, unlike the
+        previous direct write_text) - a crash, forced quit, or any
+        other interruption during the write can now only ever leave
+        the OLD file intact or the NEW one fully written, never a
+        half-written, corrupt file in between the two. Same directory
+        as the real target (not /tmp or similar) so the final rename
+        is guaranteed to be on the same filesystem - a cross-
+        filesystem os.replace can fail or silently fall back to a
+        non-atomic copy+delete on some platforms, defeating the whole
+        point of doing this at all."""
         try:
-            self._path.write_text(json.dumps(self._data, indent=2))
-        except Exception:
-            pass
+            tmp_path = self._path.with_suffix('.json.tmp')
+            tmp_path.write_text(json.dumps(self._data, indent=2))
+            os.replace(tmp_path, self._path)
+        except Exception as e:
+            print(f"[MapSettings] Failed to save {self._path}: {e}")
 
     def get(self, key, default=None): #vers 1
         return self._data.get(key, default if default is not None
