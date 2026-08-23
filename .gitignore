@@ -60,3 +60,12 @@ nosetests.xml
 *.spec
 *.docx
 tree.git
+
+# Per-user config files now living alongside their own app's source
+# (Aug 20 2026, per Keith: "all config files would need to be with
+# the own app folder") - map_workshop.py/model_workshop.py's own
+# settings, never meant to be tracked/shared via git (user-specific
+# preferences, paths, window layout).
+apps/components/Map_Editor/map_workshop.json
+apps/components/Map_Editor/model_workshop.json
+apps/components/Map_Editor/*.json.tmp
