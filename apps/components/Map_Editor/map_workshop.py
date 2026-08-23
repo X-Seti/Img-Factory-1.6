@@ -3407,6 +3407,30 @@ class MapSettings(QObject):
         # manager dialog. Empty list means "use each tool's natural
         # order from _RIBBON_TOOL_REGISTRY".
         'ribbon_tool_order': [],
+        # Fonts/Display/Preview settings (Aug 20 2026, per Keith: "the
+        # settings in map_workshop... says settings are saved, but
+        # there arn't being picked up with loading map_workshop.py") -
+        # real cause found: apply_settings' own docstring already
+        # admits these lived as "ad-hoc self.xxx = ... attributes"
+        # rather than going through self.map_settings at all - so they
+        # applied correctly for the rest of that one session, but
+        # were never actually written to disk, and __init__ always
+        # re-set them to these same hardcoded values on every launch
+        # regardless of anything previously chosen - "Workshop
+        # settings updated successfully" was real and true for the
+        # in-memory self.xxx attributes, just never backed by real
+        # persistence the way Loading/Map Assets/Render/Keybindings
+        # already correctly were.
+        'default_font_family': 'Fira Sans Condensed', 'default_font_size': 14,
+        'title_font_family':   'Arial', 'title_font_size':   14,
+        'panel_font_family':   'Arial', 'panel_font_size':   10,
+        'button_font_family':  'Arial', 'button_font_size':  10,
+        'infobar_font_family': 'Courier New', 'infobar_font_size': 9,
+        'button_display_mode': 'both',
+        'zoom_level':          1.0,
+        'background_mode':     'solid',
+        'checkerboard_size':   16,
+        'overlay_opacity':     50,
     }
 
     _instance = None
@@ -5555,7 +5579,25 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.main_window = main_window
 
         self.undo_stack = []
-        self.button_display_mode = 'both'
+        # Real, previously-hardcoded settings, now loaded from self.
+        # map_settings (Aug 20 2026, per Keith: "the settings in map_
+        # workshop... says settings are saved, but there arn't being
+        # picked up with loading map_workshop.py") - root cause found:
+        # apply_settings' own docstring already admits Fonts/Display-
+        # mode/Preview settings lived as "ad-hoc self.xxx = ...
+        # attributes" rather than ever actually going through self.
+        # map_settings at all, so Apply correctly updated these for
+        # the rest of that one session but never wrote them to disk -
+        # __init__ always re-set them to the same hardcoded values
+        # below on every single launch regardless of anything
+        # previously chosen, even though the dialog reported "Workshop
+        # settings updated successfully" (true for the in-memory
+        # state, never backed by real persistence the way Loading/Map
+        # Assets/Render/Keybindings already correctly were). Falls
+        # back to the exact same hardcoded values as before via
+        # MapSettings.DEFAULTS if nothing's been saved yet, so a fresh
+        # install/first launch looks identical to before this fix.
+        self.button_display_mode = self.map_settings.get('button_display_mode')
         self.last_save_directory = None
         # Thumbnail spin animation state
         self._spin_timer  = None
@@ -5569,14 +5611,21 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._thumb_yaw   = 0.0    # top-down (XY plane) by default
         self._thumb_pitch = 0.0
 
-        # Set default fonts
+        # Set default fonts (Aug 20 2026 - see the button_display_mode
+        # comment above for the fuller "why loaded now" explanation;
+        # same real bug, same fix, applies to every font here too)
         from PyQt6.QtGui import QFont
-        default_font = QFont("Fira Sans Condensed", 14)
+        default_font = QFont(self.map_settings.get('default_font_family'),
+                             self.map_settings.get('default_font_size'))
         self.setFont(default_font)
-        self.title_font = QFont("Arial", 14)
-        self.panel_font = QFont("Arial", 10)
-        self.button_font = QFont("Arial", 10)
-        self.infobar_font = QFont("Courier New", 9)
+        self.title_font = QFont(self.map_settings.get('title_font_family'),
+                                self.map_settings.get('title_font_size'))
+        self.panel_font = QFont(self.map_settings.get('panel_font_family'),
+                                self.map_settings.get('panel_font_size'))
+        self.button_font = QFont(self.map_settings.get('button_font_family'),
+                                 self.map_settings.get('button_font_size'))
+        self.infobar_font = QFont(self.map_settings.get('infobar_font_family'),
+                                  self.map_settings.get('infobar_font_size'))
         # Section titles (Models/Frame Hierarchy/Textures/Files dock
         # titles, panel headers) - one consistent size, slightly larger
         # than panel_font, instead of the mix of ad-hoc sizes (9/10/11)
@@ -5607,13 +5656,17 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._show_boxes = True
         self._show_mesh = True
 
-        self._checkerboard_size = 16
-        self._overlay_opacity = 50
-        self.zoom_level = 1.0
+        # Real settings, now loaded from self.map_settings (Aug 20
+        # 2026 - same real bug/fix as button_display_mode/fonts
+        # above: these lived as ad-hoc self.xxx attributes that Apply
+        # updated correctly in-memory but never actually persisted).
+        self._checkerboard_size = self.map_settings.get('checkerboard_size')
+        self._overlay_opacity = self.map_settings.get('overlay_opacity')
+        self.zoom_level = self.map_settings.get('zoom_level')
         self.pan_offset = QPoint(0, 0)
         _win = self.palette().color(self.palette().ColorRole.Window)
         #self.background_color = self._get_ui_color('viewport_bg') #crashes app
-        self.background_mode = 'solid'
+        self.background_mode = self.map_settings.get('background_mode')
         self.placeholder_text = "No Surface"
         self.setMinimumSize(200, 200)
         preview_widget = False
@@ -8991,16 +9044,21 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             # used to before.
             try:
                 # Adjusted for COL Wireframe, Mesh
-                self.setFont(QFont(default_font_combo.currentFont().family(),
-                                default_font_size.value()))
-                self.title_font = QFont(title_font_combo.currentFont().family(),
-                                    title_font_size.value())
-                self.panel_font = QFont(panel_font_combo.currentFont().family(),
-                                    panel_font_size.value())
-                self.button_font = QFont(button_font_combo.currentFont().family(),
-                                        button_font_size.value())
-                self.infobar_font = QFont(infobar_font_combo.currentFont().family(),
-                                        infobar_font_size.value())
+                default_font_family = default_font_combo.currentFont().family()
+                default_font_size_v = default_font_size.value()
+                self.setFont(QFont(default_font_family, default_font_size_v))
+                title_font_family = title_font_combo.currentFont().family()
+                title_font_size_v = title_font_size.value()
+                self.title_font = QFont(title_font_family, title_font_size_v)
+                panel_font_family = panel_font_combo.currentFont().family()
+                panel_font_size_v = panel_font_size.value()
+                self.panel_font = QFont(panel_font_family, panel_font_size_v)
+                button_font_family = button_font_combo.currentFont().family()
+                button_font_size_v = button_font_size.value()
+                self.button_font = QFont(button_font_family, button_font_size_v)
+                infobar_font_family = infobar_font_combo.currentFont().family()
+                infobar_font_size_v = infobar_font_size.value()
+                self.infobar_font = QFont(infobar_font_family, infobar_font_size_v)
 
                 # Apply fonts to UI
                 self._apply_title_font()
@@ -9031,6 +9089,37 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
                 self._checkerboard_size = cb_spin.value()
                 self._overlay_opacity = opacity_spin.value()
+
+                # Real persistence for everything just applied above
+                # (Aug 20 2026, per Keith: "the settings in map_
+                # workshop... says settings are saved, but there
+                # arn't being picked up with loading map_workshop.py")
+                # - every one of these previously only ever lived as
+                # the plain self.xxx assignments above, correct for
+                # the rest of the current session but never actually
+                # written to disk at all - see MapSettings.DEFAULTS'
+                # own comment for the fuller root-cause explanation.
+                # A single .save() at the end covers all of these
+                # (each individual .set() already schedules its own
+                # debounced save too, but an explicit save here means
+                # these specific values are guaranteed on disk the
+                # moment Apply is clicked, not up to 800ms later).
+                self.map_settings.set('default_font_family', default_font_family)
+                self.map_settings.set('default_font_size', default_font_size_v)
+                self.map_settings.set('title_font_family', title_font_family)
+                self.map_settings.set('title_font_size', title_font_size_v)
+                self.map_settings.set('panel_font_family', panel_font_family)
+                self.map_settings.set('panel_font_size', panel_font_size_v)
+                self.map_settings.set('button_font_family', button_font_family)
+                self.map_settings.set('button_font_size', button_font_size_v)
+                self.map_settings.set('infobar_font_family', infobar_font_family)
+                self.map_settings.set('infobar_font_size', infobar_font_size_v)
+                self.map_settings.set('button_display_mode', self.button_display_mode)
+                self.map_settings.set('zoom_level', self.zoom_level)
+                self.map_settings.set('background_mode', self.background_mode)
+                self.map_settings.set('checkerboard_size', self._checkerboard_size)
+                self.map_settings.set('overlay_opacity', self._overlay_opacity)
+                self.map_settings.save()
 
                 # Update preview widget
                 if hasattr(self, 'preview_widget'):

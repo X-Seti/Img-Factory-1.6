@@ -7385,3 +7385,57 @@ conclusively found despite extensive isolated testing.
 
   `ast.parse` clean; confirmed via AST no duplicate method
   definitions.
+
+- **Aug 20, 2026** — Found and fixed the real cause of Keith's own
+  reported bug: "the settings in map_workshop, it says settings are
+  saved, but there arn't being picked up with loading map_
+  workshop.py." Traced through `apply_settings`' own pre-existing
+  comment, which already admitted the real cause without it having
+  been fixed yet: Fonts, Display (button icon/text mode), and Preview
+  (zoom/background mode/checkerboard size/overlay opacity) settings
+  lived as "ad-hoc self.xxx = ... attributes" rather than ever going
+  through the real `MapSettings` persistence mechanism at all -
+  unlike Loading/Map Assets/Render/Keybindings, which already
+  correctly did. Applying these settings updated the in-memory
+  `self.xxx` attributes correctly for the rest of that one session
+  (so "Workshop settings updated successfully" was genuinely true),
+  but none of it was ever written to disk - `ModelWorkshop.__init__`
+  always re-set every one of these to the same hardcoded values on
+  every single launch, with no way for anything previously chosen to
+  survive a restart.
+
+  Added 15 real keys to `MapSettings.DEFAULTS` (default/title/panel/
+  button/infobar font family+size, `button_display_mode`, `zoom_level`,
+  `background_mode`, `checkerboard_size`, `overlay_opacity`) - values
+  matched exactly to the code's own real prior hardcoded defaults
+  (confirmed directly, not guessed - e.g. the default font is really
+  "Fira Sans Condensed" at 14pt, not the more common "Arial" a naive
+  guess would have used; checkerboard size is really 16, not a
+  rounder-looking 20).
+
+  `ModelWorkshop.__init__` now reads all of these from `self.map_
+  settings.get(...)` instead of hardcoding them - the actual "load on
+  startup" half of the bug, since Apply alone was never going to be
+  enough without this. `apply_settings` (the real, live Settings
+  dialog wired to the actual top-bar Settings button - a separate,
+  unrelated `MapSettingsDialog` class was already found dead/unused
+  in an earlier session, see that fix's own note at this same call
+  site) now calls `self.map_settings.set(...)` for every one of these
+  alongside the pre-existing `self.xxx = ...` assignments (kept, since
+  other code still reads `self.title_font` etc. directly at runtime),
+  plus an explicit `.save()` so these specific values are guaranteed
+  on disk the moment Apply is clicked, not just eventually via the
+  debounced auto-save.
+
+  Verified the underlying save/load JSON round-trip logic directly
+  (a faithful, minimal standalone reproduction, since this sandbox
+  has no PyQt6 available to run the real class) - saved a full set of
+  deliberately non-default values, then confirmed a genuinely fresh
+  instance loads every one of them back correctly, matching exactly
+  what a real app restart needs to do. Also confirmed every widget
+  variable referenced in the new `self.map_settings.set(...)` calls
+  is real and in scope (defined exactly once each, within the same
+  method `apply_settings` closes over).
+
+  `ast.parse` clean; confirmed via AST no duplicate method
+  definitions.
