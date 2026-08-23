@@ -67,3 +67,6 @@ tree.git
 # settings, never meant to be tracked/shared via git (user-specific
 # preferences, paths, window layout).
 apps/components/Map_Editor/config/
+
+# IMG Factory's own app_settings.json, same reasoning as above
+apps/components/Img_Factory/config/

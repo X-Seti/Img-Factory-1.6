@@ -989,9 +989,12 @@ class IMGFactory(QMainWindow):
             if not autoload_enabled:
                 return
 
-            # Resolve game root
-            from PyQt6.QtCore import QSettings
-            settings = QSettings("IMG-Factory", "IMG-Factory")
+            # Resolve game root (Aug 20 2026, per Keith: "lets fix map
+            # workshop and img factory" - now the one, shared, app-
+            # folder-relative QSettings instance, not a separate
+            # QSettings("IMG-Factory", "IMG-Factory") native location)
+            from apps.methods.img_factory_settings import get_img_factory_qsettings
+            settings = get_img_factory_qsettings()
             game_root = settings.value("game_root", "", type=str)
             if not game_root and hasattr(self, 'project_manager') and self.project_manager:
                 if hasattr(self.project_manager, 'current_project') and self.project_manager.current_project:
@@ -1067,8 +1070,8 @@ class IMGFactory(QMainWindow):
     def autoload_game_root_two(self): #vers 3
         """Autoload game root and integrate directory tree at startup"""
         try:
-            from PyQt6.QtCore import QSettings
-            settings = QSettings("IMG-Factory", "IMG-Factory")
+            from apps.methods.img_factory_settings import get_img_factory_qsettings
+            settings = get_img_factory_qsettings()
             game_root = settings.value("game_root", "", type=str)
 
             # Try project manager if not in QSettings
@@ -7069,7 +7072,14 @@ class IMGFactory(QMainWindow):
     def _restore_settings(self): #vers 2
         """Restore application settings"""
         try:
-            settings = QSettings("XSeti", "IMGFactory")
+            # Aug 20 2026 - now the one, shared, app-folder-relative
+            # QSettings instance, not a separate QSettings("XSeti",
+            # "IMGFactory") native location. IniFormat correctly
+            # round-trips QByteArray values (geometry/splitter state)
+            # the same way the native format already did - Qt handles
+            # that serialization transparently regardless of format.
+            from apps.methods.img_factory_settings import get_img_factory_qsettings
+            settings = get_img_factory_qsettings()
 
             # Restore window geometry, clamped to available screen area.
             # Stale saves (e.g. from a different screen or old menubar height)
@@ -7101,7 +7111,8 @@ class IMGFactory(QMainWindow):
     def _save_settings(self): #vers 1
         """Save application settings"""
         try:
-            settings = QSettings("XSeti", "IMGFactory")
+            from apps.methods.img_factory_settings import get_img_factory_qsettings
+            settings = get_img_factory_qsettings()
 
             # Save window geometry
             settings.setValue("geometry", self.saveGeometry())

@@ -1,4 +1,4 @@
-#this belongs in methods/img_factory_settings.py - Version: 3
+#this belongs in methods/img_factory_settings.py - Version: 4
 # X-Seti - December31 2025 - IMG Factory 1.6
 """
 IMG Factory-specific settings manager
@@ -9,10 +9,52 @@ import os
 from pathlib import Path
 from typing import Dict, Any
 
+def _img_factory_config_dir() -> Path: #vers 1
+    """The one, correct location for IMG Factory's own app_settings.json
+    - a dedicated config/ subfolder alongside imgfactory.py itself
+    (Aug 20 2026, per Keith: "lets fix map workshop and img factory
+    first since we're working on those" - same real fix already
+    applied to Map/Model Workshop's own config just before this, for
+    the same underlying reason: "all config files would need to be
+    with the own app folder" for a standalone deployment to be truly
+    self-contained and portable, rather than scattered into the
+    running user's own home directory).
+
+    This module (apps/methods/img_factory_settings.py) is a shared
+    helper, not the real app file itself - imgfactory.py (apps/
+    components/Img_Factory/imgfactory.py) is - so this can't just use
+    this module's own __file__ the way Map Workshop's identical fix
+    could (that fix's own settings class lives directly inside the
+    one file it configures). Navigates from this file's own known,
+    fixed location (apps/methods/) up to apps/, then down into
+    components/Img_Factory/config/ - reliable as long as that
+    directory relationship holds, which it structurally always does
+    for this app.
+
+    Falls back to the old ~/.config/img-factory location only if the
+    app's own folder genuinely isn't writable (a real, if less
+    common, possibility - e.g. a read-only system install) - settings
+    simply won't travel with the app folder in that one specific
+    case, which is still strictly better than every config-writing
+    call in this app failing outright."""
+    cfg_dir = Path(__file__).resolve().parent.parent / 'components' / 'Img_Factory' / 'config'
+    try:
+        cfg_dir.mkdir(parents=True, exist_ok=True)
+        probe = cfg_dir / '.write_test'
+        probe.write_text('')
+        probe.unlink()
+        return cfg_dir
+    except Exception as e:
+        print(f"[IMGFactorySettings] App folder not writable ({e}), "
+              f"falling back to ~/.config/img-factory")
+        fallback = Path.home() / '.config' / 'img-factory'
+        fallback.mkdir(parents=True, exist_ok=True)
+        return fallback
+
+
 class IMGFactorySettings:
     def __init__(self):
-        self.settings_file = Path.home() / ".config" / "img-factory" / "app_settings.json"
-        self.settings_file.parent.mkdir(parents=True, exist_ok=True)
+        self.settings_file = _img_factory_config_dir() / 'app_settings.json'
 
         # Default settings
         self.defaults = {
@@ -98,10 +140,19 @@ class IMGFactorySettings:
         return self.defaults.copy()
 
     def save_settings(self):
-        """Save current settings to file"""
+        """Save current settings to file. Atomic write (Aug 20 2026) -
+        temp file in the same directory, then os.replace over the
+        real path - a crash/interruption mid-write can now only ever
+        leave the OLD file intact or the NEW one fully written, never
+        a half-written, corrupt file in between the two (same real
+        fix already applied to Map Workshop's own MapSettings for the
+        identical reason - a torn write here would silently revert
+        every IMG Factory setting at once on the next launch, not
+        just this one file's own data)."""
         try:
-            with open(self.settings_file, 'w') as f:
-                json.dump(self.current_settings, f, indent=4)
+            tmp_path = self.settings_file.with_suffix('.json.tmp')
+            tmp_path.write_text(json.dumps(self.current_settings, indent=4))
+            os.replace(tmp_path, self.settings_file)
         except Exception as e:
             print(f"Error saving settings: {e}")
 
@@ -109,7 +160,7 @@ class IMGFactorySettings:
         """Get a setting value"""
         return self.current_settings.get(key, default)
 
-    def set(self, key: str, value) -> None:
+    def set(self, key: str, value: Any) -> None:
         """Set a setting value"""
         self.current_settings[key] = value
 
@@ -117,11 +168,38 @@ class IMGFactorySettings:
         """Return the right-panel width at which side buttons collapse to icons."""
         return int(self.current_settings.get("panel_collapse_threshold", 550))
 
-    def set(self, key: str, value: Any):
-        """Set a setting value"""
-        self.current_settings[key] = value
-
     def reset_to_defaults(self):
         """Reset all settings to defaults"""
         self.current_settings = self.defaults.copy()
         self.save_settings()
+
+
+def get_img_factory_qsettings(): #vers 1
+    """A single, shared, app-folder-relative QSettings instance for
+    IMG Factory's own window geometry/splitter state/game_root (Aug
+    20 2026, per Keith: "lets fix map workshop and img factory first"
+    - same real reasoning as _img_factory_config_dir just above).
+
+    Real, confirmed mess this consolidates: imgfactory.py had FOUR
+    separate QSettings(...) call sites using TWO different (org, app)
+    name pairs - QSettings("IMG-Factory", "IMG-Factory") for game_root,
+    QSettings("XSeti", "IMGFactory") for window geometry/splitter
+    state - each pair creating its own, separate native-location
+    settings file (on Linux, a separate ~/.config/<org>/<app>.conf
+    each), on top of the several OTHER differently-named "IMG
+    Factory"-ish QSettings organizations already found scattered
+    elsewhere in this app (a real, wider audit still to come). These
+    two specific ones are consolidated into one shared .ini file here
+    since their own keys never actually collide (game_root vs
+    geometry/splitter_state), reducing both the file count and the
+    chance of yet another accidentally-different name being
+    introduced later.
+
+    QSettings.Format.IniFormat with an explicit file path bypasses
+    Qt's own native (org, app) -> OS-standard-location lookup
+    entirely - this is what actually makes it app-folder-relative
+    rather than just picking a differently-worded org/app pair that
+    would still resolve to some other ~/.config subfolder."""
+    from PyQt6.QtCore import QSettings
+    ini_path = _img_factory_config_dir() / 'img_factory_state.ini'
+    return QSettings(str(ini_path), QSettings.Format.IniFormat)

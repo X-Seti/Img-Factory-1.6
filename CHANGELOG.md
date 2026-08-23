@@ -165,3 +165,66 @@
 
   `ast.parse` clean on all three touched files; confirmed via AST no
   duplicate method definitions in any of them.
+
+- **Aug 20, 2026** — Consolidated IMG Factory's own config files into
+  an app-folder-relative `config/` subfolder, per Keith: "lets fix map
+  workshop and img factory first since we're working on those" -
+  same real fix, same reasoning, already applied to Map/Model
+  Workshop just before this.
+
+  New `apps/components/Img_Factory/config/`. `IMGFactorySettings`
+  (`apps/methods/img_factory_settings.py`) - its own JSON settings
+  (last project/game root, fonts, window mode, panel thresholds,
+  etc.) - now writes there via new `_img_factory_config_dir()`, the
+  same shared-helper approach already used for Map Workshop, adapted
+  for the fact this settings class lives in a shared `apps/methods/`
+  module rather than directly inside the one app file it configures -
+  navigates from this module's own known location up to `apps/` then
+  down into `components/Img_Factory/config/`. Same real-write-test
+  fallback to `~/.config/img-factory` if that folder genuinely isn't
+  writable.
+
+  **Real bug found and fixed along the way**: `IMGFactorySettings`
+  had `def set(...)` defined TWICE (once untyped, once with a type
+  hint) - the second silently shadowed the first, dead duplicate code
+  doing the exact same thing. Removed the redundant one.
+
+  **Made the write atomic**, same real reasoning/fix as `MapSettings`
+  earlier today - was a direct `write_text` with no protection
+  against a torn write; a crash mid-save could have silently
+  corrupted this file the same way, reverting every IMG Factory
+  setting at once on the next launch. Now temp file + `os.replace`.
+
+  **Consolidated 4 separate `QSettings(...)` call sites in
+  `imgfactory.py`** (window geometry/splitter state via `QSettings(
+  "XSeti", "IMGFactory")`, `game_root` via `QSettings("IMG-Factory",
+  "IMG-Factory")` - two different native-location (org, app) pairs,
+  each creating its own separate `~/.config` subfolder on top of
+  several OTHER differently-named ones already found elsewhere in
+  this app) into one shared, app-folder-relative `.ini` file via new
+  `get_img_factory_qsettings()` - `QSettings.Format.IniFormat` with
+  an explicit file path, which is what actually makes this app-
+  folder-relative rather than just picking yet another differently-
+  worded (org, app) pair. The two groups' own keys never collide
+  (`game_root` vs `geometry`/`splitter_state`), so one shared file is
+  correct, not a risk.
+
+  Verified directly: path resolution (confirms it lands in `apps/
+  components/Img_Factory/config/`), a full save/load round-trip
+  through a fresh `IMGFactorySettings` instance simulating a real
+  restart, no leftover `.tmp` file after a successful save, `ast.
+  parse` + a deep `py_compile` pass on both touched files, and a
+  direct search confirming zero remaining old-style `QSettings(...)`
+  call sites in `imgfactory.py` outside the explanatory comments.
+  `.gitignore` updated for the new `config/` folder.
+
+  **Scope note, not yet done**: the wider, app-wide audit (several
+  OTHER differently-named `~/.config/imgfactory*` folders still found
+  in `notepad.py`, `open.py`, `file_menu_integration.py`, `file_
+  dirtree_browser.py`, `directory_tree_browser.py`, plus 3 stale
+  duplicate copies of `img_factory_settings.py` in `Map_Editor`/
+  `Model_Editor`/`Col_Editor`'s own `depends/` folders) - Keith's own
+  explicit plan is Map Workshop + IMG Factory first (this pass), then
+  a second audit pass to convert the remaining apps over, alongside
+  whatever other layout/bug/data-saving work still needs doing in
+  each.
