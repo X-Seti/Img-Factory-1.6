@@ -7692,3 +7692,62 @@ conclusively found despite extensive isolated testing.
 
   `ast.parse` clean on both touched files; confirmed via AST no
   duplicate method definitions.
+
+- **Aug 20, 2026 (cont'd)** — Built real GTA III/VC waterpro.dat
+  parsing (the binary counterpart to SA's own text water.dat, built
+  earlier today) - completes the "water" side of item 1 on Keith's
+  own list for all three games, not just SA.
+
+  Format confirmed against multiple independent, byte-for-byte
+  consistent sources (GTAMods wiki, Grand Theft Wiki) - a real, fixed
+  21444-byte binary layout: int32 level count, 48 real float32
+  heights ("recommended 0.0 for GTA III and 6.0 for GTA Vice City" -
+  a real, documented per-game default), 48 real {StartX,StartY,EndX,
+  EndY} float32 zone rectangles, a 64x64 visible-map byte grid (what
+  the game actually shows on the radar/minimap), a 128x128 physical-
+  map byte grid (what actually determines where the player can
+  physically swim) - two genuinely different real grids at two
+  different resolutions, not the same data duplicated.
+
+  Verified the documented byte-offset math is internally self-
+  consistent before writing a single line of parsing code - every
+  section's own start/end offset lines up exactly with the previous
+  section's own real byte size (0x0004+48*4=0x00C4, 0x00C4+48*16=
+  0x03C4, 0x03C4+64*64=0x13C4, 0x13C4+128*128=0x53C4), not assumed
+  correct from the source's own prose alone.
+
+  New `WaterProLevel`/`WaterProFile` dataclasses + standalone
+  `parse_waterpro_dat()`, matching `parse_water_dat`'s own established
+  "standalone function for a standalone file format" convention. New
+  `GTAWorldLoader.load_waterpro_dat()` (GTA3/VC-only) reuses the exact
+  same real `water_entries()`/`WATER`-directive-discovery mechanism
+  `load_water_dat` already uses - the gta*.dat directive format
+  itself is shared across every game, so no new directive-parsing
+  logic was needed, just the different parser function and a
+  different storage attribute (`self.waterpro`, a single object or
+  None, not a list - the real binary format is one fixed-size
+  structure, not a variable list of shapes the way SA's own text
+  format is).
+
+  Verified thoroughly: synthetic data matching the exact documented
+  byte layout (3 distinct height values, 2 distinct real zone
+  rectangles, specific marked cells in both the 64x64 and 128x128
+  grids at their own correct resolutions), a genuinely too-short/
+  truncated file (returns None, no crash), a nonexistent file (same),
+  and the complete, real end-to-end pipeline - a real `gta_vc.dat`
+  with a genuine `WATER` directive correctly resolving through to the
+  real, parsed `WaterProFile` via `GTAWorldLoader.load_from_dat`
+  itself, confirming SA's own `water_shapes` correctly stays empty
+  for VC (no cross-contamination between the two, completely
+  different, per-game water systems).
+
+  Real scope check, same honesty as every other entry today: this is
+  loading only - no visualization or move/rotate support built for
+  `waterpro.dat` yet (its own real shape is a grid, not a set of
+  discrete corner-based shapes the way SA's water.dat is, so it would
+  need its own, different visualization approach, not a reuse of
+  today's earlier Water toggle). Map-to-radar generation and SCM
+  coordinate sync remain fully unstarted.
+
+  `ast.parse` clean; confirmed via AST no duplicate method/function/
+  class definitions.

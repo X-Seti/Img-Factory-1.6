@@ -598,6 +598,96 @@ def parse_water_dat(path: str) -> List[WaterShape]: #vers 1
 
 
 @dataclass
+class WaterProLevel: #vers 1
+    """One water level from a real GTA III/VC waterpro.dat (Aug 20
+    2026 - the binary counterpart to SA's own text water.dat, a
+    completely different game/format despite the similar purpose; see
+    WaterShape's own docstring for that one). Format confirmed
+    against multiple independent, consistent sources (GTAMods wiki,
+    Grand Theft Wiki - matching byte-for-byte): height is this
+    level's own real water height ("recommended 0.0 for GTA III and
+    6.0 for GTA Vice City" - a real, documented per-game default, not
+    the same for both games despite sharing this one format), zone_*
+    is the real {StartX, StartY, EndX, EndY} rectangle this level's
+    own water actually occupies. Byte-offset math for both this and
+    the visible/physical maps below was verified directly before
+    trusting it - every section's own start/end offset lines up
+    exactly with the previous section's own real byte size, not just
+    assumed consistent from the wiki's own prose alone."""
+    height: float
+    zone_start_x: float
+    zone_start_y: float
+    zone_end_x: float
+    zone_end_y: float
+
+
+@dataclass
+class WaterProFile: #vers 1
+    """A fully parsed GTA III/VC waterpro.dat (Aug 20 2026, see
+    WaterProLevel's own docstring for the fuller format-confirmation
+    story). levels: up to 48 real WaterProLevel entries (only the
+    first `level_count` are meaningful - the file always reserves
+    space for the full 48, unlike a variable-length list). visible_
+    map: the real 64x64 grid the game actually shows on the in-game
+    radar/minimap, physical_map: the real, separate 128x128 grid
+    that actually determines where the player can swim/the water is
+    physically present - these are genuinely two different real
+    grids at two different resolutions, not the same data
+    duplicated, so a real water tile that's visible on the radar
+    isn't necessarily physically swimmable there and vice versa.
+    Each grid cell's own byte value is an index into `levels` (which
+    real level's own height/zone applies at that grid cell)."""
+    level_count:  int
+    levels:       List[WaterProLevel]
+    visible_map:  List[List[int]]   # [row][col], 64x64
+    physical_map: List[List[int]]   # [row][col], 128x128
+    source_file:  str = ""
+
+
+def parse_waterpro_dat(path: str) -> Optional[WaterProFile]: #vers 1
+    """Parse a real GTA III/VC waterpro.dat (Aug 20 2026 - see
+    WaterProLevel's own docstring for the full format confirmation).
+    Standalone module-level function, not tied to any parser class -
+    matches parse_water_dat's own established "standalone function
+    for a standalone file format" convention just above, and sa_
+    path_parser.py's own identical convention for its own standalone
+    binary formats. A real, fixed 21444-byte binary layout (verified
+    directly via byte-offset arithmetic before trusting it, not
+    assumed correct from the source's own prose alone): int32 level
+    count, 48 real float32 heights, 48 real {StartX,StartY,EndX,EndY}
+    float32 zone rectangles, a 64x64 visible-map byte grid, a 128x128
+    physical-map byte grid, in that exact order with no gaps."""
+    try:
+        with open(path, 'rb') as f:
+            data = f.read()
+    except Exception:
+        return None
+    if len(data) < 0x53C4:
+        return None
+    try:
+        level_count = struct.unpack_from('<i', data, 0x0000)[0]
+        heights = struct.unpack_from('<48f', data, 0x0004)
+        zones = struct.unpack_from('<192f', data, 0x00C4)   # 48 * 4 floats
+        levels = []
+        for i in range(48):
+            zoff = i * 4
+            levels.append(WaterProLevel(
+                height=heights[i],
+                zone_start_x=zones[zoff], zone_start_y=zones[zoff + 1],
+                zone_end_x=zones[zoff + 2], zone_end_y=zones[zoff + 3]))
+        visible_bytes = data[0x03C4:0x13C4]
+        visible_map = [list(visible_bytes[r * 64:(r + 1) * 64]) for r in range(64)]
+        physical_bytes = data[0x13C4:0x53C4]
+        physical_map = [list(physical_bytes[r * 128:(r + 1) * 128]) for r in range(128)]
+    except (struct.error, IndexError):
+        return None
+    return WaterProFile(
+        level_count=level_count, levels=levels,
+        visible_map=visible_map, physical_map=physical_map,
+        source_file=os.path.basename(path))
+
+
+@dataclass
 class ChaseFrame: #vers 1
     """One recorded frame from a real GTA III CHASE*.DAT file (Aug 19
     2026, per Keith's real sample - "lets do those next"). Format
@@ -2037,12 +2127,20 @@ class GTAWorldLoader: #vers 3
         # Real water plane shapes (Aug 20 2026, per Keith: "lets get
         # all the functions in" - water/radar recalculation on map
         # moves, item 1 of 3 on his own list). SA's own text water.dat
-        # only for now (see WaterShape's own docstring for the full
-        # format confirmation) - III/VC use a completely different,
-        # binary waterpro.dat format not yet parsed by this app, so
-        # this stays empty for those games rather than guessing.
+        # only (see WaterShape's own docstring for the full format
+        # confirmation) - III/VC use a completely different, binary
+        # waterpro.dat format, stored separately below in self.
+        # waterpro instead (a genuinely different structure, not a
+        # list of shapes at all - see WaterProFile's own docstring).
         # Populated by load_water_dat.
         self.water_shapes: List[object] = []
+        # III/VC's own binary waterpro.dat (Aug 20 2026, same request
+        # as water_shapes just above) - a single WaterProFile or None,
+        # not a list, since the real format itself is one fixed-size
+        # binary structure (48 levels + a 64x64 visible map + a
+        # 128x128 physical map), not a variable list of shapes the
+        # way SA's own text water.dat is. Populated by load_waterpro_dat.
+        self.waterpro: Optional[object] = None
         # GTA III chase-scene car paths (Aug 19 2026, per Keith's
         # real CHASE0-19.DAT sample) - keyed by source filename (e.g.
         # "CHASE0.DAT"), each value the full ordered list of real,
@@ -2191,6 +2289,14 @@ class GTAWorldLoader: #vers 3
             # GTA IV mechanism entirely, not something this app reads
             # or writes today).
             self.load_chase_dat(data_dir)
+        if self.game in (GTAGame.GTA3, GTAGame.VC):
+            # III/VC-only (Aug 20 2026, continuing the same "lets get
+            # all the functions in" water request that started with
+            # SA's own water.dat just above) - waterpro.dat is a
+            # completely different, binary format specific to these
+            # two games (SA uses its own text water.dat instead, see
+            # load_water_dat just above).
+            self.load_waterpro_dat()
         return True
 
     def load_tracks_dat(self, data_dir: str): #vers 2
@@ -2406,6 +2512,32 @@ class GTAWorldLoader: #vers 3
                 if shapes:
                     self.water_shapes = shapes
                     self.load_log.append(("water", "WATER", entry.abs_path, True))
+                    return
+
+    def load_waterpro_dat(self): #vers 1
+        """Load GTA III/VC's own binary waterpro.dat (Aug 20 2026,
+        continuing the same "lets get all the functions in" request
+        that started with SA's own water_shapes/load_water_dat just
+        above - this is the III/VC counterpart, a completely
+        different binary format, not the same file at all despite
+        the similar name/purpose). Finds the real path the exact same
+        way load_water_dat already does - via main_dat's own real,
+        parsed WATER directive entries - since gta3.dat/gta_vc.dat
+        use the identical WATER directive keyword SA's own gta.dat
+        does (the gta*.dat directive format itself is shared across
+        every game, confirmed via GTAMods' own gta.dat page). Success
+        checked via `result is not None` rather than a truthy list
+        the way load_water_dat's own check is - parse_waterpro_dat
+        returns a single WaterProFile (or None), never a list, since
+        the real binary format itself is one fixed-size structure,
+        not a variable list of shapes."""
+        entries = getattr(self.main_dat, 'water_entries', lambda: [])()
+        for entry in entries:
+            if entry.exists:
+                result = parse_waterpro_dat(entry.abs_path)
+                if result is not None:
+                    self.waterpro = result
+                    self.load_log.append(("water", "WATERPRO", entry.abs_path, True))
                     return
 
     def load_chase_dat(self, data_dir: str): #vers 1
