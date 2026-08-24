@@ -6635,10 +6635,25 @@ class IMGFactory(QMainWindow):
             'TimecycWorkshop', None,
             'Timecyc', file_path or None)
 
-    def open_breakable_editor(self, file_path=None): #vers 2
-        """Open Breakable Editor docked in a tab."""
-        if file_path is None:
-            file_path = getattr(self, 'vehicle_data_paths', {}).get('object', '')
+    def open_breakable_editor(self, file_path=None): #vers 3
+        """Open Breakable Editor docked in a tab.
+
+        No longer auto-fills a remembered object.dat path when opened
+        without one (Aug 20 2026, per Keith: "the open dialog can go,
+        let the user decide to open the objects dat") - this used to
+        silently pull self.vehicle_data_paths['object'] and, if set,
+        auto-load that file the moment the tab opened (via _open_
+        workshop_tab's own QTimer.singleShot(100, ...) call straight
+        into _open_file with a known path - not a literal dialog
+        popup, but the same real effect Keith's report describes: the
+        tool deciding to open a file on its own rather than the user
+        choosing to). Now genuinely opens empty unless a real,
+        explicit file_path is passed in (e.g. from DAT Browser's own
+        "Object" entry, which legitimately wants to open a specific,
+        user-chosen file, not this method silently reaching for a
+        remembered default) - the person can open object.dat
+        themselves via the tool's own real Open button whenever
+        they're ready."""
         self._open_workshop_tab(
             'apps.components.Breakable_Editor.breakable_editor',
             'BreakableEditor', None,

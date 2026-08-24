@@ -314,6 +314,19 @@ class _ToolbarMixin:
             "Show menu (dropdown or top bar — set in Settings)")
         self.menu_btn.clicked.connect(self._on_menu_btn_clicked)
         lo.addWidget(self.menu_btn)
+        # Hide window-chrome-style toolbar elements when docked (Aug
+        # 20 2026, per Keith: "Breakable objects editor (objects.dat)
+        # is showing its titlebar" - same real complaint already fixed
+        # for Water/Radar Workshop, applied here with the same real
+        # distinction Radar Workshop's own fix needed: this toolbar
+        # also carries real, essential file actions (Open/Save/
+        # Export/Import) with no equivalent anywhere else in this
+        # tool's own UI - hiding the whole frame would make those
+        # inaccessible while docked, a real regression, not a
+        # cosmetic fix. Hides only Menu/Settings/title text/Undo/
+        # Info/Theme, leaves Open/Save/Export/Import genuinely
+        # untouched either way.
+        self.menu_btn.setVisible(self.standalone_mode)
 
         self.settings_btn = QPushButton()
         try:
@@ -329,6 +342,7 @@ class _ToolbarMixin:
             "Workshop settings — Fonts, Display, Menu, About")
         self.settings_btn.clicked.connect(self._show_workshop_settings)
         lo.addWidget(self.settings_btn)
+        self.settings_btn.setVisible(self.standalone_mode)
 
         lo.addSpacing(4)
         lo.addStretch()
@@ -339,6 +353,7 @@ class _ToolbarMixin:
         self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.title_label.setObjectName("title_label")
         lo.addWidget(self.title_label)
+        self.title_label.setVisible(self.standalone_mode)
 
         lo.addStretch()
         lo.addSpacing(4)
@@ -357,12 +372,14 @@ class _ToolbarMixin:
 
         self.undo_btn = _ibtn("undo_icon", "Undo  Ctrl+Z", self._undo)
         lo.addWidget(self.undo_btn)
+        self.undo_btn.setVisible(self.standalone_mode)
 
         lo.addSpacing(4)
 
         # [ℹ] Info — About this workshop
         self.info_btn = _ibtn("info_icon", "About / Info", self._show_about)
         lo.addWidget(self.info_btn)
+        self.info_btn.setVisible(self.standalone_mode)
 
         # [⚙] Cog — Global AppSettings theme dialog
         self.properties_btn = _ibtn(
@@ -370,6 +387,7 @@ class _ToolbarMixin:
             "Global Theme Settings  (AppSettings)",
             self._launch_theme_settings)
         lo.addWidget(self.properties_btn)
+        self.properties_btn.setVisible(self.standalone_mode)
 
         lo.addSpacing(4)
 

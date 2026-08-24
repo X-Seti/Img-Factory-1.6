@@ -344,3 +344,41 @@
 
   `ast.parse` clean on both touched files; confirmed via AST no
   duplicate method definitions.
+
+- **Aug 20, 2026** — Fixed two real bugs in the Breakable Objects
+  Editor (object.dat), per Keith: "Breakable objects editor
+  (objects.dat) is showing its titlebar, and the open dialog can go,
+  let the user decide to open the objects dat."
+
+  **Titlebar showing when docked** - same real complaint already
+  fixed for Water/Radar Workshop, applied here with the same real
+  distinction Radar Workshop's own fix needed rather than Water
+  Workshop's simpler whole-bar-hide: this tool's own toolbar also
+  carries real, essential file actions (Open/Save/Export/Import)
+  with no equivalent anywhere else in its own UI - hiding the whole
+  frame would make those genuinely inaccessible while docked, a real
+  regression. Hid only the window-chrome elements (Menu, Settings,
+  title text, Undo, Info, Theme/Properties), left Open/Save/Export/
+  Import untouched either way. Confirmed this tool's own `toggle_
+  dock_mode` is an inherited no-op stub (never overridden here), so
+  - unlike Radar Workshop - no separate dock/undock-transition fix
+  was needed; the one, construction-time check is sufficient.
+
+  **Forced Open dialog on startup** - traced to two real places,
+  fixed both: (1) `imgfactory.py`'s own real `open_breakable_editor`
+  (the actual docked-launch entry point) used to silently pull a
+  remembered `object.dat` path from `self.vehicle_data_paths` and,
+  if set, auto-load it the instant the tab opened via a `QTimer.
+  singleShot` straight into `_open_file` - not a literal dialog
+  popup, but the same real effect Keith's report describes: the tool
+  deciding to open a file on its own rather than the person choosing
+  to. Now genuinely opens empty unless a real, explicit path is
+  passed in (e.g. DAT Browser's own "Object" entry, which
+  legitimately wants a specific, user-chosen file). (2) The file's
+  own `if __name__ == '__main__':` standalone-launch block had a
+  real, literal forced `QFileDialog.getOpenFileName(...)` when run
+  directly without a path argument - removed for the same reason,
+  opens empty instead.
+
+  `ast.parse` clean on all three touched files; confirmed via AST no
+  duplicate method definitions.

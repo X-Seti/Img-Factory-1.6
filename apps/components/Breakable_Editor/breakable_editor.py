@@ -488,10 +488,13 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
     w = BreakableEditor()
     w.resize(1000, 680); w.show()
+    # No longer forces an Open dialog immediately on startup when run
+    # standalone without a path argument (Aug 20 2026, per Keith: "the
+    # open dialog can go, let the user decide to open the objects
+    # dat") - opens genuinely empty instead, same real principle as
+    # the docked launch path's own fix in imgfactory.py's own open_
+    # breakable_editor - the tool's own real Open button is right
+    # there whenever the person is ready to use it.
     if len(sys.argv) > 1:
         w._open_file(sys.argv[1])
-    else:
-        from PyQt6.QtWidgets import QFileDialog
-        p,_ = QFileDialog.getOpenFileName(w,'Open object.dat','','DAT files (*.dat);;All (*)')
-        if p: w._open_file(p)
     sys.exit(app.exec())
