@@ -46,6 +46,7 @@ Field formats per game (verified from real .ide files):
 import os
 import re
 import struct
+import math
 from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass, field
 
@@ -598,92 +599,125 @@ def parse_water_dat(path: str) -> List[WaterShape]: #vers 1
 
 
 @dataclass
-class WaterProLevel: #vers 1
-    """One water level from a real GTA III/VC waterpro.dat (Aug 20
-    2026 - the binary counterpart to SA's own text water.dat, a
-    completely different game/format despite the similar purpose; see
-    WaterShape's own docstring for that one). Format confirmed
-    against multiple independent, consistent sources (GTAMods wiki,
-    Grand Theft Wiki - matching byte-for-byte): height is this
+class WaterProLevel: #vers 2
+    """One water level from a real GTA III/VC/PS2-LC/SOL waterpro.dat
+    (Aug 20 2026 - the binary counterpart to SA's own text water.dat,
+    a completely different game/format despite the similar purpose;
+    see WaterShape's own docstring for that one). height is this
     level's own real water height ("recommended 0.0 for GTA III and
     6.0 for GTA Vice City" - a real, documented per-game default, not
-    the same for both games despite sharing this one format), zone_*
-    is the real {StartX, StartY, EndX, EndY} rectangle this level's
-    own water actually occupies. Byte-offset math for both this and
-    the visible/physical maps below was verified directly before
-    trusting it - every section's own start/end offset lines up
-    exactly with the previous section's own real byte size, not just
-    assumed consistent from the wiki's own prose alone."""
+    the same for both games despite sharing this one format).
+
+    Real correction made to this class (Aug 20 2026, per Keith
+    pointing at a real, existing, more carefully-researched reference
+    tool: "look at water_workshop") - an earlier version of this same
+    class also carried zone_start_x/y and zone_end_x/y fields,
+    interpreting the header's own bytes 196-964 as 48 real {StartX,
+    StartY,EndX,EndY} rectangles. That reference tool's own WaterproParser
+    (apps/components/Water_Editor/water_workshop.py) - which explicitly
+    cites a specific, named source ("WaterHack.cpp") and, critically,
+    already correctly handles PS2/SOL variants with genuinely
+    different, non-vanilla grid sizes, something the earlier version
+    of this class never accounted for at all - treats that exact same
+    byte range as opaque, unidentified data instead, preserved
+    verbatim for round-tripping rather than decoded into a specific
+    structure. Given a more careful, already-proven reference now
+    directly contradicts the earlier zone-rectangle interpretation,
+    the honest, correct move is to defer to it rather than keep
+    presenting an unconfirmed guess as settled fact - see WaterProFile's
+    own unk_block field for where those bytes now live instead."""
     height: float
-    zone_start_x: float
-    zone_start_y: float
-    zone_end_x: float
-    zone_end_y: float
 
 
 @dataclass
-class WaterProFile: #vers 1
-    """A fully parsed GTA III/VC waterpro.dat (Aug 20 2026, see
-    WaterProLevel's own docstring for the fuller format-confirmation
-    story). levels: up to 48 real WaterProLevel entries (only the
-    first `level_count` are meaningful - the file always reserves
-    space for the full 48, unlike a variable-length list). visible_
-    map: the real 64x64 grid the game actually shows on the in-game
-    radar/minimap, physical_map: the real, separate 128x128 grid
-    that actually determines where the player can swim/the water is
-    physically present - these are genuinely two different real
-    grids at two different resolutions, not the same data
-    duplicated, so a real water tile that's visible on the radar
-    isn't necessarily physically swimmable there and vice versa.
-    Each grid cell's own byte value is an index into `levels` (which
-    real level's own height/zone applies at that grid cell)."""
+class WaterProFile: #vers 2
+    """A fully parsed GTA III/VC/PS2-LC/SOL waterpro.dat (Aug 20 2026,
+    see WaterProLevel's own docstring for the real correction made to
+    this class and why). levels: up to 48 real WaterProLevel entries
+    (only the first `level_count` are meaningful - the file always
+    reserves space for the full 48, unlike a variable-length list).
+    unk_block: the real, raw 768 bytes at header offset 196-964 -
+    genuinely unidentified data (not zone rectangles, an earlier,
+    now-corrected guess - see WaterProLevel's own docstring), kept
+    verbatim so round-tripping this file (load then save unmodified)
+    reproduces it exactly rather than silently discarding or
+    reinventing bytes this app doesn't actually understand.
+
+    visible_map: the real grid the game actually shows on the in-game
+    radar/minimap, physical_map: the real, separate grid (exactly
+    double visible_map's own width/height per side) that actually
+    determines where the player can swim/the water is physically
+    present - these are genuinely two different real grids at two
+    different resolutions, not the same data duplicated. grid_width
+    is visible_map's own real width/height (64 for vanilla SA/VC/III -
+    physical_map is always exactly double this, both dimensions - but
+    genuinely different for a PS2/SOL or custom/expanded map, per
+    water_workshop.py's own already-proven variable-grid-size
+    handling, not assumed fixed the way an earlier version of this
+    class incorrectly did). Each grid cell's own byte value is an
+    index into `levels` (which real level's own height applies at
+    that grid cell)."""
     level_count:  int
     levels:       List[WaterProLevel]
-    visible_map:  List[List[int]]   # [row][col], 64x64
-    physical_map: List[List[int]]   # [row][col], 128x128
+    grid_width:   int
+    unk_block:    bytes
+    visible_map:  List[List[int]]   # [row][col], grid_width x grid_width
+    physical_map: List[List[int]]   # [row][col], (2*grid_width) x (2*grid_width)
     source_file:  str = ""
 
 
-def parse_waterpro_dat(path: str) -> Optional[WaterProFile]: #vers 1
-    """Parse a real GTA III/VC waterpro.dat (Aug 20 2026 - see
-    WaterProLevel's own docstring for the full format confirmation).
-    Standalone module-level function, not tied to any parser class -
-    matches parse_water_dat's own established "standalone function
-    for a standalone file format" convention just above, and sa_
-    path_parser.py's own identical convention for its own standalone
-    binary formats. A real, fixed 21444-byte binary layout (verified
-    directly via byte-offset arithmetic before trusting it, not
-    assumed correct from the source's own prose alone): int32 level
-    count, 48 real float32 heights, 48 real {StartX,StartY,EndX,EndY}
-    float32 zone rectangles, a 64x64 visible-map byte grid, a 128x128
-    physical-map byte grid, in that exact order with no gaps."""
+def parse_waterpro_dat(path: str) -> Optional[WaterProFile]: #vers 2
+    """Parse a real GTA III/VC/PS2-LC/SOL waterpro.dat (Aug 20 2026 -
+    see WaterProLevel's own docstring for the real correction made to
+    this function and why). Standalone module-level function, not
+    tied to any parser class - matches parse_water_dat's own
+    established "standalone function for a standalone file format"
+    convention just above.
+
+    Real, confirmed 964-byte header (int32 level count + 48 real
+    float32 heights + a real, deliberately-unidentified 768-byte
+    block - see WaterProLevel/WaterProFile's own docstrings for why
+    this isn't decoded into zone rectangles any more), followed by a
+    variable-size grid pair whose own real dimensions are derived
+    from the file's own remaining size after that header, matching
+    water_workshop.py's own already-proven approach exactly rather
+    than assuming a fixed vanilla-only 64x64/128x128 size: remaining
+    bytes = visible_map (grid_width^2 cells) + physical_map
+    ((2*grid_width)^2 cells) = 5*grid_width^2 total, so grid_width =
+    sqrt(remaining/5) - checked to be a real, exact perfect square
+    (a non-square result means a genuinely corrupt/foreign file, not
+    silently truncated data)."""
     try:
         with open(path, 'rb') as f:
             data = f.read()
     except Exception:
         return None
-    if len(data) < 0x53C4:
+    header_size = 964
+    remaining = len(data) - header_size
+    if remaining <= 0 or remaining % 5 != 0:
+        return None
+    grid_width = math.isqrt(remaining // 5)
+    if grid_width * grid_width != remaining // 5:
         return None
     try:
-        level_count = struct.unpack_from('<i', data, 0x0000)[0]
-        heights = struct.unpack_from('<48f', data, 0x0004)
-        zones = struct.unpack_from('<192f', data, 0x00C4)   # 48 * 4 floats
-        levels = []
-        for i in range(48):
-            zoff = i * 4
-            levels.append(WaterProLevel(
-                height=heights[i],
-                zone_start_x=zones[zoff], zone_start_y=zones[zoff + 1],
-                zone_end_x=zones[zoff + 2], zone_end_y=zones[zoff + 3]))
-        visible_bytes = data[0x03C4:0x13C4]
-        visible_map = [list(visible_bytes[r * 64:(r + 1) * 64]) for r in range(64)]
-        physical_bytes = data[0x13C4:0x53C4]
-        physical_map = [list(physical_bytes[r * 128:(r + 1) * 128]) for r in range(128)]
+        level_count = data[0]
+        heights = struct.unpack_from('<48f', data, 4)
+        levels = [WaterProLevel(height=h) for h in heights]
+        unk_block = data[196:964]
+        vis_size = grid_width * grid_width
+        phys_width = grid_width * 2
+        phys_size = phys_width * phys_width
+        visible_bytes = data[header_size:header_size + vis_size]
+        visible_map = [list(visible_bytes[r * grid_width:(r + 1) * grid_width])
+                       for r in range(grid_width)]
+        physical_bytes = data[header_size + vis_size:header_size + vis_size + phys_size]
+        physical_map = [list(physical_bytes[r * phys_width:(r + 1) * phys_width])
+                        for r in range(phys_width)]
     except (struct.error, IndexError):
         return None
     return WaterProFile(
-        level_count=level_count, levels=levels,
-        visible_map=visible_map, physical_map=physical_map,
+        level_count=level_count, levels=levels, grid_width=grid_width,
+        unk_block=unk_block, visible_map=visible_map, physical_map=physical_map,
         source_file=os.path.basename(path))
 
 

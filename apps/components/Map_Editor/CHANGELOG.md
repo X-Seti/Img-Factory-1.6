@@ -7830,3 +7830,54 @@ conclusively found despite extensive isolated testing.
 
   `ast.parse` clean on both touched files; confirmed via AST no
   duplicate method/function/class definitions.
+
+- **Aug 20, 2026 (cont'd)** — Corrected `WaterProLevel`/`WaterProFile`/
+  `parse_waterpro_dat`, per Keith pointing at a real, existing,
+  already-proven reference tool: "look at water_workshop." Found a
+  real, complete, already-working `WaterproParser` in `apps/
+  components/Water_Editor/water_workshop.py` (1502 lines, an entire
+  standalone water-editing workshop for GTA III/VC/PS2 LC/SOL, not
+  something built this session) that directly contradicted a key
+  detail of this session's own earlier `waterpro.dat` work.
+
+  Earlier today's version treated header bytes 196-964 as 48 real
+  `{StartX,StartY,EndX,EndY}` zone rectangles, based on GTAMods/Grand
+  Theft Wiki prose. `water_workshop.py`'s own `WaterproParser` -
+  which explicitly cites a specific, named reverse-engineering source
+  ("WaterHack.cpp") and, critically, already correctly handles real
+  PS2/SOL variants with genuinely different, non-vanilla grid sizes,
+  something the earlier version never accounted for at all - treats
+  that same byte range as opaque, unidentified data instead, kept
+  verbatim for round-tripping rather than decoded into a specific
+  structure. Given a more careful, already-proven reference directly
+  contradicts the earlier guess, deferred to it rather than keep
+  shipping an unconfirmed interpretation as settled fact.
+
+  `WaterProLevel` now carries only `height`. New `WaterProFile.
+  unk_block` (the real, raw 768 bytes, preserved verbatim) and `grid_
+  width` (no longer hardcoded 64/128 - the vanilla-only assumption an
+  earlier version made - now genuinely variable, derived from the
+  file's own real remaining size after the header: `grid_width =
+  sqrt(remaining/5)`, checked to be an exact perfect square rather
+  than silently truncating a mismatched file). `physical_map` is
+  always exactly double `visible_map`'s own width/height, matching
+  `water_workshop.py`'s own already-proven relationship.
+
+  Verified: the same vanilla 64/128-grid file the earlier version was
+  tested against still parses identically (same total 21444-byte
+  size, same heights, same marked grid cells) plus the real `unk_
+  block` now round-trips verbatim; a genuinely non-vanilla grid_
+  width=32 file (something the earlier version could never have
+  handled at all) now parses correctly; a corrupt/non-square-
+  remainder file still correctly returns `None` rather than crashing;
+  the full real `GTAWorldLoader.load_from_dat` pipeline re-confirmed
+  working end to end with the corrected parser. Also confirmed no
+  other code anywhere in the app referenced the now-removed zone_*
+  fields, so nothing else needed updating alongside this fix.
+
+  Caught one more real mistake in the same pass: the new `math.isqrt`
+  call needed `import math` at this module's own top level, which
+  didn't exist yet - caught by the routine syntax check immediately
+  after writing it, before it could ever crash on first real use.
+
+  `ast.parse` clean; confirmed via AST no duplicate definitions.
