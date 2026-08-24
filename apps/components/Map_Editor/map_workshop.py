@@ -3484,6 +3484,15 @@ class MapSettings(QObject):
         'background_mode':     'solid',
         'checkerboard_size':   16,
         'overlay_opacity':     50,
+        # Radar tile generation (Aug 20 2026, per Keith: "radar tiles
+        # generation works, need to add settings for those"). Empty-
+        # string default for the output dir means "no remembered
+        # default yet" - the person is prompted the first time, same
+        # as before this existed, but the choice sticks afterward
+        # rather than re-prompting every single run.
+        'radar_tiles_output_dir': '',
+        'radar_tiles_pack_txd':   True,
+        'radar_tiles_copy_to_assists': True,
     }
 
     _instance = None
@@ -23292,15 +23301,21 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._set_status(
             f"Saved {len(matching)} instances from {ipl_name} to binary IPL: {path}")
 
-    def _on_generate_radar_tiles_clicked(self): #vers 1
+    def _on_generate_radar_tiles_clicked(self): #vers 2
         """Prompt for an output folder, then run _generate_radar_tiles
         (Aug 20 2026, per Keith: "look at radar editor for how the
-        radar works")."""
+        radar works", then "radar tiles generation works, need to add
+        settings for those" - the remembered-default half of that:
+        starts the folder picker at the last real output dir used,
+        via self.map_settings, rather than always starting fresh at
+        the home directory - saved back once a real folder is chosen
+        so the next run remembers it too."""
+        start_dir = self.map_settings.get('radar_tiles_output_dir') or os.path.expanduser("~")
         output_dir = QFileDialog.getExistingDirectory(
-            self, "Select Output Folder for Radar Tiles",
-            os.path.expanduser("~"))
+            self, "Select Output Folder for Radar Tiles", start_dir)
         if not output_dir:
             return
+        self.map_settings.set('radar_tiles_output_dir', output_dir)
         self._generate_radar_tiles(output_dir)
 
     def _generate_radar_tiles(self, output_dir): #vers 2
@@ -23352,6 +23367,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "Generating radar tiles...", "Cancel", 0, len(tiles), self)
         progress.setWindowModality(Qt.WindowModality.WindowModal)
         saved = 0
+        # Real paths of every tile actually saved this run (Aug 20
+        # 2026, per Keith's own follow-up: "right click the radar
+        # button to send the tiles to txd workshop") - the right-
+        # click handler needs to know exactly which real PNGs were
+        # just generated, not re-scan the output folder (which could
+        # pick up stale files from an earlier, different run sitting
+        # in the same folder).
+        self._last_radar_tile_paths = []
         for tile in tiles:
             if progress.wasCanceled():
                 break
@@ -23366,11 +23389,118 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 image = vp.capture_radar_tile(cx, cy, tile_size)
                 out_path = os.path.join(output_dir, f"radar{tile.index:02d}.png")
                 image.save(out_path)
+                self._last_radar_tile_paths.append(out_path)
                 saved += 1
             except Exception as e:
                 print(f"[Radar Generator] Failed tile {tile.index}: {e}")
         progress.setValue(len(tiles))
         self._set_status(f"Generated {saved} of {len(tiles)} radar tiles to {output_dir}")
+
+    def _on_radar_tiles_context_menu(self, button, pos): #vers 1
+        """Right-click menu on the Radar button - "Send to TXD
+        Workshop" (Aug 20 2026, per Keith: "right click the radar
+        button to send the tiles to txd workshop, add radarXX.png to
+        radarXX.txd, if assists folder exists, add these to the Radar
+        folder")."""
+        menu = QMenu(button)
+        tiles = getattr(self, '_last_radar_tile_paths', None)
+        act = menu.addAction("Send to TXD Workshop (pack PNGs into TXDs)")
+        act.setEnabled(bool(tiles))
+        if not tiles:
+            act.setToolTip("Generate radar tiles first (left-click) - nothing to send yet.")
+        act.triggered.connect(self._send_radar_tiles_to_txd_workshop)
+        menu.exec(button.mapToGlobal(pos))
+
+    def _send_radar_tiles_to_txd_workshop(self): #vers 1
+        """Pack every just-generated radarNN.png into its own real
+        radarNN.txd, right alongside the PNGs (Aug 20 2026, per
+        Keith's own "add radarXX.png to radarXX.txd" wording -
+        literally one PNG per TXD, matching the real game's own
+        radarNN.txd-per-tile convention, not one combined TXD).
+
+        Uses the real, already-existing, genuinely GUI-free apps.
+        methods.txd_serializer.TXDSerializer - confirmed directly
+        before relying on it: only imports struct/typing, no PyQt6
+        dependency anywhere, so this can build real, valid TXD binary
+        data without needing an actual TxdWorkshop GUI instance
+        running at all. The single-texture dict shape passed to it
+        was copied directly from TxdWorkshop's own real _import_
+        textures (the same one a person dragging a PNG into that tool
+        by hand would build), not invented separately, so a packed
+        radarNN.txd here should read back identically to one made the
+        normal, interactive way.
+
+        If a real assists folder is configured (self.main_window.
+        assists_path, the same real, existing Project Manager concept
+        - see create_assists_folder_structure's own real Models/Maps/
+        Collisions/Textures set) also creates (if needed) and copies
+        every packed TXD into its own new "Radar" subfolder there -
+        genuinely new, that folder set never had one before this."""
+        paths = getattr(self, '_last_radar_tile_paths', None)
+        if not paths:
+            QMessageBox.information(self, "Send to TXD Workshop",
+                "No radar tiles generated yet - left-click Radar first.")
+            return
+        try:
+            from PIL import Image
+            from apps.methods.txd_serializer import TXDSerializer
+        except Exception as e:
+            QMessageBox.warning(self, "Send to TXD Workshop",
+                f"Required module not available: {e}")
+            return
+
+        serializer = TXDSerializer()
+        packed = 0
+        failed = 0
+        txd_paths = []
+        for png_path in paths:
+            try:
+                img = Image.open(png_path).convert('RGBA')
+                has_alpha = any(p[3] < 255 for p in img.getdata())
+                fmt = 'ARGB8888' if has_alpha else 'RGB888'
+                name = os.path.splitext(os.path.basename(png_path))[0]
+                tex = {
+                    'name': name, 'width': img.width, 'height': img.height,
+                    'rgba_data': img.tobytes(), 'has_alpha': has_alpha,
+                    'format': fmt, 'alpha_name': name + 'a' if has_alpha else '',
+                    'mipmaps': 1, 'mipmap_levels': [],
+                    'raster_format_flags': 0x2600 if not has_alpha else 0x2500,
+                    'depth': 32, 'platform_id': 8, 'filter_flags': 0x1102,
+                }
+                txd_bytes = serializer.serialize_txd([tex])
+                txd_path = os.path.join(os.path.dirname(png_path), name + '.txd')
+                with open(txd_path, 'wb') as f:
+                    f.write(txd_bytes)
+                txd_paths.append(txd_path)
+                packed += 1
+            except Exception as e:
+                failed += 1
+                print(f"[Radar->TXD] Failed to pack {png_path}: {e}")
+
+        # Real assists folder (Project Manager's own concept) - copy
+        # every packed TXD into a new "Radar" subfolder there too, if
+        # one's actually configured. Silently skipped, not an error,
+        # if no project/assists folder is set up at all - Keith's own
+        # wording was explicitly conditional ("if assists folder
+        # exists"), not a requirement.
+        assists_path = getattr(self.main_window, 'assists_path', None) if self.main_window else None
+        copied = 0
+        if assists_path and os.path.isdir(assists_path):
+            radar_dir = os.path.join(assists_path, 'Radar')
+            try:
+                os.makedirs(radar_dir, exist_ok=True)
+                for txd_path in txd_paths:
+                    shutil.copy2(txd_path, os.path.join(radar_dir, os.path.basename(txd_path)))
+                    copied += 1
+            except Exception as e:
+                print(f"[Radar->TXD] Failed copying to assists Radar folder: {e}")
+
+        msg = f"Packed {packed} of {len(paths)} tiles into TXDs"
+        if assists_path:
+            msg += f" ({copied} copied to assists/Radar)"
+        self._set_status(msg)
+        QMessageBox.information(self, "Send to TXD Workshop", msg +
+            ("" if not failed else f"\n\n{failed} tile(s) failed - see console."))
 
     def _save_ipl_data_as_full(self, ipl_name): #vers 1
         """Save ALL of an IPL's sections to a new file, not just inst
@@ -24616,8 +24746,30 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         radar_gen_btn = QPushButton("Radar")
         radar_gen_btn.setFixedHeight(18)
         radar_gen_btn.setStyleSheet(_compact_18)
+        # Real stretch bug fixed (Aug 20 2026, per Keith: "the radar
+        # button seems to stretch, should be a compact button like the
+        # others") - a plain QPushButton with only setFixedHeight had
+        # no width constraint at all, so QHBoxLayout's own default
+        # stretched it to fill whatever space was left in the row,
+        # unlike _MapOverlayToggleButton's own QToolButton base (SA
+        # Nodes/Auzo/Water, this row's other 3 buttons), which never
+        # needed this since QToolButton's own default size policy
+        # doesn't expand horizontally the way QPushButton's does here.
+        radar_gen_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         radar_gen_btn.setToolTip("Generate Radar Tiles")
         radar_gen_btn.clicked.connect(self._on_generate_radar_tiles_clicked)
+        # Right-click: send the just-generated tiles to TXD Workshop
+        # (Aug 20 2026, per Keith: "right click the radar button to
+        # send the tiles to txd workshop, add radarXX.png to
+        # radarXX.txd, if assists folder exists, add these to the
+        # Radar folder"). Left-click keeps its own existing, separate
+        # "generate the tiles" behaviour untouched - right-click is a
+        # genuinely different action, matching the same left/right-
+        # click-does-different-things convention _MapOverlayToggleButton
+        # already established for this row's other 3 buttons.
+        radar_gen_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        radar_gen_btn.customContextMenuRequested.connect(
+            lambda pos, b=radar_gen_btn: self._on_radar_tiles_context_menu(b, pos))
 
         opts_row4 = QHBoxLayout()
         opts_row4.addWidget(show_sa_nodes_btn)

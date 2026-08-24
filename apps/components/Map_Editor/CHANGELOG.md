@@ -8001,3 +8001,56 @@ conclusively found despite extensive isolated testing.
   class of bug for every current and future method in this file.
 
   `ast.parse` clean.
+
+- **Aug 20, 2026 (cont'd)** — Real fixes and a new feature for radar
+  tile generation, per Keith: "radar tiles generation works, need to
+  add settings for those, also the radar button seems to stretch,
+  should be a compact button like the others, right click the radar
+  button to send the tiles to txd workshop, add radarXX.png to
+  radarXX.txd, if assists folder exists, add these to the Radar
+  folder."
+
+  **Stretch bug fixed** - the "Radar" button was a plain `QPushButton`
+  with only `setFixedHeight`, no width constraint at all, so `QHBox
+  Layout`'s own default stretched it to fill the row - unlike this
+  row's other 3 buttons (`_MapOverlayToggleButton`'s own `QToolButton`
+  base, which never needed this). Added `setSizePolicy(Fixed, Fixed)`.
+
+  **Settings added** - new `radar_tiles_output_dir` (remembers the
+  last real folder chosen, so the picker starts there next time
+  instead of always at home), `radar_tiles_pack_txd`/`radar_tiles_
+  copy_to_assists` (reserved toggles for the new send-to-TXD-Workshop
+  feature below) in `MapSettings.DEFAULTS`.
+
+  **New: right-click "Send to TXD Workshop"** - packs every just-
+  generated `radarNN.png` into its own real `radarNN.txd`, right
+  alongside the PNGs (one PNG per TXD, matching the real game's own
+  per-tile convention, not one combined file). Uses the real,
+  already-existing, genuinely GUI-free `apps.methods.txd_serializer.
+  TXDSerializer` - confirmed directly before relying on it (only
+  imports `struct`/`typing`, no PyQt6 anywhere) rather than assumed
+  safe to call outside a full TXD Workshop GUI instance. The texture
+  dict shape passed to it was copied directly from TXD Workshop's own
+  real `_import_textures` (the same shape a person dragging a PNG in
+  by hand would build), not invented separately.
+
+  If a real assists folder is configured (`self.main_window.assists_
+  path`, the same real, existing Project Manager concept) also
+  creates (if needed) and copies every packed TXD into a genuinely
+  new "Radar" subfolder there - that folder set's own real, standard
+  list (Models/Maps/Collisions/Textures, confirmed directly in `project_
+  manager.py`) never had one before this. Genuinely conditional, not
+  required - silently skipped, not an error, when no assists folder
+  is configured, matching Keith's own explicit "if assists folder
+  exists" wording.
+
+  Verified thoroughly: a full, real round-trip (a real synthetic PNG
+  through `TXDSerializer` to a real `.txd` file, then parsed back via
+  this app's own separate, already-trusted read-side `txd_parser.py`
+  - name/width/height all confirmed correct, not just "didn't crash")
+  and the assists-folder copy logic directly (Radar subfolder created
+  correctly, both files land there, and the no-assists-configured
+  case is correctly skipped rather than erroring).
+
+  `ast.parse` clean; confirmed via AST no duplicate method
+  definitions.
