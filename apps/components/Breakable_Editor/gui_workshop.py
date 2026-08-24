@@ -367,6 +367,16 @@ class _ToolbarMixin:
         for b in (self.open_btn, self.save_btn,
                   self.export_btn, self.import_btn):
             lo.addWidget(b)
+            # Hidden when docked (Aug 20 2026, per Keith: "when docked
+            # those needed buttons can be added to the object pane") -
+            # these 4 now live directly in BreakableEditor's own left
+            # Objects pane too (breakable_editor.py's own _build_left_
+            # panel), always visible there regardless of dock state,
+            # so showing this toolbar's own copy as well while docked
+            # would just be a redundant duplicate, not extra
+            # functionality - still shown here in standalone mode,
+            # matching the existing, unchanged behaviour for that case.
+            b.setVisible(self.standalone_mode)
 
         lo.addSpacing(6)
 

@@ -408,3 +408,47 @@
 
   `ast.parse` clean; confirmed via AST exactly one `setup_ui()` call
   remains and no other `self.toolbar.hide()` call exists in the file.
+
+- **Aug 20, 2026 (cont'd)** — Real, structural fix for the titlebar-
+  when-docked problem in Breakable Objects Editor, per Keith: "so
+  compact buttons, like map/model editor, panes and ribbons is the
+  way to go, this way when docked those needed buttons can be added
+  to the object pane." A concrete, immediate first step toward that
+  broader direction (a full ribbon-architecture rework for every
+  workshop tool is real, separate, tracked scope, not attempted here).
+
+  New file-action row in `_build_left_panel` (`breakable_editor.py`) -
+  Open/Save/Export/Import, compact style (fixed 18px height, tight
+  padding) matching Map/Model Workshop's own established dense-
+  button-row convention, the specific reference Keith named. Lives
+  directly in the Objects pane, which is always visible regardless of
+  dock state - nothing to conditionally hide or show at all, the
+  structural fix rather than another patch on top of the toolbar's
+  own visibility logic.
+
+  Toolbar's own matching 4 buttons (`gui_workshop.py`) now hidden
+  specifically when docked (visible in standalone mode, unchanged) -
+  the pane's own copy covers the docked case now, so showing both
+  would just be a duplicate, not extra functionality.
+
+  **Real, separate, pre-existing bug found and flagged honestly, not
+  fixed here**: the toolbar's own Save button has `setEnabled(False)`
+  called once at construction and is never re-enabled anywhere in
+  either file - it's been permanently disabled/non-functional the
+  whole time, not something this change introduced. The new pane
+  button was deliberately NOT given this same disabled state (plain
+  `QPushButton`, enabled by default) - carrying over a known-broken
+  starting state into the new pane button would have made it equally
+  non-functional, defeating the actual point of moving it there.
+
+  **Also stated honestly, not glossed over**: Export/Import (both the
+  toolbar's pre-existing copies and this new pane row) call real,
+  already-inherited no-op stubs on this tool's own `gui_workshop.py`
+  base class, never overridden by `BreakableEditor` itself - both
+  buttons exist and are wired, but genuinely do nothing yet. Kept in
+  the new row anyway to mirror the toolbar's own existing 4-button
+  set exactly, rather than silently narrowing to only the 2 that
+  currently work.
+
+  `ast.parse` clean on both touched files; confirmed via AST no
+  duplicate method definitions.

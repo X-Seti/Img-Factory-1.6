@@ -257,13 +257,54 @@ class BreakableEditor(GUIWorkshop): #vers 1
         # lets that already-correct pattern actually apply here now.
         self._set_status("Open an object.dat file to begin")
 
-    def _build_left_panel(self, parent: QWidget) -> QWidget: #vers 1
+    def _build_left_panel(self, parent: QWidget) -> QWidget: #vers 2
         w = QWidget(parent)
         lay = QVBoxLayout(w)
         lay.setContentsMargins(4, 4, 4, 4)
         lay.setSpacing(4)
 
         lay.addWidget(QLabel("Objects"))
+
+        # File actions (Aug 20 2026, per Keith: "compact buttons, like
+        # map/model editor, panes and ribbons is the way to go, this
+        # way when docked those needed buttons can be added to the
+        # object pane") - the real, structural fix for the titlebar-
+        # when-docked problem this same tool already had two separate
+        # patch fixes for today: rather than a toolbar/titlebar row
+        # that has to be selectively hidden/shown depending on dock
+        # state, these 4 real file actions live directly in the
+        # Objects pane instead, which is always visible regardless of
+        # standalone/docked state - nothing to hide or show
+        # conditionally at all. Compact style (fixed height, tight
+        # padding) matches Map/Model Workshop's own established
+        # convention for dense button rows, not this tool's own
+        # previous, taller Add/Del row below - a deliberate visual
+        # match to the reference Keith named, not just "smaller for
+        # its own sake". Mirrors the toolbar's own existing 4-button
+        # set exactly (not a different subset) - honest note, not
+        # introduced by this change: Export/Import are real, already-
+        # inherited no-op stubs on this tool's own gui_workshop.py
+        # base class (never overridden by BreakableEditor itself), so
+        # those two buttons genuinely do nothing yet here either,
+        # matching the toolbar's own pre-existing buttons exactly
+        # rather than silently hiding that gap by only including the
+        # 2 that currently work.
+        _compact = "padding: 0px 4px; margin: 0px; border-width: 1px;"
+        file_row = QHBoxLayout()
+        file_row.setSpacing(2)
+        for label, slot, tip in [
+            ("Open",   self._open_file,   "Open object.dat  (Ctrl+O)"),
+            ("Save",   self._save_file,   "Save  (Ctrl+S)"),
+            ("Export", self._export_file, "Export"),
+            ("Import", self._import_file, "Import"),
+        ]:
+            b = QPushButton(label)
+            b.setFixedHeight(18)
+            b.setStyleSheet(_compact)
+            b.setToolTip(tip)
+            b.clicked.connect(slot)
+            file_row.addWidget(b)
+        lay.addLayout(file_row)
 
         self._search_box = QLineEdit()
         self._search_box.setPlaceholderText("Search model name…")
