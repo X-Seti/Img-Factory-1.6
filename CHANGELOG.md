@@ -228,3 +228,71 @@
   a second audit pass to convert the remaining apps over, alongside
   whatever other layout/bug/data-saving work still needs doing in
   each.
+
+- **Aug 20, 2026** — Fixed two real bugs in Water Workshop, per Keith:
+  "many issues with Waterpro, first the titlebar should not be
+  showing when docked, the other is the parsing of SOL waterpro
+  files, you can see this in the image."
+
+  **SOL waterpro.dat parsing** - real, confirmed fix using two real
+  uploaded SOL sample files (previously flagged as an honest, unfixed
+  gap since only vanilla sample data existed). New `_detile_sol_grid()`
+  in `gta_dat_parser.py` - SOL's own real grid data is genuinely
+  subdivided into 6x6 separate tiles, each stored as its own
+  contiguous block, rather than one flat, row-major grid across the
+  whole map the way vanilla SA/VC/III data actually is; `parse_
+  waterpro_dat` now detects this (grid_width evenly divisible by 6 -
+  vanilla SA/VC/III's own real grid_width of 64 never is) and de-
+  tiles both grids using the exact same real logic `water_workshop.
+  py`'s own reference tool already uses correctly in its DISPLAY code,
+  just never in its own file-parsing code until now.
+
+  Verified directly against both real uploaded SOL files: grid_width
+  (384) and all 4 real water level heights (6.0, 68.5435, 46.0, 14.5)
+  exactly match the real screenshot Keith provided. Rendered the de-
+  tiled visible/physical grids as real images and confirmed directly
+  by eye - a coherent, real map-shaped landmass, not the striped/
+  banded, scrambled pattern the real screenshot showed before this
+  fix. Confirmed via a regression test that a real vanilla (non-SOL,
+  grid_width=64) file is correctly left untouched - 64 isn't evenly
+  divisible by 6, so `is_tiled` correctly stays False and the
+  existing, already-correct flat-grid reading still applies.
+
+  **Titlebar showing when docked** - a real, confirmed bug directly
+  visible in Keith's own screenshot: Water Workshop, docked inside
+  IMG Factory, still showing its own full internal titlebar (Menu/
+  Settings/title text/undo/info/settings/D) duplicating the outer
+  tab's own title. Traced to the shared `_create_toolbar` method -
+  builds the toolbar/titlebar unconditionally regardless of docked
+  state, despite `self.standalone_mode`/`self.is_docked` already
+  existing and already being used for other, smaller decisions in
+  that same method (which controls - minimize/maximize/close vs a
+  dock/undock button - show at the toolbar's own right end). Added
+  `self.toolbar.setVisible(self.standalone_mode)` right before the
+  method's own return.
+
+  Real, important discovery made while tracing this: this app's own
+  workshop tools deliberately do NOT share one central `GUIWorkshop`
+  base class import - `apps/methods/gui_workshop.py` is explicitly
+  labelled a TEMPLATE ("DO NOT IMPORT THIS FILE INTO YOUR WORKSHOP...
+  Each workshop MUST be standalone and self-contained"), meant to be
+  copied into each tool's own folder and maintained independently.
+  Water Workshop's own real copy is `apps/components/Water_Editor/
+  gui_workshop.py`, not the methods/ one - the actual fix was applied
+  there, matching where Keith's own real bug report is. A separate,
+  genuinely stale, unused duplicate was also found at `apps/
+  components/Water_Editor/depends/gui_workshop.py` (an older Aug 14
+  copy, confirmed via direct search that nothing anywhere imports it)
+  - noted for a future cleanup pass, not touched now since it's
+  already dead code, not the source of this real bug.
+
+  Real, honest scope note: given the deliberate "each workshop owns
+  its own copy" design just confirmed, this same titlebar-when-docked
+  bug likely exists identically in every other `*_Workshop` tool's
+  own copy of this same method too - not fixed here, since Keith's
+  own report was specifically about Water Workshop; extending this
+  same fix to the other tools would be its own, separate, deliberate
+  pass rather than something to guess at doing silently here.
+
+  `ast.parse` clean on both touched files; confirmed via AST no
+  duplicate method/function definitions.

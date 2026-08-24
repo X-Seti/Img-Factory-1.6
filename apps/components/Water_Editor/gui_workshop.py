@@ -390,6 +390,24 @@ class _ToolbarMixin:
             self.dock_btn.clicked.connect(self.toggle_dock_mode)
             lo.addWidget(self.dock_btn)
 
+        # Hide the whole titlebar/toolbar when docked (Aug 20 2026,
+        # per Keith: "the titlebar should not be showing when docked"
+        # - confirmed directly via a real Water Workshop screenshot,
+        # docked inside IMG Factory, still showing its own full
+        # internal titlebar (Menu/Settings/title text/undo/info/
+        # settings/D) duplicating the outer tab's own title). The
+        # standalone-only window controls (minimize/maximize/close)
+        # already only ever showed in standalone mode; hiding the
+        # whole bar rather than just those is the natural extension
+        # of that same, already-established distinction. self.dock_btn
+        # (the "D" button this same toolbar builds above) is hidden
+        # along with everything else here - undocking while already
+        # docked needs its own, separate real access point elsewhere
+        # if that's still wanted; simply always showing the whole
+        # titlebar again just to keep this one button reachable would
+        # bring back exactly the duplication being fixed.
+        self.toolbar.setVisible(self.standalone_mode)
+
         return self.toolbar
 
     #    Menu button handler                                                    

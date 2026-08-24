@@ -666,53 +666,75 @@ class WaterProFile: #vers 2
     source_file:  str = ""
 
 
-def parse_waterpro_dat(path: str) -> Optional[WaterProFile]: #vers 2
+def _detile_sol_grid(raw: bytes, grid_width: int, map_w: int = 6) -> List[List[int]]: #vers 1
+    """Real de-tiling fix for SOL's own waterpro.dat grid layout (Aug
+    20 2026, per Keith's real bug report - "the other is the parsing
+    of SOL waterpro files, you can see this in the image" - the
+    striped/banded, incoherent visual result confirming exactly the
+    gap this session had already found and honestly documented, not
+    yet fixed, before Keith uploaded real SOL sample data).
+
+    SOL's own real grid data is genuinely subdivided into map_w x
+    map_w (6x6) separate tiles, each stored as its own contiguous
+    block, rather than one flat, row-major grid across the whole map
+    the way vanilla SA/VC/III data actually is - confirmed by cross-
+    checking real uploaded sample data directly: a real 738244-byte
+    SOL waterpro.dat's own computed grid_width (384, via this same
+    module's own already-correct size-detection formula) exactly
+    matches water_workshop.py's own real, already-correct UI display
+    ("384x384 visible ... 768x768 physical"), and 384 is exactly
+    6*64 - confirming the tile subdivision directly rather than
+    assuming it from that other tool's own comments alone.
+
+    This logic matches water_workshop.py's own `_rebuild_cache`
+    method exactly (the one place that tool's own de-tiling math
+    actually lives, previously only in its own DISPLAY code, never
+    its own file-parsing code - see WaterProFile's own docstring for
+    the fuller story) - reused here as the actual fix, not just
+    referenced. Real, deliberate detection rule for when this applies
+    at all: only when grid_width divides evenly by 6 - vanilla SA/
+    VC/III's own real grid_width (64, confirmed earlier this session)
+    is never evenly divisible by 6, so a real vanilla file is
+    correctly left as a simple flat grid, never mistakenly de-tiled."""
+    tile_w = grid_width // map_w
+    out = [[0] * grid_width for _ in range(grid_width)]
+    for tile_idx in range(map_w * map_w):
+        tile_col = tile_idx % map_w
+        tile_row = tile_idx // map_w
+        base = tile_idx * tile_w * tile_w
+        for r in range(tile_w):
+            row_off = base + r * tile_w
+            py = tile_row * tile_w + r
+            px0 = tile_col * tile_w
+            out[py][px0:px0 + tile_w] = raw[row_off:row_off + tile_w]
+    return out
+
+
+def parse_waterpro_dat(path: str) -> Optional[WaterProFile]: #vers 3
     """Parse a real GTA III/VC/PS2-LC/SOL waterpro.dat (Aug 20 2026 -
-    see WaterProLevel's own docstring for the real correction made to
-    this function and why). Standalone module-level function, not
-    tied to any parser class - matches parse_water_dat's own
-    established "standalone function for a standalone file format"
-    convention just above.
+    see WaterProLevel's own docstring for the earlier correction made
+    to this function, and _detile_sol_grid's own docstring for the
+    real SOL de-tiling fix now applied here). Standalone module-level
+    function, not tied to any parser class - matches parse_water_dat's
+    own established "standalone function for a standalone file
+    format" convention just above.
 
     Real, confirmed 964-byte header (int32 level count + 48 real
     float32 heights + a real, deliberately-unidentified 768-byte
     block - see WaterProLevel/WaterProFile's own docstrings for why
     this isn't decoded into zone rectangles any more), followed by a
     variable-size grid pair whose own real dimensions are derived
-    from the file's own remaining size after that header, matching
-    water_workshop.py's own already-proven approach exactly rather
-    than assuming a fixed vanilla-only 64x64/128x128 size: remaining
+    from the file's own remaining size after that header: remaining
     bytes = visible_map (grid_width^2 cells) + physical_map
     ((2*grid_width)^2 cells) = 5*grid_width^2 total, so grid_width =
     sqrt(remaining/5) - checked to be a real, exact perfect square
     (a non-square result means a genuinely corrupt/foreign file, not
-    silently truncated data).
-
-    Real, honest limitation, not glossed over (Aug 20 2026, per Keith:
-    "water_workshop doesn't handle SOL correctly"): this function's
-    grid math and cell layout matches water_workshop.py's own
-    WaterproParser.load() exactly - deliberately, since that's the
-    more carefully-researched reference this was corrected against
-    (see WaterProLevel's own docstring). But that same reference
-    tool's own SOL comments (its own `_rebuild_cache`, describing "SOL:
-    6x6 map tiles, each tile is TILE_W x TILE_W cells stored
-    sequentially") describe SOL's real grid data as internally
-    subdivided into 6x6 tiles, each stored as its own contiguous
-    block - a genuinely different physical byte layout from a simple,
-    flat, row-major grid across the whole map. That de-tiling logic
-    only actually exists in that reference tool's own DISPLAY code
-    (for rendering the grid visually), not its own WaterproParser.load()
-    itself - and since this function's own visible_map/physical_map
-    construction was modelled directly on that same load() method,
-    this function inherits the identical gap: for a real SOL file,
-    visible_map/physical_map here will contain the correct raw bytes
-    in the wrong logical (row, col) positions, not de-tiled into
-    genuine world-space grid order the way a vanilla SA/VC/III file's
-    own (non-tiled) grid data already correctly is. Vanilla SA/VC/III
-    files are unaffected by this - their own real grid data was never
-    tiled into 6x6 blocks in the first place. Flagged here rather
-    than silently claimed working, since neither this function nor
-    its own reference has real, confirmed SOL de-tiling logic yet."""
+    silently truncated data). If that grid_width divides evenly by 6
+    (true for SOL's own real files, never true for vanilla SA/VC/III's
+    own real grid_width of 64), both grids are de-tiled via _detile_
+    sol_grid before being returned - a real, confirmed fix now, not
+    the honest, still-open gap an earlier version of this same
+    function's own docstring stated."""
     try:
         with open(path, 'rb') as f:
             data = f.read()
@@ -734,11 +756,16 @@ def parse_waterpro_dat(path: str) -> Optional[WaterProFile]: #vers 2
         phys_width = grid_width * 2
         phys_size = phys_width * phys_width
         visible_bytes = data[header_size:header_size + vis_size]
-        visible_map = [list(visible_bytes[r * grid_width:(r + 1) * grid_width])
-                       for r in range(grid_width)]
         physical_bytes = data[header_size + vis_size:header_size + vis_size + phys_size]
-        physical_map = [list(physical_bytes[r * phys_width:(r + 1) * phys_width])
-                        for r in range(phys_width)]
+        is_tiled = (grid_width % 6 == 0)
+        if is_tiled:
+            visible_map = _detile_sol_grid(visible_bytes, grid_width, map_w=6)
+            physical_map = _detile_sol_grid(physical_bytes, phys_width, map_w=6)
+        else:
+            visible_map = [list(visible_bytes[r * grid_width:(r + 1) * grid_width])
+                           for r in range(grid_width)]
+            physical_map = [list(physical_bytes[r * phys_width:(r + 1) * phys_width])
+                            for r in range(phys_width)]
     except (struct.error, IndexError):
         return None
     return WaterProFile(
