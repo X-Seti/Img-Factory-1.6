@@ -1613,7 +1613,25 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self.menu_toggle_btn.setMinimumHeight(28)
         self.menu_toggle_btn.setMaximumHeight(28)
         self.menu_toggle_btn.clicked.connect(self._on_menu_btn_clicked)
-        self.menu_toggle_btn.setVisible(True)  # show in both standalone and docked
+        # Menu/Settings (Aug 20 2026, per Keith: "radar_workshop shows
+        # the title bar when docked" - the same real complaint already
+        # fixed for Water Workshop's own titlebar, applied here too,
+        # but NOT by hiding this whole toolbar the same way that fix
+        # did - this toolbar also carries real, functional controls
+        # (the Game selector, cols/rows spin boxes just below) that
+        # aren't duplicated anywhere else in this tool's own UI,
+        # confirmed by direct search - hiding the whole frame here
+        # would make those genuinely inaccessible while docked, a real
+        # regression, not just a cosmetic fix. Hides only the window-
+        # chrome-style elements that actually duplicate the outer
+        # tab's own title/controls when docked (this button, Settings,
+        # Undo, Info, and Theme/Properties below), matching exactly
+        # which elements Water Workshop's own fix ended up hiding too
+        # (that tool's whole toolbar only ever held chrome, no
+        # functional controls, so hiding it all had the same practical
+        # effect) - was explicitly "show in both standalone and
+        # docked" before this, now conditional instead.
+        self.menu_toggle_btn.setVisible(self.standalone_mode)
         layout.addWidget(self.menu_toggle_btn)
 
         # - Settings button (standalone only — docked uses right-panel button)
@@ -1624,7 +1642,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self.settings_btn.setIconSize(QSize(20, 20))
         self.settings_btn.clicked.connect(self._show_workshop_settings)
         self.settings_btn.setToolTip(App_name + "Workshop Settings")
-        self.settings_btn.setVisible(True)  # show in both standalone and docked
+        self.settings_btn.setVisible(self.standalone_mode)
         layout.addWidget(self.settings_btn)
 
         layout.addSpacing(8)
@@ -1669,6 +1687,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self.toolbar_undo_btn.setToolTip("Undo last tile edit (Ctrl+Z)")
         self.toolbar_undo_btn.clicked.connect(self._undo)
         layout.addWidget(self.toolbar_undo_btn)
+        self.toolbar_undo_btn.setVisible(self.standalone_mode)
 
         # - Info button (before Theme)
         self.info_radar_btn = QPushButton()
@@ -1678,6 +1697,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self.info_radar_btn.setToolTip("About Radar Workshop")
         self.info_radar_btn.clicked.connect(self._show_about)
         layout.addWidget(self.info_radar_btn)
+        self.info_radar_btn.setVisible(self.standalone_mode)
 
         # - Theme / Properties
         self.properties_btn = QPushButton()
@@ -1687,6 +1707,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self.properties_btn.setToolTip("Theme Settings")
         self.properties_btn.clicked.connect(self._launch_theme_settings)
         layout.addWidget(self.properties_btn)
+        self.properties_btn.setVisible(self.standalone_mode)
 
         # - Dock button — hidden in standalone (nothing to dock to)
         self.dock_btn = QPushButton()
@@ -4275,6 +4296,20 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             self.docked_settings_btn.setVisible(True)
         if hasattr(self, 'dock_btn'):
             self.dock_btn.setVisible(False)
+        # Hide the same window-chrome-style toolbar elements _create_
+        # toolbar itself hides at construction time when starting
+        # docked (Aug 20 2026, per Keith: "radar_workshop shows the
+        # title bar when docked") - that construction-time check alone
+        # only ever covers the tool's own INITIAL state; without also
+        # updating these here, toggling dock/undock after the tool is
+        # already open would leave these stuck at whatever visibility
+        # they started with, not actually reacting to the real,
+        # current dock state the way the rest of this method already
+        # does for _workshop_toolbar/docked_settings_btn/dock_btn.
+        for attr in ('menu_toggle_btn', 'settings_btn', 'toolbar_undo_btn',
+                     'info_radar_btn', 'properties_btn'):
+            if hasattr(self, attr):
+                getattr(self, attr).setVisible(False)
         self.show(); self.raise_()
 
     def _undock_from_main(self): #Vers 1
@@ -4289,6 +4324,15 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             self.settings_btn.setVisible(True)
         if hasattr(self, 'dock_btn'):
             self.dock_btn.setVisible(False)
+        # Restore the same window-chrome-style elements _dock_to_main
+        # hides (Aug 20 2026, see that method's own comment for the
+        # fuller reasoning) - the reverse half of that same fix, so
+        # undocking after docking correctly brings these back too,
+        # not just the tool's own initial construction-time state.
+        for attr in ('menu_toggle_btn', 'toolbar_undo_btn',
+                     'info_radar_btn', 'properties_btn'):
+            if hasattr(self, attr):
+                getattr(self, attr).setVisible(True)
         self.resize(1300, 800)
         self.show(); self.raise_()
 

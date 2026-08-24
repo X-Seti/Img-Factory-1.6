@@ -296,3 +296,51 @@
 
   `ast.parse` clean on both touched files; confirmed via AST no
   duplicate method/function definitions.
+
+- **Aug 20, 2026** — Fixed two real bugs Keith reported directly.
+
+  **MapSettings save crash** - "Failed to save .../map_workshop.json:
+  name 'json' is not defined." A real, genuine oversight from this
+  session's own earlier atomic-write fix: `MapSettings._load`/
+  `_save_now` (`map_workshop.py`) both use `json.dumps`/`json.loads`
+  but neither has its own local `import json`, and this module never
+  had one at the top level either (only scattered, method-local
+  imports elsewhere in the same file) - settings could never actually
+  save at all until this was fixed. Added `import json` at the real
+  module level rather than another method-local import, since this
+  eliminates the whole class of bug for every current and future
+  method in this file, not just these two. Confirmed via direct AST
+  inspection that it's a genuine top-level statement (not nested
+  inside any function), positioned near the very top of the file, and
+  that no local variable anywhere in the file shadows the name within
+  `MapSettings`'s own method scopes.
+
+  **Radar Workshop's own titlebar showing when docked** - the same
+  real complaint already fixed for Water Workshop, but genuinely
+  different here, not the same fix copy-pasted: Radar Workshop's own
+  toolbar carries real, functional controls (the Game selector, cols/
+  rows spin boxes) that aren't duplicated anywhere else in that
+  tool's own UI (confirmed via direct search) - hiding the whole
+  toolbar frame the way Water Workshop's own fix did would make those
+  genuinely inaccessible while docked, a real regression rather than
+  just a cosmetic fix. Hid only the window-chrome-style elements that
+  actually duplicate the outer tab's own title/controls (Menu,
+  Settings, Undo, Info, Theme/Properties - two of which were
+  explicitly hardcoded "show in both standalone and docked" before
+  this), leaving the functional Game/cols/rows controls untouched and
+  visible either way.
+
+  Caught and fixed a second, real gap in the same pass: the visibility
+  check for these 5 elements only ran once, at the tool's own initial
+  construction - `_dock_to_main`/`_undock_from_main` (the real,
+  already-existing dock/undock toggle methods) never touched them at
+  all, so dynamically toggling dock state after the tool was already
+  open would have left them stuck at whatever visibility they started
+  with, not actually reacting to the real, current dock state the way
+  the rest of those same methods already correctly do for the other
+  toolbar elements. Added the matching hide/show calls to both
+  transition methods so this now works correctly for genuine runtime
+  toggling too, not just the tool's own first-load state.
+
+  `ast.parse` clean on both touched files; confirmed via AST no
+  duplicate method definitions.

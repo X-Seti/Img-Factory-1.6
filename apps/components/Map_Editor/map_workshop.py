@@ -4,6 +4,7 @@
 
 import os
 import math
+import json
 # Force X11/GLX backend for NVIDIA on Wayland
 os.environ['QT_QPA_PLATFORM'] = 'xcb'
 os.environ['QSG_RHI_BACKEND'] = 'opengl'
@@ -21333,6 +21334,24 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # all, so the button is pure clutter there, not just unused.
         if hasattr(self, '_show_occl_chk'):
             self._show_occl_chk.setVisible(game != 'gta3')
+        # Hide row4's own SA-only overlay buttons for every other game
+        # (Aug 20 2026, per Keith: "In GTA III. VC or SOL, we should
+        # not be seeing SA buttons, SA names, or Auzo" - a real
+        # screenshot showing a loaded VC world with "SA Nodes" and
+        # "Auzo" both still visible confirmed this directly, same
+        # "pure clutter with nothing to ever actually display" reason
+        # as the IPL Controls tab-hiding just below - SA Nodes reads
+        # from SA-only binary path data, Auzo from SA-only IPL data,
+        # neither of which a III/VC/SOL world can ever have any of.
+        # Water and Radar deliberately NOT included here - both were
+        # already extended to work across every game this session
+        # (waterpro.dat for III/VC, RADAR_GRID_PRESETS per game), so
+        # hiding those for non-SA games would hide real, working
+        # functionality, not clutter.
+        if hasattr(self, '_show_sa_nodes_chk'):
+            self._show_sa_nodes_chk.setVisible(game == 'sa')
+        if hasattr(self, '_show_auzo_chk'):
+            self._show_auzo_chk.setVisible(game == 'sa')
         # Hide IPL Controls tabs the loaded game can never actually
         # have data for (Aug 19 2026, per Keith: "Let's continue with
         # hiding functions not supported by GTA3, including some of

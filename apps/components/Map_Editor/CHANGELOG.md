@@ -7967,3 +7967,37 @@ conclusively found despite extensive isolated testing.
   running topics together. Flagged directly rather than guessed at
   silently - straightforward to rename if "Water" really was meant
   for this specific button.
+
+- **Aug 20, 2026** — Hid row4's own SA-only overlay buttons (SA Nodes,
+  Auzo) for every other game, per Keith: "In GTA III. VC or SOL, we
+  should not be seeing SA buttons, SA names, or Auzo" - confirmed
+  directly via a real screenshot showing a loaded VC world (OceanDrive.
+  ipl/PrawnIsland.ipl) with both buttons still visible.
+
+  Same "pure clutter with nothing to ever actually display" reasoning
+  already used for hiding game-restricted IPL Controls tabs (GRGE/
+  ENEX/JUMP/TCYC/AUZO/MULT/PICK/OCCL) - SA Nodes reads from SA-only
+  binary path data, Auzo from SA-only IPL data, neither of which a
+  III/VC/SOL world can ever have any of. Added right alongside that
+  existing tab-hiding logic in `_apply_loaded_world`, not a separate,
+  new mechanism. Water and Radar deliberately left untouched - both
+  were already extended to work across every game this session
+  (waterpro.dat for III/VC, `RADAR_GRID_PRESETS` per game), so hiding
+  those for non-SA games would hide real, working functionality, not
+  clutter.
+
+  Also fixed, in the same pass: a real settings-save crash Keith
+  reported directly - "[MapSettings] Failed to save .../map_workshop.
+  json: name 'json' is not defined." A genuine oversight from this
+  session's own earlier atomic-write fix - `MapSettings._load`/
+  `_save_now` both use `json.dumps`/`json.loads` but neither has its
+  own local `import json`, and this module never had one at the top
+  level either. Settings could never actually save at all until this
+  was fixed. Added `import json` at the real module level (confirmed
+  via direct AST inspection - a genuine top-level statement, not
+  nested in any function, and no local variable anywhere in the file
+  shadows the name within `MapSettings`'s own method scopes) rather
+  than another method-local import, since this eliminates the whole
+  class of bug for every current and future method in this file.
+
+  `ast.parse` clean.
