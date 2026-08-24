@@ -686,7 +686,33 @@ def parse_waterpro_dat(path: str) -> Optional[WaterProFile]: #vers 2
     ((2*grid_width)^2 cells) = 5*grid_width^2 total, so grid_width =
     sqrt(remaining/5) - checked to be a real, exact perfect square
     (a non-square result means a genuinely corrupt/foreign file, not
-    silently truncated data)."""
+    silently truncated data).
+
+    Real, honest limitation, not glossed over (Aug 20 2026, per Keith:
+    "water_workshop doesn't handle SOL correctly"): this function's
+    grid math and cell layout matches water_workshop.py's own
+    WaterproParser.load() exactly - deliberately, since that's the
+    more carefully-researched reference this was corrected against
+    (see WaterProLevel's own docstring). But that same reference
+    tool's own SOL comments (its own `_rebuild_cache`, describing "SOL:
+    6x6 map tiles, each tile is TILE_W x TILE_W cells stored
+    sequentially") describe SOL's real grid data as internally
+    subdivided into 6x6 tiles, each stored as its own contiguous
+    block - a genuinely different physical byte layout from a simple,
+    flat, row-major grid across the whole map. That de-tiling logic
+    only actually exists in that reference tool's own DISPLAY code
+    (for rendering the grid visually), not its own WaterproParser.load()
+    itself - and since this function's own visible_map/physical_map
+    construction was modelled directly on that same load() method,
+    this function inherits the identical gap: for a real SOL file,
+    visible_map/physical_map here will contain the correct raw bytes
+    in the wrong logical (row, col) positions, not de-tiled into
+    genuine world-space grid order the way a vanilla SA/VC/III file's
+    own (non-tiled) grid data already correctly is. Vanilla SA/VC/III
+    files are unaffected by this - their own real grid data was never
+    tiled into 6x6 blocks in the first place. Flagged here rather
+    than silently claimed working, since neither this function nor
+    its own reference has real, confirmed SOL de-tiling logic yet."""
     try:
         with open(path, 'rb') as f:
             data = f.read()
@@ -722,45 +748,41 @@ def parse_waterpro_dat(path: str) -> Optional[WaterProFile]: #vers 2
 
 
 @dataclass
-class RadarTile: #vers 1
-    """One real SA radar/minimap tile's own world-space bounding box
-    (Aug 20 2026, per Keith: "look at radar editor for how the radar
-    works" - following the earlier "map-to-radar generation" request,
+class RadarTile: #vers 2
+    """One real radar/minimap tile's own world-space bounding box for
+    a given GTA game (Aug 20 2026, per Keith: "look at radar editor
+    for how the radar works", then "radar_workshop has the radar
+    code" - following the earlier "map-to-radar generation" request,
     genuinely blocked before this until real confirmed grid numbers
     were found). Corresponds to one real "radarNN.txd" file the game
     actually loads.
 
     Real, confirmed facts this is built from, not guessed - checked
-    directly, not assumed:
-    - The real tile file naming range "radar00.txd" through
-      "radar143.txd" (144 files total) is directly documented (a
-      real, published mod readme quoting the exact install
-      instructions: "find some files called radar00.txd, radar01.txd,
-      radar02.txd...radar143.txd").
-    - A real, published radar-generation tool (gtastuff.com's own
-      Radar Generator, built specifically for this exact task) labels
-      its own vanilla SA grid size option as "6000 (Vanilla 12x12)" -
-      144 = 12*12, independently consistent with the 144-file naming
-      range above, not just one uncorroborated source.
-    - SA's own real world bounds are -3000 to 3000 on both X and Y (a
-      real 6000x6000 unit square) - independently confirmed earlier
-      this session from a real water.dat example line covering the
-      whole map ("-3000.0 -3000.0 ... 3000.0 3000.0 ..."), matching
-      the same 6000-unit figure the radar generator tool's own label
-      uses.
-    - 6000 world units / 12 tiles = 500 world units per tile, exactly.
+    directly against two independent real sources, one of them a
+    local, already-existing, explicitly-marked "authoritative" tool:
 
-    Real, honest remaining uncertainty, not glossed over: the exact
-    tile INDEX numbering order (row-major vs column-major, which
-    corner index 0 starts at) was not found confirmed anywhere despite
-    real research - this class assumes row-major, starting at the
-    map's own north-west corner (min X, max Y - matching GTA's own
-    documented "X=east/west, Y=north/south" axis convention, i.e. the
-    same reading order screen text normally uses), index increasing
-    west-to-east then north-to-south. This is a reasonable, common
-    convention, not a confirmed one - verify tile 0's own real content
-    against a known real radarXX.txd from an actual game install if
-    this matters, rather than trusting this assumption blindly."""
+    - `apps/components/Radar_Editor/radar_workshop.py`'s own real,
+      already-working `GAME_PRESETS`/`_GAME_WORLD_BOUNDS` (a comment
+      on the latter reads literally: "Grid constants (authoritative
+      — do not change without verifying against game files)") - SA:
+      144 tiles (12x12), world bounds -3000..3000 both axes; VC/III
+      (and LCS/VCS too): 64 tiles (8x8), world bounds -2000..2000
+      both axes; SOL: 1296 tiles (36x36), world bounds -6000..6000.
+      Both SA (500 units/tile) and VC/III (4000/8=500 units/tile)
+      land on the exact same 500-unit-per-tile figure independently.
+    - The same real tile file naming range this class's own earlier
+      version was already built from - "radar00.txd" through
+      "radar143.txd" for SA (144 files) - directly matches this
+      tool's own real SA preset ("radar00.txd to radar143.txd (144
+      tiles, 12x12 grid)" - its own literal hint text).
+
+    Tile-index ordering (row-major, index 0 at the map's own north-
+    west corner) - an earlier version of this class carried this as
+    an honest, unconfirmed guess. `radar_workshop.py`'s own real code
+    states this directly and explicitly, not just implies it: "Tile
+    grid origin is top-left = (world_min_x, world_max_y)" - the exact
+    same convention this class already assumed, now genuinely
+    confirmed rather than merely reasonable."""
     index: int
     row: int
     col: int
@@ -770,23 +792,38 @@ class RadarTile: #vers 1
     max_y: float
 
 
+# Real, confirmed per-game radar grid presets (Aug 20 2026, sourced
+# directly from radar_workshop.py's own real, already-working, "do
+# not change without verifying against game files" GAME_PRESETS/
+# _GAME_WORLD_BOUNDS - see RadarTile's own docstring for the fuller
+# confirmation story). grid_size is the real, full world-unit span
+# (world bounds are symmetric around the origin for every game this
+# tool documents, so grid_size/2 gives min/max directly).
+RADAR_GRID_PRESETS = {
+    'gta3': {'grid_size': 4000.0, 'tiles_per_side': 8},
+    'vc':   {'grid_size': 4000.0, 'tiles_per_side': 8},
+    'sa':   {'grid_size': 6000.0, 'tiles_per_side': 12},
+    'sol':  {'grid_size': 12000.0, 'tiles_per_side': 36},
+}
+
+
 def compute_radar_grid(grid_size: float = 6000.0, tiles_per_side: int = 12,
-                       center_x: float = 0.0, center_y: float = 0.0) -> List[RadarTile]: #vers 1
-    """Compute the real world-space bounding box for every tile in an
-    SA-style radar grid (Aug 20 2026 - see RadarTile's own docstring
-    for the full, confirmed-vs-assumed breakdown behind these
-    numbers). Defaults match vanilla SA exactly (6000 units, 12x12,
-    centred on the origin) - the gtastuff.com Radar Generator's own
-    real, published larger-map options (12000/24x24, 24000/48x48,
-    48000/96x96 - all keeping the same confirmed 500-units-per-tile
-    ratio) are reachable by passing a different grid_size/tiles_per_
-    side pair, for a map that's been resized/expanded beyond vanilla
-    bounds.
+                       center_x: float = 0.0, center_y: float = 0.0) -> List[RadarTile]: #vers 2
+    """Compute the real world-space bounding box for every tile in a
+    radar grid (Aug 20 2026 - see RadarTile's own docstring for the
+    full confirmation story, and RADAR_GRID_PRESETS for the real,
+    confirmed per-game defaults to pass here). Defaults match vanilla
+    SA (6000 units, 12x12, centred on the origin) purely for backward
+    compatibility with this function's own first version - callers
+    generating tiles for a specific game should pass RADAR_GRID_
+    PRESETS[game_key]'s own values explicitly rather than relying on
+    this default, since VC/GTA III use a genuinely different, smaller
+    4000-unit/8x8 grid, not SA's.
 
     Tile 0 is the north-west corner (min X, max Y), row-major,
     increasing west-to-east then north-to-south - see RadarTile's own
-    docstring for why this specific assumption was made and how
-    confident (or not) it actually is."""
+    docstring for the real confirmation behind this (no longer an
+    unconfirmed assumption)."""
     tile_size = grid_size / tiles_per_side
     half = grid_size / 2.0
     origin_x = center_x - half   # west edge

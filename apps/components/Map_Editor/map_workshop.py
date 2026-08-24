@@ -23284,30 +23284,34 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return
         self._generate_radar_tiles(output_dir)
 
-    def _generate_radar_tiles(self, output_dir): #vers 1
+    def _generate_radar_tiles(self, output_dir): #vers 2
         """Generate every real radar/minimap tile for the currently
         loaded world (Aug 20 2026, per Keith: "look at radar editor
-        for how the radar works" - the actual generation half of
-        "map-to-radar generation", following the earlier item-1/2/3
-        list request).
+        for how the radar works", then "radar_workshop has the radar
+        code" - the actual generation half of "map-to-radar
+        generation", following the earlier item-1/2/3 list request).
 
-        Real, confirmed numbers this uses, not guessed (see RadarTile/
-        compute_radar_grid's own docstrings in gta_dat_parser.py for
-        the full breakdown of what was actually confirmed vs.
-        assumed): vanilla SA is a 6000x6000-unit world divided into a
-        real, documented 12x12 grid of 144 tiles (radar00.txd through
-        radar143.txd), 500 world units per tile. One real, honest
-        remaining uncertainty carried over from that research and not
-        resolved here either: the exact tile INDEX numbering order
-        (which corner is index 0, row-major vs column-major) wasn't
-        found confirmed anywhere - this assumes north-west-corner-
-        first, row-major, matching RadarTile's own stated assumption -
-        each saved file is named by its own (row, col) position
-        instead of a single presumed index number, specifically so a
-        wrong index-ordering guess doesn't silently mislabel a tile
-        with the wrong number - Keith can rename/reorder based on a
-        real radarNN.txd from an actual install if this assumption
-        turns out wrong, without needing this to be re-run."""
+        Real, confirmed numbers this uses, not guessed - see RadarTile/
+        RADAR_GRID_PRESETS/compute_radar_grid's own docstrings in
+        gta_dat_parser.py for the full confirmation story: a real,
+        already-existing local tool (apps/components/Radar_Editor/
+        radar_workshop.py, explicitly marked "authoritative — do not
+        change without verifying against game files") confirms SA's
+        real 6000-unit/12x12/144-tile grid exactly matches what this
+        app already had, AND gives the real, previously-missing VC/
+        GTA III numbers directly: a genuinely smaller 4000-unit/8x8/
+        64-tile grid, not SA's - picked here from RADAR_GRID_PRESETS
+        by the actual loaded game rather than assuming SA's own
+        numbers for every game the way an earlier version of this
+        method did. That same real, local source also directly
+        confirms the tile-index ordering (row-major, index 0 at the
+        map's own north-west corner) an earlier version of this
+        method could only treat as an untested assumption - files are
+        now named by the real, confirmed "radarNN" convention (upper-
+        case RADAR + 2-digit index for SA/VC/GTA III, matching that
+        tool's own real _name_sa naming function) instead of a (row,
+        col) pair, since that ordering uncertainty is genuinely
+        resolved now, not just still hedged against."""
         loader = getattr(self, '_world_loader', None)
         if loader is None or not getattr(loader, 'instances', None):
             QMessageBox.information(self, "Generate Radar Tiles",
@@ -23319,8 +23323,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 "The 3D viewport isn't available to render tiles from.")
             return
 
-        from apps.methods.gta_dat_parser import compute_radar_grid
-        tiles = compute_radar_grid()
+        from apps.methods.gta_dat_parser import compute_radar_grid, RADAR_GRID_PRESETS
+        game_key = getattr(loader, 'game', 'sa')
+        preset = RADAR_GRID_PRESETS.get(game_key, RADAR_GRID_PRESETS['sa'])
+        tiles = compute_radar_grid(**preset)
         os.makedirs(output_dir, exist_ok=True)
 
         progress = QProgressDialog(
@@ -23339,8 +23345,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             tile_size = tile.max_x - tile.min_x
             try:
                 image = vp.capture_radar_tile(cx, cy, tile_size)
-                out_path = os.path.join(
-                    output_dir, f"radar_r{tile.row:02d}_c{tile.col:02d}.png")
+                out_path = os.path.join(output_dir, f"radar{tile.index:02d}.png")
                 image.save(out_path)
                 saved += 1
             except Exception as e:

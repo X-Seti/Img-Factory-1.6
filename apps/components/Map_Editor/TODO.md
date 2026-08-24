@@ -815,3 +815,23 @@ compiler yet, do that for the todo")
   estimated further until this is picked up as its own, dedicated
   piece of work - logged here as a placeholder for that, not a
   scoped, ready-to-start task.
+
+## waterpro.dat SOL grid de-tiling not correct (Aug 20 2026, per
+Keith: "water_workshop doesn't handle SOL correctly")
+- `parse_waterpro_dat` in gta_dat_parser.py (this session's own real
+  work, corrected once already against apps/components/Water_Editor/
+  water_workshop.py's own more carefully-researched WaterproParser)
+  reads a real SOL waterpro.dat's own visible_map/physical_map as one
+  flat, row-major block across the whole map. That reference tool's
+  own comments describe SOL's real grid data as genuinely subdivided
+  into 6x6 tiles, each stored as its own separate, sequential block -
+  a real, different physical byte layout, not the same flat grid
+  vanilla SA/VC/III files actually have. The de-tiling logic that
+  would correctly handle this only exists in that reference tool's
+  own DISPLAY/rendering code, not its own file-parsing code - so
+  neither that tool's own parser nor this app's own (modelled
+  directly on it) actually de-tiles a real SOL file correctly today.
+  Vanilla SA/VC/III files are unaffected - not tiled in the first
+  place. Needs real, confirmed SOL sample data and the actual 6x6
+  de-tiling math worked into the parser itself before this can be
+  trusted for SOL specifically.

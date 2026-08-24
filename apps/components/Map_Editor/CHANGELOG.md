@@ -7881,3 +7881,66 @@ conclusively found despite extensive isolated testing.
   after writing it, before it could ever crash on first real use.
 
   `ast.parse` clean; confirmed via AST no duplicate definitions.
+
+- **Aug 20, 2026 (cont'd)** — Extended radar tile generation to VC and
+  GTA III, per Keith: "we also need to do the same for VC and
+  GTAIII, radar and water, look at water_workshop" - and separately,
+  "radar_workshop has the radar code."
+
+  Found a second, real, already-existing, local reference tool - `apps/
+  components/Radar_Editor/radar_workshop.py` (4610 lines, a whole
+  standalone radar-editing workshop, not built this session) - with
+  its own real `GAME_PRESETS`/`_GAME_WORLD_BOUNDS`, a comment on the
+  latter reading literally "Grid constants (authoritative — do not
+  change without verifying against game files)". This directly
+  confirmed SA's own numbers this session had already independently
+  arrived at (144 tiles, 12x12, -3000..3000 both axes) AND gave the
+  real, previously-missing VC/GTA III numbers directly: a genuinely
+  smaller 64-tile, 8x8 grid, world bounds -2000..2000 - both landing
+  on the exact same 500-unit-per-tile figure as SA independently.
+  This same tool's own real code also directly, explicitly confirms
+  the tile-index ordering an earlier version of this session's own
+  work could only treat as an honest, unconfirmed guess: "Tile grid
+  origin is top-left = (world_min_x, world_max_y)" - the exact
+  convention already assumed, now genuinely settled rather than
+  merely reasonable.
+
+  New `RADAR_GRID_PRESETS` (`gta_dat_parser.py`) - real, confirmed
+  per-game grid parameters (gta3/vc: 4000 units, 8x8; sa: 6000 units,
+  12x12; sol: 12000 units, 36x36, from the same reference). `_generate_
+  radar_tiles` (`map_workshop.py`) now picks the real preset for the
+  currently loaded game instead of always defaulting to SA's own
+  numbers regardless of what's actually loaded - a real bug an
+  earlier version of this same session's own work would have shipped
+  had it gone untested against VC/III. Saved files now use the real,
+  confirmed `radarNN` naming convention (matching that tool's own
+  `_name_sa` function) instead of a `(row, col)` pair, since the
+  ordering uncertainty that pair was a deliberate hedge against is
+  now genuinely resolved, not just still uncertain.
+
+  Verified directly: `RADAR_GRID_PRESETS['gta3'] == RADAR_GRID_PRESETS
+  ['vc']` (both share the identical real grid), each preset's own
+  tile 0 lands at the exact expected world corner, tile counts and
+  sizes match the real confirmed numbers for both games, and `GTAGame`'s
+  own real enum values correctly match every `RADAR_GRID_PRESETS` key
+  with no mismatch.
+
+  **A real, separate correction, not glossed over**: while checking
+  `water_workshop.py` again per Keith's own explicit warning ("water_
+  workshop doesn't handle SOL correctly"), found the actual gap -
+  that tool's own comments describe real SOL `waterpro.dat` grid data
+  as genuinely subdivided into 6x6 tiles, each stored as its own
+  separate sequential block, not one flat, row-major grid across the
+  whole map the way vanilla SA/VC/III data actually is. The de-tiling
+  logic that would handle this correctly only exists in that tool's
+  own DISPLAY/rendering code, never its own file-parsing code - so
+  neither that reference nor this session's own `parse_waterpro_dat`
+  (modelled directly on it earlier today) actually de-tiles a real
+  SOL file correctly. Documented plainly in `parse_waterpro_dat`'s
+  own docstring and logged as its own dedicated `TODO.md` entry -
+  vanilla SA/VC/III files are unaffected (never tiled in the first
+  place), but SOL specifically needs real sample data and the actual
+  6x6 de-tiling math worked into the parser before it can be trusted
+  there.
+
+  `ast.parse` clean; confirmed via AST no duplicate definitions.
