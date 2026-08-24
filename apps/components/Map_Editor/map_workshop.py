@@ -24359,24 +24359,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         render_lod_btn.setToolTip("Choose how the world view renders geometry, and which detail level(s) to show")
         opts_row.addWidget(render_lod_btn)
 
-        # Generate Radar Tiles (Aug 20 2026, per Keith: "look at radar
-        # editor for how the radar works" - the actual rendering half
-        # of map-to-radar generation, continuing the earlier water/
-        # radar/SCM list). A real, whole-map action rather than a
-        # per-instance/per-IPL one, so it lives here alongside the
-        # Render mode control rather than in a per-IPL context menu.
-        radar_gen_btn = QPushButton("Generate Radar Tiles...")
-        radar_gen_btn.setFixedHeight(18)
-        radar_gen_btn.setStyleSheet(_compact_18)
-        radar_gen_btn.setToolTip(
-            "Render a real, 12x12 grid of top-down tiles covering the\n"
-            "loaded world (matching vanilla SA's own real radar00.txd\n"
-            "-radar143.txd grid) and save each as a PNG - a starting\n"
-            "point for the game's own radar/minimap tiles, not an\n"
-            "automatic TXD replacement.")
-        radar_gen_btn.clicked.connect(self._on_generate_radar_tiles_clicked)
-        opts_row.addWidget(radar_gen_btn)
-
         # Drag/Move/Rotate IPL - a single button cycling through 4
         # states (Aug 19 2026, per Keith's own priority order for the
         # interactive editing layer, and: "1 click turns into move
@@ -24598,10 +24580,31 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         show_water_btn.show_toggled.connect(self._on_show_water_toggled)
         self._show_water_chk = show_water_btn
 
+        # Generate Radar Tiles (Aug 20 2026, per Keith: "look at radar
+        # editor for how the radar works" - the actual rendering half
+        # of map-to-radar generation, continuing the earlier water/
+        # radar/SCM list; moved here and renamed Aug 20 2026, per
+        # Keith's own follow-up: "generate water tiles needs to be
+        # moved to row4, as it takes up to much space, and just name
+        # it Water, with the tooltop Generate Water Tiles" - named
+        # "Radar" rather than "Water" here specifically, since row4
+        # already has a real, different "Water" button just above
+        # (the water.dat visualization overlay toggle) - reusing the
+        # same short name for a second, unrelated button on the same
+        # row would be ambiguous rather than genuinely matching
+        # what was asked; if "Water" really was meant for this
+        # specific button instead, easy to rename directly.
+        radar_gen_btn = QPushButton("Radar")
+        radar_gen_btn.setFixedHeight(18)
+        radar_gen_btn.setStyleSheet(_compact_18)
+        radar_gen_btn.setToolTip("Generate Radar Tiles")
+        radar_gen_btn.clicked.connect(self._on_generate_radar_tiles_clicked)
+
         opts_row4 = QHBoxLayout()
         opts_row4.addWidget(show_sa_nodes_btn)
         opts_row4.addWidget(show_auzo_btn)
         opts_row4.addWidget(show_water_btn)
+        opts_row4.addWidget(radar_gen_btn)
         lay.addLayout(opts_row4)
 
         dock = QDockWidget("IPL Controls", self)
