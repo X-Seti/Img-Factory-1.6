@@ -240,8 +240,21 @@ class BreakableEditor(GUIWorkshop): #vers 1
         self._blocking      = False
         self._section_filter = ""
         self.setup_ui()
-        self.setup_ui()
-        if main_window and hasattr(self, "toolbar"): self.toolbar.hide()
+        # Real double-call bug found and fixed (Aug 20 2026) - setup_ui()
+        # was called twice in a row here, needlessly rebuilding every
+        # widget a second time. The old self.toolbar.hide() that used
+        # to follow it is also gone - that line unconditionally hid
+        # the WHOLE toolbar frame whenever docked, silently overriding
+        # this same file's own gui_workshop.py copy's real, already-
+        # correct per-widget visibility logic (Menu/Settings/title/
+        # Undo/Info/Theme hidden when docked, Open/Save/Export/Import
+        # left genuinely visible either way - see that file's own
+        # _create_toolbar for the real reasoning) - meaning that
+        # earlier, more careful fix never actually took effect at all
+        # while this line still existed. Per Keith: "Any needed
+        # buttons on the title bar when docked can follow the same
+        # pattern as the other tools" - removing this line is what
+        # lets that already-correct pattern actually apply here now.
         self._set_status("Open an object.dat file to begin")
 
     def _build_left_panel(self, parent: QWidget) -> QWidget: #vers 1

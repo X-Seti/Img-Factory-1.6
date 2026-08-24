@@ -382,3 +382,29 @@
 
   `ast.parse` clean on all three touched files; confirmed via AST no
   duplicate method definitions.
+
+- **Aug 20, 2026 (cont'd)** — Caught 2 more real bugs in Breakable
+  Objects Editor while confirming Keith's own follow-up ("Any needed
+  buttons on the title bar when docked can follow the same pattern
+  as the other tools") - re-reading `__init__` to confirm the earlier
+  titlebar fix was actually correct surfaced two genuine, pre-
+  existing problems that fix hadn't caught:
+
+  (1) `self.setup_ui()` was called twice in a row - needlessly
+  rebuilding every widget a second time on every single launch.
+
+  (2) A real, significant discovery: `self.toolbar.hide()` used to
+  run right after that, unconditionally, whenever opened docked -
+  this silently hid the WHOLE toolbar frame regardless of what the
+  earlier same-day fix to this tool's own `gui_workshop.py` copy
+  actually did (the real, careful per-widget visibility logic hiding
+  only Menu/Settings/title/Undo/Info/Theme, deliberately leaving
+  Open/Save/Export/Import visible either way) - meaning that earlier,
+  more careful fix never actually took effect at all while this line
+  still existed; Open/Save/Export/Import were being hidden too, the
+  exact regression that fix was specifically built to avoid. Removed
+  this line entirely so the real, already-correct per-widget logic
+  can finally take effect.
+
+  `ast.parse` clean; confirmed via AST exactly one `setup_ui()` call
+  remains and no other `self.toolbar.hide()` call exists in the file.
