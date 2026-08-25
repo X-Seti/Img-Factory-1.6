@@ -23396,12 +23396,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         progress.setValue(len(tiles))
         self._set_status(f"Generated {saved} of {len(tiles)} radar tiles to {output_dir}")
 
-    def _on_radar_tiles_context_menu(self, button, pos): #vers 1
+    def _on_radar_tiles_context_menu(self, button, pos): #vers 2
         """Right-click menu on the Radar button - "Send to TXD
         Workshop" (Aug 20 2026, per Keith: "right click the radar
         button to send the tiles to txd workshop, add radarXX.png to
         radarXX.txd, if assists folder exists, add these to the Radar
-        folder")."""
+        folder"), then "Send to Radar Workshop" (Keith's own same-day
+        follow-up: "another right click option, send to radar
+        workshop")."""
         menu = QMenu(button)
         tiles = getattr(self, '_last_radar_tile_paths', None)
         act = menu.addAction("Send to TXD Workshop (pack PNGs into TXDs)")
@@ -23409,6 +23411,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if not tiles:
             act.setToolTip("Generate radar tiles first (left-click) - nothing to send yet.")
         act.triggered.connect(self._send_radar_tiles_to_txd_workshop)
+        act2 = menu.addAction("Send to Radar Workshop")
+        act2.setEnabled(bool(tiles))
+        if not tiles:
+            act2.setToolTip("Generate radar tiles first (left-click) - nothing to send yet.")
+        act2.triggered.connect(self._send_radar_tiles_to_radar_workshop)
         menu.exec(button.mapToGlobal(pos))
 
     def _send_radar_tiles_to_txd_workshop(self): #vers 1
@@ -23501,6 +23508,73 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._set_status(msg)
         QMessageBox.information(self, "Send to TXD Workshop", msg +
             ("" if not failed else f"\n\n{failed} tile(s) failed - see console."))
+
+    def _send_radar_tiles_to_radar_workshop(self): #vers 1
+        """Open a real Radar Workshop instance and load every just-
+        generated radarNN.png directly into its own matching tile
+        slot (Aug 20 2026, per Keith's own same-day follow-up:
+        "another right click option, send to radar workshop").
+
+        Uses Radar Workshop's own real, already-existing per-tile
+        write method (ws_commit_draw(idx, rgba)) directly - the same
+        method its own interactive "Import tile" feature calls
+        (_import_single_tile), just without that method's own
+        QFileDialog prompt, since this already knows exactly which
+        real file goes in which real slot. Sets the correct real game
+        preset first ("SA PC"/"VC PC"/"III PC", matching this app's
+        own already-confirmed real grid sizes for each game - see
+        RADAR_GRID_PRESETS's own docstring for where those numbers
+        came from) so the tool's own tile count/grid actually matches
+        what was really generated, rather than defaulting to whatever
+        its own last-used preset happened to be."""
+        paths = getattr(self, '_last_radar_tile_paths', None)
+        if not paths:
+            QMessageBox.information(self, "Send to Radar Workshop",
+                "No radar tiles generated yet - left-click Radar first.")
+            return
+        try:
+            from PIL import Image
+            from apps.components.Radar_Editor.radar_workshop import RadarWorkshop
+        except Exception as e:
+            QMessageBox.warning(self, "Send to Radar Workshop",
+                f"Required module not available: {e}")
+            return
+
+        loader = getattr(self, '_world_loader', None)
+        game_key = getattr(loader, 'game', 'sa') if loader is not None else 'sa'
+        preset_map = {'gta3': 'III PC', 'vc': 'VC PC', 'sa': 'SA PC'}
+        preset_key = preset_map.get(game_key, 'SA PC')
+
+        try:
+            w = RadarWorkshop(None, self.main_window)
+            w._on_game_changed(preset_key)
+            tile_w = getattr(w, '_tw', 128)
+            tile_h = getattr(w, '_th', 128)
+            loaded = 0
+            failed = 0
+            for png_path in paths:
+                try:
+                    fname = os.path.splitext(os.path.basename(png_path))[0]
+                    idx = int(''.join(c for c in fname if c.isdigit()))
+                    img = Image.open(png_path).convert('RGBA')
+                    if img.size != (tile_w, tile_h):
+                        img = img.resize((tile_w, tile_h), Image.LANCZOS)
+                    w.ws_commit_draw(idx, img.tobytes())
+                    loaded += 1
+                except Exception as e:
+                    failed += 1
+                    print(f"[Radar->Workshop] Failed to load {png_path}: {e}")
+            w.show()
+        except Exception as e:
+            QMessageBox.warning(self, "Send to Radar Workshop",
+                f"Failed to open Radar Workshop: {e}")
+            return
+
+        msg = f"Sent {loaded} of {len(paths)} tiles to Radar Workshop ({preset_key})"
+        self._set_status(msg)
+        if failed:
+            QMessageBox.information(self, "Send to Radar Workshop",
+                msg + f"\n\n{failed} tile(s) failed - see console.")
 
     def _save_ipl_data_as_full(self, ipl_name): #vers 1
         """Save ALL of an IPL's sections to a new file, not just inst

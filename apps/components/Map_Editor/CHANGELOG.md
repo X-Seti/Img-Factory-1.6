@@ -8054,3 +8054,34 @@ conclusively found despite extensive isolated testing.
 
   `ast.parse` clean; confirmed via AST no duplicate method
   definitions.
+
+- **Aug 20, 2026 (cont'd)** — New right-click "Send to Radar Workshop"
+  option, per Keith: "another right click option, send to radar
+  workshop" - the second option alongside "Send to TXD Workshop" on
+  the same context menu.
+
+  Opens a real `RadarWorkshop` instance and loads every just-
+  generated `radarNN.png` directly into its own matching tile slot,
+  using that tool's own real, already-existing per-tile write method
+  (`ws_commit_draw(idx, rgba)`) - the exact same method its own
+  interactive "Import tile" feature already calls, just without that
+  feature's own `QFileDialog` prompt, since this already knows
+  precisely which real file belongs in which real slot from the
+  filename's own tile index.
+
+  Sets the correct real game preset first ("SA PC"/"VC PC"/"III PC")
+  based on which game is actually loaded, matching this app's own
+  already-confirmed real grid sizes for each (see `RADAR_GRID_
+  PRESETS`'s own docstring), so Radar Workshop's own tile count/grid
+  genuinely matches what was really generated rather than whatever
+  its own last-used preset happened to be.
+
+  Verified the tile-index-from-filename extraction directly against
+  every real name shape this app actually produces (`radar00` through
+  `radar143`) - correct for all of them - and confirmed `RadarWorkshop`'s
+  own real `__init__(parent=None, main_window=None)` signature exactly
+  matches how this new code (and the tool's own existing `open_radar_
+  workshop` launcher) both already call it.
+
+  `ast.parse` clean; confirmed via AST no duplicate method
+  definitions.
