@@ -249,6 +249,30 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         # (GL_POINTS), no connecting lines at all - genuinely sparser
         # than every other style, not dots drawn along the same lines.
         self._grid_type      = 'lines'
+        # 'squares' grid style's own real fill (Aug 20 2026, per
+        # Keith: "in the preview settings, the option with blue full
+        # colour, option to set the colour, blue as default, or a
+        # texture shown as the grid, with settings for 64x64 -
+        # 1028x1028 tiled" - "1028" read as the standard power-of-2
+        # 1024, the nearest real texture size to that figure, not a
+        # literal 1028). fill_mode='color' (the existing, original
+        # behaviour, unchanged) or 'texture' (a real image, tiled at
+        # tile_size world units per repeat - genuinely independent of
+        # the grid's own step spacing, since Keith's own request was
+        # for a configurable tile size, not "make the texture match
+        # whatever step happens to be active"). color stored as a
+        # real (r,g,b) 0-255 tuple, matching the same convention
+        # already used for cull/zone/occlusion box colours elsewhere
+        # in this app - blue (51,128,230) as the real, stated default.
+        # tex_id lazily loaded/cached the same real way _ensure_auzo_
+        # icon_texture's own SVG texture already is, not reloaded
+        # every frame - see _ensure_squares_texture's own docstring.
+        self._squares_fill_mode  = 'color'
+        self._squares_color      = (51, 128, 230)
+        self._squares_texture_path = ''
+        self._squares_tile_size  = 256
+        self._squares_tex_id     = None
+        self._squares_tex_path_loaded = None   # which real path tex_id was actually loaded from
         self._use_prelight  = False
         self._ambient       = 0.4
         self._diffuse       = 0.9

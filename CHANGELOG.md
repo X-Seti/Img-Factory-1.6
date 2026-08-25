@@ -525,3 +525,33 @@
 
   `ast.parse` clean on all touched files; confirmed via AST no
   duplicate method definitions.
+
+- **Aug 20, 2026** — Fixed a real, hard crash Keith reported directly:
+  "AttributeError: '_TileZoomView' object has no attribute '_get_ui_
+  color'... Aborted (core dumped)."
+
+  Confirmed the root cause directly: `RadarGridWidget._get_ui_color`
+  only ever used generic, real `QWidget`-level concepts (`self.
+  palette()`, `self.app_settings`/`self.main_window.app_settings`) -
+  nothing specific to that one class's own state at all - but `_Tile
+  ZoomView` (a real, separate sibling `QWidget` subclass, not related
+  to `RadarGridWidget` by inheritance) called `self._get_ui_color(...)`
+  in its own `paintEvent` with no such method ever defined on it,
+  crashing the whole app the moment that widget actually painted.
+
+  Extracted the real logic into a new, shared, module-level `_get_
+  ui_color_for(widget, key)` function, then gave `RadarGridWidget` a
+  thin delegate to it instead of its own separate copy. Then searched
+  the whole file directly for every other real call site of `self.
+  _get_ui_color(...)` rather than stopping at the one Keith actually
+  hit - found the exact same real gap already latent in two more
+  classes, `_BoredomPuzzle` and `RadarWorkshop` itself (the main
+  widget), neither of which had ever defined the method either -
+  fixed both proactively with the same thin-delegate pattern, rather
+  than leaving them as the next crash waiting to happen the first
+  time either one actually painted.
+
+  `ast.parse` clean; confirmed via AST exactly one real `_get_ui_
+  color_for` and four real `_get_ui_color` delegates (RadarGridWidget/
+  _TileZoomView/_BoredomPuzzle/RadarWorkshop), no accidental
+  duplicates.

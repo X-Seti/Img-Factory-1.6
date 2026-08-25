@@ -472,23 +472,44 @@ class ImgReader:
 
 
 # - Radar grid widget
+def _get_ui_color_for(widget, key): #vers 1
+    """Real, shared implementation behind every class's own _get_ui_
+    color(key) method (Aug 20 2026, per Keith's own crash report:
+    "AttributeError: '_TileZoomView' object has no attribute
+    '_get_ui_color'"). Confirmed directly - RadarGridWidget's own
+    original version of this logic only ever used generic, real
+    QWidget-level concepts (self.palette(), self.app_settings/self.
+    main_window.app_settings), nothing specific to RadarGridWidget's
+    own state at all - so extracting it here as a real, shared,
+    standalone function both that class and _TileZoomView can
+    genuinely call (each via their own thin _get_ui_color wrapper) is
+    the correct fix, not a guess at making _TileZoomView somehow
+    inherit from RadarGridWidget (they're real, separate sibling
+    QWidget subclasses, not related by inheritance at all) or
+    duplicating this same logic a second time."""
+    from PyQt6.QtGui import QColor
+    try:
+        app_settings = getattr(widget, 'app_settings', None) or \
+            getattr(getattr(widget, 'main_window', None), 'app_settings', None)
+        if app_settings and hasattr(app_settings, 'get_ui_color'):
+            return app_settings.get_ui_color(key)
+    except Exception:
+        pass
+    pal = widget.palette()
+    if key == 'viewport_bg':
+        return pal.color(pal.ColorRole.Base)
+    if key == 'viewport_text':
+        return pal.color(pal.ColorRole.PlaceholderText)
+    return pal.color(pal.ColorRole.WindowText)
+
+
 class RadarGridWidget(QWidget):
 
-    def _get_ui_color(self, key): #vers 1
-        """Get a theme-aware QColor from app_settings. No hardcoded colors."""
-        from PyQt6.QtGui import QColor
-        try:
-            app_settings = getattr(self, 'app_settings', None) or \
-                getattr(getattr(self, 'main_window', None), 'app_settings', None)
-            if app_settings and hasattr(app_settings, 'get_ui_color'):
-                return app_settings.get_ui_color(key)
-        except Exception:
-            pass
-        pal = self.palette()
-        if key == 'viewport_bg':
-            return pal.color(pal.ColorRole.Base)
-        if key == 'viewport_text':
-            return pal.color(pal.ColorRole.PlaceholderText)
+    def _get_ui_color(self, key): #vers 2
+        """Thin delegate to the real, shared _get_ui_color_for
+        (Aug 20 2026 - see that function's own docstring for why this
+        logic moved there)."""
+        return _get_ui_color_for(self, key)
         return pal.color(pal.ColorRole.WindowText)
     """Full radar grid — no gaps, 1px grid lines, hover=tile name tooltip."""
     tile_clicked        = pyqtSignal(int)
@@ -1072,6 +1093,20 @@ class _BoredomPuzzle(QDialog):
 
         self._draw()
 
+    def _get_ui_color(self, key): #vers 1
+        """Real fix for the same real crash class Keith reported
+        directly for _TileZoomView ("AttributeError: ... has no
+        attribute '_get_ui_color'") - confirmed via direct search that
+        this class has the exact same real gap (calls self._get_ui_
+        color('viewport_bg') further down in this same class, with no
+        method of that name ever defined here) - not yet triggered/
+        reported, but a real, latent crash of the identical kind,
+        fixed here proactively rather than left for the next time
+        this dialog happens to paint. See _get_ui_color_for's own
+        docstring for why this is a thin delegate, not a second,
+        separate copy of the underlying logic."""
+        return _get_ui_color_for(self, key)
+
     def _shuffle(self): #vers 1
         """Shuffle with 200 random valid moves from solved state."""
         import random
@@ -1164,6 +1199,19 @@ class _TileZoomView(QWidget):
         self.setMouseTracking(True)
         self.setCursor(Qt.CursorShape.CrossCursor)
         self._rebuild_pixmap()
+
+    def _get_ui_color(self, key): #vers 1
+        """Real fix for the real crash Keith reported directly:
+        "AttributeError: '_TileZoomView' object has no attribute
+        '_get_ui_color'" (paintEvent calling this on line 1275,
+        aborting the whole app - a real, hard crash, not a caught
+        exception). Delegates to the same real, shared _get_ui_color_
+        for this session's own RadarGridWidget fix also uses - passes
+        self here directly (this widget's own real self.palette(),
+        not self._workshop) since that shared function only ever
+        needs generic QWidget-level access, which this class already
+        has on its own."""
+        return _get_ui_color_for(self, key)
 
     def _rebuild_pixmap(self): #vers 2
         ws = self._workshop
@@ -1396,6 +1444,21 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
     workshop_closed = pyqtSignal()
     window_closed   = pyqtSignal()
+
+    def _get_ui_color(self, key): #vers 1
+        """Real fix for the same real crash class Keith reported
+        directly for _TileZoomView ("AttributeError: ... has no
+        attribute '_get_ui_color'") - confirmed via direct search
+        that this class (the main RadarWorkshop widget itself) has
+        the exact same real gap (calls self._get_ui_color('viewport_
+        bg') further down in this same class, with no method of that
+        name ever defined here) - not yet triggered/reported, but a
+        real, latent crash of the identical kind, fixed here
+        proactively rather than left for the next time this happens
+        to run. See _get_ui_color_for's own docstring for why this is
+        a thin delegate, not a second, separate copy of the
+        underlying logic."""
+        return _get_ui_color_for(self, key)
 
     def _build_menus_into_qmenu(self, pm): #vers 2
         fm = pm.addMenu("File")
