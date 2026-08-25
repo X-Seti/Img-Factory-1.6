@@ -8272,3 +8272,28 @@ conclusively found despite extensive isolated testing.
 
   `ast.parse` clean; confirmed via AST no duplicate method
   definitions.
+
+- **Aug 20, 2026 (cont'd)** — Added a 5th grid style, per Keith: "Can
+  and add honeycomb effects."
+
+  New `_draw_grid_honeycomb` - a real, standard hexagonal tiling
+  (pointy-top orientation, the common "honeycomb" look), using the
+  well-established, standard math for this (the same real formula
+  widely documented elsewhere, e.g. redblobgames.com's own "hexagonal
+  grids" reference - not invented here). `step` is used as the hex's
+  own centre-to-vertex radius; real horizontal/vertical spacing and
+  the alternating row offset all follow that same standard formula so
+  the hexagons genuinely interlock edge-to-edge.
+
+  Verified the actual tiling geometry directly, not just that it
+  compiles - confirmed adjacent hexagons (both same-row and
+  offset-row neighbours) share exactly one real edge (2 matching
+  vertices) each, the real signature of correct, gap-free, overlap-
+  free hexagonal tiling.
+
+  Same real anti-aliasing treatment as every other line-based grid
+  style (`GL_LINE_SMOOTH`, saved/restored around just this method's
+  own drawing work).
+
+  `ast.parse` clean; confirmed via AST no duplicate method
+  definitions.

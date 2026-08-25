@@ -8665,10 +8665,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         grid_type_combo = QComboBox()
         grid_type_items = [
-            ('lines',   'Lines (default)'),
-            ('squares', 'Squares (blue fill)'),
-            ('dashed',  'Marching ants (dashed)'),
-            ('dots',    'Dots only'),
+            ('lines',     'Lines (default)'),
+            ('squares',   'Squares (blue fill)'),
+            ('dashed',    'Marching ants (dashed)'),
+            ('dots',      'Dots only'),
+            ('honeycomb', 'Honeycomb (hexagons)'),
         ]
         for key, label in grid_type_items:
             grid_type_combo.addItem(label, key)

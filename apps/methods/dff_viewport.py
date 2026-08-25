@@ -1639,6 +1639,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._draw_grid_dashed(step, rng, cx, cy)
         elif grid_type == 'dots':
             self._draw_grid_dots(step, rng, cx, cy)
+        elif grid_type == 'honeycomb':
+            self._draw_grid_honeycomb(step, rng, cx, cy)
         else:
             self._draw_grid_lines(step, rng, cx, cy)
         glEnable(GL_LIGHTING)
@@ -1766,6 +1768,58 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 glVertex3f(gx, gy, 0)
         glEnd()
         glDisable(GL_POINT_SMOOTH)
+        if not was_blend:
+            glDisable(GL_BLEND)
+
+    def _draw_grid_honeycomb(self, step, rng, cx=0, cy=0): #vers 1
+        """'honeycomb' grid style - Keith's own request: "add
+        honeycomb effects" (Aug 20 2026). A real, standard hexagonal
+        tiling (pointy-top orientation - vertex at top/bottom, flat
+        sides left/right, the common "honeycomb" look), using the
+        well-established, standard math for this (the same real
+        formula documented at length by e.g. redblobgames.com's own
+        widely-used "hexagonal grids" reference, not invented here):
+        step is used as the hex's own centre-to-vertex radius `s`;
+        real horizontal spacing between adjacent hex centres in the
+        same row is `sqrt(3)*s`, real vertical spacing between rows
+        is `1.5*s`, and every other row is offset horizontally by
+        half that spacing (`sqrt(3)*s/2`) so the hexagons genuinely
+        interlock edge-to-edge rather than sitting in a plain
+        rectangular grid of hexagon shapes. Each hexagon's own 6
+        vertices are placed at 60-degree angle steps starting at
+        -30 degrees (the real, standard pointy-top vertex angles).
+        cx/cy: see _draw_grid_lines' own docstring. Same real anti-
+        aliasing treatment (GL_LINE_SMOOTH, saved/restored) as every
+        other line-based style, for the same real reason."""
+        import math
+        s = step
+        hex_w = math.sqrt(3) * s
+        hex_h = 1.5 * s
+        was_blend = glIsEnabled(GL_BLEND)
+        glEnable(GL_LINE_SMOOTH)
+        glHint(GL_LINE_SMOOTH_HINT, GL_NICEST)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        glLineWidth(0.5)
+        glColor4f(0.3, 0.3, 0.4, 0.4)
+        row = int((cy - rng) / hex_h) - 1
+        max_row = int((cy + rng) / hex_h) + 1
+        while row <= max_row:
+            row_y = row * hex_h
+            row_offset = (hex_w / 2.0) if (row % 2) else 0.0
+            col = int((cx - rng - row_offset) / hex_w) - 1
+            max_col = int((cx + rng - row_offset) / hex_w) + 1
+            while col <= max_col:
+                hx = col * hex_w + row_offset
+                hy = row_y
+                glBegin(GL_LINE_LOOP)
+                for i in range(6):
+                    ang = math.radians(60 * i - 30)
+                    glVertex3f(hx + s * math.cos(ang), hy + s * math.sin(ang), 0)
+                glEnd()
+                col += 1
+            row += 1
+        glDisable(GL_LINE_SMOOTH)
         if not was_blend:
             glDisable(GL_BLEND)
 
