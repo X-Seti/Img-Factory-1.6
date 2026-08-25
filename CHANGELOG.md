@@ -452,3 +452,76 @@
 
   `ast.parse` clean on both touched files; confirmed via AST no
   duplicate method definitions.
+
+- **Aug 20, 2026** — Found and fixed 2 real, pre-existing bugs in the
+  app's own core `IMGFile._rebuild_version2` (`apps/methods/img_core_
+  classes.py`) while building a new RadarTex.img export feature in
+  Map Workshop and verifying it end-to-end against real data, not
+  just trusting the established API surface on faith.
+
+  **Missing VER2 magic header** - this method never wrote the real,
+  required 4-byte "VER2" magic at all, anywhere - confirmed directly
+  by reading its own code, not assumed from a symptom. Every real
+  Version 2 archive this app creates starts with this exact magic
+  (`create_version_2`'s own initial write already gets this right),
+  but `_rebuild_version2` runs on every single `save_img_file()` call
+  after any `add_entry(..., auto_save=False)` batch - so it silently
+  overwrote that correct initial header with a file starting directly
+  at the directory table instead, every time. This app's own real
+  `IMGFile.open()` correctly refuses to recognise a file missing this
+  magic as a real Version 2 archive at all - so any archive built via
+  this exact, otherwise-correct call sequence (`create_new` ->
+  `add_entry(auto_save=False)` x N -> `save_img_file`) was silently
+  unreadable by this same app's own reader, not a rare edge case.
+
+  **Wrong, unaligned data start offset** - a real, second bug found
+  and fixed alongside the first: the data-start offset used to just
+  be `directory_size`, with no account for the real 8-byte header
+  that needed adding right alongside the magic fix, and no sector
+  alignment either - real Version 2 directory entries store their own
+  offsets as sectors (`offset // 2048`), so an unaligned data-start
+  would have silently truncated the very first entry's own real
+  sector number down to 0, making it overlap the header/directory
+  table itself rather than sitting cleanly after it. Fixed to round
+  up to the next real 2048-byte sector boundary.
+
+  Verified the actual fix directly, not just that it compiles - a
+  real, synthetic 3-entry archive built via `create_new`/`add_entry`/
+  `save_img_file`, confirmed the saved file's own first 4 bytes are
+  now genuinely `VER2`, and confirmed a completely fresh `IMGFile`
+  instance can now actually re-open the archive and see all 3 real
+  entries with their correct names - the exact failure mode that
+  first surfaced this while testing the new RadarTex.img feature.
+
+  New Map Workshop feature (`apps/components/Map_Editor/map_
+  workshop.py`) built on top of this now-fixed core API, per Keith:
+  "I am thinking about creating a RadarTex.img option from Radar_
+  Workshop, this way the user can just add the new img file to the
+  gta_xx.dat file" - a third right-click option on the Radar button,
+  "Export as RadarTex.img", packing every generated tile straight
+  into one combined archive using SOL's own real, confirmed 4-digit
+  tile naming (`radar0000.txd`...), reusing the same real, already-
+  verified `TXDSerializer`-based TXD building this session's earlier
+  "Send to TXD Workshop" option already uses (now shared via a new
+  `_build_radar_tile_txd_bytes` helper rather than duplicated a third
+  time). Also removes `create_new`'s own real, confirmed placeholder
+  seed entry (`replaceme.dff`, added automatically to every brand new
+  archive so it's never left with zero entries) before adding the
+  real tiles, or it would sit alongside them as a genuine, unwanted
+  extra entry in the final archive.
+
+  Real, honest limitation stated plainly, not glossed over: `IMGVersion`
+  has its own real, dedicated `VERSION_SOL` member ("DIR/img pair
+  (SOL)") - genuinely, structurally different from vanilla SA's own
+  `VERSION_2` (a single combined file, not a DIR/IMG pair at all) -
+  but `IMGFile.create_new()` only actually implements `VERSION_1` and
+  `VERSION_2` creation; `VERSION_SOL` has no real creator built
+  anywhere in this app yet, confirmed directly. Uses `VERSION_2` here
+  as the closest genuinely supported option (SOL is built on the SA
+  engine, which does use `VERSION_2` for its own real archives), but
+  this is a real, stated assumption, not a confirmed match to SOL's
+  own actual archive format - flagged in both the code and the
+  feature's own real UI tooltip.
+
+  `ast.parse` clean on all touched files; confirmed via AST no
+  duplicate method definitions.

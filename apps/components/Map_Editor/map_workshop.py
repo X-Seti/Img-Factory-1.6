@@ -23490,14 +23490,17 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         progress.setValue(len(tiles))
         self._set_status(f"Generated {saved} of {len(tiles)} radar tiles to {output_dir}")
 
-    def _on_radar_tiles_context_menu(self, button, pos): #vers 2
+    def _on_radar_tiles_context_menu(self, button, pos): #vers 3
         """Right-click menu on the Radar button - "Send to TXD
         Workshop" (Aug 20 2026, per Keith: "right click the radar
         button to send the tiles to txd workshop, add radarXX.png to
         radarXX.txd, if assists folder exists, add these to the Radar
         folder"), then "Send to Radar Workshop" (Keith's own same-day
         follow-up: "another right click option, send to radar
-        workshop")."""
+        workshop"), then "Export as RadarTex.img" (Keith's own same-
+        day follow-up: "I am thinking about creating a RadarTex.img
+        option from Radar_Workshop, this way the user can just add
+        the new img file to the gta_xx.dat file")."""
         menu = QMenu(button)
         tiles = getattr(self, '_last_radar_tile_paths', None)
         act = menu.addAction("Send to TXD Workshop (pack PNGs into TXDs)")
@@ -23510,9 +23513,53 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if not tiles:
             act2.setToolTip("Generate radar tiles first (left-click) - nothing to send yet.")
         act2.triggered.connect(self._send_radar_tiles_to_radar_workshop)
+        act3 = menu.addAction("Export as RadarTex.img")
+        act3.setEnabled(bool(tiles))
+        if not tiles:
+            act3.setToolTip("Generate radar tiles first (left-click) - nothing to send yet.")
+        else:
+            act3.setToolTip(
+                "Packs every tile straight into one real RadarTex.img\n"
+                "archive - add its own real line to your gta_xx.dat\n"
+                "to load it, rather than replacing individual\n"
+                "radarNN.txd files one at a time.\n\n"
+                "Note: written using SA's own real archive format\n"
+                "(VERSION_2) as the closest supported option - this\n"
+                "app doesn't have a dedicated SOL archive creator yet,\n"
+                "so this hasn't been confirmed as an exact match to\n"
+                "SOL's own real DIR/IMG archive format.")
+        act3.triggered.connect(self._export_radar_tiles_as_img)
         menu.exec(button.mapToGlobal(pos))
 
-    def _send_radar_tiles_to_txd_workshop(self): #vers 1
+    def _build_radar_tile_txd_bytes(self, png_path, serializer, name=None): #vers 1
+        """Build real TXD binary bytes for one real radar tile PNG,
+        using a caller-provided TXDSerializer instance (Aug 20 2026,
+        extracted from _send_radar_tiles_to_txd_workshop's own real,
+        already-verified logic - shared here so _export_radar_tiles_
+        as_img doesn't need to re-derive/duplicate the exact same real
+        texture-dict shape a third time). name defaults to the PNG's
+        own filename stem if not given (matching the existing per-
+        file TXD naming), but a caller building a single combined
+        archive (RadarTex.img) needs to pass its own real, different
+        per-tile name explicitly (SOL's own real 4-digit convention,
+        not the 2-digit one a loose, individual .txd file uses)."""
+        from PIL import Image
+        img = Image.open(png_path).convert('RGBA')
+        has_alpha = any(p[3] < 255 for p in img.getdata())
+        fmt = 'ARGB8888' if has_alpha else 'RGB888'
+        if name is None:
+            name = os.path.splitext(os.path.basename(png_path))[0]
+        tex = {
+            'name': name, 'width': img.width, 'height': img.height,
+            'rgba_data': img.tobytes(), 'has_alpha': has_alpha,
+            'format': fmt, 'alpha_name': name + 'a' if has_alpha else '',
+            'mipmaps': 1, 'mipmap_levels': [],
+            'raster_format_flags': 0x2600 if not has_alpha else 0x2500,
+            'depth': 32, 'platform_id': 8, 'filter_flags': 0x1102,
+        }
+        return serializer.serialize_txd([tex])
+
+    def _send_radar_tiles_to_txd_workshop(self): #vers 2
         """Pack every just-generated radarNN.png into its own real
         radarNN.txd, right alongside the PNGs (Aug 20 2026, per
         Keith's own "add radarXX.png to radarXX.txd" wording -
@@ -23543,7 +23590,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 "No radar tiles generated yet - left-click Radar first.")
             return
         try:
-            from PIL import Image
             from apps.methods.txd_serializer import TXDSerializer
         except Exception as e:
             QMessageBox.warning(self, "Send to TXD Workshop",
@@ -23556,19 +23602,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         txd_paths = []
         for png_path in paths:
             try:
-                img = Image.open(png_path).convert('RGBA')
-                has_alpha = any(p[3] < 255 for p in img.getdata())
-                fmt = 'ARGB8888' if has_alpha else 'RGB888'
+                txd_bytes = self._build_radar_tile_txd_bytes(png_path, serializer)
                 name = os.path.splitext(os.path.basename(png_path))[0]
-                tex = {
-                    'name': name, 'width': img.width, 'height': img.height,
-                    'rgba_data': img.tobytes(), 'has_alpha': has_alpha,
-                    'format': fmt, 'alpha_name': name + 'a' if has_alpha else '',
-                    'mipmaps': 1, 'mipmap_levels': [],
-                    'raster_format_flags': 0x2600 if not has_alpha else 0x2500,
-                    'depth': 32, 'platform_id': 8, 'filter_flags': 0x1102,
-                }
-                txd_bytes = serializer.serialize_txd([tex])
                 txd_path = os.path.join(os.path.dirname(png_path), name + '.txd')
                 with open(txd_path, 'wb') as f:
                     f.write(txd_bytes)
@@ -23601,6 +23636,113 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             msg += f" ({copied} copied to assists/Radar)"
         self._set_status(msg)
         QMessageBox.information(self, "Send to TXD Workshop", msg +
+            ("" if not failed else f"\n\n{failed} tile(s) failed - see console."))
+
+    def _export_radar_tiles_as_img(self): #vers 1
+        """Pack every just-generated radar tile into one real,
+        combined RadarTex.img archive (Aug 20 2026, per Keith: "I am
+        thinking about creating a RadarTex.img option from Radar_
+        Workshop, this way the user can just add the new img file to
+        the gta_xx.dat file") - the real, confirmed filename SOL's own
+        actual GAME_PRESETS entry names directly (radar_workshop.py's
+        own "SOL" preset hint text: "Load RadarTex.img — contains
+        radar0000.txd to radar1295.txd"), so the same real, SOL-style
+        4-digit tile naming (radarNNNN.txd) is used for every entry
+        here too, matching the format an archive with this exact name
+        is actually expected to contain.
+
+        Uses the real, already-existing, already-proven core IMG
+        creation API - IMGFile.create_new()/add_entry()/save_img_file()
+        (apps/methods/img_core_classes.py) - the same real machinery
+        this whole app's own IMG Creator tool is built on, not a new,
+        separate archive-writing path invented just for this. Each
+        tile's own real TXD bytes are built the exact same way _send_
+        radar_tiles_to_txd_workshop's own real, already-verified logic
+        does (via the shared _build_radar_tile_txd_bytes helper), kept
+        entirely in memory rather than needing loose, individual .txd
+        files on disk first.
+
+        Real, honest limitation, checked directly rather than assumed
+        away: IMGVersion has its own real, dedicated VERSION_SOL
+        member ("DIR/img pair (SOL)") - genuinely, structurally
+        different from vanilla SA's own VERSION_2 (a single combined
+        file, not a DIR/IMG pair at all) - but IMGFile.create_new()
+        only actually implements VERSION_1 and VERSION_2 creation;
+        VERSION_SOL has no real creator built anywhere in this app
+        yet, confirmed directly by reading create_new's own real
+        code, not assumed. Uses VERSION_2 here as the closest
+        genuinely supported option (SOL is built on the SA engine,
+        which does use VERSION_2 for its own real archives) - but
+        this is a real, stated assumption, not a confirmed match to
+        SOL's own actual, real DIR/IMG archive format. Flagged here
+        plainly rather than silently shipped as settled."""
+        paths = getattr(self, '_last_radar_tile_paths', None)
+        if not paths:
+            QMessageBox.information(self, "Export as RadarTex.img",
+                "No radar tiles generated yet - left-click Radar first.")
+            return
+        try:
+            from apps.methods.txd_serializer import TXDSerializer
+            from apps.methods.img_core_classes import IMGFile, IMGVersion
+        except Exception as e:
+            QMessageBox.warning(self, "Export as RadarTex.img",
+                f"Required module not available: {e}")
+            return
+
+        default_dir = self.map_settings.get('radar_tiles_output_dir') or os.path.expanduser("~")
+        out_path, _ = QFileDialog.getSaveFileName(
+            self, "Export RadarTex.img", os.path.join(default_dir, "RadarTex.img"),
+            "IMG Archives (*.img);;All Files (*)")
+        if not out_path:
+            return
+
+        # A rough, real size estimate rather than a fixed guess - each
+        # tile's own real TXD size varies with resolution/alpha, so a
+        # fixed default could genuinely be too small for a large SOL-
+        # style tile count at higher resolution.
+        est_mb = max(10, (len(paths) * 64) // 1024 + 5)
+
+        serializer = TXDSerializer()
+        img = IMGFile()
+        if not img.create_new(out_path, IMGVersion.VERSION_2, initial_size_mb=est_mb):
+            QMessageBox.warning(self, "Export as RadarTex.img",
+                "Failed to create the new IMG archive.")
+            return
+        # A real, confirmed placeholder entry (Aug 20 2026, found
+        # directly while verifying this pipeline end-to-end, not
+        # assumed) - IMGVersion2Creator.create_version_2 always seeds
+        # a brand new archive with one initial "replaceme.dff" entry
+        # (so a genuinely empty archive is never left with zero
+        # entries at all) - removed here explicitly before adding the
+        # real radar tiles, or it would sit alongside them as a real,
+        # unwanted 145th/65th/etc. entry in the final archive.
+        img.remove_entry('replaceme.dff')
+
+        packed = 0
+        failed = 0
+        for idx, png_path in enumerate(paths):
+            try:
+                # SOL's own real, confirmed 4-digit tile naming
+                # (radar0000.txd...radar1295.txd) - not the 2-digit
+                # convention a loose, individual .txd file uses.
+                name = f"radar{idx:04d}"
+                txd_bytes = self._build_radar_tile_txd_bytes(png_path, serializer, name=name)
+                if img.add_entry(name + '.txd', txd_bytes, auto_save=False):
+                    packed += 1
+                else:
+                    failed += 1
+            except Exception as e:
+                failed += 1
+                print(f"[Radar->RadarTex.img] Failed to pack {png_path}: {e}")
+
+        if not img.save_img_file():
+            QMessageBox.warning(self, "Export as RadarTex.img",
+                f"Packed {packed} tile(s) but failed to save the archive itself.")
+            return
+
+        msg = f"Exported {packed} of {len(paths)} tiles to {os.path.basename(out_path)}"
+        self._set_status(msg)
+        QMessageBox.information(self, "Export as RadarTex.img", msg +
             ("" if not failed else f"\n\n{failed} tile(s) failed - see console."))
 
     def _send_radar_tiles_to_radar_workshop(self): #vers 1

@@ -1163,7 +1163,21 @@ class IMGFile:
             # Calculate sizes
             entry_count = len(self.entries)
             directory_size = entry_count * 32  # 32 bytes per entry
-            data_start = directory_size
+            # Real, second bug fixed alongside the missing VER2 magic
+            # above (Aug 20 2026, same discovery) - this used to be
+            # just `directory_size`, with no account for the real
+            # 8-byte header (4-byte "VER2" + 4-byte entry count) that
+            # comes before the directory table, and no sector
+            # alignment either - entry offsets are stored in the real
+            # directory table as SECTORS (offset // 2048 below), so an
+            # unaligned data_start would silently truncate the first
+            # entry's own real sector number down to 0, making it
+            # overlap the header/directory table itself rather than
+            # sitting cleanly after it - checked and fixed here
+            # directly against the real, existing offset-encoding
+            # logic later in this same method, not assumed correct.
+            header_size = 8   # "VER2" (4) + entry count (4)
+            data_start = ((header_size + directory_size + 2047) // 2048) * 2048
 
             # Collect entry data
             entry_data_list = []
@@ -1188,6 +1202,30 @@ class IMGFile:
 
             # Write new IMG file
             with open(self.file_path, 'wb') as f:
+                # Real, confirmed bug fixed here (Aug 20 2026, found
+                # while building a real RadarTex.img export feature
+                # in Map Workshop) - this method never wrote the real
+                # "VER2" magic header at all, anywhere, confirmed
+                # directly by reading this method's own code before
+                # trusting it, not assumed from a symptom alone. Every
+                # real Version 2 IMG file this app itself creates
+                # starts with this exact 4-byte magic (create_version_
+                # 2's own initial write already does this correctly),
+                # but this method runs on every single save_img_file()
+                # call after any add_entry(..., auto_save=False) batch
+                # - so it silently overwrote that correct initial
+                # header with a file starting directly at the
+                # directory table instead, the whole time. A real,
+                # already-existing IMGFile.open() correctly refuses to
+                # recognise a file missing this magic as a real
+                # Version 2 archive at all - so every archive built
+                # via this exact, otherwise-correct call sequence
+                # (create_new -> add_entry(auto_save=False) x N ->
+                # save_img_file) was silently unreadable by this same
+                # app's own reader, not just by chance for one
+                # specific feature.
+                f.write(b'VER2')
+                f.write(struct.pack('<I', entry_count))
                 # Write directory
                 for i, entry in enumerate(self.entries):
                     # Convert to sectors
