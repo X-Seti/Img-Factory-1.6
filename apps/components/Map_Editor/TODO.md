@@ -835,3 +835,30 @@ Keith: "water_workshop doesn't handle SOL correctly")
   place. Needs real, confirmed SOL sample data and the actual 6x6
   de-tiling math worked into the parser itself before this can be
   trusted for SOL specifically.
+
+## Grid type: "Voyager holodeck" style (Aug 20 2026, per Keith:
+"its very interesting. I've been looking for the Voyager grid
+effect; I can't seem to find it. However, having a grid like that
+would help; it doesn't have a square grid. It has overlapping
+squares spaced out between the crossed sections")
+- Came up while adding real grid style options (Lines/Squares/
+  Dashed/Dots) to the viewport - Keith wants a 5th style based on a
+  Star Trek holodeck look he remembers from Voyager, but a genuinely
+  different pattern from a plain square grid: smaller, offset squares
+  positioned between the main grid's own crossing points, layered/
+  overlapping rather than a single flat tessellation.
+- Real image searches for "Star Trek holodeck grid"/"Voyager
+  holodeck grid" only turned up the well-known, shared yellow-gold-
+  on-black square grid look common across TNG/DS9/Voyager - not this
+  specific offset-overlapping-squares pattern Keith is describing.
+  Keith himself confirmed he can't find a reference image for it
+  either - this may be his own mental composite rather than one
+  specific, findable frame, not something either of us has a real
+  source image for yet.
+- Genuinely unstarted - no design/geometry worked out at all yet
+  (unlike the "Holodeck" yellow/black/vertical-lines idea also
+  discussed the same session, which has a real, found reference
+  image behind it). Needs either a real reference image eventually,
+  or Keith's own more detailed description of the exact offset/
+  spacing relationship between the main grid and the smaller squares,
+  before real geometry can be designed for it.
