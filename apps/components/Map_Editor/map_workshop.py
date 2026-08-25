@@ -3507,6 +3507,21 @@ class MapSettings(QObject):
         # ("in time we could have other grid options") flags this as
         # the start of its own, real settings group, not a one-off.
         'radar_tiles_show_grid':  False,
+        # The real "other grid options" this same comment block above
+        # already flagged as coming later (Aug 20 2026, per Keith's
+        # own real follow-up: "can we have an option for grid type
+        # squares, grid with blue square inside, marching ants lines,
+        # just dots, and switch grid off completly") - controls the
+        # viewport's own real grid drawing style whenever the grid is
+        # on at all (see DFFViewport._draw_grid's own docstring for
+        # what each real value actually draws) - genuinely separate
+        # from radar_tiles_show_grid above, which only ever controls
+        # whether the grid appears in generated tiles specifically;
+        # this instead controls which of the 4 real visual styles it
+        # uses everywhere the grid is shown, tiles included. "Switch
+        # grid off completly" is the pre-existing show_grid toggle
+        # itself, not a 5th value here.
+        'grid_type': 'lines',
     }
 
     _instance = None
@@ -8633,15 +8648,42 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "size instead of jumping into the other one.")
         boxes_form.addRow(no_clip_chk)
 
-        # Radar Tiles (Aug 20 2026, per Keith: "the square grid gets
-        # saved in with the radar tiles, can we have a settings option
-        # to not show the grid, in time we could have other grid
-        # options") - its own dedicated group, not folded into Boxes
-        # above, matching Keith's own "in time we could have other
-        # grid options" framing as the start of a real, separate
-        # settings group rather than a one-off checkbox.
-        radar_grp = QGroupBox("Radar Tiles")
+        # Grid & Radar Tiles (Aug 20 2026, per Keith: "the square grid
+        # gets saved in with the radar tiles, can we have a settings
+        # option to not show the grid, in time we could have other
+        # grid options" - then that same day: "can we have an option
+        # for grid type squares, grid with blue square inside,
+        # marching ants lines, just dots, and switch grid off
+        # completly"). Its own dedicated group, not folded into Boxes
+        # above - renamed from this group's own original "Radar
+        # Tiles" name once grid_type joined it, since that control is
+        # genuinely broader than radar tiles alone (the whole
+        # viewport's own grid, tiles included) - "Radar Tiles" alone
+        # would have been a misleading label for it now.
+        radar_grp = QGroupBox("Grid && Radar Tiles")
         radar_form = QFormLayout(radar_grp)
+
+        grid_type_combo = QComboBox()
+        grid_type_items = [
+            ('lines',   'Lines (default)'),
+            ('squares', 'Squares (blue fill)'),
+            ('dashed',  'Marching ants (dashed)'),
+            ('dots',    'Dots only'),
+        ]
+        for key, label in grid_type_items:
+            grid_type_combo.addItem(label, key)
+        current_grid_type = self.map_settings.get('grid_type')
+        idx = next((i for i, (k, _) in enumerate(grid_type_items) if k == current_grid_type), 0)
+        grid_type_combo.setCurrentIndex(idx)
+        grid_type_combo.setToolTip(
+            "The whole viewport's own reference grid style, used\n"
+            "wherever the grid is shown at all - the interactive\n"
+            "view and generated radar tiles alike. To switch the\n"
+            "grid off completely, use each view's own existing grid\n"
+            "show/hide toggle instead - this only picks the style\n"
+            "used whenever the grid is actually on.")
+        radar_form.addRow("Grid style:", grid_type_combo)
+
         radar_show_grid_chk = QCheckBox("Show reference grid in generated tiles")
         radar_show_grid_chk.setChecked(bool(self.map_settings.get('radar_tiles_show_grid')))
         radar_show_grid_chk.setToolTip(
@@ -9177,6 +9219,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if vp is not None and hasattr(vp, 'set_no_clip_boxes'):
                 vp.set_no_clip_boxes(no_clip_chk.isChecked())
             self.map_settings.set('radar_tiles_show_grid', radar_show_grid_chk.isChecked())
+            grid_type_key = grid_type_combo.currentData()
+            self.map_settings.set('grid_type', grid_type_key)
+            if vp is not None and hasattr(vp, 'set_grid_type'):
+                vp.set_grid_type(grid_type_key)
 
             # The rest of this function (fonts, button mode, export
             # format, preview/background settings) is pre-existing

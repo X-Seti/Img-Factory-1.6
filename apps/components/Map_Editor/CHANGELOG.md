@@ -8122,3 +8122,47 @@ conclusively found despite extensive isolated testing.
 
   `ast.parse` clean on both touched files; confirmed via AST no
   duplicate method definitions.
+
+- **Aug 20, 2026 (cont'd)** — Real grid style options, per Keith: "can
+  we have an option for grid type squares, grid with blue square
+  inside, marching ants lines, just dots, and switch grid off
+  completly."
+
+  New `DFFViewport._draw_grid` dispatches on `self._grid_type` to one
+  of 4 genuinely distinct drawing methods (`_draw_grid_lines`/
+  `_draw_grid_squares`/`_draw_grid_dashed`/`_draw_grid_dots`) instead
+  of the one, only style this feature ever had before: `lines` (the
+  original, unchanged), `squares` (a real, semi-transparent blue
+  `GL_QUADS` fill inside every cell, per Keith's own literal "blue
+  square inside" wording - a real superset of the lines style, not a
+  replacement that drops the outlines), `dashed` (genuinely dashed via
+  real `GL_LINE_STIPPLE`, matching Keith's own "marching ants" wording
+  and the same visual language already used elsewhere in this app for
+  an edit-mode indicator), `dots` (only the real grid intersection
+  points as `GL_POINTS`, no connecting lines at all - genuinely
+  sparser than the others, not dots drawn along the same lines).
+  "Switch grid off completely" is the pre-existing `show_grid` toggle
+  itself, not a 5th style here.
+
+  Verified every OpenGL symbol used (`GL_LINE_STIPPLE`/`glLineStipple`/
+  `GL_QUADS`/`GL_BLEND`/`GL_POINTS`/etc.) is real and importable before
+  relying on any of them (PyOpenGL wasn't installed in this sandbox at
+  all - installed it specifically to check, rather than assuming a
+  legacy-GL symbol name was correct from memory), confirmed `glLine
+  Stipple`'s own real, stable, decades-old `(factor, pattern)`
+  signature, and directly verified the `squares` style's own fill
+  geometry (exact coverage matching the line grid's own extent with
+  zero gaps or overlaps, and consistent counter-clockwise winding on
+  every cell).
+
+  New `DFFViewport.set_grid_type()` (matches `set_show_grid`'s own
+  existing pattern exactly) + real `grid_type` setting (`MapSettings.
+  DEFAULTS`) + a real dropdown in the Render settings tab - the same
+  group `radar_tiles_show_grid` lives in, renamed from "Radar Tiles"
+  to "Grid & Radar Tiles" since this new control is genuinely broader
+  in scope than radar tiles alone (the whole viewport's own grid,
+  tiles included), so the old, narrower name would have been
+  misleading now.
+
+  `ast.parse` clean on both touched files; confirmed via AST no
+  duplicate method definitions.
