@@ -8085,3 +8085,40 @@ conclusively found despite extensive isolated testing.
 
   `ast.parse` clean; confirmed via AST no duplicate method
   definitions.
+
+- **Aug 20, 2026 (cont'd)** — Fixed a real bug and added a genuine
+  settings toggle for it, per Keith: "one thing i've noticed is the
+  square grid gets saved in with the radar tiles, can we have a
+  settings option to not show the grid, in time we could have other
+  grid options."
+
+  The viewport's own square reference grid (`self._show_grid`, on by
+  default in every normal interactive view) was baking straight into
+  every generated tile - `capture_radar_tile`'s own `paintGL` call
+  drew it exactly the same way it draws for a live, interactive view,
+  with no distinction between the two.
+
+  New `capture_radar_tile(..., show_grid: bool = False)` parameter -
+  saved and restored alongside the method's own existing camera-state
+  save/restore, so a batch tile-generation run still can't permanently
+  disturb whatever grid state the person's own live view was actually
+  in. New `radar_tiles_show_grid` (`MapSettings.DEFAULTS`, off by
+  default - the real problem being reported) + a real "Radar Tiles"
+  group and checkbox in the Render settings tab, wired into `apply_
+  settings` the same way every other real checkbox on that tab
+  already is - a genuine, visible settings option, not a silently
+  hardcoded fix. `_generate_radar_tiles` now reads the real setting
+  and passes it straight through on every tile captured.
+
+  Deliberately its own separate settings key, not folded into an
+  existing group - Keith's own "in time we could have other grid
+  options" framing marks this as the start of a real, small settings
+  group of its own, not a one-off toggle.
+
+  Verified the actual save/restore/suppress logic directly (grid
+  correctly suppressed during capture and correctly restored to the
+  original interactive state afterward, and correctly still drawn
+  when explicitly requested).
+
+  `ast.parse` clean on both touched files; confirmed via AST no
+  duplicate method definitions.

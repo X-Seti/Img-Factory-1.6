@@ -3493,6 +3493,20 @@ class MapSettings(QObject):
         'radar_tiles_output_dir': '',
         'radar_tiles_pack_txd':   True,
         'radar_tiles_copy_to_assists': True,
+        # Real bug fixed (Aug 20 2026, per Keith: "the square grid
+        # gets saved in with the radar tiles, can we have a settings
+        # option to not show the grid, in time we could have other
+        # grid options") - the viewport's own square reference grid
+        # (self._show_grid) was baking straight into every generated
+        # tile, since capture_radar_tile's own paintGL call drew it
+        # the exact same way it draws for a normal interactive view,
+        # with no distinction. Off by default - the real problem
+        # being reported - a genuine, real toggle rather than a
+        # silent hardcoded fix, and deliberately its own separate key
+        # (not folded into the 2 above) since Keith's own wording
+        # ("in time we could have other grid options") flags this as
+        # the start of its own, real settings group, not a one-off.
+        'radar_tiles_show_grid':  False,
     }
 
     _instance = None
@@ -8619,7 +8633,28 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "size instead of jumping into the other one.")
         boxes_form.addRow(no_clip_chk)
 
+        # Radar Tiles (Aug 20 2026, per Keith: "the square grid gets
+        # saved in with the radar tiles, can we have a settings option
+        # to not show the grid, in time we could have other grid
+        # options") - its own dedicated group, not folded into Boxes
+        # above, matching Keith's own "in time we could have other
+        # grid options" framing as the start of a real, separate
+        # settings group rather than a one-off checkbox.
+        radar_grp = QGroupBox("Radar Tiles")
+        radar_form = QFormLayout(radar_grp)
+        radar_show_grid_chk = QCheckBox("Show reference grid in generated tiles")
+        radar_show_grid_chk.setChecked(bool(self.map_settings.get('radar_tiles_show_grid')))
+        radar_show_grid_chk.setToolTip(
+            "Off by default - the viewport's own square reference grid\n"
+            "(the same one visible while editing) used to bake straight\n"
+            "into every generated radar/minimap tile, since capture\n"
+            "drew it the same way a normal interactive view does.\n"
+            "Leave unchecked unless you actually want the grid lines\n"
+            "showing in the exported tiles themselves.")
+        radar_form.addRow(radar_show_grid_chk)
+
         render_layout.addWidget(boxes_grp)
+        render_layout.addWidget(radar_grp)
         render_layout.addStretch()
         tabs.addTab(render_tab, "Render")
 
@@ -9141,6 +9176,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.map_settings.set('no_clip_boxes', no_clip_chk.isChecked())
             if vp is not None and hasattr(vp, 'set_no_clip_boxes'):
                 vp.set_no_clip_boxes(no_clip_chk.isChecked())
+            self.map_settings.set('radar_tiles_show_grid', radar_show_grid_chk.isChecked())
 
             # The rest of this function (fonts, button mode, export
             # format, preview/background settings) is pre-existing
@@ -23386,7 +23422,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             cy = (tile.min_y + tile.max_y) / 2.0
             tile_size = tile.max_x - tile.min_x
             try:
-                image = vp.capture_radar_tile(cx, cy, tile_size)
+                show_grid = self.map_settings.get('radar_tiles_show_grid')
+                image = vp.capture_radar_tile(cx, cy, tile_size, show_grid=show_grid)
                 out_path = os.path.join(output_dir, f"radar{tile.index:02d}.png")
                 image.save(out_path)
                 self._last_radar_tile_paths.append(out_path)

@@ -3396,7 +3396,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._yaw=45.0; self._pitch=25.0; self._pan_x=0.0; self._pan_y=0.0
         self._auto_fit(); self.update()
 
-    def capture_radar_tile(self, center_x: float, center_y: float, tile_size: float): #vers 1
+    def capture_radar_tile(self, center_x: float, center_y: float, tile_size: float,
+                           show_grid: bool = False): #vers 2
         """Capture one, exact, correctly-oriented top-down orthographic
         snapshot of the currently loaded world, centred on a real
         RadarTile's own world-space centre (Aug 20 2026, per Keith:
@@ -3417,6 +3418,24 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         before the fixed camera views it, so this is what actually
         puts the desired world point at screen centre.
 
+        show_grid=False by default (Aug 20 2026, per Keith: "the
+        square grid gets saved in with the radar tiles, can we have a
+        settings option to not show the grid") - self._show_grid
+        controls the same square reference grid drawn in every normal
+        interactive view, and paintGL draws it unconditionally
+        whenever that flag is set, with no distinction between an
+        interactive view and a background capture like this one - so
+        without this, whatever grid state the person's own live view
+        happened to be in bled straight into every generated tile.
+        Deliberately a real parameter here, not a hardcoded "always
+        off" - map_workshop.py's own caller reads the actual, real
+        MapSettings toggle and passes it through, so a genuine
+        settings option controls this rather than this method quietly
+        deciding on its own; this viewport class has no direct
+        MapSettings access itself, matching the same "widget draws
+        plain data/state, the caller resolves real settings" split
+        already used for every other overlay this session.
+
         Saves and restores every camera state variable touched
         afterward - a batch tile-generation run must not permanently
         disrupt whatever view the person had open before starting it.
@@ -3424,7 +3443,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         to do with it (crop to a real radarNN.txd, save as PNG, etc.)
         to the caller."""
         saved = (self._yaw, self._pitch, self._dist, self._pan_x,
-                 self._pan_y, self._projection)
+                 self._pan_y, self._projection, self._show_grid)
         try:
             self._yaw = 0.0
             self._pitch = 0.0
@@ -3432,13 +3451,14 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._pan_x = -center_x
             self._pan_y = -center_y
             self._projection = 'ortho'
+            self._show_grid = show_grid
             self.makeCurrent()
             self.resizeGL(self.width(), self.height())
             self.paintGL()
             image = self.grabFramebuffer()
         finally:
             self._yaw, self._pitch, self._dist, self._pan_x, \
-                self._pan_y, self._projection = saved
+                self._pan_y, self._projection, self._show_grid = saved
             self.makeCurrent()
             self.resizeGL(self.width(), self.height())
             self.update()
