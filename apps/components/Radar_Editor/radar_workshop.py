@@ -111,65 +111,93 @@ _BITDEPTH = {
 
 GAME_PRESETS = {
     # PC versions — tiles in gta3.img / gta.img / RadarTex.img
+    # rw_ver (Aug 20 2026, per Keith's own real crash/rendering
+    # report: "the radar textures saved back to SA are not rendering
+    # in-game") - the real, correct RenderWare version each game's own
+    # real TXD chunk headers actually need, confirmed directly against
+    # a real, uploaded vanilla SA radar00.txd (its own real header
+    # bytes decode to 0x1803FFFF, RW 3.6.0.3 - SA's own real, known
+    # version) versus a real, uploaded "saved back to SA" tile that
+    # instead had 0x1003FFFF baked in (RW 3.4.0.3, the III/VC-era
+    # value RadarTxdReader.write's own hardcoded default used
+    # regardless of which game was actually being saved to) - the
+    # real, root cause of that rendering failure. III/VC/LCS/VCS are
+    # genuinely earlier-RenderWare games (0x1003FFFF is correct for
+    # them specifically, not a mistake in general - only wrong when
+    # used for SA/SOL instead).
     "III PC":  {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
                 "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$",
                 "img_source":"img",  "label":"GTA III (PC/PS2/Xbox)",
+                "rw_ver":0x1003FFFF,
                 "hint":"Load gta3.img — contains radar00.txd to radar63.txd"},
     "VC PC":   {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
                 "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$",
                 "img_source":"img",  "label":"GTA Vice City (PC/PS2/Xbox)",
+                "rw_ver":0x1003FFFF,
                 "hint":"Load gta3.img — contains radar00.txd to radar63.txd"},
     "SA PC":   {"cols":12, "rows":12, "count":144,  "name_fn":_name_sa,
                 "img_pattern":r"^radar(\d{2}|1[0-3]\d|14[0-3])\.txd$",
                 "img_source":"img",  "label":"GTA San Andreas (PC/PS2/Xbox)",
+                "rw_ver":0x1803FFFF,
                 "hint":"Load gta3.img — contains radar00.txd to radar143.txd (144 tiles, 12x12 grid)"},
     "LCS PC":  {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
                 "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$",
                 "img_source":"img",  "label":"GTA Liberty City Stories (PC/PS2)",
+                "rw_ver":0x1003FFFF,
                 "hint":"Load gta3.img — contains radar00.txd to radar63.txd"},
     "VCS PC":  {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
                 "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$",
                 "img_source":"img",  "label":"GTA Vice City Stories (PC/PS2)",
+                "rw_ver":0x1003FFFF,
                 "hint":"Load gta3.img — contains radar00.txd to radar63.txd"},
     "SOL":     {"cols":36, "rows":36, "count":1296,  "name_fn":_name_sol,
                 "img_pattern":r"^radar\d{4}\.txd$",
                 "img_source":"img",  "label":"GTA State of Liberty (PC)",
+                "rw_ver":0x1803FFFF,
                 "hint":"Load RadarTex.img — contains radar0000.txd to radar1295.txd"},
     # Android versions
     "III And": {"cols":1,  "rows":1,  "count":1,    "name_fn":_name_sa,
                 "img_pattern":r"^radar",
                 "img_source":"img",  "label":"GTA III Android",
+                "rw_ver":0x1003FFFF,
                 "hint":"Load gta3_unc.img — single RADAR.TXD with 256x256 'radardisc' texture"},
     "VC And":  {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
                 "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$",
                 "img_source":"img",  "label":"GTA Vice City Android",
+                "rw_ver":0x1003FFFF,
                 "hint":"Load from root/texdb — see TXD Workshop for texdb format"},
     "SA And":  {"cols":10, "rows":10, "count":100,  "name_fn":_name_sa,
                 "img_pattern":r"^radar",
                 "img_source":"toc",  "label":"GTA San Andreas Android",
+                "rw_ver":0x1803FFFF,
                 "hint":"Load txd.dxt.toc — SA Android uses TOC/TMB/DAT format (not yet supported)"},
     # iOS versions
     "LCS iOS": {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
                 "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$",
                 "img_source":"pvr",  "label":"GTA LCS iOS",
+                "rw_ver":0x1003FFFF,
                 "hint":"Load gta3.pvr — contains radar00.txd to radar63.txd (PVRTC format)"},
     "SA iOS":  {"cols":10, "rows":10, "count":100,  "name_fn":_name_sa,
                 "img_pattern":r"^radar",
                 "img_source":"toc",  "label":"GTA SA iOS",
+                "rw_ver":0x1803FFFF,
                 "hint":"Load txd.dxt.toc — iOS SA uses TOC/TMB/DAT format (not yet supported)"},
     # PSP versions
     "LCS PSP": {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
                 "img_pattern":r"^radar",
                 "img_source":"chk",  "label":"GTA LCS PSP",
+                "rw_ver":0x1003FFFF,
                 "hint":"PSP .chk files use GIM/XTX format — load individual radar .chk files"},
     "VCS PSP": {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
                 "img_pattern":r"^radar",
                 "img_source":"xtx",  "label":"GTA VCS PSP",
+                "rw_ver":0x1003FFFF,
                 "hint":"PSP .xtx files use GIM/XTX format — load individual radar .xtx files"},
     # Generic
     "Custom":  {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
                 "img_pattern":r"^radar",
                 "img_source":"img",  "label":"Custom Grid",
+                "rw_ver":0x1803FFFF,
                 "hint":"Load any .img archive and adjust W/H spinners"},
 }
 TILE_W = TILE_H = 128
@@ -391,7 +419,20 @@ class RadarTxdReader:
         return bytes(out)
 
     @staticmethod
-    def write(rgba,w,h,tex_name,rw_ver=0x1003FFFF): #vers 1
+    def write(rgba,w,h,tex_name,rw_ver=0x1803FFFF): #vers 2
+        """Real fix (Aug 20 2026, per Keith's own real crash/rendering
+        report: "the radar textures saved back to SA are not
+        rendering in-game") - default changed from a hardcoded
+        0x1003FFFF (RW 3.4.0.3, the real, correct version for III/VC/
+        LCS/VCS specifically) to 0x1803FFFF (RW 3.6.0.3, SA's own
+        real version - confirmed directly against a real, uploaded
+        vanilla SA radar00.txd's own actual header bytes). Every real
+        caller of this function should still pass rw_ver explicitly
+        based on the real, actual target game (see GAME_PRESETS' own
+        new rw_ver field) rather than rely on this default at all -
+        this default only matters for the rare case nothing was
+        passed, and SA is the more common real target than III/VC for
+        this function's own two real call sites."""
         dxt=encode_dxt1(rgba,w,h)
         nb=tex_name.encode('latin1')[:31].ljust(32,b'\x00'); ab=b'\x00'*32
         nat=bytearray()
@@ -2115,7 +2156,9 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
                 if idx >= len(self._tile_entries): continue
                 e = self._tile_entries[idx]
                 name = Path(e["name"]).stem
-                new_txd_data[idx] = RadarTxdReader.write(rgba, target_size, target_size, name)
+                new_txd_data[idx] = RadarTxdReader.write(
+                    rgba, target_size, target_size, name,
+                    rw_ver=self._game_preset.get('rw_ver', 0x1803FFFF))
 
             #    Rebuild IMG: read all entries, replace radar TXDs              
             prog.setLabelText("Rebuilding IMG archive…")
@@ -3565,7 +3608,9 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
                 if not rgba: continue
 
                 tex_name = Path(e["name"]).stem   # strip .txd extension
-                new_data = RadarTxdReader.write(rgba, TILE_W, TILE_H, tex_name)
+                new_data = RadarTxdReader.write(
+                    rgba, TILE_W, TILE_H, tex_name,
+                    rw_ver=self._game_preset.get('rw_ver', 0x1803FFFF))
                 off  = e["offset"]
                 slot = e["size"]
 

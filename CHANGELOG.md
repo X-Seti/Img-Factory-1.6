@@ -555,3 +555,42 @@
   color_for` and four real `_get_ui_color` delegates (RadarGridWidget/
   _TileZoomView/_BoredomPuzzle/RadarWorkshop), no accidental
   duplicates.
+
+- **Aug 20, 2026** — Fixed real, confirmed root cause of "the radar
+  textures saved back to SA are not rendering in-game."
+
+  `RadarTxdReader.write()` (`apps/components/Radar_Editor/radar_
+  workshop.py`) hardcoded `rw_ver=0x1003FFFF` (RenderWare 3.4.0.3 -
+  the real, correct version for III/VC/LCS/VCS specifically) as its
+  own default, baked into every chunk header the function writes -
+  and both real call sites (the tile-resize/rebuild path and `_save_
+  file`) called it without ever overriding that default, regardless
+  of which game was actually being saved to.
+
+  Confirmed directly against Keith's own real, uploaded sample data,
+  not assumed: a real vanilla SA `radar00.txd`'s own actual header
+  bytes decode to `0x1803FFFF` (RW 3.6.0.3, SA's own real, correct
+  version), while a real tile Keith had saved back specifically to SA
+  had `0x1003FFFF` baked in instead - the exact, confirmed mismatch,
+  not a guess.
+
+  Added a real `rw_ver` field to every entry in `GAME_PRESETS` (SA/
+  SOL: `0x1803FFFF`; III/VC/LCS/VCS and their Android/iOS/PSP variants:
+  `0x1003FFFF`, the version those games' own real engines actually
+  expect - not a blanket fix that would have broken saving back to
+  III/VC instead). Both real call sites now pass `self._game_preset.
+  get('rw_ver', 0x1803FFFF)` explicitly, so the version written
+  always matches whichever game is actually the current, real target,
+  and `write()`'s own default (only relevant if nothing is passed at
+  all) changed to SA's version rather than III/VC's, since SA is the
+  more common real target for this function's own two call sites.
+
+  Verified the fix directly, not just that it compiles - built a real
+  TXD chunk header the same exact way `write()` does, confirmed its
+  own real version bytes now match Keith's own real, uploaded vanilla
+  SA `radar00.txd` byte-for-byte at the same offset.
+
+  `ast.parse` clean; confirmed via AST no duplicate function
+  definitions, and `self._game_preset` confirmed already in scope at
+  both fixed call sites (used extensively elsewhere in the same
+  class).
