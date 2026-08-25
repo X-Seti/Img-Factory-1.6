@@ -1570,7 +1570,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glEnable(GL_DEPTH_TEST)
         glEnable(GL_LIGHTING)
 
-    def _draw_grid(self): #vers 2
+    def _draw_grid(self): #vers 3
         """Draw the viewport's own reference grid, in whichever real
         visual style self._grid_type currently selects (Aug 20 2026,
         per Keith: "can we have an option for grid type squares, grid
@@ -1582,35 +1582,76 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         styles is active). Shared step/rng extent computation, same
         real values the original single-style version already used -
         every style below covers the exact same real grid area, only
-        how each line/cell/point is actually drawn differs."""
+        how each line/cell/point is actually drawn differs.
+
+        Real bug fixed in this same pass (Aug 20 2026, per Keith:
+        "the other thing I noticed about the original grid, is it
+        didn't cover the whole area, bigger maps overlapped it
+        massively... not just grid pattern size, but grid area size,
+        or limitless?") - the grid used to always sit fixed at world
+        origin (0,0), completely independent of self._pan_x/_pan_y
+        (the camera's own real pan position) - so panning away from
+        the origin at all, on ANY map (not just a genuinely large
+        one), left the grid behind entirely rather than following the
+        view; the "bigger maps overlapped it" symptom was really this
+        same bug, just more visible on a map large enough that normal
+        navigation moves the camera far from the origin as a matter
+        of course.
+
+        Real answer to Keith's own "grid area size, or limitless?"
+        question: limitless, not a fixed size - genuinely camera-
+        relative now rather than tied to any assumed map size (which
+        would need knowing the real map bounds in the first place,
+        the exact thing Keith said he can't calculate) - the grid's
+        own centre re-computes to the camera's real current focal
+        point every frame, snapped to the nearest real step-aligned
+        position first (self._pan_x/_pan_y are real floats, an
+        unsnapped centre would make the grid's own lines visibly
+        drift/jitter as the camera moves by sub-step amounts, rather
+        than the fixed, stable world-space reference lines a grid is
+        actually supposed to be) - only the visible RANGE of grid
+        lines shifts with the camera, the lines' own real world
+        positions stay fixed at step-aligned multiples throughout."""
         if not OPENGL_AVAILABLE: return
         glDisable(GL_LIGHTING)
         step = max(1, int(self._dist / 5))
         rng  = step * 10
+        # The real world point the camera is currently looking at is
+        # (-pan_x, -pan_y) - the scene itself is translated by (pan_x,
+        # pan_y) before the fixed camera views it (the same real
+        # relationship already verified numerically for capture_
+        # radar_tile's own camera math earlier this session).
+        cx = round(-self._pan_x / step) * step
+        cy = round(-self._pan_y / step) * step
         grid_type = getattr(self, '_grid_type', 'lines')
         if grid_type == 'squares':
-            self._draw_grid_squares(step, rng)
+            self._draw_grid_squares(step, rng, cx, cy)
         elif grid_type == 'dashed':
-            self._draw_grid_dashed(step, rng)
+            self._draw_grid_dashed(step, rng, cx, cy)
         elif grid_type == 'dots':
-            self._draw_grid_dots(step, rng)
+            self._draw_grid_dots(step, rng, cx, cy)
         else:
-            self._draw_grid_lines(step, rng)
+            self._draw_grid_lines(step, rng, cx, cy)
         glEnable(GL_LIGHTING)
 
-    def _draw_grid_lines(self, step, rng): #vers 1
+    def _draw_grid_lines(self, step, rng, cx=0, cy=0): #vers 2
         """'lines' grid style - the original, only style this feature
         ever had before Keith's own request for real alternatives:
-        open grid lines, no fill, no dashing."""
+        open grid lines, no fill, no dashing. cx/cy: the real, step-
+        aligned world centre this grid's own visible range is
+        currently built around (see _draw_grid's own docstring for
+        the full "why camera-relative, not fixed" reasoning)."""
         glLineWidth(0.5)
         glBegin(GL_LINES)
-        for i in range(-rng, rng + 1, step):
+        for i in range(cx - rng, cx + rng + 1, step):
             glColor4f(0.3, 0.3, 0.4, 0.4)
-            glVertex3f(i, -rng, 0); glVertex3f(i, rng, 0)
-            glVertex3f(-rng, i, 0); glVertex3f(rng, i, 0)
+            glVertex3f(i, cy - rng, 0); glVertex3f(i, cy + rng, 0)
+        for i in range(cy - rng, cy + rng + 1, step):
+            glColor4f(0.3, 0.3, 0.4, 0.4)
+            glVertex3f(cx - rng, i, 0); glVertex3f(cx + rng, i, 0)
         glEnd()
 
-    def _draw_grid_squares(self, step, rng): #vers 1
+    def _draw_grid_squares(self, step, rng, cx=0, cy=0): #vers 2
         """'squares' grid style - a real, semi-transparent blue fill
         inside every single cell, per Keith's own literal "grid with
         blue square inside" wording - not just a differently-coloured
@@ -1619,22 +1660,23 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         world underneath a filled cell still shows through), plus the
         same real outline lines _draw_grid_lines already draws, so
         this style is a real superset of 'lines', not a replacement
-        that loses the grid lines themselves."""
+        that loses the grid lines themselves. cx/cy: see _draw_grid_
+        lines' own docstring."""
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         glColor4f(0.2, 0.4, 0.9, 0.12)
         glBegin(GL_QUADS)
-        for gy in range(-rng, rng, step):
-            for gx in range(-rng, rng, step):
+        for gy in range(cy - rng, cy + rng, step):
+            for gx in range(cx - rng, cx + rng, step):
                 glVertex3f(gx, gy, 0)
                 glVertex3f(gx + step, gy, 0)
                 glVertex3f(gx + step, gy + step, 0)
                 glVertex3f(gx, gy + step, 0)
         glEnd()
         glDisable(GL_BLEND)
-        self._draw_grid_lines(step, rng)
+        self._draw_grid_lines(step, rng, cx, cy)
 
-    def _draw_grid_dashed(self, step, rng): #vers 1
+    def _draw_grid_dashed(self, step, rng, cx=0, cy=0): #vers 2
         """'dashed' grid style - Keith's own "marching ants lines"
         wording, matching the same visual language already used
         elsewhere in this app for an edit-mode indicator (see _Map
@@ -1643,22 +1685,24 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         valid legacy-OpenGL GL_LINE_STIPPLE (this app's whole
         rendering pipeline is already fixed-function/legacy OpenGL
         throughout, so this is a real, correct fit for it, not a
-        modern-GL feature this codebase couldn't actually use)."""
+        modern-GL feature this codebase couldn't actually use). cx/cy:
+        see _draw_grid_lines' own docstring."""
         glEnable(GL_LINE_STIPPLE)
         glLineStipple(2, 0x00FF)   # a real, standard short-dash pattern
-        self._draw_grid_lines(step, rng)
+        self._draw_grid_lines(step, rng, cx, cy)
         glDisable(GL_LINE_STIPPLE)
 
-    def _draw_grid_dots(self, step, rng): #vers 1
+    def _draw_grid_dots(self, step, rng, cx=0, cy=0): #vers 2
         """'dots' grid style - Keith's own literal "just dots" wording
         - only the real grid intersection points, no connecting lines
         of any kind, genuinely sparser than every other style rather
-        than dots drawn along the same lines the other styles use."""
+        than dots drawn along the same lines the other styles use.
+        cx/cy: see _draw_grid_lines' own docstring."""
         glPointSize(2.0)
         glBegin(GL_POINTS)
         glColor4f(0.4, 0.4, 0.55, 0.6)
-        for gy in range(-rng, rng + 1, step):
-            for gx in range(-rng, rng + 1, step):
+        for gy in range(cy - rng, cy + rng + 1, step):
+            for gx in range(cx - rng, cx + rng + 1, step):
                 glVertex3f(gx, gy, 0)
         glEnd()
 

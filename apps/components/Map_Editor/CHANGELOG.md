@@ -8166,3 +8166,47 @@ conclusively found despite extensive isolated testing.
 
   `ast.parse` clean on both touched files; confirmed via AST no
   duplicate method definitions.
+
+- **Aug 20, 2026 (cont'd)** — Fixed the real, underlying grid-coverage
+  bug, per Keith: "the other thing I noticed about the original grid,
+  is it didn't cover the whole area, bigger maps overlapped it
+  massively, I cant calculate the size needed to cover all map sides,
+  so not just grid pattern size, but grid area size, or limitless?"
+
+  The real cause wasn't "too small for a big map" specifically - the
+  grid was always drawn fixed at world origin `(0,0)`, completely
+  independent of `self._pan_x`/`_pan_y` (the camera's own real pan
+  position). Panning away from the origin at all - on any map, not
+  only a genuinely large one - left the grid behind entirely rather
+  than following the view; "bigger maps overlapped it massively" was
+  really this same bug, just far more visible on a map large enough
+  that normal navigation moves the camera well away from the origin
+  as a matter of course.
+
+  Real answer to Keith's own "grid area size, or limitless?" question:
+  limitless, not a fixed size - genuinely camera-relative now rather
+  than tied to any assumed map size, which would need knowing the
+  real map bounds in the first place, the exact thing Keith said he
+  couldn't calculate. `_draw_grid` now computes the camera's own real
+  current focal point (`-pan_x`/`-pan_y` - the same real relationship
+  already verified numerically for `capture_radar_tile`'s own camera
+  math earlier this session), snapped to the nearest real step-
+  aligned position first so the grid's own lines stay at fixed,
+  stable world positions rather than visibly drifting as the camera
+  moves by sub-step amounts - only the visible RANGE of grid lines
+  shifts with the camera, matching how a real-world reference grid is
+  actually supposed to behave. All 4 grid styles (`_draw_grid_lines`/
+  `_squares`/`_dashed`/`_dots`) now take this real centre and build
+  their own extent around it instead of the fixed origin.
+
+  Verified the centre-computation/snapping logic directly: stable
+  (no jitter) for camera movement within one rounding bucket, correct
+  and deliberate re-snap to the next step position exactly at a real
+  rounding boundary, and correctly follows the camera all the way to
+  a real, large map's own far edge (tested at SA's own real ~3000-
+  unit bound). Also directly verified the actual line-range geometry
+  is genuinely centred on the camera's own focal point, not the old
+  fixed origin.
+
+  `ast.parse` clean; confirmed via AST no duplicate method
+  definitions.
