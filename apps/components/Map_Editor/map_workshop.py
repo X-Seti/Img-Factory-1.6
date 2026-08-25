@@ -8681,7 +8681,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "view and generated radar tiles alike. To switch the\n"
             "grid off completely, use each view's own existing grid\n"
             "show/hide toggle instead - this only picks the style\n"
-            "used whenever the grid is actually on.")
+            "used whenever the grid is actually on.\n\n"
+            "Not the same as the Preview tab's own Background Mode\n"
+            "'Grid' choice - that's a flat, 2D fill pattern behind\n"
+            "the scene, unrelated despite the shared name.")
         radar_form.addRow("Grid style:", grid_type_combo)
 
         radar_show_grid_chk = QCheckBox("Show reference grid in generated tiles")
@@ -8770,6 +8773,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         current_bg_mode = getattr(self, 'background_mode', 'solid')
         mode_idx = {"solid": 0, "checkerboard": 1, "checker": 1, "grid": 2}.get(current_bg_mode, 0)
         bg_mode_combo.setCurrentIndex(mode_idx)
+        bg_mode_combo.setToolTip(
+            "The viewport's own background FILL, behind everything\n"
+            "else - not the 3D reference grid overlay (Lines/Squares/\n"
+            "Dashed/Dots, on the Render tab's own Grid & Radar Tiles\n"
+            "group) - this option's own 'Grid' choice is a flat, 2D\n"
+            "checker-style pattern behind the scene, a different,\n"
+            "unrelated feature despite the shared name.")
         bg_mode_layout.addRow("Background Mode:", bg_mode_combo)
         bg_layout.addLayout(bg_mode_layout)
 

@@ -8210,3 +8210,23 @@ conclusively found despite extensive isolated testing.
 
   `ast.parse` clean; confirmed via AST no duplicate method
   definitions.
+
+- **Aug 20, 2026 (cont'd)** — Fixed a real, understandable point of
+  confusion Keith ran into: "have you added the other grid types, all
+  I see is solid, checkerboard, grid in preview tab, in settings, and
+  there doesn't appear to be other grid styles?"
+
+  The 4 new grid styles (Lines/Squares/Dashed/Dots) were genuinely
+  already added and pushed - they live on the Render settings tab's
+  own "Grid & Radar Tiles" group, not the Preview tab. What Keith was
+  actually looking at is a real, separate, pre-existing setting -
+  Background Mode's own "Solid Color / Checkerboard / Grid" choice on
+  the Preview tab - which controls the viewport's flat, 2D background
+  fill pattern, a genuinely different feature from the 3D reference
+  grid overlay, despite both happening to use the word "grid."
+
+  Added a clarifying tooltip to both dropdowns pointing at the other
+  one, so this same mix-up doesn't repeat for anyone else who
+  reasonably expects one "grid" setting to be the other.
+
+  `ast.parse` clean.
