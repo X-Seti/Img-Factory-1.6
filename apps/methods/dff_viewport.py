@@ -152,6 +152,15 @@ try:
     _fmt = QSurfaceFormat()
     _fmt.setProfile(QSurfaceFormat.OpenGLContextProfile.CompatibilityProfile)
     _fmt.setVersion(2, 1)
+    # Multisampling (Aug 20 2026, per Keith: "we need some kind of
+    # anti-alising, far away lines doesn't appear to flicker") - a
+    # real, standard 4x MSAA level, comprehensive rather than line-
+    # only (unlike GL_LINE_SMOOTH below, this anti-aliases every
+    # primitive - triangle edges too, not just lines), applied here
+    # at the surface-format level rather than per-drawing-call, so it
+    # costs nothing extra to manage per render path. Never configured
+    # here before this - genuinely absent, not just off.
+    _fmt.setSamples(4)
     QSurfaceFormat.setDefaultFormat(_fmt)
 except Exception:
     QOpenGLWidget = QWidget
@@ -1634,13 +1643,47 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._draw_grid_lines(step, rng, cx, cy)
         glEnable(GL_LIGHTING)
 
-    def _draw_grid_lines(self, step, rng, cx=0, cy=0): #vers 2
+    def _draw_grid_lines(self, step, rng, cx=0, cy=0): #vers 3
         """'lines' grid style - the original, only style this feature
         ever had before Keith's own request for real alternatives:
         open grid lines, no fill, no dashing. cx/cy: the real, step-
         aligned world centre this grid's own visible range is
         currently built around (see _draw_grid's own docstring for
-        the full "why camera-relative, not fixed" reasoning)."""
+        the full "why camera-relative, not fixed" reasoning).
+
+        Line anti-aliasing added here (Aug 20 2026, per Keith: "we
+        need some kind of anti-alising, far away lines doesn't appear
+        to flicker?") - a thin, unsmoothed line far from the camera
+        covers less than one pixel's worth of screen space per grid
+        step, so as the camera moves even slightly, which pixels the
+        line rasterizes to flips on and off between frames - the real
+        cause of the reported flicker. GL_LINE_SMOOTH genuinely
+        smooths line edges via real, correct alpha coverage rather
+        than an all-or-nothing pixel test, needing GL_BLEND enabled
+        to actually take visual effect (line smoothing without
+        blending is a real, well-known no-op) - both saved and
+        restored around just this method's own real line-drawing
+        work, not left globally on afterward, so this can't silently
+        affect any other, unrelated drawing call elsewhere that never
+        asked for blending. Applied here specifically (not wrapped
+        around the whole _draw_grid dispatch instead) because 'squares'
+        style already manages its own separate GL_BLEND window around
+        its own fill before ever reaching this method - wrapping here
+        instead avoids stepping on that already-correct, separate
+        blend toggle.
+
+        The real, more comprehensive fix for the same report is 4x
+        MSAA, now enabled at this whole viewport's own QSurfaceFormat
+        (see this module's own top-level format setup) - anti-aliases
+        every primitive, not just lines. This method's own GL_LINE_
+        SMOOTH is a real, additional, line-specific layer on top of
+        that, since MSAA sample coverage alone doesn't always fully
+        resolve a line that's sub-pixel-thin at a genuine distance."""
+        was_blend = glIsEnabled(GL_BLEND)
+        glEnable(GL_LINE_SMOOTH)
+        glHint(GL_LINE_SMOOTH_HINT, GL_NICEST)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         glLineWidth(0.5)
         glBegin(GL_LINES)
         for i in range(cx - rng, cx + rng + 1, step):
@@ -1650,6 +1693,9 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             glColor4f(0.3, 0.3, 0.4, 0.4)
             glVertex3f(cx - rng, i, 0); glVertex3f(cx + rng, i, 0)
         glEnd()
+        glDisable(GL_LINE_SMOOTH)
+        if not was_blend:
+            glDisable(GL_BLEND)
 
     def _draw_grid_squares(self, step, rng, cx=0, cy=0): #vers 2
         """'squares' grid style - a real, semi-transparent blue fill
@@ -1692,12 +1738,26 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._draw_grid_lines(step, rng, cx, cy)
         glDisable(GL_LINE_STIPPLE)
 
-    def _draw_grid_dots(self, step, rng, cx=0, cy=0): #vers 2
+    def _draw_grid_dots(self, step, rng, cx=0, cy=0): #vers 3
         """'dots' grid style - Keith's own literal "just dots" wording
         - only the real grid intersection points, no connecting lines
         of any kind, genuinely sparser than every other style rather
         than dots drawn along the same lines the other styles use.
-        cx/cy: see _draw_grid_lines' own docstring."""
+        cx/cy: see _draw_grid_lines' own docstring.
+
+        Point anti-aliasing added here too (Aug 20 2026, same real
+        "far away lines...flicker" report that fixed _draw_grid_lines
+        - a small point far from the camera is just as vulnerable to
+        the same sub-pixel on/off flicker a thin line is, so this
+        style needed the same real treatment, its own separate GL_
+        POINT_SMOOTH rather than GL_LINE_SMOOTH since this draws
+        GL_POINTS, a genuinely different primitive type) - saved and
+        restored the same way, not left globally on."""
+        was_blend = glIsEnabled(GL_BLEND)
+        glEnable(GL_POINT_SMOOTH)
+        glHint(GL_POINT_SMOOTH_HINT, GL_NICEST)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         glPointSize(2.0)
         glBegin(GL_POINTS)
         glColor4f(0.4, 0.4, 0.55, 0.6)
@@ -1705,6 +1765,9 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             for gx in range(cx - rng, cx + rng + 1, step):
                 glVertex3f(gx, gy, 0)
         glEnd()
+        glDisable(GL_POINT_SMOOTH)
+        if not was_blend:
+            glDisable(GL_BLEND)
 
     def _draw_axes(self): #vers 1
         if not OPENGL_AVAILABLE: return

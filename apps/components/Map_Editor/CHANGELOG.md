@@ -8230,3 +8230,45 @@ conclusively found despite extensive isolated testing.
   reasonably expects one "grid" setting to be the other.
 
   `ast.parse` clean.
+
+- **Aug 20, 2026 (cont'd)** — Added real anti-aliasing, per Keith: "we
+  need some kind of anti-alising, far away lines doesn't appear to
+  flicker?" A thin, unsmoothed line far from the camera covers less
+  than one pixel's worth of screen space per grid step, so as the
+  camera moves even slightly, which pixels the line actually
+  rasterizes to flips on and off between frames - the real cause of
+  the reported flicker.
+
+  **New 4x MSAA** at the whole viewport's own `QSurfaceFormat`
+  (`_fmt.setSamples(4)`, this module's own top-level format setup) -
+  the comprehensive fix, anti-aliasing every primitive (triangle
+  edges too), not just lines - genuinely absent before this, not just
+  off. Confirmed real and working directly (installed PyQt6 in this
+  sandbox specifically to call `setSamples`/`samples()` and verify the
+  value actually round-trips, rather than assuming the method name
+  from memory).
+
+  **New, additional `GL_LINE_SMOOTH`/`GL_POINT_SMOOTH`** specifically
+  around the grid's own real line/point drawing (`_draw_grid_lines`/
+  `_draw_grid_dots`) - a real, line/point-specific layer on top of
+  MSAA, since sample coverage alone doesn't always fully resolve a
+  line that's genuinely sub-pixel-thin at distance. Both real GL
+  state changes are saved and restored around just each method's own
+  drawing work (confirmed both real cases directly: blend already off
+  before → correctly restored off after; already on before → correctly
+  left on, not clobbered) rather than left globally on, so this can't
+  silently affect any other, unrelated drawing call that never asked
+  for blending. Applied inside `_draw_grid_lines` specifically (not
+  wrapped around the whole `_draw_grid` dispatch) since 'squares'
+  style already manages its own separate `GL_BLEND` window before
+  ever reaching that method - wrapping at the dispatch level would
+  have stepped on that already-correct, separate toggle.
+
+  Verified every new OpenGL/Qt symbol used (`GL_LINE_SMOOTH`/`GL_
+  POINT_SMOOTH`/`glIsEnabled`/`GL_NICEST`/`setSamples`) is real and
+  importable/callable before relying on any of them - installed both
+  PyOpenGL and PyQt6 in this sandbox specifically to check, rather
+  than assuming names from memory.
+
+  `ast.parse` clean; confirmed via AST no duplicate method
+  definitions.
