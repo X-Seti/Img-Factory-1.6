@@ -3056,14 +3056,7 @@ def _key_display_name(key: int, is_numpad: bool) -> str: #vers 1
 
 class _KeyCaptureButton(QPushButton):
     """A button showing a currently-bound key; click it, then press
-    any key to rebind - Aug 16 2026, per Keith: "A new tab is needed
-    in map workshop settings to define keys." Escape cancels an
-    in-progress capture without changing the binding. Emits
-    key_captured(key: int, is_numpad: bool) once a real key is
-    captured - the Keybindings tab connects this per-action to update
-    its own pending-bindings dict, applied for real only when Apply
-    Settings is clicked (matching every other setting in this
-    dialog - nothing here writes to MapSettings directly)."""
+    any key to rebind - Aug 16 2026)"""
     key_captured = pyqtSignal(int, bool)
 
     def __init__(self, key: int, is_numpad: bool, parent=None): #vers 1
@@ -3105,34 +3098,7 @@ class _KeyCaptureButton(QPushButton):
 def _model_workshop_config_dir() -> Path: #vers 2
     """The one, shared, correct location for every Map/Model Workshop
     config file in this app - a dedicated config/ subfolder alongside
-    this app's own depends/ folder (Aug 20 2026, per Keith: "we could
-    add a config folder in the same folder as app_name/depends/
-    app_name.py new folder app_name/config/ json/conf files" -
-    following on from "that will not work for standland, all config
-    files would need to be with the own app folder"). Matches the
-    already-established depends/ pattern - JSON/conf data kept
-    structurally separate from .py source the same way depends/
-    already separates helper modules from the main app file, rather
-    than dumping data files loose alongside the source. A standalone
-    deployment needs the whole app, settings included, to be self-
-    contained and portable rather than scattered into the running
-    user's own home directory.
-
-    Introduced as a single shared helper - rather than fixed
-    individually - because this exact same ~/.config/imgfactory
-    construction was found duplicated across roughly 20 separate call
-    sites throughout this file (model_workshop.json's own load/save
-    for quad-view layout, texlist folder, and several other settings)
-    - editing each one by hand risked missing one or introducing a
-    subtle inconsistency between sites; one function every site now
-    calls means there's exactly one place this can ever be wrong.
-
-    Falls back to the old ~/.config/imgfactory location only if the
-    app's own folder genuinely isn't writable (a real, if less common,
-    possibility - e.g. a read-only system install) - settings simply
-    won't travel with the app folder in that one specific case, which
-    is still strictly better than every config-writing call in this
-    file failing outright."""
+    this app's own depends/ folder (Aug 20 2026)"""
     cfg_dir = Path(__file__).resolve().parent / 'config'
     try:
         cfg_dir.mkdir(parents=True, exist_ok=True)
@@ -3160,19 +3126,7 @@ class MapSettings(QObject):
     only if that isn't writable.
     Completely separate from the global AppSettings/theme system.
 
-    Now a QObject (Aug 16 2026, per Keith: settings should "save
-    those options, so the next session remembers them") purely to
-    host a debounced auto-save timer - a real, confirmed bug found
-    while investigating: at least two existing call sites (the Render
-    Settings dialog's path-line-colour picker, and set_menu_
-    orientation's menu_style/show_menubar) called .set() but never
-    followed up with .save(), so those particular choices were
-    silently lost on next launch even though they applied correctly
-    within the current session. Auditing all ~18 call sites
-    individually would only fix the ones found *this* time, not the
-    next one somebody adds - set() now schedules its own save
-    automatically, closing the whole class of bug at the source
-    rather than patching each symptom.
+    Now a QObject (Aug 16 2026)
     """
 
     DEFAULTS = {
@@ -3199,165 +3153,51 @@ class MapSettings(QObject):
         'user_pal_rows':     16,       # user palette max visible rows
         'default_zoom':      4,        # startup zoom level
         'undo_levels':       32,
-        # Recently loaded .dat files (Aug 1 2026, per Keith: "when
-        # loading Dat files, standalone, remember past files") - most
-        # recent first, capped at 10. Populated by _load_game_dat_file
-        # on every successful load, surfaced as a dropdown on the DAT
-        # tab's Load button for quick re-loading without re-browsing.
+
         'recent_dat_files':  [],
-        # LOD detection by draw distance (Aug 1 2026, per Keith's real
-        # LAe.ide data: "Some files in the LAe.ipl are LOD... they
-        # dont follow the same pattern as those prefixed as LODelname
-        # where the normal would be Modelname, so I guess the only
-        # clue is in the IDE file... the draw distance is higher than
-        # 300 to be an LOD... So we need a setting: detect LOD by
-        # draw distance higher than 300") - his own laeLODds03/
-        # laeLODds04 examples have "LOD" embedded mid-name, not as a
-        # prefix, so the existing "starts with lod" name check misses
-        # them entirely; their real IDE draw_dist (1500) is the only
-        # reliable signal. Configurable rather than hardcoded at 300,
-        # in case other maps/games need a different cutoff.
+
         'lod_draw_dist_threshold': 300.0,
-        # LOD Test circle radius (Aug 1 2026, per Keith: "we also need
-        # a settings for the LOD test circle, its set as 300, would be
-        # nice to have a settings in Map-Assists to adject the circle
-        # size") - previously tied directly to lod_draw_dist_threshold
-        # above (same 300.0 default value, so this doesn't change any
-        # existing behavior by default), now a separate setting so the
-        # circle's own visual size can be adjusted independently of
-        # the LOD detection threshold itself.
+
         'lod_test_circle_radius': 300.0,
-        # Path line colour in the 3D view (Aug 14 2026, per Keith: "a
-        # way to change the colour of the path lines in settings") -
-        # (r,g,b) 0-255 ints, matching bg_color_override's own
-        # representation; converted to 0-1 floats at the point of use
-        # (DFFViewport.set_path_line_color). Red by default, matching
-        # what Keith said he was expecting to see.
+
         'path_line_color': (255, 0, 0),
-        # Path node colour, line thickness, node size (Aug 16 2026,
-        # per Keith: "I like the path colors as a default but under
-        # rander in settings, line thinkness, and node circle size,
-        # and color change option") - node colour was previously
-        # fixed/unconfigurable; thickness/size defaults match the
-        # values that used to be hardcoded in DFFViewport._draw_paths
-        # (from the earlier "blend in with the map" softening pass).
+
         'path_node_color': (255, 204, 0),
         'path_line_thickness': 1.2,
         'path_node_size': 3.5,
-        # Cull zone box colour in the 3D view (Aug 16 2026, per Keith:
-        # "continue with the cull files next") - same representation
-        # as path_line_color ((r,g,b) 0-255 ints, converted to 0-1
-        # floats at the point of use). Amber-yellow by default,
+
         # distinct from paths' red.
         'cull_box_color': (255, 217, 51),
-        # Zone box colour in the 3D view (Aug 16 2026, per Keith:
-        # "ive loaded zon files... but I cant see them in the
-        # viewpoint") - same representation as path_line_color/
-        # cull_box_color. Sky blue by default, distinct from both.
+
         'zone_box_color': (77, 179, 255),
-        # Zone box render style (Aug 16 2026, per Keith: "in zons, the
-        # render dropdown could show, Zon - Ghosted, Zon - Wireframe,
-        # Zon - translucent") - 'ghosted' (filled+outlined, default),
-        # 'wireframe' (edges only), or 'translucent' (filled only, no
-        # outline, more see-through than ghosted). Scoped to zone
-        # boxes only, per Keith's own request - cull/occlusion boxes
-        # aren't affected by this setting.
+        # Zone box render style (Aug 16 2026)
         'zone_render_style': 'ghosted',
-        # Occlusion zone box colour in the 3D view (Aug 16 2026,
-        # continuing the cull/zon viewport work) - same representation
-        # as the other overlay colours. Pink by default, distinct from
-        # paths/cull/zone.
+        # Occlusion zone box colour in the 3D view (Aug 16 2026)
         'occl_box_color': (255, 102, 204),
-        # Train track line colour (Aug 17 2026, per Keith: "then the
-        # other path .dat files you pointed out earlier") - default
-        # matches the hardcoded silver/grey DFFViewport already uses,
+        # Train track line colour (Aug 17 2026)
         # loosely evoking real rail.
         'track_color': (191, 191, 204),
-        # Zoom to mouse cursor (Aug 18 2026, per Keith: "have a
-        # settings option to zoom in to the mouse pointer") - off by
-        # default, preserving the existing always-zooms-toward-pan-
-        # centre behaviour unless explicitly turned on.
+        # Zoom to mouse cursor (Aug 18 2026)
         'zoom_to_cursor': False,
-        # Axis-colored box faces (Aug 18 2026, per Keith: "Cull, Occl,
-        # Zon boxes have coloured sides: x (green), y (red) and z
-        # (blue) faces") - off by default, preserving each box type's
-        # own configured colour unless explicitly turned on.
+        # Axis-colored box faces (Aug 18 2026)
         'box_axis_colors': False,
-        # Unique colour per box (Aug 19 2026, per Keith: "add colour
-        # zone boxes", with real reference screenshots of several
-        # distinctly-coloured cull/zone boxes) - off by default.
+        # Unique colour per box (Aug 19 2026)
         'box_unique_colors': False,
-        # No-clip box resizing (Aug 19 2026, per Keith: "have a
-        # no-clipping option where you can't move one box into
-        # another") - off by default.
+        # No-clip box resizing (Aug 19 2026)
         'no_clip_boxes': False,
-        # Auto-highlight on hover (Aug 19 2026, per Keith: "Auto
-        # object highlight setting in map_workshop settings") - off
-        # by default, a real continuous per-mouse-move cost.
+        # Auto-highlight on hover (Aug 19 2026)
         'auto_highlight_hover': False,
-        # Dock/splitter layout (Aug 19 2026, per Keith: "General
-        # UI-state persistence — splitter positions, dock layout, tab
-        # order not remembered between sessions") - a base64-encoded
-        # QByteArray from QMainWindow.saveState(), which already
-        # captures every dock's own position/size/floating state/tab
-        # grouping in one go (see _save_dock_state's own docstring).
-        # Empty string means "nothing saved yet, use the built-in
-        # default layout".
+        # Dock/splitter layout (Aug 19 2026)
         'workshop_dock_state': '',
-        # Viewport camera keybindings (Aug 16 2026, per Keith: "A new
-        # tab is needed in map workshop settings to define keys") -
-        # stored as {action: {'key': int(Qt.Key), 'numpad': bool}},
-        # same shape DFFViewport.DEFAULT_KEY_BINDINGS/set_key_bindings
-        # already use. Empty dict here means "use DFFViewport's own
-        # built-in defaults" (arrows pan, numpad 4/6/8/2 rotate,
-        # numpad +/- zoom) - only actions the user has actually
-        # rebound in Settings > Keybindings get stored, so a future
-        # new default action added to DFFViewport isn't silently
-        # unbound for existing users who never touched this setting.
+        # Viewport camera keybindings (Aug 16 2026)
         'viewport_key_bindings': {},
-        # Load text IPL + its binary stream set together (Aug 1 2026,
-        # per Keith: "looking at the ipl's most of them are listed
-        # LODs, so where are the normal models? Maybe in the
-        # stream.ipl... if the look at the files, almost all the LODs
-        # are in the text ipls" - confirmed against his own real data:
-        # LAe.ipl is 74% LOD-named. The actual normal-detail models
-        # live in LAe.ipl's associated binary stream files (LAe_
-        # Stream0.ipl through LAe_Stream5.ipl), which previously
-        # needed loading one at a time via the right-click menu -
-        # this setting, when on, loads all of a text IPL's known
-        # associated streams automatically alongside it.
+        # Load text IPL + its binary stream set together (Aug 1 2026)
         'load_text_plus_binary_ipl_set': True,
-        # Preload IMG archives to OS disk cache on DAT load (Aug 16
-        # 2026, per Keith: "thinking about the long pause between,
-        # dialog loading ipl, names, and a long pause, its accessing
-        # the gta3.img file... plus a new option to preload the
-        # gta3.img file, when clicking in dat_browser, gta_vc.dat,
-        # gta3.dat or SA gta.dat file, this might speed things up") -
-        # off by default (it's an extra one-time upfront cost -
-        # sequentially reading through the whole archive once, doing
-        # nothing with the bytes except letting the OS cache them in
-        # RAM - that trades a longer initial DAT-load wait for faster
-        # per-IPL model/texture reads afterward, not universally a
-        # win depending on how much of the map gets loaded and how
-        # much RAM is available to cache it in). See _preload_img_
-        # archives_to_os_cache.
+        # Preload IMG archives to OS disk cache on DAT load (Aug 16 2026)
         'preload_img_on_dat_load': False,
-        # Verbose per-model loading dialog (Aug 1 2026, per Keith:
-        # "The second option would be to show full loading models,
-        # debug... Show line entry for each model") - a scrolling
-        # 500x400 dialog listing every model as it loads, one line
-        # per instance, across the text IPL and each of its streams
-        # in turn.
+        # Verbose per-model loading dialog (Aug 1 2026)
         'show_verbose_loading_dialog': False,
-        # Texture downscale (Aug 1 2026, per Keith: "loading textures
-        # using alot of memory, so im thinking about a texture
-        # reduction option, keep 64. 128, 256 untouched but render
-        # down to 256x256 anything over 512x512") - reduces GPU
-        # memory usage for maps with many large textures. Off by
-        # default since it's a quality/memory tradeoff Keith should
-        # opt into, not something forced on. Threshold and target size
-        # both configurable rather than hardcoded, though his own
-        # numbers are the defaults.
+        # Texture downscale (Aug 1 2026)
         'texture_downscale_enabled': False,
         'texture_downscale_threshold': 512,
         'texture_downscale_target': 256,
@@ -3374,11 +3214,7 @@ class MapSettings(QObject):
         # Per-view-mode pan direction inversion (World View: Top/Side/
         # Front/3D each have a different camera orientation, so the
         # same raw mouse delta needs different sign handling per mode
-        # to feel consistent - Keith reported Top view's left/right
-        # was inverted and other views' up/down was inverted; exposed
-        # here as user-adjustable rather than a single hardcoded guess,
-        # since without a real GPU to test against directly, giving
-        # direct control is safer than a blind sign-flip.
+        # to feel consistenT.
         'viewport_pan_invert': {
             'Top':   {'x': False, 'y': False},
             'Side':  {'x': False, 'y': False},
@@ -3460,20 +3296,7 @@ class MapSettings(QObject):
         # manager dialog. Empty list means "use each tool's natural
         # order from _RIBBON_TOOL_REGISTRY".
         'ribbon_tool_order': [],
-        # Fonts/Display/Preview settings (Aug 20 2026, per Keith: "the
-        # settings in map_workshop... says settings are saved, but
-        # there arn't being picked up with loading map_workshop.py") -
-        # real cause found: apply_settings' own docstring already
-        # admits these lived as "ad-hoc self.xxx = ... attributes"
-        # rather than going through self.map_settings at all - so they
-        # applied correctly for the rest of that one session, but
-        # were never actually written to disk, and __init__ always
-        # re-set them to these same hardcoded values on every launch
-        # regardless of anything previously chosen - "Workshop
-        # settings updated successfully" was real and true for the
-        # in-memory self.xxx attributes, just never backed by real
-        # persistence the way Loading/Map Assets/Render/Keybindings
-        # already correctly were.
+        # Fonts/Display/Preview settings (Aug 20 2026)
         'default_font_family': 'Fira Sans Condensed', 'default_font_size': 14,
         'title_font_family':   'Arial', 'title_font_size':   14,
         'panel_font_family':   'Arial', 'panel_font_size':   10,
@@ -3484,76 +3307,21 @@ class MapSettings(QObject):
         'background_mode':     'solid',
         'checkerboard_size':   16,
         'overlay_opacity':     50,
-        # Radar tile generation (Aug 20 2026, per Keith: "radar tiles
-        # generation works, need to add settings for those"). Empty-
-        # string default for the output dir means "no remembered
-        # default yet" - the person is prompted the first time, same
-        # as before this existed, but the choice sticks afterward
-        # rather than re-prompting every single run.
+        # Radar tile generation (Aug 20 2026)
         'radar_tiles_output_dir': '',
         'radar_tiles_pack_txd':   True,
         'radar_tiles_copy_to_assists': True,
-        # Real bug fixed (Aug 20 2026, per Keith: "the square grid
-        # gets saved in with the radar tiles, can we have a settings
-        # option to not show the grid, in time we could have other
-        # grid options") - the viewport's own square reference grid
-        # (self._show_grid) was baking straight into every generated
-        # tile, since capture_radar_tile's own paintGL call drew it
-        # the exact same way it draws for a normal interactive view,
-        # with no distinction. Off by default - the real problem
-        # being reported - a genuine, real toggle rather than a
-        # silent hardcoded fix, and deliberately its own separate key
-        # (not folded into the 2 above) since Keith's own wording
-        # ("in time we could have other grid options") flags this as
-        # the start of its own, real settings group, not a one-off.
+        # Real bug fixed (Aug 20 2026)
         'radar_tiles_show_grid':  False,
         # The real "other grid options" this same comment block above
-        # already flagged as coming later (Aug 20 2026, per Keith's
-        # own real follow-up: "can we have an option for grid type
-        # squares, grid with blue square inside, marching ants lines,
-        # just dots, and switch grid off completly") - controls the
-        # viewport's own real grid drawing style whenever the grid is
-        # on at all (see DFFViewport._draw_grid's own docstring for
-        # what each real value actually draws) - genuinely separate
-        # from radar_tiles_show_grid above, which only ever controls
-        # whether the grid appears in generated tiles specifically;
-        # this instead controls which of the 4 real visual styles it
-        # uses everywhere the grid is shown, tiles included. "Switch
-        # grid off completly" is the pre-existing show_grid toggle
-        # itself, not a 5th value here.
+        # already flagged as coming later (Aug 20 2026)
         'grid_type': 'lines',
     }
 
     _instance = None
 
     def __new__(cls): #vers 1
-        """Singleton (Aug 19 2026, per Keith: "everything clicked in
-        Map Workshop Settings, isn't remembered either"). Real cause
-        found by tracing every ModelWorkshop construction site: there
-        are 7 separate places ModelWorkshop() gets constructed (menu
-        open, docked, undocked, standalone __main__, etc.), and each
-        one's own __init__ created a brand new, completely independent
-        MapSettings() - each with its own in-memory self._data
-        snapshot, loaded from disk at whatever moment THAT particular
-        instance happened to be constructed. With more than one
-        ModelWorkshop alive in the same process (docked AND standalone
-        at once, or simply re-opening the tool without the previous
-        instance being fully garbage-collected first), the earlier
-        instance's own MapSettings could still be sitting there with
-        its own OLDER snapshot - and if IT ever saved again for any
-        reason (even a completely unrelated setting), it would write
-        that older snapshot straight over whatever the newer instance
-        had already saved, silently discarding it. Every genuinely
-        new value the person had set was real and briefly written to
-        disk - it just kept getting overwritten again moments later by
-        a second, stale in-memory copy nobody knew still existed.
-
-        Making this a real singleton means every ModelWorkshop, no
-        matter how many are alive or which of the 7 construction
-        sites created them, shares the exact one MapSettings object
-        and thus the exact one in-memory self._data - there's no
-        second, independent snapshot left to go stale and overwrite
-        anything, because there's only ever one."""
+        """Singleton (Aug 19 2026)"""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._map_settings_initialized = False
@@ -3574,62 +3342,18 @@ class MapSettings(QObject):
             # right back to fresh-from-disk on every subsequent call.
             return
         super().__init__()
-        # App-folder-relative, not ~/.config (Aug 20 2026, per Keith:
-        # "that will not work for standland, all config files would
-        # need to be with the own app folder") - see _model_workshop_
-        # config_dir's own docstring for the full reasoning (now the
-        # one, shared helper every config-writing site in this file
-        # uses, not just this one).
+        # App-folder-relative, not ~/.config (Aug 20 2026)
         self._path = _model_workshop_config_dir() / 'map_workshop.json'
         self._data = dict(self.DEFAULTS)
         self._load()
-        # Debounced auto-save (Aug 16 2026, see class docstring) -
-        # singleShot, restarted on every set() call, so rapid-fire
-        # changes (dragging a table column border fires sectionResized
-        # - and thus set() - continuously, once per pixel-ish change,
-        # not just once on release) coalesce into a single disk write
-        # ~800ms after the last change, rather than one write per
-        # call. 800ms is comfortably longer than any realistic pause
-        # mid-drag, short enough that a genuinely final change is
-        # still safely on disk well before someone would plausibly
-        # force-quit the app.
+        # Debounced auto-save (Aug 16 2026)
         self._save_timer = QTimer(self)
         self._save_timer.setSingleShot(True)
         self._save_timer.timeout.connect(self._save_now)
         self._map_settings_initialized = True
 
     def _load(self): #vers 2
-        """Load previously-saved settings from disk (Aug 20 2026, per
-        Keith: "I've added colour box faces by axis, saved the
-        settings, reloaded map_workshop.py and its unticked, same for
-        Show full loading (debug), Reduce Large Textures set to 256,
-        and Zoom to pointer, these are not being loaded from the
-        config file, it saved, when i press save settings").
-
-        Every widget/apply-side wiring for these 4 specific settings
-        was checked directly and found correct (DEFAULTS has all the
-        right keys, the dialog's own widgets read self.map_settings.
-        get(...) on open, apply_settings calls self.map_settings.
-        set(...) for every one of them) - so the real, most likely
-        explanation left is a single shared point of failure that
-        would affect many unrelated settings at once, not something
-        specific to these 4: a corrupt/incomplete map_workshop.json.
-        The previous version of _save_now below wrote directly to the
-        real file (not atomically) - if the app closed or crashed
-        mid-write (a real possibility even though write_text is
-        normally fast - a forced quit, an OS-level interruption), the
-        file could be left truncated/invalid, and this method's own
-        `except Exception: pass` swallowed that completely silently -
-        no error, no log, nothing - meaning the very next launch would
-        silently fall back to every single DEFAULTS value at once,
-        exactly matching several genuinely unrelated settings all
-        appearing "not loaded" together the way Keith described.
-        Printing here at least makes a real, current failure visible
-        (in the console/log) rather than invisible, so a future
-        occurrence can be diagnosed directly instead of guessed at -
-        see _save_now's own docstring for the actual prevention (an
-        atomic write, so a genuinely corrupt file shouldn't occur
-        again going forward)."""
+        """Load previously-saved settings from disk (Aug 20 2026)"""
         try:
             if self._path.exists():
                 loaded = json.loads(self._path.read_text())
@@ -3651,21 +3375,7 @@ class MapSettings(QObject):
         self._save_now()
 
     def _save_now(self): #vers 2
-        """Write the current settings to disk (Aug 20 2026 - see
-        _load's own docstring for the full "why atomic now" reasoning
-        this is the actual prevention for). Writes to a temp file in
-        the same directory first, then atomically renames it over the
-        real path (os.replace - a real filesystem-level atomic
-        operation on every platform this app runs on, unlike the
-        previous direct write_text) - a crash, forced quit, or any
-        other interruption during the write can now only ever leave
-        the OLD file intact or the NEW one fully written, never a
-        half-written, corrupt file in between the two. Same directory
-        as the real target (not /tmp or similar) so the final rename
-        is guaranteed to be on the same filesystem - a cross-
-        filesystem os.replace can fail or silently fall back to a
-        non-atomic copy+delete on some platforms, defeating the whole
-        point of doing this at all."""
+        """Write the current settings to disk (Aug 20 2026)"""
         try:
             tmp_path = self._path.with_suffix('.json.tmp')
             tmp_path.write_text(json.dumps(self._data, indent=2))
@@ -3937,15 +3647,7 @@ class MapSettingsDialog(QDialog):
 
         tabs.addTab(gadgets_tab, "Gadgets")
 
-        # - Loading tab (Aug 1 2026, per Keith: "these settings, can
-        # be added to map_workshop's settings on the title bar
-        # (topbar) as a new tab in the settings dialog, this would
-        # tidy up the IPL controls") - previously lived as checkable
-        # actions in IPL Controls' Advanced menu; moved here instead,
-        # and the texture downscale target is now genuinely
-        # configurable rather than fixed at 256 with only on/off
-        # exposed ("texture size limit, 256x256 but it's like to be
-        # able to change the limit").
+        # - Loading tab (Aug 1 2026)
         loading_tab = QWidget()
         ld_lay = QVBoxLayout(loading_tab)
         ld_form = QFormLayout()
@@ -3997,11 +3699,7 @@ class MapSettingsDialog(QDialog):
         ld_lay.addStretch()
         tabs.addTab(loading_tab, "Loading")
 
-        # - Map Assets tab (Aug 1 2026, per Keith: "generic.txd
-        # loading can be added to settings also under map assits
-        # tab") - one-time action, not a persistent toggle, so a
-        # button rather than a checkbox, matching the existing
-        # Ribbon Manager button pattern in the Ribbons tab above.
+        # - Map Assets tab (Aug 1 2026)
         assets_tab = QWidget()
         as_lay = QVBoxLayout(assets_tab)
         load_generic_btn = QPushButton("Load Generic.txd Manually")
@@ -4074,17 +3772,7 @@ class MapSettingsDialog(QDialog):
         self.s.set('default_height',   self._h_spin.value())
         self.s.set('default_zoom',     self._zoom_spin.value())
         self.s.set('undo_levels',      self._undo_spin.value())
-        # The following 14 widgets (Aug 1 2026, found while testing
-        # the new Loading tab below) were referenced here but never
-        # actually created anywhere in __init__ - leftover paint-tool/
-        # pixel-grid/palette settings from the legacy this file
-        # inherited, not relevant to a 3D map editor. This meant
-        # _accept() crashed on the very first missing one and never
-        # saved ANY setting at all, in any tab, whenever the dialog
-        # was accepted - not just these unrelated ones. Guarded with
-        # getattr rather than reconstructing 14 paint-tool widgets
-        # that don't belong in this app; every other, genuinely-used
-        # setting below now saves correctly regardless.
+        # The following 14 widgets (Aug 1 2026)
         grid_chk = getattr(self, '_grid_chk', None)
         if grid_chk is not None:
             self.s.set('show_pixel_grid', grid_chk.isChecked())
@@ -4260,31 +3948,7 @@ class _CornerOverlay(QWidget):
 
 class _MapOverlayToggleButton(QToolButton): #vers 1
     """One compact button replacing a pair of checkboxes (show/hide +
-    edit mode) for a single map overlay type (Aug 18 2026, per Keith:
-    "looking at the bottom-right object control panel, we can make
-    clickable buttons instead; one click shows the paths, right-click
-    paths allows edit mode, and the other buttons with tick marks can
-    work the same way, saving space... When pressing the button once,
-    the background slightly changes to show it's selected; a margin
-    ants pattern around the button shows edit mode; right-click on,
-    right-click off. left click show, left click hde.").
-
-    Left-click toggles shown/hidden (a subtle background tint marks
-    the shown state); right-click toggles edit mode, only for overlay
-    types that actually have one (a dashed border marks it - a real,
-    literal "marching ants" ANIMATION would need a QTimer-driven
-    paintEvent redraw, which felt like more complexity than this
-    first pass needed; this is a static dashed border, not yet
-    animated - noted honestly rather than silently simplified without
-    saying so). Right-clicking a button with no edit mode at all
-    (Cull/Zone/Occlusion/Tracks - none of them have any editing
-    feature built yet) shows a plain status message rather than doing
-    nothing silently, so the UI doesn't feel unresponsive.
-
-    show_toggled(bool)/edit_toggled(bool) fire on each respective
-    state change - callers wire these exactly like a QCheckBox's own
-    toggled signal, so every existing handler (_on_show_paths_toggled
-    etc) needed zero changes to work with this replacement."""
+    edit mode) for a single map overlay type (Aug 18 2026)"""
     show_toggled = pyqtSignal(bool)
     edit_toggled = pyqtSignal(bool)
 
@@ -4334,10 +3998,7 @@ class _MapOverlayToggleButton(QToolButton): #vers 1
             self.show_toggled.emit(self._shown)
 
     def isChecked(self) -> bool: #vers 1
-        """QCheckBox-compatible accessor (Aug 18 2026) - every caller
-        that used to read a checkbox's own .isChecked() (_refresh_
-        path_visualization and others) keeps working unmodified
-        against this replacement widget."""
+        """QCheckBox-compatible accessor (Aug 18 2026)"""
         return self._shown
 
     def set_editing(self, editing: bool): #vers 1
@@ -4346,12 +4007,7 @@ class _MapOverlayToggleButton(QToolButton): #vers 1
 
 
     def _apply_style(self): #vers 2
-        # Slightly tightened padding (Aug 20 2026, per Keith: "All
-        # buttons need to be compact; this should be a rule across
-        # all projects" - "under that the rest of those buttons can
-        # be compacted alightly aswell") - was 1px 6px, giving these
-        # buttons more horizontal breathing room than the rest of the
-        # now-more-compact IPL Controls row actually needs.
+        # Slightly tightened padding (Aug 20 2026)
         bg = "rgba(120, 170, 255, 90)" if self._shown else "transparent"
         border = "2px dashed #ffaa00" if self._editing else "1px solid rgba(255,255,255,40)"
         self.setStyleSheet(
@@ -4361,33 +4017,7 @@ class _MapOverlayToggleButton(QToolButton): #vers 1
 
 class _PathGroupEditDialog(QDialog): #vers 1
     """Path Group Editor - add/move/delete/connect nodes within one
-    path group (Aug 16 2026, per Keith: "we need to add edit
-    functions for connecting, moving, adding, or deleting nodes, a
-    dialog like the object editor"). Edits the real, live PathGroup/
-    PathNode objects in place (they're the same objects loader.paths
-    and the 3D viewport's path overlay already read from), so Apply
-    immediately refreshes both the viewport and the IPL File Display
-    table. Doesn't write back to the actual .ipl file on disk -
-    matching the Item Editor Dialog's own honest-stub Save button,
-    and the project's broader "write-back infrastructure not built
-    yet" TODO - only the in-memory PathGroup this session renders
-    from changes, not the file itself.
-
-    Always exactly 12 node rows, per the format's own rule ("there
-    will always be twelve nodes in each group" - Project Cerbera's
-    doc, already verified against real data earlier this session):
-    - "Adding" a node = turning a currently-Null (Type=0) row into a
-      real one by giving it a Type and X/Y/Z.
-    - "Deleting" = the reverse - the Delete button resets a row back
-      to Null with zeroed fields, same shape a real null-node line
-      has in the file.
-    - "Connecting" = the Next column - set it to the row index (0-11)
-      within THIS group that node should link to, per the real
-      format (see _refresh_path_visualization's own docstring for
-      the full Type/Next semantics this mirrors exactly).
-    - "Moving" = editing X/Y/Z directly.
-    Header A/B (the group's own two-field identifier line) are also
-    editable, in their own row above the node table."""
+    path group (Aug 16 2026)"""
 
     def __init__(self, group, workshop, parent=None): #vers 1
         super().__init__(parent)
@@ -4548,18 +4178,7 @@ class _PathGroupEditDialog(QDialog): #vers 1
 
 class _InstanceEditPanel(QWidget):
     """Non-modal, persistent object info/edit panel - shown in the top-
-    left corner (per Keith's request for a 'pop-out dialog or embedded
-    window' rather than a blocking modal dialog). Shows Identity/IDE/
-    IPL/2DFX/TOBJ info like the earlier modal version, plus live
-    position and rotation nudge controls (small/large step buttons
-    either side of a directly-editable spinbox per axis) that actually
-    modify the underlying IPLInstance in memory and refresh the World
-    View/Instance List to match.
-
-    Rotation is stored on IPLInstance as a quaternion but edited here
-    as X/Y/Z degrees (quat_to_euler_degrees/euler_degrees_to_quat) -
-    standard, round-trip-verified conversion, not GTA-format-specific
-    guessing."""
+    left corner."""
 
     _POS_SMALL_STEP = 0.5
     _POS_LARGE_STEP = 10.0
@@ -4677,8 +4296,7 @@ class _InstanceEditPanel(QWidget):
     def resizeEvent(self, event): #vers 1
         """Wrap the nudge rows' arrow buttons onto a second line when
         the panel is too narrow for everything on one row, rather than
-        clipping/squeezing them (per Keith's request - 'wrapping is
-        needed depending on the popup dialog width')."""
+        clipping/squeezing them."""
         super().resizeEvent(event)
         wide = self.width() >= 260
         if wide != self._nudge_wide:
@@ -4687,15 +4305,7 @@ class _InstanceEditPanel(QWidget):
     def _reflow_nudge_rows(self, wide): #vers 3
         """Rebuild both nudge sections' grids for the given width mode.
 
-        Compact mode (Aug 1 2026) - all 3 axes on ONE row: label,
-        large-step -, small-step -, value, small-step +, large-step +
-        per axis, three of those side by side. Large-step («»)
-        buttons were dropped from this row in an earlier pass to save
-        space, then brought back per Keith: "we can add << >> back."
-        Falls back to the original narrow mode (label+value on one
-        row, 4 arrow buttons on the row beneath, one full row group
-        per axis) when the panel gets too narrow even for the compact
-        row."""
+        Compact mode (Aug 1 2026)"""
         for grid, rows_info in ((self._pos_grid, self._pos_rows),
                                 (self._rot_grid, self._rot_rows),
                                 (self._scale_grid, self._scale_rows)):
@@ -4738,14 +4348,7 @@ class _InstanceEditPanel(QWidget):
 
     def _make_standard_button(self, text, icon=None, tooltip=None): #vers 1
         """Build a button matching the exact standard used by the IPL
-        Sections row (Open/Close/New/Delete in the IPL tab) - the one
-        Keith confirmed as "a perfect size" and asked to become the
-        standard for every button on every widget/panel in the app
-        (Aug 1 2026): 18x18 icon (when given) + text, setFixedHeight
-        (18), and the same compact stylesheet
-        (padding: 0px 4px; margin: 0px; border-width: 1px) - not just
-        the height alone, which is what earlier passes at this had
-        been applying inconsistently."""
+        Sections row (Open/Close/New/Delete in the IPL tab)"""
         btn = QPushButton(icon, text) if icon is not None else QPushButton(text)
         if icon is not None:
             btn.setIconSize(QSize(18, 18))
@@ -4771,18 +4374,7 @@ class _InstanceEditPanel(QWidget):
 
     def _clear_layout_recursive(self, layout): #vers 1
         """Remove and delete every item in a layout, recursing into
-        any nested layouts too - per Keith's screenshot showing badly
-        garbled/overlapping text in the Identity section (Aug 1 2026).
-        The plain "while count(): item = takeAt(0); if item.widget():
-        deleteLater()" pattern used everywhere else in this file only
-        handles direct widget items - item.widget() returns None for
-        a nested-layout item (like the IPL/IDE row QHBoxLayouts added
-        for the Show buttons), so those rows' old labels/buttons were
-        never actually deleted on repeated calls (once per instance
-        selection change) - just silently orphaned, still visually
-        parented to the section box, piling up underneath/behind each
-        newly-added row every time a different instance was
-        selected."""
+        any nested layouts too."""
         while layout.count():
             item = layout.takeAt(0)
             w = item.widget()
@@ -4797,33 +4389,7 @@ class _InstanceEditPanel(QWidget):
     def _populate_identity_section(self, ipl_line, ide_line, txd_name, interior, lod_index): #vers 3
         """Identity section: raw IPL line, raw IDE line, and a 3rd row
         with the TXD's real status - one of three messages depending
-        on what actually happened when looking it up (Aug 1 2026, per
-        Keith's Item Editor Dialog refinement spec):
-          "{txd}.txd is missing from gta3.img"       (status='missing')
-          "{txd}.txd is loaded" + a [Show] button      (status='loaded')
-          "{txd}.txd exists but can not be loaded"     (status='failed')
-        [Show] populates the existing Textures dock (tiles with
-        thumbnails, already built) - Keith's fuller spec also
-        mentioned "name as a dropdown" for this, which isn't fully
-        clear yet (what selecting a name in it should actually do).
-
-        Interior/LOD index sit on the right side of this same row
-        (Aug 1 2026, per Keith: "the Interior [0] and LOD index -1
-        should be on the same row as Generic.txd is load [show] ...
-        but from the right on the same row") - the old standalone
-        "Placement Info" section became empty once this moved out of
-        it and its other line (Source IPL) turned out to duplicate
-        the window title, so that section is gone entirely now.
-
-        The IPL and IDE lines each now get their own Show icon before
-        them (Aug 1 2026, per Keith: "have a show icon, before IPL
-        and before IDE rows, that bring up the IPL /IDE editors,
-        there it says line (343) highlight the line in either
-        editor") - jumps Object Browser to the matching tab, selects
-        the instance/object's own source file, and highlights the
-        exact row matching its real file line number (self._inst.
-        line_no / obj.line_no, tracked when the Identity section was
-        built - see show_for_instance)."""
+        on what actually happened when looking it up (Aug 1 2026)"""
         box = self._identity_box
         lay = box.layout()
         self._clear_layout_recursive(lay)
@@ -4884,14 +4450,7 @@ class _InstanceEditPanel(QWidget):
         lay.addLayout(row)
 
     def _on_identity_context_menu(self, pos): #vers 1
-        """Right-click menu on the Identity section - Aug 1 2026, per
-        Keith: "In the Identify section, right-click veg_palwee01 and
-        show the names of the textures from veg_palwee01, Show tex
-        names shown in image, and Show Textures would display as
-        [T] [T] [T] [T] [T] as small thumbnails in a row" (image was
-        RW Analyze's "Texture List for <model>" dialog - Req/Incl/R&I
-        columns comparing what the model's geometry requires against
-        what the TXD actually includes)."""
+        """Right-click menu on the Identity section - Aug 1 2026)"""
         if self._inst is None:
             return
         menu = QMenu(self)
@@ -4920,12 +4479,7 @@ class _InstanceEditPanel(QWidget):
         if dff_model is not None:
             for g in getattr(dff_model, 'geometries', []):
                 for m in getattr(g, 'materials', []):
-                    # Dedupe (Aug 1 2026, per Keith: "texture names,
-                    # shows the name texture name in all cells") -
-                    # multi-LOD models commonly have several geometries
-                    # (high detail, low detail, etc.) that all reference
-                    # the same texture, producing one identical row per
-                    # geometry rather than one row per distinct texture.
+                    # Dedupe (Aug 1 2026)
                     key = m.texture_name.lower() if m.texture_name else ""
                     if m.texture_name and key not in seen_tex_names:
                         seen_tex_names.add(key)
@@ -4958,11 +4512,7 @@ class _InstanceEditPanel(QWidget):
         dlg.exec()
 
     def _show_texture_thumbnail_strip(self): #vers 1
-        """Compact horizontal row of small texture thumbnails - per
-        Keith: "Show Textures would display as [T] [T] [T] [T] [T] as
-        small thumbnails in a row" - distinct from the full Textures
-        dock table (name/size/format columns), which stays as-is for
-        detailed browsing; this is a quick visual-only glance."""
+        """Compact horizontal row of small texture thumbnail"""
         inst = self._inst
         if inst is None:
             return
@@ -5033,18 +4583,7 @@ class _InstanceEditPanel(QWidget):
             spin.setFixedWidth(74)
             btn_r  = QPushButton(); btn_r.setIcon(icons['r']);   btn_r.setFixedWidth(22)
             btn_rr = QPushButton(); btn_rr.setIcon(icons['rr']); btn_rr.setFixedWidth(28)
-            # 22px uniform height (Aug 1 2026) - the spinbox's own
-            # natural minimumSizeHint is 29px tall; forcing it down to
-            # the app-wide 18px button standard (matching Keith's
-            # earlier "buttons need to be uniform" request) squeezed
-            # it well below what it needs to render its frame/padding/
-            # text comfortably, which is exactly why the X/Y/Z values
-            # were "barely visible" no matter how much the width grew.
-            # 22px is a real compromise: still compact, but no longer
-            # forcing it well under its natural minimum. The four
-            # nudge buttons around it are bumped to match, purely for
-            # row alignment - they don't have this clipping problem
-            # themselves at 18px, this is specifically a spinbox fix.
+            # 22px uniform height (Aug 1 2026)
             for _btn in (btn_ll, btn_l, spin, btn_r, btn_rr):
                 _btn.setFixedHeight(24)
             btn_ll.setToolTip(f"-{large_step:g}")
@@ -5075,13 +4614,7 @@ class _InstanceEditPanel(QWidget):
         same panel stays open and up to date rather than needing to be
         reopened. nav_info, if given, is (current_index, total_count)
         for a model with multiple placements - shows Prev/Next
-        cycling, per Keith's request that clicking a merged Object
-        Browser row (one row per model, not per placement) still be
-        able to reach every instance of that model. model_cache, if
-        given, is used to show the model's real width/height (from its
-        actual loaded geometry, per Keith's request) alongside its
-        name - blank if that model's geometry isn't loaded yet, not an
-        error, matching the same lazy-loading fallback used elsewhere."""
+        cycling,"""
         self._inst = inst
         self._loader = loader
         if nav_info is not None:
@@ -5132,12 +4665,7 @@ class _InstanceEditPanel(QWidget):
         """Shows the *effective* rotation (matching what the viewport
         actually renders), not necessarily the raw stored quaternion
         verbatim - see ModelWorkshop._effective_rotation/_conjugate_
-        rotation_for_game for why (Aug 1 2026, Keith's real LODroadB48
-        SA discovery: a positive-Z-only rotation quaternion that only
-        visually aligns correctly when interpreted as its conjugate).
-        The Identity section's raw IPL line stays genuinely verbatim
-        regardless - only this display (and editing, in _on_rotation_
-        nudged below) uses the effective value."""
+        rotation_for_game for why (Aug 1 2026)"""
         inst = self._inst
         ex, ey, ez, ew = self._workshop._conjugate_rotation_for_game(
             inst.rot_x, inst.rot_y, inst.rot_z, inst.rot_w)
@@ -5158,14 +4686,7 @@ class _InstanceEditPanel(QWidget):
         setattr(inst, attr, new_val)
         self._refresh_position_spins()
         self._workshop._on_instance_edited(inst)
-        # Undo support (Aug 18 2026, per Keith: "we need to get the
-        # undo function working") - captures old_val BEFORE the
-        # mutation above (the only point it's still available), then
-        # closes over it along with inst/self so undo/redo can
-        # restore either value directly and refresh both the
-        # viewport and this panel's own spin display (only if it's
-        # still actually showing this same instance - selection may
-        # have moved on by the time undo/redo actually runs).
+        # Undo support (Aug 18 2026)
         def _undo():
             setattr(inst, attr, old_val)
             if self._inst is inst:
@@ -5246,9 +4767,7 @@ class _InstanceEditPanel(QWidget):
             spin.blockSignals(False)
 
     def _on_set_scale_zero_clicked(self): #vers 2
-        """Set this instance's scale to (0,0,0) - per Keith's spec,
-        matching how some converted IPLs represent 'no real scale
-        data' instead of the normal (1,1,1) unit scale."""
+        """Set this instance's scale to (0,0,0)"""
         if self._inst is None:
             return
         inst = self._inst
@@ -5271,9 +4790,7 @@ class _InstanceEditPanel(QWidget):
 
     def _on_2dfx_button_clicked(self): #vers 1
         """Show this instance's 2DFX effects in a popup - replaces the
-        earlier always-visible text section (Aug 1 2026, per Keith's
-        Item Editor Dialog redesign spec: Interior/2DFX/TOBJ should be
-        buttons, not permanent text blocks)."""
+        earlier always-visible text section (Aug 1 2026)"""
         if not self._current_effects:
             QMessageBox.information(self, "2DFX Effects", "(none)")
             return
@@ -5286,17 +4803,7 @@ class _InstanceEditPanel(QWidget):
         popup - replaces the earlier always-visible text section.
 
         Now shows each variant's time_on/time_off range too (Aug 1
-        2026, per Keith: "lets complete the tojs, everything needed
-        to get that work") - previously showed only name/ID/source,
-        missing the actual time info a "timed object" popup should
-        lead with. Note: get_tobj_for_model groups by the queried
-        model_id, and each TOBJ IDE entry has its own unique model_id
-        (day and night variants of the same real-world object are
-        two separate IDE entries, linked only by shared placement
-        position via separate IPL instances, not a shared model_id) -
-        so this will usually show just the current object's own
-        entry, not an actual "paired" variant. Still useful: it's the
-        one place that surfaces this object's own time range."""
+        2026)"""
         if not self._current_tobjs:
             QMessageBox.information(self, "TOBJ (Timed Object) Variants", "(none)")
             return
@@ -5322,19 +4829,7 @@ class _InstanceEditPanel(QWidget):
             "nudge them - there's nothing separate to Apply yet.")
 
     def _on_undo_clicked(self): #vers 2
-        """Undo/redo for mapping changes (Aug 18 2026, per Keith: "we
-        need to get the undo function working") - was an honest stub
-        before this. Delegates to self._workshop (ModelWorkshop) - the
-        undo/redo stacks themselves live there, not on this panel,
-        since this panel gets recreated every time a different
-        instance is selected and would otherwise lose all undo
-        history on every selection change. A plain left-click undoes;
-        Shift+click (checked via the QApplication's own current
-        modifier state, since QPushButton.clicked doesn't carry
-        click-time modifiers itself) redoes - one button covering
-        both directions rather than needing a second dedicated redo
-        button, matching how Ctrl+Z/Ctrl+Shift+Z work in most other
-        editors."""
+        """Undo/redo for mapping changes (Aug 18 2026)"""
         if QApplication.keyboardModifiers() & Qt.KeyboardModifier.ShiftModifier:
             self._workshop._map_redo()
         else:
@@ -5555,11 +5050,7 @@ class _SizeAdaptiveStackedWidget(QStackedWidget):
     merged IDE/IPL/DAT/IMG tabs was reporting the IMG tab's much wider
     content (~509px) as its minimum even while showing the object
     table (~72px), permanently locking Object Browser's width no
-    matter how compact everything else in the dock became (Keith's
-    report: "should be able to make it the same width as those docks
-    on the left"). Overriding sizeHint/minimumSizeHint to reflect only
-    currentWidget() fixes this - the stack (and the dock containing
-    it) can now shrink to whatever the ACTIVE tab actually needs."""
+    matter how compact everything else in the dock became."""
     def sizeHint(self): #vers 1
         cw = self.currentWidget()
         return cw.sizeHint() if cw is not None else super().sizeHint()
@@ -5572,29 +5063,7 @@ class _SizeAdaptiveStackedWidget(QStackedWidget):
 class _VerboseLoadingDialog(QDialog):
     """Debug loading dialog listing every model as it loads, one line
     per instance, across a text IPL and each of its associated binary
-    streams in turn - per Keith's exact spec: "Show line entry for
-    each model... Scrolling list in a 500x400 window, under loading
-    (name).ipl... Loading linked ipl file LAe_Stream0.ipl... Show line
-    entry for each model" (repeated per stream). Non-modal so the app
-    stays usable while it fills in; caller is responsible for calling
-    add_header()/add_line() as loading actually happens and close()
-    (or leaving it up) once done.
-
-    Fixed header label above the scrolling list, not just another
-    list entry (Aug 1 2026, per Keith: "I might want to keep the
-    loading xxxx.ipl above, and the scrolling below") - add_header
-    updates this label instead of inserting a row, so which file is
-    currently loading stays visible and pinned regardless of how far
-    the model list has scrolled.
-
-    processEvents() throttled to roughly 10/second (Aug 1 2026, same
-    request - "there is a massive bottleneck on loading") rather than
-    called on every single add_line - calling it per model line for a
-    stream file with thousands of instances was itself a real,
-    measurable cost (each call has genuine overhead pumping the whole
-    Qt event queue), not just cosmetic. The dialog still updates
-    live, just not more often than it needs to for the human eye to
-    follow along."""
+    streams in turn."""
 
     def __init__(self, title, parent=None): #vers 3
         super().__init__(parent)
@@ -5606,13 +5075,7 @@ class _VerboseLoadingDialog(QDialog):
         header_font.setBold(True)
         self._header_label.setFont(header_font)
         layout.addWidget(self._header_label)
-        # Real load-percentage indicator (Aug 20 2026, per Keith: "this
-        # dialogue does not show the IPL name in a separate section
-        # above with a load % indicator") - a real QProgressBar, not
-        # just the existing header text alone. set_progress(...) drives
-        # this; a caller that never calls it just leaves the bar at 0
-        # rather than this dialog inventing a fake percentage on its
-        # own.
+        # Real load-percentage indicator (Aug 20 2026)
         self._progress_bar = QProgressBar()
         self._progress_bar.setRange(0, 100)
         self._progress_bar.setValue(0)
@@ -5631,11 +5094,7 @@ class _VerboseLoadingDialog(QDialog):
         QApplication.processEvents()   # header changes are rare - always pump immediately
 
     def set_progress(self, current, total): #vers 1
-        """Real load-percentage indicator (Aug 20 2026, per Keith's
-        own report - see this class's own docstring/__init__ comment
-        for the fuller story). total<=0 is treated as "unknown length"
-        - shows the bar at 0 rather than dividing by zero or claiming
-        a specific percentage that isn't real."""
+        """Real load-percentage indicator (Aug 20 2026)"""
         pct = int((current / total) * 100) if total > 0 else 0
         self._progress_bar.setValue(max(0, min(100, pct)))
         QApplication.processEvents()
@@ -5724,19 +5183,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # required by the grafted-in Object Browser/Instance List/Editing
         # Panel/World Viewport/Control Panel methods.
         self.map_settings = MapSettings()
-        # Extra safety net for the debounced save (Aug 18 2026, per
-        # Keith: "Any settings added do not save or are not loaded
-        # in the next session" - closeEvent's own explicit flush only
-        # fires if THIS widget's closeEvent actually runs, which
-        # depends on quitting the whole app going through a clean per-
-        # widget close sequence; if it instead exits some other way
-        # (killing the process, a hard QApplication.quit() that
-        # doesn't cascade closeEvent to every child first), that
-        # flush would never run and the debounced save's 800ms window
-        # could still be open. Hooking the application's own
-        # aboutToQuit signal catches that gap too, independent of
-        # whether this widget's own closeEvent ever fires - belt and
-        # suspenders, not a replacement for the closeEvent flush.
+        # Extra safety net for the debounced save (Aug 18 2026)
+
         app = QApplication.instance()
         if app is not None:
             app.aboutToQuit.connect(lambda: self.map_settings.save())
@@ -5745,23 +5193,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         self.undo_stack = []
         # Real, previously-hardcoded settings, now loaded from self.
-        # map_settings (Aug 20 2026, per Keith: "the settings in map_
-        # workshop... says settings are saved, but there arn't being
-        # picked up with loading map_workshop.py") - root cause found:
-        # apply_settings' own docstring already admits Fonts/Display-
-        # mode/Preview settings lived as "ad-hoc self.xxx = ...
-        # attributes" rather than ever actually going through self.
-        # map_settings at all, so Apply correctly updated these for
-        # the rest of that one session but never wrote them to disk -
-        # __init__ always re-set them to the same hardcoded values
-        # below on every single launch regardless of anything
-        # previously chosen, even though the dialog reported "Workshop
-        # settings updated successfully" (true for the in-memory
-        # state, never backed by real persistence the way Loading/Map
-        # Assets/Render/Keybindings already correctly were). Falls
-        # back to the exact same hardcoded values as before via
-        # MapSettings.DEFAULTS if nothing's been saved yet, so a fresh
-        # install/first launch looks identical to before this fix.
+        # map_settings (Aug 20 2026)
         self.button_display_mode = self.map_settings.get('button_display_mode')
         self.last_save_directory = None
         # Thumbnail spin animation state
@@ -5887,20 +5319,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._apply_theme()
 
         # Restore a previously-saved dock/splitter layout, if one
-        # exists (Aug 19 2026, per Keith: "General UI-state
-        # persistence — splitter positions, dock layout, tab order
-        # not remembered between sessions"). QTimer.singleShot(0, ...)
-        # rather than calling this directly here - setup_ui() itself
-        # is a fairly short method that delegates most of the actual
-        # dock construction through several further layers of its own
-        # sub-methods (the real "World View" dock, for instance, is
-        # created hundreds of lines away in a different method
-        # entirely) - scheduling this for the very next event loop
-        # iteration guarantees every dock this widget will ever create
-        # already exists by the time it actually runs, regardless of
-        # how deeply that construction chain is nested, without
-        # needing to hunt down and depend on the exact last line of
-        # whichever sub-method happens to run last today.
+        # exists (Aug 19 2026)
         QTimer.singleShot(0, self._restore_dock_state)
 
 
@@ -6052,16 +5471,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if _dock is not None:
                 self._make_dock_collapsible(_dock, _title)
 
-        # Grafted in from map_workshop_old.py (Aug 1 2026), per Keith:
-        # "bring in the other docks from the old version, just add them
-        # for now, dont touch models dock or the existing ribbons."
-        # Object Browser/IPL Inst File/Control Panel don't overlap with
-        # anything Model Workshop already has, so added as-is. The
-        # Viewport (world panes) dock was NOT included here - Model
-        # Workshop already has its own viewport as the central widget,
-        # and adding a second "Viewport" dock alongside it would
-        # recreate the same "two viewports" confusion from earlier
-        # today - flagged to Keith rather than guessing.
+        # Grafted in from map_workshop_old.py (Aug 1 2026)
 
         #Works
         object_browser_dock = self._create_object_browser_dock()
@@ -6083,16 +5493,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         #This breaks the docking.
         #outer_mw.splitDockWidget(object_browser_dock, ipl_inst_file_dock, Qt.Orientation.Vertical)
 
-        # DISABLED (Aug 1 2026) per Keith: snapping stopped working again
-        # after Control Panel's content was restored/tidied up (checkboxes,
-        # background/mode dropdowns, dragging controls legend, 18px
-        # stylesheet fix) - disabling the dock entirely for now until the
-        # cause is found. _create_control_dock() itself is untouched, just
-        # not called/wired here.
-        # control_dock = self._create_control_dock()
-        # control_dock.setMinimumWidth(250)
-        # self._make_dock_collapsible(control_dock, "Control Panel")
-        # outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, control_dock)
+        # DISABLED (Aug 1 2026)
 
         #outer_mw.splitDockWidget(ipl_inst_file_dock, control_panel_dock, Qt.Orientation.Vertical)
 
@@ -6104,22 +5505,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         _QTOuter.singleShot(400, self._restore_outer_layout)
         self.window_closed.connect(self._save_outer_layout)
 
-        # Status bar (Aug 1 2026, per Keith: "nothing, but a frozen
-        # app, no dialog?" after a binary IPL load that actually
-        # succeeded per its console log) - the previous check here
-        # (hasattr(self, '_setup_status_indicators')) always evaluated
-        # False: that method is only ever defined in TXD Workshop, not
-        # ModelWorkshop or any of its mixins - so this block never ran
-        # and no status widget was ever built. Every _set_status(...)
-        # call this whole session (including every load/preload
-        # status message referenced throughout CHANGELOG.md) has only
-        # ever printed to the console via _set_status's own fallback -
-        # never shown anywhere in the actual UI, which is exactly why
-        # a real successful load like this one could look like nothing
-        # happened at all. Uses the existing _create_status_bar
-        # (previously built but never called either) instead, which
-        # sets self.status_label - the first thing _set_status already
-        # checks for.
+        # Status bar (Aug 1 2026)
         status_frame = self._create_status_bar()
         main_layout.addWidget(status_frame)
 
@@ -8118,14 +7504,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.status_label = QLabel("Ready")
         layout.addWidget(self.status_label)
 
-        # Right: memory usage (Aug 1 2026, per Keith: "i think we also
-        # need to add a function on the statas bar, to show memory
-        # usage" - asked right after a real freeze/high-memory
-        # incident, so this doubles as an early warning sign the next
-        # time something runs away, not just a curiosity). Updated on
-        # a timer rather than only at specific moments, so it reflects
-        # whatever's happening right now, including mid-freeze if the
-        # event loop still gets a chance to run the timer.
+        # Right: memory usage (Aug 1 2026)
         layout.addStretch()
         self.status_memory_label = QLabel("")
         self.status_memory_label.setToolTip("Current process memory usage (RSS)")
@@ -8138,32 +7517,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         return status_bar
 
     def _update_memory_status_label(self): #vers 2
-        """Refresh the status bar's memory usage label - per Keith:
-        "the memory fix would need to work on any platform the user
-        runs this app on." Previously fell back to /proc/self/status
-        when psutil wasn't installed - Linux-only, so a Windows or
-        macOS user without psutil would just see nothing at all.
-
-        Now a proper 3-tier fallback, standard-library only past the
-        first tier:
-          1. psutil, if actually installed - most accurate, but not a
-             pre-existing dependency of this project, so never assumed.
-          2. resource.getrusage(RUSAGE_SELF).ru_maxrss (stdlib, Unix-
-             only - covers both Linux and macOS, no extra install
-             needed on either). Note this is *peak* RSS, not current -
-             it only ever grows even if memory is later freed - but
-             that's still directly useful here: seeing it climb during
-             a freeze/leak is exactly the signal Keith's after, it just
-             won't drop back down afterward the way a live RSS reading
-             would. Units differ by platform: Linux reports KB, macOS
-             reports bytes - sys.platform decides which conversion to
-             use, since ru_maxrss's own unit isn't documented in a
-             portable way.
-          3. ctypes call to GetProcessMemoryInfo via psapi.dll (stdlib
-             via ctypes - Windows, where the resource module doesn't
-             exist at all).
-        Clears the label if every tier fails, rather than showing a
-        wrong value."""
+        """Refresh the status bar's memory usage label."""
         label = getattr(self, 'status_memory_label', None)
         if label is None:
             return
@@ -8326,20 +7680,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         Performance/Preview/Loading/Map Assets/Navigation) and the
         Apply callback that reads all their widgets back and
         persists the values - factored out of _show_workshop_settings
-        (Aug 15 2026, per Keith: "the map workshop settings dialogue
-        when standalone, which isn't available when it's docked with
-        img factory, so we need a way to push those settings into
-        img factory's settings, as extra tabs") so the exact same
-        tab content and Apply logic can be reused by two different
-        presentations: Map Workshop's own standalone QDialog
-        (_show_workshop_settings, unchanged from the outside) and IMG
-        Factory's own Settings dialog when Map Workshop is docked
-        (get_settings_contribution, new - see its own docstring for
-        how the returned tabs get detached and re-parented there).
-        Returns (tabs: QTabWidget, apply_settings: Callable[[], None]) -
-        the caller owns wiring apply_settings to whatever Apply/OK
-        button actually exists in its own context, and owns adding
-        `tabs` to its own layout."""
+        (Aug 15 2026)"""
         from PyQt6.QtWidgets import (QTabWidget, QWidget, QGroupBox, QFormLayout,
                                     QSpinBox, QComboBox, QSlider, QLabel, QCheckBox,
                                     QFontComboBox)
@@ -8501,20 +7842,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         display_layout.addStretch()
         tabs.addTab(display_tab, "Display")
 
-        # TAB: RENDER (Aug 16 2026, per Keith: "there is no render in
-        # map workshop settings?" - a real discoverability problem:
-        # this content used to live in a completely SEPARATE dialog
-        # (_open_render_settings_dialog, opened only via the "Render
-        # Settings" ribbon button), not as a tab here at all - every
-        # earlier reference to "Settings > Render" in this session was
-        # genuinely misleading, since it implied a tab that never
-        # existed. Migrated the entire dialog's content here verbatim
-        # (Object Rendering style, Background colour, Path Lines,
-        # Cull/Zone/Occlusion Box colours) rather than leaving a
-        # confusing second place to find the same settings - the old
-        # dialog method is removed entirely, and the ribbon button
-        # that used to open it now opens this Settings dialog instead
-        # (see the button's own updated wiring for the full story).
+        # TAB: RENDER (Aug 16 2026)
         render_tab = QWidget()
         render_layout = QVBoxLayout(render_tab)
         pw = getattr(self, 'preview_widget', None)
@@ -8669,18 +7997,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "size instead of jumping into the other one.")
         boxes_form.addRow(no_clip_chk)
 
-        # Grid & Radar Tiles (Aug 20 2026, per Keith: "the square grid
-        # gets saved in with the radar tiles, can we have a settings
-        # option to not show the grid, in time we could have other
-        # grid options" - then that same day: "can we have an option
-        # for grid type squares, grid with blue square inside,
-        # marching ants lines, just dots, and switch grid off
-        # completly"). Its own dedicated group, not folded into Boxes
-        # above - renamed from this group's own original "Radar
-        # Tiles" name once grid_type joined it, since that control is
-        # genuinely broader than radar tiles alone (the whole
-        # viewport's own grid, tiles included) - "Radar Tiles" alone
-        # would have been a misleading label for it now.
+        # Grid & Radar Tiles (Aug 20 2026)
         radar_grp = QGroupBox("Grid && Radar Tiles")
         radar_form = QFormLayout(radar_grp)
 
@@ -8883,18 +8200,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         preview_layout.addStretch()
         tabs.addTab(preview_tab, "Preview")
 
-        # - Loading tab (Aug 1 2026, per Keith: "these settings, can
-        # be added to map_workshop's settings on the title bar
-        # (topbar) as a new tab in the settings dialog, this would
-        # tidy up the IPL controls" - and the follow-up: "class
-        # MapSettingsDialog(QDialog): is where the new settings
-        # should be, I don't see Map Assits tab with the Advance
-        # settings moved too?" First attempt added these tabs to
-        # MapSettingsDialog, a class that turns out to never actually
-        # be instantiated anywhere in this file - this method,
-        # _show_workshop_settings, is the one actually wired to the
-        # real top-bar Settings button (self.settings_btn.clicked),
-        # so that's where they need to live to ever be seen.
+        # - Loading tab (Aug 1 2026)
         loading_tab = QWidget()
         ld_lay = QVBoxLayout(loading_tab)
         ld_form = QFormLayout()
@@ -8957,10 +8263,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         ld_lay.addStretch()
         tabs.addTab(loading_tab, "Loading")
 
-        # - Map Assets tab (Aug 1 2026, per Keith: "generic.txd
-        # loading can be added to settings also under map assits
-        # tab") - one-time action, not a persistent toggle, so a
-        # button rather than a checkbox.
+        # - Map Assets tab (Aug 1 2026)
         assets_tab = QWidget()
         as_lay = QVBoxLayout(assets_tab)
         load_generic_btn = QPushButton("Load Generic.txd Manually")
@@ -8994,15 +8297,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         as_lay.addStretch()
         tabs.addTab(assets_tab, "Map Assets")
 
-        # - Navigation tab (Aug 1 2026, per Keith: "if we move Nav
-        # functions to Settings, then row 2 could be used") - moved
-        # from IPL Controls' "Nav" popup button, freeing that row for
-        # the new "Show Tobj" toggle below. Same widgets, same live-
-        # apply behavior as the original popup (mouse_sensitivity/
-        # goto_zoom_distance were never persisted to MapSettings
-        # before either - in-memory only, resetting each session -
-        # kept identical here rather than expanding scope to add
-        # persistence as part of this move).
+        # - Navigation tab (Aug 1 2026)
         nav_tab = QWidget()
         nav_lay = QVBoxLayout(nav_tab)
         nav_vp = getattr(self, 'preview_widget', None)
@@ -9032,21 +8327,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "How far the camera sits from an object when double-clicking\n"
             "it in the viewport (or picking it another way) - lower is\n"
             "closer/more zoomed in.")
-        def _on_nav_zoom_change(v):  #vers 1
+        def _on_nav_zoom_change(v): #vers 1
             self._goto_zoom_distance = v
         nav_zoom_spin.valueChanged.connect(_on_nav_zoom_change)
         nav_zoom_row.addWidget(nav_zoom_spin)
         nav_lay.addLayout(nav_zoom_row)
 
-        # Zoom to cursor (Aug 18 2026, per Keith: "when I zoom in, or
-        # zoom out, have a settings option to zoom in to the mouse
-        # pointer. so if i move the point to the top, and zoom in, it
-        # zooms in that area") - the actual zoom-compensation math
-        # lives in DFFViewport.wheelEvent itself (see that method's
-        # own docstring for the full mechanism); this is just the
-        # setting that turns it on, persisted properly via MapSettings
-        # (unlike the sensitivity/go-to-zoom controls just above,
-        # which are pre-existing, unrelated gaps not touched here).
+        # Zoom to cursor (Aug 18 2026)
         zoom_cursor_chk = QCheckBox("Zoom to mouse cursor")
         zoom_cursor_chk.setChecked(bool(self.map_settings.get('zoom_to_cursor')))
         zoom_cursor_chk.setToolTip(
@@ -9056,13 +8343,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "to pull in on that specific spot.")
         nav_lay.addWidget(zoom_cursor_chk)
 
-        # Auto-highlight on hover (Aug 19 2026, per Keith: "Auto
-        # object highlight setting in map_workshop settings: this
-        # could be a model, path node, anything in the viewpoint;
-        # once highlighted, right-click for options"). Scoped to
-        # instances only for this first version - see DFFViewport.
-        # _hover_highlight_enabled's own docstring for why path nodes
-        # aren't included yet.
+        # Auto-highlight on hover (Aug 19 2026)
         hover_highlight_chk = QCheckBox("Auto-highlight object under cursor")
         hover_highlight_chk.setChecked(bool(self.map_settings.get('auto_highlight_hover')))
         hover_highlight_chk.setToolTip(
@@ -9076,23 +8357,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         nav_lay.addStretch()
         tabs.addTab(nav_tab, "Navigation")
 
-        # TAB 8: KEYBINDINGS (Aug 16 2026, per Keith: "A new tab is
-        # needed in map workshop settings to define keys") - one row
-        # per camera-control action (DFFViewport.DEFAULT_KEY_BINDINGS/
-        # KEY_BINDING_LABELS - imported here rather than duplicated,
-        # so this tab can never list an action the viewport itself
-        # doesn't actually know about), each with a _KeyCaptureButton
-        # showing the currently-effective binding (the live viewport's
-        # own self._key_bindings if one exists, since that already
-        # reflects any earlier-this-session change plus the saved
-        # settings merged over defaults - falling back to the saved
-        # MapSettings partial-override dict merged over DEFAULT_KEY_
-        # BINDINGS if no live viewport is available yet) and a Reset
-        # button per row. Rebinding here only updates each button's
-        # own internal state (via key_captured/_update_text) until
-        # Apply Settings is clicked - apply_settings reads each
-        # button's live binding() directly, same "nothing commits
-        # until Apply" contract as every other tab in this dialog.
+        # TAB 8: KEYBINDINGS (Aug 16 2026)
         from apps.methods.dff_viewport import DEFAULT_KEY_BINDINGS, KEY_BINDING_LABELS
 
         keys_tab = QWidget()
@@ -9162,14 +8427,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if vp2 is not None and hasattr(vp2, 'set_hover_highlight_enabled'):
                 vp2.set_hover_highlight_enabled(hover_highlight_chk.isChecked())
 
-            # Keybindings (Aug 16 2026) - read every button's current
-            # binding (whether rebound this dialog session or not),
-            # store only the ones that differ from DFFViewport's own
-            # DEFAULT_KEY_BINDINGS (so a future new default action
-            # isn't silently unbound for existing users who never
-            # touched this tab - see viewport_key_bindings' own
-            # DEFAULTS comment), and push the full merged set to the
-            # live viewport immediately via set_key_bindings.
+            # Keybindings (Aug 16 2026)
             key_overrides = {}
             for _action, _btn in key_capture_buttons.items():
                 _binding = _btn.binding()
@@ -9187,14 +8445,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     downscale_threshold_spin.value(),
                     downscale_target_spin.value())
 
-            # Render tab (Aug 16 2026, per Keith: "there is no render
-            # in map workshop settings?" - migrated verbatim from the
-            # old separate _open_render_settings_dialog, now removed;
-            # applied here in the same "safe zone" as Loading/
-            # Keybindings above, before the pre-existing code with
-            # known broken references further down this function, so
-            # a crash there still can't block these from applying or
-            # saving).
+            # Render tab (Aug 16 2026)
             if vp is not None:
                 s = style_combo.currentText()
                 rev = {"Wireframe": "wireframe", "Solid": "solid", "Textured": "textured"}
@@ -9256,21 +8507,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if vp is not None and hasattr(vp, 'set_grid_type'):
                 vp.set_grid_type(grid_type_key)
 
-            # The rest of this function (fonts, button mode, export
-            # format, preview/background settings) is pre-existing
-            # logic with at least two confirmed broken references
-            # found while testing the new Loading tab above (self.
-            # format_combo, self.preview_widget.bg_color - neither
-            # ever actually existed, so Apply Settings crashed
-            # outright before this fix, meaning nothing after the
-            # first broken line ever applied regardless). Wrapped in
-            # a broad try/except as a pragmatic, time-bounded fix
-            # rather than auditing this whole large, clearly-
-            # neglected function line by line - this is a strict
-            # improvement either way: everything that worked before
-            # still works, and one broken reference no longer blocks
-            # every setting after it, the way a single AttributeError
-            # used to before.
             try:
                 # Adjusted for COL Wireframe, Mesh
                 default_font_family = default_font_combo.currentFont().family()
@@ -9299,13 +8535,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 self.button_display_mode = mode_map[button_mode_combo.currentIndex()]
 
                 # EXPORT
-                # self.format_combo was never actually created anywhere
-                # (Aug 1 2026, found while testing the new Loading tab) -
-                # this "EXPORT" section's own widget was apparently never
-                # built, meaning Apply Settings crashed and never
-                # completed for ANY tab in this dialog, not just this one.
-                # Guarded rather than building out a new Export tab, which
-                # is out of scope here.
+                # self.format_combo was never actually created anywhere (Aug 1 2026)
                 format_combo = getattr(self, 'format_combo', None)
                 if format_combo is not None:
                     self.default_export_format = format_combo.currentText()
@@ -9319,20 +8549,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 self._checkerboard_size = cb_spin.value()
                 self._overlay_opacity = opacity_spin.value()
 
-                # Real persistence for everything just applied above
-                # (Aug 20 2026, per Keith: "the settings in map_
-                # workshop... says settings are saved, but there
-                # arn't being picked up with loading map_workshop.py")
-                # - every one of these previously only ever lived as
-                # the plain self.xxx assignments above, correct for
-                # the rest of the current session but never actually
-                # written to disk at all - see MapSettings.DEFAULTS'
-                # own comment for the fuller root-cause explanation.
-                # A single .save() at the end covers all of these
-                # (each individual .set() already schedules its own
-                # debounced save too, but an explicit save here means
-                # these specific values are guaranteed on disk the
-                # moment Apply is clicked, not up to 800ms later).
+                # Real persistence for everything just applied above (Aug 20 2026)
                 self.map_settings.set('default_font_family', default_font_family)
                 self.map_settings.set('default_font_size', default_font_size_v)
                 self.map_settings.set('title_font_family', title_font_family)
@@ -9352,24 +8569,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
                 # Update preview widget
                 if hasattr(self, 'preview_widget'):
-                    # Aug 1 2026, per Keith: "[Settings] Some pre-
-                    # existing settings could not be applied:
-                    # 'DFFViewport' object has no attribute
-                    # bg_color... trying to save, full loading debug
-                    # or texture size reducing, gives that error." -
-                    # self.preview_widget.bg_color never existed; that
-                    # attribute belongs to a completely different
-                    # class (ZoomablePreview, a 2D QLabel-based
-                    # preview from the paint-tool legacy this file
-                    # inherited), not DFFViewport (the real preview_
-                    # widget). No actual color-picker UI exists
-                    # anywhere in this dialog to supply a specific
-                    # solid color, so both branches now reset to the
-                    # theme-default color - set_checkerboard_
-                    # background is the correct call for this despite
-                    # its name (DFFViewport has no real checkerboard
-                    # rendering at all, per its own docstring: "clear
-                    # any colour override back to theme").
+                    # Aug 1 2026
                     self.preview_widget.set_checkerboard_background()
                     if self.background_mode == 'checkerboard':
                         self.preview_widget._checkerboard_size = self._checkerboard_size
@@ -9389,39 +8589,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _show_workshop_settings(self, initial_tab=None): #vers 3
         """Show complete workshop settings dialog - standalone-only
-        path now (Aug 15 2026): the tab content and Apply logic live
-        in _build_workshop_settings_tabs (shared with the docked
-        path - see get_settings_contribution), this just wraps that
-        in Map Workshop's own QDialog with its own Apply/Close
-        buttons, unchanged in behaviour from before the split.
-
-        initial_tab (Aug 16 2026) - optional tab label to pre-select
-        on open, matched by its exact displayed name (not a hardcoded
-        index, so this doesn't break if tabs get reordered later).
-        Used by the "Render Settings" ribbon button, now that Render
-        is a real tab here instead of its own separate dialog - jumps
-        straight to it instead of always landing on the first tab."""
+        path now (Aug 15 2026)"""
         from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QPushButton
 
         dialog = QDialog(self)
         dialog.setWindowTitle(App_name + " Settings")
-        # Widened from 650 (Aug 16 2026, per Keith: "he can't find the
-        # settings, they should be in map-workshop settings, I've
-        # looked here, there not found?" - the real, likely cause:
-        # 650px was sized for the original 8 tabs (Fonts/Display/
-        # Performance/Preview/Loading/Map Assets/Navigation/
-        # Keybindings); adding Render as a 9th tab a few turns ago
-        # could easily push the tab bar past that width, and Qt's
-        # default behaviour when a tab bar doesn't fit is to show
-        # small scroll arrows rather than grow the dialog - meaning
-        # Render could have been sitting there the whole time, just
-        # scrolled out of view with no obvious indication it needed
-        # scrolling to reach. Widened with real margin for future
-        # tabs, and usesScrollButtons explicitly disabled below so
-        # this specific failure mode - a tab existing but silently
-        # hidden behind an easy-to-miss scroll arrow - can't recur:
-        # every tab stays visible, at worst slightly narrower, never
-        # invisible.
+        # Widened from 650 (Aug 16 2026)
         dialog.setMinimumWidth(850)
         dialog.setMinimumHeight(550)
 
@@ -9474,30 +8647,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         """Return this workshop's settings as a list of (label,
         widget) tab contributions plus a combined apply callback, for
         embedding into IMG Factory's own Settings dialog when Map
-        Workshop is docked (Aug 15 2026, per Keith: "the map workshop
-        settings dialogue when standalone, which isn't available when
-        it's docked with img factory, so we need a way to push those
-        settings into img factory's settings, as extra tabs").
-
-        Reuses _build_workshop_settings_tabs - the exact same tab
-        content and Apply logic the standalone dialog uses, nothing
-        duplicated. The temporary QTabWidget it returns only exists
-        to reuse that per-tab construction code; each page is
-        detached here (tabText/widget/removeTab) so it can be handed
-        to the caller and re-parented into IMG Factory's own tab
-        widget instead - a QWidget can only belong to one QTabWidget
-        at a time, so leaving it attached would make the caller's own
-        addTab() silently do nothing. Qt reparents automatically when
-        the caller adds each widget to its own tab widget; nothing
-        else needs to happen to the now-empty temporary QTabWidget,
-        it's simply not returned and gets garbage-collected.
-
-        Any embedded tool wanting this same integration (Model
-        Workshop, COL Workshop, etc.) can implement the identical
-        method name/signature - IMG Factory's SettingsDialog looks
-        for get_settings_contribution generically, not specifically
-        for Map Workshop (see app_settings_system.py's own
-        docstring for that lookup)."""
+        Workshop is docked (Aug 15 2026)"""
         tabs, apply_settings = self._build_workshop_settings_tabs()
         contributions = []
         while tabs.count():
@@ -9682,10 +8832,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.tearoff_btn.setVisible(self.is_docked and not self.standalone_mode)
 
         if hasattr(self, '_ipl_controls_settings_btn'):
-            # IPL Controls cog icon, same visibility rule as tearoff_btn
-            # (Aug 15 2026, per Keith: "not to be shown in standalone")
-            # - kept in sync here too, not just at creation time, so
-            # toggling dock/undock at runtime updates it correctly.
+            # IPL Controls cog icon, same visibility rule as tearoff_btn (Aug 15 2026)
             self._ipl_controls_settings_btn.setVisible(self.is_docked and not self.standalone_mode)
 
 
@@ -9857,30 +9004,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._update_dock_button_visibility()
 
     def _apply_button_mode_to_button(self, button, text): #vers 1
-        """Apply display mode to a single button with proper spacing
-        (Aug 16 2026, per Keith's real crash pressing Apply in
-        Settings: "'ModelWorkshop' object has no attribute
-        '_apply_button_mode_to_button'" - _update_all_buttons has
-        called this since the very first port from Model Workshop,
-        but the method itself was only ever ACTUALLY defined in
-        Txd_Editor/txd_workshop.py, never ported over here alongside
-        the call site - every other workshop class copy-pasted from
-        the same DP5 template (Model_Editor/model_workshop.py,
-        Col_Editor/col_workshop.py, gui/gui_layout_custom.py) has the
-        identical gap, not something introduced by this port
-        specifically. Ported directly from the real, working txd_
-        workshop.py implementation, unmodified - button_display_mode
-        already exists here (set in __init__, read/written by several
-        other methods already), so this slots in as a genuine fix,
-        not a new dependency.
-
-        Skips QAction-based ribbon buttons - those are handled
-        natively by QToolBar.setToolButtonStyle via _update_
-        transform_text_panel_visibility instead. Uses an explicit
-        isinstance check (not hasattr) since hasattr(QAction_
-        instance, 'setFixedSize') was observed returning True on at
-        least one PyQt6 build, letting QActions through and crashing
-        on the QPushButton-only calls below."""
+        """Apply display mode to a single button with proper spacing (Aug 16 2026)"""
         from PyQt6.QtGui import QAction
         if isinstance(button, QAction) or not hasattr(button, 'setFixedSize'):
             return
@@ -10306,23 +9430,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def closeEvent(self, event): #vers 4
         """Handle close — _save_toolbar_state fires via window_closed
         signal. Flushes any still-pending debounced settings save
-        (Aug 16 2026, per Keith: "the settings are being saved for
-        map workshop, there just not being loaded" - real mechanism
-        found: MapSettings.set() debounces its own auto-save by
-        800ms, so a setting changed right before closing the tab (or
-        quitting the app) could still have an unwritten pending save
-        at the moment this widget actually closes - nothing was ever
-        flushing it, so whatever was LAST actually written to disk
-        (not the most recent change) is what the next session would
-        load. self.map_settings.save() forces an immediate write,
-        bypassing the debounce, cheap/safe to call even when there's
-        nothing pending (same as a no-op write of the current
-        state).
-
-        Also saves the dock/splitter layout now (Aug 19 2026, per
-        Keith: "General UI-state persistence — splitter positions,
-        dock layout, tab order not remembered between sessions") -
-        see _save_dock_state's own docstring for the full mechanism."""
+        (Aug 16 2026)"""
         self._save_dock_state()
         if hasattr(self, 'map_settings'):
             try:
@@ -10343,21 +9451,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         size, floating state, and tab grouping/order within a shared
         area - via Qt's own built-in QMainWindow.saveState(), rather
         than hand-tracking each dock's own geometry separately (Aug 19
-        2026, per Keith: "General UI-state persistence — splitter
-        positions, dock layout, tab order not remembered between
-        sessions"). Works because every dock in this workshop already
-        has a stable, unique setObjectName() call (confirmed via
-        direct search before relying on this - Object Browser,
-        Instance List, IPL Object Editor, Control Panel, IPL Controls,
-        IPL Inst File, Editing Panel, World View - all already set),
-        which is what QMainWindow's own save/restoreState actually
-        keys off internally to match a saved dock back to the real
-        widget on restore.
-
-        QMainWindow.saveState() returns a QByteArray, not something
-        JSON (MapSettings' own storage format) can hold directly -
-        base64-encoded into a plain string for storage, decoded back
-        into a real QByteArray on restore."""
+        2026)"""
         inner_mw = getattr(self, '_inner_mw', None)
         if inner_mw is None or not hasattr(self, 'map_settings'):
             return
@@ -10370,13 +9464,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _restore_dock_state(self): #vers 1
         """Restore a previously-saved dock layout, if one exists (Aug
-        19 2026) - see _save_dock_state's own docstring for the full
-        mechanism. Called once, at the end of construction, after
-        every dock has already been created and added to _inner_mw -
-        QMainWindow.restoreState() can only correctly reposition docks
-        that already exist with matching object names; calling this
-        any earlier, before all the real dock widgets exist yet,
-        would have nothing real to restore onto."""
+        19 2026)"""
         inner_mw = getattr(self, '_inner_mw', None)
         if inner_mw is None or not hasattr(self, 'map_settings'):
             return
@@ -11093,14 +10181,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             lx = math.sin(az_r)*math.cos(el_r)
             ly = math.cos(az_r)*math.cos(el_r)
             lz = math.sin(el_r)
-            # 4-tuple (Aug 1 2026, per Keith's own traceback: "IndexError:
-            # tuple index out of range" at ld[3] in _setup_lighting) -
-            # this only ever built a 3-element (x,y,z) direction vector,
-            # but _setup_lighting always expects 4 (x,y,z,w - w=0.0 for
-            # a directional light, matching DFFViewport's own default
-            # self._light_dir = (0.5, 1.0, 0.7, 0.0)). Moving the light
-            # position picker here overwrote that correct 4-tuple with
-            # this incomplete one, crashing the very next paintGL call.
+            # 4-tuple (Aug 1 2026)
             nd = (lx, ly, lz, 0.0)
             self._vp_light_dir      = nd
             self._vp_light_ambient  = amb_sl.value()/100
@@ -12284,8 +11365,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         lbl = QLabel(title)
         lbl.setFont(self.section_title_font)
         dock._title_label = lbl   # exposed so callers can update the visible
-                                  # title dynamically later (Aug 1 2026, per
-                                  # Keith: IPL Inst File "turns into IDE
+                                  # title dynamically later (Aug 1 2026)
+                                  # IPL Inst File "turns into IDE
                                   # Objects" when the IDE tab is selected)
         lay.addWidget(lbl)
         lay.addStretch()
@@ -12320,9 +11401,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         the content widget below it - same double-click-to-collapse
         interaction as dock title bars (_make_dock_collapsible), just
         applied to a sub-section within a panel instead of a whole
-        dock. Used for the IMG/IDE/IPL/DAT tabs inside Object Browser,
-        per Keith: "make sure everything is colapasble, in objects
-        browser, even in the tabs"."""
+        dock. Used for the IMG/IDE/IPL/DAT tabs inside Object Browser."""
         def _dbl_click(event, w=content_widget): #vers 1
             w.setVisible(not w.isVisible())
         label.mouseDoubleClickEvent = _dbl_click
@@ -12530,28 +11609,17 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 self.map_settings.get('texture_downscale_enabled'),
                 self.map_settings.get('texture_downscale_threshold'),
                 self.map_settings.get('texture_downscale_target'))
-        # Restore any saved camera keybinding overrides (Aug 16 2026) -
-        # a fresh DFFViewport already starts with its own built-in
-        # DEFAULT_KEY_BINDINGS, this only needs to apply on top of
-        # that when the user actually customised something in a
-        # previous session; set_key_bindings itself merges partial
-        # overrides over the defaults, same contract as everywhere
-        # else this gets applied (Settings > Keybindings' own Apply).
+        # Restore any saved camera keybinding overrides (Aug 16 2026)
         if hasattr(self.preview_widget, 'set_key_bindings'):
             saved_key_overrides = self.map_settings.get('viewport_key_bindings')
             if saved_key_overrides:
                 self.preview_widget.set_key_bindings(saved_key_overrides)
-        # Restore the saved zone render style (Aug 16 2026, per
-        # Keith's "Zon - Ghosted/Wireframe/Translucent" dropdown) -
-        # same reasoning as the keybindings restore just above.
+        # Restore the saved zone render style (Aug 16 2026)
         if hasattr(self.preview_widget, 'set_zone_render_style'):
             self.preview_widget.set_zone_render_style(
                 self.map_settings.get('zone_render_style'))
         # Wire the path node drag callback once, here at construction
-        # (Aug 17 2026, per Keith: "lets address the unbuilt work,
-        # editing paths first") - same one-time-wiring pattern as
-        # set_lod_test_callback elsewhere in this same constructor,
-        # not re-connected on every refresh.
+        # (Aug 17 2026)
         if hasattr(self.preview_widget, 'set_path_node_drag_callback'):
             self.preview_widget.set_path_node_drag_callback(self._on_path_node_dragged)
         # Wire the box-corner resize callback too (Aug 19 2026, for
@@ -12560,46 +11628,25 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if hasattr(self.preview_widget, 'set_box_resize_callback'):
             self.preview_widget.set_box_resize_callback(self._on_box_resized)
         # Wire the whole-IPL drag callback once too, here at
-        # construction (Aug 18 2026, per Keith's own priority order
-        # for the interactive editing layer - "Moving IPL file whole
-        # entires to anywhere on the map") - same one-time-wiring
-        # pattern as the path node drag callback directly above.
+        # construction (Aug 18 2026)
         if hasattr(self.preview_widget, 'set_ipl_drag_callback'):
             self.preview_widget.set_ipl_drag_callback(self._on_ipl_dragged)
-        # Wire the Move/Rotate click callback too (Aug 19 2026, per
-        # Keith's "1 click turns into move ipl, click again rotate
-        # ipl" 3-state cycle) - same one-time-wiring pattern.
+        # Wire the Move/Rotate click callback too (Aug 19 2026)
         if hasattr(self.preview_widget, 'set_ipl_click_callback'):
             self.preview_widget.set_ipl_click_callback(self._on_ipl_click_for_move_or_rotate)
-        # Wire the multi-IPL selection-change callback too (Aug 19
-        # 2026, per Keith's Ctrl/Shift Drag workflow spec) - fires
-        # every time a Shift+click adds/removes an IPL from the
-        # current selection, so the status bar can confirm what's
-        # actually selected without needing a whole separate UI panel
-        # for this first version.
+        # Wire the multi-IPL selection-change callback too (Aug 19 2026)
         if hasattr(self.preview_widget, 'set_ipl_selection_callback'):
             self.preview_widget.set_ipl_selection_callback(self._on_ipl_selection_changed)
-        # Restore the saved zoom-to-cursor setting (Aug 18 2026, per
-        # Keith's "zoom in to the mouse pointer" request) - same
-        # restore-at-construction pattern as the zone render style
-        # just above, so a previous session's choice is already in
-        # effect the first time the viewport is scrolled this
-        # session.
+        # Restore the saved zoom-to-cursor setting (Aug 18 2026)
         if hasattr(self.preview_widget, 'set_zoom_to_cursor'):
             self.preview_widget.set_zoom_to_cursor(bool(self.map_settings.get('zoom_to_cursor')))
-        # Restore the saved auto-highlight-on-hover setting too (Aug
-        # 19 2026), same pattern, and wire its own right-click-for-
-        # options callback once here as well.
+        # Restore the saved auto-highlight-on-hover setting too (Aug 19 2026)
         if hasattr(self.preview_widget, 'set_hover_highlight_enabled'):
             self.preview_widget.set_hover_highlight_enabled(
                 bool(self.map_settings.get('auto_highlight_hover')))
         if hasattr(self.preview_widget, 'set_hover_context_callback'):
             self.preview_widget.set_hover_context_callback(self._on_hover_context_menu)
-        # Restore the saved no-clip-box-resizing setting too (Aug 19
-        # 2026) - same one-time-restore pattern; doesn't affect
-        # drawing at all (only the resize-drag behaviour), so this
-        # doesn't need re-applying on every cull/zone visualization
-        # refresh the way box_axis_colors/box_unique_colors do.
+        # Restore the saved no-clip-box-resizing setting too (Aug 19 2026)
         if hasattr(self.preview_widget, 'set_no_clip_boxes'):
             self.preview_widget.set_no_clip_boxes(bool(self.map_settings.get('no_clip_boxes')))
         self._viewport_stack = QStackedWidget()
@@ -12845,16 +11892,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         _act(tb_nav, "4-Pane View",
              _icon(self.icon_factory.quad_view_icon, 'quad_view_icon'),
              self._toggle_quad_view, checkable=True, attr='_quad_view_act')
-        # Disabled (Aug 1 2026, per Keith: "4 panels icon, keep, but
-        # the function isnt needed, it creates a strange beheavour")
-        # - icon stays visible, function itself doesn't run. The
-        # underlying issue: _sync_quad_from_main only ever mirrors
-        # single-model geometry attributes (_vertices/_triangles/etc,
-        # inherited directly from Model Workshop's base this was built
-        # on) into the 4 panes - it never syncs _world_instances, the
-        # actual multi-instance map data Map Workshop's real workflow
-        # uses, so switching to 4-Pane View while a map is loaded
-        # shows blank panes rather than the world.
+        # Disabled (Aug 1 2026)
         self._quad_view_act.setEnabled(False)
         self._quad_view_act.setToolTip(
             "4-Pane View is currently disabled - it only ever mirrors\n"
@@ -12890,13 +11928,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
              _icon(self.icon_factory.viewport_icon, 'gl_viewer_icon'),
              self._open_gl_viewer, attr='_gl_viewer_act')
         tb_rend.addSeparator()
-        # LOD Test (Aug 1 2026, per Keith: "the LOD test function
-        # could be an SVG icon on the ribbon, 2 overlapping Circles,
-        # one hollow, other solid... this way it does have to use up
-        # space on the ipl control, but keep row3 for future
-        # functions, like show tojb, show Paths, show zons") - moved
-        # here from a checkbox on IPL Controls' row 3, freeing that
-        # row for the visibility toggles Keith mentions above.
+        # LOD Test (Aug 1 2026)
         _lod_test_act = _act(tb_rend, "LOD Test",
              _icon(self.icon_factory.lod_test_icon, 'lod_test_icon'),
              self._on_lod_test_toggled,
@@ -12967,13 +11999,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         menu.addAction("Ribbon Manager...", self.open_ribbon_manager)
         menu.addSeparator()
 
-        # Panels submenu (Aug 1 2026, per Keith: "when i close all the
-        # panes, there is noway to bring them back, so I suggest we
-        # add them to the ribbon right click aswell") - same dynamic
-        # dock list + toggleViewAction() as the Menu -> View -> Panels
-        # submenu (_build_menus_into_qmenu), just also reachable from
-        # here so there's a way back even if every dock is closed and
-        # the Menu button isn't the first place someone looks.
+        # Panels submenu (Aug 1 2026)
         panels_menu = menu.addMenu("Panels")
         outer_mw = getattr(self, '_outer_mw', None)
         if outer_mw is not None:
@@ -13053,18 +12079,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         dlg.exec()
 
     def _get_or_create_hidden_toolbar(self): #vers 1
-        """Return the special "Hidden" toolbar, creating it if it
-        doesn't exist yet - per Keith: "in ribbon manager i'd like a
-        hidden section where anything placed there cant be seen."
-        Behaves like any other toolbar in the Ribbon Manager (appears
-        in the toolbar list, actions can be dragged/moved into and out
-        of it via the existing "Move selected to:" mechanism) except
-        it's never actually shown - setVisible(False) is enforced both
-        on creation and via a visibilityChanged safeguard, so nothing
-        (a stray toggle, QMainWindow's own saveState()/restoreState()
-        round-trip on the next launch, etc.) can make it - or whatever
-        Keith has parked in it - visible again without deliberately
-        removing it from this toolbar first."""
+        """Return the special "Hidden" toolbar, creating it, if it
+        doesn't exist yet."""
         mw = getattr(self, '_inner_mw', None)
         if mw is None:
             return None
@@ -13205,27 +12221,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         except Exception as _e:
             print(f"[ModelWorkshop] _restore_outer_layout error: {_e}")
         finally:
-            # Per Keith (Aug 1 2026): "need to save unticked panes" -
-            # previously this block force-showed every dock on every
-            # startup regardless of what was actually saved, which
-            # meant unticking a panel (via the Panels menu) never
-            # stuck across a restart. Removed - mw.restoreState()
-            # above already correctly restores each dock's saved
-            # visibility on its own (that's inherent to Qt's own
-            # QMainWindow save/restore mechanism, not something this
-            # needs to redo manually). Only the window-width safety
-            # net below (unrelated to visibility) is still needed.
 
-            # Safety net: restoreState() reapplies whatever dock
-            # proportions were saved, regardless of whether they fit the
-            # current window/screen - if that state was saved from a
-            # wider session (or a different, wider screen), combined with
-            # each dock's hard setMinimumWidth() floor, restoring it can
-            # force the whole top-level window wider than the current
-            # screen. Clamp back down rather than leaving it oversized -
-            # this doesn't touch the dock proportions themselves, so the
-            # user's saved layout still applies, just bounded to what
-            # actually fits.
             try:
                 top_level = self.window()
                 screen = top_level.screen() if hasattr(top_level, 'screen') else None
@@ -13403,26 +12399,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         return quad
 
     def eventFilter(self, obj, event): #vers 2
-        """Double-click on a quad pane maximizes/restores it - previously
-        there was no way to view just one of the 4 panes full-size; the
-        '4-Pane View' toggle only ever swapped between the whole quad
-        grid and the single original preview_widget (never any specific
-        quad pane), reported as feeling 'locked to one full pane'.
-
-        Also: Resize events on Object Browser's top row (the IMG/DAT/
-        IDE/IPL + All/Most Used/Favourites/Generic buttons) re-trigger
-        _update_mode_button_style(), which was previously only ever
-        called once via QTimer.singleShot(0, ...) at construction time -
-        meaning the mode buttons' icon-only/icon+text collapse never
-        re-evaluated when the dock was actually resized afterward,
-        which is what made Object Browser feel like it had a hard
-        minimum width it couldn't shrink past (Keith's report).
-
-        Also: Resize events on any row registered via
-        _register_collapsible_button_row() re-trigger
-        _update_button_row_collapse() for that row - the IMG/IDE/IPL/
-        DAT tabs' own action-button rows (Edit/Save, Open/Close/New/
-        Delete, Extract/Add/Del/Rename/Rebuild)."""
+        """Double-click on a quad pane maximizes/restores it"""
         from PyQt6.QtCore import QEvent
         if event.type() == QEvent.Type.Resize:
             top_row_widget = getattr(self, '_ob_top_row_widget', None)
@@ -13443,15 +12420,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         (hiding the other 3), or restore all 4 if this pane is already
         maximized. Hiding a widget inside a QSplitter lets its siblings
         take the freed space automatically - hiding one pane per row
-        plus the whole opposite row covers both nesting levels.
-
-        The maximized pane's label switches to 'Full View' - that label
-        is also the pane's exclusive right-click-menu trigger (see
-        _create_quad_viewport), so without it there'd be no labelled
-        target to right-click while maximized, and right-click-drag
-        rotation elsewhere on the pane would have nothing to contrast
-        against. Restores the pane's original view-name label
-        (Top/Front/Side/Perspective) when un-maximized."""
+        plus the whole opposite row covers both nesting levels."""
         panes = getattr(self, '_quad_panes', None)
         top_row = getattr(self, '_quad_top_row', None)
         bottom_row = getattr(self, '_quad_bottom_row', None)
@@ -13577,11 +12546,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if not panes:
             return
         try:
-            # App-folder-relative, not ~/.config (Aug 20 2026, per
-            # Keith: "that will not work for standland, all config
-            # files would need to be with the own app folder") - same
-            # real reasoning/fix as MapSettings' own __init__ just
-            # above in this file.
+            # App-folder-relative, not ~/.config (Aug 20 2026)
             cfg_dir = os.path.dirname(os.path.abspath(__file__))
             os.makedirs(cfg_dir, exist_ok=True)
             cfg_path = os.path.join(cfg_dir, 'model_workshop.json')
@@ -13747,7 +12712,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     self.col_list_widget.addItem(item)
 
             if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"📋 Found {len(self.txd_list)} COL files")
+                self.main_window.log_message(f"Found {len(self.txd_list)} COL files")
         except Exception as e:
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Error loading COL list: {str(e)}")
@@ -13768,11 +12733,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
 
     def _pick_background_color(self): #vers 2
-        """Open color picker for background - per Keith's report on
-        the identical bg_color bug in apply_settings above,
-        self.preview_widget.bg_color never existed here either; use
-        DFFViewport's own _get_bg_color(), which correctly returns a
-        QColor for either the current override or the theme default."""
+        """Open color picker for background"""
         vp = getattr(self, 'preview_widget', None)
         current = vp._get_bg_color() if vp is not None and hasattr(vp, '_get_bg_color') else Qt.GlobalColor.black
         color = QColorDialog.getColor(current, self, "Pick Background Color")
@@ -14853,15 +13814,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     @staticmethod
     def _make_world_map_icon(): #vers 2
         """Real multi-color SVG Earth icon (blue ocean, green-to-yellow
-        continent shapes near the equator) - per Keith: "needs to be
-        multi color svg, blue background, greeny to yellow dithed
-        contenents on the equator, showing Earth. There should be no
-        emojis, except in DP5 point." Replaces the earlier version,
-        which rendered the plain 🗺 text emoji DAT Browser's "Load
-        with Map Workshop…" menu item uses as a text prefix onto a
-        pixmap - readable in a menu row but too indistinct at small
-        taskbar sizes, and Keith wants emoji reserved for DP5 (the
-        old paint-tool dead code area) rather than used here."""
+        continent shapes near the equator)"""
         from PyQt6.QtSvg import QSvgRenderer
         icon = QIcon()
         renderer = QSvgRenderer(ModelWorkshop._WORLD_MAP_SVG.encode())
@@ -14877,19 +13830,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _get_ui_color(self, key): #vers 1
         """Get a theme-aware QColor from app_settings. No hardcoded colors.
-        Genuinely missing from ModelWorkshop until now (Aug 1 2026) -
-        found via a systematic audit of self.method() calls against
-        defined methods, per Keith's question about functions needed
-        to use the existing viewport. This class's own DFF-viewport
-        painting code (dozens of call sites) calls self._get_ui_color(),
-        but it was only ever defined on COL3DViewport (a different
-        class this one doesn't inherit from) - every one of those
-        calls would have raised AttributeError the moment any painting
-        actually happened. Copied verbatim from COL3DViewport's
-        version (same file, line ~772) since the logic doesn't depend
-        on anything specific to that class - just self.app_settings/
-        self.main_window.app_settings and self.palette(), both
-        available here too."""
+        Genuinely missing from ModelWorkshop until now (Aug 1 2026)"""
         from PyQt6.QtGui import QColor
         try:
             app_settings = getattr(self, 'app_settings', None) or \
@@ -14908,15 +13849,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _set_render_mode(self, mode: str): #vers 1
         """Set the actual viewport's render mode (wireframe/solid/etc.)
-        - genuinely missing from ModelWorkshop until now (Aug 1 2026),
-        same audit as _get_ui_color above. Only caller currently is
-        _on_control_panel_wireframe_toggled (Control Panel is still
-        disabled pending the dock-snap investigation, so this isn't
-        reachable yet, but would have raised AttributeError the
-        moment it was re-enabled and someone toggled Wireframe Mode).
-        DFFViewport (self.preview_widget, the real existing viewport
-        we're using) already has its own real set_render_mode(mode) -
-        this just delegates to it."""
+        - genuinely missing from ModelWorkshop until now (Aug 1 2026)"""
         vp = getattr(self, 'preview_widget', None)
         if vp is not None and hasattr(vp, 'set_render_mode'):
             vp.set_render_mode(mode)
@@ -15317,10 +14250,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _open_file(self): #vers 5
         """Open file dialog — supports DFF (model), COL (collision), and
-        TXD (texture dictionary) files, plus a GTA game's main .dat file
-        (loads a whole map via _load_game_dat_file - Map Workshop's real
-        purpose, wired into this shared dialog per Keith's choice to
-        extend Open rather than add a separate button)."""
+        TXD (texture dictionary) files."""
         try:
             file_path, _ = QFileDialog.getOpenFileName(
                 self,
@@ -15871,10 +14801,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # 1. current_img on workshop or main_window
         ci = getattr(self, 'current_img', None) or (
              getattr(mw, 'current_img', None) if mw else None)
-        # Diagnostic: log what we actually got, to help pin down the
-        # docked-mode "TXD not found" regression Keith reported - this
-        # tier used to work, but nothing in this function was touched
-        # recently, so the cause isn't confirmed yet.
+
         if mw and hasattr(mw, 'log_message'):
             mw.log_message(
                 f"[TXD lookup] looking for '{txd_filename}' - "
@@ -17445,8 +16372,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         Aug 1 2026: also routes to _on_ipl_model_row_selected when
         self._ipl_models_mode is set (the Models dock is currently
         listing an IPL's referenced models, not a DFF/COL file's own
-        parts), per Keith's request to show the loaded IPL's models
-        here and their textures below."""
+        parts)"""
         try:
             rows = self.mod_compact_list.selectionModel().selectedRows()
             if not rows:
@@ -19938,10 +18864,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _on_object_browser_header_context_menu(self, pos): #vers 1
         """Right-click the Object Browser header to hide/show individual
-        columns - per Keith's request. A checked item means the column
-        is currently visible; unchecking hides it. Persisted to
-        object_browser_hidden_columns so it survives to the next
-        session."""
+        columns."""
         view = getattr(self, '_object_browser_view', None)
         if view is None:
             return
@@ -19968,16 +18891,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._recompute_object_browser_model_width()
 
     def _recompute_object_browser_model_width(self): #vers 1
-        """Explicitly set the Model column (col 2) to fill whatever
-        space is left after every other VISIBLE column, replacing
-        QHeaderView.ResizeMode.Stretch - confirmed by direct
-        measurement that Stretch mode wasn't reliably recalculating
-        after columns were hidden/shown (Keith's report: the Model
-        column widened correctly when he hid TXD/Instances/Size
-        interactively, but reset to narrow after a reload - Stretch's
-        automatic recalculation isn't dependable enough to build this
-        on). Called on initial setup, on any column visibility toggle,
-        and on the view's own resize (see eventFilter)."""
+        """Explicitly set the Model column."""
         view = getattr(self, '_object_browser_view', None)
         if view is None:
             return
@@ -20104,10 +19018,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._ipl_controls_settings_btn = ipl_settings_btn
 
         # Only shown when docked - in standalone mode the titlebar's own
-        # Add/Del/Rename icons cover this, so showing both would be
-        # redundant (per Keith's explicit request). The mode buttons
-        # above stay visible either way - they aren't duplicated
-        # anywhere else, unlike Add/Del/Rename.
+        # Add/Del/Rename icons cover this, so showing both would be redundant
         action_row_widget.setVisible(not self.standalone_mode)
         self._ob_action_row_widget = action_row_widget
         top_row.addWidget(action_row_widget)
@@ -20148,11 +19059,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         view.installEventFilter(self)
         model = _ObjectBrowserModel()
         view.setModel(model)
-        # Narrow defaults for ★/ID (per Keith: "Fav * cell needs to be
-        # narrow, 5px of the ID, Model should fit the name") - just
-        # enough to show a star glyph and a typical 4-5 digit model ID,
-        # freeing the rest of the row width for Model. Saved widths (if
-        # any) override these below.
+        # Narrow defaults for ★/ID
         view.setColumnWidth(0, 20)
         view.setColumnWidth(1, 45)
         saved_widths = self.map_settings.get('object_browser_column_widths') or []
@@ -20211,26 +19118,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _populate_object_browser(self, loader): #vers 2
         """Fill the Object Browser from a completed load - instance
         counts per model (for Most Used) computed once here, not
-        recomputed on every filter change.
-
-        Counter built incrementally across calls (Aug 16 2026, perf
-        fix per Keith comparing against MooMapper's snappier feel:
-        "the speed of this program is impressive; it handles data way
-        faster than map_workshop") - self._object_instance_counts/
-        _object_instance_count_up_to track how many of loader.
-        instances have already been counted, so a call only Counter-
-        updates the NEW slice since last time, not the whole list.
-        This method fires on every incremental IPL load (_ensure_ipl_
-        loaded, "Load Selected"), so a session loading many IPLs one
-        at a time was previously re-scanning the whole, ever-growing
-        instance list from scratch on every single load - cumulative
-        O(n^2) work across a session, each load a little slower than
-        the last purely from this, unrelated to how much work that
-        specific load actually needed. Self-corrects (recomputes
-        fully) if loader.instances is ever shorter than what's
-        already been counted - a genuinely new/reset loader, not just
-        more instances added - as a safety net; _apply_loaded_world
-        also explicitly resets both for a true new-world load."""
+        recomputed on every filter change."""
         model = getattr(self, '_object_browser_model', None)
         if model is None:
             return
@@ -20265,25 +19153,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _on_object_browser_tab_changed(self, tab_key): #vers 3
         """IMG/DAT/IDE/IPL button clicked - switches the shared content
-        stack to that tab's page instead of the Object Browser table,
-        per Keith's request to merge the former standalone Editing
-        Panel dock's tabs in here. Also re-checks that tab's own
-        action-button row for icon-only/icon+text collapse right away -
-        a widget on a QStackedWidget page that isn't current doesn't
-        reliably receive/react to resize events, so its row's collapse
-        state could be stale (e.g. still showing full text even though
-        the dock is currently narrow) the moment it becomes visible,
-        without this (Keith's report: dragging a splitter narrower
-        didn't collapse the IMG tab's buttons to icon-only).
-
-        Also switches the shared IPL Inst File dock between its two
-        modes (Aug 1 2026, per Keith: "when selecting the IDE tab, the
-        IPL inst file, turns into IDE Objects, and displays the IDE
-        entries in cells just like the IPLs") - selecting IDE updates
-        the dock's title to "IDE Objects" and shows whichever IDE file
-        is currently selected in the IDE tab's own list (or clears if
-        none is); selecting any other tab switches the title back to
-        "IPL Inst File" and restores the normal IPL Sections view."""
+        stack to that tab's page instead of the Object Browser table."""
         stack = getattr(self, '_object_browser_content_stack', None)
         if stack is None:
             return
@@ -20388,12 +19258,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _on_object_browser_context_menu(self, pos): #vers 2
         """Right-click a row for Favourites, Rename, Add Instance, and
-        Delete All Instances - the Add/Del/Rename functions Keith asked
-        to continue. These are in-memory operations for now (mutating
-        self._all_instances and the loader's own instances list, kept
-        consistent with each other) - writing changes back to the
-        actual IPL/IDE files on disk isn't built yet, tracked
-        separately in TODO.md."""
+        Delete All Instances."""
         view = self._object_browser_view
         index = view.indexAt(pos)
         if not index.isValid():
@@ -20477,10 +19342,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         for now, at a default position (origin, identity rotation).
         Does NOT yet write the new inst line back to the actual IPL
         file - that needs real file-writing infrastructure, tracked
-        separately. Keith's fuller Add request (importing new DFF/TXD/
-        COL from the desktop into the game's IMG for models that don't
-        exist at all yet) is a bigger, separate piece - this covers
-        placing another copy of a model that's already loaded."""
+        separately."""
         loader = getattr(self, '_world_loader', None)
         obj = loader.get_object(model_id) if loader else None
         if obj is None:
@@ -20504,14 +19366,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                          f"(in memory only - not yet written to disk)")
 
     def _delete_all_instances_of_model(self, model_id): #vers 1
-        """Remove every placement of a model - the simpler 'just
-        remove from IPL' case Keith described (leaves the IDE
-        definition, COL, and IMG-packed DFF/TXD untouched, so other
-        references to the same model_id, if any, stay valid). IN
-        MEMORY ONLY for now - doesn't yet rewrite the actual IPL
-        file(s) on disk, or offer the 'purge everything and free the
-        ID' alternative Keith also described (that needs IDE/COL/IMG
-        write support this project doesn't have yet)."""
+        """Remove every placement of a model."""
         loader = getattr(self, '_world_loader', None)
         all_inst = getattr(self, '_all_instances', [])
         removed = sum(1 for i in all_inst if i.model_id == model_id)
@@ -20543,14 +19398,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         every loaded world placement. Single-click (or keyboard
         navigation) shows/updates the non-modal object edit panel for
         that instance; double-click additionally centres the camera in
-        all three World View panes on it.
-
-        QTableView + a lazy model (_InstanceTableModel) rather than
-        QTableWidget - the old QTableWidget approach eagerly created a
-        QTableWidgetItem per cell (5 per instance) and resolved every
-        instance's TXD name immediately, timed at 2.6s of UI freeze for
-        51,711 instances. The model defers both to data() calls for
-        whatever's actually visible."""
+        all three World View panes on it."""
         from PyQt6.QtWidgets import QTableView
 
         view = QTableView()
@@ -20589,16 +19437,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _on_viewport_instance_picked(self, inst, pane): #vers 2
         """Called when the user clicks directly on a rendered marker in
         one specific World View pane - zooms in close on that instance
-        WITHIN THAT PANE ONLY, and shows the edit panel.
-
-        Fixes two things Keith reported: clicking an object was
-        repositioning all 3 views (the previous version called
-        _center_on_instance, which loops over every pane in
-        self._world_panes) instead of responding to just the pane that
-        was actually clicked; and it wasn't zooming in at all, only
-        panning to centre while leaving distance/zoom completely
-        untouched, so the object could still appear small/far away
-        after being 'centred'."""
+        WITHIN THAT PANE ONLY, and shows the edit panel."""
         pane._pan_x = -inst.pos_x
         pane._pan_y = -inst.pos_y
         pane._dist = 15.0   # close-up distance - a reasonable default,
@@ -20633,10 +19472,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         modal dialog that blocks interaction and needs reopening each
         time.
 
-        Wrapped in a real QDockWidget (Aug 1 2026, per Keith: "docLable,
-        but start undocked") - dockable into the main window like every
-        other panel, but starts floating (undocked) by default so it
-        behaves the same as before for anyone who never drags it in."""
+        Wrapped in a real QDockWidget (Aug 1 2026)"""
         dock = getattr(self, '_instance_edit_dock', None)
         if dock is None:
             panel = _InstanceEditPanel(self)
@@ -20651,53 +19487,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if outer_mw is not None:
                 outer_mw.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, dock)
             dock.setFloating(True)
-            # Real taskbar-visible window flags (Aug 1 2026, per
-            # Keith: "Map editor isnt needs to show on the task bar
-            # in img factory, and any tools called like ide editor,
-            # ipl editor") - Qt's own default behaviour for a floating
-            # QDockWidget uses Tool-style window flags, which most
-            # window managers deliberately exclude from the taskbar by
-            # design (the same as a floating toolbar/palette not
-            # getting its own taskbar entry) - appropriate for a small
-            # accessory panel, not for something Keith wants to be
-            # able to find/switch to like an independent window. Map
-            # Workshop itself can't get the same treatment purely from
-            # in here - Keith confirmed it runs embedded as a tab
-            # inside IMG Factory's own window when opened that way, a
-            # genuine child widget with no top-level window of its own
-            # at all, which is a different, larger problem than a
-            # dock's window-flag choice (would need changes on IMG
-            # Factory's own side, outside this component). This dock,
-            # though, already becomes a genuine top-level window when
-            # floating - it just needed the right flags to actually
-            # show up as one.
             dock.setWindowFlags(
                 (dock.windowFlags() & ~Qt.WindowType.WindowType_Mask) | Qt.WindowType.Window)
             dock.show()
-            # Explicit resize (Aug 1 2026, per Keith: "[Show] button
-            # can't be seen; only showing 3px in height", "the ipl
-            # values are barely visible", overlapping Prev/Next and
-            # Apply/Undo/Close/Save rows) - a dock briefly added to a
-            # dock area right before floating often inherits a tiny
-            # constrained size from that instant rather than sizing to
-            # its actual content, squeezing every fixed-height widget
-            # in the panel down below readable size. setMinimumWidth/
-            # Height on the panel itself stops things collapsing
-            # further, but the dock's initial floating size still
-            # needs setting explicitly here.
             dock.resize(620, 400)
-            # Initial position only (Aug 1 2026, per Keith: "Every
-            # time I click on an object in the viewpoint, the IPL
-            # object editor snaps back; it should stay wherever I
-            # leave it") - this dock.move() call used to sit *outside*
-            # this "dock is None" first-creation block, so it ran on
-            # every single call to this method (every object click),
-            # unconditionally snapping the dock back to a fixed
-            # position near the main window's top-left corner
-            # regardless of where the user had since dragged it.
-            # Moved inside here so it only ever runs once, when the
-            # dock is first created - after that, wherever the user
-            # leaves it is respected.
+
             if dock.isFloating():
                 top_level = self.window()
                 dock.move(top_level.mapToGlobal(top_level.rect().topLeft()) +
@@ -20710,51 +19504,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         dock.raise_()
 
     def _on_instance_edited(self, inst): #vers 3
-        """Called by _InstanceEditPanel whenever a position/rotation
-        nudge changes an instance in memory - updates the World View
-        panes to reflect the new position (they cache instance data as
-        plain tuples for fast rendering, built at the last filter
-        application, so mutating the IPLInstance alone doesn't
-        propagate until something pushes the new transform through).
-
-        Fast path first (Aug 1 2026, per Keith: "when moving any
-        object using the IPL object editor, it takes so long for
-        anything to change; is there a way to only update the object
-        thats been moved, not freshing the whole viewport") -
-        DFFViewport.update_instance_transform finds the one already-
-        rendered entry matching this instance and updates just its
-        pos/rot/scale in place, without re-running the LOD/TOBJ
-        filters or rebuilding a fresh entry dict for every other
-        visible instance in the map. Falls back to the full _apply_
-        ipl_visibility_filter pipeline only if the fast path can't
-        find a match (e.g. the very first edit of a session, before
-        any full refresh has ever populated the viewport's own
-        instance list yet)."""
+        """Called by _InstanceEditPanel."""
         vp = getattr(self, 'preview_widget', None)
         if vp is not None and hasattr(vp, 'update_instance_transform'):
             pos = (inst.pos_x, inst.pos_y, inst.pos_z)
             rot = self._effective_rotation(inst)
             scale = (inst.scale_x, inst.scale_y, inst.scale_z)
             if vp.update_instance_transform(inst, pos, rot, scale):
-                # GTA III paths follow their attached object (Aug 18
-                # 2026, per Keith: "when I move models in GTA3,
-                # shouldn't the paths attached to them move as well")
-                # - real gap: this fast path returns before ever
-                # calling _refresh_path_visualization, and GTA III's
-                # own IDE-embedded paths are resolved fresh from the
-                # placing instance's CURRENT position every time that
-                # runs (see IDEPathGroup's own docstring) - so moving
-                # an instance never re-resolved whatever path was
-                # attached to it, leaving the path visually stuck at
-                # the object's old position. Only pays the extra
-                # refresh cost when the moved instance's model_id
-                # actually has a path group attached to it - a cheap
-                # check against loader.ide_paths, and the common case
-                # (moving an ordinary building/prop with no path of
-                # its own) stays exactly as fast as before, preserving
-                # the original reason this fast path exists at all
-                # (Keith's own earlier "takes so long for anything to
-                # change" complaint).
+
                 loader = getattr(self, '_world_loader', None)
                 if loader is not None and any(
                         g.model_id == inst.model_id for g in getattr(loader, 'ide_paths', [])):
@@ -20763,26 +19520,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._apply_ipl_visibility_filter(auto_fit=False, clear_display_lists=False)
 
     def _push_map_undo(self, undo_fn, redo_fn, description=""): #vers 1
-        """Record one undoable map edit (Aug 18 2026, per Keith: "we
-        need to get the undo function working"). Lives on ModelWorkshop
-        itself, not on _InstanceEditPanel (which gets recreated every
-        time a different instance is selected and would lose all undo
-        history on every selection change if the stack lived there).
-        Genuinely separate from self.undo_stack/_push_undo/_undo_last_
-        action - those are scoped entirely to COL model editing
-        (inherited from this tool's Model Workshop base, hardcoded to
-        current_col_file.models[model_index]) - a completely different
-        data shape than a map edit, not reusable here at all.
-
-        Each entry is a pair of no-arg callables that know how to
-        reverse/reapply one specific change, not a generic before/
-        after data snapshot - lets different map edit types (instance
-        position/rotation/scale nudges today, path node drags and
-        more later) share the same undo mechanism without needing a
-        different implementation per edit type. A fresh edit clears
-        the redo stack, matching standard undo/redo convention -
-        redoing something the user has since diverged from would be
-        ambiguous/surprising."""
+        """Record one undoable map edit (Aug 18 2026)."""
         self.map_undo_stack = getattr(self, 'map_undo_stack', [])
         self.map_redo_stack = getattr(self, 'map_redo_stack', [])
         self.map_undo_stack.append(
@@ -20792,10 +19530,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.map_redo_stack.clear()
 
     def _map_undo(self): #vers 1
-        """Reverse the most recent map edit, per Keith: "we need to
-        get the undo function working" - the real implementation
-        behind what used to be an honest stub on _InstanceEditPanel's
-        own Undo button (_on_undo_clicked)."""
+        """Reverse the most recent map edit."""
         stack = getattr(self, 'map_undo_stack', [])
         if not stack:
             self._set_status("Nothing to undo")
@@ -20829,12 +19564,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._set_status(f"Redo: {desc}" if desc else "Redo applied")
 
     def _on_instance_list_context_menu(self, pos): #vers 2
-        """Right-click a row - Add/Remove Favourites always available
-        (reusing the same favourite_objects setting Object Browser
-        uses, so favouriting stays in sync between both panels);
-        per-instance LOD override options only added when this
-        instance actually has a resolved LOD pair (see
-        resolve_lod_pairs)."""
+        """Right-click a row - Add/Remove Favourites."""
         view = self._instance_table
         index = view.indexAt(pos)
         if not index.isValid():
@@ -20870,10 +19600,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         menu.exec(view.viewport().mapToGlobal(pos))
 
     def _toggle_instance_favourite(self, model_id): #vers 1
-        """Add/remove a model_id from favourite_objects - shared with
-        Object Browser's own favourite toggle, so favouriting an object
-        from either panel stays in sync. Refreshes Object Browser's
-        model if it's currently showing the Favourites filter."""
+        """Add/remove a model_id from favourite_objects."""
         favourites = set(self.map_settings.get('favourite_objects') or [])
         if model_id in favourites:
             favourites.discard(model_id)
@@ -20888,10 +19615,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _populate_instance_list(self, loader): #vers 2
         """Point the Instance List view at a completed GTAWorldLoader
-        load's instances - the model resolves each instance's TXD name
-        (via loader.get_object) lazily, per-cell, rather than all up
-        front for every row regardless of whether it's ever scrolled
-        into view."""
+        load's instances."""
         view = getattr(self, '_instance_table', None)
         if view is None:
             return
@@ -20917,20 +19641,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _create_control_dock(self): #vers 2
         """Control Panel dock - replicates MooMapper's "Hide/Show
-        Control Panel" layout (Position/Move There, Time, Zoom/Reset
-        View, Enable Textures/Wireframe/Alpha Blending/First Person/
-        Background Map checkboxes, background colour, a mode dropdown,
-        and the Dragging Controls legend), organized into compact
-        side-by-side groups since this dock runs as a wide horizontal
-        strip along the bottom. Several are wired to real, working
-        functionality already in this project (Position/Move There,
-        Reset View, Zoom, Wireframe Mode via the existing render-mode
-        dropdown, background colour); the rest are clearly marked STUB
-        below and don't yet do anything - they're placeholders for
-        functionality this project doesn't have yet (time-of-day
-        simulation, first-person navigation, a reference background
-        map image, texture toggling separate from render mode).
-        Every button/label/input box uses a consistent 18px height."""
+        Control Panel"."""
         panel = QWidget()
         lay = QHBoxLayout(panel)
         lay.setContentsMargins(4, 2, 4, 2)
@@ -21111,14 +19822,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         dock = QDockWidget("Control Panel", self)
         dock.setObjectName("Control Panel")
         dock.setWidget(panel)
-        # Left commented out deliberately (part of the confirmed-working
-        # snap-drag fix) - Qt's default features (uncalled setFeatures())
-        # already include DockWidgetClosable, so toggleViewAction() works
-        # fine here without needing the same fix applied to every other
-        # dock below (Aug 1 2026, Keith's "right click pane selection not
-        # working" report - those all had DockWidgetClosable explicitly
-        # left out, which disables toggleViewAction entirely).
-        #dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable | QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+
         self._control_panel_dock = dock
         return dock
 
@@ -21173,13 +19877,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         order two-phase load) via the existing GTAWorldLoader - this is
         the Map Editor's actual data layer, already handling multi-game
         detection (GTA3/VC/SA/SOL) and object/instance cross-referencing;
-        nothing new needed here beyond wiring it into the UI.
-
-        preset_root: when given (e.g. passed in from Dat Browser, which
-        already has a game root loaded), skip the folder picker and load
-        directly - the same underlying load either way, just two ways to
-        reach it, matching how Model/TXD/COL Workshop can be opened either
-        via an explicit path or by picking up whatever's already open."""
+        nothing new needed here beyond wiring it into the UI."""
         from PyQt6.QtWidgets import QFileDialog
         from apps.methods.gta_dat_parser import detect_game, GTAWorldLoader
 
@@ -21199,7 +19897,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return
 
         loader = GTAWorldLoader(game)
-        loader.lazy_ipl_loading = True   # per Keith: don't load/scan any
+        loader.lazy_ipl_loading = True   # don't load/scan any
                                          # IPL's content (or its models'
                                          # geometry/textures) until the
                                          # user actually asks for that
@@ -21210,11 +19908,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._apply_loaded_world(loader, game, ok, "Load Game Folder")
 
     def _show_map_load_menu(self): #vers 1
-        """Menu shown from the titlebar's Load button - the same two
-        load paths already in the File menu (Load Game Folder / Load
-        Game DAT File), surfaced here since Keith wants Load on the
-        titlebar to actually load a map, not the paint canvas's old
-        image-load menu."""
+        """Menu shown from the titlebar's Load button."""
         menu = QMenu(self)
         menu.addAction("Load Game Folder…", self._load_game_folder)
         menu.addAction("Load Game DAT File…", self._load_game_dat_file)
@@ -21223,29 +19917,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _load_game_dat_file(self, preset_dat_path: str = None, force_preload_img: bool = False): #vers 2
         """Load a GTA game's world data starting from one specific .dat
-        file, rather than a whole game folder - per Keith's request
-        that the standalone flow ask for the actual gta_xx.dat/
-        default.dat file path directly. Also the entry point for the
-        DAT Browser tree's 'Load with Map Workshop' right-click on a
-        specific .dat entry, via preset_dat_path.
-
-        force_preload_img=True (Aug 16 2026, per Keith: "in Dat
-        Browser, right click dat file, open in map workshop, add
-        another option to open in map workshop, preload img(s)
-        file") - a one-off override for this specific load only, from
-        the DAT Browser's second context-menu action, independent of
-        the persistent Settings > Loading > "Preload IMG archives on
-        DAT load" checkbox (which stays exactly as the user left it -
-        this doesn't change or save that setting, just forces the
-        same behaviour for this one load).
-
-        The game is detected purely from the .dat file's own basename
-        (detect_game_from_dat_filename) rather than scanning a folder -
-        deliberately doesn't accept an ambiguous bare 'default.dat'
-        (shared across gta3/vc/sa), since there'd be no way to tell
-        which game it belongs to from the filename alone; the user
-        picks the actual main .dat (gta3.dat, gta_vc.dat, gta.dat, or
-        gta_sol.dat)."""
+        file, rather than a whole game folder."""
         from PyQt6.QtWidgets import QFileDialog
         from apps.methods.gta_dat_parser import detect_game_from_dat_filename, GTAWorldLoader
 
@@ -21279,10 +19951,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _add_recent_dat_file(self, dat_path): #vers 1
         """Record a successfully loaded .dat path in the recent-files
-        list - per Keith: "when loading Dat files, standalone,
-        remember past files." Most recent first, deduplicated (a
-        re-load of the same file moves it back to the top rather than
-        appearing twice), capped at 10."""
+        list."""
         recent = list(self.map_settings.get('recent_dat_files') or [])
         recent = [p for p in recent if p != dat_path]
         recent.insert(0, dat_path)
@@ -21327,10 +19996,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         specific .dat file) share exactly the same result handling."""
         self._world_loader = loader
         self._loaded_dat_path = getattr(loader.main_dat, 'dat_path', '') if hasattr(loader, 'main_dat') else ''
-        # Reset the render-mode-set flag on a fresh world load (Aug 1
-        # 2026) - a genuinely new map should default back to Textured,
-        # not silently keep whatever mode was manually chosen for a
-        # previous session's world.
+        # Reset the render-mode-set flag on a fresh world load (Aug 1 2026)
         self._world_render_mode_set = False
 
         if not ok:
@@ -21357,68 +20023,25 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         model_cache.index_img_files(loader.get_img_paths())
 
         # force_preload_img_once (Aug 16 2026) - a per-load override
-        # from the DAT Browser's "Open in Map Workshop, preload
-        # img(s) file" context-menu action, independent of the
-        # persistent Loading-tab setting. Consumed (reset to False)
-        # here so it only ever applies to the load that requested it,
-        # not silently sticking for every load after.
         force_once = getattr(self, '_force_preload_img_once', False)
         self._force_preload_img_once = False
         if self.map_settings.get('preload_img_on_dat_load') or force_once:
             self._preload_img_archives_to_os_cache(loader.get_img_paths())
 
-        # Standalone .col indexing (Aug 14 2026, for the IPL Controls
-        # collision render options) - per Keith: "Shows 1 col file; in
-        # SA it should be reading them from the gta3.img... In VC,
-        # they can also be found in the gta3.img file, just like the
-        # models, or linked in gta_vc.dat paths to cols with the map
-        # files, in gta3, there in the map files only paths to map/".
-        # index_img_files above now also indexes .col entries directly
-        # from the IMG archives (SA's only source, VC's main source) -
-        # this call covers the other half: standalone files reached
-        # via COLFILE directives in the .dat (GTA3's ONLY source, VC's
-        # shared/common collision e.g. generic.col, SA has none of
-        # these - see GTAWorldLoader.get_col_paths). Reading the
-        # .dat's own parsed directives instead of blind-globbing the
-        # game root for *.col - matches how every other asset path in
-        # this pipeline is already resolved, and won't pick up
-        # unrelated loose .col files a mod folder happens to contain.
-        # A model with no matching collision from either source just
-        # draws nothing for any of the collision overlay toggles - not
-        # treated as an error (see ModelCache.get_collision's own
-        # docstring).
+        # Standalone .col indexing (Aug 14 2026)
         col_paths = loader.get_col_paths()
         if col_paths:
             self._set_status("Indexing COL files...")
             QApplication.processEvents()
             model_cache.index_col_files(col_paths)
-        # A genuine new world load - the same model_name could now
-        # refer to entirely different geometry (a different game/DAT
-        # entirely), so any previously converted vertex/triangle data
-        # cached in _refresh_world_view is no longer valid.
+        # A genuine new world load
         self._geometry_conversion_cache = {}
-        # Same reasoning, for _populate_object_browser's incremental
-        # instance-count cache (Aug 16 2026 perf fix) - a genuine new
-        # world means loader.instances starts over from empty too, so
-        # the "already counted up to N" marker must reset alongside it
-        # rather than relying solely on the length-mismatch safety net
-        # in _populate_object_browser itself.
+
         from collections import Counter as _Counter
         self._object_instance_counts = _Counter()
         self._object_instance_count_up_to = 0
-        # Same reasoning, for _rebuild_ipl_sections_rows' per-file
-        # format-detection cache (Aug 16 2026 perf fix) - a genuine
-        # new world means every IPL's format needs redetecting fresh
-        # (could be a different game/folder entirely), not reused
-        # from whatever the previous world's files were.
+
         self._ipl_format_cache = {}
-        # Per Keith: model/texture scanning should happen when a
-        # specific IPL is actually loaded, not for the whole world at
-        # startup - with lazy_ipl_loading enabled above, loader.
-        # instances is empty at this point anyway (nothing parsed
-        # yet), so pre-loading here would be a no-op regardless. The
-        # real pre-load now happens per-IPL in _on_ipl_section_cell_
-        # clicked, scoped to just that IPL's newly-loaded instances.
 
         self._set_status("Applying LOD filter...")
         QApplication.processEvents()
@@ -21448,48 +20071,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         QApplication.processEvents()
         self._refresh_img_tab(loader)
         self._refresh_ipl_inst_file_panel()
-        # Hide the Occlusion overlay button entirely for GTA III worlds
-        # (Aug 19 2026, per Keith: "because we're working with, gta3,
-        # we don[']t need to see the [o]cclusions button" - occlusion
-        # zones (the "occl" IPL section) are VC/SA-only by format,
-        # confirmed earlier this session against real game data - a
-        # GTA III world can never have any occlusion data to show at
-        # all, so the button is pure clutter there, not just unused.
+
         if hasattr(self, '_show_occl_chk'):
             self._show_occl_chk.setVisible(game != 'gta3')
-        # Hide row4's own SA-only overlay buttons for every other game
-        # (Aug 20 2026, per Keith: "In GTA III. VC or SOL, we should
-        # not be seeing SA buttons, SA names, or Auzo" - a real
-        # screenshot showing a loaded VC world with "SA Nodes" and
-        # "Auzo" both still visible confirmed this directly, same
-        # "pure clutter with nothing to ever actually display" reason
-        # as the IPL Controls tab-hiding just below - SA Nodes reads
-        # from SA-only binary path data, Auzo from SA-only IPL data,
-        # neither of which a III/VC/SOL world can ever have any of.
-        # Water and Radar deliberately NOT included here - both were
-        # already extended to work across every game this session
-        # (waterpro.dat for III/VC, RADAR_GRID_PRESETS per game), so
-        # hiding those for non-SA games would hide real, working
-        # functionality, not clutter.
+
         if hasattr(self, '_show_sa_nodes_chk'):
             self._show_sa_nodes_chk.setVisible(game == 'sa')
         if hasattr(self, '_show_auzo_chk'):
             self._show_auzo_chk.setVisible(game == 'sa')
-        # Hide IPL Controls tabs the loaded game can never actually
-        # have data for (Aug 19 2026, per Keith: "Let's continue with
-        # hiding functions not supported by GTA3, including some of
-        # the IPL Object pane tabs [GRGE] [ENEX] [JUMP] [TCYC] [AUZO]
-        # and [MULT], these are GTA SA only... [PICK] in ipl file,
-        # [OCCL] tabs, This is VC and SA only"). Same reasoning as the
-        # Occlusion button above, extended to every game-restricted
-        # section type, not just occlusion - each of these formats is
-        # confirmed real (via this session's own file-format research)
-        # to belong to only the specific game(s) noted, so showing
-        # them for an incompatible game is pure clutter with nothing
-        # to ever actually display. Switches back to the always-safe
-        # "inst" tab first if the currently-active tab is one that's
-        # about to be hidden, so the active tab never just vanishes
-        # out from under the person.
+
         tab_bar = getattr(self, '_ipl_tab_bar', None)
         tab_keys = getattr(self, '_ipl_tab_keys', None)
         if tab_bar is not None and tab_keys:
@@ -21511,13 +20101,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             f"{len(loader.instances)} instances, {loader.stats.ipl_files} IPL files")
         QMessageBox.information(self, source_desc, loader.get_summary())
 
-        # Per Keith: "we could have load from .dat file with no IPL
-        # files selected... Or load with options. the options show all
-        # ipl files [x] boxes and model [x] textures [x] and
-        # [continue]." Only offered when lazy loading actually
-        # discovered something to choose from.
         if getattr(loader, 'lazy_ipl_loading', False) and loader.available_ipls:
-            selection = self._show_load_options_dialog(loader)
+            selection = self._show_load_options_dialog(loader) #TODO; In settings have a auto load options dialog, No / Off
             if selection is not None:
                 stems, load_models, load_textures = selection
                 if stems:
@@ -21525,64 +20110,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                         loader, model_cache, stems, load_models, load_textures)
 
     def _load_selected_ipls_with_log(self, loader, model_cache, stems, load_models, load_textures): #vers 2
-        """Load a batch of specific IPLs (from the Load Options dialog),
-        showing a scrolling log dialog matching Keith's exact requested
-        format: "loading <name>" followed by each newly-added instance's
-        line as it's added, then a final per-IPL result line - "loaded
-        <name> - no errors" or "<name> - <model>.dff/<txd>.txd missing
-        from img file" when a referenced model/texture genuinely isn't
-        in any indexed archive at all (as opposed to a parse error in
-        the IPL's own text, which _write_ipl_error_log/the per-IPL
-        issue count already covers separately).
-
-        load_models/load_textures gate whether ModelCache.get_geometry/
-        get_textures are called at all for this batch - unchecking
-        either skips that half of pre-loading entirely for everything
-        loaded here (their own per-instance rendering fallback to
-        point/dot rendering is unaffected either way, this only
-        controls whether pre-loading happens now).
-
-        Real fixes here (Aug 20 2026, per Keith: "this dialogue does
-        not show the IPL name in a separate section above with a load
-        % indicator. It also needs to obey the settings, like the
-        manual loader does") - two real, confirmed gaps against the
-        manual, per-IPL loader (the eye-icon-triggered path, see
-        _preload_world_assets' own real caller for the reference this
-        was built to match):
-
-        1. Now uses the same real _VerboseLoadingDialog the manual
-           loader already uses (fixed header label pinned above the
-           scrolling list showing which IPL is currently loading, plus
-           a real QProgressBar - genuinely missing from both this
-           method's own old plain-QTextEdit dialog AND from _Verbose
-           LoadingDialog itself until now, since Keith's own "load %
-           indicator" wording asked for something neither dialog had).
-
-        2. Now checks the same real 'show_verbose_loading_dialog'
-           setting the manual loader already gates on - this method
-           used to always show its own detailed log dialog
-           unconditionally, with no way to turn it off the way the
-           manual loader's own detailed dialog already can be. This
-           is the real "obey the settings" gap - texture downscale
-           itself is applied at the viewport's own texture-upload
-           time (confirmed directly by tracing where texture_
-           downscale_enabled/_threshold/_target are actually read -
-           DFFViewport.set_texture_downscale_settings, not ModelCache),
-           so both this bulk path and the manual one already get
-           identical downscaling once the viewport renders what
-           either one loaded - this method simply never had the same
-           on/off switch for its own detailed dialog in the first
-           place.
-
-        A real, always-present QProgressDialog (with its own real
-        Cancel button) drives the header+percentage regardless of the
-        verbose setting - matching _preload_world_assets' own real
-        pattern exactly (that method's own progress dialog isn't
-        gated on verbose either; only the additional, more detailed
-        _VerboseLoadingDialog log is). Losing the ability to cancel a
-        bulk load entirely whenever verbose happened to be off would
-        be a real regression from that established pattern, not a
-        faithful match to it."""
+        """Load a batch of specific IPLs (from the Load Options dialog)"""
         total_stems = len(stems)
         progress = QProgressDialog("Loading IPL files…", "Cancel", 0, total_stems, self)
         progress.setWindowTitle("Loading IPL Files")
@@ -21789,8 +20317,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         real sample data to verify against, the same caution applied
         to the VC/GTA3 inst-format work earlier).
 
-        Column order is eye-icon first, then name (per Keith's
-        request) - previously name then icon."""
+        Column order is eye-icon first, then name."""
         panel = QWidget()
         lay = QVBoxLayout(panel)
         lay.setContentsMargins(1, 1, 1, 1)
@@ -21837,35 +20364,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         delete_btn.setFixedHeight(18)
         delete_btn.setStyleSheet(_compact_18)
         delete_btn.setEnabled(False)
-        # Open Zone File... (Aug 16 2026, per Keith: "just need to
-        # wire the zon files, so I can click and view them") - .zon
-        # files (info.zon/map.zon/navig.zon and similar) aren't
-        # referenced by the .dat's own IPL directives the way normal
-        # IPLs are, so they never show up in loader.available_ipls on
-        # their own - this lets Keith pick one (or several) directly
-        # and registers it into the exact same available_ipls/
-        # _ipl_display_to_stem machinery every other IPL already uses,
-        # so the existing click/eye-icon/view pipeline just works for
-        # it unmodified (IPLParser.parse() is already format-agnostic
-        # - it just reads whatever section keywords it finds, and
-        # "zone" sections were already correctly parsed - verified
-        # field-for-field against Keith's real info.zon/map.zon/
-        # navig.zon earlier this session, nothing wrong there, only
-        # the loading/viewing wiring was missing).
-        # Open File... (Aug 16 2026, per Keith: "open zone, and open
-        # ipl, both can be merged, looking for ipl, and zon files") -
-        # originally a .zon-only picker, widened into one combined
-        # dialog that accepts either .ipl or .zon files directly -
-        # both are read through the exact same IPLParser.parse() path
-        # (it's format-agnostic, just reads whatever section keywords
-        # it finds regardless of extension), and neither is
-        # necessarily referenced by the .dat's own IPL directives the
-        # way normally-discovered IPLs are, so both need the same
-        # manual "add this file directly" entry point. Registers the
-        # picked file(s) into the exact same available_ipls/_ipl_
-        # display_to_stem machinery every other IPL already uses, so
-        # the existing click/eye-icon/view pipeline works for either
-        # file type unmodified.
+        # Open Zone File... (Aug 16 2026)
+
         open_file_btn = QPushButton(get_add_icon(sm_buttonheight, icon_color), "")
         # TODO this needs to be combined with the first open function, that can support ipl, ide, and zon files.
 
@@ -21908,52 +20408,22 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             table.setColumnWidth(1, saved_widths[1])
             table.setColumnWidth(2, 110)
         else:
-            # Interactive with a sane default (Aug 1 2026), not Stretch
-            # - Stretch mode ignores manual drag-resize attempts
-            # entirely, which is exactly what made the IPL File column
-            # unresizable the first time this table is ever shown
-            # (before any width has been saved) per Keith: "hard to
-            # see, i can not move the cell width of IPL file."
             table.setColumnWidth(1, 200)
             table.setColumnWidth(2, 110)
         header.sectionResized.connect(self._on_ipl_sections_column_resized)
         self._apply_compact_table_style(table)
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         table.setShowGrid(False)
-        # Multi-select (Aug 1 2026, per Keith: "option to hold control
-        # and highlight ipl entries, right click load all selected
-        # .ipls") - QTableWidget defaults to SingleSelection, which
-        # doesn't allow Ctrl/Shift+click to build up a multi-row
-        # selection at all. Clicking the eye-icon column (0) still
-        # toggles that one row's visibility immediately regardless
-        # (see _on_ipl_section_cell_clicked) - clicking the IPL File
-        # or Format columns is what selects without side effects,
-        # which is what Ctrl/Shift-clicking to build a selection
-        # should use.
+
         table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         table.setToolTip("Toggle which IPL files' placements are shown in World View")
         table.cellClicked.connect(self._on_ipl_section_cell_clicked)
-        # Double-click any cell to open/show that IPL (Aug 14 2026,
-        # per Keith: "you can select IPL files, maybe just double-
-        # click them to open them on the filename... right click
-        # unload ipl, or just hide the file from view - whatever is
-        # the most logical way of doing this") - the eye-icon column
-        # and its Hide/Show right-click action stay as they are for
-        # hiding again, this just adds the more standard file-browser
-        # "double-click to open" affordance as another way in, since
-        # loading previously required a precise click on the narrow
-        # icon column specifically.
+
         table.cellDoubleClicked.connect(self._on_ipl_section_cell_double_clicked)
         table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         table.customContextMenuRequested.connect(self._on_ipl_sections_context_menu)
-        # Status bar feedback whenever the row selection changes (Aug
-        # 19 2026, per Keith: "shown in the status bar; example: 5
-        # entire ipl(s) selected") - Ctrl/Shift+click multi-select was
-        # already enabled on this table from an earlier request; this
-        # just adds the confirmation that a selection actually
-        # registered, the same way _on_ipl_selection_changed already
-        # does for the viewport's own Shift+click multi-select.
+
         table.itemSelectionChanged.connect(self._on_ipl_sections_selection_changed)
         content_lay.addWidget(table)
         self._ipl_sections_table = table
@@ -21965,12 +20435,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         placeholder.setVisible(True)
         table.setVisible(False)
 
-        # INST/CULL/ZON/PATH data-type selector moved to its own
-        # dedicated dock (Aug 1 2026, per Keith: "the INST CULL ZON
-        # PATH buttons need to be in there own pane" - see
-        # _create_ipl_controls_dock) - self._ipl_data_type is still
-        # initialized here since this tab's own logic reads it
-        # regardless of where the buttons that set it actually live.
         self._ipl_data_type = 'inst'
 
         lay.addWidget(content_container)
@@ -21982,16 +20446,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         per IPL, in the user's saved display order (ipl_sections_order)
         if any, with new/unrecognised names (a different world/mod)
         appended alphabetically after the known ones rather than losing
-        the saved order entirely.
-
-        With lazy_ipl_loading enabled (the default for Map Workshop's
-        own load paths), every IPL the .dat(s) reference is listed
-        immediately from loader.available_ipls - matching MooMapper's
-        own behaviour of listing every IPL path upfront without loading
-        any of their content - rather than only showing IPLs that
-        already have instances loaded. Falls back to the older
-        instances-based derivation for any caller that doesn't use lazy
-        loading."""
+        the saved order entirely."""
         table = getattr(self, '_ipl_sections_table', None)
         placeholder = getattr(self, '_ipl_sections_placeholder', None)
         if table is None:
@@ -22001,10 +20456,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         icon_color = self._get_icon_color()
         icon_sz = 16
-        self._eye_open_icon = self._render_variant_icon('eye_visible', None, icon_sz,
-                                                         icon_color, has_menu=False)
-        self._eye_closed_icon = self._render_variant_icon('eye_hidden', None, icon_sz,
-                                                           icon_color, has_menu=False)
+        self._eye_open_icon = self._render_variant_icon('eye_visible', None, icon_sz, icon_color, has_menu=False)
+        self._eye_closed_icon = self._render_variant_icon('eye_hidden', None, icon_sz, icon_color, has_menu=False)
 
         # display name (as it'll appear in the table / match inst.source_ipl
         # once loaded) -> lowercase stem (the key load_ipl_by_name expects)
@@ -22038,47 +20491,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _scan_binary_ipls_in_img_archives(self, loader): #vers 3
         """Scan every indexed IMG archive (gta3.img etc.) for .ipl-
         extension entries, associating binary ones with their parent
-        text IPL rather than listing them as independent entries -
-        per Keith's detailed correction: "gta.dat contains entries
-        for text-based IPL files... Binary IPLs (streaming files like
-        LAe2_stream0.ipl) are not directly listed in gta.dat. Instead,
-        they are stored inside the .img archives... The game engine
-        automatically links these binary files to their parent text
-        IPL by matching the filename prefix (e.g. LAe2 in
-        LAe2_stream0.ipl corresponds to LAe2.IPL)." An earlier version
-        of this method treated every binary entry as its own
-        standalone row, which didn't reflect this relationship at
-        all.
-
-        A binary entry is treated as belonging to a known text IPL
-        when either its own stem exactly matches the text IPL's stem
-        (e.g. a binary "crack.ipl" alongside a text "crack.ipl" - not
-        every binary entry uses the "_streamN" suffix convention,
-        per BinaryIPLParser's own docstring, which references exactly
-        this "crack.ipl" case from real sample data), or its stem
-        matches "{text_ipl_stem}_streamN" for some number N.
-
-        A single parent commonly has *several* numbered stream files
-        (Aug 1 2026, per Keith: "binary ipls might show in the gta3.img
-        as LAn2_stream0.ipl, LAn2_stream1.ipl, LAn2_stream2.ipl and so
-        on") - self._ipl_names_with_binary_stream is keyed by the text
-        IPL's display name, valued with the *list* of matched stream
-        entry names (not just a boolean "has some"), so the Format
-        column can show a real count and a future loading feature has
-        the actual entry names ready to use. Only genuinely standalone
-        binary entries (no matching text IPL at all) still get their
-        own row, via the same self._binary_ipl_names/_ipl_display_to_
-        stem/_ipl_display_order mechanism as before.
-
-        Loading the actual binary instance content is now wired up -
-        see _load_binary_ipl_stream and the "Load Binary Stream..."
-        context menu action, per Keith: "we need to be able to load
-        these binary IPLs, so right click, show the list, to load
-        from." self._ipl_names_with_binary_stream and self._
-        standalone_binary_ipl_archives now store (archive_path,
-        entry_name) tuples rather than plain entry name strings, so
-        the correct archive can be re-opened and the entry's actual
-        bytes read when loading."""
+        text IPL rather than listing them as independent entries."""
         self._binary_ipl_names = set()
         self._ipl_names_with_binary_stream = {}       # text display name -> [(archive_path, entry_name), ...]
         self._standalone_binary_ipl_archives = {}      # display name -> archive_path
@@ -22102,13 +20515,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         model_cache = getattr(self, '_model_cache', None)
         for img_path in get_img_paths():
             try:
-                # Reuse the model_cache's already-opened archive (Aug
-                # 1 2026, per Keith: "even if I click on them,
-                # everything freezes") - this scan runs on every
-                # single world load, so always creating a fresh
-                # IMGFile here (re-parsing the whole archive directory
-                # every time) was a significant, avoidable cost on top
-                # of the same issue found in _load_binary_ipl_stream.
+                # Reuse the model_cache's already-opened archive (Aug 1 2026)
                 img = model_cache._opened_img_files.get(img_path) if model_cache else None
                 if img is None:
                     img = IMGFile(img_path)
@@ -22163,46 +20570,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _rebuild_ipl_sections_rows(self): #vers 3
         """(Re)build every row from self._ipl_display_order - shared by
         the initial populate and by _move_ipl_section, so reordering
-        doesn't duplicate the row-construction logic.
-
-        Format column shows "Binary IPL" for binary-format files (Aug
-        1 2026, per Keith: "When there are binary IPLs, these should
-        also be shown in object browser in IPL files | Binary IPL as
-        a name column") - detected by reading just the first 64 bytes
-        of each file and reusing the already-existing detect_ipl_format
-        (built for BinaryIPLParser, which only actually parses the
-        inst section so far - cull/zone/other sections in a binary IPL
-        aren't read yet, but this at least surfaces which files are
-        binary rather than leaving them looking like silently-empty
-        text IPLs).
-
-        Per-file format detection now cached (Aug 16 2026, perf fix
-        per Keith comparing against MooMapper's snappier feel) - this
-        method is called on every binary-stream load (_load_binary_
-        ipl_stream), potentially several times per single incremental
-        IPL load if it has multiple streams, and every single call
-        was re-opening and re-reading the first 64 bytes of every
-        OTHER already-known text IPL too, to redetect a format that
-        can't have changed since the last rebuild. self._ipl_format_
-        cache stores (fmt_text, fmt_tooltip) per ipl_name once
-        computed, reused on every later rebuild.
-
-        .zon files always sort to the very bottom (Aug 16 2026, per
-        Keith: "Next are the zon files, always at the bottom of the
-        ipl list" - a stronger, always-enforced guarantee than just
-        "happens to end up there from insertion order", which the
-        stream-nesting reorder added earlier this session could
-        otherwise disturb over time as more streams get loaded after
-        a .zon file was already opened). Enforced here, at the one
-        place every row actually gets rendered from, rather than only
-        at the moment a .zon gets added - a stable partition
-        (everything else, in its existing relative order, then every
-        .zon, in ITS existing relative order) rather than a full
-        re-sort, so this never reorders anything else. self._ipl_
-        display_order itself is updated in place to match, not just
-        the rendering - keeps Move Up/Down, the saved 'ipl_sections_
-        order' setting, and everything else that reads this list
-        consistent with what's actually on screen."""
+        doesn't duplicate the row-construction logic.."""
         order = self._ipl_display_order
         non_zon = [n for n in order if not n.lower().endswith('.zon')]
         zon_only = [n for n in order if n.lower().endswith('.zon')]
@@ -22215,12 +20583,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         loader = getattr(self, '_world_loader', None)
         from apps.methods.gta_dat_parser import detect_ipl_format
         format_cache = self._ipl_format_cache = getattr(self, '_ipl_format_cache', {})
-        # Reverse lookup (stream entry name -> parent text IPL's own
-        # display name), built once per rebuild rather than per-row
-        # (Aug 16 2026, for the indented "nested under its parent"
-        # display below) - _ipl_names_with_binary_stream is keyed the
-        # other way round (parent -> its streams), since that's the
-        # direction the "Load Binary Stream" submenu needs it in.
+
         stream_to_parent = {}
         for parent, streams in getattr(self, '_ipl_names_with_binary_stream', {}).items():
             for _archive, stream_name in streams:
@@ -22234,19 +20597,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             eye_item.setData(Qt.ItemDataRole.UserRole, ipl_name)
             table.setItem(row, 0, eye_item)
 
-            # Indented, "(Loaded)"-suffixed display text for rows
-            # nested under a parent (Aug 16 2026, per Keith: "I'd
-            # reorder the IPL list to show LAe.ipl > tab 4 spaces,
-            # show the binary under LAe.ipl" - his own mockup shows
-            # "LAe.ipl (Loaded)" / indented "lae_stream0.ipl (Loaded)"
-            # rows underneath it, vs plain "LAe2.ipl" with no
-            # suffix for one not yet loaded). Only ever cosmetic -
-            # eye_item's own UserRole data above still stores the
-            # exact real filename, unindented and without the
-            # suffix, so every existing lookup/matching path
-            # (_ipl_display_to_stem, _hidden_ipls, source_ipl
-            # filtering, etc.) keeps working unchanged; this only
-            # affects what's actually painted in the Name column.
             if ipl_name in stream_to_parent:
                 is_loaded_display = ipl_name in getattr(self, '_loaded_binary_ipls', set())
                 display_text = "    " + ipl_name + (" (Loaded)" if is_loaded_display else "")
@@ -22287,14 +20637,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                                 fmt_text = "Binary IPL"
                         except Exception:
                             pass
-                # Only cache once genuinely resolved (Aug 16 2026) -
-                # a row can start out with no format info at all (not
-                # yet known as binary/streamed, entry not found/
-                # readable yet) and become resolvable on a LATER
-                # rebuild once more of the world has loaded; caching
-                # an empty "not yet known" result forever would freeze
-                # it that way even after the real answer becomes
-                # available.
+                # Only cache once genuinely resolved (Aug 16 2026)
                 if fmt_text:
                     format_cache[ipl_name] = (fmt_text, fmt_tooltip)
             fmt_item = QTableWidgetItem(fmt_text)
@@ -22345,12 +20688,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         vis_act.triggered.connect(
             lambda checked=False, r=index.row(): self._on_ipl_section_cell_clicked(r, 0))
 
-        # Load Selected (Aug 1 2026, per Keith: "option to hold control
-        # and highlight ipl entries, right click load all selected
-        # .ipls") - operates on every currently-selected row, not just
-        # the one that was right-clicked, and only loads rows that are
-        # actually hidden (re-triggering the toggle on an already-
-        # visible row would hide it instead, the opposite of "load").
+        # Load Selected (Aug 1 2026)
         unload_act = menu.addAction("Unload (Remove)")
         unload_act.setToolTip(
             "Remove this IPL's loaded data from memory entirely - distinct\n"
@@ -22366,16 +20704,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             load_act.triggered.connect(
                 lambda checked=False, rows=selected_rows: self._load_selected_ipl_sections(rows))
 
-        # Select All / Deselect All / Load All / Unload All (Aug 19
-        # 2026, per Keith: "Shift + left-click selects the entire
-        # .ipls in the Object Browser... right-click options: Load
-        # All, Unload All, Select All, Deselect All"). Select/Deselect
-        # act on the table's own row-selection state (Ctrl/Shift+click
-        # multi-select was already enabled here from an earlier
-        # request); Load All/Unload All are deliberately whole-list
-        # actions, distinct from Load Selected just above - every IPL
-        # in the file regardless of what's currently selected, not
-        # scoped to a selection at all.
+        # Select All / Deselect All / Load All / Unload All (Aug 19 2026)
         menu.addSeparator()
         select_all_act = menu.addAction("Select All")
         select_all_act.triggered.connect(table.selectAll)
@@ -22387,12 +20716,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         unload_all_act = menu.addAction("Unload All")
         unload_all_act.triggered.connect(self._unload_all_ipl_sections)
 
-        # Load Binary Stream (Aug 1 2026, per Keith: "we need to be
-        # able to load these binary IPLs, so right click, show the
-        # list, to load from") - a submenu listing every associated
-        # stream file (for a text IPL that has one or more) as its own
-        # clickable item, or a direct action (only one entry to pick
-        # from) for a genuinely standalone binary IPL row.
         stream_entries = getattr(self, '_ipl_names_with_binary_stream', {}).get(ipl_name)
         if stream_entries:
             stream_menu = menu.addMenu("Load Binary Stream")
@@ -22414,30 +20737,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 load_bin_act.triggered.connect(
                     lambda checked=False, ap=archive_path, en=ipl_name:
                         self._load_binary_ipl_stream(ap, en))
-                # Verify Binary Parser (Aug 1 2026, per Keith: "at
-                # least check our parser can decode the binary.ipl,
-                # and read them") - a dry run: reads and parses the
-                # raw bytes exactly like a real load does, but never
-                # touches self._all_instances or the world view -
-                # just reports whether BinaryIPLParser succeeded, how
-                # many instances it found, any parse errors, and a
-                # preview of the first few instances (model_id,
-                # resolved name if possible, position). Lets the
-                # parser itself be checked independently of the full
-                # load/render pipeline.
+
                 verify_act = menu.addAction("Verify Binary Parser")
                 verify_act.triggered.connect(
                     lambda checked=False, ap=archive_path, en=ipl_name:
                         self._verify_binary_ipl_parser(ap, en))
 
-        # Save Binary IPL as Text (Aug 1 2026, per Keith: "we could add
-        # a right click option, to save binary Ipl as text, save as ?
-        # just to see if the ipl binary function is working") - a
-        # diagnostic export, letting the actual parsed result be
-        # inspected/compared against a known-good text IPL rather than
-        # trusting the binary parser blindly. Only shown once a binary
-        # IPL has actually been loaded (its instances need to already
-        # be in self._all_instances to have anything to export).
+        # Save Binary IPL as Text (Aug 1 2026)
         if ipl_name in getattr(self, '_loaded_binary_ipls', set()):
             save_text_act = menu.addAction("Save Binary IPL as Text...")
             save_text_act.triggered.connect(
@@ -22451,14 +20757,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         savebin_act.triggered.connect(
             lambda checked=False, n=ipl_name: self._save_ipl_data_as_binary(n))
 
-        # Save IPL Data As... / Unload (Aug 16 2026, per Keith: "also
-        # loading.ipl, how about an option to unload.ipl by right
-        # clicking them, also move the save as function there
-        # aswell") - both now live on this, the actual IPL Sections
-        # right-click menu (previously Save As only existed on the
-        # separate IPL File Display table's own right-click), a more
-        # natural home since both are whole-file operations, same as
-        # Show/Hide/Load Selected right above.
+        # Save IPL Data As... / Unload (Aug 16 2026)
         save_full_act = menu.addAction("Save IPL Data As...")
         save_full_act.setEnabled(is_loaded)
         save_full_act.triggered.connect(
@@ -22496,18 +20795,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _unload_ipl_section(self, ipl_name): #vers 1
         """Actually remove an IPL's loaded content from memory -
         freeing it up, distinct from Hide (which only filters what's
-        drawn; the data stays loaded either way). Per Keith: "how
-        about an option to unload.ipl by right clicking them."
-
-        Removes this ipl's own entries from every loader list that
-        tracks source_ipl (instances/culls/zones/paths/grges/enexes/
-        occls), discards it from loader.loaded_ipls/self._loaded_
-        binary_ipls so it can genuinely be loaded again fresh later
-        (not silently skipped as "already loaded" by _ensure_ipl_
-        loaded's own early-return check), rebuilds self._all_
-        instances from the now-smaller loader.instances, and hides it
-        (an "unloaded" IPL still showing as visible would be a
-        contradiction) before refreshing the viewport and table."""
+        drawn; the data stays loaded either way)"""
         loader = getattr(self, '_world_loader', None)
         if loader is None:
             return
@@ -22537,14 +20825,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._set_status(f"Unloaded {ipl_name}")
 
     def _unload_all_ipl_sections(self): #vers 1
-        """Unload every currently-loaded IPL at once (Aug 19 2026, per
-        Keith: "right-click options: Load All, Unload All, Select
-        All, Deselect All"). Deliberately not just calling _unload_
-        ipl_section once per loaded IPL in a loop - that method does
-        its own full table/viewport refresh on every single call, so
-        looping it would repeat that refresh once per IPL for no
-        benefit; this does the same underlying per-list removal work
-        directly, then refreshes exactly once at the end."""
+        """Unload every currently-loaded IPL at once (Aug 19 2026)"""
         loader = getattr(self, '_world_loader', None)
         if loader is None:
             return
@@ -22584,54 +20865,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _shift_ipl_coordinates(self, ipl_name, dx, dy, dz, include_types=None): #vers 2
         """Translate every real position an IPL's loaded data holds
         by a fixed (dx,dy,dz) offset - added so converted/ported map
-        data (per Keith: "we are planning to add coords shifting
-        abilities, this should work accoss all loading ipls, zon or
-        path, this will allow me to drag those vc convert paths to
-        where LC really is" - his real pathslc.ipl, a Liberty City
-        path set converted into Vice City's own coordinate space by a
-        third party, needs to be moved as a whole to wherever SOL
-        actually placed Liberty City within VC's world) can be
-        aligned to its real intended location as a single rigid-body
-        move, without hand-editing every coordinate in the file.
-
-        Applies to every loader list that tracks source_ipl - inst,
-        cull, zone, the VC/GTA3 IPL "path" text section (loader.paths
-        - what pathslc.ipl itself actually contains), grge, enex, and
-        occl - covering every section type an IPL can hold, per
-        Keith's own "across all loading ipls, zon or path" framing,
-        not just instances.
-
-        include_types (Aug 19 2026, per Keith: "right-click options
-        for move ipl, move paths, move zones, move tracks, move cull,
-        move occlusion. Tick the options you want to move") - an
-        optional set of section-type keys ('inst', 'path', 'zone',
-        'cull', 'grge', 'enex', 'occl') to actually move; None (the
-        default) moves everything, matching this method's own
-        original, unconditional behaviour before this option existed.
-        Tracks aren't included as a selectable type here - they're
-        genuinely global (data/paths/tracks.dat, never tied to any
-        specific IPL's own source_ipl at all - see load_tracks_dat's
-        own docstring), so "move tracks for this one IPL" has no
-        actual data to act on; noted honestly rather than faked as a
-        tick-box that would either do nothing or silently move every
-        track regardless of which IPL was selected.
-
-        Only ever shifts real WORLD POSITIONS, never dimensions,
-        angles, or flags - a cull/occlusion box's width/height, a
-        path node's median (a lane-width value, not a position), an
-        occlusion zone's rotation, and similar non-positional fields
-        are left untouched; shifting those would distort the shape
-        instead of just relocating it. GTA III's own IDE-embedded
-        paths aren't included here - they have no source_ipl of their
-        own (attached to instances by model_id, not to a specific IPL
-        file - see IDEPathGroup's own docstring), so they'd move
-        automatically along with whichever instance actually places
-        them, the same way the instance's own visual model already
-        does; there's nothing separate to shift for those.
-
-        Live in-memory only, same as every other edit this app makes
-        - Save IPL Data As... is how a shifted result gets written
-        back out to a real file."""
+        data."""
         loader = getattr(self, '_world_loader', None)
         if loader is None:
             return
@@ -22689,42 +20923,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _rotate_ipl_coordinates(self, ipl_name, pivot_x, pivot_y, angle_deg, include_types=None): #vers 2
         """Rotate every real position an IPL's loaded data holds
         around a given (pivot_x, pivot_y) point, by angle_deg around
-        the vertical (Z) axis (Aug 19 2026, per Keith's own priority
-        order for the interactive editing layer - "click again to
-        make it rotate ipl"). The rigid-body-move counterpart to
-        _shift_ipl_coordinates - same per-section-type coverage, same
-        live-in-memory-only design (Save IPL Data As... writes a
-        result back out), and now the same include_types selective-
-        section support (Aug 19 2026, per Keith: "Right-click options
-        for move ipl, move paths, move zones, move tracks, move cull,
-        move occlusion. Tick the options you want to move" - his own
-        wording for Move applied equally to Rotate, matching how the
-        two dialogs mirror each other everywhere else already). See
-        _shift_ipl_coordinates' own docstring for the full reasoning
-        on why Tracks isn't one of these selectable keys - genuinely
-        global data, never tied to any specific IPL's own source_ipl.
-
-        Verified both pieces of math independently before trusting
-        them on live data: the position-around-pivot rotation
-        (distance from pivot preserved across several test angles,
-        a known 90-degree case checked against its exact expected
-        result) and the orientation rotation (reuses the already-
-        proven quat_to_euler_degrees/euler_degrees_to_quat pair - the
-        exact same functions _on_rotation_nudged already uses for the
-        Item Editor Dialog's own per-instance rotation - confirmed a
-        90-degree yaw addition to an identity quaternion produces the
-        exact expected (0,0,sin45,cos45) result, and that four
-        successive 90-degree rotations return to identity).
-
-        Honest, real limitation for cull/zone/garages: none of those
-        three have a rotation field of their own in the file format
-        at all - only occlusion boxes (which do) and instances/paths/
-        entrances-exits (position + a real orientation concept) can
-        genuinely tilt. For cull/zone/garages, only their own centre
-        point orbits the pivot; the box itself is rebuilt axis-
-        aligned around that new centre afterward, same width/height/
-        depth as before - moved, not spun, because the format simply
-        has nowhere to store a spun box's own angle."""
+        the vertical (Z) axis (Aug 19 2026)"""
         loader = getattr(self, '_world_loader', None)
         if loader is None:
             return
@@ -22818,14 +21017,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _shift_all_tracks(self, dx, dy, dz): #vers 1
         """Translate every loaded train track waypoint by a fixed
-        offset (Aug 19 2026, per Keith's own "move tracks" tick-box
-        request). Genuinely separate from _shift_ipl_coordinates -
-        train tracks (data/paths/tracks.dat) are never tied to any
-        specific IPL's own source_ipl at all (see load_tracks_dat's
-        own docstring), so "move tracks for this IPL" has no
-        per-IPL scope to narrow to; ticking Tracks moves every
-        loaded track globally, which the dialog's own tooltip makes
-        clear rather than leaving it ambiguous."""
+        offset (Aug 19 2026)"""
         loader = getattr(self, '_world_loader', None)
         if loader is None:
             return 0
@@ -22861,27 +21053,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _shift_all_water(self, dx, dy, dz): #vers 1
         """Translate every loaded water.dat shape's own corners by a
-        fixed offset (Aug 20 2026, per Keith's own "lets get all the
-        functions in" - water/radar recalculation on map moves).
-        Genuinely separate from _shift_ipl_coordinates for the exact
-        same reason _shift_all_tracks already is - water.dat is
-        global, world-space data never tied to any specific IPL's own
-        source_ipl at all (see WaterShape's own docstring), so "move
-        water for this IPL" has no per-IPL scope to narrow to;
-        ticking Water moves every loaded shape globally, same "Tracks
-        (global)" pattern already established, not a new one.
-
-        Deliberately does NOT round/snap the resulting X/Y to even
-        numbers after shifting, even though the real water.dat format
-        has a real, documented, game-crashing requirement that they
-        be even (see WaterShape's own docstring - "the game will
-        crash when you approach the water" otherwise) - matches this
-        app's own already-stated principle of reading/writing
-        coordinates verbatim rather than silently "fixing" them,
-        since guessing at a correction here risks being wrong in a
-        way that's harder to notice than leaving the real, exact
-        numbers visible. The dialog's own checkbox carries this
-        warning directly instead."""
+        fixed offset (Aug 20 2026)"""
         loader = getattr(self, '_world_loader', None)
         if loader is None:
             return 0
@@ -22917,14 +21089,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _add_ipl_section_type_checkboxes(self, form): #vers 1
         """Shared tick-box builder for the Move/Rotate IPL dialogs
-        (Aug 19 2026, per Keith: "right-click options for move ipl,
-        move paths, move zones, move tracks, move cull, move
-        occlusion. Tick the options you want to move"). Returns a
-        dict of {key: QCheckBox}, all checked by default (matching
-        "move everything" - the pre-existing, unconditional behaviour
-        before this option existed), added to the given form layout.
-        Shared between both dialogs rather than built twice, since
-        they need the exact same set."""
+        (Aug 19 2026)"""
         boxes = {}
         labels = [
             ('inst', "Instances"), ('path', "Paths"), ('zone', "Zones"),
@@ -22944,16 +21109,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "Off by default for that reason.")
         form.addRow(tracks_chk)
         boxes['tracks'] = tracks_chk
-        # Water (Aug 20 2026, per Keith: "lets get all the functions
-        # in" - water/radar recalculation on map moves) - same
-        # global-data, off-by-default reasoning as Tracks just above,
-        # plus a real, extra warning: the real water.dat format
-        # requires X/Y corner coordinates to be even, rounded numbers
-        # or the game crashes on approach - this move/rotate does NOT
-        # round the result back to an even number afterward (matches
-        # this app's own "never silently alter values" principle),
-        # so the tooltip says so plainly rather than letting that
-        # surprise someone later.
+        # Water (Aug 20 2026)
         water_chk = QCheckBox("Water (all loaded, global)")
         water_chk.setChecked(False)
         water_chk.setToolTip(
@@ -22971,36 +21127,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _on_ipl_dragged(self, ipl_name, dx, dy, dz): #vers 1
         """Commit a completed whole-IPL click-drag in the 3D viewport
-        (Aug 18 2026, per Keith's own priority order for the
-        interactive editing layer: "Moving IPL file whole entires to
-        anywhere on the map"). Wired once to DFFViewport.set_ipl_
-        drag_callback at construction (see that method's own
-        docstring) - called exactly once per drag, on mouse release,
-        with the final (dx,dy,dz) the viewport computed from the
-        cursor's own ground-plane movement.
-
-        Deliberately just calls the already-existing, already-
-        verified _shift_ipl_coordinates - the same method the dialog-
-        based Shift Coordinates tool already uses - rather than a
-        second, parallel implementation. That single method already
-        correctly moves everything belonging to the IPL (instances,
-        cull/zone/occlusion boxes, VC/SA path nodes, garages,
-        entrances/exits), not just the instances that got live visual
-        feedback during the drag itself, and already triggers the
-        right refresh - genuinely nothing new needed here beyond
-        connecting the viewport's own mouse interaction to it."""
+        (Aug 18 2026)"""
         self._shift_ipl_coordinates(ipl_name, dx, dy, dz)
 
     def _on_ipl_mode_button_clicked(self): #vers 1
         """Cycle the IPL interaction button through Off -> Drag ->
-        Move -> Rotate -> Off (Aug 19 2026, per Keith: "1 click turns
-        into move ipl, click again rotate ipl, click back to drag
-        ipl") - replaces what used to be a simple Drag IPL on/off
-        checkbox. Off is a real, distinct state (not just "back to
-        Drag") preserving the old checkbox's own ability to fully
-        disable this feature - clicking an instance while genuinely
-        not trying to move/rotate/drag anything shouldn't ever
-        accidentally trigger one of these."""
+        Move -> Rotate -> Off (Aug 19 2026)"""
         states = ['off', 'drag', 'move', 'rotate']
         current = getattr(self, '_ipl_interaction_mode', 'off')
         idx = states.index(current) if current in states else 0
@@ -23022,22 +21154,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _on_ipl_click_for_move_or_rotate(self, ipl_name): #vers 2
         """Fired by DFFViewport.set_ipl_click_callback when an
         instance is picked while the IPL mode button is in Move or
-        Rotate state (Aug 19 2026, extended per Keith: "same functions
-        can be added to move and rotate" - the same Ctrl/Shift multi-
-        IPL selection Drag already uses) - opens the corresponding
-        existing numeric dialog, reusing _prompt_shift_ipl_
-        coordinates/_prompt_rotate_ipl_coordinates exactly as the IPL
-        Sections right-click menu already does, rather than building
-        a second, parallel entry point for either.
-
-        If there's an active multi-IPL selection (the same shared set
-        Drag's own Ctrl+drag now uses, built via Shift+click either on
-        instances in the viewport or on rows in the IPL Sections
-        table), the dialog applies to every one of the selected IPLs
-        at once, matching how Ctrl+drag already ignores which specific
-        instance was clicked and moves the WHOLE selection together.
-        With nothing selected, falls back to just the one clicked
-        IPL, same as before this extension."""
+        Rotate state (Aug 19 2026)"""
         mode = getattr(self, '_ipl_interaction_mode', 'drag')
         if mode not in ('move', 'rotate'):
             return
@@ -23052,18 +21169,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _on_ipl_selection_changed(self, selected_names): #vers 2
         """Fired by DFFViewport.set_ipl_selection_callback whenever a
         Shift+click adds/removes an IPL from the current multi-select
-        (Aug 19 2026, per Keith's own careful workflow spec: "holding
-        [left shift] and select multi entire ipls... if there all
-        selected, it drags them all"). Status-bar-only feedback for
-        this first version - shows how many IPLs are currently
-        selected, and their names for a small selection, rather than
-        a whole separate always-visible panel just to confirm a
-        selection state that's usually about to be used immediately
-        (drag them, or Shift+click to deselect one). Also reused
-        directly by _on_ipl_sections_selection_changed for the IPL
-        Sections table's own Shift/Ctrl+click multi-select - same
-        underlying selection set, same status message either way it
-        got built."""
+        (Aug 19 2026)"""
         if not selected_names:
             self._set_status("IPL selection cleared")
             return
@@ -23075,15 +21181,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _on_ipl_sections_selection_changed(self): #vers 1
         """Fired whenever the IPL Sections table's own row selection
-        changes (Aug 19 2026, per Keith: "Shift + left-click selects
-        the entire .ipls in the Object Browser... shown in the status
-        bar; example: 5 entire ipl(s) selected"). Reads the currently
-        selected rows' own IPL names, syncs them into the viewport's
-        shared multi-selection set (the same one Shift+click on an
-        instance in the 3D view already builds - see DFFViewport.
-        set_multi_selected_ipl_names' own docstring), then reuses _on_
-        ipl_selection_changed directly for the status message rather
-        than duplicating its formatting."""
+        changes (Aug 19 2026)"""
         table = getattr(self, '_ipl_sections_table', None)
         if table is None:
             return
@@ -23103,15 +21201,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _on_hover_context_menu(self, inst): #vers 1
         """Fired by DFFViewport.set_hover_context_callback on a right-
         click while an instance is currently hover-highlighted (Aug
-        19 2026, per Keith: "once highlighted, right-click for
-        options"). Reuses the two existing, already-built per-
-        instance actions rather than inventing new ones: Info opens
-        the same Item Editor Dialog double-clicking an instance
-        already does (_show_instance_edit_panel), Show Textures loads
-        that model's textures into the Textures dock exactly as the
-        IPL Inst File table's own right-click menu already does
-        (_show_textures_for_instance) - both genuinely shared code
-        paths, not copies."""
+        19 2026)"""
         menu = QMenu(self)
         info_act = menu.addAction("Info")
         textures_act = menu.addAction("Show Textures")
@@ -23123,16 +21213,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _on_drag_ipl_context_menu(self, pos): #vers 2
         """Right-click on the IPL mode button - axis-lock choices
-        (Aug 18 2026, per Keith: "[Drag ipl] right-click options,
-        like lock z, only move x, y"). Z is already always
-        effectively locked by the drag's own ground-plane-constrained
-        design (see DFFViewport.set_ipl_drag_axis_lock's own
-        docstring for the full reasoning) - this menu covers the two
-        remaining practical choices, locking X or Y specifically, plus
-        Free (both) to clear either lock. Only meaningfully applies
-        to Drag mode (Move/Rotate are dialog-based, not mouse-drag),
-        but shown regardless of the button's current state - harmless
-        to set in advance of switching to Drag."""
+        (Aug 18 2026)"""
         vp = getattr(self, 'preview_widget', None)
         current = getattr(vp, '_ipl_drag_axis_lock', None) if vp is not None else None
 
@@ -23162,35 +21243,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         """Dialog collecting a (dx,dy,dz) offset, then applies it via
         _shift_ipl_coordinates - the entry point wired to the IPL
         Sections right-click menu's "Shift Coordinates..." action and
-        to Move mode's own click interaction.
-
-        ipl_names (Aug 19 2026, per Keith: "same functions can be
-        added to move and rotate... [the] Ctrl/Shift multi-IPL
-        workflow already built for Drag") accepts either a single IPL
-        name (a plain string - the IPL Sections right-click menu's
-        own call, always exactly one) or any iterable of several (a
-        multi-IPL selection built the same way Drag's own selection
-        is - Shift+click instances or IPL Sections rows). One dialog,
-        one set of values, applied to every one of them.
-
-        Aug 19 2026, per Keith: "[Move ipl] any direction; using -/+
-        z value -/+ x value, -/+ y value. right-click options for
-        move ipl, move paths, move zones, move tracks, move cull,
-        move occlusion. Tick the options you want to move" - each
-        axis spinbox gained its own -/+ buttons for incremental
-        nudging (a fixed 1-unit step per click, adjustable by editing
-        the spinbox directly for anything larger/more precise), and
-        a tick-box per section type controls what actually moves via
-        _shift_ipl_coordinates' own include_types parameter, plus a
-        separate Tracks tick-box (off by default - see _shift_all_
-        tracks' own docstring for why train tracks need their own,
-        separate global handling rather than being one more include_
-        types key - and, now that this dialog can cover several IPLs
-        at once, why the tracks shift below only ever runs ONCE per
-        Accept, outside the per-IPL loop, not once per selected IPL -
-        tracks aren't tied to any single one of them, so applying the
-        same shift several times over would move them several times
-        too far)."""
+        to Move mode's own click interaction. ipl_names (Aug 19 2026)"""
         if isinstance(ipl_names, str):
             names = [ipl_names]
         else:
@@ -23256,22 +21309,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         interaction (see set_ipl_drag_mode's docstring for the 3-state
         Drag/Move/Rotate cycle this belongs to) - mirrors _prompt_
         shift_ipl_coordinates' own structure and wiring pattern
-        exactly, just for angle instead of XYZ, per Keith's own
-        "Right-click options for move ipl, move paths, move zones,
-        move tracks, move cull, move occlusion" applied equally to
-        Rotate.
-
-        ipl_names accepts either a single IPL name (a plain string) or
-        any iterable of several (a multi-IPL selection, same as _
-        prompt_shift_ipl_coordinates' own docstring explains) - when
-        several are given, the pivot is the ONE shared centroid across
-        ALL of their instances combined, not each IPL's own separate
-        centre, so a multi-IPL rotate spins the whole group together
-        around one common point rather than each IPL spinning in
-        place around its own centre independently - matching how the
-        equivalent multi-IPL Drag already moves everything together
-        as one rigid body, not each IPL drifting toward its own
-        separate destination."""
+        exactly, just for angle instead of XYZ."""
         if isinstance(ipl_names, str):
             names = [ipl_names]
         else:
@@ -23294,12 +21332,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         dlg = QDialog(self)
         title = f"Rotate - {names[0]}" if len(names) == 1 else f"Rotate - {len(names)} IPLs"
+
         dlg.setWindowTitle(title)
         form = QFormLayout(dlg)
+
         if len(names) > 1:
             form.addRow(QLabel(f"Applies to all {len(names)} selected IPLs"))
-        pivot_desc = (f"centre of {names[0]}'s own instances" if len(names) == 1
-                     else f"combined centre of all {len(names)} selected IPLs' instances")
+        pivot_desc = (f"centre of {names[0]}'s own instances"
+            if len(names) == 1
+            else f"combined centre of all {len(names)} selected IPLs' instances")
         form.addRow(QLabel(f"Pivot: {pivot_desc} ({pivot_x:.1f}, {pivot_y:.1f})"))
 
         angle_spin = QDoubleSpinBox(); angle_spin.setRange(-360.0, 360.0); angle_spin.setDecimals(2)
@@ -23337,27 +21378,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _save_ipl_data_as_text(self, ipl_name): #vers 2
         """Export an IPL's actual loaded instances out as a standard
-        text-format .ipl file - originally a binary-IPL diagnostic
-        per Keith: "we could add a right click option, to save binary
-        Ipl as text, save as? just to see if the ipl binary function
-        is working." Now also reachable from the IPL Inst File
-        table's own right-click menu (Aug 1 2026, per Keith: "when
-        clicking on a binary ipl, i should beable to see this, and
-        have an option to save it to name_me.ipl") - works the same
-        regardless of whether ipl_name's source was binary or text,
-        since both end up as the same IPLInstance objects in self.
-        _all_instances either way; the save dialog itself already
-        lets the user type any filename they want (e.g. name_me.ipl),
-        this isn't limited to reusing the source's own name.
-
-        Writes the SA-style inst format (id, model, interior, pos
-        XYZ, rot XYZW, lod_index - no scale fields), matching what
-        BinaryIPLParser produces. model_name may be empty for any
-        instance whose model_id didn't resolve against the loaded
-        world's own IDE objects (see _load_binary_ipl_stream) -
-        written as-is rather than guessed at, so a blank name in the
-        output is itself a visible signal of an unresolved ID worth
-        checking."""
+        text-format .ipl file - originally a binary-IPL diagnostic."""
         all_inst = getattr(self, '_all_instances', None) or []
         matching = [i for i in all_inst if i.source_ipl == ipl_name]
         if not matching:
@@ -23385,39 +21406,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _save_ipl_data_as_binary(self, ipl_name): #vers 1
         """Convert an IPL's actual loaded instances to real binary-
-        IPL format and save the result (Aug 20 2026, per Keith's own
-        TODO comment: "When working with SA files, have the ability
-        to click on a text ipl, convert to binary.ipl. save options,
-        save to img file, save to desktop"). This version covers
-        "save to desktop" (a plain file save dialog) - saving directly
-        into an open IMG archive is a separate, larger piece of work
-        (needs IMG write support this app doesn't currently expose
-        for adding a brand new entry) not attempted this pass.
-
-        Instances only - see write_binary_ipl_inst_only's own
-        docstring for the full reasoning, but the short version: real
-        binary IPL only ever supports inst and cars sections at all
-        (confirmed via research, not assumed) - cull/zone/path/occl/
-        grge/enex genuinely have no binary representation to convert
-        TO, and cars isn't parsed by this app on the read side either,
-        so there's nothing loaded to write for it. Not gated to SA-
-        loaded IPLs specifically (binary IPL is real but SA/GTA IV/
-        Bully-SE only) - the person doing the converting knows which
-        IPL they're working with far better than a rigid game check
-        would, and a converted file simply wouldn't be useful outside
-        SA regardless of whether this lets them try.
-
-        Real, honest limitation surfaced directly in the confirmation
-        dialog itself, not just in a code comment - only 2 of the
-        binary header's 18 fields are actually confirmed, and this
-        writer's own choice for the other 16 (zero) is the most
-        conservative option available, not a confirmed-correct one.
-        This has been verified by round-tripping synthetic data back
-        through this app's own already-trusted binary reader and
-        getting an exact match - but that only proves the file's own
-        inst section is internally correct, not that a real,
-        unmodified game will accept the whole file without incident;
-        it has never been tested in an actual running game."""
+        IPL format and save the result (Aug 20 2026)"""
         all_inst = getattr(self, '_all_instances', None) or []
         matching = [i for i in all_inst if i.source_ipl == ipl_name]
         if not matching:
@@ -23464,13 +21453,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _on_generate_radar_tiles_clicked(self): #vers 2
         """Prompt for an output folder, then run _generate_radar_tiles
-        (Aug 20 2026, per Keith: "look at radar editor for how the
-        radar works", then "radar tiles generation works, need to add
-        settings for those" - the remembered-default half of that:
-        starts the folder picker at the last real output dir used,
-        via self.map_settings, rather than always starting fresh at
-        the home directory - saved back once a real folder is chosen
-        so the next run remembers it too."""
+        (Aug 20 2026)"""
         start_dir = self.map_settings.get('radar_tiles_output_dir') or os.path.expanduser("~")
         output_dir = QFileDialog.getExistingDirectory(
             self, "Select Output Folder for Radar Tiles", start_dir)
@@ -23481,32 +21464,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _generate_radar_tiles(self, output_dir): #vers 2
         """Generate every real radar/minimap tile for the currently
-        loaded world (Aug 20 2026, per Keith: "look at radar editor
-        for how the radar works", then "radar_workshop has the radar
-        code" - the actual generation half of "map-to-radar
-        generation", following the earlier item-1/2/3 list request).
-
-        Real, confirmed numbers this uses, not guessed - see RadarTile/
-        RADAR_GRID_PRESETS/compute_radar_grid's own docstrings in
-        gta_dat_parser.py for the full confirmation story: a real,
-        already-existing local tool (apps/components/Radar_Editor/
-        radar_workshop.py, explicitly marked "authoritative — do not
-        change without verifying against game files") confirms SA's
-        real 6000-unit/12x12/144-tile grid exactly matches what this
-        app already had, AND gives the real, previously-missing VC/
-        GTA III numbers directly: a genuinely smaller 4000-unit/8x8/
-        64-tile grid, not SA's - picked here from RADAR_GRID_PRESETS
-        by the actual loaded game rather than assuming SA's own
-        numbers for every game the way an earlier version of this
-        method did. That same real, local source also directly
-        confirms the tile-index ordering (row-major, index 0 at the
-        map's own north-west corner) an earlier version of this
-        method could only treat as an untested assumption - files are
-        now named by the real, confirmed "radarNN" convention (upper-
-        case RADAR + 2-digit index for SA/VC/GTA III, matching that
-        tool's own real _name_sa naming function) instead of a (row,
-        col) pair, since that ordering uncertainty is genuinely
-        resolved now, not just still hedged against."""
+        loaded world (Aug 20 2026)"""
         loader = getattr(self, '_world_loader', None)
         if loader is None or not getattr(loader, 'instances', None):
             QMessageBox.information(self, "Generate Radar Tiles",
@@ -23528,13 +21486,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "Generating radar tiles...", "Cancel", 0, len(tiles), self)
         progress.setWindowModality(Qt.WindowModality.WindowModal)
         saved = 0
-        # Real paths of every tile actually saved this run (Aug 20
-        # 2026, per Keith's own follow-up: "right click the radar
-        # button to send the tiles to txd workshop") - the right-
-        # click handler needs to know exactly which real PNGs were
-        # just generated, not re-scan the output folder (which could
-        # pick up stale files from an earlier, different run sitting
-        # in the same folder).
+
+        # Real paths of every tile actually saved this run (Aug 20 2026)
         self._last_radar_tile_paths = []
         for tile in tiles:
             if progress.wasCanceled():
@@ -23560,15 +21513,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _on_radar_tiles_context_menu(self, button, pos): #vers 3
         """Right-click menu on the Radar button - "Send to TXD
-        Workshop" (Aug 20 2026, per Keith: "right click the radar
-        button to send the tiles to txd workshop, add radarXX.png to
-        radarXX.txd, if assists folder exists, add these to the Radar
-        folder"), then "Send to Radar Workshop" (Keith's own same-day
-        follow-up: "another right click option, send to radar
-        workshop"), then "Export as RadarTex.img" (Keith's own same-
-        day follow-up: "I am thinking about creating a RadarTex.img
-        option from Radar_Workshop, this way the user can just add
-        the new img file to the gta_xx.dat file")."""
+        Workshop" (Aug 20 2026)"""
         menu = QMenu(button)
         tiles = getattr(self, '_last_radar_tile_paths', None)
         act = menu.addAction("Send to TXD Workshop (pack PNGs into TXDs)")
@@ -23601,16 +21546,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _build_radar_tile_txd_bytes(self, png_path, serializer, name=None): #vers 1
         """Build real TXD binary bytes for one real radar tile PNG,
-        using a caller-provided TXDSerializer instance (Aug 20 2026,
-        extracted from _send_radar_tiles_to_txd_workshop's own real,
-        already-verified logic - shared here so _export_radar_tiles_
-        as_img doesn't need to re-derive/duplicate the exact same real
-        texture-dict shape a third time). name defaults to the PNG's
-        own filename stem if not given (matching the existing per-
-        file TXD naming), but a caller building a single combined
-        archive (RadarTex.img) needs to pass its own real, different
-        per-tile name explicitly (SOL's own real 4-digit convention,
-        not the 2-digit one a loose, individual .txd file uses)."""
+        using a caller-provided TXDSerializer instance (Aug 20 2026)"""
         from PIL import Image
         img = Image.open(png_path).convert('RGBA')
         has_alpha = any(p[3] < 255 for p in img.getdata())
@@ -23629,29 +21565,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _send_radar_tiles_to_txd_workshop(self): #vers 2
         """Pack every just-generated radarNN.png into its own real
-        radarNN.txd, right alongside the PNGs (Aug 20 2026, per
-        Keith's own "add radarXX.png to radarXX.txd" wording -
-        literally one PNG per TXD, matching the real game's own
-        radarNN.txd-per-tile convention, not one combined TXD).
-
-        Uses the real, already-existing, genuinely GUI-free apps.
-        methods.txd_serializer.TXDSerializer - confirmed directly
-        before relying on it: only imports struct/typing, no PyQt6
-        dependency anywhere, so this can build real, valid TXD binary
-        data without needing an actual TxdWorkshop GUI instance
-        running at all. The single-texture dict shape passed to it
-        was copied directly from TxdWorkshop's own real _import_
-        textures (the same one a person dragging a PNG into that tool
-        by hand would build), not invented separately, so a packed
-        radarNN.txd here should read back identically to one made the
-        normal, interactive way.
-
-        If a real assists folder is configured (self.main_window.
-        assists_path, the same real, existing Project Manager concept
-        - see create_assists_folder_structure's own real Models/Maps/
-        Collisions/Textures set) also creates (if needed) and copies
-        every packed TXD into its own new "Radar" subfolder there -
-        genuinely new, that folder set never had one before this."""
+        radarNN.txd, right alongside the PNGs (Aug 20 2026)"""
         paths = getattr(self, '_last_radar_tile_paths', None)
         if not paths:
             QMessageBox.information(self, "Send to TXD Workshop",
@@ -23681,12 +21595,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 failed += 1
                 print(f"[Radar->TXD] Failed to pack {png_path}: {e}")
 
-        # Real assists folder (Project Manager's own concept) - copy
-        # every packed TXD into a new "Radar" subfolder there too, if
-        # one's actually configured. Silently skipped, not an error,
-        # if no project/assists folder is set up at all - Keith's own
-        # wording was explicitly conditional ("if assists folder
-        # exists"), not a requirement.
+        # Real assists folder (Project Manager's own concept)
         assists_path = getattr(self.main_window, 'assists_path', None) if self.main_window else None
         copied = 0
         if assists_path and os.path.isdir(assists_path):
@@ -23708,42 +21617,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _export_radar_tiles_as_img(self): #vers 1
         """Pack every just-generated radar tile into one real,
-        combined RadarTex.img archive (Aug 20 2026, per Keith: "I am
-        thinking about creating a RadarTex.img option from Radar_
-        Workshop, this way the user can just add the new img file to
-        the gta_xx.dat file") - the real, confirmed filename SOL's own
-        actual GAME_PRESETS entry names directly (radar_workshop.py's
-        own "SOL" preset hint text: "Load RadarTex.img — contains
-        radar0000.txd to radar1295.txd"), so the same real, SOL-style
-        4-digit tile naming (radarNNNN.txd) is used for every entry
-        here too, matching the format an archive with this exact name
-        is actually expected to contain.
-
-        Uses the real, already-existing, already-proven core IMG
-        creation API - IMGFile.create_new()/add_entry()/save_img_file()
-        (apps/methods/img_core_classes.py) - the same real machinery
-        this whole app's own IMG Creator tool is built on, not a new,
-        separate archive-writing path invented just for this. Each
-        tile's own real TXD bytes are built the exact same way _send_
-        radar_tiles_to_txd_workshop's own real, already-verified logic
-        does (via the shared _build_radar_tile_txd_bytes helper), kept
-        entirely in memory rather than needing loose, individual .txd
-        files on disk first.
-
-        Real, honest limitation, checked directly rather than assumed
-        away: IMGVersion has its own real, dedicated VERSION_SOL
-        member ("DIR/img pair (SOL)") - genuinely, structurally
-        different from vanilla SA's own VERSION_2 (a single combined
-        file, not a DIR/IMG pair at all) - but IMGFile.create_new()
-        only actually implements VERSION_1 and VERSION_2 creation;
-        VERSION_SOL has no real creator built anywhere in this app
-        yet, confirmed directly by reading create_new's own real
-        code, not assumed. Uses VERSION_2 here as the closest
-        genuinely supported option (SOL is built on the SA engine,
-        which does use VERSION_2 for its own real archives) - but
-        this is a real, stated assumption, not a confirmed match to
-        SOL's own actual, real DIR/IMG archive format. Flagged here
-        plainly rather than silently shipped as settled."""
+        combined RadarTex.img archive (Aug 20 2026)"""
         paths = getattr(self, '_last_radar_tile_paths', None)
         if not paths:
             QMessageBox.information(self, "Export as RadarTex.img",
@@ -23764,10 +21638,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if not out_path:
             return
 
-        # A rough, real size estimate rather than a fixed guess - each
-        # tile's own real TXD size varies with resolution/alpha, so a
-        # fixed default could genuinely be too small for a large SOL-
-        # style tile count at higher resolution.
         est_mb = max(10, (len(paths) * 64) // 1024 + 5)
 
         serializer = TXDSerializer()
@@ -23776,14 +21646,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             QMessageBox.warning(self, "Export as RadarTex.img",
                 "Failed to create the new IMG archive.")
             return
-        # A real, confirmed placeholder entry (Aug 20 2026, found
-        # directly while verifying this pipeline end-to-end, not
-        # assumed) - IMGVersion2Creator.create_version_2 always seeds
-        # a brand new archive with one initial "replaceme.dff" entry
-        # (so a genuinely empty archive is never left with zero
-        # entries at all) - removed here explicitly before adding the
-        # real radar tiles, or it would sit alongside them as a real,
-        # unwanted 145th/65th/etc. entry in the final archive.
+
         img.remove_entry('replaceme.dff')
 
         packed = 0
@@ -23816,21 +21679,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _send_radar_tiles_to_radar_workshop(self): #vers 1
         """Open a real Radar Workshop instance and load every just-
         generated radarNN.png directly into its own matching tile
-        slot (Aug 20 2026, per Keith's own same-day follow-up:
-        "another right click option, send to radar workshop").
-
-        Uses Radar Workshop's own real, already-existing per-tile
-        write method (ws_commit_draw(idx, rgba)) directly - the same
-        method its own interactive "Import tile" feature calls
-        (_import_single_tile), just without that method's own
-        QFileDialog prompt, since this already knows exactly which
-        real file goes in which real slot. Sets the correct real game
-        preset first ("SA PC"/"VC PC"/"III PC", matching this app's
-        own already-confirmed real grid sizes for each game - see
-        RADAR_GRID_PRESETS's own docstring for where those numbers
-        came from) so the tool's own tile count/grid actually matches
-        what was really generated, rather than defaulting to whatever
-        its own last-used preset happened to be."""
+        slot (Aug 20 2026)"""
         paths = getattr(self, '_last_radar_tile_paths', None)
         if not paths:
             QMessageBox.information(self, "Send to Radar Workshop",
@@ -23882,40 +21731,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _save_ipl_data_as_full(self, ipl_name): #vers 1
         """Save ALL of an IPL's sections to a new file, not just inst
-        (Aug 16 2026, per Keith: "we need a way to save the .ipl
-        date, save back to original file, but this would overwrite
-        existing data, so a save as right click option" -> "Need it
-        to cover all sections, not just inst"). The dialog always
-        lets the user pick the destination (defaulting to the
-        original filename, but never writing there without the user
-        explicitly choosing to) - this never silently overwrites the
-        source file Keith was concerned about.
-
-        For every section type this app actually parses into
-        structured, editable data (inst/cull/zone/path/grge/enex/
-        occl/auzo), writes from the LIVE in-memory representation - so
-        any edits made via e.g. the Path Group Editor are correctly
-        reflected in the output, not just a re-dump of the original
-        file. For section types not yet parsed into structured data
-        at all (pick/jump/tcyc/mult), copies the ORIGINAL raw
-        text straight through unchanged, so nothing real in the
-        source file is silently lost even though editing isn't
-        supported for those yet.
-
-        Section order in the output matches the original file's own
-        order, determined by actually scanning it rather than a
-        fixed/guessed order - keeps a diff against the original
-        minimal for anyone comparing the two. Falls back to a
-        reasonable default order only when there's no raw file to
-        scan at all (e.g. a purely in-memory/binary-sourced entry -
-        though in practice binary IPLs only ever have inst data, so
-        this rarely matters).
-
-        inst lines use the correct per-game field layout (SA: no
-        scale, has lod_index; VC: has scale+interior, no lod_index;
-        GTA3: has scale, no interior/lod_index) - see IPLParser.
-        _parse_inst's own docstring for the three confirmed formats
-        this mirrors exactly."""
+        (Aug 16 2026)"""
         loader = getattr(self, '_world_loader', None)
         if loader is None:
             return
@@ -23931,11 +21747,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             except Exception:
                 raw_text = ""
 
-        # Original section order, scanned directly from the file -
-        # same keyword-detection rule the real parser uses (a short
-        # lowercase token, no comma) rather than a hardcoded list of
-        # known section names, so this doesn't need updating if a
-        # new section type is ever added.
         section_order = []
         for raw_line in raw_text.splitlines():
             line = raw_line.split("#")[0].strip()
@@ -24066,25 +21877,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 lines_out.append("end")
 
             elif section == 'auzo':
-                # Real, structured AUZO write-back (Aug 20 2026, per
-                # Keith: "lets finish any stubbed functions like auzo,
-                # and anything else") - found while checking this
-                # method's own docstring against its real code: auzo
-                # had been added to structured parsing/visualization
-                # earlier this session, but this specific method's own
-                # STRUCTURED set was never updated to match, so a real
-                # auzo zone would have silently fallen through to the
-                # raw-text copy-through branch above instead - harmless
-                # today (nothing edits auzo data yet, so the raw text
-                # and the live data are always identical), but a real,
-                # silent data-loss trap waiting for the moment auzo
-                # editing exists and someone actually changes a zone
-                # then saves via this dialog. Writes each real shape
-                # back to its own correct, real line format (see
-                # AuzoEntry's own docstring) - cube: Name, ID, Switch,
-                # X1,Y1,Z1, X2,Y2,Z2 (9 fields); sphere: Name, ID,
-                # Switch, X,Y,Z, Radius (7 fields) - never forcing one
-                # shape into the other's own field count.
+                # Real, structured AUZO write-back (Aug 20 2026)
+                # TODO; auzo should show it's enties in the IPL List Display window, renamed as Auzo Entris List.'
                 matching = [a for a in getattr(loader, 'auzos', []) if a.source_ipl == ipl_name]
                 lines_out.append("auzo")
                 for a in matching:
@@ -24122,14 +21916,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _verify_binary_ipl_parser(self, archive_path, entry_name): #vers 1
         """Diagnostic dry run - reads and parses one binary IPL entry
         exactly like a real load does, but never touches self._all_
-        instances or the world view, per Keith: "we need to debug
-        this, or atleast check our parser can decode the binary.ipl,
-        and read them." Reports whether BinaryIPLParser succeeded, how
-        many instances it found, any parse errors/warnings, and a
-        preview of the first few instances (model_id, resolved name
-        where the loaded world's own IDE objects allow it, position) -
-        lets the parser itself be checked independently of the load/
-        merge/render pipeline it normally runs inside."""
+        instances or the world view."""
         loader = getattr(self, '_world_loader', None)
         model_cache = getattr(self, '_model_cache', None)
         try:
@@ -24191,13 +21978,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         inserted sibling streams, so multiple loaded streams for the
         same parent stay in a stable relative order rather than being
         inserted in reverse - instead of appending to the end of the
-        whole list (Aug 16 2026, per Keith: "I'd reorder the IPL list
-        to show LAe.ipl > tab 4 spaces, show the binary under
-        LAe.ipl... instead of placing the binary on the bottom").
-        Falls back to a plain append only if the parent genuinely
-        isn't in the list at all (shouldn't normally happen - a
-        stream's parent is always a real, already-known text IPL by
-        the time this gets called)."""
+        whole list (Aug 16 2026."""
         order = self._ipl_display_order
         if entry_name in order:
             return
@@ -24214,31 +21995,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         order.insert(insert_at, entry_name)
 
     def _load_binary_ipl_stream(self, archive_path, entry_name): #vers 1
-        """Actually load one binary IPL stream entry's instance data -
-        per Keith: "we need to be able to load these binary IPLs, so
-        right click, show the list, to load from." Reads the entry's
-        raw bytes from its archive, parses via the already-existing
-        BinaryIPLParser (built and verified against real sample data
-        earlier this session - only the inst section is parsed, per
-        its own docstring; cull/zone/other sections aren't yet), then:
-
-        - Resolves each parsed instance's model_name by looking it up
-          in the currently loaded world's own IDE objects (keyed by
-          model_id) - BinaryIPLParser can only ever know model_id from
-          the raw binary data itself, never a name.
-        - Merges the resolved instances into self._all_instances (the
-          flat list _apply_ipl_visibility_filter already reads from).
-        - Registers the stream's own display name as a normal section
-          (so it shows its own row, matching every other loaded IPL,
-          rather than staying folded under its parent text IPL's
-          Format-column "+N" count), makes it visible, and re-applies
-          the filter so it actually renders.
-
-        Guarded against double-loading (Aug 1 2026) - both the right-
-        click "Load Binary Stream" menu action and _ensure_ipl_loaded
-        (the eye-icon toggle path) can reach this; without a guard,
-        loading the same stream twice would duplicate every one of
-        its instances in self._all_instances."""
+        """Actually load one binary IPL stream entry's instance data"""
         if entry_name in getattr(self, '_loaded_binary_ipls', set()):
             self._set_status(f"{entry_name} is already loaded")
             return
@@ -24249,14 +22006,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         QApplication.processEvents()
         try:
             # Reuse the model_cache's already-opened archive instead of
-            # always creating a fresh IMGFile here (Aug 1 2026, per
-            # Keith: "even if I click on them, everything freezes") -
-            # this had exactly the same bug already fixed in model_
-            # cache._read_entry: IMGFile.open() re-parses the entire
-            # archive directory table (potentially thousands of
-            # entries for gta3.img) every single call, and this method
-            # was doing that unconditionally on every binary IPL load
-            # rather than reusing what's already open.
+            # always creating a fresh IMGFile here (Aug 1 2026)
             model_cache = getattr(self, '_model_cache', None)
             img = None
             if model_cache is not None:
@@ -24296,50 +22046,24 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 inst.model_name = obj.model_name
                 resolved_count += 1
 
-        # Merge into loader.instances (Aug 16 2026, per Keith's real
-        # before/after diagnostic - LAe.ipl's own text data stayed
-        # byte-identical across a reload, but its stream's data came
-        # back completely empty: "inst\nend\ncull\nend..." for every
-        # single section, zero entries anywhere) - THE actual root
-        # cause of "loading other map parts, the binary data is
-        # lost": this used to extend self._all_instances directly and
-        # ONLY self._all_instances, never loader.instances itself.
-        # Four separate places in this file rebuild self._all_
-        # instances = list(loader.instances) whenever a DIFFERENT
-        # text IPL loads (_ensure_ipl_loaded itself is one of them,
-        # so simply showing LAe2.ipl after LAe's stream had loaded
-        # was enough to trigger this) - every one of those rebuilds
-        # was silently discarding any binary-stream-sourced instance,
-        # since loader.instances never actually contained them; they
-        # only ever lived in a second, parallel, easily-forgotten-
-        # about copy that nothing else knew to preserve. Adding to
-        # loader.instances directly - the one list every rebuild
-        # point already treats as the authoritative source - closes
-        # the gap at its root rather than trying to patch every
-        # individual rebuild site to also remember this second list.
+        # Merge into loader.instances (Aug 16 2026)
         loader.instances.extend(parser.instances)
         self._all_instances = list(loader.instances)
 
         if entry_name not in self._ipl_display_to_stem:
             stem = f"img:{os.path.basename(archive_path)}:{entry_name}".lower()
             self._ipl_display_to_stem[entry_name] = stem
-        # Insert right after this stream's parent text IPL (Aug 16
-        # 2026, per Keith: "I'd reorder the IPL list to show LAe.ipl >
-        # tab 4 spaces, show the binary under LAe.ipl" - was a plain
-        # append to the end of the list before, scattering a parent's
-        # streams wherever they each happened to finish loading rather
-        # than keeping them visually grouped with it) - see _insert_
-        # stream_into_display_order's own docstring for the exact
-        # placement logic (finds the parent, skips past any already-
-        # inserted sibling streams so multiple streams for the same
-        # parent stay in a stable relative order).
+
+        # Insert right after this stream's parent text IPL (Aug 16 2026)
         parent_display_name = None
         for parent, streams in self._ipl_names_with_binary_stream.items():
             if (archive_path, entry_name) in streams:
                 parent_display_name = parent
                 break
+
         if parent_display_name is not None:
             self._insert_stream_into_display_order(parent_display_name, entry_name)
+
         elif entry_name not in self._ipl_display_order:
             self._ipl_display_order.append(entry_name)
         self._hidden_ipls.discard(entry_name)
@@ -24351,40 +22075,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             f"Loaded {entry_name}: {len(parser.instances)} instances "
             f"({resolved_count} model names resolved)")
         self._rebuild_ipl_sections_rows()
-        # auto_fit=False, clear_display_lists=False (Aug 1 2026, per
-        # Keith testing with his own real binary IPL data: "load,
-        # freezes, nor can I see the IPL data in the IPL inst file") -
-        # this was calling _apply_ipl_visibility_filter() with no
-        # arguments, defaulting both to True. clear_display_lists=True
-        # unconditionally discards and forces recompilation of EVERY
-        # already-visible model's OpenGL display list, not just the
-        # newly-loaded stream's ~dozens-to-hundreds of instances - for
-        # an already-loaded map with many distinct models, that's
-        # exactly the freeze, the same bug class as the time-flow tick
-        # fix earlier this session, just missed in this specific call
-        # site. auto_fit=True was also re-framing the camera to the
-        # whole map's bounding box on every single stream load, which
-        # isn't wanted here either.
+
+        # auto_fit=False, clear_display_lists=False (Aug 1 2026)
         self._apply_ipl_visibility_filter(auto_fit=False, clear_display_lists=False)
-        # Explicit refresh (Aug 1 2026) - the IPL Inst File pane shows
-        # whichever row is currently selected in IPL Sections, but
-        # doesn't automatically re-read after new data loads
-        # elsewhere; without this, the newly-loaded stream's data
-        # stayed invisible there until the user manually re-clicked
-        # the row (which _refresh_ipl_inst_file_panel's own binary-IPL
-        # handling already handles correctly - just wasn't being
-        # triggered here automatically).
+        # Explicit refresh (Aug 1 2026)
+
         self._refresh_ipl_inst_file_panel()
 
     def _load_selected_ipl_sections(self, rows): #vers 1
         """Show/load every currently-hidden row among the given table
-        rows - the "Load Selected" context menu action, per Keith:
-        "option to hold control and highlight ipl entries, right click
-        load all selected .ipls." Reuses the exact same per-row toggle
-        _on_ipl_section_cell_clicked already uses for a single click
-        on the eye-icon column, just applied to a whole selection at
-        once and skipping any row that's already visible (toggling an
-        already-visible row would hide it, the opposite of "load")."""
+        rows - the "Load Selected" context menu action."""
         table = self._ipl_sections_table
         hidden = getattr(self, '_hidden_ipls', set())
         for row in rows:
@@ -24430,25 +22130,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._on_ipl_section_cell_clicked(row, 0)
 
     def _on_ipl_tab_open_file_clicked(self): #vers 2
-        """Open File... - lets Keith pick one or more standalone .ipl
-        or .zon files and adds them to the IPL Sections list (Aug 16
-        2026, per Keith: "open zone, and open ipl, both can be
-        merged, looking for ipl, and zon files" - widened from a
-        .zon-only picker per that request). Registers each as a real
-        DATEntry in loader.available_ipls (same shape every normal
-        IPL entry already has) so the whole existing click/eye-icon/
-        IPL File Display pipeline works for it unmodified -
-        IPLParser.parse() already reads "inst"/"zone"/"cull"/etc.
-        sections correctly regardless of the file's own extension,
-        verified against Keith's real info.zon/map.zon/navig.zon
-        earlier this session, so nothing needs touching there, only
-        this loading step was missing.
-
-        New entries start hidden, matching every other IPL's default
-        state (nothing shown until explicitly opened) - and are
-        appended to the display order only if not already present, so
-        re-opening an already-added file is a harmless no-op rather
-        than creating a duplicate row."""
+        """Open File... - lets USER pick one or more standalone .ipl
+        or .zon files and adds them to the IPL Sections list (Aug 16 2026)"""
         loader = getattr(self, '_world_loader', None)
         if loader is None:
             self._set_status("Load a world first before opening a file")
@@ -24482,27 +22165,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _on_ipl_data_type_changed(self, data_type): #vers 3
         """INST/CULL/ZONE/... changed - updates which kind of data the
-        IPL Inst File panel shows for the currently selected IPL.
-
-        Also renames the dock's own title to "<TAB> Display" for
-        whichever tab is active - e.g. "CULL Display", "ZON Display"
-        (Aug 19 2026, per Keith: "when looking at cull, or zon, the
-        IPL File Display should show to ZON Display or CULL Display
-        for consistancy" - generalising the "Paths Display" rename
-        from a few turns ago, which only covered the PATH tab, to
-        every tab). INST keeps the original "IPL File Display" name
-        rather than becoming "INST Display" - it's the default,
-        already-familiar view this dock is named after, not one of
-        the more specialised section types the others represent.
-        Reads the label directly off the tab bar's own tabText
-        (single source of truth - tab_specs' own label strings, not a
-        second, separately-maintained mapping that could drift out of
-        sync with it) rather than hardcoding a second copy of every
-        label here.
-
-        Only while _ipl_inst_file_mode is still 'ipl' (not 'ide'), so
-        this doesn't fight with _on_object_browser_tab_changed's own
-        "IDE Objects" title when that mode is active instead."""
+        IPL Inst File panel shows for the currently selected IPL."""
         self._ipl_data_type = data_type
         if getattr(self, '_ipl_inst_file_mode', 'ipl') == 'ipl':
             dock = getattr(self, '_ipl_inst_file_dock', None)
@@ -24522,9 +22185,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _on_show_tobj_toggled(self, checked): #vers 1
         """Show Tobj checked/unchecked - refreshes the INST table to
-        include/exclude TOBJ-type instances, per Keith: "have an
-        option to toggle showing tobj [Show Tobj]... timed objects
-        will be shown, depending on there time values." """
+        include/exclude TOBJ-type instances."""
         self._refresh_ipl_inst_file_panel()
 
     def _on_ipl_tab_changed(self, index): #vers 1
@@ -24543,19 +22204,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._on_ipl_data_type_changed(keys[index])
 
     def _create_ipl_controls_dock(self): #vers 1
-        """Dedicated dock for IPL viewing/filtering controls, per
-        Keith: "the INST CULL ZON PATH buttons need to be in there
-        own pane, with [ignore scaling] [Generic.txd] [LOD view] the
-        [LOD view] button has 3 toggles, [Show All] [Show Norm]
-        [Show LOD] the Generic.txd button should load the generic.txd
-        from gta3.img and root/models/generic.txd" - confirmed as a
-        brand new, separate dock (own title bar, dockable/movable
-        like the others), not folded into IPL Inst File or Object
-        Browser where these pieces used to live.
-
-        Row 1: INST/CULL/ZON/PATH (moved from the IPL tab).
-        Row 2: Ignore Scaling (moved from IPL Inst File) / Generic.txd
-        / LOD view."""
+        """Dedicated dock for IPL viewing/filtering controls."""
         panel = QWidget()
         from PyQt6.QtWidgets import QButtonGroup
         lay = QVBoxLayout(panel)
@@ -24563,45 +22212,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         lay.setSpacing(4)
         _compact_18 = "padding: 0px 4px; margin: 0px; border-width: 1px;"
 
-        # Row 1: IPL section tab bar (Aug 1 2026, per Keith: "in IPL
-        # Controls we have the labels, made into tabs... but when
-        # loading SA maps, there would be more tabs") - switches which
-        # kind of IPL content the IPL Inst File panel shows for the
-        # currently selected IPL. A real QTabBar rather than a fixed
-        # button row, since it scales to many more sections without
-        # the row running out of width - SA alone adds 7 more section
-        # types beyond the original 4. Enabled where real parsing
-        # exists (INST/CULL/ZONE always did; PATH/GRGE/ENEX newly
-        # added this turn, verified against Keith's own real SA data);
-        # disabled stub tabs for PICK/JUMP/TCYC/AUZO/MULT, each with a
-        # tooltip explaining it's not parsed yet rather than silently
-        # doing nothing.
+        # Row 1: IPL section tab bar (Aug 1 2026)
         from PyQt6.QtWidgets import QTabBar
         ipl_tab_bar = QTabBar()
         ipl_tab_bar.setExpanding(False)
         ipl_tab_bar.setDrawBase(False)
-        # Match Object Browser's IMG/DAT/IDE/IPL tab-button sizing
-        # (Aug 14 2026, per Keith: "the tabs in the IPL control panel
-        # need to be the same size as the ones in the object
-        # browser") - same 18px height as OBJECT_BROWSER_BUTTON_H
-        # (_build_object_browser, not reachable as a shared constant
-        # from here since it's method-local there, hardcoded to the
-        # same value instead) and the same compact 0px-vertical/bold
-        # style as that panel's QToolButtons, applied here as
-        # QTabBar::tab rules since a QTabBar's individual tabs aren't
-        # separate widgets to style directly.
-        #
-        # min-width: 0px (Aug 14 2026, cont'd, per Keith: "the INST,
-        # CULL tabs, can be narrower, just enough to fit the text") -
-        # padding alone wasn't enough; Qt's built-in style still
-        # enforces its own minimum tab width (QCommonStyle's
-        # PM_TabBarTabHSpace-driven default, generally 70-90px)
-        # underneath whatever padding a stylesheet sets, unless
-        # min-width is set explicitly to override it. Short labels
-        # like INST/CULL/ZON were sitting inside that same oversized
-        # minimum despite the padding fix, wasting space; longer
-        # ones (PICK/JUMP/TCYC/AUZO) still size to their own text
-        # correctly with min-width unconstrained like this.
+        # Match Object Browser's IMG/DAT/IDE/IPL tab-button sizing (Aug 14 2026)
         ipl_tab_bar.setStyleSheet(
             "QTabBar::tab { height: 18px; min-width: 0px; padding: 0px 6px; margin: 0px; "
             "font-weight: bold; border-width: 1px; }"
@@ -24613,15 +22229,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             ('path', "PATH", "PATH - Pedestrian / Vehicle Paths (GTA3/VC)", True, None),
             ('grge', "GRGE", "GRGE - Garages (SA)", True, None),
             ('enex', "ENEX", "ENEX - Entrances / Exits (SA)", True, None),
-            # 'occl' (Aug 16 2026 fix, per Keith: "occlusion data not
-            # showing in ipl display") - occlusion has had full
-            # parsing (_parse_occl) and viewport rendering (Show
-            # Occlusion, ghosted boxes) since a few turns ago, but was
-            # never actually added as a selectable tab here - there
-            # was simply no way to pick "OCCL" to view its raw data in
-            # IPL File Display at all, unlike every other parsed
-            # section type.
-            ('occl', "OCCL", "OCCL - Occlusion Zones (VC/SA)", True, None),
+            ('occl', "OCCL", "OCCL - Occlusion Zones (VC/SA)", True, None), # 'occl' (Aug 16 2026)
             ('pick', "PICK", "PICK - Pickup Spawns (SA)", False,
              "Not parsed yet - no verified real sample data to build this on."),
             ('cars', "CARS", "CARS - CAR placement (SA)", False,
@@ -24660,22 +22268,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._ignore_scaling_chk = ignore_scaling_chk
         opts_row.addWidget(ignore_scaling_chk)
 
-        # Time switch for TOBJ objects (Aug 1 2026, per Keith: "lets
-        # start support tobj first, with a time switch under Ignore
-        # Scaling") - TOBJ (timed object) IDE entries have time_on/
-        # time_off hour fields (0-23) saying when the object is
-        # actually visible in-game (e.g. a lit streetlamp model only
-        # showing at night) - previously parsed but silently dropped,
-        # see IDEParser._parse_line. When this switch is off, every
-        # TOBJ instance shows regardless of time, same as before this
-        # feature existed. When on, only TOBJ instances whose time_on/
-        # time_off range includes the selected hour show - non-TOBJ
-        # instances are never affected either way.
-        # Time (Aug 20 2026, per Keith: "Time can be clickable like
-        # the others" - was a plain QCheckBox, now a compact
-        # QToolButton styled and behaving the same clickable-toggle
-        # way as Tobj/2DFX right next to it, rather than a checkbox
-        # that visually stands apart from them).
+        # Time switch for TOBJ objects (Aug 1 2026)
         time_chk = QToolButton()
         time_chk.setText("Time")
         time_chk.setCheckable(True)
@@ -24687,24 +22280,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "range includes the hour selected here. Non-TOBJ objects\n"
             "are never affected by this switch.")
 
-        # QTimeEdit instead of a plain 0-23 spinbox (Aug 1 2026, per
-        # Keith: "time is hard to see") - shows HH:MM, which is both
-        # more readable and gives the sub-hour precision "movement of
-        # time" needs (minute-by-minute progression, not just jumping
-        # whole hours) - previously a plain QSpinBox with a ":00"
-        # suffix, whose 18px height also clipped like every other
-        # spinbox found earlier this session (QDoubleSpinBox/QSpinBox
-        # need more than the 18px button standard - bumped to 24px,
-        # matching the fix already applied in the Item Editor Dialog).
+        # QTimeEdit instead of a plain 0-23 spinbox (Aug 1 2026)
         from PyQt6.QtCore import QTime
         time_edit = QTimeEdit(QTime(12, 0))
         time_edit.setDisplayFormat("HH:mm")
         time_edit.setFixedHeight(24)
-        # Fixed, compact width (Aug 20 2026, per Keith: "the 12:00
-        # value box doesn't need to take up all the width") - was
-        # unconstrained, so it stretched to fill whatever space this
-        # HBoxLayout row had left over; a real "HH:mm" value plus its
-        # own up/down spin arrows only ever needs about this much.
         time_edit.setFixedWidth(63)
         time_edit.setEnabled(False)
         time_edit.setToolTip("Simulated time of day for the Time switch above")
@@ -24714,21 +22294,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._tobj_time_chk = time_chk
         self._tobj_time_spin = time_edit   # kept name for existing callers
 
-        # Play/Stop + Settings (Aug 1 2026, per Keith: "we need a
-        # [play] and [stop] and Settings [*] Cog for time settings, we
-        # need to impliment movement of time, so we can see the
-        # switching of tobjs on the map") - a QTimer advances time_edit
-        # by self._time_flow_minutes_per_tick every self._time_flow_
-        # interval_ms, re-applying the TOBJ filter on each tick so
-        # switching is visible live rather than only on manual edits.
-        #
-        # Play/Stop/Settings now real SVG icons, not text (Aug 20
-        # 2026, per Keith: "Play and Stop can be SVG icons, and the *
-        # that's time settings, can be a click icon") - reuses this
-        # file's own already-constructed self.icon_factory (the same
-        # SVGIconFactory instance every other icon button in this
-        # file already draws from), square icon-only buttons rather
-        # than text ones, matching the same compacting principle.
+        # Play/Stop + Settings (Aug 1 2026)
         time_play_btn = QPushButton()
         time_play_btn.setIcon(self.icon_factory.launch_icon(16))
         time_play_btn.setFixedSize(24, 24)
@@ -24755,34 +22321,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._time_play_btn = time_play_btn
         self._time_stop_btn = time_stop_btn
 
-        # The Advanced button/menu that used to sit here is gone (Aug
-        # 1 2026) - all four of its options (Load Generic.txd
-        # Manually, Load Text plus Binary IPL set, Show Full Loading
-        # Models, Reduce Large Textures) have moved to the Settings
-        # dialog's Loading and Map Assets tabs, per Keith: "these
-        # settings, can be added to map_workshop's settings on the
-        # title bar (topbar) as a new tab in the settings dialog, this
-        # would tidy up the IPL controls" and "generic.txd loading can
-        # be added to settings also under map assits tab" - nothing
-        # left for it to do, so removed rather than kept as an empty,
-        # non-functional button.
+        #TODO; Play and Stop icon isn't theme away, Bug.
 
-        # Merged Render/LOD button (Aug 1 2026, per Keith: "Render
-        # view should me merged with LOD view, labeled as Render:
-        # Texture, Non-texture, Semi-Solid, Wireframe, Show LOD only,
-        # Show Normals, Show Both") - one button, one menu, two
-        # independent exclusive groups (render style and LOD filter
-        # are orthogonal - e.g. Wireframe + Show Both is a valid
-        # combination), separated by a divider. Replaces the earlier
-        # two separate buttons. Semi-Solid is a real render mode now
-        # (DFFViewport._draw_solid gained an alpha_multiplier
-        # parameter - forces every triangle through the alpha-blend
-        # path with its alpha scaled down uniformly, giving a
-        # ghosted/see-through look, distinct from Non-Textured's
-        # fully-opaque flat shading) - held off inventing this in an
-        # earlier pass since what it should mean wasn't clear yet;
-        # Keith's own wording here settles it as a real mode alongside
-        # the others.
+        # The Advanced button/menu that used to sit here is gone (Aug 1 2026)
         from PyQt6.QtGui import QActionGroup
         render_lod_btn = QPushButton("Render: Textured")
         render_lod_btn.setFixedHeight(18)
@@ -24828,16 +22369,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         render_lod_menu.addSeparator()
 
-        # Collision overlay options (Aug 14 2026, moved into this same
-        # dropdown per Keith: "the 4 col options should be in the
-        # Render: dropdown, with LOD and Normal models, Normal models,
-        # list first, then LOD, and COL under") - NOT in a QActionGroup
-        # (unlike render_group/lod_group above) since these four are
-        # independently toggleable, not mutually exclusive - any
-        # combination can be on together (e.g. Wireframe Col over a
-        # Ghosted Col fill is a normal thing to want). Draws as an
-        # overlay on top of the model, never replacing it - see
-        # DFFViewport._draw_collision_faces.
+        # Collision overlay options (Aug 14 2026)
         col_specs = [
             ('ghosted',        "Show Ghosted Col",        "set_show_col_ghosted",
              "Overlay collision geometry as a low-opacity ghost"),
@@ -24858,14 +22390,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         render_lod_menu.addSeparator()
 
-        # Zone render style (Aug 16 2026, per Keith: "in zons, the
-        # render dropdown could show, Zon - Ghosted, Zon - Wireframe,
-        # Zon - translucent") - exclusive, like render_group/lod_group
-        # above (pick one style), not independently toggleable like
-        # the Col options (a zone box only ever renders one way at a
-        # time). Scoped to zone boxes specifically, per Keith's own
-        # "in zons" framing - cull/occlusion boxes keep their fixed
-        # ghosted look from the previous request, not touched here.
+        # Zone render style (Aug 16 2026)
         zon_render_group = QActionGroup(render_lod_menu)
         zon_render_group.setExclusive(True)
         zon_render_specs = [
@@ -24886,22 +22411,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         render_lod_btn.setToolTip("Choose how the world view renders geometry, and which detail level(s) to show")
         opts_row.addWidget(render_lod_btn)
 
-        # Drag/Move/Rotate IPL - a single button cycling through 4
-        # states (Aug 19 2026, per Keith's own priority order for the
-        # interactive editing layer, and: "1 click turns into move
-        # ipl, click again rotate ipl, click back to drag ipl" - also
-        # moved here, right after the Render row, per his own
-        # request: "move this button from row 3 to after Render Row
-        # 1"). Off (the neutral starting state, preserving the old
-        # checkbox's own ability to fully disable this feature) ->
-        # Drag (click-drag an instance to move its entire IPL as one
-        # rigid body, live in the viewport - the original, already-
-        # built behaviour) -> Move (a plain click instead immediately
-        # opens the existing Shift Coordinates dialog for that
-        # instance's own IPL - precise numeric XYZ entry) -> Rotate
-        # (a plain click opens a new, analogous Rotate dialog - angle
-        # entry, pivot automatically the centre of that IPL's own
-        # instances) -> back to Off.
+        # Drag/Move/Rotate IPL - a single button cycling through 4 states (Aug 19 2026.
         ipl_mode_btn = QPushButton("IPL: Off")
         ipl_mode_btn.setFixedHeight(18)
         ipl_mode_btn.setStyleSheet(_compact_18)
@@ -24925,23 +22435,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         opts_row.addStretch()
         lay.addLayout(opts_row)
 
-        # Row 3: Time / Nav (Aug 1 2026, per Keith: "put time and nav
-        # under on a new line") - previously both sat at the end of
-        # the same row as Ignore Scaling/Advanced/Render/LOD, which
-        # got crowded; given their own row instead.
+        # Row 3: Time / Nav (Aug 1 2026)
         opts_row2 = QHBoxLayout()
 
-        # 2DFX master toggle (Aug 1 2026, per Keith: "so lets switch
-        # to 2dfx, there needs to be a 2dfx button near the time,
-        # play, stop, these need looking at aswell, to complete the
-        # functionalty") - previously 2DFX lights had no way to be
-        # fully disabled: with the Time switch off they always showed
-        # regardless of time, with it on they only followed the day/
-        # night gating. This adds an actual master on/off, checked by
-        # _refresh_2dfx_lights before anything else - when off, no
-        # lights show regardless of the Time switch/hour at all; when
-        # on, the existing time-based night gating still applies
-        # exactly as before.
+        # 2DFX master toggle (Aug 1 2026)
         dfx_chk = _MapOverlayToggleButton("2DFX", supports_edit=False)
         dfx_chk.set_shown(True, emit=False)
         dfx_chk.setToolTip(
@@ -24951,31 +22448,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         dfx_chk.show_toggled.connect(self._on_2dfx_master_toggled)
         self._2dfx_master_chk = dfx_chk
 
-
-        # Nav settings (Aug 1 2026, per Keith: "need a way to toggle
-        # these settings, mouse strength, other needed settings") -
-        # right now just mouse sensitivity, applied to both the
-        # rotate and pan deltas in DFFViewport.mouseMoveEvent - a
-        # single starting point rather than a full settings dialog,
-        # since only sensitivity was explicitly asked for; more nav
-        # settings can be added to this same popup as they come up.
-        #
-        # Nav button moved to Settings > Navigation (Aug 1 2026, per
-        # Keith: "if we move Nav functions to Settings, then row 2
-        # could be used") - freeing this spot for Show Tobj below.
-
-        # Show Tobj (Aug 1 2026, per Keith: "have an option to toggle
-        # showing tobj [Show Tobj]... timed objects will be shown,
-        # depending on there time values. tojb can be shown along
-        # side the inst, towards the botton, keeping the placement
-        # order of the ipl") - unchecked by default, TOBJ-type
-        # instances stay out of the INST table view entirely. Checked,
-        # they're appended after the regular (non-TOBJ) rows, filtered
-        # to only the ones currently active per their own time_on/
-        # time_off against the simulated hour (same _apply_tobj_time_
-        # filter logic already driving the 3D world view's Time
-        # switch) - the regular rows above them keep their original
-        # IPL file line order unchanged either way.
+        # Nav settings (Aug 1 2026)
+        # Show Tobj (Aug 1 2026)
         show_tobj_chk = _MapOverlayToggleButton("Tobj", supports_edit=False)
         show_tobj_chk.setToolTip(
             "Show TOBJ (timed) instances in the INST table, appended\n"
@@ -24997,70 +22471,30 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         opts_row2.addStretch()
         lay.addLayout(opts_row2)
 
-        # Row 3: per-layer visibility toggles (Aug 1 2026, per Keith:
-        # "keep row3 for future functions, like show tojb, show
-        # Paths, show zons") - Show Tobj ended up on row 2 alongside
-        # 2DFX/Time (they're closely related toggles); Show Paths
-        # lands here now (Aug 14 2026, per Keith: "when displaying
-        # the paths in the viewpoint, I was expecting red lines and
-        # nodes") - draws every loaded IPL's path groups as connected
-        # line strips + node markers in the 3D view (DFFViewport.
-        # _draw_paths), line colour configurable in Settings (see
-        # _create_settings_dialog's path-colour picker). Off by
-        # default, matching every other optional overlay. Show Zones
-        # can still follow later on this same row.
-        # Show/Edit Paths - one button covering both, per Keith:
-        # "looking at the bottom-right object control panel, we can
-        # make clickable buttons instead; one click shows the paths,
-        # right-click paths allows edit mode... saving space" (Aug 18
-        # 2026) - replaces the previous separate Paths/Edit Paths
-        # checkbox pair. Left-click shows every loaded IPL's path
-        # data (vehicle/ped route nodes, GTA3/VC only for now - SA's
-        # real path data is in binary nodesXX.dat files, not yet
-        # wired into this view) as connected lines with node markers.
-        # Right-click toggles click-to-select-and-drag path node
-        # editing directly in the 3D view - scoped to VC/SA-style
-        # path data only (same scope New/Delete Path Group already
-        # settled on); GTA III's own IDE-embedded paths attach to
-        # instances by model_id, no position of their own to drag,
-        # not covered here.
+        # Row 3: per-layer visibility toggles (Aug 1 2026)
         show_paths_btn = _MapOverlayToggleButton("Paths", supports_edit=True)
         show_paths_btn.show_toggled.connect(self._on_show_paths_toggled)
         show_paths_btn.edit_toggled.connect(self._on_edit_paths_toggled)
         self._show_paths_chk = show_paths_btn
 
-        # Show Tracks (Aug 17 2026, per Keith: "then the other path
-        # .dat files you pointed out earlier") - train track waypoints
-        # from data/paths/tracks.dat/tracks2.dat, loaded once at world
-        # load time (not per-IPL - these files aren't tied to any
-        # specific area or IPL section at all). No edit mode yet -
-        # right-clicking shows a plain status message rather than
-        # doing nothing (see _MapOverlayToggleButton's own docstring).
+        # Show Tracks (Aug 17 2026)
         show_tracks_btn = _MapOverlayToggleButton("Tracks", supports_edit=False)
         show_tracks_btn.show_toggled.connect(self._on_show_tracks_toggled)
         self._show_tracks_chk = show_tracks_btn
 
-        # Show Cull Zones (Aug 16 2026, per Keith: "continue with the
-        # cull files next") - draws every loaded IPL's cull zones as
-        # ghosted boxes in the 3D view. Right-click edit mode added
-        # Aug 19 2026 for box-corner resizing.
+        # Show Cull Zones (Aug 16 2026)
         show_cull_btn = _MapOverlayToggleButton("Cull", supports_edit=True)
         show_cull_btn.show_toggled.connect(self._on_show_cull_boxes_toggled)
         show_cull_btn.edit_toggled.connect(self._on_edit_boxes_toggled)
         self._show_cull_chk = show_cull_btn
 
-        # Show Zones (Aug 16 2026, per Keith: "ive loaded zon files...
-        # but I cant see them in the viewpoint") - draws every loaded
-        # .zon/IPL zone entry as a box in the 3D view. Right-click
-        # edit mode added Aug 19 2026 for box-corner resizing.
+        # Show Zones (Aug 16 2026)
         show_zone_btn = _MapOverlayToggleButton("Zon", supports_edit=True)
         show_zone_btn.show_toggled.connect(self._on_show_zone_boxes_toggled)
         show_zone_btn.edit_toggled.connect(self._on_edit_boxes_toggled)
         self._show_zone_chk = show_zone_btn
 
-        # Show Occlusion (Aug 16 2026, continuing the cull/zon
-        # viewport work) - draws every loaded occlusion zone as a
-        # rotated box in the 3D view. No edit mode yet.
+        # Show Occlusion (Aug 16 2026)
         show_occl_btn = _MapOverlayToggleButton("Occlusion", supports_edit=False)
         show_occl_btn.show_toggled.connect(self._on_show_occl_boxes_toggled)
         self._show_occl_chk = show_occl_btn
@@ -25074,77 +22508,32 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         opts_row3.addStretch()
         lay.addLayout(opts_row3)
 
-        # Show SA Nodes (Aug 19 2026, per Keith's real NODES0-63.DAT
-        # data - "lets do those next") - draws SA's real vehicle/ped
-        # path node graph as disconnected line segments. SA only -
-        # loader.sa_nodes is simply empty for III/VC, so this is
-        # harmless (draws nothing) rather than needing to be hidden
-        # per-game, matching how several other game-specific overlays
-        # already just no-op rather than being conditionally shown.
-        # No edit mode yet.
+        # Show SA Nodes (Aug 19 2026)
         show_sa_nodes_btn = _MapOverlayToggleButton("SA Nodes", supports_edit=False)
         show_sa_nodes_btn.show_toggled.connect(self._on_show_sa_nodes_toggled)
         self._show_sa_nodes_chk = show_sa_nodes_btn # Show only with gta.dat loaded (SA)
 
-        # Show Auzo (Aug 20 2026, per Keith: "Implement support for
-        # the remaining SA, audiozone placements with sound svg
-        # icons; play the sounds") - draws a sound-icon billboard at
-        # each real SA audio zone's own centre. SA only (auzo isn't
-        # real, populated data for III/VC), same "harmless no-op
-        # rather than a per-game hide" reasoning as SA Nodes just
-        # above. No edit mode yet.
+        # Show Auzo (Aug 20 2026)
         show_auzo_btn = _MapOverlayToggleButton("Auzo", supports_edit=False)
         show_auzo_btn.show_toggled.connect(self._on_show_auzo_toggled)
         self._show_auzo_chk = show_auzo_btn
 
-        # Show Water (Aug 20 2026, per Keith: "lets get all the
-        # functions in" - water/radar recalculation on map moves) -
-        # draws real water.dat shapes as flat, translucent polygons.
-        # SA only for now (III/VC's own binary waterpro.dat format
-        # isn't parsed by this app yet), same harmless-no-op reasoning
-        # as SA Nodes/Auzo. No edit mode yet.
+        # Show Water (Aug 20 2026)
         show_water_btn = _MapOverlayToggleButton("Water", supports_edit=False)
         show_water_btn.show_toggled.connect(self._on_show_water_toggled)
         self._show_water_chk = show_water_btn
 
-        # Generate Radar Tiles (Aug 20 2026, per Keith: "look at radar
-        # editor for how the radar works" - the actual rendering half
-        # of map-to-radar generation, continuing the earlier water/
-        # radar/SCM list; moved here and renamed Aug 20 2026, per
-        # Keith's own follow-up: "generate water tiles needs to be
-        # moved to row4, as it takes up to much space, and just name
-        # it Water, with the tooltop Generate Water Tiles" - named
-        # "Radar" rather than "Water" here specifically, since row4
-        # already has a real, different "Water" button just above
-        # (the water.dat visualization overlay toggle) - reusing the
-        # same short name for a second, unrelated button on the same
-        # row would be ambiguous rather than genuinely matching
-        # what was asked; if "Water" really was meant for this
-        # specific button instead, easy to rename directly.
+        # Generate Radar Tiles (Aug 20 2026)
         radar_gen_btn = QPushButton("Radar")
         radar_gen_btn.setFixedHeight(18)
         radar_gen_btn.setStyleSheet(_compact_18)
-        # Real stretch bug fixed (Aug 20 2026, per Keith: "the radar
-        # button seems to stretch, should be a compact button like the
-        # others") - a plain QPushButton with only setFixedHeight had
-        # no width constraint at all, so QHBoxLayout's own default
-        # stretched it to fill whatever space was left in the row,
-        # unlike _MapOverlayToggleButton's own QToolButton base (SA
-        # Nodes/Auzo/Water, this row's other 3 buttons), which never
-        # needed this since QToolButton's own default size policy
-        # doesn't expand horizontally the way QPushButton's does here.
+
+        # Real stretch bug fixed (Aug 20 2026)
         radar_gen_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         radar_gen_btn.setToolTip("Generate Radar Tiles")
         radar_gen_btn.clicked.connect(self._on_generate_radar_tiles_clicked)
-        # Right-click: send the just-generated tiles to TXD Workshop
-        # (Aug 20 2026, per Keith: "right click the radar button to
-        # send the tiles to txd workshop, add radarXX.png to
-        # radarXX.txd, if assists folder exists, add these to the
-        # Radar folder"). Left-click keeps its own existing, separate
-        # "generate the tiles" behaviour untouched - right-click is a
-        # genuinely different action, matching the same left/right-
-        # click-does-different-things convention _MapOverlayToggleButton
-        # already established for this row's other 3 buttons.
+
+        # Right-click: send the just-generated tiles to TXD Workshop (Aug 20 2026)
         radar_gen_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         radar_gen_btn.customContextMenuRequested.connect(
             lambda pos, b=radar_gen_btn: self._on_radar_tiles_context_menu(b, pos))
@@ -25174,52 +22563,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         source_description, status) - status is one of:
           'loaded'  - found and parsed successfully
           'missing' - not indexed in any IMG archive
-          'failed'  - indexed but reading/parsing it failed
+          'failed'  - indexed but reading/parsing it failed."""
 
-        source_description is now the actual archive path(s) the name
-        was indexed under (Aug 1 2026, per Keith: "then I need to find
-        where the tree textures are being stored") - previously just
-        a generic "an indexed IMG archive (e.g. gta3.img)" string
-        regardless of which archive it actually came from, even
-        though model_cache._txd_index already tracks the real
-        (img_path, entry) per name (a list, since Aug 1 2026's
-        duplicate-name fix - a TXD can genuinely be indexed under more
-        than one archive). Multiple paths are joined with '; ' when
-        that's the case, so the exact real location(s) of any
-        texture - tree TXDs included - is directly visible rather
-        than needing to guess.
-
-        No loose-file fallback (Aug 1 2026, removed per Keith: "since
-        we have another generic.txd, just load them both without the
-        fall back, there should be no fallbacks, it should either
-        work or fail") - an earlier version of this tried a loose
-        {game root}/models/{txd_name}.txd file when the IMG index
-        lookup failed, but Keith pointed out this can silently mask a
-        genuine conflict: his own game folder has both "Generic.txd"
-        and "generic.txd" (two different files, different sizes) -
-        silently picking whichever one a fallback happens to find
-        hides that duplicate rather than surfacing it. Better to fail
-        cleanly and let a duplicate-detection feature (Compare TXD,
-        tracked in TODO.md) surface the real problem.
-
-        Generalized (Aug 1 2026) from the original generic.txd-only
-        _get_generic_textures, per Keith: "its not just generic.txd,
-        there are other texture files needed; these are found in
-        generic.ide... so we'll be looking for mine.txd metal.txd,
-        dynphn.txd, dynbarrels.txd, woodpanels.txd, boxes.txd and
-        every other texture listed in the .ide" - the same "plain
-        IMG-index lookup alone doesn't always find it" issue that
-        affected "generic" specifically turned out to affect any of
-        generic.ide's other referenced TXDs too, not just that one.
-
-        The 3-way status (Aug 1 2026, per Keith's Item Editor Dialog
-        spec: "dynjunk.txd is missing from gta3.img" / "dynjunk.txd is
-        loaded, [Show] textures..." / "dynjunk.txd exists but can not
-        be loaded") distinguishes "never indexed anywhere" from
-        "indexed but failed to read/parse" by checking model_cache's
-        own _txd_index directly, rather than collapsing both into a
-        single None result the way the plain get_textures() call
-        does."""
         model_cache = getattr(self, '_model_cache', None)
         if model_cache is None:
             return None, None, 'missing'
@@ -25245,33 +22590,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         covered_txd_names) - the second so callers can skip
         re-fetching these same TXDs in their own per-model loop.
 
-        Cached after the first successful computation (Aug 1 2026) -
-        _refresh_world_view calls this on every single visibility
-        toggle, and the loaded world's own object set doesn't change
-        during a session, so recomputing (iterating every loaded IDE
-        object, re-fetching each TXD) every time would be wasted
-        work. Keyed by id(loader) so a genuinely different loaded
-        world correctly recomputes rather than reusing a stale cache.
-
-        Generalized (Aug 1 2026, per Keith: "its not a rotation bug,
-        its the alpha layer not working on the SA tree models" -
-        traced to this method only ever looking at objects whose
-        source_ide matched "generic.ide" literally; SA vegetation
-        objects are defined in a different shared IDE entirely - his
-        own screenshot's selected object shows "Source dynamic2.ide"
-        - so their TXDs were never being preloaded at all, and fell
-        back to untextured white geometry, which looks like a broken
-        alpha layer but is actually a missing texture) from the
-        original generic.ide-only version, per Keith's earlier
-        request: "its not just generic.txd, there are other texture
-        files needed; these are found in generic.ide... so we'll be
-        looking for mine.txd metal.txd, dynphn.txd, dynbarrels.txd,
-        woodpanels.txd, boxes.txd and every other texture listed in
-        the .ide" - the same principle now applied to every shared IDE
-        a loaded world has, not just the one literally named
-        "generic.ide". Method name kept for now to minimize the diff
-        across existing callers; the docstring/behaviour are what
-        actually matter."""
+        Cached after the first successful computation (Aug 1 2026)"""
         loader = getattr(self, '_world_loader', None)
         if loader is None or not hasattr(loader, 'objects'):
             return [], set()
@@ -25288,14 +22607,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 source_ide_names.add(os.path.basename(source).lower())
             if obj.txd_name:
                 distinct_txds.add(obj.txd_name.lower())
-        # Status feedback (Aug 1 2026, per Keith: "I don't see any
-        # indication that the genericide textures are being loaded,
-        # shown in the status") - makes it visible how many objects/
-        # source IDE files/distinct TXDs were found across the whole
-        # loaded world (if 0 objects, nothing loaded at all - a
-        # separate, upstream issue from anything this method does) vs
-        # how many TXDs were actually found/fetched (if fewer than
-        # expected, points at the IMG-index/loose-file lookup itself).
+
+        # Status feedback (Aug 1 2026)
         if object_count == 0:
             self._set_status("No IDE objects loaded - textures can't be preloaded")
         all_textures = []
@@ -25314,62 +22627,20 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         return all_textures, distinct_txds
 
     def _set_world_render_mode(self, mode, label, btn): #vers 1
-        """Switch the world view's render mode - per Keith: "Add the
-        option to show as semi-solid, non-textured, wireframe."
-        DFFViewport.set_render_mode already exists and works
-        (previously only ever called once, hardcoded to 'textured',
-        when a world first loads in _refresh_world_view); this just
-        gives it a UI control for the world view specifically. Marks
-        _world_render_mode_set too, matching the same flag
-        _refresh_world_view checks before applying its own default -
-        keeps both guards consistent regardless of which one runs
-        first for a given session."""
+        """Switch the world view's render mode"""
         vp = getattr(self, 'preview_widget', None)
         if vp is not None and hasattr(vp, 'set_render_mode'):
             vp.set_render_mode(mode)
-            # Force the queued repaint to actually process now (Aug 1
-            # 2026, per Keith: "Button/menu label changes but 3D view
-            # looks identical") - thoroughly verified the underlying
-            # display-list caching/compilation logic is correct (a
-            # mode switch does trigger a genuinely fresh compile with
-            # its own cache key, confirmed via a direct mocked-GL
-            # test), so the mismatch isn't there. update() only
-            # *schedules* a repaint for the next event loop iteration
-            # rather than painting immediately - this can't be
-            # confirmed as the actual cause without visual access to
-            # Keith's own running app, but it's the most plausible
-            # remaining explanation once the rendering logic itself is
-            # ruled out, and forcing it here is a safe, low-risk
-            # improvement regardless.
+            # Force the queued repaint to actually process now (Aug 1 2026)
             vp.repaint()
         self._world_render_mode_set = True
         btn.setText(f"Render: {label}")
-        # Per Keith: "when I switch the render mode, it doesn't update
-        # the IPL inst file window" - Render and LOD live in the same
-        # merged dropdown, so a render-mode change should refresh the
-        # same table an LOD-mode change already does.
+
         self._refresh_ipl_inst_file_panel()
 
     def _on_col_render_option_toggled(self, setter_name, checked): #vers 3
         """One of the four collision overlay actions in the Render:
-        dropdown menu was toggled (Aug 14 2026, moved here from four
-        separate row-3 checkboxes per Keith: "the 4 col options should
-        be in the Render: dropdown"). setter_name is the matching
-        DFFViewport.set_show_col_* method name (see col_specs above) -
-        one shared handler instead of four near-identical ones, since
-        the only real difference between them is which flag gets set.
-        vp.repaint() forced immediately, same reasoning as
-        _set_world_render_mode.
-
-        Real crash fixed here (Aug 14 2026, Keith's traceback):
-        col_specs originally passed the FLAG name ("show_col_ghosted")
-        instead of the SETTER name ("set_show_col_ghosted") - hasattr
-        was still True (the flag attribute genuinely exists on
-        DFFViewport), so it silently passed the guard below and then
-        tried to call the bool flag's current value as a function -
-        "'bool' object is not callable". callable() (not hasattr)
-        below so the same class of mistake fails loudly/silently-
-        skips instead of reaching a call at all."""
+        dropdown menu was toggled (Aug 14 2026)"""
         vp = getattr(self, 'preview_widget', None)
         setter = getattr(vp, setter_name, None) if vp is not None else None
         if callable(setter):
@@ -25379,14 +22650,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _on_load_generic_txd_clicked(self): #vers 3
         """Load generic.txd and show it in the Textures dock. Looks
         it up in the game's indexed IMG archives only, no loose-file
-        fallback (Aug 1 2026, per Keith: "since we have another
-        generic.txd, just load them both without the fall back, there
-        should be no fallbacks, it should either work or fail" - his
-        own game folder has both "Generic.txd" and "generic.txd" as
-        separate files, and a fallback picking one silently would mask
-        that conflict rather than surfacing it). See _get_generic_
-        textures for the actual fetch logic, shared with the automatic
-        per-IPL preload in _refresh_world_view."""
+        fallback (Aug 1 2026)"""
         if getattr(self, '_model_cache', None) is None:
             QMessageBox.information(self, "Generic.txd", "No world loaded yet.")
             return
@@ -25419,25 +22683,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         in the [IPL] tab, filtered to whichever data type (INST/CULL/
         ZONE) is selected there - one row per instance line, one
         column per field (ID/Model/Interior/PosX,Y,Z/ScaleX,Y,Z/
-        RotX,Y,Z,W). Updates live as different IPL files are clicked,
-        per Keith's request ("each ipl file we press changes the
-        contents in the IPL inst file").
-
-        Replaces the earlier plain read-only QTextEdit (Aug 1 2026,
-        per Keith: "The IPL would need to be in a cells table, so we
-        can highlight what we want to change, rename, prefix, suffix
-        names, move X, Y, Z cords in batches to any location") -
-        editable and multi-selectable, foundation for batch rename/
-        move operations. Cell edits currently only change what's
-        shown here, NOT the actual .ipl file on disk - no write-back
-        infrastructure exists for any file type in Map Workshop yet
-        (see TODO.md), and Keith's own "leaving the ipl untouched"
-        caution on a related point suggests being conservative here
-        until that's explicitly confirmed as wanted.
-
-        The "Ignore Scaling" checkbox (and INST/CULL/ZON/PATH) moved
-        out to their own dedicated dock (Aug 1 2026, per Keith - see
-        _create_ipl_controls_dock)."""
+        RotX,Y,Z,W). Updates live as different IPL files are clicked."""
         panel = QWidget()
         lay = QVBoxLayout(panel)
         lay.setContentsMargins(6, 6, 6, 6)
@@ -25448,7 +22694,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "ID", "Model", "Int",
             "Pos X", "Pos Y", "Pos Z",
             "Scale X", "Scale Y", "Scale Z",
-            "Rot X", "Rot Y", "Rot Z", "Rot W"])
+            "Rot X", "Rot Y", "Rot Z", "Rot W"]) #TODO need to check Rot w.
         table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
         table.setEditTriggers(
@@ -25464,12 +22710,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._ipl_inst_file_table = table
 
         dock = QDockWidget("IPL File Display", self)
-        # objectName kept as the old "IPL Inst File" (Aug 14 2026, per
-        # Keith: "rename 'IPL inst file' to just 'IPL File Display' or
-        # something better") - only the user-visible title changed;
-        # objectName is what Qt's dock-layout save/restore keys off,
-        # so changing it too would silently drop anyone's saved dock
-        # geometry for this panel on next launch.
+
+        # objectName kept as the old "IPL Inst File" (Aug 14 2026)
         dock.setObjectName("IPL Inst File")
         dock.setWidget(panel)
         dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
@@ -25510,12 +22752,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._apply_ipl_visibility_filter(auto_fit=False, clear_display_lists=False)
 
     def _on_lod_test_toggled(self, checked): #vers 1
-        """LOD Test mode on/off - per Keith: "i'd like to add a model
-        switching test where there is a circle around the mouse
-        pointer... in realtime." Wires/unwires the main preview_
-        widget's mouse-move callback; turning it off also clears the
-        circle and restores the normal global LOD mode's filtering
-        (whatever Show Normals/LOD only/Both was set to before)."""
+        """LOD Test mode on/off."""
         vp = getattr(self, 'preview_widget', None)
         if vp is None:
             return
@@ -25536,15 +22773,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         and LOD version depending on whether it's inside or outside
         the circle; a standalone LOD-type instance (draw-distance or
         name based, no paired normal-detail counterpart to switch to)
-        only shows when outside; everything else is unaffected.
+        only shows when outside; everything else is unaffected."""
 
-        Pushes straight to _refresh_world_view rather than going
-        through the full _apply_ipl_visibility_filter wrapper, since
-        that would re-apply the global Show Normals/LOD only/Both mode
-        and undo the per-position switching this is specifically
-        doing instead - and skips the display-list clear for the same
-        real-time-responsiveness reason as every other visibility-only
-        refresh this session."""
         # Y-up viewport local space -> GTA's native Z-up (x,y,z) -
         # same swap _draw_cull_boxes documents in reverse (gx,gy,gz =
         # cx,cz,cy for GTA->viewport; here going the other way).
@@ -25559,18 +22789,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         pairs = getattr(self, '_lod_pairs', None) or {}
         paired_target_ids = {id(v) for v in pairs.values()}
         threshold = self.map_settings.get('lod_draw_dist_threshold')
-        # Bidirectional, based on the current global mode (Aug 1
-        # 2026, per Keith: "LOD test option should work 2 ways, if
-        # normal models are loaded, those in the circle get switch to
-        # LOD, where if Show LOD is set, then in the circle show
-        # normal models") - the circle always shows the *opposite*
-        # detail level from whatever the global Show Normals/LOD only
-        # mode is already displaying everywhere else, so it works as
-        # a live "what would the other detail level look like here"
-        # preview regardless of which mode you started from. 'both'
-        # mode has no meaningful opposite to switch to (both are
-        # already shown everywhere) - inside_shows_lod stays unused
-        # for it, see the branch below.
+
+        # Bidirectional, based on the current global mode (Aug 1 2026)
         global_mode = getattr(self, '_lod_display_mode', 'normal')
         inside_shows_lod = (global_mode == 'normal')
 
@@ -25596,28 +22816,17 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 result.append(pairs[iid] if switch else inst)
             elif self._is_lod_by_draw_distance(inst):
                 # Standalone LOD-type instance, no paired normal-
-                # detail counterpart to switch to - only shows on
-                # whichever side (inside/outside) currently represents
-                # "LOD is being shown here", same either-direction
-                # logic as the paired case above.
+
                 if switch:
                     result.append(inst)
             else:
                 # Standalone normal-type instance, no paired LOD
-                # counterpart to switch to either - always shows,
-                # regardless of the circle, since there's nothing to
-                # substitute it with (matches the pre-bidirectional
-                # behavior for this case exactly).
                 result.append(inst)
 
         self._refresh_world_view(result, auto_fit=False, clear_display_lists=False)
 
     def _start_time_flow(self, play_btn, stop_btn): #vers 1
-        """Start the time-flow timer - per Keith: "we need a [play]
-        and [stop]... we need to impliment movement of time, so we
-        can see the switching of tobjs on the map." Turns the Time
-        switch on automatically if it wasn't already (playing time
-        with the filter off wouldn't show anything changing)."""
+        """Start the time-flow timer."""
         if not self._tobj_time_chk.isChecked():
             self._tobj_time_chk.setChecked(True)
         self._time_flow_timer.start(self._time_flow_interval_ms)
@@ -25632,34 +22841,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         stop_btn.setEnabled(False)
 
     def _on_time_flow_tick(self): #vers 2
-        """One time-flow timer tick - advances the simulated time by
-        self._time_flow_minutes_per_tick minutes (wrapping past
-        midnight automatically, QTime.addSecs handles that), then
-        re-applies the visibility filter so TOBJ switching is visible
-        live rather than only on manual time edits.
-
-        clear_display_lists=False (Aug 1 2026, per Keith: "touching
-        time, tick, 12:00 [Play] Appears to freeze things?") - a tick
-        only changes which TOBJ instances are currently visible, never
-        the set of distinct models that exist in the loaded world.
-        Without this, every single tick (once a second by default)
-        was unconditionally discarding and forcing recompilation of
-        every distinct model's OpenGL display list - for a map with
-        many distinct models, that's exactly the "freeze" Keith saw
-        the moment he pressed Play, not a real limitation of the
-        feature."""
+        """One time-flow timer tick."""
         current = self._tobj_time_spin.time()
         new_time = current.addSecs(self._time_flow_minutes_per_tick * 60)
         self._tobj_time_spin.setTime(new_time)
         self._apply_ipl_visibility_filter(auto_fit=False, clear_display_lists=False)
 
     def _show_time_flow_settings_popup(self): #vers 1
-        """Time flow speed settings - per Keith's TODO item: "Adjustable
-        time flow: 1 min for every Second adjustable." Two settings:
-        how many in-game minutes pass per tick, and how often (in real
-        milliseconds) a tick happens - together these give the "N
-        in-game minutes per M real seconds" rate Keith described,
-        rather than a fixed single ratio."""
+        """Time flow speed settings."""
         dlg = QDialog(self)
         dlg.setWindowTitle("Time Flow Settings")
         lay = QVBoxLayout(dlg)
@@ -25696,10 +22885,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _jump_to_ipl_line(self, source_ipl, line_no): #vers 1
         """Switch Object Browser to the IPL tab, select the instance's
         own source IPL file in IPL Sections, and highlight/scroll to
-        the exact row matching its original file line number - per
-        Keith: "have a show icon, before IPL and before IDE rows, that
-        bring up the IPL /IDE editors, there it says line (343)
-        highlight the line in either editor." """
+        the exact row matching its original file line number."""
         self._on_object_browser_tab_changed('ipl')
         sections_table = getattr(self, '_ipl_sections_table', None)
         if sections_table is None:
@@ -25754,29 +22940,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         """Build the IPL Inst File table from GTA III's own IDE-
         embedded path groups instead of raw IPL text, scoped to
         whichever groups have a real instance placement within this
-        specific IPL (Aug 19 2026 - see the fuller explanation at
-        this method's own call site in _refresh_ipl_inst_file_panel).
-
-        Column layout mirrors IDEPathNode's own real 9-field shape
-        (NodeType, NextNode, IsCrossRoad, XRel, YRel, ZRel, Median,
-        Left, Right) - genuinely different from VC/SA's own path node
-        shape (no Flag1-3, an added IsCrossRoad field VC doesn't
-        have), so this uses its own header set rather than forcing
-        GTA III's real 9 fields into the existing 13-column VC/SA
-        layout. A group-header row repurposes the first 3 columns for
-        (group_type, model_id, model_name) instead of a real node,
-        same bold+tinted styling convention _refresh_ipl_inst_file_
-        panel's own VC-style path rendering already uses to mark a
-        header row as distinct from a node row.
-
-        Deliberately does not set any per-row line_no UserRole data
-        the way the VC-style path rows do - these rows have no
-        corresponding entry in loader.paths at all (they're IDE-
-        sourced, not IPL-sourced), so the existing Edit/Delete/New/
-        Reverse Traffic Flow context-menu actions - all built around
-        resolving a row back to a real loader.paths group - are hidden
-        entirely for this case rather than shown and left to silently
-        fail (see _on_ipl_inst_file_context_menu's own added guard)."""
+        specific IPL (Aug 19 2026)"""
         instances_in_ipl = {inst.model_id for inst in getattr(loader, 'instances', [])
                             if inst.source_ipl == display_name}
         groups = [g for g in getattr(loader, 'ide_paths', [])
@@ -25820,27 +22984,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _populate_auzo_table(self, table, loader, display_name): #vers 1
         """Build the IPL Inst File table from SA's real, already-
-        parsed audio zones for this specific IPL (Aug 20 2026, per
-        Keith: "when auzo is highlighted and audiozon.ipl is loaded,
-        I see no data in the IPL Display" - see the fuller
-        explanation at this method's own call site in _refresh_ipl_
-        inst_file_panel for why this reads loader.auzos directly
-        rather than re-splitting the IPL's own raw text the way
-        cull/zone/occl below still do).
-
-        One unified column set covers both real auzo shapes at once -
-        a cube entry's own X2/Y2/Z2 columns are populated and its
-        Radius column left blank; a sphere entry's own Radius column
-        is populated (shown under the shared "X2 / Radius" header) and
-        its Y2/Z2 columns left blank - rather than needing two
-        entirely separate table layouts for what's still fundamentally
-        one section type. Environment/Music columns read directly
-        from AuzoEntry's own already-real environment_type/music_
-        description properties (the AUZO_TYPES lookup this session
-        already built and verified against Keith's own real Audiozon.
-        ipl data) - blank for a sound_id with no documented entry (a
-        real, honest "no background sound" zone, not a missing
-        lookup)."""
+        parsed audio zones for this specific IPL (Aug 20 2026)"""
         auzos = [a for a in getattr(loader, 'auzos', [])
                 if a.source_ipl == display_name]
 
@@ -25879,12 +23023,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         is disabled), and parse it into the cells table - one row per
         instance line, split on commas into its 13 fields.
 
-        Guarded by self._ipl_inst_file_mode (Aug 1 2026, per Keith:
-        selecting the IDE tab should turn this same shared table into
-        "IDE Objects" instead - see _refresh_ide_objects_panel) - does
-        nothing while that mode is active, so switching back to IPL
-        doesn't get silently overwritten by a stale IDE-mode refresh
-        call landing after the mode switch."""
+        Guarded by self._ipl_inst_file_mode (Aug 1 2026)"""
         if getattr(self, '_ipl_inst_file_mode', 'ipl') != 'ipl':
             return
         table = getattr(self, '_ipl_inst_file_table', None)
@@ -25903,63 +23042,18 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         display_name = item.data(Qt.ItemDataRole.UserRole)
         stem = getattr(self, '_ipl_display_to_stem', {}).get(display_name)
 
-        # GTA III's own IDE-embedded paths (Aug 19 2026, per Keith:
-        # "showing paths in GTA3 viewpoint works, but the path data
-        # exists in IDE files. We have an empty (No paths) shown in
-        # the IPL File Display. For GTA3 only, show the paths in the
-        # IDE files"). Real cause of the empty display: this whole
-        # panel reads a selected IPL's own raw TEXT for whatever
-        # section is active - correct for every other game and every
-        # other section type, but genuinely wrong for GTA III's own
-        # paths specifically, which live in a completely different
-        # file (IDE, not IPL) and attach to an object by model_id
-        # rather than belonging to any specific IPL file at all (see
-        # IDEPathGroup's own docstring). A GTA III IPL file's raw text
-        # never has a "path" section to find, by design, not by bug -
-        # so this branch bypasses the raw-text approach entirely for
-        # this one specific case and reads loader.ide_paths instead,
-        # scoped to whichever groups have at least one real instance
-        # placement within THIS specific IPL (source_ipl == display_
-        # name) - the same "which IPL does this group's real-world
-        # placement belong to" question _refresh_path_visualization
-        # already answers when resolving these groups for the 3D view.
+        # GTA III's own IDE-embedded paths (Aug 19 2026)
         if (getattr(self, '_ipl_data_type', 'inst') == 'path'
                 and getattr(loader, 'game', None) == 'gta3'):
             self._populate_gta3_ide_paths_table(table, loader, display_name)
             return
 
-        # SA audio zones (Aug 20 2026, per Keith: "when auzo is
-        # highlighted and audiozon.ipl is loaded, I see no data in
-        # the IPL Display"). Bypasses the raw-text-splitting approach
-        # below entirely, the same way GTA III's own IDE-paths do just
-        # above - a real auzo line's own field count genuinely varies
-        # by shape (7 for sphere, 9 for cube), so splitting the raw
-        # text on commas at a fixed column count the way cull/zone/
-        # occl below already do would either truncate a cube line or
-        # leave a sphere line's own trailing columns blank in a
-        # misleading way. Reads the already-parsed, structured loader.
-        # auzos directly instead (each real AuzoEntry already knows
-        # its own shape, and already has environment_type/music_
-        # description as real properties) - the same "read the
-        # already-parsed data, not raw text" approach already used for
-        # binary IPLs just below, for the same underlying reason.
+        # SA audio zones (Aug 20 2026)
         if getattr(self, '_ipl_data_type', 'inst') == 'auzo':
             self._populate_auzo_table(table, loader, display_name)
             return
 
-        # Binary IPLs (Aug 1 2026, per Keith: "when clicking on a
-        # binary ipl, I should still beable to see the ipl lines
-        # aswell, loading should be the same behavour as the data
-        # ipls") - a binary IPL's stem is a synthetic "img:..."
-        # string with no real entry in loader.available_ipls (there's
-        # no raw text file to read the way a text IPL has), so this
-        # fell through to an empty table every time before. Auto-loads
-        # it here if not already loaded (matching how simply selecting
-        # a text IPL "just works" without a separate load step), then
-        # builds the table directly from its actual parsed instances
-        # in self._all_instances rather than reading any file - same
-        # 13-column layout as the text-IPL path below, just a
-        # different data source.
+        # Binary IPLs (Aug 1 2026)
         if stem is not None and stem.startswith('img:'):
             if display_name not in getattr(self, '_loaded_binary_ipls', set()):
                 archive_path = getattr(self, '_standalone_binary_ipl_archives', {}).get(display_name)
@@ -25991,16 +23085,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         data_type = getattr(self, '_ipl_data_type', 'inst')
         section_lines = self._extract_ipl_section_text(raw_text, data_type)
         if section_lines is None:
-            # Aug 14 2026 fix, per Keith: "When I click paths.ipl or
-            # any other paths file, no listing is shown in 'IPL inst
-            # file' pane" - a file with no matching section for the
-            # currently active tab (e.g. a VC paths.ipl genuinely has
-            # no "inst" section at all - only "path") used to leave
-            # the table silently empty with zero explanation, easy to
-            # read as "broken" rather than "correct, wrong tab
-            # selected". A single placeholder row makes the actual
-            # state visible instead of indistinguishable from a bug.
-            table.setRowCount(1)
+            # Aug 14 2026 fix
             table.setColumnCount(1)
             table.setHorizontalHeaderLabels([""])
             placeholder = QTableWidgetItem(
@@ -26009,33 +23094,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             table.setItem(0, 0, placeholder)
             return
 
-        # Per-section column headers (Aug 1 2026, per Keith: "in IPL
-        # Controls we have the labels, made into tabs... but when
-        # loading SA maps, there would be more tabs" - grge/enex now
-        # have real parsed field layouts, verified against Keith's
-        # own real example data, so the table adapts to show the
-        # right columns for whichever section is selected rather than
-        # staying fixed at inst's own 13-column layout).
-        #
-        # 'path' (Aug 14 2026 fix - was missing entirely, silently
-        # falling back to inst's 13-column ID/Model/Int/Pos.../Rot...
-        # layout, which doesn't remotely match a path section's real
-        # two different line shapes) - columns mirror the raw on-disk
-        # field layout for a node line (Type, Next, 0/unused, X, Y, Z,
-        # Median, Left, Right, Flag1-3, per Project Cerbera's VC path
-        # doc, the same source gta_dat_parser.py's own verified
-        # PathNode/_parse_path_node already use), plus a 13th "Flag4?"
-        # column (Aug 15 2026, per Keith's real paths.ipl/paths2-5.ipl
-        # uploads: every node line genuinely has 13 comma-separated
-        # values, not the 12 the documented spec lists - the verified
-        # parser already tolerates this by only reading the first 12
-        # and ignoring the rest, but this raw display table shouldn't
-        # silently hide a value that's actually in the file just
-        # because nobody's identified what it means yet). A group header line
-        # only has 2 fields and lands in columns 0-1 (labelled to
-        # cover both meanings), same generic per-line rendering as
-        # every other section - see the is_group_header styling below
-        # for how the two line shapes are told apart visually.
+        # Per-section column headers (Aug 1 2026)
         headers_by_type = {
             'inst': ["ID", "Model", "Int", "Pos X", "Pos Y", "Pos Z",
                      "Scale X", "Scale Y", "Scale Z", "Rot X", "Rot Y", "Rot Z", "Rot W"],
@@ -26047,48 +23106,17 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                      "Sky", "Num Peds", "Time On", "Time Off"],
             'path': ["Type / Group A", "Next / Group B", "Zero", "X", "Y", "Z",
                      "Median", "Left", "Right", "Flag1", "Flag2", "Flag3", "Flag4?"],
-            # 'zone' (Aug 16 2026 fix, per Keith: "just need to wire
-            # the zon files, so I can click and view them") - was
-            # missing entirely, same gap 'path' had before it was
-            # fixed - silently fell back to inst's wrong 13-column
-            # layout. Columns mirror _parse_zone's own raw field
-            # order (Name, Type, MinX/Y/Z, MaxX/Y/Z, Island[,
-            # TextKey]), verified against Keith's real info.zon/
-            # map.zon/navig.zon.
+            # 'zone' (Aug 16 2026)(
             'zone': ["Name", "Type", "Min X", "Min Y", "Min Z",
                      "Max X", "Max Y", "Max Z", "Island", "Text Key"],
-            # 'cull' (Aug 16 2026 fix, per Keith: "continue with the
-            # cull files next") - was missing entirely, same gap
-            # 'path'/'zone' both had before they were fixed - silently
-            # fell back to inst's wrong 13-column layout. Columns
-            # mirror the real, corrected CullEntry field order
-            # (CenterX/Y/Z, X1/Y1/Z1, X2/Y2/Z2, Flags, WantedLevelDrop
-            # - see CullEntry's own docstring for the "was a wrong
-            # 7-field center/width/height guess" story), verified
-            # against Keith's real cull.ipl.
+            # 'cull' (Aug 16 2026)
             'cull': ["Center X", "Center Y", "Center Z",
                      "X1", "Y1", "Z1", "X2", "Y2", "Z2",
                      "Flags", "Wanted Drop"],
-            # 'occl' (Aug 16 2026, continuing the cull/zon viewport
-            # work) - was missing entirely, same gap path/zone/cull
-            # all had. Columns mirror OcclEntry's field order
-            # (MidX/Y, BottomZ, WidthX/Y, Height, Rotation), verified
-            # against Keith's real occlu.ipl.
+            # 'occl' (Aug 16 2026)
             'occl': ["Mid X", "Mid Y", "Bottom Z",
                      "Width X", "Width Y", "Height", "Rotation"],
-            # 'auzo' (Aug 20 2026, per Keith: "when auzo is highlighted
-            # and audiozon.ipl is loaded, I see no data in the IPL
-            # Display" - real cause: this tab was still marked
-            # disabled with a stale "Not parsed yet" tooltip from
-            # before auzo actually got built earlier this session, so
-            # there was never any way to select it here at all).
-            # Unlike cull/zone/occl's own fixed-width layouts, a real
-            # auzo line is genuinely variable-width (7 fields for a
-            # sphere zone, 9 for a cube one - see AuzoEntry's own
-            # docstring) - one unified column set covers both shapes
-            # at once (Radius left blank for a cube entry, X2/Y2/Z2
-            # left blank for a sphere one, rather than forcing either
-            # shape into the other's own column count).
+            # 'auzo' (Aug 20 2026)
             'auzo': ["Name", "Sound ID", "Switch", "Shape",
                      "X1", "Y1", "Z1", "X2 / Radius", "Y2", "Z2",
                      "Environment", "Music / Ambience"],
@@ -26102,16 +23130,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         ignore_scaling = getattr(self, '_ignore_scaling_chk', None)
         ignore_scaling = ignore_scaling.isChecked() if ignore_scaling is not None else False
 
-        # LOD display mode filter (Aug 1 2026, per Keith: "I have show
-        # norm selected, so it should ignore any LOD suffick files") -
-        # this table previously showed every raw line regardless of
-        # the Render/LOD dropdown's LOD setting entirely - only the
-        # 3D world view (_apply_lod_filter, working on parsed
-        # IPLInstance objects) respected it. Applied here directly on
-        # the raw text fields instead (model name is field index 1 in
-        # the 13-column inst layout), matching the same "starts with
-        # lod" convention resolve_lod_pairs already uses for GTA3/VC/
-        # SA name-based pairing.
+        # LOD display mode filter (Aug 1 2026)
         lod_mode = getattr(self, '_lod_display_mode', 'normal')
         threshold = self.map_settings.get('lod_draw_dist_threshold')
         loader = getattr(self, '_world_loader', None)
@@ -26131,31 +23150,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if not line or low in (data_type, 'end'):
                 continue
             fields = [f.strip() for f in line.split(',')]
-            # Path section: group-header line vs indented sub-node
-            # line (Aug 14 2026 fix) - same distinction gta_dat_
-            # parser.py's own real parser makes ("A raw (pre-.strip())
-            # leading tab or space marks a sub-node line... exactly
-            # the distinction that .split('#')[0].strip() above
-            # already erased, so check the original raw text
-            # directly"). Needed here too, for the same reason: a
-            # group header (2 fields: header_a/header_b) and a node
-            # line (up to 12 fields) are structurally different rows,
-            # not just short/long versions of the same thing.
+
+            # Path section: group-header line vs indented sub-node line (Aug 14 2026)
             is_group_header = data_type == 'path' and raw_line[:1] not in ('\t', ' ')
             if data_type == 'inst' and fields and loader is not None:
-                # TOBJ handling (Aug 1 2026, per Keith: "have an
-                # option to toggle showing tobj [Show Tobj]... timed
-                # objects will be shown, depending on there time
-                # values. tojb can be shown along side the inst,
-                # towards the botton, keeping the placement order of
-                # the ipl") - a TOBJ-type instance never joins the
-                # regular data_lines list in its original file
-                # position; unchecked, it's dropped entirely, checked,
-                # it's collected here and appended after the main loop
-                # instead, filtered to only the ones currently active
-                # for the simulated hour. Regular (non-TOBJ) rows are
-                # completely unaffected either way, keeping their own
-                # original relative order exactly as the file has it.
+                # TOBJ handling (Aug 1 2026)
                 try:
                     tobj_obj = loader.get_object(int(fields[0]))
                 except ValueError:
@@ -26177,13 +23176,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if data_type == 'inst' and lod_mode != 'both':
                 model_name = fields[1] if len(fields) > 1 else ''
                 is_lod = model_name.lower().startswith('lod')
-                # Draw-distance-based LOD check too (Aug 1 2026, per
-                # Keith's real LAe.ide: "they dont follow the same
-                # pattern as those prefixed as LODelname... the draw
-                # distance is higher than 300 to be an LOD") - the
-                # name-prefix check alone misses real examples like
-                # laeLODds03, where "LOD" sits mid-name rather than as
-                # a prefix.
+                # Draw-distance-based LOD check too (Aug 1 2026)
                 if not is_lod and loader is not None and fields:
                     try:
                         obj = loader.get_object(int(fields[0]))
@@ -26210,11 +23203,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 if c == 0:
                     item.setData(Qt.ItemDataRole.UserRole, line_no)
                 if is_group_header:
-                    # Path group-header row (2 fields, not a node) -
-                    # bold + a faint tint so it reads as a distinct
-                    # "this line starts a new group" marker rather
-                    # than a node row that just happens to have 10
-                    # blank trailing columns (Aug 14 2026 fix).
+                    # Path group-header row (2 fields, not a node)
                     font = item.font()
                     font.setBold(True)
                     item.setFont(font)
@@ -26222,21 +23211,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 table.setItem(r, c, item)
 
     def _on_ipl_inst_file_context_menu(self, pos): #vers 2
-        """Right-click the IPL Inst File table - Copy (selected cells,
-        tab-separated per row, matching how spreadsheets paste), Copy
-        Row(s) (whole lines, comma-separated, matching the original
-        .ipl line format) to the clipboard, Info (opens the same edit
-        panel double-clicking the Model cell already does), and Show
-        Textures (loads that row's model's textures into the Textures
-        dock, same as clicking it in the Models panel). Per Keith:
-        "have right-click options to copy to the clipboard; we can
-        start to add editing options" and later "right click the file
-        for info, show textures, load into model workshop, or edit
-        the model in map editor" - the first two ("load into model
-        workshop"/"edit the model in map editor") need their exact
-        intended behaviour clarified before building, tracked in
-        TODO.md; Info and Show Textures were straightforward enough
-        to add directly."""
+        """Right-click the IPL Inst File table."""
         table = getattr(self, '_ipl_inst_file_table', None)
         if table is None:
             return
@@ -26252,17 +23227,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         show_textures_action = menu.addAction("Show Textures")
         menu.addSeparator()
         save_as_action = menu.addAction("Save IPL Data As...")
-        # Path group editing (Aug 16 2026, per Keith: "we need to add
-        # edit functions for connecting, moving, adding, or deleting
-        # nodes, a dialog like the object editor") - only offered
-        # when the currently active tab is actually PATH, since a row
-        # here only maps to a real PathGroup in that mode. Also
-        # excludes GTA III worlds (Aug 19 2026) - the PATH tab there
-        # shows loader.ide_paths-derived rows instead (see _populate_
-        # gta3_ide_paths_table), which have no corresponding entry in
-        # loader.paths at all for these actions to ever resolve
-        # against - showing them here would just be a guaranteed
-        # "Couldn't find a path group for this row" every time.
+        # Path group editing (Aug 16 2026)
         edit_path_group_action = None
         delete_path_group_action = None
         new_path_group_action = None
@@ -26274,13 +23239,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             edit_path_group_action = menu.addAction("Edit Path Group...")
             delete_path_group_action = menu.addAction("Delete Path Group")
             new_path_group_action = menu.addAction("New Path Group...")
-            # Reverse Traffic Flow (Aug 18 2026, per Keith: "Path
-            # right-click option, reverse traffic flow: I think we
-            # just flip the nodes. needs looking at") - resolved and
-            # checked for eligibility HERE, before the menu is even
-            # shown, so it can correctly disable itself with an
-            # explanatory tooltip rather than silently failing or
-            # corrupting data if clicked on an ineligible group.
+            # Reverse Traffic Flow (Aug 18 2026)
             reverse_flow_action = menu.addAction("Reverse Traffic Flow")
             resolved_group = self._resolve_path_group_for_row(row)
             if resolved_group is not None and self._is_path_group_simple_chain(resolved_group):
@@ -26370,14 +23329,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _find_path_group_for_line(self, display_name, line_no): #vers 1
         """Find the real, live PathGroup a clicked IPL File Display
         row belongs to, given the currently-selected file's name and
-        that row's own source-file line number (Aug 16 2026, for the
-        path-group editor's entry point). A path group's node rows
-        don't carry their own group reference - only line_no, per-line
-        - so this finds it the same way the file itself does: the
-        group whose header line is the closest one at-or-before this
-        row's line, among groups from this same file. Matches a
-        group-header row against itself correctly too (its own
-        line_no equals its PathGroup.line_no exactly)."""
+        that row's own source-file line number (Aug 16 2026)"""
         loader = getattr(self, '_world_loader', None)
         if loader is None:
             return None
@@ -26388,15 +23340,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         return max(candidates, key=lambda g: g.line_no)
 
     def _resolve_path_group_for_row(self, row): #vers 1
-        """Shared resolution helper (Aug 18 2026) - extracted from what
-        used to be duplicated identically inside both _edit_path_
-        group_for_row and _delete_path_group_for_row: resolves the
-        currently-selected file from the IPL Sections table and the
-        given row's own stored line_no to find the real, editable
-        PathGroup object via _find_path_group_for_line. Returns None
-        (and sets a status message) if anything along the way can't
-        be resolved, same behaviour both original call sites already
-        had individually."""
+        """Shared resolution helper (Aug 18 2026)"""
         table = getattr(self, '_ipl_inst_file_table', None)
         if table is None:
             return None
@@ -26417,23 +23361,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _is_path_group_simple_chain(self, group): #vers 1
         """Whether every real node in this group has at most one
-        other node pointing to it (Aug 18 2026, per Keith: "Path
-        right-click option, reverse traffic flow: I think we just
-        flip the nodes. needs looking at" - the actual investigation
-        that request asked for).
-
-        Checked against 2032 real path groups from Keith's own
-        pathslc.ipl before trusting this as the right eligibility
-        test: 937 of them (~46%) have at least one node with MULTIPLE
-        incoming edges (up to 4 seen) - a junction where several
-        lanes merge into one. Since each node has exactly one next_id
-        slot, that merge node can't become a split point after
-        reversal - the format has no way to represent "one node, many
-        next nodes". A naive reversal would silently corrupt close to
-        half of all real groups. Genuinely reversible only when every
-        node has at most one incoming edge (a simple chain, no
-        merging) - this is that check, gating the menu action's own
-        enabled state rather than reversing regardless and hoping."""
+        other node pointing to it (Aug 18 2026)"""
         n = len(group.nodes)
         incoming = {}
         for node in group.nodes:
@@ -26445,28 +23373,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _reverse_path_group_traffic_flow(self, group): #vers 1
         """Reverse a path group's direction of travel by swapping
-        every edge (Aug 18 2026, per Keith's own "I think we just
-        flip the nodes" hunch - confirmed correct, for the eligible
-        case). Only ever called after _is_path_group_simple_chain has
-        confirmed this group has no merge points - for a simple
-        chain, reversing means: for every original edge (A -> B), the
-        reversed graph has (B -> A) instead; a node that had no
-        outgoing edge (next_id == -1, the original end of the chain)
-        becomes the new start; a node that had no incoming edge (the
-        original start) becomes the new end (next_id == -1).
-
-        node_type is deliberately left untouched - Internal vs
-        External is about whether a node links within this group or
-        connects to another group by shared position, independent of
-        which direction traffic flows through it. Only next_id
-        assignments change.
-
-        Verified this is a true involution (reversing twice restores
-        the exact original graph, for every node that actually
-        matters - Null slots' own unused next_id values aren't
-        preserved bit-for-bit, but nothing anywhere in this app ever
-        reads them, by design) against a real simple-chain group from
-        Keith's own pathslc.ipl before trusting it on live data."""
+        every edge (Aug 18 2026)"""
         n = len(group.nodes)
         new_next = [-1] * n
         for i, node in enumerate(group.nodes):
@@ -26482,14 +23389,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _edit_path_group_for_row(self, row): #vers 1
         """Open the Path Group Editor for whichever path group the
-        given IPL File Display row belongs to (Aug 16 2026, per
-        Keith: "we need to add edit functions for connecting, moving,
-        adding, or deleting nodes, a dialog like the object editor").
-        Resolves the currently-selected file from the IPL Sections
-        table (same lookup Save IPL Data As already uses) and the
-        row's own stored line_no (set on every row's column-0 item
-        during _refresh_ipl_inst_file_panel) to find the real,
-        editable PathGroup object via _find_path_group_for_line."""
+        given IPL File Display row belongs to (Aug 16 2026)"""
         group = self._resolve_path_group_for_row(row)
         if group is None:
             return
@@ -26498,16 +23398,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _delete_path_group_for_row(self, row): #vers 2
         """Delete whichever path group the given IPL File Display row
-        belongs to, entirely (Aug 16 2026, per Keith: "we don't have
-        the ability to edit the paths, delete, add, make paths from
-        scratch"). Same row-to-group resolution as _edit_path_group_
-        for_row (now shared via _resolve_path_group_for_row), but
-        removes the group from loader.paths outright instead of
-        opening it for editing - a real removal, not just clearing it
-        to Null nodes the way the Path Group Editor's own per-row
-        Delete already could. Live in-memory only, same as every
-        other edit this app makes - Save IPL Data As... is how a
-        deletion gets written back out to a real file."""
+        belongs to, entirely (Aug 16 2026)"""
         group = self._resolve_path_group_for_row(row)
         if group is None:
             return
@@ -26520,27 +23411,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _new_path_group(self): #vers 1
         """Create a brand-new, empty path group for the currently-
         selected IPL, then open it straight in the Path Group Editor
-        to fill in (Aug 16 2026, per Keith: "we don't have the
-        ability to edit the paths, delete, add, make paths from
-        scratch"). All 12 node slots start as Null (matching the
-        Path Group Editor's own convention for an empty slot),
-        positioned at the viewport's current focus point (self.
-        preview_widget's own pan centre - a brand new group appearing
-        at the world origin, possibly far from anything visible,
-        would be much harder to find than one appearing right where
-        the user is already looking).
-
-        Real limitation, disclosed rather than silently hidden: the
-        IPL File Display table for the PATH tab is built from the
-        original file's raw text (_extract_ipl_section_text), not
-        from live PathGroup objects - a brand-new, purely in-memory
-        group has no corresponding raw text, so it won't appear as a
-        row there until saved out (Save IPL Data As... already
-        covers the path section) and the file reloaded. It DOES
-        appear in the 3D viewport immediately, since path rendering
-        reads loader.paths directly, not raw text - and it's fully
-        editable in the Path Group Editor dialog this opens
-        immediately after creating it."""
+        to fill in (Aug 16 2026)"""
         loader = getattr(self, '_world_loader', None)
         if loader is None:
             return
@@ -26576,16 +23447,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         _on_ipl_model_row_selected, just entered from the IPL Inst
         File table's right-click menu instead of the Models panel.
 
-        Fixed (Aug 1 2026, per Keith: "Right-click on the model > Show
-        textures brings nothing up nothing, i was expecting to see
-        tiles, or something telling me there missing") to use the same
-        robust IMG-then-loose-file fallback
-        (_get_txd_textures) the generic.ide fix already
-        uses, instead of a plain model_cache.get_textures() call that
-        silently returns nothing on failure with zero indication why -
-        his own real example (b_hse_pier, TXD "boathouse") hit exactly
-        this. Now shows a clear message either way instead of just
-        leaving the table empty with no explanation."""
+        Fixed (Aug 1 2026)"""
         loader = getattr(self, '_world_loader', None)
         model_cache = getattr(self, '_model_cache', None)
         tex_list = getattr(self, '_tex_list', None)
@@ -26633,12 +23495,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _on_ipl_inst_file_cell_clicked(self, row, col): #vers 1
         """Single-clicking any cell in a row centers the viewport on
-        that row's real instance - per Keith: "When I click any line
-        in the IPL inst file, it should take me to the object in the
-        viewpoint." Any column (not just Model, unlike the existing
-        double-click handler below, which also opens the edit panel -
-        a heavier action reserved for a more deliberate double-click,
-        not every single click)."""
+        that row's real instance."""
         match = self._find_instance_for_ipl_inst_file_row(row)
         if match is not None:
             self._center_viewport_on_instance(match)
@@ -26647,11 +23504,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _on_ipl_inst_file_cell_double_clicked(self, row, col): #vers 2
         """Double-clicking the Model column (1) finds that row's real
         instance and jumps the viewport to it + opens its edit panel,
-        matching double-clicking a row in the Instance List - per
-        Keith: "Clicking on the model name in IPL Inst File brings up
-        the model in the viewport and shows the Object Editor
-        Dialogue." Other columns keep the normal cell-editing
-        behaviour (this table's EditTrigger), untouched."""
+        matching double-clicking a row in the Instance List."""
         if col != 1:
             return
         match = self._find_instance_for_ipl_inst_file_row(row)
@@ -26665,17 +23518,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         instance (existing, ported code) only ever updated the
         Map-specific _world_panes, which this build doesn't use (see
         CHANGELOG.md - "keep using Model Workshop's existing DFF
-        viewport"), so it never actually moved anything visible here.
-
-        Zoom distance now user-configurable (Aug 1 2026) via
-        self._goto_zoom_distance, defaulting to 40.0 - the value
-        Keith settled on earlier ("the zoom in is too strong, I have
-        to zoom out alot to see the object", bumped from an original
-        15). Exposed as a setting in Settings > Navigation (moved
-        there from a standalone Nav popup) rather than staying a
-        fixed value for everyone/every object size, per the TODO item
-        asking for exactly that. Still not scaled to the actual
-        object's own size - a further refinement, not done here."""
+        viewport"), so it never actually moved anything visible here."""
         vp = getattr(self, 'preview_widget', None)
         if vp is None:
             return
@@ -26691,20 +23534,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _on_world_instance_picked(self, index): #vers 2
         """Called by DFFViewport.mouseDoubleClickEvent when the user
-        double-clicks an object in the 3D world view - Aug 1 2026, per
-        Keith: "im trying to select a tree double clicking on it, so I
-        can see its edit dialog window." Maps the picked entry's index
-        back to its real IPLInstance (each entry in
-        preview_widget._world_instances carries one via 'instance',
-        added in _refresh_world_view) and opens the same edit
-        panel/centering flow the IPL Inst File table's double-click
-        already uses, for one consistent way to select-and-inspect an
-        instance regardless of which panel you click it from.
-
-        Also highlights the instance's row in the IPL Inst File list
-        (Aug 1 2026, per Keith: "when selecting and viewing a single
-        object, this should be highlighted in the IPL Inst file
-        list")."""
+        double-clicks an object in the 3D world view - Aug 1 2026)"""
         vp = getattr(self, 'preview_widget', None)
         if vp is None or not (0 <= index < len(vp._world_instances)):
             return
@@ -26718,12 +23548,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         """Highlight one instance's row in the IPL Inst File table,
         switching IPL Sections/the shown IPL first if the instance
         belongs to a different one than what's currently displayed -
-        Aug 1 2026, per Keith's request that picking an object (e.g.
-        via double-click in the viewport) highlights it in the list
-        too, not just opening the edit dialog. inst.source_ipl matches
-        the display name stored on each IPL Sections row (both are the
-        IPL's basename, e.g. "docks.ipl" - confirmed against how
-        self._ipl_display_to_stem itself is built)."""
+        Aug 1 2026)"""
         sections_table = getattr(self, '_ipl_sections_table', None)
         table = getattr(self, '_ipl_inst_file_table', None)
         if sections_table is None or table is None:
@@ -26755,12 +23580,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _extract_ipl_section_text(self, raw_text, section_name): #vers 2
         """Extract just one named section's lines (between the section
         keyword and its "end") from a raw IPL file's text, tracking
-        each line's real 1-based file line number (Aug 1 2026, needed
-        for the Item Editor Dialog's "Show" jump-to-line buttons - see
-        _jump_to_ipl_line) - returns a list of (line_no, raw_line)
-        tuples, or None if that section isn't present at all (falls
-        back to showing the whole file elsewhere, rather than an
-        empty/misleading result)."""
+        each line's real 1-based file line number (Aug 1 2026)"""
         lines = raw_text.splitlines()
         out = []
         in_section = False
@@ -26782,10 +23602,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _apply_compact_table_style(self, table): #vers 1
         """Apply the same compact row/header height Object Browser
         uses (font-metric-based: text height + 2px, not a hardcoded
-        guess) to a table in one of the merged tabs - per Keith's
-        report that the new tabs' header cells were taller than Object
-        Browser's own. Reused instead of duplicating this logic in
-        every tab's own creation method."""
+        guess) to a table in one of the merged tabs."""
         from PyQt6.QtGui import QFontMetrics
         row_h = QFontMetrics(table.font()).height() + 2
         table.verticalHeader().setVisible(False)
@@ -26797,14 +23614,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _create_ide_tab(self): #vers 2
         """[IDE] tab content, matching MooMapper's own "Object
-        Definition" tab - lists every IDE file the .dat references
-        (real data, drawn from GTAWorldLoader.load_log, which already
-        tracks every IDE path encountered during loading), paths
-        shortened relative to the game root. Clicking a row previews
-        that file's real content below, mirroring the IPL tab's
-        click-to-preview behaviour (per Keith's request that IDE files
-        work "like the ipl links"). Edit/Save are honest stubs - no
-        write-back infrastructure exists for any file type yet."""
+        Definition" tab."""
         panel = QWidget()
         lay = QVBoxLayout(panel)
         lay.setContentsMargins(1, 1, 1, 1)
@@ -26873,9 +23683,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _refresh_ide_tab(self, loader): #vers 2
         """Populate the IDE file list - paths shortened relative to the
-        game root folder (per Keith: "start from the game root folder
-        to shorten the paths"), matching how IPL Sections already
-        shows short names rather than full absolute paths."""
+        game root folder."""
         table = getattr(self, '_ide_tab_table', None)
         if table is None:
             return
@@ -26896,13 +23704,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._ide_tab_paths[i] = path
 
     def _on_ide_tab_row_clicked(self, row, col): #vers 2
-        """Preview the clicked IDE file's real raw text content - per
-        Keith's request that IDE files work like IPL files (click to
-        preview), mirroring _refresh_ipl_inst_file_panel's approach:
-        re-read directly from disk each time rather than reconstructed
-        from parsed data. Also refreshes the shared IDE Objects table
-        (Aug 1 2026) if that mode is currently active - matches how
-        clicking an IPL Sections row refreshes IPL Inst File."""
+        """Preview the clicked IDE file's real raw text content."""
         text_widget = getattr(self, '_ide_tab_preview', None)
         path = getattr(self, '_ide_tab_paths', {}).get(row)
         if text_widget is None or path is None:
@@ -26920,22 +23722,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         shared cells table (self._ipl_inst_file_table, currently
         titled "IDE Objects") - one row per entry line, same approach
         as _refresh_ipl_inst_file_panel: re-read raw text from disk,
-        split each real data line on commas. Aug 1 2026, per Keith:
-        "when selecting the IDE tab, the IPL inst file, turns into IDE
-        Objects, and displays the IDE entries in cells just like the
-        IPLs."
-
-        Unlike IPL's INST/CULL/ZONE (each a fixed 13 fields), IDE has
-        several different section types (objs/tobj/cars/peds/anim/
-        weap/txdp/2dfx/hier, etc.) with genuinely different field
-        counts each - rather than building a separate fixed column
-        schema per section type, this shows every real data line as
-        its own row with however many comma-separated fields it
-        actually has, column headers just numbered ("Field 1", "Field
-        2", ...) up to the widest row found. Section header lines
-        (e.g. "objs", "tobj") and "end" are skipped, matching the
-        same detection the real IDE parser uses (DATParser.parse_ide -
-        any short comma-free lowercase token, plus "end")."""
+        split each real data line on commas. Aug 1 2026)"""
         import re
         table = getattr(self, '_ipl_inst_file_table', None)
         path = getattr(self, '_ide_tab_paths', {}).get(row)
@@ -27012,12 +23799,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         load_btn.setStyleSheet(_compact_18)
         load_btn.clicked.connect(lambda: self._load_game_dat_file())
 
-        # Recent files dropdown (Aug 1 2026, per Keith: "when loading
-        # Dat files, standalone, remember past files") - a separate
-        # button rather than attaching a menu to load_btn itself,
-        # since QPushButton.setMenu() makes the whole button open the
-        # menu on click, which would override Load's own "open file
-        # dialog" click behaviour rather than sitting alongside it.
+        # Recent files dropdown (Aug 1 2026)
         recent_btn = QPushButton("Recent")
         recent_btn.setToolTip("Recently loaded .dat files")
         recent_btn.setFixedHeight(18)
@@ -27241,27 +24023,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         visibility - plain item click rather than a button, so there's
         no button widget/chrome to size or pad. Clicking anywhere else
         on the row just selects it, which is enough to refresh the IPL
-        Inst File panel below (per Keith's request that pressing any
-        IPL file updates that panel's content, independent of
-        toggling visibility).
-
-        With lazy IPL loading, toggling to visible for the first time
-        also triggers the actual on-demand load of that IPL's content
-        (_ensure_ipl_loaded) - matching MooMapper's model of not
-        touching an IPL until the user asks for it.
-
-        Re-entrancy guarded (Aug 1 2026, Keith's report: "wired
-        cycling loop in the ipl inst tap when trying to load ipls") -
-        _ensure_ipl_loaded's own _preload_world_assets shows a
-        QProgressDialog whose setValue() calls processEvents()
-        internally to keep the UI responsive during a fast load; with
-        setMinimumDuration(500), that dialog often never actually
-        becomes visible/modal for a quick preload, so processEvents()
-        still pumps the event queue with no real modal blocking in
-        effect - a queued duplicate click event could re-enter this
-        same handler mid-flight, before the first call has finished
-        toggling state, producing exactly this kind of repeated/
-        cycling behaviour."""
+        Inst File panel below)"""
         if getattr(self, '_ipl_cell_click_in_progress', False):
             return
         self._ipl_cell_click_in_progress = True
@@ -27277,35 +24039,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 new_hidden = not hidden
                 if not new_hidden:
                     # Disable the whole table for the duration of the
-                    # actual load (Aug 1 2026, per Keith's crash:
-                    # "RuntimeError: wrapped C/C++ object of type
-                    # QTableWidgetItem has been deleted", plus "there
-                    # is a massive bottleneck on loading") - the
-                    # _ipl_cell_click_in_progress flag above only ever
-                    # guarded against re-entering *this* method, not
-                    # against a right-click (a different, unguarded
-                    # handler, _on_ipl_sections_context_menu) firing
-                    # while a slow load is still running and rebuilding
-                    # the table's rows underneath it. A disabled
-                    # QTableWidget receives no mouse events at all,
-                    # closing that whole class of race regardless of
-                    # which handler the click would have gone through.
+                    # actual load (Aug 1 2026)
                     table.setEnabled(False)
                     try:
                         self._ensure_ipl_loaded(ipl_name)
                     finally:
                         table.setEnabled(True)
                     # Re-locate the row by name, not the original row
-                    # index (Aug 1 2026, same crash) - _ensure_ipl_
-                    # loaded's auto-stream-loading calls _rebuild_ipl_
-                    # sections_rows() internally, which replaces every
-                    # row's items from scratch; the `item`/`row`
-                    # captured before this call are genuinely stale
-                    # afterward, not just theoretically at risk from
-                    # an external click - this was the real cause of
-                    # "wrapped C/C++ object of type QTableWidgetItem
-                    # has been deleted", this method's own code using
-                    # them again below without re-fetching first.
+                    # index (Aug 1 2026, same crash)
                     item = None
                     for r in range(table.rowCount()):
                         candidate = table.item(r, 0)
@@ -27329,11 +24070,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _ipl_section_has_data(self, raw_text, section_name): #vers 1
         """True if `section_name` exists in raw_text AND has at least
         one real data line - not just the bare keyword/end pair (Aug
-        15 2026, per Keith's real paths*.ipl uploads: every one has
-        an "inst\\nend" and "cull\\nend" with literally nothing
-        between them, section genuinely present but empty, which
-        _extract_ipl_section_text alone can't tell apart from "has
-        real data" - it only reports found-vs-not-found)."""
+        15 2026)"""
         section_lines = self._extract_ipl_section_text(raw_text, section_name)
         if not section_lines:
             return False
@@ -27348,21 +24085,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _auto_switch_ipl_tab_if_empty(self, display_name): #vers 1
         """If the currently active IPL Controls tab (INST/CULL/PATH/
         etc) has no real data in the just-selected file, switch to
-        the first enabled tab that does (Aug 15 2026, per Keith: "I
-        tried something before I went to bed: clicking on any of the
-        path files, the IPL file display should also include path
-        data" - his real paths.ipl/paths2-5.ipl uploads are dedicated
-        path files with empty inst/cull sections and all the real
-        content in path, so clicking one while still on the default
-        INST tab showed a genuinely-empty-but-technically-found inst
-        section: zero rows, zero explanation, easy to read as broken
-        rather than correct-but-wrong-tab).
-
-        No-op (leaves the current tab alone) for binary IPLs - no raw
-        text file to scan the way a text IPL has - and if the current
-        tab already has real data for this file, so switching a tab
-        that's genuinely showing something useful is never
-        overridden just because another tab also has data."""
+        the first enabled tab that does (Aug 15 2026)"""
         bar = getattr(self, '_ipl_tab_bar', None)
         keys = getattr(self, '_ipl_tab_keys', None)
         loader = getattr(self, '_world_loader', None)
@@ -27395,17 +24118,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _on_ipl_section_cell_double_clicked(self, row, col): #vers 1
         """Double-click any cell in an IPL Sections row to open/show
-        that IPL (Aug 14 2026, per Keith: "you can select IPL files,
-        maybe just double-click them to open them on the filename...
-        right click unload ipl, or just hide the file from view -
-        whatever is the most logical way of doing this"). Always
-        shows - never toggles to hidden - matching the ordinary
-        meaning of double-clicking to open something already open:
-        does nothing further, rather than closing it. Reuses
-        _on_ipl_section_cell_clicked's own "show" branch (col 0) for
-        the actual load/unhide work rather than duplicating it - that
-        method already handles the lazy-load, the re-entrancy guard,
-        and the post-rebuild row re-lookup correctly."""
+        that IPL (Aug 14 2026)"""
         if getattr(self, '_ipl_cell_click_in_progress', False):
             return
         table = self._ipl_sections_table
@@ -27424,30 +24137,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         dialog scoped to just this IPL's models, not the whole world)
         the geometry/textures those new instances reference. A no-op
         if this IPL was already loaded (or lazy loading isn't active
-        at all, e.g. a non-Map-Workshop caller).
+        at all, e.g. a non-Map-Workshop caller)."""
 
-        Reports per-IPL success/error status matching Keith's requested
-        format ("path/airport.ipl loaded - no errors" / "path/
-        airportN.ipl loaded - N errors found, check log added to the
-        maps folder") - writes an actual .log file alongside the IPL
-        itself when there are errors, rather than only showing a
-        transient status message.
-
-        Routes binary IPLs to _load_binary_ipl_stream instead (Aug 1
-        2026, per Keith: "there is a bug in loading IPL, the app
-        freezes, no dialog status... [COL] truthsfarm.ipl failed to
-        load - Unknown IPL: img:gta3.img:truthsfarm.ipl") - a binary
-        IPL's stem is a synthetic "img:<archive>:<entry>" string (see
-        _scan_binary_ipls_in_img_archives/_load_binary_ipl_stream),
-        never a real entry in loader.available_ipls the way a text
-        IPL's stem is, so calling load_ipl_by_name(stem) on it could
-        only ever fail with exactly this "Unknown IPL" error - toggling
-        the eye icon on any binary-sourced row (standalone, or an
-        already-loaded stream entry re-toggled) hit this every time.
-        self._loaded_binary_ipls tracks which ones have already been
-        loaded this way, separate from loader.loaded_ipls (the
-        loader's own tracking, which only ever knows about real text
-        IPLs)."""
         loader = getattr(self, '_world_loader', None)
         if loader is None or not getattr(loader, 'lazy_ipl_loading', False):
             return
@@ -27493,14 +24184,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         model_cache = getattr(self, '_model_cache', None)
 
-        # Auto-load associated binary streams (Aug 1 2026, per Keith:
-        # "looking at the ipl's most of them are listed LODs, so where
-        # are the normal models? Maybe in the stream.ipl... we need an
-        # option to load text ipl's plus the associated stream files")
-        # - see MapSettings.DEFAULTS for the full explanation. Runs
-        # regardless of whether new_instances is empty (the text IPL
-        # itself might have been fully loaded already on a prior
-        # toggle, but its streams might not have been yet).
+        # Auto-load associated binary streams (Aug 1 2026)
         stream_entries = getattr(self, '_ipl_names_with_binary_stream', {}).get(display_name, [])
         verbose = self.map_settings.get('show_verbose_loading_dialog')
         dlg = None
@@ -27532,12 +24216,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _write_ipl_error_log(self, result): #vers 1
         """Write a plain-text log of one IPL's parse errors/warnings
-        alongside the IPL file itself (same folder), per Keith's
-        request ("check log added to the maps folder"). Returns the
-        written path, or None if writing failed (in which case the
-        errors are still visible via the status message and the
-        loader's own accumulated stats - this is a convenience, not the
-        only place the information lives)."""
+        alongside the IPL file itself (same folder)"""
         if not result.abs_path:
             return None
         try:
@@ -27560,18 +24239,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return None
 
     def _style_ipl_name_item(self, name_item, hidden): #vers 3
-        """Grey out a disabled/hidden IPL's name text, per Keith's
-        request, so a hidden entry is visually distinct at a glance,
-        not just via its eye icon.
-
-        Doesn't rely on QPalette's Disabled colour group - confirmed
-        that resolves incorrectly here (this app's dark theme is
-        applied via QSS stylesheet, which leaves the underlying
-        QPalette's Active and Disabled Text roles both reporting white -
-        a known Qt quirk where stylesheet-driven theming doesn't keep
-        the palette object itself in sync). Instead blends the active
-        text colour 50% toward the window background colour
-        programmatically, which dims correctly under any theme."""
+        """Grey out a disabled/hidden IPL's name text."""
         pal = self.palette()
         text_color = pal.color(pal.ColorGroup.Active, pal.ColorRole.Text)
         if hidden:
@@ -27590,23 +24258,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         it to the world-view panes and Instance List, without needing
         to reload from disk.
 
-        clear_display_lists=False (Aug 1 2026, per Keith: "loading
-        Lae.ipl... there is a ton of memory usage, and a very long
-        delay, between the last entry in the ipl, and it finally
-        showing anything") - this is the single most common way the
-        visibility filter gets triggered (every IPL show/hide toggle,
-        including the very first load of any IPL), and was calling
-        _apply_ipl_visibility_filter() with no arguments at all,
-        defaulting clear_display_lists to True - unconditionally
-        discarding and forcing recompilation of every already-visible
-        model's OpenGL display list on every single toggle. The same
-        bug already found and fixed in the TOBJ time-flow tick and
-        the binary IPL loader, just in what turned out to be the most
-        heavily-used call site of all. Toggling visibility never
-        needs to clear already-compiled lists at all - the existing
-        cache-check logic in _draw_world_instances already compiles
-        only whichever models are genuinely new, nothing needs
-        wiping first."""
+        clear_display_lists=False (Aug 1 2026)"""
         if hidden:
             self._hidden_ipls.add(ipl_name)
         else:
@@ -27617,10 +24269,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _create_centre_panel(self): #vers 4
         """Map Workshop's own centre panel - status bar only. No DP5-style
-        bitmap canvas here (removed Jul 31 2026 per Keith: "there should be
-        no canvas in the dp5 sense") - the real Map Workshop content lives
-        in the World Viewport, Object Browser, IPL Inst File, and Control
-        Panel docks instead."""
+        bitmap canvas here (removed Jul 31 2026)"""
         panel = QWidget()
         self._centre_panel = panel
         layout = QVBoxLayout(panel)
@@ -27772,25 +24421,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         discarding the bytes - the only purpose is letting the OS
         cache the file in RAM ahead of time, so later per-model reads
         during actual IPL loading hit cache instead of disk (Aug 16
-        2026, per Keith: "thinking about the long pause between,
-        dialog loading ipl, names, and a long pause, its accessing
-        the gta3.img file... plus a new option to preload the
-        gta3.img file, when clicking in dat_browser... this might
-        speed things up"). Optional (Settings > Loading > "Preload
-        IMG archives on DAT load", off by default) since it trades a
-        longer upfront wait for faster per-IPL loading afterward, not
-        a universal win.
-
-        Explicit per-archive status messages ("Preloading gta3.img
-        (128.4 MB)... 45%") rather than a generic "Loading..." - per
-        Keith's own framing of the problem: "any feedback besides a
-        long pause helps". Reads in 8 MB chunks with a status update
-        + processEvents() every chunk, matching the responsiveness
-        pattern already used elsewhere in this loading pipeline. Never
-        raises - a single unreadable/missing archive is skipped and
-        logged, not treated as fatal (loading can still proceed and
-        read that archive normally later, just without the head
-        start)."""
+        2026)"""
         CHUNK = 8 * 1024 * 1024
         for img_path in img_paths:
             try:
@@ -27823,19 +24454,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         """Eagerly load+parse (and cache) geometry and textures for
         every distinct model referenced by the given instances (or
         every loaded instance, if none given), with a progress dialog
-        showing what's currently being processed.
-
-        Originally ran across the whole world at load time - per
-        Keith's follow-up report ("very slow scanning... it should be
-        showing model/texture when loading the selected .ipl, not at
-        map mapper startup"), this is now called scoped to one
-        specific IPL's newly-loaded instances instead (see
-        _ensure_ipl_loaded), matching MooMapper's own model of not
-        touching an IPL's content - or its models' geometry/textures -
-        until the user actually asks for that specific IPL.
-        QProgressDialog processes Qt events internally on setValue(),
-        so the UI stays responsive throughout rather than a single
-        long blocking call."""
+        showing what's currently being processed."""
         instances = instances if instances is not None else loader.instances
         # Deduplicate by model_name - many instances share one model,
         # no need to load it more than once.
@@ -27888,60 +24507,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         instance overrides) - push the final result to the world-view
         panes and Instance List.
 
-        Reentrancy guard, corrected (Aug 16 2026, per Keith's real
-        screenshots: "loading zons, or other ipl files, seems to
-        partly remove other objects" - persisted after the first
-        attempt at this fix, because that first attempt used the
-        wrong strategy). The original version (matching _refresh_
-        world_view's own guard shape) skipped a nested call outright,
-        reasoning that "whatever triggered it fires again shortly
-        regardless" - true for a periodic trigger like a TOBJ tick,
-        but FALSE for the actual trigger Keith's screenshots show:
-        clicking an eye icon to show a newly-loaded IPL is a ONE-TIME
-        event with nothing to naturally retry it. If that click's own
-        call happened to arrive while an unrelated periodic tick's
-        call was still mid-flight (pumping the Qt event queue inside
-        _refresh_world_view), the old guard would silently DROP the
-        click's call entirely - the tick's stale, pre-click snapshot
-        would be all that ever rendered, and nothing would ever
-        follow up, since nothing else was going to call this again
-        on the newly-shown IPL's behalf. That's "partly remove other
-        objects" from the opposite direction than the first fix
-        addressed: not an overwrite-by-a-stale-later-call, but a
-        silently-dropped-request.
+        Reentrancy guard, corrected (Aug 16 2026)
 
-        Fixed with queue-and-retry instead of skip-and-drop: a call
-        arriving while another is in progress no longer runs
-        immediately (avoiding the original concurrent-overlap
-        corruption), but doesn't just vanish either - it's recorded
-        as "one more pass is needed" (keeping only the latest
-        requested auto_fit/clear_display_lists, since only the final
-        desired state matters). Once the in-progress pass finishes,
-        immediately run one more full pass - which, since _all_
-        instances/_hidden_ipls are read fresh at the start of the
-        impl, automatically reflects everything that changed while
-        busy, including the click's own effect. Loops (not just one
-        follow-up) in case yet another call arrives during that
-        follow-up pass too, so nothing queued during a busy stretch
-        can still be lost, however many piled up.
-
-        auto_fit=False lets a caller (specifically _on_instance_edited,
-        triggered by every position/rotation/scale nudge in the Item
-        Editor Dialog) refresh the view without re-framing the camera
-        to the whole map's bounding box each time - see
-        DFFViewport.set_world_instances for the full reasoning.
-
-        clear_display_lists=False (Aug 1 2026, per Keith: "touching
-        time, tick, 12:00 [Play] Appears to freeze things?") - lets a
-        caller that only changed instance-level visibility (TOBJ
-        time-flow ticks, the 2DFX master toggle) skip unconditionally
-        discarding and recompiling every distinct model's OpenGL
-        display list, since the set of distinct *models* in view
-        hasn't actually changed - just which instances of them are
-        currently shown. Recompiling every model's geometry once a
-        second (the default tick interval) for a map with many
-        distinct models was exactly the "freeze" - unnecessary
-        work, not a real limitation of the feature."""
+        clear_display_lists=False (Aug 1 2026)"""
         if getattr(self, '_apply_ipl_visibility_filter_in_progress', False):
             self._apply_ipl_visibility_filter_pending = (auto_fit, clear_display_lists)
             return
@@ -27984,27 +24552,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _refresh_2dfx_lights(self, visible_instances): #vers 1
         """Collect 2DFX light-type (effect_type == 0) entries for the
         given visible instances, compute each one's world-space
-        position, and push them to the viewport - per Keith: "lets
-        add the 2dfx support next, showing 2dfx lighting at night."
+        position, and push them to the viewport."
 
-        World position = instance position + the 2DFX entry's own
-        local offset, rotated by the instance's rotation quaternion
-        (a 2DFX light's offset is defined relative to its owning
-        model's local space, e.g. "a bit above and in front of the
-        lamp mesh" - it has to rotate with the instance, not just
-        translate with it, or the light would drift away from the
-        fixture on any rotated instance).
-
-        "At night" (Aug 1 2026, since GTA's own IDE format has no
-        single canonical day/night cutoff hour defined anywhere Keith
-        or this session's research has referenced) is treated as
-        hour >= 20 or hour < 6, reusing the same simulated-time
-        infrastructure the TOBJ time filter already has - only
-        applied when the Time switch is actually on; with it off,
-        lights show regardless of time, matching how TOBJ objects
-        themselves behave with the switch off (no time filtering
-        happening at all, not a decision that "no time" means
-        "night")."""
+        "At night" (Aug 1 2026)"""
         vp = getattr(self, 'preview_widget', None)
         loader = getattr(self, '_world_loader', None)
         if vp is None or loader is None or not hasattr(vp, 'set_2dfx_lights'):
@@ -28035,17 +24585,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 oy = fx.extra.get('offset_y', 0.0)
                 oz = fx.extra.get('offset_z', 0.0)
                 # Effective (conjugated) rotation, not the raw stored
-                # quaternion (Aug 1 2026, per Keith: "2dfx lighting
-                # isn't parsing correctly, the light spot is fine on
-                # some lampposts, but wrong on others, an axis issue
-                # like the rotation bug") - the model's own geometry
-                # renders using _effective_rotation's conjugated value
-                # (see _refresh_world_view), but this was still using
-                # inst.rot_x/y/z/w directly. For an identity-ish
-                # rotation the two are indistinguishable, which is
-                # exactly why it looked fine on some lampposts and
-                # wrong on others - only the genuinely rotated ones
-                # showed the mismatch.
+                # quaternion (Aug 1 2026)
                 erx, ery, erz, erw = self._effective_rotation(inst)
                 wx, wy, wz = self._rotate_and_translate_offset(
                     ox, oy, oz, erx, ery, erz, erw,
@@ -28060,51 +24600,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _refresh_path_visualization(self): #vers 2
         """Push the currently visible IPLs' path data to the
-        viewport's line/node overlay (Aug 14 2026, per Keith: "when
-        displaying the paths in the viewpoint, I was expecting red
-        lines and nodes"). No-op (and clears any existing lines) if
-        Show Paths is off, matching every other optional-overlay
-        refresh pattern in this file (2DFX's own master_chk check
-        just above is the same shape).
+        viewport's line/node overlay (Aug 14 2026)
 
-        Builds the REAL per-node link graph (Aug 16 2026 rework, per
-        Keith's real screenshot: "they don't look linked, node to
-        node, instead one point" - long spurious lines fanning out
-        from roughly one area). The previous version just connected
-        each group's nodes in raw on-disk order as one polyline - the
-        wrong topology, not just an incomplete one. Confirmed against
-        Project Cerbera's own VC paths.ipl format doc (and its own
-        worked "Group B" example, verified field-for-field): each
-        node has a Type (0=Null/ignored, 1=External/links to another
-        group by exact position match, 2=Internal/links within this
-        group) and a Next value that's a 0-11 INDEX into that SAME
-        group's own fixed 12-node array - not "the next line in the
-        file", and not necessarily sequential (Cerbera's own example
-        has node 8 linking straight to node 11, skipping 9-10
-        entirely).
-
-        Every non-Null node with a valid Next index becomes one
-        segment (node[i] -> node[next_id]) - covers both Internal and
-        External nodes' own in-group continuation identically (an
-        External node still has its own ordinary Next field for
-        continuing its own group). No separate cross-group "connect
-        matching External positions" pass: per the doc, two matched
-        External nodes are BY DEFINITION at the exact same position -
-        a segment between them would always be zero-length/invisible,
-        so there's nothing extra to draw there. The visual
-        continuity between groups comes for free: each group's own
-        segments already end/start at that shared coordinate, so two
-        groups' lines visually meet without needing an artificial
-        connector (verified directly - an earlier draft that added
-        this pass anyway produced only degenerate same-point-to-
-        itself segments, confirming they're genuinely never useful
-        to draw). loader.paths (gta_dat_parser.py's already-parsed
-        PathGroup list, GTA3/VC text-section format only - SA's real
-        path data is the separate binary nodesXX.dat format, apps/
-        methods/sa_path_parser.py, not wired into this view yet) is
-        filtered by source_ipl against self._hidden_ipls first, same
-        convention IPLInstance.source_ipl already uses for instance
-        filtering."""
+        Builds the REAL per-node link graph (Aug 16 2026)"""
         vp = getattr(self, 'preview_widget', None)
         if vp is None or not hasattr(vp, 'set_path_segments'):
             return
@@ -28144,16 +24642,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         segments = []
         # (position -> (group, node_index)) for interactive path node
-        # dragging (Aug 17 2026, see DFFViewport.set_path_node_owners'
-        # own docstring for the full mechanism) - built from the exact
-        # same node.x/y/z values used for segments just below, so a
-        # position looked up via this map always matches something
-        # actually drawn, no separate tracking to drift out of sync.
-        # Scoped to VC/SA-style loader.paths only, matching every
-        # other path-editing feature this session (New/Delete Path
-        # Group) - GTA III's own IDE-embedded paths (built further
-        # down) aren't included, since they have no position of their
-        # own to drag (attached to an instance by model_id instead).
+        # dragging (Aug 17 2026)
         node_owners = {}
         for group in visible_groups:
             nodes = group.nodes
@@ -28166,63 +24655,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     other = nodes[node.next_id]
                     segments.append(((node.x, node.y, node.z), (other.x, other.y, other.z)))
 
-        # GTA III IDE-embedded paths (Aug 16 2026, per Keith: "GTA3
-        # paths arnt showing, i know I am selecting ipl files... but
-        # the path entires are in the ide files, so how do we load
-        # those?... for gta3 parse the paths from the ide files, and
-        # show them when show paths is ticked") - these were already
-        # correctly parsed into loader.ide_paths (IDEPathGroup/
-        # IDEPathNode) earlier this session, but never resolved to
-        # world-space or fed into this view at all. Unlike VC's own
-        # paths (already absolute coordinates), a GTA III path group's
-        # node positions are RELATIVE to wherever its own model_id is
-        # actually PLACED - so this finds every currently-visible
-        # instance of that model (multiple placements of the same
-        # model each get their own independent copy of the path,
-        # correctly transformed by THAT instance's own position/
-        # rotation) and rotates each node's local offset by the
-        # instance's effective (conjugated) rotation before adding
-        # its position - the same transform the instance's own model
-        # geometry already gets when rendered, so a path stays
-        # correctly attached to its object regardless of how that
-        # object is placed/rotated in the world.
-        #
-        # No separate hidden-filtering needed for ide_paths itself
-        # (unlike VC paths, which check group.source_ipl directly) -
-        # GTA III IDE files aren't toggled individually the way IPL
-        # sections are, so a path only shows if the instance it's
-        # attached to is currently visible, which the instances_by_
-        # model lookup below already only includes non-hidden ones
-        # for.
-        #
-        # model_id is a reliable global key with no per-area scoping
-        # needed (Aug 16 2026, verified against Keith's real,
-        # complete gta3.IDE - all path sections for the whole game
-        # combined into one file): parsed all 870 real path groups
-        # across 553 unique model_ids and confirmed zero cases of two
-        # DIFFERENT objects sharing one model_id - GTA III's object
-        # IDs are genuinely unique game-wide, not just per-district,
-        # matching the well-documented standard convention. What
-        # DOES legitimately happen: a single object can have 2-3
-        # separate path groups attached to it (309 of the 553 model_
-        # ids have 2, 4 have 3) - real examples include named road-
-        # piece objects like "rd_Corner1"/"rd_Road1A5", which
-        # plausibly need multiple groups for different lanes/
-        # directions through the same piece. An earlier version of
-        # this method scoped the lookup by matching each group's
-        # source_ide filename stem against candidate instances'
-        # source_ipl stems, on the theory that different districts'
-        # own path-anchor markers might reuse small numeric model_id
-        # ranges - that theory is now disproven by this real data, so
-        # the scoping was removed again; it was solving a problem
-        # that doesn't actually exist. The real cause of Keith's
-        # "long criss-crossing lines" mess is still open - being
-        # investigated with his real IPL/instance data next, since
-        # this verification confirms the IDE side (parsing, model_id
-        # unique-ness) is solid and the bug must be elsewhere (most
-        # likely in the instance-matching or position/rotation
-        # transform for whichever instances actually place these
-        # objects, which isn't visible from IDE data alone).
+        # GTA III IDE-embedded paths (Aug 16 2026)
+
         instances_by_model = {}
         for inst in getattr(loader, 'instances', []):
             if inst.source_ipl in hidden:
@@ -28231,10 +24665,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         # Scope each group's model_id lookup to every currently-
         # visible instance sharing that model_id, globally - no per-
-        # area scoping (Aug 16 2026, reverted after Keith uploaded
-        # his real, complete gta3.IDE - see model_id verification
-        # note below for the full story of why an earlier area-
-        # scoped version was removed again).
+        # area scoping (Aug 16 2026)
         for group in getattr(loader, 'ide_paths', []):
             matching_instances = instances_by_model.get(group.model_id)
             if not matching_instances:
@@ -28245,30 +24676,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 ex, ey, ez, ew = self._effective_rotation(inst)
                 world_pos = []
                 for node in nodes:
-                    # /16 scale on the relative offsets (Aug 16 2026,
-                    # per Keith's real screenshot + his real, known-
-                    # correct pathslc.ipl reference - "SOL" paths
-                    # converted from these exact same gta3.ide groups
-                    # into VC's own coordinate space): the relative
-                    # offsets in a GTA III IDE path node are stored in
-                    # the same "x16" scaled units VC's own path node
-                    # coordinates use in their raw text form (VC's own
-                    # IPLParser._parse_path already divides those by
-                    # 16 - see that method) - GTA III's IDE-embedded
-                    # ones need the identical treatment, which this
-                    # resolution never applied until now. Verified
-                    # directly against real data before trusting it:
-                    # resolved these same groups against Keith's real,
-                    # complete gta3.dat world, WITHOUT this scale,
-                    # every group came out ~14-15x too large (median
-                    # max-intra-group-distance 560 units vs the real
-                    # reference's 39); WITH it, matched the reference
-                    # almost exactly (35 vs 39, min identical at 3.6,
-                    # max 358 vs 370) - this is what was producing
-                    # both "makes a nice mess" (paths 16x too spread
-                    # out) and "the paths dont line up at all with the
-                    # roads" (every node 16x too far from the object
-                    # it's actually attached to) in the same breath.
+                    # /16 scale on the relative offsets (Aug 16 2026)
+
                     wx, wy, wz = self._rotate_vector_by_quaternion(
                         node.x_rel / 16.0, node.y_rel / 16.0, node.z_rel / 16.0,
                         ex, ey, ez, ew)
@@ -28285,19 +24694,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _on_path_node_dragged(self, group, node_index, new_x, new_y, new_z): #vers 1
         """Commit a completed path node drag to the real, live
-        PathNode data (Aug 17 2026, per Keith: "lets address the
-        unbuilt work, editing paths first"). Wired once to DFFViewport.
-        set_path_node_drag_callback (see that method's own docstring)
-        - called exactly once per drag, on mouse release, with the
-        group object and node index the viewport resolved via its own
-        position-owner map, plus the final dropped position. Mutates
-        group.nodes[node_index] directly (the exact same live object
-        the Path Group Editor dialog already edits, no separate code
-        path or write-back step needed) then does a full path refresh
-        so the segments list, the owner map, and the drawn lines are
-        all rebuilt consistently from the one now-updated source of
-        truth, rather than trying to patch the viewport's own display
-        state to match by hand."""
+        PathNode data (Aug 17 2026)"""
         try:
             node = group.nodes[node_index]
         except (IndexError, AttributeError):
@@ -28308,25 +24705,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _on_box_resized(self, box_type, box_ref, x1, y1, x2, y2, z1, z2): #vers 1
         """Commit a completed box-corner resize drag to the real,
-        live CullEntry or zone dict (Aug 19 2026, per Keith's own
-        priority order - box resizing is the real prerequisite for
-        No-Clip box editing). Wired once to DFFViewport.set_box_
-        resize_callback - called exactly once per drag, on mouse
-        release, with box_ref the exact live object the viewport's
-        own set_cull_box_owners/set_zone_box_owners parallel list
-        already carries, and the final, already-min/max-resolved
-        (x1,y1,x2,y2,z1,z2) extents (no-clip's own rejection, if that
-        was on, already baked into whatever the viewport last
-        actually held during the drag - nothing to re-check here).
-
-        Deliberately leaves CullEntry's own center_x/center_y/center_z
-        completely untouched - per that dataclass's own documented
-        real-world oddity ("changing the zone's center coordinates
-        does not directly affect the zone itself... stored verbatim
-        rather than derived"), the center is never required to be the
-        box's own geometric middle, so silently recomputing it here
-        during a resize would be an invented side effect nothing
-        asked for, not a correction of something wrong."""
+        live CullEntry or zone dict (Aug 19 2026)"""
         if box_type == 'cull':
             box_ref.x1, box_ref.y1, box_ref.z1 = x1, y1, z1
             box_ref.x2, box_ref.y2, box_ref.z2 = x2, y2, z2
@@ -28344,14 +24723,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _on_edit_paths_toggled(self, checked): #vers 2
         """Right-click on the Paths button toggled edit mode (Aug 18
         2026 - merged from the previous separate Edit Paths checkbox
-        into the Paths button's own right-click, per Keith: "one
-        click shows the paths, right-click paths allows edit mode...
-        saving space") - toggles DFFViewport's own click-to-select-
-        and-drag path node interaction on/off. Turning it on also
-        turns Show Paths on (editing invisible nodes makes no sense)
-        but doesn't turn Show Paths back off when Edit Paths is
-        turned off - the person may still want to see the paths
-        after they're done editing them."""
+        into the Paths button's own right-click."""
         vp = getattr(self, 'preview_widget', None)
         if vp is not None and hasattr(vp, 'set_path_edit_mode'):
             vp.set_path_edit_mode(checked)
@@ -28362,26 +24734,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _on_edit_boxes_toggled(self, checked): #vers 1
         """Right-click on either the Cull or Zon button toggled box-
-        corner resize edit mode (Aug 19 2026, per Keith's own
-        priority order - box resizing is the real prerequisite for
-        No-Clip box editing). Both buttons share this ONE handler and
-        toggle the SAME underlying DFFViewport.set_box_edit_mode -
-        cull and zone boxes both go through the same shared corner-
-        picking mechanism in the viewport (a click picks whichever
-        corner is closest, regardless of which box type it belongs
-        to), so there's only one real edit-mode state to toggle, not
-        two independent ones. Keeps both buttons' own visual edit-
-        state in sync with each other via set_editing (which, unlike
-        set_shown, deliberately does NOT re-emit edit_toggled - doing
-        so here would recurse back into this same handler) - right-
-        clicking either one turns edit mode on/off for both, matching
-        how they're really one shared toggle underneath, not two.
-        Turning it on also turns on Show for whichever of Cull/Zone
-        isn't already shown (editing invisible boxes makes no sense),
-        same reasoning _on_edit_paths_toggled already uses for Show
-        Paths, but doesn't turn either back off when edit mode is
-        turned off - the person may still want to see the boxes after
-        they're done resizing them."""
+        corner resize edit mode (Aug 19 2026)"""
         vp = getattr(self, 'preview_widget', None)
         if vp is not None and hasattr(vp, 'set_box_edit_mode'):
             vp.set_box_edit_mode(checked)
@@ -28394,17 +24747,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _refresh_track_visualization(self): #vers 1
         """Push loaded train track waypoints to the viewport's own
-        polyline overlay (Aug 17 2026, per Keith: "then the other
-        path .dat files you pointed out earlier"). No-op (and clears
-        any existing lines) if Show Tracks is off, matching every
-        other optional-overlay refresh pattern in this file. Unlike
-        every other refresh method here, this doesn't filter by
-        self._hidden_ipls at all - tracks.dat/tracks2.dat aren't tied
-        to any specific IPL or area (confirmed absent from gta.dat/
-        gta3.dat's own directive list entirely - see load_tracks_dat's
-        own docstring), so there's no per-IPL visibility concept to
-        apply here; loaded once at world-load time, either shown or
-        not as a whole."""
+        polyline overlay (Aug 17 2026)"""
         vp = getattr(self, 'preview_widget', None)
         if vp is None or not hasattr(vp, 'set_track_polylines'):
             return
@@ -28426,33 +24769,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _refresh_sa_node_visualization(self): #vers 1
         """Push SA's real vehicle/ped path node graph to the
-        viewport's own segment overlay (Aug 19 2026, per Keith's real
-        NODES0-63.DAT data - "lets do those next"). No-op (and clears
-        any existing segments) if Show SA Nodes is off, matching every
-        other optional-overlay refresh pattern here. SA only - no-op
-        for III/VC too, since loader.sa_nodes is simply empty for
-        those games (this format doesn't exist for them at all).
-
-        Resolving each link's own target position is the real work
-        here: a link only stores (area_id, node_id) for its target,
-        not a resolved position - the target could be in a completely
-        different area file than the source node (real, confirmed
-        possibility - the wiki: "there can be connections between
-        separate areas"), so this looks the target area up in loader.
-        sa_nodes directly rather than assuming it's always the same
-        file currently being iterated. Vehicle links resolve against
-        the target area's own vehicle_nodes, ped links against ped_
-        nodes - a link belongs to whichever node owns it via that
-        node's own link_id/link_count range, and per the wiki's own
-        graph description, both ends of a real link are always the
-        same node type.
-
-        The graph is double-linked (undirected) per the wiki - every
-        real edge appears twice, once from each endpoint's own link
-        list - so each segment is only actually added once, when the
-        source (area_id, node_id, is_ped) sorts before the target,
-        avoiding drawing (and needlessly holding in memory) the same
-        real edge twice over."""
+        viewport's own segment overlay (Aug 19 2026)"""
         vp = getattr(self, 'preview_widget', None)
         if vp is None or not hasattr(vp, 'set_sa_node_segments'):
             return
@@ -28483,20 +24800,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                         if target_file is None:
                             continue
                         target_list = target_file.ped_nodes if is_ped else target_file.vehicle_nodes
-                        # Real quirk in the file format's own indexing,
-                        # confirmed directly against Keith's real,
-                        # complete data before trusting it (fixed a
-                        # genuine 100% ped-link resolution failure,
-                        # 0 vehicle-link failures - not random noise):
-                        # a PED link's node_id is a combined index into
-                        # that area's vehicle_nodes+ped_nodes as ONE
-                        # contiguous array, not a ped_nodes-only index
-                        # the way a vehicle link's node_id already
-                        # correctly is - subtract the target area's
-                        # own vehicle node count first. Verified this
-                        # exact adjustment resolves every single one of
-                        # 80,686 real ped links across the whole real
-                        # SA map with zero remaining failures.
+
                         target_id = link.node_id
                         if is_ped:
                             target_id -= len(target_file.vehicle_nodes)
@@ -28509,22 +24813,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _refresh_auzo_visualization(self): #vers 1
         """Push loaded SA audio zones to the viewport's own sound-
-        icon overlay (Aug 20 2026, per Keith: "Implement support for
-        the remaining SA, audiozone placements with sound svg icons;
-        play the sounds"). No-op (and clears any existing icons) if
-        Show Auzo Zones is off, matching every other optional-overlay
-        refresh pattern here. SA only - loader.auzos is simply empty
-        for III/VC (auzo doesn't exist as real, populated data for
-        those games the way it does for SA), so this is harmless
-        rather than needing a separate per-game gate.
-
-        Resolves each real AuzoEntry's own center position here
-        (cube: midpoint of its two corners; sphere: its own single
-        XYZ directly) and its AUZO_TYPES lookup (environment_type/
-        music_description, both already real properties on AuzoEntry
-        itself) - the viewport only ever receives plain, already-
-        resolved tuples, never the real dataclass, matching every
-        other overlay's own split."""
+        icon overlay (Aug 20 2026)"""
         vp = getattr(self, 'preview_widget', None)
         if vp is None or not hasattr(vp, 'set_auzo_zones'):
             return
@@ -28550,18 +24839,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _refresh_water_visualization(self): #vers 1
         """Push loaded water.dat shapes to the viewport's own overlay
-        (Aug 20 2026, per Keith: "lets get all the functions in" -
-        water/radar recalculation on map moves). No-op (and clears
-        any existing shapes) if Show Water is off, matching every
-        other optional-overlay refresh pattern here. SA only for now
-        - loader.water_shapes is simply empty for III/VC (that binary
-        waterpro.dat format isn't parsed by this app yet), so this is
-        harmless rather than needing a separate per-game gate.
-
-        Converts each real WaterShape/WaterCorner into a plain
-        (corners, water_type) tuple - corners a list of (x,y,z)
-        tuples - the viewport only ever receives plain, already-
-        resolved data, never the real dataclasses."""
+        (Aug 20 2026)"""
         vp = getattr(self, 'preview_widget', None)
         if vp is None or not hasattr(vp, 'set_water_shapes'):
             return
@@ -28581,8 +24859,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         vp.set_water_shapes(shapes)
 
     def _on_show_tracks_toggled(self, checked): #vers 1
-        """Show Tracks checked/unchecked - per Keith: "then the other
-        path .dat files you pointed out earlier"."""
+        """Show Tracks checked/unchecked."""
         vp = getattr(self, 'preview_widget', None)
         if vp is not None and hasattr(vp, 'set_show_tracks'):
             vp.set_show_tracks(checked)
@@ -28590,8 +24867,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._refresh_track_visualization()
 
     def _on_show_sa_nodes_toggled(self, checked): #vers 1
-        """Show SA Nodes checked/unchecked - per Keith's real
-        NODES0-63.DAT data ("lets do those next")."""
+        """Show SA Nodes checked/unchecked."""
         vp = getattr(self, 'preview_widget', None)
         if vp is not None and hasattr(vp, 'set_show_sa_nodes'):
             vp.set_show_sa_nodes(checked)
@@ -28599,9 +24875,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._refresh_sa_node_visualization()
 
     def _on_show_auzo_toggled(self, checked): #vers 1
-        """Show Auzo checked/unchecked - per Keith's real audio zone
-        data ("Implement support for the remaining SA, audiozone
-        placements with sound svg icons; play the sounds")."""
+        """Show Auzo checked/unchecked."""
         vp = getattr(self, 'preview_widget', None)
         if vp is not None and hasattr(vp, 'set_show_auzo_zones'):
             vp.set_show_auzo_zones(checked)
@@ -28609,9 +24883,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._refresh_auzo_visualization()
 
     def _on_show_water_toggled(self, checked): #vers 1
-        """Show Water checked/unchecked - per Keith's own "lets get
-        all the functions in" (water/radar recalculation on map
-        moves)."""
+        """Show Water checked/unchecked."""
         vp = getattr(self, 'preview_widget', None)
         if vp is not None and hasattr(vp, 'set_show_water'):
             vp.set_show_water(checked)
@@ -28619,13 +24891,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._refresh_water_visualization()
 
     def _on_show_paths_toggled(self, checked): #vers 1
-        """Show Paths checked/unchecked - per Keith: "when displaying
-        the paths in the viewpoint, I was expecting red lines and
-        nodes". vp.set_show_paths handles the actual on/off; the
-        line data itself only needs recomputing when checked (turning
-        it off just needs the flag flipped, _draw_paths already
-        no-ops when show_paths is False, no need to also clear
-        _path_segments on every uncheck)."""
+        """Show Paths checked/unchecked"""
         vp = getattr(self, 'preview_widget', None)
         if vp is not None and hasattr(vp, 'set_show_paths'):
             vp.set_show_paths(checked)
@@ -28634,16 +24900,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _refresh_cull_box_visualization(self): #vers 1
         """Push the currently visible IPLs' cull zones to the
-        viewport's wireframe-box overlay (Aug 16 2026, per Keith:
-        "continue with the cull files next"). No-op (and clears any
-        existing boxes) if Show Cull Zones is off, same pattern as
-        _refresh_path_visualization/_refresh_2dfx_lights.
-
-        Much simpler than paths - a cull zone is just an independent
-        box, no per-node graph to resolve - so this is a flat
-        loader.culls -> corner-tuple conversion, filtered by
-        source_ipl against self._hidden_ipls, same convention every
-        other per-IPL overlay in this file already uses."""
+        viewport's wireframe-box overlay (Aug 16 2026)"""
         vp = getattr(self, 'preview_widget', None)
         if vp is None or not hasattr(vp, 'set_cull_boxes'):
             return
@@ -28671,8 +24928,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             vp.set_cull_box_owners(culls)
 
     def _on_show_cull_boxes_toggled(self, checked): #vers 1
-        """Show Cull Zones checked/unchecked - per Keith: "continue
-        with the cull files next"."""
+        """Show Cull Zones checked/unchecked."""
         vp = getattr(self, 'preview_widget', None)
         if vp is not None and hasattr(vp, 'set_show_cull_boxes'):
             vp.set_show_cull_boxes(checked)
@@ -28681,18 +24937,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _refresh_zone_box_visualization(self): #vers 1
         """Push the currently visible IPLs' map zones to the
-        viewport's wireframe-box overlay (Aug 16 2026, per Keith:
-        "ive loaded zon files... but I cant see them in the
-        viewpoint"). No-op (and clears any existing boxes) if Show
-        Zones is off, same pattern as _refresh_cull_box_visualization.
-
-        Filtered by source_ipl against self._hidden_ipls, same
-        convention every other per-IPL overlay uses - this only works
-        now because _parse_zone was fixed alongside this to actually
-        track source_ipl/line_no at all (it was the one section type
-        that never carried this, so zone boxes couldn't have been
-        shown/hidden per-file consistently even before this method
-        existed)."""
+        viewport's wireframe-box overlay (Aug 16 2026)"""
         vp = getattr(self, 'preview_widget', None)
         if vp is None or not hasattr(vp, 'set_zone_boxes'):
             return
@@ -28721,8 +24966,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             vp.set_zone_box_owners(zones)
 
     def _on_show_zone_boxes_toggled(self, checked): #vers 1
-        """Show Zones checked/unchecked - per Keith: "ive loaded zon
-        files... but I cant see them in the viewpoint"."""
+        """Show Zones checked/unchecked."""
         vp = getattr(self, 'preview_widget', None)
         if vp is not None and hasattr(vp, 'set_show_zone_boxes'):
             vp.set_show_zone_boxes(checked)
@@ -28731,12 +24975,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _set_zone_render_style(self, mode): #vers 1
         """Zon render style changed via the Render dropdown (Aug 16
-        2026, per Keith: "in zons, the render dropdown could show,
-        Zon - Ghosted, Zon - Wireframe, Zon - translucent") -
-        persisted immediately (debounced auto-save, same as every
-        other MapSettings.set() call) and pushed to the live viewport
-        right away, no separate Apply step needed since this is a
-        dropdown choice, not a form field."""
+        2026)"""
         self.map_settings.set('zone_render_style', mode)
         vp = getattr(self, 'preview_widget', None)
         if vp is not None and hasattr(vp, 'set_zone_render_style'):
@@ -28744,13 +24983,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _refresh_occl_box_visualization(self): #vers 1
         """Push the currently visible IPLs' occlusion zones to the
-        viewport's rotated wireframe-box overlay (Aug 16 2026,
-        continuing the cull/zon viewport work). No-op (and clears any
-        existing boxes) if Show Occlusion is off, same pattern as
-        _refresh_cull_box_visualization/_refresh_zone_box_
-        visualization. Filtered by source_ipl against self.
-        _hidden_ipls, same convention every other per-IPL overlay
-        uses."""
+        viewport's rotated wireframe-box overlay (Aug 16 2026)"""
         vp = getattr(self, 'preview_widget', None)
         if vp is None or not hasattr(vp, 'set_occl_boxes'):
             return
@@ -28786,23 +25019,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._refresh_occl_box_visualization()
 
     def _on_ipl_controls_settings_clicked(self): #vers 2
-        """IPL Controls' docked-only cog icon clicked (Aug 15 2026,
-        per Keith: "We could just add a cog SVG icon when docked...
-        but not to be shown in standalone"). Calls
-        _show_workshop_settings directly - Map Workshop's own
-        settings dialog, the exact same one the titlebar's left
-        [Settings] button already opens (settings_btn.clicked.connect
-        (self._show_workshop_settings)) - not IMG Factory's global
-        Settings dialog (Aug 15 2026 fix, per Keith's follow-up:
-        "Right cog brings up theme settings from app_system_settings,
-        that's wrong, it should be map_workshops settings from the
-        left [settings] on the titlebar"). The get_settings_
-        contribution/_collect_settings_contributions integration from
-        earlier still stands and still does something real - it's
-        what makes Map Workshop's tabs show up inside IMG Factory's
-        OWN Settings dialog when that's opened through IMG Factory's
-        own menu - this cog is just a direct shortcut to Map
-        Workshop's own dialog, not a route through that bigger one."""
+        """IPL Controls' docked-only cog icon clicked (Aug 15 2026)"""
         self._show_workshop_settings()
 
     def _rotate_and_translate_offset(self, ox, oy, oz, qx, qy, qz, qw, px, py, pz): #vers 1
@@ -28830,29 +25047,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         """Return the quaternion (x,y,z,w) to actually use for
         rendering/display, applying a conjugate (negate x,y,z; keep
         w) - universally, not just for SA/SOL (see _conjugate_
-        rotation_for_game for the VC confirmation that widened this).
-
-        Found via Keith's real example (LODroadB48, LAe.ipl line 91):
-        raw file has rot=(0,0,0.4516149163,0.8922129869) - standard
-        quaternion-to-euler math (verified against scipy earlier this
-        session) converts this to yaw=+53.6deg, but Keith found the
-        object only aligns correctly at yaw=-53.6deg. Working
-        backward: euler_degrees_to_quat(0,0,-53.6) produces
-        (0,0,-0.4516,+0.8922) - the z-negated (here, x/y are both 0
-        for this object, so negating just z happens to be identical
-        to a full conjugate for this specific example) quaternion.
-        The conjugate is the mathematically well-defined, standard
-        operation (unlike "negate z only", which isn't a meaningful
-        operation in general when x/y aren't zero) - no sample data
-        with non-zero rot_x/rot_y was available to confirm this
-        distinction further, so this is verified for pure-yaw
-        rotations specifically, less certain for combined-axis ones.
-
-        This does NOT change the stored inst.rot_x/y/z/w - those stay
-        exactly as parsed from the file, so the Identity section's
-        verbatim raw-line display stays genuinely verbatim. Only
-        rendering and the Rotation spin boxes (see _InstanceEditPanel)
-        use this effective value."""
+        rotation_for_game for the VC confirmation that widened this)."""
         return self._conjugate_rotation_for_game(
             inst.rot_x, inst.rot_y, inst.rot_z, inst.rot_w)
 
@@ -28867,40 +25062,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         its own inverse (applying it twice returns the original), so
         the same operation works both ways.
 
-        Applied universally now, not just SA/SOL (Aug 1 2026) - Keith
-        directly confirmed the identical symptom in VC: "the same
-        rotation issue is there, 32rot, I had to change to -32 to fix
-        the models position." Working the numbers the same way as the
-        original SA case: a raw quaternion whose euler yaw computes to
-        +32deg only aligns correctly at -32deg - exactly the z-sign-
-        flip pattern found for SA, just in a different game. The
-        earlier scipy cross-check (still mathematically correct, and
-        still in the code/tests) only proved this codebase's own
-        quaternion math is internally consistent with the standard
-        convention - it never proved that convention matches
-        RenderWare's actual on-disk one, which is what this conjugate
-        corrects for. No longer gated by game."""
+        Applied universally now, not just SA/SOL (Aug 1 2026)"""
         return (-x, -y, -z, w)
 
     def _rotate_vector_by_quaternion(self, vx, vy, vz, x, y, z, w): #vers 1
         """Rotate a local-space vector (vx,vy,vz) by quaternion
         (x,y,z,w), returning the world-space (rx,ry,rz) result (Aug
-        16 2026, for resolving GTA III's IDE-embedded path nodes -
-        see IDEPathGroup's own docstring - to world-space coordinates,
-        matching the exact rotation an instance's own model geometry
-        already gets in the viewport).
-
-        This is the same rotation matrix DFFViewport._quat_to_gl_
-        matrix builds for glMultMatrixf, just applied here to a single
-        vector on the CPU instead of a whole mesh on the GPU -
-        verified mathematically identical (cross-checked against a
-        full 4x4 column-major matrix multiply using the actual
-        function, 20 random quaternion/vector pairs, max error
-        <1e-6) before trusting it for real data. Callers should pass
-        the CONJUGATED (_effective_rotation) quaternion, not the raw
-        stored one, to match how the instance's own geometry
-        renders - a path node is conceptually a vertex in the same
-        local space as the model it's attached to."""
+        16 2026)"""
         xx, yy, zz = x*x, y*y, z*z
         xy, xz, yz = x*y, x*z, y*z
         wx, wy, wz = w*x, w*y, w*z
@@ -28912,17 +25080,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _convert_collision_geometry(self, col_model): #vers 1
         """Convert a COLModel (or None) into the flat (col_vertices,
         col_triangles) shape DFFViewport's collision overlay draws
-        expect (Aug 14 2026, for the IPL Controls collision render
-        options). col_triangles entries are (v1,v2,v3,r,g,b) with the
-        material colour already resolved to 0-1 floats here (not left
-        for the viewport to look up) - keeps col_materials/COLGame
-        lookups out of dff_viewport.py entirely, matching how DFF
-        materials are already resolved before reaching the viewport.
-        Only the mesh (vertices/faces) is converted - COL's separate
-        sphere/box collision primitives aren't drawn yet, logged to
-        TODO.md. Returns ([], []) if col_model is None or has no
-        faces, same "nothing to draw, not an error" contract as the
-        rest of this pipeline."""
+        expect (Aug 14 2026)"""
         if col_model is None or not col_model.faces or not col_model.vertices:
             return [], []
         from apps.components.Model_Editor.depends.col_materials import get_material_colour, COLGame
@@ -28943,58 +25101,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _refresh_world_view(self, instances, auto_fit=True, clear_display_lists=True): #vers 4
         """Push a full multi-instance 3D world view into the existing
-        DFF viewport (self.preview_widget) - Aug 1 2026, per Keith:
-        "wire every pane into the viewport, when I load ipl, these
-        dont show." Converts each distinct model's cached DFFModel
-        geometry (self._model_cache.get_geometry, already
-        loaded/parsed by _preload_world_assets when the IPL was
-        loaded) into the vertex/normal/uv/triangle/material arrays
-        DFFViewport.load_geometry() already knows how to draw - just
-        done once per distinct model and reused across every instance
-        of it, rather than converting per-instance (many instances
-        commonly share one model). Builds one entry per instance with
-        its own pos/rot/scale and hands the whole list to
-        preview_widget.set_world_instances().
-
-        Also collects and uploads every distinct model's textures
-        (Aug 1 2026, per Keith: "we need to load the textures with
-        the models in the viewport") - each model's TXD is looked up
-        via its IDE object (same lookup _on_ipl_model_row_selected
-        already does), textures fetched from the same model_cache
-        already loading geometry, and all of them uploaded together
-        via preview_widget._upload_textures() BEFORE any per-model
-        display list gets built - the bound texture id gets baked
-        into a display list at compile time, so every texture a model
-        might need has to already be in self._tex_ids first, whether
-        or not that particular model happens to build its list first.
-        Switches the viewport to 'textured' render mode so
-        _draw_world_instances actually uses this."""
-        # Reentrancy guard (Aug 16 2026, per Keith: "any models in
-        # some places disappeared, this sometimes happens, as you
-        # load a new part in, the preveus is effected") - this method
-        # calls QApplication.processEvents() inside its own per-
-        # instance loop (below, for "Loading model: X..." status
-        # feedback during a slow conversion pass), which pumps the Qt
-        # event queue and can let an already-queued event run before
-        # this call finishes - most concretely, _on_time_flow_tick's
-        # QTimer (once a second while TOBJ Play is active), which
-        # calls straight back into _apply_ipl_visibility_filter ->
-        # this same method. Without a guard, a nested call like that
-        # builds and applies its own complete `entries` list via
-        # vp.set_world_instances() while the outer call is still
-        # mid-loop; when the outer call resumes and finishes, it then
-        # overwrites the viewport with its OWN entries list - built
-        # from whatever `instances` it was originally given, which
-        # may be missing whichever IPL/part only became visible
-        # *during* the nested call, and, if a real timing coincidence
-        # placed the nested call second, could equally overwrite a
-        # more up-to-date set with a stale one. Either way: models
-        # that should be visible silently vanish, without any error,
-        # exactly the "sometimes" (timing-dependent, not
-        # deterministic) symptom described. Skipping the nested call
-        # entirely is safe here - nothing it would have done is lost
-        # forever, the next TOBJ tick (or whatever else re-enters)
-        # follows a second later regardless.
+        DFF viewport (self.preview_widget) - Aug 1 2026)"""
         if getattr(self, '_refresh_world_view_in_progress', False):
             return
         self._refresh_world_view_in_progress = True
@@ -29017,23 +25124,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 vp.clear_world_instances()
             return
 
-        # Dots render mode (Aug 20 2026, per Keith: "One request in
-        # the Render options in IPL controls is to load just the IPL
-        # data as dots, just placement without models or textures") -
-        # a real, deliberate fast path checked BEFORE the model_cache
-        # guard below, not after - the whole point of this mode is
-        # that it never needs model_cache at all, so this shouldn't
-        # depend on it being ready any more than any other guard here
-        # already doesn't need to. Builds each entry with ONLY
-        # position/rotation/model_key - no vertices/triangles/
-        # materials/UVs at all, so none of the expensive DFF/TXD
-        # loading and geometry-conversion work below this ever runs
-        # for a single instance while this mode is active. Skips the
-        # whole "convert each distinct model's geometry, preload every
-        # TXD" pipeline entirely, not just displaying already-loaded
-        # geometry differently - a real, substantial speed win for a
-        # huge map's worth of instances, not merely a different
-        # drawing style layered on top of the same underlying load.
+        # Dots render mode (Aug 20 2026)
         if getattr(vp, '_mode', 'textured') == 'dots':
             dots_entries = [
                 {'pos': (inst.pos_x, inst.pos_y, inst.pos_z),
@@ -29052,25 +25143,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return
 
         # Convert each distinct model's geometry once, reuse across
-        # instances AND across calls (Aug 1 2026, per Keith: "loading
-        # LAe.ipl sent the memory from 5.6Gb to 8.2Gb... the loading
-        # dialog closed, a long pause... about 2 mins") - this was a
-        # plain local dict before, rebuilt fresh on every single call
-        # to this method (every IPL show/hide toggle, not just loading
-        # a new one) - model_cache.get_geometry() itself is cached
-        # (DFF parsing isn't redone), but the *conversion* to vertex/
-        # triangle/material Python lists below was being rebuilt from
-        # scratch every time regardless, for every distinct model
-        # currently visible in the whole world, not just whatever IPL
-        # was actually just toggled. For a map with many distinct
-        # models already loaded, that's exactly the described "long
-        # pause" and the large memory jump (each rebuild allocates a
-        # full new set of vertex/triangle lists for every model, not
-        # just the newly-added ones). Now a real cache on self,
-        # persisting across calls - cleared only in _apply_loaded_world
-        # when a genuinely new world loads (see clear_display_lists'
-        # own similar reasoning - toggling visibility never needs
-        # this rebuilt, only a real new load does).
+        # instances AND across calls (Aug 1 2026)
         converted = self._geometry_conversion_cache = getattr(
             self, '_geometry_conversion_cache', {})
         entries = []
@@ -29078,18 +25151,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         seen_txds = set()
 
         # Preload every TXD referenced by generic.ide, unconditionally,
-        # first (Aug 1 2026, per Keith: "its not just generic.txd,
-        # there are other texture files needed; these are found in
-        # generic.ide... so we'll be looking for mine.txd metal.txd,
-        # dynphn.txd, dynbarrels.txd, woodpanels.txd, boxes.txd and
-        # every other texture listed in the .ide") - generic.ide's
-        # objects (mine, bollard, phonebooth1, barrel1/2/3, etc.) are
-        # common "urban clutter" props used across the whole map, and
-        # several of their TXDs weren't reliably found by the plain
-        # per-model model_cache.get_textures() lookup below (the same
-        # issue "generic" itself had) - preloading all of them here
-        # unconditionally means they're always available regardless
-        # of whether any individual model's own TXD lookup succeeds.
+        # first (Aug 1 2026)
         generic_ide_textures, generic_ide_txds = self._preload_generic_ide_textures()
         all_textures.extend(generic_ide_textures)
         seen_txds.update(generic_ide_txds)
@@ -29097,18 +25159,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         for inst in instances:
             model_name = inst.model_name
             if model_name not in converted:
-                # Status feedback for newly-converted models (Aug 1
-                # 2026, per Keith: "seems the long parse is loading
-                # assets, maybe we should at that to the dialog, model
-                # and texture, so we know its doing something") -
-                # _preload_world_assets already shows this for its own
-                # phase, but this conversion loop (which runs right
-                # after that dialog closes, and is what the described
-                # "long pause" actually was) previously had zero
-                # status feedback at all - a model already in
-                # `converted` (the cache) skips this and stays fast/
-                # silent, since only genuinely new models take real
-                # time to convert.
+                # Status feedback for newly-converted models (Aug 1 2026)
                 txd_name_hint = ""
                 if loader is not None:
                     hint_obj = loader.get_object(inst.model_id)
@@ -29120,28 +25171,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 if dff_model is None or not getattr(dff_model, 'geometries', None):
                     converted[model_name] = None
                 else:
-                    # Merge every geometry, not just the first (Aug 1
-                    # 2026, per Keith: "streetlights are multi clump
-                    # objects... show broken... traffic lights show in
-                    # a broken state") - a multi-clump model (separate
-                    # pole/arm/housing parts, each its own Geometry)
-                    # previously had every part after the first
-                    # silently dropped entirely, since only geometries
-                    # [0] was ever converted. Concatenates vertices/
-                    # normals/uvs/prelit colors across all geometries,
-                    # offsetting each geometry's own triangle vertex
-                    # indices and material_id by how many vertices/
-                    # materials came before it in the combined arrays
-                    # (each geometry's raw indices are relative to its
-                    # own lists, not a shared one). Doesn't apply any
-                    # per-atomic/per-frame transform between parts -
-                    # assumes each geometry's vertices are already in
-                    # correct model-local space, which covers simple
-                    # multi-part static props but not models relying on
-                    # genuine frame-hierarchy transforms between parts
-                    # (e.g. an animated/hinged part) - a further
-                    # refinement if that turns out to still look wrong
-                    # for some models.
+                    # Merge every geometry, not just the first (Aug 1 2026)
                     all_vertices, all_normals, all_uvs, all_prelit = [], [], [], []
                     all_triangles, all_materials = [], []
                     any_has_colors = any(getattr(g, 'colors', None) for g in dff_model.geometries)
@@ -29153,15 +25183,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                             all_normals.extend((n.x, n.y, n.z) for n in g.normals)
                         if g.uv_layers:
                             all_uvs.extend((u.u, u.v) for u in g.uv_layers[0])
-                        # Pad with white for any geometry lacking its own
-                        # prelit colors, whenever at least one geometry
-                        # in this model has them - otherwise a mix of
-                        # colored/uncolored parts would leave all_prelit
-                        # shorter than all_vertices, misaligning the two
-                        # (checked upfront across all geometries, not
-                        # just "seen one with colors so far" - a
-                        # colorless geometry before the first colored
-                        # one still needs padding).
+
                         if getattr(g, 'colors', None):
                             all_prelit.extend((c.r, c.g, c.b, c.a) for c in g.colors)
                         elif any_has_colors:
@@ -29188,12 +25210,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     txd_name = obj.txd_name if (obj is not None and obj.txd_name) else None
                     if txd_name and txd_name.lower() not in seen_txds:
                         seen_txds.add(txd_name.lower())
-                        # Robust fallback (IMG then loose file) for every
-                        # model's own TXD, not just generic.ide's ones -
-                        # the underlying "plain IMG lookup sometimes
-                        # doesn't find it" issue isn't specific to
-                        # generic.ide, just where Keith happened to
-                        # notice it first.
+
                         textures, _src, _status = self._get_txd_textures(txd_name)
                         if textures:
                             all_textures.extend(textures.values())
@@ -29209,62 +25226,24 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             entries.append(entry)
 
         if all_textures and hasattr(vp, '_upload_textures'):
-            # additive mirrors clear_display_lists exactly (Aug 1
-            # 2026, per Keith: "the second part loads in (LAn.Ipl),
-            # and the textures on the first LAe.ipl get corrupted") -
-            # additive=False unconditionally called clear_textures()
-            # first, wiping every previously-uploaded texture
-            # (including the first IPL's) before uploading only the
-            # freshly-collected all_textures set for this call. That
-            # was harmless before the geometry-conversion caching fix
-            # earlier this session, since every call used to re-
-            # collect and re-upload every visible model's textures
-            # regardless - but now that an already-converted model
-            # (from a prior IPL, still cached) skips re-collecting its
-            # own textures entirely, wiping-then-partially-reuploading
-            # left its still-cached, still-referenced display list
-            # pointing at texture IDs that had just been deleted -
-            # exactly the corruption Keith saw. clear_display_lists
-            # already expresses the identical "is this a genuine new
-            # world load (safe to clear) vs a mere visibility/partial
-            # update (must preserve what's already uploaded)"
-            # distinction, so reusing it here keeps both caches
-            # consistent with each other.
+            # additive mirrors clear_display_lists exactly (Aug 1 2026)
+
             vp._upload_textures(all_textures, additive=not clear_display_lists)
         # Only force the default render mode once, on the very first
-        # world load (Aug 1 2026) - this used to run unconditionally
-        # on every single refresh, which fires on every nudge edit and
-        # IPL visibility toggle too, silently undoing the render-mode
-        # selector Keith asked for the moment anyone actually used it
-        # ("Add the option to show as semi-solid, non-textured,
-        # wireframe" - selecting Wireframe, then editing an instance,
-        # would immediately snap back to Textured without this guard).
+        # world load (Aug 1 2026)
         if hasattr(vp, 'set_render_mode') and not getattr(self, '_world_render_mode_set', False):
             vp.set_render_mode('textured')
             self._world_render_mode_set = True
         vp.set_world_instances(entries, auto_fit=auto_fit, clear_display_lists=clear_display_lists)
         self._populate_models_panel_from_ipl(instances)
-        # Per Keith: "Once map workshop has loaded all the models, it
-        # should say ready, othereise loading models still shows
-        # throughout the session" - nothing previously reset the
-        # status bar after the last "Loading model: X..." message
-        # from the loop above, leaving it stuck there for the rest of
-        # the session even once loading had genuinely finished.
+
         self._set_status("Ready")
 
     def _populate_models_panel_from_ipl(self, instances): #vers 1
         """List every distinct model referenced by the currently
         loaded/visible instances in the Models dock (self.mod_compact_
         list), one row per model (Details column: model name + how
-        many instances use it) - per Keith's request ("I'd like the
-        opened IPL file, shown in models"). Selecting a row shows that
-        model's textures below (see _on_ipl_model_row_selected),
-        matching his second request ("highlighted models get there
-        textures shown in the pane below"). Sets self._ipl_models_mode
-        so the existing selection handler (_on_compact_col_selected,
-        originally built for DFF/COL browsing) routes here instead of
-        its own DFF/COL logic - additive, doesn't touch that existing
-        behaviour when not in this mode."""
+        many instances use it)"""
         table = getattr(self, 'mod_compact_list', None)
         if table is None:
             return
@@ -29296,12 +25275,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _on_ipl_model_row_selected(self, row): #vers 2
         """Show one model's info (Model Name/IDE/ID/TXD fields) and
-        its textures (self._tex_list) - the "highlighted models get
-        there textures shown in the pane below" half of Keith's
-        request. Textures come from the same robust IMG-then-loose-
-        file fallback the generic.ide fix and Show Textures context
-        menu use (Aug 1 2026) - a plain model_cache.get_textures()
-        call here had the same silent-failure bug those did."""
+        its textures (self._tex_list) - the highlighted models get
+        there textures shown in the pane below."""
         names = getattr(self, '_ipl_model_names', [])
         if row < 0 or row >= len(names):
             return
@@ -29361,16 +25336,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _create_texture_thumbnail(self, rgba_data, width, height): #vers 1
         """Build a scaled QPixmap thumbnail from decoded RGBA8888 bytes
-        - same approach as TXD Workshop's own _create_thumbnail (Aug 1
-        2026, per Keith: "texture tiles, shown in texture pane...
-        the same way as in TXD workshop"). model_cache.get_textures()
-        already returns fully-decoded rgba_data (parse_txd handles
-        DXT1/DXT3/DXT5/etc. decompression itself), so no extra
-        decoding work is needed here - just building/scaling the
-        QPixmap, matching _tex_list's already-configured 32px icon
-        size (it was built with setIconSize(QSize(32,32)) ready for
-        this, just never actually populated with real thumbnails
-        until now)."""
+        - same approach as TXD Workshop's own _create_thumbnail (Aug 1 2026)"""
         try:
             if not rgba_data or width <= 0 or height <= 0:
                 return None
@@ -29390,17 +25356,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _apply_tobj_time_filter(self, instances): #vers 1
         """Filter TOBJ (timed) instances by the simulated hour
-        selected in the Time switch - per Keith: "lets start support
-        tobj first, with a time switch under Ignore Scaling." When
-        the switch is off (default), every instance passes through
-        unchanged, same as before this feature existed. When on, an
-        instance is kept only if either: its model isn't a TOBJ entry
-        at all (never affected by this filter), or it is TOBJ and the
-        selected hour falls within its time_on/time_off range -
-        handling the common overnight-wrap case (e.g. time_on=20,
-        time_off=6 means visible from 20:00 through 05:59, wrapping
-        past midnight) as well as the same-day case (time_on=6,
-        time_off=20 means visible 06:00 through 19:59)."""
+        selected in the Time switch."""
         chk = getattr(self, '_tobj_time_chk', None)
         if chk is None or not chk.isChecked():
             return instances
@@ -29429,21 +25385,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         return result
 
     def _is_lod_by_draw_distance(self, inst): #vers 1
-        """Standalone draw-distance-based LOD check, per Keith's real
-        LAe.ide data: "Some files in the LAe.ipl are LOD, which
-        shouldn't be loading where normals only is set, but they dont
-        follow the same pattern as those prefixed as LODelname...
-        the draw distance is higher than 300 to be an LOD." His own
-        laeLODds03/laeLODds04 examples don't match the "LOD" name-
-        prefix convention resolve_lod_pairs relies on at all - they
-        likely have no "paired" normal-detail counterpart to actually
-        match against by name+position either, so pairing them isn't
-        the right model here; they just need to be individually
-        recognized as LOD-type via their own real draw_dist (verified
-        against his data: 1500 for his LOD examples, 150 for an
-        ordinary object in the same file - well either side of the
-        default 300 threshold). Threshold is configurable via
-        map_settings['lod_draw_dist_threshold'], not hardcoded."""
+        """Standalone draw-distance-based LOD check."""
         loader = getattr(self, '_world_loader', None)
         if loader is None:
             return False
@@ -29465,10 +25407,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         no LOD pair at all pass through unchanged.
 
         Also applies a separate, standalone draw-distance-based LOD
-        check (Aug 1 2026, see _is_lod_by_draw_distance) to any
-        instance not already covered by name-based pairing - filtered
-        by the same global mode, just without a specific normal-detail
-        counterpart to pair against."""
+        check (Aug 1 2026)"""
         pairs = getattr(self, '_lod_pairs', None)
         overrides = getattr(self, '_lod_overrides', {})
         global_mode = getattr(self, '_lod_display_mode', 'normal')
@@ -29505,10 +25444,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         'both'. Per-instance overrides (set via the Instance List)
         still take precedence over this for any instance they cover.
 
-        Forces an immediate repaint (Aug 1 2026, per Keith: "Show
-        Normal, Show LOD, or both should also update the viewpoint" -
-        "Button/menu label changes but 3D view looks identical") -
-        same reasoning as _set_world_render_mode's identical fix."""
+        Forces an immediate repaint (Aug 1 2026)"""
         self._lod_display_mode = mode
         self._apply_ipl_visibility_filter(clear_display_lists=False)
         vp = getattr(self, 'preview_widget', None)
@@ -29562,10 +25498,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         """PARKED (Jul 31 2026) - the original standalone "World View"
         dock. Its Top/Side/3D MapViewport triple-pane content was
         migrated into _create_viewport_dock (self._viewport_dock is now
-        the one remaining viewport), per Keith: "get rid of the full
-        view dock and transfer its functions to the other viewer...
-        this way, we only get one viewpoint window". Kept for
-        reference, no longer called."""
+        the one remaining viewport)"""
         try:
             from apps.components.Map_Editor.depends.map_viewport import MapViewport
         except Exception as e:
@@ -29586,9 +25519,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             pane._label_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
             pane._label_widget.customContextMenuRequested.connect(
                 lambda pos, p=pane: self._show_world_pane_menu(p, p._label_widget.mapToGlobal(pos)))
-            # Double-click to maximize/restore - same pattern as Model
-            # Workshop's quad viewport, via event filter rather than
-            # touching MapViewport's own mouse handlers.
+
             pane.installEventFilter(self)
             self._world_panes.append(pane)
 
@@ -29606,13 +25537,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                         QDockWidget.DockWidgetFeature.DockWidgetClosable)
         self._world_view_dock = dock
 
-        # Default to showing only 3D, per Keith's request ("I suggest
-        # showing 3d only, unless the user wants to change the
-        # viewpoint") - reuses the existing maximize/restore mechanism
-        # (previously only reachable by double-clicking a pane) rather
-        # than inventing a separate "default view" concept. Double-
-        # click any pane to restore all 3; right-click a pane's label
-        # to reassign which view it shows.
+        # Default to showing only 3D
         self._toggle_world_pane_maximize(self._world_panes[2])   # index 2 = "3D"
 
         return dock
@@ -29621,22 +25546,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         """Switch the Object Browser mode buttons (All/Most Used/
         Favourites/Generic) between icon+text and icon-only, based on
         whether the row currently has enough width to show all four
-        with their text labels. Defaults to icon-only (per Keith:
-        "show icons only, unless someone widens the pane, then switch
-        to icons and text"), switching to icon+text only once there's
-        actually enough room.
-
-        Uses each button's pre-cached estimated text-mode width
-        (computed once from font metrics at creation time) rather than
-        actually switching styles to measure - the previous version
-        temporarily forced icon+text mode first to measure the row's
-        real needed width, which could itself trigger another resize
-        event (changing a button's style changes its size hint) and
-        end up comparing against stale geometry from before Qt's
-        layout system had finished recalculating - the likely cause of
-        the truncated-text bug Keith reported (buttons stuck showing
-        partial text like "Most U", "Favouri" instead of cleanly
-        switching to icon-only)."""
+        with their text labels. Defaults to icon-only."""
         buttons = getattr(self, '_object_mode_buttons', None)
         text_widths = getattr(self, '_object_mode_button_text_widths', None)
         row_widget = getattr(self, '_ob_top_row_widget', None)
@@ -29664,17 +25574,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         Close/New/Delete, Extract/Add/Del/Rename/Rebuild, etc.) to
         collapse to icon-only when the row doesn't have room to show
         full text, expanding back once there's space - same idea as
-        Object Browser's mode-button collapse
-        (_update_mode_button_style), generalized here for QPushButton
-        rows elsewhere, which don't have QToolButton's icon-only style
-        so this toggles each button's text instead. Wired to live
-        resize via eventFilter from the start, unlike the first
-        version of the mode-button collapse (which was only ever run
-        once at construction and never re-evaluated on drag-resize -
-        Keith's report that Object Browser felt width-locked).
-
-        button_specs: list of (button, full_text) tuples - full_text
-        is stored since collapsing clears the button's own .text()."""
+        Object Browser's mode-button collapse."""
         if not hasattr(self, '_collapsible_button_rows'):
             self._collapsible_button_rows = {}
         self._collapsible_button_rows[row_widget] = button_specs
@@ -29706,13 +25606,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         """Maximize the given world-view pane to fill the whole dock
         (hiding its siblings), or restore all 3 if already maximized.
         Simpler than Model Workshop's version - one flat splitter here,
-        not a nested 2x2 grid, so just hiding the other panes is enough.
-
-        Switches the maximized pane's label to 'Full View' - that label
-        is also the pane's exclusive right-click-menu trigger (see
-        _create_world_viewport_dock), so without it there'd be no
-        labelled target to right-click while maximized. Restores the
-        original view-name label (Top/Side/3D) when un-maximized."""
+        not a nested 2x2 grid, so just hiding the other panes is enough."""
         panes = getattr(self, '_world_panes', None)
         if not panes:
             return
@@ -31192,17 +27086,7 @@ def open_map_workshop(main_window, game_root=None, dat_path=None, force_preload_
     open_map_workshop_docked() actually calls this with (game_root
     from Dat Browser's currently-loaded game root; dat_path from
     right-clicking a .dat entry in the Dat Browser tree).
-    force_preload_img (Aug 16 2026) - passed through to dat_path's
-    _load_game_dat_file call only; a per-load override for the
-    Loading tab's persistent "Preload IMG archives on DAT load"
-    setting, from the DAT Browser's second "...preload img(s) file"
-    context-menu action. An earlier version of this function was just
-    `open_map_workshop = open_model_workshop` (a plain alias) - fixed
-    the ImportError, but open_model_workshop's own signature
-    (dff_path/original_dff_name, routing only .dff/.col/.img) doesn't
-    accept game_root/dat_path at all, so the call itself still failed
-    with "got an unexpected keyword argument 'game_root'". This is a
-    real, separate implementation instead."""
+    force_preload_img (Aug 16 2026)"""
     try:
         if main_window and hasattr(main_window, 'main_tab_widget'):
             from PyQt6.QtWidgets import QWidget, QVBoxLayout
@@ -31318,10 +27202,7 @@ if __name__ == "__main__":
         workshop = ModelWorkshop()
         print(App_name + " instance created")
 
-        # Also set the QApplication-level icon (Aug 1 2026, per Keith:
-        # world map icon for the taskbar when standalone) - many Linux
-        # desktop environments look at this for the taskbar/dock icon
-        # specifically, not just the window's own setWindowIcon call.
+        # Also set the QApplication-level icon (Aug 1 2026)
         app.setWindowIcon(workshop.windowIcon())
 
         workshop.setWindowTitle(App_name + " - Standalone")
