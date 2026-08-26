@@ -8297,3 +8297,59 @@ conclusively found despite extensive isolated testing.
 
   `ast.parse` clean; confirmed via AST no duplicate method
   definitions.
+
+- **Aug 20, 2026** — Fixed 2 real gaps in the startup "Load Options"
+  bulk-IPL-loading dialog (`_load_selected_ipls_with_log`), per Keith:
+  "When I start the app and load the data file, any version of GTA...
+  I get the popup where you can load selected entries or skip; this
+  dialogue does not show the IPL name in a separate section above
+  with a load % indicator. It also needs to obey the settings, like
+  the manual loader does, rendering down images."
+
+  **Missing IPL name header + load % indicator** - this dialog used
+  to be a plain `QTextEdit` scrolling log only, with the current IPL
+  name mixed into the same scrolling text rather than pinned in its
+  own section, and no percentage indicator anywhere. Fixed by using
+  the same real `_VerboseLoadingDialog` the manual, per-IPL (eye-
+  icon) loader already uses - a fixed, bold header label pinned above
+  the scrolling list showing which IPL is currently loading, updated
+  via a genuinely new `set_progress(current, total)` method added to
+  that same class. Neither dialog actually had a real percentage
+  indicator before this - added directly to `_VerboseLoadingDialog`
+  itself (a real `QProgressBar`), not just to this one caller, so any
+  future user of that same dialog gets it too.
+
+  Found and fixed a real, separate, pre-existing bug while adding
+  this: `QProgressBar` was used elsewhere in this same file
+  (`imgfactory.py`'s own progress bar widget) but never actually
+  imported anywhere at module level - a genuine latent `NameError`
+  waiting to fire the first time that other code path actually ran.
+  Fixed with one real, module-level import rather than another
+  scattered local one.
+
+  **Didn't obey settings like the manual loader does** - traced
+  directly, not assumed: the real `texture_downscale_enabled`/
+  `_threshold`/`_target` settings are applied at `DFFViewport`'s own
+  texture-upload time, not at `ModelCache` load time - so this bulk
+  path and the manual, per-IPL one already produce identical
+  downscaling once the viewport actually renders what either one
+  loaded. The real, confirmed gap was different: this method always
+  showed its own detailed log dialog unconditionally, with no way to
+  turn it off, unlike the manual loader's own equivalent dialog,
+  which already respects the real `show_verbose_loading_dialog`
+  setting. This method now checks that same setting.
+
+  A real, always-present `QProgressDialog` (with its own real Cancel
+  button) now drives the header+percentage regardless of that
+  setting, matching `_preload_world_assets`' own real pattern exactly
+  - that method's own progress dialog was never gated on the verbose
+  setting either, only its own additional, more detailed log dialog
+  was. Deliberately not made the whole progress UI conditional on
+  the setting, since that would have been a real regression (losing
+  the ability to cancel a bulk load entirely whenever verbose
+  happened to be off) rather than a faithful match to the existing,
+  established pattern.
+
+  `ast.parse` clean; confirmed via AST no duplicate class/method
+  definitions and exactly one real, module-level `QProgressBar`
+  import.

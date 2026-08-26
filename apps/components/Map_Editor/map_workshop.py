@@ -31,7 +31,7 @@ if str(project_root) not in sys.path:
 # Import PyQt6
 from PyQt6.QtWidgets import (QApplication, QSlider, QCheckBox,
     QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QListWidget, QDialog, QFormLayout, QSpinBox,  QListWidgetItem, QLabel, QPushButton, QFrame, QFileDialog, QLineEdit, QTextEdit, QMessageBox, QScrollArea, QGroupBox, QTableWidget, QTableWidgetItem, QColorDialog, QHeaderView, QAbstractItemView, QMenu, QComboBox, QInputDialog, QTabWidget, QDoubleSpinBox, QRadioButton, QStyledItemDelegate, QTimeEdit,
-    QDockWidget, QFontComboBox, QSizePolicy, QMenuBar, QStatusBar, QProgressDialog, QStackedWidget, QGridLayout, QToolButton
+    QDockWidget, QFontComboBox, QSizePolicy, QMenuBar, QStatusBar, QProgressDialog, QStackedWidget, QGridLayout, QToolButton, QProgressBar
 )
 
 from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPoint, QRect, QByteArray, QPointF, QTimer, QAbstractTableModel, QObject
@@ -5596,7 +5596,7 @@ class _VerboseLoadingDialog(QDialog):
     live, just not more often than it needs to for the human eye to
     follow along."""
 
-    def __init__(self, title, parent=None): #vers 2
+    def __init__(self, title, parent=None): #vers 3
         super().__init__(parent)
         self.setWindowTitle(title)
         self.resize(500, 400)
@@ -5606,6 +5606,17 @@ class _VerboseLoadingDialog(QDialog):
         header_font.setBold(True)
         self._header_label.setFont(header_font)
         layout.addWidget(self._header_label)
+        # Real load-percentage indicator (Aug 20 2026, per Keith: "this
+        # dialogue does not show the IPL name in a separate section
+        # above with a load % indicator") - a real QProgressBar, not
+        # just the existing header text alone. set_progress(...) drives
+        # this; a caller that never calls it just leaves the bar at 0
+        # rather than this dialog inventing a fake percentage on its
+        # own.
+        self._progress_bar = QProgressBar()
+        self._progress_bar.setRange(0, 100)
+        self._progress_bar.setValue(0)
+        layout.addWidget(self._progress_bar)
         self._list = QListWidget()
         layout.addWidget(self._list)
         close_btn = QPushButton("Close")
@@ -5618,6 +5629,16 @@ class _VerboseLoadingDialog(QDialog):
     def add_header(self, text): #vers 2
         self._header_label.setText(text)
         QApplication.processEvents()   # header changes are rare - always pump immediately
+
+    def set_progress(self, current, total): #vers 1
+        """Real load-percentage indicator (Aug 20 2026, per Keith's
+        own report - see this class's own docstring/__init__ comment
+        for the fuller story). total<=0 is treated as "unknown length"
+        - shows the bar at 0 rather than dividing by zero or claiming
+        a specific percentage that isn't real."""
+        pct = int((current / total) * 100) if total > 0 else 0
+        self._progress_bar.setValue(max(0, min(100, pct)))
+        QApplication.processEvents()
 
     def add_line(self, text): #vers 2
         self._list.addItem(QListWidgetItem(f"  {text}"))
@@ -21503,7 +21524,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     self._load_selected_ipls_with_log(
                         loader, model_cache, stems, load_models, load_textures)
 
-    def _load_selected_ipls_with_log(self, loader, model_cache, stems, load_models, load_textures): #vers 1
+    def _load_selected_ipls_with_log(self, loader, model_cache, stems, load_models, load_textures): #vers 2
         """Load a batch of specific IPLs (from the Load Options dialog),
         showing a scrolling log dialog matching Keith's exact requested
         format: "loading <name>" followed by each newly-added instance's
@@ -21519,38 +21540,81 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         either skips that half of pre-loading entirely for everything
         loaded here (their own per-instance rendering fallback to
         point/dot rendering is unaffected either way, this only
-        controls whether pre-loading happens now)."""
-        from PyQt6.QtWidgets import QTextEdit
+        controls whether pre-loading happens now).
 
-        dlg = QDialog(self)
-        dlg.setWindowTitle("Loading IPL Files")
-        dlg.resize(560, 420)
-        lay = QVBoxLayout(dlg)
-        log = QTextEdit()
-        log.setReadOnly(True)
-        font = log.font(); font.setFamily("monospace"); log.setFont(font)
-        lay.addWidget(log)
-        cancel_btn = QPushButton("Cancel")
-        btn_row = QHBoxLayout()
-        btn_row.addStretch()
-        btn_row.addWidget(cancel_btn)
-        lay.addLayout(btn_row)
+        Real fixes here (Aug 20 2026, per Keith: "this dialogue does
+        not show the IPL name in a separate section above with a load
+        % indicator. It also needs to obey the settings, like the
+        manual loader does") - two real, confirmed gaps against the
+        manual, per-IPL loader (the eye-icon-triggered path, see
+        _preload_world_assets' own real caller for the reference this
+        was built to match):
 
-        cancelled = {'flag': False}
-        cancel_btn.clicked.connect(lambda: cancelled.update(flag=True))
-        dlg.show()
+        1. Now uses the same real _VerboseLoadingDialog the manual
+           loader already uses (fixed header label pinned above the
+           scrolling list showing which IPL is currently loading, plus
+           a real QProgressBar - genuinely missing from both this
+           method's own old plain-QTextEdit dialog AND from _Verbose
+           LoadingDialog itself until now, since Keith's own "load %
+           indicator" wording asked for something neither dialog had).
+
+        2. Now checks the same real 'show_verbose_loading_dialog'
+           setting the manual loader already gates on - this method
+           used to always show its own detailed log dialog
+           unconditionally, with no way to turn it off the way the
+           manual loader's own detailed dialog already can be. This
+           is the real "obey the settings" gap - texture downscale
+           itself is applied at the viewport's own texture-upload
+           time (confirmed directly by tracing where texture_
+           downscale_enabled/_threshold/_target are actually read -
+           DFFViewport.set_texture_downscale_settings, not ModelCache),
+           so both this bulk path and the manual one already get
+           identical downscaling once the viewport renders what
+           either one loaded - this method simply never had the same
+           on/off switch for its own detailed dialog in the first
+           place.
+
+        A real, always-present QProgressDialog (with its own real
+        Cancel button) drives the header+percentage regardless of the
+        verbose setting - matching _preload_world_assets' own real
+        pattern exactly (that method's own progress dialog isn't
+        gated on verbose either; only the additional, more detailed
+        _VerboseLoadingDialog log is). Losing the ability to cancel a
+        bulk load entirely whenever verbose happened to be off would
+        be a real regression from that established pattern, not a
+        faithful match to it."""
+        total_stems = len(stems)
+        progress = QProgressDialog("Loading IPL files…", "Cancel", 0, total_stems, self)
+        progress.setWindowTitle("Loading IPL Files")
+        progress.setMinimumDuration(0)
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+
+        verbose = self.map_settings.get('show_verbose_loading_dialog')
+        dlg = _VerboseLoadingDialog("Loading IPL Files", self) if verbose else None
+        if dlg is not None:
+            dlg.show()
+
+        def _cancelled(): #vers 1
+            return progress.wasCanceled()
 
         def _append(line): #vers 1
-            log.append(line)
-            QApplication.processEvents()
+            if dlg is not None:
+                dlg.add_line(line)
+            else:
+                QApplication.processEvents()
 
         any_loaded = False
-        for stem in stems:
-            if cancelled['flag']:
+        for idx, stem in enumerate(stems):
+            if _cancelled():
                 _append("Cancelled - remaining IPLs not loaded")
                 break
             entry = loader.available_ipls.get(stem)
             display_name = os.path.basename(entry.abs_path) if entry else stem
+            progress.setLabelText(f"Loading {display_name} ({idx + 1} of {total_stems})")
+            progress.setValue(idx)
+            if dlg is not None:
+                dlg.add_header(f"Loading {display_name} ({idx + 1} of {total_stems})")
+                dlg.set_progress(idx, total_stems)
             _append(f"loading {display_name}")
 
             before_count = len(loader.instances)
@@ -21567,7 +21631,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                         f"{inst.pos_x}, {inst.pos_y}, {inst.pos_z}, "
                         f"{inst.scale_x}, {inst.scale_y}, {inst.scale_z}, "
                         f"{inst.rot_x}, {inst.rot_y}, {inst.rot_z}, {inst.rot_w}")
-                if cancelled['flag']:
+                if _cancelled():
                     break
 
             # Missing-model/texture detection - genuinely absent from
@@ -21602,6 +21666,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             else:
                 _append(f"{display_name} loaded - no errors")
 
+        progress.setValue(total_stems)
+        if dlg is not None:
+            dlg.set_progress(total_stems, total_stems)
+
         if any_loaded:
             self._all_instances = list(loader.instances)
             self._populate_object_browser(loader)
@@ -21609,9 +21677,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             for pane in getattr(self, '_world_panes', []):
                 pane.set_instances(visible)
 
-        cancel_btn.setText("Close")
-        cancel_btn.clicked.disconnect()
-        cancel_btn.clicked.connect(dlg.accept)
+        if dlg is not None:
+            dlg.add_header(f"Done - {'cancelled, ' if progress.wasCanceled() else ''}"
+                            f"{total_stems} IPL(s) processed")
 
     def _show_load_options_dialog(self, loader): #vers 1
         """Shown right after a world's IPL list is discovered (but
