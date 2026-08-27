@@ -8574,3 +8574,16 @@ conclusively found despite extensive isolated testing.
   (zenith at the bottom, horizon glow at the top) - flipped, per
   Keith: "the sky need flipping vertically." Noted for later:
   fog is still on the list of real effects to add alongside this.
+
+- **Aug 20, 2026** — Fixed timecyc colour effect blinking on and off,
+  worse while moving/turning the view, per Keith. _on_timecyc_tick
+  runs off its own independent QTimer, not Qt's paint lifecycle, but
+  was directly calling self.makeCurrent()/_setup_lighting()/self.
+  doneCurrent() on top of that - pure duplication, since paintGL
+  already calls _setup_lighting() itself on every real frame. That
+  direct, out-of-band call could collide with Qt's own GL context
+  handling during a real, rapid paintGL call - exactly when camera
+  movement triggers the most repaints, matching what was reported.
+  Removed it entirely; self.update() (still called) is enough on its
+  own - the next real paintGL call already re-applies the new
+  ambient tint through its own existing lighting setup.

@@ -2188,7 +2188,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         elif hasattr(self, '_timecyc_timer') and self._timecyc_timer is not None:
             self._timecyc_timer.stop()
 
-    def _on_timecyc_tick(self): #vers 3
+    def _on_timecyc_tick(self): #vers 4
         """Real, more accurate fix (Aug 20 2026, per Keith: "still
         isn't being rendered like it would be in game... all its
         doing it cycling through colours, no horizon and sky bands")
@@ -2197,7 +2197,26 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         sun_core as self._sky_gradient_horizon so _draw_sky_gradient
         can build a real 3-stop gradient (brighter near the horizon,
         darker overhead - the real, general shape of a GTA sky,
-        rather than a flat 2-colour linear blend)."""
+        rather than a flat 2-colour linear blend).
+
+        Real fix (Aug 20 2026, per Keith: "the color effect seems to
+        blink on and off, more so when I move or turn the view") -
+        this method used to call self.makeCurrent()/_setup_lighting()/
+        self.doneCurrent() directly here, on top of just setting state
+        and calling self.update(). paintGL already calls _setup_
+        lighting() itself, unconditionally, on every single real
+        frame - that direct call was pure duplication, and since this
+        method runs off its own independent QTimer rather than Qt's
+        own paint lifecycle, it could end up calling makeCurrent/
+        doneCurrent at the same moment Qt itself was handling a real,
+        rapid paintGL call during camera movement - the two competing
+        over the same GL context is what actually caused the reported
+        blinking, worse the more repaints were happening (i.e. worse
+        while actively moving/turning). Removed entirely - self.
+        update() below is enough on its own; the next real paintGL
+        call already re-applies the new ambient tint via its own
+        existing _setup_lighting() call, the same way any other state
+        change already works in this app."""
         self._timecyc_hour = (self._timecyc_hour + 0.1) % 24
         colors = self._timecyc_colors_for_hour(self._timecyc_hour)
         if colors:
@@ -2213,8 +2232,6 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             # brightest channel itself is well under 255).
             peak = max(ambient) or 1
             self._ambient_tint = tuple(c / peak for c in ambient)
-            if OPENGL_AVAILABLE and self.isVisible():
-                self.makeCurrent(); self._setup_lighting(); self.doneCurrent()
             self.update()
 
     def _draw_grid_dashed(self, step, rng, cx=0, cy=0): #vers 2
