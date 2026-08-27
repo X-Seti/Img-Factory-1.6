@@ -8428,3 +8428,8 @@ conclusively found despite extensive isolated testing.
   far beyond it. Added a separate, real map-scale grid_fixed_step
   setting (default 200) for this mode, and made its visible range
   scale with zoom distance too so it actually reaches distant models.
+
+- **Aug 20, 2026** — Grid cell count setting (12/24/36/48/60/72/84/
+  96/108/120), replaces the old fixed *10 multiplier in _draw_grid's
+  rng computation - controls how far the grid extends before it
+  stops, independent of cell size, across every grid style.

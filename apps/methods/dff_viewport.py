@@ -278,6 +278,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._grid_line_size  = 4               # 4-10px range
         self._grid_spacing    = 5               # divisor of _dist -> step (zoom_relative mode)
         self._grid_fixed_step = 200             # world units per cell (fixed mode - real map scale, not the small zoom_relative divisor)
+        self._grid_cell_count = 24               # total grid diameter in cells (replaces the old fixed *10 multiplier)
         self._grid_scale_mode = 'zoom_relative'  # or 'fixed' or 'radar_tiles'
         self._radar_grid_tile_size = 500.0   # world units per tile, set from RADAR_GRID_PRESETS
         self._radar_grid_half_extent = 3000.0   # grid_size/2 for the current game
@@ -1696,6 +1697,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             step = max(1, int(self._grid_fixed_step))
         else:
             step = self._nice_grid_step(self._dist / self._grid_spacing)
+        cell_radius = max(1, self._grid_cell_count // 2)
         if self._grid_scale_mode == 'radar_tiles':
             rng = int(self._radar_grid_half_extent)
         elif self._grid_scale_mode == 'fixed':
@@ -1705,9 +1707,9 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             # (Aug 20 2026, per Keith: "the grid count doesn't cover
             # the map, you can see the outer ipl models and the
             # little yellow grid in the middle").
-            rng = max(step * 10, int(self._dist * 2))
+            rng = max(step * cell_radius, int(self._dist * 2))
         else:
-            rng = step * 10
+            rng = step * cell_radius
         # The real world point the camera is currently looking at is
         # (-pan_x, -pan_y) - the scene itself is translated by (pan_x,
         # pan_y) before the fixed camera views it (the same real
@@ -2617,6 +2619,15 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         'zoom_relative' mode, a real map-scale value like 200 would
         be much too large used the same way there)."""
         self._grid_fixed_step = max(1, step)
+        self.update()
+
+    def set_grid_cell_count(self, count): #vers 1
+        """Total grid diameter in cells (Aug 20 2026, per Keith:
+        "number of cells, hex 12, 24, 36, 48, 60, 72 etc") - replaces
+        the old fixed *10 multiplier in _draw_grid's own rng
+        computation, applies to every grid style (not just honeycomb),
+        since all styles share the same rng/step-based coverage."""
+        self._grid_cell_count = max(2, count)
         self.update()
 
     def set_grid_scale_mode(self, mode): #vers 2
