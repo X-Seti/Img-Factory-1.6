@@ -8706,3 +8706,17 @@ conclusively found despite extensive isolated testing.
   creating a second one, and the per-IPL detailed log dialog is
   suppressed during a bulk load (the shared dialog already reports
   which IPL is loading).
+
+- **Aug 20, 2026** — New "Water Display" settings group, per Keith:
+  "Maybe show water should be in lines, dots, hexagons, with the
+  water file path... another entry for custom textures to be shown
+  instead of the grid... also retaining the option to show grid
+  outside the map boundary/radar/rendered water." Adds:
+  - Water file status (shows whether water.dat/waterpro.dat was
+    auto-detected for the currently loaded game)
+  - Water style: flat fill (default)/outline lines/dots/hexagons/
+    custom texture (tiled), applied to waterpro.dat's own grid cells
+  - Custom water texture Browse + tile size
+  - "Hide water outside map boundary" - same real idea as "Hide grid
+    over radar tiles", inverted for water (skips cells outside the
+    real map area instead of the void beyond it)

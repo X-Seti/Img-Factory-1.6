@@ -3177,6 +3177,10 @@ class MapSettings(QObject):
         'skybox_path': '',
         'timecyc_path': '',
         'sky_gradient_flipped': False,
+        'water_display_style': 'fill',
+        'water_texture_path': '',
+        'water_tile_size': 256,
+        'water_hide_outside_map': False,
 
         # distinct from paths' red.
         'cull_box_color': (255, 217, 51),
@@ -8346,8 +8350,67 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "versus near the horizon.")
         env_form.addRow(sky_flip_chk)
 
+        water_grp = QGroupBox("Water Display")
+        water_form = QFormLayout(water_grp)
+
+        water_path_edit = QLineEdit()
+        loader_for_water = getattr(self, '_world_loader', None)
+        water_dat_path = getattr(getattr(loader_for_water, 'main_dat', None), 'dat_path', '') if loader_for_water else ''
+        water_path_display = ''
+        if getattr(loader_for_water, 'water_shapes', None) or getattr(loader_for_water, 'waterpro', None):
+            water_path_display = "Loaded (water.dat/waterpro.dat, auto-detected from the game's own WATER directive)"
+        water_path_edit.setText(water_path_display)
+        water_path_edit.setReadOnly(True)
+        water_path_edit.setPlaceholderText("Not loaded - load a world to auto-detect its own water.dat/waterpro.dat")
+        water_form.addRow("Water file:", water_path_edit)
+
+        water_style_combo = QComboBox()
+        water_style_items = [
+            ('fill',     'Flat fill (default)'),
+            ('lines',    'Outline lines'),
+            ('dots',     'Dots'),
+            ('hexagons', 'Hexagons'),
+            ('texture',  'Custom texture (tiled)'),
+        ]
+        for key, label in water_style_items:
+            water_style_combo.addItem(label, key)
+        saved_water_style = self.map_settings.get('water_display_style') or 'fill'
+        idx = next((i for i, (k, _) in enumerate(water_style_items) if k == saved_water_style), 0)
+        water_style_combo.setCurrentIndex(idx)
+        water_form.addRow("Water style:", water_style_combo)
+
+        water_texture_path_edit = QLineEdit(self.map_settings.get('water_texture_path') or '')
+        water_texture_path_edit.setReadOnly(True)
+        water_texture_browse_btn = QPushButton("Browse…")
+        def _browse_water_texture(): #vers 1
+            path, _ = QFileDialog.getOpenFileName(
+                self, "Choose Water Texture", "", "Images (*.png *.jpg *.jpeg *.bmp *.tga)")
+            if path:
+                water_texture_path_edit.setText(path)
+        water_texture_browse_btn.clicked.connect(_browse_water_texture)
+        water_texture_row = QHBoxLayout()
+        water_texture_row.addWidget(water_texture_path_edit)
+        water_texture_row.addWidget(water_texture_browse_btn)
+        water_form.addRow("Custom texture:", water_texture_row)
+
+        water_tile_size_spin = QSpinBox()
+        water_tile_size_spin.setRange(64, 1024)
+        water_tile_size_spin.setSingleStep(64)
+        water_tile_size_spin.setValue(int(self.map_settings.get('water_tile_size') or 256))
+        water_form.addRow("Texture tile size:", water_tile_size_spin)
+
+        water_hide_outside_chk = QCheckBox("Hide water outside map boundary")
+        water_hide_outside_chk.setChecked(bool(self.map_settings.get('water_hide_outside_map')))
+        water_hide_outside_chk.setToolTip(
+            "Same real idea as \"Hide grid over radar tiles\" above,\n"
+            "just inverted for water - skips any water cell whose own\n"
+            "centre falls outside the currently loaded game's real map\n"
+            "area, instead of showing it stretched across the void.")
+        water_form.addRow(water_hide_outside_chk)
+
         render_layout.addWidget(boxes_grp)
         render_layout.addWidget(radar_grp)
+        render_layout.addWidget(water_grp)
         render_layout.addWidget(env_grp)
         render_layout.addStretch()
         tabs.addTab(render_tab_outer, "Render")
@@ -8936,6 +8999,23 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.map_settings.set('sky_gradient_flipped', sky_flip_val)
             if vp is not None and hasattr(vp, 'set_sky_gradient_flipped'):
                 vp.set_sky_gradient_flipped(sky_flip_val)
+
+            water_style_val = water_style_combo.currentData()
+            self.map_settings.set('water_display_style', water_style_val)
+            if vp is not None and hasattr(vp, 'set_water_display_style'):
+                vp.set_water_display_style(water_style_val)
+
+            water_tex_path_val = water_texture_path_edit.text()
+            water_tile_size_val = water_tile_size_spin.value()
+            self.map_settings.set('water_texture_path', water_tex_path_val)
+            self.map_settings.set('water_tile_size', water_tile_size_val)
+            if vp is not None and hasattr(vp, 'set_water_texture'):
+                vp.set_water_texture(water_tex_path_val, water_tile_size_val)
+
+            water_hide_outside_val = water_hide_outside_chk.isChecked()
+            self.map_settings.set('water_hide_outside_map', water_hide_outside_val)
+            if vp is not None and hasattr(vp, 'set_water_hide_outside_map'):
+                vp.set_water_hide_outside_map(water_hide_outside_val)
 
             try:
                 # Adjusted for COL Wireframe, Mesh
@@ -12092,6 +12172,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 self.preview_widget.set_timecyc_path(saved_timecyc)
         if hasattr(self.preview_widget, 'set_sky_gradient_flipped'):
             self.preview_widget.set_sky_gradient_flipped(bool(self.map_settings.get('sky_gradient_flipped')))
+        if hasattr(self.preview_widget, 'set_water_display_style'):
+            self.preview_widget.set_water_display_style(self.map_settings.get('water_display_style') or 'fill')
+        if hasattr(self.preview_widget, 'set_water_texture'):
+            self.preview_widget.set_water_texture(
+                self.map_settings.get('water_texture_path') or '',
+                int(self.map_settings.get('water_tile_size') or 256))
+        if hasattr(self.preview_widget, 'set_water_hide_outside_map'):
+            self.preview_widget.set_water_hide_outside_map(bool(self.map_settings.get('water_hide_outside_map')))
         # Wire the path node drag callback once, here at construction
         # (Aug 17 2026)
         if hasattr(self.preview_widget, 'set_path_node_drag_callback'):
@@ -20482,6 +20570,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             grid_size_for_grid = preset_for_grid['grid_size']
             vp_for_grid.set_radar_grid_extent(
                 grid_size_for_grid / preset_for_grid['tiles_per_side'], grid_size_for_grid / 2.0)
+            if hasattr(vp_for_grid, 'set_water_map_extent'):
+                vp_for_grid.set_water_map_extent(grid_size_for_grid / 2.0)
         # Auto-detect timecyc.dat next to this world's own main .dat
         # file (Aug 20 2026, per Keith: "we need to be able to detect
         # the timecyc.dat file without the need for a path, and still

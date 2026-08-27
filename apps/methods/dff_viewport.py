@@ -591,6 +591,13 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self.show_water = False
         self._water_shapes = []
         self._waterpro_cells = []   # list of (min_x, min_y, max_x, max_y, height) - flat, pre-resolved from map_workshop.py
+        self._water_display_style = 'fill'   # 'fill'/'lines'/'dots'/'hexagons'
+        self._water_texture_path = ''
+        self._water_texture_tex_id = None
+        self._water_texture_tex_path_loaded = None
+        self._water_tile_size = 256
+        self._water_hide_outside_map = False
+        self._water_map_half_extent = 3000.0   # grid_size/2 for the currently loaded game
 
         # Cull zone boxes (Aug 16 2026, per Keith: "continue with the
         # cull files next", following the same "so I can view them"
@@ -3720,34 +3727,151 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._waterpro_cells = cells or []
         self.update()
 
-    def _draw_waterpro_water(self): #vers 1
-        """Draw waterpro.dat's own real grid as flat, translucent
-        quads, one per real grid cell, at that cell's own real height
-        (Aug 20 2026). Same real deep-blue colour/alpha water.dat's
-        own ocean water already uses (_draw_water_shapes, is_shallow=
-        False) - waterpro.dat has no shallow/pool distinction of its
-        own the way water.dat's water_type flag does (see WaterProLevel's
-        own docstring - just a single real height per level, nothing
-        else), so there's no real, confirmed second colour to draw
-        instead. Same real GL_BLEND/no-depth-write pattern the grid
-        squares fill already uses, for the same reason - this is a
-        flat, semi-transparent surface, not opaque geometry that
-        should occlude anything drawn after it."""
+    def set_water_display_style(self, style): #vers 1
+        valid = ('fill', 'lines', 'dots', 'hexagons', 'texture')
+        self._water_display_style = style if style in valid else 'fill'
+        self.update()
+
+    def set_water_texture(self, path, tile_size=None): #vers 1
+        if path != self._water_texture_path:
+            self._water_texture_path = path or ''
+            self._water_texture_tex_id = None
+        if tile_size is not None:
+            self._water_tile_size = tile_size
+        self.update()
+
+    def set_water_hide_outside_map(self, hide): #vers 1
+        self._water_hide_outside_map = bool(hide)
+        self.update()
+
+    def set_water_map_extent(self, half_extent): #vers 1
+        self._water_map_half_extent = half_extent
+        self.update()
+
+    def _draw_waterpro_water(self): #vers 2
+        """Draw waterpro.dat's own real grid, one per real grid cell,
+        at that cell's own real height (Aug 20 2026). Style now
+        configurable (Aug 20 2026, per Keith: "Maybe show water
+        should be in lines, dots, hexagons, with the water file
+        path... another entry for custom textures to be shown instead
+        of the grid") - 'fill' (the original, flat translucent quad,
+        same real deep-blue colour/alpha water.dat's own ocean water
+        already uses since waterpro.dat has no shallow/pool
+        distinction of its own to draw a second colour from), 'lines'
+        (outline only), 'dots' (a single point per cell centre),
+        'hexagons' (a hexagon outline approximating each cell's own
+        area, reusing the same real hex-tiling math the grid's own
+        honeycomb style already uses), or a user-chosen texture tiled
+        across the cells the same way the grid's own squares-texture
+        fill already works.
+
+        "Hide outside map boundary" (Aug 20 2026) - skips any cell
+        whose own centre falls outside self._water_map_half_extent,
+        when that setting is on."""
         if not OPENGL_AVAILABLE or not self._waterpro_cells:
             return
+        cells = self._waterpro_cells
+        if self._water_hide_outside_map:
+            half = self._water_map_half_extent
+            cells = [c for c in cells
+                     if abs((c[0] + c[2]) / 2) <= half and abs((c[1] + c[3]) / 2) <= half]
+            if not cells:
+                return
         glDisable(GL_LIGHTING)
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        style = self._water_display_style
+
+        if style == 'texture' and self._water_texture_path:
+            tex_id = self._ensure_water_texture()
+            if tex_id:
+                glEnable(GL_TEXTURE_2D)
+                glBindTexture(GL_TEXTURE_2D, tex_id)
+                glColor4f(1, 1, 1, 0.6)
+                ts = self._water_tile_size
+                glBegin(GL_QUADS)
+                for min_x, min_y, max_x, max_y, height in cells:
+                    glTexCoord2f(min_x / ts, min_y / ts); glVertex3f(min_x, min_y, height)
+                    glTexCoord2f(max_x / ts, min_y / ts); glVertex3f(max_x, min_y, height)
+                    glTexCoord2f(max_x / ts, max_y / ts); glVertex3f(max_x, max_y, height)
+                    glTexCoord2f(min_x / ts, max_y / ts); glVertex3f(min_x, max_y, height)
+                glEnd()
+                glBindTexture(GL_TEXTURE_2D, 0)
+                glDisable(GL_TEXTURE_2D)
+                glDisable(GL_BLEND)
+                glEnable(GL_LIGHTING)
+                return
+
         glColor4f(0.1, 0.25, 0.65, 0.45)
-        glBegin(GL_QUADS)
-        for min_x, min_y, max_x, max_y, height in self._waterpro_cells:
-            glVertex3f(min_x, min_y, height)
-            glVertex3f(max_x, min_y, height)
-            glVertex3f(max_x, max_y, height)
-            glVertex3f(min_x, max_y, height)
-        glEnd()
+        if style == 'fill':
+            glBegin(GL_QUADS)
+            for min_x, min_y, max_x, max_y, height in cells:
+                glVertex3f(min_x, min_y, height)
+                glVertex3f(max_x, min_y, height)
+                glVertex3f(max_x, max_y, height)
+                glVertex3f(min_x, max_y, height)
+            glEnd()
+        elif style == 'lines':
+            glLineWidth(1.2)
+            for min_x, min_y, max_x, max_y, height in cells:
+                glBegin(GL_LINE_LOOP)
+                glVertex3f(min_x, min_y, height)
+                glVertex3f(max_x, min_y, height)
+                glVertex3f(max_x, max_y, height)
+                glVertex3f(min_x, max_y, height)
+                glEnd()
+        elif style == 'dots':
+            glPointSize(4.0)
+            glBegin(GL_POINTS)
+            for min_x, min_y, max_x, max_y, height in cells:
+                glVertex3f((min_x + max_x) / 2, (min_y + max_y) / 2, height)
+            glEnd()
+        elif style == 'hexagons':
+            import math
+            for min_x, min_y, max_x, max_y, height in cells:
+                cx, cy = (min_x + max_x) / 2, (min_y + max_y) / 2
+                s = (max_x - min_x) / 2
+                glBegin(GL_LINE_LOOP)
+                for i in range(6):
+                    ang = math.radians(60 * i - 30)
+                    glVertex3f(cx + s * math.cos(ang), cy + s * math.sin(ang), height)
+                glEnd()
         glDisable(GL_BLEND)
         glEnable(GL_LIGHTING)
+
+    def _ensure_water_texture(self): #vers 1
+        """Lazily load self._water_texture_path as a GL texture, same
+        real pattern _ensure_squares_texture already uses - no self.
+        makeCurrent()/doneCurrent() here since this is always called
+        from within an already-active paintGL, same real reasoning
+        that fixed the earlier real segfault (Aug 20 2026)."""
+        if self._water_texture_tex_id and self._water_texture_tex_path_loaded == self._water_texture_path:
+            return self._water_texture_tex_id
+        try:
+            from PyQt6.QtGui import QImage
+            image = QImage(self._water_texture_path).convertToFormat(QImage.Format.Format_RGBA8888)
+            if image.isNull():
+                self._water_texture_tex_id = False
+                return False
+            w, h = image.width(), image.height()
+            ptr = image.bits(); ptr.setsize(image.sizeInBytes())
+            rgba = bytes(ptr)
+            if self._water_texture_tex_id and self._water_texture_tex_id is not False:
+                glDeleteTextures([self._water_texture_tex_id])
+            gl_id = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_2D, gl_id)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba)
+            glBindTexture(GL_TEXTURE_2D, 0)
+            self._water_texture_tex_id = gl_id
+            self._water_texture_tex_path_loaded = self._water_texture_path
+        except Exception as e:
+            print(f"[DFFViewport] Failed to load water texture: {e}")
+            self._water_texture_tex_id = False
+        return self._water_texture_tex_id
 
     def _draw_sa_nodes(self): #vers 1
         """Draw SA's real vehicle/ped path node graph as disconnected
