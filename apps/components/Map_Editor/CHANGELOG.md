@@ -8587,3 +8587,16 @@ conclusively found despite extensive isolated testing.
   Removed it entirely; self.update() (still called) is enough on its
   own - the next real paintGL call already re-applies the new
   ambient tint through its own existing lighting setup.
+
+- **Aug 20, 2026** — Fixed timecyc running its own separate, redundant
+  timer, per Keith: "there appears to be another timer running
+  besides the tojb timer." It was a real, second "time of day" clock
+  alongside the app's actual one (the TObj time-flow timer driving
+  the Time switch's own QTimeEdit). Removed timecyc's own internal
+  QTimer entirely - it now syncs to that same, real simulated hour
+  via _on_tobj_time_changed (already fires on every change to that
+  clock, whether from a manual edit or the flow timer's own automatic
+  advance). Confirmed this also covers VC correctly - the offset
+  table and TimecycParser's own field-count-based game detection
+  (52 fields) were already both correct for VC; the real bug was the
+  redundant clock, not per-game colour lookup.

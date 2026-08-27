@@ -298,10 +298,10 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._timecyc_entries = []     # list of parsed weather/hour entries
         self._timecyc_playing = False
         self._timecyc_hour = 12.0
-        self._sky_gradient_top = None   # (r,g,b) or None - set by _on_timecyc_tick
+        self._sky_gradient_top = None   # (r,g,b) or None - set by _apply_timecyc_hour
         self._sky_gradient_bot = None
         self._sky_gradient_horizon = None   # brighter horizon-glow colour (from sun_core)
-        self._ambient_tint = (1.0, 1.0, 1.0)   # RGB multiplier, set by _on_timecyc_tick
+        self._ambient_tint = (1.0, 1.0, 1.0)   # RGB multiplier, set by _apply_timecyc_hour
         self._use_prelight  = False
         self._ambient       = 0.4
         self._diffuse       = 0.9
@@ -2177,37 +2177,58 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             return None
         return (sky_top, sky_bot, ambient, sun_core)
 
-    def set_timecyc_playing(self, playing): #vers 1
+    def set_timecyc_playing(self, playing): #vers 2
+        """Real fix (Aug 20 2026, per Keith: "there appears to be
+        another timer running besides the tojb timer") - this used to
+        run its own separate QTimer/hour counter, a second, redundant
+        "time of day" clock alongside the app's real, existing one
+        (the TObj time-flow timer, self._time_flow_timer in map_
+        workshop.py, driving self._tobj_time_spin). Removed that
+        second timer entirely - set_timecyc_hour (called from map_
+        workshop.py's own _on_tobj_time_changed, which already fires
+        on every real change to that same shared clock) now drives
+        the hour instead, so timecyc genuinely tracks the one real
+        simulated time of day this app already has, not a second one
+        running independently alongside it. This method is now just
+        an on/off flag - recomputes immediately from whatever hour
+        was last set, so toggling on reflects the current real time
+        right away rather than waiting for the next change."""
         self._timecyc_playing = bool(playing)
         if playing:
-            if not hasattr(self, '_timecyc_timer') or self._timecyc_timer is None:
-                from PyQt6.QtCore import QTimer
-                self._timecyc_timer = QTimer(self)
-                self._timecyc_timer.timeout.connect(self._on_timecyc_tick)
-            self._timecyc_timer.start(200)   # real-time seconds per tick
-        elif hasattr(self, '_timecyc_timer') and self._timecyc_timer is not None:
-            self._timecyc_timer.stop()
+            self._apply_timecyc_hour()
+        else:
+            self.update()
 
-    def _on_timecyc_tick(self): #vers 4
+    def set_timecyc_hour(self, hour): #vers 1
+        """Real, external hour source (Aug 20 2026) - called from map_
+        workshop.py's own _on_tobj_time_changed whenever the app's
+        one real simulated time of day changes, replacing this
+        viewport's own former independent timer/hour counter. No
+        effect while set_timecyc_playing(False) is the current state,
+        same as before."""
+        self._timecyc_hour = hour % 24
+        if self._timecyc_playing:
+            self._apply_timecyc_hour()
+
+    def _apply_timecyc_hour(self): #vers 1
         """Real, more accurate fix (Aug 20 2026, per Keith: "still
         isn't being rendered like it would be in game... all its
         doing it cycling through colours, no horizon and sky bands")
-        - now also calls _timecyc_colors_for_hour's own updated,
-        4-colour version (sky_top/sky_bot/ambient/sun_core), storing
-        sun_core as self._sky_gradient_horizon so _draw_sky_gradient
-        can build a real 3-stop gradient (brighter near the horizon,
-        darker overhead - the real, general shape of a GTA sky,
-        rather than a flat 2-colour linear blend).
+        - reads _timecyc_colors_for_hour's own 4-colour version
+        (sky_top/sky_bot/ambient/sun_core), storing sun_core as self.
+        _sky_gradient_horizon so _draw_sky_gradient can build a real
+        3-stop gradient (brighter near the horizon, darker overhead -
+        the real, general shape of a GTA sky, rather than a flat
+        2-colour linear blend).
 
         Real fix (Aug 20 2026, per Keith: "the color effect seems to
         blink on and off, more so when I move or turn the view") -
-        this method used to call self.makeCurrent()/_setup_lighting()/
-        self.doneCurrent() directly here, on top of just setting state
-        and calling self.update(). paintGL already calls _setup_
-        lighting() itself, unconditionally, on every single real
-        frame - that direct call was pure duplication, and since this
-        method runs off its own independent QTimer rather than Qt's
-        own paint lifecycle, it could end up calling makeCurrent/
+        this used to also call self.makeCurrent()/_setup_lighting()/
+        self.doneCurrent() directly here. paintGL already calls
+        _setup_lighting() itself, unconditionally, on every single
+        real frame - that direct call was pure duplication, and since
+        the old caller ran off its own independent QTimer rather than
+        Qt's own paint lifecycle, it could end up calling makeCurrent/
         doneCurrent at the same moment Qt itself was handling a real,
         rapid paintGL call during camera movement - the two competing
         over the same GL context is what actually caused the reported
@@ -2217,7 +2238,6 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         call already re-applies the new ambient tint via its own
         existing _setup_lighting() call, the same way any other state
         change already works in this app."""
-        self._timecyc_hour = (self._timecyc_hour + 0.1) % 24
         colors = self._timecyc_colors_for_hour(self._timecyc_hour)
         if colors:
             sky_top, sky_bot, ambient, sun_core = colors

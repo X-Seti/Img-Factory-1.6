@@ -23245,14 +23245,30 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         model set, so there's nothing to recompile."""
         self._apply_ipl_visibility_filter(auto_fit=False, clear_display_lists=False)
 
-    def _on_tobj_time_changed(self, qtime): #vers 3
+    def _on_tobj_time_changed(self, qtime): #vers 4
         """Simulated time-of-day edit changed - only matters while the
         Time switch is on, but re-applying is cheap and avoids a
         stale filter if the switch gets enabled right after.
         clear_display_lists=False (Aug 1 2026) - same reasoning as
-        _on_tobj_time_toggled."""
+        _on_tobj_time_toggled.
+
+        Also syncs timecyc's own hour to this same real, existing
+        game-time state (Aug 20 2026, per Keith: "there appears to be
+        another timer running besides the tojb timer") - timecyc used
+        to run its own separate QTimer/hour counter, a second,
+        redundant "time of day" clock alongside this real, already-
+        existing one. Fires on every real change to this spin box
+        (QTimeEdit's own timeChanged signal, already connected here -
+        covers both a manual edit and _on_time_flow_tick's own
+        automatic advance, since that just calls setTime() on this
+        same widget too), so timecyc now genuinely tracks the same
+        simulated hour TObj filtering already uses, not a second,
+        separate one running independently."""
         if getattr(self, '_tobj_time_chk', None) and self._tobj_time_chk.isChecked():
             self._apply_ipl_visibility_filter(auto_fit=False, clear_display_lists=False)
+        vp = getattr(self, 'preview_widget', None)
+        if vp is not None and hasattr(vp, 'set_timecyc_hour'):
+            vp.set_timecyc_hour(qtime.hour() + qtime.minute() / 60.0)
 
     def _on_2dfx_master_toggled(self, checked): #vers 2
         """2DFX master on/off switch changed - re-runs the same
