@@ -3316,6 +3316,9 @@ class MapSettings(QObject):
         # The real "other grid options" this same comment block above
         # already flagged as coming later (Aug 20 2026)
         'grid_type': 'lines',
+        'grid_bg_color': (51, 128, 230),
+        'grid_line_color': (76, 76, 102),
+        'grid_line_size': 4,
     }
 
     _instance = None
@@ -8026,6 +8029,35 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "the scene, unrelated despite the shared name.")
         radar_form.addRow("Grid style:", grid_type_combo)
 
+        grid_bg_color_btn = QPushButton()
+        grid_bg_color = tuple(self.map_settings.get('grid_bg_color'))
+        grid_bg_color_btn.setStyleSheet(f"background-color: rgb{grid_bg_color};")
+        def _pick_grid_bg_color(): #vers 1
+            c = QColorDialog.getColor(QColor(*grid_bg_color_btn.property('rgb') or grid_bg_color), self)
+            if c.isValid():
+                grid_bg_color_btn.setProperty('rgb', (c.red(), c.green(), c.blue()))
+                grid_bg_color_btn.setStyleSheet(f"background-color: rgb({c.red()},{c.green()},{c.blue()});")
+        grid_bg_color_btn.setProperty('rgb', grid_bg_color)
+        grid_bg_color_btn.clicked.connect(_pick_grid_bg_color)
+        radar_form.addRow("Grid background color:", grid_bg_color_btn)
+
+        grid_line_color_btn = QPushButton()
+        grid_line_color = tuple(self.map_settings.get('grid_line_color'))
+        grid_line_color_btn.setStyleSheet(f"background-color: rgb{grid_line_color};")
+        def _pick_grid_line_color(): #vers 1
+            c = QColorDialog.getColor(QColor(*grid_line_color_btn.property('rgb') or grid_line_color), self)
+            if c.isValid():
+                grid_line_color_btn.setProperty('rgb', (c.red(), c.green(), c.blue()))
+                grid_line_color_btn.setStyleSheet(f"background-color: rgb({c.red()},{c.green()},{c.blue()});")
+        grid_line_color_btn.setProperty('rgb', grid_line_color)
+        grid_line_color_btn.clicked.connect(_pick_grid_line_color)
+        radar_form.addRow("Grid line/dot color:", grid_line_color_btn)
+
+        grid_line_size_spin = QSpinBox()
+        grid_line_size_spin.setRange(4, 10)
+        grid_line_size_spin.setValue(int(self.map_settings.get('grid_line_size')))
+        radar_form.addRow("Grid line/dot size (px):", grid_line_size_spin)
+
         radar_show_grid_chk = QCheckBox("Show reference grid in generated tiles")
         radar_show_grid_chk.setChecked(bool(self.map_settings.get('radar_tiles_show_grid')))
         radar_show_grid_chk.setToolTip(
@@ -8506,6 +8538,17 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.map_settings.set('grid_type', grid_type_key)
             if vp is not None and hasattr(vp, 'set_grid_type'):
                 vp.set_grid_type(grid_type_key)
+
+            grid_bg_rgb = grid_bg_color_btn.property('rgb') or grid_bg_color
+            grid_line_rgb = grid_line_color_btn.property('rgb') or grid_line_color
+            grid_size = grid_line_size_spin.value()
+            self.map_settings.set('grid_bg_color', tuple(grid_bg_rgb))
+            self.map_settings.set('grid_line_color', tuple(grid_line_rgb))
+            self.map_settings.set('grid_line_size', grid_size)
+            if vp is not None and hasattr(vp, 'set_grid_colors'):
+                vp.set_grid_colors(tuple(grid_bg_rgb), tuple(grid_line_rgb))
+            if vp is not None and hasattr(vp, 'set_grid_line_size'):
+                vp.set_grid_line_size(grid_size)
 
             try:
                 # Adjusted for COL Wireframe, Mesh

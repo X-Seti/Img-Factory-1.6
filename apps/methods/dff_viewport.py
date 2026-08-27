@@ -273,6 +273,9 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._squares_tile_size  = 256
         self._squares_tex_id     = None
         self._squares_tex_path_loaded = None   # which real path tex_id was actually loaded from
+        # Grid line/dot colour + thickness (Aug 20 2026)
+        self._grid_line_color = (76, 76, 102)   # matches old (0.3,0.3,0.4)
+        self._grid_line_size  = 4               # 4-10px range
         self._use_prelight  = False
         self._ambient       = 0.4
         self._diffuse       = 0.9
@@ -1710,13 +1713,14 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glHint(GL_LINE_SMOOTH_HINT, GL_NICEST)
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-        glLineWidth(0.5)
+        glLineWidth(self._grid_line_size)
+        r, g, b = self._grid_line_color
         glBegin(GL_LINES)
         for i in range(cx - rng, cx + rng + 1, step):
-            glColor4f(0.3, 0.3, 0.4, 0.4)
+            glColor4f(r / 255, g / 255, b / 255, 0.4)
             glVertex3f(i, cy - rng, 0); glVertex3f(i, cy + rng, 0)
         for i in range(cy - rng, cy + rng + 1, step):
-            glColor4f(0.3, 0.3, 0.4, 0.4)
+            glColor4f(r / 255, g / 255, b / 255, 0.4)
             glVertex3f(cx - rng, i, 0); glVertex3f(cx + rng, i, 0)
         glEnd()
         glDisable(GL_LINE_SMOOTH)
@@ -1736,7 +1740,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         lines' own docstring."""
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-        glColor4f(0.2, 0.4, 0.9, 0.12)
+        r, g, b = self._squares_color
+        glColor4f(r / 255, g / 255, b / 255, 0.12)
         glBegin(GL_QUADS)
         for gy in range(cy - rng, cy + rng, step):
             for gx in range(cx - rng, cx + rng, step):
@@ -1784,9 +1789,10 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glHint(GL_POINT_SMOOTH_HINT, GL_NICEST)
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-        glPointSize(2.0)
+        glPointSize(self._grid_line_size)
         glBegin(GL_POINTS)
-        glColor4f(0.4, 0.4, 0.55, 0.6)
+        r, g, b = self._grid_line_color
+        glColor4f(r / 255, g / 255, b / 255, 0.6)
         for gy in range(cy - rng, cy + rng + 1, step):
             for gx in range(cx - rng, cx + rng + 1, step):
                 glVertex3f(gx, gy, 0)
@@ -1824,8 +1830,9 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glHint(GL_LINE_SMOOTH_HINT, GL_NICEST)
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-        glLineWidth(0.5)
-        glColor4f(0.3, 0.3, 0.4, 0.4)
+        glLineWidth(self._grid_line_size)
+        r, g, b = self._grid_line_color
+        glColor4f(r / 255, g / 255, b / 255, 0.4)
         row = int((cy - rng) / hex_h) - 1
         max_row = int((cy + rng) / hex_h) + 1
         while row <= max_row:
@@ -2344,6 +2351,17 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         recognise this way), so this never silently no-ops on a typo'd
         value."""
         self._grid_type = grid_type; self.update()
+
+    def set_grid_colors(self, bg_rgb, line_rgb): #vers 1
+        """Set squares-fill (bg) and line/dot colour, each an (r,g,b) 0-255 tuple."""
+        self._squares_color = bg_rgb
+        self._grid_line_color = line_rgb
+        self.update()
+
+    def set_grid_line_size(self, size): #vers 1
+        """4-10px range for grid lines/dots."""
+        self._grid_line_size = max(4, min(10, size))
+        self.update()
 
     def load_all_geometries(self, geometries, materials_list, frames, atomics, damaged=False): #vers 4
         self._all_geoms = []

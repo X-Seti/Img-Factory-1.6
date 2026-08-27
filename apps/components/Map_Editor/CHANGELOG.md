@@ -8371,3 +8371,7 @@ conclusively found despite extensive isolated testing.
 
   Verified against a simulated mid-loop table rebuild: old logic
   loaded 1 of 12 selected IPLs, new logic loads 12 of 12.
+
+- **Aug 20, 2026** — Grid background/line color pickers + line/dot
+  size (4-10px) added to Render tab, wired to DFFViewport.set_grid_
+  colors/set_grid_line_size. Blue (51,128,230) kept as default bg.
