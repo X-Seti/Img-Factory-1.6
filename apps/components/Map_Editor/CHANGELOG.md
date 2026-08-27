@@ -8631,3 +8631,35 @@ conclusively found despite extensive isolated testing.
   happened to be flipped at that exact moment. Also fixed a second,
   related gap: it never filtered by which IPLs are actually visible/
   hidden at all, unlike every other overlay here.
+
+- **Aug 20, 2026** — Two real fixes, per Keith:
+
+  1. "water function should also load the waterpro.dat, and display
+     it in the same way water_workshop works" - load_waterpro_dat was
+     already loading it into loader.waterpro, but nothing ever read
+     it back out anywhere - a real, confirmed gap. Added set_waterpro_
+     cells/_draw_waterpro_water to the viewport (real world bounds via
+     the same RADAR_GRID_PRESETS/compute_radar_grid the radar tex
+     layer already uses), and _refresh_water_visualization now
+     resolves and pushes it alongside water.dat's own shapes. Also
+     fixed a real, separate orientation bug caught before shipping -
+     grid row 0 is north (confirmed against water_workshop.py's own
+     "No Y-flip" comment), not south as first written.
+
+     Also fixed "besides the button on the IPL control that doesnt
+     seem to work" - same real bug class as the earlier Auzo fix:
+     _refresh_water_visualization was never called from _apply_ipl_
+     visibility_filter, the one, central place every other overlay
+     (path/cull/zone/occl/auzo) already refreshes from. Now called
+     there too.
+
+  2. "the images show the rotation, but the sky doesn't pane" [pan] -
+     the sky gradient was a fixed, screen-space orthographic overlay,
+     drawn before any camera transform at all, so it never rotated
+     with yaw/pitch the way a real sky visibly would. Reworked into a
+     real, world-space "box sky" (4 large side quads with the same
+     real 3-stop gradient) drawn after yaw/pitch rotate the scene but
+     before pan translates it - genuinely rotates with the camera now
+     the same way any other object in the scene does, while staying
+     unaffected by panning the same way a real, infinitely-distant
+     sky would be.

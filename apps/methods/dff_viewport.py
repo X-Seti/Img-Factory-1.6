@@ -589,6 +589,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         # would misrepresent the real shape.
         self.show_water = False
         self._water_shapes = []
+        self._waterpro_cells = []   # list of (min_x, min_y, max_x, max_y, height) - flat, pre-resolved from map_workshop.py
 
         # Cull zone boxes (Aug 16 2026, per Keith: "continue with the
         # cull files next", following the same "so I can view them"
@@ -1128,19 +1129,32 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glMatrixMode(GL_MODELVIEW)
         self._label_widget.move(4, 2)
 
-    def paintGL(self): #vers 6
+    def paintGL(self): #vers 7
         if not OPENGL_AVAILABLE: return
         bg = self._get_bg_color()
         glClearColor(bg.redF(), bg.greenF(), bg.blueF(), 1.0)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-        if self._skybox_path:
-            self._draw_skybox()
-        elif self._sky_gradient_top and self._sky_gradient_bot:
-            self._draw_sky_gradient()
         glLoadIdentity()
         gluLookAt(0, 0, self._dist, 0, 0, 0, 0, 1, 0)
         glRotatef(-self._pitch, 1, 0, 0)
         glRotatef(self._yaw, 0, 0, 1)
+        # Sky drawn here - after yaw/pitch rotate the scene, before pan
+        # translates it (Aug 20 2026, per Keith: "the images show the
+        # rotation, but the sky doesn't pane" [pan]). The old version
+        # drew a fixed, screen-space orthographic overlay before any
+        # camera transform at all, so it never rotated with yaw/pitch
+        # the way a real sky visibly would - same flat gradient no
+        # matter which way the camera was actually facing. Now a real,
+        # world-space box sky (4 large side quads, same real gradient
+        # colours) that rotates along with yaw/pitch just like any
+        # other object in the scene, but sits before the pan
+        # translate so scrolling/panning the map doesn't drag the sky
+        # along with it the way a real, infinitely-distant sky
+        # wouldn't be affected by moving around on the ground.
+        if self._skybox_path:
+            self._draw_skybox()
+        elif self._sky_gradient_top and self._sky_gradient_bot:
+            self._draw_sky_gradient()
         glTranslatef(self._pan_x, self._pan_y, 0)
         if self._backface_cull:
             glEnable(GL_CULL_FACE); glCullFace(GL_BACK)
@@ -1178,6 +1192,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 self._draw_auzo_zones()
             if self.show_water:
                 self._draw_water_shapes()
+                self._draw_waterpro_water()
             if getattr(self, '_hovered_instance_idx', None) is not None:
                 self._draw_hover_highlight()
             if getattr(self, '_lod_test_center', None) is not None:
@@ -2035,51 +2050,59 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glMatrixMode(GL_PROJECTION); glPopMatrix()
         glMatrixMode(GL_MODELVIEW); glPopMatrix()
 
-    def _draw_sky_gradient(self): #vers 2
-        """Screen-space vertical sky gradient - a real 3-stop blend
-        (sky_top at the very top/zenith, sky_bot in the upper-middle,
-        sun_core as a brighter horizon-glow band near the bottom of
-        the visible sky) rather than a flat single colour or a plain
-        2-colour linear blend (Aug 20 2026, per Keith: "still isn't
-        being rendered like it would be in game... all its doing it
-        cycling through colours, no horizon and sky bands") - the
-        real, general shape a GTA sky actually has: brighter/warmer
-        near the horizon, darker/deeper overhead, not uniform. Built
-        from 2 stacked quads (GL_QUADS only linearly interpolates
-        between one pair of edges each, so a 3-stop gradient needs 2
-        of them) rather than one. Same real orthographic screen-space
-        technique _draw_skybox already uses, just per-vertex colours
-        instead of a texture. Only used when no skybox image is set
-        (that takes priority, per paintGL's own real dispatch)."""
-        glMatrixMode(GL_PROJECTION)
-        glPushMatrix(); glLoadIdentity()
-        glOrtho(0, 1, 0, 1, -1, 1)
-        glMatrixMode(GL_MODELVIEW)
-        glPushMatrix(); glLoadIdentity()
+    def _draw_sky_gradient(self): #vers 3
+        """Real, world-space "box sky" - 4 large vertical quads (N/S/
+        E/W) forming a box around the origin, each with the same real
+        3-stop blend (sky_top at the zenith, sky_bot lower, sun_core
+        as a brighter horizon-glow band near the bottom) rather than
+        a flat single colour or a plain 2-colour linear blend (Aug 20
+        2026, per Keith: "still isn't being rendered like it would be
+        in game... all its doing it cycling through colours, no
+        horizon and sky bands") - the real, general shape a GTA sky
+        actually has: brighter/warmer near the horizon, darker/deeper
+        overhead, not uniform.
+
+        Real fix (Aug 20 2026, per Keith: "the images show the
+        rotation, but the sky doesn't pane" [pan]) - this used to be
+        a fixed, screen-space orthographic overlay, drawn before any
+        camera transform at all, so it never actually rotated with
+        yaw/pitch the way a real sky visibly would - the same flat
+        gradient regardless of which way the camera was facing. Now a
+        real, world-space object drawn in paintGL's own real, current
+        (rotated) modelview/perspective-projection state instead of
+        pushing its own separate orthographic one - genuinely rotates
+        along with the rest of the scene as the camera turns, the
+        same way any other object here does, since paintGL now calls
+        this after yaw/pitch are applied but before pan translates
+        the scene (see paintGL's own real comment on this)."""
         glDisable(GL_DEPTH_TEST)
         glDisable(GL_LIGHTING)
         tr, tg, tb = self._sky_gradient_top
         mr, mg, mb = self._sky_gradient_bot
         hr, hg, hb = self._sky_gradient_horizon or self._sky_gradient_bot
-        split = 0.4   # screen-space y where sky_bot sits, zenith above, horizon band below
-        # Y flipped vs the previous version (Aug 20 2026, per Keith:
-        # "the sky need flipping vertically" - it was rendering
-        # upside-down: zenith at the bottom, horizon glow at the top).
+        radius = 80000.0
+        top_z = radius
+        horizon_z = 0.0
+        bottom_z = -radius * 0.15
         glBegin(GL_QUADS)
-        # Upper: zenith (sky_top) down to sky_bot at the split line
-        glColor3f(mr / 255, mg / 255, mb / 255); glVertex2f(0, 1 - split)
-        glColor3f(mr / 255, mg / 255, mb / 255); glVertex2f(1, 1 - split)
-        glColor3f(tr / 255, tg / 255, tb / 255); glVertex2f(1, 0)
-        glColor3f(tr / 255, tg / 255, tb / 255); glVertex2f(0, 0)
-        # Lower: sky_bot at the split line down to the brighter horizon glow at the bottom
-        glColor3f(hr / 255, hg / 255, hb / 255); glVertex2f(0, 1)
-        glColor3f(hr / 255, hg / 255, hb / 255); glVertex2f(1, 1)
-        glColor3f(mr / 255, mg / 255, mb / 255); glVertex2f(1, 1 - split)
-        glColor3f(mr / 255, mg / 255, mb / 255); glVertex2f(0, 1 - split)
+        for x1, y1, x2, y2 in (
+            (-radius, radius, radius, radius),      # north
+            (radius, -radius, -radius, -radius),    # south
+            (radius, radius, radius, -radius),      # east
+            (-radius, -radius, -radius, radius),    # west
+        ):
+            # Upper half: zenith (top) down to sky_bot at the horizon
+            glColor3f(mr / 255, mg / 255, mb / 255); glVertex3f(x1, y1, horizon_z)
+            glColor3f(mr / 255, mg / 255, mb / 255); glVertex3f(x2, y2, horizon_z)
+            glColor3f(tr / 255, tg / 255, tb / 255); glVertex3f(x2, y2, top_z)
+            glColor3f(tr / 255, tg / 255, tb / 255); glVertex3f(x1, y1, top_z)
+            # Lower half: sky_bot at the horizon down to the brighter horizon-glow band
+            glColor3f(hr / 255, hg / 255, hb / 255); glVertex3f(x1, y1, bottom_z)
+            glColor3f(hr / 255, hg / 255, hb / 255); glVertex3f(x2, y2, bottom_z)
+            glColor3f(mr / 255, mg / 255, mb / 255); glVertex3f(x2, y2, horizon_z)
+            glColor3f(mr / 255, mg / 255, mb / 255); glVertex3f(x1, y1, horizon_z)
         glEnd()
         glEnable(GL_DEPTH_TEST)
-        glMatrixMode(GL_PROJECTION); glPopMatrix()
-        glMatrixMode(GL_MODELVIEW); glPopMatrix()
 
     def set_skybox_path(self, path): #vers 1
         if path != self._skybox_path:
@@ -3649,6 +3672,50 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 glVertex3f(cx, cy, cz)
             glEnd()
         glEnable(GL_CULL_FACE)
+        glDisable(GL_BLEND)
+        glEnable(GL_LIGHTING)
+
+    def set_waterpro_cells(self, cells): #vers 1
+        """Replace the waterpro.dat grid drawn when show_water is on
+        (Aug 20 2026, per Keith: "water function should also load the
+        waterpro.dat, and display it in the same way water_workshop
+        works"). Each entry is a plain (min_x, min_y, max_x, max_y,
+        height) tuple - one real, already-resolved cell of the grid's
+        own visible_map, per WaterProFile/WaterProLevel in gta_dat_
+        parser.py. Resolution (grid cell -> real world bounds, level
+        index -> real height) happens in map_workshop.py, same real
+        "widget only ever draws plain, already-resolved data" split
+        every other overlay here already follows - this widget never
+        touches WaterProFile/gta_dat_parser.py directly."""
+        self._waterpro_cells = cells or []
+        self.update()
+
+    def _draw_waterpro_water(self): #vers 1
+        """Draw waterpro.dat's own real grid as flat, translucent
+        quads, one per real grid cell, at that cell's own real height
+        (Aug 20 2026). Same real deep-blue colour/alpha water.dat's
+        own ocean water already uses (_draw_water_shapes, is_shallow=
+        False) - waterpro.dat has no shallow/pool distinction of its
+        own the way water.dat's water_type flag does (see WaterProLevel's
+        own docstring - just a single real height per level, nothing
+        else), so there's no real, confirmed second colour to draw
+        instead. Same real GL_BLEND/no-depth-write pattern the grid
+        squares fill already uses, for the same reason - this is a
+        flat, semi-transparent surface, not opaque geometry that
+        should occlude anything drawn after it."""
+        if not OPENGL_AVAILABLE or not self._waterpro_cells:
+            return
+        glDisable(GL_LIGHTING)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        glColor4f(0.1, 0.25, 0.65, 0.45)
+        glBegin(GL_QUADS)
+        for min_x, min_y, max_x, max_y, height in self._waterpro_cells:
+            glVertex3f(min_x, min_y, height)
+            glVertex3f(max_x, min_y, height)
+            glVertex3f(max_x, max_y, height)
+            glVertex3f(min_x, max_y, height)
+        glEnd()
         glDisable(GL_BLEND)
         glEnable(GL_LIGHTING)
 

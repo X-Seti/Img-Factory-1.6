@@ -25137,6 +25137,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._refresh_zone_box_visualization()
         self._refresh_occl_box_visualization()
         self._refresh_auzo_visualization()
+        self._refresh_water_visualization()
 
     def _refresh_2dfx_lights(self, visible_instances): #vers 1
         """Collect 2DFX light-type (effect_type == 0) entries for the
@@ -25467,26 +25468,79 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             zones.append((cx, cy, cz, a.name, a.sound_id, a.environment_type, a.music_description))
         vp.set_auzo_zones(zones)
 
-    def _refresh_water_visualization(self): #vers 1
-        """Push loaded water.dat shapes to the viewport's own overlay
-        (Aug 20 2026)"""
+    def _refresh_water_visualization(self): #vers 2
+        """Push loaded water.dat shapes AND waterpro.dat's own real
+        grid to the viewport's own overlay (Aug 20 2026).
+
+        Real fixes here, per Keith:
+
+        1. "besides the button on the IPL control that doesnt seem to
+           work" - this was never called from _apply_ipl_visibility_
+           filter, the one, central place every other real overlay
+           (path/cull/zone/occl/auzo, all now called there) refreshes
+           from whenever IPL visibility changes. Now called there too
+           (see that method's own real call list).
+
+        2. "water function should also load the waterpro.dat, and
+           display it in the same way water_workshop works" -
+           waterpro.dat was already being loaded (load_waterpro_dat,
+           storing into loader.waterpro) but nothing ever read it back
+           out anywhere - a real, confirmed gap, not a guess. Real
+           world bounds/cell size for its own grid come from the same
+           RADAR_GRID_PRESETS/compute_radar_grid this app's own radar
+           tex layer already uses (waterpro's own grid covers the
+           same real map area, just at grid_width resolution instead
+           of tiles_per_side) - not a second, separate bounds source
+           invented for this."""
         vp = getattr(self, 'preview_widget', None)
         if vp is None or not hasattr(vp, 'set_water_shapes'):
             return
         show_chk = getattr(self, '_show_water_chk', None)
         if show_chk is not None and not show_chk.isChecked():
             vp.set_water_shapes([])
+            if hasattr(vp, 'set_waterpro_cells'):
+                vp.set_waterpro_cells([])
             return
         loader = getattr(self, '_world_loader', None)
         water_shapes = getattr(loader, 'water_shapes', None) if loader is not None else None
         if not water_shapes:
             vp.set_water_shapes([])
-            return
-        shapes = [
-            ([(c.x, c.y, c.z) for c in w.corners], w.water_type)
-            for w in water_shapes
-        ]
-        vp.set_water_shapes(shapes)
+        else:
+            shapes = [
+                ([(c.x, c.y, c.z) for c in w.corners], w.water_type)
+                for w in water_shapes
+            ]
+            vp.set_water_shapes(shapes)
+
+        if hasattr(vp, 'set_waterpro_cells'):
+            waterpro = getattr(loader, 'waterpro', None) if loader is not None else None
+            if not waterpro:
+                vp.set_waterpro_cells([])
+            else:
+                from apps.methods.gta_dat_parser import RADAR_GRID_PRESETS
+                game_key = getattr(loader, 'game', 'vc')
+                preset = RADAR_GRID_PRESETS.get(game_key, RADAR_GRID_PRESETS['vc'])
+                grid_size = preset['grid_size']
+                half = grid_size / 2.0
+                gw = waterpro.grid_width
+                cell = grid_size / gw
+                cells = []
+                for row in range(gw):
+                    for col in range(gw):
+                        level_idx = waterpro.visible_map[row][col]
+                        if level_idx < 0 or level_idx >= len(waterpro.levels):
+                            continue
+                        height = waterpro.levels[level_idx].height
+                        # row 0 = north (max_y), per water_workshop.py's
+                        # own real "Map screen position to data (col,
+                        # row). No Y-flip." - row 0 is screen-top there,
+                        # and screen-top = north in a normal, un-
+                        # flipped top-down map view.
+                        min_x = -half + col * cell
+                        min_y = half - (row + 1) * cell
+                        cells.append((min_x, min_y, min_x + cell, min_y + cell, height))
+                vp.set_waterpro_cells(cells)
+
 
     def _on_show_tracks_toggled(self, checked): #vers 1
         """Show Tracks checked/unchecked."""
