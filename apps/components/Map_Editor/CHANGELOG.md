@@ -8410,3 +8410,11 @@ conclusively found despite extensive isolated testing.
   sequence instead - only changes size a handful of times across a
   full zoom range. Added "Marching ants honeycomb" (dashed hexagons)
   and "None (hide grid)" to the Grid style dropdown.
+
+- **Aug 20, 2026** — Grid zoom behaviour: new "Radar tiles" option -
+  grid cells match the currently loaded game's real radar tile grid
+  (12x12 SA/6000u, 8x8 VC-III/4000u, 36x36 SOL/12000u - per the
+  already-confirmed RADAR_GRID_PRESETS, not re-derived), anchored to
+  the map's real origin rather than following the camera, so tile
+  boundaries line up with actually exported radar tiles. Auto-updates
+  when a different game's world is loaded.

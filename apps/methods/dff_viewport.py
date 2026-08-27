@@ -277,7 +277,9 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._grid_line_color = (76, 76, 102)   # matches old (0.3,0.3,0.4)
         self._grid_line_size  = 4               # 4-10px range
         self._grid_spacing    = 5               # divisor of _dist -> step
-        self._grid_scale_mode = 'zoom_relative'  # or 'fixed'
+        self._grid_scale_mode = 'zoom_relative'  # or 'fixed' or 'radar_tiles'
+        self._radar_grid_tile_size = 500.0   # world units per tile, set from RADAR_GRID_PRESETS
+        self._radar_grid_half_extent = 3000.0   # grid_size/2 for the current game
         # Skybox/skydome background image (Aug 20 2026)
         self._skybox_path = ''
         self._skybox_tex_id = None
@@ -1687,18 +1689,29 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         positions stay fixed at step-aligned multiples throughout."""
         if not OPENGL_AVAILABLE: return
         glDisable(GL_LIGHTING)
-        if self._grid_scale_mode == 'fixed':
+        if self._grid_scale_mode == 'radar_tiles':
+            step = max(1, int(self._radar_grid_tile_size))
+        elif self._grid_scale_mode == 'fixed':
             step = max(1, int(self._grid_spacing))
         else:
             step = self._nice_grid_step(self._dist / self._grid_spacing)
-        rng  = step * 10
+        rng  = int(self._radar_grid_half_extent) if self._grid_scale_mode == 'radar_tiles' else step * 10
         # The real world point the camera is currently looking at is
         # (-pan_x, -pan_y) - the scene itself is translated by (pan_x,
         # pan_y) before the fixed camera views it (the same real
         # relationship already verified numerically for capture_
         # radar_tile's own camera math earlier this session).
-        cx = round(-self._pan_x / step) * step
-        cy = round(-self._pan_y / step) * step
+        if self._grid_scale_mode == 'radar_tiles':
+            # Anchored to the real, fixed tile origin (0,0 - matching
+            # RADAR_GRID_PRESETS' own center_x/center_y default), not
+            # camera-relative - so cell boundaries genuinely line up
+            # with the actual exported radar tiles, not wherever the
+            # camera happens to be looking.
+            cx = 0
+            cy = 0
+        else:
+            cx = round(-self._pan_x / step) * step
+            cy = round(-self._pan_y / step) * step
         grid_type = getattr(self, '_grid_type', 'lines')
         if grid_type == 'none':
             glEnable(GL_LIGHTING)
@@ -2586,11 +2599,23 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._grid_spacing = max(1, spacing)
         self.update()
 
-    def set_grid_scale_mode(self, mode): #vers 1
+    def set_grid_scale_mode(self, mode): #vers 2
         """'zoom_relative' (default - grid stays same on-screen size
-        regardless of zoom) or 'fixed' (constant world-unit cell size,
-        so the grid scales with zoom the same way models do)."""
-        self._grid_scale_mode = mode if mode in ('zoom_relative', 'fixed') else 'zoom_relative'
+        regardless of zoom), 'fixed' (constant world-unit cell size,
+        scales with zoom like models), or 'radar_tiles' (matches the
+        real, game-specific radar tile grid - see set_radar_grid_
+        extent)."""
+        valid = ('zoom_relative', 'fixed', 'radar_tiles')
+        self._grid_scale_mode = mode if mode in valid else 'zoom_relative'
+        self.update()
+
+    def set_radar_grid_extent(self, tile_size, half_extent): #vers 1
+        """Real world-unit tile size + half the total grid extent for
+        the currently loaded game, per RADAR_GRID_PRESETS (Aug 20
+        2026, per Keith: "resize grid locked to the radar size...
+        show the radar rendered under the model spawn layout")."""
+        self._radar_grid_tile_size = tile_size
+        self._radar_grid_half_extent = half_extent
         self.update()
 
     def load_all_geometries(self, geometries, materials_list, frames, atomics, damaged=False): #vers 4

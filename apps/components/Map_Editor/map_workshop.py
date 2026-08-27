@@ -8129,13 +8129,19 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         grid_scale_mode_combo = QComboBox()
         grid_scale_mode_combo.addItem("Locked (constant on-screen size)", "zoom_relative")
         grid_scale_mode_combo.addItem("Resize with models (fixed world size)", "fixed")
+        grid_scale_mode_combo.addItem("Radar tiles (matches game's radar grid)", "radar_tiles")
         saved_scale_mode = self.map_settings.get('grid_scale_mode') or 'zoom_relative'
-        grid_scale_mode_combo.setCurrentIndex(1 if saved_scale_mode == 'fixed' else 0)
+        _scale_mode_idx = {'zoom_relative': 0, 'fixed': 1, 'radar_tiles': 2}.get(saved_scale_mode, 0)
+        grid_scale_mode_combo.setCurrentIndex(_scale_mode_idx)
         grid_scale_mode_combo.setToolTip(
             "Locked: the grid always looks the same size on screen,\n"
             "its world-unit cell size shrinks/grows as you zoom.\n"
             "Resize with models: the grid's cell size is fixed in\n"
-            "world units, so it scales with zoom the same way models do.")
+            "world units, so it scales with zoom the same way models do.\n"
+            "Radar tiles: grid cells match the currently loaded game's\n"
+            "own real radar tile grid (12x12 SA, 8x8 VC/III, 36x36 SOL)\n"
+            "and stay anchored to the map's real origin, not the camera -\n"
+            "so tile boundaries line up with actually exported radar tiles.")
         radar_form.addRow("Grid zoom behaviour:", grid_scale_mode_combo)
 
         grid_fill_mode_combo = QComboBox()
@@ -8734,6 +8740,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.map_settings.set('grid_scale_mode', grid_scale_mode_val)
             if vp is not None and hasattr(vp, 'set_grid_scale_mode'):
                 vp.set_grid_scale_mode(grid_scale_mode_val)
+            if grid_scale_mode_val == 'radar_tiles' and vp is not None and hasattr(vp, 'set_radar_grid_extent'):
+                from apps.methods.gta_dat_parser import RADAR_GRID_PRESETS
+                loader = getattr(self, '_world_loader', None)
+                game_key = getattr(loader, 'game', 'sa') if loader is not None else 'sa'
+                preset = RADAR_GRID_PRESETS.get(game_key, RADAR_GRID_PRESETS['sa'])
+                grid_size = preset['grid_size']
+                tile_size = grid_size / preset['tiles_per_side']
+                vp.set_radar_grid_extent(tile_size, grid_size / 2.0)
 
             fill_mode = grid_fill_mode_combo.currentData()
             tex_path = grid_texture_path_edit.text()
@@ -20270,6 +20284,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._loaded_dat_path = getattr(loader.main_dat, 'dat_path', '') if hasattr(loader, 'main_dat') else ''
         # Reset the render-mode-set flag on a fresh world load (Aug 1 2026)
         self._world_render_mode_set = False
+        # Keep radar-tile grid extent in sync with whichever game just
+        # loaded, if that grid mode is active (Aug 20 2026)
+        vp_for_grid = getattr(self, 'preview_widget', None)
+        if vp_for_grid is not None and hasattr(vp_for_grid, 'set_radar_grid_extent'):
+            from apps.methods.gta_dat_parser import RADAR_GRID_PRESETS
+            game_key_for_grid = getattr(loader, 'game', 'sa')
+            preset_for_grid = RADAR_GRID_PRESETS.get(game_key_for_grid, RADAR_GRID_PRESETS['sa'])
+            grid_size_for_grid = preset_for_grid['grid_size']
+            vp_for_grid.set_radar_grid_extent(
+                grid_size_for_grid / preset_for_grid['tiles_per_side'], grid_size_for_grid / 2.0)
 
         if not ok:
             QMessageBox.warning(self, source_desc,
