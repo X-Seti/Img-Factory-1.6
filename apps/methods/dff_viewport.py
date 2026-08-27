@@ -273,6 +273,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._squares_tile_size  = 256
         self._squares_tex_id     = None
         self._squares_tex_path_loaded = None   # which real path tex_id was actually loaded from
+        self._squares_texture_alpha = 0.5   # texture-fill opacity, 0.0-1.0
+        self._grid_show_lines = True   # separate from grid_type='none' - lets squares/texture fill show without outline lines on top
         # Grid line/dot colour + thickness (Aug 20 2026)
         self._grid_line_color = (76, 76, 102)   # matches old (0.3,0.3,0.4)
         self._grid_line_size  = 4               # 4-10px range
@@ -1821,9 +1823,15 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         if not was_blend:
             glDisable(GL_BLEND)
 
-    def _draw_grid_squares(self, step, rng, cx=0, cy=0): #vers 3
+    def _draw_grid_squares(self, step, rng, cx=0, cy=0): #vers 4
         """'squares' grid style - colour fill (default) or a tiled
-        user image/texture, per fill_mode."""
+        user image/texture, per fill_mode. Outline lines on top are
+        now gated on self._grid_show_lines (Aug 20 2026, per Keith:
+        "the Hide grid needs to be elsewhere so that I can show the
+        texture without the grid") - separate from grid_type='none',
+        which hides the whole style (fill included); this only hides
+        the line overlay, so squares/texture fill can show cleanly on
+        its own."""
         if self._squares_fill_mode == 'texture' and self._squares_texture_path:
             tex_id = self._ensure_squares_texture()
             if tex_id:
@@ -1831,7 +1839,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 glBindTexture(GL_TEXTURE_2D, tex_id)
                 glEnable(GL_BLEND)
                 glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-                glColor4f(1, 1, 1, 0.5)
+                glColor4f(1, 1, 1, self._squares_texture_alpha)
                 ts = self._squares_tile_size
                 glBegin(GL_QUADS)
                 for gy in range(cy - rng, cy + rng, step):
@@ -1846,7 +1854,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 glDisable(GL_BLEND)
                 glBindTexture(GL_TEXTURE_2D, 0)
                 glDisable(GL_TEXTURE_2D)
-                self._draw_grid_lines(step, rng, cx, cy)
+                if self._grid_show_lines:
+                    self._draw_grid_lines(step, rng, cx, cy)
                 return
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
@@ -1861,7 +1870,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 glVertex3f(gx, gy + step, 0)
         glEnd()
         glDisable(GL_BLEND)
-        self._draw_grid_lines(step, rng, cx, cy)
+        if self._grid_show_lines:
+            self._draw_grid_lines(step, rng, cx, cy)
 
     def _ensure_squares_texture(self): #vers 1
         """Lazily load self._squares_texture_path as a repeating GL
@@ -1904,6 +1914,18 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._squares_tex_id = None   # force reload
         if tile_size is not None:
             self._squares_tile_size = tile_size
+        self.update()
+
+    def set_squares_texture_alpha(self, alpha): #vers 1
+        self._squares_texture_alpha = max(0.0, min(1.0, alpha))
+        self.update()
+
+    def set_grid_show_lines(self, show): #vers 1
+        """Separate from grid_type='none' (Aug 20 2026, per Keith:
+        "the Hide grid needs to be elsewhere so that I can show the
+        texture without the grid") - hides only the outline lines
+        drawn on top of squares/texture fill, not the fill itself."""
+        self._grid_show_lines = bool(show)
         self.update()
 
     def _ensure_skybox_texture(self): #vers 1

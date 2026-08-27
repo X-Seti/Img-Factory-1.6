@@ -8505,3 +8505,12 @@ conclusively found despite extensive isolated testing.
   Also added a "Reset Grid to Defaults" button to the Grid & Radar
   Tiles settings, per Keith: "it's easy to enter large values and
   mess things up."
+
+- **Aug 20, 2026** — Texture opacity setting for grid squares/texture
+  fill (was hardcoded at 0.5). Moved "hide grid" out of the Grid
+  style dropdown into a separate "Show grid outline lines" checkbox -
+  lets squares/texture fill show on its own with no line overlay,
+  which the old dropdown-only 'none' option couldn't do (it hid the
+  fill too). Full grid hide is still available via the Display tab's
+  own Grid checkbox. Reset Grid to Defaults updated to cover both
+  new controls too.

@@ -3331,6 +3331,8 @@ class MapSettings(QObject):
         'squares_fill_mode': 'color',
         'squares_texture_path': '',
         'squares_tile_size': 256,
+        'squares_texture_alpha': 0.5,
+        'grid_show_lines': True,
         'grid_line_color': (76, 76, 102),
         'grid_line_size': 4,
     }
@@ -8077,7 +8079,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             ('dots',             'Dots only'),
             ('honeycomb',        'Honeycomb (hexagons)'),
             ('honeycomb_dashed', 'Marching ants honeycomb'),
-            ('none',             'None (hide grid)'),
         ]
         for key, label in grid_type_items:
             grid_type_combo.addItem(label, key)
@@ -8095,6 +8096,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "'Grid' choice - that's a flat, 2D fill pattern behind\n"
             "the scene, unrelated despite the shared name.")
         radar_form.addRow("Grid style:", grid_type_combo)
+
+        grid_show_lines_chk = QCheckBox("Show grid outline lines")
+        grid_show_lines_chk.setChecked(bool(self.map_settings.get('grid_show_lines', True)))
+        grid_show_lines_chk.setToolTip(
+            "Separate from the grid style itself - turn off to show\n"
+            "just the Squares fill/texture on its own, with no line\n"
+            "outlines drawn on top of it. To hide the grid entirely\n"
+            "instead, use the Grid checkbox on the Display tab.")
+        radar_form.addRow(grid_show_lines_chk)
 
         grid_bg_color_btn = QPushButton()
         grid_bg_color = tuple(self.map_settings.get('grid_bg_color'))
@@ -8198,6 +8208,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         grid_tile_size_spin.setValue(int(self.map_settings.get('squares_tile_size') or 256))
         radar_form.addRow("Texture tile size:", grid_tile_size_spin)
 
+        grid_texture_alpha_spin = QDoubleSpinBox()
+        grid_texture_alpha_spin.setRange(0.0, 1.0)
+        grid_texture_alpha_spin.setSingleStep(0.05)
+        grid_texture_alpha_spin.setValue(float(self.map_settings.get('squares_texture_alpha') or 0.5))
+        grid_texture_alpha_spin.setToolTip("0.0 = fully transparent, 1.0 = fully opaque")
+        radar_form.addRow("Texture opacity:", grid_texture_alpha_spin)
+
         radar_show_grid_chk = QCheckBox("Show reference grid in generated tiles")
         radar_show_grid_chk.setChecked(bool(self.map_settings.get('radar_tiles_show_grid')))
         radar_show_grid_chk.setToolTip(
@@ -8238,6 +8255,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             grid_fill_mode_combo.setCurrentIndex(0)    # 'color'
             grid_texture_path_edit.setText('')
             grid_tile_size_spin.setValue(256)
+            grid_texture_alpha_spin.setValue(0.5)
+            grid_show_lines_chk.setChecked(True)
             radar_tex_layer_chk.setChecked(False)
         grid_reset_btn.clicked.connect(_reset_grid_defaults)
         radar_form.addRow(grid_reset_btn)
@@ -8826,6 +8845,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.map_settings.set('squares_tile_size', tile_size)
             if vp is not None and hasattr(vp, 'set_squares_fill'):
                 vp.set_squares_fill(fill_mode, tuple(grid_bg_rgb), tex_path, tile_size)
+
+            texture_alpha_val = grid_texture_alpha_spin.value()
+            self.map_settings.set('squares_texture_alpha', texture_alpha_val)
+            if vp is not None and hasattr(vp, 'set_squares_texture_alpha'):
+                vp.set_squares_texture_alpha(texture_alpha_val)
+
+            show_lines_val = grid_show_lines_chk.isChecked()
+            self.map_settings.set('grid_show_lines', show_lines_val)
+            if vp is not None and hasattr(vp, 'set_grid_show_lines'):
+                vp.set_grid_show_lines(show_lines_val)
 
             skybox_path_val = skybox_path_edit.text()
             self.map_settings.set('skybox_path', skybox_path_val)
@@ -11974,6 +12003,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 tuple(self.map_settings.get('grid_bg_color') or (51, 128, 230)),
                 self.map_settings.get('squares_texture_path') or '',
                 int(self.map_settings.get('squares_tile_size') or 256))
+        if hasattr(self.preview_widget, 'set_squares_texture_alpha'):
+            self.preview_widget.set_squares_texture_alpha(float(self.map_settings.get('squares_texture_alpha') or 0.5))
+        if hasattr(self.preview_widget, 'set_grid_show_lines'):
+            self.preview_widget.set_grid_show_lines(self.map_settings.get('grid_show_lines', True))
         if hasattr(self.preview_widget, 'set_skybox_path'):
             saved_skybox = self.map_settings.get('skybox_path')
             if saved_skybox:
