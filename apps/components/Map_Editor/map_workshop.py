@@ -22651,9 +22651,23 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 result.append(None)
         return result
 
-    def _load_selected_ipl_sections(self, rows): #vers 2
+    def _load_selected_ipl_sections(self, rows): #vers 3
         """Show/load every currently-hidden row among the given table
-        rows - the "Load Selected" context menu action."""
+        rows - the "Load Selected" context menu action.
+
+        Real fix (Aug 20 2026, per Keith: "when selecting multiply
+        ipls, all select, load all, this opens multiple dialogues. It
+        should be one window with the title and process change; below
+        should be the IPL data") - each selected IPL used to get its
+        own, separate _preload_world_assets progress dialog, popping
+        open and closing in turn as the loop below called _on_ipl_
+        section_cell_clicked -> _ensure_ipl_loaded -> _preload_world_
+        assets once per IPL. Now creates one real, shared QProgress
+        Dialog up front instead, its own title/label updated for
+        whichever IPL is currently loading, and self._shared_load_
+        progress set for the duration of the loop so _preload_world_
+        assets' own real, already-fixed reuse logic picks it up
+        instead of creating a second, separate one per IPL."""
         table = self._ipl_sections_table
         hidden = getattr(self, '_hidden_ipls', set())
         ipl_names = []
@@ -22664,19 +22678,36 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             ipl_name = item.data(Qt.ItemDataRole.UserRole)
             if ipl_name in hidden:
                 ipl_names.append(ipl_name)
+        if not ipl_names:
+            return
 
-        for ipl_name in ipl_names:
-            if ipl_name not in getattr(self, '_hidden_ipls', set()):
-                continue   # already made visible by an earlier iteration's own load
-            current_row = None
-            for r in range(table.rowCount()):
-                candidate = table.item(r, 0)
-                if candidate is not None and candidate.data(Qt.ItemDataRole.UserRole) == ipl_name:
-                    current_row = r
+        progress = QProgressDialog("Loading IPLs…", "Cancel", 0, len(ipl_names), self)
+        progress.setWindowTitle("Loading Selected IPLs")
+        progress.setMinimumDuration(0)
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+        self._shared_load_progress = progress
+
+        try:
+            for idx, ipl_name in enumerate(ipl_names):
+                if progress.wasCanceled():
                     break
-            if current_row is None:
-                continue   # row no longer exists (e.g. removed by an earlier rebuild)
-            self._on_ipl_section_cell_clicked(current_row, 0)
+                if ipl_name not in getattr(self, '_hidden_ipls', set()):
+                    continue   # already made visible by an earlier iteration's own load
+                current_row = None
+                for r in range(table.rowCount()):
+                    candidate = table.item(r, 0)
+                    if candidate is not None and candidate.data(Qt.ItemDataRole.UserRole) == ipl_name:
+                        current_row = r
+                        break
+                if current_row is None:
+                    continue   # row no longer exists (e.g. removed by an earlier rebuild)
+                progress.setWindowTitle(f"Loading Selected IPLs ({idx + 1} of {len(ipl_names)})")
+                progress.setLabelText(f"Loading {ipl_name}…")
+                progress.setValue(idx)
+                self._on_ipl_section_cell_clicked(current_row, 0)
+            progress.setValue(len(ipl_names))
+        finally:
+            self._shared_load_progress = None
 
     def _on_ipl_sections_column_resized(self, logical_index, old_size, new_size): #vers 1
         """Persist the user's column widths for the IPL Sections table
@@ -24806,8 +24837,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # Auto-load associated binary streams (Aug 1 2026)
         stream_entries = getattr(self, '_ipl_names_with_binary_stream', {}).get(display_name, [])
         verbose = self.map_settings.get('show_verbose_loading_dialog')
+        bulk_loading = getattr(self, '_shared_load_progress', None) is not None
         dlg = None
-        if verbose and (new_instances or stream_entries):
+        if verbose and not bulk_loading and (new_instances or stream_entries):
+            # Suppressed during a bulk multi-IPL load (Aug 20 2026,
+            # per Keith: "this opens multiple dialogues. It should be
+            # one window") - _load_selected_ipl_sections' own real,
+            # shared progress dialog already reports which IPL is
+            # loading; a separate detailed log window per IPL on top
+            # of that would still be exactly the "multiple dialogues"
+            # gap this fix is for, just moved to a different dialog.
             dlg = _VerboseLoadingDialog(f"Loading {display_name}", self)
             dlg.show()
             n_streams = len(stream_entries) if self.map_settings.get('load_text_plus_binary_ipl_set') else 0
@@ -25069,11 +25108,25 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 continue
         self._set_status("Ready")
 
-    def _preload_world_assets(self, loader, model_cache, instances=None, title=None): #vers 2
+    def _preload_world_assets(self, loader, model_cache, instances=None, title=None): #vers 3
         """Eagerly load+parse (and cache) geometry and textures for
         every distinct model referenced by the given instances (or
         every loaded instance, if none given), with a progress dialog
-        showing what's currently being processed."""
+        showing what's currently being processed.
+
+        Real fix (Aug 20 2026, per Keith: "when selecting multiply
+        ipls, all select, load all, this opens multiple dialogues. It
+        should be one window with the title and process change") -
+        this used to always create its own new QProgressDialog every
+        call; _ensure_ipl_loaded calls this once per IPL, so loading
+        several IPLs at once (via _load_selected_ipl_sections' own
+        loop) meant a separate dialog popping open and closing for
+        each one in turn. Now checks self._shared_load_progress first
+        - when the caller has already set one up (see _load_selected_
+        ipl_sections' own real usage), this reuses that same one
+        window instead of creating a second, redundant one; a single-
+        IPL caller (e.g. clicking one eye icon) leaves that attribute
+        unset, so it still gets its own dialog exactly as before."""
         instances = instances if instances is not None else loader.instances
         # Deduplicate by model_name - many instances share one model,
         # no need to load it more than once.
@@ -25087,11 +25140,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return
 
         items = list(seen_models.items())
-        progress = QProgressDialog(
-            title or "Loading assets…", "Cancel", 0, len(items), self)
-        progress.setWindowTitle("Loading Meshes and Textures")
-        progress.setMinimumDuration(500)   # don't flash up for fast loads
-        progress.setWindowModality(Qt.WindowModality.WindowModal)
+        shared = getattr(self, '_shared_load_progress', None)
+        if shared is not None:
+            progress = shared
+        else:
+            progress = QProgressDialog(
+                title or "Loading assets…", "Cancel", 0, len(items), self)
+            progress.setWindowTitle("Loading Meshes and Textures")
+            progress.setMinimumDuration(500)   # don't flash up for fast loads
+            progress.setWindowModality(Qt.WindowModality.WindowModal)
 
         loaded_txds = set()
         for i, (model_name, (txd_name, source_ipl)) in enumerate(items):
@@ -25101,13 +25158,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     f"- remaining models will still load on demand while browsing")
                 break
             progress.setLabelText(
+                f"{(title + chr(10)) if (shared is not None and title) else ''}"
                 f"Model: {model_name}\nTexture: {txd_name or '(none)'}\nIPL: {source_ipl}")
-            progress.setValue(i)
+            if shared is None:
+                progress.setValue(i)
             model_cache.get_geometry(model_name)
             if txd_name and txd_name not in loaded_txds:
                 model_cache.get_textures(txd_name)
                 loaded_txds.add(txd_name)
-        progress.setValue(len(items))
+        if shared is None:
+            progress.setValue(len(items))
 
     def _toggle_cull_boxes(self, checked): #vers 1
         """Show/hide wireframe cull zone boxes across all World View

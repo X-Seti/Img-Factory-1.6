@@ -8692,3 +8692,17 @@ conclusively found despite extensive isolated testing.
   so we can disable it if needed." Off skips the dialog entirely and
   stays fully lazy, same as picking "Load from .dat file" in it
   would.
+
+- **Aug 20, 2026** — Fixed multiple dialogues opening when loading
+  several IPLs at once, per Keith: "when selecting multiply ipls,
+  all select, load all, this opens multiple dialogues. It should be
+  one window with the title and process change." Each selected IPL
+  used to get its own separate _preload_world_assets progress dialog
+  (and its own separate detailed _VerboseLoadingDialog log, if
+  verbose loading was on), popping open and closing per IPL in turn.
+  _load_selected_ipl_sections now creates one real, shared
+  QProgressDialog up front, its own title/label updated for whichever
+  IPL is currently loading; _preload_world_assets reuses it instead of
+  creating a second one, and the per-IPL detailed log dialog is
+  suppressed during a bulk load (the shared dialog already reports
+  which IPL is loading).
