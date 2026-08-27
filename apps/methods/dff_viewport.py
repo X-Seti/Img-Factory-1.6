@@ -276,7 +276,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         # Grid line/dot colour + thickness (Aug 20 2026)
         self._grid_line_color = (76, 76, 102)   # matches old (0.3,0.3,0.4)
         self._grid_line_size  = 4               # 4-10px range
-        self._grid_spacing    = 5               # divisor of _dist -> step
+        self._grid_spacing    = 5               # divisor of _dist -> step (zoom_relative mode)
+        self._grid_fixed_step = 200             # world units per cell (fixed mode - real map scale, not the small zoom_relative divisor)
         self._grid_scale_mode = 'zoom_relative'  # or 'fixed' or 'radar_tiles'
         self._radar_grid_tile_size = 500.0   # world units per tile, set from RADAR_GRID_PRESETS
         self._radar_grid_half_extent = 3000.0   # grid_size/2 for the current game
@@ -1692,10 +1693,21 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         if self._grid_scale_mode == 'radar_tiles':
             step = max(1, int(self._radar_grid_tile_size))
         elif self._grid_scale_mode == 'fixed':
-            step = max(1, int(self._grid_spacing))
+            step = max(1, int(self._grid_fixed_step))
         else:
             step = self._nice_grid_step(self._dist / self._grid_spacing)
-        rng  = int(self._radar_grid_half_extent) if self._grid_scale_mode == 'radar_tiles' else step * 10
+        if self._grid_scale_mode == 'radar_tiles':
+            rng = int(self._radar_grid_half_extent)
+        elif self._grid_scale_mode == 'fixed':
+            # Fixed cell size shouldn't cap visible range too - scale
+            # with zoom distance too so zooming out to see a
+            # far-away model still extends the grid to reach it
+            # (Aug 20 2026, per Keith: "the grid count doesn't cover
+            # the map, you can see the outer ipl models and the
+            # little yellow grid in the middle").
+            rng = max(step * 10, int(self._dist * 2))
+        else:
+            rng = step * 10
         # The real world point the camera is currently looking at is
         # (-pan_x, -pan_y) - the scene itself is translated by (pan_x,
         # pan_y) before the fixed camera views it (the same real
@@ -2597,6 +2609,14 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def set_grid_spacing(self, spacing): #vers 1
         self._grid_spacing = max(1, spacing)
+        self.update()
+
+    def set_grid_fixed_step(self, step): #vers 1
+        """World units per cell for 'fixed' (resize-with-models) mode
+        - separate from _grid_spacing (that one's a divisor for
+        'zoom_relative' mode, a real map-scale value like 200 would
+        be much too large used the same way there)."""
+        self._grid_fixed_step = max(1, step)
         self.update()
 
     def set_grid_scale_mode(self, mode): #vers 2

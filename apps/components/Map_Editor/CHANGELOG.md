@@ -8418,3 +8418,13 @@ conclusively found despite extensive isolated testing.
   the map's real origin rather than following the camera, so tile
   boundaries line up with actually exported radar tiles. Auto-updates
   when a different game's world is loaded.
+
+- **Aug 20, 2026** — Fixed "Resize with models" grid only covering a
+  tiny area near the origin. It was reusing grid_spacing (default 5,
+  designed as a divisor for Locked mode) directly as the world-unit
+  cell size - 5 units/cell on a real map is tiny, and its visible
+  range (step*10=50) never scaled with zoom either, so it stayed a
+  small, static patch near the origin while the actual world extended
+  far beyond it. Added a separate, real map-scale grid_fixed_step
+  setting (default 200) for this mode, and made its visible range
+  scale with zoom distance too so it actually reaches distant models.

@@ -3169,6 +3169,7 @@ class MapSettings(QObject):
         'airtrain_color': (230, 153, 51),
         'airtrain_line_thickness': 1.2,
         'grid_spacing': 5,
+        'grid_fixed_step': 200,
         'grid_scale_mode': 'zoom_relative',
         'skybox_path': '',
         'timecyc_path': '',
@@ -8124,7 +8125,17 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         grid_spacing_spin = QSpinBox()
         grid_spacing_spin.setRange(1, 50)
         grid_spacing_spin.setValue(int(self.map_settings.get('grid_spacing') or 5))
-        radar_form.addRow("Grid spacing:", grid_spacing_spin)
+        grid_spacing_spin.setToolTip("Used by 'Locked' mode only - divides zoom distance to get cell size.")
+        radar_form.addRow("Grid spacing (Locked mode):", grid_spacing_spin)
+
+        grid_fixed_step_spin = QSpinBox()
+        grid_fixed_step_spin.setRange(1, 5000)
+        grid_fixed_step_spin.setValue(int(self.map_settings.get('grid_fixed_step') or 200))
+        grid_fixed_step_spin.setToolTip(
+            "Used by 'Resize with models' mode only - real world units\n"
+            "per grid cell, a genuine map-scale value (unlike Grid\n"
+            "spacing above, which is only a divisor for Locked mode).")
+        radar_form.addRow("Grid cell size (Resize-with-models mode):", grid_fixed_step_spin)
 
         grid_scale_mode_combo = QComboBox()
         grid_scale_mode_combo.addItem("Locked (constant on-screen size)", "zoom_relative")
@@ -8735,6 +8746,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.map_settings.set('grid_spacing', grid_spacing_val)
             if vp is not None and hasattr(vp, 'set_grid_spacing'):
                 vp.set_grid_spacing(grid_spacing_val)
+
+            grid_fixed_step_val = grid_fixed_step_spin.value()
+            self.map_settings.set('grid_fixed_step', grid_fixed_step_val)
+            if vp is not None and hasattr(vp, 'set_grid_fixed_step'):
+                vp.set_grid_fixed_step(grid_fixed_step_val)
 
             grid_scale_mode_val = grid_scale_mode_combo.currentData()
             self.map_settings.set('grid_scale_mode', grid_scale_mode_val)
@@ -11888,6 +11904,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.preview_widget.set_grid_line_size(int(self.map_settings.get('grid_line_size') or 4))
         if hasattr(self.preview_widget, 'set_grid_spacing'):
             self.preview_widget.set_grid_spacing(int(self.map_settings.get('grid_spacing') or 5))
+        if hasattr(self.preview_widget, 'set_grid_fixed_step'):
+            self.preview_widget.set_grid_fixed_step(int(self.map_settings.get('grid_fixed_step') or 200))
         if hasattr(self.preview_widget, 'set_grid_scale_mode'):
             self.preview_widget.set_grid_scale_mode(self.map_settings.get('grid_scale_mode') or 'zoom_relative')
         if hasattr(self.preview_widget, 'set_squares_fill'):
