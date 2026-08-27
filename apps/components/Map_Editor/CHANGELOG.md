@@ -8600,3 +8600,19 @@ conclusively found despite extensive isolated testing.
   table and TimecycParser's own field-count-based game detection
   (52 fields) were already both correct for VC; the real bug was the
   redundant clock, not per-game colour lookup.
+
+- **Aug 20, 2026** — Timecyc file auto-detection: looks for timecyc.
+  dat next to the currently loaded game's own main .dat file, re-
+  checked on every world load so switching games picks up each one's
+  own real file rather than sticking to whichever was found first.
+  Browse still works for a manual override. Removed the leftover
+  "[Tcyc] button, same row as..." text label from the settings row -
+  the real toolbar button already speaks for itself.
+
+  Added real "Show Grid"/"Show Timecyc" quick-select checkboxes at
+  the top of Grid & Radar Tiles settings. Turns out neither of these
+  had a real on/off control anywhere before this - an earlier tooltip
+  of mine claiming a "Display tab grid checkbox" existed was simply
+  wrong; there wasn't one. Fixed that tooltip and one other pointing
+  to the same non-existent control, now pointing at the real new
+  quick toggle instead.

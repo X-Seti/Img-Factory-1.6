@@ -8072,6 +8072,35 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         radar_grp = QGroupBox("Grid && Radar Tiles")
         radar_form = QFormLayout(radar_grp)
 
+        pw_for_quick = getattr(self, 'preview_widget', None)
+        quick_show_grid_chk = QCheckBox("Show Grid")
+        quick_show_grid_chk.setChecked(bool(getattr(pw_for_quick, '_show_grid', True)))
+        quick_show_grid_chk.setToolTip("Quick on/off for the whole reference grid, regardless of style.")
+        def _on_quick_show_grid(checked): #vers 1
+            vp = getattr(self, 'preview_widget', None)
+            if vp is not None and hasattr(vp, 'set_show_grid'):
+                vp.set_show_grid(checked)
+        quick_show_grid_chk.toggled.connect(_on_quick_show_grid)
+
+        quick_show_timecyc_chk = QCheckBox("Show Timecyc")
+        quick_show_timecyc_chk.setChecked(bool(getattr(pw_for_quick, '_timecyc_playing', False)))
+        quick_show_timecyc_chk.setToolTip(
+            "Quick on/off for the timecyc day/night effect - same real\n"
+            "switch as the [Tcyc] toolbar button, same row as [2DFX]/[Tobj].")
+        def _on_quick_show_timecyc(checked): #vers 1
+            vp = getattr(self, 'preview_widget', None)
+            if vp is not None and hasattr(vp, 'set_timecyc_playing'):
+                vp.set_timecyc_playing(checked)
+            tcyc_btn = getattr(self, '_tcyc_chk', None)
+            if tcyc_btn is not None:
+                tcyc_btn.set_shown(checked, emit=False)
+        quick_show_timecyc_chk.toggled.connect(_on_quick_show_timecyc)
+
+        quick_row = QHBoxLayout()
+        quick_row.addWidget(quick_show_grid_chk)
+        quick_row.addWidget(quick_show_timecyc_chk)
+        radar_form.addRow(quick_row)
+
         grid_type_combo = QComboBox()
         grid_type_items = [
             ('lines',            'Lines (default)'),
@@ -8090,9 +8119,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "The whole viewport's own reference grid style, used\n"
             "wherever the grid is shown at all - the interactive\n"
             "view and generated radar tiles alike. To switch the\n"
-            "grid off completely, use each view's own existing grid\n"
-            "show/hide toggle instead - this only picks the style\n"
-            "used whenever the grid is actually on.\n\n"
+            "grid off completely, use the Show Grid quick toggle\n"
+            "above instead - this only picks the style used\n"
+            "whenever the grid is actually on.\n\n"
             "Not the same as the Preview tab's own Background Mode\n"
             "'Grid' choice - that's a flat, 2D fill pattern behind\n"
             "the scene, unrelated despite the shared name.")
@@ -8104,7 +8133,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "Separate from the grid style itself - turn off to show\n"
             "just the Squares fill/texture on its own, with no line\n"
             "outlines drawn on top of it. To hide the grid entirely\n"
-            "instead, use the Grid checkbox on the Display tab.")
+            "instead, use the Show Grid quick toggle above.")
         radar_form.addRow(grid_show_lines_chk)
 
         grid_bg_color_btn = QPushButton()
@@ -8291,6 +8320,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         timecyc_path_edit = QLineEdit(self.map_settings.get('timecyc_path') or '')
         timecyc_path_edit.setReadOnly(True)
+        timecyc_path_edit.setPlaceholderText("Auto-detected next to the loaded game's own data folder, if found")
         timecyc_browse_btn = QPushButton("Browse…")
         def _browse_timecyc(): #vers 1
             path, _ = QFileDialog.getOpenFileName(
@@ -8304,7 +8334,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         timecyc_row = QHBoxLayout()
         timecyc_row.addWidget(timecyc_path_edit)
         timecyc_row.addWidget(timecyc_browse_btn)
-        timecyc_row.addWidget(QLabel("Play/stop: [Tcyc] button, same row as [2DFX]/[Tobj]"))
         env_form.addRow("Use timecyc file:", timecyc_row)
 
         render_layout.addWidget(boxes_grp)
@@ -20423,6 +20452,18 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             grid_size_for_grid = preset_for_grid['grid_size']
             vp_for_grid.set_radar_grid_extent(
                 grid_size_for_grid / preset_for_grid['tiles_per_side'], grid_size_for_grid / 2.0)
+        # Auto-detect timecyc.dat next to this world's own main .dat
+        # file (Aug 20 2026, per Keith: "we need to be able to detect
+        # the timecyc.dat file without the need for a path, and still
+        # keep the toggle") - re-checked on every world load (not just
+        # once), so switching between different games' maps picks up
+        # each one's own real timecyc.dat rather than getting stuck on
+        # whichever game's path was auto-detected first.
+        auto_timecyc_path = self._auto_detect_timecyc_path()
+        if auto_timecyc_path:
+            self.map_settings.set('timecyc_path', auto_timecyc_path)
+            if vp_for_grid is not None and hasattr(vp_for_grid, 'set_timecyc_path'):
+                vp_for_grid.set_timecyc_path(auto_timecyc_path)
         # Same for the radar tex layer, if it's on (Aug 20 2026) -
         # moved below, after model_cache.index_img_files() actually
         # runs (search "radar tex layer needs the freshly-indexed") -
@@ -22522,6 +22563,27 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # Explicit refresh (Aug 1 2026)
 
         self._refresh_ipl_inst_file_panel()
+
+    def _auto_detect_timecyc_path(self): #vers 1
+        """Look for a real timecyc.dat next to the currently loaded
+        game's own main .dat file (Aug 20 2026, per Keith: "we need
+        to be able to detect the timecyc.dat file without the need
+        for a path, and still keep the toggle") - the same folder
+        gta.dat/gta_sa.dat/gta_vc.dat itself lives in, since timecyc.
+        dat is a real, standard sibling file there in every actual
+        GTA install. Case-insensitive match (real installs vary).
+        Returns the real path if found, else ''."""
+        dat_path = getattr(self, '_loaded_dat_path', '')
+        if not dat_path:
+            return ''
+        folder = os.path.dirname(dat_path)
+        try:
+            for name in os.listdir(folder):
+                if name.lower() == 'timecyc.dat':
+                    return os.path.join(folder, name)
+        except OSError:
+            pass
+        return ''
 
     def _load_radar_tex_tiles(self, game_key): #vers 1
         """Read every real radarNN.txd texture for game_key directly
