@@ -8392,3 +8392,9 @@ conclusively found despite extensive isolated testing.
   Timecyc file Browse + Play/Stop (reuses Timecyc_Editor's own real,
   field-mapped TimecycParser - not a second parser), both in a new
   Environment group on the Render tab.
+
+- **Aug 20, 2026** — Wrapped the Render tab in a real QScrollArea -
+  it had never had one, which was the direct cause of the overlapping/
+  overflowing controls Keith's screenshot showed once enough groups
+  (Path Lines/Grid/Environment) were added to it. Tightened group
+  spacing too.

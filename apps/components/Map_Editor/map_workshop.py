@@ -7855,8 +7855,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         tabs.addTab(display_tab, "Display")
 
         # TAB: RENDER (Aug 16 2026)
+        render_tab_outer = QWidget()
+        render_tab_outer_layout = QVBoxLayout(render_tab_outer)
+        render_tab_outer_layout.setContentsMargins(0, 0, 0, 0)
+        render_scroll = QScrollArea()
+        render_scroll.setWidgetResizable(True)
         render_tab = QWidget()
         render_layout = QVBoxLayout(render_tab)
+        render_layout.setSpacing(6)
+        render_scroll.setWidget(render_tab)
+        render_tab_outer_layout.addWidget(render_scroll)
         pw = getattr(self, 'preview_widget', None)
 
         style_grp = QGroupBox("Object Rendering")
@@ -8204,7 +8212,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         render_layout.addWidget(radar_grp)
         render_layout.addWidget(env_grp)
         render_layout.addStretch()
-        tabs.addTab(render_tab, "Render")
+        tabs.addTab(render_tab_outer, "Render")
 
         # TAB 3: placeholder
         # TAB 4: PERFORMANCE
