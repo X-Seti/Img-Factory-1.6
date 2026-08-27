@@ -8375,3 +8375,11 @@ conclusively found despite extensive isolated testing.
 - **Aug 20, 2026** — Grid background/line color pickers + line/dot
   size (4-10px) added to Render tab, wired to DFFViewport.set_grid_
   colors/set_grid_line_size. Blue (51,128,230) kept as default bg.
+
+- **Aug 20, 2026** — Grid spacing setting; grid squares fill can now
+  use a tiled image/texture instead of flat colour (Browse + tile
+  size 64-1024). Path Lines split into Dat Nodes/Tracks/Airtrain-Plane
+  rows with own colour+thickness (Airtrain/Plane not yet data-split
+  from Dat Nodes - no confirmed field for it in the file format).
+  Fixed a real pre-existing duplicate set_track_color definition and
+  duplicate track_color settings-default entry found while adding this.

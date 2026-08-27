@@ -276,6 +276,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         # Grid line/dot colour + thickness (Aug 20 2026)
         self._grid_line_color = (76, 76, 102)   # matches old (0.3,0.3,0.4)
         self._grid_line_size  = 4               # 4-10px range
+        self._grid_spacing    = 5               # divisor of _dist -> step
         self._use_prelight  = False
         self._ambient       = 0.4
         self._diffuse       = 0.9
@@ -510,6 +511,11 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self.show_tracks = False
         self._track_polylines = []   # list of [(x,y,z), ...] - one per track file
         self._track_color = (0.75, 0.75, 0.8)
+        self._track_line_thickness = 1.5
+        # Airtrain/Plane path colour - settings-only for now, no
+        # confirmed data field to split these from generic paths yet
+        self._airtrain_color = (0.9, 0.6, 0.2)
+        self._airtrain_line_thickness = 1.2
 
         # SA path node graph (Aug 19 2026, per Keith's real NODES0-63.
         # DAT data - "lets do those next" following the whole real
@@ -1650,7 +1656,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         positions stay fixed at step-aligned multiples throughout."""
         if not OPENGL_AVAILABLE: return
         glDisable(GL_LIGHTING)
-        step = max(1, int(self._dist / 5))
+        step = max(1, int(self._dist / self._grid_spacing))
         rng  = step * 10
         # The real world point the camera is currently looking at is
         # (-pan_x, -pan_y) - the scene itself is translated by (pan_x,
@@ -1727,17 +1733,33 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         if not was_blend:
             glDisable(GL_BLEND)
 
-    def _draw_grid_squares(self, step, rng, cx=0, cy=0): #vers 2
-        """'squares' grid style - a real, semi-transparent blue fill
-        inside every single cell, per Keith's own literal "grid with
-        blue square inside" wording - not just a differently-coloured
-        outline the way a naive reading might produce. Genuine
-        alpha-blended GL_QUADS per cell (real transparency, so the
-        world underneath a filled cell still shows through), plus the
-        same real outline lines _draw_grid_lines already draws, so
-        this style is a real superset of 'lines', not a replacement
-        that loses the grid lines themselves. cx/cy: see _draw_grid_
-        lines' own docstring."""
+    def _draw_grid_squares(self, step, rng, cx=0, cy=0): #vers 3
+        """'squares' grid style - colour fill (default) or a tiled
+        user image/texture, per fill_mode."""
+        if self._squares_fill_mode == 'texture' and self._squares_texture_path:
+            tex_id = self._ensure_squares_texture()
+            if tex_id:
+                glEnable(GL_TEXTURE_2D)
+                glBindTexture(GL_TEXTURE_2D, tex_id)
+                glEnable(GL_BLEND)
+                glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+                glColor4f(1, 1, 1, 0.5)
+                ts = self._squares_tile_size
+                glBegin(GL_QUADS)
+                for gy in range(cy - rng, cy + rng, step):
+                    for gx in range(cx - rng, cx + rng, step):
+                        u0, v0 = gx / ts, gy / ts
+                        u1, v1 = (gx + step) / ts, (gy + step) / ts
+                        glTexCoord2f(u0, v0); glVertex3f(gx, gy, 0)
+                        glTexCoord2f(u1, v0); glVertex3f(gx + step, gy, 0)
+                        glTexCoord2f(u1, v1); glVertex3f(gx + step, gy + step, 0)
+                        glTexCoord2f(u0, v1); glVertex3f(gx, gy + step, 0)
+                glEnd()
+                glDisable(GL_BLEND)
+                glBindTexture(GL_TEXTURE_2D, 0)
+                glDisable(GL_TEXTURE_2D)
+                self._draw_grid_lines(step, rng, cx, cy)
+                return
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         r, g, b = self._squares_color
@@ -1751,6 +1773,53 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 glVertex3f(gx, gy + step, 0)
         glEnd()
         glDisable(GL_BLEND)
+        self._draw_grid_lines(step, rng, cx, cy)
+
+    def _ensure_squares_texture(self): #vers 1
+        """Lazily load self._squares_texture_path as a repeating GL
+        texture, re-loading only if the path changed since last time."""
+        if self._squares_tex_id and self._squares_tex_path_loaded == self._squares_texture_path:
+            return self._squares_tex_id
+        try:
+            from PyQt6.QtGui import QImage
+            image = QImage(self._squares_texture_path).convertToFormat(QImage.Format.Format_RGBA8888)
+            if image.isNull():
+                self._squares_tex_id = False
+                return False
+            w, h = image.width(), image.height()
+            ptr = image.bits(); ptr.setsize(image.sizeInBytes())
+            rgba = bytes(ptr)
+            self.makeCurrent()
+            if self._squares_tex_id and self._squares_tex_id is not False:
+                glDeleteTextures([self._squares_tex_id])
+            gl_id = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_2D, gl_id)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba)
+            glBindTexture(GL_TEXTURE_2D, 0)
+            self.doneCurrent()
+            self._squares_tex_id = gl_id
+            self._squares_tex_path_loaded = self._squares_texture_path
+        except Exception as e:
+            print(f"[DFFViewport] Failed to load grid texture: {e}")
+            self._squares_tex_id = False
+        return self._squares_tex_id
+
+    def set_squares_fill(self, mode, color=None, path=None, tile_size=None): #vers 1
+        """mode: 'color' or 'texture'."""
+        self._squares_fill_mode = mode
+        if color is not None:
+            self._squares_color = color
+        if path is not None and path != self._squares_texture_path:
+            self._squares_texture_path = path
+            self._squares_tex_id = None   # force reload
+        if tile_size is not None:
+            self._squares_tile_size = tile_size
+        self.update()
+
         self._draw_grid_lines(step, rng, cx, cy)
 
     def _draw_grid_dashed(self, step, rng, cx=0, cy=0): #vers 2
@@ -2363,6 +2432,10 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._grid_line_size = max(4, min(10, size))
         self.update()
 
+    def set_grid_spacing(self, spacing): #vers 1
+        self._grid_spacing = max(1, spacing)
+        self.update()
+
     def load_all_geometries(self, geometries, materials_list, frames, atomics, damaged=False): #vers 4
         self._all_geoms = []
         self._vertices  = []  # clear single-geom data
@@ -2775,7 +2848,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glDisable(GL_DEPTH_TEST)
         r, g, b = self._track_color
         glColor3f(r, g, b)
-        glLineWidth(1.5)
+        glLineWidth(self._track_line_thickness)
         for polyline in self._track_polylines:
             if len(polyline) < 2:
                 continue
@@ -2785,6 +2858,15 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             glEnd()
         glEnable(GL_DEPTH_TEST)
         glEnable(GL_LIGHTING)
+
+    def set_track_line_thickness(self, thickness): #vers 1
+        self._track_line_thickness = thickness; self.update()
+
+    def set_airtrain_color(self, r, g, b): #vers 1
+        self._airtrain_color = (r, g, b); self.update()
+
+    def set_airtrain_line_thickness(self, thickness): #vers 1
+        self._airtrain_line_thickness = thickness; self.update()
 
     def set_show_sa_nodes(self, enabled: bool): #vers 1
         self.show_sa_nodes = enabled; self.update()

@@ -3165,6 +3165,10 @@ class MapSettings(QObject):
         'path_node_color': (255, 204, 0),
         'path_line_thickness': 1.2,
         'path_node_size': 3.5,
+        'track_line_thickness': 1.5,
+        'airtrain_color': (230, 153, 51),
+        'airtrain_line_thickness': 1.2,
+        'grid_spacing': 5,
 
         # distinct from paths' red.
         'cull_box_color': (255, 217, 51),
@@ -3317,6 +3321,9 @@ class MapSettings(QObject):
         # already flagged as coming later (Aug 20 2026)
         'grid_type': 'lines',
         'grid_bg_color': (51, 128, 230),
+        'squares_fill_mode': 'color',
+        'squares_texture_path': '',
+        'squares_tile_size': 256,
         'grid_line_color': (76, 76, 102),
         'grid_line_size': 4,
     }
@@ -7892,7 +7899,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         saved_path_color = self.map_settings.get('path_line_color') or (255, 0, 0)
         pr, pg_, pb = saved_path_color
         path_preview = QPushButton("  ")
-        path_preview.setFixedSize(60, 28)
+        path_preview.setFixedSize(60, 24)
         path_preview.setStyleSheet(f"background-color: rgb({pr},{pg_},{pb});")
         def _pick_path_color():  #vers 1
             c = QColorDialog.getColor(QColor(pr, pg_, pb), tabs, "Path Line Colour")
@@ -7900,12 +7907,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 path_preview.setStyleSheet(f"background-color: {c.name()};")
                 path_preview.setProperty("chosen", (c.red(), c.green(), c.blue()))
         path_preview.clicked.connect(_pick_path_color)
-        path_form.addRow("Line Colour:", path_preview)
 
         saved_node_color = self.map_settings.get('path_node_color') or (255, 204, 0)
         npr, npg, npb = saved_node_color
         node_preview = QPushButton("  ")
-        node_preview.setFixedSize(60, 28)
+        node_preview.setFixedSize(60, 24)
         node_preview.setStyleSheet(f"background-color: rgb({npr},{npg},{npb});")
         def _pick_node_color():  #vers 1
             c = QColorDialog.getColor(QColor(npr, npg, npb), tabs, "Path Node Colour")
@@ -7913,19 +7919,63 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 node_preview.setStyleSheet(f"background-color: {c.name()};")
                 node_preview.setProperty("chosen", (c.red(), c.green(), c.blue()))
         node_preview.clicked.connect(_pick_node_color)
-        path_form.addRow("Node Colour:", node_preview)
 
         line_thickness_spin = QDoubleSpinBox()
         line_thickness_spin.setRange(0.1, 20.0)
         line_thickness_spin.setSingleStep(0.1)
         line_thickness_spin.setValue(self.map_settings.get('path_line_thickness') or 1.2)
-        path_form.addRow("Line Thickness:", line_thickness_spin)
 
         node_size_spin = QDoubleSpinBox()
         node_size_spin.setRange(0.1, 30.0)
         node_size_spin.setSingleStep(0.5)
         node_size_spin.setValue(self.map_settings.get('path_node_size') or 3.5)
-        path_form.addRow("Node Size:", node_size_spin)
+
+        dat_row = QHBoxLayout()
+        dat_row.addWidget(QLabel("Line:")); dat_row.addWidget(path_preview)
+        dat_row.addWidget(QLabel("Node:")); dat_row.addWidget(node_preview)
+        dat_row.addWidget(QLabel("Thickness:")); dat_row.addWidget(line_thickness_spin)
+        dat_row.addWidget(QLabel("Size:")); dat_row.addWidget(node_size_spin)
+        path_form.addRow("Dat Nodes:", dat_row)
+
+        saved_track_color = self.map_settings.get('track_color') or (191, 191, 204)
+        tr, tg, tb = saved_track_color
+        track_preview = QPushButton("  ")
+        track_preview.setFixedSize(60, 24)
+        track_preview.setStyleSheet(f"background-color: rgb({tr},{tg},{tb});")
+        def _pick_track_color():  #vers 1
+            c = QColorDialog.getColor(QColor(tr, tg, tb), tabs, "Track Colour")
+            if c.isValid():
+                track_preview.setStyleSheet(f"background-color: {c.name()};")
+                track_preview.setProperty("chosen", (c.red(), c.green(), c.blue()))
+        track_preview.clicked.connect(_pick_track_color)
+        track_thickness_spin = QDoubleSpinBox()
+        track_thickness_spin.setRange(0.1, 20.0)
+        track_thickness_spin.setSingleStep(0.1)
+        track_thickness_spin.setValue(self.map_settings.get('track_line_thickness') or 1.5)
+        track_row = QHBoxLayout()
+        track_row.addWidget(QLabel("Colour:")); track_row.addWidget(track_preview)
+        track_row.addWidget(QLabel("Thickness:")); track_row.addWidget(track_thickness_spin)
+        path_form.addRow("Tracks:", track_row)
+
+        saved_airtrain_color = self.map_settings.get('airtrain_color') or (230, 153, 51)
+        atr, atg, atb = saved_airtrain_color
+        airtrain_preview = QPushButton("  ")
+        airtrain_preview.setFixedSize(60, 24)
+        airtrain_preview.setStyleSheet(f"background-color: rgb({atr},{atg},{atb});")
+        def _pick_airtrain_color():  #vers 1
+            c = QColorDialog.getColor(QColor(atr, atg, atb), tabs, "Airtrain/Plane Colour")
+            if c.isValid():
+                airtrain_preview.setStyleSheet(f"background-color: {c.name()};")
+                airtrain_preview.setProperty("chosen", (c.red(), c.green(), c.blue()))
+        airtrain_preview.clicked.connect(_pick_airtrain_color)
+        airtrain_thickness_spin = QDoubleSpinBox()
+        airtrain_thickness_spin.setRange(0.1, 20.0)
+        airtrain_thickness_spin.setSingleStep(0.1)
+        airtrain_thickness_spin.setValue(self.map_settings.get('airtrain_line_thickness') or 1.2)
+        airtrain_row = QHBoxLayout()
+        airtrain_row.addWidget(QLabel("Colour:")); airtrain_row.addWidget(airtrain_preview)
+        airtrain_row.addWidget(QLabel("Thickness:")); airtrain_row.addWidget(airtrain_thickness_spin)
+        path_form.addRow("Airtrain / Plane:", airtrain_row)
 
         render_layout.addWidget(path_grp)
 
@@ -8057,6 +8107,38 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         grid_line_size_spin.setRange(4, 10)
         grid_line_size_spin.setValue(int(self.map_settings.get('grid_line_size')))
         radar_form.addRow("Grid line/dot size (px):", grid_line_size_spin)
+
+        grid_spacing_spin = QSpinBox()
+        grid_spacing_spin.setRange(1, 50)
+        grid_spacing_spin.setValue(int(self.map_settings.get('grid_spacing') or 5))
+        radar_form.addRow("Grid spacing:", grid_spacing_spin)
+
+        grid_fill_mode_combo = QComboBox()
+        grid_fill_mode_combo.addItem("Colour", "color")
+        grid_fill_mode_combo.addItem("Image/Texture (tiled)", "texture")
+        saved_fill_mode = self.map_settings.get('squares_fill_mode') or 'color'
+        grid_fill_mode_combo.setCurrentIndex(1 if saved_fill_mode == 'texture' else 0)
+
+        grid_texture_path_edit = QLineEdit(self.map_settings.get('squares_texture_path') or '')
+        grid_texture_path_edit.setReadOnly(True)
+        grid_texture_browse_btn = QPushButton("Browse…")
+        def _browse_grid_texture(): #vers 1
+            path, _ = QFileDialog.getOpenFileName(
+                self, "Choose Grid Texture", "", "Images (*.png *.jpg *.jpeg *.bmp *.tga)")
+            if path:
+                grid_texture_path_edit.setText(path)
+        grid_texture_browse_btn.clicked.connect(_browse_grid_texture)
+        grid_texture_row = QHBoxLayout()
+        grid_texture_row.addWidget(grid_fill_mode_combo)
+        grid_texture_row.addWidget(grid_texture_path_edit)
+        grid_texture_row.addWidget(grid_texture_browse_btn)
+        radar_form.addRow("Use image/Texture:", grid_texture_row)
+
+        grid_tile_size_spin = QSpinBox()
+        grid_tile_size_spin.setRange(64, 1024)
+        grid_tile_size_spin.setSingleStep(64)
+        grid_tile_size_spin.setValue(int(self.map_settings.get('squares_tile_size') or 256))
+        radar_form.addRow("Texture tile size:", grid_tile_size_spin)
 
         radar_show_grid_chk = QCheckBox("Show reference grid in generated tiles")
         radar_show_grid_chk.setChecked(bool(self.map_settings.get('radar_tiles_show_grid')))
@@ -8506,6 +8588,26 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.map_settings.set('path_node_size', node_size_spin.value())
             if vp is not None and hasattr(vp, 'set_path_node_size'):
                 vp.set_path_node_size(node_size_spin.value())
+
+            track_chosen = track_preview.property("chosen")
+            if track_chosen:
+                self.map_settings.set('track_color', track_chosen)
+                if vp is not None and hasattr(vp, 'set_track_color'):
+                    tcr, tcg, tcb = track_chosen
+                    vp.set_track_color(tcr / 255.0, tcg / 255.0, tcb / 255.0)
+            self.map_settings.set('track_line_thickness', track_thickness_spin.value())
+            if vp is not None and hasattr(vp, 'set_track_line_thickness'):
+                vp.set_track_line_thickness(track_thickness_spin.value())
+
+            airtrain_chosen = airtrain_preview.property("chosen")
+            if airtrain_chosen:
+                self.map_settings.set('airtrain_color', airtrain_chosen)
+                if vp is not None and hasattr(vp, 'set_airtrain_color'):
+                    acr, acg, acb = airtrain_chosen
+                    vp.set_airtrain_color(acr / 255.0, acg / 255.0, acb / 255.0)
+            self.map_settings.set('airtrain_line_thickness', airtrain_thickness_spin.value())
+            if vp is not None and hasattr(vp, 'set_airtrain_line_thickness'):
+                vp.set_airtrain_line_thickness(airtrain_thickness_spin.value())
             cull_chosen = cull_preview.property("chosen")
             if cull_chosen:
                 self.map_settings.set('cull_box_color', cull_chosen)
@@ -8549,6 +8651,20 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 vp.set_grid_colors(tuple(grid_bg_rgb), tuple(grid_line_rgb))
             if vp is not None and hasattr(vp, 'set_grid_line_size'):
                 vp.set_grid_line_size(grid_size)
+
+            grid_spacing_val = grid_spacing_spin.value()
+            self.map_settings.set('grid_spacing', grid_spacing_val)
+            if vp is not None and hasattr(vp, 'set_grid_spacing'):
+                vp.set_grid_spacing(grid_spacing_val)
+
+            fill_mode = grid_fill_mode_combo.currentData()
+            tex_path = grid_texture_path_edit.text()
+            tile_size = grid_tile_size_spin.value()
+            self.map_settings.set('squares_fill_mode', fill_mode)
+            self.map_settings.set('squares_texture_path', tex_path)
+            self.map_settings.set('squares_tile_size', tile_size)
+            if vp is not None and hasattr(vp, 'set_squares_fill'):
+                vp.set_squares_fill(fill_mode, tuple(grid_bg_rgb), tex_path, tile_size)
 
             try:
                 # Adjusted for COL Wireframe, Mesh
@@ -11661,6 +11777,23 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if hasattr(self.preview_widget, 'set_zone_render_style'):
             self.preview_widget.set_zone_render_style(
                 self.map_settings.get('zone_render_style'))
+        # Restore saved grid settings
+        if hasattr(self.preview_widget, 'set_grid_type'):
+            self.preview_widget.set_grid_type(self.map_settings.get('grid_type') or 'lines')
+        if hasattr(self.preview_widget, 'set_grid_colors'):
+            self.preview_widget.set_grid_colors(
+                tuple(self.map_settings.get('grid_bg_color') or (51, 128, 230)),
+                tuple(self.map_settings.get('grid_line_color') or (76, 76, 102)))
+        if hasattr(self.preview_widget, 'set_grid_line_size'):
+            self.preview_widget.set_grid_line_size(int(self.map_settings.get('grid_line_size') or 4))
+        if hasattr(self.preview_widget, 'set_grid_spacing'):
+            self.preview_widget.set_grid_spacing(int(self.map_settings.get('grid_spacing') or 5))
+        if hasattr(self.preview_widget, 'set_squares_fill'):
+            self.preview_widget.set_squares_fill(
+                self.map_settings.get('squares_fill_mode') or 'color',
+                tuple(self.map_settings.get('grid_bg_color') or (51, 128, 230)),
+                self.map_settings.get('squares_texture_path') or '',
+                int(self.map_settings.get('squares_tile_size') or 256))
         # Wire the path node drag callback once, here at construction
         # (Aug 17 2026)
         if hasattr(self.preview_widget, 'set_path_node_drag_callback'):
@@ -24687,6 +24820,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             vp.set_path_line_thickness(self.map_settings.get('path_line_thickness') or 1.2)
         if hasattr(vp, 'set_path_node_size'):
             vp.set_path_node_size(self.map_settings.get('path_node_size') or 3.5)
+        if hasattr(vp, 'set_track_color'):
+            tcr, tcg, tcb = self.map_settings.get('track_color') or (191, 191, 204)
+            vp.set_track_color(tcr / 255.0, tcg / 255.0, tcb / 255.0)
+        if hasattr(vp, 'set_track_line_thickness'):
+            vp.set_track_line_thickness(self.map_settings.get('track_line_thickness') or 1.5)
+        if hasattr(vp, 'set_airtrain_color'):
+            acr, acg, acb = self.map_settings.get('airtrain_color') or (230, 153, 51)
+            vp.set_airtrain_color(acr / 255.0, acg / 255.0, acb / 255.0)
+        if hasattr(vp, 'set_airtrain_line_thickness'):
+            vp.set_airtrain_line_thickness(self.map_settings.get('airtrain_line_thickness') or 1.2)
         loader = getattr(self, '_world_loader', None)
         if loader is None:
             if hasattr(vp, 'set_path_node_owners'):
