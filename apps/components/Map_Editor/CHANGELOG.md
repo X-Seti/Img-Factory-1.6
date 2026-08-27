@@ -8398,3 +8398,8 @@ conclusively found despite extensive isolated testing.
   overflowing controls Keith's screenshot showed once enough groups
   (Path Lines/Grid/Environment) were added to it. Tightened group
   spacing too.
+
+- **Aug 20, 2026** — Grid zoom behaviour setting: "Locked" (existing
+  default - grid stays same on-screen size regardless of zoom) or
+  "Resize with models" (fixed world-unit cell size, grid scales with
+  zoom the same way models do).

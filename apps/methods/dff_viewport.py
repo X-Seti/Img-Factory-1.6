@@ -277,6 +277,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._grid_line_color = (76, 76, 102)   # matches old (0.3,0.3,0.4)
         self._grid_line_size  = 4               # 4-10px range
         self._grid_spacing    = 5               # divisor of _dist -> step
+        self._grid_scale_mode = 'zoom_relative'  # or 'fixed'
         # Skybox/skydome background image (Aug 20 2026)
         self._skybox_path = ''
         self._skybox_tex_id = None
@@ -1667,7 +1668,10 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         positions stay fixed at step-aligned multiples throughout."""
         if not OPENGL_AVAILABLE: return
         glDisable(GL_LIGHTING)
-        step = max(1, int(self._dist / self._grid_spacing))
+        if self._grid_scale_mode == 'fixed':
+            step = max(1, int(self._grid_spacing))
+        else:
+            step = max(1, int(self._dist / self._grid_spacing))
         rng  = step * 10
         # The real world point the camera is currently looking at is
         # (-pan_x, -pan_y) - the scene itself is translated by (pan_x,
@@ -2564,6 +2568,13 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def set_grid_spacing(self, spacing): #vers 1
         self._grid_spacing = max(1, spacing)
+        self.update()
+
+    def set_grid_scale_mode(self, mode): #vers 1
+        """'zoom_relative' (default - grid stays same on-screen size
+        regardless of zoom) or 'fixed' (constant world-unit cell size,
+        so the grid scales with zoom the same way models do)."""
+        self._grid_scale_mode = mode if mode in ('zoom_relative', 'fixed') else 'zoom_relative'
         self.update()
 
     def load_all_geometries(self, geometries, materials_list, frames, atomics, damaged=False): #vers 4

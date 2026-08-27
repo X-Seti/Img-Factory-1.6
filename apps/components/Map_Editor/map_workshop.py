@@ -3169,6 +3169,7 @@ class MapSettings(QObject):
         'airtrain_color': (230, 153, 51),
         'airtrain_line_thickness': 1.2,
         'grid_spacing': 5,
+        'grid_scale_mode': 'zoom_relative',
         'skybox_path': '',
         'timecyc_path': '',
 
@@ -8123,6 +8124,18 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         grid_spacing_spin.setValue(int(self.map_settings.get('grid_spacing') or 5))
         radar_form.addRow("Grid spacing:", grid_spacing_spin)
 
+        grid_scale_mode_combo = QComboBox()
+        grid_scale_mode_combo.addItem("Locked (constant on-screen size)", "zoom_relative")
+        grid_scale_mode_combo.addItem("Resize with models (fixed world size)", "fixed")
+        saved_scale_mode = self.map_settings.get('grid_scale_mode') or 'zoom_relative'
+        grid_scale_mode_combo.setCurrentIndex(1 if saved_scale_mode == 'fixed' else 0)
+        grid_scale_mode_combo.setToolTip(
+            "Locked: the grid always looks the same size on screen,\n"
+            "its world-unit cell size shrinks/grows as you zoom.\n"
+            "Resize with models: the grid's cell size is fixed in\n"
+            "world units, so it scales with zoom the same way models do.")
+        radar_form.addRow("Grid zoom behaviour:", grid_scale_mode_combo)
+
         grid_fill_mode_combo = QComboBox()
         grid_fill_mode_combo.addItem("Colour", "color")
         grid_fill_mode_combo.addItem("Image/Texture (tiled)", "texture")
@@ -8714,6 +8727,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.map_settings.set('grid_spacing', grid_spacing_val)
             if vp is not None and hasattr(vp, 'set_grid_spacing'):
                 vp.set_grid_spacing(grid_spacing_val)
+
+            grid_scale_mode_val = grid_scale_mode_combo.currentData()
+            self.map_settings.set('grid_scale_mode', grid_scale_mode_val)
+            if vp is not None and hasattr(vp, 'set_grid_scale_mode'):
+                vp.set_grid_scale_mode(grid_scale_mode_val)
 
             fill_mode = grid_fill_mode_combo.currentData()
             tex_path = grid_texture_path_edit.text()
@@ -11854,6 +11872,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.preview_widget.set_grid_line_size(int(self.map_settings.get('grid_line_size') or 4))
         if hasattr(self.preview_widget, 'set_grid_spacing'):
             self.preview_widget.set_grid_spacing(int(self.map_settings.get('grid_spacing') or 5))
+        if hasattr(self.preview_widget, 'set_grid_scale_mode'):
+            self.preview_widget.set_grid_scale_mode(self.map_settings.get('grid_scale_mode') or 'zoom_relative')
         if hasattr(self.preview_widget, 'set_squares_fill'):
             self.preview_widget.set_squares_fill(
                 self.map_settings.get('squares_fill_mode') or 'color',
