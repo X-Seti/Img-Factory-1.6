@@ -8663,3 +8663,10 @@ conclusively found despite extensive isolated testing.
      the same way any other object in the scene does, while staying
      unaffected by panning the same way a real, infinitely-distant
      sky would be.
+
+- **Aug 20, 2026** — Also reworked the user-image Skybox to the same
+  real, world-space box-sky technique the gradient sky just got - it
+  had the identical "doesn't pan with the camera" bug, just not yet
+  reported since Keith's own screenshots showed the gradient sky
+  specifically. Image now maps around the 4 side faces as a single
+  wraparound panorama rather than repeating the same frame on each side.

@@ -2020,35 +2020,48 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._skybox_tex_id = False
         return self._skybox_tex_id
 
-    def _draw_skybox(self): #vers 1
-        """Screen-space textured quad drawn behind the 3D scene,
-        replacing the flat clear colour when a skybox image is set."""
+    def _draw_skybox(self): #vers 2
+        """Real, world-space "box sky" - same real technique _draw_
+        sky_gradient now uses (Aug 20 2026, per Keith: "the images
+        show the rotation, but the sky doesn't pane" [pan]) - this
+        used to be a fixed, screen-space orthographic overlay, drawn
+        before any camera transform at all, so a skybox image never
+        actually rotated with yaw/pitch the way a real sky visibly
+        would. The image is mapped once around the 4 side faces in
+        sequence (each face gets one quarter of the image's own
+        width, wrapping around as the camera yaws), rather than the
+        same single frame repeated on all 4 sides - a real skybox
+        image is generally authored as a single wraparound panorama,
+        not 4 identical copies."""
         if not self._skybox_path:
             return
         tex_id = self._ensure_skybox_texture()
         if not tex_id:
             return
-        glMatrixMode(GL_PROJECTION)
-        glPushMatrix(); glLoadIdentity()
-        glOrtho(0, 1, 0, 1, -1, 1)
-        glMatrixMode(GL_MODELVIEW)
-        glPushMatrix(); glLoadIdentity()
         glDisable(GL_DEPTH_TEST)
         glDisable(GL_LIGHTING)
         glEnable(GL_TEXTURE_2D)
         glBindTexture(GL_TEXTURE_2D, tex_id)
         glColor4f(1, 1, 1, 1)
+        radius = 80000.0
+        top_z = radius
+        bottom_z = -radius * 0.15
         glBegin(GL_QUADS)
-        glTexCoord2f(0, 1); glVertex2f(0, 0)
-        glTexCoord2f(1, 1); glVertex2f(1, 0)
-        glTexCoord2f(1, 0); glVertex2f(1, 1)
-        glTexCoord2f(0, 0); glVertex2f(0, 1)
+        for i, (x1, y1, x2, y2) in enumerate((
+            (-radius, radius, radius, radius),      # north
+            (radius, -radius, -radius, -radius),    # south
+            (radius, radius, radius, -radius),      # east
+            (-radius, -radius, -radius, radius),    # west
+        )):
+            u0, u1 = i * 0.25, (i + 1) * 0.25
+            glTexCoord2f(u0, 0); glVertex3f(x1, y1, bottom_z)
+            glTexCoord2f(u1, 0); glVertex3f(x2, y2, bottom_z)
+            glTexCoord2f(u1, 1); glVertex3f(x2, y2, top_z)
+            glTexCoord2f(u0, 1); glVertex3f(x1, y1, top_z)
         glEnd()
         glBindTexture(GL_TEXTURE_2D, 0)
         glDisable(GL_TEXTURE_2D)
         glEnable(GL_DEPTH_TEST)
-        glMatrixMode(GL_PROJECTION); glPopMatrix()
-        glMatrixMode(GL_MODELVIEW); glPopMatrix()
 
     def _draw_sky_gradient(self): #vers 3
         """Real, world-space "box sky" - 4 large vertical quads (N/S/
