@@ -8469,3 +8469,16 @@ conclusively found despite extensive isolated testing.
   toggle on the same toolbar row as [2DFX]/[Tobj], per Keith's own
   request. Removed the now-redundant separate Play/Stop button from
   Settings > Render > Environment - that row is Browse-only now.
+
+- **Aug 20, 2026** — Fixed radar tex layer not working, per Keith:
+  "those radar.txd files are in the gta3... unless it's SOL where
+  they're in another file." The feature assumed loose radarNN.png
+  files in a user-chosen folder; real radar tiles are radarNN.txd
+  entries inside the game's own already-loaded IMG archive. Reworked
+  to read them directly via ModelCache.get_textures() (same index
+  already used for models/collision) - no folder picker needed
+  anymore. Real naming per game: RADAR00-NN (SA/VC/III) vs
+  radar0000-NNNN (SOL), matching radar_workshop.py's own real naming
+  functions. Also fixed a real ordering bug this surfaced: the world-
+  load hook was reading ModelCache before index_img_files() had
+  actually indexed that world's own IMG files - moved to run after it.

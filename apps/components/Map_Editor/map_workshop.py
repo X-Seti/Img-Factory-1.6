@@ -8212,23 +8212,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         radar_tex_layer_chk = QCheckBox("Show radar tex layer instead of grid")
         radar_tex_layer_chk.setChecked(bool(self.map_settings.get('show_radar_tex_layer')))
         radar_tex_layer_chk.setToolTip(
-            "Shows the already-generated radar tile images at their\n"
-            "own real world positions, under the model spawn layout,\n"
-            "instead of the plain reference grid.")
+            "Shows the real radarNN.txd tile textures, read directly\n"
+            "from the currently loaded game's own IMG archive (gta3.\n"
+            "img, or RadarTex.img for SOL), at their own real world\n"
+            "positions under the model spawn layout - instead of the\n"
+            "plain reference grid.")
         radar_form.addRow(radar_tex_layer_chk)
-
-        radar_tex_folder_edit = QLineEdit(self.map_settings.get('radar_tex_folder') or '')
-        radar_tex_folder_edit.setReadOnly(True)
-        radar_tex_folder_browse_btn = QPushButton("Browse…")
-        def _browse_radar_tex_folder(): #vers 1
-            path = QFileDialog.getExistingDirectory(self, "Choose Radar Tiles Folder", "")
-            if path:
-                radar_tex_folder_edit.setText(path)
-        radar_tex_folder_browse_btn.clicked.connect(_browse_radar_tex_folder)
-        radar_tex_folder_row = QHBoxLayout()
-        radar_tex_folder_row.addWidget(radar_tex_folder_edit)
-        radar_tex_folder_row.addWidget(radar_tex_folder_browse_btn)
-        radar_form.addRow("Radar tiles folder:", radar_tex_folder_row)
 
         env_grp = QGroupBox("Environment")
         env_form = QFormLayout(env_grp)
@@ -8783,19 +8772,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 vp.set_grid_cell_count(grid_cell_count_val)
 
             radar_tex_enabled = radar_tex_layer_chk.isChecked()
-            radar_tex_folder_val = radar_tex_folder_edit.text()
             self.map_settings.set('show_radar_tex_layer', radar_tex_enabled)
-            self.map_settings.set('radar_tex_folder', radar_tex_folder_val)
             if vp is not None and hasattr(vp, 'set_radar_tex_layer'):
-                if radar_tex_enabled and radar_tex_folder_val:
-                    from apps.methods.gta_dat_parser import RADAR_GRID_PRESETS
+                if radar_tex_enabled:
                     loader = getattr(self, '_world_loader', None)
                     game_key = getattr(loader, 'game', 'sa') if loader is not None else 'sa'
-                    preset = RADAR_GRID_PRESETS.get(game_key, RADAR_GRID_PRESETS['sa'])
-                    tile_count = preset['tiles_per_side'] ** 2
-                    tile_paths = [os.path.join(radar_tex_folder_val, f"radar{i:02d}.png")
-                                  for i in range(tile_count)]
-                    vp.set_radar_tex_layer(True, tile_paths, game_key)
+                    tile_textures = self._load_radar_tex_tiles(game_key)
+                    vp.set_radar_tex_layer(True, tile_textures, game_key)
                 else:
                     vp.set_radar_tex_layer(False)
 
@@ -11955,15 +11938,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.preview_widget.set_grid_fixed_step(int(self.map_settings.get('grid_fixed_step') or 200))
         if hasattr(self.preview_widget, 'set_grid_cell_count'):
             self.preview_widget.set_grid_cell_count(int(self.map_settings.get('grid_cell_count') or 24))
-        if hasattr(self.preview_widget, 'set_radar_tex_layer') and self.map_settings.get('show_radar_tex_layer'):
-            saved_radar_tex_folder = self.map_settings.get('radar_tex_folder')
-            if saved_radar_tex_folder:
-                from apps.methods.gta_dat_parser import RADAR_GRID_PRESETS
-                preset = RADAR_GRID_PRESETS['sa']   # game not known yet at construction time
-                tile_count = preset['tiles_per_side'] ** 2
-                tile_paths = [os.path.join(saved_radar_tex_folder, f"radar{i:02d}.png")
-                              for i in range(tile_count)]
-                self.preview_widget.set_radar_tex_layer(True, tile_paths, 'sa')
+        # Radar tex layer needs a loaded world/ModelCache to read real
+        # radarNN.txd textures from - nothing to load yet at
+        # construction time, the world-loaded hook (_on_world_loaded,
+        # search "Same for the radar tex layer") handles it once a
+        # real game's world actually loads.
         if hasattr(self.preview_widget, 'set_grid_scale_mode'):
             self.preview_widget.set_grid_scale_mode(self.map_settings.get('grid_scale_mode') or 'zoom_relative')
         if hasattr(self.preview_widget, 'set_squares_fill'):
@@ -20370,20 +20349,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             grid_size_for_grid = preset_for_grid['grid_size']
             vp_for_grid.set_radar_grid_extent(
                 grid_size_for_grid / preset_for_grid['tiles_per_side'], grid_size_for_grid / 2.0)
-        # Same for the radar tex layer, if it's on with a saved folder
-        # (Aug 20 2026) - re-derive tile paths for whichever game just
-        # loaded rather than whatever was assumed at construction time.
-        if (vp_for_grid is not None and hasattr(vp_for_grid, 'set_radar_tex_layer')
-                and self.map_settings.get('show_radar_tex_layer')):
-            saved_tex_folder = self.map_settings.get('radar_tex_folder')
-            if saved_tex_folder:
-                from apps.methods.gta_dat_parser import RADAR_GRID_PRESETS
-                game_key_for_tex = getattr(loader, 'game', 'sa')
-                preset_for_tex = RADAR_GRID_PRESETS.get(game_key_for_tex, RADAR_GRID_PRESETS['sa'])
-                tile_count_for_tex = preset_for_tex['tiles_per_side'] ** 2
-                tex_tile_paths = [os.path.join(saved_tex_folder, f"radar{i:02d}.png")
-                                  for i in range(tile_count_for_tex)]
-                vp_for_grid.set_radar_tex_layer(True, tex_tile_paths, game_key_for_tex)
+        # Same for the radar tex layer, if it's on (Aug 20 2026) -
+        # moved below, after model_cache.index_img_files() actually
+        # runs (search "radar tex layer needs the freshly-indexed") -
+        # ModelCache isn't indexed for this world's own IMG files yet
+        # at this point in the method, so reading radarNN.txd here
+        # would silently find nothing or use a stale previous index.
 
         if not ok:
             QMessageBox.warning(self, source_desc,
@@ -20407,6 +20378,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             model_cache = ModelCache()
             self._model_cache = model_cache
         model_cache.index_img_files(loader.get_img_paths())
+
+        # radar tex layer needs the freshly-indexed ModelCache, so
+        # this runs here rather than earlier in this method (Aug 20
+        # 2026, per Keith: "those radar.txd files are in the gta3...
+        # unless it's SOL where they're in another file").
+        if (vp_for_grid is not None and hasattr(vp_for_grid, 'set_radar_tex_layer')
+                and self.map_settings.get('show_radar_tex_layer')):
+            game_key_for_tex = getattr(loader, 'game', 'sa')
+            tile_textures_for_tex = self._load_radar_tex_tiles(game_key_for_tex)
+            vp_for_grid.set_radar_tex_layer(True, tile_textures_for_tex, game_key_for_tex)
 
         # force_preload_img_once (Aug 16 2026) - a per-load override
         force_once = getattr(self, '_force_preload_img_once', False)
@@ -22467,6 +22448,41 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # Explicit refresh (Aug 1 2026)
 
         self._refresh_ipl_inst_file_panel()
+
+    def _load_radar_tex_tiles(self, game_key): #vers 1
+        """Read every real radarNN.txd texture for game_key directly
+        from whichever IMG archive is already loaded (via ModelCache -
+        the same index used for models/collision), per Keith: "those
+        radar.txd files are in the gta3... unless it's SOL where
+        they're in another file" - no separate tiles folder needed,
+        this reads the game's own real, already-indexed archive.
+        Naming per RADAR_GRID_PRESETS' own tile count: RADAR00-NN
+        (uppercase, 2-digit) for SA/VC/III, radar0000-NNNN (lowercase,
+        4-digit) for SOL - the same real naming radar_workshop.py's
+        own _name_sa/_name_sol already use. Returns a list of
+        (rgba_bytes, width, height) or None per tile, in tile-index
+        order, ready for DFFViewport.set_radar_tex_layer."""
+        from apps.methods.gta_dat_parser import RADAR_GRID_PRESETS
+        preset = RADAR_GRID_PRESETS.get(game_key, RADAR_GRID_PRESETS['sa'])
+        tile_count = preset['tiles_per_side'] ** 2
+        model_cache = getattr(self, '_model_cache', None)
+        if model_cache is None:
+            return []
+        result = []
+        for i in range(tile_count):
+            name = f"radar{i:04d}" if game_key == 'sol' else f"RADAR{i:02d}"
+            textures = model_cache.get_textures(name)
+            if not textures:
+                result.append(None)
+                continue
+            tex = next(iter(textures.values()))
+            rgba = tex.get('rgba_data')
+            w, h = tex.get('width'), tex.get('height')
+            if rgba and w and h:
+                result.append((rgba, w, h))
+            else:
+                result.append(None)
+        return result
 
     def _load_selected_ipl_sections(self, rows): #vers 2
         """Show/load every currently-hidden row among the given table

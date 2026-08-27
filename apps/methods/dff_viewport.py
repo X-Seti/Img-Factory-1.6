@@ -2674,16 +2674,23 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._grid_cell_count = max(2, count)
         self.update()
 
-    def set_radar_tex_layer(self, enabled, tile_paths=None, game_key='sa'): #vers 1
-        """Show the real, already-generated radar tile images at their
-        own real world positions, as an alternative to the grid (Aug
-        20 2026, per Keith: "the radar tex layer instead of grid,
-        showing all the radar tiles"). tile_paths: list of file paths
-        in the same tile-index order compute_radar_grid produces
-        (radar00.png, radar01.png, ... - the same naming Generate
-        Radar Tiles already writes). Clears any previously loaded
-        tiles' own GL textures first, so switching folders doesn't
-        leak the old ones."""
+    def set_radar_tex_layer(self, enabled, tile_textures=None, game_key='sa'): #vers 2
+        """Show the real radar tile textures (read directly from the
+        game's own loaded IMG archive - radarNN.txd entries, per
+        Keith: "those radar.txd files are in the gta3... unless it's
+        SOL where they're in another file") at their own real world
+        positions, as an alternative to the grid.
+
+        tile_textures: list of (rgba_bytes, width, height) or None
+        per tile (None for a tile whose TXD wasn't found), in the
+        same tile-index order compute_radar_grid produces - the
+        caller (map_workshop.py) is the one that actually reads these
+        from ModelCache.get_textures(), matching this app's existing
+        "widget draws plain data, caller resolves real data source"
+        split; this viewport never touches IMG files or ModelCache
+        directly. Clears any previously loaded tiles' own GL textures
+        first, so switching games/reloading doesn't leak the old
+        ones."""
         for tile in self._radar_tex_tiles:
             if tile.get('tex_id'):
                 try:
@@ -2694,36 +2701,31 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                     pass
         self._radar_tex_tiles = []
         self._show_radar_tex_layer = enabled
-        if not enabled or not tile_paths:
+        if not enabled or not tile_textures:
             self.update()
             return
         from apps.methods.gta_dat_parser import compute_radar_grid, RADAR_GRID_PRESETS
         preset = RADAR_GRID_PRESETS.get(game_key, RADAR_GRID_PRESETS['sa'])
         grid_tiles = compute_radar_grid(**preset)
-        for i, path in enumerate(tile_paths):
-            if i >= len(grid_tiles):
-                break
+        for i, tex in enumerate(tile_textures):
+            if i >= len(grid_tiles) or tex is None:
+                continue
+            rgba_bytes, w, h = tex
             gt = grid_tiles[i]
             self._radar_tex_tiles.append({
-                'path': path, 'tex_id': None,
+                'rgba': rgba_bytes, 'width': w, 'height': h, 'tex_id': None,
                 'min_x': gt.min_x, 'min_y': gt.min_y,
                 'max_x': gt.max_x, 'max_y': gt.max_y,
             })
         self.update()
 
-    def _ensure_radar_tex_tile(self, tile): #vers 1
-        """Lazily load one radar tile's own texture on first draw."""
+    def _ensure_radar_tex_tile(self, tile): #vers 2
+        """Lazily upload one radar tile's own raw RGBA bytes (already
+        decoded by the caller via ModelCache.get_textures/parse_txd -
+        this method only uploads, it never reads a file itself)."""
         if tile['tex_id']:
             return tile['tex_id']
         try:
-            from PyQt6.QtGui import QImage
-            image = QImage(tile['path']).convertToFormat(QImage.Format.Format_RGBA8888)
-            if image.isNull():
-                tile['tex_id'] = False
-                return False
-            w, h = image.width(), image.height()
-            ptr = image.bits(); ptr.setsize(image.sizeInBytes())
-            rgba = bytes(ptr)
             self.makeCurrent()
             gl_id = glGenTextures(1)
             glBindTexture(GL_TEXTURE_2D, gl_id)
@@ -2731,12 +2733,13 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, tile['width'], tile['height'],
+                         0, GL_RGBA, GL_UNSIGNED_BYTE, tile['rgba'])
             glBindTexture(GL_TEXTURE_2D, 0)
             self.doneCurrent()
             tile['tex_id'] = gl_id
         except Exception as e:
-            print(f"[DFFViewport] Failed to load radar tile texture {tile['path']}: {e}")
+            print(f"[DFFViewport] Failed to upload radar tile texture: {e}")
             tile['tex_id'] = False
         return tile['tex_id']
 
