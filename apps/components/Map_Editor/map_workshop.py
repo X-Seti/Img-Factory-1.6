@@ -3169,6 +3169,8 @@ class MapSettings(QObject):
         'airtrain_color': (230, 153, 51),
         'airtrain_line_thickness': 1.2,
         'grid_spacing': 5,
+        'skybox_path': '',
+        'timecyc_path': '',
 
         # distinct from paths' red.
         'cull_box_color': (255, 217, 51),
@@ -8151,8 +8153,56 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "showing in the exported tiles themselves.")
         radar_form.addRow(radar_show_grid_chk)
 
+        env_grp = QGroupBox("Environment")
+        env_form = QFormLayout(env_grp)
+
+        skybox_path_edit = QLineEdit(self.map_settings.get('skybox_path') or '')
+        skybox_path_edit.setReadOnly(True)
+        skybox_browse_btn = QPushButton("Browse…")
+        def _browse_skybox(): #vers 1
+            path, _ = QFileDialog.getOpenFileName(
+                self, "Choose Skybox/Skydome Image", "", "Images (*.png *.jpg *.jpeg *.bmp *.tga)")
+            if path:
+                skybox_path_edit.setText(path)
+        skybox_browse_btn.clicked.connect(_browse_skybox)
+        skybox_row = QHBoxLayout()
+        skybox_row.addWidget(skybox_path_edit)
+        skybox_row.addWidget(skybox_browse_btn)
+        env_form.addRow("Skybox / Skydome:", skybox_row)
+
+        timecyc_path_edit = QLineEdit(self.map_settings.get('timecyc_path') or '')
+        timecyc_path_edit.setReadOnly(True)
+        timecyc_browse_btn = QPushButton("Browse…")
+        timecyc_play_btn = QPushButton("Play")
+        timecyc_play_btn.setCheckable(True)
+        _vp_for_init = getattr(self, 'preview_widget', None)
+        if _vp_for_init is not None and getattr(_vp_for_init, '_timecyc_playing', False):
+            timecyc_play_btn.setChecked(True)
+            timecyc_play_btn.setText("Stop")
+        def _browse_timecyc(): #vers 1
+            path, _ = QFileDialog.getOpenFileName(
+                self, "Choose Timecyc File", "", "Timecyc (*.dat)")
+            if path:
+                timecyc_path_edit.setText(path)
+                vp = getattr(self, 'preview_widget', None)
+                if vp is not None and hasattr(vp, 'set_timecyc_path'):
+                    vp.set_timecyc_path(path)
+        timecyc_browse_btn.clicked.connect(_browse_timecyc)
+        def _toggle_timecyc_play(checked): #vers 1
+            timecyc_play_btn.setText("Stop" if checked else "Play")
+            vp = getattr(self, 'preview_widget', None)
+            if vp is not None and hasattr(vp, 'set_timecyc_playing'):
+                vp.set_timecyc_playing(checked)
+        timecyc_play_btn.toggled.connect(_toggle_timecyc_play)
+        timecyc_row = QHBoxLayout()
+        timecyc_row.addWidget(timecyc_path_edit)
+        timecyc_row.addWidget(timecyc_browse_btn)
+        timecyc_row.addWidget(timecyc_play_btn)
+        env_form.addRow("Use timecyc file:", timecyc_row)
+
         render_layout.addWidget(boxes_grp)
         render_layout.addWidget(radar_grp)
+        render_layout.addWidget(env_grp)
         render_layout.addStretch()
         tabs.addTab(render_tab, "Render")
 
@@ -8665,6 +8715,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.map_settings.set('squares_tile_size', tile_size)
             if vp is not None and hasattr(vp, 'set_squares_fill'):
                 vp.set_squares_fill(fill_mode, tuple(grid_bg_rgb), tex_path, tile_size)
+
+            skybox_path_val = skybox_path_edit.text()
+            self.map_settings.set('skybox_path', skybox_path_val)
+            if vp is not None and hasattr(vp, 'set_skybox_path'):
+                vp.set_skybox_path(skybox_path_val)
+
+            timecyc_path_val = timecyc_path_edit.text()
+            self.map_settings.set('timecyc_path', timecyc_path_val)
 
             try:
                 # Adjusted for COL Wireframe, Mesh
@@ -11794,6 +11852,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 tuple(self.map_settings.get('grid_bg_color') or (51, 128, 230)),
                 self.map_settings.get('squares_texture_path') or '',
                 int(self.map_settings.get('squares_tile_size') or 256))
+        if hasattr(self.preview_widget, 'set_skybox_path'):
+            saved_skybox = self.map_settings.get('skybox_path')
+            if saved_skybox:
+                self.preview_widget.set_skybox_path(saved_skybox)
+        if hasattr(self.preview_widget, 'set_timecyc_path'):
+            saved_timecyc = self.map_settings.get('timecyc_path')
+            if saved_timecyc:
+                self.preview_widget.set_timecyc_path(saved_timecyc)
         # Wire the path node drag callback once, here at construction
         # (Aug 17 2026)
         if hasattr(self.preview_widget, 'set_path_node_drag_callback'):

@@ -8383,3 +8383,12 @@ conclusively found despite extensive isolated testing.
   from Dat Nodes - no confirmed field for it in the file format).
   Fixed a real pre-existing duplicate set_track_color definition and
   duplicate track_color settings-default entry found while adding this.
+
+- **Aug 20, 2026** — Fixed real crash on startup: "name 'step' is not
+  defined" in set_squares_fill - a leftover orphaned line from an
+  earlier edit had ended up appended to that method's own body,
+  referencing variables that only exist in _draw_grid_squares' own
+  scope. Also adds: Skybox/Skydome background image (Browse), and
+  Timecyc file Browse + Play/Stop (reuses Timecyc_Editor's own real,
+  field-mapped TimecycParser - not a second parser), both in a new
+  Environment group on the Render tab.

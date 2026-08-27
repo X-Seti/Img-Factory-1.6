@@ -277,6 +277,15 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._grid_line_color = (76, 76, 102)   # matches old (0.3,0.3,0.4)
         self._grid_line_size  = 4               # 4-10px range
         self._grid_spacing    = 5               # divisor of _dist -> step
+        # Skybox/skydome background image (Aug 20 2026)
+        self._skybox_path = ''
+        self._skybox_tex_id = None
+        self._skybox_tex_path_loaded = None
+        # Timecyc file + play/stop time-of-day (Aug 20 2026)
+        self._timecyc_path = ''
+        self._timecyc_entries = []     # list of parsed weather/hour entries
+        self._timecyc_playing = False
+        self._timecyc_hour = 12.0
         self._use_prelight  = False
         self._ambient       = 0.4
         self._diffuse       = 0.9
@@ -1102,11 +1111,13 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glMatrixMode(GL_MODELVIEW)
         self._label_widget.move(4, 2)
 
-    def paintGL(self): #vers 4
+    def paintGL(self): #vers 5
         if not OPENGL_AVAILABLE: return
         bg = self._get_bg_color()
         glClearColor(bg.redF(), bg.greenF(), bg.blueF(), 1.0)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+        if self._skybox_path:
+            self._draw_skybox()
         glLoadIdentity()
         gluLookAt(0, 0, self._dist, 0, 0, 0, 0, 1, 0)
         glRotatef(-self._pitch, 1, 0, 0)
@@ -1820,7 +1831,126 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._squares_tile_size = tile_size
         self.update()
 
-        self._draw_grid_lines(step, rng, cx, cy)
+    def _ensure_skybox_texture(self): #vers 1
+        """Lazily load self._skybox_path as a GL texture."""
+        if self._skybox_tex_id and self._skybox_tex_path_loaded == self._skybox_path:
+            return self._skybox_tex_id
+        try:
+            from PyQt6.QtGui import QImage
+            image = QImage(self._skybox_path).convertToFormat(QImage.Format.Format_RGBA8888)
+            if image.isNull():
+                self._skybox_tex_id = False
+                return False
+            w, h = image.width(), image.height()
+            ptr = image.bits(); ptr.setsize(image.sizeInBytes())
+            rgba = bytes(ptr)
+            self.makeCurrent()
+            if self._skybox_tex_id and self._skybox_tex_id is not False:
+                glDeleteTextures([self._skybox_tex_id])
+            gl_id = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_2D, gl_id)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba)
+            glBindTexture(GL_TEXTURE_2D, 0)
+            self.doneCurrent()
+            self._skybox_tex_id = gl_id
+            self._skybox_tex_path_loaded = self._skybox_path
+        except Exception as e:
+            print(f"[DFFViewport] Failed to load skybox texture: {e}")
+            self._skybox_tex_id = False
+        return self._skybox_tex_id
+
+    def _draw_skybox(self): #vers 1
+        """Screen-space textured quad drawn behind the 3D scene,
+        replacing the flat clear colour when a skybox image is set."""
+        if not self._skybox_path:
+            return
+        tex_id = self._ensure_skybox_texture()
+        if not tex_id:
+            return
+        glMatrixMode(GL_PROJECTION)
+        glPushMatrix(); glLoadIdentity()
+        glOrtho(0, 1, 0, 1, -1, 1)
+        glMatrixMode(GL_MODELVIEW)
+        glPushMatrix(); glLoadIdentity()
+        glDisable(GL_DEPTH_TEST)
+        glDisable(GL_LIGHTING)
+        glEnable(GL_TEXTURE_2D)
+        glBindTexture(GL_TEXTURE_2D, tex_id)
+        glColor4f(1, 1, 1, 1)
+        glBegin(GL_QUADS)
+        glTexCoord2f(0, 1); glVertex2f(0, 0)
+        glTexCoord2f(1, 1); glVertex2f(1, 0)
+        glTexCoord2f(1, 0); glVertex2f(1, 1)
+        glTexCoord2f(0, 0); glVertex2f(0, 1)
+        glEnd()
+        glBindTexture(GL_TEXTURE_2D, 0)
+        glDisable(GL_TEXTURE_2D)
+        glEnable(GL_DEPTH_TEST)
+        glMatrixMode(GL_PROJECTION); glPopMatrix()
+        glMatrixMode(GL_MODELVIEW); glPopMatrix()
+
+    def set_skybox_path(self, path): #vers 1
+        if path != self._skybox_path:
+            self._skybox_path = path or ''
+            self._skybox_tex_id = None
+        self.update()
+
+    def set_timecyc_path(self, path): #vers 1
+        """Load a timecyc.dat file via the real, already-field-mapped
+        TimecycParser from Timecyc_Editor (same parser/mapping that
+        tool's own preview uses - not a second, separate parse)."""
+        self._timecyc_path = path or ''
+        self._timecyc_entries = []
+        if not path:
+            return
+        try:
+            from apps.components.Timecyc_Editor.timecyc_workshop import TimecycParser
+            parser = TimecycParser()
+            if parser.load(path):
+                self._timecyc_entries = list(parser.rows)
+                self._timecyc_game = parser.game
+        except Exception as e:
+            print(f"[DFFViewport] Failed to load timecyc file: {e}")
+
+    def _timecyc_sky_color_for_hour(self, hour): #vers 1
+        """Nearest row's sky-bottom colour for the given hour (0-23),
+        weather 0 (the default/first weather slot) - same field
+        offsets already confirmed in Timecyc_Editor's own _update_
+        preview, not re-guessed here."""
+        if not self._timecyc_entries:
+            return None
+        game = getattr(self, '_timecyc_game', 'VC')
+        offset = {'SA': 12, 'GTA3': 9, 'VC': 18}.get(game, 18)
+        best = min(self._timecyc_entries, key=lambda r: (r.weather != 0, abs(r.time - hour)))
+        vals = best.values
+        if offset + 2 >= len(vals):
+            return None
+        r = max(0, min(255, int(float(vals[offset]))))
+        g = max(0, min(255, int(float(vals[offset + 1]))))
+        b = max(0, min(255, int(float(vals[offset + 2]))))
+        return (r, g, b)
+
+    def set_timecyc_playing(self, playing): #vers 1
+        self._timecyc_playing = bool(playing)
+        if playing:
+            if not hasattr(self, '_timecyc_timer') or self._timecyc_timer is None:
+                from PyQt6.QtCore import QTimer
+                self._timecyc_timer = QTimer(self)
+                self._timecyc_timer.timeout.connect(self._on_timecyc_tick)
+            self._timecyc_timer.start(200)   # real-time seconds per tick
+        elif hasattr(self, '_timecyc_timer') and self._timecyc_timer is not None:
+            self._timecyc_timer.stop()
+
+    def _on_timecyc_tick(self): #vers 1
+        self._timecyc_hour = (self._timecyc_hour + 0.1) % 24
+        color = self._timecyc_sky_color_for_hour(self._timecyc_hour)
+        if color:
+            self._bg_color_override = color
+            self.update()
 
     def _draw_grid_dashed(self, step, rng, cx=0, cy=0): #vers 2
         """'dashed' grid style - Keith's own "marching ants lines"
