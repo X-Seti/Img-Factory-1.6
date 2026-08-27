@@ -8741,3 +8741,14 @@ conclusively found despite extensive isolated testing.
   fixed for SOL specifically (main .dat at gameroot/sol/gta_sol.dat,
   but waterpro.dat still at gameroot/data/) and applied the same real
   fix to timecyc.dat auto-detection.
+
+- **Aug 20, 2026** — Water no longer writes to the depth buffer while
+  drawing, per Keith: "when water is being rendered, don't render
+  over loaded IPL models." GL_DEPTH_TEST was already correctly
+  enabled globally and untouched before water draws, so opaque model
+  geometry already occluded it correctly - the real, standard gap for
+  translucent geometry like this is depth writes, which were left on
+  (the default). Now reads depth, doesn't write it, for both water.
+  dat shapes and waterpro.dat's own grid - the correct pattern for
+  any semi-transparent surface, preventing it from interfering with
+  other transparent overlays drawn afterward.

@@ -3689,6 +3689,19 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         glDisable(GL_CULL_FACE)
+        # Depth writes off, test still on (Aug 20 2026, per Keith:
+        # "when water is being rendered, don't render over loaded IPL
+        # models") - GL_DEPTH_TEST was already enabled globally
+        # (initializeGL) and nothing before this in paintGL's own
+        # draw order disables it without restoring, so opaque model
+        # geometry drawn earlier already correctly occludes water
+        # behind it. The real, standard gap for any semi-transparent
+        # surface like this is depth writes, not the test itself -
+        # leaving them on (the default) means this flat water plane's
+        # own depth values could interfere with other transparent
+        # overlays drawn after it. Read depth, don't write it - the
+        # correct, standard pattern for translucent geometry.
+        glDepthMask(GL_FALSE)
         for corners, water_type in self._water_shapes:
             is_shallow = bool(water_type & 2)
             is_visible = bool(water_type & 1)
@@ -3709,6 +3722,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 glVertex3f(cx, cy, cz)
             glEnd()
         glEnable(GL_CULL_FACE)
+        glDepthMask(GL_TRUE)
         glDisable(GL_BLEND)
         glEnable(GL_LIGHTING)
 
@@ -3780,6 +3794,11 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glDisable(GL_LIGHTING)
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        # Depth writes off, test still on (Aug 20 2026, per Keith:
+        # "when water is being rendered, don't render over loaded IPL
+        # models") - same real reasoning _draw_water_shapes' own
+        # docstring gives for this exact same fix.
+        glDepthMask(GL_FALSE)
         style = self._water_display_style
 
         if style == 'texture' and self._water_texture_path:
@@ -3798,6 +3817,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 glEnd()
                 glBindTexture(GL_TEXTURE_2D, 0)
                 glDisable(GL_TEXTURE_2D)
+                glDepthMask(GL_TRUE)
                 glDisable(GL_BLEND)
                 glEnable(GL_LIGHTING)
                 return
@@ -3836,6 +3856,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                     ang = math.radians(60 * i - 30)
                     glVertex3f(cx + s * math.cos(ang), cy + s * math.sin(ang), height)
                 glEnd()
+        glDepthMask(GL_TRUE)
         glDisable(GL_BLEND)
         glEnable(GL_LIGHTING)
 
