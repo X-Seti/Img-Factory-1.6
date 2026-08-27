@@ -8482,3 +8482,26 @@ conclusively found despite extensive isolated testing.
   functions. Also fixed a real ordering bug this surfaced: the world-
   load hook was reading ModelCache before index_img_files() had
   actually indexed that world's own IMG files - moved to run after it.
+
+- **Aug 20, 2026** — Fixed real segfault using an image as the grid
+  texture tile, per Keith: "trying to use this image as the texture
+  tile crashes the app. Segmentation fault (core dumped)."
+
+  Root cause: _ensure_squares_texture (and _ensure_skybox_texture,
+  _ensure_radar_tex_tile, added tonight, plus the pre-existing
+  _ensure_auzo_icon_texture, same copied pattern) all called self.
+  makeCurrent()/self.doneCurrent() while already being called from
+  within paintGL's own call chain, where Qt has already made the GL
+  context current. doneCurrent() releases it mid-frame - every GL
+  call made right after that (texture binding, drawing) then runs
+  with no current context at all, which is undefined behaviour and
+  can segfault depending on the driver. Removed the redundant calls
+  from all 4 methods - they only ever run during an already-active
+  paintGL, unlike genuinely UI-triggered setters elsewhere in this
+  file (set_light_dir/set_ambient/etc.) which correctly still need
+  their own makeCurrent/doneCurrent since nothing else made the
+  context current for them.
+
+  Also added a "Reset Grid to Defaults" button to the Grid & Radar
+  Tiles settings, per Keith: "it's easy to enter large values and
+  mess things up."

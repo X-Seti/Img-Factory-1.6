@@ -1877,7 +1877,6 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             w, h = image.width(), image.height()
             ptr = image.bits(); ptr.setsize(image.sizeInBytes())
             rgba = bytes(ptr)
-            self.makeCurrent()
             if self._squares_tex_id and self._squares_tex_id is not False:
                 glDeleteTextures([self._squares_tex_id])
             gl_id = glGenTextures(1)
@@ -1888,7 +1887,6 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba)
             glBindTexture(GL_TEXTURE_2D, 0)
-            self.doneCurrent()
             self._squares_tex_id = gl_id
             self._squares_tex_path_loaded = self._squares_texture_path
         except Exception as e:
@@ -1921,7 +1919,6 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             w, h = image.width(), image.height()
             ptr = image.bits(); ptr.setsize(image.sizeInBytes())
             rgba = bytes(ptr)
-            self.makeCurrent()
             if self._skybox_tex_id and self._skybox_tex_id is not False:
                 glDeleteTextures([self._skybox_tex_id])
             gl_id = glGenTextures(1)
@@ -1932,7 +1929,6 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba)
             glBindTexture(GL_TEXTURE_2D, 0)
-            self.doneCurrent()
             self._skybox_tex_id = gl_id
             self._skybox_tex_path_loaded = self._skybox_path
         except Exception as e:
@@ -2726,7 +2722,6 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         if tile['tex_id']:
             return tile['tex_id']
         try:
-            self.makeCurrent()
             gl_id = glGenTextures(1)
             glBindTexture(GL_TEXTURE_2D, gl_id)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
@@ -2736,7 +2731,6 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, tile['width'], tile['height'],
                          0, GL_RGBA, GL_UNSIGNED_BYTE, tile['rgba'])
             glBindTexture(GL_TEXTURE_2D, 0)
-            self.doneCurrent()
             tile['tex_id'] = gl_id
         except Exception as e:
             print(f"[DFFViewport] Failed to upload radar tile texture: {e}")
@@ -3305,7 +3299,6 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             ptr = image.bits()
             ptr.setsize(image.sizeInBytes())
             rgba = bytes(ptr)
-            self.makeCurrent()
             gl_id = glGenTextures(1)
             glBindTexture(GL_TEXTURE_2D, gl_id)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
@@ -3314,7 +3307,6 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba)
             glBindTexture(GL_TEXTURE_2D, 0)
-            self.doneCurrent()
             self._auzo_icon_tex_id = gl_id
         except Exception as e:
             print(f"[DFFViewport] Failed to load auzo sound icon texture: {e}")

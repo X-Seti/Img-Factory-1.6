@@ -8219,6 +8219,29 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "plain reference grid.")
         radar_form.addRow(radar_tex_layer_chk)
 
+        grid_reset_btn = QPushButton("Reset Grid to Defaults")
+        grid_reset_btn.setToolTip(
+            "Resets every grid control on this tab back to its\n"
+            "original default - easy to enter a large cell size or\n"
+            "count and end up with something unusable.")
+        def _reset_grid_defaults(): #vers 1
+            grid_type_combo.setCurrentIndex(0)   # 'lines'
+            grid_bg_color_btn.setProperty('rgb', (51, 128, 230))
+            grid_bg_color_btn.setStyleSheet("background-color: rgb(51,128,230);")
+            grid_line_color_btn.setProperty('rgb', (76, 76, 102))
+            grid_line_color_btn.setStyleSheet("background-color: rgb(76,76,102);")
+            grid_line_size_spin.setValue(4)
+            grid_spacing_spin.setValue(5)
+            grid_fixed_step_spin.setValue(200)
+            grid_cell_count_combo.setCurrentIndex(1)   # 24
+            grid_scale_mode_combo.setCurrentIndex(0)   # 'zoom_relative'
+            grid_fill_mode_combo.setCurrentIndex(0)    # 'color'
+            grid_texture_path_edit.setText('')
+            grid_tile_size_spin.setValue(256)
+            radar_tex_layer_chk.setChecked(False)
+        grid_reset_btn.clicked.connect(_reset_grid_defaults)
+        radar_form.addRow(grid_reset_btn)
+
         env_grp = QGroupBox("Environment")
         env_form = QFormLayout(env_grp)
 
