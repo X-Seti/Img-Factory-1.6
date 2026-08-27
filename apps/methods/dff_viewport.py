@@ -275,6 +275,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._squares_tex_path_loaded = None   # which real path tex_id was actually loaded from
         self._squares_texture_alpha = 0.5   # texture-fill opacity, 0.0-1.0
         self._grid_show_lines = True   # separate from grid_type='none' - lets squares/texture fill show without outline lines on top
+        self._grid_hide_over_radar_tiles = False   # suppress grid lines within the radar tex layer's own real bounds, still shown outside
         # Grid line/dot colour + thickness (Aug 20 2026)
         self._grid_line_color = (76, 76, 102)   # matches old (0.3,0.3,0.4)
         self._grid_line_size  = 4               # 4-10px range
@@ -1817,13 +1818,41 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         glLineWidth(self._grid_line_size)
         r, g, b = self._grid_line_color
+        glColor4f(r / 255, g / 255, b / 255, 0.4)
+
+        # Hide-over-radar-tiles (Aug 20 2026, per Keith: "toggle the
+        # grid over radar, see it outside, but not on the radar
+        # tiles") - each line is drawn in up to 2 segments, skipping
+        # whichever middle portion falls within the radar tex layer's
+        # own real, known bounds (a square centred at the world
+        # origin, per RADAR_GRID_PRESETS/set_radar_grid_extent) -
+        # still drawn in full outside that area. Only takes effect
+        # while the radar tex layer is actually on; otherwise there's
+        # nothing to hide the grid "over", so the full grid draws as
+        # normal regardless of this setting.
+        hide_over_radar = self._grid_hide_over_radar_tiles and self._show_radar_tex_layer
+        half = self._radar_grid_half_extent if hide_over_radar else 0
+
+        def draw_segment(x1, y1, x2, y2): #vers 1
+            glVertex3f(x1, y1, 0); glVertex3f(x2, y2, 0)
+
         glBegin(GL_LINES)
         for i in range(cx - rng, cx + rng + 1, step):
-            glColor4f(r / 255, g / 255, b / 255, 0.4)
-            glVertex3f(i, cy - rng, 0); glVertex3f(i, cy + rng, 0)
+            if hide_over_radar and -half < i < half:
+                if cy - rng < -half:
+                    draw_segment(i, cy - rng, i, -half)
+                if cy + rng > half:
+                    draw_segment(i, half, i, cy + rng)
+            else:
+                draw_segment(i, cy - rng, i, cy + rng)
         for i in range(cy - rng, cy + rng + 1, step):
-            glColor4f(r / 255, g / 255, b / 255, 0.4)
-            glVertex3f(cx - rng, i, 0); glVertex3f(cx + rng, i, 0)
+            if hide_over_radar and -half < i < half:
+                if cx - rng < -half:
+                    draw_segment(cx - rng, i, -half, i)
+                if cx + rng > half:
+                    draw_segment(half, i, cx + rng, i)
+            else:
+                draw_segment(cx - rng, i, cx + rng, i)
         glEnd()
         glDisable(GL_LINE_SMOOTH)
         if not was_blend:
@@ -1932,6 +1961,17 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         texture without the grid") - hides only the outline lines
         drawn on top of squares/texture fill, not the fill itself."""
         self._grid_show_lines = bool(show)
+        self.update()
+
+    def set_grid_hide_over_radar_tiles(self, hide): #vers 1
+        """Suppress grid lines specifically within the radar tex
+        layer's own real bounds, while still drawing them outside
+        that area (Aug 20 2026, per Keith: "toggle the grid over
+        radar, see it outside, but not on the radar tiles"). No
+        effect while the radar tex layer itself is off - see _draw_
+        grid_lines' own real docstring/logic for how the split is
+        computed."""
+        self._grid_hide_over_radar_tiles = bool(hide)
         self.update()
 
     def _ensure_skybox_texture(self): #vers 1

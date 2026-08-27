@@ -8535,3 +8535,12 @@ conclusively found despite extensive isolated testing.
   data across several hours - confirmed it genuinely produces
   different sky/ambient colours at midnight vs noon vs evening,
   rather than sticking on one row.
+
+- **Aug 20, 2026** — New "Hide grid over radar tiles" checkbox, per
+  Keith: "toggle the grid over radar, see it outside, but not on the
+  radar tiles." Grid lines within the radar tex layer's own real
+  bounds are now suppressed (each line split into up to 2 segments,
+  skipping the middle portion that overlaps the map area) while still
+  drawn in full outside it. Only takes effect while the radar tex
+  layer itself is on. Verified the segment-splitting math directly
+  against a simulated bounds/range before wiring it in.

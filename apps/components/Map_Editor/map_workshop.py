@@ -3333,6 +3333,7 @@ class MapSettings(QObject):
         'squares_tile_size': 256,
         'squares_texture_alpha': 0.5,
         'grid_show_lines': True,
+        'grid_hide_over_radar_tiles': False,
         'grid_line_color': (76, 76, 102),
         'grid_line_size': 4,
     }
@@ -8236,6 +8237,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "plain reference grid.")
         radar_form.addRow(radar_tex_layer_chk)
 
+        grid_hide_over_radar_chk = QCheckBox("Hide grid over radar tiles")
+        grid_hide_over_radar_chk.setChecked(bool(self.map_settings.get('grid_hide_over_radar_tiles')))
+        grid_hide_over_radar_chk.setToolTip(
+            "Only takes effect while the radar tex layer above is on -\n"
+            "hides grid lines specifically within the map's own real\n"
+            "area, while still showing them outside it (e.g. as scale\n"
+            "reference in the void beyond the map edge).")
+        radar_form.addRow(grid_hide_over_radar_chk)
+
         grid_reset_btn = QPushButton("Reset Grid to Defaults")
         grid_reset_btn.setToolTip(
             "Resets every grid control on this tab back to its\n"
@@ -8257,6 +8267,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             grid_tile_size_spin.setValue(256)
             grid_texture_alpha_spin.setValue(0.5)
             grid_show_lines_chk.setChecked(True)
+            grid_hide_over_radar_chk.setChecked(False)
             radar_tex_layer_chk.setChecked(False)
         grid_reset_btn.clicked.connect(_reset_grid_defaults)
         radar_form.addRow(grid_reset_btn)
@@ -8823,6 +8834,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     vp.set_radar_tex_layer(True, tile_textures, game_key)
                 else:
                     vp.set_radar_tex_layer(False)
+
+            hide_over_radar_val = grid_hide_over_radar_chk.isChecked()
+            self.map_settings.set('grid_hide_over_radar_tiles', hide_over_radar_val)
+            if vp is not None and hasattr(vp, 'set_grid_hide_over_radar_tiles'):
+                vp.set_grid_hide_over_radar_tiles(hide_over_radar_val)
 
             grid_scale_mode_val = grid_scale_mode_combo.currentData()
             self.map_settings.set('grid_scale_mode', grid_scale_mode_val)
@@ -12007,6 +12023,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.preview_widget.set_squares_texture_alpha(float(self.map_settings.get('squares_texture_alpha') or 0.5))
         if hasattr(self.preview_widget, 'set_grid_show_lines'):
             self.preview_widget.set_grid_show_lines(self.map_settings.get('grid_show_lines', True))
+        if hasattr(self.preview_widget, 'set_grid_hide_over_radar_tiles'):
+            self.preview_widget.set_grid_hide_over_radar_tiles(bool(self.map_settings.get('grid_hide_over_radar_tiles')))
         if hasattr(self.preview_widget, 'set_skybox_path'):
             saved_skybox = self.map_settings.get('skybox_path')
             if saved_skybox:
