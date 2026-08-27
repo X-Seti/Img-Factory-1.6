@@ -8752,3 +8752,15 @@ conclusively found despite extensive isolated testing.
   dat shapes and waterpro.dat's own grid - the correct pattern for
   any semi-transparent surface, preventing it from interfering with
   other transparent overlays drawn afterward.
+
+- **Aug 20, 2026** — Timecyc auto-detection now also falls back to
+  the active Project Manager's own main_window.game_root/data folder,
+  per Keith: "we also have the project profiles to fall back on" -
+  a second, real source of "where this game actually lives"
+  independent of whichever world happens to be loaded this session.
+
+  Added a real "Browse…" button next to the Water file status in
+  Water Display settings, per Keith: "if it's not found, ask for it,
+  [browse] with the path to where the waterpro.dat is." Manually
+  parses the chosen file as either format (waterpro.dat first, water.
+  dat as fallback) and refreshes the water overlay immediately.

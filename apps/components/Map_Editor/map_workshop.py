@@ -8363,14 +8363,48 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         water_path_edit = QLineEdit()
         loader_for_water = getattr(self, '_world_loader', None)
-        water_dat_path = getattr(getattr(loader_for_water, 'main_dat', None), 'dat_path', '') if loader_for_water else ''
-        water_path_display = ''
-        if getattr(loader_for_water, 'water_shapes', None) or getattr(loader_for_water, 'waterpro', None):
-            water_path_display = "Loaded (water.dat/waterpro.dat, auto-detected from the game's own WATER directive)"
+        water_loaded = bool(getattr(loader_for_water, 'water_shapes', None) or getattr(loader_for_water, 'waterpro', None))
+        water_path_display = "Loaded (water.dat/waterpro.dat)" if water_loaded else ''
         water_path_edit.setText(water_path_display)
         water_path_edit.setReadOnly(True)
-        water_path_edit.setPlaceholderText("Not loaded - load a world to auto-detect its own water.dat/waterpro.dat")
-        water_form.addRow("Water file:", water_path_edit)
+        water_path_edit.setPlaceholderText("Not found - Browse to point at it directly")
+        water_browse_btn = QPushButton("Browse…")
+        water_browse_btn.setToolTip(
+            "Per Keith: \"the waterpro.dat is in gameroot/data/waterpro.\n"
+            "dat; if it's not found, ask for it, [browse] with the path\n"
+            "to where the waterpro.dat is.\" Manually point at a real\n"
+            "water.dat or waterpro.dat if auto-detection (the game's\n"
+            "own WATER directive, then gameroot/data/, then the active\n"
+            "project's own game root) didn't find one.")
+        def _browse_water_file(): #vers 1
+            path, _ = QFileDialog.getOpenFileName(
+                self, "Choose water.dat or waterpro.dat", "", "Water data (*.dat)")
+            if not path:
+                return
+            loader = getattr(self, '_world_loader', None)
+            if loader is None:
+                QMessageBox.warning(self, "No World Loaded",
+                    "Load a world first, then Browse for its own water.dat/waterpro.dat.")
+                return
+            from apps.methods.gta_dat_parser import parse_water_dat, parse_waterpro_dat
+            result = parse_waterpro_dat(path)
+            if result is not None:
+                loader.waterpro = result
+            else:
+                shapes = parse_water_dat(path)
+                if shapes:
+                    loader.water_shapes = shapes
+                else:
+                    QMessageBox.warning(self, "Water File",
+                        f"Couldn't parse {os.path.basename(path)} as either a real water.dat or waterpro.dat.")
+                    return
+            water_path_edit.setText(f"Loaded ({os.path.basename(path)}, manually chosen)")
+            self._refresh_water_visualization()
+        water_browse_btn.clicked.connect(_browse_water_file)
+        water_path_row = QHBoxLayout()
+        water_path_row.addWidget(water_path_edit)
+        water_path_row.addWidget(water_browse_btn)
+        water_form.addRow("Water file:", water_path_row)
 
         water_style_combo = QComboBox()
         water_style_items = [
@@ -22693,7 +22727,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         self._refresh_ipl_inst_file_panel()
 
-    def _auto_detect_timecyc_path(self): #vers 2
+    def _auto_detect_timecyc_path(self): #vers 3
         """Look for a real timecyc.dat next to the currently loaded
         game's own real data folder (Aug 20 2026, per Keith: "we need
         to be able to detect the timecyc.dat file without the need
@@ -22710,23 +22744,38 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         .dat file lives. Uses the loader's own real game_root/game
         (when available) to look in the real, correct gameroot/data
         folder for SOL instead of the wrong one a plain dirname()
-        would give."""
+        would give.
+
+        Real fallback added (Aug 20 2026, per Keith: "we also have
+        the project profiles to fall back on") - if the loaded
+        world's own folder doesn't have it, also tries self.main_
+        window.game_root/data - the real, already-existing Project
+        Manager sets main_window.game_root when a project is
+        activated (project_manager.py's own create_project/load
+        flow), a second, real source of "where this game actually
+        lives" independent of whatever .dat file happened to be
+        loaded this session."""
         loader = getattr(self, '_world_loader', None)
         game_root = getattr(loader, 'game_root', '') if loader is not None else ''
         game = getattr(loader, 'game', '') if loader is not None else ''
+        candidates = []
         if game_root and game == 'sol':
-            folder = os.path.join(game_root, 'data')
+            candidates.append(os.path.join(game_root, 'data'))
         else:
             dat_path = getattr(self, '_loaded_dat_path', '')
-            if not dat_path:
-                return ''
-            folder = os.path.dirname(dat_path)
-        try:
-            for name in os.listdir(folder):
-                if name.lower() == 'timecyc.dat':
-                    return os.path.join(folder, name)
-        except OSError:
-            pass
+            if dat_path:
+                candidates.append(os.path.dirname(dat_path))
+        mw_game_root = getattr(self, 'main_window', None)
+        mw_game_root = getattr(mw_game_root, 'game_root', '') if mw_game_root is not None else ''
+        if mw_game_root:
+            candidates.append(os.path.join(mw_game_root, 'data'))
+        for folder in candidates:
+            try:
+                for name in os.listdir(folder):
+                    if name.lower() == 'timecyc.dat':
+                        return os.path.join(folder, name)
+            except OSError:
+                pass
         return ''
 
     def _load_radar_tex_tiles(self, game_key): #vers 1
