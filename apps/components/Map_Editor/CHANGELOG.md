@@ -8464,3 +8464,8 @@ conclusively found despite extensive isolated testing.
      slots (confirmed against Timecyc_Editor's own SA_TIME_LABELS:
      real hours [0,5,6,7,12,19,20,22]) and GTA3 has 12 slots at
      2-hour intervals. Added the real per-game slot-to-hour mapping.
+
+- **Aug 20, 2026** — Merged Timecyc play/stop into a new [Tcyc]
+  toggle on the same toolbar row as [2DFX]/[Tobj], per Keith's own
+  request. Removed the now-redundant separate Play/Stop button from
+  Settings > Render > Environment - that row is Browse-only now.

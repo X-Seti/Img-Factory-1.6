@@ -8250,12 +8250,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         timecyc_path_edit = QLineEdit(self.map_settings.get('timecyc_path') or '')
         timecyc_path_edit.setReadOnly(True)
         timecyc_browse_btn = QPushButton("Browse…")
-        timecyc_play_btn = QPushButton("Play")
-        timecyc_play_btn.setCheckable(True)
-        _vp_for_init = getattr(self, 'preview_widget', None)
-        if _vp_for_init is not None and getattr(_vp_for_init, '_timecyc_playing', False):
-            timecyc_play_btn.setChecked(True)
-            timecyc_play_btn.setText("Stop")
         def _browse_timecyc(): #vers 1
             path, _ = QFileDialog.getOpenFileName(
                 self, "Choose Timecyc File", "", "Timecyc (*.dat)")
@@ -8265,16 +8259,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 if vp is not None and hasattr(vp, 'set_timecyc_path'):
                     vp.set_timecyc_path(path)
         timecyc_browse_btn.clicked.connect(_browse_timecyc)
-        def _toggle_timecyc_play(checked): #vers 1
-            timecyc_play_btn.setText("Stop" if checked else "Play")
-            vp = getattr(self, 'preview_widget', None)
-            if vp is not None and hasattr(vp, 'set_timecyc_playing'):
-                vp.set_timecyc_playing(checked)
-        timecyc_play_btn.toggled.connect(_toggle_timecyc_play)
         timecyc_row = QHBoxLayout()
         timecyc_row.addWidget(timecyc_path_edit)
         timecyc_row.addWidget(timecyc_browse_btn)
-        timecyc_row.addWidget(timecyc_play_btn)
+        timecyc_row.addWidget(QLabel("Play/stop: [Tcyc] button, same row as [2DFX]/[Tobj]"))
         env_form.addRow("Use timecyc file:", timecyc_row)
 
         render_layout.addWidget(boxes_grp)
@@ -22600,6 +22588,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         include/exclude TOBJ-type instances."""
         self._refresh_ipl_inst_file_panel()
 
+    def _on_tcyc_toggled(self, checked): #vers 1
+        """[TCYC] toggle - play/stop the loaded timecyc file's own
+        day/night cycle, merged into the same row as [2DFX]/[TObj]
+        (Aug 20 2026, per Keith's own request)."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is not None and hasattr(vp, 'set_timecyc_playing'):
+            vp.set_timecyc_playing(checked)
+
     def _on_ipl_tab_changed(self, index): #vers 1
         """QTabBar currentChanged - maps the tab index back to its
         section key and reuses the existing change handler. Qt still
@@ -22872,7 +22868,19 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         show_tobj_chk.show_toggled.connect(self._on_show_tobj_toggled)
         self._show_tobj_chk = show_tobj_chk
 
+        # Timecyc play/stop toggle (Aug 20 2026, per Keith: "the play
+        # and stop for timecyc can be merged with the play stop [2DFX]
+        # [TOJB] adding a new button on that line that says [TCYC]")
+        tcyc_chk = _MapOverlayToggleButton("Tcyc", supports_edit=False)
+        tcyc_chk.setToolTip(
+            "Play/stop the loaded timecyc file's own day/night sky\n"
+            "colour cycle in the 3D view - set the file itself via\n"
+            "Settings > Render > Environment > Use timecyc file.")
+        tcyc_chk.show_toggled.connect(self._on_tcyc_toggled)
+        self._tcyc_chk = tcyc_chk
+
         opts_row2.addWidget(show_tobj_chk)
+        opts_row2.addWidget(tcyc_chk)
         opts_row2.addWidget(dfx_chk)
         opts_row2.addWidget(time_chk)
         opts_row2.addWidget(time_edit)
