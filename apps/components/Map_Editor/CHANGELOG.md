@@ -8440,3 +8440,27 @@ conclusively found despite extensive isolated testing.
   layout, as an alternative to the plain grid. New checkbox + tiles-
   folder Browse in Grid & Radar Tiles settings. Auto-refreshes tile
   paths/bounds to match whichever game's world is actually loaded.
+
+- **Aug 20, 2026** — Full review pass, per Keith: "grid disappears
+  when IPL models are loaded, can you check all functions we have
+  done tonight for bugs." Found and fixed 3 real bugs:
+
+  1. Grid never disabled GL_DEPTH_TEST, unlike every other overlay
+     (_draw_paths, cull/zone boxes) which already does. Before any
+     world instances load, nothing occludes it; once ground-level
+     building/road geometry draws before it (paintGL's own real
+     order), depth testing correctly hides the grid wherever that
+     geometry sits at or in front of it - the actual cause of "grid
+     disappears when IPL models are loaded."
+
+  2. Radar tex layer had the same gap in the opposite direction -
+     drawn BEFORE world instances with depth test/writes on, it could
+     have incorrectly occluded real ground-level geometry drawn right
+     after it. Now disables both the test and depth writes.
+
+  3. Timecyc's real-time hour tracking compared row.time directly
+     against a 0-23 hour for every game, but only VC's own time slots
+     actually are 0-23 hours - SA has 8 real, non-uniformly-spaced
+     slots (confirmed against Timecyc_Editor's own SA_TIME_LABELS:
+     real hours [0,5,6,7,12,19,20,22]) and GTA3 has 12 slots at
+     2-hour intervals. Added the real per-game slot-to-hour mapping.

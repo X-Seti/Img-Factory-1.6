@@ -1736,6 +1736,20 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         if grid_type == 'none':
             glEnable(GL_LIGHTING)
             return
+        # Real fix (Aug 20 2026, per Keith: "grid disappears when IPL
+        # models are loaded") - the grid was never disabling GL_DEPTH_
+        # TEST the way every other overlay (_draw_paths, cull/zone
+        # boxes, 2DFX lights) already does. Before any world instances
+        # load, nothing's in the depth buffer to occlude the grid's
+        # own Z=0 lines - once ground-level building/road geometry
+        # draws before it (paintGL's own real order), depth testing
+        # correctly hides the grid wherever that geometry sits at or
+        # in front of it, same as any other occluded overlay would be.
+        # Reference overlays are supposed to draw on top regardless,
+        # matching the same real reasoning _draw_paths' own docstring
+        # already gives for doing this.
+        was_depth_test = glIsEnabled(GL_DEPTH_TEST)
+        glDisable(GL_DEPTH_TEST)
         if grid_type == 'squares':
             self._draw_grid_squares(step, rng, cx, cy)
         elif grid_type == 'dashed':
@@ -1748,6 +1762,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._draw_grid_honeycomb(step, rng, cx, cy, dashed=True)
         else:
             self._draw_grid_lines(step, rng, cx, cy)
+        if was_depth_test:
+            glEnable(GL_DEPTH_TEST)
         glEnable(GL_LIGHTING)
 
     def _draw_grid_lines(self, step, rng, cx=0, cy=0): #vers 3
@@ -1977,16 +1993,38 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         except Exception as e:
             print(f"[DFFViewport] Failed to load timecyc file: {e}")
 
-    def _timecyc_sky_color_for_hour(self, hour): #vers 1
-        """Nearest row's sky-bottom colour for the given hour (0-23),
-        weather 0 (the default/first weather slot) - same field
-        offsets already confirmed in Timecyc_Editor's own _update_
-        preview, not re-guessed here."""
+    def _timecyc_sky_color_for_hour(self, hour): #vers 2
+        """Nearest row's sky-bottom colour for the given real-world
+        hour (0-23), weather 0 (the default/first weather slot) -
+        same field offsets already confirmed in Timecyc_Editor's own
+        _update_preview, not re-guessed here.
+
+        Real bug fixed here (Aug 20 2026, caught during a full review
+        rather than reported): row.time is NOT directly a 0-23 hour
+        for every game - only VC actually has 24 sequential time
+        slots. SA has 8 real, non-uniformly-spaced slots (confirmed
+        directly against Timecyc_Editor's own SA_TIME_LABELS:
+        Midnight/5AM/6AM/7AM/Noon/7PM/8PM/10PM -> real hours [0,5,6,
+        7,12,19,20,22]), and GTA3 has 12 slots at 2-hour intervals
+        (confirmed against that same file's own time_labels
+        generation: hour = time_index*2). Comparing raw row.time
+        against a real hour directly (the original version of this
+        method) would have picked the wrong row for SA/GTA3 almost
+        every tick - only VC's own row.time happens to already equal
+        a real hour."""
         if not self._timecyc_entries:
             return None
         game = getattr(self, '_timecyc_game', 'VC')
         offset = {'SA': 12, 'GTA3': 9, 'VC': 18}.get(game, 18)
-        best = min(self._timecyc_entries, key=lambda r: (r.weather != 0, abs(r.time - hour)))
+        sa_slot_hours = [0, 5, 6, 7, 12, 19, 20, 22]
+        def real_hour_for_slot(time_index): #vers 1
+            if game == 'SA':
+                return sa_slot_hours[time_index] if 0 <= time_index < len(sa_slot_hours) else time_index
+            if game == 'GTA3':
+                return time_index * 2
+            return time_index   # VC: slot index already is the real hour
+        best = min(self._timecyc_entries,
+                   key=lambda r: (r.weather != 0, abs(real_hour_for_slot(r.time) - hour)))
         vals = best.values
         if offset + 2 >= len(vals):
             return None
@@ -2712,6 +2750,18 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         if not self._radar_tex_tiles:
             return
         glDisable(GL_LIGHTING)
+        # Real fix (Aug 20 2026, same class of bug as _draw_grid's own
+        # "disappears when IPL models load" - this draws at Z=0 too,
+        # and drawing it BEFORE world instances means it would write
+        # depth values that then incorrectly occlude any real ground-
+        # level geometry at or below Z=0 drawn right after it. This is
+        # meant to be a pure background layer, not something that
+        # should participate in depth-testing against real geometry at
+        # all - disabling both the test and depth writes, not just the
+        # test, so it never affects what draws afterward either.
+        was_depth_test = glIsEnabled(GL_DEPTH_TEST)
+        glDisable(GL_DEPTH_TEST)
+        glDepthMask(GL_FALSE)
         glEnable(GL_TEXTURE_2D)
         glColor4f(1, 1, 1, 1)
         for tile in self._radar_tex_tiles:
@@ -2727,6 +2777,9 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             glEnd()
         glBindTexture(GL_TEXTURE_2D, 0)
         glDisable(GL_TEXTURE_2D)
+        glDepthMask(GL_TRUE)
+        if was_depth_test:
+            glEnable(GL_DEPTH_TEST)
         glEnable(GL_LIGHTING)
 
     def set_grid_scale_mode(self, mode): #vers 2
