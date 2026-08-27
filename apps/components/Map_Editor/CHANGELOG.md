@@ -8670,3 +8670,18 @@ conclusively found despite extensive isolated testing.
   reported since Keith's own screenshots showed the gradient sky
   specifically. Image now maps around the 4 side faces as a single
   wraparound panorama rather than repeating the same frame on each side.
+
+- **Aug 20, 2026** — Fixed real sky glitching, per Keith: "weird
+  glitching in the background... I dont remember RED in the sky."
+  The box sky's own horizon-glow band used to extend from the
+  horizon (Z=0) down to well below it. Since this app's own map
+  geometry is finite, a wide-angle view could look past the edge of
+  the map's own ground into that "underground" portion of the box
+  sky, revealing the glow band's own bright colour (often warm red/
+  orange near sunrise/sunset) somewhere a real sky would never
+  actually be visible from. Kept the whole box sky at or above the
+  real horizon line now, for both the gradient and image skybox.
+
+  Added a "Flip sky gradient" checkbox (Environment settings), per
+  Keith: "Remember when I said the timecyc was upside down? We need
+  a toggle to switch it either way, just in case I was wrong."

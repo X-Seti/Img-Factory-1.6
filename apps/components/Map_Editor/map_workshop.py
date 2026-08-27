@@ -3176,6 +3176,7 @@ class MapSettings(QObject):
         'grid_scale_mode': 'zoom_relative',
         'skybox_path': '',
         'timecyc_path': '',
+        'sky_gradient_flipped': False,
 
         # distinct from paths' red.
         'cull_box_color': (255, 217, 51),
@@ -8336,6 +8337,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         timecyc_row.addWidget(timecyc_browse_btn)
         env_form.addRow("Use timecyc file:", timecyc_row)
 
+        sky_flip_chk = QCheckBox("Flip sky gradient (zenith/horizon)")
+        sky_flip_chk.setChecked(bool(self.map_settings.get('sky_gradient_flipped')))
+        sky_flip_chk.setToolTip(
+            "In case the sky's own real vertical orientation still\n"
+            "looks backwards - swaps which colour sits at the zenith\n"
+            "versus near the horizon.")
+        env_form.addRow(sky_flip_chk)
+
         render_layout.addWidget(boxes_grp)
         render_layout.addWidget(radar_grp)
         render_layout.addWidget(env_grp)
@@ -8908,6 +8917,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
             timecyc_path_val = timecyc_path_edit.text()
             self.map_settings.set('timecyc_path', timecyc_path_val)
+
+            sky_flip_val = sky_flip_chk.isChecked()
+            self.map_settings.set('sky_gradient_flipped', sky_flip_val)
+            if vp is not None and hasattr(vp, 'set_sky_gradient_flipped'):
+                vp.set_sky_gradient_flipped(sky_flip_val)
 
             try:
                 # Adjusted for COL Wireframe, Mesh
@@ -12062,6 +12076,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             saved_timecyc = self.map_settings.get('timecyc_path')
             if saved_timecyc:
                 self.preview_widget.set_timecyc_path(saved_timecyc)
+        if hasattr(self.preview_widget, 'set_sky_gradient_flipped'):
+            self.preview_widget.set_sky_gradient_flipped(bool(self.map_settings.get('sky_gradient_flipped')))
         # Wire the path node drag callback once, here at construction
         # (Aug 17 2026)
         if hasattr(self.preview_widget, 'set_path_node_drag_callback'):

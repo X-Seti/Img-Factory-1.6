@@ -301,6 +301,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._sky_gradient_top = None   # (r,g,b) or None - set by _apply_timecyc_hour
         self._sky_gradient_bot = None
         self._sky_gradient_horizon = None   # brighter horizon-glow colour (from sun_core)
+        self._sky_gradient_flipped = False   # settings toggle - swaps zenith/horizon in case the timecyc data's own real orientation turns out to be the other way
         self._ambient_tint = (1.0, 1.0, 1.0)   # RGB multiplier, set by _apply_timecyc_hour
         self._use_prelight  = False
         self._ambient       = 0.4
@@ -2045,7 +2046,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glColor4f(1, 1, 1, 1)
         radius = 80000.0
         top_z = radius
-        bottom_z = -radius * 0.15
+        bottom_z = 0.0   # kept at the real horizon line, not below it - same real fix _draw_sky_gradient's own docstring explains (Aug 20 2026, per Keith's own "weird glitching... red in the sky" report)
         glBegin(GL_QUADS)
         for i, (x1, y1, x2, y2) in enumerate((
             (-radius, radius, radius, radius),      # north
@@ -2075,28 +2076,40 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         actually has: brighter/warmer near the horizon, darker/deeper
         overhead, not uniform.
 
-        Real fix (Aug 20 2026, per Keith: "the images show the
-        rotation, but the sky doesn't pane" [pan]) - this used to be
-        a fixed, screen-space orthographic overlay, drawn before any
-        camera transform at all, so it never actually rotated with
-        yaw/pitch the way a real sky visibly would - the same flat
-        gradient regardless of which way the camera was facing. Now a
-        real, world-space object drawn in paintGL's own real, current
-        (rotated) modelview/perspective-projection state instead of
-        pushing its own separate orthographic one - genuinely rotates
-        along with the rest of the scene as the camera turns, the
-        same way any other object here does, since paintGL now calls
-        this after yaw/pitch are applied but before pan translates
-        the scene (see paintGL's own real comment on this)."""
+        Real fix (Aug 20 2026, per Keith: "Sky effects, weird
+        glitching in the background... I dont remember RED in the
+        sky") - the horizon-glow band used to extend from the
+        horizon (Z=0) down to well below it (-radius*0.15). Since
+        this app's own map geometry is finite (unlike a real, endless
+        game world), a wide-angle view could genuinely look past the
+        edge of the map's own ground and into that "underground"
+        portion of the box sky in the gap beyond it - showing the
+        glow band's own bright colour (often a warm red/orange near
+        sunrise/sunset) somewhere a real sky would never actually be
+        visible from, since real terrain always extends to the
+        horizon in every direction. Kept the whole box sky at or
+        above the real horizon line (Z=0) now - the glow band is a
+        thin strip just above it instead of extending below."""
         glDisable(GL_DEPTH_TEST)
         glDisable(GL_LIGHTING)
-        tr, tg, tb = self._sky_gradient_top
-        mr, mg, mb = self._sky_gradient_bot
-        hr, hg, hb = self._sky_gradient_horizon or self._sky_gradient_bot
+        top_color, bot_color, horizon_color = (
+            self._sky_gradient_top, self._sky_gradient_bot,
+            self._sky_gradient_horizon or self._sky_gradient_bot)
+        if self._sky_gradient_flipped:
+            # Settings toggle - swaps zenith/horizon (Aug 20 2026, per
+            # Keith: "Remember when I said the timecyc was upside
+            # down? We need a toggle to switch it either way, just in
+            # case I was wrong") - his own earlier report drove the
+            # "flip vertically" fix already shipped; this gives a way
+            # to flip it back if that fix turns out backwards after all.
+            top_color, horizon_color = horizon_color, top_color
+        tr, tg, tb = top_color
+        mr, mg, mb = bot_color
+        hr, hg, hb = horizon_color
         radius = 80000.0
         top_z = radius
+        mid_z = radius * 0.35
         horizon_z = 0.0
-        bottom_z = -radius * 0.15
         glBegin(GL_QUADS)
         for x1, y1, x2, y2 in (
             (-radius, radius, radius, radius),      # north
@@ -2104,18 +2117,22 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             (radius, radius, radius, -radius),      # east
             (-radius, -radius, -radius, radius),    # west
         ):
-            # Upper half: zenith (top) down to sky_bot at the horizon
-            glColor3f(mr / 255, mg / 255, mb / 255); glVertex3f(x1, y1, horizon_z)
-            glColor3f(mr / 255, mg / 255, mb / 255); glVertex3f(x2, y2, horizon_z)
+            # Upper: zenith (top) down to sky_bot at mid_z
+            glColor3f(mr / 255, mg / 255, mb / 255); glVertex3f(x1, y1, mid_z)
+            glColor3f(mr / 255, mg / 255, mb / 255); glVertex3f(x2, y2, mid_z)
             glColor3f(tr / 255, tg / 255, tb / 255); glVertex3f(x2, y2, top_z)
             glColor3f(tr / 255, tg / 255, tb / 255); glVertex3f(x1, y1, top_z)
-            # Lower half: sky_bot at the horizon down to the brighter horizon-glow band
-            glColor3f(hr / 255, hg / 255, hb / 255); glVertex3f(x1, y1, bottom_z)
-            glColor3f(hr / 255, hg / 255, hb / 255); glVertex3f(x2, y2, bottom_z)
-            glColor3f(mr / 255, mg / 255, mb / 255); glVertex3f(x2, y2, horizon_z)
-            glColor3f(mr / 255, mg / 255, mb / 255); glVertex3f(x1, y1, horizon_z)
+            # Lower: horizon-glow at the real horizon line (Z=0) up to sky_bot at mid_z
+            glColor3f(hr / 255, hg / 255, hb / 255); glVertex3f(x1, y1, horizon_z)
+            glColor3f(hr / 255, hg / 255, hb / 255); glVertex3f(x2, y2, horizon_z)
+            glColor3f(mr / 255, mg / 255, mb / 255); glVertex3f(x2, y2, mid_z)
+            glColor3f(mr / 255, mg / 255, mb / 255); glVertex3f(x1, y1, mid_z)
         glEnd()
         glEnable(GL_DEPTH_TEST)
+
+    def set_sky_gradient_flipped(self, flipped): #vers 1
+        self._sky_gradient_flipped = bool(flipped)
+        self.update()
 
     def set_skybox_path(self, path): #vers 1
         if path != self._skybox_path:
