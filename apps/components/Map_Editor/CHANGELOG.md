@@ -8433,3 +8433,10 @@ conclusively found despite extensive isolated testing.
   96/108/120), replaces the old fixed *10 multiplier in _draw_grid's
   rng computation - controls how far the grid extends before it
   stops, independent of cell size, across every grid style.
+
+- **Aug 20, 2026** — Radar tex layer: shows the real, already-
+  generated radar tile images at their own real world positions
+  (via compute_radar_grid/RADAR_GRID_PRESETS), under the model spawn
+  layout, as an alternative to the plain grid. New checkbox + tiles-
+  folder Browse in Grid & Radar Tiles settings. Auto-refreshes tile
+  paths/bounds to match whichever game's world is actually loaded.

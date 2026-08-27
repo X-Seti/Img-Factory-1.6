@@ -279,6 +279,10 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._grid_spacing    = 5               # divisor of _dist -> step (zoom_relative mode)
         self._grid_fixed_step = 200             # world units per cell (fixed mode - real map scale, not the small zoom_relative divisor)
         self._grid_cell_count = 24               # total grid diameter in cells (replaces the old fixed *10 multiplier)
+        # Radar tex layer - real generated radar tiles shown at their
+        # own real world positions, as an alternative to the grid
+        self._show_radar_tex_layer = False
+        self._radar_tex_tiles = []      # list of dicts: path, min_x, min_y, max_x, max_y, tex_id
         self._grid_scale_mode = 'zoom_relative'  # or 'fixed' or 'radar_tiles'
         self._radar_grid_tile_size = 500.0   # world units per tile, set from RADAR_GRID_PRESETS
         self._radar_grid_half_extent = 3000.0   # grid_size/2 for the current game
@@ -1137,6 +1141,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         has_geoms = bool(getattr(self, '_all_geoms', None))
         has_verts = bool(self._vertices)
         if has_world:
+            if self._show_radar_tex_layer:
+                self._draw_radar_tex_layer()
             self._draw_world_instances()
             self._draw_2dfx_lights()
             if self.show_paths:
@@ -2629,6 +2635,99 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         since all styles share the same rng/step-based coverage."""
         self._grid_cell_count = max(2, count)
         self.update()
+
+    def set_radar_tex_layer(self, enabled, tile_paths=None, game_key='sa'): #vers 1
+        """Show the real, already-generated radar tile images at their
+        own real world positions, as an alternative to the grid (Aug
+        20 2026, per Keith: "the radar tex layer instead of grid,
+        showing all the radar tiles"). tile_paths: list of file paths
+        in the same tile-index order compute_radar_grid produces
+        (radar00.png, radar01.png, ... - the same naming Generate
+        Radar Tiles already writes). Clears any previously loaded
+        tiles' own GL textures first, so switching folders doesn't
+        leak the old ones."""
+        for tile in self._radar_tex_tiles:
+            if tile.get('tex_id'):
+                try:
+                    self.makeCurrent()
+                    glDeleteTextures([tile['tex_id']])
+                    self.doneCurrent()
+                except Exception:
+                    pass
+        self._radar_tex_tiles = []
+        self._show_radar_tex_layer = enabled
+        if not enabled or not tile_paths:
+            self.update()
+            return
+        from apps.methods.gta_dat_parser import compute_radar_grid, RADAR_GRID_PRESETS
+        preset = RADAR_GRID_PRESETS.get(game_key, RADAR_GRID_PRESETS['sa'])
+        grid_tiles = compute_radar_grid(**preset)
+        for i, path in enumerate(tile_paths):
+            if i >= len(grid_tiles):
+                break
+            gt = grid_tiles[i]
+            self._radar_tex_tiles.append({
+                'path': path, 'tex_id': None,
+                'min_x': gt.min_x, 'min_y': gt.min_y,
+                'max_x': gt.max_x, 'max_y': gt.max_y,
+            })
+        self.update()
+
+    def _ensure_radar_tex_tile(self, tile): #vers 1
+        """Lazily load one radar tile's own texture on first draw."""
+        if tile['tex_id']:
+            return tile['tex_id']
+        try:
+            from PyQt6.QtGui import QImage
+            image = QImage(tile['path']).convertToFormat(QImage.Format.Format_RGBA8888)
+            if image.isNull():
+                tile['tex_id'] = False
+                return False
+            w, h = image.width(), image.height()
+            ptr = image.bits(); ptr.setsize(image.sizeInBytes())
+            rgba = bytes(ptr)
+            self.makeCurrent()
+            gl_id = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_2D, gl_id)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba)
+            glBindTexture(GL_TEXTURE_2D, 0)
+            self.doneCurrent()
+            tile['tex_id'] = gl_id
+        except Exception as e:
+            print(f"[DFFViewport] Failed to load radar tile texture {tile['path']}: {e}")
+            tile['tex_id'] = False
+        return tile['tex_id']
+
+    def _draw_radar_tex_layer(self): #vers 2
+        """V-coordinates: row 0 of the saved PNG is north (capture_
+        radar_tile uses grabFramebuffer's own display-ready, already-
+        correctly-oriented output), which uploads as V=0 - so V=0
+        must map to the quad's own north (max_y) edge, not min_y, or
+        every tile would render upside-down (Aug 20 2026, caught
+        before commit rather than shipped and found later)."""
+        if not self._radar_tex_tiles:
+            return
+        glDisable(GL_LIGHTING)
+        glEnable(GL_TEXTURE_2D)
+        glColor4f(1, 1, 1, 1)
+        for tile in self._radar_tex_tiles:
+            tex_id = self._ensure_radar_tex_tile(tile)
+            if not tex_id:
+                continue
+            glBindTexture(GL_TEXTURE_2D, tex_id)
+            glBegin(GL_QUADS)
+            glTexCoord2f(0, 1); glVertex3f(tile['min_x'], tile['min_y'], 0)
+            glTexCoord2f(1, 1); glVertex3f(tile['max_x'], tile['min_y'], 0)
+            glTexCoord2f(1, 0); glVertex3f(tile['max_x'], tile['max_y'], 0)
+            glTexCoord2f(0, 0); glVertex3f(tile['min_x'], tile['max_y'], 0)
+            glEnd()
+        glBindTexture(GL_TEXTURE_2D, 0)
+        glDisable(GL_TEXTURE_2D)
+        glEnable(GL_LIGHTING)
 
     def set_grid_scale_mode(self, mode): #vers 2
         """'zoom_relative' (default - grid stays same on-screen size
