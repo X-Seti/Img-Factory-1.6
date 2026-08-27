@@ -4031,6 +4031,14 @@ class _MapOverlayToggleButton(QToolButton): #vers 1
         self._editing = editing
         self._apply_style()
 
+    def set_label(self, text: str): #vers 1
+        """Update this button's own visible text after construction
+        (Aug 20 2026, per Keith: "[TCYC] button doesn't appear to
+        change as time advances") - lets a caller show live feedback
+        (e.g. the current simulated hour) on the button itself,
+        rather than only the toolbar row's separate time display."""
+        self.setText(text)
+
 
     def _apply_style(self): #vers 2
         # Slightly tightened padding (Aug 20 2026)
@@ -22892,13 +22900,21 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         include/exclude TOBJ-type instances."""
         self._refresh_ipl_inst_file_panel()
 
-    def _on_tcyc_toggled(self, checked): #vers 1
+    def _on_tcyc_toggled(self, checked): #vers 2
         """[TCYC] toggle - play/stop the loaded timecyc file's own
         day/night cycle, merged into the same row as [2DFX]/[TObj]
-        (Aug 20 2026, per Keith's own request)."""
+        (Aug 20 2026, per Keith's own request). Resets the button's
+        own label back to plain "Tcyc" when turned off (Aug 20 2026)
+        - _on_tobj_time_changed's own live time label only updates
+        while this is checked, so without this it would otherwise
+        keep showing whatever time it last stopped at."""
         vp = getattr(self, 'preview_widget', None)
         if vp is not None and hasattr(vp, 'set_timecyc_playing'):
             vp.set_timecyc_playing(checked)
+        if not checked:
+            tcyc_btn = getattr(self, '_tcyc_chk', None)
+            if tcyc_btn is not None and hasattr(tcyc_btn, 'set_label'):
+                tcyc_btn.set_label("Tcyc")
 
     def _on_ipl_tab_changed(self, index): #vers 1
         """QTabBar currentChanged - maps the tab index back to its
@@ -23483,6 +23499,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         vp = getattr(self, 'preview_widget', None)
         if vp is not None and hasattr(vp, 'set_timecyc_hour'):
             vp.set_timecyc_hour(qtime.hour() + qtime.minute() / 60.0)
+        # Live feedback on the [Tcyc] button itself (Aug 20 2026, per
+        # Keith: "[TCYC] button doesn't appear to change as time
+        # advances") - only while it's actually on, so the button
+        # doesn't silently claim to be tracking a time it isn't
+        # currently applying.
+        tcyc_btn = getattr(self, '_tcyc_chk', None)
+        if tcyc_btn is not None and hasattr(tcyc_btn, 'set_label') and tcyc_btn.isChecked():
+            tcyc_btn.set_label(f"Tcyc {qtime.toString('HH:mm')}")
 
     def _on_2dfx_master_toggled(self, checked): #vers 2
         """2DFX master on/off switch changed - re-runs the same

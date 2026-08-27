@@ -8720,3 +8720,11 @@ conclusively found despite extensive isolated testing.
   - "Hide water outside map boundary" - same real idea as "Hide grid
     over radar tiles", inverted for water (skips cells outside the
     real map area instead of the void beyond it)
+
+- **Aug 20, 2026** — [Tcyc] button now shows live time feedback (e.g.
+  "Tcyc 14:30") while playing, per Keith: "[TCYC] button doesn't
+  appear to change as time advances." Updated from _on_tobj_time_
+  changed, the same real, shared clock callback that already drives
+  timecyc's own hour - only while the button is actually checked, and
+  resets back to plain "Tcyc" when turned off so it doesn't keep
+  showing a stale time.
