@@ -300,6 +300,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._timecyc_hour = 12.0
         self._sky_gradient_top = None   # (r,g,b) or None - set by _on_timecyc_tick
         self._sky_gradient_bot = None
+        self._sky_gradient_horizon = None   # brighter horizon-glow colour (from sun_core)
         self._ambient_tint = (1.0, 1.0, 1.0)   # RGB multiplier, set by _on_timecyc_tick
         self._use_prelight  = False
         self._ambient       = 0.4
@@ -2034,18 +2035,22 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glMatrixMode(GL_PROJECTION); glPopMatrix()
         glMatrixMode(GL_MODELVIEW); glPopMatrix()
 
-    def _draw_sky_gradient(self): #vers 1
-        """Screen-space 2-colour vertical gradient (sky_top at the
-        top of the screen, sky_bot at the bottom, GL's own smooth
-        shading interpolating between them) - the real timecyc sky
-        effect, replacing the flat single-colour clear that was there
-        before (Aug 20 2026, per Keith: "the timecyc isn't being
-        rendered correctly, its only showing one colour, not the
-        effect of how it seen in game"). Same real orthographic
-        screen-space technique _draw_skybox already uses, just
-        per-vertex colours instead of a texture. Only used when no
-        skybox image is set (that takes priority, per paintGL's own
-        real dispatch)."""
+    def _draw_sky_gradient(self): #vers 2
+        """Screen-space vertical sky gradient - a real 3-stop blend
+        (sky_top at the very top/zenith, sky_bot in the upper-middle,
+        sun_core as a brighter horizon-glow band near the bottom of
+        the visible sky) rather than a flat single colour or a plain
+        2-colour linear blend (Aug 20 2026, per Keith: "still isn't
+        being rendered like it would be in game... all its doing it
+        cycling through colours, no horizon and sky bands") - the
+        real, general shape a GTA sky actually has: brighter/warmer
+        near the horizon, darker/deeper overhead, not uniform. Built
+        from 2 stacked quads (GL_QUADS only linearly interpolates
+        between one pair of edges each, so a 3-stop gradient needs 2
+        of them) rather than one. Same real orthographic screen-space
+        technique _draw_skybox already uses, just per-vertex colours
+        instead of a texture. Only used when no skybox image is set
+        (that takes priority, per paintGL's own real dispatch)."""
         glMatrixMode(GL_PROJECTION)
         glPushMatrix(); glLoadIdentity()
         glOrtho(0, 1, 0, 1, -1, 1)
@@ -2054,12 +2059,20 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glDisable(GL_DEPTH_TEST)
         glDisable(GL_LIGHTING)
         tr, tg, tb = self._sky_gradient_top
-        br, bg_, bb = self._sky_gradient_bot
+        mr, mg, mb = self._sky_gradient_bot
+        hr, hg, hb = self._sky_gradient_horizon or self._sky_gradient_bot
+        split = 0.4   # screen-space y where sky_bot sits, zenith above, horizon band below
         glBegin(GL_QUADS)
-        glColor3f(br / 255, bg_ / 255, bb / 255); glVertex2f(0, 0)
-        glColor3f(br / 255, bg_ / 255, bb / 255); glVertex2f(1, 0)
-        glColor3f(tr / 255, tg / 255, tb / 255);  glVertex2f(1, 1)
-        glColor3f(tr / 255, tg / 255, tb / 255);  glVertex2f(0, 1)
+        # Upper: zenith (sky_top) down to sky_bot at the split line
+        glColor3f(mr / 255, mg / 255, mb / 255); glVertex2f(0, split)
+        glColor3f(mr / 255, mg / 255, mb / 255); glVertex2f(1, split)
+        glColor3f(tr / 255, tg / 255, tb / 255); glVertex2f(1, 1)
+        glColor3f(tr / 255, tg / 255, tb / 255); glVertex2f(0, 1)
+        # Lower: sky_bot at the split line down to the brighter horizon glow at the bottom
+        glColor3f(hr / 255, hg / 255, hb / 255); glVertex2f(0, 0)
+        glColor3f(hr / 255, hg / 255, hb / 255); glVertex2f(1, 0)
+        glColor3f(mr / 255, mg / 255, mb / 255); glVertex2f(1, split)
+        glColor3f(mr / 255, mg / 255, mb / 255); glVertex2f(0, split)
         glEnd()
         glEnable(GL_DEPTH_TEST)
         glMatrixMode(GL_PROJECTION); glPopMatrix()
@@ -2088,23 +2101,36 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         except Exception as e:
             print(f"[DFFViewport] Failed to load timecyc file: {e}")
 
-    def _timecyc_colors_for_hour(self, hour): #vers 3
-        """Nearest row's sky-top/sky-bottom/ambient colours for the
-        given real-world hour (0-23), weather 0 (default slot) - same
-        field offsets already confirmed in Timecyc_Editor's own
-        _update_preview (ambient at [0-2] for every game; sky_top/
-        sky_bot differ per game - SA [9-11]/[12-14], GTA3 [6-8]/
-        [9-11], VC [15-17]/[18-20]).
+    def _timecyc_colors_for_hour(self, hour): #vers 4
+        """Nearest row's sky-top/sky-bottom/ambient/sun-core colours
+        for the given real-world hour (0-23), weather 0 (default
+        slot) - same field offsets already confirmed in Timecyc_
+        Editor's own _update_preview (ambient at [0-2] for every
+        game; sky_top/sky_bot/sun_core differ per game - SA [9-11]/
+        [12-14]/[15-17], GTA3 [6-8]/[9-11]/[12-14], VC [15-17]/
+        [18-20]/[21-23]).
 
-        Real fix (Aug 20 2026, per Keith: "the timecyc isn't being
-        rendered correctly, its only showing one colour, not the
-        effect of how it seen in game") - the previous version only
-        ever read sky_bot and used it as a single flat background
-        clear colour, with no sky gradient and no effect on the
-        actual lighting/ambient colour models are lit with, which is
-        why it looked like a flat, single-colour tint rather than a
-        real day/night cycle. Returns (sky_top, sky_bot, ambient),
-        each an (r,g,b) tuple, or None if no timecyc data is loaded.
+        Real, more accurate fix (Aug 20 2026, per Keith: "still isn't
+        being rendered like it would be in game... all its doing it
+        cycling through colours, no horizon and sky bands") - a
+        simple 2-colour top/bottom blend was a real improvement over
+        one flat colour, but still isn't what a real GTA sky actually
+        looks like: brighter near the horizon (often into sun_core's
+        own warm glow at sunrise/sunset), darker overhead - not a
+        plain linear blend between two colours. sun_core is now read
+        too so _draw_sky_gradient can build a real 3-stop gradient
+        instead of 2.
+
+        Note: Timecyc_Editor's own _update_preview has a real,
+        separate bug for SA's own sun_core specifically - its code
+        reads rgb(12) (the same offset as sky_bot, a likely copy-
+        paste slip) despite its own comment saying [15-17]. This
+        method uses the documented [15-17] offset, not that copied
+        value, since this is a separate implementation, not a reuse
+        of that one.
+
+        Returns (sky_top, sky_bot, ambient, sun_core), each an
+        (r,g,b) tuple, or None if no timecyc data is loaded.
 
         Real bug fixed earlier (caught during a full review rather
         than reported): row.time is NOT directly a 0-23 hour for
@@ -2119,10 +2145,10 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             return None
         game = getattr(self, '_timecyc_game', 'VC')
         offsets = {
-            'SA':   {'sky_top': 9,  'sky_bot': 12, 'ambient': 0},
-            'GTA3': {'sky_top': 6,  'sky_bot': 9,  'ambient': 0},
-            'VC':   {'sky_top': 15, 'sky_bot': 18, 'ambient': 0},
-        }.get(game, {'sky_top': 15, 'sky_bot': 18, 'ambient': 0})
+            'SA':   {'sky_top': 9,  'sky_bot': 12, 'ambient': 0, 'sun_core': 15},
+            'GTA3': {'sky_top': 6,  'sky_bot': 9,  'ambient': 0, 'sun_core': 12},
+            'VC':   {'sky_top': 15, 'sky_bot': 18, 'ambient': 0, 'sun_core': 21},
+        }.get(game, {'sky_top': 15, 'sky_bot': 18, 'ambient': 0, 'sun_core': 21})
         sa_slot_hours = [0, 5, 6, 7, 12, 19, 20, 22]
         def real_hour_for_slot(time_index): #vers 1
             if game == 'SA':
@@ -2143,9 +2169,10 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         sky_top = rgb_at(offsets['sky_top'])
         sky_bot = rgb_at(offsets['sky_bot'])
         ambient = rgb_at(offsets['ambient'])
-        if sky_top is None or sky_bot is None or ambient is None:
+        sun_core = rgb_at(offsets['sun_core'])
+        if sky_top is None or sky_bot is None or ambient is None or sun_core is None:
             return None
-        return (sky_top, sky_bot, ambient)
+        return (sky_top, sky_bot, ambient, sun_core)
 
     def set_timecyc_playing(self, playing): #vers 1
         self._timecyc_playing = bool(playing)
@@ -2158,27 +2185,23 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         elif hasattr(self, '_timecyc_timer') and self._timecyc_timer is not None:
             self._timecyc_timer.stop()
 
-    def _on_timecyc_tick(self): #vers 2
-        """Real fix (Aug 20 2026, per Keith: "the timecyc isn't being
-        rendered correctly, its only showing one colour, not the
-        effect of how it seen in game") - now drives 3 real, visible
-        effects instead of one flat background colour:
-        1. self._sky_gradient_top/bot - a real 2-colour sky gradient
-           (see _draw_skybox's own gradient-fallback path), not a
-           flat clear colour.
-        2. self._ambient_tint - an RGB multiplier _setup_lighting now
-           applies on top of the existing ambient/diffuse intensity
-           sliders, so timecyc's own ambient colour genuinely changes
-           how lit models look, not just the background.
-        3. self._bg_color_override still set too (sky_bot), as the
-           real fallback flat colour for anywhere the gradient isn't
-           drawn (e.g. no visible sky area at a given camera angle)."""
+    def _on_timecyc_tick(self): #vers 3
+        """Real, more accurate fix (Aug 20 2026, per Keith: "still
+        isn't being rendered like it would be in game... all its
+        doing it cycling through colours, no horizon and sky bands")
+        - now also calls _timecyc_colors_for_hour's own updated,
+        4-colour version (sky_top/sky_bot/ambient/sun_core), storing
+        sun_core as self._sky_gradient_horizon so _draw_sky_gradient
+        can build a real 3-stop gradient (brighter near the horizon,
+        darker overhead - the real, general shape of a GTA sky,
+        rather than a flat 2-colour linear blend)."""
         self._timecyc_hour = (self._timecyc_hour + 0.1) % 24
         colors = self._timecyc_colors_for_hour(self._timecyc_hour)
         if colors:
-            sky_top, sky_bot, ambient = colors
+            sky_top, sky_bot, ambient, sun_core = colors
             self._sky_gradient_top = sky_top
             self._sky_gradient_bot = sky_bot
+            self._sky_gradient_horizon = sun_core
             self._bg_color_override = sky_bot
             # Ambient tint as a 0-1 multiplier per channel, normalised
             # against its own max channel so it tints without also

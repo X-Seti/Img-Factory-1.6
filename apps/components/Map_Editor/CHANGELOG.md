@@ -8544,3 +8544,28 @@ conclusively found despite extensive isolated testing.
   drawn in full outside it. Only takes effect while the radar tex
   layer itself is on. Verified the segment-splitting math directly
   against a simulated bounds/range before wiring it in.
+
+- **Aug 20, 2026** — Real improvement to timecyc sky rendering, per
+  Keith: "still isn't being rendered like it would be in game...
+  all its doing it cycling through colours, no horizon and sky
+  bands." A flat 2-colour top/bottom blend was still not what a real
+  GTA sky looks like - brighter/warmer near the horizon (sun_core),
+  darker overhead, not a plain linear blend between two colours.
+
+  Now reads sun_core too (real per-game offsets: SA [15-17], GTA3
+  [12-14], VC [21-23]) and builds a real 3-stop gradient from 2
+  stacked quads: zenith (sky_top) down to sky_bot at a fixed split
+  line, then sky_bot down to sun_core's own brighter glow at the
+  bottom of the visible sky.
+
+  Caught a real, separate pre-existing bug in Timecyc_Editor itself
+  while confirming these offsets: its own SA sun_core reads rgb(12)
+  (same offset as sky_bot) despite its own comment saying [15-17] -
+  a likely copy-paste slip in that file. Used the documented [15-17]
+  offset here rather than that copied value, since this is a
+  separate implementation, not a reuse of that code.
+
+  Verified the colour extraction directly against synthetic day-
+  cycle data - confirmed sun_core comes out genuinely distinct from
+  sky_bot at every hour, giving the gradient a real third stop rather
+  than degenerating back to 2.
