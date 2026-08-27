@@ -8353,3 +8353,21 @@ conclusively found despite extensive isolated testing.
   `ast.parse` clean; confirmed via AST no duplicate class/method
   definitions and exactly one real, module-level `QProgressBar`
   import.
+
+- **Aug 20, 2026** — Fixed "Load Selected (12)" in Obj Browser only
+  loading 2-3 of the selected IPLs, not all of them.
+
+  Root cause: `_load_selected_ipl_sections` tracked which rows to load
+  by row index, captured once before any loading started. But loading
+  one IPL can rebuild the whole IPL table (reordering rows), so once
+  that happened, the remaining row indices in the same loop pointed
+  at the wrong rows and got silently skipped as "already visible."
+
+  Fixed by capturing the real IPL names up front instead (names don't
+  go stale the way row indices do), then re-locating each one's
+  current row right before loading it - the same pattern already used
+  one level down in `_on_ipl_section_cell_clicked` for the identical
+  reason, just missing from this outer loop.
+
+  Verified against a simulated mid-loop table rebuild: old logic
+  loaded 1 of 12 selected IPLs, new logic loads 12 of 12.

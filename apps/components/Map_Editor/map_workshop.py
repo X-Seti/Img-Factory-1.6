@@ -22082,18 +22082,32 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         self._refresh_ipl_inst_file_panel()
 
-    def _load_selected_ipl_sections(self, rows): #vers 1
+    def _load_selected_ipl_sections(self, rows): #vers 2
         """Show/load every currently-hidden row among the given table
         rows - the "Load Selected" context menu action."""
         table = self._ipl_sections_table
         hidden = getattr(self, '_hidden_ipls', set())
+        ipl_names = []
         for row in rows:
             item = table.item(row, 0)
             if item is None:
                 continue
             ipl_name = item.data(Qt.ItemDataRole.UserRole)
             if ipl_name in hidden:
-                self._on_ipl_section_cell_clicked(row, 0)
+                ipl_names.append(ipl_name)
+
+        for ipl_name in ipl_names:
+            if ipl_name not in getattr(self, '_hidden_ipls', set()):
+                continue   # already made visible by an earlier iteration's own load
+            current_row = None
+            for r in range(table.rowCount()):
+                candidate = table.item(r, 0)
+                if candidate is not None and candidate.data(Qt.ItemDataRole.UserRole) == ipl_name:
+                    current_row = r
+                    break
+            if current_row is None:
+                continue   # row no longer exists (e.g. removed by an earlier rebuild)
+            self._on_ipl_section_cell_clicked(current_row, 0)
 
     def _on_ipl_sections_column_resized(self, logical_index, old_size, new_size): #vers 1
         """Persist the user's column widths for the IPL Sections table
