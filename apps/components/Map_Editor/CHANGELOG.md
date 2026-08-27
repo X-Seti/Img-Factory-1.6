@@ -8514,3 +8514,24 @@ conclusively found despite extensive isolated testing.
   fill too). Full grid hide is still available via the Display tab's
   own Grid checkbox. Reset Grid to Defaults updated to cover both
   new controls too.
+
+- **Aug 20, 2026** — Fixed timecyc looking like a flat single colour
+  instead of a real day/night effect, per Keith: "not the effect of
+  how it seen in game." The old version only ever read sky_bot and
+  used it as one flat background clear colour - no sky gradient, and
+  no effect on the actual lighting models are lit with.
+
+  Now reads sky_top/sky_bot/ambient together each tick (confirmed
+  offsets from Timecyc_Editor: ambient always [0-2], sky_top/sky_bot
+  differ per game) and drives 3 real effects: a genuine 2-colour sky
+  gradient (top-of-screen to bottom, GL smooth-shaded, same
+  orthographic technique the skybox feature already uses), an RGB
+  ambient tint applied on top of the existing ambient/diffuse
+  intensity sliders (so models are actually lit differently through
+  the cycle, not just the background), and the flat colour as a
+  fallback for wherever the gradient doesn't reach.
+
+  Verified the underlying hour-to-row lookup with synthetic day-cycle
+  data across several hours - confirmed it genuinely produces
+  different sky/ambient colours at midnight vs noon vs evening,
+  rather than sticking on one row.
