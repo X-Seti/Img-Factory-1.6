@@ -2464,7 +2464,7 @@ class GTAWorldLoader: #vers 3
             # multiple games.
             self.load_sa_nodes(game_root, data_dir)
             self.load_sa_roadblox(data_dir)
-            self.load_water_dat()
+            self.load_water_dat(data_dir)
         if self.game == GTAGame.GTA3:
             # GTA III-only (Aug 19 2026, per Keith's real CHASE0-19.
             # DAT sample) - the introduction cutscene's own chase-
@@ -2473,14 +2473,23 @@ class GTAWorldLoader: #vers 3
             # GTA IV mechanism entirely, not something this app reads
             # or writes today).
             self.load_chase_dat(data_dir)
-        if self.game in (GTAGame.GTA3, GTAGame.VC):
-            # III/VC-only (Aug 20 2026, continuing the same "lets get
-            # all the functions in" water request that started with
-            # SA's own water.dat just above) - waterpro.dat is a
-            # completely different, binary format specific to these
-            # two games (SA uses its own text water.dat instead, see
-            # load_water_dat just above).
-            self.load_waterpro_dat()
+        if self.game in (GTAGame.GTA3, GTAGame.VC, GTAGame.SOL):
+            # III/VC/SOL - waterpro.dat is a completely different,
+            # binary format specific to these games (SA uses its own
+            # text water.dat instead, see load_water_dat just above;
+            # SOL is built on the VC engine, so it uses the same
+            # binary format VC does, not SA's).
+            #
+            # SOL-specific real fix (Aug 20 2026, per Keith: "with
+            # GTASOL looking for /sol/gta_sol.dat the waterpro.dat
+            # would be in gameroot/data/waterpro.dat") - data_dir here
+            # is the folder main_dat's own path actually lives in,
+            # which for SOL is gameroot/sol, not gameroot/data - using
+            # it directly for SOL's own waterpro.dat fallback would
+            # look in the wrong folder entirely. game_root/data is the
+            # real, correct folder for every one of these three games.
+            waterpro_dir = os.path.join(game_root, "data") if self.game == GTAGame.SOL else data_dir
+            self.load_waterpro_dat(waterpro_dir)
         return True
 
     def load_tracks_dat(self, data_dir: str): #vers 2
@@ -2671,24 +2680,23 @@ class GTAWorldLoader: #vers 3
         except Exception as e:
             self.stats.errors.append(f"Could not read SA roadblox data from {abs_path}: {e}")
 
-    def load_water_dat(self): #vers 1
-        """Load SA's real water.dat (Aug 20 2026, per Keith: "lets
-        get all the functions in" - water/radar recalculation on map
-        moves, item 1 of 3 on his own list). Finds the REAL path from
-        gta.dat's own already-parsed WATER directive entries (main_
-        dat.water_entries()) rather than assuming a fixed "data/
-        water.dat" location - the directive is real, documented (per
+    def load_water_dat(self, data_dir: str = ''): #vers 2
+        """Load SA's real water.dat. Finds the REAL path from gta.
+        dat's own already-parsed WATER directive entries first (main_
+        dat.water_entries()) - the directive is real, documented (per
         GTAMods' own gta.dat page: "these entries link to external
-        water plane placement files"), and the generic directive-
-        parsing branch in DATParser.parse() already captures it
-        correctly (WATER <path>, same shape as every other simple
-        single-path directive) even though nothing looked for it by
-        name until this method existed. Uses the first real,
-        resolved, existing entry found - a real gta.dat could list
-        more than one WATER line (GTAMods: "the WATER identifier can
-        hold more than one parameter"), but SA's own real water1.dat
-        is documented as a dead, unused leftover, so taking the
-        first real match is the correct choice, not an oversimplification."""
+        water plane placement files"). Falls back to the real,
+        standard data_dir/water.dat path (Aug 20 2026, per Keith's own
+        real-install report for waterpro.dat's identical gap - "those
+        files would be in the same place as gta_vc.dat/gta3.dat/gta.
+        dat") if no directive is found, for the same real robustness
+        reason that fallback was added for waterpro.dat. Uses the
+        first real, resolved, existing entry found - a real gta.dat
+        could list more than one WATER line (GTAMods: "the WATER
+        identifier can hold more than one parameter"), but SA's own
+        real water1.dat is documented as a dead, unused leftover, so
+        taking the first real match is the correct choice, not an
+        oversimplification."""
         entries = getattr(self.main_dat, 'water_entries', lambda: [])()
         for entry in entries:
             if entry.exists:
@@ -2697,24 +2705,35 @@ class GTAWorldLoader: #vers 3
                     self.water_shapes = shapes
                     self.load_log.append(("water", "WATER", entry.abs_path, True))
                     return
+        if data_dir:
+            fallback_path = os.path.join(data_dir, "water.dat")
+            if os.path.isfile(fallback_path):
+                shapes = parse_water_dat(fallback_path)
+                if shapes:
+                    self.water_shapes = shapes
+                    self.load_log.append(("water", "WATER", fallback_path, True))
+                    return
 
-    def load_waterpro_dat(self): #vers 1
-        """Load GTA III/VC's own binary waterpro.dat (Aug 20 2026,
-        continuing the same "lets get all the functions in" request
-        that started with SA's own water_shapes/load_water_dat just
-        above - this is the III/VC counterpart, a completely
-        different binary format, not the same file at all despite
-        the similar name/purpose). Finds the real path the exact same
-        way load_water_dat already does - via main_dat's own real,
-        parsed WATER directive entries - since gta3.dat/gta_vc.dat
-        use the identical WATER directive keyword SA's own gta.dat
-        does (the gta*.dat directive format itself is shared across
-        every game, confirmed via GTAMods' own gta.dat page). Success
-        checked via `result is not None` rather than a truthy list
-        the way load_water_dat's own check is - parse_waterpro_dat
-        returns a single WaterProFile (or None), never a list, since
-        the real binary format itself is one fixed-size structure,
-        not a variable list of shapes."""
+    def load_waterpro_dat(self, data_dir: str = ''): #vers 2
+        """Load GTA III/VC's own binary waterpro.dat.
+
+        Real fix (Aug 20 2026, per Keith: "I am using the original VC
+        install, the waterpro.dat is in gameroot/data/waterpro.dat")
+        - the original version relied entirely on main_dat's own real,
+        parsed WATER directive entries, the same way load_water_dat
+        (SA's own text water.dat) already does. That's genuinely
+        correct for SA - its own gta.dat really does carry a real,
+        explicit WATER directive - but a real, vanilla III/VC gta3.
+        dat/gta_vc.dat does not: waterpro.dat is a fixed, hardcoded
+        file for those two games, always at data/waterpro.dat next to
+        the main .dat file itself, never referenced by a directive at
+        all. Relying solely on the directive-based lookup meant this
+        silently found nothing for any real, unmodified VC/III
+        install, exactly as Keith reported. Now tries the WATER
+        directive first (still correct for a modded gta*.dat that
+        does define one), then falls back to the real, standard
+        data_dir/waterpro.dat path GTAMods documents for these two
+        games specifically."""
         entries = getattr(self.main_dat, 'water_entries', lambda: [])()
         for entry in entries:
             if entry.exists:
@@ -2722,6 +2741,14 @@ class GTAWorldLoader: #vers 3
                 if result is not None:
                     self.waterpro = result
                     self.load_log.append(("water", "WATERPRO", entry.abs_path, True))
+                    return
+        if data_dir:
+            fallback_path = os.path.join(data_dir, "waterpro.dat")
+            if os.path.isfile(fallback_path):
+                result = parse_waterpro_dat(fallback_path)
+                if result is not None:
+                    self.waterpro = result
+                    self.load_log.append(("water", "WATERPRO", fallback_path, True))
                     return
 
     def load_chase_dat(self, data_dir: str): #vers 1

@@ -22693,19 +22693,34 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         self._refresh_ipl_inst_file_panel()
 
-    def _auto_detect_timecyc_path(self): #vers 1
+    def _auto_detect_timecyc_path(self): #vers 2
         """Look for a real timecyc.dat next to the currently loaded
-        game's own main .dat file (Aug 20 2026, per Keith: "we need
+        game's own real data folder (Aug 20 2026, per Keith: "we need
         to be able to detect the timecyc.dat file without the need
-        for a path, and still keep the toggle") - the same folder
-        gta.dat/gta_sa.dat/gta_vc.dat itself lives in, since timecyc.
-        dat is a real, standard sibling file there in every actual
-        GTA install. Case-insensitive match (real installs vary).
-        Returns the real path if found, else ''."""
-        dat_path = getattr(self, '_loaded_dat_path', '')
-        if not dat_path:
-            return ''
-        folder = os.path.dirname(dat_path)
+        for a path, and still keep the toggle" - "show from gameroot/
+        data/timecyc.dat"). Case-insensitive match (real installs
+        vary). Returns the real path if found, else ''.
+
+        Real SOL fix (Aug 20 2026, per Keith: "with GTASOL looking
+        for /sol/gta_sol.dat the waterpro.dat would be in gameroot/
+        data/waterpro.dat" - the identical real gap applies to
+        timecyc.dat too) - the folder self._loaded_dat_path's own
+        directory gives is gameroot/sol for SOL specifically, not
+        gameroot/data, since that's genuinely where SOL's own main
+        .dat file lives. Uses the loader's own real game_root/game
+        (when available) to look in the real, correct gameroot/data
+        folder for SOL instead of the wrong one a plain dirname()
+        would give."""
+        loader = getattr(self, '_world_loader', None)
+        game_root = getattr(loader, 'game_root', '') if loader is not None else ''
+        game = getattr(loader, 'game', '') if loader is not None else ''
+        if game_root and game == 'sol':
+            folder = os.path.join(game_root, 'data')
+        else:
+            dat_path = getattr(self, '_loaded_dat_path', '')
+            if not dat_path:
+                return ''
+            folder = os.path.dirname(dat_path)
         try:
             for name in os.listdir(folder):
                 if name.lower() == 'timecyc.dat':

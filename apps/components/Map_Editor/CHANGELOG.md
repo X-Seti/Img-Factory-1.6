@@ -8728,3 +8728,16 @@ conclusively found despite extensive isolated testing.
   timecyc's own hour - only while the button is actually checked, and
   resets back to plain "Tcyc" when turned off so it doesn't keep
   showing a stale time.
+
+- **Aug 20, 2026** — Fixed the real root cause of water/timecyc not
+  working for a real, unmodified install, per Keith: "I am using the
+  original VC install, the waterpro.dat is in gameroot/data/waterpro.
+  dat." load_waterpro_dat/load_water_dat relied entirely on gta*.dat's
+  own WATER directive - genuinely correct for SA (its own gta.dat
+  really has one), but a real, vanilla III/VC gta3.dat/gta_vc.dat
+  never does; waterpro.dat is a fixed, hardcoded file there, not
+  directive-based. Both now fall back to the real, standard data_dir/
+  waterpro.dat (or water.dat) path when no directive is found. Also
+  fixed for SOL specifically (main .dat at gameroot/sol/gta_sol.dat,
+  but waterpro.dat still at gameroot/data/) and applied the same real
+  fix to timecyc.dat auto-detection.
