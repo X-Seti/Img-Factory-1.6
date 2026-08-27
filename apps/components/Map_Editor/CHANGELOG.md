@@ -8616,3 +8616,18 @@ conclusively found despite extensive isolated testing.
   wrong; there wasn't one. Fixed that tooltip and one other pointing
   to the same non-existent control, now pointing at the real new
   quick toggle instead.
+
+- **Aug 20, 2026** — Fixed Auzo not showing content, per Keith:
+  "clicking on the Auzo button still doesn't show the contents on the
+  auzo file, from auzo entry" (comparing to the real, working paths/
+  zon/cull/occl workflow: "clicked on first, then [Paths] button to
+  show"). Root cause: _refresh_auzo_visualization was only ever
+  called from its own toggle button's change handler - unlike paths/
+  cull/zone/occl, all four of which also refresh from the one,
+  central _apply_ipl_visibility_filter that runs whenever IPL
+  visibility changes (i.e. exactly the "click the IPL entry" half of
+  that workflow). Clicking a new auzo-containing IPL entry never
+  actually pushed anything to the viewport unless the toggle itself
+  happened to be flipped at that exact moment. Also fixed a second,
+  related gap: it never filtered by which IPLs are actually visible/
+  hidden at all, unlike every other overlay here.

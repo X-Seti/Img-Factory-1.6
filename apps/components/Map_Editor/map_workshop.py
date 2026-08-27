@@ -25136,6 +25136,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._refresh_cull_box_visualization()
         self._refresh_zone_box_visualization()
         self._refresh_occl_box_visualization()
+        self._refresh_auzo_visualization()
 
     def _refresh_2dfx_lights(self, visible_instances): #vers 1
         """Collect 2DFX light-type (effect_type == 0) entries for the
@@ -25409,9 +25410,37 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                                         (target_node.x, target_node.y, target_node.z)))
         vp.set_sa_node_segments(segments)
 
-    def _refresh_auzo_visualization(self): #vers 1
+    def _refresh_auzo_visualization(self): #vers 2
         """Push loaded SA audio zones to the viewport's own sound-
-        icon overlay (Aug 20 2026)"""
+        icon overlay (Aug 20 2026).
+
+        Real bugs fixed here (Aug 20 2026, per Keith: "clicking on the
+        Auzo button still doesn't show the contents on the auzo file,
+        from auzo entry" - and his own real, working comparison to
+        paths/zon/cull/occl: "clicked on first, then [Paths] button to
+        show"):
+
+        1. This method was never actually called from _apply_ipl_
+           visibility_filter, the one, central place every other real
+           overlay (_refresh_path_visualization/_refresh_cull_box_
+           visualization/_refresh_zone_box_visualization/_refresh_
+           occl_box_visualization, all four called there already)
+           refreshes from whenever IPL visibility changes - i.e.
+           exactly the "click the IPL entry" half of the workflow
+           Keith describes. Auzo only ever refreshed from its own
+           toggle button's own change handler, so clicking a new
+           auzo-containing IPL entry never actually pushed anything
+           new to the viewport unless the toggle itself happened to
+           be flipped at that exact moment too. Now called from that
+           same central method (see _apply_ipl_visibility_filter's
+           own real call list).
+
+        2. Never filtered by which IPLs are actually currently
+           visible/hidden at all (unlike every other overlay here,
+           e.g. _refresh_occl_box_visualization's own real
+           `if o.source_ipl not in hidden` check) - read every real
+           auzo entry from every loaded IPL unconditionally. Now
+           filters the same way."""
         vp = getattr(self, 'preview_widget', None)
         if vp is None or not hasattr(vp, 'set_auzo_zones'):
             return
@@ -25424,8 +25453,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if not auzos:
             vp.set_auzo_zones([])
             return
+        hidden = getattr(self, '_hidden_ipls', set())
         zones = []
         for a in auzos:
+            if a.source_ipl in hidden:
+                continue
             if a.is_sphere:
                 cx, cy, cz = a.x1, a.y1, a.z1
             else:
