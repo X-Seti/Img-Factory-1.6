@@ -8403,3 +8403,10 @@ conclusively found despite extensive isolated testing.
   default - grid stays same on-screen size regardless of zoom) or
   "Resize with models" (fixed world-unit cell size, grid scales with
   zoom the same way models do).
+
+- **Aug 20, 2026** — Fixed real "Locked" grid jitter: plain int(dist/
+  spacing) changed by 1 on almost every frame during zoom, visibly
+  repositioning every line each time. Now snaps to a 1-2-5-10-20-50...
+  sequence instead - only changes size a handful of times across a
+  full zoom range. Added "Marching ants honeycomb" (dashed hexagons)
+  and "None (hide grid)" to the Grid style dropdown.

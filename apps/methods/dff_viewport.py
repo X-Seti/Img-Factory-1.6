@@ -1624,6 +1624,25 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glEnable(GL_DEPTH_TEST)
         glEnable(GL_LIGHTING)
 
+    def _nice_grid_step(self, raw_step): #vers 1
+        """Snap to the nearest value in a 1-2-5-10-20-50... sequence
+        instead of every raw integer (Aug 20 2026, per Keith: "its
+        not really locked, it wiggles around when zooming in or out,
+        making is jitter") - a plain int(raw_step) changes by 1 on
+        almost every frame during continuous zoom, visibly
+        repositioning every grid line each time; snapping to a small,
+        widely-spaced set of round steps means the grid only actually
+        changes size a handful of times across a full zoom range,
+        not continuously."""
+        raw_step = max(1.0, raw_step)
+        import math
+        magnitude = 10 ** math.floor(math.log10(raw_step))
+        for mult in (1, 2, 5, 10):
+            candidate = magnitude * mult
+            if raw_step <= candidate * 1.3:
+                return int(candidate)
+        return int(magnitude * 10)
+
     def _draw_grid(self): #vers 3
         """Draw the viewport's own reference grid, in whichever real
         visual style self._grid_type currently selects (Aug 20 2026,
@@ -1671,7 +1690,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         if self._grid_scale_mode == 'fixed':
             step = max(1, int(self._grid_spacing))
         else:
-            step = max(1, int(self._dist / self._grid_spacing))
+            step = self._nice_grid_step(self._dist / self._grid_spacing)
         rng  = step * 10
         # The real world point the camera is currently looking at is
         # (-pan_x, -pan_y) - the scene itself is translated by (pan_x,
@@ -1681,6 +1700,9 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         cx = round(-self._pan_x / step) * step
         cy = round(-self._pan_y / step) * step
         grid_type = getattr(self, '_grid_type', 'lines')
+        if grid_type == 'none':
+            glEnable(GL_LIGHTING)
+            return
         if grid_type == 'squares':
             self._draw_grid_squares(step, rng, cx, cy)
         elif grid_type == 'dashed':
@@ -1689,6 +1711,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._draw_grid_dots(step, rng, cx, cy)
         elif grid_type == 'honeycomb':
             self._draw_grid_honeycomb(step, rng, cx, cy)
+        elif grid_type == 'honeycomb_dashed':
+            self._draw_grid_honeycomb(step, rng, cx, cy, dashed=True)
         else:
             self._draw_grid_lines(step, rng, cx, cy)
         glEnable(GL_LIGHTING)
@@ -2004,26 +2028,13 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         if not was_blend:
             glDisable(GL_BLEND)
 
-    def _draw_grid_honeycomb(self, step, rng, cx=0, cy=0): #vers 1
-        """'honeycomb' grid style - Keith's own request: "add
-        honeycomb effects" (Aug 20 2026). A real, standard hexagonal
-        tiling (pointy-top orientation - vertex at top/bottom, flat
-        sides left/right, the common "honeycomb" look), using the
-        well-established, standard math for this (the same real
-        formula documented at length by e.g. redblobgames.com's own
-        widely-used "hexagonal grids" reference, not invented here):
-        step is used as the hex's own centre-to-vertex radius `s`;
-        real horizontal spacing between adjacent hex centres in the
-        same row is `sqrt(3)*s`, real vertical spacing between rows
-        is `1.5*s`, and every other row is offset horizontally by
-        half that spacing (`sqrt(3)*s/2`) so the hexagons genuinely
-        interlock edge-to-edge rather than sitting in a plain
-        rectangular grid of hexagon shapes. Each hexagon's own 6
-        vertices are placed at 60-degree angle steps starting at
-        -30 degrees (the real, standard pointy-top vertex angles).
-        cx/cy: see _draw_grid_lines' own docstring. Same real anti-
-        aliasing treatment (GL_LINE_SMOOTH, saved/restored) as every
-        other line-based style, for the same real reason."""
+    def _draw_grid_honeycomb(self, step, rng, cx=0, cy=0, dashed=False): #vers 2
+        """'honeycomb' grid style, plus a dashed ("marching ants
+        honeycomb") variant (Aug 20 2026, per Keith: "marching ants
+        honeycomb"). See this method's own earlier version for the
+        real hexagon-tiling math; dashed just wraps the same drawing
+        in GL_LINE_STIPPLE, same real technique _draw_grid_dashed
+        already uses for the plain 'lines' style."""
         import math
         s = step
         hex_w = math.sqrt(3) * s
@@ -2034,6 +2045,9 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         glLineWidth(self._grid_line_size)
+        if dashed:
+            glEnable(GL_LINE_STIPPLE)
+            glLineStipple(2, 0x00FF)
         r, g, b = self._grid_line_color
         glColor4f(r / 255, g / 255, b / 255, 0.4)
         row = int((cy - rng) / hex_h) - 1
@@ -2053,6 +2067,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 glEnd()
                 col += 1
             row += 1
+        if dashed:
+            glDisable(GL_LINE_STIPPLE)
         glDisable(GL_LINE_SMOOTH)
         if not was_blend:
             glDisable(GL_BLEND)
