@@ -8685,3 +8685,10 @@ conclusively found despite extensive isolated testing.
   Added a "Flip sky gradient" checkbox (Environment settings), per
   Keith: "Remember when I said the timecyc was upside down? We need
   a toggle to switch it either way, just in case I was wrong."
+
+- **Aug 20, 2026** — Added "Show Load Options dialog on world load"
+  checkbox to Loading settings (already flagged as a TODO at the
+  call site), per Keith: "we need a settings option for this popup
+  so we can disable it if needed." Off skips the dialog entirely and
+  stays fully lazy, same as picking "Load from .dat file" in it
+  would.

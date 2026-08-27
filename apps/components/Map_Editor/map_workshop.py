@@ -3207,6 +3207,7 @@ class MapSettings(QObject):
         'load_text_plus_binary_ipl_set': True,
         # Preload IMG archives to OS disk cache on DAT load (Aug 16 2026)
         'preload_img_on_dat_load': False,
+        'show_load_options_dialog': True,
         # Verbose per-model loading dialog (Aug 1 2026)
         'show_verbose_loading_dialog': False,
         # Texture downscale (Aug 1 2026)
@@ -8535,6 +8536,18 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "it's not always a net win.")
         ld_form.addRow(preload_img_chk)
 
+        show_load_options_chk = QCheckBox("Show Load Options dialog on world load")
+        show_load_options_chk.setChecked(self.map_settings.get('show_load_options_dialog', True))
+        show_load_options_chk.setToolTip(
+            "The popup shown right after a world's IPL list is\n"
+            "discovered, letting you pick specific IPLs to load right\n"
+            "away (with model/texture options) instead of staying\n"
+            "fully lazy. Turn off to skip it and always stay lazy -\n"
+            "load individual IPLs later via their eye icon in IPL\n"
+            "Sections, the same as picking \"Load from .dat file\" in\n"
+            "that dialog would.")
+        ld_form.addRow(show_load_options_chk)
+
         verbose_loading_chk = QCheckBox("Show Full Loading Models (Debug)")
         verbose_loading_chk.setChecked(self.map_settings.get('show_verbose_loading_dialog'))
         verbose_loading_chk.setToolTip(
@@ -8721,6 +8734,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             # rest of the app actually read these settings from.
             self.map_settings.set('load_text_plus_binary_ipl_set', load_streams_chk.isChecked())
             self.map_settings.set('preload_img_on_dat_load', preload_img_chk.isChecked())
+            self.map_settings.set('show_load_options_dialog', show_load_options_chk.isChecked())
             self.map_settings.set('show_verbose_loading_dialog',   verbose_loading_chk.isChecked())
             self.map_settings.set('texture_downscale_enabled',   downscale_chk.isChecked())
             self.map_settings.set('texture_downscale_threshold', downscale_threshold_spin.value())
@@ -20600,12 +20614,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         QMessageBox.information(self, source_desc, loader.get_summary())
 
         if getattr(loader, 'lazy_ipl_loading', False) and loader.available_ipls:
-            selection = self._show_load_options_dialog(loader) #TODO; In settings have a auto load options dialog, No / Off
-            if selection is not None:
-                stems, load_models, load_textures = selection
-                if stems:
-                    self._load_selected_ipls_with_log(
-                        loader, model_cache, stems, load_models, load_textures)
+            if self.map_settings.get('show_load_options_dialog', True):
+                selection = self._show_load_options_dialog(loader)
+                if selection is not None:
+                    stems, load_models, load_textures = selection
+                    if stems:
+                        self._load_selected_ipls_with_log(
+                            loader, model_cache, stems, load_models, load_textures)
 
     def _load_selected_ipls_with_log(self, loader, model_cache, stems, load_models, load_textures): #vers 2
         """Load a batch of specific IPLs (from the Load Options dialog)"""
