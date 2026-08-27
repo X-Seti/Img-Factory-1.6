@@ -8569,3 +8569,8 @@ conclusively found despite extensive isolated testing.
   cycle data - confirmed sun_core comes out genuinely distinct from
   sky_bot at every hour, giving the gradient a real third stop rather
   than degenerating back to 2.
+
+- **Aug 20, 2026** — Fixed the sky gradient rendering upside-down
+  (zenith at the bottom, horizon glow at the top) - flipped, per
+  Keith: "the sky need flipping vertically." Noted for later:
+  fog is still on the list of real effects to add alongside this.

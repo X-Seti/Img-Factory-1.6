@@ -2062,17 +2062,20 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         mr, mg, mb = self._sky_gradient_bot
         hr, hg, hb = self._sky_gradient_horizon or self._sky_gradient_bot
         split = 0.4   # screen-space y where sky_bot sits, zenith above, horizon band below
+        # Y flipped vs the previous version (Aug 20 2026, per Keith:
+        # "the sky need flipping vertically" - it was rendering
+        # upside-down: zenith at the bottom, horizon glow at the top).
         glBegin(GL_QUADS)
         # Upper: zenith (sky_top) down to sky_bot at the split line
-        glColor3f(mr / 255, mg / 255, mb / 255); glVertex2f(0, split)
-        glColor3f(mr / 255, mg / 255, mb / 255); glVertex2f(1, split)
-        glColor3f(tr / 255, tg / 255, tb / 255); glVertex2f(1, 1)
-        glColor3f(tr / 255, tg / 255, tb / 255); glVertex2f(0, 1)
+        glColor3f(mr / 255, mg / 255, mb / 255); glVertex2f(0, 1 - split)
+        glColor3f(mr / 255, mg / 255, mb / 255); glVertex2f(1, 1 - split)
+        glColor3f(tr / 255, tg / 255, tb / 255); glVertex2f(1, 0)
+        glColor3f(tr / 255, tg / 255, tb / 255); glVertex2f(0, 0)
         # Lower: sky_bot at the split line down to the brighter horizon glow at the bottom
-        glColor3f(hr / 255, hg / 255, hb / 255); glVertex2f(0, 0)
-        glColor3f(hr / 255, hg / 255, hb / 255); glVertex2f(1, 0)
-        glColor3f(mr / 255, mg / 255, mb / 255); glVertex2f(1, split)
-        glColor3f(mr / 255, mg / 255, mb / 255); glVertex2f(0, split)
+        glColor3f(hr / 255, hg / 255, hb / 255); glVertex2f(0, 1)
+        glColor3f(hr / 255, hg / 255, hb / 255); glVertex2f(1, 1)
+        glColor3f(mr / 255, mg / 255, mb / 255); glVertex2f(1, 1 - split)
+        glColor3f(mr / 255, mg / 255, mb / 255); glVertex2f(0, 1 - split)
         glEnd()
         glEnable(GL_DEPTH_TEST)
         glMatrixMode(GL_PROJECTION); glPopMatrix()
