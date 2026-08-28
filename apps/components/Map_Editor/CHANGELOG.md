@@ -8772,3 +8772,16 @@ conclusively found despite extensive isolated testing.
   face would leave behind. Neither method ever touched cull-face
   state, so it depended on whatever was left over from the previous
   frame's own draw calls.
+
+- **Aug 20, 2026** — Made water's depth-testing explicit and
+  defensive, per Keith's follow-up: "looking at it side on, water
+  level appear correct... looking from above or below, the water is
+  blocking everything else out... is there a way to make the ipl
+  models take priority." Traced the full paintGL draw chain
+  (2DFX/paths/cull/zone/occl/tracks/nodes/auzo, each with its own
+  real disable/enable pairs) looking for an unbalanced GL_DEPTH_TEST
+  leak reaching water's own turn - didn't find a definitive one, but
+  rather than leave this only half-diagnosed, both water-drawing
+  methods now explicitly force GL_DEPTH_TEST on and GL_DEPTH_FUNC to
+  the standard GL_LESS right before drawing, instead of assuming
+  whatever state preceded them was already correct.

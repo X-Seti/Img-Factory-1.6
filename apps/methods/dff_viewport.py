@@ -3730,16 +3730,20 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glDisable(GL_CULL_FACE)
         # Depth writes off, test still on (Aug 20 2026, per Keith:
         # "when water is being rendered, don't render over loaded IPL
-        # models") - GL_DEPTH_TEST was already enabled globally
-        # (initializeGL) and nothing before this in paintGL's own
-        # draw order disables it without restoring, so opaque model
-        # geometry drawn earlier already correctly occludes water
-        # behind it. The real, standard gap for any semi-transparent
-        # surface like this is depth writes, not the test itself -
-        # leaving them on (the default) means this flat water plane's
-        # own depth values could interfere with other transparent
-        # overlays drawn after it. Read depth, don't write it - the
-        # correct, standard pattern for translucent geometry.
+        # models"). Real fix (Aug 20 2026, per Keith's own follow-up
+        # report, confirmed view-angle-dependent: "looking at it side
+        # on... water level appear correct... looking from above or
+        # below, the water is blocking everything else out... is
+        # there a way to make the ipl models take priority") -
+        # GL_DEPTH_TEST is enabled explicitly here now rather than
+        # just assumed already on from initializeGL/earlier draw
+        # calls - defensive, guaranteed-correct regardless of any
+        # upstream state this app's own long, real draw-call chain
+        # (2DFX/paths/cull/zone/occl/tracks/nodes/auzo, each with its
+        # own real disable/enable pairs) might leave behind by the
+        # time water's own turn comes around.
+        glEnable(GL_DEPTH_TEST)
+        glDepthFunc(GL_LESS)
         glDepthMask(GL_FALSE)
         for corners, water_type in self._water_shapes:
             is_shallow = bool(water_type & 2)
@@ -3833,10 +3837,13 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glDisable(GL_LIGHTING)
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-        # Depth writes off, test still on (Aug 20 2026, per Keith:
-        # "when water is being rendered, don't render over loaded IPL
-        # models") - same real reasoning _draw_water_shapes' own
-        # docstring gives for this exact same fix.
+        # Depth writes off, test still on. Real fix (Aug 20 2026, per
+        # Keith's own view-angle-dependent follow-up report - see
+        # _draw_water_shapes' own docstring for the full real quote
+        # and reasoning) - GL_DEPTH_TEST forced on explicitly here now
+        # rather than assumed, same defensive fix for the same reason.
+        glEnable(GL_DEPTH_TEST)
+        glDepthFunc(GL_LESS)
         glDepthMask(GL_FALSE)
         style = self._water_display_style
 
