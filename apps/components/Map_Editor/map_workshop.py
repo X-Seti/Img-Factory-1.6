@@ -25449,14 +25449,24 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         except Exception:
             return None
 
-    def _style_ipl_name_item(self, name_item, hidden, loaded=False): #vers 4
+    def _style_ipl_name_item(self, name_item, hidden, loaded=False): #vers 5
         """Grey out a disabled/hidden IPL's name text. Real fix (Aug
         20 2026, per Keith: "once proloaded, mark them as loaded
         white in the obj browser ipl llst") - loaded entries now get
         a genuinely brighter/white text colour, not just the existing
         "(Loaded)" text suffix, so a loaded IPL is visually distinct
         from an unloaded one at a glance, not just readable on close
-        inspection."""
+        inspection.
+
+        Real fix (Aug 20 2026, per Keith: "entries should be
+        displaying the theme aware white") - a hardcoded QColor(255,
+        255, 255) isn't theme-aware at all; a light theme's own
+        background could be close to pure white too, making loaded
+        entries hard to tell apart from the background rather than
+        from unloaded rows. Uses the palette's own real BrightText
+        role instead - Qt's own real, standard role for exactly this
+        ("distinct" emphasised text), so it stays correct whatever
+        theme is active, not just this app's current dark one."""
         pal = self.palette()
         text_color = pal.color(pal.ColorGroup.Active, pal.ColorRole.Text)
         if hidden:
@@ -25466,7 +25476,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 (text_color.green() + bg_color.green()) // 2,
                 (text_color.blue()  + bg_color.blue())  // 2)
         elif loaded:
-            color = QColor(255, 255, 255)
+            color = pal.color(pal.ColorGroup.Active, pal.ColorRole.BrightText)
         else:
             color = text_color
         name_item.setForeground(QBrush(color))

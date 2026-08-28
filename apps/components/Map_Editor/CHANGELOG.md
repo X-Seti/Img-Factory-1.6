@@ -8944,3 +8944,12 @@ conclusively found despite extensive isolated testing.
   after this point too - flagged separately, can be re-applied
   cleanly if wanted. tex/waterclear256.png and projects.json (both
   Keith's own separate commit) were left untouched.
+
+- Aug 20 2026 - Loaded IPL row text now uses the palette's own real
+  BrightText role instead of a hardcoded QColor(255,255,255), per
+  Keith: "entries should be displaying the theme aware white." A
+  fixed pure white isn't theme-aware - a light theme's own background
+  could sit close to it too, making loaded entries hard to tell apart
+  from the background rather than from unloaded rows. BrightText is
+  Qt's own standard role for exactly this (distinct/emphasised text),
+  so it adapts correctly whatever theme is active.
