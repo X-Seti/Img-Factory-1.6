@@ -8984,3 +8984,18 @@ conclusively found despite extensive isolated testing.
   have no remaining readers anywhere - wasted parsing work, not
   broken. Left as-is - out of scope for this pass, core parsing file
   shared by other tools.
+
+- Aug 20 2026 - Retooled the existing water auto-load pipeline into
+  water2 instead of leaving it unused, per Keith: "nothing is wasted,
+  things can be retooled." loader.waterpro/water_shapes were already
+  being populated automatically every world load (load_waterpro_dat/
+  load_water_dat's own already-working discovery) but had zero
+  readers left after the old system's removal. Extracted the grid-
+  to-cells/shapes-to-cells logic into shared _waterpro_to_cells/
+  _water_shapes_to_cells (used by both the manual Preload path and
+  the new automatic one, not duplicated). New _try_auto_water2_from_
+  loader called right after world load - water now shows itself
+  automatically the moment a world with a real water.dat/waterpro.dat
+  loads, no separate manual Preload step needed for the data itself
+  (the texture still needs preloading from tex/, since it's a real
+  app asset, not part of any game's own data).

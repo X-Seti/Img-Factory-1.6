@@ -20568,6 +20568,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._model_cache = model_cache
         model_cache.index_img_files(loader.get_img_paths())
 
+        # Retool the world load's own already-working water auto-load
+        # (Aug 20 2026, per Keith: "nothing is wasted, things can be
+        # retooled") - loader.waterpro/water_shapes are already real
+        # and populated by this same world load (load_waterpro_dat/
+        # load_water_dat, inside load_from_dat, above), so water2
+        # doesn't need Keith to separately re-pick the same file
+        # through Preload every time - only the texture still does.
+        self._try_auto_water2_from_loader()
+
         # Also register each real IMG file as a real, visible tab in
         # IMG Factory's own main tab system (Aug 20 2026, per Keith:
         # "loading img into img factory the other tools like txd
@@ -22907,6 +22916,71 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if hasattr(water_btn, 'set_shown'):
                 water_btn.set_shown(True)
 
+    def _waterpro_to_cells(self, waterpro, game): #vers 1
+        """Real, confirmed grid-to-cells logic (Aug 20 2026) - shared
+        now between the manual Preload path and the automatic world-
+        load retool below, per Keith: "nothing is wasted, things can
+        be retooled" - loader.waterpro is already populated
+        automatically by the world-load hook's own real WATER
+        directive/data-folder-fallback discovery, so this real
+        computation belongs in one place, not duplicated per caller."""
+        from apps.methods.gta_dat_parser import RADAR_GRID_PRESETS
+        preset = RADAR_GRID_PRESETS.get(game, RADAR_GRID_PRESETS['vc'])
+        grid_size = preset['grid_size']
+        half = grid_size / 2.0
+        gw = waterpro.grid_width
+        cell = grid_size / gw
+        cells = []
+        for row in range(gw):
+            for col in range(gw):
+                level_idx = waterpro.visible_map[row][col]
+                if level_idx == 128:
+                    continue
+                if level_idx < 0 or level_idx >= len(waterpro.levels):
+                    continue
+                height = waterpro.levels[level_idx].height
+                min_x = -half + col * cell
+                min_y = half - (row + 1) * cell
+                cells.append((min_x, min_y, min_x + cell, min_y + cell, height))
+        return cells
+
+    def _water_shapes_to_cells(self, shapes): #vers 1
+        """water.dat's own shapes are real, arbitrary polygons (not a
+        uniform grid) - reduced to each shape's own flat bounding box,
+        since _draw_water2 only knows flat rectangular cells (Aug 20
+        2026, shared for the same real reason _waterpro_to_cells is)."""
+        cells = []
+        for w in shapes:
+            xs = [c.x for c in w.corners]
+            ys = [c.y for c in w.corners]
+            zs = [c.z for c in w.corners]
+            cells.append((min(xs), min(ys), max(xs), max(ys), sum(zs) / len(zs)))
+        return cells
+
+    def _try_auto_water2_from_loader(self): #vers 1
+        """Retool loader.waterpro/loader.water_shapes into the new
+        water2 system automatically at world-load time (Aug 20 2026,
+        per Keith: "nothing is wasted, things can be retooled") -
+        those are already populated by the existing, already-working
+        auto-load pipeline (load_waterpro_dat/load_water_dat, with
+        their own real WATER-directive/data-folder-fallback/SOL
+        discovery), so water2 doesn't need Keith to separately re-
+        pick the same file through the Preload dialog every time -
+        only the texture (a real app asset, not part of any game's
+        own data) still needs a manual preload."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            return
+        waterpro = getattr(loader, 'waterpro', None)
+        water_shapes = getattr(loader, 'water_shapes', None)
+        if waterpro is not None:
+            game = getattr(loader, 'game', 'vc')
+            self._water2_cells_pending = self._waterpro_to_cells(waterpro, game)
+            self._apply_water2_preload()
+        elif water_shapes:
+            self._water2_cells_pending = self._water_shapes_to_cells(water_shapes)
+            self._apply_water2_preload()
+
     def _load_preloaded_file(self, path): #vers 2
         """Recognise and load one real file by its own real filename
         (Aug 20 2026, per Keith's own Preload dialog request above).
@@ -22973,38 +23047,17 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return False
         if name == 'waterpro.dat':
             # Real fix (Aug 20 2026, per Keith: "Water is broken...
-            # start again with a new water function, that preloads,
-            # and uses the IPL Control [WATER] button to show, and
-            # hide") - computes the same real flat cell list
-            # _refresh_water_visualization already did (real grid,
-            # real dry-cell skip, real world bounds) but pushes it to
-            # the new set_water2_data instead of the old settings-
-            # driven set_waterpro_cells path, and re-enables [Water]
-            # (disabled earlier this same session pending this
-            # rewrite) rather than the old set_shown call.
-            from apps.methods.gta_dat_parser import parse_waterpro_dat, RADAR_GRID_PRESETS
+            # start again with a new water function") - now calls the
+            # same shared _waterpro_to_cells helper _try_auto_water2_
+            # from_loader also uses, instead of its own separate copy
+            # of the same real computation (Aug 20 2026, per Keith:
+            # "nothing is wasted, things can be retooled").
+            from apps.methods.gta_dat_parser import parse_waterpro_dat
             result = parse_waterpro_dat(path)
             if result is None:
                 return False
             game_key = getattr(loader, 'game', 'vc')
-            preset = RADAR_GRID_PRESETS.get(game_key, RADAR_GRID_PRESETS['vc'])
-            grid_size = preset['grid_size']
-            half = grid_size / 2.0
-            gw = result.grid_width
-            cell = grid_size / gw
-            cells = []
-            for row in range(gw):
-                for col in range(gw):
-                    level_idx = result.visible_map[row][col]
-                    if level_idx == 128:
-                        continue
-                    if level_idx < 0 or level_idx >= len(result.levels):
-                        continue
-                    height = result.levels[level_idx].height
-                    min_x = -half + col * cell
-                    min_y = half - (row + 1) * cell
-                    cells.append((min_x, min_y, min_x + cell, min_y + cell, height))
-            self._water2_cells_pending = cells
+            self._water2_cells_pending = self._waterpro_to_cells(result, game_key)
             self._apply_water2_preload()
             return True
         if name == 'water.dat':
@@ -23012,18 +23065,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             shapes = parse_water_dat(path)
             if not shapes:
                 return False
-            # water.dat's own shapes are already real, arbitrary
-            # polygons (not a uniform grid) - reduced to each shape's
-            # own flat bounding box, since _draw_water2 only knows
-            # flat rectangular cells, the same real simplification
-            # waterpro.dat's own grid cells already are.
-            cells = []
-            for w in shapes:
-                xs = [c.x for c in w.corners]
-                ys = [c.y for c in w.corners]
-                zs = [c.z for c in w.corners]
-                cells.append((min(xs), min(ys), max(xs), max(ys), sum(zs) / len(zs)))
-            self._water2_cells_pending = cells
+            self._water2_cells_pending = self._water_shapes_to_cells(shapes)
             self._apply_water2_preload()
             return True
         if name.endswith('.png') or name.endswith('.jpg') or name.endswith('.jpeg'):
