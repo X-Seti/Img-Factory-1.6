@@ -8810,3 +8810,14 @@ conclusively found despite extensive isolated testing.
   itself was true. Now genuinely reverts everything on off: clears
   the sky gradient, background override, and ambient tint back to no
   tint, so lighting/background/sky all actually return to normal.
+
+- **Aug 20, 2026** — Removed [Tcyc] auto-starting the shared Tobj
+  time-flow timer, per Keith's own direct correction: "Timecyc
+  playing should be linked to TOJB, 2DFX time button, we dont need
+  to start time with TCYC button, thats only meant to toggle the sky
+  on or off?" Correct - [Tcyc] is a pure show/hide toggle for the
+  effect at whatever hour the shared clock currently says; time
+  progression stays exclusively the Tobj/2DFX time Play/Stop
+  button's own job. If that timer isn't running, [Tcyc] now correctly
+  shows a static snapshot rather than reaching into a control it was
+  never meant to own.
