@@ -8999,3 +8999,16 @@ conclusively found despite extensive isolated testing.
   loads, no separate manual Preload step needed for the data itself
   (the texture still needs preloading from tex/, since it's a real
   app asset, not part of any game's own data).
+
+- Aug 20 2026 - Fixed real crash bug, per Keith: "Map Workshop error:
+  'ModelWorkshop' object has no attribute '_on_show_tracks_toggled'".
+  A line-range deletion in the previous cleanup commit (removing
+  _refresh_water_visualization) accidentally also swallowed 3
+  unrelated methods that happened to sit directly after it in the
+  file: _on_show_tracks_toggled, _on_show_sa_nodes_toggled, _on_show_
+  auzo_toggled - all still referenced by their own real button
+  connections, so Tracks/SA Nodes/Auzo toggles were all broken, not
+  just Tracks. Restored all 3 exactly via git show on the commit that
+  removed them. Re-verified the rest of that same commit's diff (both
+  files) for the same mistake - confirmed nothing else unrelated was
+  swallowed.

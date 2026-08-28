@@ -26157,6 +26157,30 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             zones.append((cx, cy, cz, a.name, a.sound_id, a.environment_type, a.music_description))
         vp.set_auzo_zones(zones)
 
+    def _on_show_tracks_toggled(self, checked): #vers 1
+        """Show Tracks checked/unchecked."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is not None and hasattr(vp, 'set_show_tracks'):
+            vp.set_show_tracks(checked)
+        if checked:
+            self._refresh_track_visualization()
+
+    def _on_show_sa_nodes_toggled(self, checked): #vers 1
+        """Show SA Nodes checked/unchecked."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is not None and hasattr(vp, 'set_show_sa_nodes'):
+            vp.set_show_sa_nodes(checked)
+        if checked:
+            self._refresh_sa_node_visualization()
+
+    def _on_show_auzo_toggled(self, checked): #vers 1
+        """Show Auzo checked/unchecked."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is not None and hasattr(vp, 'set_show_auzo_zones'):
+            vp.set_show_auzo_zones(checked)
+        if checked:
+            self._refresh_auzo_visualization()
+
     def _on_show_water_toggled(self, checked): #vers 3
         """Show Water checked/unchecked.
 
