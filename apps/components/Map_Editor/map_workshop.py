@@ -3181,6 +3181,7 @@ class MapSettings(QObject):
         'water_texture_path': '',
         'water_tile_size': 256,
         'water_hide_outside_map': False,
+        'preload_saved_files': [],
 
         # distinct from paths' red.
         'cull_box_color': (255, 217, 51),
@@ -8120,15 +8121,22 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         grid_type_combo = QComboBox()
         grid_type_items = [
             ('lines',            'Lines (default)'),
-            ('squares',          'Squares (blue fill)'),
+            # ('squares',          'Squares (blue fill)'),  # Temporarily disabled (Aug 20 2026, per Keith: "remove the square (blue fill) entry, temp comment it out if possible. So that function doesn't affect testing") - kept as its own entry, since Keith's own request was to comment it out rather than delete it, in case it's needed again later.
             ('dashed',           'Marching ants (dashed)'),
             ('dots',             'Dots only'),
             ('honeycomb',        'Honeycomb (hexagons)'),
             ('honeycomb_dashed', 'Marching ants honeycomb'),
+            ('none',             'Hide grid'),
         ]
         for key, label in grid_type_items:
             grid_type_combo.addItem(label, key)
         current_grid_type = self.map_settings.get('grid_type')
+        if current_grid_type == 'squares':
+            # Force back to the default while Squares is disabled
+            # above, rather than silently falling through to index 0
+            # and leaving the real saved setting still pointing at a
+            # style that's no longer selectable at all.
+            current_grid_type = 'lines'
         idx = next((i for i, (k, _) in enumerate(grid_type_items) if k == current_grid_type), 0)
         grid_type_combo.setCurrentIndex(idx)
         grid_type_combo.setToolTip(
@@ -22765,7 +22773,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         self._refresh_ipl_inst_file_panel()
 
-    def _show_preload_dialog(self): #vers 1
+    def _show_preload_dialog(self): #vers 2
         """New "Preload" dialog (Aug 20 2026, per Keith: "we need a
         preload menu, on a right click, and map workshop menu, where
         it shows the contents on the game/data/ folder, picking the
@@ -22777,15 +22785,28 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         list on the right that files get moved into via >>/<<, with
         a real Load button that parses and applies whichever real
         file types this app actually knows how to load (water.dat/
-        waterpro.dat/timecyc.dat right now) - unrecognised file types
-        stay listed but do nothing when loaded, rather than silently
-        being hidden, since Keith's own request was to see the real
-        folder contents directly, not a filtered guess at what he
-        might want."""
+        waterpro.dat/timecyc.dat/.img right now) - unrecognised file
+        types stay listed but do nothing when loaded, rather than
+        silently being hidden, since Keith's own request was to see
+        the real folder contents directly, not a filtered guess at
+        what he might want.
+
+        Real additions (Aug 20 2026, per Keith: "need a save button
+        that remembers picked entries, also able to see the path
+        files, dir level up down"):
+        - Real directory navigation - a real, editable current-folder
+          path field, an "Up" button, and double-clicking a real
+          subfolder entry (shown with a trailing "/") navigates into
+          it, not just the one fixed data folder.
+        - A real Save button that persists the current "to preload"
+          list's own real file paths to map_settings, restored
+          automatically the next time this dialog opens - the same
+          picks are there again without re-building the list by
+          hand each time."""
         folders = self._game_data_folder_candidates()
         dlg = QDialog(self)
         dlg.setWindowTitle("Preload Game Data Files")
-        dlg.resize(640, 420)
+        dlg.resize(680, 460)
         outer = QVBoxLayout(dlg)
 
         if not folders:
@@ -22798,21 +22819,52 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             dlg.exec()
             return
 
-        folder_label = QLabel(f"Folder: {folders[0]}")
-        folder_label.setToolTip("\n".join(folders))
-        outer.addWidget(folder_label)
+        current_folder = [folders[0]]   # mutable box so inner closures can rebind it
+
+        path_row = QHBoxLayout()
+        path_edit = QLineEdit(current_folder[0])
+        up_btn = QPushButton("Up")
+        path_row.addWidget(QLabel("Folder:"))
+        path_row.addWidget(path_edit)
+        path_row.addWidget(up_btn)
+        outer.addLayout(path_row)
 
         lists_row = QHBoxLayout()
         avail_list = QListWidget()
         avail_list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
-        try:
-            names = sorted(os.listdir(folders[0]))
-        except OSError:
-            names = []
-        for name in names:
-            full = os.path.join(folders[0], name)
-            if os.path.isfile(full):
-                avail_list.addItem(name)
+
+        def _refresh_avail_list(): #vers 1
+            avail_list.clear()
+            path_edit.setText(current_folder[0])
+            try:
+                entries = sorted(os.listdir(current_folder[0]))
+            except OSError:
+                entries = []
+            for entry_name in entries:
+                full = os.path.join(current_folder[0], entry_name)
+                if os.path.isdir(full):
+                    item = QListWidgetItem(entry_name + "/")
+                    item.setData(Qt.ItemDataRole.UserRole, ('dir', full))
+                    avail_list.addItem(item)
+            for entry_name in entries:
+                full = os.path.join(current_folder[0], entry_name)
+                if os.path.isfile(full):
+                    item = QListWidgetItem(entry_name)
+                    item.setData(Qt.ItemDataRole.UserRole, ('file', full))
+                    avail_list.addItem(item)
+
+        def _go_up(): #vers 1
+            parent = os.path.dirname(os.path.normpath(current_folder[0]))
+            if parent and parent != current_folder[0]:
+                current_folder[0] = parent
+                _refresh_avail_list()
+        def _go_to_typed_path(): #vers 1
+            typed = path_edit.text()
+            if os.path.isdir(typed):
+                current_folder[0] = typed
+                _refresh_avail_list()
+        up_btn.clicked.connect(_go_up)
+        path_edit.returnPressed.connect(_go_to_typed_path)
 
         btn_col = QVBoxLayout()
         to_preload_btn = QPushButton(">>")
@@ -22825,23 +22877,32 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         preload_list = QListWidget()
         preload_list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
 
-        def _move_to_preload(): #vers 1
+        def _move_to_preload(): #vers 2
             for item in avail_list.selectedItems():
-                row = avail_list.row(item)
-                taken = avail_list.takeItem(row)
-                preload_list.addItem(taken)
+                kind, full = item.data(Qt.ItemDataRole.UserRole)
+                if kind == 'dir':
+                    continue   # folders navigate, they don't preload
+                new_item = QListWidgetItem(item.text())
+                new_item.setData(Qt.ItemDataRole.UserRole, full)
+                preload_list.addItem(new_item)
         def _move_to_avail(): #vers 1
             for item in preload_list.selectedItems():
                 row = preload_list.row(item)
-                taken = preload_list.takeItem(row)
-                avail_list.addItem(taken)
+                preload_list.takeItem(row)
+        def _avail_double_clicked(item): #vers 1
+            kind, full = item.data(Qt.ItemDataRole.UserRole)
+            if kind == 'dir':
+                current_folder[0] = full
+                _refresh_avail_list()
+            else:
+                _move_to_preload()
         to_preload_btn.clicked.connect(_move_to_preload)
         to_avail_btn.clicked.connect(_move_to_avail)
-        avail_list.itemDoubleClicked.connect(lambda item: _move_to_preload())
+        avail_list.itemDoubleClicked.connect(_avail_double_clicked)
         preload_list.itemDoubleClicked.connect(lambda item: _move_to_avail())
 
         avail_col = QVBoxLayout()
-        avail_col.addWidget(QLabel("Available files (double-click or >> to add):"))
+        avail_col.addWidget(QLabel("Available (double-click a folder to open it, a file or >> to add):"))
         avail_col.addWidget(avail_list)
         preload_col = QVBoxLayout()
         preload_col.addWidget(QLabel("To preload:"))
@@ -22852,32 +22913,52 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         lists_row.addLayout(preload_col)
         outer.addLayout(lists_row)
 
+        # Restore any previously saved picks (full real paths, so
+        # they still resolve correctly even after navigating away
+        # from the folder they were originally picked in).
+        saved_picks = self.map_settings.get('preload_saved_files') or []
+        for full in saved_picks:
+            if os.path.isfile(full):
+                item = QListWidgetItem(os.path.basename(full))
+                item.setData(Qt.ItemDataRole.UserRole, full)
+                preload_list.addItem(item)
+
+        _refresh_avail_list()
+
         status_label = QLabel("")
         outer.addWidget(status_label)
 
         btn_row = QHBoxLayout()
+        save_btn = QPushButton("Save Picks")
         load_btn = QPushButton("Load")
         close_btn = QPushButton("Close")
+        btn_row.addWidget(save_btn)
         btn_row.addStretch()
         btn_row.addWidget(load_btn)
         btn_row.addWidget(close_btn)
         outer.addLayout(btn_row)
 
-        def _do_load(): #vers 1
+        def _do_save(): #vers 1
+            paths = [preload_list.item(i).data(Qt.ItemDataRole.UserRole)
+                     for i in range(preload_list.count())]
+            self.map_settings.set('preload_saved_files', paths)
+            status_label.setText(f"Saved {len(paths)} pick(s) - restored automatically next time this opens.")
+        def _do_load(): #vers 2
             loaded, unrecognised = [], []
             for i in range(preload_list.count()):
-                name = preload_list.item(i).text()
-                full = os.path.join(folders[0], name)
+                item = preload_list.item(i)
+                full = item.data(Qt.ItemDataRole.UserRole)
                 if self._load_preloaded_file(full):
-                    loaded.append(name)
+                    loaded.append(item.text())
                 else:
-                    unrecognised.append(name)
+                    unrecognised.append(item.text())
             msg = []
             if loaded:
                 msg.append(f"Loaded: {', '.join(loaded)}")
             if unrecognised:
                 msg.append(f"Not a recognised type (no action taken): {', '.join(unrecognised)}")
             status_label.setText("\n".join(msg) if msg else "Nothing selected.")
+        save_btn.clicked.connect(_do_save)
         load_btn.clicked.connect(_do_load)
         close_btn.clicked.connect(dlg.accept)
         dlg.exec()

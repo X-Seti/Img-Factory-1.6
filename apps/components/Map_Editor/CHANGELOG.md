@@ -8898,3 +8898,27 @@ conclusively found despite extensive isolated testing.
   (checked by real file path) so re-loading a world repeatedly
   doesn't pile up duplicate tabs. Same real fix added to the Preload
   dialog for .img entries specifically.
+
+- **Aug 20, 2026** — Two real fixes, per Keith's own screenshot
+  confirming waterpro.dat loaded successfully:
+
+  1. "remove the square (blue fill) entry, temp comment it out if
+     possible... add 'Hide Grid'" - Squares commented out (not
+     deleted, per Keith's own explicit preference) in the grid style
+     dropdown; a saved grid_type of 'squares' from before now falls
+     back to Lines rather than silently disappearing. Re-added the
+     earlier-removed "Hide grid" ('none') option to the same
+     dropdown, alongside the existing separate Show Grid quick
+     toggle - couldn't reproduce his own report that toggle also
+     disables water through code tracing (show_water and _show_grid
+     are genuinely independent dispatches in paintGL), so this gives
+     a second, alternate way to hide the grid to test against.
+
+  2. Preload dialog real additions, per Keith: "need a save button
+     that remembers picked entries, also able to see the path files,
+     dir level up down" - real directory navigation now (editable
+     path field, Up button, double-click a folder to open it,
+     folders listed with a trailing "/" ahead of files) instead of
+     being fixed to the one data folder; a real Save Picks button
+     persists the current preload list's own real file paths, auto-
+     restored the next time the dialog opens.
