@@ -2040,12 +2040,28 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         width, wrapping around as the camera yaws), rather than the
         same single frame repeated on all 4 sides - a real skybox
         image is generally authored as a single wraparound panorama,
-        not 4 identical copies."""
+        not 4 identical copies.
+
+        Real fix (Aug 20 2026, per Keith: "The sky has glitches...
+        Timecyc works, but at some angles it glitches with odd
+        shapes", confirmed directly in his own screenshots - a solid
+        black wedge cutting into the sky) - same real GL_CULL_FACE gap
+        _draw_sky_gradient's own docstring explains for that exact
+        same bug: this never touched cull-face state at all, so it
+        depended on whatever paintGL's own real backface-cull setting
+        happened to be left over from the previous frame. From inside
+        this box, every face is genuinely viewed from its own back
+        side - a real, standard skybox situation - so if culling was
+        left on, whole faces could vanish depending on which way the
+        camera was facing, showing the real clear colour (black, by
+        default) through the gap - the exact shape reported."""
         if not self._skybox_path:
             return
         tex_id = self._ensure_skybox_texture()
         if not tex_id:
             return
+        was_cull = glIsEnabled(GL_CULL_FACE)
+        glDisable(GL_CULL_FACE)
         glDisable(GL_DEPTH_TEST)
         glDisable(GL_LIGHTING)
         glEnable(GL_TEXTURE_2D)
@@ -2070,6 +2086,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glBindTexture(GL_TEXTURE_2D, 0)
         glDisable(GL_TEXTURE_2D)
         glEnable(GL_DEPTH_TEST)
+        if was_cull:
+            glEnable(GL_CULL_FACE)
 
     def _draw_sky_gradient(self): #vers 3
         """Real, world-space "box sky" - 4 large vertical quads (N/S/
@@ -2096,7 +2114,26 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         visible from, since real terrain always extends to the
         horizon in every direction. Kept the whole box sky at or
         above the real horizon line (Z=0) now - the glow band is a
-        thin strip just above it instead of extending below."""
+        thin strip just above it instead of extending below.
+
+        Real fix (Aug 20 2026, per Keith: "The sky has glitches...
+        Timecyc works, but at some angles it glitches with odd
+        shapes") - this never touched GL_CULL_FACE at all, so its own
+        state here depended entirely on whatever paintGL's own real
+        backface-cull setting left over from the previous frame -
+        paintGL doesn't actually set that state until right after
+        this call returns, not before it. From inside this box, every
+        face is genuinely being viewed from its own back side (the
+        box surrounds the camera - a real, standard skybox situation,
+        not a mistake in the winding order itself), so if backface
+        culling happened to be left on from an earlier draw call,
+        whole faces could vanish depending on which way the camera
+        was actually facing at that moment - the real "odd shapes at
+        some angles" being reported. Explicitly disabled here now,
+        restored to whatever it was afterward, the same real pattern
+        _draw_grid's own earlier depth-test fix already established."""
+        was_cull = glIsEnabled(GL_CULL_FACE)
+        glDisable(GL_CULL_FACE)
         glDisable(GL_DEPTH_TEST)
         glDisable(GL_LIGHTING)
         top_color, bot_color, horizon_color = (
@@ -2136,6 +2173,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             glColor3f(mr / 255, mg / 255, mb / 255); glVertex3f(x1, y1, mid_z)
         glEnd()
         glEnable(GL_DEPTH_TEST)
+        if was_cull:
+            glEnable(GL_CULL_FACE)
 
     def set_sky_gradient_flipped(self, flipped): #vers 1
         self._sky_gradient_flipped = bool(flipped)

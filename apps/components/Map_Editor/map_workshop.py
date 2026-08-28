@@ -22964,17 +22964,37 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         include/exclude TOBJ-type instances."""
         self._refresh_ipl_inst_file_panel()
 
-    def _on_tcyc_toggled(self, checked): #vers 2
+    def _on_tcyc_toggled(self, checked): #vers 3
         """[TCYC] toggle - play/stop the loaded timecyc file's own
         day/night cycle, merged into the same row as [2DFX]/[TObj]
         (Aug 20 2026, per Keith's own request). Resets the button's
         own label back to plain "Tcyc" when turned off (Aug 20 2026)
         - _on_tobj_time_changed's own live time label only updates
         while this is checked, so without this it would otherwise
-        keep showing whatever time it last stopped at."""
+        keep showing whatever time it last stopped at.
+
+        Real fix (Aug 20 2026, per Keith: "since we merged the
+        Timecyc timer over to Tojbs, 2DFX, [TCYC] Button doesn't
+        really do anything... [Water] should turn the water effect on
+        and off, and the same with TCYC button") - unifying timecyc's
+        own hour with the one, real, shared Tobj time-flow clock
+        (fixing the earlier, separate "two timers" bug) had a real
+        side effect: set_timecyc_playing(True) alone only ever applies
+        whatever hour happened to be set at that one moment - a static
+        snapshot, not an actually running cycle, unless that same
+        shared clock's own timer is separately running too. On its
+        own this button no longer visibly did anything ongoing,
+        unlike every other real on/off overlay toggle on this same
+        row. Now also starts that shared clock automatically (if it
+        isn't already running) the moment this is turned on, so
+        [TCYC] genuinely behaves like every other real play/stop
+        toggle here again - one real clock underneath, not turning
+        this back into a second, separate timer of its own."""
         vp = getattr(self, 'preview_widget', None)
         if vp is not None and hasattr(vp, 'set_timecyc_playing'):
             vp.set_timecyc_playing(checked)
+        if checked and not self._time_flow_timer.isActive():
+            self._start_time_flow(self._time_play_btn, self._time_stop_btn)
         if not checked:
             tcyc_btn = getattr(self, '_tcyc_chk', None)
             if tcyc_btn is not None and hasattr(tcyc_btn, 'set_label'):

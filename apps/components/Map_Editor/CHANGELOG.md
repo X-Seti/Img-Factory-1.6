@@ -8764,3 +8764,11 @@ conclusively found despite extensive isolated testing.
   [browse] with the path to where the waterpro.dat is." Manually
   parses the chosen file as either format (waterpro.dat first, water.
   dat as fallback) and refreshes the water overlay immediately.
+
+- **Aug 20, 2026** — Applied the same real GL_CULL_FACE fix to the
+  image Skybox that _draw_sky_gradient already got - confirmed
+  directly from Keith's own screenshots (a solid black wedge cutting
+  into the sky at certain angles), the exact shape a culled box-sky
+  face would leave behind. Neither method ever touched cull-face
+  state, so it depended on whatever was left over from the previous
+  frame's own draw calls.
