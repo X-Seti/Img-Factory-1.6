@@ -8933,97 +8933,14 @@ conclusively found despite extensive isolated testing.
   triggers the same load path the eye-icon click uses, instead of
   showing "not a recognised type".
 
-- Aug 20 2026 - Cull/Zon/Occlusion/Paths/Tracks/Tcyc buttons in IPL
-  Controls now use SVG icons (24x24, icon-only) instead of text
-  labels, per Keith: Cull, Zon, Occlusion, Paths, Tracks, and TCYC
-  can be moved to ribbons, with nice SVG icons. New icons added to
-  imgfactory_svg_icons.py: get_cull_zone_icon, get_zone_icon,
-  get_occlusion_icon, get_paths_icon, get_tracks_icon, get_tcyc_
-  toggle_icon. _MapOverlayToggleButton takes an optional icon param
-  now - label kept as tooltip text.
-
-- Aug 20 2026 - Water disconnected pending rewrite, per Keith: Water
-  is broken, disconnect from workshop settings, disable the water
-  button, start again with a new water function. water_grp no longer
-  added to Render settings layout (widget still built, just not
-  shown). [Water] button disabled in IPL Controls.
-
-- Aug 20 2026 - New, simpler water system, per Keith: start again
-  with a new water function, that preloads, and uses the IPL Control
-  [WATER] button to show and hide, texture from tex/ can also be
-  preloaded as an asset. Added set_water2_data/_ensure_water2_
-  texture/_draw_water2 to DFFViewport (self.show_water reused as the
-  same on/off flag [Water] already toggles) - one real cell list, one
-  optional real texture, no settings-driven style/tile/hide-outside-
-  map config. paintGL now calls _draw_water2 instead of the old two-
-  method pair (old methods left in place, not yet deleted). Preload
-  dialog: waterpro.dat/water.dat now push to the new system instead
-  of the old one; .png/.jpg recognised as a texture asset; new "App
-  Textures" shortcut button jumps straight to this app's own tex/
-  folder. [Water] re-enables itself automatically once real water
-  data is preloaded.
-
-- Aug 20 2026 - Old water system fully removed, per Keith's "start
-  again" rewrite. Deleted dead methods: _draw_water_shapes, _draw_
-  waterpro_water, _ensure_water_texture (dff_viewport.py); _refresh_
-  water_visualization and all 5 of its call sites, the disconnected
-  water_grp settings block, water_map_extent sync call, and the
-  startup settings-restore block for water style/texture/hide-
-  outside-map (map_workshop.py). _on_show_water_toggled simplified
-  to a plain toggle (no old-data status check).
-
-  Caught and fixed a real crash bug introduced by the water_grp
-  removal: the settings Apply handler still referenced water_style_
-  combo/water_texture_path_edit/water_tile_size_spin/water_hide_
-  outside_chk, which no longer existed - would have thrown NameError
-  and broken the whole settings dialog's Apply, not just water.
-  Removed that dead block too.
-
-  Noted, not acted on: loader.water_shapes/loader.waterpro (gta_dat_
-  parser.py) are still populated automatically during world load but
-  have no remaining readers anywhere - wasted parsing work, not
-  broken. Left as-is - out of scope for this pass, core parsing file
-  shared by other tools.
-
-- Aug 20 2026 - Retooled the existing water auto-load pipeline into
-  water2 instead of leaving it unused, per Keith: "nothing is wasted,
-  things can be retooled." loader.waterpro/water_shapes were already
-  being populated automatically every world load (load_waterpro_dat/
-  load_water_dat's own already-working discovery) but had zero
-  readers left after the old system's removal. Extracted the grid-
-  to-cells/shapes-to-cells logic into shared _waterpro_to_cells/
-  _water_shapes_to_cells (used by both the manual Preload path and
-  the new automatic one, not duplicated). New _try_auto_water2_from_
-  loader called right after world load - water now shows itself
-  automatically the moment a world with a real water.dat/waterpro.dat
-  loads, no separate manual Preload step needed for the data itself
-  (the texture still needs preloading from tex/, since it's a real
-  app asset, not part of any game's own data).
-
-- Aug 20 2026 - Fixed real crash bug, per Keith: "Map Workshop error:
-  'ModelWorkshop' object has no attribute '_on_show_tracks_toggled'".
-  A line-range deletion in the previous cleanup commit (removing
-  _refresh_water_visualization) accidentally also swallowed 3
-  unrelated methods that happened to sit directly after it in the
-  file: _on_show_tracks_toggled, _on_show_sa_nodes_toggled, _on_show_
-  auzo_toggled - all still referenced by their own real button
-  connections, so Tracks/SA Nodes/Auzo toggles were all broken, not
-  just Tracks. Restored all 3 exactly via git show on the commit that
-  removed them. Re-verified the rest of that same commit's diff (both
-  files) for the same mistake - confirmed nothing else unrelated was
-  swallowed.
-
-- Aug 20 2026 - Fixed Preload dialog's Save Picks not actually
-  persisting to disk, per Keith: "reload has the entries saved but
-  there not being loaded, this worked before we removed the old
-  water function." _do_save only ever called map_settings.set()
-  (updates the in-memory dict only) - real persistence only happened
-  via the app's own quit-time auto-save, so anything short of a
-  clean exit (this session's own earlier container reset included)
-  lost it. Now calls map_settings.save() immediately, same real
-  pattern every other explicit save action in this file already
-  uses. Noted, not yet fixed: img_factory_settings.py has two
-  identical def set() definitions on the same settings class -
-  harmless (both do the same thing, second just shadows the first)
-  but a real duplicate worth flagging per the project's own no-
-  duplicate-functions rule.
+- Aug 20 2026 - Restored map_workshop.py/dff_viewport.py to this
+  exact point (commit 2f509b56), per Keith: "restore just before we
+  removed the water code." The whole water rewrite that followed
+  (disconnect from settings, new Preload-driven water2 system, full
+  removal of the old system, retooling the auto-load pipeline, plus
+  a real crash bug it introduced along the way and a real Save Picks
+  persistence bug) is reverted. Also reverts the SVG icon work for
+  Cull/Zon/Occlusion/Paths/Tracks/Tcyc (910099cf), since that came
+  after this point too - flagged separately, can be re-applied
+  cleanly if wanted. tex/waterclear256.png and projects.json (both
+  Keith's own separate commit) were left untouched.

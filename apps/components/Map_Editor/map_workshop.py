@@ -3979,21 +3979,10 @@ class _MapOverlayToggleButton(QToolButton): #vers 1
     show_toggled = pyqtSignal(bool)
     edit_toggled = pyqtSignal(bool)
 
-    def __init__(self, label, supports_edit=False, parent=None, icon=None): #vers 2
+    def __init__(self, label, supports_edit=False, parent=None): #vers 1
         super().__init__(parent)
-        self._label = label
-        if icon is not None:
-            # Icon-only ribbon-style button (Aug 20 2026, per Keith:
-            # "Cull, Zon, Occlusion, Paths, Tracks, and TCYC can be
-            # moved to ribbons, with nice SVG icons") - label kept as
-            # the tooltip, not shown as text, so it stays compact.
-            self.setIcon(icon)
-            self.setIconSize(QSize(18, 18))
-            self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
-            self.setFixedSize(24, 24)
-        else:
-            self.setText(label)
-            self.setFixedHeight(20)
+        self.setText(label)
+        self.setFixedHeight(20)
         self._shown = False
         self._editing = False
         self._supports_edit = supports_edit
@@ -4016,7 +4005,7 @@ class _MapOverlayToggleButton(QToolButton): #vers 1
             else:
                 mw = self.window()
                 if mw is not None and hasattr(mw, '_set_status'):
-                    mw._set_status(f"No edit mode available for {self._label} yet")
+                    mw._set_status(f"No edit mode available for {self.text()} yet")
         # Deliberately not calling super().mousePressEvent() - this
         # widget fully owns its own click behaviour rather than also
         # triggering QToolButton's own default checked/pressed
@@ -8379,8 +8368,101 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "versus near the horizon.")
         env_form.addRow(sky_flip_chk)
 
+        water_grp = QGroupBox("Water Display")
+        water_form = QFormLayout(water_grp)
+
+        water_path_edit = QLineEdit()
+        loader_for_water = getattr(self, '_world_loader', None)
+        water_loaded = bool(getattr(loader_for_water, 'water_shapes', None) or getattr(loader_for_water, 'waterpro', None))
+        water_path_display = "Loaded (water.dat/waterpro.dat)" if water_loaded else ''
+        water_path_edit.setText(water_path_display)
+        water_path_edit.setReadOnly(True)
+        water_path_edit.setPlaceholderText("Not found - Browse to point at it directly")
+        water_browse_btn = QPushButton("Browse…")
+        water_browse_btn.setToolTip(
+            "Per Keith: \"the waterpro.dat is in gameroot/data/waterpro.\n"
+            "dat; if it's not found, ask for it, [browse] with the path\n"
+            "to where the waterpro.dat is.\" Manually point at a real\n"
+            "water.dat or waterpro.dat if auto-detection (the game's\n"
+            "own WATER directive, then gameroot/data/, then the active\n"
+            "project's own game root) didn't find one.")
+        def _browse_water_file(): #vers 1
+            path, _ = QFileDialog.getOpenFileName(
+                self, "Choose water.dat or waterpro.dat", "", "Water data (*.dat)")
+            if not path:
+                return
+            loader = getattr(self, '_world_loader', None)
+            if loader is None:
+                QMessageBox.warning(self, "No World Loaded",
+                    "Load a world first, then Browse for its own water.dat/waterpro.dat.")
+                return
+            from apps.methods.gta_dat_parser import parse_water_dat, parse_waterpro_dat
+            result = parse_waterpro_dat(path)
+            if result is not None:
+                loader.waterpro = result
+            else:
+                shapes = parse_water_dat(path)
+                if shapes:
+                    loader.water_shapes = shapes
+                else:
+                    QMessageBox.warning(self, "Water File",
+                        f"Couldn't parse {os.path.basename(path)} as either a real water.dat or waterpro.dat.")
+                    return
+            water_path_edit.setText(f"Loaded ({os.path.basename(path)}, manually chosen)")
+            self._refresh_water_visualization()
+        water_browse_btn.clicked.connect(_browse_water_file)
+        water_path_row = QHBoxLayout()
+        water_path_row.addWidget(water_path_edit)
+        water_path_row.addWidget(water_browse_btn)
+        water_form.addRow("Water file:", water_path_row)
+
+        water_style_combo = QComboBox()
+        water_style_items = [
+            ('fill',     'Flat fill (default)'),
+            ('lines',    'Outline lines'),
+            ('dots',     'Dots'),
+            ('hexagons', 'Hexagons'),
+            ('texture',  'Custom texture (tiled)'),
+        ]
+        for key, label in water_style_items:
+            water_style_combo.addItem(label, key)
+        saved_water_style = self.map_settings.get('water_display_style') or 'fill'
+        idx = next((i for i, (k, _) in enumerate(water_style_items) if k == saved_water_style), 0)
+        water_style_combo.setCurrentIndex(idx)
+        water_form.addRow("Water style:", water_style_combo)
+
+        water_texture_path_edit = QLineEdit(self.map_settings.get('water_texture_path') or '')
+        water_texture_path_edit.setReadOnly(True)
+        water_texture_browse_btn = QPushButton("Browse…")
+        def _browse_water_texture(): #vers 1
+            path, _ = QFileDialog.getOpenFileName(
+                self, "Choose Water Texture", "", "Images (*.png *.jpg *.jpeg *.bmp *.tga)")
+            if path:
+                water_texture_path_edit.setText(path)
+        water_texture_browse_btn.clicked.connect(_browse_water_texture)
+        water_texture_row = QHBoxLayout()
+        water_texture_row.addWidget(water_texture_path_edit)
+        water_texture_row.addWidget(water_texture_browse_btn)
+        water_form.addRow("Custom texture:", water_texture_row)
+
+        water_tile_size_spin = QSpinBox()
+        water_tile_size_spin.setRange(64, 1024)
+        water_tile_size_spin.setSingleStep(64)
+        water_tile_size_spin.setValue(int(self.map_settings.get('water_tile_size') or 256))
+        water_form.addRow("Texture tile size:", water_tile_size_spin)
+
+        water_hide_outside_chk = QCheckBox("Hide water outside map boundary")
+        water_hide_outside_chk.setChecked(bool(self.map_settings.get('water_hide_outside_map')))
+        water_hide_outside_chk.setToolTip(
+            "Same real idea as \"Hide grid over radar tiles\" above,\n"
+            "just inverted for water - skips any water cell whose own\n"
+            "centre falls outside the currently loaded game's real map\n"
+            "area, instead of showing it stretched across the void.")
+        water_form.addRow(water_hide_outside_chk)
+
         render_layout.addWidget(boxes_grp)
         render_layout.addWidget(radar_grp)
+        render_layout.addWidget(water_grp)
         render_layout.addWidget(env_grp)
         render_layout.addStretch()
         tabs.addTab(render_tab_outer, "Render")
@@ -8969,6 +9051,23 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.map_settings.set('sky_gradient_flipped', sky_flip_val)
             if vp is not None and hasattr(vp, 'set_sky_gradient_flipped'):
                 vp.set_sky_gradient_flipped(sky_flip_val)
+
+            water_style_val = water_style_combo.currentData()
+            self.map_settings.set('water_display_style', water_style_val)
+            if vp is not None and hasattr(vp, 'set_water_display_style'):
+                vp.set_water_display_style(water_style_val)
+
+            water_tex_path_val = water_texture_path_edit.text()
+            water_tile_size_val = water_tile_size_spin.value()
+            self.map_settings.set('water_texture_path', water_tex_path_val)
+            self.map_settings.set('water_tile_size', water_tile_size_val)
+            if vp is not None and hasattr(vp, 'set_water_texture'):
+                vp.set_water_texture(water_tex_path_val, water_tile_size_val)
+
+            water_hide_outside_val = water_hide_outside_chk.isChecked()
+            self.map_settings.set('water_hide_outside_map', water_hide_outside_val)
+            if vp is not None and hasattr(vp, 'set_water_hide_outside_map'):
+                vp.set_water_hide_outside_map(water_hide_outside_val)
 
             try:
                 # Adjusted for COL Wireframe, Mesh
@@ -12125,14 +12224,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 self.preview_widget.set_timecyc_path(saved_timecyc)
         if hasattr(self.preview_widget, 'set_sky_gradient_flipped'):
             self.preview_widget.set_sky_gradient_flipped(bool(self.map_settings.get('sky_gradient_flipped')))
-        # Real cleanup (Aug 20 2026, per Keith's own "start again with
-        # a new water function" rewrite) - set_water_display_style/
-        # set_water_texture/set_water_hide_outside_map removed here.
-        # Those settings only ever fed the old _draw_water_shapes/
-        # _draw_waterpro_water draw methods, both now deleted -
-        # restoring them at startup was pointless work with no real
-        # effect. The new water2 system is Preload-driven, not
-        # settings-driven, so it has nothing to restore here.
+        if hasattr(self.preview_widget, 'set_water_display_style'):
+            self.preview_widget.set_water_display_style(self.map_settings.get('water_display_style') or 'fill')
+        if hasattr(self.preview_widget, 'set_water_texture'):
+            self.preview_widget.set_water_texture(
+                self.map_settings.get('water_texture_path') or '',
+                int(self.map_settings.get('water_tile_size') or 256))
+        if hasattr(self.preview_widget, 'set_water_hide_outside_map'):
+            self.preview_widget.set_water_hide_outside_map(bool(self.map_settings.get('water_hide_outside_map')))
         # Wire the path node drag callback once, here at construction
         # (Aug 17 2026)
         if hasattr(self.preview_widget, 'set_path_node_drag_callback'):
@@ -20523,9 +20622,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             grid_size_for_grid = preset_for_grid['grid_size']
             vp_for_grid.set_radar_grid_extent(
                 grid_size_for_grid / preset_for_grid['tiles_per_side'], grid_size_for_grid / 2.0)
-            # set_water_map_extent removed here (Aug 20 2026) - only
-            # ever fed the old, now-deleted _draw_waterpro_water's own
-            # hide-outside-map logic.
+            if hasattr(vp_for_grid, 'set_water_map_extent'):
+                vp_for_grid.set_water_map_extent(grid_size_for_grid / 2.0)
         # Auto-detect timecyc.dat next to this world's own main .dat
         # file (Aug 20 2026, per Keith: "we need to be able to detect
         # the timecyc.dat file without the need for a path, and still
@@ -20567,15 +20665,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             model_cache = ModelCache()
             self._model_cache = model_cache
         model_cache.index_img_files(loader.get_img_paths())
-
-        # Retool the world load's own already-working water auto-load
-        # (Aug 20 2026, per Keith: "nothing is wasted, things can be
-        # retooled") - loader.waterpro/water_shapes are already real
-        # and populated by this same world load (load_waterpro_dat/
-        # load_water_dat, inside load_from_dat, above), so water2
-        # doesn't need Keith to separately re-pick the same file
-        # through Preload every time - only the texture still does.
-        self._try_auto_water2_from_loader()
 
         # Also register each real IMG file as a real, visible tab in
         # IMG Factory's own main tab system (Aug 20 2026, per Keith:
@@ -21901,6 +21990,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 self._shift_all_tracks(dx, dy, dz)
             if type_boxes['water'].isChecked():
                 self._shift_all_water(dx, dy, dz)
+                self._refresh_water_visualization()
 
     def _prompt_rotate_ipl_coordinates(self, ipl_names): #vers 4
         """Dialog collecting a rotation angle (around a pivot
@@ -21977,6 +22067,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 self._rotate_all_tracks(pivot_x, pivot_y, angle)
             if type_boxes['water'].isChecked():
                 self._rotate_all_water(pivot_x, pivot_y, angle)
+                self._refresh_water_visualization()
 
     def _save_ipl_data_as_text(self, ipl_name): #vers 2
         """Export an IPL's actual loaded instances out as a standard
@@ -22735,17 +22826,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         path_row = QHBoxLayout()
         path_edit = QLineEdit(current_folder[0])
         up_btn = QPushButton("Up")
-        tex_btn = QPushButton("App Textures")
-        tex_btn.setToolTip(
-            "Jump to this app's own tex/ folder (Aug 20 2026, per\n"
-            "Keith: \"there is a tex folder now in img-factory-1.6, in\n"
-            "there is the water texture, so this can also be preloaded\n"
-            "as an asset\") - a real app asset folder, not part of any\n"
-            "game's own data folder, so it needs its own shortcut here.")
         path_row.addWidget(QLabel("Folder:"))
         path_row.addWidget(path_edit)
         path_row.addWidget(up_btn)
-        path_row.addWidget(tex_btn)
         outer.addLayout(path_row)
 
         lists_row = QHBoxLayout()
@@ -22782,18 +22865,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if os.path.isdir(typed):
                 current_folder[0] = typed
                 _refresh_avail_list()
-        def _go_to_app_tex(): #vers 1
-            app_root = os.path.normpath(os.path.join(
-                os.path.dirname(os.path.abspath(__file__)), '..', '..', '..'))
-            tex_dir = os.path.join(app_root, 'tex')
-            if os.path.isdir(tex_dir):
-                current_folder[0] = tex_dir
-                _refresh_avail_list()
-            else:
-                status_label.setText(f"No tex/ folder found at {tex_dir}")
         up_btn.clicked.connect(_go_up)
         path_edit.returnPressed.connect(_go_to_typed_path)
-        tex_btn.clicked.connect(_go_to_app_tex)
 
         btn_col = QVBoxLayout()
         to_preload_btn = QPushButton(">>")
@@ -22867,22 +22940,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         btn_row.addWidget(close_btn)
         outer.addLayout(btn_row)
 
-        def _do_save(): #vers 2
-            """Real fix (Aug 20 2026, per Keith: "reload has the
-            entries saved but there not being loaded, this worked
-            before we removed the old water function") - this never
-            called map_settings.save() (only .set(), which just
-            updates the in-memory dict) - real persistence to disk
-            only happened via the app's own quit-time auto-save
-            (aboutToQuit), so anything short of a clean app exit
-            (e.g. this session's own earlier container reset) lost
-            it. Saves immediately now, the same real pattern every
-            other explicit "save this setting now" action in this
-            file already uses."""
+        def _do_save(): #vers 1
             paths = [preload_list.item(i).data(Qt.ItemDataRole.UserRole)
                      for i in range(preload_list.count())]
             self.map_settings.set('preload_saved_files', paths)
-            self.map_settings.save()
             status_label.setText(f"Saved {len(paths)} pick(s) - restored automatically next time this opens.")
         def _do_load(): #vers 2
             loaded, unrecognised = [], []
@@ -22903,95 +22964,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         load_btn.clicked.connect(_do_load)
         close_btn.clicked.connect(dlg.accept)
         dlg.exec()
-
-    def _apply_water2_preload(self): #vers 1
-        """Combine whatever's been preloaded so far (Aug 20 2026) -
-        water cells and the water texture can be preloaded in either
-        order, or independently, via separate _load_preloaded_file
-        calls (waterpro.dat/water.dat picked from game/data/, the
-        texture picked from the app's own tex/ folder). Pushes
-        whatever's available to the viewport and re-enables/shows
-        [Water] (disabled earlier this session pending this rewrite)
-        the moment there's real water data to show."""
-        vp = getattr(self, 'preview_widget', None)
-        if vp is None or not hasattr(vp, 'set_water2_data'):
-            return
-        cells = getattr(self, '_water2_cells_pending', None)
-        texture_path = getattr(self, '_water2_texture_path_pending', '')
-        if cells is None:
-            return   # texture preloaded alone, before any real water data
-        vp.set_water2_data(cells, texture_path)
-        water_btn = getattr(self, '_show_water_chk', None)
-        if water_btn is not None:
-            water_btn.setEnabled(True)
-            water_btn.setToolTip("Left-click: show/hide Water.")
-            if hasattr(water_btn, 'set_shown'):
-                water_btn.set_shown(True)
-
-    def _waterpro_to_cells(self, waterpro, game): #vers 1
-        """Real, confirmed grid-to-cells logic (Aug 20 2026) - shared
-        now between the manual Preload path and the automatic world-
-        load retool below, per Keith: "nothing is wasted, things can
-        be retooled" - loader.waterpro is already populated
-        automatically by the world-load hook's own real WATER
-        directive/data-folder-fallback discovery, so this real
-        computation belongs in one place, not duplicated per caller."""
-        from apps.methods.gta_dat_parser import RADAR_GRID_PRESETS
-        preset = RADAR_GRID_PRESETS.get(game, RADAR_GRID_PRESETS['vc'])
-        grid_size = preset['grid_size']
-        half = grid_size / 2.0
-        gw = waterpro.grid_width
-        cell = grid_size / gw
-        cells = []
-        for row in range(gw):
-            for col in range(gw):
-                level_idx = waterpro.visible_map[row][col]
-                if level_idx == 128:
-                    continue
-                if level_idx < 0 or level_idx >= len(waterpro.levels):
-                    continue
-                height = waterpro.levels[level_idx].height
-                min_x = -half + col * cell
-                min_y = half - (row + 1) * cell
-                cells.append((min_x, min_y, min_x + cell, min_y + cell, height))
-        return cells
-
-    def _water_shapes_to_cells(self, shapes): #vers 1
-        """water.dat's own shapes are real, arbitrary polygons (not a
-        uniform grid) - reduced to each shape's own flat bounding box,
-        since _draw_water2 only knows flat rectangular cells (Aug 20
-        2026, shared for the same real reason _waterpro_to_cells is)."""
-        cells = []
-        for w in shapes:
-            xs = [c.x for c in w.corners]
-            ys = [c.y for c in w.corners]
-            zs = [c.z for c in w.corners]
-            cells.append((min(xs), min(ys), max(xs), max(ys), sum(zs) / len(zs)))
-        return cells
-
-    def _try_auto_water2_from_loader(self): #vers 1
-        """Retool loader.waterpro/loader.water_shapes into the new
-        water2 system automatically at world-load time (Aug 20 2026,
-        per Keith: "nothing is wasted, things can be retooled") -
-        those are already populated by the existing, already-working
-        auto-load pipeline (load_waterpro_dat/load_water_dat, with
-        their own real WATER-directive/data-folder-fallback/SOL
-        discovery), so water2 doesn't need Keith to separately re-
-        pick the same file through the Preload dialog every time -
-        only the texture (a real app asset, not part of any game's
-        own data) still needs a manual preload."""
-        loader = getattr(self, '_world_loader', None)
-        if loader is None:
-            return
-        waterpro = getattr(loader, 'waterpro', None)
-        water_shapes = getattr(loader, 'water_shapes', None)
-        if waterpro is not None:
-            game = getattr(loader, 'game', 'vc')
-            self._water2_cells_pending = self._waterpro_to_cells(waterpro, game)
-            self._apply_water2_preload()
-        elif water_shapes:
-            self._water2_cells_pending = self._water_shapes_to_cells(water_shapes)
-            self._apply_water2_preload()
 
     def _load_preloaded_file(self, path): #vers 2
         """Recognise and load one real file by its own real filename
@@ -23058,37 +23030,28 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if loader is None:
             return False
         if name == 'waterpro.dat':
-            # Real fix (Aug 20 2026, per Keith: "Water is broken...
-            # start again with a new water function") - now calls the
-            # same shared _waterpro_to_cells helper _try_auto_water2_
-            # from_loader also uses, instead of its own separate copy
-            # of the same real computation (Aug 20 2026, per Keith:
-            # "nothing is wasted, things can be retooled").
             from apps.methods.gta_dat_parser import parse_waterpro_dat
             result = parse_waterpro_dat(path)
             if result is None:
                 return False
-            game_key = getattr(loader, 'game', 'vc')
-            self._water2_cells_pending = self._waterpro_to_cells(result, game_key)
-            self._apply_water2_preload()
+            loader.waterpro = result
+            water_btn = getattr(self, '_show_water_chk', None)
+            if water_btn is not None and hasattr(water_btn, 'set_shown'):
+                water_btn.set_shown(True)
+            else:
+                self._refresh_water_visualization()
             return True
         if name == 'water.dat':
             from apps.methods.gta_dat_parser import parse_water_dat
             shapes = parse_water_dat(path)
             if not shapes:
                 return False
-            self._water2_cells_pending = self._water_shapes_to_cells(shapes)
-            self._apply_water2_preload()
-            return True
-        if name.endswith('.png') or name.endswith('.jpg') or name.endswith('.jpeg'):
-            # Real texture asset (Aug 20 2026, per Keith: "there is a
-            # tex folder now in img-factory-1.6, in there is the
-            # water texture, so this can also be preloaded as an
-            # asset") - stored for the new water2 system; applied
-            # immediately if water cells are already preloaded, or
-            # picked up automatically the next time they are.
-            self._water2_texture_path_pending = path
-            self._apply_water2_preload()
+            loader.water_shapes = shapes
+            water_btn = getattr(self, '_show_water_chk', None)
+            if water_btn is not None and hasattr(water_btn, 'set_shown'):
+                water_btn.set_shown(True)
+            else:
+                self._refresh_water_visualization()
             return True
         if name == 'timecyc.dat':
             self.map_settings.set('timecyc_path', path)
@@ -23667,8 +23630,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # Timecyc play/stop toggle (Aug 20 2026, per Keith: "the play
         # and stop for timecyc can be merged with the play stop [2DFX]
         # [TOJB] adding a new button on that line that says [TCYC]")
-        tcyc_chk = _MapOverlayToggleButton("Tcyc", supports_edit=False,
-            icon=SVGIconFactory.get_tcyc_toggle_icon(18, self._get_icon_color()))
+        tcyc_chk = _MapOverlayToggleButton("Tcyc", supports_edit=False)
         tcyc_chk.setToolTip(
             "Play/stop the loaded timecyc file's own day/night sky\n"
             "colour cycle in the 3D view - set the file itself via\n"
@@ -23689,35 +23651,30 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         lay.addLayout(opts_row2)
 
         # Row 3: per-layer visibility toggles (Aug 1 2026)
-        show_paths_btn = _MapOverlayToggleButton("Paths", supports_edit=True,
-            icon=SVGIconFactory.get_paths_icon(18, self._get_icon_color()))
+        show_paths_btn = _MapOverlayToggleButton("Paths", supports_edit=True)
         show_paths_btn.show_toggled.connect(self._on_show_paths_toggled)
         show_paths_btn.edit_toggled.connect(self._on_edit_paths_toggled)
         self._show_paths_chk = show_paths_btn
 
         # Show Tracks (Aug 17 2026)
-        show_tracks_btn = _MapOverlayToggleButton("Tracks", supports_edit=False,
-            icon=SVGIconFactory.get_tracks_icon(18, self._get_icon_color()))
+        show_tracks_btn = _MapOverlayToggleButton("Tracks", supports_edit=False)
         show_tracks_btn.show_toggled.connect(self._on_show_tracks_toggled)
         self._show_tracks_chk = show_tracks_btn
 
         # Show Cull Zones (Aug 16 2026)
-        show_cull_btn = _MapOverlayToggleButton("Cull", supports_edit=True,
-            icon=SVGIconFactory.get_cull_zone_icon(18, self._get_icon_color()))
+        show_cull_btn = _MapOverlayToggleButton("Cull", supports_edit=True)
         show_cull_btn.show_toggled.connect(self._on_show_cull_boxes_toggled)
         show_cull_btn.edit_toggled.connect(self._on_edit_boxes_toggled)
         self._show_cull_chk = show_cull_btn
 
         # Show Zones (Aug 16 2026)
-        show_zone_btn = _MapOverlayToggleButton("Zon", supports_edit=True,
-            icon=SVGIconFactory.get_zone_icon(18, self._get_icon_color()))
+        show_zone_btn = _MapOverlayToggleButton("Zon", supports_edit=True)
         show_zone_btn.show_toggled.connect(self._on_show_zone_boxes_toggled)
         show_zone_btn.edit_toggled.connect(self._on_edit_boxes_toggled)
         self._show_zone_chk = show_zone_btn
 
         # Show Occlusion (Aug 16 2026)
-        show_occl_btn = _MapOverlayToggleButton("Occlusion", supports_edit=False,
-            icon=SVGIconFactory.get_occlusion_icon(18, self._get_icon_color()))
+        show_occl_btn = _MapOverlayToggleButton("Occlusion", supports_edit=False)
         show_occl_btn.show_toggled.connect(self._on_show_occl_boxes_toggled)
         self._show_occl_chk = show_occl_btn
 
@@ -23744,13 +23701,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         show_water_btn = _MapOverlayToggleButton("Water", supports_edit=False)
         show_water_btn.show_toggled.connect(self._on_show_water_toggled)
         self._show_water_chk = show_water_btn
-        # Disabled pending rewrite (Aug 20 2026, per Keith: "Water is
-        # broken... disable the water button, then start again with
-        # a new water function, that preloads, and uses the IPL
-        # Control [WATER] button to show, and hide"). Re-enable once
-        # the new preload-driven water function is in place.
-        show_water_btn.setEnabled(False)
-        show_water_btn.setToolTip("No water preloaded yet - File > Preload Game Data Files...")
 
         # Generate Radar Tiles (Aug 20 2026)
         radar_gen_btn = QPushButton("Radar")
@@ -25839,6 +25789,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._refresh_zone_box_visualization()
         self._refresh_occl_box_visualization()
         self._refresh_auzo_visualization()
+        self._refresh_water_visualization()
 
     def _refresh_2dfx_lights(self, visible_instances): #vers 1
         """Collect 2DFX light-type (effect_type == 0) entries for the
@@ -26169,6 +26120,99 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             zones.append((cx, cy, cz, a.name, a.sound_id, a.environment_type, a.music_description))
         vp.set_auzo_zones(zones)
 
+    def _refresh_water_visualization(self): #vers 2
+        """Push loaded water.dat shapes AND waterpro.dat's own real
+        grid to the viewport's own overlay (Aug 20 2026).
+
+        Real fixes here, per Keith:
+
+        1. "besides the button on the IPL control that doesnt seem to
+           work" - this was never called from _apply_ipl_visibility_
+           filter, the one, central place every other real overlay
+           (path/cull/zone/occl/auzo, all now called there) refreshes
+           from whenever IPL visibility changes. Now called there too
+           (see that method's own real call list).
+
+        2. "water function should also load the waterpro.dat, and
+           display it in the same way water_workshop works" -
+           waterpro.dat was already being loaded (load_waterpro_dat,
+           storing into loader.waterpro) but nothing ever read it back
+           out anywhere - a real, confirmed gap, not a guess. Real
+           world bounds/cell size for its own grid come from the same
+           RADAR_GRID_PRESETS/compute_radar_grid this app's own radar
+           tex layer already uses (waterpro's own grid covers the
+           same real map area, just at grid_width resolution instead
+           of tiles_per_side) - not a second, separate bounds source
+           invented for this."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is None or not hasattr(vp, 'set_water_shapes'):
+            return
+        show_chk = getattr(self, '_show_water_chk', None)
+        if show_chk is not None and not show_chk.isChecked():
+            vp.set_water_shapes([])
+            if hasattr(vp, 'set_waterpro_cells'):
+                vp.set_waterpro_cells([])
+            return
+        loader = getattr(self, '_world_loader', None)
+        water_shapes = getattr(loader, 'water_shapes', None) if loader is not None else None
+        if not water_shapes:
+            vp.set_water_shapes([])
+        else:
+            shapes = [
+                ([(c.x, c.y, c.z) for c in w.corners], w.water_type)
+                for w in water_shapes
+            ]
+            vp.set_water_shapes(shapes)
+
+        if hasattr(vp, 'set_waterpro_cells'):
+            waterpro = getattr(loader, 'waterpro', None) if loader is not None else None
+            if not waterpro:
+                vp.set_waterpro_cells([])
+            else:
+                from apps.methods.gta_dat_parser import RADAR_GRID_PRESETS
+                game_key = getattr(loader, 'game', 'vc')
+                preset = RADAR_GRID_PRESETS.get(game_key, RADAR_GRID_PRESETS['vc'])
+                grid_size = preset['grid_size']
+                half = grid_size / 2.0
+                gw = waterpro.grid_width
+                cell = grid_size / gw
+                cells = []
+                for row in range(gw):
+                    for col in range(gw):
+                        level_idx = waterpro.visible_map[row][col]
+                        # Real, confirmed "cutout" sentinel (Aug 20
+                        # 2026, per Keith: "waterpro.dat allowing cut
+                        # out areas, making sure waterpro.dat is used
+                        # is very important, look at water_workshop
+                        # as resource") - water_workshop.py's own
+                        # WaterGridWidget._cell_col checks exactly
+                        # this: val == 128 means dry/land, no water
+                        # at all at this cell, any other real value
+                        # means water there. This was the real root
+                        # cause of water appearing to cover the whole
+                        # map regardless of the real land boundary -
+                        # every dry cell was still being drawn as a
+                        # flat water quad, since the only check here
+                        # before was an out-of-range level index, and
+                        # most real dry cells still carry an in-range
+                        # index (just one that should have been
+                        # skipped for a different reason).
+                        if level_idx == 128:
+                            continue
+                        if level_idx < 0 or level_idx >= len(waterpro.levels):
+                            continue
+                        height = waterpro.levels[level_idx].height
+                        # row 0 = north (max_y), per water_workshop.py's
+                        # own real "Map screen position to data (col,
+                        # row). No Y-flip." - row 0 is screen-top there,
+                        # and screen-top = north in a normal, un-
+                        # flipped top-down map view.
+                        min_x = -half + col * cell
+                        min_y = half - (row + 1) * cell
+                        cells.append((min_x, min_y, min_x + cell, min_y + cell, height))
+                vp.set_waterpro_cells(cells)
+
+
     def _on_show_tracks_toggled(self, checked): #vers 1
         """Show Tracks checked/unchecked."""
         vp = getattr(self, 'preview_widget', None)
@@ -26193,20 +26237,31 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if checked:
             self._refresh_auzo_visualization()
 
-    def _on_show_water_toggled(self, checked): #vers 3
+    def _on_show_water_toggled(self, checked): #vers 2
         """Show Water checked/unchecked.
 
-        Real fix (Aug 20 2026, per Keith: "start again with a new
-        water function, that preloads, and uses the IPL Control
-        [WATER] button to show, and hide") - real data now comes only
-        from the Preload dialog (_apply_water2_preload already pushed
-        it to the viewport and turned this button on the moment it
-        was preloaded), not from settings-driven loading, so this is
-        just the plain on/off toggle again - no separate refresh call
-        needed, no old water.dat/waterpro.dat status check."""
+        Real fix (Aug 20 2026, per Keith: "the Water button pressed
+        does nothing, we need to fix this") - re-verified every real
+        link in this chain (button click -> show_toggled signal ->
+        this handler -> set_show_water -> paintGL's own real dispatch)
+        and all of them were already correctly wired. The real,
+        remaining explanation is that there's simply no water data
+        loaded to show - his own earlier settings screenshot already
+        confirmed "Water file: Not loaded." Rather than stay a silent
+        no-op in that case, this now says so directly in the status
+        bar, pointing at the real fix (Settings > Render > Water
+        Display > Browse) instead of just looking broken."""
         vp = getattr(self, 'preview_widget', None)
         if vp is not None and hasattr(vp, 'set_show_water'):
             vp.set_show_water(checked)
+        if checked:
+            self._refresh_water_visualization()
+            loader = getattr(self, '_world_loader', None)
+            has_data = bool(getattr(loader, 'water_shapes', None) or getattr(loader, 'waterpro', None))
+            if not has_data:
+                self._set_status(
+                    "No water.dat/waterpro.dat loaded - open Settings > Render > "
+                    "Water Display and Browse to point at the real file.")
 
     def _on_show_paths_toggled(self, checked): #vers 1
         """Show Paths checked/unchecked"""
