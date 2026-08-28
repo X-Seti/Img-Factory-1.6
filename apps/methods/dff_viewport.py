@@ -1161,7 +1161,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         # wouldn't be affected by moving around on the ground.
         if self._skybox_path:
             self._draw_skybox()
-        elif self._sky_gradient_top and self._sky_gradient_bot:
+        elif self._timecyc_playing and self._sky_gradient_top and self._sky_gradient_bot:
             self._draw_sky_gradient()
         glTranslatef(self._pan_x, self._pan_y, 0)
         if self._backface_cull:
@@ -2276,7 +2276,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             return None
         return (sky_top, sky_bot, ambient, sun_core)
 
-    def set_timecyc_playing(self, playing): #vers 2
+    def set_timecyc_playing(self, playing): #vers 3
         """Real fix (Aug 20 2026, per Keith: "there appears to be
         another timer running besides the tojb timer") - this used to
         run its own separate QTimer/hour counter, a second, redundant
@@ -2291,11 +2291,31 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         running independently alongside it. This method is now just
         an on/off flag - recomputes immediately from whatever hour
         was last set, so toggling on reflects the current real time
-        right away rather than waiting for the next change."""
+        right away rather than waiting for the next change.
+
+        Real fix (Aug 20 2026, per Keith: "this would only trigger
+        the Timecyc on, or off, on I see the timecyc, off the timecyc
+        function stops") - turning this off used to only stop future
+        updates; the sky gradient/ambient tint/background override
+        from whatever hour was last applied stayed active forever,
+        since paintGL's own dispatch checked whether sky_gradient_top/
+        bot were set at all, not whether this flag was actually true.
+        Now genuinely reverts everything on off - clears the sky
+        gradient colours, the background override, and the ambient
+        tint back to (1,1,1) (no tint), so lighting/background/sky
+        all return to normal, not just the one thing (the gradient
+        quad itself) that paintGL's own dispatch already gated."""
         self._timecyc_playing = bool(playing)
         if playing:
             self._apply_timecyc_hour()
         else:
+            self._sky_gradient_top = None
+            self._sky_gradient_bot = None
+            self._sky_gradient_horizon = None
+            self._bg_color_override = None
+            self._ambient_tint = (1.0, 1.0, 1.0)
+            if OPENGL_AVAILABLE and self.isVisible():
+                self.makeCurrent(); self._setup_lighting(); self.doneCurrent()
             self.update()
 
     def set_timecyc_hour(self, hour): #vers 1

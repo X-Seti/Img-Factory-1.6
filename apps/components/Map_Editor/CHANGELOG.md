@@ -8799,3 +8799,14 @@ conclusively found despite extensive isolated testing.
   testing showed it doesn't change behaviour for a simple 128-vs-0-47
   grid, so it likely isn't the full, real root cause of water
   covering the whole map on its own.
+
+- **Aug 20, 2026** — Fixed [Tcyc] not actually stopping when turned
+  off, per Keith: "this would only trigger the Timecyc on, or off, on
+  I see the timecyc, off the timecyc function stops." Turning it off
+  used to only stop future updates - the sky gradient/ambient tint/
+  background override from whatever hour was last applied stayed
+  active forever, since paintGL's own dispatch checked whether the
+  sky gradient colours were set at all, not whether the play flag
+  itself was true. Now genuinely reverts everything on off: clears
+  the sky gradient, background override, and ambient tint back to no
+  tint, so lighting/background/sky all actually return to normal.
