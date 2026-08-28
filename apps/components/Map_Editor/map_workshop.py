@@ -22855,12 +22855,25 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         close_btn.clicked.connect(dlg.accept)
         dlg.exec()
 
-    def _load_preloaded_file(self, path): #vers 1
+    def _load_preloaded_file(self, path): #vers 2
         """Recognise and load one real file by its own real filename
         (Aug 20 2026, per Keith's own Preload dialog request above).
         Returns True if this app knows how to load that real file
         type and did so, False if the type isn't recognised (the
-        dialog still lists it, just can't act on it yet)."""
+        dialog still lists it, just can't act on it yet).
+
+        Real fix (Aug 20 2026, per Keith: "if those files pre loaded,
+        in objects browser the ipl and zon entries would already be
+        highlighted, so the off on buttons wouldn't need to change")
+        - loading the raw data alone wasn't enough on its own:
+        _refresh_water_visualization (and the same real shape for
+        timecyc) only actually shows anything while its own real on/
+        off toggle is checked, clearing it right back out otherwise.
+        Preloading a real file now also turns its own real toggle on
+        via set_shown (which already emits show_toggled itself,
+        triggering the real refresh the same way clicking the button
+        would) - genuinely visible the moment it's preloaded, not
+        loaded-but-invisible until a separate manual toggle."""
         loader = getattr(self, '_world_loader', None)
         if loader is None:
             return False
@@ -22871,7 +22884,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if result is None:
                 return False
             loader.waterpro = result
-            self._refresh_water_visualization()
+            water_btn = getattr(self, '_show_water_chk', None)
+            if water_btn is not None and hasattr(water_btn, 'set_shown'):
+                water_btn.set_shown(True)
+            else:
+                self._refresh_water_visualization()
             return True
         if name == 'water.dat':
             from apps.methods.gta_dat_parser import parse_water_dat
@@ -22879,13 +22896,22 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if not shapes:
                 return False
             loader.water_shapes = shapes
-            self._refresh_water_visualization()
+            water_btn = getattr(self, '_show_water_chk', None)
+            if water_btn is not None and hasattr(water_btn, 'set_shown'):
+                water_btn.set_shown(True)
+            else:
+                self._refresh_water_visualization()
             return True
         if name == 'timecyc.dat':
             self.map_settings.set('timecyc_path', path)
             vp = getattr(self, 'preview_widget', None)
             if vp is not None and hasattr(vp, 'set_timecyc_path'):
                 vp.set_timecyc_path(path)
+            tcyc_btn = getattr(self, '_tcyc_chk', None)
+            if tcyc_btn is not None and hasattr(tcyc_btn, 'set_shown'):
+                tcyc_btn.set_shown(True)
+            elif vp is not None and hasattr(vp, 'set_timecyc_playing'):
+                vp.set_timecyc_playing(True)
             return True
         return False
 

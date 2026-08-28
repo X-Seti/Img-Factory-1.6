@@ -8868,3 +8868,14 @@ conclusively found despite extensive isolated testing.
   into the preceding method instead (still syntactically valid
   Python, so it didn't show up as a parse error - caught via a
   function-count check instead).
+
+- **Aug 20, 2026** — Preloading a real, recognised file now also
+  turns its own on/off toggle on, per Keith: "if those files pre
+  loaded, in objects browser the ipl and zon entries would already
+  be highlighted, so the off on buttons wouldn't need to change."
+  Loading the raw data alone wasn't enough - the water/timecyc
+  refresh methods only actually show anything while their own real
+  toggle is checked, clearing right back out otherwise. Uses set_
+  shown (already emits the same real signal a manual click would),
+  so a preloaded file is genuinely visible immediately, not loaded-
+  but-invisible until a separate manual toggle press.
