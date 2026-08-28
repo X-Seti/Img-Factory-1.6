@@ -21282,13 +21282,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if ipl_name in stream_to_parent:
                 is_loaded_display = ipl_name in getattr(self, '_loaded_binary_ipls', set())
                 display_text = "    " + ipl_name + (" (Loaded)" if is_loaded_display else "")
+                is_loaded = is_loaded_display
             else:
                 stem_for_load_check = getattr(self, '_ipl_display_to_stem', {}).get(ipl_name)
                 is_text_loaded = (loader is not None and stem_for_load_check is not None
                                   and stem_for_load_check in loader.loaded_ipls)
                 display_text = ipl_name + (" (Loaded)" if is_text_loaded else "")
+                is_loaded = is_text_loaded
             name_item = QTableWidgetItem(display_text)
-            self._style_ipl_name_item(name_item, is_hidden)
+            self._style_ipl_name_item(name_item, is_hidden, is_loaded)
             table.setItem(row, 1, name_item)
 
             if ipl_name in format_cache:
@@ -23002,6 +23004,28 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if not already_open:
                 mw._load_img_file_in_new_tab(path)
             return True
+        if name.endswith('.ipl') or name.endswith('.zon'):
+            # Real fix (Aug 20 2026, per Keith: "automatically search
+            # for maps, paths, dat files") - routes through the same
+            # real IPL Sections table entry every eye-icon click
+            # already uses (_on_ipl_section_cell_clicked), rather than
+            # trying to parse the file directly here. IPL/zon files
+            # referenced by the game's own .dat are already real rows
+            # in that table (via _rebuild_ipl_sections_rows) - matched
+            # here by real filename, not re-derived from this path.
+            table = getattr(self, '_ipl_sections_table', None)
+            if table is None:
+                return False
+            for row in range(table.rowCount()):
+                item = table.item(row, 0)
+                if item is None:
+                    continue
+                ipl_name = item.data(Qt.ItemDataRole.UserRole)
+                if ipl_name and ipl_name.lower() == name:
+                    if ipl_name in getattr(self, '_hidden_ipls', set()):
+                        self._on_ipl_section_cell_clicked(row, 0)
+                    return True
+            return False   # not a real row in this world's own IPL list
         loader = getattr(self, '_world_loader', None)
         if loader is None:
             return False
@@ -25231,7 +25255,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 item.setToolTip(f"Show {ipl_name}" if new_hidden else f"Hide {ipl_name}")
                 name_item = table.item(row, 1)
                 if name_item is not None:
-                    self._style_ipl_name_item(name_item, new_hidden)
+                    loader = getattr(self, '_world_loader', None)
+                    if ipl_name in getattr(self, '_ipl_names_with_binary_stream', {}) or \
+                            display_name in getattr(self, '_loaded_binary_ipls', set()):
+                        row_is_loaded = display_name in getattr(self, '_loaded_binary_ipls', set())
+                    else:
+                        stem_for_load_check = getattr(self, '_ipl_display_to_stem', {}).get(ipl_name)
+                        row_is_loaded = (loader is not None and stem_for_load_check is not None
+                                         and stem_for_load_check in loader.loaded_ipls)
+                    self._style_ipl_name_item(name_item, new_hidden, row_is_loaded)
                 self._toggle_ipl_section(ipl_name, new_hidden)
             self._auto_switch_ipl_tab_if_empty(display_name)
             self._refresh_ipl_inst_file_panel()
@@ -25417,8 +25449,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         except Exception:
             return None
 
-    def _style_ipl_name_item(self, name_item, hidden): #vers 3
-        """Grey out a disabled/hidden IPL's name text."""
+    def _style_ipl_name_item(self, name_item, hidden, loaded=False): #vers 4
+        """Grey out a disabled/hidden IPL's name text. Real fix (Aug
+        20 2026, per Keith: "once proloaded, mark them as loaded
+        white in the obj browser ipl llst") - loaded entries now get
+        a genuinely brighter/white text colour, not just the existing
+        "(Loaded)" text suffix, so a loaded IPL is visually distinct
+        from an unloaded one at a glance, not just readable on close
+        inspection."""
         pal = self.palette()
         text_color = pal.color(pal.ColorGroup.Active, pal.ColorRole.Text)
         if hidden:
@@ -25427,6 +25465,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 (text_color.red()   + bg_color.red())   // 2,
                 (text_color.green() + bg_color.green()) // 2,
                 (text_color.blue()  + bg_color.blue())  // 2)
+        elif loaded:
+            color = QColor(255, 255, 255)
         else:
             color = text_color
         name_item.setForeground(QBrush(color))

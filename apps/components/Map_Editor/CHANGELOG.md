@@ -8922,3 +8922,13 @@ conclusively found despite extensive isolated testing.
      being fixed to the one data folder; a real Save Picks button
      persists the current preload list's own real file paths, auto-
      restored the next time the dialog opens.
+
+- Aug 20 2026 - Loaded IPL rows now show white text (was greyed/
+  normal same as unloaded), per Keith: mark preloaded entries as
+  loaded white in obj browser ipl list. _style_ipl_name_item takes a
+  loaded flag now, both real call sites updated.
+- Aug 20 2026 - Preload dialog now recognises .ipl/.zon files, per
+  Keith: automatically search for maps, paths, dat files. Matches
+  the file against the existing IPL Sections table by name and
+  triggers the same load path the eye-icon click uses, instead of
+  showing "not a recognised type".
