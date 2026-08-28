@@ -8821,3 +8821,13 @@ conclusively found despite extensive isolated testing.
   button's own job. If that timer isn't running, [Tcyc] now correctly
   shows a static snapshot rather than reaching into a control it was
   never meant to own.
+
+- **Aug 20, 2026** — Re-verified [Water]'s full real chain (click ->
+  signal -> handler -> set_show_water -> paintGL's own dispatch),
+  per Keith: "the Water button pressed does nothing, we need to fix
+  this." All of it was already correctly wired - the real, remaining
+  explanation is no water data being loaded to show at all (his own
+  earlier settings screenshot already confirmed "Water file: Not
+  loaded"). Rather than stay a silent no-op, toggling it on now says
+  so directly in the status bar when there's genuinely nothing
+  loaded, pointing at Settings > Render > Water Display > Browse.

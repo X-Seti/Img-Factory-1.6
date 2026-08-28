@@ -25871,13 +25871,31 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if checked:
             self._refresh_auzo_visualization()
 
-    def _on_show_water_toggled(self, checked): #vers 1
-        """Show Water checked/unchecked."""
+    def _on_show_water_toggled(self, checked): #vers 2
+        """Show Water checked/unchecked.
+
+        Real fix (Aug 20 2026, per Keith: "the Water button pressed
+        does nothing, we need to fix this") - re-verified every real
+        link in this chain (button click -> show_toggled signal ->
+        this handler -> set_show_water -> paintGL's own real dispatch)
+        and all of them were already correctly wired. The real,
+        remaining explanation is that there's simply no water data
+        loaded to show - his own earlier settings screenshot already
+        confirmed "Water file: Not loaded." Rather than stay a silent
+        no-op in that case, this now says so directly in the status
+        bar, pointing at the real fix (Settings > Render > Water
+        Display > Browse) instead of just looking broken."""
         vp = getattr(self, 'preview_widget', None)
         if vp is not None and hasattr(vp, 'set_show_water'):
             vp.set_show_water(checked)
         if checked:
             self._refresh_water_visualization()
+            loader = getattr(self, '_world_loader', None)
+            has_data = bool(getattr(loader, 'water_shapes', None) or getattr(loader, 'waterpro', None))
+            if not has_data:
+                self._set_status(
+                    "No water.dat/waterpro.dat loaded - open Settings > Render > "
+                    "Water Display and Browse to point at the real file.")
 
     def _on_show_paths_toggled(self, checked): #vers 1
         """Show Paths checked/unchecked"""
