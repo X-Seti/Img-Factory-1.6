@@ -8953,3 +8953,22 @@ conclusively found despite extensive isolated testing.
   from the background rather than from unloaded rows. BrightText is
   Qt's own standard role for exactly this (distinct/emphasised text),
   so it adapts correctly whatever theme is active.
+
+- Aug 20 2026 - Two real fixes, per Keith: "starting map_workshop
+  back up, I noticed there is nothing in the startup, saying
+  preloading files, etc":
+
+  1. Save Picks never actually applied anywhere on its own - it only
+     ever restored the saved list back into the Preload dialog's own
+     UI the next time it was manually reopened, still needing a
+     manual Load click every time. New _apply_saved_preload_picks
+     runs automatically once a real world is available, with real
+     status feedback matching every other stage of the same load
+     sequence.
+
+  2. Re-applied the Save Picks persistence fix (missing map_settings.
+     save() call) - the earlier full water-rewrite revert (restore
+     to before the water code was removed) undid this fix too, since
+     it landed after that restore point. Without it, saved picks
+     never reached disk at all, so there was nothing for the new
+     auto-apply above to find on a real restart.

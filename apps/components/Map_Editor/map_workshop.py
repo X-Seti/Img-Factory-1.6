@@ -20666,6 +20666,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._model_cache = model_cache
         model_cache.index_img_files(loader.get_img_paths())
 
+        # Real fix (Aug 20 2026, per Keith: "starting map_workshop
+        # back up, I noticed there is nothing in the startup, saying
+        # preloading files, etc") - Save Picks only ever restored the
+        # saved list into the Preload dialog's own UI when manually
+        # reopened; it never actually re-applied them anywhere on its
+        # own. Now runs automatically once a real world is available
+        # to apply them to, with real status feedback the same way
+        # every other stage of this same load sequence already gives.
+        self._apply_saved_preload_picks()
+
         # Also register each real IMG file as a real, visible tab in
         # IMG Factory's own main tab system (Aug 20 2026, per Keith:
         # "loading img into img factory the other tools like txd
@@ -22940,10 +22950,23 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         btn_row.addWidget(close_btn)
         outer.addLayout(btn_row)
 
-        def _do_save(): #vers 1
+        def _do_save(): #vers 2
+            """Real fix (Aug 20 2026, per Keith: "reload has the
+            entries saved but there not being loaded") - this never
+            called map_settings.save() (only .set(), which just
+            updates the in-memory dict) - real persistence to disk
+            only happened via the app's own quit-time auto-save, so
+            anything short of a clean app exit lost it. Saves
+            immediately now, the same real pattern every other
+            explicit "save this setting now" action in this file
+            already uses. Re-applied here since the earlier full
+            water-rewrite revert (per Keith's own "restore just
+            before we removed the water code") undid this fix too,
+            since it landed after that restore point."""
             paths = [preload_list.item(i).data(Qt.ItemDataRole.UserRole)
                      for i in range(preload_list.count())]
             self.map_settings.set('preload_saved_files', paths)
+            self.map_settings.save()
             status_label.setText(f"Saved {len(paths)} pick(s) - restored automatically next time this opens.")
         def _do_load(): #vers 2
             loaded, unrecognised = [], []
@@ -22964,6 +22987,35 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         load_btn.clicked.connect(_do_load)
         close_btn.clicked.connect(dlg.accept)
         dlg.exec()
+
+    def _apply_saved_preload_picks(self): #vers 1
+        """Automatically re-apply the Preload dialog's own saved
+        picks once a real world is available to apply them to (Aug
+        20 2026, per Keith: "starting map_workshop back up, I noticed
+        there is nothing in the startup, saying preloading files,
+        etc") - Save Picks previously only restored the saved list
+        back into the dialog's own UI the next time it was manually
+        reopened; the actual loading still needed a manual Load click
+        every time. Runs each saved path through the same real _load_
+        preloaded_file every dialog Load/manual pick already uses, so
+        behaviour is identical either way - just automatic now."""
+        paths = self.map_settings.get('preload_saved_files') or []
+        if not paths:
+            return
+        self._set_status(f"Preloading {len(paths)} saved file(s)...")
+        QApplication.processEvents()
+        loaded, unrecognised = [], []
+        for path in paths:
+            if not os.path.isfile(path):
+                continue
+            if self._load_preloaded_file(path):
+                loaded.append(os.path.basename(path))
+            else:
+                unrecognised.append(os.path.basename(path))
+        if loaded:
+            self._set_status(f"Preloaded: {', '.join(loaded)}")
+        elif unrecognised:
+            self._set_status(f"Preload: nothing recognised ({', '.join(unrecognised)})")
 
     def _load_preloaded_file(self, path): #vers 2
         """Recognise and load one real file by its own real filename
