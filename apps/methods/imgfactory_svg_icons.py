@@ -5418,3 +5418,83 @@ SVGIconFactory.radar_workshop_icon    = staticmethod(get_radar_workshop_icon)
 SVGIconFactory.water_workshop_icon    = staticmethod(get_water_workshop_icon)
 SVGIconFactory.timecyc_workshop_icon  = staticmethod(get_timecyc_workshop_icon)
 SVGIconFactory.get_timecyc_workshop_icon = staticmethod(get_timecyc_workshop_icon)
+
+
+# - MAP OVERLAY TOGGLE ICONS (Aug 20 2026, per Keith: "Cull, Zon,
+# Occlusion, Paths, Tracks, and TCYC can be moved to ribbons, with
+# nice SVG icons") - simple, monochrome, currentColor-based icons for
+# the map overlay toggle buttons in IPL Controls, following the same
+# get_folder_icon/get_trash_icon style as the rest of this file.
+
+def get_cull_zone_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+    """Cull zones - a 3D box outline (cull zones hide geometry when
+    the camera is outside them)."""
+    svg_data = '''<svg viewBox="0 0 24 24">
+        <path d="M12 2 3 7v10l9 5 9-5V7z"
+            stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>
+        <path d="M3 7l9 5 9-5M12 12v10"
+            stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>
+    </svg>'''
+    return SVGIconFactory._create_icon(svg_data, size, color)
+
+def get_zone_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+    """Zones - a dashed boundary rectangle (gameplay/audio/info
+    region markers)."""
+    svg_data = '''<svg viewBox="0 0 24 24">
+        <rect x="3" y="4" width="18" height="16" rx="2"
+            stroke="currentColor" stroke-width="2" fill="none" stroke-dasharray="3 3"/>
+        <circle cx="12" cy="12" r="2.5" stroke="currentColor" stroke-width="2" fill="none"/>
+    </svg>'''
+    return SVGIconFactory._create_icon(svg_data, size, color)
+
+def get_occlusion_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+    """Occlusion boxes - an eye with a slash through it (blocks
+    rendering of things behind it)."""
+    svg_data = '''<svg viewBox="0 0 24 24">
+        <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"
+            stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>
+        <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2" fill="none"/>
+        <line x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </svg>'''
+    return SVGIconFactory._create_icon(svg_data, size, color)
+
+def get_paths_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+    """Vehicle/ped paths - a winding line with node dots along it."""
+    svg_data = '''<svg viewBox="0 0 24 24">
+        <path d="M3 20c4-1 4-7 8-8s5 6 10 5"
+            stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+        <circle cx="3" cy="20" r="2" fill="currentColor"/>
+        <circle cx="11" cy="12" r="2" fill="currentColor"/>
+        <circle cx="21" cy="17" r="2" fill="currentColor"/>
+    </svg>'''
+    return SVGIconFactory._create_icon(svg_data, size, color)
+
+def get_tracks_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+    """Train tracks - parallel rails with cross-ties."""
+    svg_data = '''<svg viewBox="0 0 24 24">
+        <line x1="4" y1="3" x2="4" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="20" y1="3" x2="20" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="2" y1="6" x2="22" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="2" y1="12" x2="22" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="2" y1="18" x2="22" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </svg>'''
+    return SVGIconFactory._create_icon(svg_data, size, color)
+
+def get_tcyc_toggle_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+    """Timecyc - a sun/moon day-night split circle (distinct from the
+    existing get_timecyc_workshop_icon app-launcher brand icon)."""
+    svg_data = '''<svg viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" fill="none"/>
+        <path d="M12 3a9 9 0 010 18z" fill="currentColor"/>
+        <line x1="12" y1="1" x2="12" y2="3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="12" y1="21" x2="12" y2="23" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </svg>'''
+    return SVGIconFactory._create_icon(svg_data, size, color)
+
+
+SVGIconFactory.get_cull_zone_icon   = staticmethod(get_cull_zone_icon)
+SVGIconFactory.get_zone_icon        = staticmethod(get_zone_icon)
+SVGIconFactory.get_occlusion_icon   = staticmethod(get_occlusion_icon)
+SVGIconFactory.get_paths_icon       = staticmethod(get_paths_icon)
+SVGIconFactory.get_tracks_icon      = staticmethod(get_tracks_icon)
+SVGIconFactory.get_tcyc_toggle_icon = staticmethod(get_tcyc_toggle_icon)

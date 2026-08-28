@@ -8932,3 +8932,12 @@ conclusively found despite extensive isolated testing.
   the file against the existing IPL Sections table by name and
   triggers the same load path the eye-icon click uses, instead of
   showing "not a recognised type".
+
+- Aug 20 2026 - Cull/Zon/Occlusion/Paths/Tracks/Tcyc buttons in IPL
+  Controls now use SVG icons (24x24, icon-only) instead of text
+  labels, per Keith: Cull, Zon, Occlusion, Paths, Tracks, and TCYC
+  can be moved to ribbons, with nice SVG icons. New icons added to
+  imgfactory_svg_icons.py: get_cull_zone_icon, get_zone_icon,
+  get_occlusion_icon, get_paths_icon, get_tracks_icon, get_tcyc_
+  toggle_icon. _MapOverlayToggleButton takes an optional icon param
+  now - label kept as tooltip text.

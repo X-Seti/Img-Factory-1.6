@@ -3979,10 +3979,21 @@ class _MapOverlayToggleButton(QToolButton): #vers 1
     show_toggled = pyqtSignal(bool)
     edit_toggled = pyqtSignal(bool)
 
-    def __init__(self, label, supports_edit=False, parent=None): #vers 1
+    def __init__(self, label, supports_edit=False, parent=None, icon=None): #vers 2
         super().__init__(parent)
-        self.setText(label)
-        self.setFixedHeight(20)
+        self._label = label
+        if icon is not None:
+            # Icon-only ribbon-style button (Aug 20 2026, per Keith:
+            # "Cull, Zon, Occlusion, Paths, Tracks, and TCYC can be
+            # moved to ribbons, with nice SVG icons") - label kept as
+            # the tooltip, not shown as text, so it stays compact.
+            self.setIcon(icon)
+            self.setIconSize(QSize(18, 18))
+            self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+            self.setFixedSize(24, 24)
+        else:
+            self.setText(label)
+            self.setFixedHeight(20)
         self._shown = False
         self._editing = False
         self._supports_edit = supports_edit
@@ -4005,7 +4016,7 @@ class _MapOverlayToggleButton(QToolButton): #vers 1
             else:
                 mw = self.window()
                 if mw is not None and hasattr(mw, '_set_status'):
-                    mw._set_status(f"No edit mode available for {self.text()} yet")
+                    mw._set_status(f"No edit mode available for {self._label} yet")
         # Deliberately not calling super().mousePressEvent() - this
         # widget fully owns its own click behaviour rather than also
         # triggering QToolButton's own default checked/pressed
@@ -23630,7 +23641,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # Timecyc play/stop toggle (Aug 20 2026, per Keith: "the play
         # and stop for timecyc can be merged with the play stop [2DFX]
         # [TOJB] adding a new button on that line that says [TCYC]")
-        tcyc_chk = _MapOverlayToggleButton("Tcyc", supports_edit=False)
+        tcyc_chk = _MapOverlayToggleButton("Tcyc", supports_edit=False,
+            icon=SVGIconFactory.get_tcyc_toggle_icon(18, self._get_icon_color()))
         tcyc_chk.setToolTip(
             "Play/stop the loaded timecyc file's own day/night sky\n"
             "colour cycle in the 3D view - set the file itself via\n"
@@ -23651,30 +23663,35 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         lay.addLayout(opts_row2)
 
         # Row 3: per-layer visibility toggles (Aug 1 2026)
-        show_paths_btn = _MapOverlayToggleButton("Paths", supports_edit=True)
+        show_paths_btn = _MapOverlayToggleButton("Paths", supports_edit=True,
+            icon=SVGIconFactory.get_paths_icon(18, self._get_icon_color()))
         show_paths_btn.show_toggled.connect(self._on_show_paths_toggled)
         show_paths_btn.edit_toggled.connect(self._on_edit_paths_toggled)
         self._show_paths_chk = show_paths_btn
 
         # Show Tracks (Aug 17 2026)
-        show_tracks_btn = _MapOverlayToggleButton("Tracks", supports_edit=False)
+        show_tracks_btn = _MapOverlayToggleButton("Tracks", supports_edit=False,
+            icon=SVGIconFactory.get_tracks_icon(18, self._get_icon_color()))
         show_tracks_btn.show_toggled.connect(self._on_show_tracks_toggled)
         self._show_tracks_chk = show_tracks_btn
 
         # Show Cull Zones (Aug 16 2026)
-        show_cull_btn = _MapOverlayToggleButton("Cull", supports_edit=True)
+        show_cull_btn = _MapOverlayToggleButton("Cull", supports_edit=True,
+            icon=SVGIconFactory.get_cull_zone_icon(18, self._get_icon_color()))
         show_cull_btn.show_toggled.connect(self._on_show_cull_boxes_toggled)
         show_cull_btn.edit_toggled.connect(self._on_edit_boxes_toggled)
         self._show_cull_chk = show_cull_btn
 
         # Show Zones (Aug 16 2026)
-        show_zone_btn = _MapOverlayToggleButton("Zon", supports_edit=True)
+        show_zone_btn = _MapOverlayToggleButton("Zon", supports_edit=True,
+            icon=SVGIconFactory.get_zone_icon(18, self._get_icon_color()))
         show_zone_btn.show_toggled.connect(self._on_show_zone_boxes_toggled)
         show_zone_btn.edit_toggled.connect(self._on_edit_boxes_toggled)
         self._show_zone_chk = show_zone_btn
 
         # Show Occlusion (Aug 16 2026)
-        show_occl_btn = _MapOverlayToggleButton("Occlusion", supports_edit=False)
+        show_occl_btn = _MapOverlayToggleButton("Occlusion", supports_edit=False,
+            icon=SVGIconFactory.get_occlusion_icon(18, self._get_icon_color()))
         show_occl_btn.show_toggled.connect(self._on_show_occl_boxes_toggled)
         self._show_occl_chk = show_occl_btn
 
