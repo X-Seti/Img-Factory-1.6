@@ -8879,3 +8879,22 @@ conclusively found despite extensive isolated testing.
   shown (already emits the same real signal a manual click would),
   so a preloaded file is genuinely visible immediately, not loaded-
   but-invisible until a separate manual toggle press.
+
+- **Aug 20, 2026** — Fixed preloaded IMG files being invisible to
+  other tools (TXD Workshop, Radar Workshop, Model Workshop, COL
+  Workshop), per Keith: "loading img into img factory the other
+  tools... see the files, but preloading the img into map workshop,
+  the radar workshop, model workshop, col workshop don't see the
+  files, so preloading the img needs to follow the same rules as
+  loading the img file into img factory and show the tab."
+
+  Root cause: Map Workshop's own world-load hook only ever called
+  ModelCache.index_img_files - a completely separate, internal index
+  other tools never see. The real, established registry other tools
+  actually discover files through is main_window.open_files, only
+  ever populated by _load_img_file_in_new_tab (the same real method
+  a manual File > Open IMG uses). Now also calls that for every real
+  IMG path a loaded world references, skipping any already open
+  (checked by real file path) so re-loading a world repeatedly
+  doesn't pile up duplicate tabs. Same real fix added to the Preload
+  dialog for .img entries specifically.

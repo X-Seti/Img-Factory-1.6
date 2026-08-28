@@ -20658,6 +20658,33 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._model_cache = model_cache
         model_cache.index_img_files(loader.get_img_paths())
 
+        # Also register each real IMG file as a real, visible tab in
+        # IMG Factory's own main tab system (Aug 20 2026, per Keith:
+        # "loading img into img factory the other tools like txd
+        # workshop, rader workshop, see the files, but preloading the
+        # img into map workshop, the radar workshop, model workshop,
+        # col workshop don't see the files, so preloading the img
+        # needs to follow the same rules as loading the img file into
+        # img factory and show the tab"). ModelCache's own indexing
+        # above is real and correct for Map Workshop's own internal
+        # geometry/texture lookups, but it's a completely separate,
+        # internal index other tools never see - only main_window.
+        # open_files (the real tab registry _load_img_file_in_new_tab
+        # populates) is what those other tools actually discover
+        # files through. Skips any IMG path already open as a tab
+        # (checked by real file path, not just name) so re-loading
+        # the same world repeatedly doesn't pile up duplicate tabs.
+        mw = getattr(self, 'main_window', None)
+        if mw is not None and hasattr(mw, '_load_img_file_in_new_tab'):
+            already_open = set()
+            for info in getattr(mw, 'open_files', {}).values():
+                fp = info.get('file_path') if isinstance(info, dict) else None
+                if fp:
+                    already_open.add(os.path.normpath(fp))
+            for img_path in loader.get_img_paths():
+                if os.path.normpath(img_path) not in already_open:
+                    mw._load_img_file_in_new_tab(img_path)
+
         # radar tex layer needs the freshly-indexed ModelCache, so
         # this runs here rather than earlier in this method (Aug 20
         # 2026, per Keith: "those radar.txd files are in the gta3...
@@ -22874,10 +22901,29 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         triggering the real refresh the same way clicking the button
         would) - genuinely visible the moment it's preloaded, not
         loaded-but-invisible until a separate manual toggle."""
+        name = os.path.basename(path).lower()
+        if name.endswith('.img'):
+            # Same real fix as the world-load hook (Aug 20 2026, per
+            # Keith: "preloading the img needs to follow the same
+            # rules as loading the img file into img factory and show
+            # the tab so the other tools pick up those models") -
+            # opens it as a real, visible tab via the same real entry
+            # point manually opening one does, not just ModelCache's
+            # own separate, internal index. Doesn't need a world
+            # already loaded (unlike water/timecyc below), since this
+            # just opens a real, independent IMG Factory tab.
+            mw = getattr(self, 'main_window', None)
+            if mw is None or not hasattr(mw, '_load_img_file_in_new_tab'):
+                return False
+            already_open = any(
+                os.path.normpath(info.get('file_path', '')) == os.path.normpath(path)
+                for info in getattr(mw, 'open_files', {}).values() if isinstance(info, dict))
+            if not already_open:
+                mw._load_img_file_in_new_tab(path)
+            return True
         loader = getattr(self, '_world_loader', None)
         if loader is None:
             return False
-        name = os.path.basename(path).lower()
         if name == 'waterpro.dat':
             from apps.methods.gta_dat_parser import parse_waterpro_dat
             result = parse_waterpro_dat(path)
