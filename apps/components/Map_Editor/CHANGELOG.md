@@ -8831,3 +8831,19 @@ conclusively found despite extensive isolated testing.
   loaded"). Rather than stay a silent no-op, toggling it on now says
   so directly in the status bar when there's genuinely nothing
   loaded, pointing at Settings > Render > Water Display > Browse.
+
+- **Aug 20, 2026** — Two real fixes, per Keith's own screenshots:
+
+  1. "I think the show water in settings show grid and 'Square (blue
+     fill)' is overriding the [Water] button" - confirmed and fixed.
+     The grid (drawn after water, with depth-testing deliberately
+     disabled so it's always visible as a reference overlay) always
+     visually covered water wherever they overlapped whenever the
+     grid style was a filled one. Water now draws after the grid
+     instead - real map data takes visual priority over a generic
+     reference aid, not the other way around.
+
+  2. "turning the button on shows a timer inside it, we dont need
+     that" - removed [Tcyc]'s own earlier "live time" label growth;
+     the same time already shows on the separate Time display right
+     next to it in the same IPL Controls row, genuinely redundant.

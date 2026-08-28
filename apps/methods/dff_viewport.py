@@ -1198,14 +1198,29 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 self._draw_sa_nodes()
             if self.show_auzo_zones:
                 self._draw_auzo_zones()
-            if self.show_water:
-                self._draw_water_shapes()
-                self._draw_waterpro_water()
             if getattr(self, '_hovered_instance_idx', None) is not None:
                 self._draw_hover_highlight()
             if getattr(self, '_lod_test_center', None) is not None:
                 self._draw_lod_test_circle()
             if self._show_grid: self._draw_grid()
+            # Water drawn after the grid now (Aug 20 2026, per Keith:
+            # "I think the show water in settings show grid and
+            # 'Square (blue fill)' is overriding the [Water] button")
+            # - the grid (including its own squares/texture fill) is
+            # deliberately drawn with depth-testing disabled, so it's
+            # always visible as a reference overlay regardless of what
+            # else is on screen. Drawing it after water meant it
+            # always visually covered water wherever the two
+            # overlapped, whenever the grid style happened to be a
+            # filled one rather than plain lines - real water changes
+            # underneath would have been genuinely invisible, not
+            # actually broken. Water is real, meaningful map data, not
+            # a reference aid the way the grid is - it should take
+            # visual priority over a generic overlay, not the other
+            # way around.
+            if self.show_water:
+                self._draw_water_shapes()
+                self._draw_waterpro_water()
             self._draw_axes()
             return
         if not has_geoms and not has_verts:
