@@ -8941,3 +8941,9 @@ conclusively found despite extensive isolated testing.
   get_occlusion_icon, get_paths_icon, get_tracks_icon, get_tcyc_
   toggle_icon. _MapOverlayToggleButton takes an optional icon param
   now - label kept as tooltip text.
+
+- Aug 20 2026 - Water disconnected pending rewrite, per Keith: Water
+  is broken, disconnect from workshop settings, disable the water
+  button, start again with a new water function. water_grp no longer
+  added to Render settings layout (widget still built, just not
+  shown). [Water] button disabled in IPL Controls.
