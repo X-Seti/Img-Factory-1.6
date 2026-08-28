@@ -25817,6 +25817,25 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 for row in range(gw):
                     for col in range(gw):
                         level_idx = waterpro.visible_map[row][col]
+                        # Real, confirmed "cutout" sentinel (Aug 20
+                        # 2026, per Keith: "waterpro.dat allowing cut
+                        # out areas, making sure waterpro.dat is used
+                        # is very important, look at water_workshop
+                        # as resource") - water_workshop.py's own
+                        # WaterGridWidget._cell_col checks exactly
+                        # this: val == 128 means dry/land, no water
+                        # at all at this cell, any other real value
+                        # means water there. This was the real root
+                        # cause of water appearing to cover the whole
+                        # map regardless of the real land boundary -
+                        # every dry cell was still being drawn as a
+                        # flat water quad, since the only check here
+                        # before was an out-of-range level index, and
+                        # most real dry cells still carry an in-range
+                        # index (just one that should have been
+                        # skipped for a different reason).
+                        if level_idx == 128:
+                            continue
                         if level_idx < 0 or level_idx >= len(waterpro.levels):
                             continue
                         height = waterpro.levels[level_idx].height

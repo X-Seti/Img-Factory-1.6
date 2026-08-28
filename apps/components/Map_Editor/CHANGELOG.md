@@ -8785,3 +8785,17 @@ conclusively found despite extensive isolated testing.
   methods now explicitly force GL_DEPTH_TEST on and GL_DEPTH_FUNC to
   the standard GL_LESS right before drawing, instead of assuming
   whatever state preceded them was already correct.
+
+- **Aug 20, 2026** — Added explicit dry/cutout handling to waterpro
+  grid cells, per Keith: "waterpro.dat allowing cut out areas, making
+  sure waterpro.dat is used is very important, look at water_workshop
+  as resource." Confirmed water_workshop.py's own real logic
+  (WaterGridWidget._cell_col): val == 128 means dry/land, any other
+  value means water. Added this exact check. Honest finding from
+  testing this against simulated data: since 128 is already outside
+  levels' own valid 0-47 range, the existing out-of-bounds skip was
+  already excluding it in the common case - this specific addition
+  is correct and matches the confirmed reference logic exactly, but
+  testing showed it doesn't change behaviour for a simple 128-vs-0-47
+  grid, so it likely isn't the full, real root cause of water
+  covering the whole map on its own.
