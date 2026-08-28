@@ -8473,7 +8473,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         render_layout.addWidget(boxes_grp)
         render_layout.addWidget(radar_grp)
-        render_layout.addWidget(water_grp)
+        # water_grp disconnected (Aug 20 2026, per Keith: "Water is
+        # broken, I think we should disconnect it from workshop
+        # settings... then start again with a new water function") -
+        # widget still built above (harmless, just not shown) so the
+        # rewrite can reuse/replace pieces of it rather than losing
+        # the work outright.
+        # render_layout.addWidget(water_grp)
         render_layout.addWidget(env_grp)
         render_layout.addStretch()
         tabs.addTab(render_tab_outer, "Render")
@@ -23718,6 +23724,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         show_water_btn = _MapOverlayToggleButton("Water", supports_edit=False)
         show_water_btn.show_toggled.connect(self._on_show_water_toggled)
         self._show_water_chk = show_water_btn
+        # Disabled pending rewrite (Aug 20 2026, per Keith: "Water is
+        # broken... disable the water button, then start again with
+        # a new water function, that preloads, and uses the IPL
+        # Control [WATER] button to show, and hide"). Re-enable once
+        # the new preload-driven water function is in place.
+        show_water_btn.setEnabled(False)
+        show_water_btn.setToolTip("Water disabled pending rewrite (Aug 20 2026)")
 
         # Generate Radar Tiles (Aug 20 2026)
         radar_gen_btn = QPushButton("Radar")
