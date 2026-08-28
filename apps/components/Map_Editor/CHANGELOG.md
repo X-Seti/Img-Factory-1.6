@@ -8962,3 +8962,25 @@ conclusively found despite extensive isolated testing.
   Textures" shortcut button jumps straight to this app's own tex/
   folder. [Water] re-enables itself automatically once real water
   data is preloaded.
+
+- Aug 20 2026 - Old water system fully removed, per Keith's "start
+  again" rewrite. Deleted dead methods: _draw_water_shapes, _draw_
+  waterpro_water, _ensure_water_texture (dff_viewport.py); _refresh_
+  water_visualization and all 5 of its call sites, the disconnected
+  water_grp settings block, water_map_extent sync call, and the
+  startup settings-restore block for water style/texture/hide-
+  outside-map (map_workshop.py). _on_show_water_toggled simplified
+  to a plain toggle (no old-data status check).
+
+  Caught and fixed a real crash bug introduced by the water_grp
+  removal: the settings Apply handler still referenced water_style_
+  combo/water_texture_path_edit/water_tile_size_spin/water_hide_
+  outside_chk, which no longer existed - would have thrown NameError
+  and broken the whole settings dialog's Apply, not just water.
+  Removed that dead block too.
+
+  Noted, not acted on: loader.water_shapes/loader.waterpro (gta_dat_
+  parser.py) are still populated automatically during world load but
+  have no remaining readers anywhere - wasted parsing work, not
+  broken. Left as-is - out of scope for this pass, core parsing file
+  shared by other tools.
