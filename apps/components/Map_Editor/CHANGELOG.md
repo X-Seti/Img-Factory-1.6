@@ -9012,3 +9012,18 @@ conclusively found despite extensive isolated testing.
   removed them. Re-verified the rest of that same commit's diff (both
   files) for the same mistake - confirmed nothing else unrelated was
   swallowed.
+
+- Aug 20 2026 - Fixed Preload dialog's Save Picks not actually
+  persisting to disk, per Keith: "reload has the entries saved but
+  there not being loaded, this worked before we removed the old
+  water function." _do_save only ever called map_settings.set()
+  (updates the in-memory dict only) - real persistence only happened
+  via the app's own quit-time auto-save, so anything short of a
+  clean exit (this session's own earlier container reset included)
+  lost it. Now calls map_settings.save() immediately, same real
+  pattern every other explicit save action in this file already
+  uses. Noted, not yet fixed: img_factory_settings.py has two
+  identical def set() definitions on the same settings class -
+  harmless (both do the same thing, second just shadows the first)
+  but a real duplicate worth flagging per the project's own no-
+  duplicate-functions rule.

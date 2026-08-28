@@ -22867,10 +22867,22 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         btn_row.addWidget(close_btn)
         outer.addLayout(btn_row)
 
-        def _do_save(): #vers 1
+        def _do_save(): #vers 2
+            """Real fix (Aug 20 2026, per Keith: "reload has the
+            entries saved but there not being loaded, this worked
+            before we removed the old water function") - this never
+            called map_settings.save() (only .set(), which just
+            updates the in-memory dict) - real persistence to disk
+            only happened via the app's own quit-time auto-save
+            (aboutToQuit), so anything short of a clean app exit
+            (e.g. this session's own earlier container reset) lost
+            it. Saves immediately now, the same real pattern every
+            other explicit "save this setting now" action in this
+            file already uses."""
             paths = [preload_list.item(i).data(Qt.ItemDataRole.UserRole)
                      for i in range(preload_list.count())]
             self.map_settings.set('preload_saved_files', paths)
+            self.map_settings.save()
             status_label.setText(f"Saved {len(paths)} pick(s) - restored automatically next time this opens.")
         def _do_load(): #vers 2
             loaded, unrecognised = [], []
