@@ -5162,6 +5162,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         fm.addAction("Save As…", self._save_file_as if hasattr(self, '_save_file_as') else lambda: None)
         fm.addSeparator()
         fm.addAction("Export…",  self._export_col_data if hasattr(self, '_export_col_data') else lambda: None)
+        fm.addSeparator()
+        fm.addAction("Preload Game Data Files…", self._show_preload_dialog)
 
         col_m = parent_menu.addMenu("COL")
         col_m.addAction("Build COL from DFF…",    lambda: self._dff_to_col_surfaces(single=True))
@@ -21361,6 +21363,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         unload_all_act = menu.addAction("Unload All")
         unload_all_act.triggered.connect(self._unload_all_ipl_sections)
 
+        menu.addSeparator()
+        preload_act = menu.addAction("Preload Game Data Files…")
+        preload_act.setToolTip(
+            "Browse the game's own data folder directly and load real,\n"
+            "non-IPL files like waterpro.dat/water.dat/timecyc.dat -\n"
+            "see Keith's own real \"can't seem to find it otherwise\"\n"
+            "request for why this exists alongside the IPL list above.")
+        preload_act.triggered.connect(self._show_preload_dialog)
+
         stream_entries = getattr(self, '_ipl_names_with_binary_stream', {}).get(ipl_name)
         if stream_entries:
             stream_menu = menu.addMenu("Load Binary Stream")
@@ -22727,34 +22738,167 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         self._refresh_ipl_inst_file_panel()
 
-    def _auto_detect_timecyc_path(self): #vers 3
-        """Look for a real timecyc.dat next to the currently loaded
-        game's own real data folder (Aug 20 2026, per Keith: "we need
-        to be able to detect the timecyc.dat file without the need
-        for a path, and still keep the toggle" - "show from gameroot/
-        data/timecyc.dat"). Case-insensitive match (real installs
-        vary). Returns the real path if found, else ''.
+    def _show_preload_dialog(self): #vers 1
+        """New "Preload" dialog (Aug 20 2026, per Keith: "we need a
+        preload menu, on a right click, and map workshop menu, where
+        it shows the contents on the game/data/ folder, picking the
+        file >> over to the preload box, including the waterpro.dat,
+        because we can't seem to find it otherwise"). Lists every
+        real file in the currently loaded game's own real data
+        folder(s) (via _game_data_folder_candidates' own already-
+        working, SOL-aware logic) on the left; a real "preload box"
+        list on the right that files get moved into via >>/<<, with
+        a real Load button that parses and applies whichever real
+        file types this app actually knows how to load (water.dat/
+        waterpro.dat/timecyc.dat right now) - unrecognised file types
+        stay listed but do nothing when loaded, rather than silently
+        being hidden, since Keith's own request was to see the real
+        folder contents directly, not a filtered guess at what he
+        might want."""
+        folders = self._game_data_folder_candidates()
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Preload Game Data Files")
+        dlg.resize(640, 420)
+        outer = QVBoxLayout(dlg)
 
-        Real SOL fix (Aug 20 2026, per Keith: "with GTASOL looking
-        for /sol/gta_sol.dat the waterpro.dat would be in gameroot/
-        data/waterpro.dat" - the identical real gap applies to
-        timecyc.dat too) - the folder self._loaded_dat_path's own
-        directory gives is gameroot/sol for SOL specifically, not
-        gameroot/data, since that's genuinely where SOL's own main
-        .dat file lives. Uses the loader's own real game_root/game
-        (when available) to look in the real, correct gameroot/data
-        folder for SOL instead of the wrong one a plain dirname()
-        would give.
+        if not folders:
+            outer.addWidget(QLabel(
+                "No game data folder known yet - load a world first,\n"
+                "or activate a project with a real game root set."))
+            close_btn = QPushButton("Close")
+            close_btn.clicked.connect(dlg.accept)
+            outer.addWidget(close_btn)
+            dlg.exec()
+            return
 
-        Real fallback added (Aug 20 2026, per Keith: "we also have
-        the project profiles to fall back on") - if the loaded
-        world's own folder doesn't have it, also tries self.main_
-        window.game_root/data - the real, already-existing Project
-        Manager sets main_window.game_root when a project is
-        activated (project_manager.py's own create_project/load
-        flow), a second, real source of "where this game actually
-        lives" independent of whatever .dat file happened to be
-        loaded this session."""
+        folder_label = QLabel(f"Folder: {folders[0]}")
+        folder_label.setToolTip("\n".join(folders))
+        outer.addWidget(folder_label)
+
+        lists_row = QHBoxLayout()
+        avail_list = QListWidget()
+        avail_list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        try:
+            names = sorted(os.listdir(folders[0]))
+        except OSError:
+            names = []
+        for name in names:
+            full = os.path.join(folders[0], name)
+            if os.path.isfile(full):
+                avail_list.addItem(name)
+
+        btn_col = QVBoxLayout()
+        to_preload_btn = QPushButton(">>")
+        to_avail_btn = QPushButton("<<")
+        btn_col.addStretch()
+        btn_col.addWidget(to_preload_btn)
+        btn_col.addWidget(to_avail_btn)
+        btn_col.addStretch()
+
+        preload_list = QListWidget()
+        preload_list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+
+        def _move_to_preload(): #vers 1
+            for item in avail_list.selectedItems():
+                row = avail_list.row(item)
+                taken = avail_list.takeItem(row)
+                preload_list.addItem(taken)
+        def _move_to_avail(): #vers 1
+            for item in preload_list.selectedItems():
+                row = preload_list.row(item)
+                taken = preload_list.takeItem(row)
+                avail_list.addItem(taken)
+        to_preload_btn.clicked.connect(_move_to_preload)
+        to_avail_btn.clicked.connect(_move_to_avail)
+        avail_list.itemDoubleClicked.connect(lambda item: _move_to_preload())
+        preload_list.itemDoubleClicked.connect(lambda item: _move_to_avail())
+
+        avail_col = QVBoxLayout()
+        avail_col.addWidget(QLabel("Available files (double-click or >> to add):"))
+        avail_col.addWidget(avail_list)
+        preload_col = QVBoxLayout()
+        preload_col.addWidget(QLabel("To preload:"))
+        preload_col.addWidget(preload_list)
+
+        lists_row.addLayout(avail_col)
+        lists_row.addLayout(btn_col)
+        lists_row.addLayout(preload_col)
+        outer.addLayout(lists_row)
+
+        status_label = QLabel("")
+        outer.addWidget(status_label)
+
+        btn_row = QHBoxLayout()
+        load_btn = QPushButton("Load")
+        close_btn = QPushButton("Close")
+        btn_row.addStretch()
+        btn_row.addWidget(load_btn)
+        btn_row.addWidget(close_btn)
+        outer.addLayout(btn_row)
+
+        def _do_load(): #vers 1
+            loaded, unrecognised = [], []
+            for i in range(preload_list.count()):
+                name = preload_list.item(i).text()
+                full = os.path.join(folders[0], name)
+                if self._load_preloaded_file(full):
+                    loaded.append(name)
+                else:
+                    unrecognised.append(name)
+            msg = []
+            if loaded:
+                msg.append(f"Loaded: {', '.join(loaded)}")
+            if unrecognised:
+                msg.append(f"Not a recognised type (no action taken): {', '.join(unrecognised)}")
+            status_label.setText("\n".join(msg) if msg else "Nothing selected.")
+        load_btn.clicked.connect(_do_load)
+        close_btn.clicked.connect(dlg.accept)
+        dlg.exec()
+
+    def _load_preloaded_file(self, path): #vers 1
+        """Recognise and load one real file by its own real filename
+        (Aug 20 2026, per Keith's own Preload dialog request above).
+        Returns True if this app knows how to load that real file
+        type and did so, False if the type isn't recognised (the
+        dialog still lists it, just can't act on it yet)."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            return False
+        name = os.path.basename(path).lower()
+        if name == 'waterpro.dat':
+            from apps.methods.gta_dat_parser import parse_waterpro_dat
+            result = parse_waterpro_dat(path)
+            if result is None:
+                return False
+            loader.waterpro = result
+            self._refresh_water_visualization()
+            return True
+        if name == 'water.dat':
+            from apps.methods.gta_dat_parser import parse_water_dat
+            shapes = parse_water_dat(path)
+            if not shapes:
+                return False
+            loader.water_shapes = shapes
+            self._refresh_water_visualization()
+            return True
+        if name == 'timecyc.dat':
+            self.map_settings.set('timecyc_path', path)
+            vp = getattr(self, 'preview_widget', None)
+            if vp is not None and hasattr(vp, 'set_timecyc_path'):
+                vp.set_timecyc_path(path)
+            return True
+        return False
+
+    def _game_data_folder_candidates(self): #vers 1
+        """Every real, candidate "data" folder for the currently
+        loaded game, in priority order (Aug 20 2026) - extracted from
+        _auto_detect_timecyc_path's own real, already-working logic
+        so the new Preload dialog can list the same real folder(s)
+        rather than re-deriving this separately. SOL-aware (its own
+        main .dat lives at gameroot/sol, not gameroot/data, but real
+        sibling files like waterpro.dat/timecyc.dat still do), plus
+        the active Project Manager's own main_window.game_root as a
+        second, real fallback source."""
         loader = getattr(self, '_world_loader', None)
         game_root = getattr(loader, 'game_root', '') if loader is not None else ''
         game = getattr(loader, 'game', '') if loader is not None else ''
@@ -22769,7 +22913,44 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         mw_game_root = getattr(mw_game_root, 'game_root', '') if mw_game_root is not None else ''
         if mw_game_root:
             candidates.append(os.path.join(mw_game_root, 'data'))
-        for folder in candidates:
+        # De-dupe while preserving order (folders can coincide)
+        seen = set()
+        result = []
+        for c in candidates:
+            norm = os.path.normpath(c)
+            if norm not in seen:
+                seen.add(norm)
+                result.append(c)
+        return result
+
+    def _auto_detect_timecyc_path(self): #vers 4
+        """Look for a real timecyc.dat next to the currently loaded
+        game's own real data folder (Aug 20 2026, per Keith: "we need
+        to be able to detect the timecyc.dat file without the need
+        for a path, and still keep the toggle" - "show from gameroot/
+        data/timecyc.dat"). Case-insensitive match (real installs
+        vary). Returns the real path if found, else ''.
+
+        Real SOL fix (Aug 20 2026, per Keith: "with GTASOL looking
+        for /sol/gta_sol.dat the waterpro.dat would be in gameroot/
+        data/waterpro.dat" - the identical real gap applies to
+        timecyc.dat too) - the folder self._loaded_dat_path's own
+        directory gives is gameroot/sol for SOL specifically, not
+        gameroot/data, since that's genuinely where SOL's own main
+        .dat file lives. Now uses _game_data_folder_candidates' own
+        real, shared SOL-aware logic rather than a second, separate
+        copy of it.
+
+        Real fallback added (Aug 20 2026, per Keith: "we also have
+        the project profiles to fall back on") - if the loaded
+        world's own folder doesn't have it, also tries self.main_
+        window.game_root/data - the real, already-existing Project
+        Manager sets main_window.game_root when a project is
+        activated (project_manager.py's own create_project/load
+        flow), a second, real source of "where this game actually
+        lives" independent of whatever .dat file happened to be
+        loaded this session."""
+        for folder in self._game_data_folder_candidates():
             try:
                 for name in os.listdir(folder):
                     if name.lower() == 'timecyc.dat':

@@ -8847,3 +8847,24 @@ conclusively found despite extensive isolated testing.
      that" - removed [Tcyc]'s own earlier "live time" label growth;
      the same time already shows on the separate Time display right
      next to it in the same IPL Controls row, genuinely redundant.
+
+- **Aug 20, 2026** — New "Preload Game Data Files" dialog, per Keith:
+  "we need a preload menu, on a right click, and map workshop menu,
+  where it shows the contents on the game/data/ folder, picking the
+  file >> over to the preload box, including the waterpro.dat,
+  because we can't seem to find it otherwise." Lists every real file
+  in the currently loaded game's own real data folder (via the same
+  already-working, SOL-aware _game_data_folder_candidates logic
+  timecyc auto-detection already used - now shared, not duplicated),
+  with an Available/>>/<</Preload two-list workflow and a real Load
+  button that parses/applies water.dat/waterpro.dat/timecyc.dat by
+  filename. Added to both the File menu and the IPL Sections table's
+  right-click menu, alongside the existing IPL load/unload entries
+  rather than replacing them.
+
+  Caught and fixed a real, self-introduced bug while building this -
+  a str_replace edit accidentally dropped _game_data_folder_
+  candidates' own "def" line, silently merging its docstring/body
+  into the preceding method instead (still syntactically valid
+  Python, so it didn't show up as a parse error - caught via a
+  function-count check instead).
