@@ -22843,9 +22843,17 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         path_row = QHBoxLayout()
         path_edit = QLineEdit(current_folder[0])
         up_btn = QPushButton("Up")
+        tex_btn = QPushButton("App Textures")
+        tex_btn.setToolTip(
+            "Jump to this app's own tex/ folder (Aug 20 2026, per\n"
+            "Keith: \"there is a tex folder now in img-factory-1.6, in\n"
+            "there is the water texture, so this can also be preloaded\n"
+            "as an asset\") - a real app asset folder, not part of any\n"
+            "game's own data folder, so it needs its own shortcut here.")
         path_row.addWidget(QLabel("Folder:"))
         path_row.addWidget(path_edit)
         path_row.addWidget(up_btn)
+        path_row.addWidget(tex_btn)
         outer.addLayout(path_row)
 
         lists_row = QHBoxLayout()
@@ -22882,8 +22890,18 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if os.path.isdir(typed):
                 current_folder[0] = typed
                 _refresh_avail_list()
+        def _go_to_app_tex(): #vers 1
+            app_root = os.path.normpath(os.path.join(
+                os.path.dirname(os.path.abspath(__file__)), '..', '..', '..'))
+            tex_dir = os.path.join(app_root, 'tex')
+            if os.path.isdir(tex_dir):
+                current_folder[0] = tex_dir
+                _refresh_avail_list()
+            else:
+                status_label.setText(f"No tex/ folder found at {tex_dir}")
         up_btn.clicked.connect(_go_up)
         path_edit.returnPressed.connect(_go_to_typed_path)
+        tex_btn.clicked.connect(_go_to_app_tex)
 
         btn_col = QVBoxLayout()
         to_preload_btn = QPushButton(">>")
@@ -22982,6 +23000,30 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         close_btn.clicked.connect(dlg.accept)
         dlg.exec()
 
+    def _apply_water2_preload(self): #vers 1
+        """Combine whatever's been preloaded so far (Aug 20 2026) -
+        water cells and the water texture can be preloaded in either
+        order, or independently, via separate _load_preloaded_file
+        calls (waterpro.dat/water.dat picked from game/data/, the
+        texture picked from the app's own tex/ folder). Pushes
+        whatever's available to the viewport and re-enables/shows
+        [Water] (disabled earlier this session pending this rewrite)
+        the moment there's real water data to show."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is None or not hasattr(vp, 'set_water2_data'):
+            return
+        cells = getattr(self, '_water2_cells_pending', None)
+        texture_path = getattr(self, '_water2_texture_path_pending', '')
+        if cells is None:
+            return   # texture preloaded alone, before any real water data
+        vp.set_water2_data(cells, texture_path)
+        water_btn = getattr(self, '_show_water_chk', None)
+        if water_btn is not None:
+            water_btn.setEnabled(True)
+            water_btn.setToolTip("Left-click: show/hide Water.")
+            if hasattr(water_btn, 'set_shown'):
+                water_btn.set_shown(True)
+
     def _load_preloaded_file(self, path): #vers 2
         """Recognise and load one real file by its own real filename
         (Aug 20 2026, per Keith's own Preload dialog request above).
@@ -23047,28 +23089,69 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if loader is None:
             return False
         if name == 'waterpro.dat':
-            from apps.methods.gta_dat_parser import parse_waterpro_dat
+            # Real fix (Aug 20 2026, per Keith: "Water is broken...
+            # start again with a new water function, that preloads,
+            # and uses the IPL Control [WATER] button to show, and
+            # hide") - computes the same real flat cell list
+            # _refresh_water_visualization already did (real grid,
+            # real dry-cell skip, real world bounds) but pushes it to
+            # the new set_water2_data instead of the old settings-
+            # driven set_waterpro_cells path, and re-enables [Water]
+            # (disabled earlier this same session pending this
+            # rewrite) rather than the old set_shown call.
+            from apps.methods.gta_dat_parser import parse_waterpro_dat, RADAR_GRID_PRESETS
             result = parse_waterpro_dat(path)
             if result is None:
                 return False
-            loader.waterpro = result
-            water_btn = getattr(self, '_show_water_chk', None)
-            if water_btn is not None and hasattr(water_btn, 'set_shown'):
-                water_btn.set_shown(True)
-            else:
-                self._refresh_water_visualization()
+            game_key = getattr(loader, 'game', 'vc')
+            preset = RADAR_GRID_PRESETS.get(game_key, RADAR_GRID_PRESETS['vc'])
+            grid_size = preset['grid_size']
+            half = grid_size / 2.0
+            gw = result.grid_width
+            cell = grid_size / gw
+            cells = []
+            for row in range(gw):
+                for col in range(gw):
+                    level_idx = result.visible_map[row][col]
+                    if level_idx == 128:
+                        continue
+                    if level_idx < 0 or level_idx >= len(result.levels):
+                        continue
+                    height = result.levels[level_idx].height
+                    min_x = -half + col * cell
+                    min_y = half - (row + 1) * cell
+                    cells.append((min_x, min_y, min_x + cell, min_y + cell, height))
+            self._water2_cells_pending = cells
+            self._apply_water2_preload()
             return True
         if name == 'water.dat':
             from apps.methods.gta_dat_parser import parse_water_dat
             shapes = parse_water_dat(path)
             if not shapes:
                 return False
-            loader.water_shapes = shapes
-            water_btn = getattr(self, '_show_water_chk', None)
-            if water_btn is not None and hasattr(water_btn, 'set_shown'):
-                water_btn.set_shown(True)
-            else:
-                self._refresh_water_visualization()
+            # water.dat's own shapes are already real, arbitrary
+            # polygons (not a uniform grid) - reduced to each shape's
+            # own flat bounding box, since _draw_water2 only knows
+            # flat rectangular cells, the same real simplification
+            # waterpro.dat's own grid cells already are.
+            cells = []
+            for w in shapes:
+                xs = [c.x for c in w.corners]
+                ys = [c.y for c in w.corners]
+                zs = [c.z for c in w.corners]
+                cells.append((min(xs), min(ys), max(xs), max(ys), sum(zs) / len(zs)))
+            self._water2_cells_pending = cells
+            self._apply_water2_preload()
+            return True
+        if name.endswith('.png') or name.endswith('.jpg') or name.endswith('.jpeg'):
+            # Real texture asset (Aug 20 2026, per Keith: "there is a
+            # tex folder now in img-factory-1.6, in there is the
+            # water texture, so this can also be preloaded as an
+            # asset") - stored for the new water2 system; applied
+            # immediately if water cells are already preloaded, or
+            # picked up automatically the next time they are.
+            self._water2_texture_path_pending = path
+            self._apply_water2_preload()
             return True
         if name == 'timecyc.dat':
             self.map_settings.set('timecyc_path', path)
@@ -23730,7 +23813,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # Control [WATER] button to show, and hide"). Re-enable once
         # the new preload-driven water function is in place.
         show_water_btn.setEnabled(False)
-        show_water_btn.setToolTip("Water disabled pending rewrite (Aug 20 2026)")
+        show_water_btn.setToolTip("No water preloaded yet - File > Preload Game Data Files...")
 
         # Generate Radar Tiles (Aug 20 2026)
         radar_gen_btn = QPushButton("Radar")

@@ -8947,3 +8947,18 @@ conclusively found despite extensive isolated testing.
   button, start again with a new water function. water_grp no longer
   added to Render settings layout (widget still built, just not
   shown). [Water] button disabled in IPL Controls.
+
+- Aug 20 2026 - New, simpler water system, per Keith: start again
+  with a new water function, that preloads, and uses the IPL Control
+  [WATER] button to show and hide, texture from tex/ can also be
+  preloaded as an asset. Added set_water2_data/_ensure_water2_
+  texture/_draw_water2 to DFFViewport (self.show_water reused as the
+  same on/off flag [Water] already toggles) - one real cell list, one
+  optional real texture, no settings-driven style/tile/hide-outside-
+  map config. paintGL now calls _draw_water2 instead of the old two-
+  method pair (old methods left in place, not yet deleted). Preload
+  dialog: waterpro.dat/water.dat now push to the new system instead
+  of the old one; .png/.jpg recognised as a texture asset; new "App
+  Textures" shortcut button jumps straight to this app's own tex/
+  folder. [Water] re-enables itself automatically once real water
+  data is preloaded.
