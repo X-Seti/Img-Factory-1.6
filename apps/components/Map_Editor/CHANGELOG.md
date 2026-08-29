@@ -9161,3 +9161,17 @@ conclusively found despite extensive isolated testing.
   a genuine duplicate I'd introduced in the same edit (water2_use_
   texture was already being saved/applied elsewhere in this same
   handler).
+
+- Aug 20 2026 - Converted [Radar] to a real toggle button, per Keith:
+  "The radar button also needs to switch the radar on and off, and
+  right-clicking the radar button should generate the radar...
+  moving the Radar settings from the settings, to the button would
+  follow the pattern of the other buttons." Left-click now shows/
+  hides the radar tex layer (new _on_show_radar_tex_layer_toggled,
+  reusing the real logic the settings dialog's own Apply handler used
+  to have); right-click generates radar tiles (reuses edit_toggled,
+  the same generic "second action" signal every edit-capable overlay
+  button already has). Removed the old settings-dialog checkbox
+  entirely (all 3 real references: construction, Reset Grid to
+  Defaults, Apply handler) rather than just disconnecting it, given
+  the crash bug just fixed above was caused by exactly that pattern.

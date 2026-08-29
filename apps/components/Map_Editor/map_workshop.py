@@ -8332,15 +8332,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "showing in the exported tiles themselves.")
         radar_form.addRow(radar_show_grid_chk)
 
-        radar_tex_layer_chk = QCheckBox("Show radar tex layer instead of grid")
-        radar_tex_layer_chk.setChecked(bool(self.map_settings.get('show_radar_tex_layer')))
-        radar_tex_layer_chk.setToolTip(
-            "Shows the real radarNN.txd tile textures, read directly\n"
-            "from the currently loaded game's own IMG archive (gta3.\n"
-            "img, or RadarTex.img for SOL), at their own real world\n"
-            "positions under the model spawn layout - instead of the\n"
-            "plain reference grid.")
-        radar_form.addRow(radar_tex_layer_chk)
+        # radar_tex_layer_chk removed (Aug 20 2026, per Keith: "moving
+        # the Radar settings from the settings, to the button would
+        # follow the pattern of the other buttons, leaving the
+        # settings, for those buttons in the map_workshop settings") -
+        # the simple on/off toggle this checkbox used to be now lives
+        # on the [Radar] button itself (_on_show_radar_tex_layer_
+        # toggled), matching every other overlay's own pattern.
 
         grid_hide_over_radar_chk = QCheckBox("Hide grid over radar tiles")
         grid_hide_over_radar_chk.setChecked(bool(self.map_settings.get('grid_hide_over_radar_tiles')))
@@ -8373,7 +8371,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             grid_texture_alpha_spin.setValue(0.5)
             grid_show_lines_chk.setChecked(True)
             grid_hide_over_radar_chk.setChecked(False)
-            radar_tex_layer_chk.setChecked(False)
         grid_reset_btn.clicked.connect(_reset_grid_defaults)
         radar_form.addRow(grid_reset_btn)
 
@@ -9097,17 +9094,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.map_settings.set('grid_cell_count', grid_cell_count_val)
             if vp is not None and hasattr(vp, 'set_grid_cell_count'):
                 vp.set_grid_cell_count(grid_cell_count_val)
-
-            radar_tex_enabled = radar_tex_layer_chk.isChecked()
-            self.map_settings.set('show_radar_tex_layer', radar_tex_enabled)
-            if vp is not None and hasattr(vp, 'set_radar_tex_layer'):
-                if radar_tex_enabled:
-                    loader = getattr(self, '_world_loader', None)
-                    game_key = getattr(loader, 'game', 'sa') if loader is not None else 'sa'
-                    tile_textures = self._load_radar_tex_tiles(game_key)
-                    vp.set_radar_tex_layer(True, tile_textures, game_key)
-                else:
-                    vp.set_radar_tex_layer(False)
 
             hide_over_radar_val = grid_hide_over_radar_chk.isChecked()
             self.map_settings.set('grid_hide_over_radar_tiles', hide_over_radar_val)
@@ -22376,6 +22362,30 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._set_status(
             f"Saved {len(matching)} instances from {ipl_name} to binary IPL: {path}")
 
+    def _on_show_radar_tex_layer_toggled(self, checked): #vers 1
+        """Show/hide the radar tex layer - real fix (Aug 20 2026, per
+        Keith: "The radar button also needs to switch the radar on
+        and off, and right-clicking the radar button should generate
+        the radar... moving the Radar settings from the settings, to
+        the button would follow the pattern of the other buttons") -
+        same real logic the settings dialog's own Apply handler
+        already used, moved here so the button itself is the one,
+        real place this now lives, matching every other overlay
+        toggle. The settings dialog keeps the underlying setting
+        (still read/written here) but no longer needs its own
+        checkbox for it."""
+        self.map_settings.set('show_radar_tex_layer', checked)
+        vp = getattr(self, 'preview_widget', None)
+        if vp is None or not hasattr(vp, 'set_radar_tex_layer'):
+            return
+        if checked:
+            loader = getattr(self, '_world_loader', None)
+            game_key = getattr(loader, 'game', 'sa') if loader is not None else 'sa'
+            tile_textures = self._load_radar_tex_tiles(game_key)
+            vp.set_radar_tex_layer(True, tile_textures, game_key)
+        else:
+            vp.set_radar_tex_layer(False)
+
     def _on_generate_radar_tiles_clicked(self): #vers 2
         """Prompt for an output folder, then run _generate_radar_tiles
         (Aug 20 2026)"""
@@ -24175,20 +24185,21 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "other real layer (physical_map, double the resolution).")
 
         # Generate Radar Tiles (Aug 20 2026)
-        radar_gen_btn = QPushButton("Radar")
-        radar_gen_btn.setFixedHeight(18)
-        radar_gen_btn.setStyleSheet(_compact_18)
-
-        # Real stretch bug fixed (Aug 20 2026)
-        radar_gen_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        radar_gen_btn.setToolTip("Generate Radar Tiles")
-        radar_gen_btn.clicked.connect(self._on_generate_radar_tiles_clicked)
-
-        # Right-click: send the just-generated tiles to TXD Workshop (Aug 20 2026)
-        radar_gen_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        radar_gen_btn.customContextMenuRequested.connect(
-            lambda pos, b=radar_gen_btn: self._on_radar_tiles_context_menu(b, pos))
-
+        radar_gen_btn = _MapOverlayToggleButton("Radar", supports_edit=True)
+        radar_gen_btn.set_shown(bool(self.map_settings.get('show_radar_tex_layer')), emit=False)
+        radar_gen_btn.show_toggled.connect(self._on_show_radar_tex_layer_toggled)
+        # Right-click generates the radar tiles (Aug 20 2026, per
+        # Keith: "right-clicking the radar button should generate the
+        # radar") - reuses the same real edit_toggled signal every
+        # edit-capable overlay button already has (a generic "second
+        # action" trigger), not a genuine edit mode - the boolean
+        # value itself is ignored, each right-click just re-triggers
+        # generation. Tooltip overridden below since the default
+        # "edit mode" wording isn't accurate here.
+        radar_gen_btn.edit_toggled.connect(lambda checked: self._on_generate_radar_tiles_clicked())
+        radar_gen_btn.setToolTip(
+            "Left-click: show/hide the radar tex layer.\n"
+            "Right-click: generate radar tiles.")
         opts_row4 = QHBoxLayout()
         opts_row4.addWidget(show_sa_nodes_btn)
         opts_row4.addWidget(show_auzo_btn)
