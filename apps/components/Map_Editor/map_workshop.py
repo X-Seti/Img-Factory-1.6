@@ -23289,14 +23289,30 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._set_status(f"Preload: nothing recognised ({', '.join(unrecognised)})")
         return loaded
 
-    def _waterpro_to_cells(self, waterpro, game): #vers 1
+    def _waterpro_to_cells(self, waterpro, game): #vers 2
         """Real, confirmed grid-to-cells logic (Aug 20 2026, re-
         applied) - shared between the manual Preload path and the
         automatic world-load retool below. Skips real "dry"/cutout
         cells (val==128, confirmed against water_workshop.py's own
         WaterGridWidget._cell_col) - already excluded by the level-
         index bounds check below too, but named explicitly for
-        clarity."""
+        clarity.
+
+        Real fix (Aug 20 2026, per Keith's own screenshot, filename
+        "turn_90d_anti_clock", and his own words: "the water render
+        function needs to display this 90degrees anti clockwise") -
+        the original min_x=col, min_y=row mapping had the whole grid
+        rotated 90 degrees clockwise relative to the real island
+        layout. A genuine 90-degree anticlockwise rotation of (x,y)
+        is (x,y) -> (-y,x); applying that to every corner of the
+        original cell and re-deriving the new min/max corners reduces
+        to simply swapping which index drives which axis - row now
+        drives x directly (no more (row+1)-from-the-top flip needed,
+        since rotation already accounts for the direction), col now
+        drives y directly. Verified against a concrete corner (row=0,
+        col=0 - the original grid's own NW-most cell) moving to the
+        new grid's own SW - the correct result for anticlockwise, not
+        clockwise (which would have moved it to NE instead)."""
         from apps.methods.gta_dat_parser import RADAR_GRID_PRESETS
         preset = RADAR_GRID_PRESETS.get(game, RADAR_GRID_PRESETS['vc'])
         grid_size = preset['grid_size']
@@ -23312,8 +23328,37 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 if level_idx < 0 or level_idx >= len(waterpro.levels):
                     continue
                 height = waterpro.levels[level_idx].height
-                min_x = -half + col * cell
-                min_y = half - (row + 1) * cell
+                min_x = -half + row * cell
+                min_y = -half + col * cell
+                cells.append((min_x, min_y, min_x + cell, min_y + cell, height))
+        return cells
+
+    def _waterpro_physical_to_cells(self, waterpro, game): #vers 1
+        """The other real water layer (Aug 20 2026, per Keith: "when
+        you right click the water button, show the other water
+        layer") - waterpro.dat's own physical_map, a real, separate
+        grid exactly double visible_map's own width/height per side,
+        covering the same real world area at twice the resolution.
+        Same real anticlockwise rotation fix as _waterpro_to_cells,
+        since it's the same real coordinate system just finer-
+        grained."""
+        from apps.methods.gta_dat_parser import RADAR_GRID_PRESETS
+        preset = RADAR_GRID_PRESETS.get(game, RADAR_GRID_PRESETS['vc'])
+        grid_size = preset['grid_size']
+        half = grid_size / 2.0
+        gw = waterpro.grid_width * 2
+        cell = grid_size / gw
+        cells = []
+        for row in range(gw):
+            for col in range(gw):
+                level_idx = waterpro.physical_map[row][col]
+                if level_idx == 128:
+                    continue
+                if level_idx < 0 or level_idx >= len(waterpro.levels):
+                    continue
+                height = waterpro.levels[level_idx].height
+                min_x = -half + row * cell
+                min_y = -half + col * cell
                 cells.append((min_x, min_y, min_x + cell, min_y + cell, height))
         return cells
 
@@ -23368,6 +23413,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         water_shapes = getattr(loader, 'water_shapes', None)
         if waterpro is not None:
             game = getattr(loader, 'game', 'vc')
+            self._water2_waterpro_source = waterpro
+            self._water2_game_source = game
             self._water2_cells_pending = self._waterpro_to_cells(waterpro, game)
             self._apply_water2_preload()
         elif water_shapes:
@@ -23461,6 +23508,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if result is None:
                 return False
             game_key = getattr(loader, 'game', 'vc')
+            self._water2_waterpro_source = result
+            self._water2_game_source = game_key
             self._water2_cells_pending = self._waterpro_to_cells(result, game_key)
             self._apply_water2_preload()
             return True
@@ -24117,13 +24166,26 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._show_auzo_chk = show_auzo_btn
 
         # Show Water (Aug 20 2026)
-        show_water_btn = _MapOverlayToggleButton("Water", supports_edit=False)
+        show_water_btn = _MapOverlayToggleButton("Water", supports_edit=True)
         show_water_btn.show_toggled.connect(self._on_show_water_toggled)
+        # Right-click switches water layers (Aug 20 2026, per Keith:
+        # "when you right click the water button, show the other
+        # water layer, right clicking again shows the first") -
+        # reuses the existing right-click/edit_toggled mechanism
+        # every edit-capable overlay button already has (a real,
+        # generic "second boolean state" signal), not a genuine edit
+        # mode for water - tooltip overridden below since the default
+        # one from _MapOverlayToggleButton's own __init__ says "edit
+        # mode", which isn't accurate here.
+        show_water_btn.edit_toggled.connect(self._on_water_layer_toggled)
         self._show_water_chk = show_water_btn
         # Disabled until real water data is actually preloaded (Aug 20
         # 2026, re-applied) - re-enables itself automatically.
         show_water_btn.setEnabled(False)
-        show_water_btn.setToolTip("No water preloaded yet - File > Preload Game Data Files...")
+        show_water_btn.setToolTip(
+            "No water preloaded yet - File > Preload Game Data Files...\n"
+            "Right-click (once preloaded): switch to waterpro.dat's own\n"
+            "other real layer (physical_map, double the resolution).")
 
         # Generate Radar Tiles (Aug 20 2026)
         radar_gen_btn = QPushButton("Radar")
@@ -26683,6 +26745,32 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         vp = getattr(self, 'preview_widget', None)
         if vp is not None and hasattr(vp, 'set_show_water'):
             vp.set_show_water(checked)
+
+    def _on_water_layer_toggled(self, checked): #vers 1
+        """Right-click switches between waterpro.dat's own two real
+        layers (Aug 20 2026, per Keith: "when you right click the
+        water button, show the other water layer, right clicking
+        again shows the first") - visible_map (checked=False, the
+        default/first layer) vs physical_map (checked=True, double
+        the resolution). Only meaningful once a real waterpro.dat has
+        actually been preloaded (water.dat has no second layer at
+        all); silently does nothing otherwise, since there's nothing
+        real to switch to."""
+        waterpro = getattr(self, '_water2_waterpro_source', None)
+        if waterpro is None:
+            return
+        game = getattr(self, '_water2_game_source', 'vc')
+        vp = getattr(self, 'preview_widget', None)
+        if vp is None or not hasattr(vp, 'set_water2_data'):
+            return
+        if checked:
+            cells = self._waterpro_physical_to_cells(waterpro, game)
+            self._set_status("Water: showing physical_map layer (double resolution)")
+        else:
+            cells = self._waterpro_to_cells(waterpro, game)
+            self._set_status("Water: showing visible_map layer")
+        self._water2_cells_pending = cells
+        vp.set_water2_data(cells)
 
     def _on_show_paths_toggled(self, checked): #vers 1
         """Show Paths checked/unchecked"""
