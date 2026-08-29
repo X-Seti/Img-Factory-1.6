@@ -9035,3 +9035,21 @@ conclusively found despite extensive isolated testing.
   calls from the same instance vs two different instances are
   distinguishable in the terminal output, not just "it happened
   twice" with no way to tell which.
+
+- Aug 20 2026 - Fixed real re-entrancy bug behind double dialogs/
+  double IMG load, confirmed via Keith's own terminal markers: two
+  full _apply_loaded_world calls on the exact same instance (same
+  id), back to back. Root cause: __init__'s own deferred QTimer.
+  singleShot(0, self._auto_load_last_world) was still pending by the
+  time a manually-triggered load reached one of _apply_loaded_world's
+  own processEvents() calls - Qt's event loop fired that pending
+  timer right there, mid-method, nesting a second, re-entrant call to
+  the entire load pipeline before the first had finished.
+
+  Real fix: _apply_loaded_world is now a thin wrapper (renamed the
+  real body to _apply_loaded_world_impl, unchanged) with an instance-
+  level re-entrancy guard - a nested call while one's already in
+  progress is skipped with a clear log line instead of silently
+  double-processing everything. Added a second, defensive "only once
+  per instance" guard directly on _auto_load_last_world too, since
+  it's logically startup-only regardless of how it gets triggered.

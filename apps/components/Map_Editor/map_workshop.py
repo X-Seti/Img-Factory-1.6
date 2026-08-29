@@ -20614,8 +20614,20 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         (see _add_recent_dat_file). Skips quietly (no warning popup)
         if there's nothing recent, the setting is off, or the file no
         longer exists on disk - a stale/missing path shouldn't greet
-        every startup with an unexpected "Load failed" dialog."""
+        every startup with an unexpected "Load failed" dialog.
+
+        Real, defensive second safeguard (Aug 20 2026) - this is
+        logically a startup-only action, so it should never run more
+        than once per instance regardless of how it gets triggered;
+        _apply_loaded_world's own new re-entrancy guard is the real
+        fix for the actual bug, this is belt-and-suspenders on top of
+        it, not a substitute for it."""
         print(f"[MapWorkshop-MARKER] _auto_load_last_world called (id={id(self)})")
+        if getattr(self, '_auto_load_last_world_already_ran', False):
+            print(f"[MapWorkshop-MARKER] _auto_load_last_world SKIPPED - "
+                  f"already ran once on this instance (id={id(self)})")
+            return
+        self._auto_load_last_world_already_ran = True
         if not self.map_settings.get('auto_load_last_world'):
             return
         recent = self.map_settings.get('recent_dat_files') or []
@@ -20740,7 +20752,33 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         dlg.exec()
 
-    def _apply_loaded_world(self, loader, game, ok, source_desc): #vers 1
+    def _apply_loaded_world(self, loader, game, ok, source_desc): #vers 2
+        """Real re-entrancy guard (Aug 20 2026, per Keith's own
+        terminal markers: two full _apply_loaded_world calls on the
+        exact same instance, back to back, for the same load) - the
+        real root cause: __init__'s own deferred QTimer.singleShot(0,
+        self._auto_load_last_world) was still pending by the time a
+        manually-triggered load reached one of this method's own
+        processEvents() calls, letting Qt's event loop fire that
+        pending timer right there, mid-method, before the first call
+        had finished - a genuinely nested, re-entrant second call to
+        the entire load pipeline on the very same world. Thin wrapper
+        now - the real body (unchanged, just renamed) only runs once
+        per instance at a time; a re-entrant nested call is skipped
+        with a clear log line instead of silently double-processing
+        everything (double dialogs, double IMG load)."""
+        if getattr(self, '_applying_loaded_world', False):
+            print(f"[MapWorkshop-MARKER] _apply_loaded_world RE-ENTRANT CALL "
+                  f"SKIPPED (source={source_desc!r}, id={id(self)}) - "
+                  f"a load was already in progress on this instance")
+            return
+        self._applying_loaded_world = True
+        try:
+            self._apply_loaded_world_impl(loader, game, ok, source_desc)
+        finally:
+            self._applying_loaded_world = False
+
+    def _apply_loaded_world_impl(self, loader, game, ok, source_desc): #vers 1
         """Shared post-load handling for both _load_game_folder and
         _load_game_dat_file - status message, populating the World View
         panes/Instance List/IPL Sections panel, and the summary/error
