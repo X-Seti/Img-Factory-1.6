@@ -9258,3 +9258,18 @@ conclusively found despite extensive isolated testing.
   also resolves the marker now, so these picks stay visible in the
   list (previously would have silently vanished, since a literal
   "<gamedata>/..." string is never a real, existing file path).
+
+- Aug 20 2026 - Fixed real gap in the "<gamedata>/" marker, per Keith:
+  "../data/waterpro.dat - for LC and VC, but SA map looks for
+  ../data/water.dat." The marker used to hardcode the specific
+  filename it was saved with, which broke the moment the current
+  game's own real family uses a genuinely different filename for the
+  same role - SA has no waterpro.dat at all, only its own water.dat.
+  Replaced with a logical "<gamedata-role>/water" or "<gamedata-role>/
+  timecyc" marker instead, resolved via new shared _resolve_gamedata_
+  role_marker, which tries every real filename that role's own game
+  families actually use (water: waterpro.dat then water.dat; timecyc:
+  timecyc.dat) against whichever data folder is actually current.
+  Same shared resolver now used consistently in all 3 real places
+  that previously each had their own inline copy of this logic
+  (automatic apply, manual Load, dialog list restore).

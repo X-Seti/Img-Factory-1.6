@@ -23240,28 +23240,21 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # they still resolve correctly even after navigating away
         # from the folder they were originally picked in).
         saved_picks = self.map_settings.get('preload_saved_files') or []
-        data_folders_for_restore = self._game_data_folder_candidates()
         for full in saved_picks:
-            if full.startswith('<gamedata>/'):
-                # Real fix (Aug 20 2026, same real marker _apply_
-                # saved_preload_picks resolves - without this, os.
-                # path.isfile below would always be False for a real
-                # "<gamedata>/..." marker (it's a real, symbolic
-                # placeholder, not an actual filesystem path), so
-                # these real, per-game saved picks would silently
-                # vanish from this list every time it's reopened, even
-                # though they're still genuinely applied automatically
-                # behind the scenes.
-                filename = full[len('<gamedata>/'):]
-                resolved = None
-                for folder in data_folders_for_restore:
-                    candidate = os.path.join(folder, filename)
-                    if os.path.isfile(candidate):
-                        resolved = candidate
-                        break
+            if full.startswith('<gamedata-role>/'):
+                # Real fix (Aug 20 2026, same real role marker
+                # _apply_saved_preload_picks/_do_load below both
+                # resolve - without this, os.path.isfile below would
+                # always be False for a real "<gamedata-role>/..."
+                # marker (it's a real, symbolic placeholder, not an
+                # actual filesystem path), so these real, per-game
+                # saved picks would silently vanish from this list
+                # every time it's reopened, even though they're still
+                # genuinely applied automatically behind the scenes.
+                resolved = self._resolve_gamedata_role_marker(full)
                 if resolved is None:
                     continue
-                item = QListWidgetItem(filename)
+                item = QListWidgetItem(os.path.basename(resolved))
                 item.setData(Qt.ItemDataRole.UserRole, full)
                 preload_list.addItem(item)
             elif os.path.isfile(full):
@@ -23295,52 +23288,47 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             explicit "save this setting now" action in this file
             already uses.
 
-            Real fix (Aug 20 2026, per Keith: "we can have them in
-            saved picks as we know they are going to be in the /data
-            folder, the only change is the gameroot folder") - real,
-            per-game files (waterpro.dat/water.dat/timecyc.dat) are
-            now saved as a real "<gamedata>/<filename>" marker instead
-            of their own real absolute path at save time, since that
-            real relative location genuinely never changes between
-            installs - only the gameroot prefix does. _apply_saved_
-            preload_picks resolves that marker against whichever
-            game's own real data folder is actually current at load
-            time, instead of either hardcoding one game's own real
-            absolute path (the original bug) or skipping these 3 real
-            file types outright (last turn's own real fix, now
-            superseded by this better one)."""
+            Real fix (Aug 20 2026, per Keith: "../data/waterpro.dat -
+            for LC and VC, but SA map looks for ../data/water.dat") -
+            the marker used to hardcode the specific filename it was
+            saved with ("<gamedata>/waterpro.dat"), which broke the
+            moment the current game's own real family uses a
+            genuinely different filename for the same real role - SA
+            has no real waterpro.dat at all, only its own real water.
+            dat. Now stores a real, logical role ("<gamedata-role>/
+            water" or "<gamedata-role>/timecyc") instead of one
+            specific filename, resolved against whichever real
+            filename(s) that role's own real game family actually
+            uses - see _resolve_gamedata_role_marker's own docstring
+            for the real, confirmed per-family filenames."""
             paths = []
             for i in range(preload_list.count()):
                 full = preload_list.item(i).data(Qt.ItemDataRole.UserRole)
                 name = os.path.basename(full).lower()
-                if name in ('waterpro.dat', 'water.dat', 'timecyc.dat'):
-                    paths.append(f"<gamedata>/{os.path.basename(full)}")
+                if name in ('waterpro.dat', 'water.dat'):
+                    paths.append("<gamedata-role>/water")
+                elif name == 'timecyc.dat':
+                    paths.append("<gamedata-role>/timecyc")
                 else:
                     paths.append(full)
             self.map_settings.set('preload_saved_files', paths)
             self.map_settings.save()
             status_label.setText(f"Saved {len(paths)} pick(s) - restored automatically next time this opens.")
-        def _do_load(): #vers 3
-            """Real fix (Aug 20 2026, same real "<gamedata>/" marker
+        def _do_load(): #vers 4
+            """Real fix (Aug 20 2026, same real role marker
             _apply_saved_preload_picks/the restore-into-UI logic above
-            both resolve) - a manually-clicked "Load" on a real, saved
+            both resolve, via the same shared _resolve_gamedata_role_
+            marker) - a manually-clicked "Load" on a real, saved
             per-game marker needs the same real resolution against the
             current game's own data folder, otherwise this would try
-            to load the literal string "<gamedata>/waterpro.dat" as a
+            to load the literal string "<gamedata-role>/water" as a
             real file path and fail."""
             loaded, unrecognised = [], []
-            data_folders_for_load = self._game_data_folder_candidates()
             for i in range(preload_list.count()):
                 item = preload_list.item(i)
                 full = item.data(Qt.ItemDataRole.UserRole)
-                if full.startswith('<gamedata>/'):
-                    filename = full[len('<gamedata>/'):]
-                    resolved = None
-                    for folder in data_folders_for_load:
-                        candidate = os.path.join(folder, filename)
-                        if os.path.isfile(candidate):
-                            resolved = candidate
-                            break
+                if full.startswith('<gamedata-role>/'):
+                    resolved = self._resolve_gamedata_role_marker(full)
                     if resolved is None:
                         unrecognised.append(item.text())
                         continue
@@ -23391,28 +23379,19 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._set_status(f"Preloading {len(paths)} saved file(s)...")
         QApplication.processEvents()
         loaded, unrecognised, missing = [], [], []
-        data_folders = self._game_data_folder_candidates()
         for path in paths:
-            if path.startswith('<gamedata>/'):
-                # Real fix (Aug 20 2026, per Keith: "we can have them
-                # in saved picks as we know they are going to be in
-                # the /data folder, the only change is the gameroot
-                # folder") - resolved against whichever game's own
-                # real data folder is actually current at load time
-                # (the same real, already-working, SOL-aware helper
-                # timecyc auto-detection uses), instead of either
-                # hardcoding one game's own real absolute path (the
-                # original bug) or skipping these 3 real file types
-                # outright (the previous, now-superseded fix).
-                filename = path[len('<gamedata>/'):]
-                resolved = None
-                for folder in data_folders:
-                    candidate = os.path.join(folder, filename)
-                    if os.path.isfile(candidate):
-                        resolved = candidate
-                        break
+            if path.startswith('<gamedata-role>/'):
+                # Real fix (Aug 20 2026, per Keith: "../data/waterpro.
+                # dat - for LC and VC, but SA map looks for
+                # ../data/water.dat") - resolved via the shared
+                # _resolve_gamedata_role_marker, which tries every
+                # real filename that role's own real game families
+                # actually use (see its own docstring), instead of
+                # one hardcoded filename (the previous version of
+                # this same fix, which broke for SA specifically).
+                resolved = self._resolve_gamedata_role_marker(path)
                 if resolved is None:
-                    missing.append(filename)
+                    missing.append(path[len('<gamedata-role>/'):])
                     continue
                 path = resolved
             if not os.path.isfile(path):
@@ -23710,6 +23689,37 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 seen.add(norm)
                 result.append(c)
         return result
+
+    def _resolve_gamedata_role_marker(self, marker): #vers 1
+        """Resolve a real "<gamedata-role>/<role>" marker (Aug 20
+        2026, per Keith: "../data/waterpro.dat - for LC and VC, but
+        SA map looks for ../data/water.dat") - each real role tries
+        every real filename that role's own real game families
+        actually use, in order, returning the first that genuinely
+        exists in whichever game's own real data folder is actually
+        current. "water": waterpro.dat (III/VC/SOL's own real binary
+        format) then water.dat (SA's own real text format) - the two
+        real formats are confirmed completely different (see
+        WaterProFile/WaterShape's own docstrings in gta_dat_parser.py)
+        but both fill the exact same real role. "timecyc": timecyc.
+        dat - the one real filename every game family already shares,
+        kept as its own real role here for a consistent marker shape
+        rather than a special case. Returns the real, resolved path,
+        or None if that role's own file doesn't exist in any real
+        candidate folder for the current game."""
+        if not marker.startswith('<gamedata-role>/'):
+            return None
+        role = marker[len('<gamedata-role>/'):]
+        filenames = {
+            'water': ['waterpro.dat', 'water.dat'],
+            'timecyc': ['timecyc.dat'],
+        }.get(role, [])
+        for folder in self._game_data_folder_candidates():
+            for filename in filenames:
+                candidate = os.path.join(folder, filename)
+                if os.path.isfile(candidate):
+                    return candidate
+        return None
 
     def _auto_detect_timecyc_path(self): #vers 4
         """Look for a real timecyc.dat next to the currently loaded
