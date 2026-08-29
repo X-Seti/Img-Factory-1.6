@@ -310,16 +310,30 @@ class WaterGridWidget(QWidget):
         return -1, -1
 
 
-    def _grid_idx(self, cx, cy): #vers 1
-        """Convert screen cell (cx,cy) to byte index in tiled grid storage."""
-        map_w   = 6
-        tile_w  = self._grid_w // map_w
-        tile_col = cx // tile_w
-        tile_row = cy // tile_w
-        tile_idx = tile_row * map_w + tile_col
-        local_c  = cx % tile_w
-        local_r  = cy % tile_w
-        return tile_idx * tile_w * tile_w + local_r * tile_w + local_c
+    def _grid_idx(self, cx, cy): #vers 2
+        """Convert screen cell (cx,cy) to byte index in grid storage.
+
+        Real fix (Aug 20 2026, same real bug/fix as _rebuild_cache's
+        own docstring - see that one for the full real story) - only
+        SOL's own real grid genuinely needs this real 6x6 tiling
+        conversion (its own grid_width is always an exact multiple of
+        6); every other game's own real grid_width never is, and
+        reading/writing through this same tiled-index math for them
+        was landing on the wrong real byte entirely - a real risk for
+        _set_cell specifically, since that's the pencil tool's own
+        real write path, silently corrupting a real VC/SA/III water
+        file's own data on save, not just a display bug."""
+        gw = self._grid_w
+        if gw % 6 == 0:
+            map_w = 6
+            tile_w = gw // map_w
+            tile_col = cx // tile_w
+            tile_row = cy // tile_w
+            tile_idx = tile_row * map_w + tile_col
+            local_c  = cx % tile_w
+            local_r  = cy % tile_w
+            return tile_idx * tile_w * tile_w + local_r * tile_w + local_c
+        return cy * gw + cx
 
     def _cell_val(self, cx, cy): #vers 2
         if 0 <= cx < self._grid_w and 0 <= cy < self._grid_w:
@@ -331,28 +345,51 @@ class WaterGridWidget(QWidget):
             self._grid[self._grid_idx(cx, cy)] = val
 
 
-    def _rebuild_cache(self): #vers 3
-        """Render grid data to QImage assembling 6x6 tiles.
-        SOL: 6x6 map tiles, each tile is TILE_W x TILE_W cells stored sequentially.
-        Visible grid:  tile_w=64  (4*32*32 bytes per tile)
-        Physical grid: tile_w=128 (16*32*32 bytes per tile)
-        """
+    def _rebuild_cache(self): #vers 4
+        """Render grid data to QImage. SOL's own real grid genuinely
+        needs de-tiling: its own visible_map (384) and physical_map
+        (768) are both real, exact multiples of 6 (6x6 map tiles,
+        each tile stored sequentially) - the comment/logic below is
+        real and correct for SOL specifically.
+
+        Real fix (Aug 20 2026, per Keith: "why it's no-longer loading
+        waterpro.dat correctly") - this de-tiling was applied
+        unconditionally to every game's own grid, not just SOL's.
+        VC/SA/III's own real grid_width (64 for visible, 128 for
+        physical) isn't evenly divisible by 6 at all (64 // 6 = 10,
+        an integer-division truncation, not a real tile size) -
+        confirmed directly against Keith's own real VC_WATERPRO.DAT:
+        rendering it raw (no de-tiling) gives a real, coherent,
+        correct-looking island shape; applying this same de-tiling to
+        that same real data reproduces the exact "messed up", striped
+        pattern he reported. Only applies SOL's own real de-tiling
+        now when grid_w is actually a genuine, exact multiple of 6 -
+        every other game (whose own grid_width never is) renders
+        directly, row-major, matching its own real, already-correct
+        byte layout instead."""
         from PyQt6.QtGui import QImage
-        gw       = self._grid_w
-        map_w    = 6
-        tile_w   = gw // map_w   # 64 for vis, 128 for phys
-        tile_sz  = tile_w * tile_w
+        gw = self._grid_w
         img = QImage(gw, gw, QImage.Format.Format_RGB32)
-        for tile_idx in range(map_w * map_w):
-            tile_col = tile_idx % map_w
-            tile_row = tile_idx // map_w
-            base = tile_idx * tile_sz
-            for r in range(tile_w):
-                for c in range(tile_w):
-                    v   = self._grid[base + r * tile_w + c]
-                    px  = tile_col * tile_w + c
-                    py  = tile_row * tile_w + r
-                    img.setPixel(px, py, self._cell_col(v).rgb())
+        if gw % 6 == 0:
+            map_w = 6
+            tile_w = gw // map_w
+            tile_sz = tile_w * tile_w
+            for tile_idx in range(map_w * map_w):
+                tile_col = tile_idx % map_w
+                tile_row = tile_idx // map_w
+                base = tile_idx * tile_sz
+                for r in range(tile_w):
+                    for c in range(tile_w):
+                        v = self._grid[base + r * tile_w + c]
+                        px = tile_col * tile_w + c
+                        py = tile_row * tile_w + r
+                        img.setPixel(px, py, self._cell_col(v).rgb())
+        else:
+            for row in range(gw):
+                base = row * gw
+                for col in range(gw):
+                    v = self._grid[base + col]
+                    img.setPixel(col, row, self._cell_col(v).rgb())
         self._img_cache  = img
         self._cache_flip = self._colour_flipped
 
