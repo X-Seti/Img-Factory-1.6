@@ -9210,3 +9210,17 @@ conclusively found despite extensive isolated testing.
   with the actual, correct world coordinate system every other real
   overlay already uses. _waterpro_to_cells and _waterpro_physical_
   to_cells now match compute_radar_grid's own exact formula.
+
+- Aug 20 2026 - Re-applied the real anticlockwise rotation to water,
+  undoing the previous revert - that revert was the actual mistake,
+  per Keith's own direct confirmation: "the water is 90 degrees
+  clockwise oriented, wrong against the radar." Matching compute_
+  radar_grid's own code textually doesn't guarantee real alignment if
+  waterpro.dat's own raw row/col axes don't carry the same real
+  meaning that function's own loop variables do - "radar is the
+  trusted reference, fix water" meant align water visually with it,
+  not copy radar's own code verbatim regardless of whether the
+  underlying data actually agrees. _waterpro_to_cells and _waterpro_
+  physical_to_cells both use row driving x directly, col driving y
+  directly again (the same real (x,y)->(-y,x) derivation confirmed
+  earlier - see git history for the full math).
