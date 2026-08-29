@@ -20674,7 +20674,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # own. Now runs automatically once a real world is available
         # to apply them to, with real status feedback the same way
         # every other stage of this same load sequence already gives.
-        self._apply_saved_preload_picks()
+        try:
+            self._apply_saved_preload_picks()
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            self._set_status(f"Preload auto-apply failed: {e}")
 
         # Also register each real IMG file as a real, visible tab in
         # IMG Factory's own main tab system (Aug 20 2026, per Keith:
@@ -22988,7 +22993,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         close_btn.clicked.connect(dlg.accept)
         dlg.exec()
 
-    def _apply_saved_preload_picks(self): #vers 1
+    def _apply_saved_preload_picks(self): #vers 2
         """Automatically re-apply the Preload dialog's own saved
         picks once a real world is available to apply them to (Aug
         20 2026, per Keith: "starting map_workshop back up, I noticed
@@ -22998,9 +23003,23 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         reopened; the actual loading still needed a manual Load click
         every time. Runs each saved path through the same real _load_
         preloaded_file every dialog Load/manual pick already uses, so
-        behaviour is identical either way - just automatic now."""
+        behaviour is identical either way - just automatic now.
+
+        Real fix (Aug 20 2026, per Keith: "preload still not working,
+        and nothing in the status log, is there a conflict somewhere")
+        - traced map_settings' own real save/load path (singleton,
+        debounced auto-save, app-folder-relative config path) and it
+        all looked correct on inspection; couldn't reproduce or
+        disprove the actual failure without running the real app.
+        Always leaves a real, visible status message now, even when
+        there's genuinely nothing saved - previously returned silent
+        on an empty list, which looked identical to "this ran and
+        found nothing" as it did to "this never ran at all"."""
         paths = self.map_settings.get('preload_saved_files') or []
         if not paths:
+            self._set_status(
+                f"Preload: no saved picks found (settings file: "
+                f"{self.map_settings._path}, exists={self.map_settings._path.exists()})")
             return
         self._set_status(f"Preloading {len(paths)} saved file(s)...")
         QApplication.processEvents()

@@ -8972,3 +8972,17 @@ conclusively found despite extensive isolated testing.
      it landed after that restore point. Without it, saved picks
      never reached disk at all, so there was nothing for the new
      auto-apply above to find on a real restart.
+
+- Aug 20 2026 - Diagnostics added, per Keith: "preload still not
+  working, and nothing in the status log, is there a conflict
+  somewhere." Traced map_settings' own real save/load path in full
+  (singleton pattern via __new__, debounced auto-save on every set(),
+  app-folder-relative config path via _model_workshop_config_dir) -
+  all of it looked correct on careful inspection, couldn't reproduce
+  or disprove the actual failure without running the real app.
+  _apply_saved_preload_picks now always leaves a real, visible status
+  message even when nothing was saved (previously silent, which
+  looked identical to "never ran at all"), including the real
+  settings file path and whether it exists on disk. The hook call in
+  _apply_loaded_world is now wrapped in try/except too, in case an
+  uncaught exception there was silently swallowing the real error.
