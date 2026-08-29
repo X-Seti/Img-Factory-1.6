@@ -9224,3 +9224,21 @@ conclusively found despite extensive isolated testing.
   physical_to_cells both use row driving x directly, col driving y
   directly again (the same real (x,y)->(-y,x) derivation confirmed
   earlier - see git history for the full math).
+
+- Aug 20 2026 - Fixed real bug, per Keith: "I changed the path to
+  Liberty City, and loaded from gta3.dat... its still grabbing the VC
+  waterpro.dat, and not the one in GTALC/data/waterpro.dat...
+  waterpro.dat needs to be handled some for each install it finds the
+  right version from the gameroot/data folder, not a fixed path."
+  _try_auto_water2_from_loader (runs first in the same world-load
+  sequence) already correctly finds the current game's own real
+  waterpro.dat/water.dat fresh every time - but _apply_saved_preload_
+  picks ran right after it and clobbered that correct result with
+  whatever game's own absolute path happened to be saved from a
+  completely different, earlier session. waterpro.dat/water.dat/
+  timecyc.dat are real, per-game files - saving one game's own
+  absolute path and always restoring it regardless of which game is
+  actually loaded was exactly backwards. These 3 file types are now
+  skipped from saved picks entirely (with a clear status message),
+  since the automatic, per-game retool already handles them correctly
+  on its own.

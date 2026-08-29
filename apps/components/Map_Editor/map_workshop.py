@@ -23329,8 +23329,29 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return []
         self._set_status(f"Preloading {len(paths)} saved file(s)...")
         QApplication.processEvents()
-        loaded, unrecognised = [], []
+        loaded, unrecognised, skipped = [], [], []
         for path in paths:
+            name = os.path.basename(path).lower()
+            if name in ('waterpro.dat', 'water.dat', 'timecyc.dat'):
+                # Real fix (Aug 20 2026, per Keith: "I changed the
+                # path to Liberty City, and loaded from gta3.dat...
+                # its still grabbing the VC waterpro.dat, and not the
+                # one in GTALC/data/waterpro.dat... waterpro.dat needs
+                # to be handled some for each install it finds the
+                # right version from the gameroot/data folder, not a
+                # fixed path") - these are real, per-game files;
+                # saving one game's own absolute path here and always
+                # restoring it regardless of which game is actually
+                # loaded is exactly backwards. _try_auto_water2_from_
+                # loader (already runs earlier in the same real world-
+                # load sequence, before this) already finds the
+                # correct, current game's own real file fresh every
+                # time - this used to run after it and clobber that
+                # correct result with whatever stale path happened to
+                # be saved from a completely different game's own
+                # earlier session.
+                skipped.append(os.path.basename(path))
+                continue
             if not os.path.isfile(path):
                 continue
             if self._load_preloaded_file(path):
@@ -23341,6 +23362,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._set_status(f"Preloaded: {', '.join(loaded)}")
         elif unrecognised:
             self._set_status(f"Preload: nothing recognised ({', '.join(unrecognised)})")
+        elif skipped:
+            self._set_status(
+                f"Preload: skipped per-game file(s) already handled automatically "
+                f"({', '.join(skipped)})")
         return loaded
 
     def _waterpro_to_cells(self, waterpro, game): #vers 4
