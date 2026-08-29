@@ -1169,7 +1169,27 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         else:
             glDisable(GL_CULL_FACE)
         self._setup_lighting()
-        has_world = bool(getattr(self, '_world_instances', None))
+        # Real fix (Aug 20 2026, per Keith: "Tracks, Paths, Cull, zon
+        # or occlusion does not work until a map data .ipl is loaded,
+        # example. airport.ipl is loaded, and those other buttons
+        # start to work") - has_world used to depend solely on
+        # _world_instances (model placements, only ever populated by
+        # an actually-loaded .ipl's own INST entries under lazy IPL
+        # loading) even though it gates this entire overlay block,
+        # including several overlays that are genuinely independent
+        # of any .ipl at all (tracks.dat's own tracks, for one). Now
+        # also true if any of those other overlay types already have
+        # real data of their own, so toggling them on works
+        # immediately rather than silently doing nothing until some
+        # unrelated .ipl happens to load its own model instances too.
+        has_world = bool(
+            getattr(self, '_world_instances', None)
+            or getattr(self, '_path_segments', None)
+            or getattr(self, '_track_polylines', None)
+            or getattr(self, '_cull_boxes', None)
+            or getattr(self, '_zone_boxes', None)
+            or getattr(self, '_occl_boxes', None)
+            or getattr(self, '_auzo_zones', None))
         has_geoms = bool(getattr(self, '_all_geoms', None))
         has_verts = bool(self._vertices)
         if has_world:

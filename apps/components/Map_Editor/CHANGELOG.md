@@ -9064,3 +9064,21 @@ conclusively found despite extensive isolated testing.
   manually later (table already built by then) but never during
   auto-load itself. Moved the hook to right after _populate_ipl_
   sections actually runs.
+
+- Aug 20 2026 - Fixed real gating bug behind "Tracks, Paths, Cull,
+  zon or occlusion does not work until a map data .ipl is loaded" -
+  paintGL's own has_world flag (gating the entire overlay-drawing
+  block: paths/cull/zone/occlusion/tracks/sa nodes/auzo/water/grid
+  together) depended solely on _world_instances (model placements,
+  only ever populated by an actually-loaded .ipl's own INST entries
+  under lazy IPL loading), even though several of these overlays are
+  genuinely independent of any .ipl (tracks.dat's own tracks, for
+  one) - toggling them on called their own real refresh method fine,
+  correctly populating their own data, but paintGL still silently
+  skipped drawing any of it. has_world is now also true if any of
+  those other overlay types already have real data of their own.
+  Confirmed cull zones specifically are genuinely sourced from
+  currently-loaded IPLs' own sections (not independent like tracks),
+  so this fix is a real, direct one for Tracks and a safe no-op for
+  Cull/Zone/Occlusion if those still need an .ipl loaded first for
+  their own underlying data to exist at all.
