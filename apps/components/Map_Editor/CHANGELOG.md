@@ -9107,3 +9107,12 @@ conclusively found despite extensive isolated testing.
   _load_preloaded_file for waterpro.dat/water.dat/texture files,
   auto-retool wired into the world-load hook, "App Textures" Preload
   dialog shortcut re-added (map_workshop.py).
+
+- Aug 20 2026 - Added a real "Use water texture (if preloaded)"
+  toggle, per Keith: "I like the blue, so we can keep it, or have an
+  option to use the water texture." Off by default (his own stated
+  preference) - independent of whether a texture happens to be
+  preloaded, so switching styles doesn't need re-preloading each
+  time. New Water group in Render settings; new set_water2_use_
+  texture on the viewport; restored at startup alongside the other
+  viewport settings.

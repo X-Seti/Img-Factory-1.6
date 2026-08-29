@@ -3198,6 +3198,14 @@ class MapSettings(QObject):
         'water_tile_size': 256,
         'water_hide_outside_map': False,
         'preload_saved_files': [],
+        # Water2's own style toggle (Aug 20 2026, per Keith: "I like
+        # the blue, so we can keep it, or have an option to use the
+        # water texture, either from the game or the tex/ file from
+        # img factory") - off by default (Keith's own stated
+        # preference), independent of whether a texture happens to be
+        # preloaded, so switching back and forth doesn't need re-
+        # preloading each time.
+        'water2_use_texture': False,
 
         # distinct from paths' red.
         'cull_box_color': (255, 217, 51),
@@ -8506,12 +8514,26 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         render_layout.addWidget(boxes_grp)
         render_layout.addWidget(radar_grp)
-        # water_grp disconnected (Aug 20 2026, re-applied per Keith's
-        # own "get water working" priority) - widget still built
-        # above (harmless, just not shown) so this can be reused or
-        # fully removed later once the new preload-driven water is
-        # confirmed solid.
+        # water_grp (the old, settings-driven group) disconnected (Aug
+        # 20 2026, re-applied per Keith's own "get water working"
+        # priority) - widget still built above (harmless, just not
+        # shown) so this can be reused or fully removed later once
+        # the new preload-driven water is confirmed solid.
         # render_layout.addWidget(water_grp)
+
+        water2_grp = QGroupBox("Water")
+        water2_form = QFormLayout(water2_grp)
+        water2_use_texture_chk = QCheckBox("Use water texture (if preloaded)")
+        water2_use_texture_chk.setChecked(bool(self.map_settings.get('water2_use_texture')))
+        water2_use_texture_chk.setToolTip(
+            "Aug 20 2026, per Keith: \"I like the blue, so we can keep\n"
+            "it, or have an option to use the water texture, either\n"
+            "from the game or the tex/ file from img factory\" - off\n"
+            "shows the plain flat fill regardless of whether a real\n"
+            "texture was preloaded; on uses it if one was.")
+        water2_form.addRow(water2_use_texture_chk)
+        render_layout.addWidget(water2_grp)
+
         render_layout.addWidget(env_grp)
         render_layout.addStretch()
         tabs.addTab(render_tab_outer, "Render")
@@ -8931,6 +8953,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.map_settings.set('auto_load_last_world', auto_load_last_world_chk.isChecked())
             self.map_settings.set('auto_dismiss_summary_dialog', auto_dismiss_summary_chk.isChecked())
             self.map_settings.set('auto_dismiss_summary_seconds', auto_dismiss_seconds_spin.value())
+            self.map_settings.set('water2_use_texture', water2_use_texture_chk.isChecked())
+            vp_for_water2 = getattr(self, 'preview_widget', None)
+            if vp_for_water2 is not None and hasattr(vp_for_water2, 'set_water2_use_texture'):
+                vp_for_water2.set_water2_use_texture(water2_use_texture_chk.isChecked())
             self.map_settings.set('show_verbose_loading_dialog',   verbose_loading_chk.isChecked())
             self.map_settings.set('texture_downscale_enabled',   downscale_chk.isChecked())
             self.map_settings.set('texture_downscale_threshold', downscale_threshold_spin.value())
@@ -12313,6 +12339,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 int(self.map_settings.get('water_tile_size') or 256))
         if hasattr(self.preview_widget, 'set_water_hide_outside_map'):
             self.preview_widget.set_water_hide_outside_map(bool(self.map_settings.get('water_hide_outside_map')))
+        if hasattr(self.preview_widget, 'set_water2_use_texture'):
+            self.preview_widget.set_water2_use_texture(bool(self.map_settings.get('water2_use_texture')))
         # Wire the path node drag callback once, here at construction
         # (Aug 17 2026)
         if hasattr(self.preview_widget, 'set_path_node_drag_callback'):

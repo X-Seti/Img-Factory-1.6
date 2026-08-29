@@ -611,6 +611,11 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._water2_texture_path = ''
         self._water2_tex_id = None
         self._water2_tex_path_loaded = None
+        # Style toggle (Aug 20 2026, per Keith: "I like the blue, so
+        # we can keep it, or have an option to use the water
+        # texture") - independent of whether a texture happens to be
+        # preloaded, so switching styles doesn't need re-preloading.
+        self._water2_use_texture = False
 
         # Cull zone boxes (Aug 16 2026, per Keith: "continue with the
         # cull files next", following the same "so I can view them"
@@ -4029,6 +4034,14 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._water2_texture_path = texture_path
         self.update()
 
+    def set_water2_use_texture(self, enabled): #vers 1
+        """Style toggle (Aug 20 2026, per Keith: "I like the blue, so
+        we can keep it, or have an option to use the water texture,
+        either from the game or the tex/ file from img factory") -
+        independent of whether a texture happens to be preloaded."""
+        self._water2_use_texture = bool(enabled)
+        self.update()
+
     def _ensure_water2_texture(self): #vers 1
         """Lazily load self._water2_texture_path as a GL texture, same
         real pattern _ensure_water_texture already uses - no
@@ -4080,7 +4093,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glDepthFunc(GL_LESS)
         glDepthMask(GL_FALSE)
         tex_id = None
-        if self._water2_texture_path:
+        if self._water2_use_texture and self._water2_texture_path:
             tex_id = self._ensure_water2_texture()
         if tex_id:
             glEnable(GL_TEXTURE_2D)
