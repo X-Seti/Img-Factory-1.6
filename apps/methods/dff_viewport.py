@@ -616,6 +616,17 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         # texture") - independent of whether a texture happens to be
         # preloaded, so switching styles doesn't need re-preloading.
         self._water2_use_texture = False
+        # Height/transparency adjustments (Aug 20 2026, per Keith:
+        # "The water needs to be moved up and have transparency
+        # settings, but I'm not sure by how much. Looking at the
+        # radar map and water together would help") - height_offset
+        # is added to every cell's own real height at draw time
+        # (doesn't touch the underlying preloaded data itself, so
+        # switching water layers or re-preloading doesn't lose it);
+        # alpha replaces the hardcoded 0.45 flat-fill / 0.75 textured
+        # transparency values.
+        self._water2_height_offset = 0.0
+        self._water2_alpha = 0.45
 
         # Cull zone boxes (Aug 16 2026, per Keith: "continue with the
         # cull files next", following the same "so I can view them"
@@ -4042,6 +4053,21 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._water2_use_texture = bool(enabled)
         self.update()
 
+    def set_water2_height_offset(self, offset): #vers 1
+        """Real Z adjustment (Aug 20 2026, per Keith: "The water
+        needs to be moved up and have transparency settings") - added
+        to every cell's own real height at draw time, doesn't touch
+        the underlying preloaded data itself."""
+        self._water2_height_offset = float(offset)
+        self.update()
+
+    def set_water2_alpha(self, alpha): #vers 1
+        """Real transparency adjustment (Aug 20 2026, same real
+        request as set_water2_height_offset above) - replaces the
+        hardcoded flat-fill/textured alpha values."""
+        self._water2_alpha = max(0.0, min(1.0, float(alpha)))
+        self.update()
+
     def _ensure_water2_texture(self): #vers 1
         """Lazily load self._water2_texture_path as a GL texture, same
         real pattern _ensure_water_texture already uses - no
@@ -4095,11 +4121,14 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         tex_id = None
         if self._water2_use_texture and self._water2_texture_path:
             tex_id = self._ensure_water2_texture()
+        offset = self._water2_height_offset
+        alpha = self._water2_alpha
         if tex_id:
             glEnable(GL_TEXTURE_2D)
             glBindTexture(GL_TEXTURE_2D, tex_id)
-            glColor4f(1.0, 1.0, 1.0, 0.75)
+            glColor4f(1.0, 1.0, 1.0, alpha)
             for min_x, min_y, max_x, max_y, height in self._water2_cells:
+                height = height + offset
                 glBegin(GL_TRIANGLE_FAN)
                 glTexCoord2f(0, 0); glVertex3f(min_x, min_y, height)
                 glTexCoord2f(1, 0); glVertex3f(max_x, min_y, height)
@@ -4109,8 +4138,9 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             glBindTexture(GL_TEXTURE_2D, 0)
             glDisable(GL_TEXTURE_2D)
         else:
-            glColor4f(0.1, 0.3, 0.7, 0.45)
+            glColor4f(0.1, 0.3, 0.7, alpha)
             for min_x, min_y, max_x, max_y, height in self._water2_cells:
+                height = height + offset
                 glBegin(GL_TRIANGLE_FAN)
                 glVertex3f(min_x, min_y, height)
                 glVertex3f(max_x, min_y, height)

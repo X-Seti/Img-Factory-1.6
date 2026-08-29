@@ -3206,6 +3206,11 @@ class MapSettings(QObject):
         # preloaded, so switching back and forth doesn't need re-
         # preloading each time.
         'water2_use_texture': False,
+        # Height/transparency adjustments (Aug 20 2026, per Keith:
+        # "The water needs to be moved up and have transparency
+        # settings, but I'm not sure by how much").
+        'water2_height_offset': 0.0,
+        'water2_alpha': 0.45,
 
         # distinct from paths' red.
         'cull_box_color': (255, 217, 51),
@@ -8529,6 +8534,30 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "shows the plain flat fill regardless of whether a real\n"
             "texture was preloaded; on uses it if one was.")
         water2_form.addRow(water2_use_texture_chk)
+
+        water2_height_spin = QDoubleSpinBox()
+        water2_height_spin.setRange(-500.0, 500.0)
+        water2_height_spin.setSingleStep(1.0)
+        water2_height_spin.setDecimals(1)
+        water2_height_spin.setValue(float(self.map_settings.get('water2_height_offset')))
+        water2_height_spin.setToolTip(
+            "Aug 20 2026, per Keith: \"The water needs to be moved up\n"
+            "and have transparency settings, but I'm not sure by how\n"
+            "much. Looking at the radar map and water together would\n"
+            "help\" - added to every preloaded cell's own real height,\n"
+            "doesn't touch the underlying data itself. Turn on the\n"
+            "[Radar] button too to compare water against the real\n"
+            "radar tex layer while adjusting this.")
+        water2_form.addRow("Height offset:", water2_height_spin)
+
+        water2_alpha_spin = QDoubleSpinBox()
+        water2_alpha_spin.setRange(0.0, 1.0)
+        water2_alpha_spin.setSingleStep(0.05)
+        water2_alpha_spin.setDecimals(2)
+        water2_alpha_spin.setValue(float(self.map_settings.get('water2_alpha')))
+        water2_alpha_spin.setToolTip("Same real request as Height offset above - water's own transparency.")
+        water2_form.addRow("Transparency:", water2_alpha_spin)
+
         render_layout.addWidget(water2_grp)
 
         render_layout.addWidget(env_grp)
@@ -8954,6 +8983,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             vp_for_water2 = getattr(self, 'preview_widget', None)
             if vp_for_water2 is not None and hasattr(vp_for_water2, 'set_water2_use_texture'):
                 vp_for_water2.set_water2_use_texture(water2_use_texture_chk.isChecked())
+            self.map_settings.set('water2_height_offset', water2_height_spin.value())
+            if vp_for_water2 is not None and hasattr(vp_for_water2, 'set_water2_height_offset'):
+                vp_for_water2.set_water2_height_offset(water2_height_spin.value())
+            self.map_settings.set('water2_alpha', water2_alpha_spin.value())
+            if vp_for_water2 is not None and hasattr(vp_for_water2, 'set_water2_alpha'):
+                vp_for_water2.set_water2_alpha(water2_alpha_spin.value())
             self.map_settings.set('show_verbose_loading_dialog',   verbose_loading_chk.isChecked())
             self.map_settings.set('texture_downscale_enabled',   downscale_chk.isChecked())
             self.map_settings.set('texture_downscale_threshold', downscale_threshold_spin.value())
@@ -12310,6 +12345,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.preview_widget.set_water_hide_outside_map(bool(self.map_settings.get('water_hide_outside_map')))
         if hasattr(self.preview_widget, 'set_water2_use_texture'):
             self.preview_widget.set_water2_use_texture(bool(self.map_settings.get('water2_use_texture')))
+        if hasattr(self.preview_widget, 'set_water2_height_offset'):
+            self.preview_widget.set_water2_height_offset(float(self.map_settings.get('water2_height_offset')))
+        if hasattr(self.preview_widget, 'set_water2_alpha'):
+            self.preview_widget.set_water2_alpha(float(self.map_settings.get('water2_alpha')))
         # Wire the path node drag callback once, here at construction
         # (Aug 17 2026)
         if hasattr(self.preview_widget, 'set_path_node_drag_callback'):

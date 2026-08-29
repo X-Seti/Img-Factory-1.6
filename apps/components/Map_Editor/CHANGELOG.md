@@ -9175,3 +9175,17 @@ conclusively found despite extensive isolated testing.
   entirely (all 3 real references: construction, Reset Grid to
   Defaults, Apply handler) rather than just disconnecting it, given
   the crash bug just fixed above was caused by exactly that pattern.
+
+- Aug 20 2026 - Added real water height offset and transparency
+  controls, per Keith: "The water needs to be moved up and have
+  transparency settings, but I'm not sure by how much. Looking at
+  the radar map and water together would help." New "Height offset"
+  and "Transparency" spinboxes in the Water settings group -
+  set_water2_height_offset/set_water2_alpha added to the viewport,
+  applied per-cell in _draw_water2 without touching the underlying
+  preloaded data itself. Alpha now shared between textured and flat-
+  fill draws (previously two separate hardcoded values, 0.75 and
+  0.45). Restored at startup alongside the other water2 settings.
+  The newly real [Radar] toggle button (this same session) directly
+  enables the "looking at the radar map and water together" part -
+  both can now be switched on to compare/align visually.
