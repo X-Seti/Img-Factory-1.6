@@ -3155,6 +3155,14 @@ class MapSettings(QObject):
         'undo_levels':       32,
 
         'recent_dat_files':  [],
+        # Auto-load the most recently used game world on startup (Aug
+        # 20 2026, per Keith's own explicit "option 2" choice: "build
+        # auto-restore last world on startup, so preload can fire
+        # without a manual reload each time") - default on since he
+        # chose it, but toggleable since it's a real startup-behaviour
+        # change some setups might not want (a heavy world load every
+        # time the tool opens).
+        'auto_load_last_world': True,
 
         'lod_draw_dist_threshold': 300.0,
 
@@ -5358,6 +5366,18 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # Restore a previously-saved dock/splitter layout, if one
         # exists (Aug 19 2026)
         QTimer.singleShot(0, self._restore_dock_state)
+
+        # Auto-load the most recently used game world on startup (Aug
+        # 20 2026, per Keith's own explicit "option 2" choice: "build
+        # auto-restore last world on startup, so preload can fire
+        # without a manual reload each time" - confirmed still needed
+        # by his own follow-up: "nothing about loading preloaded
+        # files" - traced this to no world ever being loaded at all
+        # during that test, not a bug in the preload hook itself).
+        # Deferred the same real way _restore_dock_state already is,
+        # so this runs after the UI is fully constructed and visible,
+        # not blocking the initial show.
+        QTimer.singleShot(0, self._auto_load_last_world)
 
 
     def setup_ui(self): #vers 14
@@ -20528,6 +20548,25 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         menu.addAction("Load Game DAT File…", self._load_game_dat_file)
         menu.exec(self.tb_load_btn.mapToGlobal(
             self.tb_load_btn.rect().bottomLeft()))
+
+    def _auto_load_last_world(self): #vers 1
+        """Auto-load the most recently used game world on startup
+        (Aug 20 2026, per Keith's own explicit "option 2" choice).
+        Uses the same real recent_dat_files list/_load_game_dat_file
+        path the Recent menu's own entries already use, rather than a
+        separate mechanism - the most recent entry is always index 0
+        (see _add_recent_dat_file). Skips quietly (no warning popup)
+        if there's nothing recent, the setting is off, or the file no
+        longer exists on disk - a stale/missing path shouldn't greet
+        every startup with an unexpected "Load failed" dialog."""
+        if not self.map_settings.get('auto_load_last_world'):
+            return
+        recent = self.map_settings.get('recent_dat_files') or []
+        if not recent or not os.path.isfile(recent[0]):
+            return
+        self._set_status(f"Auto-loading last world: {recent[0]}")
+        QApplication.processEvents()
+        self._load_game_dat_file(preset_dat_path=recent[0])
 
     def _load_game_dat_file(self, preset_dat_path: str = None, force_preload_img: bool = False): #vers 2
         """Load a GTA game's world data starting from one specific .dat

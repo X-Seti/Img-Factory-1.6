@@ -8986,3 +8986,17 @@ conclusively found despite extensive isolated testing.
   settings file path and whether it exists on disk. The hook call in
   _apply_loaded_world is now wrapped in try/except too, in case an
   uncaught exception there was silently swallowing the real error.
+
+- Aug 20 2026 - Auto-load last world on startup, per Keith's own
+  explicit "option 2" choice from yesterday, confirmed still needed
+  by his own follow-up log ("nothing about loading preloaded files")
+  - traced that to no world ever being loaded at all during that
+  test, not a bug in the preload hook itself (the revert to before
+  the water rewrite was genuinely correct and intact). New _auto_
+  load_last_world, deferred via QTimer.singleShot the same real way
+  _restore_dock_state already is, reuses the existing recent_dat_
+  files list and _load_game_dat_file path the Recent menu's own
+  entries already use - most recent entry, skipped quietly (no
+  startup popup) if there's nothing recent, the new toggleable
+  auto_load_last_world setting is off, or the file no longer exists
+  on disk.
