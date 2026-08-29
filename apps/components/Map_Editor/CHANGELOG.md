@@ -9021,3 +9021,17 @@ conclusively found despite extensive isolated testing.
      _apply_saved_preload_picks actually preloaded anything this
      load - it now returns what it loaded instead of nothing, so the
      summary can show it directly instead of only the status bar.
+
+- Aug 20 2026 - Added [MapWorkshop-MARKER] terminal print statements,
+  per Keith: "we need a marker to show in the terminal for each
+  dialog window, there coming up twice, and loading the img file
+  twice." Markers at: ModelWorkshop.__init__ (with a real module-
+  level instance counter - the most direct explanation for both
+  symptoms would be two full instances, each with its own deferred
+  auto-load-last-world firing independently), _auto_load_last_world,
+  _apply_loaded_world, _show_world_load_summary, _show_load_options_
+  dialog, model_cache.index_img_files, and _load_img_file_in_new_tab.
+  Each includes id(self) (or the instance counter itself) so two
+  calls from the same instance vs two different instances are
+  distinguishable in the terminal output, not just "it happened
+  twice" with no way to tell which.

@@ -5159,6 +5159,10 @@ class _VerboseLoadingDialog(QDialog):
             self._last_pump = now
 
 
+# Real diagnostic marker (Aug 20 2026) - see __init__'s own docstring
+_MODEL_WORKSHOP_INSTANCE_COUNT = 0
+
+
 class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     """Model Workshop - Main window"""
 
@@ -5219,8 +5223,20 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     _RIBBON_LAYOUT_VERSION = 2
 
 
-    def __init__(self, parent=None, main_window=None): #vers 11
+    def __init__(self, parent=None, main_window=None): #vers 12
         """initialize_features"""
+        # Real diagnostic marker (Aug 20 2026, per Keith: "we need a
+        # marker to show in the terminal for each dialog window,
+        # there coming up twice, and loading the img file twice") -
+        # module-level counter so a real double-construction (the
+        # most direct explanation for both symptoms - two full
+        # ModelWorkshop instances, each with its own deferred auto-
+        # load-last-world firing on its own) shows up unmistakably in
+        # the terminal, not just guessed at from code reading alone.
+        global _MODEL_WORKSHOP_INSTANCE_COUNT
+        _MODEL_WORKSHOP_INSTANCE_COUNT += 1
+        print(f"[MapWorkshop-MARKER] __init__ call #{_MODEL_WORKSHOP_INSTANCE_COUNT} "
+              f"(parent={parent!r}, main_window={main_window!r})")
         if DEBUG_STANDALONE and main_window is None:
             print(App_name + " Initializing ...")
 
@@ -20599,6 +20615,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if there's nothing recent, the setting is off, or the file no
         longer exists on disk - a stale/missing path shouldn't greet
         every startup with an unexpected "Load failed" dialog."""
+        print(f"[MapWorkshop-MARKER] _auto_load_last_world called (id={id(self)})")
         if not self.map_settings.get('auto_load_last_world'):
             return
         recent = self.map_settings.get('recent_dat_files') or []
@@ -20693,6 +20710,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         own label each second and click itself once it reaches zero,
         rather than needing to be dismissed by hand every time
         (useful alongside Auto-load last world)."""
+        print(f"[MapWorkshop-MARKER] _show_world_load_summary shown (title={title!r}, id={id(self)})")
         full_text = summary_text
         if preloaded_files:
             full_text += f"\n\nPreloaded: {', '.join(preloaded_files)}"
@@ -20728,6 +20746,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         panes/Instance List/IPL Sections panel, and the summary/error
         dialog. Factored out so both loading paths (folder-based, or a
         specific .dat file) share exactly the same result handling."""
+        print(f"[MapWorkshop-MARKER] _apply_loaded_world called "
+              f"(source={source_desc!r}, ok={ok}, id={id(self)})")
         self._world_loader = loader
         self._loaded_dat_path = getattr(loader.main_dat, 'dat_path', '') if hasattr(loader, 'main_dat') else ''
         # Reset the render-mode-set flag on a fresh world load (Aug 1 2026)
@@ -20785,6 +20805,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             model_cache = ModelCache()
             self._model_cache = model_cache
         model_cache.index_img_files(loader.get_img_paths())
+        print(f"[MapWorkshop-MARKER] model_cache.index_img_files done "
+              f"({len(loader.get_img_paths())} paths, id={id(self)})")
 
         # Real fix (Aug 20 2026, per Keith: "starting map_workshop
         # back up, I noticed there is nothing in the startup, saying
@@ -20827,6 +20849,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     already_open.add(os.path.normpath(fp))
             for img_path in loader.get_img_paths():
                 if os.path.normpath(img_path) not in already_open:
+                    print(f"[MapWorkshop-MARKER] _load_img_file_in_new_tab({img_path!r})")
                     mw._load_img_file_in_new_tab(img_path)
 
         # radar tex layer needs the freshly-indexed ModelCache, so
@@ -21036,6 +21059,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         specific IPLs, and whether to load their models/textures, right
         now). Returns (selected_stems, load_models, load_textures), or
         None if the user picked "load from .dat file" / cancelled."""
+        print(f"[MapWorkshop-MARKER] _show_load_options_dialog shown (id={id(self)})")
         dlg = QDialog(self)
         dlg.setWindowTitle("Load Options")
         dlg.setMinimumWidth(420)
