@@ -9147,3 +9147,17 @@ conclusively found despite extensive isolated testing.
   down from map_workshop.py's own directory instead
   (depends/tex/waterclear256.png). Verified the fix resolves to the
   real, existing path directly.
+
+- Aug 20 2026 - Fixed real crash bug, per Keith: "Traceback...
+  RuntimeError: wrapped C/C++ object of type QComboBox has been
+  deleted... Aborted (core dumped)." The same real crash-bug pattern
+  from earlier in this session recurred - disconnecting water_grp
+  from the settings layout (again, during the water2 re-application)
+  left the Apply Settings handler still referencing its own orphaned
+  widgets (water_style_combo/water_texture_path_edit/water_tile_size_
+  spin/water_hide_outside_chk), which Qt had since deleted since
+  nothing kept them alive once removed from the layout. Removed that
+  dead block from the Apply handler entirely. Also caught and removed
+  a genuine duplicate I'd introduced in the same edit (water2_use_
+  texture was already being saved/applied elsewhere in this same
+  handler).

@@ -9159,23 +9159,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if vp is not None and hasattr(vp, 'set_sky_gradient_flipped'):
                 vp.set_sky_gradient_flipped(sky_flip_val)
 
-            water_style_val = water_style_combo.currentData()
-            self.map_settings.set('water_display_style', water_style_val)
-            if vp is not None and hasattr(vp, 'set_water_display_style'):
-                vp.set_water_display_style(water_style_val)
-
-            water_tex_path_val = water_texture_path_edit.text()
-            water_tile_size_val = water_tile_size_spin.value()
-            self.map_settings.set('water_texture_path', water_tex_path_val)
-            self.map_settings.set('water_tile_size', water_tile_size_val)
-            if vp is not None and hasattr(vp, 'set_water_texture'):
-                vp.set_water_texture(water_tex_path_val, water_tile_size_val)
-
-            water_hide_outside_val = water_hide_outside_chk.isChecked()
-            self.map_settings.set('water_hide_outside_map', water_hide_outside_val)
-            if vp is not None and hasattr(vp, 'set_water_hide_outside_map'):
-                vp.set_water_hide_outside_map(water_hide_outside_val)
-
             try:
                 # Adjusted for COL Wireframe, Mesh
                 default_font_family = default_font_combo.currentFont().family()
