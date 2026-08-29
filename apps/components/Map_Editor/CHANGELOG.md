@@ -9197,3 +9197,16 @@ conclusively found despite extensive isolated testing.
   interactively" adjustment, live updates make more sense than
   needing a separate Apply click after every nudge. Apply/OK still
   also persists the value to settings as before.
+
+- Aug 20 2026 - Reverted the earlier "90-degree anticlockwise
+  rotation" fix - confirmed a real misdiagnosis, per Keith: "radar
+  aligns perfect with the models, so the issue is the water grid."
+  compute_radar_grid (the trusted reference, confirmed correctly
+  aligned with real models) uses min_x = -half + col*cell, min_y =
+  half - (row+1)*cell - exactly the original, pre-rotation formula.
+  The rotation matched one specific earlier screenshot's own visual
+  layout, but that was very likely camera rotation in that view, not
+  an actual grid-orientation bug - applying it broke real alignment
+  with the actual, correct world coordinate system every other real
+  overlay already uses. _waterpro_to_cells and _waterpro_physical_
+  to_cells now match compute_radar_grid's own exact formula.

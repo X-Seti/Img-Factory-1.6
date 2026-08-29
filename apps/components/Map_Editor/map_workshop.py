@@ -23343,7 +23343,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._set_status(f"Preload: nothing recognised ({', '.join(unrecognised)})")
         return loaded
 
-    def _waterpro_to_cells(self, waterpro, game): #vers 2
+    def _waterpro_to_cells(self, waterpro, game): #vers 3
         """Real, confirmed grid-to-cells logic (Aug 20 2026, re-
         applied) - shared between the manual Preload path and the
         automatic world-load retool below. Skips real "dry"/cutout
@@ -23352,21 +23352,17 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         index bounds check below too, but named explicitly for
         clarity.
 
-        Real fix (Aug 20 2026, per Keith's own screenshot, filename
-        "turn_90d_anti_clock", and his own words: "the water render
-        function needs to display this 90degrees anti clockwise") -
-        the original min_x=col, min_y=row mapping had the whole grid
-        rotated 90 degrees clockwise relative to the real island
-        layout. A genuine 90-degree anticlockwise rotation of (x,y)
-        is (x,y) -> (-y,x); applying that to every corner of the
-        original cell and re-deriving the new min/max corners reduces
-        to simply swapping which index drives which axis - row now
-        drives x directly (no more (row+1)-from-the-top flip needed,
-        since rotation already accounts for the direction), col now
-        drives y directly. Verified against a concrete corner (row=0,
-        col=0 - the original grid's own NW-most cell) moving to the
-        new grid's own SW - the correct result for anticlockwise, not
-        clockwise (which would have moved it to NE instead)."""
+        Real fix (Aug 20 2026, per Keith: "radar aligns perfect with
+        the models, so the issue is the water grid") - the earlier
+        "90-degree anticlockwise" rotation (per a prior screenshot)
+        was a real misdiagnosis - it matched that one screenshot's
+        own visual layout, but broke real alignment with the actual,
+        trusted world coordinate system, which compute_radar_grid
+        (confirmed correct - "radar aligns perfect with the models")
+        already establishes: min_x = -half + col*cell, min_y = half -
+        (row+1)*cell, row 0 = north (max_y), col 0 = west (min_x).
+        Matches that exact real formula now instead of guessing at a
+        second, different rotation."""
         from apps.methods.gta_dat_parser import RADAR_GRID_PRESETS
         preset = RADAR_GRID_PRESETS.get(game, RADAR_GRID_PRESETS['vc'])
         grid_size = preset['grid_size']
@@ -23382,20 +23378,20 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 if level_idx < 0 or level_idx >= len(waterpro.levels):
                     continue
                 height = waterpro.levels[level_idx].height
-                min_x = -half + row * cell
-                min_y = -half + col * cell
+                min_x = -half + col * cell
+                min_y = half - (row + 1) * cell
                 cells.append((min_x, min_y, min_x + cell, min_y + cell, height))
         return cells
 
-    def _waterpro_physical_to_cells(self, waterpro, game): #vers 1
+    def _waterpro_physical_to_cells(self, waterpro, game): #vers 2
         """The other real water layer (Aug 20 2026, per Keith: "when
         you right click the water button, show the other water
         layer") - waterpro.dat's own physical_map, a real, separate
         grid exactly double visible_map's own width/height per side,
         covering the same real world area at twice the resolution.
-        Same real anticlockwise rotation fix as _waterpro_to_cells,
-        since it's the same real coordinate system just finer-
-        grained."""
+        Same real compute_radar_grid-matching formula as _waterpro_
+        to_cells (see its own docstring for why), since it's the same
+        real coordinate system just finer-grained."""
         from apps.methods.gta_dat_parser import RADAR_GRID_PRESETS
         preset = RADAR_GRID_PRESETS.get(game, RADAR_GRID_PRESETS['vc'])
         grid_size = preset['grid_size']
@@ -23411,8 +23407,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 if level_idx < 0 or level_idx >= len(waterpro.levels):
                     continue
                 height = waterpro.levels[level_idx].height
-                min_x = -half + row * cell
-                min_y = -half + col * cell
+                min_x = -half + col * cell
+                min_y = half - (row + 1) * cell
                 cells.append((min_x, min_y, min_x + cell, min_y + cell, height))
         return cells
 
