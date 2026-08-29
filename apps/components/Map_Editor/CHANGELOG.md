@@ -9116,3 +9116,26 @@ conclusively found despite extensive isolated testing.
   time. New Water group in Render settings; new set_water2_use_
   texture on the viewport; restored at startup alongside the other
   viewport settings.
+
+- Aug 20 2026 - Two real fixes, per Keith's own screenshot (filename
+  "turn_90d_anti_clock") and follow-up request:
+
+  1. Fixed real 90-degree rotation bug in _waterpro_to_cells - the
+     original min_x=col, min_y=row mapping had the whole grid rotated
+     90 degrees clockwise relative to the real island layout. Derived
+     the correct anticlockwise transform ((x,y)->(-y,x) applied to
+     every cell corner, reducing to swapping which index drives which
+     axis) and verified it against a concrete corner (row=0,col=0,
+     the grid's own NW-most cell) correctly landing at the new grid's
+     own SW, not NE (which would have been the wrong, clockwise
+     result).
+
+  2. New "other water layer" right-click toggle, per Keith: "when you
+     right click the water button, show the other water layer, right
+     clicking again shows the first." [Water] now supports_edit=True,
+     with edit_toggled wired to a new _on_water_layer_toggled that
+     switches between waterpro.dat's own visible_map (default) and
+     physical_map (double the resolution) - new _waterpro_physical_
+     to_cells helper, same real anticlockwise rotation fix applied.
+     Tooltip overridden after construction since the default "edit
+     mode" wording isn't accurate for this real use.
