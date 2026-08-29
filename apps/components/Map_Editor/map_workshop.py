@@ -3163,6 +3163,14 @@ class MapSettings(QObject):
         # change some setups might not want (a heavy world load every
         # time the tool opens).
         'auto_load_last_world': True,
+        # Auto-dismiss the load summary dialog (Aug 20 2026, per
+        # Keith: "that dat window, countdown from 10, then
+        # automatically press ok, also show the preloaded files in
+        # that dialog window") - off by default, since a popup
+        # closing itself is a bigger behaviour change to opt into
+        # than auto-loading the world itself.
+        'auto_dismiss_summary_dialog': False,
+        'auto_dismiss_summary_seconds': 10,
 
         'lod_draw_dist_threshold': 300.0,
 
@@ -8683,6 +8691,35 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "that dialog would.")
         ld_form.addRow(show_load_options_chk)
 
+        auto_load_last_world_chk = QCheckBox("Auto-load last world on startup")
+        auto_load_last_world_chk.setChecked(self.map_settings.get('auto_load_last_world', True))
+        auto_load_last_world_chk.setToolTip(
+            "Aug 20 2026, per Keith's own explicit choice - automatically\n"
+            "reloads the most recently used game .dat file (same list the\n"
+            "Recent button's own dropdown uses) the moment Map Workshop\n"
+            "opens, so a saved Preload doesn't need a separate manual\n"
+            "world reload to actually apply. Skipped quietly if there's\n"
+            "nothing recent or that file no longer exists on disk.")
+        ld_form.addRow(auto_load_last_world_chk)
+
+        auto_dismiss_summary_chk = QCheckBox("Auto-dismiss the load summary dialog")
+        auto_dismiss_summary_chk.setChecked(self.map_settings.get('auto_dismiss_summary_dialog', False))
+        auto_dismiss_summary_row = QHBoxLayout()
+        auto_dismiss_seconds_spin = QSpinBox()
+        auto_dismiss_seconds_spin.setRange(1, 60)
+        auto_dismiss_seconds_spin.setValue(int(self.map_settings.get('auto_dismiss_summary_seconds', 10)))
+        auto_dismiss_seconds_spin.setSuffix(" s")
+        auto_dismiss_summary_chk.setToolTip(
+            "Aug 20 2026, per Keith: \"that dat window, countdown from 10,\n"
+            "then automatically press ok\" - the OK button's own label\n"
+            "counts down and it clicks itself once the countdown reaches\n"
+            "zero, so it doesn't have to be dismissed by hand every time\n"
+            "(useful alongside Auto-load last world above).")
+        auto_dismiss_summary_row.addWidget(auto_dismiss_summary_chk)
+        auto_dismiss_summary_row.addWidget(QLabel("after:"))
+        auto_dismiss_summary_row.addWidget(auto_dismiss_seconds_spin)
+        ld_form.addRow(auto_dismiss_summary_row)
+
         verbose_loading_chk = QCheckBox("Show Full Loading Models (Debug)")
         verbose_loading_chk.setChecked(self.map_settings.get('show_verbose_loading_dialog'))
         verbose_loading_chk.setToolTip(
@@ -8870,6 +8907,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.map_settings.set('load_text_plus_binary_ipl_set', load_streams_chk.isChecked())
             self.map_settings.set('preload_img_on_dat_load', preload_img_chk.isChecked())
             self.map_settings.set('show_load_options_dialog', show_load_options_chk.isChecked())
+            self.map_settings.set('auto_load_last_world', auto_load_last_world_chk.isChecked())
+            self.map_settings.set('auto_dismiss_summary_dialog', auto_dismiss_summary_chk.isChecked())
+            self.map_settings.set('auto_dismiss_summary_seconds', auto_dismiss_seconds_spin.value())
             self.map_settings.set('show_verbose_loading_dialog',   verbose_loading_chk.isChecked())
             self.map_settings.set('texture_downscale_enabled',   downscale_chk.isChecked())
             self.map_settings.set('texture_downscale_threshold', downscale_threshold_spin.value())
@@ -20641,6 +20681,47 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.map_settings.save()
         self._refresh_recent_dat_menu()
 
+    def _show_world_load_summary(self, title, summary_text, preloaded_files): #vers 1
+        """Real replacement for the plain QMessageBox.information this
+        summary used to show (Aug 20 2026, per Keith: "that dat
+        window, countdown from 10, then automatically press ok, also
+        show the preloaded files in that dialog window").
+
+        Appends a real "Preloaded:" line when anything was actually
+        preloaded this load, and - only when Keith's own new Auto-
+        dismiss setting is on - makes the OK button count down its
+        own label each second and click itself once it reaches zero,
+        rather than needing to be dismissed by hand every time
+        (useful alongside Auto-load last world)."""
+        full_text = summary_text
+        if preloaded_files:
+            full_text += f"\n\nPreloaded: {', '.join(preloaded_files)}"
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle(title)
+        layout = QVBoxLayout(dlg)
+        layout.addWidget(QLabel(full_text))
+        ok_btn = QPushButton("OK")
+        ok_btn.setDefault(True)
+        layout.addWidget(ok_btn)
+        ok_btn.clicked.connect(dlg.accept)
+
+        if self.map_settings.get('auto_dismiss_summary_dialog'):
+            remaining = [int(self.map_settings.get('auto_dismiss_summary_seconds', 10))]
+            ok_btn.setText(f"OK ({remaining[0]})")
+            timer = QTimer(dlg)
+            def _tick(): #vers 1
+                remaining[0] -= 1
+                if remaining[0] <= 0:
+                    timer.stop()
+                    dlg.accept()
+                else:
+                    ok_btn.setText(f"OK ({remaining[0]})")
+            timer.timeout.connect(_tick)
+            timer.start(1000)
+
+        dlg.exec()
+
     def _apply_loaded_world(self, loader, game, ok, source_desc): #vers 1
         """Shared post-load handling for both _load_game_folder and
         _load_game_dat_file - status message, populating the World View
@@ -20713,8 +20794,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # own. Now runs automatically once a real world is available
         # to apply them to, with real status feedback the same way
         # every other stage of this same load sequence already gives.
+        preloaded_files = []
         try:
-            self._apply_saved_preload_picks()
+            preloaded_files = self._apply_saved_preload_picks() or []
         except Exception as e:
             import traceback
             traceback.print_exc()
@@ -20834,7 +20916,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._set_status(
             f"Loaded {game.upper()} world: {len(loader.objects)} objects, "
             f"{len(loader.instances)} instances, {loader.stats.ipl_files} IPL files")
-        QMessageBox.information(self, source_desc, loader.get_summary())
+        self._show_world_load_summary(source_desc, loader.get_summary(), preloaded_files)
 
         if getattr(loader, 'lazy_ipl_loading', False) and loader.available_ipls:
             if self.map_settings.get('show_load_options_dialog', True):
@@ -23059,7 +23141,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._set_status(
                 f"Preload: no saved picks found (settings file: "
                 f"{self.map_settings._path}, exists={self.map_settings._path.exists()})")
-            return
+            return []
         self._set_status(f"Preloading {len(paths)} saved file(s)...")
         QApplication.processEvents()
         loaded, unrecognised = [], []
@@ -23074,6 +23156,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._set_status(f"Preloaded: {', '.join(loaded)}")
         elif unrecognised:
             self._set_status(f"Preload: nothing recognised ({', '.join(unrecognised)})")
+        return loaded
 
     def _load_preloaded_file(self, path): #vers 2
         """Recognise and load one real file by its own real filename

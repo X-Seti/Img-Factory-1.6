@@ -9000,3 +9000,24 @@ conclusively found despite extensive isolated testing.
   startup popup) if there's nothing recent, the new toggleable
   auto_load_last_world setting is off, or the file no longer exists
   on disk.
+
+- Aug 20 2026 - Three real additions, per Keith: "auto_load_last_world
+  where in settings is this setting, and as we're on settings, can we
+  add another for, that dat window, countdown from 10, then
+  automatically press ok, also show the preloaded files in that
+  dialog window":
+
+  1. Added a real "Auto-load last world on startup" checkbox to the
+     Loading settings tab (was previously settings-file-only, no UI
+     toggle).
+
+  2. New "Auto-dismiss the load summary dialog" checkbox + seconds
+     spinner, same tab, off by default. The load summary (previously
+     a plain QMessageBox.information) is now a real custom dialog -
+     when this setting is on, its OK button counts down its own
+     label each second and clicks itself at zero.
+
+  3. That same dialog now shows a real "Preloaded: ..." line whenever
+     _apply_saved_preload_picks actually preloaded anything this
+     load - it now returns what it loaded instead of nothing, so the
+     summary can show it directly instead of only the status bar.
