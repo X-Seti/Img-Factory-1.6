@@ -23122,10 +23122,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if os.path.isdir(typed):
                 current_folder[0] = typed
                 _refresh_avail_list()
-        def _go_to_app_tex(): #vers 1
-            app_root = os.path.normpath(os.path.join(
-                os.path.dirname(os.path.abspath(__file__)), '..', '..', '..'))
-            tex_dir = os.path.join(app_root, 'tex')
+        def _go_to_app_tex(): #vers 2
+            """Real fix (Aug 20 2026, per Keith: "tex folder was moved
+            to depends/tex/ in map_workshop") - was computing the repo
+            root (3 levels up from this file) then looking for tex/
+            there; the real, current location is one level down from
+            this same file's own directory instead."""
+            this_dir = os.path.dirname(os.path.abspath(__file__))
+            tex_dir = os.path.join(this_dir, 'depends', 'tex')
             if os.path.isdir(tex_dir):
                 current_folder[0] = tex_dir
                 _refresh_avail_list()

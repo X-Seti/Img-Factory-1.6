@@ -9139,3 +9139,11 @@ conclusively found despite extensive isolated testing.
      to_cells helper, same real anticlockwise rotation fix applied.
      Tooltip overridden after construction since the default "edit
      mode" wording isn't accurate for this real use.
+
+- Aug 20 2026 - Fixed the Preload dialog's "App Textures" shortcut,
+  per Keith: "tex folder was moved to depends/tex/ in map_workshop."
+  Was computing the repo root (3 levels up from map_workshop.py) then
+  looking for tex/ there - the real, current location is one level
+  down from map_workshop.py's own directory instead
+  (depends/tex/waterclear256.png). Verified the fix resolves to the
+  real, existing path directly.
