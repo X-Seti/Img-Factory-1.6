@@ -23240,8 +23240,31 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # they still resolve correctly even after navigating away
         # from the folder they were originally picked in).
         saved_picks = self.map_settings.get('preload_saved_files') or []
+        data_folders_for_restore = self._game_data_folder_candidates()
         for full in saved_picks:
-            if os.path.isfile(full):
+            if full.startswith('<gamedata>/'):
+                # Real fix (Aug 20 2026, same real marker _apply_
+                # saved_preload_picks resolves - without this, os.
+                # path.isfile below would always be False for a real
+                # "<gamedata>/..." marker (it's a real, symbolic
+                # placeholder, not an actual filesystem path), so
+                # these real, per-game saved picks would silently
+                # vanish from this list every time it's reopened, even
+                # though they're still genuinely applied automatically
+                # behind the scenes.
+                filename = full[len('<gamedata>/'):]
+                resolved = None
+                for folder in data_folders_for_restore:
+                    candidate = os.path.join(folder, filename)
+                    if os.path.isfile(candidate):
+                        resolved = candidate
+                        break
+                if resolved is None:
+                    continue
+                item = QListWidgetItem(filename)
+                item.setData(Qt.ItemDataRole.UserRole, full)
+                preload_list.addItem(item)
+            elif os.path.isfile(full):
                 item = QListWidgetItem(os.path.basename(full))
                 item.setData(Qt.ItemDataRole.UserRole, full)
                 preload_list.addItem(item)
@@ -23261,7 +23284,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         btn_row.addWidget(close_btn)
         outer.addLayout(btn_row)
 
-        def _do_save(): #vers 2
+        def _do_save(): #vers 3
             """Real fix (Aug 20 2026, per Keith: "reload has the
             entries saved but there not being loaded") - this never
             called map_settings.save() (only .set(), which just
@@ -23270,20 +23293,58 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             anything short of a clean app exit lost it. Saves
             immediately now, the same real pattern every other
             explicit "save this setting now" action in this file
-            already uses. Re-applied here since the earlier full
-            water-rewrite revert (per Keith's own "restore just
-            before we removed the water code") undid this fix too,
-            since it landed after that restore point."""
-            paths = [preload_list.item(i).data(Qt.ItemDataRole.UserRole)
-                     for i in range(preload_list.count())]
+            already uses.
+
+            Real fix (Aug 20 2026, per Keith: "we can have them in
+            saved picks as we know they are going to be in the /data
+            folder, the only change is the gameroot folder") - real,
+            per-game files (waterpro.dat/water.dat/timecyc.dat) are
+            now saved as a real "<gamedata>/<filename>" marker instead
+            of their own real absolute path at save time, since that
+            real relative location genuinely never changes between
+            installs - only the gameroot prefix does. _apply_saved_
+            preload_picks resolves that marker against whichever
+            game's own real data folder is actually current at load
+            time, instead of either hardcoding one game's own real
+            absolute path (the original bug) or skipping these 3 real
+            file types outright (last turn's own real fix, now
+            superseded by this better one)."""
+            paths = []
+            for i in range(preload_list.count()):
+                full = preload_list.item(i).data(Qt.ItemDataRole.UserRole)
+                name = os.path.basename(full).lower()
+                if name in ('waterpro.dat', 'water.dat', 'timecyc.dat'):
+                    paths.append(f"<gamedata>/{os.path.basename(full)}")
+                else:
+                    paths.append(full)
             self.map_settings.set('preload_saved_files', paths)
             self.map_settings.save()
             status_label.setText(f"Saved {len(paths)} pick(s) - restored automatically next time this opens.")
-        def _do_load(): #vers 2
+        def _do_load(): #vers 3
+            """Real fix (Aug 20 2026, same real "<gamedata>/" marker
+            _apply_saved_preload_picks/the restore-into-UI logic above
+            both resolve) - a manually-clicked "Load" on a real, saved
+            per-game marker needs the same real resolution against the
+            current game's own data folder, otherwise this would try
+            to load the literal string "<gamedata>/waterpro.dat" as a
+            real file path and fail."""
             loaded, unrecognised = [], []
+            data_folders_for_load = self._game_data_folder_candidates()
             for i in range(preload_list.count()):
                 item = preload_list.item(i)
                 full = item.data(Qt.ItemDataRole.UserRole)
+                if full.startswith('<gamedata>/'):
+                    filename = full[len('<gamedata>/'):]
+                    resolved = None
+                    for folder in data_folders_for_load:
+                        candidate = os.path.join(folder, filename)
+                        if os.path.isfile(candidate):
+                            resolved = candidate
+                            break
+                    if resolved is None:
+                        unrecognised.append(item.text())
+                        continue
+                    full = resolved
                 if self._load_preloaded_file(full):
                     loaded.append(item.text())
                 else:
@@ -23329,29 +23390,31 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return []
         self._set_status(f"Preloading {len(paths)} saved file(s)...")
         QApplication.processEvents()
-        loaded, unrecognised, skipped = [], [], []
+        loaded, unrecognised, missing = [], [], []
+        data_folders = self._game_data_folder_candidates()
         for path in paths:
-            name = os.path.basename(path).lower()
-            if name in ('waterpro.dat', 'water.dat', 'timecyc.dat'):
-                # Real fix (Aug 20 2026, per Keith: "I changed the
-                # path to Liberty City, and loaded from gta3.dat...
-                # its still grabbing the VC waterpro.dat, and not the
-                # one in GTALC/data/waterpro.dat... waterpro.dat needs
-                # to be handled some for each install it finds the
-                # right version from the gameroot/data folder, not a
-                # fixed path") - these are real, per-game files;
-                # saving one game's own absolute path here and always
-                # restoring it regardless of which game is actually
-                # loaded is exactly backwards. _try_auto_water2_from_
-                # loader (already runs earlier in the same real world-
-                # load sequence, before this) already finds the
-                # correct, current game's own real file fresh every
-                # time - this used to run after it and clobber that
-                # correct result with whatever stale path happened to
-                # be saved from a completely different game's own
-                # earlier session.
-                skipped.append(os.path.basename(path))
-                continue
+            if path.startswith('<gamedata>/'):
+                # Real fix (Aug 20 2026, per Keith: "we can have them
+                # in saved picks as we know they are going to be in
+                # the /data folder, the only change is the gameroot
+                # folder") - resolved against whichever game's own
+                # real data folder is actually current at load time
+                # (the same real, already-working, SOL-aware helper
+                # timecyc auto-detection uses), instead of either
+                # hardcoding one game's own real absolute path (the
+                # original bug) or skipping these 3 real file types
+                # outright (the previous, now-superseded fix).
+                filename = path[len('<gamedata>/'):]
+                resolved = None
+                for folder in data_folders:
+                    candidate = os.path.join(folder, filename)
+                    if os.path.isfile(candidate):
+                        resolved = candidate
+                        break
+                if resolved is None:
+                    missing.append(filename)
+                    continue
+                path = resolved
             if not os.path.isfile(path):
                 continue
             if self._load_preloaded_file(path):
@@ -23362,10 +23425,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._set_status(f"Preloaded: {', '.join(loaded)}")
         elif unrecognised:
             self._set_status(f"Preload: nothing recognised ({', '.join(unrecognised)})")
-        elif skipped:
+        elif missing:
             self._set_status(
-                f"Preload: skipped per-game file(s) already handled automatically "
-                f"({', '.join(skipped)})")
+                f"Preload: couldn't find in the current game's own data "
+                f"folder ({', '.join(missing)})")
         return loaded
 
     def _waterpro_to_cells(self, waterpro, game): #vers 4

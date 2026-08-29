@@ -9242,3 +9242,19 @@ conclusively found despite extensive isolated testing.
   skipped from saved picks entirely (with a clear status message),
   since the automatic, per-game retool already handles them correctly
   on its own.
+
+- Aug 20 2026 - Replaced last turn's "skip these 3 file types
+  entirely" fix with a better one, per Keith: "we can have them in
+  saved picks as we know they are going to be in the /data folder,
+  the only change is the gameroot folder." waterpro.dat/water.dat/
+  timecyc.dat are now saved as a real "<gamedata>/<filename>" marker
+  instead of their own absolute path, since that relative location
+  genuinely never changes between installs - only the gameroot prefix
+  does. Resolved against whichever game's own real data folder
+  (_game_data_folder_candidates, the same SOL-aware helper timecyc
+  auto-detection already uses) is actually current, both when
+  applying picks automatically on world load and when manually
+  clicking Load in the dialog. The dialog's own restore-into-UI logic
+  also resolves the marker now, so these picks stay visible in the
+  list (previously would have silently vanished, since a literal
+  "<gamedata>/..." string is never a real, existing file path).
