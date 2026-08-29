@@ -9082,3 +9082,28 @@ conclusively found despite extensive isolated testing.
   so this fix is a real, direct one for Tracks and a safe no-op for
   Cull/Zone/Occlusion if those still need an .ipl loaded first for
   their own underlying data to exist at all.
+
+- Aug 20 2026 - Re-applied the entire preload-driven water2 system,
+  per Keith's own priority: "get the water working, from the
+  preloaded file, [water] button off/on toggle." This is the same
+  design that worked before it was lost in the earlier full water-
+  rewrite revert - kept isolated this time from the 3 separate bugs
+  that actually caused that revert (accidental method deletion,
+  Save Picks persistence, preload-hook ordering), all independently
+  fixed since and unaffected by this re-application.
+
+  Also caught and fixed a genuine gap while re-applying: water's own
+  draw call sits inside the same has_world-gated block fixed earlier
+  for Tracks/Cull/Zone/Occlusion, and that earlier fix hadn't
+  included water's own data in the condition - water would have
+  still been silently gated out even once correctly preloaded. Added
+  _water2_cells to has_world's own check.
+
+  Re-applied: set_water2_data/_ensure_water2_texture/_draw_water2
+  (dff_viewport.py); disconnected Water Display settings, [Water]
+  starts disabled and self-enables on real data, simplified _on_show_
+  water_toggled, shared _waterpro_to_cells/_water_shapes_to_cells/
+  _apply_water2_preload/_try_auto_water2_from_loader helpers, updated
+  _load_preloaded_file for waterpro.dat/water.dat/texture files,
+  auto-retool wired into the world-load hook, "App Textures" Preload
+  dialog shortcut re-added (map_workshop.py).

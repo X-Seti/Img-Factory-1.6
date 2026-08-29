@@ -599,6 +599,19 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._water_hide_outside_map = False
         self._water_map_half_extent = 3000.0   # grid_size/2 for the currently loaded game
 
+        # New, simpler water (Aug 20 2026, re-applied per Keith's own
+        # explicit "get water working from the preloaded file"
+        # priority - reuses self.show_water as the same on/off flag
+        # the [Water] button already toggles, but real data now comes
+        # only from the Preload dialog / auto-retooled loader.waterpro
+        # data, not settings-driven style/tile/hide-outside-map
+        # config. One real cell list, one optional real texture, one
+        # simple draw path.
+        self._water2_cells = []   # list of (min_x, min_y, max_x, max_y, height)
+        self._water2_texture_path = ''
+        self._water2_tex_id = None
+        self._water2_tex_path_loaded = None
+
         # Cull zone boxes (Aug 16 2026, per Keith: "continue with the
         # cull files next", following the same "so I can view them"
         # pattern as Show Paths/the .zon wiring) - the older MapView-
@@ -1189,7 +1202,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             or getattr(self, '_cull_boxes', None)
             or getattr(self, '_zone_boxes', None)
             or getattr(self, '_occl_boxes', None)
-            or getattr(self, '_auzo_zones', None))
+            or getattr(self, '_auzo_zones', None)
+            or getattr(self, '_water2_cells', None))
         has_geoms = bool(getattr(self, '_all_geoms', None))
         has_verts = bool(self._vertices)
         if has_world:
@@ -1238,9 +1252,18 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             # a reference aid the way the grid is - it should take
             # visual priority over a generic overlay, not the other
             # way around.
+            #
+            # Re-applied (Aug 20 2026, per Keith: "get the water
+            # working, from the preloaded file, [water] button
+            # off/on toggle") - calls the new, simpler _draw_water2
+            # instead of the old two-method settings-driven pair. Old
+            # methods left in place, not deleted, since nothing else
+            # references them and last time deleting them alongside
+            # other cleanup accidentally swallowed 3 unrelated
+            # methods - safer to leave them as inert dead code for
+            # now than risk that again.
             if self.show_water:
-                self._draw_water_shapes()
-                self._draw_waterpro_water()
+                self._draw_water2()
             self._draw_axes()
             return
         if not has_geoms and not has_verts:
@@ -3994,6 +4017,96 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             print(f"[DFFViewport] Failed to load water texture: {e}")
             self._water_texture_tex_id = False
         return self._water_texture_tex_id
+
+    def set_water2_data(self, cells, texture_path=''): #vers 1
+        """New, simple water data setter (Aug 20 2026, re-applied) -
+        called by the Preload dialog / auto-retool after parsing a
+        real water.dat/waterpro.dat (and optionally a real texture
+        from the app's own tex/ folder). cells is a flat list of
+        (min_x, min_y, max_x, max_y, height) tuples."""
+        self._water2_cells = cells or []
+        if texture_path:
+            self._water2_texture_path = texture_path
+        self.update()
+
+    def _ensure_water2_texture(self): #vers 1
+        """Lazily load self._water2_texture_path as a GL texture, same
+        real pattern _ensure_water_texture already uses - no
+        makeCurrent()/doneCurrent() here, always called from within an
+        already-active paintGL."""
+        if self._water2_tex_id and self._water2_tex_path_loaded == self._water2_texture_path:
+            return self._water2_tex_id
+        try:
+            from PyQt6.QtGui import QImage
+            image = QImage(self._water2_texture_path).convertToFormat(QImage.Format.Format_RGBA8888)
+            if image.isNull():
+                self._water2_tex_id = False
+                return False
+            w, h = image.width(), image.height()
+            ptr = image.bits(); ptr.setsize(image.sizeInBytes())
+            rgba = bytes(ptr)
+            if self._water2_tex_id and self._water2_tex_id is not False:
+                glDeleteTextures([self._water2_tex_id])
+            gl_id = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_2D, gl_id)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba)
+            glBindTexture(GL_TEXTURE_2D, 0)
+            self._water2_tex_id = gl_id
+            self._water2_tex_path_loaded = self._water2_texture_path
+        except Exception as e:
+            print(f"[DFFViewport] Failed to load water2 texture: {e}")
+            self._water2_tex_id = False
+        return self._water2_tex_id
+
+    def _draw_water2(self): #vers 1
+        """New, simple water draw (Aug 20 2026, re-applied) - one real
+        cell list, textured if a real texture was preloaded, a plain
+        flat fill otherwise. GL_DEPTH_TEST forced on and GL_DEPTH_FUNC
+        set explicitly rather than assumed, depth writes off (the
+        correct, standard pattern for translucent geometry - reads
+        depth so it's correctly occluded by opaque models, doesn't
+        write it so it doesn't interfere with other transparent
+        overlays drawn after it)."""
+        if not OPENGL_AVAILABLE or not self._water2_cells:
+            return
+        glDisable(GL_LIGHTING)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        glEnable(GL_DEPTH_TEST)
+        glDepthFunc(GL_LESS)
+        glDepthMask(GL_FALSE)
+        tex_id = None
+        if self._water2_texture_path:
+            tex_id = self._ensure_water2_texture()
+        if tex_id:
+            glEnable(GL_TEXTURE_2D)
+            glBindTexture(GL_TEXTURE_2D, tex_id)
+            glColor4f(1.0, 1.0, 1.0, 0.75)
+            for min_x, min_y, max_x, max_y, height in self._water2_cells:
+                glBegin(GL_TRIANGLE_FAN)
+                glTexCoord2f(0, 0); glVertex3f(min_x, min_y, height)
+                glTexCoord2f(1, 0); glVertex3f(max_x, min_y, height)
+                glTexCoord2f(1, 1); glVertex3f(max_x, max_y, height)
+                glTexCoord2f(0, 1); glVertex3f(min_x, max_y, height)
+                glEnd()
+            glBindTexture(GL_TEXTURE_2D, 0)
+            glDisable(GL_TEXTURE_2D)
+        else:
+            glColor4f(0.1, 0.3, 0.7, 0.45)
+            for min_x, min_y, max_x, max_y, height in self._water2_cells:
+                glBegin(GL_TRIANGLE_FAN)
+                glVertex3f(min_x, min_y, height)
+                glVertex3f(max_x, min_y, height)
+                glVertex3f(max_x, max_y, height)
+                glVertex3f(min_x, max_y, height)
+                glEnd()
+        glDepthMask(GL_TRUE)
+        glDisable(GL_BLEND)
+        glEnable(GL_LIGHTING)
 
     def _draw_sa_nodes(self): #vers 1
         """Draw SA's real vehicle/ped path node graph as disconnected
