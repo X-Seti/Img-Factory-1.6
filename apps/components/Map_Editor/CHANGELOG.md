@@ -9053,3 +9053,14 @@ conclusively found despite extensive isolated testing.
   double-processing everything. Added a second, defensive "only once
   per instance" guard directly on _auto_load_last_world too, since
   it's logically startup-only regardless of how it gets triggered.
+
+- Aug 20 2026 - Fixed real ordering bug behind "preload from startup
+  does not work, but if I bring up preload dialog, and press load,
+  it works" - the automatic preload hook ran 81 real lines before
+  _populate_ipl_sections even built the IPL Sections table, so the
+  .ipl/.zon branch in _load_preloaded_file (which searches that same
+  table for a matching row) always found zero rows during the
+  automatic, startup-triggered path - exactly why it worked fine
+  manually later (table already built by then) but never during
+  auto-load itself. Moved the hook to right after _populate_ipl_
+  sections actually runs.

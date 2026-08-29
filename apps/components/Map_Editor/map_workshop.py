@@ -20846,22 +20846,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         print(f"[MapWorkshop-MARKER] model_cache.index_img_files done "
               f"({len(loader.get_img_paths())} paths, id={id(self)})")
 
-        # Real fix (Aug 20 2026, per Keith: "starting map_workshop
-        # back up, I noticed there is nothing in the startup, saying
-        # preloading files, etc") - Save Picks only ever restored the
-        # saved list into the Preload dialog's own UI when manually
-        # reopened; it never actually re-applied them anywhere on its
-        # own. Now runs automatically once a real world is available
-        # to apply them to, with real status feedback the same way
-        # every other stage of this same load sequence already gives.
-        preloaded_files = []
-        try:
-            preloaded_files = self._apply_saved_preload_picks() or []
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            self._set_status(f"Preload auto-apply failed: {e}")
-
         # Also register each real IMG file as a real, visible tab in
         # IMG Factory's own main tab system (Aug 20 2026, per Keith:
         # "loading img into img factory the other tools like txd
@@ -20938,6 +20922,26 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._set_status("Populating IPL Sections...")
         QApplication.processEvents()
         self._populate_ipl_sections(loader)
+
+        # Real fix (Aug 20 2026, per Keith: "preload from startup
+        # does not work, but if I bring up preload dialog, and press
+        # load, it works?") - moved here, after _populate_ipl_sections
+        # actually runs, not before it. The earlier position ran a
+        # full 81 real lines before the IPL Sections table was even
+        # built, so the .ipl/.zon branch in _load_preloaded_file
+        # (which searches that same table for a matching row) always
+        # found zero rows during this automatic, startup-triggered
+        # path - the exact reason it worked fine when manually
+        # reopening the Preload dialog later (table already built by
+        # then) but never during the automatic path itself.
+        preloaded_files = []
+        try:
+            preloaded_files = self._apply_saved_preload_picks() or []
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            self._set_status(f"Preload auto-apply failed: {e}")
+
         self._set_status(f"Populating Object Browser ({len(loader.objects)} objects)...")
         QApplication.processEvents()
         self._populate_object_browser(loader)
