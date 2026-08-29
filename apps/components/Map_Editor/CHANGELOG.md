@@ -9189,3 +9189,11 @@ conclusively found despite extensive isolated testing.
   The newly real [Radar] toggle button (this same session) directly
   enables the "looking at the radar map and water together" part -
   both can now be switched on to compare/align visually.
+
+- Aug 20 2026 - Water height offset/transparency now update live as
+  the spinbox itself changes, per Keith: "Change it by 20+ on the
+  height in settings, doesn't update the view." Previously only
+  applied on Apply/OK - for a "not sure by how much, need to see it
+  interactively" adjustment, live updates make more sense than
+  needing a separate Apply click after every nudge. Apply/OK still
+  also persists the value to settings as before.

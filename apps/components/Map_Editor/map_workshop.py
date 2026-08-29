@@ -8558,6 +8558,24 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         water2_alpha_spin.setToolTip("Same real request as Height offset above - water's own transparency.")
         water2_form.addRow("Transparency:", water2_alpha_spin)
 
+        # Real fix (Aug 20 2026, per Keith: "Change it by 20+ on the
+        # height in settings, doesn't update the view") - these two
+        # only ever applied on Apply/OK before; live updates as the
+        # spinbox itself changes make far more sense for a "not sure
+        # by how much, need to see it interactively" adjustment like
+        # this one, rather than needing a separate Apply click after
+        # every nudge.
+        def _live_water2_height(value): #vers 1
+            vp_live = getattr(self, 'preview_widget', None)
+            if vp_live is not None and hasattr(vp_live, 'set_water2_height_offset'):
+                vp_live.set_water2_height_offset(value)
+        def _live_water2_alpha(value): #vers 1
+            vp_live = getattr(self, 'preview_widget', None)
+            if vp_live is not None and hasattr(vp_live, 'set_water2_alpha'):
+                vp_live.set_water2_alpha(value)
+        water2_height_spin.valueChanged.connect(_live_water2_height)
+        water2_alpha_spin.valueChanged.connect(_live_water2_alpha)
+
         render_layout.addWidget(water2_grp)
 
         render_layout.addWidget(env_grp)
