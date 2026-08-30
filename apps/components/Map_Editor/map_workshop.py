@@ -3228,6 +3228,13 @@ class MapSettings(QObject):
         # for VC, so we need a toggle to effect VC waterpro.dat only")
         'water2_offset_vc_only': True,
 
+        # IPL Controls display style (Aug 20 2026, per Keith: "we
+        # could add a toggle in settings, Show IPL Controls = as
+        # [Buttons] or ribbon icons") - off (buttons/text) by default,
+        # since not every overlay toggle button has real icon artwork
+        # yet.
+        'ipl_controls_icon_only': False,
+
         # Viewport camera state (Aug 20 2026, per Keith: "remember the
         # zoom settings, and view location when app is closed") - None
         # means "never saved yet, use the viewport's own built-in
@@ -4028,15 +4035,27 @@ class _CornerOverlay(QWidget):
         painter.end()
 
 
-class _MapOverlayToggleButton(QToolButton): #vers 1
+class _MapOverlayToggleButton(QToolButton): #vers 2
     """One compact button replacing a pair of checkboxes (show/hide +
-    edit mode) for a single map overlay type (Aug 18 2026)"""
+    edit mode) for a single map overlay type (Aug 18 2026).
+
+    Optional icon support added (Aug 20 2026, per Keith: "we could
+    add a toggle in settings, Show IPL Controls = as [Buttons] or
+    ribbon icons") - label is always kept as this button's own real
+    text (used for its tooltip and QMessageBox-style status text
+    regardless of display mode), icon is optional and only actually
+    shown once set_display_style(icon_only=True) is called - a
+    button given no real icon yet just keeps showing its own text
+    even in icon-only mode, rather than rendering blank."""
     show_toggled = pyqtSignal(bool)
     edit_toggled = pyqtSignal(bool)
 
-    def __init__(self, label, supports_edit=False, parent=None): #vers 1
+    def __init__(self, label, supports_edit=False, icon=None, parent=None): #vers 2
         super().__init__(parent)
+        self._label = label
         self.setText(label)
+        if icon is not None:
+            self.setIcon(icon)
         self.setFixedHeight(20)
         self._shown = False
         self._editing = False
@@ -4046,6 +4065,17 @@ class _MapOverlayToggleButton(QToolButton): #vers 1
             tip += f"\nRight-click: toggle edit mode for {label}."
         self.setToolTip(tip)
         self._apply_style()
+
+    def set_display_style(self, icon_only: bool): #vers 1
+        """Switch between this button's own real text label and its
+        real icon (Aug 20 2026, per Keith: "Show IPL Controls = as
+        [Buttons] or ribbon icons") - falls back to text-only when
+        icon_only is requested but no real icon was ever actually set
+        for this button, rather than rendering a blank button."""
+        if icon_only and not self.icon().isNull():
+            self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        else:
+            self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
 
     def mousePressEvent(self, event): #vers 1
         if event.button() == Qt.MouseButton.LeftButton:
@@ -7969,6 +7999,29 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         button_group.setLayout(button_layout)
         display_layout.addWidget(button_group)
+
+        # IPL Controls display style (Aug 20 2026, per Keith: "we
+        # could add a toggle in settings, Show IPL Controls = as
+        # [Buttons] or ribbon icons") - a separate, real toggle from
+        # the general "Button Display Mode" combo just above, since
+        # that one controls this app's own main toolbars, not IPL
+        # Controls' own overlay toggle buttons specifically.
+        ipl_style_grp = QGroupBox("IPL Controls Display")
+        ipl_style_layout = QVBoxLayout()
+        ipl_icon_only_chk = QCheckBox("Show as ribbon icons (instead of text buttons)")
+        ipl_icon_only_chk.setChecked(bool(self.map_settings.get('ipl_controls_icon_only')))
+        ipl_icon_only_chk.setToolTip(
+            "Each overlay toggle button in IPL Controls falls back to\n"
+            "its own text label on its own if it doesn't have real icon\n"
+            "artwork yet, so this is safe to try even before every\n"
+            "button has one.")
+        def _live_ipl_controls_style(checked): #vers 1
+            self.map_settings.set('ipl_controls_icon_only', checked)
+            self._apply_ipl_controls_display_style()
+        ipl_icon_only_chk.toggled.connect(_live_ipl_controls_style)
+        ipl_style_layout.addWidget(ipl_icon_only_chk)
+        ipl_style_grp.setLayout(ipl_style_layout)
+        display_layout.addWidget(ipl_style_grp)
 
         # Table display
         table_group = QGroupBox("Surface List Display")
@@ -22676,6 +22729,20 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         else:
             vp.set_radar_tex_layer(False)
 
+    def _apply_ipl_controls_display_style(self): #vers 1
+        """Switch every real overlay toggle button in IPL Controls
+        between its own text label and its own icon (Aug 20 2026, per
+        Keith: "we could add a toggle in settings, Show IPL Controls
+        = as [Buttons] or ribbon icons") - each button falls back to
+        text-only on its own if it was never actually given a real
+        icon yet (see _MapOverlayToggleButton.set_display_style's own
+        docstring), so this is safe to call even before every button
+        has real icon artwork."""
+        icon_only = bool(self.map_settings.get('ipl_controls_icon_only'))
+        for btn in getattr(self, '_overlay_toggle_buttons', []):
+            if hasattr(btn, 'set_display_style'):
+                btn.set_display_style(icon_only)
+
     def _on_generate_radar_tiles_clicked(self): #vers 2
         """Prompt for an output folder, then run _generate_radar_tiles
         (Aug 20 2026)"""
@@ -24762,6 +24829,18 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         opts_row4.addWidget(show_water_btn)
         opts_row4.addWidget(radar_gen_btn)
         lay.addLayout(opts_row4)
+
+        # Collected for the display-style toggle (Aug 20 2026, per
+        # Keith: "we could add a toggle in settings, Show IPL Controls
+        # = as [Buttons] or ribbon icons") - every real overlay toggle
+        # button in this dock, so the toggle can apply to all of them
+        # at once rather than needing a separate call per button.
+        self._overlay_toggle_buttons = [
+            dfx_chk, show_tobj_chk, tcyc_chk, show_paths_btn, show_tracks_btn,
+            show_cull_btn, show_zone_btn, show_occl_btn, show_sa_nodes_btn,
+            show_auzo_btn, show_water_btn, radar_gen_btn,
+        ]
+        self._apply_ipl_controls_display_style()
 
         dock = QDockWidget("IPL Controls", self)
         dock.setObjectName("IPL Controls")

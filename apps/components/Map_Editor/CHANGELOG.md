@@ -9499,3 +9499,19 @@ conclusively found despite extensive isolated testing.
   point. Text refreshed through _on_tobj_time_changed, the single,
   real hook every other time change (manual edit or the automatic
   flow-tick) already flows through.
+
+- Aug 20 2026 - IPL Controls display-style toggle, per Keith: "we
+  could add a toggle in settings, Show IPL Controls = as [Buttons] or
+  ribbon icons" - a lower-risk alternative to permanently moving the
+  overlay toggle buttons to a separate ribbon bar, letting both
+  display styles coexist. _MapOverlayToggleButton now accepts an
+  optional icon parameter and a new set_display_style(icon_only)
+  method (falls back to text-only on its own if no real icon was ever
+  set for that specific button, so this is safe to enable before
+  every button has real artwork). New "IPL Controls Display" settings
+  group with a live-updating checkbox; all 12 overlay toggle buttons
+  (2DFX/Tobj/Tcyc/Paths/Tracks/Cull/Zon/Occlusion/SA Nodes/Auzo/Water/
+  Radar) collected into self._overlay_toggle_buttons so the toggle
+  applies to all of them at once. Off (buttons/text) by default,
+  since none of them have real icon artwork yet - creating well-
+  detailed, 24x24 colour SVG icons for each is the next real step.
