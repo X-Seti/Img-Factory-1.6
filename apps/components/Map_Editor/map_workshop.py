@@ -7605,8 +7605,18 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.status_label = QLabel("Ready")
         layout.addWidget(self.status_label)
 
-        # Right: memory usage (Aug 1 2026)
+        # Zoom level, left of memory usage (Aug 20 2026, per Keith:
+        # "a zoom value display left of the memory usage on the
+        # status bar, for the viewpoint")
         layout.addStretch()
+        self.status_zoom_label = QLabel("")
+        self.status_zoom_label.setToolTip("Current viewport zoom (camera distance from target)")
+        layout.addWidget(self.status_zoom_label)
+        self._zoom_status_timer = QTimer(self)
+        self._zoom_status_timer.timeout.connect(self._update_zoom_status_label)
+        self._zoom_status_timer.start(150)
+
+        # Right: memory usage (Aug 1 2026)
         self.status_memory_label = QLabel("")
         self.status_memory_label.setToolTip("Current process memory usage (RSS)")
         layout.addWidget(self.status_memory_label)
@@ -7616,6 +7626,23 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._update_memory_status_label()
 
         return status_bar
+
+    def _update_zoom_status_label(self): #vers 1
+        """Refresh the status bar's zoom label (Aug 20 2026, per
+        Keith: "a zoom value display left of the memory usage on the
+        status bar, for the viewpoint") - reads the viewport's own
+        real camera-distance-from-target value (self._dist), the same
+        real quantity every zoom in/out/wheel action already changes,
+        rather than a separate, second notion of "zoom" invented for
+        this display. Faster 150ms timer (vs memory's own 2000ms) so
+        it visibly tracks scroll-wheel zooming live, not just settled
+        afterwards."""
+        label = getattr(self, 'status_zoom_label', None)
+        if label is None:
+            return
+        vp = getattr(self, 'preview_widget', None)
+        dist = getattr(vp, '_dist', None) if vp is not None else None
+        label.setText(f"Zoom: {dist:.1f}" if dist is not None else "")
 
     def _update_memory_status_label(self): #vers 2
         """Refresh the status bar's memory usage label."""
@@ -12685,6 +12712,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         _act(tb_nav, "Zoom Out",      _icon(self.icon_factory.zoom_out_icon,  'zoom_out_icon'),  pw.zoom_out)
         _act(tb_nav, "Reset View",    _icon(self.icon_factory.reset_view_icon,'reset_view_icon'),pw.reset_view)
         _act(tb_nav, "Fit to Window", _icon(self.icon_factory.fit_icon,       'fit_view_icon'),  pw.fit_to_window)
+        _act(tb_nav, "Snap to Centre", _icon(self.icon_factory.fit_icon,      'snap_centre_icon'), pw.snap_to_center)
         tb_nav.addSeparator()
         for label, yaw, pitch, default_fn, max_name in [
             ("View XY",  0,   0,  self.icon_factory.view_xy_icon,  'view_xy_icon'),

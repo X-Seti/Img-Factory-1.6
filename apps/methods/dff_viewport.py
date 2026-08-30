@@ -5763,6 +5763,18 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
     def fit_to_window(self): #vers 1
         self._auto_fit(); self.update()
 
+    def snap_to_center(self): #vers 1
+        """Re-centre the pan only (Aug 20 2026, per Keith: "a snap to
+        centre view button on the ribbon") - distinct from the
+        existing, fuller Reset View (which also resets yaw/pitch and
+        re-fits zoom via _auto_fit) - this only zeroes _pan_x/_pan_y,
+        leaving the camera's own current angle and zoom exactly as
+        they were, for snapping back to centre without losing how the
+        view was rotated/zoomed."""
+        self._pan_x = 0.0
+        self._pan_y = 0.0
+        self.update()
+
     def pan(self, dx, dy): #vers 1
         scale = self._dist * 0.002
         self._pan_x += dx * scale; self._pan_y -= dy * scale; self.update()

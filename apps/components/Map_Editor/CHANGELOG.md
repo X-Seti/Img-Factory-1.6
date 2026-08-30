@@ -9374,3 +9374,24 @@ conclusively found despite extensive isolated testing.
   property of vanilla VC rather than something specific to one file
   (confirmed this specific file was never editable/saved, ruling out
   a previous-edit explanation).
+
+- Aug 20 2026 - Two new UI features, per Keith: "One thing I do need
+  is a zoom value display left of the memory usage on the status bar,
+  for the viewpoint, and a snap to centre view button on the ribbon."
+
+  1. New zoom status label, positioned left of the existing memory
+     usage label. Reads the viewport's own real camera-distance-from-
+     target (self._dist, the same real quantity every zoom in/out/
+     wheel action already changes), refreshed on its own faster
+     150ms timer (vs memory's 2000ms) so it visibly tracks scroll-
+     wheel zooming live.
+
+  2. New "Snap to Centre" button on the Navigation ribbon, next to
+     the existing Fit to Window. New viewport method snap_to_center -
+     distinct from the existing, fuller Reset View/reset_camera (both
+     confirmed pre-existing, identical duplicates - also reset yaw/
+     pitch and re-fit zoom): only zeroes pan_x/pan_y, leaving the
+     camera's own current angle and zoom untouched, for re-centring
+     without losing how the view was rotated/zoomed. Reuses the
+     existing, proven fit_icon rather than risking an untested new
+     SVG icon - distinguished by its own text label.
