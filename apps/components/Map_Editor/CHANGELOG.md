@@ -9349,3 +9349,28 @@ conclusively found despite extensive isolated testing.
   set_water2_y_offset on the viewport, applied per-vertex in
   _draw_water2 without touching the underlying preloaded data,
   restored at startup the same way the other water2 settings are.
+
+- Aug 20 2026 - Water X/Y offsets now wrap around, per Keith: "as the
+  the water, because I've offset it by -400x, roll the edge so it
+  covers the square... kind of like a conveyor belt." A plain,
+  unwrapped offset slides the whole grid sideways, pushing cells past
+  one edge into the void while leaving a gap on the opposite edge.
+  Water genuinely surrounds the whole map uniformly, so the correct
+  fix treats the map as continuous/toroidal: cells the offset pushes
+  past one edge wrap back onto the opposite edge (the same way a
+  GL_REPEAT texture would). Wraps each cell's own real centre through
+  modulo arithmetic against self._water_map_half_extent (the same
+  real, already-current-game-aware half-extent set_water_map_extent
+  tracks) rather than wrapping raw min/max corners directly, which
+  would let a straddling cell stretch to nearly the full map width -
+  every cell keeps its own exact original width/height. Verified the
+  wrap direction against a concrete edge case (a cell pushed off the
+  west edge correctly reappears near the east edge).
+
+  Keith's own empirically-found -400 unit X offset for this real VC
+  install is a clean, round number (close to his own earlier "6
+  squares" measurement) - worth revisiting as a possible automatic,
+  built-in correction if this turns out to be a fixed, documented
+  property of vanilla VC rather than something specific to one file
+  (confirmed this specific file was never editable/saved, ruling out
+  a previous-edit explanation).

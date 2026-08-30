@@ -4128,7 +4128,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._water2_tex_id = False
         return self._water2_tex_id
 
-    def _draw_water2(self): #vers 1
+    def _draw_water2(self): #vers 2
         """New, simple water draw (Aug 20 2026, re-applied) - one real
         cell list, textured if a real texture was preloaded, a plain
         flat fill otherwise. GL_DEPTH_TEST forced on and GL_DEPTH_FUNC
@@ -4136,7 +4136,28 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         correct, standard pattern for translucent geometry - reads
         depth so it's correctly occluded by opaque models, doesn't
         write it so it doesn't interfere with other transparent
-        overlays drawn after it)."""
+        overlays drawn after it).
+
+        Real wrap-around fix (Aug 20 2026, per Keith: "as the the
+        water, because I've offset it by -400x, roll the edge so it
+        covers the square... kind of like a conveyor belt") - a
+        genuine, real per-file X/Y offset (his own empirically-found
+        -400 units for this real VC install, confirmed against his
+        own screenshot) pushes cells past one edge of the map into
+        the void while leaving a real gap on the opposite edge, since
+        a plain, unwrapped add just slides the whole grid sideways.
+        Water genuinely surrounds the whole map uniformly, so the
+        correct real fix treats the map as continuous/toroidal:
+        whichever cells the offset pushes past one edge wrap back
+        around onto the opposite edge, the same way a texture set to
+        GL_REPEAT would, or Keith's own "conveyor belt" description.
+        Wraps each cell's own real centre (not its raw min/max corners
+        directly - that would let a straddling cell stretch to nearly
+        the full map width) through modulo arithmetic against self.
+        _water_map_half_extent (the same real, already-current-game-
+        aware half-extent set_water_map_extent already tracks), then
+        rebuilds min/max from the wrapped centre so every cell keeps
+        its own real, original width and height exactly."""
         if not OPENGL_AVAILABLE or not self._water2_cells:
             return
         glDisable(GL_LIGHTING)
@@ -4152,13 +4173,25 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         x_offset = self._water2_x_offset
         y_offset = self._water2_y_offset
         alpha = self._water2_alpha
+        half = self._water_map_half_extent
+        span = half * 2.0
+
+        def _wrapped_bounds(min_x, min_y, max_x, max_y):
+            w = max_x - min_x
+            h = max_y - min_y
+            cx = (min_x + max_x) / 2.0 + x_offset
+            cy = (min_y + max_y) / 2.0 + y_offset
+            if span > 0:
+                cx = ((cx + half) % span) - half
+                cy = ((cy + half) % span) - half
+            return cx - w / 2.0, cy - h / 2.0, cx + w / 2.0, cy + h / 2.0
+
         if tex_id:
             glEnable(GL_TEXTURE_2D)
             glBindTexture(GL_TEXTURE_2D, tex_id)
             glColor4f(1.0, 1.0, 1.0, alpha)
             for min_x, min_y, max_x, max_y, height in self._water2_cells:
-                x0, x1 = min_x + x_offset, max_x + x_offset
-                y0, y1 = min_y + y_offset, max_y + y_offset
+                x0, y0, x1, y1 = _wrapped_bounds(min_x, min_y, max_x, max_y)
                 z = height + z_offset
                 glBegin(GL_TRIANGLE_FAN)
                 glTexCoord2f(0, 0); glVertex3f(x0, y0, z)
@@ -4171,8 +4204,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         else:
             glColor4f(0.1, 0.3, 0.7, alpha)
             for min_x, min_y, max_x, max_y, height in self._water2_cells:
-                x0, x1 = min_x + x_offset, max_x + x_offset
-                y0, y1 = min_y + y_offset, max_y + y_offset
+                x0, y0, x1, y1 = _wrapped_bounds(min_x, min_y, max_x, max_y)
                 z = height + z_offset
                 glBegin(GL_TRIANGLE_FAN)
                 glVertex3f(x0, y0, z)
