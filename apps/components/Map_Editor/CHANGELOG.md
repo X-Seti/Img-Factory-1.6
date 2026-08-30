@@ -9434,3 +9434,16 @@ conclusively found despite extensive isolated testing.
   is genuinely VC. Also removed the temporary diagnostic markers from
   _apply_water2_preload/_try_auto_water2_from_loader now that the
   underlying VC case-sensitivity bug is confirmed fixed.
+
+- Aug 20 2026 - [Tcyc] right-click added, per Keith: "each game has
+  its own timecyc.dat, so we need to show that, and also a right-
+  click option to show other timecyc.dat files that I'll put in an
+  asset folder." New shared _app_asset_folder helper (the same real
+  "depends/<name>/" location the water texture's own "App Textures"
+  shortcut already uses, generalised for reuse). Right-click scans
+  depends/timecyc/ for .dat files and shows a picker menu;
+  _apply_alt_timecyc applies the pick via the same real set_timecyc_
+  path the existing Settings > Browse... picker already uses - a
+  manual pick lasts for this world/session only, since the next real
+  world load's own auto-detection (confirmed already correctly re-
+  running every time, per game) takes back over naturally.

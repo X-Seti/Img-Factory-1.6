@@ -23834,6 +23834,20 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return True
         return False
 
+    def _app_asset_folder(self, name): #vers 1
+        """This app's own "depends/<name>/" asset folder (Aug 20
+        2026, per Keith: "a right-click option to show other
+        timecyc.dat files that I'll put in an asset folder" / "the
+        option settings path for using other water textures") -
+        shared helper for the same real "depends/<name>/" location
+        the water texture's own "App Textures" shortcut already uses
+        (_go_to_app_tex), rather than each real asset type re-deriving
+        this same path separately. Returns the folder path whether or
+        not it currently exists - callers check os.path.isdir
+        themselves."""
+        this_dir = os.path.dirname(os.path.abspath(__file__))
+        return os.path.join(this_dir, 'depends', name)
+
     def _game_data_folder_candidates(self): #vers 1
         """Every real, candidate "data" folder for the currently
         loaded game, in priority order (Aug 20 2026) - extracted from
@@ -24188,6 +24202,45 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if vp is not None and hasattr(vp, 'set_timecyc_playing'):
             vp.set_timecyc_playing(checked)
 
+    def _show_alt_timecyc_menu(self, button): #vers 1
+        """Right-click [Tcyc]: pick an alternate timecyc.dat from this
+        app's own depends/timecyc/ asset folder (Aug 20 2026, per
+        Keith: "each game has its own timecyc.dat, so we need to show
+        that, and also a right-click option to show other timecyc.dat
+        files that I'll put in an asset folder"). A manual pick here
+        overrides the current, auto-detected file for this world/
+        session only - the next real world load's own auto-detection
+        (which already correctly re-runs every time, per game) will
+        take back over, the same way the existing "Browse..." picker
+        in Settings already behaves."""
+        folder = self._app_asset_folder('timecyc')
+        if not os.path.isdir(folder):
+            self._set_status(f"No depends/timecyc/ asset folder found at {folder}")
+            return
+        try:
+            files = sorted(f for f in os.listdir(folder) if f.lower().endswith('.dat'))
+        except OSError:
+            files = []
+        if not files:
+            self._set_status(f"No .dat files found in {folder}")
+            return
+        from PyQt6.QtWidgets import QMenu
+        menu = QMenu(self)
+        for name in files:
+            path = os.path.join(folder, name)
+            menu.addAction(name, lambda p=path: self._apply_alt_timecyc(p))
+        menu.exec(button.mapToGlobal(button.rect().bottomLeft()))
+
+    def _apply_alt_timecyc(self, path): #vers 1
+        """Apply a manually-picked alternate timecyc.dat (Aug 20 2026,
+        same real request as _show_alt_timecyc_menu above) - same real
+        set_timecyc_path call the existing Settings > Browse... picker
+        already uses."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is not None and hasattr(vp, 'set_timecyc_path'):
+            vp.set_timecyc_path(path)
+        self._set_status(f"Timecyc: using {os.path.basename(path)}")
+
     def _on_ipl_tab_changed(self, index): #vers 1
         """QTabBar currentChanged - maps the tab index back to its
         section key and reuses the existing change handler. Qt still
@@ -24463,12 +24516,19 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # Timecyc play/stop toggle (Aug 20 2026, per Keith: "the play
         # and stop for timecyc can be merged with the play stop [2DFX]
         # [TOJB] adding a new button on that line that says [TCYC]")
-        tcyc_chk = _MapOverlayToggleButton("Tcyc", supports_edit=False)
+        tcyc_chk = _MapOverlayToggleButton("Tcyc", supports_edit=True)
         tcyc_chk.setToolTip(
-            "Play/stop the loaded timecyc file's own day/night sky\n"
-            "colour cycle in the 3D view - set the file itself via\n"
-            "Settings > Render > Environment > Use timecyc file.")
+            "Left-click: play/stop the loaded timecyc file's own day/\n"
+            "night sky colour cycle in the 3D view.\n"
+            "Right-click: pick a different timecyc.dat from this\n"
+            "app's own depends/timecyc/ asset folder.")
         tcyc_chk.show_toggled.connect(self._on_tcyc_toggled)
+        # Right-click picks an alternate timecyc.dat (Aug 20 2026, per
+        # Keith: "a right-click option to show other timecyc.dat files
+        # that I'll put in an asset folder") - reuses the same generic
+        # edit_toggled "second action" signal every edit-capable
+        # overlay button already has, not a genuine edit mode.
+        tcyc_chk.edit_toggled.connect(lambda checked: self._show_alt_timecyc_menu(tcyc_chk))
         self._tcyc_chk = tcyc_chk
 
         opts_row2.addWidget(show_tobj_chk)
