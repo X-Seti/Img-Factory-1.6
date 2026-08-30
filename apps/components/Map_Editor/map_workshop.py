@@ -24446,6 +24446,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         """Dedicated dock for IPL viewing/filtering controls."""
         panel = QWidget()
         from PyQt6.QtWidgets import QButtonGroup
+        from apps.components.Map_Editor.depends.overlay_icons import OverlayIcons
         lay = QVBoxLayout(panel)
         lay.setContentsMargins(6, 6, 6, 6)
         lay.setSpacing(4)
@@ -24702,7 +24703,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # Timecyc play/stop toggle (Aug 20 2026, per Keith: "the play
         # and stop for timecyc can be merged with the play stop [2DFX]
         # [TOJB] adding a new button on that line that says [TCYC]")
-        tcyc_chk = _MapOverlayToggleButton("Tcyc", supports_edit=True)
+        tcyc_chk = _MapOverlayToggleButton("Tcyc", supports_edit=True, icon=OverlayIcons.tcyc_icon(20))
         tcyc_chk.setToolTip(
             "Left-click: play/stop the loaded timecyc file's own day/\n"
             "night sky colour cycle in the 3D view.\n"
@@ -24786,7 +24787,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._show_auzo_chk = show_auzo_btn
 
         # Show Water (Aug 20 2026)
-        show_water_btn = _MapOverlayToggleButton("Water", supports_edit=True)
+        show_water_btn = _MapOverlayToggleButton("Water", supports_edit=True, icon=OverlayIcons.water_icon(20))
         show_water_btn.show_toggled.connect(self._on_show_water_toggled)
         # Right-click switches water layers (Aug 20 2026, per Keith:
         # "when you right click the water button, show the other
@@ -24808,7 +24809,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "other real layer (physical_map, double the resolution).")
 
         # Generate Radar Tiles (Aug 20 2026)
-        radar_gen_btn = _MapOverlayToggleButton("Radar", supports_edit=True)
+        radar_gen_btn = _MapOverlayToggleButton("Radar", supports_edit=True, icon=OverlayIcons.radar_icon(20))
         radar_gen_btn.set_shown(bool(self.map_settings.get('show_radar_tex_layer')), emit=False)
         radar_gen_btn.show_toggled.connect(self._on_show_radar_tex_layer_toggled)
         # Right-click generates the radar tiles (Aug 20 2026, per

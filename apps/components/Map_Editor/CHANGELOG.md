@@ -9515,3 +9515,30 @@ conclusively found despite extensive isolated testing.
   applies to all of them at once. Off (buttons/text) by default,
   since none of them have real icon artwork yet - creating well-
   detailed, 24x24 colour SVG icons for each is the next real step.
+
+- Aug 20 2026 - First batch of well-detailed, 24x24 colour SVG icons
+  for IPL Controls overlay buttons, per Keith's own earlier request
+  and this turn's "continue": Water (blue droplet, gradient body,
+  highlight, ripple lines), Radar (green radar screen, bold ring,
+  bright sweep wedge, blip), Tcyc (disc split day/night: moon+stars
+  vs sun+rays). New apps/components/Map_Editor/depends/overlay_
+  icons.py, kept separate from both the shared monochrome icon
+  factory and MaxSVGIcons' own theme-driven two-tone icons, since
+  these use their own fixed, real colours intrinsic to what they
+  represent rather than a theme token.
+
+  Rendered and visually verified each one myself at both 24px (actual
+  size) and 96px (4x zoom) before finalising, using cairosvg - caught
+  and fixed two real problems this way before they ever reached
+  Keith: the first Radar design (3 thin rings + crosshairs) was too
+  muddy to read at actual size, and the first Tcyc design (gradient
+  split with an offset-circle crescent) read as an unintentional
+  face/eye rather than a moon. Both redesigned to fewer, bolder shapes
+  before committing.
+
+  Wired into _MapOverlayToggleButton's new optional icon parameter
+  for all 3 buttons (Water/Radar/Tcyc); the "IPL Controls Display"
+  settings toggle from last turn can now actually show icons for
+  these 3 (the other 9 overlay buttons still fall back to text-only
+  automatically, per that same toggle's own real design, until they
+  get their own real icons too).
