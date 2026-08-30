@@ -611,6 +611,22 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._water2_texture_path = ''
         self._water2_tex_id = None
         self._water2_tex_path_loaded = None
+        # Real, in-game texture source (Aug 20 2026, per Keith: "the
+        # ../model/particle.txd water textures... with the option
+        # settings path for using other water textures") - a real
+        # texture extracted directly from the currently loaded game's
+        # own particle.txd (via ModelCache, the same real, already-
+        # indexed archive radar tiles already read from), rather than
+        # a file on disk. Takes priority over _water2_texture_path
+        # when set - see _ensure_water2_texture's own docstring for
+        # the real precedence rule. _water2_rgba_loaded tracks which
+        # real bytes object was last actually uploaded (identity, not
+        # equality - comparing raw texture bytes every frame would be
+        # wasteful), so re-setting the same real extracted texture
+        # doesn't force a needless re-upload.
+        self._water2_rgba = None
+        self._water2_rgba_wh = (0, 0)
+        self._water2_rgba_loaded = None
         # Style toggle (Aug 20 2026, per Keith: "I like the blue, so
         # we can keep it, or have an option to use the water
         # texture") - independent of whether a texture happens to be
@@ -4071,6 +4087,16 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._water2_texture_path = texture_path
         self.update()
 
+    def set_water2_texture_path(self, path): #vers 1
+        """Set the file-path water texture independently of cells
+        (Aug 20 2026, per Keith: "the option settings path for using
+        other water textures") - a manually-chosen custom texture
+        needs to update just the texture, without touching the
+        already-loaded water cells the way set_water2_data's own
+        cells-or-[] fallback would if called with an empty list."""
+        self._water2_texture_path = path or ''
+        self.update()
+
     def set_water2_use_texture(self, enabled): #vers 1
         """Style toggle (Aug 20 2026, per Keith: "I like the blue, so
         we can keep it, or have an option to use the water texture,
@@ -4127,11 +4153,34 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._water2_offset_vc_only = bool(enabled)
         self.update()
 
-    def _ensure_water2_texture(self): #vers 1
-        """Lazily load self._water2_texture_path as a GL texture, same
-        real pattern _ensure_water_texture already uses - no
+    def _ensure_water2_texture(self): #vers 2
+        """Lazily load a water2 texture as a real GL texture - no
         makeCurrent()/doneCurrent() here, always called from within an
-        already-active paintGL."""
+        already-active paintGL.
+
+        Real precedence rule added (Aug 20 2026, per Keith: "the
+        ../model/particle.txd water textures... with the option
+        settings path for using other water textures") - a real
+        texture extracted from the currently loaded game's own
+        particle.txd (self._water2_rgba, set via set_water2_texture_
+        rgba) takes priority over a plain file on disk (self._water2_
+        texture_path) when both happen to be set, since the in-game
+        one is the more authentic, real source for that specific
+        game - falls back to the file path (e.g. this app's own tex/
+        folder asset) only when no real in-game texture was actually
+        found/extracted."""
+        if self._water2_rgba is not None:
+            if self._water2_tex_id and self._water2_rgba_loaded is self._water2_rgba:
+                return self._water2_tex_id
+            try:
+                w, h = self._water2_rgba_wh
+                self._upload_water2_gl_texture(self._water2_rgba, w, h)
+                self._water2_rgba_loaded = self._water2_rgba
+                self._water2_tex_path_loaded = None
+            except Exception as e:
+                print(f"[DFFViewport] Failed to load water2 in-game texture: {e}")
+                self._water2_tex_id = False
+            return self._water2_tex_id
         if self._water2_tex_id and self._water2_tex_path_loaded == self._water2_texture_path:
             return self._water2_tex_id
         try:
@@ -4143,22 +4192,47 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             w, h = image.width(), image.height()
             ptr = image.bits(); ptr.setsize(image.sizeInBytes())
             rgba = bytes(ptr)
-            if self._water2_tex_id and self._water2_tex_id is not False:
-                glDeleteTextures([self._water2_tex_id])
-            gl_id = glGenTextures(1)
-            glBindTexture(GL_TEXTURE_2D, gl_id)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba)
-            glBindTexture(GL_TEXTURE_2D, 0)
-            self._water2_tex_id = gl_id
+            self._upload_water2_gl_texture(rgba, w, h)
             self._water2_tex_path_loaded = self._water2_texture_path
+            self._water2_rgba_loaded = None
         except Exception as e:
             print(f"[DFFViewport] Failed to load water2 texture: {e}")
             self._water2_tex_id = False
         return self._water2_tex_id
+
+    def _upload_water2_gl_texture(self, rgba, w, h): #vers 1
+        """Shared GL upload for either water2 texture source (Aug 20
+        2026) - extracted from _ensure_water2_texture's own earlier,
+        single-source version so both the file-path and in-game-
+        extracted paths use the exact same real upload code, not two
+        near-duplicate copies of it."""
+        if self._water2_tex_id and self._water2_tex_id is not False:
+            glDeleteTextures([self._water2_tex_id])
+        gl_id = glGenTextures(1)
+        glBindTexture(GL_TEXTURE_2D, gl_id)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba)
+        glBindTexture(GL_TEXTURE_2D, 0)
+        self._water2_tex_id = gl_id
+
+    def set_water2_texture_rgba(self, rgba, width, height): #vers 1
+        """Set a real, in-game water texture directly from already-
+        decoded RGBA bytes (Aug 20 2026, per Keith: "the ../model/
+        particle.txd water textures") - the same real, already-
+        working ModelCache.get_textures/parse_txd pipeline radar
+        tiles already use, so any RW texture format (confirmed across
+        Keith's own real screenshots: PAL8 for LC's own water_old,
+        ARGB8888 for SA's own waterclear256, DXT1 for VC's own
+        waterclear256) arrives here pre-decoded to plain RGBA -
+        nothing format-specific needed at this layer at all. Pass
+        rgba=None to clear it and fall back to the plain file-path
+        texture (self._water2_texture_path) instead."""
+        self._water2_rgba = rgba
+        self._water2_rgba_wh = (width, height)
+        self.update()
 
     def _draw_water2(self): #vers 2
         """New, simple water draw (Aug 20 2026, re-applied) - one real

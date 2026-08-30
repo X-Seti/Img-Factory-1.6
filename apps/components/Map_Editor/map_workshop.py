@@ -3206,6 +3206,12 @@ class MapSettings(QObject):
         # preloaded, so switching back and forth doesn't need re-
         # preloading each time.
         'water2_use_texture': False,
+        # Real, manually-chosen custom water texture path (Aug 20
+        # 2026, per Keith: "the option settings path for using other
+        # water textures") - empty means "no custom override, try the
+        # loaded game's own particle.txd first, then this app's own
+        # tex/ folder asset if preloaded via that route instead".
+        'water2_custom_texture_path': '',
         # Height/transparency adjustments (Aug 20 2026, per Keith:
         # "The water needs to be moved up and have transparency
         # settings, but I'm not sure by how much").
@@ -8579,8 +8585,44 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "it, or have an option to use the water texture, either\n"
             "from the game or the tex/ file from img factory\" - off\n"
             "shows the plain flat fill regardless of whether a real\n"
-            "texture was preloaded; on uses it if one was.")
+            "texture was preloaded; on tries the currently loaded\n"
+            "game's own real particle.txd water texture first, falling\n"
+            "back to a custom file (below) or this app's own tex/\n"
+            "folder asset if preloaded via that route instead.")
         water2_form.addRow(water2_use_texture_chk)
+
+        water2_tex_path_edit = QLineEdit(self.map_settings.get('water2_custom_texture_path') or '')
+        water2_tex_path_edit.setReadOnly(True)
+        water2_tex_path_edit.setPlaceholderText("Auto: the loaded game's own particle.txd water texture")
+        water2_tex_browse_btn = QPushButton("Browse...")
+        def _browse_water2_texture(): #vers 2
+            """Real fix (Aug 20 2026, per Keith: "the option settings
+            path for using other water textures") - a manually-chosen
+            custom texture is a deliberate, explicit choice, so it
+            takes priority over the automatic particle.txd extraction
+            - clears the in-game RGBA source (set_water2_texture_rgba
+            (None,...)) so _ensure_water2_texture's own precedence
+            rule correctly falls through to this file path instead.
+            Uses set_water2_texture_path (updates just the texture)
+            rather than set_water2_data with an empty cells list,
+            which would have wiped out the already-loaded water grid
+            instead of leaving it alone."""
+            path, _ = QFileDialog.getOpenFileName(
+                self, "Choose Water Texture", "", "Images (*.png *.jpg *.jpeg *.bmp *.tga)")
+            if path:
+                water2_tex_path_edit.setText(path)
+                self.map_settings.set('water2_custom_texture_path', path)
+                vp = getattr(self, 'preview_widget', None)
+                if vp is not None:
+                    if hasattr(vp, 'set_water2_texture_rgba'):
+                        vp.set_water2_texture_rgba(None, 0, 0)
+                    if hasattr(vp, 'set_water2_texture_path'):
+                        vp.set_water2_texture_path(path)
+        water2_tex_browse_btn.clicked.connect(_browse_water2_texture)
+        water2_tex_row = QHBoxLayout()
+        water2_tex_row.addWidget(water2_tex_path_edit)
+        water2_tex_row.addWidget(water2_tex_browse_btn)
+        water2_form.addRow("Custom texture:", water2_tex_row)
 
         water2_height_spin = QDoubleSpinBox()
         water2_height_spin.setRange(-500.0, 500.0)
@@ -12495,6 +12537,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.preview_widget.set_water_hide_outside_map(bool(self.map_settings.get('water_hide_outside_map')))
         if hasattr(self.preview_widget, 'set_water2_use_texture'):
             self.preview_widget.set_water2_use_texture(bool(self.map_settings.get('water2_use_texture')))
+        if hasattr(self.preview_widget, 'set_water2_texture_path'):
+            saved_water2_tex = self.map_settings.get('water2_custom_texture_path')
+            if saved_water2_tex:
+                self.preview_widget.set_water2_texture_path(saved_water2_tex)
         if hasattr(self.preview_widget, 'set_water2_height_offset'):
             self.preview_widget.set_water2_height_offset(float(self.map_settings.get('water2_height_offset')))
         if hasattr(self.preview_widget, 'set_water2_alpha'):
@@ -21103,6 +21149,27 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             tile_textures_for_tex = self._load_radar_tex_tiles(game_key_for_tex)
             vp_for_grid.set_radar_tex_layer(True, tile_textures_for_tex, game_key_for_tex)
 
+        # Real in-game water texture (Aug 20 2026, per Keith: "the
+        # ../model/particle.txd water textures... with the option
+        # settings path for using other water textures") - same real
+        # reason as radar's own tex layer just above: needs the
+        # freshly-indexed ModelCache, so this runs here too. Only
+        # attempted when Keith's own "Use water texture" toggle is on
+        # - matches that same toggle's own existing meaning (prefer a
+        # real texture over the plain flat fill) rather than a second,
+        # separate on/off switch. Skipped when a real, manually-chosen
+        # custom texture path is already set - unlike timecyc.dat/
+        # waterpro.dat, a custom water texture isn't game-specific, so
+        # it should stay stickier across world reloads rather than
+        # being silently overwritten by the next real particle.txd
+        # extraction every time a new world loads.
+        if (vp_for_grid is not None and hasattr(vp_for_grid, 'set_water2_texture_rgba')
+                and self.map_settings.get('water2_use_texture')
+                and not self.map_settings.get('water2_custom_texture_path')):
+            water_tex = self._load_water_texture_from_particle_txd()
+            if water_tex is not None:
+                vp_for_grid.set_water2_texture_rgba(*water_tex)
+
         # force_preload_img_once (Aug 16 2026) - a per-load override
         force_once = getattr(self, '_force_preload_img_once', False)
         self._force_preload_img_once = False
@@ -23982,6 +24049,38 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             except OSError:
                 pass
         return ''
+
+    def _load_water_texture_from_particle_txd(self): #vers 1
+        """Read the currently loaded game's own real water texture
+        directly from particle.txd (Aug 20 2026, per Keith: "Next are
+        the ../model/particle.txd water textures; you have the
+        screenshots to fall back on") - same real, already-working
+        ModelCache.get_textures/parse_txd pipeline _load_radar_tex_
+        tiles already uses (any RW format decoded to plain RGBA
+        automatically). Tries every real name confirmed directly from
+        Keith's own screenshots: "waterclear256" (VC's own real 256x256
+        DXT1, and SA's own real, differently-sized/formatted 128x128
+        ARGB8888 - same name, two genuinely different real files, per-
+        game, not a conflict since only one game's own particle.txd is
+        ever loaded at a time) and "water_old" (LC's own real 128x128
+        PAL8). Returns (rgba_bytes, width, height) for the first real
+        match found, or None if this game's own particle.txd doesn't
+        have any of them."""
+        model_cache = getattr(self, '_model_cache', None)
+        if model_cache is None:
+            return None
+        textures = model_cache.get_textures('particle')
+        if not textures:
+            return None
+        for name in ('waterclear256', 'water_old'):
+            tex = textures.get(name)
+            if tex is None:
+                continue
+            rgba = tex.get('rgba_data')
+            w, h = tex.get('width'), tex.get('height')
+            if rgba and w and h:
+                return (rgba, w, h)
+        return None
 
     def _load_radar_tex_tiles(self, game_key): #vers 1
         """Read every real radarNN.txd texture for game_key directly

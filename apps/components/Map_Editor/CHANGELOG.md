@@ -9447,3 +9447,34 @@ conclusively found despite extensive isolated testing.
   manual pick lasts for this world/session only, since the next real
   world load's own auto-detection (confirmed already correctly re-
   running every time, per game) takes back over naturally.
+
+- Aug 20 2026 - Real in-game water texture support, per Keith: "Next
+  are the ../model/particle.txd water textures; you have the
+  screenshots to fall back on, with the option settings path for
+  using other water textures." New _load_water_texture_from_particle_
+  txd reuses the same real, already-working ModelCache.get_textures/
+  parse_txd pipeline radar tiles already use - any RW texture format
+  decoded to plain RGBA automatically (confirmed across Keith's own
+  screenshots: PAL8 for LC's own water_old, ARGB8888 for SA's own
+  waterclear256, DXT1 for VC's own waterclear256 - same name, two
+  genuinely different files, never a conflict since only one game's
+  own particle.txd loads at a time). Wired into the world-load
+  sequence right after model_cache.index_img_files (same real
+  requirement radar's own tex layer already has), gated behind the
+  existing "Use water texture" toggle.
+
+  New viewport-side precedence: a real in-game RGBA texture
+  (set_water2_texture_rgba) takes priority over a plain file path
+  (set_water2_texture_path, new - updates just the texture without
+  touching already-loaded cells the way set_water2_data's own cells-
+  or-[] fallback would have) when both are set, since the in-game one
+  is the more authentic source. Shared _upload_water2_gl_texture
+  avoids duplicating the GL upload code across both sources.
+
+  New "Custom texture" Browse... row in the Water settings group -
+  a manually-chosen file is a deliberate, explicit choice, so it
+  clears the in-game RGBA source and takes priority; also skipped
+  from the automatic particle.txd extraction on future world loads
+  once set, since unlike timecyc.dat/waterpro.dat a custom water
+  texture isn't game-specific and should stay stickier across
+  reloads rather than being silently overwritten every time.
