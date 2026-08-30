@@ -23275,6 +23275,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         _refresh_avail_list()
 
         status_label = QLabel("")
+        status_label.setWordWrap(True)
         outer.addWidget(status_label)
 
         btn_row = QHBoxLayout()
@@ -23347,11 +23348,19 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     loaded.append(item.text())
                 else:
                     unrecognised.append(item.text())
+            # Real fix (Aug 20 2026, per Keith: "I'd prefer to show
+            # those one line at a time, not as a single word-wrapped
+            # line") - each real loaded/unrecognised filename now gets
+            # its own real line, instead of one comma-joined, wrapped
+            # line that's hard to scan for a longer real Preload list
+            # like SA's own real, larger set of extra files.
             msg = []
             if loaded:
-                msg.append(f"Loaded: {', '.join(loaded)}")
+                msg.append("Loaded:")
+                msg.extend(f"  {name}" for name in loaded)
             if unrecognised:
-                msg.append(f"Not a recognised type (no action taken): {', '.join(unrecognised)}")
+                msg.append("Not a recognised type (no action taken):")
+                msg.extend(f"  {name}" for name in unrecognised)
             status_label.setText("\n".join(msg) if msg else "Nothing selected.")
         save_btn.clicked.connect(_do_save)
         load_btn.clicked.connect(_do_load)

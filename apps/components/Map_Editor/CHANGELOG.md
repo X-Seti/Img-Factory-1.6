@@ -9306,3 +9306,10 @@ conclusively found despite extensive isolated testing.
   filename alone - used consistently now in all 3 real places that
   read a saved entry: automatic apply on world load, manual Load
   clicks, and the dialog's own list restore.
+
+- Aug 20 2026 - Preload dialog's "Loaded"/"Not a recognised type"
+  status now lists one file per line, per Keith: "I'd prefer to show
+  those one line at a time, not as a single word-wrapped line" - was
+  a single comma-joined line, hard to scan for a longer list like
+  SA's own larger set of extra files. status_label now also has word
+  wrap enabled directly, as a safety net for any future long line.
