@@ -3211,6 +3211,13 @@ class MapSettings(QObject):
         # settings, but I'm not sure by how much").
         'water2_height_offset': 0.0,
         'water2_alpha': 0.45,
+        # X/Y offsets (Aug 20 2026, per Keith: "6 squares offset on
+        # the larger grid, or 14 on the smaller grid") - matches
+        # water_workshop.py's own "World coordinate offset" X/Y/Z
+        # feature; per-file, not assumed to be the same for every VC
+        # install.
+        'water2_x_offset': 0.0,
+        'water2_y_offset': 0.0,
 
         # distinct from paths' red.
         'cull_box_color': (255, 217, 51),
@@ -8558,6 +8565,28 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         water2_alpha_spin.setToolTip("Same real request as Height offset above - water's own transparency.")
         water2_form.addRow("Transparency:", water2_alpha_spin)
 
+        water2_x_spin = QDoubleSpinBox()
+        water2_x_spin.setRange(-4000.0, 4000.0)
+        water2_x_spin.setSingleStep(10.0)
+        water2_x_spin.setDecimals(1)
+        water2_x_spin.setValue(float(self.map_settings.get('water2_x_offset')))
+        water2_x_spin.setToolTip(
+            "Aug 20 2026, per Keith: \"6 squares offset on the larger\n"
+            "grid, or 14 on the smaller grid\" - a real, measured VC-\n"
+            "specific misalignment against the radar layer. Matches\n"
+            "water_workshop.py's own \"World coordinate offset\"\n"
+            "feature - per-file, not assumed the same for every VC\n"
+            "install.")
+        water2_form.addRow("X offset:", water2_x_spin)
+
+        water2_y_spin = QDoubleSpinBox()
+        water2_y_spin.setRange(-4000.0, 4000.0)
+        water2_y_spin.setSingleStep(10.0)
+        water2_y_spin.setDecimals(1)
+        water2_y_spin.setValue(float(self.map_settings.get('water2_y_offset')))
+        water2_y_spin.setToolTip("Same real request as X offset above.")
+        water2_form.addRow("Y offset:", water2_y_spin)
+
         # Real fix (Aug 20 2026, per Keith: "Change it by 20+ on the
         # height in settings, doesn't update the view") - these two
         # only ever applied on Apply/OK before; live updates as the
@@ -8573,8 +8602,18 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             vp_live = getattr(self, 'preview_widget', None)
             if vp_live is not None and hasattr(vp_live, 'set_water2_alpha'):
                 vp_live.set_water2_alpha(value)
+        def _live_water2_x(value): #vers 1
+            vp_live = getattr(self, 'preview_widget', None)
+            if vp_live is not None and hasattr(vp_live, 'set_water2_x_offset'):
+                vp_live.set_water2_x_offset(value)
+        def _live_water2_y(value): #vers 1
+            vp_live = getattr(self, 'preview_widget', None)
+            if vp_live is not None and hasattr(vp_live, 'set_water2_y_offset'):
+                vp_live.set_water2_y_offset(value)
         water2_height_spin.valueChanged.connect(_live_water2_height)
         water2_alpha_spin.valueChanged.connect(_live_water2_alpha)
+        water2_x_spin.valueChanged.connect(_live_water2_x)
+        water2_y_spin.valueChanged.connect(_live_water2_y)
 
         render_layout.addWidget(water2_grp)
 
@@ -9007,6 +9046,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.map_settings.set('water2_alpha', water2_alpha_spin.value())
             if vp_for_water2 is not None and hasattr(vp_for_water2, 'set_water2_alpha'):
                 vp_for_water2.set_water2_alpha(water2_alpha_spin.value())
+            self.map_settings.set('water2_x_offset', water2_x_spin.value())
+            if vp_for_water2 is not None and hasattr(vp_for_water2, 'set_water2_x_offset'):
+                vp_for_water2.set_water2_x_offset(water2_x_spin.value())
+            self.map_settings.set('water2_y_offset', water2_y_spin.value())
+            if vp_for_water2 is not None and hasattr(vp_for_water2, 'set_water2_y_offset'):
+                vp_for_water2.set_water2_y_offset(water2_y_spin.value())
             self.map_settings.set('show_verbose_loading_dialog',   verbose_loading_chk.isChecked())
             self.map_settings.set('texture_downscale_enabled',   downscale_chk.isChecked())
             self.map_settings.set('texture_downscale_threshold', downscale_threshold_spin.value())
@@ -12376,6 +12421,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.preview_widget.set_water2_height_offset(float(self.map_settings.get('water2_height_offset')))
         if hasattr(self.preview_widget, 'set_water2_alpha'):
             self.preview_widget.set_water2_alpha(float(self.map_settings.get('water2_alpha')))
+        if hasattr(self.preview_widget, 'set_water2_x_offset'):
+            self.preview_widget.set_water2_x_offset(float(self.map_settings.get('water2_x_offset')))
+        if hasattr(self.preview_widget, 'set_water2_y_offset'):
+            self.preview_widget.set_water2_y_offset(float(self.map_settings.get('water2_y_offset')))
         # Wire the path node drag callback once, here at construction
         # (Aug 17 2026)
         if hasattr(self.preview_widget, 'set_path_node_drag_callback'):

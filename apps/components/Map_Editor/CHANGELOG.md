@@ -9334,3 +9334,18 @@ conclusively found despite extensive isolated testing.
   correctly via os.listdir - confirmed no fix needed there. Removed
   the temporary diagnostic markers from both this and the previous 2
   turns now that root cause is confirmed.
+
+- Aug 20 2026 - Added water X/Y offset controls, per Keith's own
+  measured VC-specific misalignment: "6 squares offset on the larger
+  grid, or 14 on the smaller grid." Investigated water_workshop.py's
+  own code and found it already has a manual "World coordinate offset
+  (applied on save)" X/Y/Z feature - confirming this kind of offset is
+  a real, recognised per-file possibility, not necessarily one fixed
+  value true for every VC install (e.g. a waterpro.dat previously
+  edited/shifted by another tool). Added the same kind of manual,
+  live-updating control here rather than guessing at one "universal"
+  correction: new "X offset"/"Y offset" spinboxes alongside the
+  existing Height offset/Transparency ones, set_water2_x_offset/
+  set_water2_y_offset on the viewport, applied per-vertex in
+  _draw_water2 without touching the underlying preloaded data,
+  restored at startup the same way the other water2 settings are.

@@ -627,6 +627,19 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         # transparency values.
         self._water2_height_offset = 0.0
         self._water2_alpha = 0.45
+        # X/Y offsets (Aug 20 2026, per Keith: "6 squares offset on
+        # the larger grid, or 14 on the smaller grid" - a real,
+        # measured VC-specific misalignment between water and radar/
+        # models) - matches water_workshop.py's own already-existing
+        # "World coordinate offset (applied on save)" X/Y/Z feature,
+        # since that confirms this offset is a real, recognised
+        # possibility per waterpro.dat file, not necessarily a fixed
+        # value true for every VC install - added here, live and non-
+        # destructive at draw time (same real pattern as height_
+        # offset), so Keith can dial in whatever this specific file
+        # actually needs by eye against the radar layer.
+        self._water2_x_offset = 0.0
+        self._water2_y_offset = 0.0
 
         # Cull zone boxes (Aug 16 2026, per Keith: "continue with the
         # cull files next", following the same "so I can view them"
@@ -4068,6 +4081,20 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._water2_alpha = max(0.0, min(1.0, float(alpha)))
         self.update()
 
+    def set_water2_x_offset(self, offset): #vers 1
+        """Real X adjustment (Aug 20 2026, per Keith: "6 squares
+        offset on the larger grid, or 14 on the smaller grid" - a
+        real, measured VC-specific misalignment) - same real, non-
+        destructive draw-time pattern as set_water2_height_offset."""
+        self._water2_x_offset = float(offset)
+        self.update()
+
+    def set_water2_y_offset(self, offset): #vers 1
+        """Real Y adjustment (Aug 20 2026, same real request as
+        set_water2_x_offset above)."""
+        self._water2_y_offset = float(offset)
+        self.update()
+
     def _ensure_water2_texture(self): #vers 1
         """Lazily load self._water2_texture_path as a GL texture, same
         real pattern _ensure_water_texture already uses - no
@@ -4121,31 +4148,37 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         tex_id = None
         if self._water2_use_texture and self._water2_texture_path:
             tex_id = self._ensure_water2_texture()
-        offset = self._water2_height_offset
+        z_offset = self._water2_height_offset
+        x_offset = self._water2_x_offset
+        y_offset = self._water2_y_offset
         alpha = self._water2_alpha
         if tex_id:
             glEnable(GL_TEXTURE_2D)
             glBindTexture(GL_TEXTURE_2D, tex_id)
             glColor4f(1.0, 1.0, 1.0, alpha)
             for min_x, min_y, max_x, max_y, height in self._water2_cells:
-                height = height + offset
+                x0, x1 = min_x + x_offset, max_x + x_offset
+                y0, y1 = min_y + y_offset, max_y + y_offset
+                z = height + z_offset
                 glBegin(GL_TRIANGLE_FAN)
-                glTexCoord2f(0, 0); glVertex3f(min_x, min_y, height)
-                glTexCoord2f(1, 0); glVertex3f(max_x, min_y, height)
-                glTexCoord2f(1, 1); glVertex3f(max_x, max_y, height)
-                glTexCoord2f(0, 1); glVertex3f(min_x, max_y, height)
+                glTexCoord2f(0, 0); glVertex3f(x0, y0, z)
+                glTexCoord2f(1, 0); glVertex3f(x1, y0, z)
+                glTexCoord2f(1, 1); glVertex3f(x1, y1, z)
+                glTexCoord2f(0, 1); glVertex3f(x0, y1, z)
                 glEnd()
             glBindTexture(GL_TEXTURE_2D, 0)
             glDisable(GL_TEXTURE_2D)
         else:
             glColor4f(0.1, 0.3, 0.7, alpha)
             for min_x, min_y, max_x, max_y, height in self._water2_cells:
-                height = height + offset
+                x0, x1 = min_x + x_offset, max_x + x_offset
+                y0, y1 = min_y + y_offset, max_y + y_offset
+                z = height + z_offset
                 glBegin(GL_TRIANGLE_FAN)
-                glVertex3f(min_x, min_y, height)
-                glVertex3f(max_x, min_y, height)
-                glVertex3f(max_x, max_y, height)
-                glVertex3f(min_x, max_y, height)
+                glVertex3f(x0, y0, z)
+                glVertex3f(x1, y0, z)
+                glVertex3f(x1, y1, z)
+                glVertex3f(x0, y1, z)
                 glEnd()
         glDepthMask(GL_TRUE)
         glDisable(GL_BLEND)
