@@ -12347,10 +12347,19 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             saved_skybox = self.map_settings.get('skybox_path')
             if saved_skybox:
                 self.preview_widget.set_skybox_path(saved_skybox)
-        if hasattr(self.preview_widget, 'set_timecyc_path'):
-            saved_timecyc = self.map_settings.get('timecyc_path')
-            if saved_timecyc:
-                self.preview_widget.set_timecyc_path(saved_timecyc)
+        # Real fix (Aug 20 2026, per Keith: "the timecyc.dat also has a
+        # fixed path, but the radar loads fine across the game
+        # versions") - removed the startup restore of a previously-
+        # saved timecyc_path here. Auto-detection already re-runs on
+        # every real world load (search "re-checked on every world
+        # load" below) and correctly overwrites this same setting with
+        # whichever game is actually current - this startup restore
+        # was the one remaining place a stale, different game's own
+        # path could still be used, in the brief window before a new
+        # world is actually loaded. radar never has this problem at
+        # all because it never persists a path into settings in the
+        # first place - it always reads fresh, live textures straight
+        # out of whichever IMG archive is currently indexed.
         if hasattr(self.preview_widget, 'set_sky_gradient_flipped'):
             self.preview_widget.set_sky_gradient_flipped(bool(self.map_settings.get('sky_gradient_flipped')))
         if hasattr(self.preview_widget, 'set_water_display_style'):

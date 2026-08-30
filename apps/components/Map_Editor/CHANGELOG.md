@@ -9273,3 +9273,22 @@ conclusively found despite extensive isolated testing.
   Same shared resolver now used consistently in all 3 real places
   that previously each had their own inline copy of this logic
   (automatic apply, manual Load, dialog list restore).
+
+- Aug 20 2026 - Fixed real gap in timecyc.dat, per Keith: "the
+  timecyc.dat also has a fixed path, but the radar loads fine across
+  the game versions." Traced the real structural difference: radar
+  never persists a path into settings at all (_load_radar_tex_tiles
+  always reads fresh, live textures straight out of whichever IMG
+  archive is currently indexed) - timecyc.dat's own auto-detected
+  path was being saved into settings and restored at startup, before
+  any new world is actually loaded. Auto-detection itself already
+  correctly re-runs on every real world load (confirmed via an
+  existing comment noting this was already fixed once), so the
+  startup restore was the one remaining place a stale, different
+  game's own path could still linger. Removed that startup restore -
+  the viewport now only ever gets a real timecyc_path from the actual
+  world-load sequence's own auto-detection, matching radar's own
+  "never trust a persisted path, always re-derive live" approach.
+  Confirmed no other file type in this codebase has the same
+  auto-detect+persist+startup-restore pattern (_auto_detect_timecyc_
+  path is the only one).
