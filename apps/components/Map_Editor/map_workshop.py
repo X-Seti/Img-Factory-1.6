@@ -23524,20 +23524,35 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             cells.append((min(xs), min(ys), max(xs), max(ys), sum(zs) / len(zs)))
         return cells
 
-    def _apply_water2_preload(self): #vers 1
+    def _apply_water2_preload(self): #vers 2
         """Combine whatever's been preloaded so far (Aug 20 2026, re-
         applied) - water cells and the water texture can be preloaded
         in either order, or independently, via separate _load_
         preloaded_file calls. Pushes whatever's available to the
         viewport and re-enables/shows [Water] the moment there's real
-        water data to show."""
+        water data to show.
+
+        Temporary diagnostic markers added (Aug 20 2026, per Keith:
+        "the button remains inactive, its like you removed the click
+        function" - VC specifically, LC/SA both confirmed working) -
+        every real early-return point now prints exactly why, since
+        the button staying disabled is otherwise silent and
+        impossible to diagnose remotely without seeing Keith's own
+        real terminal output. Remove once VC is confirmed fixed."""
+        print(f"[MapWorkshop-MARKER] _apply_water2_preload called (id={id(self)})")
         vp = getattr(self, 'preview_widget', None)
         if vp is None or not hasattr(vp, 'set_water2_data'):
+            print(f"[MapWorkshop-MARKER] _apply_water2_preload: no preview_widget "
+                  f"or missing set_water2_data - vp={vp}")
             return
         cells = getattr(self, '_water2_cells_pending', None)
         texture_path = getattr(self, '_water2_texture_path_pending', '')
         if cells is None:
+            print(f"[MapWorkshop-MARKER] _apply_water2_preload: _water2_cells_pending "
+                  f"is None - texture preloaded alone, or nothing preloaded at all yet")
             return   # texture preloaded alone, before any real water data
+        print(f"[MapWorkshop-MARKER] _apply_water2_preload: {len(cells)} cells, "
+              f"texture_path={texture_path!r} - enabling [Water] button now")
         vp.set_water2_data(cells, texture_path)
         water_btn = getattr(self, '_show_water_chk', None)
         if water_btn is not None:
@@ -23545,8 +23560,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             water_btn.setToolTip("Left-click: show/hide Water.")
             if hasattr(water_btn, 'set_shown'):
                 water_btn.set_shown(True)
+        else:
+            print(f"[MapWorkshop-MARKER] _apply_water2_preload: self._show_water_chk "
+                  f"is None - can't enable a button that doesn't exist")
 
-    def _try_auto_water2_from_loader(self): #vers 1
+    def _try_auto_water2_from_loader(self): #vers 2
         """Retool loader.waterpro/loader.water_shapes into the new
         water2 system automatically at world-load time (Aug 20 2026,
         re-applied) - those are already populated by the existing,
@@ -23554,21 +23572,36 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         water_dat), so water2 doesn't need Keith to separately re-pick
         the same file through the Preload dialog every time - only
         the texture (a real app asset, not part of any game's own
-        data) still needs a manual preload."""
+        data) still needs a manual preload.
+
+        Temporary diagnostic markers added (Aug 20 2026, same real
+        reason as _apply_water2_preload's own docstring - see it for
+        the full context). Remove once VC is confirmed fixed."""
         loader = getattr(self, '_world_loader', None)
         if loader is None:
+            print(f"[MapWorkshop-MARKER] _try_auto_water2_from_loader: "
+                  f"self._world_loader is None")
             return
         waterpro = getattr(loader, 'waterpro', None)
         water_shapes = getattr(loader, 'water_shapes', None)
+        print(f"[MapWorkshop-MARKER] _try_auto_water2_from_loader: "
+              f"game={getattr(loader, 'game', '?')!r}, "
+              f"waterpro={'set' if waterpro is not None else 'None'}, "
+              f"water_shapes={'set (' + str(len(water_shapes)) + ')' if water_shapes else 'empty/None'}")
         if waterpro is not None:
             game = getattr(loader, 'game', 'vc')
             self._water2_waterpro_source = waterpro
             self._water2_game_source = game
             self._water2_cells_pending = self._waterpro_to_cells(waterpro, game)
+            print(f"[MapWorkshop-MARKER] _try_auto_water2_from_loader: "
+                  f"_waterpro_to_cells produced {len(self._water2_cells_pending)} cells")
             self._apply_water2_preload()
         elif water_shapes:
             self._water2_cells_pending = self._water_shapes_to_cells(water_shapes)
             self._apply_water2_preload()
+        else:
+            print(f"[MapWorkshop-MARKER] _try_auto_water2_from_loader: "
+                  f"neither waterpro nor water_shapes set - nothing to preload")
 
     def _load_preloaded_file(self, path): #vers 2
         """Recognise and load one real file by its own real filename
