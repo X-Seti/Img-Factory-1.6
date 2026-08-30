@@ -9395,3 +9395,26 @@ conclusively found despite extensive isolated testing.
      without losing how the view was rotated/zoomed. Reuses the
      existing, proven fit_icon rather than risking an untested new
      SVG icon - distinguished by its own text label.
+
+- Aug 20 2026 - Water X/Y offset controls stay as manual settings, per
+  Keith: "this offset only is needed for VC, and we might as well
+  keep the offset functions in settings, which could be useful in the
+  future" - confirmed decision, no automatic per-game correction
+  added.
+
+- Aug 20 2026 - Viewport camera state (zoom/pan/angle) now persists
+  across app restarts, per Keith: "remember the zoom settings, and
+  view location when app is closed." Saved specifically in closeEvent
+  (not on every zoom/pan/rotate change, which fire every single mouse-
+  drag frame) - new viewport_dist/pan_x/pan_y/yaw/pitch settings,
+  defaulting to None so a settings file saved before this feature
+  existed doesn't get stomped with a wrong guessed default. New
+  set_camera_state on the viewport, applying each argument
+  independently; restored at construction alongside the other
+  viewport settings. Confirmed safe against the world-load sequence:
+  searched for any auto_fit/reset_view call within _apply_loaded_
+  world_impl itself (none found) - the only 2 real callers of that
+  reset logic are explicit, separate user actions (a Reset View
+  button, a multi-pane sync), not anything that runs automatically
+  during a normal world load and would silently overwrite the
+  restored state.

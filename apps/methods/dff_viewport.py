@@ -5775,6 +5775,28 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._pan_y = 0.0
         self.update()
 
+    def set_camera_state(self, dist=None, pan_x=None, pan_y=None,
+                          yaw=None, pitch=None): #vers 1
+        """Restore a previously-saved camera state (Aug 20 2026, per
+        Keith: "remember the zoom settings, and view location when
+        app is closed") - each real argument is optional and applied
+        independently, since a settings file saved before this
+        feature existed won't have all (or any) of them yet; a real
+        None here means "nothing saved for this one, leave the
+        viewport's own built-in default in place" rather than
+        stomping it with a wrong 0.0/guessed value."""
+        if dist is not None:
+            self._dist = float(dist)
+        if pan_x is not None:
+            self._pan_x = float(pan_x)
+        if pan_y is not None:
+            self._pan_y = float(pan_y)
+        if yaw is not None:
+            self._yaw = float(yaw)
+        if pitch is not None:
+            self._pitch = float(pitch)
+        self.update()
+
     def pan(self, dx, dy): #vers 1
         scale = self._dist * 0.002
         self._pan_x += dx * scale; self._pan_y -= dy * scale; self.update()

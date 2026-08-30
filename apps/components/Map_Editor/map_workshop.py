@@ -3219,6 +3219,16 @@ class MapSettings(QObject):
         'water2_x_offset': 0.0,
         'water2_y_offset': 0.0,
 
+        # Viewport camera state (Aug 20 2026, per Keith: "remember the
+        # zoom settings, and view location when app is closed") - None
+        # means "never saved yet, use the viewport's own built-in
+        # default" rather than a real 0.0/wrong guessed default.
+        'viewport_dist': None,
+        'viewport_pan_x': None,
+        'viewport_pan_y': None,
+        'viewport_yaw': None,
+        'viewport_pitch': None,
+
         # distinct from paths' red.
         'cull_box_color': (255, 217, 51),
 
@@ -10190,10 +10200,28 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.showMaximized()
 
 
-    def closeEvent(self, event): #vers 4
+    def closeEvent(self, event): #vers 5
         """Handle close — _save_toolbar_state fires via window_closed
         signal. Flushes any still-pending debounced settings save
-        (Aug 16 2026)"""
+        (Aug 16 2026)
+
+        Real fix (Aug 20 2026, per Keith: "remember the zoom settings,
+        and view location when app is closed") - saves the viewport's
+        own real camera state (zoom/_dist, pan_x/pan_y, yaw/pitch)
+        here on close specifically, rather than on every zoom/pan/
+        rotate change - those fire on every single mouse-drag frame,
+        so debouncing wouldn't meaningfully reduce the write volume
+        the way it does for a settings-dialog Apply click."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is not None and hasattr(self, 'map_settings'):
+            try:
+                self.map_settings.set('viewport_dist', getattr(vp, '_dist', None))
+                self.map_settings.set('viewport_pan_x', getattr(vp, '_pan_x', None))
+                self.map_settings.set('viewport_pan_y', getattr(vp, '_pan_y', None))
+                self.map_settings.set('viewport_yaw', getattr(vp, '_yaw', None))
+                self.map_settings.set('viewport_pitch', getattr(vp, '_pitch', None))
+            except Exception:
+                pass
         self._save_dock_state()
         if hasattr(self, 'map_settings'):
             try:
@@ -12452,6 +12480,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.preview_widget.set_water2_x_offset(float(self.map_settings.get('water2_x_offset')))
         if hasattr(self.preview_widget, 'set_water2_y_offset'):
             self.preview_widget.set_water2_y_offset(float(self.map_settings.get('water2_y_offset')))
+        if hasattr(self.preview_widget, 'set_camera_state'):
+            self.preview_widget.set_camera_state(
+                dist=self.map_settings.get('viewport_dist'),
+                pan_x=self.map_settings.get('viewport_pan_x'),
+                pan_y=self.map_settings.get('viewport_pan_y'),
+                yaw=self.map_settings.get('viewport_yaw'),
+                pitch=self.map_settings.get('viewport_pitch'))
         # Wire the path node drag callback once, here at construction
         # (Aug 17 2026)
         if hasattr(self.preview_widget, 'set_path_node_drag_callback'):
