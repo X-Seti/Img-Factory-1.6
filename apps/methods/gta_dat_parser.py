@@ -2714,7 +2714,7 @@ class GTAWorldLoader: #vers 3
                     self.load_log.append(("water", "WATER", fallback_path, True))
                     return
 
-    def load_waterpro_dat(self, data_dir: str = ''): #vers 2
+    def load_waterpro_dat(self, data_dir: str = ''): #vers 3
         """Load GTA III/VC's own binary waterpro.dat.
 
         Real fix (Aug 20 2026, per Keith: "I am using the original VC
@@ -2733,9 +2733,21 @@ class GTAWorldLoader: #vers 3
         directive first (still correct for a modded gta*.dat that
         does define one), then falls back to the real, standard
         data_dir/waterpro.dat path GTAMods documents for these two
-        games specifically."""
+        games specifically.
+
+        Temporary diagnostic markers added (Aug 20 2026, per Keith:
+        "the button remains inactive" - VC still failing despite the
+        fallback above, LC/SA both confirmed working) - shows exactly
+        which of the 3 real failure points this is hitting: no WATER
+        directive entries at all, a fallback path that doesn't exist
+        on disk, or a fallback path that exists but fails to parse.
+        Remove once VC is confirmed fixed."""
         entries = getattr(self.main_dat, 'water_entries', lambda: [])()
+        print(f"[gta_dat_parser-MARKER] load_waterpro_dat: data_dir={data_dir!r}, "
+              f"{len(entries)} WATER directive entries")
         for entry in entries:
+            print(f"[gta_dat_parser-MARKER] load_waterpro_dat: directive entry "
+                  f"abs_path={entry.abs_path!r}, exists={entry.exists}")
             if entry.exists:
                 result = parse_waterpro_dat(entry.abs_path)
                 if result is not None:
@@ -2744,12 +2756,18 @@ class GTAWorldLoader: #vers 3
                     return
         if data_dir:
             fallback_path = os.path.join(data_dir, "waterpro.dat")
+            print(f"[gta_dat_parser-MARKER] load_waterpro_dat: fallback_path="
+                  f"{fallback_path!r}, isfile={os.path.isfile(fallback_path)}")
             if os.path.isfile(fallback_path):
                 result = parse_waterpro_dat(fallback_path)
+                print(f"[gta_dat_parser-MARKER] load_waterpro_dat: "
+                      f"parse_waterpro_dat returned {'a real result' if result is not None else 'None (parse failed)'}")
                 if result is not None:
                     self.waterpro = result
                     self.load_log.append(("water", "WATERPRO", fallback_path, True))
                     return
+        else:
+            print(f"[gta_dat_parser-MARKER] load_waterpro_dat: data_dir is empty/falsy - no fallback attempted")
 
     def load_chase_dat(self, data_dir: str): #vers 1
         """Load every real GTA III CHASE*.DAT chase-scene car path
