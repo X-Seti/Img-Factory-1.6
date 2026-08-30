@@ -9313,3 +9313,24 @@ conclusively found despite extensive isolated testing.
   a single comma-joined line, hard to scan for a longer list like
   SA's own larger set of extra files. status_label now also has word
   wrap enabled directly, as a safety net for any future long line.
+
+- Aug 20 2026 - ROOT CAUSE FOUND AND FIXED for the VC water button
+  bug, per Keith's own confirmed `ls -la`: "-rwxrwxr-x 1 x2 x2 21444
+  ... WATERPRO.DAT". This real VC install's own file is genuinely
+  named in all-caps on disk, while load_waterpro_dat's own fallback
+  only ever tried the one, exact-case "waterpro.dat" via plain
+  os.path.join+isfile - correct on Windows' own case-insensitive
+  filesystem, but silently fails on a real, case-sensitive Linux one.
+  This is the exact reason LC worked and VC didn't despite completely
+  identical code - purely a difference in how each real install's own
+  files happen to be cased on disk, not a real per-game difference.
+  Fixed using _resolve_ci, the same real, already-existing case-
+  insensitive helper gta_dat_parser.py's own SOL support already
+  relies on for this exact same class of problem. Applied the same
+  fix pre-emptively to load_water_dat (SA) and _resolve_gamedata_
+  role_marker (the Preload dialog's own saved-picks resolution),
+  since either could hit the identical issue with a differently-cased
+  real install. _auto_detect_timecyc_path already handled this
+  correctly via os.listdir - confirmed no fix needed there. Removed
+  the temporary diagnostic markers from both this and the previous 2
+  turns now that root cause is confirmed.

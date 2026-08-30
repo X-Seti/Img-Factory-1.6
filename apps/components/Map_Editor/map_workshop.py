@@ -23774,10 +23774,19 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             'water': ['waterpro.dat', 'water.dat'],
             'timecyc': ['timecyc.dat'],
         }.get(role, [])
+        # Case-insensitive fix (Aug 20 2026, per Keith's own confirmed
+        # `ls -la`: VC's own real waterpro.dat is genuinely named
+        # WATERPRO.DAT on disk - a plain os.path.join+isfile only
+        # tries the one, exact given case, correct on Windows' own
+        # case-insensitive filesystem but silently fails on a real,
+        # case-sensitive Linux one) - _resolve_ci is the same real,
+        # already-existing helper gta_dat_parser.py's own SOL support
+        # already relies on for this exact same real problem.
+        from apps.methods.gta_dat_parser import _resolve_ci
         for folder in self._game_data_folder_candidates():
             for filename in filenames:
-                candidate = os.path.join(folder, filename)
-                if os.path.isfile(candidate):
+                candidate = _resolve_ci(folder, filename)
+                if candidate:
                     return candidate
         return None
 
