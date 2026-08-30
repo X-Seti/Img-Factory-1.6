@@ -3218,6 +3218,9 @@ class MapSettings(QObject):
         # install.
         'water2_x_offset': 0.0,
         'water2_y_offset': 0.0,
+        # VC-only gate (Aug 20 2026, per Keith: "offset should only be
+        # for VC, so we need a toggle to effect VC waterpro.dat only")
+        'water2_offset_vc_only': True,
 
         # Viewport camera state (Aug 20 2026, per Keith: "remember the
         # zoom settings, and view location when app is closed") - None
@@ -8624,6 +8627,18 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         water2_y_spin.setToolTip("Same real request as X offset above.")
         water2_form.addRow("Y offset:", water2_y_spin)
 
+        water2_vc_only_chk = QCheckBox("Apply X/Y offset to VC only")
+        water2_vc_only_chk.setChecked(bool(self.map_settings.get('water2_offset_vc_only')))
+        water2_vc_only_chk.setToolTip(
+            "Aug 20 2026, per Keith: \"offset should only be for VC,\n"
+            "so we need a toggle to effect VC waterpro.dat only\" - LC/\n"
+            "SA already line up perfectly with no offset at all; on\n"
+            "(default) keeps a saved VC-specific offset from wrongly\n"
+            "shifting their own, already-correct water too. Off applies\n"
+            "the offset regardless of which game is loaded, in case a\n"
+            "future game turns out to need the same kind of correction.")
+        water2_form.addRow(water2_vc_only_chk)
+
         # Real fix (Aug 20 2026, per Keith: "Change it by 20+ on the
         # height in settings, doesn't update the view") - these two
         # only ever applied on Apply/OK before; live updates as the
@@ -8651,6 +8666,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         water2_alpha_spin.valueChanged.connect(_live_water2_alpha)
         water2_x_spin.valueChanged.connect(_live_water2_x)
         water2_y_spin.valueChanged.connect(_live_water2_y)
+        def _live_water2_vc_only(checked): #vers 1
+            vp_live = getattr(self, 'preview_widget', None)
+            if vp_live is not None and hasattr(vp_live, 'set_water2_offset_vc_only'):
+                vp_live.set_water2_offset_vc_only(checked)
+        water2_vc_only_chk.toggled.connect(_live_water2_vc_only)
 
         render_layout.addWidget(water2_grp)
 
@@ -9089,6 +9109,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.map_settings.set('water2_y_offset', water2_y_spin.value())
             if vp_for_water2 is not None and hasattr(vp_for_water2, 'set_water2_y_offset'):
                 vp_for_water2.set_water2_y_offset(water2_y_spin.value())
+            self.map_settings.set('water2_offset_vc_only', water2_vc_only_chk.isChecked())
+            if vp_for_water2 is not None and hasattr(vp_for_water2, 'set_water2_offset_vc_only'):
+                vp_for_water2.set_water2_offset_vc_only(water2_vc_only_chk.isChecked())
             self.map_settings.set('show_verbose_loading_dialog',   verbose_loading_chk.isChecked())
             self.map_settings.set('texture_downscale_enabled',   downscale_chk.isChecked())
             self.map_settings.set('texture_downscale_threshold', downscale_threshold_spin.value())
@@ -12480,6 +12503,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.preview_widget.set_water2_x_offset(float(self.map_settings.get('water2_x_offset')))
         if hasattr(self.preview_widget, 'set_water2_y_offset'):
             self.preview_widget.set_water2_y_offset(float(self.map_settings.get('water2_y_offset')))
+        if hasattr(self.preview_widget, 'set_water2_offset_vc_only'):
+            self.preview_widget.set_water2_offset_vc_only(bool(self.map_settings.get('water2_offset_vc_only')))
         if hasattr(self.preview_widget, 'set_camera_state'):
             self.preview_widget.set_camera_state(
                 dist=self.map_settings.get('viewport_dist'),
@@ -23636,35 +23661,22 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             cells.append((min(xs), min(ys), max(xs), max(ys), sum(zs) / len(zs)))
         return cells
 
-    def _apply_water2_preload(self): #vers 2
+    def _apply_water2_preload(self): #vers 3
         """Combine whatever's been preloaded so far (Aug 20 2026, re-
         applied) - water cells and the water texture can be preloaded
         in either order, or independently, via separate _load_
         preloaded_file calls. Pushes whatever's available to the
         viewport and re-enables/shows [Water] the moment there's real
-        water data to show.
-
-        Temporary diagnostic markers added (Aug 20 2026, per Keith:
-        "the button remains inactive, its like you removed the click
-        function" - VC specifically, LC/SA both confirmed working) -
-        every real early-return point now prints exactly why, since
-        the button staying disabled is otherwise silent and
-        impossible to diagnose remotely without seeing Keith's own
-        real terminal output. Remove once VC is confirmed fixed."""
-        print(f"[MapWorkshop-MARKER] _apply_water2_preload called (id={id(self)})")
+        water data to show. Diagnostic markers from the VC case-
+        sensitivity investigation removed now that it's confirmed
+        fixed."""
         vp = getattr(self, 'preview_widget', None)
         if vp is None or not hasattr(vp, 'set_water2_data'):
-            print(f"[MapWorkshop-MARKER] _apply_water2_preload: no preview_widget "
-                  f"or missing set_water2_data - vp={vp}")
             return
         cells = getattr(self, '_water2_cells_pending', None)
         texture_path = getattr(self, '_water2_texture_path_pending', '')
         if cells is None:
-            print(f"[MapWorkshop-MARKER] _apply_water2_preload: _water2_cells_pending "
-                  f"is None - texture preloaded alone, or nothing preloaded at all yet")
             return   # texture preloaded alone, before any real water data
-        print(f"[MapWorkshop-MARKER] _apply_water2_preload: {len(cells)} cells, "
-              f"texture_path={texture_path!r} - enabling [Water] button now")
         vp.set_water2_data(cells, texture_path)
         water_btn = getattr(self, '_show_water_chk', None)
         if water_btn is not None:
@@ -23672,11 +23684,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             water_btn.setToolTip("Left-click: show/hide Water.")
             if hasattr(water_btn, 'set_shown'):
                 water_btn.set_shown(True)
-        else:
-            print(f"[MapWorkshop-MARKER] _apply_water2_preload: self._show_water_chk "
-                  f"is None - can't enable a button that doesn't exist")
 
-    def _try_auto_water2_from_loader(self): #vers 2
+    def _try_auto_water2_from_loader(self): #vers 3
         """Retool loader.waterpro/loader.water_shapes into the new
         water2 system automatically at world-load time (Aug 20 2026,
         re-applied) - those are already populated by the existing,
@@ -23686,34 +23695,31 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         the texture (a real app asset, not part of any game's own
         data) still needs a manual preload.
 
-        Temporary diagnostic markers added (Aug 20 2026, same real
-        reason as _apply_water2_preload's own docstring - see it for
-        the full context). Remove once VC is confirmed fixed."""
+        Real fix (Aug 20 2026, per Keith: "offset should only be for
+        VC, so we need a toggle to effect VC waterpro.dat only") -
+        pushes the current game to the viewport via set_water2_game
+        each time, so _draw_water2 can gate the X/Y offset to VC only
+        rather than applying a saved VC-specific offset to whichever
+        game happens to be currently loaded. Diagnostic markers from
+        the earlier VC case-sensitivity investigation removed now
+        that it's confirmed fixed."""
         loader = getattr(self, '_world_loader', None)
         if loader is None:
-            print(f"[MapWorkshop-MARKER] _try_auto_water2_from_loader: "
-                  f"self._world_loader is None")
             return
         waterpro = getattr(loader, 'waterpro', None)
         water_shapes = getattr(loader, 'water_shapes', None)
-        print(f"[MapWorkshop-MARKER] _try_auto_water2_from_loader: "
-              f"game={getattr(loader, 'game', '?')!r}, "
-              f"waterpro={'set' if waterpro is not None else 'None'}, "
-              f"water_shapes={'set (' + str(len(water_shapes)) + ')' if water_shapes else 'empty/None'}")
+        game = getattr(loader, 'game', 'vc')
+        vp = getattr(self, 'preview_widget', None)
+        if vp is not None and hasattr(vp, 'set_water2_game'):
+            vp.set_water2_game(game)
         if waterpro is not None:
-            game = getattr(loader, 'game', 'vc')
             self._water2_waterpro_source = waterpro
             self._water2_game_source = game
             self._water2_cells_pending = self._waterpro_to_cells(waterpro, game)
-            print(f"[MapWorkshop-MARKER] _try_auto_water2_from_loader: "
-                  f"_waterpro_to_cells produced {len(self._water2_cells_pending)} cells")
             self._apply_water2_preload()
         elif water_shapes:
             self._water2_cells_pending = self._water_shapes_to_cells(water_shapes)
             self._apply_water2_preload()
-        else:
-            print(f"[MapWorkshop-MARKER] _try_auto_water2_from_loader: "
-                  f"neither waterpro nor water_shapes set - nothing to preload")
 
     def _load_preloaded_file(self, path): #vers 2
         """Recognise and load one real file by its own real filename

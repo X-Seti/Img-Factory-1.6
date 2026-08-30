@@ -640,6 +640,19 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         # actually needs by eye against the radar layer.
         self._water2_x_offset = 0.0
         self._water2_y_offset = 0.0
+        # VC-only gate (Aug 20 2026, per Keith: "offset should only be
+        # for VC, so we need a toggle to effect VC waterpro.dat only")
+        # - LC/SA already line up perfectly with no offset at all;
+        # applying a saved VC-specific X/Y offset unconditionally
+        # would wrongly shift their own, already-correct water too the
+        # moment Keith switches games without first zeroing it back
+        # out. _water2_game is set by _try_auto_water2_from_loader
+        # (the same real place the current game is already known)
+        # each time a new world loads; the toggle defaults on since
+        # this offset is currently only known to be needed for VC at
+        # all.
+        self._water2_game = ''
+        self._water2_offset_vc_only = True
 
         # Cull zone boxes (Aug 16 2026, per Keith: "continue with the
         # cull files next", following the same "so I can view them"
@@ -4095,6 +4108,25 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._water2_y_offset = float(offset)
         self.update()
 
+    def set_water2_game(self, game_key): #vers 1
+        """Track which real game the current water2 data actually
+        belongs to (Aug 20 2026, per Keith: "offset should only be
+        for VC") - called each time a new world loads, so _draw_
+        water2 can gate the X/Y offset to VC only rather than
+        applying it unconditionally to whichever game happens to be
+        loaded."""
+        self._water2_game = (game_key or '').lower()
+        self.update()
+
+    def set_water2_offset_vc_only(self, enabled): #vers 1
+        """Real toggle (Aug 20 2026, same real request as
+        set_water2_game above) - on (default) restricts the X/Y
+        offset to VC only; off applies it regardless of which game
+        is loaded, for a future game that might turn out to need the
+        same kind of correction."""
+        self._water2_offset_vc_only = bool(enabled)
+        self.update()
+
     def _ensure_water2_texture(self): #vers 1
         """Lazily load self._water2_texture_path as a GL texture, same
         real pattern _ensure_water_texture already uses - no
@@ -4170,8 +4202,9 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         if self._water2_use_texture and self._water2_texture_path:
             tex_id = self._ensure_water2_texture()
         z_offset = self._water2_height_offset
-        x_offset = self._water2_x_offset
-        y_offset = self._water2_y_offset
+        gate_ok = (not self._water2_offset_vc_only) or self._water2_game == 'vc'
+        x_offset = self._water2_x_offset if gate_ok else 0.0
+        y_offset = self._water2_y_offset if gate_ok else 0.0
         alpha = self._water2_alpha
         half = self._water_map_half_extent
         span = half * 2.0

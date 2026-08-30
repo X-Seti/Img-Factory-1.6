@@ -9418,3 +9418,19 @@ conclusively found despite extensive isolated testing.
   button, a multi-pane sync), not anything that runs automatically
   during a normal world load and would silently overwrite the
   restored state.
+
+- Aug 20 2026 - Water X/Y offset now gated to VC only, per Keith:
+  "offset should only be for VC, so we need a toggle to effect VC
+  waterpro.dat only." Fixed a real gap: the offset was previously
+  applied unconditionally regardless of which game was loaded - LC/
+  SA already line up perfectly with no offset at all, so switching to
+  either while a saved VC-specific offset was still set would have
+  wrongly shifted their own, already-correct water too. New "Apply
+  X/Y offset to VC only" checkbox (on by default), new set_water2_
+  game (pushed from _try_auto_water2_from_loader each time a world
+  loads, the same real place the current game is already known) and
+  set_water2_offset_vc_only on the viewport; _draw_water2 only
+  applies the X/Y offset when the toggle is off or the current game
+  is genuinely VC. Also removed the temporary diagnostic markers from
+  _apply_water2_preload/_try_auto_water2_from_loader now that the
+  underlying VC case-sensitivity bug is confirmed fixed.
