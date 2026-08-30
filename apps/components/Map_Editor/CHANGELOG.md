@@ -9292,3 +9292,17 @@ conclusively found despite extensive isolated testing.
   Confirmed no other file type in this codebase has the same
   auto-detect+persist+startup-restore pattern (_auto_detect_timecyc_
   path is the only one).
+
+- Aug 20 2026 - Self-healing fix, per Keith: "the VC waterpro.dat
+  shows across SA and LC, so this needs fixing." Confirmed root
+  cause: a pick saved before the "<gamedata-role>/" marker fix
+  existed is still a real, plain absolute path in Keith's own already-
+  persisted settings file - that earlier fix only changed how new
+  saves are written, it never migrated what was already saved, so the
+  old, stale absolute VC path kept right on loading regardless of
+  which game was actually current. New _to_gamedata_role_marker
+  normalises any saved entry (legacy absolute path or already-a-
+  marker) to the same role marker a fresh save would produce, by
+  filename alone - used consistently now in all 3 real places that
+  read a saved entry: automatic apply on world load, manual Load
+  clicks, and the dialog's own list restore.

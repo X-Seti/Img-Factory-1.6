@@ -23250,6 +23250,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # from the folder they were originally picked in).
         saved_picks = self.map_settings.get('preload_saved_files') or []
         for full in saved_picks:
+            full = self._to_gamedata_role_marker(full)
             if full.startswith('<gamedata-role>/'):
                 # Real fix (Aug 20 2026, same real role marker
                 # _apply_saved_preload_picks/_do_load below both
@@ -23335,7 +23336,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             loaded, unrecognised = [], []
             for i in range(preload_list.count()):
                 item = preload_list.item(i)
-                full = item.data(Qt.ItemDataRole.UserRole)
+                full = self._to_gamedata_role_marker(item.data(Qt.ItemDataRole.UserRole))
                 if full.startswith('<gamedata-role>/'):
                     resolved = self._resolve_gamedata_role_marker(full)
                     if resolved is None:
@@ -23389,6 +23390,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         QApplication.processEvents()
         loaded, unrecognised, missing = [], [], []
         for path in paths:
+            # Self-healing (Aug 20 2026, per Keith: "the VC waterpro.
+            # dat shows across SA and LC, so this needs fixing") -
+            # normalises a real legacy absolute path (saved before the
+            # marker fix existed) to the same real marker a fresh save
+            # would produce, so it's resolved fresh against whichever
+            # game is actually current below instead of being trusted
+            # directly as-is.
+            path = self._to_gamedata_role_marker(path)
             if path.startswith('<gamedata-role>/'):
                 # Real fix (Aug 20 2026, per Keith: "../data/waterpro.
                 # dat - for LC and VC, but SA map looks for
@@ -23729,6 +23738,31 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 if os.path.isfile(candidate):
                     return candidate
         return None
+
+    def _to_gamedata_role_marker(self, path): #vers 1
+        """Normalise a saved preload entry to a real "<gamedata-role>/
+        <role>" marker if its own filename is one of the 3 real, per-
+        game roles - self-healing fix (Aug 20 2026, per Keith: "the VC
+        waterpro.dat shows across SA and LC, so this needs fixing") -
+        a pick saved before the marker fix existed is still a real,
+        plain absolute path in Keith's own real, already-persisted
+        settings file; that old fix only changed how new saves are
+        written, it never migrated what was already there, so the old
+        real, stale absolute path kept right on loading regardless of
+        which game was actually current. Treats any saved entry whose
+        own filename matches a real role the same way now, whether
+        it's already the new marker or still a real legacy absolute
+        path - passing an already-normalised marker straight through
+        unchanged. Returns the input path unchanged if it isn't a
+        recognised per-game role at all."""
+        if path.startswith('<gamedata-role>/'):
+            return path
+        name = os.path.basename(path).lower()
+        if name in ('waterpro.dat', 'water.dat'):
+            return '<gamedata-role>/water'
+        if name == 'timecyc.dat':
+            return '<gamedata-role>/timecyc'
+        return path
 
     def _auto_detect_timecyc_path(self): #vers 4
         """Look for a real timecyc.dat next to the currently loaded
