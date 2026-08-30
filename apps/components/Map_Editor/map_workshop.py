@@ -21170,6 +21170,26 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if water_tex is not None:
                 vp_for_grid.set_water2_texture_rgba(*water_tex)
 
+        # CRT time overlay (Aug 20 2026, per Keith: "[TIME] showing
+        # the time in the viewpoint like old style green CRT, click on
+        # time for stop and start, right click for settings") - wired
+        # once per real viewport instance (guarded, since this real
+        # world-load path can run more than once per session) rather
+        # than at IPL Controls dock construction time, since self.
+        # preview_widget isn't guaranteed to exist yet at that earlier
+        # point. Shown once a real world is actually loaded.
+        if vp_for_grid is not None and hasattr(vp_for_grid, 'connect_crt_time_clicks'):
+            if not getattr(vp_for_grid, '_crt_time_wired', False):
+                vp_for_grid.connect_crt_time_clicks(
+                    on_left=self._on_crt_time_clicked,
+                    on_right=self._show_time_flow_settings_popup)
+                vp_for_grid._crt_time_wired = True
+            if hasattr(vp_for_grid, 'set_crt_time_visible'):
+                vp_for_grid.set_crt_time_visible(True)
+            time_edit = getattr(self, '_tobj_time_spin', None)
+            if time_edit is not None and hasattr(vp_for_grid, 'set_crt_time_text'):
+                vp_for_grid.set_crt_time_text(time_edit.time().toString("HH:mm"))
+
         # force_preload_img_once (Aug 16 2026) - a per-load override
         force_once = getattr(self, '_force_preload_img_once', False)
         self._force_preload_img_once = False
@@ -24635,9 +24655,18 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         opts_row2.addWidget(dfx_chk)
         opts_row2.addWidget(time_chk)
         opts_row2.addWidget(time_edit)
-        opts_row2.addWidget(time_play_btn)
-        opts_row2.addWidget(time_stop_btn)
-        opts_row2.addWidget(time_settings_btn)
+        # time_play_btn/time_stop_btn/time_settings_btn disconnected
+        # from the visible layout (Aug 20 2026, per Keith: "[TIME]
+        # showing the time in the viewpoint like old style green CRT,
+        # click on time for stop and start, right click for
+        # settings") - the on-viewport CRT overlay's own left/right-
+        # click now replaces these 3 buttons' own real functions.
+        # Still constructed above (harmless, just not shown) since
+        # _start_time_flow/_stop_time_flow's own existing signature
+        # still expects real button objects to enable/disable.
+        # opts_row2.addWidget(time_play_btn)
+        # opts_row2.addWidget(time_stop_btn)
+        # opts_row2.addWidget(time_settings_btn)
 
         opts_row2.addStretch()
         lay.addLayout(opts_row2)
@@ -24948,6 +24977,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         vp = getattr(self, 'preview_widget', None)
         if vp is not None and hasattr(vp, 'set_timecyc_hour'):
             vp.set_timecyc_hour(qtime.hour() + qtime.minute() / 60.0)
+        # CRT overlay text (Aug 20 2026, per Keith: "[TIME] showing
+        # the time in the viewpoint like old style green CRT") - same
+        # real single hook every other time change already flows
+        # through (manual edit or _on_time_flow_tick's own automatic
+        # advance), so the on-viewport display always matches.
+        if vp is not None and hasattr(vp, 'set_crt_time_text'):
+            vp.set_crt_time_text(qtime.toString("HH:mm"))
 
     def _on_2dfx_master_toggled(self, checked): #vers 2
         """2DFX master on/off switch changed - re-runs the same
@@ -25051,6 +25087,24 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         new_time = current.addSecs(self._time_flow_minutes_per_tick * 60)
         self._tobj_time_spin.setTime(new_time)
         self._apply_ipl_visibility_filter(auto_fit=False, clear_display_lists=False)
+
+    def _on_crt_time_clicked(self): #vers 1
+        """Left-click on the on-viewport CRT time overlay (Aug 20
+        2026, per Keith: "click on time for stop and start") - toggles
+        the same real time-flow timer the old, separate Play/Stop
+        buttons already controlled, just from one, unified on-viewport
+        control instead. Those old buttons still exist (just no
+        longer shown in IPL Controls) purely so _start_time_flow/
+        _stop_time_flow's own existing real enable/disable-a-button
+        signature doesn't need to change."""
+        play_btn = getattr(self, '_time_play_btn', None)
+        stop_btn = getattr(self, '_time_stop_btn', None)
+        if play_btn is None or stop_btn is None:
+            return
+        if self._time_flow_timer.isActive():
+            self._stop_time_flow(play_btn, stop_btn)
+        else:
+            self._start_time_flow(play_btn, stop_btn)
 
     def _show_time_flow_settings_popup(self): #vers 1
         """Time flow speed settings."""

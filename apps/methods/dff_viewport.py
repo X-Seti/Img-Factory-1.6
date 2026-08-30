@@ -96,9 +96,9 @@ import struct
 import numpy as np
 from typing import Dict, List, Optional
 
-from PyQt6.QtCore import Qt, QPoint
+from PyQt6.QtCore import Qt, QPoint, pyqtSignal
 from PyQt6.QtWidgets import QWidget, QLabel
-from PyQt6.QtGui import QColor
+from PyQt6.QtGui import QColor, QFont
 
 # Default viewport camera keybindings (Aug 16 2026, per Keith: "the
 # arrow keys dont pan or move the view left, right, up or down; the
@@ -165,6 +165,45 @@ try:
 except Exception:
     QOpenGLWidget = QWidget
     OPENGL_AVAILABLE = False
+
+
+class _CRTTimeOverlay(QLabel):
+    """Retro green CRT-style clock overlaid on the 3D viewport (Aug
+    20 2026, per Keith: "[TOJB] [2DFX] [TIME] showing the time in the
+    viewpoint like old style green CRT, click on time for stop and
+    start, right click for settings") - a small, clickable child
+    widget positioned in a corner of DFFViewport itself, replacing
+    the separate Time play/stop/settings row in IPL Controls. Left-
+    click toggles time-flow play/stop (the same real _start_time_
+    flow/_stop_time_flow map_workshop.py already has); right-click
+    opens the same real time-flow settings popup the old dedicated
+    settings button already used. Qt lets a child widget render on
+    top of its OpenGL parent's own content without any special
+    compositing work here."""
+    left_clicked = pyqtSignal()
+    right_clicked = pyqtSignal()
+
+    def __init__(self, parent=None): #vers 1
+        super().__init__(parent)
+        self.setText("12:00")
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        font = QFont("Courier New")
+        font.setStyleHint(QFont.StyleHint.Monospace)
+        font.setPointSize(14)
+        font.setBold(True)
+        self.setFont(font)
+        self.setStyleSheet(
+            "color: #33ff33; background-color: rgba(0, 20, 0, 180);"
+            "border: 1px solid #226622; border-radius: 3px; padding: 2px 8px;")
+        self.setFixedSize(90, 28)
+        self.setToolTip("Left-click: start/stop time flow.\nRight-click: time flow settings.")
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def mousePressEvent(self, event): #vers 1
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.left_clicked.emit()
+        elif event.button() == Qt.MouseButton.RightButton:
+            self.right_clicked.emit()
 
 
 class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
@@ -841,6 +880,66 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             "color: rgba(255,255,255,190); background: transparent; font-size: 10px;")
         self._label_widget.move(4, 2)
         self._label_widget.hide()
+
+        # Retro CRT time overlay (Aug 20 2026, per Keith: "[TOJB]
+        # [2DFX] [TIME] showing the time in the viewpoint like old
+        # style green CRT, click on time for stop and start, right
+        # click for settings") - same real child-widget-on-top-of-
+        # OpenGL-parent pattern self._label_widget just above already
+        # uses. Hidden by default; map_workshop.py shows it once a
+        # real world with TOBJ/timecyc data is actually loaded.
+        self._crt_time_overlay = _CRTTimeOverlay(self)
+        self._crt_time_overlay.hide()
+        self._position_crt_time_overlay()
+
+    def resizeEvent(self, event): #vers 1
+        """Keep the CRT time overlay anchored to the top-right corner
+        as the viewport itself resizes (Aug 20 2026)."""
+        super().resizeEvent(event)
+        self._position_crt_time_overlay()
+
+    def _position_crt_time_overlay(self): #vers 1
+        overlay = getattr(self, '_crt_time_overlay', None)
+        if overlay is None:
+            return
+        margin = 8
+        overlay.move(self.width() - overlay.width() - margin, margin)
+
+    def set_crt_time_visible(self, visible): #vers 1
+        """Show/hide the on-viewport CRT time overlay (Aug 20 2026,
+        per Keith: "showing the time in the viewpoint like old style
+        green CRT") - map_workshop.py shows this once a real world
+        with TOBJ/timecyc data is actually loaded, replacing the old,
+        separate Time play/stop/settings row in IPL Controls."""
+        overlay = getattr(self, '_crt_time_overlay', None)
+        if overlay is None:
+            return
+        overlay.setVisible(bool(visible))
+
+    def set_crt_time_text(self, text): #vers 1
+        """Update the CRT overlay's own displayed time (Aug 20 2026,
+        same real feature as set_crt_time_visible above) - called
+        whenever the underlying simulated hour changes, the same real
+        moments the old QTimeEdit widget used to update."""
+        overlay = getattr(self, '_crt_time_overlay', None)
+        if overlay is None:
+            return
+        overlay.setText(text)
+
+    def connect_crt_time_clicks(self, on_left=None, on_right=None): #vers 1
+        """Wire the CRT overlay's own left/right-click signals to real
+        map_workshop.py handlers (Aug 20 2026, per Keith: "click on
+        time for stop and start, right click for settings") - kept as
+        a connector here rather than exposing the raw pyqtSignal
+        objects directly, so map_workshop.py doesn't need to reach
+        into DFFViewport's own private _crt_time_overlay attribute."""
+        overlay = getattr(self, '_crt_time_overlay', None)
+        if overlay is None:
+            return
+        if on_left is not None:
+            overlay.left_clicked.connect(on_left)
+        if on_right is not None:
+            overlay.right_clicked.connect(on_right)
 
     def _get_ui_color(self, key): #vers 2
         """Get theme color — tries app_settings, falls back to defaults."""

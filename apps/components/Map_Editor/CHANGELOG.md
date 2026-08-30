@@ -9478,3 +9478,24 @@ conclusively found despite extensive isolated testing.
   once set, since unlike timecyc.dat/waterpro.dat a custom water
   texture isn't game-specific and should stay stickier across
   reloads rather than being silently overwritten every time.
+
+- Aug 20 2026 - Retro green CRT time overlay in the 3D viewport, per
+  Keith: "[TOJB] [2DFX] [TIME] showing the time in the viewpoint like
+  old style green CRT, click on time for stop and start, right click
+  for settings." New _CRTTimeOverlay (a small, clickable QLabel child
+  of DFFViewport itself, anchored top-right, green-on-dark styling,
+  monospace font) replaces the old, separate Time Play/Stop/Settings
+  buttons in IPL Controls - those 3 buttons disconnected from the
+  visible layout (still constructed, since _start_time_flow/_stop_
+  time_flow's own existing signature still expects real button
+  objects), Time checkbox/QTimeEdit stay visible since they serve a
+  different, separate function (TOBJ time-filtering). Left-click
+  toggles the same real time-flow timer; right-click opens the same
+  real time-flow settings popup. New viewport API (set_crt_time_
+  visible/set_crt_time_text/connect_crt_time_clicks) wired at world-
+  load time (guarded to connect signals only once per viewport
+  instance) rather than at IPL Controls dock construction time, since
+  self.preview_widget isn't guaranteed to exist yet at that earlier
+  point. Text refreshed through _on_tobj_time_changed, the single,
+  real hook every other time change (manual edit or the automatic
+  flow-tick) already flows through.
