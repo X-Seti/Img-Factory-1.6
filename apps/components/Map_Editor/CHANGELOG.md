@@ -9685,3 +9685,32 @@ conclusively found despite extensive isolated testing.
   center." New converge_to_center_icon now wired to Snap to Centre;
   the crosshair (snap_to_center_icon) stays defined, unused for now,
   ready for Keith to reassign wherever he decides it fits.
+
+- Aug 20 2026 - Auzo list can now play sounds, per Keith: "auzo list
+  play the sounds." Found substantial Auzo infrastructure already
+  built (by a parallel session this same day) - AuzoEntry parsing,
+  the IPL File Display's own read-only Auzo table, and billboarded
+  SVG sound-icon markers already drawn in the viewport at each real
+  zone's own position. That same earlier work already documented an
+  honest limitation worth repeating here: the real, in-game San
+  Andreas audio lives inside the game's own compiled audio bank
+  archives, a completely separate binary format this app doesn't
+  read at all - there is no real sound data anywhere in the loaded
+  IPL/IDE data to actually play.
+
+  New _play_auzo_placeholder_tone generates a short, real synthetic
+  sine-wave tone instead (pitch derived from sound_id, so different
+  zones are at least audibly distinguishable), played via QtMultimedia's
+  QSoundEffect - wrapped defensively with a clear status message if
+  that module isn't installed, rather than crashing. Wired into the
+  Auzo table's own existing double-click handler (extended, not a new,
+  conflicting connection, since the same table's cellDoubleClicked was
+  already wired for the Inst-table case). New tooltip makes this
+  discoverable.
+
+  Still open: audio-zone icons aren't draggable/movable in the
+  viewport yet (Keith's other real request, "that we can move") -
+  genuinely more involved (3D ray-picking against a billboarded
+  quad, then constrained-plane dragging, the same real technique
+  path node editing already uses) - left for a following turn rather
+  than rushed.

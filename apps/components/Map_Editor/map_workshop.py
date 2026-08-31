@@ -25464,9 +25464,67 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     item.setBackground(QBrush(QColor(60, 60, 90)))
                 table.setItem(r, c, item)
 
-    def _populate_auzo_table(self, table, loader, display_name): #vers 1
+    def _play_auzo_placeholder_tone(self, sound_id, name): #vers 1
+        """Play a short, synthetic placeholder tone for one audio
+        zone (Aug 20 2026, per Keith: "auzo list play the sounds") -
+        the real, in-game San Andreas audio itself lives inside the
+        game's own compiled audio bank archives, a completely
+        separate binary format this app doesn't read at all (see
+        AuzoEntry's own docstring in gta_dat_parser.py for the full,
+        honest explanation) - there is no real sound data anywhere in
+        the loaded IPL/IDE data this could actually play. This is a
+        real, synthetic sine-wave tone instead, confirming which zone
+        was activated - its own pitch derived from sound_id, so
+        different zones are at least audibly distinguishable from
+        each other, not the same fixed beep every time.
+
+        Uses QtMultimedia's own QSoundEffect, a real dependency this
+        app has never needed before this feature - wrapped defensively
+        since it may not be installed/available in every real Python
+        environment this app runs in; fails with a clear status
+        message rather than crashing if it isn't."""
+        try:
+            from PyQt6.QtMultimedia import QSoundEffect
+            from PyQt6.QtCore import QUrl
+        except ImportError:
+            self._set_status(
+                "Can't play audio zone tones - PyQt6.QtMultimedia isn't "
+                "installed in this Python environment.")
+            return
+        import struct, wave, tempfile, math
+        freq = 220.0 + (int(sound_id) % 24) * 55.0
+        duration = 0.35
+        rate = 22050
+        n_samples = int(rate * duration)
+        path = os.path.join(tempfile.gettempdir(), f"_mapworkshop_auzo_tone_{sound_id}.wav")
+        if not os.path.isfile(path):
+            with wave.open(path, 'w') as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(rate)
+                frames = bytearray()
+                for i in range(n_samples):
+                    t = i / rate
+                    fade = min(1.0, (duration - t) * 6.0, t * 40.0)
+                    sample = int(32767 * 0.4 * fade * math.sin(2 * math.pi * freq * t))
+                    frames += struct.pack('<h', sample)
+                wf.writeframes(bytes(frames))
+        effect = QSoundEffect(self)
+        effect.setSource(QUrl.fromLocalFile(path))
+        effect.setVolume(0.6)
+        effect.play()
+        self._auzo_sound_effect = effect   # keep a real reference alive until playback finishes
+        self._set_status(f"Playing placeholder tone for audio zone '{name}' (sound_id={sound_id})")
+
+    def _populate_auzo_table(self, table, loader, display_name): #vers 2
         """Build the IPL Inst File table from SA's real, already-
-        parsed audio zones for this specific IPL (Aug 20 2026)"""
+        parsed audio zones for this specific IPL (Aug 20 2026).
+
+        Double-click-to-play hint added (Aug 20 2026, per Keith:
+        "auzo list play the sounds") - _on_ipl_inst_file_cell_double_
+        clicked handles the actual playback; this just makes it
+        discoverable."""
+        table.setToolTip("Double-click a row to play a placeholder tone for that audio zone.")
         auzos = [a for a in getattr(loader, 'auzos', [])
                 if a.source_ipl == display_name]
 
@@ -25983,10 +26041,31 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._center_viewport_on_instance(match)
             self._center_on_instance(match)
 
-    def _on_ipl_inst_file_cell_double_clicked(self, row, col): #vers 2
+    def _on_ipl_inst_file_cell_double_clicked(self, row, col): #vers 3
         """Double-clicking the Model column (1) finds that row's real
         instance and jumps the viewport to it + opens its edit panel,
-        matching double-clicking a row in the Instance List."""
+        matching double-clicking a row in the Instance List.
+
+        Real fix (Aug 20 2026, per Keith: "auzo list play the sounds")
+        - the Auzo table's own columns (Name/Sound ID/Switch/Shape/...)
+        are nothing like the Inst table's own Model-at-column-1 layout
+        the col != 1 guard below assumes, so this real Auzo case is
+        checked and handled first, before that guard would otherwise
+        block it entirely."""
+        if getattr(self, '_ipl_data_type', 'inst') == 'auzo':
+            table = getattr(self, '_ipl_inst_file_table', None)
+            if table is None:
+                return
+            name_item = table.item(row, 0)
+            sound_id_item = table.item(row, 1)
+            if name_item is None or sound_id_item is None:
+                return
+            try:
+                sound_id = int(sound_id_item.text())
+            except ValueError:
+                return
+            self._play_auzo_placeholder_tone(sound_id, name_item.text())
+            return
         if col != 1:
             return
         match = self._find_instance_for_ipl_inst_file_row(row)
