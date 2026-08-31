@@ -4066,16 +4066,35 @@ class _MapOverlayToggleButton(QToolButton): #vers 2
         self.setToolTip(tip)
         self._apply_style()
 
-    def set_display_style(self, icon_only: bool): #vers 1
+    def set_display_style(self, icon_only: bool): #vers 2
         """Switch between this button's own real text label and its
         real icon (Aug 20 2026, per Keith: "Show IPL Controls = as
         [Buttons] or ribbon icons") - falls back to text-only when
         icon_only is requested but no real icon was ever actually set
-        for this button, rather than rendering a blank button."""
+        for this button, rather than rendering a blank button.
+
+        Real fix (Aug 20 2026, per Keith: "the svg icons, need to be
+        square like the others in the ribbons... its only the new
+        ribbon buttons that are a different size, they need to be the
+        same size as the existing buttons") - __init__ only ever fixed
+        this button's own real height (20px), leaving its own real
+        width to size itself to whatever text label happened to be
+        set, even once switched to icon-only mode - that stale, text-
+        sized width is exactly why these looked visibly wider/non-
+        square next to the other, real native QAction-based ribbon
+        buttons (which have no text reservation at all). Now fixes
+        both width and height to a real, square 28px (this app's own
+        real 20px icon size plus standard Qt toolbar padding) in
+        icon-only mode, and releases back to auto/flexible width for
+        text mode, where a square size would clip the label."""
         if icon_only and not self.icon().isNull():
             self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+            self.setFixedSize(28, 28)
         else:
             self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
+            self.setMinimumWidth(0)
+            self.setMaximumWidth(16777215)
+            self.setFixedHeight(20)
 
     def mousePressEvent(self, event): #vers 1
         if event.button() == Qt.MouseButton.LeftButton:
@@ -24834,14 +24853,18 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         opts_row2.addWidget(show_tobj_chk)
         opts_row2.addWidget(tcyc_chk)
         opts_row2.addWidget(dfx_chk)
-        opts_row2.addWidget(time_chk)
+        # time_chk disconnected too (Aug 20 2026, per Keith: "[time]
+        # button is still on the ipl controls, its not needed there as
+        # it's on the ribbon instead") - superseding the earlier,
+        # narrower call to keep it (which assumed its own TOBJ time-
+        # filtering function was non-redundant) - Keith's own follow-up
+        # confirms this should go too, alongside time_edit.
+        # opts_row2.addWidget(time_chk)
         # time_edit disconnected from the visible layout (Aug 20 2026,
         # per Keith: "The time/clock in IPL controls can be removed
         # since thats on the ribbons / viewpoint") - the on-viewport
         # CRT overlay already shows the current time; this QTimeEdit
-        # was now purely redundant with it. time_chk itself (TOBJ
-        # time-filtering - a genuinely different, non-redundant real
-        # function, not shown anywhere else) stays.
+        # was now purely redundant with it.
         # opts_row2.addWidget(time_edit)
         # time_play_btn/time_stop_btn/time_settings_btn disconnected
         # from the visible layout (Aug 20 2026, per Keith: "[TIME]

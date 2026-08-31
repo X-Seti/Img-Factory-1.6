@@ -9646,3 +9646,23 @@ conclusively found despite extensive isolated testing.
      empty and fell through to that literal fallback, exactly
      matching what Keith saw. _move_overlay_buttons_to_ribbon now
      sets both explicitly on the real action addWidget returns.
+
+- Aug 20 2026 - Two more follow-up fixes, per Keith:
+
+  1. "[time] button is still on the ipl controls, its not needed
+     there as it's on the ribbon instead" - the Time checkbox (TOBJ
+     time-filtering) disconnected too, superseding the earlier,
+     narrower decision to keep it - alongside time_edit, both now
+     fully removed from the visible IPL Controls layout.
+
+  2. "the svg icons, need to be square like the others in the
+     ribbons... its only the new ribbon buttons that are a different
+     size, they need to be the same size as the existing buttons" -
+     _MapOverlayToggleButton's own __init__ only ever fixed height
+     (20px), leaving width to size itself to the text label even once
+     switched to icon-only mode - that stale, text-sized width is
+     exactly why these looked visibly wider/non-square next to the
+     other, real native QAction-based ribbon buttons. set_display_
+     style now fixes both width and height to a square 28px (20px
+     icon size + standard Qt toolbar padding) in icon-only mode, and
+     releases back to auto/flexible width for text mode.
