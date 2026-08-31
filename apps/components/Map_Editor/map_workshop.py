@@ -5472,6 +5472,17 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # actually been constructed and added to _inner_mw.
         QTimer.singleShot(0, self._restore_toolbar_state)
 
+        # Move the overlay toggle buttons onto the new "Overlays"
+        # ribbon (Aug 20 2026, per Keith: "The New Icons on the IPL
+        # Control pane, can be moved to the ribbon") - deferred the
+        # same real way as _restore_toolbar_state just above, and for
+        # the same real reason: _build_toolbars (where the "Overlays"
+        # ribbon is actually created) hasn't run yet at this exact
+        # point in the startup sequence, only on the next event-loop
+        # tick.
+        QTimer.singleShot(0, self._move_overlay_buttons_to_ribbon)
+        QTimer.singleShot(0, self._apply_ipl_controls_display_style)
+
         # Auto-load the most recently used game world on startup (Aug
         # 20 2026, per Keith's own explicit "option 2" choice: "build
         # auto-restore last world on startup, so preload can fire
@@ -12907,6 +12918,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         # - Ribbon 5: Render
         tb_rend = _tb("Render", Qt.ToolBarArea.RightToolBarArea)
+        # New "Overlays" ribbon (Aug 20 2026, per Keith: "The New Icons
+        # on the IPL Control pane, can be moved to the ribbon" - the
+        # arrow in his own screenshot pointed from IPL Controls' own
+        # overlay toggle buttons up to this same top toolbar area).
+        # Created empty here - the buttons themselves are still built
+        # in _create_ipl_controls_dock (that method runs before this
+        # one, so the ribbon has to exist first for them to move into)
+        # and moved in here afterwards, deferred, by _move_overlay_
+        # buttons_to_ribbon.
+        tb_overlays = _tb("Overlays", Qt.ToolBarArea.RightToolBarArea)
         _act(tb_rend, "Render Settings",
              _icon(self.icon_factory.render_settings_icon, 'render_settings_icon'),
              lambda checked=False: self._show_workshop_settings('Render'))
@@ -12951,6 +12972,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._tb_geometry  = tb_geo
         self._tb_nav       = tb_nav
         self._tb_render    = tb_rend
+        self._tb_overlays  = tb_overlays
 
         # DFF-only actions — disabled until a model is loaded
         self._dff_only_actions = [
@@ -13044,11 +13066,26 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # Rebuild toolbars live
         self._rebuild_toolbars()
 
-    def _rebuild_toolbars(self): #vers 1
-        """Remove all existing toolbars and rebuild with the current icon set."""
+    def _rebuild_toolbars(self): #vers 2
+        """Remove all existing toolbars and rebuild with the current
+        icon set.
+
+        Real fix (Aug 20 2026, per Keith: "The New Icons on the IPL
+        Control pane, can be moved to the ribbon") - the overlay
+        toggle buttons (Water/Radar/Tcyc/etc.) now live as real child
+        widgets of the "Overlays" toolbar (_move_overlay_buttons_to_
+        ribbon), not QActions rebuilt fresh by _build_toolbars itself
+        - deleteLater() on that toolbar would have deleted those real
+        buttons right along with it, permanently, the next time
+        Keith changed icon sets. Re-parents them to self first (kept
+        alive, off-screen) before any toolbar is destroyed, then
+        re-adds them to the freshly rebuilt "Overlays" toolbar
+        afterwards."""
         mw = getattr(self, '_inner_mw', None)
         if mw is None:
             return
+        for btn in getattr(self, '_overlay_toggle_buttons', []):
+            btn.setParent(self)
         from PyQt6.QtWidgets import QToolBar
         for tb in list(mw.findChildren(QToolBar)):
             mw.removeToolBar(tb)
@@ -13056,6 +13093,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._ribbon_actions = []
         icon_color = self._get_icon_color()
         self._build_toolbars(mw, icon_color)
+        self._move_overlay_buttons_to_ribbon()
+        self._apply_ipl_controls_display_style()
         self._set_status(f"Icon set applied")
 
     def _apply_icon_scale(self, px: int): #vers 1
@@ -13192,7 +13231,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                        getattr(self, '_tb_snap', None),
                        getattr(self, '_tb_geometry', None),
                        getattr(self, '_tb_nav', None),
-                       getattr(self, '_tb_render', None)):
+                       getattr(self, '_tb_render', None),
+                       getattr(self, '_tb_overlays', None)):
                 if tb is not None:
                     tb.setVisible(True)
                     tb.toggleViewAction().setChecked(True)
@@ -22758,19 +22798,46 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         else:
             vp.set_radar_tex_layer(False)
 
-    def _apply_ipl_controls_display_style(self): #vers 1
-        """Switch every real overlay toggle button in IPL Controls
-        between its own text label and its own icon (Aug 20 2026, per
-        Keith: "we could add a toggle in settings, Show IPL Controls
-        = as [Buttons] or ribbon icons") - each button falls back to
-        text-only on its own if it was never actually given a real
-        icon yet (see _MapOverlayToggleButton.set_display_style's own
-        docstring), so this is safe to call even before every button
-        has real icon artwork."""
+    def _apply_ipl_controls_display_style(self): #vers 2
+        """Switch every real overlay toggle button between its own
+        text label and its own icon (Aug 20 2026, per Keith: "we could
+        add a toggle in settings, Show IPL Controls = as [Buttons] or
+        ribbon icons") - each button falls back to text-only on its
+        own if it was never actually given a real icon yet (see
+        _MapOverlayToggleButton.set_display_style's own docstring), so
+        this is safe to call even before every button has real icon
+        artwork. Still applies now that these buttons live on the
+        Overlays ribbon (_move_overlay_buttons_to_ribbon) rather than
+        IPL Controls itself - same real buttons, same real toggle,
+        just a different real parent widget."""
         icon_only = bool(self.map_settings.get('ipl_controls_icon_only'))
         for btn in getattr(self, '_overlay_toggle_buttons', []):
             if hasattr(btn, 'set_display_style'):
                 btn.set_display_style(icon_only)
+
+    def _move_overlay_buttons_to_ribbon(self): #vers 1
+        """Move every real overlay toggle button from IPL Controls
+        onto the new "Overlays" ribbon (Aug 20 2026, per Keith: "The
+        New Icons on the IPL Control pane, can be moved to the
+        ribbon" - the arrow in his own screenshot pointed from these
+        exact buttons up to the top toolbar area).
+
+        Deferred (scheduled via QTimer.singleShot(0, ...) rather than
+        called directly) because _create_ipl_controls_dock (where
+        these buttons are actually constructed) runs before _build_
+        toolbars (where the real "Overlays" ribbon they're moving
+        into is actually created) in this app's own real startup
+        sequence - by the time this deferred call actually runs, on
+        the next event-loop tick, both are guaranteed to already
+        exist, regardless of that ordering. QToolBar.addWidget on an
+        already-constructed widget re-parents it automatically - no
+        need to change where these buttons are originally built."""
+        tb = getattr(self, '_tb_overlays', None)
+        buttons = getattr(self, '_overlay_toggle_buttons', [])
+        if tb is None or not buttons:
+            return
+        for btn in buttons:
+            tb.addWidget(btn)
 
     def _on_generate_radar_tiles_clicked(self): #vers 2
         """Prompt for an output folder, then run _generate_radar_tiles

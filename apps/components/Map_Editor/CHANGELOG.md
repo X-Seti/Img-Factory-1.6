@@ -9565,3 +9565,32 @@ conclusively found despite extensive isolated testing.
   hand icons back to, any icon moved there and saved was silently
   dropped back to its original toolbar every time. Now created
   unconditionally, first thing, before restoreState() runs.
+
+- Aug 20 2026 - Moved all 12 overlay toggle buttons (2DFX/Tobj/Tcyc/
+  Paths/Tracks/Cull/Zon/Occlusion/SA Nodes/Auzo/Water/Radar) from IPL
+  Controls onto a new "Overlays" ribbon, per Keith: "The New Icons on
+  the IPL Control pane, can be moved to the ribbon" (the arrow in his
+  own screenshot pointed from these buttons up to the top toolbar
+  area). New tb_overlays created in _build_toolbars; new _move_
+  overlay_buttons_to_ribbon re-parents the already-constructed
+  buttons onto it (QToolBar.addWidget re-parents automatically, so
+  the buttons themselves didn't need to move where they're built).
+  Deferred via the same QTimer.singleShot(0, ...) pattern _restore_
+  toolbar_state already uses, since _create_ipl_controls_dock (where
+  the buttons are built) runs before _build_toolbars (where the
+  ribbon they move into is created) in this app's own real startup
+  sequence - both are guaranteed to exist by the next event-loop tick
+  regardless of that ordering.
+
+  Also fixed a real, serious risk this surfaced: _rebuild_toolbars
+  (fires when Keith changes icon sets) destroys every toolbar via
+  deleteLater() and rebuilds from scratch - since the overlay buttons
+  are now real child widgets of a real toolbar (not QActions rebuilt
+  fresh each time, unlike everything else _build_toolbars creates),
+  this would have permanently deleted all 12 real buttons the next
+  time Keith changed icon sets. Now re-parents them to self (kept
+  alive, off-screen) before any toolbar is destroyed, then re-adds
+  them to the freshly rebuilt ribbon afterwards.
+
+  ipl_controls_icon_only (the display-style toggle) still applies -
+  same buttons, same toggle, just a different parent widget now.
