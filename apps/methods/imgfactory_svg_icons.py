@@ -927,6 +927,22 @@ class SVGIconFactory: #vers 8
                 stroke="currentColor" stroke-width="2.5"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def snap_to_center_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Snap to Centre icon (Aug 20 2026, per Keith: "fit to window
+        and snap to center have the same icon") - a crosshair/target
+        reticle, visually distinct from fit_icon's own square-with-X.
+        Rendered and visually verified at both 24px (actual size) and
+        96px (4x zoom) before committing, the same real process every
+        other icon this session went through."""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="6.5" stroke="currentColor" stroke-width="2.2" fill="none"/>
+            <circle cx="12" cy="12" r="1.6" fill="currentColor"/>
+            <path d="M12 1.5 L12 5.2 M12 18.8 L12 22.5 M1.5 12 L5.2 12 M18.8 12 L22.5 12"
+                stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
     
 
 

@@ -9666,3 +9666,15 @@ conclusively found despite extensive isolated testing.
      style now fixes both width and height to a square 28px (20px
      icon size + standard Qt toolbar padding) in icon-only mode, and
      releases back to auto/flexible width for text mode.
+
+- Aug 20 2026 - Gave "Snap to Centre" its own real icon, per Keith:
+  "fit to window and snap to center have the same icon" - a
+  deliberate choice earlier this session (to avoid risking an
+  untested new SVG), now addressed properly. New snap_to_center_icon
+  in SVGIconFactory - a crosshair/target reticle, visually distinct
+  from fit_icon's own square-with-X, matching that same simple,
+  monochrome, currentColor-based style every other Navigation ribbon
+  icon already uses (rather than the detailed-colour style used for
+  the separate Overlays ribbon). Rendered and visually verified at
+  both 24px and 96px before committing, same process as every icon
+  this session.
