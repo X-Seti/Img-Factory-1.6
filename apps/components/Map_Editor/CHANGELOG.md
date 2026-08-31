@@ -9594,3 +9594,28 @@ conclusively found despite extensive isolated testing.
 
   ipl_controls_icon_only (the display-style toggle) still applies -
   same buttons, same toggle, just a different parent widget now.
+
+- Aug 20 2026 - Finished the remaining 9 overlay icons, per Keith's
+  own "continue": Tobj (glowing lamp + clock badge), 2DFX (light-burst
+  sparkle), Paths (winding route + arrowhead + nodes), Tracks (bold
+  rails + sleepers), Cull (translucent box + white X), Zon (planted
+  flag in a dashed boundary), Occlusion (wall block + prohibition
+  circle-slash), SA Nodes (orange node network, visually distinct
+  from Paths' own route), Auzo (speaker + sound waves).
+
+  Same process as the first batch: rendered and visually verified
+  each one at both 24px (actual size) and 96px (4x zoom) with
+  cairosvg before committing. Caught and fixed two real problems this
+  way: Tracks' first attempt had invisible vertical rails - a
+  gradient applied to a purely vertical line has a zero-width
+  bounding box as a stroke target and silently fails to render at
+  all, fixed with a solid colour instead; and its own second attempt
+  (5 sleepers) was too dense and muddy at actual size, cut to 2.
+  Occlusion's first attempt (fine brick pattern + soft eye-slash
+  overlay) also read as a muddy blob, redesigned to a solid wall
+  colour plus a universally recognised prohibition symbol.
+
+  All 12 overlay buttons (on the new Overlays ribbon from last turn)
+  now have real icon artwork - the "IPL Controls Display" toggle from
+  two turns ago can now show a fully consistent icon-only ribbon
+  instead of the previous mix of 3 icons + 9 text fallbacks.

@@ -24775,7 +24775,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         opts_row2 = QHBoxLayout()
 
         # 2DFX master toggle (Aug 1 2026)
-        dfx_chk = _MapOverlayToggleButton("2DFX", supports_edit=False)
+        dfx_chk = _MapOverlayToggleButton("2DFX", supports_edit=False, icon=OverlayIcons.dfx2d_icon(20))
         dfx_chk.set_shown(True, emit=False)
         dfx_chk.setToolTip(
             "Show 2DFX lights in the world view - when off, no 2DFX\n"
@@ -24786,7 +24786,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         # Nav settings (Aug 1 2026)
         # Show Tobj (Aug 1 2026)
-        show_tobj_chk = _MapOverlayToggleButton("Tobj", supports_edit=False)
+        show_tobj_chk = _MapOverlayToggleButton("Tobj", supports_edit=False, icon=OverlayIcons.tobj_icon(20))
         show_tobj_chk.setToolTip(
             "Show TOBJ (timed) instances in the INST table, appended\n"
             "after the regular rows - filtered to only the ones\n"
@@ -24836,30 +24836,30 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         lay.addLayout(opts_row2)
 
         # Row 3: per-layer visibility toggles (Aug 1 2026)
-        show_paths_btn = _MapOverlayToggleButton("Paths", supports_edit=True)
+        show_paths_btn = _MapOverlayToggleButton("Paths", supports_edit=True, icon=OverlayIcons.paths_icon(20))
         show_paths_btn.show_toggled.connect(self._on_show_paths_toggled)
         show_paths_btn.edit_toggled.connect(self._on_edit_paths_toggled)
         self._show_paths_chk = show_paths_btn
 
         # Show Tracks (Aug 17 2026)
-        show_tracks_btn = _MapOverlayToggleButton("Tracks", supports_edit=False)
+        show_tracks_btn = _MapOverlayToggleButton("Tracks", supports_edit=False, icon=OverlayIcons.tracks_icon(20))
         show_tracks_btn.show_toggled.connect(self._on_show_tracks_toggled)
         self._show_tracks_chk = show_tracks_btn
 
         # Show Cull Zones (Aug 16 2026)
-        show_cull_btn = _MapOverlayToggleButton("Cull", supports_edit=True)
+        show_cull_btn = _MapOverlayToggleButton("Cull", supports_edit=True, icon=OverlayIcons.cull_icon(20))
         show_cull_btn.show_toggled.connect(self._on_show_cull_boxes_toggled)
         show_cull_btn.edit_toggled.connect(self._on_edit_boxes_toggled)
         self._show_cull_chk = show_cull_btn
 
         # Show Zones (Aug 16 2026)
-        show_zone_btn = _MapOverlayToggleButton("Zon", supports_edit=True)
+        show_zone_btn = _MapOverlayToggleButton("Zon", supports_edit=True, icon=OverlayIcons.zon_icon(20))
         show_zone_btn.show_toggled.connect(self._on_show_zone_boxes_toggled)
         show_zone_btn.edit_toggled.connect(self._on_edit_boxes_toggled)
         self._show_zone_chk = show_zone_btn
 
         # Show Occlusion (Aug 16 2026)
-        show_occl_btn = _MapOverlayToggleButton("Occlusion", supports_edit=False)
+        show_occl_btn = _MapOverlayToggleButton("Occlusion", supports_edit=False, icon=OverlayIcons.occlusion_icon(20))
         show_occl_btn.show_toggled.connect(self._on_show_occl_boxes_toggled)
         self._show_occl_chk = show_occl_btn
 
@@ -24873,12 +24873,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         lay.addLayout(opts_row3)
 
         # Show SA Nodes (Aug 19 2026)
-        show_sa_nodes_btn = _MapOverlayToggleButton("SA Nodes", supports_edit=False)
+        show_sa_nodes_btn = _MapOverlayToggleButton("SA Nodes", supports_edit=False, icon=OverlayIcons.sa_nodes_icon(20))
         show_sa_nodes_btn.show_toggled.connect(self._on_show_sa_nodes_toggled)
         self._show_sa_nodes_chk = show_sa_nodes_btn # Show only with gta.dat loaded (SA)
 
         # Show Auzo (Aug 20 2026)
-        show_auzo_btn = _MapOverlayToggleButton("Auzo", supports_edit=False)
+        show_auzo_btn = _MapOverlayToggleButton("Auzo", supports_edit=False, icon=OverlayIcons.auzo_icon(20))
         show_auzo_btn.show_toggled.connect(self._on_show_auzo_toggled)
         self._show_auzo_chk = show_auzo_btn
 
