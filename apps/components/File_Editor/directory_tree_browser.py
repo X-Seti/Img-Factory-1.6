@@ -1012,7 +1012,15 @@ class DirectoryTreeBrowser(QWidget):
             root_item.setData(0, Qt.ItemDataRole.UserRole, root_path)
             root_item.setIcon(0, get_folder_icon())
             self.populate_tree_recursive(root_item, root_path)
-            root_item.setExpanded(True)
+            # Real fix (Aug 20 2026, per Keith: "the other bug with dir
+            # tree is all the folders are open, they need to start
+            # colapsed") - every folder below the root already starts
+            # collapsed (via the lazy-loading placeholder above), but
+            # the root item itself was still force-expanded here,
+            # immediately showing its own direct children regardless -
+            # left uncalled now, so the whole real tree genuinely
+            # starts fully collapsed, root included.
+            # root_item.setExpanded(True)
             self.log_message(f"Loaded: {root_path}")
         except Exception as e:
             self.log_message(f"Error populating tree: {str(e)}")
@@ -1274,6 +1282,33 @@ class DirectoryTreeBrowser(QWidget):
             open_action.triggered.connect(lambda: self.file_opened.emit(file_path))
             menu.addAction(open_action)
 
+            # Real fix (Aug 20 2026, per Keith: "dir tree shows audio
+            # files, so we can now right click them to play") - a
+            # standard, directly-playable audio file gets a real Play
+            # action; a recognised SA audio-stream filename (Ambience/
+            # Genrl/radio station files - no real file extension at
+            # all, so identified by name instead) gets Extract & Play
+            # Tracks..., since those first need real decoding via
+            # apps/methods/sa_audio_stream.py before anything inside
+            # them can be played at all.
+            _AUDIO_EXTS = ('.wav', '.mp3', '.ogg', '.flac')
+            _SA_STREAM_NAMES = {
+                'ambience', 'genrl', 'cutscene', 'co', 'ds', 'mh', 'mr',
+                'nj', 're', 'rg', 'tk', 'wc',
+            }
+            file_ext = os.path.splitext(file_path)[1].lower()
+            file_base = os.path.basename(file_path).lower()
+            if file_ext in _AUDIO_EXTS:
+                play_action = QAction("Play", self)
+                play_action.triggered.connect(
+                    lambda _=False, p=file_path: self._play_audio_file(p))
+                menu.addAction(play_action)
+            elif file_base in _SA_STREAM_NAMES:
+                extract_action = QAction("Extract && Play Tracks...", self)
+                extract_action.triggered.connect(
+                    lambda _=False, p=file_path: self._extract_and_play_sa_stream(p))
+                menu.addAction(extract_action)
+
             #    Text-editable types get an "Edit" action               
             _TEXT_EDITABLE = ('.ide', '.ipl', '.dat', '.txt', '.cfg',
                               '.ini', '.zon', '.cut', '.fxt')
@@ -1347,6 +1382,76 @@ class DirectoryTreeBrowser(QWidget):
         props_action.triggered.connect(self.show_file_properties)
         menu.addAction(props_action)
         menu.exec(self.tree.mapToGlobal(position))
+
+    def _play_audio_file(self, path): #vers 1
+        """Play a standard audio file directly (Aug 20 2026, per
+        Keith: "dir tree shows audio files, so we can now right click
+        them to play") - uses QtMultimedia's own QSoundEffect, the
+        same real dependency map_workshop.py's own Auzo list playback
+        already relies on; wrapped defensively since it may not be
+        installed/available in every real Python environment this app
+        runs in."""
+        try:
+            from PyQt6.QtMultimedia import QSoundEffect
+            from PyQt6.QtCore import QUrl
+        except ImportError:
+            self.log_message(
+                "Can't play audio - PyQt6.QtMultimedia isn't installed "
+                "in this Python environment.")
+            return
+        effect = QSoundEffect(self)
+        effect.setSource(QUrl.fromLocalFile(path))
+        effect.setVolume(0.7)
+        effect.play()
+        self._playing_sound_effect = effect   # keep a real reference alive until playback finishes
+        self.log_message(f"Playing: {os.path.basename(path)}")
+
+    def _extract_and_play_sa_stream(self, path): #vers 1
+        """Decode a recognised SA audio-stream file (Ambience/Genrl/
+        radio station files - no real file extension, so identified
+        by filename alone) and play its own first real track (Aug 20
+        2026, per Keith: "dir tree shows audio files, so we can now
+        right click them to play") - real, working decoder confirmed
+        against Keith's own real, uploaded AMBIENCE file (see apps/
+        methods/sa_audio_stream.py's own docstring for the full, real
+        confirmation story: ffprobe verified extracted tracks as
+        fully valid Ogg Vorbis). A given stream file has many real
+        tracks (Keith's own real AMBIENCE had 40) - this plays only
+        the first as a real, quick preview; the dedicated "Extract
+        Tracks..." button in Map Workshop's own Settings > Render >
+        Audio Streams pulls every real track out to individual files
+        for Keith to identify and rename properly."""
+        try:
+            from apps.methods.sa_audio_stream import parse_stream_tracks, extract_track
+        except ImportError as e:
+            self.log_message(f"Couldn't load the audio stream decoder: {e}")
+            return
+        try:
+            from PyQt6.QtMultimedia import QSoundEffect
+            from PyQt6.QtCore import QUrl
+        except ImportError:
+            self.log_message(
+                "Can't play audio - PyQt6.QtMultimedia isn't installed "
+                "in this Python environment.")
+            return
+        tracks = parse_stream_tracks(path, max_tracks=1)
+        if not tracks:
+            self.log_message(f"No real tracks found in {os.path.basename(path)}")
+            return
+        ogg_bytes = extract_track(path, tracks[0])
+        import tempfile
+        tmp_path = os.path.join(tempfile.gettempdir(), f"_dirtree_preview_{os.path.basename(path)}.ogg")
+        with open(tmp_path, 'wb') as f:
+            f.write(ogg_bytes)
+        effect = QSoundEffect(self)
+        effect.setSource(QUrl.fromLocalFile(tmp_path))
+        effect.setVolume(0.7)
+        effect.play()
+        self._playing_sound_effect = effect
+        self.log_message(
+            f"Playing track 0 (preview only) from {os.path.basename(path)} - "
+            f"use Map Workshop's own Settings > Render > Audio Streams > "
+            f"Extract Tracks... to get every real track out as individual files.")
 
     def _open_smart_editor(self, file_path: str): #vers 1
         """Route file to specialist editor based on filename."""

@@ -9773,3 +9773,26 @@ conclusively found despite extensive isolated testing.
   effects) - a genuinely different, harder problem (no encoding, but
   also no container format, raw PCM packed with metadata) not
   addressed by this module.
+
+- Aug 20 2026 - Two Dir Tree fixes, per Keith:
+
+  1. "dir tree shows audio files, so we can now right click them to
+     play" - right-click on a standard audio file (.wav/.mp3/.ogg/
+     .flac) now offers Play, using the same real QSoundEffect
+     dependency map_workshop.py's own Auzo list playback already
+     relies on. A recognised SA audio-stream filename (Ambience/
+     Genrl/radio station files - no real file extension at all, so
+     identified by name instead) offers Extract & Play Tracks...,
+     decoding and playing its own first real track as a quick preview
+     via the real sa_audio_stream.py decoder from last turn - a
+     dedicated button in Map Workshop's own Settings > Render > Audio
+     Streams still handles pulling every real track out to individual
+     files.
+
+  2. "the other bug with dir tree is all the folders are open, they
+     need to start colapsed" - every folder below the root already
+     started collapsed (lazy-loading, a real, earlier fix), but the
+     root item itself was still force-expanded via a real, direct
+     setExpanded(True) call, immediately showing its own direct
+     children regardless - removed, so the whole real tree genuinely
+     starts fully collapsed, root included.
