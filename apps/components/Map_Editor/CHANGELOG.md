@@ -9714,3 +9714,25 @@ conclusively found despite extensive isolated testing.
   quad, then constrained-plane dragging, the same real technique
   path node editing already uses) - left for a following turn rather
   than rushed.
+
+- Aug 20 2026 - Confirmed AUZO_TYPES' own accuracy against Keith's own
+  real, uploaded Audiozon.ipl - cross-checked every real zone name
+  against its own sound_id's own table entry and all matched
+  sensibly (OTB/off-track betting -> "Racing sounds heard in ITB
+  lobby"; Fdchick/Fdburg (fast food) -> "Fast Food Joint bkgd
+  sounds"; ammun1-5 (Ammunation) -> "Ammunation PA loop"; bar1 ->
+  "Dance Club bkgd medley"). Also confirmed against AudioEvents.txt:
+  its own IDs start at 1000+, confirming AUZO's own sound_id field
+  (0-70, per GrandTheftWiki) is a completely separate ambience/reverb-
+  type lookup, not a direct reference into that file's own numbering
+  at all.
+
+  _play_auzo_placeholder_tone's own real-file lookup now also tries
+  AUZO_TYPES' own "music description" as a third candidate (e.g.
+  "KDST.wav" for sound_id 54) - the most natural real filename for
+  the many Auzo entries whose own real music is one of SA's own real
+  radio stations, since (per online research) that music is typically
+  stored as plain, separate stream files in a real SA install's own
+  audio/ folder, unlike most other sound effects, which are compiled
+  into the game's own inaccessible audio bank format. README updated
+  to document all 3 lookup candidates.

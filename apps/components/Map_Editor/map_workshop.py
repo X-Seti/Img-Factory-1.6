@@ -25504,7 +25504,25 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         real_path = None
         folder = self._app_asset_folder('auzo_sounds')
         if os.path.isdir(folder):
-            candidates = [f"{sound_id}", name] if name else [f"{sound_id}"]
+            # Real fix (Aug 20 2026, per Keith's own uploaded Audiozon.
+            # ipl/AudioEvents.txt, cross-referenced against AUZO_TYPES'
+            # own "music description" field - e.g. sound_id 54 -> real
+            # radio station "KDST") - the game's own real radio station
+            # music (unlike most other sound effects) is typically
+            # stored as plain, separate stream files in a real SA
+            # install's own audio/ folder, not compiled into the same
+            # inaccessible bank format - a real, meaningful name like
+            # "KDST.wav" is a far more natural real filename for Keith
+            # to actually use than the bare numeric sound_id alone.
+            music_desc = None
+            try:
+                from apps.methods.gta_dat_parser import AUZO_TYPES
+                info = AUZO_TYPES.get(int(sound_id))
+                if info and info[1]:
+                    music_desc = info[1]
+            except (ImportError, ValueError):
+                pass
+            candidates = [c for c in (f"{sound_id}", name, music_desc) if c]
             extensions = ('.wav', '.mp3', '.ogg', '.flac')
             try:
                 files = os.listdir(folder)
