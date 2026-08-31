@@ -5460,6 +5460,18 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # exists (Aug 19 2026)
         QTimer.singleShot(0, self._restore_dock_state)
 
+        # Real fix (Aug 20 2026, per Keith: "I've noticed moving icons
+        # to hidden, and save, these movements dont get saved") -
+        # _save_toolbar_state was correctly writing the toolbar state
+        # (including which icons had been moved to the Hidden toolbar)
+        # to disk every time, but _restore_toolbar_state - the method
+        # that reads it back - was never actually called anywhere in
+        # this whole file. The save always worked; the restore side
+        # just never ran. Deferred the same real way _restore_dock_
+        # state already is, so this runs after every real toolbar has
+        # actually been constructed and added to _inner_mw.
+        QTimer.singleShot(0, self._restore_toolbar_state)
+
         # Auto-load the most recently used game world on startup (Aug
         # 20 2026, per Keith's own explicit "option 2" choice: "build
         # auto-restore last world on startup, so preload can fire

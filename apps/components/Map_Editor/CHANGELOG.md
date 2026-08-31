@@ -9542,3 +9542,14 @@ conclusively found despite extensive isolated testing.
   these 3 (the other 9 overlay buttons still fall back to text-only
   automatically, per that same toggle's own real design, until they
   get their own real icons too).
+
+- Aug 20 2026 - Fixed real bug: hidden toolbar icon moves never
+  persisted, per Keith: "I've noticed moving icons to hidden, and
+  save, these movements dont get saved." Traced it: _save_toolbar_
+  state was correctly writing the toolbar state (including icons
+  moved to the Hidden toolbar) to disk every time - _restore_toolbar_
+  state, the method that reads it back, was never actually called
+  anywhere in this file at all. The save always worked; the restore
+  side just never ran. Wired in via QTimer.singleShot(0, ...), the
+  same deferred pattern _restore_dock_state already uses, so it runs
+  after every toolbar has actually been constructed.
