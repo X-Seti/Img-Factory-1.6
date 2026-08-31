@@ -9736,3 +9736,40 @@ conclusively found despite extensive isolated testing.
   audio/ folder, unlike most other sound effects, which are compiled
   into the game's own inaccessible audio bank format. README updated
   to document all 3 lookup candidates.
+
+- Aug 20 2026 - Real, working decoder for SA's own "audio stream"
+  format (AMBIENCE/GENRL/radio station files), per Keith: "i can send
+  you the sounds, would that help" - he sent a real, uploaded
+  AMBIENCE file (~44MB). Found the real, documented format at
+  https://gtamods.com/wiki/Audio_stream: a simple 16-byte XOR cipher
+  wrapping a consecutive list of tracks, each with an 8068-byte
+  header (8000 bytes of Dance/Lowrider minigame beat data, 64 bytes
+  of length info, 4 constant signature bytes) followed directly by
+  real Ogg Vorbis audio. Confirmed directly against Keith's own real
+  file: the decoded track header signature matches the documented
+  "01 00 CD CD" exactly, immediately followed by real "OggS" magic
+  bytes; ffprobe confirms the extracted first track as fully valid
+  Ogg Vorbis (probe_score=100, 9.56s, stereo, 24000 Hz - matching the
+  wiki's own note that 24000 is typical for AMBIENCE tracks
+  specifically). Walked the whole real file end to end: 40 real
+  tracks found, every one's own signature valid.
+
+  New apps/methods/sa_audio_stream.py - xor_decode, parse_stream_
+  tracks (finds every real track's own location), extract_track
+  (one track), extract_all_tracks (every track in a file, written as
+  individual, numbered .ogg files). New "Audio Streams" settings
+  group with an "Extract Tracks..." button, wired to this module,
+  writing into the same depends/auzo_sounds/ folder the Auzo list's
+  own playback already checks.
+
+  Real, honest limitation still open: which specific track index
+  corresponds to which specific Auzo zone's own sound_id isn't
+  documented anywhere found so far - Keith listens to the extracted
+  tracks and renames the ones that match a zone to that zone's own
+  name/sound_id, so the existing lookup (sound_id, zone name, or
+  AUZO_TYPES' own music description) finds them.
+
+  This does NOT help with SA's own separate SFX system (short sound
+  effects) - a genuinely different, harder problem (no encoding, but
+  also no container format, raw PCM packed with metadata) not
+  addressed by this module.

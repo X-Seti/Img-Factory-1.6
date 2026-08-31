@@ -8811,6 +8811,53 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         render_layout.addWidget(water2_grp)
 
+        # Audio Streams (Aug 20 2026, per Keith: "i can send you the
+        # sounds, would that help") - real, working extraction from
+        # SA's own real "audio stream" file format (AMBIENCE, GENRL,
+        # radio station files) confirmed against Keith's own real,
+        # uploaded AMBIENCE file (documented XOR key + track header
+        # from GTAMods, verified via ffprobe: extracted tracks are
+        # fully valid Ogg Vorbis, probe_score=100).
+        audio_grp = QGroupBox("Audio Streams")
+        audio_form = QFormLayout(audio_grp)
+        audio_extract_btn = QPushButton("Extract Tracks...")
+        audio_extract_btn.setToolTip(
+            "Aug 20 2026, per Keith: \"i can send you the sounds, would\n"
+            "that help\" - pick one of SA's own real audio stream files\n"
+            "(e.g. AMBIENCE, GENRL, or a real radio station file) and\n"
+            "extract every real track inside it to individual, numbered\n"
+            ".ogg files in depends/auzo_sounds/.\n\n"
+            "Real, honest limitation: which specific track index\n"
+            "corresponds to which specific Auzo zone's own sound_id\n"
+            "isn't documented anywhere found so far - listen to the\n"
+            "extracted tracks and rename the ones that match a zone to\n"
+            "that zone's own name or sound_id, so the Auzo list's own\n"
+            "double-click playback can find them.")
+        def _extract_audio_stream(): #vers 1
+            path, _ = QFileDialog.getOpenFileName(
+                self, "Choose SA Audio Stream File (e.g. AMBIENCE, GENRL)", "", "All Files (*)")
+            if not path:
+                return
+            try:
+                from apps.methods.sa_audio_stream import extract_all_tracks
+            except ImportError as e:
+                self._set_status(f"Couldn't load the audio stream decoder: {e}")
+                return
+            out_dir = self._app_asset_folder('auzo_sounds')
+            self._set_status(f"Extracting tracks from {os.path.basename(path)}...")
+            QApplication.processEvents()
+            try:
+                written = extract_all_tracks(path, out_dir)
+            except Exception as e:
+                self._set_status(f"Failed to extract audio stream tracks: {e}")
+                return
+            self._set_status(
+                f"Extracted {len(written)} track(s) from {os.path.basename(path)} "
+                f"to {out_dir} - listen and rename to match Auzo zones.")
+        audio_extract_btn.clicked.connect(_extract_audio_stream)
+        audio_form.addRow(audio_extract_btn)
+        render_layout.addWidget(audio_grp)
+
         render_layout.addWidget(env_grp)
         render_layout.addStretch()
         tabs.addTab(render_tab_outer, "Render")
