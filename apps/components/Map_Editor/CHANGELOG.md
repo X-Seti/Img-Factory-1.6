@@ -9796,3 +9796,24 @@ conclusively found despite extensive isolated testing.
      setExpanded(True) call, immediately showing its own direct
      children regardless - removed, so the whole real tree genuinely
      starts fully collapsed, root included.
+
+- Aug 20 2026 - Fixed Dir Tree's own SA audio-file recognition, per
+  Keith's own real, uploaded screenshot of his own audio/ folder:
+  "when I click on those files, I don't see a right click play
+  option?" The stream-filename set was both incomplete (missing 6
+  real filenames - AA/ADVERTS/BEATS/CH/CR/HC - that genuinely exist
+  in a real SA install's own streams/ folder) and wrong (wrongly
+  included "genrl", a real SFX file not a stream file at all, and
+  "wc", which doesn't exist - confused with "WCTR", the radio
+  station's own display name, not its real filename). Full, correct
+  16-name list confirmed against GTAMods' own real, documented "Game
+  directory (SA)" page and cross-checked against every file visible
+  in Keith's own screenshot.
+
+  Also added real recognition for SA's own SFX bank files (Feet/
+  Genrl/Pain_A/Script/Spc_*) - a genuinely different, still-unsolved
+  real format (raw PCM + metadata, no encoding but also no real
+  container format) - shown with an honest, disabled "Play (not yet
+  supported)" menu entry instead of silently offering no option at
+  all for these files, which would have looked like they were simply
+  overlooked rather than a real, open limitation.

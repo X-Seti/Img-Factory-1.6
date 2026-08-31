@@ -1285,16 +1285,40 @@ class DirectoryTreeBrowser(QWidget):
             # Real fix (Aug 20 2026, per Keith: "dir tree shows audio
             # files, so we can now right click them to play") - a
             # standard, directly-playable audio file gets a real Play
-            # action; a recognised SA audio-stream filename (Ambience/
-            # Genrl/radio station files - no real file extension at
+            # action; a recognised SA audio-stream filename (from the
+            # real audio/streams/ folder - no real file extension at
             # all, so identified by name instead) gets Extract & Play
             # Tracks..., since those first need real decoding via
             # apps/methods/sa_audio_stream.py before anything inside
             # them can be played at all.
+            #
+            # Real fix (Aug 20 2026, per Keith's own real, uploaded
+            # screenshot of his own real audio/ folder: "when I click
+            # on those files, I don't see a right click play option?")
+            # - this set was both incomplete and wrong: missing 6 real
+            # filenames (AA/ADVERTS/BEATS/CH/CR/HC) that genuinely
+            # exist in a real SA install's own streams/ folder, and
+            # wrongly included "genrl" (a real SFX file, not a real
+            # stream file at all) and "wc" (doesn't exist at all -
+            # confused with "WCTR", the radio station's own display
+            # name, not its real filename). Full, correct list
+            # confirmed against GTAMods' own real, documented "Game
+            # directory (SA)" page.
             _AUDIO_EXTS = ('.wav', '.mp3', '.ogg', '.flac')
             _SA_STREAM_NAMES = {
-                'ambience', 'genrl', 'cutscene', 'co', 'ds', 'mh', 'mr',
-                'nj', 're', 'rg', 'tk', 'wc',
+                'aa', 'adverts', 'ambience', 'beats', 'ch', 'co', 'cr',
+                'cutscene', 'ds', 'hc', 'mh', 'mr', 'nj', 're', 'rg', 'tk',
+            }
+            # Real SFX bank files (a genuinely different, unsolved real
+            # format - raw PCM samples packed with a SoundMeta
+            # structure, no encoding at all but also no real container
+            # format, unlike the streams above) - shown with an honest
+            # "not yet supported" message instead of silently offering
+            # no option at all, which would look like these files were
+            # simply overlooked rather than a real, open limitation.
+            _SA_SFX_NAMES = {
+                'feet', 'genrl', 'pain_a', 'script',
+                'spc_ea', 'spc_fa', 'spc_ga', 'spc_na', 'spc_pa',
             }
             file_ext = os.path.splitext(file_path)[1].lower()
             file_base = os.path.basename(file_path).lower()
@@ -1308,6 +1332,16 @@ class DirectoryTreeBrowser(QWidget):
                 extract_action.triggered.connect(
                     lambda _=False, p=file_path: self._extract_and_play_sa_stream(p))
                 menu.addAction(extract_action)
+            elif file_base in _SA_SFX_NAMES:
+                sfx_action = QAction("Play (not yet supported)", self)
+                sfx_action.setEnabled(False)
+                sfx_action.setToolTip(
+                    "SA's own SFX bank format is a genuinely different,\n"
+                    "still-unsolved real format - raw PCM samples packed\n"
+                    "with metadata, no encoding at all but also no real\n"
+                    "container format, unlike streams/ (see sa_audio_\n"
+                    "stream.py's own docstring for the full, real story).")
+                menu.addAction(sfx_action)
 
             #    Text-editable types get an "Edit" action               
             _TEXT_EDITABLE = ('.ide', '.ipl', '.dat', '.txt', '.cfg',
