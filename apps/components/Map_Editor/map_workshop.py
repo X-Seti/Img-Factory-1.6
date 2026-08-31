@@ -25464,19 +25464,28 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     item.setBackground(QBrush(QColor(60, 60, 90)))
                 table.setItem(r, c, item)
 
-    def _play_auzo_placeholder_tone(self, sound_id, name): #vers 1
-        """Play a short, synthetic placeholder tone for one audio
-        zone (Aug 20 2026, per Keith: "auzo list play the sounds") -
-        the real, in-game San Andreas audio itself lives inside the
-        game's own compiled audio bank archives, a completely
-        separate binary format this app doesn't read at all (see
-        AuzoEntry's own docstring in gta_dat_parser.py for the full,
-        honest explanation) - there is no real sound data anywhere in
-        the loaded IPL/IDE data this could actually play. This is a
-        real, synthetic sine-wave tone instead, confirming which zone
-        was activated - its own pitch derived from sound_id, so
-        different zones are at least audibly distinguishable from
-        each other, not the same fixed beep every time.
+    def _play_auzo_placeholder_tone(self, sound_id, name): #vers 2
+        """Play a sound for one audio zone (Aug 20 2026, per Keith:
+        "auzo list play the sounds" / "i can send you the sounds,
+        would that help") - the real, in-game San Andreas audio
+        itself lives inside the game's own compiled audio bank
+        archives, a completely separate binary format this app
+        doesn't read at all (see AuzoEntry's own docstring in gta_
+        dat_parser.py for the full, honest explanation) - there is no
+        real sound data anywhere in the loaded IPL/IDE data this
+        could actually play on its own.
+
+        Real fix (Aug 20 2026, same real request as above) - checks
+        this app's own depends/auzo_sounds/ asset folder first (the
+        same real "depends/<name>/" pattern _app_asset_folder already
+        shares with timecyc's own asset folder) for a real, actual
+        sound file Keith can drop in - tried by both sound_id and
+        zone name, in a few common real audio extensions, since the
+        exact naming convention for whatever files Keith sends isn't
+        known yet. Falls back to a synthetic sine-wave placeholder
+        tone (pitch derived from sound_id, so different zones are at
+        least audibly distinguishable from each other even without
+        real audio) only when no real matching file is found.
 
         Uses QtMultimedia's own QSoundEffect, a real dependency this
         app has never needed before this feature - wrapped defensively
@@ -25488,9 +25497,38 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             from PyQt6.QtCore import QUrl
         except ImportError:
             self._set_status(
-                "Can't play audio zone tones - PyQt6.QtMultimedia isn't "
+                "Can't play audio zone sounds - PyQt6.QtMultimedia isn't "
                 "installed in this Python environment.")
             return
+
+        real_path = None
+        folder = self._app_asset_folder('auzo_sounds')
+        if os.path.isdir(folder):
+            candidates = [f"{sound_id}", name] if name else [f"{sound_id}"]
+            extensions = ('.wav', '.mp3', '.ogg', '.flac')
+            try:
+                files = os.listdir(folder)
+            except OSError:
+                files = []
+            files_lower = {f.lower(): f for f in files}
+            for candidate in candidates:
+                for ext in extensions:
+                    key = f"{candidate}{ext}".lower()
+                    if key in files_lower:
+                        real_path = os.path.join(folder, files_lower[key])
+                        break
+                if real_path:
+                    break
+
+        if real_path:
+            effect = QSoundEffect(self)
+            effect.setSource(QUrl.fromLocalFile(real_path))
+            effect.setVolume(0.7)
+            effect.play()
+            self._auzo_sound_effect = effect
+            self._set_status(f"Playing {os.path.basename(real_path)} for audio zone '{name}'")
+            return
+
         import struct, wave, tempfile, math
         freq = 220.0 + (int(sound_id) % 24) * 55.0
         duration = 0.35
@@ -25514,7 +25552,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         effect.setVolume(0.6)
         effect.play()
         self._auzo_sound_effect = effect   # keep a real reference alive until playback finishes
-        self._set_status(f"Playing placeholder tone for audio zone '{name}' (sound_id={sound_id})")
+        self._set_status(f"Playing placeholder tone for audio zone '{name}' (sound_id={sound_id}) - no real sound file found in depends/auzo_sounds/")
 
     def _populate_auzo_table(self, table, loader, display_name): #vers 2
         """Build the IPL Inst File table from SA's real, already-
