@@ -12913,7 +12913,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         _act(tb_nav, "Zoom Out",      _icon(self.icon_factory.zoom_out_icon,  'zoom_out_icon'),  pw.zoom_out)
         _act(tb_nav, "Reset View",    _icon(self.icon_factory.reset_view_icon,'reset_view_icon'),pw.reset_view)
         _act(tb_nav, "Fit to Window", _icon(self.icon_factory.fit_icon,       'fit_view_icon'),  pw.fit_to_window)
-        _act(tb_nav, "Snap to Centre", _icon(self.icon_factory.snap_to_center_icon, 'snap_centre_icon'), pw.snap_to_center)
+        _act(tb_nav, "Snap to Centre", _icon(self.icon_factory.converge_to_center_icon, 'snap_centre_icon'), pw.snap_to_center)
         tb_nav.addSeparator()
         for label, yaw, pitch, default_fn, max_name in [
             ("View XY",  0,   0,  self.icon_factory.view_xy_icon,  'view_xy_icon'),

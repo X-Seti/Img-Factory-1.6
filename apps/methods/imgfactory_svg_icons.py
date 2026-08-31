@@ -929,18 +929,37 @@ class SVGIconFactory: #vers 8
         return SVGIconFactory._create_icon(svg_data, size, color)
 
     @staticmethod
-    def snap_to_center_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
-        """Snap to Centre icon (Aug 20 2026, per Keith: "fit to window
-        and snap to center have the same icon") - a crosshair/target
-        reticle, visually distinct from fit_icon's own square-with-X.
-        Rendered and visually verified at both 24px (actual size) and
-        96px (4x zoom) before committing, the same real process every
-        other icon this session went through."""
+    def snap_to_center_icon(size: int = 20, color: str = None) -> QIcon: #vers 2
+        """Crosshair/target reticle icon - originally made for Snap to
+        Centre (Aug 20 2026, per Keith: "fit to window and snap to
+        center have the same icon"), then reassigned away from it the
+        same session per Keith's own follow-up: "I like that button,
+        this can be used for something else" - kept defined here,
+        unused for now, ready for Keith to assign wherever he decides
+        it fits."""
         svg_data = '''<svg viewBox="0 0 24 24">
             <circle cx="12" cy="12" r="6.5" stroke="currentColor" stroke-width="2.2" fill="none"/>
             <circle cx="12" cy="12" r="1.6" fill="currentColor"/>
             <path d="M12 1.5 L12 5.2 M12 18.8 L12 22.5 M1.5 12 L5.2 12 M18.8 12 L22.5 12"
                 stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def converge_to_center_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Snap to Centre's own real icon now (Aug 20 2026, per Keith:
+        "how about 4 arrows, all pointing towards the center") - 4
+        arrowheads converging inward from each edge toward the
+        middle. Rendered and visually verified at both 24px and 96px
+        before committing, same real process as every icon this
+        session."""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <g stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none">
+                <path d="M12 2.5 L12 8.5 M9.4 6.3 L12 8.5 L14.6 6.3"/>
+                <path d="M12 21.5 L12 15.5 M9.4 17.7 L12 15.5 L14.6 17.7"/>
+                <path d="M2.5 12 L8.5 12 M6.3 9.4 L8.5 12 L6.3 14.6"/>
+                <path d="M21.5 12 L15.5 12 M17.7 9.4 L15.5 12 L17.7 14.6"/>
+            </g>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
     

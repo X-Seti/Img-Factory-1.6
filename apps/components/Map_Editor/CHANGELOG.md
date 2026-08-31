@@ -9678,3 +9678,10 @@ conclusively found despite extensive isolated testing.
   the separate Overlays ribbon). Rendered and visually verified at
   both 24px and 96px before committing, same process as every icon
   this session.
+
+- Aug 20 2026 - Snap to Centre's icon replaced with 4 converging
+  arrows, per Keith: "I like that button, this can be used for
+  something else, how about 4 arrows, all pointing towards the
+  center." New converge_to_center_icon now wired to Snap to Centre;
+  the crosshair (snap_to_center_icon) stays defined, unused for now,
+  ready for Keith to reassign wherever he decides it fits.
