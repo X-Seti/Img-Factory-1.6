@@ -9553,3 +9553,15 @@ conclusively found despite extensive isolated testing.
   side just never ran. Wired in via QTimer.singleShot(0, ...), the
   same deferred pattern _restore_dock_state already uses, so it runs
   after every toolbar has actually been constructed.
+
+- Aug 20 2026 - Fixed real bug, per Keith: "I've noticed moving icons
+  to hidden, and save, these movements dont get saved." The "Hidden"
+  toolbar (where dragged-out icons go) was only ever created lazily,
+  the first time the Ribbon Manager dialog itself opens - it genuinely
+  didn't exist yet at either of _restore_toolbar_state's own real
+  call times (both fire from startup timers). Qt's own restoreState()
+  can only reassociate a saved icon with a toolbar object that already
+  exists at the moment it's called - with no real "Hidden" toolbar to
+  hand icons back to, any icon moved there and saved was silently
+  dropped back to its original toolbar every time. Now created
+  unconditionally, first thing, before restoreState() runs.

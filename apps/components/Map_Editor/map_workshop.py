@@ -13128,16 +13128,33 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         except Exception as _e:
             print(f"[ModelWorkshop] _save_toolbar_state error: {_e}")
 
-    def _restore_toolbar_state(self): #vers 5
+    def _restore_toolbar_state(self): #vers 6
         """Restore QMainWindow toolbar state from model_workshop.json.
         Uses an explicit layout version - bumped whenever ribbons are
         added/removed/renamed - so a stale save from an older ribbon
         layout is cleanly rejected instead of silently failing to
         restore (Qt's own toolbar-name hashing does this invisibly and
-        without any way to detect success/failure)."""
+        without any way to detect success/failure).
+
+        Real fix (Aug 20 2026, per Keith: "I've noticed moving icons
+        to hidden, and save, these movements dont get saved") - the
+        real "Hidden" toolbar is only ever created lazily, the first
+        time the Ribbon Manager dialog itself opens (_get_or_create_
+        hidden_toolbar) - it genuinely didn't exist yet at either of
+        this method's own real call times (both fire from startup
+        timers, well before Keith would have opened that dialog even
+        once this session). Qt's own restoreState() can only
+        reassociate a saved button with a toolbar object that already
+        exists at the moment it's called - with no real "Hidden"
+        toolbar object to hand icons back to, any icon Keith had
+        moved there and saved was silently dropped back to whichever
+        toolbar it started in, every single time. Creating it here
+        first, unconditionally, before restoreState() runs, ensures
+        it always exists to receive them correctly."""
         mw = getattr(self, '_inner_mw', None)
         if mw is None:
             return
+        self._get_or_create_hidden_toolbar()
         try:
             import json
             from pathlib import Path
