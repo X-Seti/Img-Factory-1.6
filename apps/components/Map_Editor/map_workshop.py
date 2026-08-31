@@ -22815,7 +22815,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if hasattr(btn, 'set_display_style'):
                 btn.set_display_style(icon_only)
 
-    def _move_overlay_buttons_to_ribbon(self): #vers 1
+    def _move_overlay_buttons_to_ribbon(self): #vers 2
         """Move every real overlay toggle button from IPL Controls
         onto the new "Overlays" ribbon (Aug 20 2026, per Keith: "The
         New Icons on the IPL Control pane, can be moved to the
@@ -22831,13 +22831,30 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         the next event-loop tick, both are guaranteed to already
         exist, regardless of that ordering. QToolBar.addWidget on an
         already-constructed widget re-parents it automatically - no
-        need to change where these buttons are originally built."""
+        need to change where these buttons are originally built.
+
+        Real fix (Aug 20 2026, per Keith: "in ribbon manager the new
+        icons show up as Action, needs to show like the other icons,
+        then name") - QToolBar.addWidget internally wraps the widget
+        in a real QWidgetAction, but never copies the widget's own
+        real text/icon onto it - RibbonManagerDialog's own real list-
+        population line (act.text() or act.toolTip() or "Action")
+        found both empty and fell all the way through to that literal
+        fallback string, exactly matching what Keith saw. Sets both
+        explicitly on the real QWidgetAction addWidget returns, the
+        same real text/icon _act's own QAction-based buttons already
+        carry."""
         tb = getattr(self, '_tb_overlays', None)
         buttons = getattr(self, '_overlay_toggle_buttons', [])
         if tb is None or not buttons:
             return
         for btn in buttons:
-            tb.addWidget(btn)
+            action = tb.addWidget(btn)
+            label = getattr(btn, '_label', None) or btn.text()
+            action.setText(label)
+            action.setToolTip(label)
+            if not btn.icon().isNull():
+                action.setIcon(btn.icon())
 
     def _on_generate_radar_tiles_clicked(self): #vers 2
         """Prompt for an output folder, then run _generate_radar_tiles
@@ -24775,7 +24792,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         opts_row2 = QHBoxLayout()
 
         # 2DFX master toggle (Aug 1 2026)
-        dfx_chk = _MapOverlayToggleButton("2DFX", supports_edit=False, icon=OverlayIcons.dfx2d_icon(20))
+        dfx_chk = _MapOverlayToggleButton("2DFX", supports_edit=False, icon=OverlayIcons.dfx2d_icon(24))
         dfx_chk.set_shown(True, emit=False)
         dfx_chk.setToolTip(
             "Show 2DFX lights in the world view - when off, no 2DFX\n"
@@ -24786,7 +24803,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         # Nav settings (Aug 1 2026)
         # Show Tobj (Aug 1 2026)
-        show_tobj_chk = _MapOverlayToggleButton("Tobj", supports_edit=False, icon=OverlayIcons.tobj_icon(20))
+        show_tobj_chk = _MapOverlayToggleButton("Tobj", supports_edit=False, icon=OverlayIcons.tobj_icon(24))
         show_tobj_chk.setToolTip(
             "Show TOBJ (timed) instances in the INST table, appended\n"
             "after the regular rows - filtered to only the ones\n"
@@ -24799,7 +24816,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # Timecyc play/stop toggle (Aug 20 2026, per Keith: "the play
         # and stop for timecyc can be merged with the play stop [2DFX]
         # [TOJB] adding a new button on that line that says [TCYC]")
-        tcyc_chk = _MapOverlayToggleButton("Tcyc", supports_edit=True, icon=OverlayIcons.tcyc_icon(20))
+        tcyc_chk = _MapOverlayToggleButton("Tcyc", supports_edit=True, icon=OverlayIcons.tcyc_icon(24))
         tcyc_chk.setToolTip(
             "Left-click: play/stop the loaded timecyc file's own day/\n"
             "night sky colour cycle in the 3D view.\n"
@@ -24818,7 +24835,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         opts_row2.addWidget(tcyc_chk)
         opts_row2.addWidget(dfx_chk)
         opts_row2.addWidget(time_chk)
-        opts_row2.addWidget(time_edit)
+        # time_edit disconnected from the visible layout (Aug 20 2026,
+        # per Keith: "The time/clock in IPL controls can be removed
+        # since thats on the ribbons / viewpoint") - the on-viewport
+        # CRT overlay already shows the current time; this QTimeEdit
+        # was now purely redundant with it. time_chk itself (TOBJ
+        # time-filtering - a genuinely different, non-redundant real
+        # function, not shown anywhere else) stays.
+        # opts_row2.addWidget(time_edit)
         # time_play_btn/time_stop_btn/time_settings_btn disconnected
         # from the visible layout (Aug 20 2026, per Keith: "[TIME]
         # showing the time in the viewpoint like old style green CRT,
@@ -24836,30 +24860,30 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         lay.addLayout(opts_row2)
 
         # Row 3: per-layer visibility toggles (Aug 1 2026)
-        show_paths_btn = _MapOverlayToggleButton("Paths", supports_edit=True, icon=OverlayIcons.paths_icon(20))
+        show_paths_btn = _MapOverlayToggleButton("Paths", supports_edit=True, icon=OverlayIcons.paths_icon(24))
         show_paths_btn.show_toggled.connect(self._on_show_paths_toggled)
         show_paths_btn.edit_toggled.connect(self._on_edit_paths_toggled)
         self._show_paths_chk = show_paths_btn
 
         # Show Tracks (Aug 17 2026)
-        show_tracks_btn = _MapOverlayToggleButton("Tracks", supports_edit=False, icon=OverlayIcons.tracks_icon(20))
+        show_tracks_btn = _MapOverlayToggleButton("Tracks", supports_edit=False, icon=OverlayIcons.tracks_icon(24))
         show_tracks_btn.show_toggled.connect(self._on_show_tracks_toggled)
         self._show_tracks_chk = show_tracks_btn
 
         # Show Cull Zones (Aug 16 2026)
-        show_cull_btn = _MapOverlayToggleButton("Cull", supports_edit=True, icon=OverlayIcons.cull_icon(20))
+        show_cull_btn = _MapOverlayToggleButton("Cull", supports_edit=True, icon=OverlayIcons.cull_icon(24))
         show_cull_btn.show_toggled.connect(self._on_show_cull_boxes_toggled)
         show_cull_btn.edit_toggled.connect(self._on_edit_boxes_toggled)
         self._show_cull_chk = show_cull_btn
 
         # Show Zones (Aug 16 2026)
-        show_zone_btn = _MapOverlayToggleButton("Zon", supports_edit=True, icon=OverlayIcons.zon_icon(20))
+        show_zone_btn = _MapOverlayToggleButton("Zon", supports_edit=True, icon=OverlayIcons.zon_icon(24))
         show_zone_btn.show_toggled.connect(self._on_show_zone_boxes_toggled)
         show_zone_btn.edit_toggled.connect(self._on_edit_boxes_toggled)
         self._show_zone_chk = show_zone_btn
 
         # Show Occlusion (Aug 16 2026)
-        show_occl_btn = _MapOverlayToggleButton("Occlusion", supports_edit=False, icon=OverlayIcons.occlusion_icon(20))
+        show_occl_btn = _MapOverlayToggleButton("Occlusion", supports_edit=False, icon=OverlayIcons.occlusion_icon(24))
         show_occl_btn.show_toggled.connect(self._on_show_occl_boxes_toggled)
         self._show_occl_chk = show_occl_btn
 
@@ -24873,17 +24897,17 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         lay.addLayout(opts_row3)
 
         # Show SA Nodes (Aug 19 2026)
-        show_sa_nodes_btn = _MapOverlayToggleButton("SA Nodes", supports_edit=False, icon=OverlayIcons.sa_nodes_icon(20))
+        show_sa_nodes_btn = _MapOverlayToggleButton("SA Nodes", supports_edit=False, icon=OverlayIcons.sa_nodes_icon(24))
         show_sa_nodes_btn.show_toggled.connect(self._on_show_sa_nodes_toggled)
         self._show_sa_nodes_chk = show_sa_nodes_btn # Show only with gta.dat loaded (SA)
 
         # Show Auzo (Aug 20 2026)
-        show_auzo_btn = _MapOverlayToggleButton("Auzo", supports_edit=False, icon=OverlayIcons.auzo_icon(20))
+        show_auzo_btn = _MapOverlayToggleButton("Auzo", supports_edit=False, icon=OverlayIcons.auzo_icon(24))
         show_auzo_btn.show_toggled.connect(self._on_show_auzo_toggled)
         self._show_auzo_chk = show_auzo_btn
 
         # Show Water (Aug 20 2026)
-        show_water_btn = _MapOverlayToggleButton("Water", supports_edit=True, icon=OverlayIcons.water_icon(20))
+        show_water_btn = _MapOverlayToggleButton("Water", supports_edit=True, icon=OverlayIcons.water_icon(24))
         show_water_btn.show_toggled.connect(self._on_show_water_toggled)
         # Right-click switches water layers (Aug 20 2026, per Keith:
         # "when you right click the water button, show the other
@@ -24905,7 +24929,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "other real layer (physical_map, double the resolution).")
 
         # Generate Radar Tiles (Aug 20 2026)
-        radar_gen_btn = _MapOverlayToggleButton("Radar", supports_edit=True, icon=OverlayIcons.radar_icon(20))
+        radar_gen_btn = _MapOverlayToggleButton("Radar", supports_edit=True, icon=OverlayIcons.radar_icon(24))
         radar_gen_btn.set_shown(bool(self.map_settings.get('show_radar_tex_layer')), emit=False)
         radar_gen_btn.show_toggled.connect(self._on_show_radar_tex_layer_toggled)
         # Right-click generates the radar tiles (Aug 20 2026, per

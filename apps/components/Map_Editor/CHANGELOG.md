@@ -9619,3 +9619,30 @@ conclusively found despite extensive isolated testing.
   now have real icon artwork - the "IPL Controls Display" toggle from
   two turns ago can now show a fully consistent icon-only ribbon
   instead of the previous mix of 3 icons + 9 text fallbacks.
+
+- Aug 20 2026 - Three follow-up fixes on the overlay icons/ribbon
+  work, per Keith:
+
+  1. "The new icons need to be the same size as the other icons on
+     the ribbons, 24x24?" - all 12 icon() calls now generate at 24
+     (matching the SVGs' own native design/viewBox size, verified
+     visually at) instead of 20, for a sharper render - the toolbar's
+     own setIconSize(20,20) still controls final display size either
+     way, but rendering at native resolution and letting Qt scale
+     down looks crisper than generating directly at the smaller size.
+
+  2. "The time/clock in IPL controls can be removed since thats on
+     the ribbons / viewpoint" - the QTimeEdit ("clock") disconnected
+     from the visible layout, now fully redundant with the on-
+     viewport CRT overlay. The Time checkbox itself (TOBJ time-
+     filtering - a genuinely different, non-redundant function, not
+     shown anywhere else) stays.
+
+  3. "in ribbon manager the new icons show up as Action, needs to
+     show like the other icons, then name" - QToolBar.addWidget wraps
+     each button in a real QWidgetAction but never copies the
+     button's own real text/icon onto it; RibbonManagerDialog's own
+     list line (act.text() or act.toolTip() or "Action") found both
+     empty and fell through to that literal fallback, exactly
+     matching what Keith saw. _move_overlay_buttons_to_ribbon now
+     sets both explicitly on the real action addWidget returns.
