@@ -12946,6 +12946,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._sel_face_act.setChecked(True)
         self._select_mode_group = sel_group
 
+        # Hidden - Model Workshop icon, per Keith (Aug 20 2026)
+        for a in (self._sel_vert_act, self._sel_edge_act,
+                  self._sel_face_act, self._sel_poly_act):
+            a.setVisible(False)
+
         # Selection count label — QToolBar widget (labels can't be QAction)
         self._sel_count_label = _QL("")
         self._sel_count_label.setStyleSheet(
@@ -12963,6 +12968,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
              self.icon_factory.view_icon,
              lambda v: self._toggle_front_only_paint(),
              checkable=True, attr='_front_paint_act')
+        # Hidden - Model Workshop icon, per Keith (Aug 20 2026)
+        self._front_paint_act.setVisible(False)
 
         # - Ribbon 2: Snap Targets
 
@@ -13033,6 +13040,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
              _icon(lambda color=icon_color: MaxSVGIcons.snap_percent_icon(
                  size=20, color=color), 'snap_percent_icon'),
              checkable=True, attr='_snap_percent_act')
+        # Hidden - Model Workshop icons, per Keith (Aug 20 2026)
+        for a in (self._snap_axis_act, self._snap_angle_act, self._snap_percent_act):
+            a.setVisible(False)
 
         # - Ribbon 3: Edit Geometry
         tb_geo = _tb("Edit Geometry")
@@ -13040,6 +13050,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
              _icon(lambda color=icon_color: MaxSVGIcons.mirror_icon(
                  size=20, color=color), 'mirror_icon'),
              callback=self._mirror_dialog, attr='_mirror_act')
+        # Hidden - Model Workshop icon, per Keith (Aug 20 2026)
+        self._mirror_act.setVisible(False)
         _act(tb_geo, "Align",
              _icon(lambda color=icon_color: MaxSVGIcons.align_icon(
                  size=20, color=color), 'align_icon'),
@@ -13072,8 +13084,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         _act(tb_nav, "4-Pane View",
              _icon(self.icon_factory.quad_view_icon, 'quad_view_icon'),
              self._toggle_quad_view, checkable=True, attr='_quad_view_act')
-        # Disabled (Aug 1 2026)
+        # Hidden - Model Workshop icon, per Keith (Aug 20 2026)
         self._quad_view_act.setEnabled(False)
+        self._quad_view_act.setVisible(False)
         self._quad_view_act.setToolTip(
             "4-Pane View is currently disabled - it only ever mirrors\n"
             "single-model geometry, not the loaded world/map, so it\n"

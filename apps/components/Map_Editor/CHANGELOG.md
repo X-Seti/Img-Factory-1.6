@@ -10052,3 +10052,19 @@ conclusively found despite extensive isolated testing.
   with dates and attribution instead of a plain description of what
   the control does - all rewritten to 1-3 short lines stating the
   function only.
+
+- Aug 20 2026 - Hid 10 Model Workshop icons from Map Workshop's own
+  ribbons, per Keith's own exact list: "Mirror Icon, 4 Pane icon,
+  percent snap, angle snap, axis snap, front only paint, Vertex
+  Select, Edge Select, Face Select, Polygon Select." All were either
+  confirmed non-functional stubs (Mirror: "not yet implemented,
+  coming in a future build"; Axis/Angle/Percent Snap: no callback
+  wired at all) or model-geometry-specific features that don't apply
+  to map/IPL editing. Used setVisible(False) rather than just
+  setEnabled(False) - 4-Pane View had already been disabled since Aug
+  1 2026 but stayed visible, taking up ribbon space; now hidden
+  outright, same as the other 9. Kept intact and unhidden, per
+  Keith's own exact list (deliberately not expanded to related items
+  like Align or Backface Culling): Snap Vertices (explicitly
+  requested for Map Workshop last turn), Snap: Centre of Model
+  (working, map-relevant), and the rest of Navigation.
