@@ -9922,3 +9922,15 @@ conclusively found despite extensive isolated testing.
   a different real signature at the header's own end - likely a
   console-platform variant of the same underlying format, not yet
   confirmed or decoded.
+
+- Aug 20 2026 - Paused SFX23 (III/VC SFX.RAW/SFX.SDT), per Keith:
+  "put Sfx23 to the side, lets work on the others, Sfx23 sounds like
+  statis." The real offset/size structure from last turn is still
+  confirmed correct (mathematically proven to tile SFX23.RAW
+  exactly), but Keith's own real listening test on the decoded result
+  found it sounds like static - something about the real sample
+  encoding itself still isn't right. Dir Tree's own menu entry
+  disabled with an honest tooltip explaining exactly this, rather
+  than left as a confident Play action known to sound wrong.
+  _play_sfx_pair itself kept intact (disconnected, not removed) for
+  whenever the real encoding issue gets solved.

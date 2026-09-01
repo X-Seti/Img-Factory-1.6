@@ -1344,15 +1344,29 @@ class DirectoryTreeBrowser(QWidget):
                 # SFX23.RAW/SFX23.SDT sample pair) - GTA 2/III/VC's own
                 # real SFX archive format, a real .RAW (sample data) +
                 # .SDT (index) pair sharing the same real base filename.
-                # See audioparser.py's own "III/VC SFX format" section
-                # for the full, real confirmation story (a documented
-                # 24-byte SDT entry didn't match Keith's own real
-                # files; a 12-byte entry does, with mathematical
-                # certainty - it tiles his own real SFX23.RAW exactly).
-                play_action = QAction("Play first entry", self)
-                play_action.triggered.connect(
-                    lambda _=False, p=file_path: self._play_sfx_pair(p))
-                menu.addAction(play_action)
+                # The entry structure itself is confirmed correct with
+                # mathematical certainty (see audioparser.py's own
+                # "III/VC SFX format" section - a documented 24-byte
+                # SDT entry didn't match Keith's own real files; a
+                # 12-byte entry does, tiling his own real SFX23.RAW
+                # exactly). But Keith's own real listening test on the
+                # extracted result: "Sfx23 sounds like statis" - the
+                # real offsets/sizes are right, something about the
+                # real sample encoding itself still isn't (see this
+                # class's own real _play_sfx_pair docstring for the
+                # full, honest story). Disabled rather than left as a
+                # confident Play action that's known to sound wrong,
+                # per Keith's own real "put Sfx23 to the side" - still
+                # here, and still findable, while paused.
+                sfx_action = QAction("Play first entry (known issue: sounds like static)", self)
+                sfx_action.setEnabled(False)
+                sfx_action.setToolTip(
+                    "The real offset/size structure is confirmed correct\n"
+                    "(it tiles the .RAW file exactly), but the decoded\n"
+                    "audio itself still sounds like static - paused per\n"
+                    "Keith's own real \"put Sfx23 to the side\" (Aug 20\n"
+                    "2026), not yet solved.")
+                menu.addAction(sfx_action)
             elif file_base in _SA_STREAM_NAMES:
                 extract_action = QAction("Extract && Play Tracks...", self)
                 extract_action.triggered.connect(
