@@ -862,3 +862,45 @@ squares spaced out between the crossed sections")
   or Keith's own more detailed description of the exact offset/
   spacing relationship between the main grid and the smaller squares,
   before real geometry can be designed for it.
+
+## Audio formats still unsolved (Aug 20 2026, per Keith: "add those
+to the todo list, we need to finish map_workshop")
+Set aside to get back to Map Workshop's own core feature work - not
+abandoned, just paused. Both confirmed against Keith's own real,
+uploaded sample files this same session; solving either would extend
+apps/methods/audioparser.py (and its own synced copy in this
+component's own depends/ folder).
+
+- **AMBIENCE.PAK** - real, uploaded ~102MB sample. Same underlying
+  8068-byte track-header structure as SA's own confirmed "audio
+  stream" format appears present (the value 24000 reappears at the
+  same real offset, matching that format's own real sample-rate
+  field exactly), but unencrypted (plain zero padding, not SA's own
+  0xCDCDCDCD) and with a different real signature at the header's
+  own end - likely a console-platform variant (a directory listing
+  documenting this exact structure also includes sa_xbox_dsp.bin, an
+  Xbox-specific config file, suggesting Xbox). Two decode hypotheses
+  tried and ruled out by Keith's own real listening test ("pak files
+  is static, low volume"): mono PS-ADPCM at 24000Hz decoded without
+  error and looked statistically far more plausible than SFX23's own
+  result (much lower zero-crossing rate/amplitude), but still sounded
+  like static; a 2000-byte stereo-interleave attempt (the same
+  pattern confirmed correct for .VB) failed outright with decoder
+  errors. Neither panned out - genuinely unsolved, no working
+  hypothesis queued up.
+
+- **SFX23 (III/VC SFX.RAW/SFX.SDT)** - real, uploaded sample pair.
+  The offset/size index structure is confirmed correct with
+  mathematical certainty (a 12-byte SDT entry - offset/size/samples-
+  per-sec - tiles SFX23.RAW exactly, byte for byte, across all 4
+  entries; GrandTheftWiki's own documented 24-byte entry was proven
+  to be a misalignment artifact of this same 12-byte reading, not a
+  separate, real structure). But per Keith's own real listening test:
+  "Sfx23 sounds like statis" - something about the real sample
+  encoding itself still isn't right, despite GrandTheftWiki's own
+  claim that the RAW file contains plain, uncompressed 16-bit mono
+  PCM. Dir Tree's own menu entry disabled with an honest "known
+  issue" tooltip rather than left as a working-looking Play action;
+  _play_sfx_pair kept intact (disconnected, not removed) for
+  whenever this gets solved.
+
