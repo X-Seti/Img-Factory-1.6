@@ -8593,12 +8593,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         radar_show_grid_chk = QCheckBox("Show reference grid in generated tiles")
         radar_show_grid_chk.setChecked(bool(self.map_settings.get('radar_tiles_show_grid')))
         radar_show_grid_chk.setToolTip(
-            "Off by default - the viewport's own square reference grid\n"
-            "(the same one visible while editing) used to bake straight\n"
-            "into every generated radar/minimap tile, since capture\n"
-            "drew it the same way a normal interactive view does.\n"
-            "Leave unchecked unless you actually want the grid lines\n"
-            "showing in the exported tiles themselves.")
+            "Include the viewport's reference grid lines in\n"
+            "generated radar/minimap tiles. Off by default.")
         radar_form.addRow(radar_show_grid_chk)
 
         # radar_tex_layer_chk removed (Aug 20 2026, per Keith: "moving
@@ -8772,10 +8768,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         water_hide_outside_chk = QCheckBox("Hide water outside map boundary")
         water_hide_outside_chk.setChecked(bool(self.map_settings.get('water_hide_outside_map')))
         water_hide_outside_chk.setToolTip(
-            "Same real idea as \"Hide grid over radar tiles\" above,\n"
-            "just inverted for water - skips any water cell whose own\n"
-            "centre falls outside the currently loaded game's real map\n"
-            "area, instead of showing it stretched across the void.")
+            "Skips water cells outside the loaded map's own area,\n"
+            "instead of showing them stretched across the void.")
         water_form.addRow(water_hide_outside_chk)
 
         render_layout.addWidget(boxes_grp)
@@ -8792,14 +8786,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         water2_use_texture_chk = QCheckBox("Use water texture (if preloaded)")
         water2_use_texture_chk.setChecked(bool(self.map_settings.get('water2_use_texture')))
         water2_use_texture_chk.setToolTip(
-            "Aug 20 2026, per Keith: \"I like the blue, so we can keep\n"
-            "it, or have an option to use the water texture, either\n"
-            "from the game or the tex/ file from img factory\" - off\n"
-            "shows the plain flat fill regardless of whether a real\n"
-            "texture was preloaded; on tries the currently loaded\n"
-            "game's own real particle.txd water texture first, falling\n"
-            "back to a custom file (below) or this app's own tex/\n"
-            "folder asset if preloaded via that route instead.")
+            "Off: plain flat colour fill.\n"
+            "On: uses the game's water texture if preloaded, "
+            "falling back to a custom file or tex/ asset.")
         water2_form.addRow(water2_use_texture_chk)
 
         water2_tex_path_edit = QLineEdit(self.map_settings.get('water2_custom_texture_path') or '')
@@ -8841,13 +8830,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         water2_height_spin.setDecimals(1)
         water2_height_spin.setValue(float(self.map_settings.get('water2_height_offset')))
         water2_height_spin.setToolTip(
-            "Aug 20 2026, per Keith: \"The water needs to be moved up\n"
-            "and have transparency settings, but I'm not sure by how\n"
-            "much. Looking at the radar map and water together would\n"
-            "help\" - added to every preloaded cell's own real height,\n"
-            "doesn't touch the underlying data itself. Turn on the\n"
-            "[Radar] button too to compare water against the real\n"
-            "radar tex layer while adjusting this.")
+            "Added to every water cell's height. Turn on [Radar] "
+            "to compare against the radar layer while adjusting.")
         water2_form.addRow("Height offset:", water2_height_spin)
 
         water2_alpha_spin = QDoubleSpinBox()
@@ -8864,12 +8848,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         water2_x_spin.setDecimals(1)
         water2_x_spin.setValue(float(self.map_settings.get('water2_x_offset')))
         water2_x_spin.setToolTip(
-            "Aug 20 2026, per Keith: \"6 squares offset on the larger\n"
-            "grid, or 14 on the smaller grid\" - a real, measured VC-\n"
-            "specific misalignment against the radar layer. Matches\n"
-            "water_workshop.py's own \"World coordinate offset\"\n"
-            "feature - per-file, not assumed the same for every VC\n"
-            "install.")
+            "X offset applied to every water cell. Matches water_"
+            "workshop.py's own \"World coordinate offset\".")
         water2_form.addRow("X offset:", water2_x_spin)
 
         water2_y_spin = QDoubleSpinBox()
@@ -8883,13 +8863,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         water2_vc_only_chk = QCheckBox("Apply X/Y offset to VC only")
         water2_vc_only_chk.setChecked(bool(self.map_settings.get('water2_offset_vc_only')))
         water2_vc_only_chk.setToolTip(
-            "Aug 20 2026, per Keith: \"offset should only be for VC,\n"
-            "so we need a toggle to effect VC waterpro.dat only\" - LC/\n"
-            "SA already line up perfectly with no offset at all; on\n"
-            "(default) keeps a saved VC-specific offset from wrongly\n"
-            "shifting their own, already-correct water too. Off applies\n"
-            "the offset regardless of which game is loaded, in case a\n"
-            "future game turns out to need the same kind of correction.")
+            "On: X/Y offset applies to VC only (LC/SA already align).\n"
+            "Off: applies the offset regardless of game.")
         water2_form.addRow(water2_vc_only_chk)
 
         # Real fix (Aug 20 2026, per Keith: "Change it by 20+ on the
@@ -8938,17 +8913,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         audio_form = QFormLayout(audio_grp)
         audio_extract_btn = QPushButton("Extract Tracks...")
         audio_extract_btn.setToolTip(
-            "Aug 20 2026, per Keith: \"i can send you the sounds, would\n"
-            "that help\" - pick one of SA's own real audio stream files\n"
-            "(e.g. AMBIENCE, GENRL, or a real radio station file) and\n"
-            "extract every real track inside it to individual, numbered\n"
-            ".ogg files in depends/auzo_sounds/.\n\n"
-            "Real, honest limitation: which specific track index\n"
-            "corresponds to which specific Auzo zone's own sound_id\n"
-            "isn't documented anywhere found so far - listen to the\n"
-            "extracted tracks and rename the ones that match a zone to\n"
-            "that zone's own name or sound_id, so the Auzo list's own\n"
-            "double-click playback can find them.")
+            "Extract every track from an SA audio stream file (e.g.\n"
+            "AMBIENCE, GENRL) to numbered .ogg files in depends/\n"
+            "auzo_sounds/. Rename matches by zone name or sound_id.")
         def _extract_audio_stream(): #vers 1
             path, _ = QFileDialog.getOpenFileName(
                 self, "Choose SA Audio Stream File (e.g. AMBIENCE, GENRL)", "", "All Files (*)")
@@ -9177,12 +9144,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         auto_load_last_world_chk = QCheckBox("Auto-load last world on startup")
         auto_load_last_world_chk.setChecked(self.map_settings.get('auto_load_last_world', True))
         auto_load_last_world_chk.setToolTip(
-            "Aug 20 2026, per Keith's own explicit choice - automatically\n"
-            "reloads the most recently used game .dat file (same list the\n"
-            "Recent button's own dropdown uses) the moment Map Workshop\n"
-            "opens, so a saved Preload doesn't need a separate manual\n"
-            "world reload to actually apply. Skipped quietly if there's\n"
-            "nothing recent or that file no longer exists on disk.")
+            "Automatically reloads the most recently used game .dat\n"
+            "file when Map Workshop opens.")
         ld_form.addRow(auto_load_last_world_chk)
 
         auto_dismiss_summary_chk = QCheckBox("Auto-dismiss the load summary dialog")
@@ -9193,11 +9156,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         auto_dismiss_seconds_spin.setValue(int(self.map_settings.get('auto_dismiss_summary_seconds', 10)))
         auto_dismiss_seconds_spin.setSuffix(" s")
         auto_dismiss_summary_chk.setToolTip(
-            "Aug 20 2026, per Keith: \"that dat window, countdown from 10,\n"
-            "then automatically press ok\" - the OK button's own label\n"
-            "counts down and it clicks itself once the countdown reaches\n"
-            "zero, so it doesn't have to be dismissed by hand every time\n"
-            "(useful alongside Auto-load last world above).")
+            "Automatically clicks OK on the load summary dialog\n"
+            "after the countdown below.")
         auto_dismiss_summary_row.addWidget(auto_dismiss_summary_chk)
         auto_dismiss_summary_row.addWidget(QLabel("after:"))
         auto_dismiss_summary_row.addWidget(auto_dismiss_seconds_spin)
@@ -13088,13 +13048,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
              _icon(self.icon_factory.snap_vertex_icon, 'snap_vertex_icon'),
              callback=self._on_snap_vertices_clicked, attr='_snap_vertices_act')
         self._snap_vertices_act.setToolTip(
-            "Aug 20 2026, per Keith: \"the biggest problem sometimes\n"
-            "with making models is sometimes there are gaps, so we\n"
-            "need a snap function\" - closes gaps by moving nearby\n"
-            "vertices together (their own shared centroid). Acts on\n"
-            "the current selection if one exists, or the whole model\n"
-            "otherwise. Distinct from Snap Targets' own separate,\n"
-            "instance-level \"Snap: Centre of Model\".")
+            "Closes gaps by moving nearby vertices to their shared\n"
+            "centroid. Acts on the current selection, or whole model.")
 
         # - Ribbon 4: Navigation
         tb_nav = _tb("Navigation", Qt.ToolBarArea.RightToolBarArea)
@@ -23873,11 +23828,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         up_btn = QPushButton("Up")
         tex_btn = QPushButton("App Textures")
         tex_btn.setToolTip(
-            "Jump to this app's own tex/ folder (re-applied Aug 20\n"
-            "2026, per Keith: \"there is a tex folder now in img-\n"
-            "factory-1.6, in there is the water texture, so this can\n"
-            "also be preloaded as an asset\") - a real app asset\n"
-            "folder, not part of any game's own data folder.")
+            "Jump to this app's own tex/ folder (app asset, not\n"
+            "part of any game's data folder).")
         path_row.addWidget(QLabel("Folder:"))
         path_row.addWidget(path_edit)
         path_row.addWidget(up_btn)

@@ -10044,3 +10044,11 @@ conclusively found despite extensive isolated testing.
   actual 24px size and were replaced before committing; the final
   design (a loose, dashed vertex snapping into a solid one via an
   arrow) reads clearly at both 24px and 96px.
+
+- Aug 20 2026 - Shortened tooltips across the file, per Keith: "do
+  you remembe me saying to you about keeping it brief, in the tool
+  tips, it reads like a changelog, tooltop are jusr meant to show the
+  function." 10 tooltips had grown into full changelog-style entries
+  with dates and attribution instead of a plain description of what
+  the control does - all rewritten to 1-3 short lines stating the
+  function only.
