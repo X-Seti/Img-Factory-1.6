@@ -10014,3 +10014,33 @@ conclusively found despite extensive isolated testing.
      actually being pushed. Both now record a real, correct inverse
      operation (negative shift / negative-angle rotation around the
      same pivot) as their own undo, reusable directly as redo too.
+
+- Aug 20 2026 - Snap function (vertex level), per Keith's own chosen
+  priority: "the biggest problem sometimes with making models is
+  sometimes there are gaps, so we need a snap function" - and, once
+  asked which level and target: "both using different svg icons."
+
+  Found the instance-level half already existed and was already fully
+  working (Snap Targets ribbon's own "Snap: Centre of Model", Aug 19
+  2026 - snaps a dragged instance's position to the nearest other
+  instance's own position). The genuinely missing piece was vertex-
+  level, mesh-editing snap.
+
+  New _snap_vertices on COL3DViewport - groups vertices within a
+  threshold distance into clusters and moves every vertex in a
+  cluster to that cluster's own centroid, closing visual gaps without
+  a full topology-changing weld (which would also need face-index
+  remapping - a real, separate, harder problem, left for later if
+  this isn't enough on its own). Operates on the current selection if
+  one exists, or the whole model otherwise. Fully undoable via the
+  same real _push_map_undo stack from earlier this session. New
+  "Snap Vertices" button in the Edit Geometry ribbon, alongside
+  Mirror/Align.
+
+  New snap_vertex_icon in SVGIconFactory, distinct from Snap Targets'
+  own existing MaxSVGIcons-based instance-level snap icons, per
+  Keith's own explicit request. Two earlier icon attempts (converging
+  arrowheads from two dots; a magnet shape) both read ambiguously at
+  actual 24px size and were replaced before committing; the final
+  design (a loose, dashed vertex snapping into a solid one via an
+  arrow) reads clearly at both 24px and 96px.

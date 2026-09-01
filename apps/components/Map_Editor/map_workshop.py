@@ -1397,6 +1397,122 @@ class COL3DViewport(QWidget): #vers 2
         self.update()
         return True
 
+    def _snap_vertices(self, threshold=0.05): #vers 2
+        """Close gaps in a mesh by moving nearby vertices together
+        (Aug 20 2026, per Keith: "the biggest problem sometimes with
+        making models is sometimes there are gaps, so we need a snap
+        function" - confirmed to also mean this, vertex-level, mesh-
+        editing sense, alongside the already-existing, separate
+        instance-level "Snap: Centre of Model" feature on the Snap
+        Targets ribbon: "both using different svg icons").
+
+        Real, deliberately safe first version: groups vertices within
+        threshold world units of each other into clusters and moves
+        every vertex in a cluster to that cluster's own centroid -
+        closes the visual gap without actually merging/deduplicating
+        the vertices themselves (a full topology-changing weld, which
+        would also need face-index remapping, is a real, separate,
+        harder problem left for later if this isn't enough on its
+        own). Operates on the current selection if one exists
+        (whichever select mode is active, via _selected_vertex_
+        indices), or the whole model if nothing is selected.
+
+        Returns the number of vertices actually moved."""
+        model = self._model
+        if model is None:
+            return 0
+        geom = getattr(model, '_geometry', None)
+        if geom is None:
+            return 0   # not a real DFF adapter (e.g. COL box/sphere editing)
+
+        scoped = self._selected_vertex_indices()
+        indices = sorted(scoped) if scoped else list(range(len(geom.vertices)))
+        if len(indices) < 2:
+            return 0
+
+        # Group into clusters by proximity (simple, safe O(n^2) pass -
+        # scoped selections keep this small in practice; a full-model
+        # snap on a very large mesh could be slow, but correctness
+        # matters more than speed for a first, real version of this).
+        clusters = []
+        assigned = set()
+        for i, vi in enumerate(indices):
+            if vi in assigned:
+                continue
+            v = geom.vertices[vi]
+            cluster = [vi]
+            assigned.add(vi)
+            for vj in indices[i + 1:]:
+                if vj in assigned:
+                    continue
+                w = geom.vertices[vj]
+                dist = ((v.x - w.x) ** 2 + (v.y - w.y) ** 2 + (v.z - w.z) ** 2) ** 0.5
+                if dist <= threshold:
+                    cluster.append(vj)
+                    assigned.add(vj)
+            if len(cluster) > 1:
+                clusters.append(cluster)
+
+        if not clusters:
+            return 0
+
+        # Compute each real cluster's own real centroid once, upfront
+        # - both the initial move and redo below replay these exact,
+        # pre-computed values directly, rather than each recomputing
+        # its own centroid from (possibly already-moved) live data.
+        centroids = []
+        old_positions = {}
+        for cluster in clusters:
+            cx = sum(geom.vertices[vi].x for vi in cluster) / len(cluster)
+            cy = sum(geom.vertices[vi].y for vi in cluster) / len(cluster)
+            cz = sum(geom.vertices[vi].z for vi in cluster) / len(cluster)
+            centroids.append((cx, cy, cz))
+            for vi in cluster:
+                v = geom.vertices[vi]
+                old_positions[vi] = (v.x, v.y, v.z)
+
+        def _apply_centroids():
+            for cluster, (cx, cy, cz) in zip(clusters, centroids):
+                for vi in cluster:
+                    v = geom.vertices[vi]
+                    v.x, v.y, v.z = cx, cy, cz
+
+        def _apply_old_positions():
+            for vi, (ox, oy, oz) in old_positions.items():
+                v = geom.vertices[vi]
+                v.x, v.y, v.z = ox, oy, oz
+
+        _apply_centroids()
+        moved = len(old_positions)
+
+        ws = self._find_workshop()
+        if ws:
+            dff_model = getattr(ws, '_current_dff_model', None)
+            if dff_model is not None:
+                ws._display_dff_model(dff_model)
+                vp = getattr(ws, 'preview_widget', None)
+                if vp is self:
+                    for adapter in getattr(ws, '_dff_adapters', []):
+                        if adapter._geometry is geom:
+                            self._model = adapter
+                            break
+
+            def _undo():
+                _apply_old_positions()
+                ws._display_dff_model(dff_model)
+                self.update()
+
+            def _redo():
+                _apply_centroids()
+                ws._display_dff_model(dff_model)
+                self.update()
+
+            if hasattr(ws, '_push_map_undo'):
+                ws._push_map_undo(_undo, _redo, f"Snap {moved} vertex/vertices")
+        self.update()
+        return moved
+
+
 
     # - mouse
     def mousePressEvent(self, event): #vers 1
@@ -11651,6 +11767,21 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             vp.update()
         self._set_status(f"Geometry [{idx}] duplicated.")
 
+    def _on_snap_vertices_clicked(self): #vers 1
+        """Snap Vertices button handler (Aug 20 2026, per Keith: "the
+        biggest problem sometimes with making models is sometimes
+        there are gaps, so we need a snap function") - delegates to
+        the viewport's own real _snap_vertices, then reports the real
+        result."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is None or not hasattr(vp, '_snap_vertices'):
+            return
+        moved = vp._snap_vertices()
+        if moved:
+            self._set_status(f"Snapped {moved} vertex/vertices to close gaps")
+        else:
+            self._set_status("Snap Vertices: nothing close enough to snap")
+
     def _mirror_dialog(self): #vers 1
         """STUB: Mirror selected geometry across a chosen axis."""
         from PyQt6.QtWidgets import QMessageBox
@@ -12953,6 +13084,17 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
              _icon(lambda color=icon_color: MaxSVGIcons.align_icon(
                  size=20, color=color), 'align_icon'),
              callback=self._align_dialog, attr='_align_act')
+        _act(tb_geo, "Snap Vertices",
+             _icon(self.icon_factory.snap_vertex_icon, 'snap_vertex_icon'),
+             callback=self._on_snap_vertices_clicked, attr='_snap_vertices_act')
+        self._snap_vertices_act.setToolTip(
+            "Aug 20 2026, per Keith: \"the biggest problem sometimes\n"
+            "with making models is sometimes there are gaps, so we\n"
+            "need a snap function\" - closes gaps by moving nearby\n"
+            "vertices together (their own shared centroid). Acts on\n"
+            "the current selection if one exists, or the whole model\n"
+            "otherwise. Distinct from Snap Targets' own separate,\n"
+            "instance-level \"Snap: Centre of Model\".")
 
         # - Ribbon 4: Navigation
         tb_nav = _tb("Navigation", Qt.ToolBarArea.RightToolBarArea)

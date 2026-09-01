@@ -962,6 +962,27 @@ class SVGIconFactory: #vers 8
             </g>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def snap_vertex_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Vertex snap icon (Aug 20 2026, per Keith: "the biggest
+        problem sometimes with making models is sometimes there are
+        gaps, so we need a snap function" / "both using different
+        svg icons") - a loose, dashed vertex snapping into a solid
+        one via an arrow, distinct from Snap Targets' own existing
+        instance-level snap icons (snap_pivot_icon etc., from
+        MaxSVGIcons). Rendered and visually verified at both 24px and
+        96px before committing - two earlier attempts (converging
+        arrowheads from two dots, and a magnet shape) both read
+        ambiguously at actual size; this simpler dashed-to-solid
+        design reads clearly at both sizes."""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <circle cx="5" cy="19" r="3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-dasharray="2 2"/>
+            <path d="M8.5 16 L16 8.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+            <path d="M11 8 L16 8.5 L15.5 13.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="19" cy="5" r="3" fill="currentColor"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
     
 
 
