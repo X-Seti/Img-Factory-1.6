@@ -1292,19 +1292,21 @@ class DirectoryTreeBrowser(QWidget):
             # apps/methods/sa_audio_stream.py before anything inside
             # them can be played at all.
             #
-            # Real fix (Aug 20 2026, per Keith's own real, uploaded
-            # screenshot of his own real audio/ folder: "when I click
-            # on those files, I don't see a right click play option?")
-            # - this set was both incomplete and wrong: missing 6 real
-            # filenames (AA/ADVERTS/BEATS/CH/CR/HC) that genuinely
-            # exist in a real SA install's own streams/ folder, and
-            # wrongly included "genrl" (a real SFX file, not a real
-            # stream file at all) and "wc" (doesn't exist at all -
-            # confused with "WCTR", the radio station's own display
-            # name, not its real filename). Full, correct list
-            # confirmed against GTAMods' own real, documented "Game
-            # directory (SA)" page.
+            # Real fix (Aug 20 2026, per Keith: "in LC, VC .wav plays...
+            # .at3 .vb") - .at3 (Sony ATRAC3+, confirmed via ffprobe
+            # against Keith's own real, uploaded philcollins.at3 file
+            # as a standard RIFF/WAVE container ffmpeg already decodes
+            # directly) plays via the same Play action as standard
+            # audio, transcoded through ffmpeg first since QMediaPlayer
+            # has no native ATRAC3+ support of its own. .vb (PS2 4-bit
+            # PS-ADPCM, headerless, confirmed via apps/methods/ps2_vb_
+            # audio.py against Keith's own real, uploaded AMBSIL.VB -
+            # decoded left channel came back exactly, perfectly silent,
+            # exactly matching what a file named "ambient silence"
+            # should be) gets its own dedicated action, since it needs
+            # real de-interleaving + decoding, not just a transcode.
             _AUDIO_EXTS = ('.wav', '.mp3', '.ogg', '.flac')
+            _FFMPEG_TRANSCODE_EXTS = ('.at3',)
             _SA_STREAM_NAMES = {
                 'aa', 'adverts', 'ambience', 'beats', 'ch', 'co', 'cr',
                 'cutscene', 'ds', 'hc', 'mh', 'mr', 'nj', 're', 'rg', 'tk',
@@ -1326,6 +1328,16 @@ class DirectoryTreeBrowser(QWidget):
                 play_action = QAction("Play", self)
                 play_action.triggered.connect(
                     lambda _=False, p=file_path: self._play_audio_file(p))
+                menu.addAction(play_action)
+            elif file_ext in _FFMPEG_TRANSCODE_EXTS:
+                play_action = QAction("Play", self)
+                play_action.triggered.connect(
+                    lambda _=False, p=file_path: self._play_via_ffmpeg_transcode(p))
+                menu.addAction(play_action)
+            elif file_ext == '.vb':
+                play_action = QAction("Play", self)
+                play_action.triggered.connect(
+                    lambda _=False, p=file_path: self._play_ps2_vb_file(p))
                 menu.addAction(play_action)
             elif file_base in _SA_STREAM_NAMES:
                 extract_action = QAction("Extract && Play Tracks...", self)
@@ -1417,30 +1429,113 @@ class DirectoryTreeBrowser(QWidget):
         menu.addAction(props_action)
         menu.exec(self.tree.mapToGlobal(position))
 
-    def _play_audio_file(self, path): #vers 1
+    def _get_mini_player(self): #vers 1
+        """Get (creating once, first time it's needed) the shared
+        MiniAudioPlayer widget (Aug 20 2026, per Keith: "maybe a
+        tooltip player, showing just the name, and a progress bar,
+        stop, start") - one real widget instance reused for every
+        real file played from Dir Tree, shown as a real, small,
+        floating window rather than a modal dialog so Keith can keep
+        browsing while something plays."""
+        player = getattr(self, '_mini_player', None)
+        if player is not None:
+            return player
+        try:
+            from apps.methods.mini_audio_player import MiniAudioPlayer
+        except ImportError as e:
+            self.log_message(f"Couldn't load the mini player: {e}")
+            return None
+        player = MiniAudioPlayer(self)
+        player.setWindowTitle("Audio Preview")
+        player.setWindowFlags(Qt.WindowType.Tool)
+        player.resize(320, 90)
+        self._mini_player = player
+        return player
+
+    def _play_audio_file(self, path): #vers 2
         """Play a standard audio file directly (Aug 20 2026, per
         Keith: "dir tree shows audio files, so we can now right click
-        them to play") - uses QtMultimedia's own QSoundEffect, the
-        same real dependency map_workshop.py's own Auzo list playback
-        already relies on; wrapped defensively since it may not be
-        installed/available in every real Python environment this app
-        runs in."""
-        try:
-            from PyQt6.QtMultimedia import QSoundEffect
-            from PyQt6.QtCore import QUrl
-        except ImportError:
-            self.log_message(
-                "Can't play audio - PyQt6.QtMultimedia isn't installed "
-                "in this Python environment.")
+        them to play").
+
+        Real fix (Aug 20 2026, per Keith: "wav plays. mp3 doesn't seen
+        to work.") - switched from QSoundEffect to the shared
+        MiniAudioPlayer's own QMediaPlayer. QSoundEffect is built for
+        short, low-latency, uncompressed-or-Ogg sound effects and does
+        not decode MP3 at all - that mismatch was the real, direct
+        cause of the bug, not anything wrong with the MP3 files
+        themselves. QMediaPlayer is Qt's own real, full media pipeline
+        and decodes MP3 correctly, plus gives the real name/progress
+        bar/stop/start mini player Keith also asked for."""
+        player = self._get_mini_player()
+        if player is None:
             return
-        effect = QSoundEffect(self)
-        effect.setSource(QUrl.fromLocalFile(path))
-        effect.setVolume(0.7)
-        effect.play()
-        self._playing_sound_effect = effect   # keep a real reference alive until playback finishes
+        player.load_and_play(path)
+        player.show()
+        player.raise_()
         self.log_message(f"Playing: {os.path.basename(path)}")
 
-    def _extract_and_play_sa_stream(self, path): #vers 1
+    def _play_via_ffmpeg_transcode(self, path): #vers 1
+        """Play a file QMediaPlayer can't decode natively by
+        transcoding it through a real, external ffmpeg process first
+        (Aug 20 2026, per Keith: "in LC, VC .wav plays... .at3") -
+        confirmed directly against Keith's own real, uploaded
+        philcollins.at3 file: ffprobe reads it as a standard RIFF/WAVE
+        container wrapping real ATRAC3+ audio, and ffmpeg decodes it
+        to a real, standard WAV cleanly."""
+        try:
+            from apps.methods.mini_audio_player import transcode_to_wav
+        except ImportError as e:
+            self.log_message(f"Couldn't load the audio transcoder: {e}")
+            return
+        self.log_message(f"Transcoding {os.path.basename(path)}...")
+        try:
+            wav_path = transcode_to_wav(path)
+        except RuntimeError as e:
+            self.log_message(f"Couldn't play {os.path.basename(path)}: {e}")
+            return
+        player = self._get_mini_player()
+        if player is None:
+            return
+        player.load_and_play(wav_path, display_name=os.path.basename(path))
+        player.show()
+        player.raise_()
+
+    def _play_ps2_vb_file(self, path): #vers 1
+        """Decode and play a PS2 .VB file (Aug 20 2026, per Keith: "in
+        LC, VC .wav plays... .vb") - real, working decoder confirmed
+        against Keith's own real, uploaded AMBSIL.VB (see apps/
+        methods/ps2_vb_audio.py's own docstring for the full, real
+        confirmation story: the decoded left channel came back
+        exactly, perfectly silent, matching what a file named
+        "ambient silence" should be).
+
+        Real, honest limitation: uses the real, documented 32000Hz/
+        stereo default for every file - the real, per-file exceptions
+        (POLICE.VB/CHAT.VB/KCHAT.VB/VCPR.VB at 16000Hz; mission-script
+        VAGs at 12000Hz mono, confirmed via GTAForums' own VBDec
+        thread) aren't applied automatically yet, since this handler
+        has no reliable way to know which real game a given .VB came
+        from just from its own path alone - a wrongly-fast/slow-
+        sounding file is this real limitation, not a decoding bug."""
+        try:
+            from apps.methods.ps2_vb_audio import decode_vb_file
+        except ImportError as e:
+            self.log_message(f"Couldn't load the .VB decoder: {e}")
+            return
+        self.log_message(f"Decoding {os.path.basename(path)}...")
+        try:
+            wav_path = decode_vb_file(path)
+        except Exception as e:
+            self.log_message(f"Couldn't decode {os.path.basename(path)}: {e}")
+            return
+        player = self._get_mini_player()
+        if player is None:
+            return
+        player.load_and_play(wav_path, display_name=os.path.basename(path))
+        player.show()
+        player.raise_()
+
+    def _extract_and_play_sa_stream(self, path): #vers 2
         """Decode a recognised SA audio-stream file (Ambience/Genrl/
         radio station files - no real file extension, so identified
         by filename alone) and play its own first real track (Aug 20
@@ -1454,19 +1549,14 @@ class DirectoryTreeBrowser(QWidget):
         the first as a real, quick preview; the dedicated "Extract
         Tracks..." button in Map Workshop's own Settings > Render >
         Audio Streams pulls every real track out to individual files
-        for Keith to identify and rename properly."""
+        for Keith to identify and rename properly.
+
+        Switched to the shared MiniAudioPlayer (Aug 20 2026, same
+        real reason as _play_audio_file's own real fix)."""
         try:
             from apps.methods.sa_audio_stream import parse_stream_tracks, extract_track
         except ImportError as e:
             self.log_message(f"Couldn't load the audio stream decoder: {e}")
-            return
-        try:
-            from PyQt6.QtMultimedia import QSoundEffect
-            from PyQt6.QtCore import QUrl
-        except ImportError:
-            self.log_message(
-                "Can't play audio - PyQt6.QtMultimedia isn't installed "
-                "in this Python environment.")
             return
         tracks = parse_stream_tracks(path, max_tracks=1)
         if not tracks:
@@ -1477,11 +1567,12 @@ class DirectoryTreeBrowser(QWidget):
         tmp_path = os.path.join(tempfile.gettempdir(), f"_dirtree_preview_{os.path.basename(path)}.ogg")
         with open(tmp_path, 'wb') as f:
             f.write(ogg_bytes)
-        effect = QSoundEffect(self)
-        effect.setSource(QUrl.fromLocalFile(tmp_path))
-        effect.setVolume(0.7)
-        effect.play()
-        self._playing_sound_effect = effect
+        player = self._get_mini_player()
+        if player is None:
+            return
+        player.load_and_play(tmp_path, display_name=f"{os.path.basename(path)} (track 0 preview)")
+        player.show()
+        player.raise_()
         self.log_message(
             f"Playing track 0 (preview only) from {os.path.basename(path)} - "
             f"use Map Workshop's own Settings > Render > Audio Streams > "

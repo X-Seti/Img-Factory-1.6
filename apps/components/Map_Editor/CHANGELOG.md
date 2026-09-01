@@ -9817,3 +9817,56 @@ conclusively found despite extensive isolated testing.
   supported)" menu entry instead of silently offering no option at
   all for these files, which would have looked like they were simply
   overlooked rather than a real, open limitation.
+
+- Aug 20 2026 - Major audio work, per Keith: "in LC, VC .wav plays,
+  maybe a tooltip player, showing just the name, and a progress bar,
+  stop, start. .wav plays. .mp3 doesn't seen to work. .at3 .vb"
+  (plus 5 more real sample files: AMBIENCE.PAK, AMBSIL.VB, FLASH.ADF,
+  SFX23.RAW, SFX23.SDT).
+
+  New apps/methods/mini_audio_player.py - shared MiniAudioPlayer
+  widget (name, seekable progress slider, Play/Pause, Stop), used by
+  every real Dir Tree playback action instead of each firing a
+  silent, fire-and-forget QSoundEffect.play(). Real fix for the MP3
+  bug this same change delivers: QSoundEffect is built for short,
+  low-latency, uncompressed-or-Ogg sound effects and does not decode
+  MP3 at all - that mismatch was the real, direct cause, not the MP3
+  files themselves. Switched to QMediaPlayer (Qt's own real, full
+  media pipeline), which decodes MP3 correctly and gives real
+  position/duration signals the progress bar needs anyway.
+
+  New apps/methods/ps2_vb_audio.py - real, working decoder for PS2
+  .VB files (GTA III/VC/LCS/VCS), confirmed directly against Keith's
+  own real, uploaded AMBSIL.VB. Format confirmed via GTAForums' own
+  VBDec tool thread (its own real authors): headerless PS-ADPCM
+  ("4-bit ADPCM"), real, fixed 2000-byte stereo interleave, real,
+  typical 32000Hz/stereo default (documented per-file exceptions:
+  POLICE.VB/CHAT.VB/KCHAT.VB/VCPR.VB at 16000Hz; mission-script VAGs
+  at 12000Hz mono - not yet applied automatically, an open, honest
+  limitation). Rather than reimplementing PS-ADPCM decoding, de-
+  interleaves the real stereo blocks, wraps each mono channel in a
+  real, synthesised standard "VAGp" header, decodes each via a real
+  ffmpeg subprocess (which already has a correct adpcm_psx decoder),
+  then re-interleaves. Confirmed correct: the decoded left channel of
+  Keith's own AMBSIL.VB came back exactly, perfectly silent
+  (peak=0, rms=0.0) - exactly what a file named "ambient silence"
+  should be.
+
+  .at3 (Sony ATRAC3+) confirmed via ffprobe against Keith's own real,
+  uploaded philcollins.at3: a standard RIFF/WAVE container ffmpeg
+  already decodes directly - plays via a real ffmpeg transcode-to-WAV
+  step (transcode_to_wav in mini_audio_player.py) then the same mini
+  player, no custom decoder needed.
+
+  Dir Tree's own right-click menu now offers real Play for .vb and
+  .at3 alongside the existing .wav/.mp3/.ogg/.flac and SA stream
+  Extract & Play Tracks... options.
+
+  Real, honest limitations still open, investigated this same turn
+  but not yet solved: AMBIENCE.PAK, FLASH.ADF, and the exact
+  III/VC SFX.RAW/SFX.SDT entry structure (GrandTheftWiki's own
+  documented 24-byte/6-DWORD entry didn't match Keith's own real
+  SFX23.SDT - a 12-byte/3-DWORD structure tiled his own real
+  SFX23.RAW exactly, byte for byte, suggesting either a real, game-
+  specific format variation or an inaccuracy in that documentation -
+  not confirmed either way yet).
