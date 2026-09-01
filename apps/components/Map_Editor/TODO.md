@@ -85,10 +85,18 @@ Extracted from inline `#TODO` comments in map_workshop.py, per Keith
   Keith had already settled on), exposed as a spinbox in the same Nav
   settings popup used for mouse sensitivity. Still not scaled to the
   object's own size - a further refinement, not done here.
-- Snap function (Aug 1 2026, per Keith): "the biggest problem
-  sometimes with making models is sometimes there are gaps, so we
-  need a snap function" - snapping vertices/objects together to close
-  gaps when building/positioning models. Not designed yet.
+- [DONE Aug 20 2026] Snap function - instance-level half (Snap
+  Targets ribbon's own "Snap: Centre of Model") turned out to already
+  exist and be fully working (Aug 19 2026). Added the genuinely
+  missing vertex-level, mesh-editing half: new _snap_vertices on
+  COL3DViewport groups nearby vertices into clusters and moves each
+  cluster to its own centroid, closing gaps; a new, distinct
+  snap_vertex_icon and "Snap Vertices" button (Edit Geometry ribbon)
+  per Keith's own "both using different svg icons"; fully undoable.
+  Real, deliberate scope limit: moves vertices to a shared position
+  without a full topology-changing weld/merge (which would also need
+  face-index remapping) - a real, separate, harder problem if this
+  isn't enough on its own.
 - Smooth mesh function (Aug 1 2026, per Keith, same context as snap
   above) - smoothing a mesh's surface. Not designed yet.
 - Right-click menu on the IPL Inst File table (Aug 1 2026, per Keith):
