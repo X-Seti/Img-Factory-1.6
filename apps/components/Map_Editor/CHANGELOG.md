@@ -9893,3 +9893,32 @@ conclusively found despite extensive isolated testing.
   now pointing to its own depends/ copy; 4 in directory_tree_browser.py,
   now pointing to the shared apps/methods/ copy) and old, separate
   module files removed.
+
+- Aug 20 2026 - Solved the III/VC SFX.RAW/SFX.SDT discrepancy from
+  last turn, confirmed with mathematical certainty against Keith's own
+  real, uploaded SFX23.RAW/SFX23.SDT pair. GrandTheftWiki documents a
+  24-byte SDT entry (offset/size/rate/unknown/loop start/loop end),
+  but re-deriving what that reading would show proves it's actually a
+  misalignment artifact: its own "unknown"/"loop start"/"loop end"
+  fields are, byte for byte, just the *next* 12-byte entry's own
+  offset/size/rate. The real, correct structure for these two real
+  files is a 12-byte entry (offset, size, samples/sec only) - its
+  offsets and sizes tile SFX23.RAW exactly, byte for byte, across all
+  4 entries. GrandTheftWiki's own 24-byte documentation most likely
+  covers a different real SDT variant, not confirmed either way.
+
+  New parse_sfx_sdt/extract_sfx_entry/sfx_entry_to_wav in
+  audioparser.py's own new "III/VC SFX format" section. Dir Tree's
+  own right-click menu now offers "Play first entry" for a .RAW or
+  .SDT file when its own real partner (same base filename) exists
+  alongside it - new _find_sfx_pair/_play_sfx_pair.
+
+  Still open from last turn: AMBIENCE.PAK and FLASH.ADF. Re-examined
+  AMBIENCE.PAK's own header region this turn - it looks like the same
+  underlying 8068-byte track-header structure as SA's own real "audio
+  stream" format (the value 24000 reappears at the same real offset,
+  matching that format's own real sample-rate field exactly), but
+  unencrypted (plain zero padding, not SA's own 0xCDCDCDCD) and with
+  a different real signature at the header's own end - likely a
+  console-platform variant of the same underlying format, not yet
+  confirmed or decoded.

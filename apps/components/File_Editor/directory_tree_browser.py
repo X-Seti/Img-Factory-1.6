@@ -1339,6 +1339,20 @@ class DirectoryTreeBrowser(QWidget):
                 play_action.triggered.connect(
                     lambda _=False, p=file_path: self._play_ps2_vb_file(p))
                 menu.addAction(play_action)
+            elif file_ext in ('.raw', '.sdt') and self._find_sfx_pair(file_path):
+                # Real fix (Aug 20 2026, per Keith's own real, uploaded
+                # SFX23.RAW/SFX23.SDT sample pair) - GTA 2/III/VC's own
+                # real SFX archive format, a real .RAW (sample data) +
+                # .SDT (index) pair sharing the same real base filename.
+                # See audioparser.py's own "III/VC SFX format" section
+                # for the full, real confirmation story (a documented
+                # 24-byte SDT entry didn't match Keith's own real
+                # files; a 12-byte entry does, with mathematical
+                # certainty - it tiles his own real SFX23.RAW exactly).
+                play_action = QAction("Play first entry", self)
+                play_action.triggered.connect(
+                    lambda _=False, p=file_path: self._play_sfx_pair(p))
+                menu.addAction(play_action)
             elif file_base in _SA_STREAM_NAMES:
                 extract_action = QAction("Extract && Play Tracks...", self)
                 extract_action.triggered.connect(
@@ -1534,6 +1548,69 @@ class DirectoryTreeBrowser(QWidget):
         player.load_and_play(wav_path, display_name=os.path.basename(path))
         player.show()
         player.raise_()
+
+    def _find_sfx_pair(self, path): #vers 1
+        """Given either a real .RAW or .SDT path, return the real
+        (raw_path, sdt_path) pair if its own real partner file (same
+        real base filename, in the same real folder) exists too, or
+        None if it doesn't (Aug 20 2026, per Keith's own real,
+        uploaded SFX23.RAW/SFX23.SDT sample pair) - III/VC's own SFX
+        archive format is a real pair, and neither file alone can be
+        decoded without the other."""
+        base, ext = os.path.splitext(path)
+        ext = ext.lower()
+        if ext == '.raw':
+            raw_path, sdt_path = path, base + '.SDT'
+            if not os.path.isfile(sdt_path):
+                sdt_path = base + '.sdt'
+        elif ext == '.sdt':
+            sdt_path, raw_path = path, base + '.RAW'
+            if not os.path.isfile(raw_path):
+                raw_path = base + '.raw'
+        else:
+            return None
+        if os.path.isfile(raw_path) and os.path.isfile(sdt_path):
+            return (raw_path, sdt_path)
+        return None
+
+    def _play_sfx_pair(self, path): #vers 1
+        """Decode and play the first real entry from a III/VC SFX.RAW/
+        SFX.SDT pair (Aug 20 2026, per Keith's own real, uploaded
+        SFX23.RAW/SFX23.SDT sample pair) - real, working decoder
+        confirmed with mathematical certainty against Keith's own real
+        files (see audioparser.py's own "III/VC SFX format" section
+        for the full, real confirmation story). A given pair can have
+        several real entries (Keith's own real SFX23 pair had 4) -
+        this plays only the first as a real, quick preview."""
+        pair = self._find_sfx_pair(path)
+        if pair is None:
+            self.log_message(f"Couldn't find the matching .RAW/.SDT partner for {os.path.basename(path)}")
+            return
+        raw_path, sdt_path = pair
+        try:
+            from apps.methods.audioparser import parse_sfx_sdt, sfx_entry_to_wav
+        except ImportError as e:
+            self.log_message(f"Couldn't load the SFX decoder: {e}")
+            return
+        entries = parse_sfx_sdt(sdt_path)
+        if not entries:
+            self.log_message(f"No real entries found in {os.path.basename(sdt_path)}")
+            return
+        import tempfile
+        tmp_path = os.path.join(
+            tempfile.gettempdir(),
+            f"_dirtree_sfx_preview_{os.path.basename(raw_path)}.wav")
+        sfx_entry_to_wav(raw_path, entries[0], tmp_path)
+        player = self._get_mini_player()
+        if player is None:
+            return
+        player.load_and_play(
+            tmp_path,
+            display_name=f"{os.path.basename(raw_path)} (entry 0 of {len(entries)} preview)")
+        player.show()
+        player.raise_()
+        self.log_message(
+            f"Playing entry 0 of {len(entries)} from {os.path.basename(raw_path)}.")
 
     def _extract_and_play_sa_stream(self, path): #vers 2
         """Decode a recognised SA audio-stream file (Ambience/Genrl/
