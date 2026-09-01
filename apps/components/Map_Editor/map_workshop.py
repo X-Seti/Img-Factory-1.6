@@ -25210,6 +25210,23 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         show_auzo_btn.show_toggled.connect(self._on_show_auzo_toggled)
         self._show_auzo_chk = show_auzo_btn
 
+        # Interior filter (Aug 20 2026, per Keith: "Can we look at
+        # interior values? ... We need a svg to toggle interior
+        # models: show 0 only on the viewpoint; showing 0 to 14+ by
+        # selecting them") - left-click toggles between the default
+        # (interior 0/exterior only) and showing every interior value
+        # together; right-click opens a menu of every interior value
+        # actually present in the loaded world, with counts, to
+        # isolate one specific interior.
+        interior_btn = _MapOverlayToggleButton("Int", supports_edit=True, icon=OverlayIcons.interior_icon(24))
+        interior_btn.set_shown(False, emit=False)
+        interior_btn.show_toggled.connect(self._on_interior_show_all_toggled)
+        interior_btn.edit_toggled.connect(lambda checked: self._show_interior_picker_menu(interior_btn))
+        interior_btn.setToolTip(
+            "Left-click: show all interiors / exterior only.\n"
+            "Right-click: pick one interior to isolate.")
+        self._interior_btn = interior_btn
+
         # Show Water (Aug 20 2026)
         show_water_btn = _MapOverlayToggleButton("Water", supports_edit=True, icon=OverlayIcons.water_icon(24))
         show_water_btn.show_toggled.connect(self._on_show_water_toggled)
@@ -25253,6 +25270,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         opts_row4.addWidget(show_auzo_btn)
         opts_row4.addWidget(show_water_btn)
         opts_row4.addWidget(radar_gen_btn)
+        opts_row4.addWidget(interior_btn)
         lay.addLayout(opts_row4)
 
         # Collected for the display-style toggle (Aug 20 2026, per
@@ -25263,7 +25281,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._overlay_toggle_buttons = [
             dfx_chk, show_tobj_chk, tcyc_chk, show_paths_btn, show_tracks_btn,
             show_cull_btn, show_zone_btn, show_occl_btn, show_sa_nodes_btn,
-            show_auzo_btn, show_water_btn, radar_gen_btn,
+            show_auzo_btn, show_water_btn, radar_gen_btn, interior_btn,
         ]
         self._apply_ipl_controls_display_style()
 
@@ -27506,6 +27524,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         visible = [i for i in all_inst if i.source_ipl not in hidden] if hidden else all_inst
         visible = self._apply_lod_filter(visible)
         visible = self._apply_tobj_time_filter(visible)
+        visible = self._apply_interior_filter(visible)
         for pane in getattr(self, '_world_panes', []):
             pane.set_instances(visible)
         loader_stub = _FilteredLoaderStub(visible, getattr(self, '_world_loader', None))
@@ -27964,6 +27983,67 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             vp.set_show_auzo_zones(checked)
         if checked:
             self._refresh_auzo_visualization()
+
+    def _on_interior_show_all_toggled(self, checked): #vers 1
+        """Interior button left-click (Aug 20 2026, per Keith: "show 0
+        only on the viewpoint; showing 0 to 14+ by selecting them") -
+        checked shows every interior value together (no filtering);
+        unchecked returns to the default, interior 0 (exterior) only."""
+        self._interior_filter_value = None if checked else 0
+        self._apply_ipl_visibility_filter(auto_fit=False, clear_display_lists=False)
+        if checked:
+            self._set_status("Showing all interiors together")
+        else:
+            self._set_status("Showing interior 0 (exterior) only")
+
+    def _show_interior_picker_menu(self, interior_btn): #vers 1
+        """Interior button right-click (Aug 20 2026, per Keith's own
+        follow-up: "I have no idea how many there are for GTA 3, GTA
+        VC, or SA") - lists every interior value actually present in
+        the currently loaded instances, with counts, so Keith can see
+        exactly what a given world uses rather than guessing, and
+        pick one to isolate."""
+        from PyQt6.QtWidgets import QMenu
+        all_inst = getattr(self, '_all_instances', [])
+        counts = {}
+        for inst in all_inst:
+            counts[inst.interior] = counts.get(inst.interior, 0) + 1
+        menu = QMenu(self)
+        if not counts:
+            act = menu.addAction("No world loaded")
+            act.setEnabled(False)
+        else:
+            current = getattr(self, '_interior_filter_value', 0)
+            all_act = menu.addAction(f"All interiors together ({len(all_inst)} total)")
+            all_act.setCheckable(True)
+            all_act.setChecked(current is None)
+            all_act.triggered.connect(lambda checked=False: self._set_interior_filter(None, interior_btn))
+            menu.addSeparator()
+            for value in sorted(counts):
+                label = f"Interior {value} ({counts[value]})"
+                if value == 0:
+                    label = f"Interior 0 - exterior ({counts[value]})"
+                elif value == 13:
+                    label = f"Interior 13 - pickups ({counts[value]})"
+                act = menu.addAction(label)
+                act.setCheckable(True)
+                act.setChecked(current == value)
+                act.triggered.connect(
+                    lambda checked=False, v=value: self._set_interior_filter(v, interior_btn))
+        menu.exec(interior_btn.mapToGlobal(interior_btn.rect().bottomLeft()))
+
+    def _set_interior_filter(self, value, interior_btn): #vers 1
+        """Apply a specific interior filter chosen from the picker
+        menu above (Aug 20 2026), and keep the button's own checked
+        state in sync (checked = showing all, matching left-click's
+        own real meaning) without re-emitting show_toggled."""
+        self._interior_filter_value = value
+        interior_btn.set_shown(value is None, emit=False)
+        self._apply_ipl_visibility_filter(auto_fit=False, clear_display_lists=False)
+        if value is None:
+            self._set_status("Showing all interiors together")
+        else:
+            self._set_status(f"Showing interior {value} only")
 
     def _on_show_water_toggled(self, checked): #vers 3
         """Show Water checked/unchecked.
@@ -28468,6 +28548,29 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 Qt.AspectRatioMode.KeepAspectRatio, mode)
         except Exception:
             return None
+
+    def _apply_interior_filter(self, instances): #vers 1
+        """Filter instances by their own interior value (Aug 20 2026,
+        per Keith: "Can we look at interior values? We see all models
+        using the value 0. Still, interior rendering is hidden until
+        you're inside buildings. We need a svg to toggle interior
+        models: show 0 only on the viewpoint; showing 0 to 14+ by
+        selecting them"). 0 = the exterior world (per GTAMods'
+        documented "Interior" page); interior 13 is documented as
+        reserved for pickups, which always stream regardless of the
+        player's own interior - not specially handled here, since
+        this is a viewport display filter, not in-game streaming
+        logic, but worth knowing if a "13" count looks unexpectedly
+        large or small.
+
+        self._interior_filter_value: None means no filtering (show
+        every interior value together); an int means show only
+        instances with that exact interior value. Defaults to 0,
+        matching Keith's own stated default."""
+        value = getattr(self, '_interior_filter_value', 0)
+        if value is None:
+            return instances
+        return [i for i in instances if i.interior == value]
 
     def _apply_tobj_time_filter(self, instances): #vers 1
         """Filter TOBJ (timed) instances by the simulated hour

@@ -31,6 +31,16 @@ from apps.methods.imgfactory_svg_icons import SVGIconFactory
 # OverlayIcons.water_icon
 # OverlayIcons.radar_icon
 # OverlayIcons.tcyc_icon
+# OverlayIcons.tobj_icon
+# OverlayIcons.dfx2d_icon
+# OverlayIcons.paths_icon
+# OverlayIcons.tracks_icon
+# OverlayIcons.cull_icon
+# OverlayIcons.zon_icon
+# OverlayIcons.occlusion_icon
+# OverlayIcons.sa_nodes_icon
+# OverlayIcons.auzo_icon
+# OverlayIcons.interior_icon
 
 
 class OverlayIcons:
@@ -299,3 +309,22 @@ class OverlayIcons:
   <path d="M17.4 8.4 A6.4 6.4 0 0 1 17.4 15.6" fill="none" stroke="#a98bff" stroke-width="1.6" stroke-linecap="round"/>
   <path d="M19.8 5.4 A10.2 10.2 0 0 1 19.8 18.6" fill="none" stroke="#c9b8ff" stroke-width="1.4" stroke-linecap="round" opacity="0.8"/>
 </svg>''', size, color="#000000")
+
+    @staticmethod
+    def interior_icon(size: int = 24) -> QIcon: #vers 1
+        """Interior filter toggle - a house shape with a number
+        badge, for filtering the viewport by an instance's own
+        interior value (0 = exterior world; 1-13+ = building
+        interiors, per GTAMods - 13 is reserved for pickups)."""
+        return SVGIconFactory._create_icon('''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <defs>
+    <linearGradient id="houseWall" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e8dcc0"/>
+      <stop offset="100%" stop-color="#c2ad8c"/>
+    </linearGradient>
+  </defs>
+  <path d="M4 21 L4 10 L12 3 L20 10 L20 21 Z" fill="url(#houseWall)" stroke="#5a4c3a" stroke-width="1.4" stroke-linejoin="round"/>
+  <rect x="9.6" y="14" width="4.8" height="7" rx="0.4" fill="#5a4c3a"/>
+  <circle cx="18.4" cy="17.6" r="4.4" fill="#7a4dff" stroke="#f4f1ff" stroke-width="1.2"/>
+</svg>''', size, color="#000000")
+

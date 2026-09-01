@@ -10095,3 +10095,33 @@ conclusively found despite extensive isolated testing.
   control. Depth-tested (unlike the old sphere, which ignored depth
   entirely) so the outline only shows on visible surfaces, not
   through walls/other objects.
+
+- Aug 20 2026 - Interior value filtering, per Keith: "Can we look at
+  interior values? We see all models using the value 0. Still,
+  interior rendering is hidden until you're inside buildings. We
+  need a svg to toggle interior models: show 0 only on the
+  viewpoint; showing 0 to 14+ by selecting them."
+
+  Investigated why "all models use 0" before building anything:
+  confirmed via GTAMods' own "Interior" page that GTA III genuinely
+  has no interior field at all in its own IPL format (it uses a
+  completely separate cullzone.dat mechanism instead) - the existing
+  parser's own interior=0 for III was a correct, deliberate choice,
+  not a bug. Also found a second, separate real cause: the custom
+  binary "SOL" IPL parser also hardcodes interior=0, since the field
+  originally guessed to be interior turned out (by its own observed
+  values - almost all exact powers of 2) to actually be a flags
+  bitmask instead. VC and SA's own text-format parsers already read
+  the real interior value correctly - GTAMods also confirms 0 =
+  exterior world (the documented default) and 13 is reserved for
+  pickups (always streams regardless of player's own interior).
+
+  New _apply_interior_filter, chained into the same real visibility-
+  filter pipeline LOD/TOBJ-time filtering already use. New "Int"
+  button (new interior_icon in overlay_icons.py - a house shape with
+  a number badge) on the Overlays ribbon: left-click toggles between
+  the default (interior 0/exterior only) and showing every interior
+  together; right-click opens a menu listing every interior value
+  actually present in the loaded world, with counts, so Keith can
+  see exactly what a given world uses instead of guessing, and pick
+  one to isolate.
