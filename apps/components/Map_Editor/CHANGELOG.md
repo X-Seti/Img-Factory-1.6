@@ -10151,3 +10151,17 @@ conclusively found despite extensive isolated testing.
   TransFender, and over a dozen more) - labelling a bare number with
   any one of them would be actively misleading, so SA's own picker
   entries stay as plain "Interior N (count)".
+
+- Aug 20 2026 - SA interior names added to the picker menu, per
+  Keith: "full list for VC, now im looking for SA" - transcribed the
+  complete, official SA table from the same GTAMods "Interior" page
+  (135 real interior/IPL file entries). Unlike VC, an SA interior
+  *number* still doesn't uniquely identify one real area (interior 1
+  alone covers 15 unrelated real buildings in GTAMods' own table),
+  so the underlying filter still works by number as before - but the
+  real fix here is keying by the interior *file* name (source_ipl)
+  instead, which does uniquely identify one real area. Each SA
+  interior number's own menu label now also names the real, distinct
+  interior files actually loaded at that number (e.g. "Interior 1
+  (245) - Ammu-Nation, Sindacco Abattoir, TransFender, +6 more"),
+  resolved via new SA_INTERIOR_FILE_NAMES in gta_dat_parser.py.

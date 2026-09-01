@@ -463,6 +463,93 @@ VC_INTERIOR_NAMES = {
     18: "Print Works",
 }
 
+# San Andreas interior *file* names -> real, named areas (Aug 20 2026,
+# per Keith: "full list for VC, now im looking for SA" - confirmed via
+# the same GTAMods "Interior" page's own documented SA table). Keyed
+# by the interior/IPL file's own short name (case-insensitive - e.g.
+# "abatoir", the actual real source_ipl basename an instance carries),
+# NOT by the numeric interior value - unlike VC, an SA interior number
+# does not uniquely identify one real area on its own (SA's own
+# documented table lists many unrelated real buildings sharing the
+# same real number, e.g. interior 1 alone covers this table's own
+# ABATOIR/AMMUN1/CARMOD1/FDREST1/GF1/JETINT/LACS1/LAHS1B/MAFCAS/
+# MAFCAS2/SMASHTV/SVVGHO1/SWEETS/TSDINER/WUZIBET and 3 more unnamed
+# real entries GTAMods' own table leaves blank) - only the real
+# interior *file* name is unique, so that's what's used as the real
+# key here. A handful of GTAMods' own real table rows have no real
+# file-name column at all (blank "-" entries, e.g. "Saint Mark's",
+# "Trailer") - genuinely not included here, since there is no real
+# key to match a loaded instance's own source_ipl against.
+SA_INTERIOR_FILE_NAMES = {
+    "abatoir": "Sindacco Abattoir", "ammun1": "Ammu-Nation",
+    "carmod1": "TransFender", "fdrest1": "World of Coq",
+    "gf1": "Denise's", "jetint": "Shamal interior",
+    "lacs1": "Sub Urban", "lahs1b": "House",
+    "mafcas": "Caligulas Casino", "mafcas2": "Penthouse Suites",
+    "smashtv": "Warehouse", "svvgho1": "Hotel Suite",
+    "sweets": "Sweet's House", "tsdiner": "Truck Stop",
+    "wuzibet": "Wu Zi Mu's",
+    "barbers": "Barber", "bdups1": "B Dup's Crack Palace",
+    "carmod2": "Loco Low Co.", "carter": "Smoke's Crack Palace",
+    "gf2": "Katie's", "lahs1a": "House", "lastrip": "Strip Club",
+    "ryders": "Ryder's Place", "svvgho2": "Hotel Suite",
+    "vghsb1": "House", "vghsb3": "House",
+    "barber2": "Barber", "bdups": "B Dup's apartment",
+    "bikesch": "Bike School", "brothl1": "Whore House",
+    "carls": "The Johnson House", "carmod3": "Wheel Arch Angels",
+    "changer": "Wardrobe", "cssprt": "Pro-Laps",
+    "drives": "Driving School", "drives2": "Driving School",
+    "genotb": "Inside Track Betting", "gf3": "Helena's",
+    "lahsb4": "House", "oglocs": "OG Loc's",
+    "paper": "Planning Department", "pdomes": "The Pleasure Domes",
+    "pdomes2": "The Pleasure Domes", "police3": "LVPD HQ",
+    "sexshop": "Sex Shop", "s1test": "Middle of nowhere",
+    "strip2": "Strip Club", "studio": "Blastin' Fools Records studio",
+    "tatto3": "Tattoo Parlor",
+    "ammun2": "Ammu-Nation", "diner1": "Diner",
+    "dirbike": "Dirt Stadium", "gf4": "Michelle's",
+    "lahs2a": "House", "lahss6": "House", "sfhsm2": "House",
+    "x711s2": "24-7",
+    "csdesgn": "Victim", "diner2": "Diner", "fdpiza": "Pizza Stack",
+    "gang": "Vagos Gang House", "gf5": "Barbara's",
+    "gym1": "Ganton Gym", "lacrak": "Crack Den", "lahsb3": "House",
+    "maddogs": "Madd Dogg's Crib", "mddogs": "Madd Dogg's Crib",
+    "sfhsb1": "House", "svhot1": "Hotel Suite", "vghsm2": "House",
+    "ammun3": "Ammu-Nation", "ammun5": "Ammu-Nation",
+    "brothel": "Whore House", "gf6": "Millie's",
+    "gym2": "Cobra Marital Arts", "lahsb1": "House",
+    "police1": "LSPD HQ", "rcplay": "Zero's RC Shop",
+    "rest2": "Secret Valley", "sfhsb2": "House", "sfhss2": "House",
+    "svcunt": "Safe House", "svsfbg": "Safe House",
+    "svsfsm": "Safe House", "x7_11s": "24-7",
+    "8track": "8-Track Stadium", "ammun4": "Ammu-Nation",
+    "gym3": "Below the Belt Gym", "lahsb2": "House",
+    "oftest": "Middle of nowhere",
+    "burhous": "Colonel Fuhrberger's", "sfhss1": "House",
+    "svlamd": "Safe House",
+    "fdchick": "Cluckin' Bell", "lahs2b": "House", "sfhsb3": "House",
+    "svgnmt2": "Motel room", "svvgmd": "Safe House",
+    "deshous": "Abandoned AC tower", "fdburg": "Burger Shot",
+    "police2": "SFPD HQ", "svgnmt1": "Motel room",
+    "tricas": "The Four Dragon's", "svsfmd": "Safe House",
+    "vghsm3": "House", "x711s3": "24-7",
+    "bar2": "Bar", "svlasm": "Safe House",
+    "barber3": "Barber", "casino2": "Casino Floor",
+    "moroom": "Motel room", "svlabig": "Safe House",
+    "csexl": "Didier Sachs", "airpor2": "Los Santos International Airport",
+    "airport": "Francis Intl. Airport",
+    "cschp": "Binco", "motel1": "Jefferson Motel",
+    "sfhsm1": "House", "vghss1": "House", "vgshm2": "House",
+    "vgshm3": "House", "vgshs2": "House",
+    "tattoo": "Tattoo Parlor", "x7_11c": "24-7",
+    "bar1": "Bar", "damin": "Generator Hall",
+    "fddonut": "Rusty Brown's", "tatto2": "Tattoo Parlor",
+    "x7_11d": "24-7",
+    "atriume": "Atrium", "atriumx": "Attrium", "clothgp": "Zip",
+    "genwrhs": "Warehouse", "ufobar": "Lil' Probe Inn",
+    "x7_11b": "24-7",
+}
+
 
 @dataclass
 class AuzoEntry: #vers 1

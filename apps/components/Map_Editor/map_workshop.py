@@ -27996,7 +27996,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         else:
             self._set_status("Showing interior 0 (exterior) only")
 
-    def _show_interior_picker_menu(self, interior_btn): #vers 2
+    def _show_interior_picker_menu(self, interior_btn): #vers 3
         """Interior button right-click (Aug 20 2026, per Keith's own
         follow-up: "I have no idea how many there are for GTA 3, GTA
         VC, or SA") - lists every interior value actually present in
@@ -28008,21 +28008,33 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         direct list of VC interior areas, cross-confirmed against
         GTAMods' own documented "Interior" page - see VC_INTERIOR_
         NAMES' own docstring in gta_dat_parser.py for the full, real
-        confirmation story). Not done for SA: unlike VC, an SA
-        interior number does NOT uniquely identify one real area -
-        GTAMods' own documented SA list shows many unrelated real
-        buildings sharing the same real number across the map (e.g.
-        interior 1 alone covers Sindacco Abattoir, Ammu-Nation,
-        TransFender, and over a dozen more), so labelling a bare
-        number with any one of them would be actively misleading."""
+        confirmation story).
+
+        Real fix for SA (Aug 20 2026, per Keith: "full list for VC,
+        now im looking for SA") - unlike VC, an SA interior number
+        does NOT uniquely identify one real area on its own (GTAMods'
+        own documented SA list shows many unrelated real buildings
+        sharing the same real number), so the filter still works by
+        interior number as before, but each number's own label now
+        also names the real, distinct interior *files* (source_ipl)
+        actually loaded at that number, resolved via SA_INTERIOR_
+        FILE_NAMES - accurate because a real interior file, unlike a
+        bare number, does uniquely identify one real area."""
         from PyQt6.QtWidgets import QMenu
-        from apps.methods.gta_dat_parser import GTAGame, VC_INTERIOR_NAMES
+        from apps.methods.gta_dat_parser import GTAGame, VC_INTERIOR_NAMES, SA_INTERIOR_FILE_NAMES
         all_inst = getattr(self, '_all_instances', [])
         counts = {}
+        source_names = {}   # interior value -> set of resolved real area names
         for inst in all_inst:
             counts[inst.interior] = counts.get(inst.interior, 0) + 1
+            base = os.path.splitext(os.path.basename(inst.source_ipl or ''))[0].lower()
+            real_name = SA_INTERIOR_FILE_NAMES.get(base)
+            if real_name:
+                source_names.setdefault(inst.interior, set()).add(real_name)
         loader = getattr(self, '_world_loader', None)
-        is_vc = getattr(loader, 'game', None) == GTAGame.VC
+        game = getattr(loader, 'game', None)
+        is_vc = game == GTAGame.VC
+        is_sa = game in (GTAGame.SA, GTAGame.SOL)
         menu = QMenu(self)
         if not counts:
             act = menu.addAction("No world loaded")
@@ -28043,6 +28055,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                         label = f"Interior 0 - exterior ({counts[value]})"
                     elif value == 13:
                         label = f"Interior 13 - pickups ({counts[value]})"
+                    if is_sa and value in source_names:
+                        names = sorted(source_names[value])
+                        shown = ', '.join(names[:3])
+                        if len(names) > 3:
+                            shown += f", +{len(names) - 3} more"
+                        label += f" - {shown}"
                 act = menu.addAction(label)
                 act.setCheckable(True)
                 act.setChecked(current == value)
