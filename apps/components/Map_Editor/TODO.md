@@ -64,10 +64,21 @@ Extracted from inline `#TODO` comments in map_workshop.py, per Keith
 - No write-back infrastructure exists for any file type in Map
   Workshop yet (creating/deleting IPL files from disk, etc. are all
   stubs).
-- Undo/redo for mapping changes (instance placement, rotation, IPL
-  edits) isn't implemented - needs its own instance/IPL-state design,
-  since the old raster/pixel-based undo system (from the DP5 paint
-  canvas era) isn't portable to this.
+- [DONE Aug 20 2026] Undo/redo for mapping changes - the core stack
+  (_push_map_undo/_map_undo/_map_redo, Aug 18 2026) was already wired
+  to Position/Rotation/Scale nudges; this turn added: Ctrl+Z/Ctrl+Y
+  keyboard shortcuts (Ctrl+Z previously only fired the older, separate
+  paint/material undo system; no redo shortcut existed at all before);
+  Object Browser's Add/Delete/Rename actions; and whole-IPL drag-to-
+  move/rotate (the single biggest real gap - moving/rotating many
+  instances plus cull/zone/path/grge/enex/occl entries at once had no
+  undo at all, despite a comment implying it should). Object add/
+  delete uses real snapshot/restore; IPL shift/rotate use a real
+  inverse-operation undo (negative shift / negative-angle rotation).
+  Object-property editing beyond these (raw IPL/IDE line edits, Item
+  Editor Dialog's own Apply/Save) still isn't undoable - blocked on
+  the same missing write-back infrastructure noted elsewhere in this
+  file, not a gap in the undo system itself.
 - [DONE Aug 1 2026] Pick/goto settings: double-clicking an object in
   the viewport zoomed in too tightly (was a hardcoded distance) -
   added self._goto_zoom_distance (default 40.0, matching the value
