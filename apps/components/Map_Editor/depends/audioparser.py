@@ -521,6 +521,7 @@ class MiniAudioPlayer(QWidget): #vers 1
 
     def __init__(self, parent=None): #vers 1
         super().__init__(parent)
+        from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
         self._player = QMediaPlayer(self)
         self._audio_output = QAudioOutput(self)
         self._player.setAudioOutput(self._audio_output)
@@ -571,6 +572,7 @@ class MiniAudioPlayer(QWidget): #vers 1
         self._player.stop()
 
     def _toggle_play_pause(self): #vers 1
+        from PyQt6.QtMultimedia import QMediaPlayer
         if self._player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
             self._player.pause()
         else:
@@ -590,6 +592,7 @@ class MiniAudioPlayer(QWidget): #vers 1
         self._update_time_label(self._player.position(), duration_ms)
 
     def _on_state_changed(self, state): #vers 1
+        from PyQt6.QtMultimedia import QMediaPlayer
         self._play_btn.setText(
             "\u23F8" if state == QMediaPlayer.PlaybackState.PlayingState else "\u25B6")
 

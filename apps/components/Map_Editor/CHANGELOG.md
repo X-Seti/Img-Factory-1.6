@@ -9962,3 +9962,22 @@ conclusively found despite extensive isolated testing.
   all. Neither hypothesis panned out - AMBIENCE.PAK remains
   unsolved, set aside for now per Keith's own "lets work on the
   others."
+
+- Aug 20 2026 - Fixed a real, crashing bug in MiniAudioPlayer, per
+  Keith's own real traceback: "NameError: name 'QMediaPlayer' is not
+  defined" at __init__. Root cause: last turn's own consolidation of
+  sa_audio_stream.py/ps2_vb_audio.py/mini_audio_player.py into
+  audioparser.py stripped every line starting with "from ... import"
+  containing "PyQt6", intending to remove only the file-level, top-of-
+  file imports being consolidated - but this also caught 3 real,
+  intentionally-local, lazy imports inside MiniAudioPlayer's own
+  __init__/_toggle_play_pause/_on_state_changed (deferring the
+  QtMultimedia dependency until actually needed, since it's a
+  separate PyQt6 submodule that might not always be installed, unlike
+  the module's own top-level QtWidgets/QtCore imports). All 3 real
+  local imports restored. My own earlier post-merge testing only
+  exercised the decoder functions (parse_stream_tracks/decode_vb_file)
+  and never actually instantiated MiniAudioPlayer itself, missing
+  this real gap in coverage - this turn's own real fix was verified
+  by actually instantiating the widget and exercising all 3 real,
+  previously-broken code paths directly.
