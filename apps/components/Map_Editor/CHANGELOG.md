@@ -9981,3 +9981,36 @@ conclusively found despite extensive isolated testing.
   this real gap in coverage - this turn's own real fix was verified
   by actually instantiating the widget and exercising all 3 real,
   previously-broken code paths directly.
+
+- Aug 20 2026 - Undo/redo for mapping changes, per Keith's own chosen
+  priority for "what's next for map_workshop." The core undo/redo
+  stack (_push_map_undo/_map_undo/_map_redo, from Aug 18 2026) was
+  already solid and already wired to Position/Rotation/Scale nudges,
+  but had 3 real gaps:
+
+  1. Ctrl+Z was only ever wired to the older, separate paint/material
+     undo system (_undo_last_action, from the collision-paint
+     context) - the newer, general map-edit undo stack had no
+     keyboard shortcut of its own at all, and there was no redo
+     shortcut either (only Shift+click on the Undo button). New
+     _on_ctrl_z_pressed tries map undo first, falling back to paint
+     undo only when the map stack is empty, so both real systems stay
+     reachable; new Ctrl+Y/Ctrl+Shift+Z (via StandardKey.Redo) for
+     map redo.
+
+  2. Object Browser's Add/Delete/Rename actions were explicitly
+     called out in TODO.md as in-memory-only and not undoable -
+     _rename_object, _add_instance_of_model, and _delete_all_
+     instances_of_model (which snapshots the removed instances
+     themselves for a real restore, not just a count) all now push a
+     real undo/redo entry.
+
+  3. The single biggest real gap: whole-IPL drag-to-move and rotate
+     (_shift_ipl_coordinates/_rotate_ipl_coordinates, moving/rotating
+     potentially many instances plus cull/zone/path/grge/enex/occl
+     entries all at once) had no undo at all, despite the drag-end
+     handler in dff_viewport.py already carrying a comment about
+     "avoiding a pointless undo-stack entry" - that entry was never
+     actually being pushed. Both now record a real, correct inverse
+     operation (negative shift / negative-angle rotation around the
+     same pivot) as their own undo, reusable directly as redo too.

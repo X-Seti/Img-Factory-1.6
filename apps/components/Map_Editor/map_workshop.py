@@ -19581,10 +19581,26 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # === EDIT OPERATIONS ===
 
         # Undo (Ctrl+Z)
+        # Real fix (Aug 20 2026, per Keith: "Undo/redo for mapping
+        # changes") - was only ever wired to the older, separate
+        # paint/material undo system (_undo_last_action, from the
+        # collision-paint context) - the newer, general map-edit undo
+        # stack (_map_undo/_map_redo/_push_map_undo, Aug 18 2026,
+        # already wired to Position/Rotation/Scale nudges) had no
+        # keyboard shortcut of its own at all. Tries map undo first
+        # (the more general, always-relevant context for the main
+        # Map Workshop view) and falls back to the older paint undo
+        # only when the map undo stack is empty, so both real systems
+        # stay reachable rather than one silently shadowing the other.
         self.hotkey_undo = QShortcut(QKeySequence.StandardKey.Undo, self)
-        if hasattr(self, '_undo_last_action'):
-            self.hotkey_undo.activated.connect(self._undo_last_action)
-        # else: not implemented yet, no connection
+        self.hotkey_undo.activated.connect(self._on_ctrl_z_pressed)
+
+        # Redo (Ctrl+Y / Ctrl+Shift+Z, platform-appropriate via
+        # StandardKey) - real fix, same request as above - no keyboard
+        # shortcut existed for map redo at all before this, only
+        # Shift+click on the Undo button.
+        self.hotkey_redo = QShortcut(QKeySequence.StandardKey.Redo, self)
+        self.hotkey_redo.activated.connect(self._map_redo)
 
         # Copy (Ctrl+C)
         self.hotkey_copy = QShortcut(QKeySequence.StandardKey.Copy, self)
@@ -20416,14 +20432,18 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                                   self._delete_all_instances_of_model(mid))
         menu.exec(view.viewport().mapToGlobal(pos))
 
-    def _rename_object(self, model_id): #vers 1
+    def _rename_object(self, model_id): #vers 2
         """Rename an object's model_name - IN MEMORY ONLY for now
         (updates the IDEObject held by the current GTAWorldLoader and
         refreshes Object Browser's display). Does NOT yet write the
         new name back to the actual IDE file, or update GTA3/VC's
         text-format IPL lines that redundantly store the name (SA's
         format doesn't) - that needs real file-writing infrastructure,
-        tracked separately."""
+        tracked separately.
+
+        Undoable now (Aug 20 2026, per Keith: "Undo/redo for mapping
+        changes") - was explicitly called out in TODO.md as an in-
+        memory-only Object Browser action that isn't undoable yet."""
         loader = getattr(self, '_world_loader', None)
         if loader is None:
             return
@@ -20434,12 +20454,25 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self, "Rename Object", "New name:", text=obj.model_name)
         if not ok or not new_name.strip():
             return
-        obj.model_name = new_name.strip()
-        for inst in getattr(self, '_all_instances', []):
-            if inst.model_id == model_id:
-                inst.model_name = obj.model_name
-        self._object_browser_model._recompute()
-        self._set_status(f"Renamed object {model_id} to '{obj.model_name}' "
+        new_name = new_name.strip()
+        old_name = obj.model_name
+
+        def _apply(name):
+            obj.model_name = name
+            for inst in getattr(self, '_all_instances', []):
+                if inst.model_id == model_id:
+                    inst.model_name = name
+            self._object_browser_model._recompute()
+
+        def _undo():
+            _apply(old_name)
+
+        def _redo():
+            _apply(new_name)
+
+        _apply(new_name)
+        self._push_map_undo(_undo, _redo, f"Rename '{old_name}' to '{new_name}'")
+        self._set_status(f"Renamed object {model_id} to '{new_name}' "
                          f"(in memory only - not yet written to disk)")
 
     def _on_object_row_double_clicked(self, index): #vers 1
@@ -20466,12 +20499,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._current_instance_index = idx
         self._center_on_instance(instances[idx], nav_info=(idx, len(instances)))
 
-    def _add_instance_of_model(self, model_id): #vers 1
+    def _add_instance_of_model(self, model_id): #vers 2
         """Add a new placement of an existing model - IN MEMORY ONLY
         for now, at a default position (origin, identity rotation).
         Does NOT yet write the new inst line back to the actual IPL
         file - that needs real file-writing infrastructure, tracked
-        separately."""
+        separately.
+
+        Undoable now (Aug 20 2026, per Keith: "Undo/redo for mapping
+        changes") - was explicitly called out in TODO.md as an in-
+        memory-only Object Browser action that isn't undoable yet."""
         loader = getattr(self, '_world_loader', None)
         obj = loader.get_object(model_id) if loader else None
         if obj is None:
@@ -20482,23 +20519,42 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             pos_x=0.0, pos_y=0.0, pos_z=0.0,
             rot_x=0.0, rot_y=0.0, rot_z=0.0, rot_w=1.0,
             lod_index=-1, source_ipl="(added this session)", line_no=0)
-        self._all_instances = getattr(self, '_all_instances', [])
-        self._all_instances.append(new_inst)
-        if loader is not None:
-            loader.instances.append(new_inst)
-        counts = getattr(self._object_browser_model, '_instance_counts', {})
-        counts[model_id] = counts.get(model_id, 0) + 1
-        self._object_browser_model._recompute()
-        self._apply_ipl_visibility_filter(clear_display_lists=False)
+
+        def _do_add():
+            self._all_instances = getattr(self, '_all_instances', [])
+            self._all_instances.append(new_inst)
+            if loader is not None:
+                loader.instances.append(new_inst)
+            counts = getattr(self._object_browser_model, '_instance_counts', {})
+            counts[model_id] = counts.get(model_id, 0) + 1
+            self._object_browser_model._recompute()
+            self._apply_ipl_visibility_filter(clear_display_lists=False)
+
+        def _do_remove():
+            self._all_instances = [i for i in getattr(self, '_all_instances', []) if i is not new_inst]
+            if loader is not None:
+                loader.instances[:] = [i for i in loader.instances if i is not new_inst]
+            counts = getattr(self._object_browser_model, '_instance_counts', {})
+            counts[model_id] = max(0, counts.get(model_id, 0) - 1)
+            self._object_browser_model._recompute()
+            self._apply_ipl_visibility_filter(clear_display_lists=False)
+
+        _do_add()
+        self._push_map_undo(_do_remove, _do_add, f"Add instance of '{obj.model_name}'")
         self._center_on_instance(new_inst)
         self._set_status(f"Added a new instance of '{obj.model_name}' at the origin "
                          f"(in memory only - not yet written to disk)")
 
-    def _delete_all_instances_of_model(self, model_id): #vers 1
-        """Remove every placement of a model."""
+    def _delete_all_instances_of_model(self, model_id): #vers 2
+        """Remove every placement of a model.
+
+        Undoable now (Aug 20 2026, per Keith: "Undo/redo for mapping
+        changes") - was explicitly called out in TODO.md as an in-
+        memory-only Object Browser action that isn't undoable yet."""
         loader = getattr(self, '_world_loader', None)
         all_inst = getattr(self, '_all_instances', [])
-        removed = sum(1 for i in all_inst if i.model_id == model_id)
+        removed_instances = [i for i in all_inst if i.model_id == model_id]
+        removed = len(removed_instances)
         if removed == 0:
             return
         confirm = QMessageBox.question(
@@ -20512,13 +20568,29 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         if confirm != QMessageBox.StandardButton.Yes:
             return
-        self._all_instances = [i for i in all_inst if i.model_id != model_id]
-        if loader is not None:
-            loader.instances[:] = [i for i in loader.instances if i.model_id != model_id]
-        counts = getattr(self._object_browser_model, '_instance_counts', {})
-        counts.pop(model_id, None)
-        self._object_browser_model._recompute()
-        self._apply_ipl_visibility_filter(clear_display_lists=False)
+
+        def _do_remove():
+            self._all_instances = [i for i in getattr(self, '_all_instances', [])
+                                   if i.model_id != model_id]
+            if loader is not None:
+                loader.instances[:] = [i for i in loader.instances if i.model_id != model_id]
+            counts = getattr(self._object_browser_model, '_instance_counts', {})
+            counts.pop(model_id, None)
+            self._object_browser_model._recompute()
+            self._apply_ipl_visibility_filter(clear_display_lists=False)
+
+        def _do_restore():
+            self._all_instances = getattr(self, '_all_instances', [])
+            self._all_instances.extend(removed_instances)
+            if loader is not None:
+                loader.instances.extend(removed_instances)
+            counts = getattr(self._object_browser_model, '_instance_counts', {})
+            counts[model_id] = removed
+            self._object_browser_model._recompute()
+            self._apply_ipl_visibility_filter(clear_display_lists=False)
+
+        _do_remove()
+        self._push_map_undo(_do_restore, _do_remove, f"Delete {removed} instance(s)")
         self._set_status(f"Removed {removed} placement(s) "
                          f"(in memory only - not yet written to disk)")
 
@@ -20647,6 +20719,22 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     self._refresh_path_visualization()
                 return
         self._apply_ipl_visibility_filter(auto_fit=False, clear_display_lists=False)
+
+    def _on_ctrl_z_pressed(self): #vers 1
+        """Ctrl+Z's own real handler (Aug 20 2026, per Keith: "Undo/
+        redo for mapping changes") - tries the general map-edit undo
+        stack first (the more relevant context for the main Map
+        Workshop view), falling back to the older, separate paint/
+        material undo system (_undo_last_action, from the collision-
+        paint context) only when the map undo stack is empty - keeps
+        both real systems reachable from the same real shortcut,
+        rather than one silently shadowing the other."""
+        if getattr(self, 'map_undo_stack', []):
+            self._map_undo()
+        elif hasattr(self, '_undo_last_action'):
+            self._undo_last_action()
+        else:
+            self._set_status("Nothing to undo")
 
     def _push_map_undo(self, undo_fn, redo_fn, description=""): #vers 1
         """Record one undoable map edit (Aug 18 2026)."""
@@ -22251,10 +22339,22 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._apply_ipl_visibility_filter()
         self._set_status(f"Unloaded {len(loaded_names)} IPL(s)")
 
-    def _shift_ipl_coordinates(self, ipl_name, dx, dy, dz, include_types=None): #vers 2
+    def _shift_ipl_coordinates(self, ipl_name, dx, dy, dz, include_types=None, _record_undo=True): #vers 3
         """Translate every real position an IPL's loaded data holds
         by a fixed (dx,dy,dz) offset - added so converted/ported map
-        data."""
+        data.
+
+        Undoable now (Aug 20 2026, per Keith: "Undo/redo for mapping
+        changes") - was a real, significant gap: moving/rotating a
+        whole IPL section (potentially many instances plus cull/zone/
+        path/grge/enex/occl entries all at once) had no undo at all
+        before this, despite this method's own caller (DFFViewport's
+        own whole-IPL drag-end handler) already carrying a comment
+        about "avoiding a pointless undo-stack entry" - the entry
+        itself was never actually being pushed. _record_undo=False is
+        used internally by the undo/redo closures below themselves, so
+        applying the inverse shift to undo doesn't itself get pushed
+        as a second, new undo entry."""
         loader = getattr(self, '_world_loader', None)
         if loader is None:
             return
@@ -22309,10 +22409,24 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._set_status(
             f"Shifted {ipl_name} by ({dx:g}, {dy:g}, {dz:g}) - {moved} entries moved")
 
-    def _rotate_ipl_coordinates(self, ipl_name, pivot_x, pivot_y, angle_deg, include_types=None): #vers 2
+        if _record_undo and moved:
+            def _undo():
+                self._shift_ipl_coordinates(ipl_name, -dx, -dy, -dz, want, _record_undo=False)
+
+            def _redo():
+                self._shift_ipl_coordinates(ipl_name, dx, dy, dz, want, _record_undo=False)
+
+            self._push_map_undo(_undo, _redo, f"Shift {ipl_name} by ({dx:g}, {dy:g}, {dz:g})")
+
+    def _rotate_ipl_coordinates(self, ipl_name, pivot_x, pivot_y, angle_deg, include_types=None, _record_undo=True): #vers 3
         """Rotate every real position an IPL's loaded data holds
         around a given (pivot_x, pivot_y) point, by angle_deg around
-        the vertical (Z) axis (Aug 19 2026)"""
+        the vertical (Z) axis (Aug 19 2026).
+
+        Undoable now (Aug 20 2026, per Keith: "Undo/redo for mapping
+        changes") - same real gap and same real fix as _shift_ipl_
+        coordinates' own docstring describes. _record_undo=False is
+        used internally by the undo/redo closures below themselves."""
         loader = getattr(self, '_world_loader', None)
         if loader is None:
             return
@@ -22403,6 +22517,17 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._apply_ipl_visibility_filter()
         self._set_status(
             f"Rotated {ipl_name} by {angle_deg:g}\u00b0 around ({pivot_x:g}, {pivot_y:g}) - {moved} entries moved")
+
+        if _record_undo and moved:
+            def _undo():
+                self._rotate_ipl_coordinates(
+                    ipl_name, pivot_x, pivot_y, -angle_deg, want, _record_undo=False)
+
+            def _redo():
+                self._rotate_ipl_coordinates(
+                    ipl_name, pivot_x, pivot_y, angle_deg, want, _record_undo=False)
+
+            self._push_map_undo(_undo, _redo, f"Rotate {ipl_name} by {angle_deg:g}\u00b0")
 
     def _shift_all_tracks(self, dx, dy, dz): #vers 1
         """Translate every loaded train track waypoint by a fixed
