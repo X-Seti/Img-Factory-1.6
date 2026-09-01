@@ -4448,43 +4448,67 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glEnable(GL_DEPTH_TEST)
         glEnable(GL_LIGHTING)
 
-    def _draw_hover_highlight(self): #vers 1
-        """Draw a marker around whatever instance is currently hovered
-        (Aug 19 2026, per Keith: "Auto object highlight setting in
-        map_workshop settings: this could be a model, path node,
-        anything in the viewpoint; once highlighted, right-click for
-        options" - the visual half of that request; scoped to
-        instances only for this first version, see the fuller
-        explanation where self._hover_highlight_enabled is first
-        declared in __init__ for why path nodes aren't included yet).
+    def _draw_hover_highlight(self): #vers 2
+        """Highlight whatever instance is currently hovered (Aug 19
+        2026, per Keith: "Auto object highlight setting in map_
+        workshop settings: this could be a model, path node, anything
+        in the viewpoint; once highlighted, right-click for options" -
+        the visual half of that request; scoped to instances only for
+        this first version, see the fuller explanation where self.
+        _hover_highlight_enabled is first declared in __init__ for
+        why path nodes aren't included yet).
 
-        A bright, semi-transparent wireframe sphere at the instance's
-        own position, reusing the exact same gluSphere technique and
-        lazily-created-once quadric object already proven for the
-        cull/zone/occlusion box corner handles - a genuinely simple,
-        cheap indicator rather than a full model-shaped outline, which
-        would need this instance's own loaded geometry/bounding box,
-        not otherwise needed just to show "this one is hovered"."""
+        Real fix (Aug 20 2026, per Keith: "instead can we highlight
+        the mesh instead, for a cleaner look") - the original version
+        drew a small, fixed-size sphere at the instance's own
+        position, unrelated to the model's own actual shape. This
+        draws a wireframe outline of the hovered instance's own real
+        loaded geometry instead, transformed the same way the main
+        instance draw loop positions/rotates/scales it, so the
+        highlight actually traces the model's own silhouette.
+
+        Draws raw vertex/triangle data directly rather than replaying
+        the instance's own cached display list - a display list's own
+        compiled draw calls could set their own internal colour state
+        (e.g. prelit vertex colours), which would silently override
+        a colour set here before glCallList; drawing raw data keeps
+        the highlight colour reliably in full control."""
         idx = getattr(self, '_hovered_instance_idx', None)
         if idx is None or idx >= len(self._world_instances):
             return
         entry = self._world_instances[idx]
-        x, y, z = entry['pos']
-        quadric = getattr(self, '_corner_sphere_quadric', None)
-        if quadric is None:
-            quadric = gluNewQuadric()
-            self._corner_sphere_quadric = quadric
+        verts = entry.get('vertices', [])
+        triangles = entry.get('triangles', [])
+        if not verts or not triangles:
+            return
+        px, py, pz = entry.get('pos', (0.0, 0.0, 0.0))
+        rx, ry, rz, rw = entry.get('rot', (0.0, 0.0, 0.0, 1.0))
+        sx, sy, sz = entry.get('scale', (1.0, 1.0, 1.0))
         glDisable(GL_LIGHTING)
-        glDisable(GL_DEPTH_TEST)
+        glDisable(GL_TEXTURE_2D)
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-        glColor4f(1.0, 1.0, 0.2, 0.55)
+        glEnable(GL_POLYGON_OFFSET_LINE)
+        glPolygonOffset(-1.0, -1.0)
         glPushMatrix()
-        glTranslatef(x, y, z)
-        gluSphere(quadric, 1.5, 10, 8)
+        glTranslatef(px, py, pz)
+        glMultMatrixf(self._quat_to_gl_matrix(rx, ry, rz, rw))
+        glScalef(sx, sy, sz)
+        glColor4f(1.0, 1.0, 0.2, 0.85)
+        glLineWidth(2.0)
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
+        glBegin(GL_TRIANGLES)
+        for v1, v2, v3, mid in triangles:
+            for vi in (v1, v2, v3):
+                if vi < len(verts):
+                    v = verts[vi]
+                    glVertex3f(v[0], v[1], v[2])
+        glEnd()
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
         glPopMatrix()
+        glDisable(GL_POLYGON_OFFSET_LINE)
         glDisable(GL_BLEND)
-        glEnable(GL_DEPTH_TEST)
+        glEnable(GL_TEXTURE_2D)
         glEnable(GL_LIGHTING)
 
     def _pick_path_node(self, mx: float, my: float): #vers 1

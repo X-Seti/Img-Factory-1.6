@@ -10077,3 +10077,21 @@ conclusively found despite extensive isolated testing.
   same real display method the Render dropdown's own "Show Semi-Solid
   Col" option already provides) - previously unchecked just hid the
   mesh with nothing shown in its place.
+
+- Aug 20 2026 - Hover highlight now outlines the actual mesh, per
+  Keith: "next is the hover over highlight, its a small dont over
+  the model, instead can we highlight the mesh instead, for a
+  cleaner look." The original version drew a small, fixed-size
+  sphere at the instance's own position, unrelated to the model's
+  own actual shape. Now draws a bright yellow wireframe outline of
+  the hovered instance's own real loaded geometry, transformed the
+  same way the main instance draw loop positions/rotates/scales it -
+  the highlight traces the model's own silhouette instead of a
+  generic marker. Draws raw vertex/triangle data directly rather
+  than replaying the instance's own cached display list, since a
+  display list's own compiled draw calls (e.g. prelit vertex
+  colours) could silently override a colour set before glCallList -
+  drawing raw data keeps the highlight colour reliably in full
+  control. Depth-tested (unlike the old sphere, which ignored depth
+  entirely) so the outline only shows on visible surfaces, not
+  through walls/other objects.
