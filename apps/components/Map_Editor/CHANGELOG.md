@@ -10125,3 +10125,29 @@ conclusively found despite extensive isolated testing.
   actually present in the loaded world, with counts, so Keith can
   see exactly what a given world uses instead of guessing, and pick
   one to isolate.
+
+- Aug 20 2026 - Interior picker menu now shows real, named VC areas,
+  per Keith's own real, direct list: "1, Hotel 2, Mansion 17, Club
+  4, Mall 6, Lawyers 8, Concerth 3, Bank 10, Ammo Store / Hogan's
+  11, Biker Bar 12, Hvood / Police Dept 13, Print Works 14, Stadium
+  16, Race track 15, Bowl? 5, ? 7, ? 9, ?" Cross-confirmed against
+  GTAMods' own documented "Interior" page, which has the complete,
+  official 0-18 VC list - filled in Keith's own 3 unknowns directly:
+  5 = Pole Position Club (strip club), 7 = Cafe Robina (coffee
+  shop), 9 = Love Fist Recording Studio. Two real, honest
+  discrepancies kept as GTAMods' own documented names rather than
+  silently overridden: Keith's own "10, Ammo Store / Hogan's" vs
+  GTAMods' own "Rifle Range" (thematically close, not identical);
+  Keith's own "13, Print Works" vs GTAMods' own "13 = Everywhere,
+  reserved for pickups" (GTAMods' own list puts Print Works at 18
+  instead - may mean Keith's own loaded map has custom/modified
+  interior data at 13, not vanilla VC).
+
+  New VC_INTERIOR_NAMES in gta_dat_parser.py. Deliberately NOT done
+  for SA: unlike VC, an SA interior number does not uniquely
+  identify one real area - GTAMods' own documented SA list shows
+  many unrelated real buildings sharing the same real number (e.g.
+  interior 1 alone covers Sindacco Abattoir, Ammu-Nation,
+  TransFender, and over a dozen more) - labelling a bare number with
+  any one of them would be actively misleading, so SA's own picker
+  entries stay as plain "Interior N (count)".

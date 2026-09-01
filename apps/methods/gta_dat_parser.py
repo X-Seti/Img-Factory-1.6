@@ -428,6 +428,41 @@ AUZO_TYPES = {
     67: ("living room", "Unused background melody"),
 }
 
+# Vice City interior numbers -> real, named areas (Aug 20 2026, per
+# Keith's own direct observation in the app, cross-confirmed against
+# GTAMods' own documented "Interior" page list - each real number
+# uniquely identifies exactly one area in VC, unlike SA (see below).
+# 2 real, honest discrepancies between Keith's own list and GTAMods'
+# own documented one, kept as GTAMods' own names here since that's a
+# real, published source rather than a single data point, but worth
+# Keith knowing about: Keith's own "10, Ammo Store / Hogan's" vs
+# GTAMods' own "Rifle Range" (thematically close, not identical);
+# Keith's own "13, Print Works" vs GTAMods' own "13 = Everywhere
+# (reserved for pickups)" - GTAMods' own list puts "Print Works" at
+# 18 instead, which may mean Keith's own loaded map has custom/
+# modified interior data at that number, not vanilla VC.
+VC_INTERIOR_NAMES = {
+    0: "Main World (exterior)",
+    1: "Ocean View Hotel",
+    2: "Diaz's Mansion / Vercetti Estate",
+    3: "El Banco Corrupto Grande",
+    4: "North Point Mall",
+    5: "Pole Position Club",
+    6: "Ken Rosenburg's Office",
+    7: "Cafe Robina",
+    8: "Love Fist Concert Hall",
+    9: "Love Fist Recording Studio",
+    10: "Shooting Range",
+    11: "Apartment 3C / Greasy Choppers",
+    12: "VCPD HQ / Auntie Poulet's",
+    13: "Everywhere (reserved for pickups)",
+    14: "Dirt Ring",
+    15: "Bloodring",
+    16: "Hotring",
+    17: "The Malibu Club",
+    18: "Print Works",
+}
+
 
 @dataclass
 class AuzoEntry: #vers 1

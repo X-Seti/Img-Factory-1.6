@@ -27996,18 +27996,33 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         else:
             self._set_status("Showing interior 0 (exterior) only")
 
-    def _show_interior_picker_menu(self, interior_btn): #vers 1
+    def _show_interior_picker_menu(self, interior_btn): #vers 2
         """Interior button right-click (Aug 20 2026, per Keith's own
         follow-up: "I have no idea how many there are for GTA 3, GTA
         VC, or SA") - lists every interior value actually present in
         the currently loaded instances, with counts, so Keith can see
         exactly what a given world uses rather than guessing, and
-        pick one to isolate."""
+        pick one to isolate.
+
+        Real names shown for VC (Aug 20 2026, per Keith's own real,
+        direct list of VC interior areas, cross-confirmed against
+        GTAMods' own documented "Interior" page - see VC_INTERIOR_
+        NAMES' own docstring in gta_dat_parser.py for the full, real
+        confirmation story). Not done for SA: unlike VC, an SA
+        interior number does NOT uniquely identify one real area -
+        GTAMods' own documented SA list shows many unrelated real
+        buildings sharing the same real number across the map (e.g.
+        interior 1 alone covers Sindacco Abattoir, Ammu-Nation,
+        TransFender, and over a dozen more), so labelling a bare
+        number with any one of them would be actively misleading."""
         from PyQt6.QtWidgets import QMenu
+        from apps.methods.gta_dat_parser import GTAGame, VC_INTERIOR_NAMES
         all_inst = getattr(self, '_all_instances', [])
         counts = {}
         for inst in all_inst:
             counts[inst.interior] = counts.get(inst.interior, 0) + 1
+        loader = getattr(self, '_world_loader', None)
+        is_vc = getattr(loader, 'game', None) == GTAGame.VC
         menu = QMenu(self)
         if not counts:
             act = menu.addAction("No world loaded")
@@ -28020,11 +28035,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             all_act.triggered.connect(lambda checked=False: self._set_interior_filter(None, interior_btn))
             menu.addSeparator()
             for value in sorted(counts):
-                label = f"Interior {value} ({counts[value]})"
-                if value == 0:
-                    label = f"Interior 0 - exterior ({counts[value]})"
-                elif value == 13:
-                    label = f"Interior 13 - pickups ({counts[value]})"
+                if is_vc and value in VC_INTERIOR_NAMES:
+                    label = f"{value} - {VC_INTERIOR_NAMES[value]} ({counts[value]})"
+                else:
+                    label = f"Interior {value} ({counts[value]})"
+                    if value == 0:
+                        label = f"Interior 0 - exterior ({counts[value]})"
+                    elif value == 13:
+                        label = f"Interior 13 - pickups ({counts[value]})"
                 act = menu.addAction(label)
                 act.setCheckable(True)
                 act.setChecked(current == value)
