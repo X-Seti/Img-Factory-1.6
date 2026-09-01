@@ -8839,7 +8839,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if not path:
                 return
             try:
-                from apps.methods.sa_audio_stream import extract_all_tracks
+                from apps.components.Map_Editor.depends.audioparser import extract_all_tracks
             except ImportError as e:
                 self._set_status(f"Couldn't load the audio stream decoder: {e}")
                 return

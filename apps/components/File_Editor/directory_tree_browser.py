@@ -1289,7 +1289,7 @@ class DirectoryTreeBrowser(QWidget):
             # real audio/streams/ folder - no real file extension at
             # all, so identified by name instead) gets Extract & Play
             # Tracks..., since those first need real decoding via
-            # apps/methods/sa_audio_stream.py before anything inside
+            # apps/methods/audioparser.py before anything inside
             # them can be played at all.
             #
             # Real fix (Aug 20 2026, per Keith: "in LC, VC .wav plays...
@@ -1441,7 +1441,7 @@ class DirectoryTreeBrowser(QWidget):
         if player is not None:
             return player
         try:
-            from apps.methods.mini_audio_player import MiniAudioPlayer
+            from apps.methods.audioparser import MiniAudioPlayer
         except ImportError as e:
             self.log_message(f"Couldn't load the mini player: {e}")
             return None
@@ -1483,7 +1483,7 @@ class DirectoryTreeBrowser(QWidget):
         container wrapping real ATRAC3+ audio, and ffmpeg decodes it
         to a real, standard WAV cleanly."""
         try:
-            from apps.methods.mini_audio_player import transcode_to_wav
+            from apps.methods.audioparser import transcode_to_wav
         except ImportError as e:
             self.log_message(f"Couldn't load the audio transcoder: {e}")
             return
@@ -1504,7 +1504,7 @@ class DirectoryTreeBrowser(QWidget):
         """Decode and play a PS2 .VB file (Aug 20 2026, per Keith: "in
         LC, VC .wav plays... .vb") - real, working decoder confirmed
         against Keith's own real, uploaded AMBSIL.VB (see apps/
-        methods/ps2_vb_audio.py's own docstring for the full, real
+        methods/audioparser.py's own docstring for the full, real
         confirmation story: the decoded left channel came back
         exactly, perfectly silent, matching what a file named
         "ambient silence" should be).
@@ -1518,7 +1518,7 @@ class DirectoryTreeBrowser(QWidget):
         from just from its own path alone - a wrongly-fast/slow-
         sounding file is this real limitation, not a decoding bug."""
         try:
-            from apps.methods.ps2_vb_audio import decode_vb_file
+            from apps.methods.audioparser import decode_vb_file
         except ImportError as e:
             self.log_message(f"Couldn't load the .VB decoder: {e}")
             return
@@ -1542,7 +1542,7 @@ class DirectoryTreeBrowser(QWidget):
         2026, per Keith: "dir tree shows audio files, so we can now
         right click them to play") - real, working decoder confirmed
         against Keith's own real, uploaded AMBIENCE file (see apps/
-        methods/sa_audio_stream.py's own docstring for the full, real
+        methods/audioparser.py's own docstring for the full, real
         confirmation story: ffprobe verified extracted tracks as
         fully valid Ogg Vorbis). A given stream file has many real
         tracks (Keith's own real AMBIENCE had 40) - this plays only
@@ -1554,7 +1554,7 @@ class DirectoryTreeBrowser(QWidget):
         Switched to the shared MiniAudioPlayer (Aug 20 2026, same
         real reason as _play_audio_file's own real fix)."""
         try:
-            from apps.methods.sa_audio_stream import parse_stream_tracks, extract_track
+            from apps.methods.audioparser import parse_stream_tracks, extract_track
         except ImportError as e:
             self.log_message(f"Couldn't load the audio stream decoder: {e}")
             return

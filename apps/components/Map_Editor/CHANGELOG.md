@@ -9870,3 +9870,26 @@ conclusively found despite extensive isolated testing.
   SFX23.RAW exactly, byte for byte, suggesting either a real, game-
   specific format variation or an inaccuracy in that documentation -
   not confirmed either way yet).
+
+- Aug 20 2026 - Consolidated all 3 audio modules (sa_audio_stream.py,
+  ps2_vb_audio.py, mini_audio_player.py) into one, per Keith: "Could
+  all the audio functions go into an audioparser.py in the depends
+  map_workshop.py and img-factory methods/ folder?" New audioparser.py
+  kept in both real locations Keith asked for: apps/methods/
+  audioparser.py (this app's own shared location, imported by
+  directory_tree_browser.py, part of the main app) and apps/
+  components/Map_Editor/depends/audioparser.py (Map Workshop's own
+  self-contained depends/ folder, the same real pattern its other
+  helper modules already follow). No import relationship between the
+  two real copies - kept in sync by hand.
+
+  Verified the merge is functionally identical to the 3 separate
+  files it replaces before deleting them: re-ran both of this
+  session's own real confirmation tests against the merged module -
+  parse_stream_tracks still finds all 40 real tracks in Keith's own
+  uploaded AMBIENCE file, and decode_vb_file's own decoded left
+  channel still comes back exactly, perfectly silent for his own
+  uploaded AMBSIL.VB. All import sites updated (1 in map_workshop.py,
+  now pointing to its own depends/ copy; 4 in directory_tree_browser.py,
+  now pointing to the shared apps/methods/ copy) and old, separate
+  module files removed.
