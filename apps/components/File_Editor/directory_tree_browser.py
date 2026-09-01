@@ -1339,6 +1339,21 @@ class DirectoryTreeBrowser(QWidget):
                 play_action.triggered.connect(
                     lambda _=False, p=file_path: self._play_ps2_vb_file(p))
                 menu.addAction(play_action)
+            elif file_ext == '.adf':
+                # Real fix (Aug 20 2026, per Keith's own real, uploaded
+                # FLASH.ADF sample) - III/VC's own real music/ambient
+                # stream format, confirmed as a completely standard
+                # MP3 wrapped in a trivial, constant single-byte XOR
+                # (0x22) - see audioparser.py's own "III/VC .ADF
+                # format" section for the full, real confirmation
+                # story (real LAME encoder tags appear at exactly the
+                # right real offset once decoded, and both `file` and
+                # ffprobe confirm the result as a real, valid,
+                # standard MP3 end to end).
+                play_action = QAction("Play", self)
+                play_action.triggered.connect(
+                    lambda _=False, p=file_path: self._play_adf_file(p))
+                menu.addAction(play_action)
             elif file_ext in ('.raw', '.sdt') and self._find_sfx_pair(file_path):
                 # Real fix (Aug 20 2026, per Keith's own real, uploaded
                 # SFX23.RAW/SFX23.SDT sample pair) - GTA 2/III/VC's own
@@ -1560,6 +1575,34 @@ class DirectoryTreeBrowser(QWidget):
         if player is None:
             return
         player.load_and_play(wav_path, display_name=os.path.basename(path))
+        player.show()
+        player.raise_()
+
+    def _play_adf_file(self, path): #vers 1
+        """Decode and play a III/VC .ADF music/ambient stream file
+        (Aug 20 2026, per Keith's own real, uploaded FLASH.ADF sample)
+        - real, working decoder confirmed against Keith's own real
+        file (see audioparser.py's own "III/VC .ADF format" section
+        for the full, real confirmation story: real LAME encoder tags
+        appear at exactly the right real offset once XOR-decoded with
+        the confirmed, constant 0x22 key, and both `file` and ffprobe
+        confirm the fully decoded result as a real, standard, valid
+        MP3)."""
+        try:
+            from apps.methods.audioparser import decode_adf_file
+        except ImportError as e:
+            self.log_message(f"Couldn't load the .ADF decoder: {e}")
+            return
+        self.log_message(f"Decoding {os.path.basename(path)}...")
+        try:
+            mp3_path = decode_adf_file(path)
+        except Exception as e:
+            self.log_message(f"Couldn't decode {os.path.basename(path)}: {e}")
+            return
+        player = self._get_mini_player()
+        if player is None:
+            return
+        player.load_and_play(mp3_path, display_name=os.path.basename(path))
         player.show()
         player.raise_()
 

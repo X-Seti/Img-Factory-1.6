@@ -9934,3 +9934,31 @@ conclusively found despite extensive isolated testing.
   than left as a confident Play action known to sound wrong.
   _play_sfx_pair itself kept intact (disconnected, not removed) for
   whenever the real encoding issue gets solved.
+
+- Aug 20 2026 - Solved .ADF (III/VC music/ambient streams), confirmed
+  against Keith's own real, uploaded FLASH.ADF sample. Real, complete
+  format: a completely standard MP3 file, obfuscated with a trivial,
+  constant single-byte XOR (0x22) applied to every byte - not
+  anywhere near as complex as SA's own 16-byte key. Found the lead
+  from a repeating 4-byte pattern every 576 bytes in the raw file;
+  XOR-decoding with 0x22 revealed real, standard LAME encoder tags
+  ("Info", "LAME3.96r") at exactly the right offset, and both `file`
+  and ffprobe confirm the fully decoded result as a real, standard,
+  valid MP3 (MPEG ADTS, layer III, v1, 128 kbps, 32 kHz, JntStereo) -
+  an actual, playable MP3 end to end, not merely offset-correct like
+  SFX23's own still-unsolved, paused result.
+
+  New decode_adf_file in audioparser.py's own new "III/VC .ADF
+  format" section. Dir Tree's own right-click menu now offers Play
+  for .adf files directly.
+
+  Also tested and ruled out 2 hypotheses for AMBIENCE.PAK this turn,
+  per Keith's own real listening test: "pak files is static, low
+  volume." Mono PS-ADPCM at 24000Hz decoded without error and looked
+  statistically plausible (much lower zero-crossing rate/amplitude
+  than SFX23's own static-sounding result), but still sounded like
+  static per Keith. A 2000-byte stereo-interleave attempt (the same
+  pattern confirmed correct for .VB) outright failed to decode at
+  all. Neither hypothesis panned out - AMBIENCE.PAK remains
+  unsolved, set aside for now per Keith's own "lets work on the
+  others."

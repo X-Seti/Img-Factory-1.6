@@ -45,6 +45,7 @@ from typing import List, NamedTuple, Optional
 # parse_sfx_sdt
 # extract_sfx_entry
 # sfx_entry_to_wav
+# decode_adf_file
 # make_vagp_header
 # decode_vb_file
 # transcode_to_wav
@@ -261,6 +262,48 @@ def sfx_entry_to_wav(raw_path: str, entry: SfxEntry, out_path: str) -> None: #ve
         wf.setsampwidth(2)
         wf.setframerate(entry.sample_rate)
         wf.writeframes(pcm)
+
+
+# ============ III/VC .ADF format (music/ambient streams) ============
+"""
+Decoder for GTA III/Vice City's own real .ADF music/ambient stream
+files (Aug 20 2026, per Keith's own real, uploaded FLASH.ADF sample -
+confirmed by both PS2 .VB files replacing .ADF files in VBDec's own
+real, documented .ini configuration examples, e.g. "AUDIO\\WILD.ADF
+will be changed to AUDIO\\WILD.VB", and this file itself).
+
+Real, confirmed format: a completely standard MP3 file, obfuscated
+with a trivial, constant single-byte XOR (0x22) applied to every
+byte. Confirmed directly against Keith's own real FLASH.ADF: XOR-
+decoding with 0x22 reveals real, standard LAME encoder tags ("Info",
+"LAME3.96r") at the exact real offset a standard MP3/Xing/LAME header
+would put them, and both `file` and ffprobe confirm the fully decoded
+result as a real, standard, valid MP3 (MPEG ADTS, layer III, v1, 128
+kbps, 32 kHz, JntStereo) - not merely offset-correct like SFX23's own
+real, still-unsolved result, an actual, playable MP3 end to end.
+"""
+
+ADF_XOR_BYTE = 0x22
+
+
+def decode_adf_file(path: str) -> str: #vers 1
+    """Decode a whole real .ADF file (constant single-byte XOR with
+    0x22, see this section's own docstring above for the full, real
+    confirmation story) into a real, standard, playable MP3 file,
+    returning that file's own real path (Aug 20 2026). Caches to a
+    real, deterministic temp path so repeated real plays of the same
+    file don't re-decode every real time."""
+    out_path = os.path.join(
+        tempfile.gettempdir(),
+        f"_imgfactory_adf_decoded_{abs(hash(path))}.mp3")
+    if os.path.isfile(out_path):
+        return out_path
+    with open(path, 'rb') as f:
+        data = f.read()
+    decoded = bytes(b ^ ADF_XOR_BYTE for b in data)
+    with open(out_path, 'wb') as f:
+        f.write(decoded)
+    return out_path
 
 
 # ============ PS2 .VB format (GTA III/VC/LCS/VCS) ============
