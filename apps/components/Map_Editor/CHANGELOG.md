@@ -10068,3 +10068,12 @@ conclusively found despite extensive isolated testing.
   like Align or Backface Culling): Snap Vertices (explicitly
   requested for Map Workshop last turn), Snap: Centre of Model
   (working, map-relevant), and the rest of Navigation.
+
+- Aug 20 2026 - Repurposed Toggle Mesh, per Keith: "toggle mesh icon
+  can switch between col model and normal model" (also confirmed
+  Backface Culling and render styles work as-is, unchanged). Checked
+  shows the regular model mesh (as before); unchecked now also hides
+  it and shows collision instead (semi-solid overlay, reusing the
+  same real display method the Render dropdown's own "Show Semi-Solid
+  Col" option already provides) - previously unchecked just hid the
+  mesh with nothing shown in its place.

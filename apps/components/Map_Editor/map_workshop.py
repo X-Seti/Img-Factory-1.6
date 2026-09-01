@@ -13109,8 +13109,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
              lambda checked=False: self._show_workshop_settings('Render'))
         _act(tb_rend, "Toggle Mesh",
              _icon(self.icon_factory.mesh_icon, 'toggle_mesh_icon'),
-             lambda v: pw.set_show_mesh(v),
+             self._on_toggle_mesh_col,
              checkable=True, checked=True, attr='_view_mesh_act')
+        self._view_mesh_act.setToolTip(
+            "Checked: show model mesh. Unchecked: show collision instead.")
         _act(tb_rend, "Toggle Backface",
              _icon(self.icon_factory.toggle_backface_icon, 'toggle_backface_icon'),
              lambda v: pw.set_backface(v),
@@ -25357,6 +25359,21 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         btn.setText(f"Render: {label}")
 
         self._refresh_ipl_inst_file_panel()
+
+    def _on_toggle_mesh_col(self, checked): #vers 1
+        """Toggle Mesh button, repurposed per Keith: "toggle mesh icon
+        can switch between col model and normal model" - checked
+        shows the regular model mesh; unchecked hides it and shows
+        collision instead (semi-solid, reusing the same real overlay
+        the Render dropdown's own "Show Semi-Solid Col" option
+        already provides)."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is None:
+            return
+        vp.set_show_mesh(checked)
+        if hasattr(vp, 'set_show_col_semi_solid'):
+            vp.set_show_col_semi_solid(not checked)
+        vp.repaint()
 
     def _on_col_render_option_toggled(self, setter_name, checked): #vers 3
         """One of the four collision overlay actions in the Render:
