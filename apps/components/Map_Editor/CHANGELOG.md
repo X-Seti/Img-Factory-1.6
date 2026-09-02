@@ -10311,3 +10311,28 @@ conclusively found despite extensive isolated testing.
   instance-selection/IPL-drag click by mistake. set_box_edit_mode
   itself is kept, still toggled the same real way - nothing else
   depended on it actually blocking a genuine corner hit.
+
+- Aug 21 2026 - Fixed "clicking the model in the file list window,
+  wants to rename it, not take us to the zon entries that belongs to
+  it" (per Keith's own confirmation this means the IPL Inst File
+  table). Two real, separate causes, both fixed:
+
+  1. The actual "wants to rename" symptom: the table's own
+     setEditTriggers included DoubleClicked, which directly
+     conflicted with cellDoubleClicked (wired to jump the viewport to
+     that row's own instance) - double-clicking the Model column both
+     opened Qt's own inline text editor right over the cell (visually
+     dominant, looking exactly like "wants to rename") and tried to
+     navigate the viewport at the same time, easy to miss happening
+     in the background. Removed DoubleClicked as an edit trigger -
+     EditKeyPressed (F2/typing) alone still covers real, intentional
+     inline edits.
+
+  2. The actual "not take us to the zon entries" gap: the handler
+     itself only ever centered the viewport on the instance, never
+     actually looked for a real zone the instance's own position
+     falls inside. New _highlight_zone_containing_instance - finds
+     the first loaded zone box whose own real bounds contain the
+     instance's own (x,y) position and highlights it, same real
+     highlight the Cycle Zones button's own picker uses, alongside
+     (not instead of) centering on the instance itself.

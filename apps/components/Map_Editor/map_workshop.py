@@ -25517,9 +25517,22 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "Rot X", "Rot Y", "Rot Z", "Rot W"]) #TODO need to check Rot w.
         table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
-        table.setEditTriggers(
-            QTableWidget.EditTrigger.DoubleClicked |
-            QTableWidget.EditTrigger.EditKeyPressed)
+        # Real fix (Aug 21 2026, per Keith's own real, uploaded
+        # zon.png screenshot: "clicking the model in the file list
+        # window, wants to rename it, not take us to the zon entries
+        # that belongs to it") - DoubleClicked as an edit trigger
+        # here directly conflicted with cellDoubleClicked (below),
+        # wired to jump the viewport to that row's own real instance -
+        # double-clicking the Model column both opened Qt's own
+        # inline text editor right over the cell (visually dominant,
+        # looking exactly like "wants to rename") and tried to
+        # navigate the viewport at the same time, in the background,
+        # easy to miss ever happening at all. EditKeyPressed alone
+        # (F2/typing to start editing a selected cell) still works
+        # for real, intentional inline edits - only DoubleClicked is
+        # removed, since only that one genuinely conflicted with
+        # double-click's own separate, real meaning here.
+        table.setEditTriggers(QTableWidget.EditTrigger.EditKeyPressed)
         self._apply_compact_table_style(table)
         font = table.font(); font.setFamily("monospace"); table.setFont(font)
         table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -26476,7 +26489,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._center_viewport_on_instance(match)
             self._center_on_instance(match)
 
-    def _on_ipl_inst_file_cell_double_clicked(self, row, col): #vers 3
+    def _on_ipl_inst_file_cell_double_clicked(self, row, col): #vers 4
         """Double-clicking the Model column (1) finds that row's real
         instance and jumps the viewport to it + opens its edit panel,
         matching double-clicking a row in the Instance List.
@@ -26486,7 +26499,21 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         are nothing like the Inst table's own Model-at-column-1 layout
         the col != 1 guard below assumes, so this real Auzo case is
         checked and handled first, before that guard would otherwise
-        block it entirely."""
+        block it entirely.
+
+        Real fix (Aug 21 2026, per Keith's own real, uploaded zon.png
+        screenshot: "wants to rename it, not take us to the zon
+        entries that belongs to it") - the actual "wants to rename"
+        symptom was a real, separate table-setup bug fixed above (see
+        _create_ipl_inst_file_panel's own real setEditTriggers fix),
+        not this handler. But this real handler itself only ever
+        centered the viewport on the instance - never actually looked
+        for a real zone the instance's own position falls inside, the
+        real behaviour Keith's own message describes wanting instead.
+        Now also does that: finds the first loaded zone box whose own
+        real (min/max) bounds contain the instance's own real (x,y)
+        position, and highlights it the same real way the Cycle Zones
+        button's own picker does, if one is found."""
         if getattr(self, '_ipl_data_type', 'inst') == 'auzo':
             table = getattr(self, '_ipl_inst_file_table', None)
             if table is None:
@@ -26507,6 +26534,33 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if match is not None:
             self._center_viewport_on_instance(match)
             self._center_on_instance(match)
+            self._highlight_zone_containing_instance(match)
+
+    def _highlight_zone_containing_instance(self, inst): #vers 1
+        """Find the first loaded zone box whose own real bounds
+        contain inst's own real (x,y) position, and highlight it the
+        same real way the Cycle Zones button's own picker does (Aug
+        21 2026, per Keith's own real, uploaded zon.png screenshot:
+        "not take us to the zon entries that belongs to it"). Doesn't
+        re-center the viewport (the caller already did that, on the
+        instance itself) - only sets the real highlight state, so
+        both the instance and whichever zone contains it are visibly
+        marked together. Silently does nothing if no loaded zone's
+        own real bounds contain this instance at all - not every
+        instance is inside a zone."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is None:
+            return
+        zone_boxes = getattr(vp, '_zone_boxes', [])
+        px, py = inst.pos_x, inst.pos_y
+        for i, (x1, y1, z1, x2, y2, z2) in enumerate(zone_boxes):
+            if min(x1, x2) <= px <= max(x1, x2) and min(y1, y2) <= py <= max(y1, y2):
+                vp._selected_box = ('zone', i)
+                vp.update()
+                owners = getattr(vp, '_zone_box_owners', [])
+                name = owners[i].get('name', f'zone {i}') if i < len(owners) and isinstance(owners[i], dict) else f'zone {i}'
+                self._set_status(f"Instance is inside zone '{name}'")
+                return
 
     def _center_viewport_on_instance(self, inst): #vers 3
         """Pan/zoom self.preview_widget (our actual active viewport)
