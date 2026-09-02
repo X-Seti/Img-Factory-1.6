@@ -444,36 +444,35 @@ access) into #3, then remove the dead duplicates. Right now anyone
 editing "the settings dialog" without knowing this history has a
 1-in-3 chance of editing something invisible to the actual user.
 
-## Path section parsing done - UI/visualization not started (Aug 1 2026)
+## Path section - status update (Aug 1 2026, reviewed Aug 21 2026)
 
-`path` section (traffic AI paths, GTA3/VC) now parses correctly - see
-CHANGELOG for the fix. Not yet done, needed to actually be useful:
-- Show path groups/nodes anywhere in the UI (Object Browser tab? a
-  new dedicated panel? overlay in the 3D world view as connected line
-  segments between nodes, similar in spirit to the existing cull box
-  wireframes)
-- Editing (move a node, add/remove a node, change flags)
+`path` section (traffic AI paths, GTA3/VC) parses correctly - see
+CHANGELOG. Since this entry was first written:
+- [DONE] Path visualization in the 3D world view (_draw_paths,
+  DFFViewport) and its own Show Paths toggle (Overlays ribbon).
+- [DONE] Moving an existing node by dragging it (set_path_node_drag_
+  callback, _pick_path_node).
+- [DONE] Cull zones as editable/resizable boxes - cull/zone boxes
+  both have a real "box edit mode" (right-click Cull or Zon to turn
+  it on, then drag a corner to resize).
+
+Still not done:
+- Adding/removing a node, changing a node's own flags.
 - Write-back to the .ipl file (the broader "write-back infrastructure
-  for any file type" TODO item already covers this in principle)
-- pick section support (separate, not yet started)
-- cull zones as editable/renamable/resizable boxes (separate, not yet
-  started - cull.ipl already parses via _parse_cull, but nothing lets
-  Keith actually edit what it parses)
+  for any file type" TODO item already covers this in principle).
+- pick section support (separate, not yet started).
 - IDE tobj/path/2dfx editor for Model Workshop (separate component
-  from Map Workshop, not yet started)
+  from Map Workshop, not yet started).
 
-## IPL Controls row 3 reserved for future visibility toggles (Aug 1 2026)
+## [DONE] IPL Controls visibility toggles (Aug 1 2026, confirmed
+done during a full TODO review, Aug 21 2026)
 
 Per Keith, after moving LOD Test to a ribbon icon: "keep row3 for
-future functions, like show tojb, show Paths, show zons." Row 3's
-QHBoxLayout is now empty but intact, ready for:
-- Show TOBJ (timed objects) visibility toggle
-- Show Paths (the new path section, once it has any UI presence at
-  all - see the earlier "Path section parsing done - UI/visualization
-  not started" TODO entry)
-- Show Zones (cull.ipl zones, once they have editable-box UI - see
-  the earlier "cull zones as editable/renamable/resizable boxes" TODO
-  entry)
+future functions, like show tojb, show Paths, show zons." All 3
+built since this entry was written, each with its own SVG icon
+(overlay_icons.py) and now living on the Overlays ribbon (moved
+there from IPL Controls in a later pass): Show TOBJ (show_tobj_chk),
+Show Paths (show_paths_btn), Show Zones (show_zone_btn).
 
 ## Pre-lighting bake, saved back to models (Aug 1 2026)
 
@@ -493,18 +492,27 @@ stored that granularly rather than being a pure shader-style live
 effect), and DFF write-back (ties into the broader "write-back
 infrastructure for any file type" TODO item).
 
-## 4-Pane View disabled - could be rebuilt world-aware later (Aug 1 2026)
+## 4-Pane View - now hidden, not just disabled (Aug 1 2026, updated
+Aug 20 2026)
 
-Per Keith: "4 panels icon, keep, but the function isnt needed, it
-creates a strange beheavour." Disabled rather than removed (icon
-stays visible, greyed out, tooltip explains why). Root cause: `_sync_
-quad_from_main` only ever mirrored single-model geometry attributes
-(inherited directly from Model Workshop's single-DFF editing base),
-never `_world_instances` - so it showed blank panes whenever an
-actual map was loaded, Map Workshop's real primary use case. If a
-genuine "4 world views from different angles" feature is wanted
-later, it would need its own sync logic built around `_world_
-instances` from scratch, not a fix to the existing single-model one.
+Per Keith (Aug 1): "4 panels icon, keep, but the function isnt
+needed, it creates a strange beheavour." Originally disabled rather
+than removed (icon stayed visible, greyed out, tooltip explaining
+why). Root cause: `_sync_quad_from_main` only ever mirrored single-
+model geometry attributes (inherited directly from Model Workshop's
+single-DFF editing base), never `_world_instances` - so it showed
+blank panes whenever an actual map was loaded, Map Workshop's real
+primary use case.
+
+Keith's own later instruction (Aug 20) changed this: 4-Pane View was
+explicitly named in his own list of Model Workshop icons to hide
+from Map Workshop entirely ("Mirror Icon, 4 Pane icon, percent snap,
+angle snap, axis snap, front only paint, Vertex Select, Edge Select,
+Face Select, Polygon Select") - now setVisible(False), not just
+disabled. If a genuine "4 world views from different angles" feature
+is wanted later, it would need its own sync logic built around
+`_world_instances` from scratch, not a fix to the existing single-
+model one - and would need re-showing the button first.
 
 ## IDE tobj/path "add to ipl objects" - scope unclear, need to ask Keith (Aug 1 2026)
 
@@ -519,16 +527,31 @@ listing as regular objs entries, currently separate/not shown there,
 IPL Inst File table specifically. Needs clarifying with Keith rather
 than guessing at the wrong integration.
 
-## PICK/JUMP/TCYC/AUZO/MULT still stub tabs (Aug 1 2026)
+## PICK/JUMP/TCYC/AUZO/MULT tab status (Aug 1 2026, updated Aug 21
+2026 during a full TODO review, per Keith: "lets check everything on
+the todo list, then check if we have implemented anything related")
 
-Now have tabs in IPL Controls (disabled, with tooltips) but no real
-parsing/dataclasses - same treatment path/grge/enex got needs doing
-for each once real sample data is available to verify against
-(MULT is documented as unused by the game itself, may not be worth
-building beyond the stub). AUZO specifically per Keith: "show audio
-svg icons, plays the sound file" - real feature, needs its own sound-
-file-playback mechanism (which audio format/path convention SA audio
-zones actually reference needs research), not just parsing.
+- [DONE] TCYC - real parsing, a right-click alt-timecyc menu (browses
+  depends/timecyc/), and the CRT time overlay in the viewport, all
+  built since this entry was first written.
+- [DONE] AUZO - Keith's own specific ask here, "show audio svg icons,
+  plays the sound file", is fully built: real AuzoEntry parsing,
+  billboarded SVG sound-icon markers drawn in the viewport at each
+  real zone's own position, and real sound playback from the Auzo
+  list (double-click a row) - synthetic placeholder tone by default,
+  or a real sound file from depends/auzo_sounds/ if one matching the
+  zone's own sound_id/name/AUZO_TYPES music description is found.
+  Real, honest limitation still open: the actual in-game SA audio
+  itself lives in the game's own compiled audio bank archives, a
+  format this app doesn't read - see apps/methods/audioparser.py's
+  own docstring for the fuller story, including the separate, real
+  audio-stream-format decoder (AMBIENCE/GENRL/radio files) built
+  alongside this.
+- Still stub tabs, no real parsing/dataclasses: PICK, JUMP, MULT
+  (MULT is documented as unused by the game itself, may not be worth
+  building beyond the stub) - same treatment path/grge/enex got
+  needs doing for each once real sample data is available to verify
+  against.
 
 ## Collision rendering follow-ups (Aug 14 2026)
 

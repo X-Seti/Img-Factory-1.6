@@ -10165,3 +10165,18 @@ conclusively found despite extensive isolated testing.
   interior files actually loaded at that number (e.g. "Interior 1
   (245) - Ammu-Nation, Sindacco Abattoir, TransFender, +6 more"),
   resolved via new SA_INTERIOR_FILE_NAMES in gta_dat_parser.py.
+
+- Aug 21 2026 - Full TODO.md review, per Keith: "lets check everything
+  on the todo list, then check if we have implemented anything
+  related, so we're not adding the same function twice." Found and
+  fixed 3 substantially stale entries where real, working features
+  already existed but weren't marked done: AUZO's own sound-svg-icon
+  + playback feature (Keith's own original ask, fully built across
+  several turns), the IPL Controls Show TOBJ/Paths/Zones visibility
+  toggles (all 3 built and already on the Overlays ribbon), and path
+  section UI (visualization, node dragging, and cull/zone box editing
+  all already done - only add/remove node, flags, and write-back
+  still open). Also updated the 4-Pane View entry to reflect Keith's
+  own later instruction superseding his earlier one (kept visible-
+  but-disabled -> hidden entirely, per his own Model Workshop icon
+  list).
