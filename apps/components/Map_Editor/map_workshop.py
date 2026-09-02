@@ -13109,6 +13109,48 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # and moved in here afterwards, deferred, by _move_overlay_
         # buttons_to_ribbon.
         tb_overlays = _tb("Overlays", Qt.ToolBarArea.RightToolBarArea)
+        # Cycle Zones/Cull (Aug 21 2026, per Keith: "on zons we could
+        # also cycle through the entries list, and show the zon box
+        # highlighted, with right click options, this would be a
+        # failback, other then clicking on the zon box" - moved here,
+        # onto the ribbon directly, per his own follow-up: "the cycle
+        # button should be on the ribbons") - left-click steps to the
+        # next cull/zone box (wrapping around), right-click opens a
+        # menu of every one loaded, to jump directly to any specific
+        # one by name rather than only stepping through sequentially.
+        # A plain QToolButton (not a _MapOverlayToggleButton like the
+        # rest of this ribbon) added directly here rather than via
+        # _move_overlay_buttons_to_ribbon - it's a real action button
+        # with its own custom right-click menu, not a show/hide
+        # overlay toggle, so it doesn't fit that shared mechanism.
+        cycle_zones_btn = QToolButton()
+        cycle_zones_btn.setText("Cycle")
+        cycle_zones_btn.setToolTip(
+            "Left-click: step to the next cull/zone box.\n"
+            "Right-click: pick one directly from a list.\n\n"
+            "To resize the box itself: right-click Cull or Zon\n"
+            "(the show/hide toggle buttons) to turn on box edit\n"
+            "mode, then drag one of its corner spheres.")
+        cycle_zones_btn.clicked.connect(self._cycle_selected_box)
+        cycle_zones_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        cycle_zones_btn.customContextMenuRequested.connect(
+            lambda pos, b=cycle_zones_btn: self._show_box_picker_menu(b))
+        tb_overlays.addWidget(cycle_zones_btn)
+
+        # Undo (Aug 21 2026, per Keith: "we need an undo button
+        # /ribbon icon") - the real, map-undo-aware handler (_on_
+        # undo_clicked, wired to Ctrl+Z/Ctrl+Y earlier this session)
+        # was previously only reachable from inside the Item Editor
+        # Dialog's own [Apply][Undo][Close][Save] row, which only
+        # opens by double-clicking an instance - genuinely not
+        # reachable at all otherwise. Same left-click=undo, Shift+
+        # click=redo behavior as that button already has.
+        undo_ribbon_btn = QToolButton()
+        undo_ribbon_btn.setIcon(_icon(self.icon_factory.undo_icon, 'undo_icon'))
+        undo_ribbon_btn.setToolTip("Undo (Shift+click to Redo)")
+        undo_ribbon_btn.clicked.connect(self._on_undo_ribbon_clicked)
+        tb_overlays.addWidget(undo_ribbon_btn)
+
         _act(tb_rend, "Render Settings",
              _icon(self.icon_factory.render_settings_icon, 'render_settings_icon'),
              lambda checked=False: self._show_workshop_settings('Render'))
@@ -20853,6 +20895,24 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         else:
             self._set_status("Nothing to undo")
 
+    def _on_undo_ribbon_clicked(self): #vers 1
+        """Undo ribbon button (Aug 21 2026, per Keith: "we need an
+        undo button /ribbon icon") - the real, map-undo-aware handler
+        (_InstanceEditPanel's own _on_undo_clicked, wired to Ctrl+Z/
+        Ctrl+Y earlier this session) was previously only reachable
+        from inside the Item Editor Dialog's own [Apply][Undo][Close]
+        [Save] row, which only opens by double-clicking an instance -
+        genuinely not reachable at all otherwise. A real, separate
+        handler here (that panel's own version calls self._workshop.
+        _map_undo/_map_redo, since it's a different class - this one
+        is already the workshop, so calls its own methods directly)
+        rather than reusing that one - same real left-click=undo,
+        Shift+click=redo behavior."""
+        if QApplication.keyboardModifiers() & Qt.KeyboardModifier.ShiftModifier:
+            self._map_redo()
+        else:
+            self._on_ctrl_z_pressed()
+
     def _push_map_undo(self, undo_fn, redo_fn, description=""): #vers 1
         """Record one undoable map edit (Aug 18 2026)."""
         self.map_undo_stack = getattr(self, 'map_undo_stack', [])
@@ -25202,26 +25262,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         opts_row3.addWidget(show_cull_btn)
         opts_row3.addWidget(show_zone_btn)
         opts_row3.addWidget(show_occl_btn)
-
-        # Cycle Zones/Cull (Aug 21 2026, per Keith: "on zons we could
-        # also cycle through the entries list, and show the zon box
-        # highlighted, with right click options, this would be a
-        # failback, other then clicking on the zon box") - left-click
-        # steps to the next cull/zone box (wrapping around), right-
-        # click opens a menu of every one loaded, to jump directly to
-        # any specific one by name rather than only stepping through
-        # sequentially.
-        cycle_zones_btn = QToolButton()
-        cycle_zones_btn.setText("Cycle")
-        cycle_zones_btn.setToolTip(
-            "Left-click: step to the next cull/zone box.\n"
-            "Right-click: pick one directly from a list.")
-        cycle_zones_btn.clicked.connect(self._cycle_selected_box)
-        cycle_zones_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        cycle_zones_btn.customContextMenuRequested.connect(
-            lambda pos, b=cycle_zones_btn: self._show_box_picker_menu(b))
-        opts_row3.addWidget(cycle_zones_btn)
-
         opts_row3.addStretch()
         lay.addLayout(opts_row3)
 

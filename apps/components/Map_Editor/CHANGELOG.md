@@ -10237,3 +10237,34 @@ conclusively found despite extensive isolated testing.
   Zones button's own left-click uses - a quicker, no-mouse-travel-
   to-the-panel alternative to that button. New set_middle_click_
   cycle_callback (DFFViewport), wired in map_workshop.py.
+
+- Aug 21 2026 - Three fixes, per Keith: "looking at zons, the cycle
+  button should be on the ribbons, but how to you editor the size of
+  the box? and we need an undo button /ribbon icon"
+
+  1. Cycle Zones button moved from IPL Controls onto the Overlays
+     ribbon directly (a plain QToolButton added there, not via _move_
+     overlay_buttons_to_ribbon - it's a real action button with its
+     own custom right-click menu, not a show/hide toggle, so it
+     doesn't fit that shared mechanism).
+
+  2. Box resizing answered directly and made more discoverable: right-
+     click Cull or Zon (the show/hide toggle buttons) to turn on box
+     edit mode, then drag one of the box's own corner spheres - now
+     also explained in the Cycle button's own tooltip, not just
+     buried in a toggle button's tooltip elsewhere.
+
+  3. New Undo button on the Overlays ribbon. Real, honest bug caught
+     before it shipped: the real, map-undo-aware handler (_on_undo_
+     clicked) turned out to live on _InstanceEditPanel, not the main
+     workshop class - it calls self._workshop._map_undo/_map_redo
+     since it's a different class entirely. Wiring the new ribbon
+     button directly to that same method name would have silently
+     failed (AttributeError) the first time anyone clicked it, since
+     self on the workshop class has no method by that name at all.
+     New _on_undo_ribbon_clicked, correctly scoped to the workshop
+     class itself, same left-click=undo/Shift+click=redo behavior.
+     Previously the real undo system was only reachable via the Item
+     Editor Dialog's own [Apply][Undo][Close][Save] row, which only
+     opens by double-clicking an instance - genuinely unreachable any
+     other way before this.
