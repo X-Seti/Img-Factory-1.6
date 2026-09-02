@@ -10201,3 +10201,29 @@ conclusively found despite extensive isolated testing.
   instance already gives) and reports its own real data via the
   status bar, since neither has a dedicated edit dialog of its own
   yet beyond corner-drag resizing.
+
+- Aug 21 2026 - Cycle Zones fallback, per Keith: "on zons we could
+  also cycle through the entries list, and show the zon box
+  highlighted, with right click options, this would be a failback,
+  other then clicking on the zon box." New "Cycle" button (IPL
+  Controls, next to Cull/Zon/Occlusion) covering both cull and zone
+  boxes together: left-click steps to the next one (wrapping around),
+  right-click opens a menu listing every one currently loaded (by
+  real name for zones, index for cull, which has no name field) to
+  jump directly to any specific one.
+
+  New _draw_selected_box_highlight in dff_viewport.py - a bright,
+  slightly-scaled-up wireframe outline around whichever box is
+  currently selected, reusing the existing _draw_box_wireframe_from_
+  corners helper directly, same real "raw geometry, own colour, own
+  scale-up to dodge z-fighting" approach the instance hover-highlight
+  already uses. _on_cull_or_zone_box_picked (from last turn's direct-
+  click fix) now also sets this same highlight state, so a direct 3D
+  double-click and the new fallback cycle control both leave the
+  viewport in the same, visibly-highlighted state either way.
+
+  Scope note: "same with paths, and other on map objects" - not done
+  this turn. Paths would need their own, separate node-based cycle/
+  highlight mechanism (a path node isn't a box), and "other on map
+  objects" wasn't specific enough yet to know what else to build -
+  left for a following turn rather than rushed or guessed at.

@@ -25197,6 +25197,26 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         opts_row3.addWidget(show_cull_btn)
         opts_row3.addWidget(show_zone_btn)
         opts_row3.addWidget(show_occl_btn)
+
+        # Cycle Zones/Cull (Aug 21 2026, per Keith: "on zons we could
+        # also cycle through the entries list, and show the zon box
+        # highlighted, with right click options, this would be a
+        # failback, other then clicking on the zon box") - left-click
+        # steps to the next cull/zone box (wrapping around), right-
+        # click opens a menu of every one loaded, to jump directly to
+        # any specific one by name rather than only stepping through
+        # sequentially.
+        cycle_zones_btn = QToolButton()
+        cycle_zones_btn.setText("Cycle")
+        cycle_zones_btn.setToolTip(
+            "Left-click: step to the next cull/zone box.\n"
+            "Right-click: pick one directly from a list.")
+        cycle_zones_btn.clicked.connect(self._cycle_selected_box)
+        cycle_zones_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        cycle_zones_btn.customContextMenuRequested.connect(
+            lambda pos, b=cycle_zones_btn: self._show_box_picker_menu(b))
+        opts_row3.addWidget(cycle_zones_btn)
+
         opts_row3.addStretch()
         lay.addLayout(opts_row3)
 
@@ -26504,7 +26524,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 return
         self._set_status(f"Path node at ({x:.1f}, {y:.1f}, {z:.1f})")
 
-    def _on_cull_or_zone_box_picked(self, kind, box_index): #vers 1
+    def _on_cull_or_zone_box_picked(self, kind, box_index): #vers 2
         """Called by DFFViewport.mouseDoubleClickEvent when the user
         double-clicks a cull or zone box in the 3D world view (Aug 21
         2026, per Keith: "when clicking on paths, or zons, other then
@@ -26512,7 +26532,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         box (same real feedback double-clicking a regular instance
         already gives) and reports its own real data via the status
         bar, since neither has a dedicated edit dialog of its own yet
-        beyond corner-drag resizing (see TODO.md)."""
+        beyond corner-drag resizing (see TODO.md).
+
+        Also sets the real box highlight (Aug 21 2026, per Keith's
+        own follow-up "show the zon box highlighted") - the same real
+        state the Cycle Zones button's own left-click/right-click
+        picker set, so a direct 3D double-click and the fallback
+        cycle control both leave the viewport in the same real,
+        visibly-highlighted state either way."""
         vp = getattr(self, 'preview_widget', None)
         if vp is None:
             return
@@ -26520,6 +26547,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         owners = getattr(vp, '_cull_box_owners' if kind == 'cull' else '_zone_box_owners', [])
         if not (0 <= box_index < len(boxes)):
             return
+        vp._selected_box = (kind, box_index)
         x1, y1, z1, x2, y2, z2 = boxes[box_index]
         cx, cy = (x1 + x2) / 2.0, (y1 + y2) / 2.0
         vp._pan_x = -cx
@@ -26542,6 +26570,66 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._set_status(
                 f"{label} box {box_index} - bounds ({x1:.1f}, {y1:.1f}, {z1:.1f}) to "
                 f"({x2:.1f}, {y2:.1f}, {z2:.1f})")
+
+    def _combined_box_list(self): #vers 1
+        """Return every loaded cull/zone box as a flat, consistently-
+        ordered list of ('cull'|'zone', index) tuples (Aug 21 2026,
+        shared by the Cycle Zones button's own left-click-to-advance
+        and right-click-to-pick-directly handlers below) - cull boxes
+        first, then zone boxes, matching the order they're already
+        drawn in."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is None:
+            return []
+        return ([('cull', i) for i in range(len(getattr(vp, '_cull_boxes', [])))] +
+                [('zone', i) for i in range(len(getattr(vp, '_zone_boxes', [])))])
+
+    def _cycle_selected_box(self): #vers 1
+        """Cycle Zones button, left-click (Aug 21 2026, per Keith: "on
+        zons we could also cycle through the entries list, and show
+        the zon box highlighted... this would be a failback, other
+        then clicking on the zon box") - steps to the next cull/zone
+        box in the combined list, wrapping around, reusing _on_cull_
+        or_zone_box_picked directly for the actual centering/
+        highlighting/status-reporting."""
+        combined = self._combined_box_list()
+        if not combined:
+            self._set_status("No cull/zone boxes loaded")
+            return
+        vp = getattr(self, 'preview_widget', None)
+        current = getattr(vp, '_selected_box', None) if vp else None
+        if current in combined:
+            next_index = (combined.index(current) + 1) % len(combined)
+        else:
+            next_index = 0
+        kind, box_index = combined[next_index]
+        self._on_cull_or_zone_box_picked(kind, box_index)
+
+    def _show_box_picker_menu(self, cycle_btn): #vers 1
+        """Cycle Zones button, right-click (Aug 21 2026, per Keith's
+        own follow-up: "with right click options, this would be a
+        failback") - lists every real cull/zone box currently loaded,
+        by real name where one exists (zones) or index (cull, which
+        has no name field), to jump directly to any one rather than
+        only stepping through sequentially."""
+        from PyQt6.QtWidgets import QMenu
+        vp = getattr(self, 'preview_widget', None)
+        combined = self._combined_box_list()
+        menu = QMenu(self)
+        if not combined or vp is None:
+            act = menu.addAction("No cull/zone boxes loaded")
+            act.setEnabled(False)
+        else:
+            zone_owners = getattr(vp, '_zone_box_owners', [])
+            for kind, box_index in combined:
+                if kind == 'zone' and box_index < len(zone_owners) and isinstance(zone_owners[box_index], dict):
+                    label = f"Zone: {zone_owners[box_index].get('name', box_index)}"
+                else:
+                    label = f"Cull zone {box_index}"
+                act = menu.addAction(label)
+                act.triggered.connect(
+                    lambda checked=False, k=kind, i=box_index: self._on_cull_or_zone_box_picked(k, i))
+        menu.exec(cycle_btn.mapToGlobal(cycle_btn.rect().bottomLeft()))
 
     def _sync_ipl_inst_file_selection(self, inst): #vers 1
         """Highlight one instance's row in the IPL Inst File table,

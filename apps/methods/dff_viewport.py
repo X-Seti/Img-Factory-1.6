@@ -468,6 +468,13 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._path_edit_mode = False
         self._path_node_owner_map = {}
         self._dragging_path_node_start_key = None
+        # ('cull'|'zone', index) of the box currently cycled/selected
+        # via the Cycle Zones/Cull button (Aug 21 2026, per Keith:
+        # "on zons we could also cycle through the entries list, and
+        # show the zon box highlighted, with right click options,
+        # this would be a failback, other then clicking on the zon
+        # box") - None means no box currently selected this way.
+        self._selected_box = None
         self._dragging_path_node_current_pos = None
         self._path_node_drag_callback = None
 
@@ -1417,6 +1424,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 self._draw_auzo_zones()
             if getattr(self, '_hovered_instance_idx', None) is not None:
                 self._draw_hover_highlight()
+            if getattr(self, '_selected_box', None) is not None:
+                self._draw_selected_box_highlight()
             if getattr(self, '_lod_test_center', None) is not None:
                 self._draw_lod_test_circle()
             if self._show_grid: self._draw_grid()
@@ -1797,6 +1806,38 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         for cx, cy in corners_xy:
             glVertex3f(cx, cy, z1); glVertex3f(cx, cy, z2)
         glEnd()
+
+    def _draw_selected_box_highlight(self): #vers 1
+        """Highlight whichever cull/zone box is currently cycled to
+        via the Cycle Zones/Cull button (Aug 21 2026, per Keith: "show
+        the zon box highlighted... this would be a failback, other
+        then clicking on the zon box"). A bright, slightly-scaled-up
+        wireframe outline around the box's own real bounds, reusing
+        _draw_box_wireframe_from_corners directly - same real
+        "raw geometry, own colour, own scale-up to dodge z-fighting"
+        approach _draw_hover_highlight already uses for instances,
+        adapted for a box shape instead of a mesh."""
+        sel = getattr(self, '_selected_box', None)
+        if sel is None:
+            return
+        kind, index = sel
+        boxes = self._cull_boxes if kind == 'cull' else self._zone_boxes
+        if not (0 <= index < len(boxes)):
+            return
+        x1, y1, z1, x2, y2, z2 = boxes[index]
+        cx, cy, cz = (x1 + x2) / 2.0, (y1 + y2) / 2.0, (z1 + z2) / 2.0
+        pad = 0.15
+        corners_xy = [
+            (x1 - pad, y1 - pad), (x2 + pad, y1 - pad),
+            (x2 + pad, y2 + pad), (x1 - pad, y2 + pad),
+        ]
+        glDisable(GL_LIGHTING)
+        glDisable(GL_TEXTURE_2D)
+        glColor4f(1.0, 1.0, 0.2, 0.95)
+        glLineWidth(3.0)
+        self._draw_box_wireframe_from_corners(corners_xy, z1 - pad, z2 + pad)
+        glEnable(GL_TEXTURE_2D)
+        glEnable(GL_LIGHTING)
 
     def _draw_box_wireframe_from_corners(self, corners_xy, z1, z2): #vers 1
         """Edges-only box drawing from 4 already-computed (x,y)
