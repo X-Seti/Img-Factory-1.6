@@ -10297,3 +10297,17 @@ conclusively found despite extensive isolated testing.
   redo when it's the currently-active tab, falling back to the fixed
   IMG-archive undo_manager otherwise. Button rewired to the new smart
   handler.
+
+- Aug 21 2026 - Fixed "clicking on those corners does nothing" (per
+  Keith's own real, uploaded zon.png screenshot) - box corner
+  resizing required box edit mode to already be switched on first
+  before a corner click did anything at all, the same real "gated
+  behind a separate mode toggle" friction already found and removed
+  for double-click info on a path node/cull/zone box last turn. Now
+  tries picking a corner unconditionally on every left-click, but
+  only ever returns (consuming the click) when one was actually
+  found - a miss falls straight through to every other real left-
+  click handling exactly as before, so this can't swallow a normal
+  instance-selection/IPL-drag click by mistake. set_box_edit_mode
+  itself is kept, still toggled the same real way - nothing else
+  depended on it actually blocking a genuine corner hit.

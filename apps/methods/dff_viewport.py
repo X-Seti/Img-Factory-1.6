@@ -5416,15 +5416,32 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                     # movement happens at all.
                     self.update()
                 return
-            if getattr(self, '_box_edit_mode', False):
-                mx, my = event.pos().x(), event.pos().y()
-                key = self._pick_box_corner(mx, my)
-                if key is not None:
-                    info = self._pickable_box_corners[key]
-                    self._dragging_box_corner_key = key
-                    self._dragging_box_corner_info = info
-                    self._dragging_box_corner_current_pos = info['pos']
-                    self.update()
+            # Real fix (Aug 21 2026, per Keith's own real, uploaded
+            # zon.png screenshot: "clicking on those corners does
+            # nothing") - box corner resizing used to require box
+            # edit mode to already be switched on first before a
+            # corner click did anything at all, the same real "gated
+            # behind a separate mode toggle" friction already found
+            # and removed for double-click info on a path node/cull/
+            # zone box last turn. Tries picking a corner
+            # unconditionally now - but only ever returns (consuming
+            # the click) when one was actually found; a miss falls
+            # straight through to every other real left-click
+            # handling below exactly as if this block didn't exist,
+            # so this can't ever swallow a normal instance-selection/
+            # IPL-drag click by mistake. set_box_edit_mode/self._box_
+            # edit_mode itself is kept (still toggled the same real
+            # way, still cleared on disable) since nothing else here
+            # depends on removing it, only on this real gate no
+            # longer blocking a genuine corner hit.
+            mx, my = event.pos().x(), event.pos().y()
+            key = self._pick_box_corner(mx, my)
+            if key is not None:
+                info = self._pickable_box_corners[key]
+                self._dragging_box_corner_key = key
+                self._dragging_box_corner_info = info
+                self._dragging_box_corner_current_pos = info['pos']
+                self.update()
                 return
             # Whole-IPL-section dragging (Aug 18 2026) - also its own
             # independent toggle, checked right after path node
