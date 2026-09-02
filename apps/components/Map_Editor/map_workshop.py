@@ -12819,6 +12819,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 bool(self.map_settings.get('auto_highlight_hover')))
         if hasattr(self.preview_widget, 'set_hover_context_callback'):
             self.preview_widget.set_hover_context_callback(self._on_hover_context_menu)
+        # Middle-click cycle (Aug 21 2026, per Keith: "middle click
+        # can cycle?") - same real callback the Cycle Zones button's
+        # own left-click already uses.
+        if hasattr(self.preview_widget, 'set_middle_click_cycle_callback'):
+            self.preview_widget.set_middle_click_cycle_callback(self._cycle_selected_box)
         # Restore the saved no-clip-box-resizing setting too (Aug 19 2026)
         if hasattr(self.preview_widget, 'set_no_clip_boxes'):
             self.preview_widget.set_no_clip_boxes(bool(self.map_settings.get('no_clip_boxes')))

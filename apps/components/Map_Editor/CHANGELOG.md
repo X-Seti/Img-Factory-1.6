@@ -10227,3 +10227,13 @@ conclusively found despite extensive isolated testing.
   highlight mechanism (a path node isn't a box), and "other on map
   objects" wasn't specific enough yet to know what else to build -
   left for a following turn rather than rushed or guessed at.
+
+- Aug 21 2026 - Middle-click to cycle, per Keith: "middle click can
+  cycle?" Same real click-vs-drag tolerance check right-click's own
+  hover-options handling already uses (middle-drag already means
+  "pan the camera", so a genuine plain click needs telling apart
+  from the start of a pan). A real middle-click anywhere in the
+  viewport now calls the same real _cycle_selected_box the Cycle
+  Zones button's own left-click uses - a quicker, no-mouse-travel-
+  to-the-panel alternative to that button. New set_middle_click_
+  cycle_callback (DFFViewport), wired in map_workshop.py.

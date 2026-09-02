@@ -3788,6 +3788,17 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         caller-owns-data callback in this file."""
         self._hover_context_callback = callback
 
+    def set_middle_click_cycle_callback(self, callback): #vers 1
+        """Set (or clear, with None) the function called on a plain
+        middle-click (not a pan drag) anywhere in the viewport: a
+        real, no-argument callback(). map_workshop.py wires this to
+        the same _cycle_selected_box the Cycle Zones button's own
+        left-click already uses (Aug 21 2026, per Keith: "middle
+        click can cycle?") - same real widget-owns-interaction,
+        caller-owns-data pattern as set_hover_context_callback just
+        above."""
+        self._middle_click_cycle_callback = callback
+
     def set_show_tracks(self, enabled: bool): #vers 1
         self.show_tracks = enabled; self.update()
 
@@ -5357,7 +5368,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             pass
         self.update()
 
-    def mousePressEvent(self, event): #vers 4
+    def mousePressEvent(self, event): #vers 5
         self._last_pos = event.pos()
         if event.button() == Qt.MouseButton.RightButton:
             # Tracks where a right-click started (Aug 19 2026, for
@@ -5368,6 +5379,15 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             # release position in mouseReleaseEvent to decide which
             # one actually happened.
             self._right_press_pos = event.pos()
+        if event.button() == Qt.MouseButton.MiddleButton:
+            # Tracks where a middle-click started (Aug 21 2026, per
+            # Keith: "middle click can cycle?") - same real reason and
+            # same real tolerance-based click-vs-drag distinction as
+            # right-click's own tracking just above: middle-drag
+            # already means "pan the camera" (see mouseMoveEvent), so
+            # a genuine plain click needs telling apart from the start
+            # of a pan drag.
+            self._middle_press_pos = event.pos()
         if event.button() == Qt.MouseButton.LeftButton:
             # Path node editing (Aug 17 2026) - its own independent
             # toggle, not part of the vertex/edge/face _select_mode
@@ -5797,7 +5817,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glPopMatrix()
         glLineWidth(1.0)
 
-    def mouseReleaseEvent(self, event): #vers 3
+    def mouseReleaseEvent(self, event): #vers 4
         self._last_pos = event.pos()
         if event.button() == Qt.MouseButton.RightButton:
             # Right-click for options on a hovered instance (Aug 19
@@ -5819,6 +5839,22 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                     inst = entry.get('instance')
                     if inst is not None:
                         callback(inst)
+        if event.button() == Qt.MouseButton.MiddleButton:
+            # Middle-click to cycle (Aug 21 2026, per Keith: "middle
+            # click can cycle?") - same real click-vs-drag tolerance
+            # check as right-click's own handling just above; a real
+            # click (not the start of a pan drag) calls the same real
+            # cycle callback the Cycle Zones button's own left-click
+            # already uses, so a plain middle-click anywhere in the
+            # viewport is a quicker, no-mouse-travel-to-the-panel
+            # alternative to that button.
+            press_pos = getattr(self, '_middle_press_pos', None)
+            self._middle_press_pos = None
+            if press_pos is not None:
+                moved = (event.pos() - press_pos).manhattanLength()
+                callback = getattr(self, '_middle_click_cycle_callback', None)
+                if moved <= 4 and callback is not None:
+                    callback()
         # Commit a completed path node drag (Aug 17 2026) - looks up
         # the real (group_ref, node_index) via the ORIGINAL start
         # position (self._path_node_owner_map's own keys never change
