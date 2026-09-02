@@ -2624,19 +2624,84 @@ class IMGFactory(QMainWindow):
         except Exception as e:
             self.log_message(f"Error in select_inverse_entries: {str(e)}")
 
-    def _undo_action(self): #vers 2
-        """Undo last action"""
-        if hasattr(self, 'undo') and callable(self.undo):
-            self.undo()
+    def _undo_action(self): #vers 3
+        """Undo last action (IMG-archive undo - import/export/rebuild,
+        via self.undo_manager).
+
+        Real fix (Aug 21 2026, found while wiring up Map Workshop's
+        own real undo delegation below, per Keith's own real "there is
+        also the undo button on img factory, does nothing" report) -
+        was calling self.undo(), which is set once, unconditionally,
+        to self._undo_action itself (self.undo = self._undo_action,
+        __init__) and never reassigned anywhere else in the whole real
+        codebase - every real call was actually infinite recursion,
+        not a working undo at all. Calls self.undo_manager.undo()
+        directly now, the same real object the old, broken indirection
+        was always meant to eventually reach."""
+        if hasattr(self, 'undo_manager') and hasattr(self.undo_manager, 'undo'):
+            self.undo_manager.undo()
         else:
             self.log_message("Nothing to undo")
 
-    def _redo_action(self): #vers 2
-        """Redo last action"""
-        if hasattr(self, 'redo') and callable(self.redo):
-            self.redo()
+    def _redo_action(self): #vers 3
+        """Redo last action (IMG-archive redo) - same real fix as
+        _undo_action just above, same real infinite-recursion bug."""
+        if hasattr(self, 'undo_manager') and hasattr(self.undo_manager, 'redo'):
+            self.undo_manager.redo()
         else:
             self.log_message("Nothing to redo")
+
+    def _find_active_map_workshop(self): #vers 1
+        """Return the real, live Map Workshop instance if it's the
+        currently-active tab, or None otherwise (Aug 21 2026, per
+        Keith: "there is also the undo button on img factory, does
+        nothing from what I can remember be if there is a way to pass
+        whatever is docked, to that undo button") - Map Workshop's
+        own real ModelWorkshop instance is nested one level deep
+        inside a plain container QWidget when docked as a tab (see
+        open_map_workshop in map_workshop.py), so this checks the
+        current tab's own real children rather than the tab widget
+        itself. Duck-typed (checks for _on_undo_ribbon_clicked, Map
+        Workshop's own real undo entry point built last turn) rather
+        than importing ModelWorkshop directly, to avoid a real risk
+        of a circular import between this module and map_workshop.py."""
+        tab_widget = getattr(self, 'main_tab_widget', None)
+        if tab_widget is None:
+            return None
+        current = tab_widget.currentWidget()
+        if current is None:
+            return None
+        if hasattr(current, '_on_undo_ribbon_clicked'):
+            return current
+        for child in current.findChildren(QWidget):
+            if hasattr(child, '_on_undo_ribbon_clicked'):
+                return child
+        return None
+
+    def _smart_undo_action(self): #vers 1
+        """Real Undo button handler (Aug 21 2026, per Keith's own real
+        request above) - delegates to Map Workshop's own real undo/
+        redo (_on_undo_ribbon_clicked, same left-click=undo, Shift+
+        click=redo behavior its own ribbon button already has) when
+        Map Workshop is the currently-active tab; falls back to the
+        existing, separate IMG-archive undo system otherwise,
+        completely unchanged for every other real tab/context."""
+        workshop = self._find_active_map_workshop()
+        if workshop is not None:
+            workshop._on_undo_ribbon_clicked()
+            return
+        self._undo_action()
+
+    def _smart_redo_action(self): #vers 1
+        """Real Redo button handler (Aug 21 2026) - same real
+        delegation as _smart_undo_action just above, Map Workshop's
+        own real redo when it's the active tab, the existing IMG-
+        archive redo system otherwise."""
+        workshop = self._find_active_map_workshop()
+        if workshop is not None:
+            workshop._map_redo()
+            return
+        self._redo_action()
 
 
     # INTEGRATION FIX for imgfactory.py:

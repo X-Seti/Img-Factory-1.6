@@ -10268,3 +10268,32 @@ conclusively found despite extensive isolated testing.
      Editor Dialog's own [Apply][Undo][Close][Save] row, which only
      opens by double-clicking an instance - genuinely unreachable any
      other way before this.
+
+- Aug 21 2026 - Fixed IMG Factory's own real Undo button, per Keith:
+  "there is also the undo button on img factory, does nothing from
+  what I can remember be if there is a way to pass whatever is
+  docked, to that undo button." Two real, separate causes, both
+  fixed:
+
+  1. The button was setEnabled(False) at creation (gui_layout_
+     custom.py) and never re-enabled anywhere else in the whole real
+     codebase - a disabled Qt button doesn't respond to clicks at
+     all, regardless of what it's even wired to. Now enabled.
+
+  2. Its own click handler (_undo_action, imgfactory.py) called
+     self.undo(), which is set once, unconditionally, to self._undo_
+     action itself (self.undo = self._undo_action, __init__) and
+     never reassigned anywhere else - every real call was actually
+     infinite recursion, not a working undo. Fixed to call self.
+     undo_manager.undo() directly, the real object that broken
+     indirection was always meant to eventually reach - same real
+     fix applied to _redo_action.
+
+  Then, Keith's own real second half of the request - delegating to
+  "whatever is docked": new _find_active_map_workshop (duck-typed via
+  _on_undo_ribbon_clicked, avoiding a real circular-import risk
+  between imgfactory.py and map_workshop.py) and _smart_undo_action/
+  _smart_redo_action, which delegate to Map Workshop's own real undo/
+  redo when it's the currently-active tab, falling back to the fixed
+  IMG-archive undo_manager otherwise. Button rewired to the new smart
+  handler.
