@@ -1108,20 +1108,46 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 best_i, best_t, best_d2 = i, t, d2
         return best_i
 
-    def mouseDoubleClickEvent(self, event): #vers 1
+    def mouseDoubleClickEvent(self, event): #vers 2
         """Double-clicking a world instance opens its edit dialog (Aug
         1 2026, per Keith - see _pick_world_instance's docstring).
         Only active when a world (multi-instance) view is actually
         loaded - self._workshop_ref is set at construction
         (model_workshop.py) regardless of mode, so this checks
-        _world_instances specifically rather than assuming."""
-        if self._world_instances:
+        _world_instances specifically rather than assuming.
+
+        Real fix (Aug 21 2026, per Keith: "when clicking on paths, or
+        zons, other then ipl models, nothing comes up") - a path
+        node's own drag-to-move and a cull/zone box's own corner-
+        resize both already worked, but only after first switching on
+        their own dedicated edit-mode toggle, and neither ever showed
+        any info at all even then - clicking one outside that mode
+        (the same real way clicking a regular instance already just
+        works) genuinely did nothing, a real, honest UX gap, not
+        something Keith was missing. Now falls through to try a path
+        node, then a cull/zone box, when no instance was hit -
+        whichever is found gets a real info popup via the same real
+        _workshop_ref callback pattern instance picking already uses."""
+        if self._world_instances or self._path_node_owner_map or self._cull_boxes or self._zone_boxes:
             pos = event.position()
             idx = self._pick_world_instance(pos.x(), pos.y())
             if idx is not None:
                 ws = getattr(self, '_workshop_ref', None)
                 if ws is not None and hasattr(ws, '_on_world_instance_picked'):
                     ws._on_world_instance_picked(idx)
+                    return
+            ws = getattr(self, '_workshop_ref', None)
+            node_pos = self._pick_path_node(pos.x(), pos.y())
+            if node_pos is not None:
+                if ws is not None and hasattr(ws, '_on_path_node_picked'):
+                    owner = self._path_node_owner_map.get(node_pos)
+                    ws._on_path_node_picked(node_pos, owner)
+                    return
+            box_hit = self._pick_cull_or_zone_box(pos.x(), pos.y())
+            if box_hit is not None:
+                if ws is not None and hasattr(ws, '_on_cull_or_zone_box_picked'):
+                    kind, box_index = box_hit
+                    ws._on_cull_or_zone_box_picked(kind, box_index)
                     return
         super().mouseDoubleClickEvent(event)
 
@@ -4532,6 +4558,52 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             if d2 < best_d2 or (best_pos is not None and d2 <= best_d2 and t < best_t):
                 best_pos, best_t, best_d2 = pos, t, d2
         return best_pos
+
+    def _pick_cull_or_zone_box(self, mx: float, my: float): #vers 1
+        """Return ('cull'|'zone', index) of the closest cull/zone box
+        whose own axis-aligned bounds the ray through (mx,my) actually
+        enters, or None (Aug 21 2026, per Keith: "when clicking on
+        paths, or zons, other then ipl models, nothing comes up") -
+        unlike _pick_box_corner just above (only finds a corner
+        *handle*, and only while box edit mode is already on), this
+        tests the box's own real volume directly, working regardless
+        of edit mode - a real, standard ray/AABB slab test against
+        self._cull_boxes/self._zone_boxes' own real (x1,y1,z1,x2,y2,z2)
+        tuples, closest hit (smallest entry t) wins when more than one
+        box's own bounds overlap."""
+        ray = self._pick_ray(mx, my)
+        if ray is None:
+            return None
+        origin, direction = ray
+        best_kind, best_index, best_t = None, None, None
+        for kind, boxes in (('cull', self._cull_boxes), ('zone', self._zone_boxes)):
+            for i, box in enumerate(boxes):
+                x1, y1, z1, x2, y2, z2 = box
+                lo = (min(x1, x2), min(y1, y2), min(z1, z2))
+                hi = (max(x1, x2), max(y1, y2), max(z1, z2))
+                t_enter, t_exit = 0.0, float('inf')
+                hit = True
+                for axis in range(3):
+                    d = direction[axis]
+                    if abs(d) < 1e-9:
+                        if origin[axis] < lo[axis] or origin[axis] > hi[axis]:
+                            hit = False
+                            break
+                        continue
+                    t1 = (lo[axis] - origin[axis]) / d
+                    t2 = (hi[axis] - origin[axis]) / d
+                    if t1 > t2:
+                        t1, t2 = t2, t1
+                    t_enter = max(t_enter, t1)
+                    t_exit = min(t_exit, t2)
+                    if t_enter > t_exit:
+                        hit = False
+                        break
+                if hit and t_enter >= 0 and (best_t is None or t_enter < best_t):
+                    best_kind, best_index, best_t = kind, i, t_enter
+        if best_kind is None:
+            return None
+        return (best_kind, best_index)
 
     def _pick_box_corner(self, mx: float, my: float): #vers 1
         """Return the key (into self._pickable_box_corners) of the

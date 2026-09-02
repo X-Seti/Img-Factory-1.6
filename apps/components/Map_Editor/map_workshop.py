@@ -26475,6 +26475,74 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._center_on_instance(inst)
             self._sync_ipl_inst_file_selection(inst)
 
+    def _on_path_node_picked(self, node_pos, owner): #vers 1
+        """Called by DFFViewport.mouseDoubleClickEvent when the user
+        double-clicks a path node in the 3D world view (Aug 21 2026,
+        per Keith: "when clicking on paths, or zons, other then ipl
+        models, nothing comes up") - centers the viewport on the node
+        (same real feedback double-clicking a regular instance already
+        gives) and reports its own real data via the status bar, since
+        a path node has no dedicated edit dialog of its own yet (see
+        TODO.md's own "Path section - status update" entry - add/
+        remove/flags editing isn't built)."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is None:
+            return
+        x, y, z = node_pos
+        vp._pan_x = -x
+        vp._pan_y = -y
+        vp._dist = getattr(self, '_goto_zoom_distance', 40.0)
+        vp.update()
+        if owner is not None:
+            group, node_index = owner
+            node = group.nodes[node_index] if 0 <= node_index < len(group.nodes) else None
+            if node is not None:
+                self._set_status(
+                    f"Path node {node_index} of group ({group.header_a}, "
+                    f"{group.header_b}) in {group.source_ipl} - type={node.node_type}, "
+                    f"pos=({x:.1f}, {y:.1f}, {z:.1f})")
+                return
+        self._set_status(f"Path node at ({x:.1f}, {y:.1f}, {z:.1f})")
+
+    def _on_cull_or_zone_box_picked(self, kind, box_index): #vers 1
+        """Called by DFFViewport.mouseDoubleClickEvent when the user
+        double-clicks a cull or zone box in the 3D world view (Aug 21
+        2026, per Keith: "when clicking on paths, or zons, other then
+        ipl models, nothing comes up") - centers the viewport on the
+        box (same real feedback double-clicking a regular instance
+        already gives) and reports its own real data via the status
+        bar, since neither has a dedicated edit dialog of its own yet
+        beyond corner-drag resizing (see TODO.md)."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is None:
+            return
+        boxes = vp._cull_boxes if kind == 'cull' else vp._zone_boxes
+        owners = getattr(vp, '_cull_box_owners' if kind == 'cull' else '_zone_box_owners', [])
+        if not (0 <= box_index < len(boxes)):
+            return
+        x1, y1, z1, x2, y2, z2 = boxes[box_index]
+        cx, cy = (x1 + x2) / 2.0, (y1 + y2) / 2.0
+        vp._pan_x = -cx
+        vp._pan_y = -cy
+        vp._dist = max(getattr(self, '_goto_zoom_distance', 40.0),
+                       abs(x2 - x1), abs(y2 - y1))
+        vp.update()
+        owner = owners[box_index] if 0 <= box_index < len(owners) else None
+        label = kind.capitalize()
+        if kind == 'zone' and isinstance(owner, dict):
+            name = owner.get('name', f'zone {box_index}')
+            self._set_status(
+                f"Zone '{name}' - bounds ({x1:.1f}, {y1:.1f}, {z1:.1f}) to "
+                f"({x2:.1f}, {y2:.1f}, {z2:.1f})")
+        elif kind == 'cull' and owner is not None:
+            self._set_status(
+                f"Cull zone {box_index} - bounds ({x1:.1f}, {y1:.1f}, {z1:.1f}) to "
+                f"({x2:.1f}, {y2:.1f}, {z2:.1f}), flags={getattr(owner, 'flags', '?')}")
+        else:
+            self._set_status(
+                f"{label} box {box_index} - bounds ({x1:.1f}, {y1:.1f}, {z1:.1f}) to "
+                f"({x2:.1f}, {y2:.1f}, {z2:.1f})")
+
     def _sync_ipl_inst_file_selection(self, inst): #vers 1
         """Highlight one instance's row in the IPL Inst File table,
         switching IPL Sections/the shown IPL first if the instance

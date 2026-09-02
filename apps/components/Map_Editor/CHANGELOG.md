@@ -10180,3 +10180,24 @@ conclusively found despite extensive isolated testing.
   own later instruction superseding his earlier one (kept visible-
   but-disabled -> hidden entirely, per his own Model Workshop icon
   list).
+
+- Aug 21 2026 - Fixed "clicking on paths, or zons, other then ipl
+  models, nothing comes up" - a real, honest UX gap: a path node's
+  own drag-to-move and a cull/zone box's own corner-resize both
+  already worked, but only after first switching on their own
+  dedicated edit-mode toggle, and neither ever showed any info at
+  all even then. Clicking one outside that mode - the same real way
+  clicking a regular instance already just works - genuinely did
+  nothing at all, since DFFViewport.mouseDoubleClickEvent only ever
+  tried instance-picking.
+
+  New _pick_cull_or_zone_box (a real, standard ray/AABB slab test
+  against the box's own real bounds, working regardless of edit
+  mode, unlike the existing corner-only _pick_box_corner). mouseDouble
+  ClickEvent now falls through to try a path node, then a cull/zone
+  box, when no instance was hit. New _on_path_node_picked/_on_cull_
+  or_zone_box_picked in map_workshop.py - centers the viewport on
+  whatever was hit (the same real feedback double-clicking a regular
+  instance already gives) and reports its own real data via the
+  status bar, since neither has a dedicated edit dialog of its own
+  yet beyond corner-drag resizing.
