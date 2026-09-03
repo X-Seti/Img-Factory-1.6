@@ -1115,7 +1115,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 best_i, best_t, best_d2 = i, t, d2
         return best_i
 
-    def mouseDoubleClickEvent(self, event): #vers 2
+    def mouseDoubleClickEvent(self, event): #vers 3
         """Double-clicking a world instance opens its edit dialog (Aug
         1 2026, per Keith - see _pick_world_instance's docstring).
         Only active when a world (multi-instance) view is actually
@@ -1131,31 +1131,70 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         any info at all even then - clicking one outside that mode
         (the same real way clicking a regular instance already just
         works) genuinely did nothing, a real, honest UX gap, not
-        something Keith was missing. Now falls through to try a path
+        something Keith was missing. Falls through to try a path
         node, then a cull/zone box, when no instance was hit -
         whichever is found gets a real info popup via the same real
-        _workshop_ref callback pattern instance picking already uses."""
+        _workshop_ref callback pattern instance picking already uses.
+
+        Real fix (Aug 21 2026, per Keith's own real follow-up: "I've
+        tried to select a zon by its corner node, instead, the model
+        behide it gets selected instead, so when in zon mode, it
+        selects zons only, same with cull, paths, other functions") -
+        instance-picking was always tried first, unconditionally,
+        regardless of which overlays were actually visible at the
+        time - a real instance sitting at/near the same real screen
+        position as a path node or cull/zone box's own corner always
+        won, no matter which one Keith actually meant to click.
+        Whichever of paths/cull/zone is currently switched on (show_
+        paths/show_cull_boxes/show_zone_boxes) is tried first now,
+        instances only falling back afterward - the same real
+        priority Keith's own message describes wanting, per overlay,
+        not a fixed, one-size-fits-all order."""
         if self._world_instances or self._path_node_owner_map or self._cull_boxes or self._zone_boxes:
             pos = event.position()
+            ws = getattr(self, '_workshop_ref', None)
+
+            if getattr(self, 'show_paths', False):
+                node_pos = self._pick_path_node(pos.x(), pos.y())
+                if node_pos is not None:
+                    if ws is not None and hasattr(ws, '_on_path_node_picked'):
+                        owner = self._path_node_owner_map.get(node_pos)
+                        ws._on_path_node_picked(node_pos, owner)
+                        return
+
+            if getattr(self, 'show_cull_boxes', False) or getattr(self, 'show_zone_boxes', False):
+                box_hit = self._pick_cull_or_zone_box(pos.x(), pos.y())
+                if box_hit is not None:
+                    if ws is not None and hasattr(ws, '_on_cull_or_zone_box_picked'):
+                        kind, box_index = box_hit
+                        ws._on_cull_or_zone_box_picked(kind, box_index)
+                        return
+
             idx = self._pick_world_instance(pos.x(), pos.y())
             if idx is not None:
-                ws = getattr(self, '_workshop_ref', None)
                 if ws is not None and hasattr(ws, '_on_world_instance_picked'):
                     ws._on_world_instance_picked(idx)
                     return
-            ws = getattr(self, '_workshop_ref', None)
-            node_pos = self._pick_path_node(pos.x(), pos.y())
-            if node_pos is not None:
-                if ws is not None and hasattr(ws, '_on_path_node_picked'):
-                    owner = self._path_node_owner_map.get(node_pos)
-                    ws._on_path_node_picked(node_pos, owner)
-                    return
-            box_hit = self._pick_cull_or_zone_box(pos.x(), pos.y())
-            if box_hit is not None:
-                if ws is not None and hasattr(ws, '_on_cull_or_zone_box_picked'):
-                    kind, box_index = box_hit
-                    ws._on_cull_or_zone_box_picked(kind, box_index)
-                    return
+
+            # None of the currently-active overlay types (if any) were
+            # hit, and neither was an instance - try the ones that
+            # weren't already tried above as a last resort, same real
+            # "at least try everything once" fallback the original,
+            # unconditional order already gave for free.
+            if not getattr(self, 'show_paths', False):
+                node_pos = self._pick_path_node(pos.x(), pos.y())
+                if node_pos is not None:
+                    if ws is not None and hasattr(ws, '_on_path_node_picked'):
+                        owner = self._path_node_owner_map.get(node_pos)
+                        ws._on_path_node_picked(node_pos, owner)
+                        return
+            if not (getattr(self, 'show_cull_boxes', False) or getattr(self, 'show_zone_boxes', False)):
+                box_hit = self._pick_cull_or_zone_box(pos.x(), pos.y())
+                if box_hit is not None:
+                    if ws is not None and hasattr(ws, '_on_cull_or_zone_box_picked'):
+                        kind, box_index = box_hit
+                        ws._on_cull_or_zone_box_picked(kind, box_index)
+                        return
         super().mouseDoubleClickEvent(event)
 
     def _ray_triangle_intersect(self, origin, direction, v0, v1, v2): #vers 1

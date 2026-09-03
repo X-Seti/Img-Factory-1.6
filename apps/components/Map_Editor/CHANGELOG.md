@@ -10341,3 +10341,18 @@ conclusively found despite extensive isolated testing.
   still said "right-click Cull or Zon to turn on box edit mode" for
   corner resizing, but last turn's own real fix (removing the box
   edit mode gate on corner clicking) made that step unnecessary.
+
+- Aug 21 2026 - Fixed double-click picking priority, per Keith: "I've
+  tried to select a zon by its corner node, instead, the model
+  behide it gets selected instead, so when in zon mode, it selects
+  zons only, same with cull, paths, other functions." mouseDouble
+  ClickEvent always tried instance-picking first, unconditionally,
+  regardless of which overlays were actually visible - a real
+  instance sitting at/near the same screen position as a path node
+  or cull/zone box's own corner always won the pick, no matter which
+  one Keith actually meant to click. Now checks which overlay is
+  currently switched on (show_paths/show_cull_boxes/show_zone_boxes)
+  and tries that type first; instances only fall back afterward -
+  and if neither the active overlay nor an instance was hit, still
+  tries whichever overlay type wasn't already tried, so nothing that
+  worked before stops working, it's just correctly prioritized now.
