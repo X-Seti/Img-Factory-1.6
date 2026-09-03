@@ -21413,7 +21413,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.map_settings.save()
         self._refresh_recent_dat_menu()
 
-    def _show_world_load_summary(self, title, summary_text, preloaded_files): #vers 1
+    def _show_world_load_summary(self, title, summary_text, preloaded_files): #vers 2
         """Real replacement for the plain QMessageBox.information this
         summary used to show (Aug 20 2026, per Keith: "that dat
         window, countdown from 10, then automatically press ok, also
@@ -21424,16 +21424,33 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         dismiss setting is on - makes the OK button count down its
         own label each second and click itself once it reaches zero,
         rather than needing to be dismissed by hand every time
-        (useful alongside Auto-load last world)."""
+        (useful alongside Auto-load last world).
+
+        Real fix (Aug 21 2026, per Keith's own real, uploaded
+        tidyup.png screenshot: "this needs to be tidied up, even if
+        it has to scroll one entry per line") - the preloaded files
+        list used to be joined into one, single, comma-separated
+        QLabel line with no word-wrap at all, running straight off
+        the right edge of the dialog rather than wrapping or
+        scrolling. Now its own real QListWidget, one real filename
+        per row, height-capped so a long real list scrolls inside its
+        own real, fixed-height box instead of stretching the whole
+        dialog taller without limit."""
         print(f"[MapWorkshop-MARKER] _show_world_load_summary shown (title={title!r}, id={id(self)})")
-        full_text = summary_text
-        if preloaded_files:
-            full_text += f"\n\nPreloaded: {', '.join(preloaded_files)}"
 
         dlg = QDialog(self)
         dlg.setWindowTitle(title)
         layout = QVBoxLayout(dlg)
-        layout.addWidget(QLabel(full_text))
+        layout.addWidget(QLabel(summary_text))
+
+        if preloaded_files:
+            layout.addWidget(QLabel("Preloaded:"))
+            preload_list = QListWidget()
+            preload_list.addItems(preloaded_files)
+            preload_list.setMaximumHeight(160)
+            preload_list.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+            layout.addWidget(preload_list)
+
         ok_btn = QPushButton("OK")
         ok_btn.setDefault(True)
         layout.addWidget(ok_btn)

@@ -10376,3 +10376,16 @@ conclusively found despite extensive isolated testing.
   platform QApplication instance - actually created the QIcon, actually
   called setIcon() on a real QToolButton, and confirmed no exception,
   not just a syntax check.
+
+- Aug 21 2026 - Fixed the Load Game DAT File summary dialog's own
+  Preloaded list, per Keith's own real, uploaded tidyup.png
+  screenshot: "this needs to be tidied up, even if it has to scroll
+  one entry per line." The preloaded files list was joined into one,
+  single, comma-separated QLabel line with no word-wrap at all,
+  running straight off the right edge of the dialog. Now its own
+  real QListWidget, one filename per row, height-capped (160px) so a
+  long list scrolls inside its own fixed-height box instead of
+  stretching the whole dialog taller without limit. Verified this
+  time by actually constructing the real dialog in an offscreen Qt
+  session with Keith's own real 14-file preloaded list from the
+  screenshot, not just a syntax check.
