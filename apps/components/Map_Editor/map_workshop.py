@@ -13145,7 +13145,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # reachable at all otherwise. Same left-click=undo, Shift+
         # click=redo behavior as that button already has.
         undo_ribbon_btn = QToolButton()
-        undo_ribbon_btn.setIcon(_icon(self.icon_factory.undo_icon, 'undo_icon'))
+        undo_ribbon_btn.setIcon(_icon(self.icon_factory.undo_icon, 'undo_icon')(color=icon_color))
         undo_ribbon_btn.setToolTip("Undo (Shift+click to Redo)")
         undo_ribbon_btn.clicked.connect(self._on_undo_ribbon_clicked)
         tb_overlays.addWidget(undo_ribbon_btn)

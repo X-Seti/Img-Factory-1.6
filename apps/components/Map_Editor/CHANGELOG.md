@@ -10356,3 +10356,23 @@ conclusively found despite extensive isolated testing.
   and if neither the active overlay nor an instance was hit, still
   tries whichever overlay type wasn't already tried, so nothing that
   worked before stops working, it's just correctly prioritized now.
+
+- Aug 21 2026 - Fixed a real, crashing bug Keith hit opening Map
+  Workshop: TypeError: setIcon(self, icon: QIcon): argument 1 has
+  unexpected type 'function', at the new Undo ribbon button from a
+  couple turns ago. Root cause: _build_toolbars' own local _icon(...)
+  helper doesn't return a real QIcon at all - it returns the icon
+  *function itself*, meant to be called later by _act's own real
+  icon = icon_fn(color=icon_color) line. Every other real button in
+  this file goes through _act, which does that call correctly; the
+  new Undo button used a plain QToolButton (needed for the Cycle
+  button's own custom right-click menu, and matched for consistency)
+  and passed _icon(...)'s own raw return value straight to setIcon()
+  without ever actually calling it - genuinely never caught by a
+  syntax check, only by Keith actually running the app. Fixed to
+  actually call the returned function with color=icon_color, same as
+  every other direct self.icon_factory.x_icon(color=...) call in this
+  file already does. Verified this time with a real, offscreen-
+  platform QApplication instance - actually created the QIcon, actually
+  called setIcon() on a real QToolButton, and confirmed no exception,
+  not just a syntax check.
