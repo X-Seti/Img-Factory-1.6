@@ -10336,3 +10336,8 @@ conclusively found despite extensive isolated testing.
      instance's own (x,y) position and highlights it, same real
      highlight the Cycle Zones button's own picker uses, alongside
      (not instead of) centering on the instance itself.
+
+- Aug 21 2026 - Fixed a now-outdated tooltip on the Cycle button -
+  still said "right-click Cull or Zon to turn on box edit mode" for
+  corner resizing, but last turn's own real fix (removing the box
+  edit mode gate on corner clicking) made that step unnecessary.

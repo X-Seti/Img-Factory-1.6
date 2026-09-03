@@ -13128,9 +13128,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         cycle_zones_btn.setToolTip(
             "Left-click: step to the next cull/zone box.\n"
             "Right-click: pick one directly from a list.\n\n"
-            "To resize the box itself: right-click Cull or Zon\n"
-            "(the show/hide toggle buttons) to turn on box edit\n"
-            "mode, then drag one of its corner spheres.")
+            "To resize a box: click and drag one of its corner\n"
+            "spheres directly - no separate mode needed.")
         cycle_zones_btn.clicked.connect(self._cycle_selected_box)
         cycle_zones_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         cycle_zones_btn.customContextMenuRequested.connect(
