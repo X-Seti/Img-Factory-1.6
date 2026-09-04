@@ -833,6 +833,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._dragging_box_corner_key = None
         self._dragging_box_corner_info = None   # (box_type, box_ref, fixed_opposite_xy, z1, z2)
         self._dragging_box_corner_current_pos = None
+        self._dragging_box_corner_live_z = None
         self._box_resize_callback = None
         self._no_clip_boxes = False
 
@@ -5480,6 +5481,16 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 self._dragging_box_corner_key = key
                 self._dragging_box_corner_info = info
                 self._dragging_box_corner_current_pos = info['pos']
+                # Live, mutable Z for this drag (Aug 21 2026, per
+                # Keith: "I can't do anything about Z depth, unless
+                # there is a way to toggle between move modes,
+                # holding shift for z?") - separate from start_z
+                # (kept fixed, part of _dragging_box_corner_key itself)
+                # since Shift-drag below adjusts this one instead of
+                # ever touching start_z, letting a drag freely switch
+                # between XY-only (Shift up) and Z-only (Shift held)
+                # without losing whichever Z was already set.
+                self._dragging_box_corner_live_z = info['pos'][2]
                 self.update()
                 return
             # Whole-IPL-section dragging (Aug 18 2026) - also its own
@@ -5680,15 +5691,41 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             # the very next paintGL call to draw the resized box
             # immediately, without needing a second, parallel "live
             # preview" data structure the way path nodes needed one.
+            #
+            # Real fix (Aug 21 2026, per Keith: "I can't do anything
+            # about Z depth, unless there is a way to toggle between
+            # move modes, holding shift for z?") - holding Shift
+            # switches this same drag from XY-only to Z-only: the
+            # corner's own vertical *screen* movement since the last
+            # frame (event.pos().y() - self._last_pos.y()) adjusts
+            # self._dragging_box_corner_live_z directly instead of
+            # projecting onto the XY ground plane at all, so X/Y stay
+            # exactly where they already were. Scaled by self._dist
+            # (the same zoom-proportional scale picking tolerance
+            # already uses elsewhere) so it feels consistent whether
+            # zoomed in close or looking at the whole map. Releasing
+            # Shift mid-drag returns to real XY dragging using
+            # whatever live_z Shift last set, rather than snapping
+            # back to the corner's own original start_z - the two
+            # modes can be freely switched between within one drag.
             info = self._dragging_box_corner_info
             box_type, box_index, corner_idx, start_z = self._dragging_box_corner_key
-            new_pos = self._screen_to_ground_position(
-                event.pos().x(), event.pos().y(), ground_z=start_z)
+            live_z = getattr(self, '_dragging_box_corner_live_z', start_z)
+
+            if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+                live_z -= dy * (self._dist * 0.01)
+                self._dragging_box_corner_live_z = live_z
+                cx, cy = self._dragging_box_corner_current_pos[0], self._dragging_box_corner_current_pos[1]
+                new_pos = (cx, cy, live_z)
+            else:
+                new_pos = self._screen_to_ground_position(
+                    event.pos().x(), event.pos().y(), ground_z=live_z)
+
             if new_pos is not None:
                 ox, oy, oz = info['opposite']
                 x1, x2 = sorted((new_pos[0], ox))
                 y1, y2 = sorted((new_pos[1], oy))
-                z1, z2 = sorted((start_z, oz))
+                z1, z2 = sorted((live_z, oz))
                 box_list = self._cull_boxes if box_type == 'cull' else self._zone_boxes
                 if (not self._no_clip_boxes or not self._box_resize_would_overlap(
                         box_type, box_index, x1, y1, x2, y2, z1, z2)):
@@ -5958,6 +5995,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._dragging_box_corner_key = None
             self._dragging_box_corner_info = None
             self._dragging_box_corner_current_pos = None
+            self._dragging_box_corner_live_z = None
             self.update()
 
         # Commit a completed whole-IPL drag (Aug 18 2026, generalised

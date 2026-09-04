@@ -10389,3 +10389,23 @@ conclusively found despite extensive isolated testing.
   time by actually constructing the real dialog in an offscreen Qt
   session with Keith's own real 14-file preloaded list from the
   screenshot, not just a syntax check.
+
+- Aug 21 2026 - Added Z-depth adjustment for cull/zone box corner
+  resizing, per Keith: "i can change the Z-axis box by X, Y, both
+  sides and direction but I can't do anything about Z depth, unless
+  there is a way to toggle between move modes, holding shift for z?"
+  Confirmed real cause: corner dragging was deliberately constrained
+  to a fixed-height ground plane (2D drag, a 2D mouse can't set both
+  XY and Z at once), so Z depth genuinely had no way to change at all
+  before this - not a bug, a real, missing mode.
+
+  Holding Shift while dragging a corner now does exactly what Keith
+  suggested: switches that same drag from XY-only to Z-only. The
+  corner's own vertical screen movement since the last frame adjusts
+  its own Z directly (X/Y stay exactly where they already were),
+  scaled by the same zoom-proportional factor picking tolerance
+  already uses elsewhere for consistent feel at any zoom level.
+  Releasing Shift mid-drag returns to real XY dragging using
+  whatever Z Shift last set, rather than snapping back to the
+  corner's own original height - the two modes can be freely
+  switched between within one single drag.
