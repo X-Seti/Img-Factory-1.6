@@ -10432,3 +10432,32 @@ conclusively found despite extensive isolated testing.
   always genuinely 0 in real mirror-zone cases - this covers the
   ordinary case, verified against a synthetic test line, not yet
   against Keith's own real SA cull.ipl data.
+
+- Aug 21 2026 - Fixed "some alpha objects not being rendered as they
+  should be" (per Keith's own real, uploaded alpha_showing.png
+  screenshot - dark, jagged tree/foliage shapes among otherwise
+  normal-looking trees). GL_ALPHA_TEST cutout rendering itself was
+  already correct and working (confirmed by the jagged, leaf-shaped
+  silhouettes actually visible in the screenshot, not solid
+  rectangles) - the real bug was in lighting, not alpha at all.
+
+  _draw_world_instances' own display-list-building loop set self.
+  _vertices/_normals/_uvs/_triangles/_materials/_prelit fresh from
+  each real entry, but never self._current_geom_flags - every world
+  instance's own display list was actually built using whatever
+  geometry flags happened to still be set from unrelated, earlier
+  single-model editing, never that specific model's own real
+  rpGEOMETRYLIGHT/rpGEOMETRYMODULATEMATERIALCOLOR/rpGEOMETRYNORMALS
+  flags. Foliage-style models whose own real DFF data says "don't
+  light me" (relying on prelit vertex colours or plain texture
+  colour) got lit anyway, against normals not designed for it - real,
+  dark-looking results instead of their own real, green texture, even
+  though the alpha-test shape itself was already right.
+
+  Two-part fix: map_workshop.py's own per-model entry cache now
+  captures the first geometry's own real flags (geom_flags, matching
+  the same real convention DFFViewport.load_all_geometries already
+  uses for single-model display) alongside vertices/normals/etc.;
+  dff_viewport.py's own display-list loop now actually reads and
+  applies it, falling back to the same sensible default _geom_flags()
+  itself already uses when a real entry happens to lack the field.

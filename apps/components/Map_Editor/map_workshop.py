@@ -28704,6 +28704,27 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                         'triangles': all_triangles,
                         'materials': all_materials,
                         'prelit':    all_prelit,
+                        # Real fix (Aug 21 2026, per Keith's own real,
+                        # uploaded alpha_showing.png screenshot: "some
+                        # alpha objects not being rendered as they
+                        # should be") - this real model's own real
+                        # geometry flags (rpGEOMETRYLIGHT etc.) were
+                        # never captured at all here, so every world
+                        # instance's own display list built with
+                        # whatever self._current_geom_flags happened
+                        # to still be set to from unrelated, earlier
+                        # single-model editing - genuinely never this
+                        # model's own real flags. The alpha-test cutout
+                        # shape itself was already correct (GL_ALPHA_
+                        # TEST was already real and working), but a
+                        # real, wrong lighting flag left real foliage
+                        # unlit/mislit dark instead of showing its own
+                        # real, green cutout texture. First geometry's
+                        # own flags used (matching the same real
+                        # convention already used elsewhere in this
+                        # codebase for single-model display, e.g.
+                        # DFFViewport.load_all_geometries).
+                        'geom_flags': getattr(dff_model.geometries[0], 'flags', 0),
                         'col_vertices':  col_vertices,
                         'col_triangles': col_triangles,
                     }

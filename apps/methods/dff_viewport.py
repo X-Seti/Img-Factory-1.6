@@ -5189,6 +5189,28 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 self._triangles = entry.get('triangles', [])
                 self._materials = entry.get('materials', [])
                 self._prelit    = entry.get('prelit', [])
+                # Real fix (Aug 21 2026, per Keith's own real,
+                # uploaded alpha_showing.png screenshot: "some alpha
+                # objects not being rendered as they should be") -
+                # this real model's own real geometry flags
+                # (rpGEOMETRYLIGHT etc., driving whether _draw_
+                # textured lights this model at all) were never set
+                # here at all, unlike vertices/normals/triangles/
+                # materials/prelit just above - _geom_flags() would
+                # silently fall back to whatever self._current_geom_
+                # flags happened to still hold from unrelated, earlier
+                # single-model editing, genuinely never this specific
+                # model's own real flags. Foliage-style objects whose
+                # own real DFF data says "don't light me" (relying on
+                # their own real prelit vertex colours or plain
+                # texture colour instead) got lit anyway, against
+                # normals that weren't designed for it - real, wrong,
+                # dark-looking foliage instead of showing its own
+                # real, green cutout texture, even though the alpha-
+                # test cutout shape itself was already correct.
+                self._current_geom_flags = entry.get(
+                    'geom_flags',
+                    self.rpGEOMETRYLIGHT | self.rpGEOMETRYMODULATEMATERIALCOLOR | self.rpGEOMETRYNORMALS)
                 glNewList(list_id, GL_COMPILE)
                 if   self._mode=='wireframe': self._draw_wireframe()
                 elif self._mode=='solid':     self._draw_solid()
