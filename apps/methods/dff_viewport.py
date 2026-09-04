@@ -1847,30 +1847,48 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             glVertex3f(cx, cy, z1); glVertex3f(cx, cy, z2)
         glEnd()
 
-    def _draw_selected_box_highlight(self): #vers 1
-        """Highlight whichever cull/zone box is currently cycled to
-        via the Cycle Zones/Cull button (Aug 21 2026, per Keith: "show
-        the zon box highlighted... this would be a failback, other
-        then clicking on the zon box"). A bright, slightly-scaled-up
-        wireframe outline around the box's own real bounds, reusing
-        _draw_box_wireframe_from_corners directly - same real
-        "raw geometry, own colour, own scale-up to dodge z-fighting"
-        approach _draw_hover_highlight already uses for instances,
-        adapted for a box shape instead of a mesh."""
+    def _draw_selected_box_highlight(self): #vers 2
+        """Highlight whichever cull/zone/occlusion box is currently
+        cycled to via the Cycle Zones/Cull button (Aug 21 2026, per
+        Keith: "show the zon box highlighted... this would be a
+        failback, other then clicking on the zon box"; occl added
+        same day per Keith's own follow-up "both if you can"). A
+        bright, slightly-scaled-up wireframe outline around the box's
+        own real bounds, reusing _draw_box_wireframe_from_corners
+        directly - same real "raw geometry, own colour, own scale-up
+        to dodge z-fighting" approach _draw_hover_highlight already
+        uses for instances, adapted for a box shape instead of a
+        mesh. Occlusion's own corners are computed with the same real
+        rotation math _draw_occl_boxes already uses (its shape can be
+        rotated, unlike cull/zone), padded outward from its own real
+        center rather than a plain XY expand, so the highlight traces
+        the box's own actual rotated outline, not just its AABB."""
         sel = getattr(self, '_selected_box', None)
         if sel is None:
             return
         kind, index = sel
-        boxes = self._cull_boxes if kind == 'cull' else self._zone_boxes
-        if not (0 <= index < len(boxes)):
-            return
-        x1, y1, z1, x2, y2, z2 = boxes[index]
-        cx, cy, cz = (x1 + x2) / 2.0, (y1 + y2) / 2.0, (z1 + z2) / 2.0
         pad = 0.15
-        corners_xy = [
-            (x1 - pad, y1 - pad), (x2 + pad, y1 - pad),
-            (x2 + pad, y2 + pad), (x1 - pad, y2 + pad),
-        ]
+        if kind == 'occl':
+            if not (0 <= index < len(self._occl_boxes)):
+                return
+            mid_x, mid_y, bottom_z, width_x, width_y, height, rotation = self._occl_boxes[index]
+            hw, hh = width_x / 2.0 + pad, width_y / 2.0 + pad
+            rad = math.radians(rotation)
+            cos_r, sin_r = math.cos(rad), math.sin(rad)
+            corners_xy = []
+            for dx, dy in ((-hw, -hh), (hw, -hh), (hw, hh), (-hw, hh)):
+                corners_xy.append((mid_x + dx * cos_r - dy * sin_r,
+                                    mid_y + dx * sin_r + dy * cos_r))
+            z1, z2 = bottom_z, bottom_z + height
+        else:
+            boxes = self._cull_boxes if kind == 'cull' else self._zone_boxes
+            if not (0 <= index < len(boxes)):
+                return
+            x1, y1, z1, x2, y2, z2 = boxes[index]
+            corners_xy = [
+                (x1 - pad, y1 - pad), (x2 + pad, y1 - pad),
+                (x2 + pad, y2 + pad), (x1 - pad, y2 + pad),
+            ]
         glDisable(GL_LIGHTING)
         glDisable(GL_TEXTURE_2D)
         glColor4f(1.0, 1.0, 0.2, 0.95)
@@ -4651,48 +4669,70 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 best_pos, best_t, best_d2 = pos, t, d2
         return best_pos
 
-    def _pick_cull_or_zone_box(self, mx: float, my: float): #vers 1
-        """Return ('cull'|'zone', index) of the closest cull/zone box
-        whose own axis-aligned bounds the ray through (mx,my) actually
-        enters, or None (Aug 21 2026, per Keith: "when clicking on
-        paths, or zons, other then ipl models, nothing comes up") -
-        unlike _pick_box_corner just above (only finds a corner
-        *handle*, and only while box edit mode is already on), this
-        tests the box's own real volume directly, working regardless
-        of edit mode - a real, standard ray/AABB slab test against
-        self._cull_boxes/self._zone_boxes' own real (x1,y1,z1,x2,y2,z2)
-        tuples, closest hit (smallest entry t) wins when more than one
-        box's own bounds overlap."""
+    def _pick_cull_or_zone_box(self, mx: float, my: float): #vers 2
+        """Return ('cull'|'zone'|'occl', index) of the closest cull/
+        zone/occlusion box whose own bounds the ray through (mx,my)
+        actually enters, or None (Aug 21 2026, per Keith: "when
+        clicking on paths, or zons, other then ipl models, nothing
+        comes up"; occl added same day per Keith's own follow-up:
+        "both if you can" [occl+grge add/delete]) - unlike _pick_box_
+        corner just above (only finds a corner *handle*, and only
+        while box edit mode is already on), this tests each box's own
+        real volume directly, working regardless of edit mode - a
+        real, standard ray/AABB slab test, closest hit (smallest
+        entry t) wins when more than one box's own bounds overlap.
+
+        Occlusion boxes are rotated (unlike cull/zone), so their own
+        axis-aligned picking bounds are computed fresh here from their
+        own real rotated corners (same real rotation math _draw_occl_
+        boxes already uses) rather than stored as a plain (x1,y1,z1,
+        x2,y2,z2) tuple like cull/zone - an honest, correctly-
+        enclosing AABB of the rotated shape, not the exact rotated
+        shape itself, same real approach already used for SA cull's
+        own real skew."""
         ray = self._pick_ray(mx, my)
         if ray is None:
             return None
         origin, direction = ray
         best_kind, best_index, best_t = None, None, None
+
+        def test_box(kind, i, x1, y1, z1, x2, y2, z2):
+            nonlocal best_kind, best_index, best_t
+            lo = (min(x1, x2), min(y1, y2), min(z1, z2))
+            hi = (max(x1, x2), max(y1, y2), max(z1, z2))
+            t_enter, t_exit = 0.0, float('inf')
+            for axis in range(3):
+                d = direction[axis]
+                if abs(d) < 1e-9:
+                    if origin[axis] < lo[axis] or origin[axis] > hi[axis]:
+                        return
+                    continue
+                t1 = (lo[axis] - origin[axis]) / d
+                t2 = (hi[axis] - origin[axis]) / d
+                if t1 > t2:
+                    t1, t2 = t2, t1
+                t_enter = max(t_enter, t1)
+                t_exit = min(t_exit, t2)
+                if t_enter > t_exit:
+                    return
+            if t_enter >= 0 and (best_t is None or t_enter < best_t):
+                best_kind, best_index, best_t = kind, i, t_enter
+
         for kind, boxes in (('cull', self._cull_boxes), ('zone', self._zone_boxes)):
             for i, box in enumerate(boxes):
                 x1, y1, z1, x2, y2, z2 = box
-                lo = (min(x1, x2), min(y1, y2), min(z1, z2))
-                hi = (max(x1, x2), max(y1, y2), max(z1, z2))
-                t_enter, t_exit = 0.0, float('inf')
-                hit = True
-                for axis in range(3):
-                    d = direction[axis]
-                    if abs(d) < 1e-9:
-                        if origin[axis] < lo[axis] or origin[axis] > hi[axis]:
-                            hit = False
-                            break
-                        continue
-                    t1 = (lo[axis] - origin[axis]) / d
-                    t2 = (hi[axis] - origin[axis]) / d
-                    if t1 > t2:
-                        t1, t2 = t2, t1
-                    t_enter = max(t_enter, t1)
-                    t_exit = min(t_exit, t2)
-                    if t_enter > t_exit:
-                        hit = False
-                        break
-                if hit and t_enter >= 0 and (best_t is None or t_enter < best_t):
-                    best_kind, best_index, best_t = kind, i, t_enter
+                test_box(kind, i, x1, y1, z1, x2, y2, z2)
+
+        for i, (mid_x, mid_y, bottom_z, width_x, width_y, height, rotation) in enumerate(self._occl_boxes):
+            hw, hh = width_x / 2.0, width_y / 2.0
+            rad = math.radians(rotation)
+            cos_r, sin_r = math.cos(rad), math.sin(rad)
+            xs, ys = [], []
+            for dx, dy in ((-hw, -hh), (hw, -hh), (hw, hh), (-hw, hh)):
+                xs.append(mid_x + dx * cos_r - dy * sin_r)
+                ys.append(mid_y + dx * sin_r + dy * cos_r)
+            test_box('occl', i, min(xs), min(ys), bottom_z, max(xs), max(ys), bottom_z + height)
+
         if best_kind is None:
             return None
         return (best_kind, best_index)

@@ -13184,6 +13184,31 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         save_culls_btn.clicked.connect(self._save_culls)
         tb_overlays.addWidget(save_culls_btn)
 
+        # Add/Delete/Save Occlusion (Aug 21 2026, per Keith: "lets
+        # build add, del for zon, cull, occu and ipl changes" / "both
+        # if you can") - same real in-memory-until-saved pattern as
+        # zones/cull just above (see _save_occls/_write_back_occl_
+        # section). Occlusion boxes are rotated (unlike cull/zone), so
+        # picking/cycle/highlight use their own real rotated-corner
+        # AABB rather than a plain (x1,y1,z1,x2,y2,z2) tuple.
+        add_occl_btn = QToolButton()
+        add_occl_btn.setText("+Occl")
+        add_occl_btn.setToolTip("Add a new occlusion box at the current viewport centre.")
+        add_occl_btn.clicked.connect(self._add_occl)
+        tb_overlays.addWidget(add_occl_btn)
+
+        del_occl_btn = QToolButton()
+        del_occl_btn.setText("-Occl")
+        del_occl_btn.setToolTip("Delete the currently selected occlusion box (use Cycle first).")
+        del_occl_btn.clicked.connect(self._delete_occl)
+        tb_overlays.addWidget(del_occl_btn)
+
+        save_occls_btn = QToolButton()
+        save_occls_btn.setText("Save Occl")
+        save_occls_btn.setToolTip("Write every loaded occlusion box back to its own source IPL file(s).")
+        save_occls_btn.clicked.connect(self._save_occls)
+        tb_overlays.addWidget(save_occls_btn)
+
         # Undo (Aug 21 2026, per Keith: "we need an undo button
         # /ribbon icon") - the real, map-undo-aware handler (_on_
         # undo_clicked, wired to Ctrl+Z/Ctrl+Y earlier this session)
@@ -26687,25 +26712,50 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 return
         self._set_status(f"Path node at ({x:.1f}, {y:.1f}, {z:.1f})")
 
-    def _on_cull_or_zone_box_picked(self, kind, box_index): #vers 2
+    def _on_cull_or_zone_box_picked(self, kind, box_index): #vers 3
         """Called by DFFViewport.mouseDoubleClickEvent when the user
-        double-clicks a cull or zone box in the 3D world view (Aug 21
-        2026, per Keith: "when clicking on paths, or zons, other then
-        ipl models, nothing comes up") - centers the viewport on the
-        box (same real feedback double-clicking a regular instance
-        already gives) and reports its own real data via the status
-        bar, since neither has a dedicated edit dialog of its own yet
-        beyond corner-drag resizing (see TODO.md).
+        double-clicks a cull/zone/occlusion box in the 3D world view
+        (Aug 21 2026, per Keith: "when clicking on paths, or zons,
+        other then ipl models, nothing comes up"; occl added same day
+        per Keith's own follow-up "both if you can") - centers the
+        viewport on the box (same real feedback double-clicking a
+        regular instance already gives) and reports its own real data
+        via the status bar, since none of the three have a dedicated
+        edit dialog of their own yet beyond corner-drag resizing (cull/
+        zone only - see TODO.md).
 
         Also sets the real box highlight (Aug 21 2026, per Keith's
         own follow-up "show the zon box highlighted") - the same real
         state the Cycle Zones button's own left-click/right-click
         picker set, so a direct 3D double-click and the fallback
         cycle control both leave the viewport in the same real,
-        visibly-highlighted state either way."""
+        visibly-highlighted state either way.
+
+        Occlusion uses a genuinely different real tuple shape (mid_x/
+        mid_y/bottom_z/width_x/width_y/height/rotation, since it can
+        be rotated) than cull/zone's own plain (x1,y1,z1,x2,y2,z2) -
+        handled as its own real branch rather than trying to force it
+        through the same unpacking."""
         vp = getattr(self, 'preview_widget', None)
         if vp is None:
             return
+
+        if kind == 'occl':
+            occl_boxes = getattr(vp, '_occl_boxes', [])
+            if not (0 <= box_index < len(occl_boxes)):
+                return
+            vp._selected_box = (kind, box_index)
+            mid_x, mid_y, bottom_z, width_x, width_y, height, rotation = occl_boxes[box_index]
+            vp._pan_x = -mid_x
+            vp._pan_y = -mid_y
+            vp._dist = max(getattr(self, '_goto_zoom_distance', 40.0), width_x, width_y)
+            vp.update()
+            self._set_status(
+                f"Occlusion box {box_index} - centre ({mid_x:.1f}, {mid_y:.1f}, "
+                f"{bottom_z:.1f}), size {width_x:.1f}x{width_y:.1f}x{height:.1f}, "
+                f"rotation {rotation:.1f}\u00b0")
+            return
+
         boxes = vp._cull_boxes if kind == 'cull' else vp._zone_boxes
         owners = getattr(vp, '_cull_box_owners' if kind == 'cull' else '_zone_box_owners', [])
         if not (0 <= box_index < len(boxes)):
@@ -26734,18 +26784,19 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 f"{label} box {box_index} - bounds ({x1:.1f}, {y1:.1f}, {z1:.1f}) to "
                 f"({x2:.1f}, {y2:.1f}, {z2:.1f})")
 
-    def _combined_box_list(self): #vers 1
-        """Return every loaded cull/zone box as a flat, consistently-
-        ordered list of ('cull'|'zone', index) tuples (Aug 21 2026,
-        shared by the Cycle Zones button's own left-click-to-advance
-        and right-click-to-pick-directly handlers below) - cull boxes
-        first, then zone boxes, matching the order they're already
-        drawn in."""
+    def _combined_box_list(self): #vers 2
+        """Return every loaded cull/zone/occlusion box as a flat,
+        consistently-ordered list of ('cull'|'zone'|'occl', index)
+        tuples (Aug 21 2026, shared by the Cycle Zones button's own
+        left-click-to-advance and right-click-to-pick-directly
+        handlers below) - cull boxes first, then zone, then
+        occlusion, matching the order they're already drawn in."""
         vp = getattr(self, 'preview_widget', None)
         if vp is None:
             return []
         return ([('cull', i) for i in range(len(getattr(vp, '_cull_boxes', [])))] +
-                [('zone', i) for i in range(len(getattr(vp, '_zone_boxes', [])))])
+                [('zone', i) for i in range(len(getattr(vp, '_zone_boxes', [])))] +
+                [('occl', i) for i in range(len(getattr(vp, '_occl_boxes', [])))])
 
     def _cycle_selected_box(self): #vers 1
         """Cycle Zones button, left-click (Aug 21 2026, per Keith: "on
@@ -26768,25 +26819,28 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         kind, box_index = combined[next_index]
         self._on_cull_or_zone_box_picked(kind, box_index)
 
-    def _show_box_picker_menu(self, cycle_btn): #vers 1
+    def _show_box_picker_menu(self, cycle_btn): #vers 2
         """Cycle Zones button, right-click (Aug 21 2026, per Keith's
         own follow-up: "with right click options, this would be a
-        failback") - lists every real cull/zone box currently loaded,
-        by real name where one exists (zones) or index (cull, which
-        has no name field), to jump directly to any one rather than
-        only stepping through sequentially."""
+        failback"; occl added same day per Keith's own follow-up
+        "both if you can") - lists every real cull/zone/occlusion box
+        currently loaded, by real name where one exists (zones) or
+        index (cull/occl, neither has a name field), to jump directly
+        to any one rather than only stepping through sequentially."""
         from PyQt6.QtWidgets import QMenu
         vp = getattr(self, 'preview_widget', None)
         combined = self._combined_box_list()
         menu = QMenu(self)
         if not combined or vp is None:
-            act = menu.addAction("No cull/zone boxes loaded")
+            act = menu.addAction("No cull/zone/occlusion boxes loaded")
             act.setEnabled(False)
         else:
             zone_owners = getattr(vp, '_zone_box_owners', [])
             for kind, box_index in combined:
                 if kind == 'zone' and box_index < len(zone_owners) and isinstance(zone_owners[box_index], dict):
                     label = f"Zone: {zone_owners[box_index].get('name', box_index)}"
+                elif kind == 'occl':
+                    label = f"Occlusion box {box_index}"
                 else:
                     label = f"Cull zone {box_index}"
                 act = menu.addAction(label)
@@ -27061,6 +27115,175 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._set_status(f"Saved {written} file(s); {len(failed)} failed: {'; '.join(failed)}")
         else:
             self._set_status(f"Saved {len(culls)} cull box(es) across {written} file(s)")
+
+    def _add_occl(self): #vers 1
+        """Add a new occlusion box, per Keith: "lets build add, del
+        for zon, cull, occu and ipl changes" / "both if you can" (Aug
+        21 2026) - IN MEMORY ONLY until Save Occlusion is used. Placed
+        as a small, unrotated (20x20x10) box centred on wherever the
+        viewport is currently looking, in the first currently-loaded
+        occlusion source file found (same real "no way to ask which
+        file" reasoning as _add_zone/_add_cull above)."""
+        loader = getattr(self, '_world_loader', None)
+        vp = getattr(self, 'preview_widget', None)
+        if loader is None or vp is None:
+            return
+        from apps.methods.gta_dat_parser import OcclEntry
+        existing = getattr(loader, 'occls', [])
+        source_ipl = existing[0].source_ipl if existing else 'occlu.ipl'
+        cx, cy = -vp._pan_x, -vp._pan_y
+        new_occl = OcclEntry(
+            mid_x=cx, mid_y=cy, bottom_z=0.0,
+            width_x=20.0, width_y=20.0, height=10.0, rotation=0.0,
+            source_ipl=source_ipl, line_no=0)
+
+        def _do_add():
+            loader.occls.append(new_occl)
+            self._refresh_occl_box_visualization()
+
+        def _do_remove():
+            if new_occl in loader.occls:
+                loader.occls.remove(new_occl)
+            self._refresh_occl_box_visualization()
+
+        _do_add()
+        self._push_map_undo(_do_remove, _do_add, "Add occlusion box")
+        self._set_status("Added occlusion box - not yet saved to disk")
+
+    def _delete_occl(self): #vers 1
+        """Delete the currently cycled/selected occlusion box, per
+        Keith: "lets build add, del for zon, cull, occu and ipl
+        changes" / "both if you can" (Aug 21 2026) - IN MEMORY ONLY
+        until Save Occlusion is used. Acts on whichever occlusion box
+        the Cycle Zones button (or a direct viewport double-click)
+        last selected (preview_widget._selected_box)."""
+        loader = getattr(self, '_world_loader', None)
+        vp = getattr(self, 'preview_widget', None)
+        sel = getattr(vp, '_selected_box', None) if vp else None
+        if loader is None or vp is None or sel is None or sel[0] != 'occl':
+            self._set_status("No occlusion box currently selected - use Cycle Zones first")
+            return
+        _, box_index = sel
+        occls = getattr(loader, 'occls', [])
+        if not (0 <= box_index < len(occls)):
+            return
+        removed_occl = occls[box_index]
+
+        def _do_remove():
+            if removed_occl in loader.occls:
+                loader.occls.remove(removed_occl)
+            vp._selected_box = None
+            self._refresh_occl_box_visualization()
+
+        def _do_restore():
+            loader.occls.insert(min(box_index, len(loader.occls)), removed_occl)
+            self._refresh_occl_box_visualization()
+
+        _do_remove()
+        self._push_map_undo(_do_restore, _do_remove, "Delete occlusion box")
+        self._set_status("Deleted occlusion box - not yet saved to disk")
+
+    def _write_back_occl_section(self, abs_path, occl_entries): #vers 1
+        """Write a real "occl...end" section back to its own real IPL
+        file on disk (Aug 21 2026, per Keith: "lets build add, del
+        for zon, cull, occu and ipl changes" / "both if you can") -
+        same real replace-only-that-section/keep-everything-else/
+        write-a-.bak-first approach as _write_back_zone_section (see
+        its own docstring for the full, real safety reasoning,
+        identical here). Occlusion's own real 7-field format (MidX,
+        MidY, BottomZ, WidthX, WidthY, Height, Rotation) is the same
+        across every real game this parser handles, unlike cull - no
+        game-specific branching needed here."""
+        try:
+            with open(abs_path, 'r', encoding='ascii', errors='ignore') as f:
+                lines = f.readlines()
+        except Exception as e:
+            return False, f"Couldn't read {abs_path}: {e}"
+
+        section_start = section_end = None
+        for i, raw in enumerate(lines):
+            stripped = raw.split('#')[0].strip()
+            if stripped.lower() == 'occl':
+                section_start = i
+            elif section_start is not None and section_end is None and stripped.lower() == 'end':
+                section_end = i
+                break
+
+        new_lines = []
+        for o in occl_entries:
+            fields = [f"{o.mid_x:.6f}", f"{o.mid_y:.6f}", f"{o.bottom_z:.6f}",
+                      f"{o.width_x:.6f}", f"{o.width_y:.6f}", f"{o.height:.6f}",
+                      f"{o.rotation:.6f}"]
+            new_lines.append(', '.join(fields) + '\n')
+
+        if section_start is not None and section_end is not None:
+            lines = lines[:section_start + 1] + new_lines + lines[section_end:]
+        else:
+            if lines and not lines[-1].endswith('\n'):
+                lines[-1] += '\n'
+            lines += ['occl\n'] + new_lines + ['end\n']
+
+        backup_path = abs_path + '.bak'
+        if not os.path.isfile(backup_path):
+            try:
+                with open(abs_path, 'r', encoding='ascii', errors='ignore') as f:
+                    original = f.read()
+                with open(backup_path, 'w', encoding='ascii', errors='ignore') as f:
+                    f.write(original)
+            except Exception as e:
+                return False, f"Couldn't write backup for {abs_path}: {e}"
+
+        try:
+            with open(abs_path, 'w', encoding='ascii', errors='ignore') as f:
+                f.writelines(lines)
+        except Exception as e:
+            return False, f"Couldn't write {abs_path}: {e}"
+        return True, f"Wrote {len(occl_entries)} occlusion box(es) to {os.path.basename(abs_path)}"
+
+    def _save_occls(self): #vers 1
+        """Save Occlusion button - writes every currently loaded
+        occlusion box back to its own real source IPL file(s) on disk
+        (Aug 21 2026, per Keith: "lets build add, del for zon, cull,
+        occu and ipl changes" / "both if you can"). Same real
+        grouping/resolve/confirm/write pattern as _save_zones/_save_
+        culls (see their own docstrings)."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            self._set_status("No world loaded")
+            return
+        occls = getattr(loader, 'occls', [])
+        if not occls:
+            self._set_status("No occlusion boxes to save")
+            return
+        by_file = {}
+        for o in occls:
+            by_file.setdefault(o.source_ipl, []).append(o)
+
+        confirm = QMessageBox.question(
+            self, "Save Occlusion",
+            f"Write {len(occls)} occlusion box(es) across {len(by_file)} file(s) "
+            f"back to disk?\n\nA .bak backup of each file's own original content "
+            f"is kept (only if one doesn't already exist).",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+
+        written, failed = 0, []
+        for source_ipl, entries in by_file.items():
+            abs_path = self._resolve_ipl_abs_path(source_ipl)
+            if abs_path is None:
+                failed.append(f"{source_ipl} (file not found)")
+                continue
+            ok, msg = self._write_back_occl_section(abs_path, entries)
+            if ok:
+                written += 1
+            else:
+                failed.append(msg)
+
+        if failed:
+            self._set_status(f"Saved {written} file(s); {len(failed)} failed: {'; '.join(failed)}")
+        else:
+            self._set_status(f"Saved {len(occls)} occlusion box(es) across {written} file(s)")
 
     def _sync_ipl_inst_file_selection(self, inst): #vers 1
         """Highlight one instance's row in the IPL Inst File table,

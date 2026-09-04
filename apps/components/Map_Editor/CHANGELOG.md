@@ -10568,3 +10568,28 @@ conclusively found despite extensive isolated testing.
   has none at all yet (parsing only) - deferred, same real reason as
   last turn: kept this turn's own scope to what could be built and
   properly verified, not rushed.
+
+- Aug 21 2026 - Add/Delete/Save for occlusion boxes, per Keith:
+  "lets build add, del for zon, cull, occu and ipl changes" / "both
+  if you can." Genuinely more involved than Cull's own copy of the
+  Zone pattern - occlusion boxes are rotated around their own
+  vertical axis (unlike Cull/Zone's plain axis-aligned corners), and
+  weren't part of the Cycle/pick/highlight system at all before this.
+
+  Extended _pick_cull_or_zone_box, _draw_selected_box_highlight, and
+  _combined_box_list/_on_cull_or_zone_box_picked/_show_box_picker_
+  menu to also cover 'occl' - picking/highlighting use the box's own
+  real rotated corners (same rotation math _draw_occl_boxes already
+  used for rendering), an honestly-enclosing AABB for the actual ray
+  test, the true rotated outline for the highlight itself.
+
+  New "+Occl"/"-Occl"/"Save Occl" ribbon buttons, same real in-memory-
+  until-saved/undoable/write-back-with-.bak pattern as Zone and Cull.
+  Occlusion's own 7-field format is identical across every game this
+  parser handles, so _write_back_occl_section needs no game-specific
+  branching, unlike Cull's.
+
+  Verified with real, isolated tests before wiring up any UI: the
+  OcclEntry constructor call, the rotated-corner-to-AABB math (no
+  rotation gives a plain box, 45 degrees correctly expands it), and
+  a full write-back + round-trip-through-the-real-parser test.
