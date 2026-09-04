@@ -10670,3 +10670,33 @@ conclusively found despite extensive isolated testing.
   same menu pattern. Ribbon Manager's two separate bugs (icons
   showing as generic "Action" labels; its own Save not persisting)
   also still open - not yet investigated.
+
+- Aug 21 2026 - Two Ribbon Manager bugs, per Keith: "Ribbon Manager
+  icons in Overlays show as Action, with no icon or name for that
+  function, and the selection group as an Action label. Also, the
+  save function for the ribbon manager isn't working, or the config
+  isn't being picked up, when the ribbon manager is called."
+
+  1. Root cause confirmed and fixed for the "Action" label bug: every
+     button added to a toolbar via addWidget (Cull/Zon/Occlusion/
+     Garage/Cycle/Undo, and others) is genuinely wrapped by Qt in a
+     plain QWidgetAction with no real text/icon/tooltip of its own -
+     the real label and icon live on the wrapped widget, not the
+     QAction wrapping it. _refresh_action_list now checks act.
+     defaultWidget() first and pulls the real label/icon/tooltip from
+     there before ever falling back to the generic act.text()/
+     toolTip() path a genuine standalone QAction still uses.
+     Confirmed with a real, isolated Qt test: before the fix, act.
+     text() was empty and act.icon().isNull() was True for a widget-
+     based button; after, both correctly resolved.
+
+  2. Real, confirmed contributor to the "config isn't being picked
+     up" bug: _RIBBON_LAYOUT_VERSION (exists specifically so a stale
+     save from an older ribbon layout gets cleanly rejected rather
+     than silently mis-restoring) was never bumped despite the
+     Overlays ribbon changing substantially this session - Cycle,
+     Undo, and Grge's own toggle were added, and a dozen separate
+     +X/-X/Save X buttons were added then removed again a few turns
+     later. A save from partway through that churn could restoreState
+     against a toolbar that no longer matched what was actually
+     saved, without the version check ever catching it. Bumped to 3.

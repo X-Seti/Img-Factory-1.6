@@ -3006,9 +3006,25 @@ class RibbonManagerDialog(QDialog): #vers 1
         self._selected_tb = item.data(Qt.ItemDataRole.UserRole)
         self._refresh_action_list()
 
-    def _refresh_action_list(self): #vers 1
-        """Populate right pane with actions in the selected toolbar."""
-        from PyQt6.QtWidgets import QListWidgetItem
+    def _refresh_action_list(self): #vers 2
+        """Populate right pane with actions in the selected toolbar.
+
+        Real fix (Aug 21 2026, per Keith: "Ribbon Manager icons in
+        Overlays show as Action, with no icon or name for that
+        function, and the selection group as an Action label") -
+        every real button added to a toolbar via addWidget (Cull/Zon/
+        Occlusion/Garage/Cycle/Undo and others) is genuinely wrapped
+        by Qt in a plain QWidgetAction with no real text/icon/tooltip
+        of its own at all - the actual label and icon live on the
+        wrapped widget itself, not the QAction wrapping it, so act.
+        text()/act.toolTip() were always empty for these, falling
+        through to the "Action" placeholder every real time. Now
+        checks act.defaultWidget() first and pulls the real label/
+        icon/tooltip from there (QToolButton.text()/icon()/toolTip(),
+        or the widget's own windowTitle() as a last-resort fallback)
+        before ever falling back to the generic act.text()/toolTip()
+        path a genuine standalone QAction still uses."""
+        from PyQt6.QtWidgets import QListWidgetItem, QWidgetAction
         self._act_list.clear()
         tb = self._selected_tb
         if not tb:
@@ -3020,9 +3036,19 @@ class RibbonManagerDialog(QDialog): #vers 1
                 item = QListWidgetItem("- separator -")
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsDragEnabled)
             else:
-                item = QListWidgetItem(act.text() or act.toolTip() or "Action")
-                if act.icon():
-                    item.setIcon(act.icon())
+                label, icon, tip = act.text(), act.icon(), act.toolTip()
+                widget = act.defaultWidget() if isinstance(act, QWidgetAction) else None
+                if widget is not None:
+                    label = getattr(widget, 'text', lambda: '')() or label
+                    w_icon = getattr(widget, 'icon', lambda: None)()
+                    if w_icon is not None and not w_icon.isNull():
+                        icon = w_icon
+                    tip = getattr(widget, 'toolTip', lambda: '')() or tip
+                    if not label:
+                        label = widget.windowTitle() or widget.objectName()
+                item = QListWidgetItem(label or tip or "Action")
+                if icon and not icon.isNull():
+                    item.setIcon(icon)
             item.setData(Qt.ItemDataRole.UserRole, act)
             self._act_list.addItem(item)
 
@@ -5453,7 +5479,20 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     # Geometry/Navigation/Render ribbons. 2 = Files/Models panels converted
     # to QDockWidgets in the same QMainWindow (EXPERIMENTAL, Jul 2026) -
     # user can now freely drag/float/tab any panel, not just ribbons.
-    _RIBBON_LAYOUT_VERSION = 2
+    # 3 = Overlays ribbon changed substantially (Aug 21 2026, per
+    # Keith: "the save function for the ribbon manager isn't
+    # working, or the config isn't being picked up, when the ribbon
+    # manager is called") - Cycle, Undo, and Grge's own show/hide
+    # toggle were all added this session, and a dozen separate +X/-X/
+    # Save X buttons were added and then removed again a few turns
+    # later once moved into each toggle's own middle-click menu -
+    # this version constant was never bumped through any of that, so
+    # a real save from partway through that churn could restoreState
+    # against a real toolbar that no longer matches what was actually
+    # saved, without ever being cleanly rejected as stale the way
+    # this version check exists to guarantee. Bumping here forces any
+    # such stale save to fall back to the default layout instead.
+    _RIBBON_LAYOUT_VERSION = 3
 
 
     def __init__(self, parent=None, main_window=None): #vers 12
