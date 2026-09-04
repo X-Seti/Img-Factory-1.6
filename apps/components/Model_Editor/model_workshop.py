@@ -7204,7 +7204,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._set_status(
             f"Shading: {'ON (Lambertian)' if enabled else 'OFF (flat)'}")
 
-    def _open_light_setup_dialog(self): #vers 2
+    def _open_light_setup_dialog(self): #vers 3
         """Viewport light setup — visual position picker + sliders."""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
             QLabel, QSlider, QPushButton, QDialogButtonBox,
@@ -7214,7 +7214,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         import json, math, os
 
         vp = getattr(self, 'preview_widget', None)
-        _dir   = getattr(self, '_vp_light_dir',      (0.5, 0.5, 0.8))
+        _dir   = getattr(self, '_vp_light_dir',      (0.5, 0.5, 0.8, 0.0))
         _amb   = getattr(self, '_vp_light_ambient',  0.30)
         _int   = getattr(self, '_vp_light_intensity', 1.0)
         _sb    = getattr(self, '_shading_btn', None)
@@ -7374,7 +7374,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             lx = math.sin(az_r)*math.cos(el_r)
             ly = math.cos(az_r)*math.cos(el_r)
             lz = math.sin(el_r)
-            nd = (lx,ly,lz)
+            nd = (lx,ly,lz,0.0)
             self._vp_light_dir      = nd
             self._vp_light_ambient  = amb_sl.value()/100
             self._vp_light_intensity = int_sl.value()/100
@@ -7436,7 +7436,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         root.addWidget(bb)
         _apply_live(); dlg.exec()
 
-    def _load_viewport_light_settings(self): #vers 1
+    def _load_viewport_light_settings(self): #vers 2
         """Load saved viewport light settings from model_workshop.json."""
         import json, os
         cfg_path = os.path.expanduser(
@@ -7450,7 +7450,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 lz = vl.get('dir_z', 0.8)
                 import math
                 ll = math.sqrt(lx*lx+ly*ly+lz*lz) or 1.0
-                self._vp_light_dir      = (lx/ll, ly/ll, lz/ll)
+                self._vp_light_dir      = (lx/ll, ly/ll, lz/ll, 0.0)
                 self._vp_light_ambient  = vl.get('ambient',   0.30)
                 self._vp_light_intensity = vl.get('intensity', 1.0)
                 shade_on = vl.get('shading', True)
@@ -11773,7 +11773,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     # For textured faces a semi-transparent shading overlay is applied.
 
     def _compute_face_shade(self, v0, v1, v2, ambient=0.30,
-                            light=(0.5, 0.5, 0.8)): #vers 2
+                            light=(0.5, 0.5, 0.8)): #vers 3
         # light=(0.5, 0.5, 0.8) = upper-front-right, suits GTA camera angles
         """Return a shade factor [0..1] for a triangle via Lambertian diffuse.
         v0/v1/v2 are (x,y,z) tuples in view space.
@@ -11788,7 +11788,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if ln < 1e-6:
             return ambient
         nx, ny, nz = nx/ln, ny/ln, nz/ln
-        lx, ly, lz = light
+        lx, ly, lz = light[0], light[1], light[2]
         ll = math.sqrt(lx*lx + ly*ly + lz*lz) or 1.0
         dot = max(0.0, nx*lx/ll + ny*ly/ll + nz*lz/ll)
         return min(1.0, ambient + (1.0 - ambient) * dot)

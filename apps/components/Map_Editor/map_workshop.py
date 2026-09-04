@@ -16175,7 +16175,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     # For textured faces a semi-transparent shading overlay is applied.
 
     def _compute_face_shade(self, v0, v1, v2, ambient=0.30,
-                            light=(0.5, 0.5, 0.8)): #vers 2
+                            light=(0.5, 0.5, 0.8)): #vers 3
         # light=(0.5, 0.5, 0.8) = upper-front-right, suits GTA camera angles
         """Return a shade factor [0..1] for a triangle via Lambertian diffuse.
         v0/v1/v2 are (x,y,z) tuples in view space.
@@ -16190,7 +16190,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if ln < 1e-6:
             return ambient
         nx, ny, nz = nx/ln, ny/ln, nz/ln
-        lx, ly, lz = light
+        lx, ly, lz = light[0], light[1], light[2]
         ll = math.sqrt(lx*lx + ly*ly + lz*lz) or 1.0
         dot = max(0.0, nx*lx/ll + ny*ly/ll + nz*lz/ll)
         return min(1.0, ambient + (1.0 - ambient) * dot)

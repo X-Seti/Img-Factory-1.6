@@ -1,4 +1,24 @@
-#this belongs in root /ChangeLog.md - Version: 83
+#this belongs in root /ChangeLog.md - Version: 84
+
+## Sep 5 2026 - Model Workshop: viewport light-direction crash
+
+**apps/components/Model_Editor/model_workshop.py:**
+- Fixed real crash: paintGL -> _setup_lighting -> IndexError: tuple index
+  out of range on glLightfv(...ld[3]) in apps/methods/dff_viewport.py
+  (shared). Root cause: the viewport light-setup dialog
+  (_open_light_setup_dialog's _apply_live/_cancel, plus
+  _load_viewport_light_settings and its own default fallback) built
+  self._vp_light_dir as a 3-element (x,y,z) tuple and assigned it
+  straight to vp._light_dir, bypassing dff_viewport's own
+  set_light_dir(x,y,z) which appends the required w=0.0 -
+  _setup_lighting always expects a 4-tuple. Map_Editor's own separate
+  copy of the same dialog already built a 4-tuple correctly, so this
+  was Model_Editor-only. All 4 sites now build/default to a 4-tuple.
+- Second crash this surfaced: _compute_face_shade's own CPU-side
+  Lambertian shading unpacked `lx, ly, lz = light`, which breaks once
+  light is a genuine 4-tuple - changed to `light[0], light[1], light[2]`.
+  Map_Editor's separate copy of this same helper had the identical
+  latent bug (already receiving 4-tuples there) - fixed there too.
 
 ## July 2026 - Model/COL/TXD Workshop: native QToolBar ribbon rebuild
 

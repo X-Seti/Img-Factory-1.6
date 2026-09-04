@@ -10911,3 +10911,11 @@ conclusively found despite extensive isolated testing.
   itself now always uploads additively (additive=True), since
   clear_display_lists only controls display-list rebuilding, not
   textures, going forward.
+
+- Sep 5 2026 (cont'd) - _compute_face_shade's own CPU-side Lambertian
+  shading unpacked `lx, ly, lz = light`, which crashes once light is a
+  genuine 4-tuple (x,y,z,w) - this file's own viewport light dialog
+  already builds 4-tuples, so this was a real latent bug, surfaced
+  while fixing the identical (but not-yet-4-tuple) issue in
+  Model_Editor's separate copy. Changed to `light[0], light[1],
+  light[2]`.
