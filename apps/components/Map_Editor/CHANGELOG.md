@@ -10593,3 +10593,47 @@ conclusively found despite extensive isolated testing.
   OcclEntry constructor call, the rotated-corner-to-AABB math (no
   rotation gives a plain box, 45 degrees correctly expands it), and
   a full write-back + round-trip-through-the-real-parser test.
+
+- Aug 21 2026 - Two real fixes plus GRGE support, per Keith: "Bug:
+  Right radar also highlights cull; both buttons seem to be linked
+  when you right-click them" and "add support for GRGE" / "both if
+  you can" [continuing from occlusion last turn].
+
+  1. Fixed the real cross-button linking bug: _on_edit_boxes_toggled
+     (shared by every box-type overlay button's own right-click) used
+     to force-sync every OTHER box-type button's own visual state
+     (editing dashes + shown) to match whichever one was actually
+     clicked - including force-turning a box type ON that Keith may
+     never have wanted visible at all. Traced to a leftover: this
+     syncing existed because self._box_edit_mode used to genuinely
+     gate corner-picking on the viewport side - it no longer does
+     (removed several turns ago, corner-clicking already works
+     unconditionally), so the mode itself is now write-only/inert.
+     Each button already updates its own real visual state directly
+     on click - the handler no longer touches any other button.
+
+  2. Full GRGE (garage) support, same completeness level as zone/
+     cull/occlusion: new _draw_grge_boxes (a plain, unrotated AABB,
+     simpler than occlusion's own rotated one), new "Grge" overlay
+     toggle button with a new grge_icon, extended _pick_cull_or_
+     zone_box/_draw_selected_box_highlight/_combined_box_list/_on_
+     cull_or_zone_box_picked/_show_box_picker_menu to also cover
+     'grge', and new "+Grge"/"-Grge"/"Save Grge" ribbon buttons using
+     the same real in-memory-until-saved/undoable/write-back-with-
+     .bak pattern as zone/cull/occlusion. Garage's own real 11-field
+     format (x1,y1,z1, front_x,front_y, x2,y2,z2, door_type,
+     garage_type, name) needed its own real serialization.
+
+  Verified with real, isolated tests before wiring up any UI, same
+  standard as zone/cull/occlusion: the GrgeEntry constructor call,
+  and a full write-back + round-trip-through-the-real-parser test
+  using Keith's own real example garage data.
+
+  Still open from Keith's own same message, deliberately not
+  attempted this turn given its size: moving add/delete/save/a new
+  "show coords for all corners" feature into each overlay button's
+  own middle-click menu (removing the separate ribbon buttons);
+  extending this same add/delete/save pattern to Auzo (which has no
+  add/delete/save built at all yet, unlike zone/cull/occl/grge); two
+  separate Ribbon Manager bugs (icons showing as generic "Action"
+  labels; its own Save function not working/not picking up config).

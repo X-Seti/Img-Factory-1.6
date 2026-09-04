@@ -770,6 +770,13 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self.show_occl_boxes = False
         self._occl_boxes = []
         self._occl_box_color = (1.0, 0.4, 0.8)   # pink, distinct from cull/zone/paths
+        # Garage boxes (Aug 21 2026, per Keith: "add support for
+        # GRGE") - a plain, unrotated AABB, same shape family as
+        # cull/zone rather than occlusion's own rotated one.
+        self.show_grge_boxes = False
+        self._grge_boxes = []
+        self._grge_box_owners = []
+        self._grge_box_color = (1.0, 0.65, 0.0)   # orange, distinct from cull/zone/occl/paths
         # Axis-colored box faces (Aug 18 2026, per Keith: "Cull, Occl,
         # Zon boxes have coloured sides: x (green), y (red) and z
         # (blue) faces, which makes that easy to see") - off by
@@ -1456,6 +1463,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 self._draw_zone_boxes()
             if self.show_occl_boxes:
                 self._draw_occl_boxes()
+            if self.show_grge_boxes:
+                self._draw_grge_boxes()
             if self.show_tracks:
                 self._draw_tracks()
             if self.show_sa_nodes:
@@ -1881,7 +1890,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                                     mid_y + dx * sin_r + dy * cos_r))
             z1, z2 = bottom_z, bottom_z + height
         else:
-            boxes = self._cull_boxes if kind == 'cull' else self._zone_boxes
+            boxes = {'cull': self._cull_boxes, 'zone': self._zone_boxes,
+                     'grge': self._grge_boxes}.get(kind, [])
             if not (0 <= index < len(boxes)):
                 return
             x1, y1, z1, x2, y2, z2 = boxes[index]
@@ -2003,6 +2013,40 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._draw_ghosted_box_from_corners(corners_xy, z1, z2, box_r, box_g, box_b,
                 axis_colored=axis_colored)
             self._draw_box_corner_spheres(corners_xy, z1, z2, box_r, box_g, box_b)
+        glDisable(GL_BLEND)
+        glEnable(GL_DEPTH_TEST)
+        glEnable(GL_LIGHTING)
+
+    def _draw_grge_boxes(self): #vers 1
+        """Draw every loaded garage as a ghosted (semi-transparent
+        filled + outlined) box, same real style as occlusion (Aug 21
+        2026, per Keith: "add support for GRGE") - a plain, unrotated
+        AABB (unlike occlusion), so this is a much simpler real
+        version of _draw_occl_boxes: 4 corners direct from x1/y1 to
+        x2/y2, no rotation math needed at all. Also registers each
+        box's own real corners as pickable (same real _register_
+        pickable_box_corners mechanism cull/zone already use), so a
+        garage's own corner-drag resize works the same real way
+        theirs does, even though Keith's own request only asked for
+        add/delete here, not resize."""
+        if not OPENGL_AVAILABLE or not self._grge_boxes: return
+        glDisable(GL_LIGHTING)
+        glDisable(GL_DEPTH_TEST)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        r, g, b = self._grge_box_color
+        axis_colored = getattr(self, '_box_axis_colors', False)
+        unique_colors = getattr(self, '_box_unique_colors', False)
+        owners = getattr(self, '_grge_box_owners', [])
+        for i, (x1, y1, z1, x2, y2, z2) in enumerate(self._grge_boxes):
+            box_r, box_g, box_b = self._palette_color_for_index(i) \
+                if (unique_colors and not axis_colored) else (r, g, b)
+            corners_xy = [(x1, y1), (x2, y1), (x2, y2), (x1, y2)]
+            self._draw_ghosted_box_from_corners(corners_xy, z1, z2, box_r, box_g, box_b,
+                axis_colored=axis_colored)
+            self._draw_box_corner_spheres(corners_xy, z1, z2, box_r, box_g, box_b)
+            if i < len(owners):
+                self._register_pickable_box_corners('grge', i, corners_xy, z1, z2, owners[i])
         glDisable(GL_BLEND)
         glEnable(GL_DEPTH_TEST)
         glEnable(GL_LIGHTING)
@@ -4669,27 +4713,29 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 best_pos, best_t, best_d2 = pos, t, d2
         return best_pos
 
-    def _pick_cull_or_zone_box(self, mx: float, my: float): #vers 2
-        """Return ('cull'|'zone'|'occl', index) of the closest cull/
-        zone/occlusion box whose own bounds the ray through (mx,my)
-        actually enters, or None (Aug 21 2026, per Keith: "when
-        clicking on paths, or zons, other then ipl models, nothing
-        comes up"; occl added same day per Keith's own follow-up:
-        "both if you can" [occl+grge add/delete]) - unlike _pick_box_
-        corner just above (only finds a corner *handle*, and only
-        while box edit mode is already on), this tests each box's own
-        real volume directly, working regardless of edit mode - a
-        real, standard ray/AABB slab test, closest hit (smallest
-        entry t) wins when more than one box's own bounds overlap.
+    def _pick_cull_or_zone_box(self, mx: float, my: float): #vers 3
+        """Return ('cull'|'zone'|'occl'|'grge', index) of the closest
+        box whose own bounds the ray through (mx,my) actually enters,
+        or None (Aug 21 2026, per Keith: "when clicking on paths, or
+        zons, other then ipl models, nothing comes up"; occl/grge
+        added same day per Keith's own follow-up: "both if you can")
+        - unlike _pick_box_corner just above (only finds a corner
+        *handle*, and only while box edit mode is already on), this
+        tests each box's own real volume directly, working regardless
+        of edit mode - a real, standard ray/AABB slab test, closest
+        hit (smallest entry t) wins when more than one box's own
+        bounds overlap. Garage boxes are a plain (x1,y1,z1,x2,y2,z2)
+        AABB, same shape family as cull/zone, so no special handling
+        needed beyond adding it to that same loop.
 
-        Occlusion boxes are rotated (unlike cull/zone), so their own
-        axis-aligned picking bounds are computed fresh here from their
-        own real rotated corners (same real rotation math _draw_occl_
-        boxes already uses) rather than stored as a plain (x1,y1,z1,
-        x2,y2,z2) tuple like cull/zone - an honest, correctly-
-        enclosing AABB of the rotated shape, not the exact rotated
-        shape itself, same real approach already used for SA cull's
-        own real skew."""
+        Occlusion boxes are rotated (unlike cull/zone/grge), so their
+        own axis-aligned picking bounds are computed fresh here from
+        their own real rotated corners (same real rotation math
+        _draw_occl_boxes already uses) rather than stored as a plain
+        (x1,y1,z1,x2,y2,z2) tuple - an honest, correctly-enclosing
+        AABB of the rotated shape, not the exact rotated shape
+        itself, same real approach already used for SA cull's own
+        real skew."""
         ray = self._pick_ray(mx, my)
         if ray is None:
             return None
@@ -4718,7 +4764,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             if t_enter >= 0 and (best_t is None or t_enter < best_t):
                 best_kind, best_index, best_t = kind, i, t_enter
 
-        for kind, boxes in (('cull', self._cull_boxes), ('zone', self._zone_boxes)):
+        for kind, boxes in (('cull', self._cull_boxes), ('zone', self._zone_boxes),
+                            ('grge', self._grge_boxes)):
             for i, box in enumerate(boxes):
                 x1, y1, z1, x2, y2, z2 = box
                 test_box(kind, i, x1, y1, z1, x2, y2, z2)
@@ -4903,6 +4950,30 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def set_occl_box_color(self, r: float, g: float, b: float): #vers 1
         self._occl_box_color = (r, g, b)
+        self.update()
+
+    def set_show_grge_boxes(self, enabled: bool): #vers 1
+        self.show_grge_boxes = enabled; self.update()
+
+    def set_grge_boxes(self, boxes): #vers 1
+        """Replace the garage boxes drawn when show_grge_boxes is on.
+        Each entry is a plain (x1,y1,z1,x2,y2,z2) tuple (Aug 21 2026,
+        per Keith: "add support for GRGE") - conversion from the real
+        GrgeEntry dataclass happens in map_workshop.py's own real
+        _refresh_grge_box_visualization, same real pattern cull/zone/
+        occl already use."""
+        self._grge_boxes = boxes or []
+        self.update()
+
+    def set_grge_box_owners(self, owners): #vers 1
+        """Set (or clear) the real GrgeEntry objects _grge_boxes'
+        own entries came from, parallel-indexed - lets a picked
+        garage's own real name/door_type/garage_type be reported
+        (Aug 21 2026), same real pattern zone's own owners list uses."""
+        self._grge_box_owners = owners or []
+
+    def set_grge_box_color(self, r: float, g: float, b: float): #vers 1
+        self._grge_box_color = (r, g, b)
         self.update()
 
     def set_box_axis_colors(self, enabled: bool): #vers 1

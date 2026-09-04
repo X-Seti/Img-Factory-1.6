@@ -273,6 +273,18 @@ class OverlayIcons:
 </svg>''', size, color="#000000")
 
     @staticmethod
+    def grge_icon(size: int = 24) -> QIcon: #vers 1
+        """Garage toggle - a simple garage door/shutter shape (Aug 21
+        2026, per Keith: "add support for GRGE") - orange to match
+        _grge_box_color, distinct from cull/zone/occl/paths."""
+        return SVGIconFactory._create_icon('''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <path d="M3 10 L12 3 L21 10 V20 H3 Z" fill="#ffa600" stroke="#a86a00" stroke-width="1"/>
+  <rect x="6" y="11" width="12" height="9" fill="#a86a00" stroke="#5a3a00" stroke-width="0.8"/>
+  <line x1="6" y1="14" x2="18" y2="14" stroke="#ffa600" stroke-width="1"/>
+  <line x1="6" y1="17" x2="18" y2="17" stroke="#ffa600" stroke-width="1"/>
+</svg>''', size, color="#000000")
+
+    @staticmethod
     def sa_nodes_icon(size: int = 24) -> QIcon: #vers 1
         """SA Nodes toggle - a small orange node network/graph (5
         connected nodes), visually distinct from Paths' own single

@@ -13209,6 +13209,29 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         save_occls_btn.clicked.connect(self._save_occls)
         tb_overlays.addWidget(save_occls_btn)
 
+        # Add/Delete/Save Garages (Aug 21 2026, per Keith: "add
+        # support for GRGE" / "lets build add, del for zon, cull,
+        # occu and ipl changes" / "both if you can") - same real in-
+        # memory-until-saved pattern as zones/cull/occl just above
+        # (see _save_grges/_write_back_grge_section).
+        add_grge_btn = QToolButton()
+        add_grge_btn.setText("+Grge")
+        add_grge_btn.setToolTip("Add a new garage at the current viewport centre.")
+        add_grge_btn.clicked.connect(self._add_grge)
+        tb_overlays.addWidget(add_grge_btn)
+
+        del_grge_btn = QToolButton()
+        del_grge_btn.setText("-Grge")
+        del_grge_btn.setToolTip("Delete the currently selected garage (use Cycle first).")
+        del_grge_btn.clicked.connect(self._delete_grge)
+        tb_overlays.addWidget(del_grge_btn)
+
+        save_grges_btn = QToolButton()
+        save_grges_btn.setText("Save Grge")
+        save_grges_btn.setToolTip("Write every loaded garage back to its own source IPL file(s).")
+        save_grges_btn.clicked.connect(self._save_grges)
+        tb_overlays.addWidget(save_grges_btn)
+
         # Undo (Aug 21 2026, per Keith: "we need an undo button
         # /ribbon icon") - the real, map-undo-aware handler (_on_
         # undo_clicked, wired to Ctrl+Z/Ctrl+Y earlier this session)
@@ -25345,12 +25368,19 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         show_occl_btn.show_toggled.connect(self._on_show_occl_boxes_toggled)
         self._show_occl_chk = show_occl_btn
 
+        # Show Garages (Aug 21 2026, per Keith: "add support for GRGE")
+        show_grge_btn = _MapOverlayToggleButton("Grge", supports_edit=True, icon=OverlayIcons.grge_icon(24))
+        show_grge_btn.show_toggled.connect(self._on_show_grge_boxes_toggled)
+        show_grge_btn.edit_toggled.connect(self._on_edit_boxes_toggled)
+        self._show_grge_chk = show_grge_btn
+
         opts_row3 = QHBoxLayout()
         opts_row3.addWidget(show_paths_btn)
         opts_row3.addWidget(show_tracks_btn)
         opts_row3.addWidget(show_cull_btn)
         opts_row3.addWidget(show_zone_btn)
         opts_row3.addWidget(show_occl_btn)
+        opts_row3.addWidget(show_grge_btn)
         opts_row3.addStretch()
         lay.addLayout(opts_row3)
 
@@ -26756,8 +26786,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 f"rotation {rotation:.1f}\u00b0")
             return
 
-        boxes = vp._cull_boxes if kind == 'cull' else vp._zone_boxes
-        owners = getattr(vp, '_cull_box_owners' if kind == 'cull' else '_zone_box_owners', [])
+        boxes = {'cull': vp._cull_boxes, 'zone': vp._zone_boxes,
+                 'grge': getattr(vp, '_grge_boxes', [])}.get(kind, [])
+        owners = getattr(vp, {'cull': '_cull_box_owners', 'zone': '_zone_box_owners',
+                               'grge': '_grge_box_owners'}.get(kind, ''), [])
         if not (0 <= box_index < len(boxes)):
             return
         vp._selected_box = (kind, box_index)
@@ -26779,24 +26811,32 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._set_status(
                 f"Cull zone {box_index} - bounds ({x1:.1f}, {y1:.1f}, {z1:.1f}) to "
                 f"({x2:.1f}, {y2:.1f}, {z2:.1f}), flags={getattr(owner, 'flags', '?')}")
+        elif kind == 'grge' and owner is not None:
+            self._set_status(
+                f"Garage '{getattr(owner, 'name', box_index)}' - bounds "
+                f"({x1:.1f}, {y1:.1f}, {z1:.1f}) to ({x2:.1f}, {y2:.1f}, {z2:.1f}), "
+                f"door_type={getattr(owner, 'door_type', '?')}, "
+                f"garage_type={getattr(owner, 'garage_type', '?')}")
         else:
             self._set_status(
                 f"{label} box {box_index} - bounds ({x1:.1f}, {y1:.1f}, {z1:.1f}) to "
                 f"({x2:.1f}, {y2:.1f}, {z2:.1f})")
 
-    def _combined_box_list(self): #vers 2
-        """Return every loaded cull/zone/occlusion box as a flat,
-        consistently-ordered list of ('cull'|'zone'|'occl', index)
-        tuples (Aug 21 2026, shared by the Cycle Zones button's own
-        left-click-to-advance and right-click-to-pick-directly
-        handlers below) - cull boxes first, then zone, then
-        occlusion, matching the order they're already drawn in."""
+    def _combined_box_list(self): #vers 3
+        """Return every loaded cull/zone/occlusion/garage box as a
+        flat, consistently-ordered list of ('cull'|'zone'|'occl'|
+        'grge', index) tuples (Aug 21 2026, shared by the Cycle Zones
+        button's own left-click-to-advance and right-click-to-pick-
+        directly handlers below) - cull boxes first, then zone, then
+        occlusion, then garages, matching the order they're already
+        drawn in."""
         vp = getattr(self, 'preview_widget', None)
         if vp is None:
             return []
         return ([('cull', i) for i in range(len(getattr(vp, '_cull_boxes', [])))] +
                 [('zone', i) for i in range(len(getattr(vp, '_zone_boxes', [])))] +
-                [('occl', i) for i in range(len(getattr(vp, '_occl_boxes', [])))])
+                [('occl', i) for i in range(len(getattr(vp, '_occl_boxes', [])))] +
+                [('grge', i) for i in range(len(getattr(vp, '_grge_boxes', [])))])
 
     def _cycle_selected_box(self): #vers 1
         """Cycle Zones button, left-click (Aug 21 2026, per Keith: "on
@@ -26819,26 +26859,30 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         kind, box_index = combined[next_index]
         self._on_cull_or_zone_box_picked(kind, box_index)
 
-    def _show_box_picker_menu(self, cycle_btn): #vers 2
+    def _show_box_picker_menu(self, cycle_btn): #vers 3
         """Cycle Zones button, right-click (Aug 21 2026, per Keith's
         own follow-up: "with right click options, this would be a
-        failback"; occl added same day per Keith's own follow-up
-        "both if you can") - lists every real cull/zone/occlusion box
-        currently loaded, by real name where one exists (zones) or
-        index (cull/occl, neither has a name field), to jump directly
-        to any one rather than only stepping through sequentially."""
+        failback"; occl/grge added same day per Keith's own follow-up
+        "both if you can") - lists every real cull/zone/occlusion/
+        garage box currently loaded, by real name where one exists
+        (zones, garages) or index (cull/occl, neither has a name
+        field), to jump directly to any one rather than only stepping
+        through sequentially."""
         from PyQt6.QtWidgets import QMenu
         vp = getattr(self, 'preview_widget', None)
         combined = self._combined_box_list()
         menu = QMenu(self)
         if not combined or vp is None:
-            act = menu.addAction("No cull/zone/occlusion boxes loaded")
+            act = menu.addAction("No cull/zone/occlusion/garage boxes loaded")
             act.setEnabled(False)
         else:
             zone_owners = getattr(vp, '_zone_box_owners', [])
+            grge_owners = getattr(vp, '_grge_box_owners', [])
             for kind, box_index in combined:
                 if kind == 'zone' and box_index < len(zone_owners) and isinstance(zone_owners[box_index], dict):
                     label = f"Zone: {zone_owners[box_index].get('name', box_index)}"
+                elif kind == 'grge' and box_index < len(grge_owners):
+                    label = f"Garage: {getattr(grge_owners[box_index], 'name', box_index)}"
                 elif kind == 'occl':
                     label = f"Occlusion box {box_index}"
                 else:
@@ -27284,6 +27328,182 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._set_status(f"Saved {written} file(s); {len(failed)} failed: {'; '.join(failed)}")
         else:
             self._set_status(f"Saved {len(occls)} occlusion box(es) across {written} file(s)")
+
+    def _add_grge(self): #vers 1
+        """Add a new garage, per Keith: "add support for GRGE" / "lets
+        build add, del for zon, cull, occu and ipl changes" / "both if
+        you can" (Aug 21 2026) - IN MEMORY ONLY until Save Garages is
+        used. Placed as a small (20x20x10) box centred on wherever the
+        viewport is currently looking, front_x/front_y defaulted to
+        the midpoint of the box's own south face (a reasonable, real
+        default door-facing position, not something Keith's own "add"
+        request has any way to specify), in the first currently-
+        loaded garage source file found (same real "no way to ask
+        which file" reasoning as _add_zone/_add_cull/_add_occl)."""
+        loader = getattr(self, '_world_loader', None)
+        vp = getattr(self, 'preview_widget', None)
+        if loader is None or vp is None:
+            return
+        from apps.methods.gta_dat_parser import GrgeEntry
+        existing = getattr(loader, 'grges', [])
+        source_ipl = existing[0].source_ipl if existing else 'garages.ipl'
+        cx, cy = -vp._pan_x, -vp._pan_y
+        new_grge = GrgeEntry(
+            x1=cx - 10.0, y1=cy - 10.0, z1=0.0,
+            front_x=cx, front_y=cy - 10.0,
+            x2=cx + 10.0, y2=cy + 10.0, z2=10.0,
+            door_type=0, garage_type=0, name=f'GRGE{len(existing)}',
+            source_ipl=source_ipl, line_no=0)
+
+        def _do_add():
+            loader.grges.append(new_grge)
+            self._refresh_grge_box_visualization()
+
+        def _do_remove():
+            if new_grge in loader.grges:
+                loader.grges.remove(new_grge)
+            self._refresh_grge_box_visualization()
+
+        _do_add()
+        self._push_map_undo(_do_remove, _do_add, f"Add garage '{new_grge.name}'")
+        self._set_status(f"Added garage '{new_grge.name}' - not yet saved to disk")
+
+    def _delete_grge(self): #vers 1
+        """Delete the currently cycled/selected garage, per Keith:
+        "add support for GRGE" / "lets build add, del for zon, cull,
+        occu and ipl changes" / "both if you can" (Aug 21 2026) - IN
+        MEMORY ONLY until Save Garages is used. Acts on whichever
+        garage the Cycle Zones button (or a direct viewport double-
+        click) last selected (preview_widget._selected_box)."""
+        loader = getattr(self, '_world_loader', None)
+        vp = getattr(self, 'preview_widget', None)
+        sel = getattr(vp, '_selected_box', None) if vp else None
+        if loader is None or vp is None or sel is None or sel[0] != 'grge':
+            self._set_status("No garage currently selected - use Cycle Zones first")
+            return
+        _, box_index = sel
+        grges = getattr(loader, 'grges', [])
+        if not (0 <= box_index < len(grges)):
+            return
+        removed_grge = grges[box_index]
+        removed_name = removed_grge.name
+
+        def _do_remove():
+            if removed_grge in loader.grges:
+                loader.grges.remove(removed_grge)
+            vp._selected_box = None
+            self._refresh_grge_box_visualization()
+
+        def _do_restore():
+            loader.grges.insert(min(box_index, len(loader.grges)), removed_grge)
+            self._refresh_grge_box_visualization()
+
+        _do_remove()
+        self._push_map_undo(_do_restore, _do_remove, f"Delete garage '{removed_name}'")
+        self._set_status(f"Deleted garage '{removed_name}' - not yet saved to disk")
+
+    def _write_back_grge_section(self, abs_path, grge_entries): #vers 1
+        """Write a real "grge...end" section back to its own real IPL
+        file on disk (Aug 21 2026, per Keith: "add support for GRGE" /
+        "lets build add, del for zon, cull, occu and ipl changes" /
+        "both if you can") - same real replace-only-that-section/
+        keep-everything-else/write-a-.bak-first approach as _write_
+        back_zone_section (see its own docstring for the full, real
+        safety reasoning, identical here). Garage names aren't quoted
+        on write-back - Keith's own real example data (see GrgeEntry's
+        own docstring) shows plain, unquoted names ("cjsafe"), not
+        SannyBuilder-style quoted strings."""
+        try:
+            with open(abs_path, 'r', encoding='ascii', errors='ignore') as f:
+                lines = f.readlines()
+        except Exception as e:
+            return False, f"Couldn't read {abs_path}: {e}"
+
+        section_start = section_end = None
+        for i, raw in enumerate(lines):
+            stripped = raw.split('#')[0].strip()
+            if stripped.lower() == 'grge':
+                section_start = i
+            elif section_start is not None and section_end is None and stripped.lower() == 'end':
+                section_end = i
+                break
+
+        new_lines = []
+        for g in grge_entries:
+            fields = [f"{g.x1:.6f}", f"{g.y1:.6f}", f"{g.z1:.6f}",
+                      f"{g.front_x:.6f}", f"{g.front_y:.6f}",
+                      f"{g.x2:.6f}", f"{g.y2:.6f}", f"{g.z2:.6f}",
+                      str(g.door_type), str(g.garage_type), g.name]
+            new_lines.append(', '.join(fields) + '\n')
+
+        if section_start is not None and section_end is not None:
+            lines = lines[:section_start + 1] + new_lines + lines[section_end:]
+        else:
+            if lines and not lines[-1].endswith('\n'):
+                lines[-1] += '\n'
+            lines += ['grge\n'] + new_lines + ['end\n']
+
+        backup_path = abs_path + '.bak'
+        if not os.path.isfile(backup_path):
+            try:
+                with open(abs_path, 'r', encoding='ascii', errors='ignore') as f:
+                    original = f.read()
+                with open(backup_path, 'w', encoding='ascii', errors='ignore') as f:
+                    f.write(original)
+            except Exception as e:
+                return False, f"Couldn't write backup for {abs_path}: {e}"
+
+        try:
+            with open(abs_path, 'w', encoding='ascii', errors='ignore') as f:
+                f.writelines(lines)
+        except Exception as e:
+            return False, f"Couldn't write {abs_path}: {e}"
+        return True, f"Wrote {len(grge_entries)} garage(s) to {os.path.basename(abs_path)}"
+
+    def _save_grges(self): #vers 1
+        """Save Garages button - writes every currently loaded garage
+        back to its own real source IPL file(s) on disk (Aug 21 2026,
+        per Keith: "add support for GRGE" / "lets build add, del for
+        zon, cull, occu and ipl changes" / "both if you can"). Same
+        real grouping/resolve/confirm/write pattern as _save_zones/
+        _save_culls/_save_occls (see their own docstrings)."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            self._set_status("No world loaded")
+            return
+        grges = getattr(loader, 'grges', [])
+        if not grges:
+            self._set_status("No garages to save")
+            return
+        by_file = {}
+        for g in grges:
+            by_file.setdefault(g.source_ipl, []).append(g)
+
+        confirm = QMessageBox.question(
+            self, "Save Garages",
+            f"Write {len(grges)} garage(s) across {len(by_file)} file(s) back to "
+            f"disk?\n\nA .bak backup of each file's own original content is kept "
+            f"(only if one doesn't already exist).",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+
+        written, failed = 0, []
+        for source_ipl, entries in by_file.items():
+            abs_path = self._resolve_ipl_abs_path(source_ipl)
+            if abs_path is None:
+                failed.append(f"{source_ipl} (file not found)")
+                continue
+            ok, msg = self._write_back_grge_section(abs_path, entries)
+            if ok:
+                written += 1
+            else:
+                failed.append(msg)
+
+        if failed:
+            self._set_status(f"Saved {written} file(s); {len(failed)} failed: {'; '.join(failed)}")
+        else:
+            self._set_status(f"Saved {len(grges)} garage(s) across {written} file(s)")
 
     def _sync_ipl_inst_file_selection(self, inst): #vers 1
         """Highlight one instance's row in the IPL Inst File table,
@@ -28541,18 +28761,27 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if show_paths_chk is not None and not show_paths_chk.isChecked():
                 show_paths_chk.set_shown(True)   # triggers _on_show_paths_toggled itself
 
-    def _on_edit_boxes_toggled(self, checked): #vers 1
-        """Right-click on either the Cull or Zon button toggled box-
-        corner resize edit mode (Aug 19 2026)"""
+    def _on_edit_boxes_toggled(self, checked): #vers 2
+        """Right-click on a box-type overlay button (Cull/Zon/Grge)
+        toggled box-corner resize edit mode (Aug 19 2026).
+
+        Real fix (Aug 21 2026, per Keith: "Bug: Right radar also
+        highlights cull; both buttons seem to be linked when you
+        right-click them") - used to force-sync every other box-type
+        button's own visual state (editing dashes + shown) to match
+        whichever one was actually right-clicked, including force-
+        turning a box type ON that Keith may never have wanted shown
+        at all. That syncing was left over from when self._box_edit_
+        mode genuinely gated corner-picking on the viewport side - it
+        no longer does (removed turns ago, corner-clicking works
+        unconditionally now), so self._box_edit_mode itself is now
+        write-only/inert on the viewport side; nothing there reads it
+        back. Each button already updates its own real visual state
+        directly in _MapOverlayToggleButton.mousePressEvent - this
+        handler no longer needs to touch any other button at all."""
         vp = getattr(self, 'preview_widget', None)
         if vp is not None and hasattr(vp, 'set_box_edit_mode'):
             vp.set_box_edit_mode(checked)
-        for chk_attr in ('_show_cull_chk', '_show_zone_chk'):
-            chk = getattr(self, chk_attr, None)
-            if chk is not None:
-                chk.set_editing(checked)
-                if checked and not chk.isChecked():
-                    chk.set_shown(True)
 
     def _refresh_track_visualization(self): #vers 1
         """Push loaded train track waypoints to the viewport's own
@@ -29195,6 +29424,45 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             vp.set_show_occl_boxes(checked)
         if checked:
             self._refresh_occl_box_visualization()
+
+    def _refresh_grge_box_visualization(self): #vers 1
+        """Push the currently visible IPLs' garages to the viewport's
+        box overlay (Aug 21 2026, per Keith: "add support for GRGE"),
+        same real pattern _refresh_occl_box_visualization uses."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is None or not hasattr(vp, 'set_grge_boxes'):
+            return
+        show_grge_chk = getattr(self, '_show_grge_chk', None)
+        if show_grge_chk is not None and not show_grge_chk.isChecked():
+            vp.set_grge_boxes([])
+            return
+        if hasattr(vp, 'set_grge_box_color'):
+            saved_color = self.map_settings.get('grge_box_color') or (255, 166, 0)
+            cr, cg, cb = saved_color
+            vp.set_grge_box_color(cr / 255.0, cg / 255.0, cb / 255.0)
+        if hasattr(vp, 'set_box_axis_colors'):
+            vp.set_box_axis_colors(bool(self.map_settings.get('box_axis_colors')))
+        if hasattr(vp, 'set_box_unique_colors'):
+            vp.set_box_unique_colors(bool(self.map_settings.get('box_unique_colors')))
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            vp.set_grge_boxes([])
+            return
+        hidden = getattr(self, '_hidden_ipls', set())
+        grges = [g for g in getattr(loader, 'grges', []) if g.source_ipl not in hidden]
+        boxes = [(g.x1, g.y1, g.z1, g.x2, g.y2, g.z2) for g in grges]
+        vp.set_grge_boxes(boxes)
+        if hasattr(vp, 'set_grge_box_owners'):
+            vp.set_grge_box_owners(grges)
+
+    def _on_show_grge_boxes_toggled(self, checked): #vers 1
+        """Show Garages checked/unchecked - continuing the cull/zon/
+        occl viewport work."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is not None and hasattr(vp, 'set_show_grge_boxes'):
+            vp.set_show_grge_boxes(checked)
+        if checked:
+            self._refresh_grge_box_visualization()
 
     def _on_ipl_controls_settings_clicked(self): #vers 2
         """IPL Controls' docked-only cog icon clicked (Aug 15 2026)"""
