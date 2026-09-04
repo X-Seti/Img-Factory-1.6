@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/depends/overlay_icons.py - Version: 1
+#this belongs in apps/components/Map_Editor/depends/overlay_icons.py - Version: 2
 # X-Seti - Aug 2026 - IMG Factory 1.6 - Detailed colour SVG icons for Map Workshop's IPL Controls overlay buttons
 
 """
@@ -38,9 +38,14 @@ from apps.methods.imgfactory_svg_icons import SVGIconFactory
 # OverlayIcons.cull_icon
 # OverlayIcons.zon_icon
 # OverlayIcons.occlusion_icon
+# OverlayIcons.grge_icon
+# OverlayIcons.convert_icon
 # OverlayIcons.sa_nodes_icon
 # OverlayIcons.auzo_icon
 # OverlayIcons.interior_icon
+# OverlayIcons.cycle_icon
+# OverlayIcons.repair_scale_icon
+# OverlayIcons.optimize_icon
 
 
 class OverlayIcons:
@@ -351,3 +356,36 @@ class OverlayIcons:
   <circle cx="18.4" cy="17.6" r="4.4" fill="#7a4dff" stroke="#f4f1ff" stroke-width="1.2"/>
 </svg>''', size, color="#000000")
 
+
+    @staticmethod
+    def cycle_icon(size: int = 24) -> QIcon: #vers 1
+        """Cycle Zones/Cull button (Sep 5 2026, per Keith: "Cycle,
+        Repair Scale, and Optimize Order need to also be SVG icons")
+        - a circular loop arrow, the standard "cycle/step through"
+        motif, purple to stay visually distinct from Convert's blue
+        exchange arrows."""
+        return SVGIconFactory._create_icon('''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <path d="M12 4 A8 8 0 1 1 5.6 7.5" fill="none" stroke="#ba68c8" stroke-width="2" stroke-linecap="round"/>
+  <path d="M5 3 L5.6 7.5 L10 6.8" fill="none" stroke="#ba68c8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>''', size, color="#000000")
+
+    @staticmethod
+    def repair_scale_icon(size: int = 24) -> QIcon: #vers 1
+        """Repair Scale button (Sep 5 2026) - a plain wrench
+        silhouette, the standard "fix/repair" motif, steel grey."""
+        return SVGIconFactory._create_icon('''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <path d="M17 3a4 4 0 0 0-5.66 5.66L4 16v4h4l7.34-7.34A4 4 0 0 0 21 7l-3 3-2-2 3-3z"
+        fill="#b0bec5" stroke="#546e7a" stroke-width="0.8"/>
+</svg>''', size, color="#000000")
+
+    @staticmethod
+    def optimize_icon(size: int = 24) -> QIcon: #vers 1
+        """Optimize Load Order button (Sep 5 2026) - three
+        ascending-length bars (the thing being reordered) plus a
+        descending sort arrow, green."""
+        return SVGIconFactory._create_icon('''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <line x1="4" y1="6" x2="14" y2="6" stroke="#81c784" stroke-width="2" stroke-linecap="round"/>
+  <line x1="4" y1="12" x2="18" y2="12" stroke="#81c784" stroke-width="2" stroke-linecap="round"/>
+  <line x1="4" y1="18" x2="20" y2="18" stroke="#81c784" stroke-width="2" stroke-linecap="round"/>
+  <path d="M21 4 L21 10 M18 8 L21 11 L24 8" fill="none" stroke="#4caf50" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>''', size, color="#000000")

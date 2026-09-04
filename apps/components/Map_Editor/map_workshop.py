@@ -4821,8 +4821,12 @@ class _InstanceEditPanel(QWidget):
         dlg.resize(420, 260)
         dlg.exec()
 
-    def _show_texture_thumbnail_strip(self): #vers 1
-        """Compact horizontal row of small texture thumbnail"""
+    def _show_texture_thumbnail_strip(self): #vers 2
+        """Compact horizontal row of small texture thumbnails, plus a
+        Save All to Folder... button (Sep 5 2026, per Keith: "add an
+        option not just to show the textures but save those textures
+        to any chosen folder") - exports every texture in this TXD as
+        a full-resolution PNG, not just the 32px preview thumbnail."""
         inst = self._inst
         if inst is None:
             return
@@ -4837,6 +4841,13 @@ class _InstanceEditPanel(QWidget):
         if not textures:
             outer.addWidget(QLabel(f"{txd_name}.txd is {status}" if txd_name else "(no TXD)"))
         else:
+            top_row = QHBoxLayout()
+            top_row.addStretch()
+            save_btn = QPushButton("Save All to Folder...")
+            save_btn.clicked.connect(
+                lambda: self._save_all_textures_to_folder(textures, txd_name))
+            top_row.addWidget(save_btn)
+            outer.addLayout(top_row)
             strip = QHBoxLayout()
             for tex in textures.values():
                 cell = QVBoxLayout()
@@ -4857,6 +4868,37 @@ class _InstanceEditPanel(QWidget):
             scroller.setLayout(strip)
             outer.addWidget(scroller)
         dlg.exec()
+
+    def _save_all_textures_to_folder(self, textures, txd_name): #vers 1
+        """Export every texture in `textures` (the same dict passed to
+        _show_texture_thumbnail_strip) as a full-resolution PNG into a
+        folder the user picks. Defaults to the workshop's own
+        Texlist folder if one is set, same convention already used
+        for texture import/export elsewhere in this file."""
+        start_dir = getattr(self._workshop, '_texlist_folder', '') or os.path.expanduser('~')
+        folder = QFileDialog.getExistingDirectory(self, "Save Textures To Folder", start_dir)
+        if not folder:
+            return
+        saved, failed = 0, 0
+        for tex in textures.values():
+            name = tex.get('name', '') or 'texture'
+            rgba = tex.get('rgba_data', b'')
+            w, h = tex.get('width', 0), tex.get('height', 0)
+            if not (rgba and w > 0 and h > 0):
+                failed += 1
+                continue
+            try:
+                qi = QImage(bytes(rgba), w, h, w * 4, QImage.Format.Format_RGBA8888).copy()
+                if qi.save(os.path.join(folder, name + '.png')):
+                    saved += 1
+                else:
+                    failed += 1
+            except Exception:
+                failed += 1
+        msg = f"Saved {saved} texture(s) to {folder}"
+        if failed:
+            msg += f" ({failed} failed)"
+        QMessageBox.information(self, "Save Textures", msg)
 
     def _add_nudge_section(self, title, small_step, large_step, on_nudge): #vers 2
         """One label + << < [value] > >> row per axis (X/Y/Z), using
@@ -12919,7 +12961,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         return panel
 
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 7
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 8
         """Build all QToolBar instances using QAction.
         Icon set resolved once — 'default' uses SVGIconFactory with currentColor,
         '3dsmax' uses MaxIconSet with hardcoded Max palette."""
@@ -13192,7 +13234,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # with its own custom right-click menu, not a show/hide
         # overlay toggle, so it doesn't fit that shared mechanism.
         cycle_zones_btn = QToolButton()
-        cycle_zones_btn.setText("Cycle")
+        from apps.components.Map_Editor.depends.overlay_icons import OverlayIcons as _OverlayIconsForCycle
+        cycle_zones_btn.setIcon(_OverlayIconsForCycle.cycle_icon(24))
         cycle_zones_btn.setToolTip(
             "Left-click: step to the next cull/zone box.\n"
             "Right-click: pick one directly from a list.\n\n"
@@ -13250,7 +13293,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # cull/occl/grge's own much smaller sections) - not attempted
         # this turn; this button covers the repair half only.
         repair_scale_btn = QToolButton()
-        repair_scale_btn.setText("Repair Scale")
+        from apps.components.Map_Editor.depends.overlay_icons import OverlayIcons as _OverlayIconsForRepair
+        repair_scale_btn.setIcon(_OverlayIconsForRepair.repair_scale_icon(24))
         repair_scale_btn.setToolTip(
             "Fix any instance whose scale is (0,0,0) back to (1,1,1).")
         repair_scale_btn.clicked.connect(self._repair_zero_scale_instances)
@@ -13291,7 +13335,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # .dat file's own directive lines only, not real model/
         # instance order within an IDE/IPL file's own real contents).
         optimize_btn = QToolButton()
-        optimize_btn.setText("Optimize Order")
+        from apps.components.Map_Editor.depends.overlay_icons import OverlayIcons as _OverlayIconsForOptimize
+        optimize_btn.setIcon(_OverlayIconsForOptimize.optimize_icon(24))
         optimize_btn.setToolTip(
             "Reorder this world's own loaded .dat file's IDE/IPL/COLFILE/IMG\n"
             "lines to match Rockstar's own documented convention: grouped by\n"
@@ -25108,7 +25153,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return
         self._on_ipl_data_type_changed(keys[index])
 
-    def _create_ipl_controls_dock(self): #vers 1
+    def _create_ipl_controls_dock(self): #vers 2
         """Dedicated dock for IPL viewing/filtering controls."""
         panel = QWidget()
         from PyQt6.QtWidgets import QButtonGroup
@@ -25552,7 +25597,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # at once rather than needing a separate call per button.
         self._overlay_toggle_buttons = [
             dfx_chk, show_tobj_chk, tcyc_chk, show_paths_btn, show_tracks_btn,
-            show_cull_btn, show_zone_btn, show_occl_btn, show_sa_nodes_btn,
+            show_cull_btn, show_zone_btn, show_occl_btn, show_grge_btn, show_sa_nodes_btn,
             show_auzo_btn, show_water_btn, radar_gen_btn, interior_btn,
         ]
         self._apply_ipl_controls_display_style()

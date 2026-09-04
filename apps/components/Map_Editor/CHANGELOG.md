@@ -10919,3 +10919,28 @@ conclusively found despite extensive isolated testing.
   while fixing the identical (but not-yet-4-tuple) issue in
   Model_Editor's separate copy. Changed to `light[0], light[1],
   light[2]`.
+
+- Sep 5 2026 (cont'd) - three small UI fixes/features per Keith:
+  1. Texture viewer ("Textures - <txd>.txd" popup, opened from the
+     Identity section's right-click menu) gained a "Save All to
+     Folder..." button - exports every texture in the TXD as a
+     full-resolution PNG into a folder the user picks, rather than
+     only previewing 32px thumbnails as before.
+  2. Real bug: the Grge (garage) overlay toggle button was still
+     stuck in the IPL Controls dock while every sibling overlay
+     button (Cull/Zone/Occl/Paths/etc) had already been moved onto
+     the Overlays ribbon. Root cause: show_grge_btn was added (Aug
+     21) after the _overlay_toggle_buttons list was already written,
+     and was never added to it - that list is what both the ribbon-
+     move and the icon/text display-style toggle iterate over. Added
+     it to the list; no other change needed, same mechanism as its
+     siblings now applies to it automatically.
+  3. Cycle/Repair Scale/Optimize Order ribbon buttons were still
+     plain text labels (QToolButton.setText) - every other ribbon
+     button already uses a real SVG icon. Added cycle_icon (purple
+     circular loop arrow), repair_scale_icon (grey wrench),
+     optimize_icon (green sort bars + arrow) to overlay_icons.py
+     (also caught and fixed that file's own ##Methods list already
+     being out of sync - grge_icon/convert_icon/interior_icon were
+     missing from it before this change), wired into the three
+     buttons the same icon-only way Undo/Convert already are.
