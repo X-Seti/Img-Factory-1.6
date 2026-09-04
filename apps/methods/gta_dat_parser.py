@@ -2137,21 +2137,57 @@ class IPLParser: #vers 2
             pass
         return None
 
-    def _parse_cull(self, line: str, source: str, lineno: int) -> Optional[CullEntry]: #vers 2
-        """Parse one "cull" section line - CenterX/Y/Z, X1/Y1/Z1,
-        X2/Y2/Z2, Flags, WantedLevelDrop (11 fields). Fixed (Aug 16
-        2026, per Keith's real cull.ipl upload) - the previous version
-        expected only 7 fields (a center/width/height box), which
-        never matched real data at all (every real line has 11
-        fields, two genuine corner points, not a width+height pair) -
-        confirmed against multiple independent wiki sources and
-        verified field-for-field against Keith's real file."""
+    def _parse_cull(self, line: str, source: str, lineno: int) -> Optional[CullEntry]: #vers 3
+        """Parse one "cull" section line.
+
+        III/VC: CenterX/Y/Z, X1/Y1/Z1, X2/Y2/Z2, Flags,
+        WantedLevelDrop (11 fields, two genuine corner points) - Aug
+        16 2026, per Keith's real cull.ipl upload, confirmed field-
+        for-field against that real file and multiple independent
+        wiki sources.
+
+        Real fix (Aug 21 2026, per Keith's own real, uploaded
+        SA_Cull_Files.png screenshot: "SA cull file not being parsed
+        correctly") - SA uses a genuinely different real field layout,
+        confirmed via 2 independent sources (GTAMods' own real "CULL"
+        page and its own Talk page, GTA Wiki/Fandom's own real "CULL"
+        page, word-for-word agreement between all 3): CenterX/Y/Z,
+        Unknown1, Length (WidthY), Bottom, Width (WidthX), Unknown2,
+        Top, Flag, Unknown3 - a real center + separate length/width/
+        bottom/top, not two corner points at all. The III/VC parser
+        was reading SA's own real "length" field as if it were a
+        literal X1 coordinate, "bottom" as Y1, "width" as X2, and so
+        on - real, garbled nonsense geometry, not a real box shape at
+        all, exactly matching the tangled, overlapping shapes in
+        Keith's own real screenshot.
+
+        Real, honest uncertainty: GTAMods' own Talk page notes
+        Length/Width may in some real cases actually be full extents
+        rather than half-extents, and that Unknown1/Unknown2 aren't
+        always genuinely 0 (sometimes real mirror-plane data instead)
+        - not something either wiki source fully resolves. This
+        treats Length/Width as full extents from the real center (the
+        most common real convention, and what GTA Wiki's own
+        "WidthX"/"WidthY" naming implies), which should be correct
+        for ordinary cull zones; genuine mirror zones may still need
+        Keith's own visual confirmation this looks right once loaded
+        against his own real file."""
         try:
             p = [x.strip() for x in line.split(",")]
             if len(p) < 9:
                 return None
+            cx, cy, cz = float(p[0]), float(p[1]), float(p[2])
+            if self.game == GTAGame.SA:
+                length, bottom, width, top = float(p[4]), float(p[5]), float(p[6]), float(p[8])
+                return CullEntry(
+                    center_x=cx, center_y=cy, center_z=cz,
+                    x1=cx - length / 2.0, y1=cy - width / 2.0, z1=bottom,
+                    x2=cx + length / 2.0, y2=cy + width / 2.0, z2=top,
+                    flags=int(float(p[9])) if len(p) > 9 else 0,
+                    wanted_level_drop=0,
+                    source_ipl=source, line_no=lineno)
             return CullEntry(
-                center_x=float(p[0]), center_y=float(p[1]), center_z=float(p[2]),
+                center_x=cx, center_y=cy, center_z=cz,
                 x1=float(p[3]), y1=float(p[4]), z1=float(p[5]),
                 x2=float(p[6]), y2=float(p[7]), z2=float(p[8]),
                 flags=int(float(p[9])) if len(p) > 9 else 0,

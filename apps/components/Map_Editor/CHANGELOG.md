@@ -10409,3 +10409,26 @@ conclusively found despite extensive isolated testing.
   whatever Z Shift last set, rather than snapping back to the
   corner's own original height - the two modes can be freely
   switched between within one single drag.
+
+- Aug 21 2026 - Fixed "SA cull file not being parsed correctly" (per
+  Keith's own real, uploaded SA_Cull_Files.png screenshot showing
+  tangled, overlapping, garbled box shapes). Confirmed via 3
+  independent sources (GTAMods' own real "CULL" page and its own
+  Talk page, GTA Wiki/Fandom's own real "CULL" page, word-for-word
+  agreement between all 3): SA genuinely uses a different real field
+  layout than III/VC - CenterX/Y/Z, Unknown1, Length, Bottom, Width,
+  Unknown2, Top, Flag, Unknown3 (a real center + separate length/
+  width/bottom/top), not two real corner points at all. The existing
+  III/VC parser was reading SA's own real "length" field as if it
+  were a literal X1 coordinate, "bottom" as Y1, "width" as X2, and
+  so on - garbled nonsense geometry, exactly matching the tangled
+  shapes in the screenshot.
+
+  _parse_cull now branches on self.game - SA computes real corner
+  points from center +/- half of Length/Width, with Bottom/Top as
+  Z1/Z2 directly; III/VC unchanged. Honest, open uncertainty noted
+  in the docstring: GTAMods' own Talk page flags that Length/Width
+  may not always be full extents, and Unknown1/Unknown2 aren't
+  always genuinely 0 in real mirror-zone cases - this covers the
+  ordinary case, verified against a synthetic test line, not yet
+  against Keith's own real SA cull.ipl data.
