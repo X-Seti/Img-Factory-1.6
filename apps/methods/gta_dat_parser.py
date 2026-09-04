@@ -3741,6 +3741,81 @@ class GTAWorldXRef: #vers 1
         return ""
 
 
+def convert_inst_fields(parts, from_game, to_game): #vers 1
+    """Convert one already-split INST line's own real fields between
+    VC and SA/SOL layouts (Aug 21 2026, per Keith's own real, worked
+    VC/SA/SOL example lines: "so we need a function to find and
+    change 1, 1, 1, to 0, 0, 0 and convert [SA line] to VC ... and VC
+    to SA"). Field orders used here are IPLParser._parse_inst's own
+    already-empirically-confirmed layouts (VC's own real, confirmed-
+    against-a-real-line quaternion check; SA has no scale fields at
+    all) - not re-derived from Keith's own hand-typed example, since
+    that example's own scale placement doesn't actually match either
+    real, confirmed layout and is very likely a typo, not a real,
+    different format.
+
+    VC:      id, model, interior, px,py,pz, sx,sy,sz, rx,ry,rz,rw
+    SA/SOL:  id, model, interior, px,py,pz, rx,ry,rz,rw[, lod]
+
+    SA/SOL -> VC inserts scale (1.0, 1.0, 1.0) - the real, standard
+    "unscaled" value (never 0,0,0 - a real zero scale collapses the
+    object to nothing, see repair_zero_scale_inst_fields below) -
+    since SA/SOL instances have no real scale of their own to carry
+    over; the trailing lod field, if present, is dropped (VC has none).
+
+    VC -> SA/SOL drops the 3 real scale fields entirely - honest, real
+    data loss for any real instance that was actually scaled (SA/SOL's
+    own IPL inst format has no field to hold that at all); lod is set
+    to -1 (no real LOD parent), since VC has no lod field to carry
+    over either.
+
+    Returns a new list of string fields (ready to ', '.join and write),
+    or None if from_game/to_game aren't a real, supported combination
+    or parts doesn't have enough real fields for from_game's own
+    layout."""
+    sa_like = (GTAGame.SA, GTAGame.SOL)
+    if from_game in sa_like and to_game == GTAGame.VC:
+        if len(parts) < 10:
+            return None
+        id_, model, interior, px, py, pz = parts[0:6]
+        rx, ry, rz, rw = parts[6:10]
+        return [id_, model, interior, px, py, pz,
+                "1.0", "1.0", "1.0", rx, ry, rz, rw]
+    if from_game == GTAGame.VC and to_game in sa_like:
+        if len(parts) < 13:
+            return None
+        id_, model, interior, px, py, pz = parts[0:6]
+        rx, ry, rz, rw = parts[9:13]
+        return [id_, model, interior, px, py, pz, rx, ry, rz, rw, "-1"]
+    return None
+
+
+def repair_zero_scale_inst_fields(parts): #vers 1
+    """Fix a real, broken VC-layout INST line whose own real scale
+    fields (index 6,7,8) are (0,0,0) instead of the real, standard
+    (1,1,1) - a real zero scale collapses the object to nothing in-
+    game (Aug 21 2026, per Keith's own real, worked example: a SOL
+    line converted on the VC engine, "652, new_bushsm, 0, -4513.01,
+    -1286.23, 21.664, 0, 0, 0, 0, 0, -0.016, 1" - fields 6-8 are the
+    real, broken (0,0,0) scale). Only touches a line whose own scale
+    is exactly (0,0,0) - a real, deliberately tiny-but-nonzero scale
+    (an actually shrunk object) is left alone, not assumed broken.
+    Returns a new list of string fields with the fix applied, or the
+    same parts unchanged if scale isn't (0,0,0) or parts is too short
+    to be a real VC-layout line at all."""
+    if len(parts) < 13:
+        return parts
+    try:
+        sx, sy, sz = float(parts[6]), float(parts[7]), float(parts[8])
+    except ValueError:
+        return parts
+    if sx == 0.0 and sy == 0.0 and sz == 0.0:
+        fixed = list(parts)
+        fixed[6], fixed[7], fixed[8] = "1.0", "1.0", "1.0"
+        return fixed
+    return parts
+
+
 def build_xref(loader: "GTAWorldLoader", game_root: str = "") -> GTAWorldXRef: #vers 2
     """Build a cross-reference index from a fully loaded GTAWorldLoader.
 

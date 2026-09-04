@@ -13231,6 +13231,31 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         undo_ribbon_btn.clicked.connect(self._on_undo_ribbon_clicked)
         tb_overlays.addWidget(undo_ribbon_btn)
 
+        # Repair zero-scale instances (Aug 21 2026, per Keith's own
+        # real, worked VC/SA/SOL example lines: "so we need a function
+        # to find and change 1, 1, 1, to 0, 0, 0 ... but I can see
+        # there is an error in how I converted the files") - fixes any
+        # instance whose scale is (0,0,0) back to (1,1,1) (see repair_
+        # zero_scale_inst_fields's own docstring for the full, real
+        # "why 0,0,0 and not the other direction" reasoning - a real
+        # zero scale is never correct, unlike Keith's own hand-typed
+        # example which had the direction backwards).
+        #
+        # Scope note: a real, correct SA<->VC line converter (convert_
+        # inst_fields, gta_dat_parser.py) is already built and tested
+        # against Keith's own real example lines, but wiring it up to
+        # actually convert and write back every real instance in a
+        # loaded world is a separate, much larger piece (needs its own
+        # real INST-section write-back infrastructure, unlike zone/
+        # cull/occl/grge's own much smaller sections) - not attempted
+        # this turn; this button covers the repair half only.
+        repair_scale_btn = QToolButton()
+        repair_scale_btn.setText("Repair Scale")
+        repair_scale_btn.setToolTip(
+            "Fix any instance whose scale is (0,0,0) back to (1,1,1).")
+        repair_scale_btn.clicked.connect(self._repair_zero_scale_instances)
+        tb_overlays.addWidget(repair_scale_btn)
+
         _act(tb_rend, "Render Settings",
              _icon(self.icon_factory.render_settings_icon, 'render_settings_icon'),
              lambda checked=False: self._show_workshop_settings('Render'))
@@ -27006,6 +27031,45 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         btn = self.sender()
         pos = btn.mapToGlobal(btn.rect().bottomLeft()) if btn is not None else self.mapToGlobal(self.rect().center())
         menu.exec(pos)
+
+    def _repair_zero_scale_instances(self): #vers 1
+        """Repair Scale button - fixes every currently loaded instance
+        whose own real scale is exactly (0,0,0) back to (1,1,1) (Aug
+        21 2026, per Keith's own real, worked VC/SA/SOL example lines
+        and a real, broken converted line: "so we need a function to
+        find and change 1, 1, 1, to 0, 0, 0" - the real, worked
+        example itself confirms a real zero scale is what's actually
+        broken, not the other direction, since a real, valid VC
+        instance always has scale (1,1,1) unless deliberately, non-
+        zero-scaled). IN MEMORY ONLY - no write-back to disk for INST
+        lines exists yet (see this button's own tooltip/the ribbon
+        comment above it), so this fixes what Keith sees in the
+        viewport but not yet the file itself."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            self._set_status("No world loaded")
+            return
+        instances = getattr(loader, 'instances', [])
+        broken = [inst for inst in instances
+                  if inst.scale_x == 0.0 and inst.scale_y == 0.0 and inst.scale_z == 0.0]
+        if not broken:
+            self._set_status("No zero-scale instances found")
+            return
+        originals = [(inst.scale_x, inst.scale_y, inst.scale_z) for inst in broken]
+
+        def _do_fix():
+            for inst in broken:
+                inst.scale_x, inst.scale_y, inst.scale_z = 1.0, 1.0, 1.0
+            self._apply_ipl_visibility_filter(auto_fit=False, clear_display_lists=True)
+
+        def _do_undo():
+            for inst, orig in zip(broken, originals):
+                inst.scale_x, inst.scale_y, inst.scale_z = orig
+            self._apply_ipl_visibility_filter(auto_fit=False, clear_display_lists=True)
+
+        _do_fix()
+        self._push_map_undo(_do_undo, _do_fix, f"Repair {len(broken)} zero-scale instance(s)")
+        self._set_status(f"Repaired {len(broken)} zero-scale instance(s) - not yet saved to disk")
 
     def _add_zone(self): #vers 1
         """Add a new zone entry, per Keith: "we need to finish the

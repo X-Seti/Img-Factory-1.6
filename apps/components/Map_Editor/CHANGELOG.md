@@ -10765,3 +10765,39 @@ conclusively found despite extensive isolated testing.
   on IPL_SECTIONS explicitly listing SOL's own cull format as
   identical to SA's, not on an assumption that every SOL format
   follows SA - each format still needs its own real confirmation.
+
+- Aug 21 2026 - Two new pieces, per Keith's own real, worked VC/SA/
+  SOL example lines: "so we need a function to find and change 1, 1,
+  1, to 0, 0, 0 and convert [SA line] to VC ... and VC to SA ... but
+  I can see there is an error in how I converted the files."
+
+  New convert_inst_fields (gta_dat_parser.py) - a correct SA/SOL<->VC
+  INST line converter, using IPLParser._parse_inst's own already-
+  empirically-confirmed field layouts (VC has a real, confirmed
+  scale-then-rotation layout; SA/SOL has no scale fields at all) -
+  not re-derived from Keith's own hand-typed example, since that
+  example's own scale placement doesn't match either real, confirmed
+  layout and is very likely a typo. SA/SOL->VC inserts real scale
+  (1.0,1.0,1.0); VC->SA/SOL drops scale entirely (honest, real data
+  loss - SA/SOL's own format has nowhere to keep it) and sets lod=-1.
+  Verified with a full round-trip (SA->VC->SA recovers the exact
+  original rotation) against Keith's own real example lines.
+
+  New "Repair Scale" ribbon button - fixes every currently loaded
+  instance whose own real scale is exactly (0,0,0) back to (1,1,1),
+  undoable. Confirmed via Keith's own real, broken example line
+  ("652, new_bushsm..." with scale fields 0,0,0) that a real zero
+  scale is what's actually broken - not the reverse direction his own
+  hand-typed sentence literally described, which conflicts with his
+  own worked example and would never be correct real data (a zero
+  scale collapses an object to nothing). Only ever touches a real,
+  exact (0,0,0) - a genuinely, deliberately tiny-but-nonzero scale is
+  left alone, not assumed broken.
+
+  Scope note: convert_inst_fields is built and tested, but wiring it
+  up to actually convert every instance in a loaded world AND write
+  the result back to disk is a separate, much larger piece (needs its
+  own real INST-section write-back infrastructure, a bigger job than
+  zone/cull/occl/grge's own much smaller sections) - not attempted
+  this turn. Repair Scale is in-memory only for the same reason -
+  no INST write-back exists yet at all.
