@@ -21821,8 +21821,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._set_status("Indexing COL files...")
             QApplication.processEvents()
             model_cache.index_col_files(col_paths)
-        # A genuine new world load
+        # A genuine new world load - also clear previously uploaded
+        # GL textures here (not just the geometry cache), since
+        # _refresh_world_view_impl no longer wipes/reuploads textures
+        # on every call (see its own #vers note)
         self._geometry_conversion_cache = {}
+        vp_for_clear = getattr(self, 'preview_widget', None)
+        if vp_for_clear is not None and hasattr(vp_for_clear, 'clear_textures'):
+            if hasattr(vp_for_clear, 'makeCurrent'):
+                vp_for_clear.makeCurrent()
+            vp_for_clear.clear_textures()
 
         from collections import Counter as _Counter
         self._object_instance_counts = _Counter()
@@ -30059,7 +30067,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         finally:
             self._refresh_world_view_in_progress = False
 
-    def _refresh_world_view_impl(self, instances, auto_fit, clear_display_lists): #vers 2
+    def _refresh_world_view_impl(self, instances, auto_fit, clear_display_lists): #vers 3
         """The actual body of _refresh_world_view, split out only so
         the reentrancy guard above can wrap it in a try/finally
         without a second level of indentation across this whole
@@ -30198,7 +30206,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if all_textures and hasattr(vp, '_upload_textures'):
             # additive mirrors clear_display_lists exactly (Aug 1 2026)
 
-            vp._upload_textures(all_textures, additive=not clear_display_lists)
+            vp._upload_textures(all_textures, additive=True)
         # Only force the default render mode once, on the very first
         # world load (Aug 1 2026)
         if hasattr(vp, 'set_render_mode') and not getattr(self, '_world_render_mode_set', False):

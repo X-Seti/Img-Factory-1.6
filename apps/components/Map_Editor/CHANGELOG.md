@@ -10884,3 +10884,30 @@ conclusively found despite extensive isolated testing.
   point ("parsing COL files, even those in the img file"): ModelCache.
   get_collision already reads COL data from both IMG-embedded entries
   and standalone .col files - no new work needed there.
+
+- Sep 5 2026 - Fixed real bug: alpha-textured objects (trees etc.)
+  losing their texture entirely and rendering as flat, untextured
+  colour after unload/shift/rotate IPL operations, per Keith's own
+  re-uploaded alpha_showing.png (same screenshot as the Aug 21 fix,
+  but a genuinely different cause this time - that fix was lighting
+  flags, this one is missing textures).
+
+  Root cause: _refresh_world_view_impl only loads a model's TXD
+  textures inside `if model_name not in converted:` - i.e. only the
+  first time that model is ever seen this session
+  (_geometry_conversion_cache). But _apply_ipl_visibility_filter()
+  (unload IPL, unload all, shift/rotate IPL - default
+  clear_display_lists=True) triggered vp._upload_textures(...,
+  additive=False), which wipes every loaded GL texture on every such
+  call, while never resetting the geometry cache alongside it.
+  Already-cached models (most of the map by that point) never got
+  their textures re-added to all_textures, so they were never
+  re-uploaded - their triangles failed the texture-id lookup and fell
+  back to a flat material colour with no alpha cutout at all.
+
+  Fix: texture clearing now only happens once, at the genuine
+  new-world-load site (where _geometry_conversion_cache is reset) -
+  added an explicit vp.clear_textures() there. _refresh_world_view_impl
+  itself now always uploads additively (additive=True), since
+  clear_display_lists only controls display-list rebuilding, not
+  textures, going forward.
