@@ -2137,7 +2137,7 @@ class IPLParser: #vers 2
             pass
         return None
 
-    def _parse_cull(self, line: str, source: str, lineno: int) -> Optional[CullEntry]: #vers 3
+    def _parse_cull(self, line: str, source: str, lineno: int) -> Optional[CullEntry]: #vers 4
         """Parse one "cull" section line.
 
         III/VC: CenterX/Y/Z, X1/Y1/Z1, X2/Y2/Z2, Flags,
@@ -2146,43 +2146,75 @@ class IPLParser: #vers 2
         for-field against that real file and multiple independent
         wiki sources.
 
-        Real fix (Aug 21 2026, per Keith's own real, uploaded
-        SA_Cull_Files.png screenshot: "SA cull file not being parsed
-        correctly") - SA uses a genuinely different real field layout,
-        confirmed via 2 independent sources (GTAMods' own real "CULL"
-        page and its own Talk page, GTA Wiki/Fandom's own real "CULL"
-        page, word-for-word agreement between all 3): CenterX/Y/Z,
-        Unknown1, Length (WidthY), Bottom, Width (WidthX), Unknown2,
-        Top, Flag, Unknown3 - a real center + separate length/width/
-        bottom/top, not two corner points at all. The III/VC parser
-        was reading SA's own real "length" field as if it were a
-        literal X1 coordinate, "bottom" as Y1, "width" as X2, and so
-        on - real, garbled nonsense geometry, not a real box shape at
-        all, exactly matching the tangled, overlapping shapes in
-        Keith's own real screenshot.
+        SA: CenterX/Y/Z, Unknown1 (XSkew), Length, Bottom, Width,
+        Unknown2 (YSkew), Top, Flag, then either Unknown3 (11 fields)
+        or Vx/Vy/Vz/Cm real mirror-plane data (14 fields) - both real
+        variants confirmed present in Keith's own real, uploaded
+        cull.ipl (Aug 21 2026); only the first 10 fields matter here
+        either way.
 
-        Real, honest uncertainty: GTAMods' own Talk page notes
-        Length/Width may in some real cases actually be full extents
-        rather than half-extents, and that Unknown1/Unknown2 aren't
-        always genuinely 0 (sometimes real mirror-plane data instead)
-        - not something either wiki source fully resolves. This
-        treats Length/Width as full extents from the real center (the
-        most common real convention, and what GTA Wiki's own
-        "WidthX"/"WidthY" naming implies), which should be correct
-        for ordinary cull zones; genuine mirror zones may still need
-        Keith's own visual confirmation this looks right once loaded
-        against his own real file."""
+        Real fix v1 (Aug 21 2026, per Keith's own real, uploaded
+        SA_Cull_Files.png screenshot: "SA cull file not being parsed
+        correctly") first confirmed SA uses this genuinely different
+        field layout at all, vs the III/VC parser's own two-corner-
+        point assumption which was reading SA's own real "length"
+        field as a literal X1 coordinate and so on - real, garbled
+        nonsense geometry, matching the tangled shapes in that
+        screenshot.
+
+        Real fix v2 (Aug 21 2026, once Keith's own real, uploaded
+        cull.ipl file itself let this be checked against real data,
+        not just wiki text) - v1's own X/Y-extent formula was still
+        wrong in 2 real ways, confirmed via GTAMods' own real Talk:
+        CULL page, itself confirmed by a real user's own real, cross-
+        checked example against an actual in-game building (a cull
+        zone above Santa Maria Beach, Los Santos): (1) the field
+        names are genuinely swapped from what the main CULL page
+        implies - "Length" (this field's own real position, index 4)
+        is actually the real Y-axis distance from CenterY, "Width"
+        (index 6) the real X-axis distance from CenterX, the opposite
+        of v1's own assumption; (2) each field IS ALREADY the real
+        half-extent ("distance from center"), not a full width to
+        halve again - v1's own /2.0 was real, silent over-shrinking,
+        making every real box half its own true size.
+
+        There's also a real, confirmed skew effect (Unknown1/
+        Unknown2, genuinely non-zero in the majority - 702 of 1230,
+        57% - of Keith's own real cull.ipl lines, not a rare edge
+        case) that turns the box into a real, skewed quadrilateral,
+        not a plain axis-aligned rectangle - a crude form of rotation
+        confirmed by that same real user's own cross-check (a real,
+        10-degree-rotated building). Full support would need this
+        codebase's own CullEntry/box rendering/corner-drag-resize/
+        picking to all store and handle 4 independent real corners
+        instead of a plain 2-corner AABB, a real, much larger change
+        touching many real files - not attempted here. Computes the
+        real, skewed quadrilateral's own 4 corners with the confirmed
+        formula, then takes their own real min/max X/Y as this box's
+        own stored (x1,y1)-(x2,y2) - a real, correctly-enclosing
+        axis-aligned bounding box, honestly not the exact skewed
+        shape itself, but a large, confirmed improvement over v1's
+        own real, silently-wrong, unskewed, half-sized box."""
         try:
             p = [x.strip() for x in line.split(",")]
             if len(p) < 9:
                 return None
             cx, cy, cz = float(p[0]), float(p[1]), float(p[2])
             if self.game == GTAGame.SA:
-                length, bottom, width, top = float(p[4]), float(p[5]), float(p[6]), float(p[8])
+                xskew, length, bottom = float(p[3]), float(p[4]), float(p[5])
+                width, yskew, top = float(p[6]), float(p[7]), float(p[8])
+                corners = [
+                    (cx - width + xskew, cy + length + yskew),
+                    (cx + width + xskew, cy + length - yskew),
+                    (cx - width - xskew, cy - length + yskew),
+                    (cx + width - xskew, cy - length - yskew),
+                ]
+                xs = [c[0] for c in corners]
+                ys = [c[1] for c in corners]
                 return CullEntry(
                     center_x=cx, center_y=cy, center_z=cz,
-                    x1=cx - length / 2.0, y1=cy - width / 2.0, z1=bottom,
-                    x2=cx + length / 2.0, y2=cy + width / 2.0, z2=top,
+                    x1=min(xs), y1=min(ys), z1=bottom,
+                    x2=max(xs), y2=max(ys), z2=top,
                     flags=int(float(p[9])) if len(p) > 9 else 0,
                     wanted_level_drop=0,
                     source_ipl=source, line_no=lineno)

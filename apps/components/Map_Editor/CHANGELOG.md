@@ -10461,3 +10461,37 @@ conclusively found despite extensive isolated testing.
   dff_viewport.py's own display-list loop now actually reads and
   applies it, falling back to the same sensible default _geom_flags()
   itself already uses when a real entry happens to lack the field.
+
+- Aug 21 2026 - Corrected the SA cull.ipl formula from last turn, now
+  verified against Keith's own real, uploaded cull.ipl file (1253
+  lines, 1230 real cull entries) rather than just wiki text and a
+  synthetic test line. Found via GTAMods' own Talk:CULL page - itself
+  confirmed there by a real user's own cross-check against an actual
+  in-game building - 2 real bugs in last turn's own fix:
+
+  1. Field names are genuinely swapped from what the main CULL page
+     implies: "Length" (field index 4) is actually the real Y-axis
+     distance from CenterY; "Width" (index 6) is the real X-axis
+     distance from CenterX - the opposite of what was assumed.
+
+  2. Each field IS ALREADY the real half-extent ("distance from
+     center"), not a full width needing to be halved again - the
+     real /2.0 in last turn's own fix silently shrank every real box
+     to half its true size.
+
+  Also found and handled a real skew effect (Unknown1/Unknown2) -
+  genuinely non-zero in 702 of 1230 (57%) of Keith's own real lines,
+  not a rare edge case - which turns the box into a real, skewed
+  quadrilateral (a crude form of rotation), not a plain rectangle.
+  Full support would need CullEntry/rendering/corner-drag-resize/
+  picking to all handle 4 independent real corners instead of a
+  plain 2-corner AABB - a real, much larger change across many files,
+  not attempted here. Computes the real, skewed quadrilateral's own 4
+  corners with the confirmed formula, then stores their own min/max
+  X/Y as a correctly-enclosing axis-aligned bounding box - honestly
+  not the exact skewed shape, but a large, confirmed improvement.
+
+  Verified this time against the real file directly: all 1230 real
+  cull lines parsed successfully, zero failures, zero degenerate
+  (min>max) boxes, sensible width/height/depth ranges throughout -
+  not just a synthetic test line like last turn.
