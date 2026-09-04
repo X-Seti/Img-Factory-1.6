@@ -10801,3 +10801,42 @@ conclusively found despite extensive isolated testing.
   zone/cull/occl/grge's own much smaller sections) - not attempted
   this turn. Repair Scale is in-memory only for the same reason -
   no INST write-back exists yet at all.
+
+- Aug 21 2026 - Full IPL INST file conversion, per Keith: "so having
+  VC -> SA or SA -> VC is something I need, under a convertion SVG
+  icon, right clicked for options, and selected ipl files to convert,
+  anywhere on the harddrive or loaded ipl browser list." Builds on
+  last turn's convert_inst_fields (already tested against Keith's
+  own real example lines) with the write-back half.
+
+  New "Convert" ribbon button (new convert_icon SVG - two opposing
+  arrows). Both left and right-click open the same options menu -
+  there's no separate "primary" click action for this button the way
+  Cycle's own left-click-to-advance has, so right-click-only would
+  make it invisible to anyone who never right-clicks. Menu offers 4
+  real combinations: convert file(s) picked from anywhere on disk, or
+  from the currently-loaded world's own real IPL list (via loader.
+  load_log), each to either SA/SOL or VC format.
+
+  _convert_ipl_inst_section does the real work - reads a file,
+  converts only real INST lines in place (auto-detecting each real
+  section's own source format from field count when not given, since
+  VC/SA layouts have genuinely different field counts), leaves every
+  other real line (other sections, comments) completely untouched,
+  writes a real .bak backup first. Handles a real file with more
+  than one real INST section independently.
+
+  Verified end-to-end with a real, synthetic test file mixing both
+  of Keith's own real example lines (a normal-rotation one, and the
+  broken-scale one) plus an untouched cull section - confirmed both
+  real lines converted correctly (scale correctly inserted for SA->VC,
+  broken (0,0,0) scale corrected to (1,1,1) as part of the same real
+  conversion) and the cull section stayed byte-for-byte untouched.
+
+  A real bug caught before it shipped: the new Convert button's own
+  construction sits in a different real method than Cull/Zon/Occl/
+  Grge's own buttons, which import OverlayIcons locally further down
+  the same file - referencing OverlayIcons.convert_icon directly at
+  the new button's own real location would have raised a real
+  NameError the first time this ribbon was ever built. Added its own
+  local import instead of assuming the same name was already in scope.

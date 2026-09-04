@@ -285,6 +285,17 @@ class OverlayIcons:
 </svg>''', size, color="#000000")
 
     @staticmethod
+    def convert_icon(size: int = 24) -> QIcon: #vers 1
+        """Convert (VC<->SA/SOL INST format) button - two opposing
+        curved arrows, a standard "convert/exchange" motif (Aug 21
+        2026, per Keith: "having VC -> SA or SA -> VC is something I
+        need, under a convertion SVG icon")."""
+        return SVGIconFactory._create_icon('''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <path d="M4 8 H16 L13 4" fill="none" stroke="#4fc3f7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M20 16 H8 L11 20" fill="none" stroke="#81d4fa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>''', size, color="#000000")
+
+    @staticmethod
     def sa_nodes_icon(size: int = 24) -> QIcon: #vers 1
         """SA Nodes toggle - a small orange node network/graph (5
         connected nodes), visually distinct from Paths' own single

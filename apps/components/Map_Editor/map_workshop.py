@@ -13256,6 +13256,26 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         repair_scale_btn.clicked.connect(self._repair_zero_scale_instances)
         tb_overlays.addWidget(repair_scale_btn)
 
+        # Convert VC<->SA/SOL INST format (Aug 21 2026, per Keith:
+        # "having VC -> SA or SA -> VC is something I need, under a
+        # convertion SVG icon, right clicked for options, and selected
+        # ipl files to convert, anywhere on the harddrive or loaded
+        # ipl browser list") - both left and right-click open the same
+        # options menu (see _show_convert_ipl_menu) - there's no
+        # separate "primary" action for this button the way Cycle's
+        # own left-click-to-advance has, so gating the menu behind
+        # right-click only would make it invisible to anyone who only
+        # ever left-clicks.
+        convert_btn = QToolButton()
+        from apps.components.Map_Editor.depends.overlay_icons import OverlayIcons as _OverlayIconsForConvert
+        convert_btn.setIcon(_OverlayIconsForConvert.convert_icon(24))
+        convert_btn.setToolTip(
+            "Convert IPL INST sections between VC and SA/SOL format.\n"
+            "Click for options: pick files from disk, or from the\n"
+            "currently loaded world.")
+        convert_btn.clicked.connect(lambda: self._show_convert_ipl_menu(convert_btn))
+        tb_overlays.addWidget(convert_btn)
+
         _act(tb_rend, "Render Settings",
              _icon(self.icon_factory.render_settings_icon, 'render_settings_icon'),
              lambda checked=False: self._show_workshop_settings('Render'))
@@ -27653,6 +27673,206 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         except Exception as e:
             return False, f"Couldn't write {abs_path}: {e}"
         return True, f"Wrote {len(grge_entries)} garage(s) to {os.path.basename(abs_path)}"
+
+    def _detect_inst_field_game(self, parts): #vers 1
+        """Guess which game an already-split INST line's own fields
+        belong to, from field count alone (Aug 21 2026, per Keith:
+        "having VC -> SA or SA -> VC is something I need... selected
+        ipl files to convert, anywhere on the harddrive") - VC's own
+        real, confirmed layout always has 13 fields (scale+rotation);
+        SA/SOL's has 10 (no lod) or 11 (with lod). Returns GTAGame.VC,
+        GTAGame.SA, or None if the count matches neither real, known
+        layout."""
+        from apps.methods.gta_dat_parser import GTAGame
+        n = len(parts)
+        if n == 13:
+            return GTAGame.VC
+        if n in (10, 11):
+            return GTAGame.SA
+        return None
+
+    def _convert_ipl_inst_section(self, abs_path, to_game, from_game=None): #vers 1
+        """Convert every real INST line in one real IPL file to
+        to_game's own real field layout, in place (Aug 21 2026, per
+        Keith: "having VC -> SA or SA -> VC is something I need,
+        under a conversion SVG icon, right clicked for options, and
+        selected ipl files to convert, anywhere on the harddrive or
+        loaded ipl browser list"). Only real INST lines are touched -
+        every other real line (other sections, comments) is left
+        completely untouched. from_game auto-detected per real INST
+        section found (_detect_inst_field_game, from real field count)
+        when not given directly - handles a real file with more than
+        one real INST section, each independently, in case they
+        somehow differ (shouldn't in practice, but not assumed).
+        Writes a real .bak backup first (only if one doesn't already
+        exist). Returns (success: bool, message: str)."""
+        from apps.methods.gta_dat_parser import convert_inst_fields, GTAGame
+        try:
+            with open(abs_path, 'r', encoding='ascii', errors='ignore') as f:
+                lines = f.readlines()
+        except Exception as e:
+            return False, f"Couldn't read {abs_path}: {e}"
+
+        new_lines = []
+        in_inst = False
+        section_from_game = from_game
+        converted, skipped = 0, 0
+        for raw in lines:
+            stripped = raw.split('#')[0].strip()
+            if not in_inst and stripped.lower() == 'inst':
+                in_inst = True
+                section_from_game = from_game
+                new_lines.append(raw)
+                continue
+            if in_inst and stripped.lower() == 'end':
+                in_inst = False
+                new_lines.append(raw)
+                continue
+            if in_inst and stripped and not stripped.startswith('#'):
+                parts = [p.strip() for p in stripped.split(',')]
+                if section_from_game is None:
+                    section_from_game = self._detect_inst_field_game(parts)
+                if section_from_game is not None and section_from_game != to_game:
+                    result = convert_inst_fields(parts, section_from_game, to_game)
+                    if result is not None:
+                        new_lines.append(', '.join(result) + '\n')
+                        converted += 1
+                        continue
+                new_lines.append(raw)
+                skipped += 1
+                continue
+            new_lines.append(raw)
+
+        if converted == 0:
+            return False, f"No convertible INST lines found in {os.path.basename(abs_path)}"
+
+        backup_path = abs_path + '.bak'
+        if not os.path.isfile(backup_path):
+            try:
+                with open(abs_path, 'r', encoding='ascii', errors='ignore') as f:
+                    original = f.read()
+                with open(backup_path, 'w', encoding='ascii', errors='ignore') as f:
+                    f.write(original)
+            except Exception as e:
+                return False, f"Couldn't write backup for {abs_path}: {e}"
+
+        try:
+            with open(abs_path, 'w', encoding='ascii', errors='ignore') as f:
+                f.writelines(new_lines)
+        except Exception as e:
+            return False, f"Couldn't write {abs_path}: {e}"
+        suffix = f", {skipped} left unconverted" if skipped else ""
+        return True, f"Converted {converted} INST line(s) in {os.path.basename(abs_path)}{suffix}"
+
+    def _convert_ipl_files_dialog(self, to_game): #vers 1
+        """Convert IPL File(s) From Disk... - lets Keith pick any real
+        .ipl file(s) anywhere on the hard drive and convert their own
+        real INST sections to to_game's own real layout (Aug 21 2026,
+        per Keith: "selected ipl files to convert, anywhere on the
+        harddrive"). Confirms first, since this genuinely changes real
+        files on disk (with a real .bak backup, but still a real,
+        deliberate action)."""
+        from apps.methods.gta_dat_parser import GTAGame
+        paths, _ = QFileDialog.getOpenFileNames(
+            self, f"Select IPL file(s) to convert to {to_game.upper()}",
+            "", "IPL Files (*.ipl);;All Files (*)")
+        if not paths:
+            return
+        confirm = QMessageBox.question(
+            self, "Convert IPL Files",
+            f"Convert INST sections in {len(paths)} file(s) to {to_game.upper()} "
+            f"format?\n\nA .bak backup of each file's own original content is "
+            f"kept (only if one doesn't already exist).",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+        self._run_ipl_inst_conversion(paths, to_game)
+
+    def _convert_loaded_ipls_dialog(self, to_game): #vers 1
+        """Convert Loaded IPL(s)... - lets Keith pick from whichever
+        real IPL files the currently-loaded world actually came from
+        (Aug 21 2026, per Keith: "...or loaded ipl browser list"),
+        rather than only browsing the hard drive blind. Lists every
+        real path from loader.load_log (every real loaded IPL is
+        already recorded there)."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            self._set_status("No world loaded")
+            return
+        all_paths = sorted({entry[2] for entry in getattr(loader, 'load_log', [])
+                             if len(entry) >= 3 and entry[1] == 'IPL'})
+        if not all_paths:
+            self._set_status("No loaded IPL files found")
+            return
+
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QListWidget, QDialogButtonBox
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Convert Loaded IPL(s) to {to_game.upper()}")
+        dlg.resize(500, 400)
+        layout = QVBoxLayout(dlg)
+        layout.addWidget(QLabel("Select IPL file(s) to convert:"))
+        list_widget = QListWidget()
+        list_widget.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        for p in all_paths:
+            list_widget.addItem(p)
+        layout.addWidget(list_widget)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(dlg.accept)
+        buttons.rejected.connect(dlg.reject)
+        layout.addWidget(buttons)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        selected = [item.text() for item in list_widget.selectedItems()]
+        if not selected:
+            return
+        confirm = QMessageBox.question(
+            self, "Convert IPL Files",
+            f"Convert INST sections in {len(selected)} file(s) to {to_game.upper()} "
+            f"format?\n\nA .bak backup of each file's own original content is "
+            f"kept (only if one doesn't already exist).",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+        self._run_ipl_inst_conversion(selected, to_game)
+
+    def _run_ipl_inst_conversion(self, paths, to_game): #vers 1
+        """Shared real conversion loop for both _convert_ipl_files_
+        dialog and _convert_loaded_ipls_dialog (Aug 21 2026) - calls
+        _convert_ipl_inst_section once per real path, reports a
+        combined real summary."""
+        converted, failed = 0, []
+        for path in paths:
+            ok, msg = self._convert_ipl_inst_section(path, to_game)
+            if ok:
+                converted += 1
+            else:
+                failed.append(msg)
+        if failed:
+            self._set_status(f"Converted {converted} file(s); {len(failed)} not converted: {'; '.join(failed)}")
+        else:
+            self._set_status(f"Converted {converted} file(s) to {to_game.upper()}")
+
+    def _show_convert_ipl_menu(self, button): #vers 1
+        """Convert button, left or right-click (Aug 21 2026, per
+        Keith: "having VC -> SA or SA -> VC is something I need,
+        under a convertion SVG icon, right clicked for options, and
+        selected ipl files to convert, anywhere on the harddrive or
+        loaded ipl browser list") - both real source paths (disk
+        browse, loaded-IPL list) crossed with both real target
+        formats."""
+        from apps.methods.gta_dat_parser import GTAGame
+        menu = QMenu(self)
+        menu.addAction("Convert File(s) From Disk to SA/SOL...",
+                        lambda: self._convert_ipl_files_dialog(GTAGame.SA))
+        menu.addAction("Convert File(s) From Disk to VC...",
+                        lambda: self._convert_ipl_files_dialog(GTAGame.VC))
+        menu.addSeparator()
+        menu.addAction("Convert Loaded IPL(s) to SA/SOL...",
+                        lambda: self._convert_loaded_ipls_dialog(GTAGame.SA))
+        menu.addAction("Convert Loaded IPL(s) to VC...",
+                        lambda: self._convert_loaded_ipls_dialog(GTAGame.VC))
+        menu.exec(button.mapToGlobal(button.rect().bottomLeft()))
 
     def _save_grges(self): #vers 1
         """Save Garages button - writes every currently loaded garage
