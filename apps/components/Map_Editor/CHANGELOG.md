@@ -10532,3 +10532,39 @@ conclusively found despite extensive isolated testing.
   turn) is a separate, large piece (no visualization/UI exists for
   it at all yet, only parsing) - deferred to a following turn given
   the size of this one.
+
+- Aug 21 2026 - Add/Delete/Save for cull zones, per Keith: "lets
+  build add, del for zon, cull, occu and ipl changes." Same real
+  in-memory-until-saved pattern as zones (last turn): "+Cull"/"-Cull"
+  ribbon buttons, undoable both ways; "Save Cull" writes back to each
+  box's own real source file via _write_back_cull_section, using the
+  already-general _resolve_ipl_abs_path from the zone work.
+
+  Real, honest, disclosed limitation: CullEntry only ever stores the
+  resolved axis-aligned bounding box, not SA's own original center/
+  length/width/skew fields (see _parse_cull's own docstring) - a
+  real skewed SA cull zone's own skew is genuinely lost on write-
+  back, reconstructed as an unskewed box of the same overall size.
+  Noted in the Save Cull button's own tooltip and the save
+  confirmation dialog, not silently dropped without a word.
+
+  A real bug caught before it shipped this time, not after: CullEntry
+  itself was never actually imported anywhere in map_workshop.py -
+  _add_cull's own new CullEntry(...) call would have raised a real
+  NameError the first time anyone clicked +Cull. Added the missing
+  local import (same per-method pattern this file already uses for
+  GTAGame elsewhere) before this ever reached Keith, caught by
+  actually running the constructor call in an isolated test rather
+  than trusting a syntax check alone.
+
+  Verified with real, isolated write-back + round-trip tests for
+  both real cull formats (III/VC's own two-corner-point format and
+  SA's own center+length/width/bottom/top format) - both wrote and
+  re-parsed back to the exact same CullEntry values.
+
+  GRGE and Occlusion (both also named in Keith's own same request)
+  are separate, still open - Occlusion already has visualization to
+  build add/delete/save on top of (next, most direct piece); GRGE
+  has none at all yet (parsing only) - deferred, same real reason as
+  last turn: kept this turn's own scope to what could be built and
+  properly verified, not rushed.

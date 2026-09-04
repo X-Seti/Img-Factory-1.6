@@ -13141,8 +13141,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # Delete are in-memory only until Save Zones writes them back
         # to their own real source IPL file(s) on disk (see _save_
         # zones/_write_back_zone_section - a real .bak backup is kept
-        # first). Cull has no matching add/delete/save yet - Keith's
-        # own request named zon specifically.
+        # first).
         add_zone_btn = QToolButton()
         add_zone_btn.setText("+Zone")
         add_zone_btn.setToolTip("Add a new zone at the current viewport centre.")
@@ -13160,6 +13159,30 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         save_zones_btn.setToolTip("Write every loaded zone back to its own source IPL file(s).")
         save_zones_btn.clicked.connect(self._save_zones)
         tb_overlays.addWidget(save_zones_btn)
+
+        # Add/Delete/Save Cull (Aug 21 2026, per Keith: "lets build
+        # add, del for zon, cull, occu and ipl changes") - same real
+        # in-memory-until-saved pattern as zones just above (see
+        # _save_culls/_write_back_cull_section).
+        add_cull_btn = QToolButton()
+        add_cull_btn.setText("+Cull")
+        add_cull_btn.setToolTip("Add a new cull box at the current viewport centre.")
+        add_cull_btn.clicked.connect(self._add_cull)
+        tb_overlays.addWidget(add_cull_btn)
+
+        del_cull_btn = QToolButton()
+        del_cull_btn.setText("-Cull")
+        del_cull_btn.setToolTip("Delete the currently selected cull box (use Cycle first).")
+        del_cull_btn.clicked.connect(self._delete_cull)
+        tb_overlays.addWidget(del_cull_btn)
+
+        save_culls_btn = QToolButton()
+        save_culls_btn.setText("Save Cull")
+        save_culls_btn.setToolTip(
+            "Write every loaded cull box back to its own source IPL file(s).\n"
+            "Note: on SA, any real skew on a box is lost on write-back.")
+        save_culls_btn.clicked.connect(self._save_culls)
+        tb_overlays.addWidget(save_culls_btn)
 
         # Undo (Aug 21 2026, per Keith: "we need an undo button
         # /ribbon icon") - the real, map-undo-aware handler (_on_
@@ -26846,6 +26869,198 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         _do_remove()
         self._push_map_undo(_do_restore, _do_remove, f"Delete zone '{removed_name}'")
         self._set_status(f"Deleted zone '{removed_name}' - not yet saved to disk")
+
+    def _add_cull(self): #vers 1
+        """Add a new cull box, per Keith: "lets build add, del for
+        zon, cull, occu and ipl changes" (Aug 21 2026) - IN MEMORY
+        ONLY until Save Cull Zones is used. Placed as a small (20x20x
+        10) box centred on wherever the viewport is currently
+        looking, in the first currently-loaded cull source file found
+        (same real "no way to ask which file" reasoning as _add_zone
+        above)."""
+        loader = getattr(self, '_world_loader', None)
+        vp = getattr(self, 'preview_widget', None)
+        if loader is None or vp is None:
+            return
+        from apps.methods.gta_dat_parser import CullEntry
+        existing = getattr(loader, 'culls', [])
+        source_ipl = existing[0].source_ipl if existing else 'cull.ipl'
+        cx, cy = -vp._pan_x, -vp._pan_y
+        new_cull = CullEntry(
+            center_x=cx, center_y=cy, center_z=0.0,
+            x1=cx - 10.0, y1=cy - 10.0, z1=0.0,
+            x2=cx + 10.0, y2=cy + 10.0, z2=10.0,
+            flags=0, wanted_level_drop=0,
+            source_ipl=source_ipl, line_no=0)
+
+        def _do_add():
+            loader.culls.append(new_cull)
+            self._refresh_cull_box_visualization()
+
+        def _do_remove():
+            if new_cull in loader.culls:
+                loader.culls.remove(new_cull)
+            self._refresh_cull_box_visualization()
+
+        _do_add()
+        self._push_map_undo(_do_remove, _do_add, "Add cull box")
+        self._set_status("Added cull box - not yet saved to disk")
+
+    def _delete_cull(self): #vers 1
+        """Delete the currently cycled/selected cull box, per Keith:
+        "lets build add, del for zon, cull, occu and ipl changes"
+        (Aug 21 2026) - IN MEMORY ONLY until Save Cull Zones is used.
+        Acts on whichever cull box the Cycle Zones button (or a
+        direct viewport double-click) last selected (preview_widget.
+        _selected_box)."""
+        loader = getattr(self, '_world_loader', None)
+        vp = getattr(self, 'preview_widget', None)
+        sel = getattr(vp, '_selected_box', None) if vp else None
+        if loader is None or vp is None or sel is None or sel[0] != 'cull':
+            self._set_status("No cull box currently selected - use Cycle Zones first")
+            return
+        _, box_index = sel
+        culls = getattr(loader, 'culls', [])
+        if not (0 <= box_index < len(culls)):
+            return
+        removed_cull = culls[box_index]
+
+        def _do_remove():
+            if removed_cull in loader.culls:
+                loader.culls.remove(removed_cull)
+            vp._selected_box = None
+            self._refresh_cull_box_visualization()
+
+        def _do_restore():
+            loader.culls.insert(min(box_index, len(loader.culls)), removed_cull)
+            self._refresh_cull_box_visualization()
+
+        _do_remove()
+        self._push_map_undo(_do_restore, _do_remove, "Delete cull box")
+        self._set_status("Deleted cull box - not yet saved to disk")
+
+    def _write_back_cull_section(self, abs_path, cull_entries, game): #vers 1
+        """Write a real "cull...end" section back to its own real IPL
+        file on disk (Aug 21 2026, per Keith: "lets build add, del
+        for zon, cull, occu and ipl changes") - same real replace-
+        only-that-section/keep-everything-else/write-a-.bak-first
+        approach as _write_back_zone_section (see its own docstring
+        for the full, real safety reasoning, identical here).
+
+        Real, honest limitation for SA specifically: CullEntry only
+        ever stores the resolved (x1,y1,z1,x2,y2,z2) axis-aligned
+        bounding box, not the original center/length/width/skew
+        fields a real SA cull line actually has (see _parse_cull's
+        own docstring for the full, real confirmed-against-Keith's-
+        real-file story) - a real skewed zone's own skew is genuinely
+        lost on write-back, reconstructed here as an unskewed
+        (Unknown1=Unknown2=0) box of the same real overall size
+        instead. Full skew round-tripping would need CullEntry itself
+        extended to keep the original fields - not attempted here,
+        same real scope limit _parse_cull's own docstring already
+        names for reading."""
+        from apps.methods.gta_dat_parser import GTAGame
+        try:
+            with open(abs_path, 'r', encoding='ascii', errors='ignore') as f:
+                lines = f.readlines()
+        except Exception as e:
+            return False, f"Couldn't read {abs_path}: {e}"
+
+        section_start = section_end = None
+        for i, raw in enumerate(lines):
+            stripped = raw.split('#')[0].strip()
+            if stripped.lower() == 'cull':
+                section_start = i
+            elif section_start is not None and section_end is None and stripped.lower() == 'end':
+                section_end = i
+                break
+
+        new_lines = []
+        for c in cull_entries:
+            if game == GTAGame.SA:
+                length = (c.y2 - c.y1) / 2.0
+                width = (c.x2 - c.x1) / 2.0
+                fields = [f"{c.center_x:.6f}", f"{c.center_y:.6f}", f"{c.center_z:.6f}",
+                          "0.000000", f"{length:.6f}", f"{c.z1:.6f}",
+                          f"{width:.6f}", "0.000000", f"{c.z2:.6f}", str(c.flags)]
+            else:
+                fields = [f"{c.center_x:.6f}", f"{c.center_y:.6f}", f"{c.center_z:.6f}",
+                          f"{c.x1:.6f}", f"{c.y1:.6f}", f"{c.z1:.6f}",
+                          f"{c.x2:.6f}", f"{c.y2:.6f}", f"{c.z2:.6f}",
+                          str(c.flags), str(c.wanted_level_drop)]
+            new_lines.append(', '.join(fields) + '\n')
+
+        if section_start is not None and section_end is not None:
+            lines = lines[:section_start + 1] + new_lines + lines[section_end:]
+        else:
+            if lines and not lines[-1].endswith('\n'):
+                lines[-1] += '\n'
+            lines += ['cull\n'] + new_lines + ['end\n']
+
+        backup_path = abs_path + '.bak'
+        if not os.path.isfile(backup_path):
+            try:
+                with open(abs_path, 'r', encoding='ascii', errors='ignore') as f:
+                    original = f.read()
+                with open(backup_path, 'w', encoding='ascii', errors='ignore') as f:
+                    f.write(original)
+            except Exception as e:
+                return False, f"Couldn't write backup for {abs_path}: {e}"
+
+        try:
+            with open(abs_path, 'w', encoding='ascii', errors='ignore') as f:
+                f.writelines(lines)
+        except Exception as e:
+            return False, f"Couldn't write {abs_path}: {e}"
+        return True, f"Wrote {len(cull_entries)} cull box(es) to {os.path.basename(abs_path)}"
+
+    def _save_culls(self): #vers 1
+        """Save Cull Zones button - writes every currently loaded cull
+        box back to its own real source IPL file(s) on disk (Aug 21
+        2026, per Keith: "lets build add, del for zon, cull, occu and
+        ipl changes"). Same real grouping/resolve/confirm/write
+        pattern as _save_zones (see its own docstring)."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            self._set_status("No world loaded")
+            return
+        culls = getattr(loader, 'culls', [])
+        if not culls:
+            self._set_status("No cull boxes to save")
+            return
+        by_file = {}
+        for c in culls:
+            by_file.setdefault(c.source_ipl, []).append(c)
+
+        confirm = QMessageBox.question(
+            self, "Save Cull Zones",
+            f"Write {len(culls)} cull box(es) across {len(by_file)} file(s) back to "
+            f"disk?\n\nA .bak backup of each file's own original content is kept "
+            f"(only if one doesn't already exist).\n\n"
+            f"Note: any real SA skew on a box is lost on write-back (reconstructed "
+            f"as an unskewed box of the same overall size) - see the Save Cull "
+            f"Zones tooltip.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+
+        game = getattr(loader, 'game', None)
+        written, failed = 0, []
+        for source_ipl, entries in by_file.items():
+            abs_path = self._resolve_ipl_abs_path(source_ipl)
+            if abs_path is None:
+                failed.append(f"{source_ipl} (file not found)")
+                continue
+            ok, msg = self._write_back_cull_section(abs_path, entries, game)
+            if ok:
+                written += 1
+            else:
+                failed.append(msg)
+
+        if failed:
+            self._set_status(f"Saved {written} file(s); {len(failed)} failed: {'; '.join(failed)}")
+        else:
+            self._set_status(f"Saved {len(culls)} cull box(es) across {written} file(s)")
 
     def _sync_ipl_inst_file_selection(self, inst): #vers 1
         """Highlight one instance's row in the IPL Inst File table,
