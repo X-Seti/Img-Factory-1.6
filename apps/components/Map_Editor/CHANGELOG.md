@@ -10744,3 +10744,24 @@ conclusively found despite extensive isolated testing.
      instead of zero. _parse_grge/_write_back_grge_section themselves
      needed no change - they already faithfully preserve the real,
      raw field values as parsed, for correct round-trip write-back.
+
+- Aug 21 2026 - Fixed a real bug in SA cull.ipl parsing/write-back,
+  found directly by Keith's own question: "when loading SOL, are you
+  using the SA parser or VC parser?" Both checks used `self.game ==
+  GTAGame.SA` - SOL is its own, distinct GTAGame value ("sol", not
+  "sa"), so this never matched it, despite SOL being explicitly
+  documented and treated as SA-engine elsewhere in this same file
+  (IPL_SECTIONS['sol'] is identical to ['sa'], build_xref's own game
+  in (SA, SOL) check). SOL cull.ipl lines were silently falling
+  through to the III/VC two-corner-point branch - the exact same
+  garbled-geometry bug SA itself had before that whole fix existed.
+  Both _parse_cull and _write_back_cull_section fixed to check
+  `game in (GTAGame.SA, GTAGame.SOL)`.
+
+  Worth noting, found while checking this: SOL isn't a blanket "always
+  treat as SA" case throughout this codebase - waterpro.dat loading
+  groups SOL with GTA3/VC instead (a separate, non-IPL file format
+  where SOL apparently kept the older convention). This cull fix rests
+  on IPL_SECTIONS explicitly listing SOL's own cull format as
+  identical to SA's, not on an assumption that every SOL format
+  follows SA - each format still needs its own real confirmation.

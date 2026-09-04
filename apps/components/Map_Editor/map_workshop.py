@@ -27190,7 +27190,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         new_lines = []
         for c in cull_entries:
-            if game == GTAGame.SA:
+            # Real fix (Aug 21 2026, per Keith: "when loading SOL, are
+            # you using the SA parser or VC parser?") - SOL is its own,
+            # distinct GTAGame value, so this never matched it despite
+            # SOL running on the SA engine with SA-format IPL sections
+            # (see _parse_cull's own matching real fix, same real
+            # cause). A SOL cull box saved back to disk would have
+            # been silently written in the wrong, III/VC two-corner-
+            # point format instead.
+            if game in (GTAGame.SA, GTAGame.SOL):
                 length = (c.y2 - c.y1) / 2.0
                 width = (c.x2 - c.x1) / 2.0
                 fields = [f"{c.center_x:.6f}", f"{c.center_y:.6f}", f"{c.center_z:.6f}",

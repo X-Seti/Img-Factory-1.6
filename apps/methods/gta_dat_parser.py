@@ -2200,7 +2200,19 @@ class IPLParser: #vers 2
             if len(p) < 9:
                 return None
             cx, cy, cz = float(p[0]), float(p[1]), float(p[2])
-            if self.game == GTAGame.SA:
+            # Real fix (Aug 21 2026, per Keith: "when loading SOL, are
+            # you using the SA parser or VC parser?") - SOL is its
+            # own, distinct GTAGame value (not "sa"), so this check
+            # never matched it, despite SOL being explicitly, real,
+            # documented elsewhere in this same file as running on
+            # the SA engine with SA-format IPL sections (IPL_SECTIONS
+            # ['sol'] is identical to ['sa'], and build_xref's own
+            # real game in (SA, SOL) check already treats them the
+            # same). SOL cull.ipl lines were silently falling through
+            # to the III/VC two-corner-point branch instead - the
+            # exact same real, garbled-geometry bug SA itself had
+            # before this whole fix existed.
+            if self.game in (GTAGame.SA, GTAGame.SOL):
                 xskew, length, bottom = float(p[3]), float(p[4]), float(p[5])
                 width, yskew, top = float(p[6]), float(p[7]), float(p[8])
                 corners = [
