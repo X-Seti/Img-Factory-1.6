@@ -10495,3 +10495,40 @@ conclusively found despite extensive isolated testing.
   cull lines parsed successfully, zero failures, zero degenerate
   (min>max) boxes, sensible width/height/depth ranges throughout -
   not just a synthetic test line like last turn.
+
+- Aug 21 2026 - Add/Delete/Save for zones, per Keith: "we need to
+  finish the add, del, save functions for zon." First real write-
+  back-to-disk capability built this whole session - everything
+  before this was in-memory only.
+
+  New "+Zone"/"-Zone" ribbon buttons: Add places a new 20x20x10 zone
+  centred on the current viewport, undoable; Delete removes whichever
+  zone Cycle Zones (or a direct viewport double-click) last selected,
+  also undoable, restoring it at its own original list position.
+  Both in-memory only until Save Zones is used.
+
+  New "Save Zones" button - _resolve_ipl_abs_path finds each loaded
+  zone's own real source file via loader.load_log (every real loaded
+  IPL is already recorded there, on-demand or eager); _write_back_
+  zone_section replaces only the real "zone...end" section's own
+  content in that file, leaving every other real line (other
+  sections, comments) completely untouched, appending a new section
+  if the file doesn't have one yet. Writes a real .bak backup first
+  (only if one doesn't already exist, so repeated saves don't
+  overwrite an earlier pre-edit backup), and asks for confirmation
+  before writing anything, since this genuinely changes real files
+  on disk.
+
+  Verified with real file-based tests, not just a syntax check:
+  replacing an existing zone section (confirmed the untouched cull
+  section and leading comment stayed byte-for-byte identical, and
+  the .bak held the real original), appending a new section to a
+  file with none, and a full round-trip through the real IPLParser
+  itself to confirm the written-back file re-parses to the exact
+  same zone data.
+
+  Cull has no matching add/delete/save yet - Keith's own request
+  named zon specifically; GRGE support (also requested this same
+  turn) is a separate, large piece (no visualization/UI exists for
+  it at all yet, only parsing) - deferred to a following turn given
+  the size of this one.

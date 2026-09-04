@@ -13136,6 +13136,31 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             lambda pos, b=cycle_zones_btn: self._show_box_picker_menu(b))
         tb_overlays.addWidget(cycle_zones_btn)
 
+        # Add/Delete/Save Zones (Aug 21 2026, per Keith: "we need to
+        # finish the add, del, save functions for zon") - Add and
+        # Delete are in-memory only until Save Zones writes them back
+        # to their own real source IPL file(s) on disk (see _save_
+        # zones/_write_back_zone_section - a real .bak backup is kept
+        # first). Cull has no matching add/delete/save yet - Keith's
+        # own request named zon specifically.
+        add_zone_btn = QToolButton()
+        add_zone_btn.setText("+Zone")
+        add_zone_btn.setToolTip("Add a new zone at the current viewport centre.")
+        add_zone_btn.clicked.connect(self._add_zone)
+        tb_overlays.addWidget(add_zone_btn)
+
+        del_zone_btn = QToolButton()
+        del_zone_btn.setText("-Zone")
+        del_zone_btn.setToolTip("Delete the currently selected zone (use Cycle first).")
+        del_zone_btn.clicked.connect(self._delete_zone)
+        tb_overlays.addWidget(del_zone_btn)
+
+        save_zones_btn = QToolButton()
+        save_zones_btn.setText("Save Zones")
+        save_zones_btn.setToolTip("Write every loaded zone back to its own source IPL file(s).")
+        save_zones_btn.clicked.connect(self._save_zones)
+        tb_overlays.addWidget(save_zones_btn)
+
         # Undo (Aug 21 2026, per Keith: "we need an undo button
         # /ribbon icon") - the real, map-undo-aware handler (_on_
         # undo_clicked, wired to Ctrl+Z/Ctrl+Y earlier this session)
@@ -26746,6 +26771,82 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     lambda checked=False, k=kind, i=box_index: self._on_cull_or_zone_box_picked(k, i))
         menu.exec(cycle_btn.mapToGlobal(cycle_btn.rect().bottomLeft()))
 
+    def _add_zone(self): #vers 1
+        """Add a new zone entry, per Keith: "we need to finish the
+        add, del, save functions for zon" (Aug 21 2026) - IN MEMORY
+        ONLY until Save Zones is used (see _write_back_zone_section
+        below). Placed as a small (20x20x10) box centred on wherever
+        the viewport is currently looking, in the first currently-
+        loaded zone source file found (loader.zones' own source_ipl,
+        Keith's own "add" request has no way to ask which file a
+        brand new zone should belong to, so this is a reasonable,
+        visible default rather than silently picking nothing at
+        all) - source_ipl can be changed later by editing the zone's
+        own real data directly once a dedicated zone-editing UI
+        exists (still open, see TODO.md)."""
+        loader = getattr(self, '_world_loader', None)
+        vp = getattr(self, 'preview_widget', None)
+        if loader is None or vp is None:
+            return
+        existing = getattr(loader, 'zones', [])
+        source_ipl = existing[0]['source_ipl'] if existing else 'map.zon'
+        cx, cy = -vp._pan_x, -vp._pan_y
+        new_zone = {
+            'name': f'ZONE{len(existing)}', 'type': 0,
+            'min_x': cx - 10.0, 'min_y': cy - 10.0, 'min_z': 0.0,
+            'max_x': cx + 10.0, 'max_y': cy + 10.0, 'max_z': 10.0,
+            'island': 0, 'text_key': '',
+            'source_ipl': source_ipl, 'line_no': 0,
+        }
+
+        def _do_add():
+            loader.zones.append(new_zone)
+            self._refresh_zone_box_visualization()
+
+        def _do_remove():
+            if new_zone in loader.zones:
+                loader.zones.remove(new_zone)
+            self._refresh_zone_box_visualization()
+
+        _do_add()
+        self._push_map_undo(_do_remove, _do_add, f"Add zone '{new_zone['name']}'")
+        self._set_status(f"Added zone '{new_zone['name']}' - not yet saved to disk")
+
+    def _delete_zone(self): #vers 1
+        """Delete the currently cycled/selected zone, per Keith:
+        "we need to finish the add, del, save functions for zon" (Aug
+        21 2026) - IN MEMORY ONLY until Save Zones is used. Acts on
+        whichever zone the Cycle Zones button (or a direct viewport
+        double-click) last selected (preview_widget._selected_box) -
+        cull boxes have no delete support here since Keith's own
+        request named zon specifically."""
+        loader = getattr(self, '_world_loader', None)
+        vp = getattr(self, 'preview_widget', None)
+        sel = getattr(vp, '_selected_box', None) if vp else None
+        if loader is None or vp is None or sel is None or sel[0] != 'zone':
+            self._set_status("No zone currently selected - use Cycle Zones first")
+            return
+        _, box_index = sel
+        zones = getattr(loader, 'zones', [])
+        if not (0 <= box_index < len(zones)):
+            return
+        removed_zone = zones[box_index]
+        removed_name = removed_zone.get('name', box_index)
+
+        def _do_remove():
+            if removed_zone in loader.zones:
+                loader.zones.remove(removed_zone)
+            vp._selected_box = None
+            self._refresh_zone_box_visualization()
+
+        def _do_restore():
+            loader.zones.insert(min(box_index, len(loader.zones)), removed_zone)
+            self._refresh_zone_box_visualization()
+
+        _do_remove()
+        self._push_map_undo(_do_restore, _do_remove, f"Delete zone '{removed_name}'")
+        self._set_status(f"Deleted zone '{removed_name}' - not yet saved to disk")
+
     def _sync_ipl_inst_file_selection(self, inst): #vers 1
         """Highlight one instance's row in the IPL Inst File table,
         switching IPL Sections/the shown IPL first if the instance
@@ -28466,6 +28567,143 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         vp.set_zone_boxes(boxes)
         if hasattr(vp, 'set_zone_box_owners'):
             vp.set_zone_box_owners(zones)
+
+    def _resolve_ipl_abs_path(self, source_ipl_basename): #vers 1
+        """Find the real, full, absolute path a loaded IPL's own
+        basename (source_ipl, e.g. "map.zon") corresponds to on disk
+        (Aug 21 2026, per Keith: "we need to finish the add, del,
+        save functions for zon") - searches loader.load_log (a real
+        list of (phase, "IPL", abs_path, ok) tuples every real loaded
+        IPL is already recorded in, for on-demand and eager loading
+        alike), matching on the real basename case-insensitively
+        since GTA file references vary in case across platforms.
+        Returns None if no real, loaded IPL matches."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            return None
+        target = source_ipl_basename.lower()
+        for entry in getattr(loader, 'load_log', []):
+            if len(entry) >= 3 and os.path.basename(entry[2]).lower() == target:
+                return entry[2]
+        return None
+
+    def _write_back_zone_section(self, abs_path, zone_entries): #vers 1
+        """Write a real "zone...end" section back to its own real IPL
+        file on disk, replacing only that section's own real content -
+        every other real line (other sections, comments, blank lines)
+        is left completely untouched (Aug 21 2026, per Keith: "we
+        need to finish the add, del, save functions for zon").
+
+        Real safety: writes a real ".bak" backup of the file's own
+        real, current content first (only if one doesn't already
+        exist, so repeated saves in one real session don't overwrite
+        an earlier, real pre-edit backup with an already-edited one).
+        Section boundaries found the same real way IPLParser.parse
+        itself already identifies them (a line matching a bare
+        section keyword, "end" closing it) so this stays in sync with
+        how the file is actually read back in. If no real "zone"
+        section exists in the file at all yet, a new one is appended
+        at the real end of the file instead of failing.
+
+        Returns (success: bool, message: str)."""
+        try:
+            with open(abs_path, 'r', encoding='ascii', errors='ignore') as f:
+                lines = f.readlines()
+        except Exception as e:
+            return False, f"Couldn't read {abs_path}: {e}"
+
+        section_start = section_end = None
+        for i, raw in enumerate(lines):
+            stripped = raw.split('#')[0].strip()
+            if stripped.lower() == 'zone':
+                section_start = i
+            elif section_start is not None and section_end is None and stripped.lower() == 'end':
+                section_end = i
+                break
+
+        new_lines = []
+        for z in zone_entries:
+            fields = [z['name'], str(z.get('type', 0)),
+                      f"{z['min_x']:.6f}", f"{z['min_y']:.6f}", f"{z['min_z']:.6f}",
+                      f"{z['max_x']:.6f}", f"{z['max_y']:.6f}", f"{z['max_z']:.6f}",
+                      str(z.get('island', 0))]
+            if z.get('text_key'):
+                fields.append(str(z['text_key']))
+            new_lines.append(', '.join(fields) + '\n')
+
+        if section_start is not None and section_end is not None:
+            lines = lines[:section_start + 1] + new_lines + lines[section_end:]
+        else:
+            if lines and not lines[-1].endswith('\n'):
+                lines[-1] += '\n'
+            lines += ['zone\n'] + new_lines + ['end\n']
+
+        backup_path = abs_path + '.bak'
+        if not os.path.isfile(backup_path):
+            try:
+                with open(abs_path, 'r', encoding='ascii', errors='ignore') as f:
+                    original = f.read()
+                with open(backup_path, 'w', encoding='ascii', errors='ignore') as f:
+                    f.write(original)
+            except Exception as e:
+                return False, f"Couldn't write backup for {abs_path}: {e}"
+
+        try:
+            with open(abs_path, 'w', encoding='ascii', errors='ignore') as f:
+                f.writelines(lines)
+        except Exception as e:
+            return False, f"Couldn't write {abs_path}: {e}"
+        return True, f"Wrote {len(zone_entries)} zone(s) to {os.path.basename(abs_path)}"
+
+    def _save_zones(self): #vers 1
+        """Save Zones button - writes every currently loaded zone back
+        to its own real source IPL file(s) on disk (Aug 21 2026, per
+        Keith: "we need to finish the add, del, save functions for
+        zon"). Groups loader.zones by source_ipl (several files can
+        each have their own real zone entries), resolves each real
+        basename to its own real, full path via _resolve_ipl_abs_
+        path, then calls _write_back_zone_section once per real file.
+        A confirmation dialog is shown first, since this genuinely
+        overwrites real files on disk (with a real .bak safety copy,
+        but still a real, deliberate action, not something to fire
+        without Keith's own explicit go-ahead each time)."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            self._set_status("No world loaded")
+            return
+        zones = getattr(loader, 'zones', [])
+        if not zones:
+            self._set_status("No zones to save")
+            return
+        by_file = {}
+        for z in zones:
+            by_file.setdefault(z.get('source_ipl', ''), []).append(z)
+
+        confirm = QMessageBox.question(
+            self, "Save Zones",
+            f"Write {len(zones)} zone(s) across {len(by_file)} file(s) back to "
+            f"disk?\n\nA .bak backup of each file's own original content is kept "
+            f"(only if one doesn't already exist).",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+
+        written, failed = 0, []
+        for source_ipl, entries in by_file.items():
+            abs_path = self._resolve_ipl_abs_path(source_ipl)
+            if abs_path is None:
+                failed.append(f"{source_ipl} (file not found)")
+                continue
+            ok, msg = self._write_back_zone_section(abs_path, entries)
+            if ok:
+                written += 1
+            else:
+                failed.append(msg)
+
+        if failed:
+            self._set_status(f"Saved {written} file(s); {len(failed)} failed: {'; '.join(failed)}")
+        else:
+            self._set_status(f"Saved {len(zones)} zone(s) across {written} file(s)")
 
     def _on_show_zone_boxes_toggled(self, checked): #vers 1
         """Show Zones checked/unchecked."""
