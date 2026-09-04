@@ -946,3 +946,42 @@ component's own depends/ folder).
   _play_sfx_pair kept intact (disconnected, not removed) for
   whenever this gets solved.
 
+
+## Fine-grained load-order reordering: model/instance order within IDE/IPL file contents (Aug 21 2026, per Keith)
+
+Confirmed real, deliberate scope limit on this same turn's own new
+Optimize Order button (optimize_dat_load_order) - that feature only
+reorders directive *lines* (IDE/IPL/COLFILE/IMG) within a .dat file
+itself, matching gta_vc.dat's own real, documented convention
+("everything is loaded on a per directory basis and in alphabetical
+order"). Per Keith: "we're going to add reordering, but lets add that
+to the TODO list" - the finer-grained half of his original request
+is still open: reordering real model definitions *within* an IDE
+file's own contents, and real instance placements *within* an IPL
+file's own contents, so those match whatever order the game's own
+engine actually looks them up in (not just which .dat directive line
+points at which file).
+
+Not started - needs its own design pass before implementation:
+- What's the real, correct target order for entries *within* a single
+  IDE file (model definitions) or IPL file (instance placements)? The
+  gta_vc.dat directory+alphabetical convention answers file-level
+  ordering; entry-level ordering within one file is a separate real
+  question not yet answered by anything found this session - may
+  need its own real source/confirmation (a SOL file directly compared
+  against its own vanilla equivalent, entry-by-entry, might reveal
+  the real pattern SOL itself uses, since Keith's own claim is that
+  SOL's own files are already organized this way).
+- Reordering entries within an IDE file changes model_id assignment
+  order for auto-numbered formats, and reordering INST lines within
+  an IPL file has no such risk (each line is fully self-contained,
+  no incrementing IDs) - so IPL instance reordering is likely the
+  safer, more tractable half to build first, IDE model reordering may
+  carry real risk of breaking something that references models by
+  position rather than by name/id.
+- Would reuse this same turn's own real "read file, find section,
+  rewrite reordered content, keep everything else untouched, write a
+  .bak backup first" write-back pattern already established for zone/
+  cull/occl/grge/inst-conversion/dat-directive-reordering - the
+  mechanism is proven, only the actual target ordering rule for
+  entries-within-a-file needs to be confirmed first.
