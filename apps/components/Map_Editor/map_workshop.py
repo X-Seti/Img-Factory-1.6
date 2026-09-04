@@ -4165,8 +4165,9 @@ class _MapOverlayToggleButton(QToolButton): #vers 2
     even in icon-only mode, rather than rendering blank."""
     show_toggled = pyqtSignal(bool)
     edit_toggled = pyqtSignal(bool)
+    middle_clicked = pyqtSignal()
 
-    def __init__(self, label, supports_edit=False, icon=None, parent=None): #vers 2
+    def __init__(self, label, supports_edit=False, icon=None, parent=None): #vers 3
         super().__init__(parent)
         self._label = label
         self.setText(label)
@@ -4176,11 +4177,28 @@ class _MapOverlayToggleButton(QToolButton): #vers 2
         self._shown = False
         self._editing = False
         self._supports_edit = supports_edit
+        self._has_middle_menu = False
         tip = f"Left-click: show/hide {label}."
         if supports_edit:
             tip += f"\nRight-click: toggle edit mode for {label}."
         self.setToolTip(tip)
         self._apply_style()
+
+    def set_middle_click_menu_available(self, available: bool): #vers 1
+        """Mark whether this button has a real middle-click menu
+        connected (Aug 21 2026, per Keith: "add these to the svg icon
+        zon button with a middle-click, and move those functions
+        over. Same with cull, occl, auzo, grge") - only updates this
+        button's own real tooltip text; map_workshop.py itself still
+        owns building/showing the actual real menu via middle_
+        clicked, this widget only ever emits that one real signal."""
+        self._has_middle_menu = available
+        tip = f"Left-click: show/hide {self._label}."
+        if self._supports_edit:
+            tip += f"\nRight-click: toggle edit mode for {self._label}."
+        if available:
+            tip += f"\nMiddle-click: add/delete/save/corner coords for {self._label}."
+        self.setToolTip(tip)
 
     def set_display_style(self, icon_only: bool): #vers 2
         """Switch between this button's own real text label and its
@@ -4212,7 +4230,7 @@ class _MapOverlayToggleButton(QToolButton): #vers 2
             self.setMaximumWidth(16777215)
             self.setFixedHeight(20)
 
-    def mousePressEvent(self, event): #vers 1
+    def mousePressEvent(self, event): #vers 2
         if event.button() == Qt.MouseButton.LeftButton:
             self._shown = not self._shown
             self._apply_style()
@@ -4226,6 +4244,17 @@ class _MapOverlayToggleButton(QToolButton): #vers 2
                 mw = self.window()
                 if mw is not None and hasattr(mw, '_set_status'):
                     mw._set_status(f"No edit mode available for {self.text()} yet")
+        elif event.button() == Qt.MouseButton.MiddleButton:
+            # Real fix (Aug 21 2026, per Keith: "the new buttons,
+            # +zon, -zon, and save zon... add these to the svg icon
+            # zon button with a middle-click, and move those
+            # functions over") - just emits; map_workshop.py owns
+            # building/showing the actual real menu (add/delete/save/
+            # corner coords) via this same real signal, same widget-
+            # emits/caller-builds pattern every other button-driven
+            # menu in this file already uses.
+            if self._has_middle_menu:
+                self.middle_clicked.emit()
         # Deliberately not calling super().mousePressEvent() - this
         # widget fully owns its own click behaviour rather than also
         # triggering QToolButton's own default checked/pressed
@@ -13136,101 +13165,18 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             lambda pos, b=cycle_zones_btn: self._show_box_picker_menu(b))
         tb_overlays.addWidget(cycle_zones_btn)
 
-        # Add/Delete/Save Zones (Aug 21 2026, per Keith: "we need to
-        # finish the add, del, save functions for zon") - Add and
-        # Delete are in-memory only until Save Zones writes them back
-        # to their own real source IPL file(s) on disk (see _save_
-        # zones/_write_back_zone_section - a real .bak backup is kept
-        # first).
-        add_zone_btn = QToolButton()
-        add_zone_btn.setText("+Zone")
-        add_zone_btn.setToolTip("Add a new zone at the current viewport centre.")
-        add_zone_btn.clicked.connect(self._add_zone)
-        tb_overlays.addWidget(add_zone_btn)
-
-        del_zone_btn = QToolButton()
-        del_zone_btn.setText("-Zone")
-        del_zone_btn.setToolTip("Delete the currently selected zone (use Cycle first).")
-        del_zone_btn.clicked.connect(self._delete_zone)
-        tb_overlays.addWidget(del_zone_btn)
-
-        save_zones_btn = QToolButton()
-        save_zones_btn.setText("Save Zones")
-        save_zones_btn.setToolTip("Write every loaded zone back to its own source IPL file(s).")
-        save_zones_btn.clicked.connect(self._save_zones)
-        tb_overlays.addWidget(save_zones_btn)
-
-        # Add/Delete/Save Cull (Aug 21 2026, per Keith: "lets build
-        # add, del for zon, cull, occu and ipl changes") - same real
-        # in-memory-until-saved pattern as zones just above (see
-        # _save_culls/_write_back_cull_section).
-        add_cull_btn = QToolButton()
-        add_cull_btn.setText("+Cull")
-        add_cull_btn.setToolTip("Add a new cull box at the current viewport centre.")
-        add_cull_btn.clicked.connect(self._add_cull)
-        tb_overlays.addWidget(add_cull_btn)
-
-        del_cull_btn = QToolButton()
-        del_cull_btn.setText("-Cull")
-        del_cull_btn.setToolTip("Delete the currently selected cull box (use Cycle first).")
-        del_cull_btn.clicked.connect(self._delete_cull)
-        tb_overlays.addWidget(del_cull_btn)
-
-        save_culls_btn = QToolButton()
-        save_culls_btn.setText("Save Cull")
-        save_culls_btn.setToolTip(
-            "Write every loaded cull box back to its own source IPL file(s).\n"
-            "Note: on SA, any real skew on a box is lost on write-back.")
-        save_culls_btn.clicked.connect(self._save_culls)
-        tb_overlays.addWidget(save_culls_btn)
-
-        # Add/Delete/Save Occlusion (Aug 21 2026, per Keith: "lets
-        # build add, del for zon, cull, occu and ipl changes" / "both
-        # if you can") - same real in-memory-until-saved pattern as
-        # zones/cull just above (see _save_occls/_write_back_occl_
-        # section). Occlusion boxes are rotated (unlike cull/zone), so
-        # picking/cycle/highlight use their own real rotated-corner
-        # AABB rather than a plain (x1,y1,z1,x2,y2,z2) tuple.
-        add_occl_btn = QToolButton()
-        add_occl_btn.setText("+Occl")
-        add_occl_btn.setToolTip("Add a new occlusion box at the current viewport centre.")
-        add_occl_btn.clicked.connect(self._add_occl)
-        tb_overlays.addWidget(add_occl_btn)
-
-        del_occl_btn = QToolButton()
-        del_occl_btn.setText("-Occl")
-        del_occl_btn.setToolTip("Delete the currently selected occlusion box (use Cycle first).")
-        del_occl_btn.clicked.connect(self._delete_occl)
-        tb_overlays.addWidget(del_occl_btn)
-
-        save_occls_btn = QToolButton()
-        save_occls_btn.setText("Save Occl")
-        save_occls_btn.setToolTip("Write every loaded occlusion box back to its own source IPL file(s).")
-        save_occls_btn.clicked.connect(self._save_occls)
-        tb_overlays.addWidget(save_occls_btn)
-
-        # Add/Delete/Save Garages (Aug 21 2026, per Keith: "add
-        # support for GRGE" / "lets build add, del for zon, cull,
-        # occu and ipl changes" / "both if you can") - same real in-
-        # memory-until-saved pattern as zones/cull/occl just above
-        # (see _save_grges/_write_back_grge_section).
-        add_grge_btn = QToolButton()
-        add_grge_btn.setText("+Grge")
-        add_grge_btn.setToolTip("Add a new garage at the current viewport centre.")
-        add_grge_btn.clicked.connect(self._add_grge)
-        tb_overlays.addWidget(add_grge_btn)
-
-        del_grge_btn = QToolButton()
-        del_grge_btn.setText("-Grge")
-        del_grge_btn.setToolTip("Delete the currently selected garage (use Cycle first).")
-        del_grge_btn.clicked.connect(self._delete_grge)
-        tb_overlays.addWidget(del_grge_btn)
-
-        save_grges_btn = QToolButton()
-        save_grges_btn.setText("Save Grge")
-        save_grges_btn.setToolTip("Write every loaded garage back to its own source IPL file(s).")
-        save_grges_btn.clicked.connect(self._save_grges)
-        tb_overlays.addWidget(save_grges_btn)
+        # Add/Delete/Save for Zon/Cull/Occlusion/Garage (Aug 21 2026,
+        # per Keith: "we need to finish the add, del, save functions
+        # for zon" / "lets build add, del for zon, cull, occu and ipl
+        # changes" / "both if you can") moved off the ribbon entirely
+        # (Aug 21 2026, per Keith's own follow-up: "the new buttons,
+        # +zon, -zon, and save zon... add these to the svg icon zon
+        # button with a middle-click, and move those functions over.
+        # Same with cull, occl, auzo, grge") - each is now on its own
+        # overlay toggle button's own middle-click menu instead of a
+        # separate ribbon button (see show_cull_btn/show_zone_btn/
+        # show_occl_btn/show_grge_btn's own middle_clicked wiring,
+        # and _show_overlay_middle_click_menu).
 
         # Undo (Aug 21 2026, per Keith: "we need an undo button
         # /ribbon icon") - the real, map-undo-aware handler (_on_
@@ -25355,23 +25301,35 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         show_cull_btn = _MapOverlayToggleButton("Cull", supports_edit=True, icon=OverlayIcons.cull_icon(24))
         show_cull_btn.show_toggled.connect(self._on_show_cull_boxes_toggled)
         show_cull_btn.edit_toggled.connect(self._on_edit_boxes_toggled)
+        show_cull_btn.middle_clicked.connect(
+            lambda: self._show_overlay_middle_click_menu('cull', self._add_cull, self._delete_cull, self._save_culls))
+        show_cull_btn.set_middle_click_menu_available(True)
         self._show_cull_chk = show_cull_btn
 
         # Show Zones (Aug 16 2026)
         show_zone_btn = _MapOverlayToggleButton("Zon", supports_edit=True, icon=OverlayIcons.zon_icon(24))
         show_zone_btn.show_toggled.connect(self._on_show_zone_boxes_toggled)
         show_zone_btn.edit_toggled.connect(self._on_edit_boxes_toggled)
+        show_zone_btn.middle_clicked.connect(
+            lambda: self._show_overlay_middle_click_menu('zone', self._add_zone, self._delete_zone, self._save_zones))
+        show_zone_btn.set_middle_click_menu_available(True)
         self._show_zone_chk = show_zone_btn
 
         # Show Occlusion (Aug 16 2026)
         show_occl_btn = _MapOverlayToggleButton("Occlusion", supports_edit=False, icon=OverlayIcons.occlusion_icon(24))
         show_occl_btn.show_toggled.connect(self._on_show_occl_boxes_toggled)
+        show_occl_btn.middle_clicked.connect(
+            lambda: self._show_overlay_middle_click_menu('occl', self._add_occl, self._delete_occl, self._save_occls))
+        show_occl_btn.set_middle_click_menu_available(True)
         self._show_occl_chk = show_occl_btn
 
         # Show Garages (Aug 21 2026, per Keith: "add support for GRGE")
         show_grge_btn = _MapOverlayToggleButton("Grge", supports_edit=True, icon=OverlayIcons.grge_icon(24))
         show_grge_btn.show_toggled.connect(self._on_show_grge_boxes_toggled)
         show_grge_btn.edit_toggled.connect(self._on_edit_boxes_toggled)
+        show_grge_btn.middle_clicked.connect(
+            lambda: self._show_overlay_middle_click_menu('grge', self._add_grge, self._delete_grge, self._save_grges))
+        show_grge_btn.set_middle_click_menu_available(True)
         self._show_grge_chk = show_grge_btn
 
         opts_row3 = QHBoxLayout()
@@ -26891,6 +26849,85 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 act.triggered.connect(
                     lambda checked=False, k=kind, i=box_index: self._on_cull_or_zone_box_picked(k, i))
         menu.exec(cycle_btn.mapToGlobal(cycle_btn.rect().bottomLeft()))
+
+    def _box_corners_3d(self, kind, box_index): #vers 1
+        """Return all 8 real (x,y,z) corners of one box, any type
+        (Aug 21 2026, per Keith: "add show coords for all corners") -
+        or None if the index doesn't resolve. Cull/zone/grge are a
+        plain AABB, so this is just the 2x2x2 combination of their
+        own (x1/x2, y1/y2, z1/z2); occlusion is rotated, so its own 4
+        XY corners are computed the same real way _draw_occl_boxes
+        already does, each duplicated at its own bottom_z/bottom_z+
+        height."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is None:
+            return None
+        if kind == 'occl':
+            boxes = getattr(vp, '_occl_boxes', [])
+            if not (0 <= box_index < len(boxes)):
+                return None
+            mid_x, mid_y, bottom_z, width_x, width_y, height, rotation = boxes[box_index]
+            hw, hh = width_x / 2.0, width_y / 2.0
+            rad = math.radians(rotation)
+            cos_r, sin_r = math.cos(rad), math.sin(rad)
+            xy = []
+            for dx, dy in ((-hw, -hh), (hw, -hh), (hw, hh), (-hw, hh)):
+                xy.append((mid_x + dx * cos_r - dy * sin_r, mid_y + dx * sin_r + dy * cos_r))
+            z1, z2 = bottom_z, bottom_z + height
+        else:
+            boxes = {'cull': vp._cull_boxes, 'zone': vp._zone_boxes,
+                     'grge': getattr(vp, '_grge_boxes', [])}.get(kind, [])
+            if not (0 <= box_index < len(boxes)):
+                return None
+            x1, y1, z1, x2, y2, z2 = boxes[box_index]
+            xy = [(x1, y1), (x2, y1), (x2, y2), (x1, y2)]
+        return [(x, y, z1) for x, y in xy] + [(x, y, z2) for x, y in xy]
+
+    def _show_box_corner_coords(self, kind, box_index): #vers 1
+        """Show every real (x,y,z) corner of one box in a plain
+        message box (Aug 21 2026, per Keith: "add show coords for all
+        corners") - available from any overlay button's own middle-
+        click menu, for whichever box is currently selected there."""
+        corners = self._box_corners_3d(kind, box_index)
+        if corners is None:
+            QMessageBox.information(self, "Corner Coordinates", "No box currently selected.")
+            return
+        labels = ["Bottom NW", "Bottom NE", "Bottom SE", "Bottom SW",
+                  "Top NW", "Top NE", "Top SE", "Top SW"]
+        lines = [f"{label}: ({x:.3f}, {y:.3f}, {z:.3f})"
+                 for label, (x, y, z) in zip(labels, corners)]
+        QMessageBox.information(
+            self, "Corner Coordinates",
+            f"{kind.capitalize()} box {box_index}:\n\n" + "\n".join(lines))
+
+    def _show_overlay_middle_click_menu(self, kind, add_fn, delete_fn, save_fn): #vers 1
+        """Build and show one overlay button's own middle-click menu
+        (Aug 21 2026, per Keith: "the new buttons, +zon, -zon, and
+        save zon... add these to the svg icon zon button with a
+        middle-click, and move those functions over. Same with cull,
+        occl, auzo, grge") - one real, shared menu-builder rather than
+        4 near-identical copies, parameterized by which real add/
+        delete/save methods this particular box type actually uses.
+        "Show Corner Coords" only enabled when a box of this exact
+        type is the one currently selected (Cycle Zones' own real
+        selection state) - showing corners for some other type's own
+        selected box would be confusing, not useful."""
+        from PyQt6.QtWidgets import QMenu
+        menu = QMenu(self)
+        menu.addAction(f"Add {kind.capitalize()}", add_fn)
+        menu.addAction(f"Delete selected {kind.capitalize()}", delete_fn)
+        menu.addAction(f"Save {kind.capitalize()}(s)", save_fn)
+        menu.addSeparator()
+        vp = getattr(self, 'preview_widget', None)
+        sel = getattr(vp, '_selected_box', None) if vp else None
+        coords_act = menu.addAction("Show Corner Coordinates")
+        if sel is not None and sel[0] == kind:
+            coords_act.triggered.connect(lambda: self._show_box_corner_coords(sel[0], sel[1]))
+        else:
+            coords_act.setEnabled(False)
+        btn = self.sender()
+        pos = btn.mapToGlobal(btn.rect().bottomLeft()) if btn is not None else self.mapToGlobal(self.rect().center())
+        menu.exec(pos)
 
     def _add_zone(self): #vers 1
         """Add a new zone entry, per Keith: "we need to finish the

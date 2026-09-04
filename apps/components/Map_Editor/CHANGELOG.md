@@ -10637,3 +10637,36 @@ conclusively found despite extensive isolated testing.
   add/delete/save built at all yet, unlike zone/cull/occl/grge); two
   separate Ribbon Manager bugs (icons showing as generic "Action"
   labels; its own Save function not working/not picking up config).
+
+- Aug 21 2026 - Moved Add/Delete/Save off the ribbon into each
+  overlay button's own middle-click menu, per Keith: "the new
+  buttons, +zon, -zon, and save zon, add show coords for all
+  corners: add these to the SVG icon zon button with a middle-click,
+  and move those functions over. Same with cull, occl, auzo, grge."
+
+  New middle_clicked signal on _MapOverlayToggleButton (Cull/Zon/
+  Occlusion/Garage's own show/hide toggle buttons) - middle-click now
+  opens a menu with Add/Delete selected/Save/Show Corner Coordinates,
+  built by one shared _show_overlay_middle_click_menu rather than 4
+  near-identical copies. The 12 separate "+X"/"-X"/"Save X" ribbon
+  buttons from the last two turns are removed entirely - their own
+  real handlers are unchanged, just wired to the new menu instead.
+
+  New "Show Corner Coordinates" - lists all 8 real (x1/y1/z1 through
+  x2/y2/z2) corners of whichever box of that exact type is currently
+  selected via Cycle Zones; disabled when nothing of that type is
+  selected. Occlusion's own corners use the same real rotation math
+  _draw_occl_boxes/_pick_cull_or_zone_box already use elsewhere.
+
+  Verified in an offscreen Qt session: the middle-click signal itself
+  fires correctly, and self.sender() correctly resolves back to the
+  original button even through the lambda each button's own menu
+  callback goes through - confirmed this deliberately since getting
+  it wrong would silently break the menu's own positioning.
+
+  Auzo (also named in Keith's own message) still has no Add/Delete/
+  Save built at all - deliberately not attempted this turn, since it
+  would need that built from scratch first before it could join this
+  same menu pattern. Ribbon Manager's two separate bugs (icons
+  showing as generic "Action" labels; its own Save not persisting)
+  also still open - not yet investigated.
