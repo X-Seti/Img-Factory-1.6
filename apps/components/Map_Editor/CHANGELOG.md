@@ -10700,3 +10700,47 @@ conclusively found despite extensive isolated testing.
      later. A save from partway through that churn could restoreState
      against a toolbar that no longer matched what was actually
      saved, without the version check ever catching it. Bumped to 3.
+
+- Aug 21 2026 - Three separate real fixes, per Keith's own follow-up
+  message: "Show coords does not work on occl, zon or cull? And
+  timecyc.dat and timecycp.dat don't seem to work when SA is loaded?
+  and the grge data seems to be found in most of the ipl's" [with a
+  real, uploaded example].
+
+  1. Show Corner Coordinates fixed - it wasn't broken exactly, but
+     was only ever enabled once a box of that exact type was already
+     selected via Cycle Zones, disabled otherwise with no obvious
+     reason why. Now its own real submenu listing every box of that
+     type currently loaded (same real pattern the Cycle button's own
+     right-click picker already uses) - pick one directly, no prior
+     Cycle step needed at all.
+
+  2. timecyc.dat/timecycp.dat - two real, separate bugs, both
+     confirmed and fixed against Keith's own real, uploaded files.
+     _auto_detect_timecyc_path only ever looked for "timecyc.dat",
+     never "timecycp.dat" at all - an SA install shipping only the
+     newer file had nothing to auto-detect; now checks both, real
+     timecycp.dat preferred when both exist. Separately, Timecyc_
+     Editor's own _parse_line force-converted every value to int(),
+     silently truncating timecycp.dat's own real decimal-precision
+     fields (a real 0.30 sun-size value became 0) - real, silent data
+     corruption on every load of that format. Now keeps a value as a
+     real float only when its own real token actually had a decimal
+     point. Verified against Keith's own real files: timecycp.dat's
+     decimal fields round-trip exactly now; timecyc.dat (integer-
+     only) completely unaffected.
+
+  3. GRGE - a real, confirmed field-meaning bug, caught by checking
+     Keith's own real example lines directly: x2 never held a real,
+     distinct second X corner - it's always exactly equal to x1 in
+     every real line. Confirmed against an independent, real IPL
+     format reference: the field this codebase calls "front_x" is
+     actually the box's own real second X corner ("Lower Right
+     Front"); "x2" is a real, redundant repeat of x1 ("Upper Left
+     Rear" - same X, by definition of "Left"). _refresh_grge_box_
+     visualization and _add_grge both fixed to use front_x as the
+     box's own true second X corner - verified against all 4 of
+     Keith's own real example lines, giving sensible 8-14 unit widths
+     instead of zero. _parse_grge/_write_back_grge_section themselves
+     needed no change - they already faithfully preserve the real,
+     raw field values as parsed, for correct round-trip write-back.

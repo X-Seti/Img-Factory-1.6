@@ -221,7 +221,21 @@ class TimecycParser: #vers 1
         if self.game == 'GTA3': return 8, 12   # 8 logical weathers, 12 time slots
         return 7, 24  # VC
 
-    def _parse_line(self, line: str, weather: int, time: int) -> Optional[TimecycRow]: #vers 1
+    def _parse_line(self, line: str, weather: int, time: int) -> Optional[TimecycRow]: #vers 2
+        """Parse one data line into a TimecycRow.
+
+        Real fix (Aug 21 2026, per Keith's own real, uploaded
+        timecyc.dat and timecycp.dat files: "timecyc.dat and
+        timecycp.dat don't seem to work when SA is loaded?") - every
+        value was force-converted to int() regardless of the real
+        token's own actual precision, silently truncating timecycp.
+        dat's own real decimal-precision fields (e.g. a real "0.30"
+        sun-size value became 0) - real, silent data corruption on
+        every real load of that newer format, not just display. Now
+        keeps a value as a real float only when its own real token
+        actually contained a decimal point - plain integer fields
+        (the vast majority, and everything timecyc.dat's own real,
+        integer-only format ever has) are completely unaffected."""
         s = line.strip()
         if not s or s.startswith('/'):
             return None
@@ -234,7 +248,7 @@ class TimecycParser: #vers 1
         if len(parts) < 10:
             return None
         try:
-            values = [int(float(p)) for p in parts]
+            values = [(float(p) if '.' in p else int(float(p))) for p in parts]
         except ValueError:
             return None
         row = TimecycRow(weather=weather, time=time, values=values, comment=comment)

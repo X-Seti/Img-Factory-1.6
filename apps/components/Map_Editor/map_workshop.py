@@ -24702,14 +24702,28 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         activated (project_manager.py's own create_project/load
         flow), a second, real source of "where this game actually
         lives" independent of whatever .dat file happened to be
-        loaded this session."""
+        loaded this session.
+
+        Real fix (Aug 21 2026, per Keith's own real, uploaded
+        timecyc.dat and timecycp.dat files: "timecyc.dat and
+        timecycp.dat don't seem to work when SA is loaded?") - this
+        only ever looked for "timecyc.dat", never "timecycp.dat" at
+        all - SA installs that ship only the newer, decimal-precision
+        timecycp.dat (TimecycParser's own real _detect_game already
+        special-cases that exact filename, so it was already
+        expecting to see it) had genuinely nothing to auto-detect at
+        all. Now checks both real filenames, preferring timecycp.dat
+        when both exist in the same real folder (the newer, more
+        precise real format) - falls back to timecyc.dat otherwise."""
         for folder in self._game_data_folder_candidates():
             try:
-                for name in os.listdir(folder):
-                    if name.lower() == 'timecyc.dat':
-                        return os.path.join(folder, name)
+                names = {n.lower(): n for n in os.listdir(folder)}
             except OSError:
-                pass
+                continue
+            if 'timecycp.dat' in names:
+                return os.path.join(folder, names['timecycp.dat'])
+            if 'timecyc.dat' in names:
+                return os.path.join(folder, names['timecyc.dat'])
         return ''
 
     def _load_water_texture_from_particle_txd(self): #vers 1
@@ -26939,7 +26953,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self, "Corner Coordinates",
             f"{kind.capitalize()} box {box_index}:\n\n" + "\n".join(lines))
 
-    def _show_overlay_middle_click_menu(self, kind, add_fn, delete_fn, save_fn): #vers 1
+    def _show_overlay_middle_click_menu(self, kind, add_fn, delete_fn, save_fn): #vers 2
         """Build and show one overlay button's own middle-click menu
         (Aug 21 2026, per Keith: "the new buttons, +zon, -zon, and
         save zon... add these to the svg icon zon button with a
@@ -26947,23 +26961,48 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         occl, auzo, grge") - one real, shared menu-builder rather than
         4 near-identical copies, parameterized by which real add/
         delete/save methods this particular box type actually uses.
-        "Show Corner Coords" only enabled when a box of this exact
-        type is the one currently selected (Cycle Zones' own real
-        selection state) - showing corners for some other type's own
-        selected box would be confusing, not useful."""
+
+        Real fix (Aug 21 2026, per Keith: "Show coords does not work
+        on occl, zon or cull?") - "Show Corner Coordinates" used to
+        only ever enable once a box of this exact type was already
+        the one selected via Cycle Zones - genuinely disabled/inert
+        otherwise, with no obvious reason why to anyone who hadn't
+        used Cycle first. Now its own real submenu, listing every box
+        of this exact type currently loaded (by real name where one
+        exists - zone, garage - or index otherwise), same real
+        pattern the Cycle button's own right-click picker already
+        uses - pick one directly, no prior Cycle step required at
+        all."""
         from PyQt6.QtWidgets import QMenu
         menu = QMenu(self)
         menu.addAction(f"Add {kind.capitalize()}", add_fn)
         menu.addAction(f"Delete selected {kind.capitalize()}", delete_fn)
         menu.addAction(f"Save {kind.capitalize()}(s)", save_fn)
         menu.addSeparator()
+
         vp = getattr(self, 'preview_widget', None)
-        sel = getattr(vp, '_selected_box', None) if vp else None
-        coords_act = menu.addAction("Show Corner Coordinates")
-        if sel is not None and sel[0] == kind:
-            coords_act.triggered.connect(lambda: self._show_box_corner_coords(sel[0], sel[1]))
+        boxes_of_kind = {'cull': getattr(vp, '_cull_boxes', []),
+                          'zone': getattr(vp, '_zone_boxes', []),
+                          'occl': getattr(vp, '_occl_boxes', []),
+                          'grge': getattr(vp, '_grge_boxes', [])}.get(kind, []) if vp else []
+        coords_menu = menu.addMenu("Show Corner Coordinates")
+        if not boxes_of_kind:
+            act = coords_menu.addAction(f"No {kind} boxes loaded")
+            act.setEnabled(False)
         else:
-            coords_act.setEnabled(False)
+            owners = {'zone': getattr(vp, '_zone_box_owners', []),
+                      'grge': getattr(vp, '_grge_box_owners', [])}.get(kind, [])
+            for i in range(len(boxes_of_kind)):
+                if kind == 'zone' and i < len(owners) and isinstance(owners[i], dict):
+                    label = owners[i].get('name', f'{kind} {i}')
+                elif kind == 'grge' and i < len(owners):
+                    label = getattr(owners[i], 'name', f'{kind} {i}')
+                else:
+                    label = f"{kind.capitalize()} {i}"
+                act = coords_menu.addAction(label)
+                act.triggered.connect(
+                    lambda checked=False, k=kind, idx=i: self._show_box_corner_coords(k, idx))
+
         btn = self.sender()
         pos = btn.mapToGlobal(btn.rect().bottomLeft()) if btn is not None else self.mapToGlobal(self.rect().center())
         menu.exec(pos)
@@ -27405,17 +27444,24 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         else:
             self._set_status(f"Saved {len(occls)} occlusion box(es) across {written} file(s)")
 
-    def _add_grge(self): #vers 1
+    def _add_grge(self): #vers 2
         """Add a new garage, per Keith: "add support for GRGE" / "lets
         build add, del for zon, cull, occu and ipl changes" / "both if
         you can" (Aug 21 2026) - IN MEMORY ONLY until Save Garages is
-        used. Placed as a small (20x20x10) box centred on wherever the
-        viewport is currently looking, front_x/front_y defaulted to
-        the midpoint of the box's own south face (a reasonable, real
-        default door-facing position, not something Keith's own "add"
-        request has any way to specify), in the first currently-
+        used. Placed as a small (14x23x6, matching Keith's own real
+        example garages' own typical size) box centred on wherever
+        the viewport is currently looking, in the first currently-
         loaded garage source file found (same real "no way to ask
-        which file" reasoning as _add_zone/_add_cull/_add_occl)."""
+        which file" reasoning as _add_zone/_add_cull/_add_occl).
+
+        Real fix (Aug 21 2026, per Keith's own real, uploaded GRGE
+        example lines) - front_x/x2/front_y now follow the same real
+        field convention every one of Keith's own real garage lines
+        actually uses (see _refresh_grge_box_visualization's own
+        docstring for the full, confirmed real field meaning):
+        front_x holds the box's own real second X corner, front_y
+        repeats y1, and x2 repeats x1 - not the other way around, as
+        this method got it backwards before."""
         loader = getattr(self, '_world_loader', None)
         vp = getattr(self, 'preview_widget', None)
         if loader is None or vp is None:
@@ -27425,9 +27471,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         source_ipl = existing[0].source_ipl if existing else 'garages.ipl'
         cx, cy = -vp._pan_x, -vp._pan_y
         new_grge = GrgeEntry(
-            x1=cx - 10.0, y1=cy - 10.0, z1=0.0,
-            front_x=cx, front_y=cy - 10.0,
-            x2=cx + 10.0, y2=cy + 10.0, z2=10.0,
+            x1=cx - 7.0, y1=cy - 11.5, z1=0.0,
+            front_x=cx + 7.0, front_y=cy - 11.5,
+            x2=cx - 7.0, y2=cy + 11.5, z2=6.0,
             door_type=0, garage_type=0, name=f'GRGE{len(existing)}',
             source_ipl=source_ipl, line_no=0)
 
@@ -29526,7 +29572,22 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return
         hidden = getattr(self, '_hidden_ipls', set())
         grges = [g for g in getattr(loader, 'grges', []) if g.source_ipl not in hidden]
-        boxes = [(g.x1, g.y1, g.z1, g.x2, g.y2, g.z2) for g in grges]
+        # Real fix (Aug 21 2026, per Keith's own real, uploaded GRGE
+        # example lines: "the grge data seems to be found in most of
+        # the ipl's") - checking Keith's own real data against it
+        # revealed x2 doesn't hold a real, distinct second X corner at
+        # all - it's always exactly equal to x1 in every real line
+        # Keith posted. Confirmed via a real, independent source (a
+        # SannyBuilder-community IPL format reference): the field this
+        # codebase calls "front_x" is actually the box's own real
+        # second X corner ("Lower Right Front"), and the field this
+        # codebase calls "x2" is a real, redundant repeat of x1
+        # ("Upper Left Rear" - same X as "Lower Left Front", by
+        # definition of "Left"). front_x/x2's own real, raw field
+        # values are kept exactly as parsed (round-trip fidelity for
+        # write-back), only which one is treated as the box's own
+        # true second X corner is corrected here.
+        boxes = [(g.x1, g.y1, g.z1, g.front_x, g.y2, g.z2) for g in grges]
         vp.set_grge_boxes(boxes)
         if hasattr(vp, 'set_grge_box_owners'):
             vp.set_grge_box_owners(grges)
