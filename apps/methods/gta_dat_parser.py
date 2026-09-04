@@ -3741,6 +3741,106 @@ class GTAWorldXRef: #vers 1
         return ""
 
 
+def optimize_dat_load_order(dat_path, entries): #vers 1
+    """Rewrite a real, already-loaded .dat file's own real IDE/IPL/
+    COLFILE/IMG directive lines, grouped and sorted the same real way
+    Rockstar's own real gta_vc.dat file explicitly documents doing it
+    itself (Aug 21 2026, per Keith: "if the model names, col names,
+    and ide/ipl entries loaded in the same order the game spends less
+    work matching them up, result is the game loads and renders
+    faster... the SOL files have been organized this way, with 3
+    times the data, it loads faster then standard VC") - confirmed,
+    not guessed: gta_vc.dat's own real header comments read, word for
+    word, "Load IDEs first, then the models and after that the IPLs
+    ... everything is loaded on a per directory basis and in
+    alphabetical order to improve the speed of loading."
+
+    Real algorithm, matching that real, official documentation
+    exactly: directive *types* keep their own real, original relative
+    order (IDE-before-IPL stays IDE-before-IPL, exactly as Rockstar's
+    own comment specifies) - only the real entries *within* each real
+    type are regrouped, by (directory, then filename), both real,
+    plain alphabetical order, matching "per directory basis and in
+    alphabetical order" precisely. COLFILE/IMG/CDIMAGE entries get the
+    same real treatment - Keith's own request names col files
+    specifically alongside models.
+
+    entries: the real, already-parsed list of DATEntry objects (e.g.
+    loader.main_dat.entries) - read for their own real path/directive
+    fields only, never mutated.
+
+    Real, honest limitation: only reorders directive *lines* in the
+    real .dat file itself - does NOT reorder real model definitions
+    within an IDE file, or real instance placements within an IPL
+    file (Keith's own request also mentions "model names... loaded in
+    the same order" at that finer level) - that would need touching
+    real IDE/IPL file *contents* file-by-file, a real, separate,
+    larger piece not attempted here.
+
+    Returns (success: bool, message: str)."""
+    try:
+        with open(dat_path, 'r', encoding='ascii', errors='ignore') as f:
+            original_lines = f.readlines()
+    except Exception as e:
+        return False, f"Couldn't read {dat_path}: {e}"
+
+    reorderable = {'IDE', 'IPL', 'COLFILE', 'IMG', 'CDIMAGE'}
+    by_type = {}
+    type_order = []
+    for entry in entries:
+        d = entry.directive.upper()
+        if d not in reorderable:
+            continue
+        if d not in by_type:
+            by_type[d] = []
+            type_order.append(d)
+        by_type[d].append(entry)
+
+    for d in type_order:
+        by_type[d].sort(key=lambda e: (
+            os.path.dirname(e.path).replace('\\', '/').lower(),
+            os.path.basename(e.path).lower()))
+
+    new_lines = []
+    in_directive_block = False
+    consumed = {d: 0 for d in type_order}
+    for raw in original_lines:
+        stripped = raw.split('#')[0].strip()
+        parts = stripped.split()
+        directive = parts[0].upper() if parts else ''
+        if directive in reorderable and directive in by_type:
+            idx = consumed[directive]
+            if idx < len(by_type[directive]):
+                entry = by_type[directive][idx]
+                if directive == 'COLFILE':
+                    new_lines.append(f"COLFILE  {entry.extra}  {entry.path}\n")
+                else:
+                    new_lines.append(f"{directive}  {entry.path}\n")
+                consumed[directive] += 1
+                continue
+        new_lines.append(raw)
+
+    backup_path = dat_path + '.bak'
+    if not os.path.isfile(backup_path):
+        try:
+            with open(dat_path, 'r', encoding='ascii', errors='ignore') as f:
+                original = f.read()
+            with open(backup_path, 'w', encoding='ascii', errors='ignore') as f:
+                f.write(original)
+        except Exception as e:
+            return False, f"Couldn't write backup for {dat_path}: {e}"
+
+    try:
+        with open(dat_path, 'w', encoding='ascii', errors='ignore') as f:
+            f.writelines(new_lines)
+    except Exception as e:
+        return False, f"Couldn't write {dat_path}: {e}"
+
+    total = sum(len(v) for v in by_type.values())
+    return True, (f"Reordered {total} directive line(s) across "
+                  f"{len(type_order)} type(s) in {os.path.basename(dat_path)}")
+
+
 def convert_inst_fields(parts, from_game, to_game): #vers 1
     """Convert one already-split INST line's own real fields between
     VC and SA/SOL layouts (Aug 21 2026, per Keith's own real, worked

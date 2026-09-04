@@ -13276,6 +13276,30 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         convert_btn.clicked.connect(lambda: self._show_convert_ipl_menu(convert_btn))
         tb_overlays.addWidget(convert_btn)
 
+        # Optimize Load Order (Aug 21 2026, per Keith: "if the model
+        # names, col names, and ide/ipl entries loaded in the same
+        # order the game spends less work matching them up, result is
+        # the game loads and renders faster. the SOL files have been
+        # organized this way, with 3 times the data, it loads faster
+        # then standard VC") - confirmed, not guessed: gta_vc.dat's
+        # own real header comments say this in as many words ("Load
+        # IDEs first, then the models and after that the IPLs...
+        # everything is loaded on a per directory basis and in
+        # alphabetical order to improve the speed of loading"). See
+        # optimize_dat_load_order's own docstring for the full, real
+        # algorithm and its own honest scope limit (reorders the real
+        # .dat file's own directive lines only, not real model/
+        # instance order within an IDE/IPL file's own real contents).
+        optimize_btn = QToolButton()
+        optimize_btn.setText("Optimize Order")
+        optimize_btn.setToolTip(
+            "Reorder this world's own loaded .dat file's IDE/IPL/COLFILE/IMG\n"
+            "lines to match Rockstar's own documented convention: grouped by\n"
+            "directory, alphabetical within each - the same real pattern SOL's\n"
+            "own files already use.")
+        optimize_btn.clicked.connect(self._optimize_dat_load_order_clicked)
+        tb_overlays.addWidget(optimize_btn)
+
         _act(tb_rend, "Render Settings",
              _icon(self.icon_factory.render_settings_icon, 'render_settings_icon'),
              lambda checked=False: self._show_workshop_settings('Render'))
@@ -27873,6 +27897,56 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         menu.addAction("Convert Loaded IPL(s) to VC...",
                         lambda: self._convert_loaded_ipls_dialog(GTAGame.VC))
         menu.exec(button.mapToGlobal(button.rect().bottomLeft()))
+
+    def _optimize_dat_load_order_clicked(self): #vers 1
+        """Optimize Order button (Aug 21 2026, per Keith: "if the
+        model names, col names, and ide/ipl entries loaded in the
+        same order the game spends less work matching them up, result
+        is the game loads and renders faster") - reorders the
+        currently-loaded world's own real default.dat and main .dat
+        files' own real IDE/IPL/COLFILE/IMG directive lines (see
+        optimize_dat_load_order's own docstring for the full, real
+        algorithm, confirmed against gta_vc.dat's own real header
+        comments). Confirms first, since this genuinely rewrites real
+        files on disk (with a real .bak backup each, but still a
+        real, deliberate action)."""
+        from apps.methods.gta_dat_parser import optimize_dat_load_order
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            self._set_status("No world loaded")
+            return
+
+        targets = []
+        for dat in (getattr(loader, 'default_dat', None), getattr(loader, 'main_dat', None)):
+            if dat is not None and getattr(dat, 'dat_path', '') and dat.entries:
+                targets.append(dat)
+        if not targets:
+            self._set_status("No loaded .dat file to reorder")
+            return
+
+        confirm = QMessageBox.question(
+            self, "Optimize Load Order",
+            f"Reorder IDE/IPL/COLFILE/IMG lines in {len(targets)} .dat file(s) "
+            f"to Rockstar's own documented convention (grouped by directory, "
+            f"alphabetical within each)?\n\nA .bak backup of each file's own "
+            f"original content is kept (only if one doesn't already exist).\n\n"
+            f"Note: this reorders directive lines in the .dat file itself, "
+            f"not model/instance order within IDE/IPL files.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+
+        done, failed = 0, []
+        for dat in targets:
+            ok, msg = optimize_dat_load_order(dat.dat_path, dat.entries)
+            if ok:
+                done += 1
+            else:
+                failed.append(msg)
+        if failed:
+            self._set_status(f"Reordered {done} file(s); {len(failed)} failed: {'; '.join(failed)}")
+        else:
+            self._set_status(f"Reordered {done} .dat file(s) - reload the world to see the new order")
 
     def _save_grges(self): #vers 1
         """Save Garages button - writes every currently loaded garage

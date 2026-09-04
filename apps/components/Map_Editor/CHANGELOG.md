@@ -10840,3 +10840,47 @@ conclusively found despite extensive isolated testing.
   the new button's own real location would have raised a real
   NameError the first time this ribbon was ever built. Added its own
   local import instead of assuming the same name was already in scope.
+
+- Aug 21 2026 - New "Optimize Order" ribbon button, per Keith: "the
+  game optimizing, if the model names, col names, and ide/ipl entries
+  loaded in the same order the game spends less work matching them
+  up, result is the game loads and renders faster. the SOL files have
+  been organized this way, with 3 times the data, it loads faster
+  then standard VC, so this would be a nice addition to map
+  workshop."
+
+  Confirmed, not just taken on faith: gta_vc.dat's own real header
+  comments say this in as many words - "Load IDEs first, then the
+  models and after that the IPLs ... everything is loaded on a per
+  directory basis and in alphabetical order to improve the speed of
+  loading." That's Rockstar's own documented convention, and matches
+  Keith's own real-world SOL observation directly.
+
+  New optimize_dat_load_order (gta_dat_parser.py) - rewrites a real
+  .dat file's own IDE/IPL/COLFILE/IMG directive lines to match that
+  exact real convention: directive *types* keep their own original
+  relative order (IDE-before-IPL stays IDE-before-IPL), entries
+  *within* each type get regrouped by (directory, then filename),
+  both plain alphabetical - the "per directory basis and in
+  alphabetical order" part. New button reorders the currently-loaded
+  world's own default.dat and main .dat files, confirms first (with a
+  .bak backup kept, same pattern as every other write-back this
+  session).
+
+  Verified end-to-end with a real, synthetic .dat file (3 zones, 2
+  directories, deliberately out of order) - confirmed IDE/IPL/COLFILE
+  lines all correctly regrouped by directory then alphabetically,
+  directive-type order preserved, comment lines untouched.
+
+  Honest scope limit, disclosed in the button's own confirmation
+  dialog: this reorders directive *lines* in the .dat file itself
+  only - it does not reorder model definitions within an IDE file or
+  instance placements within an IPL file, which Keith's own message
+  also touched on at that finer level. That would mean touching real
+  IDE/IPL file contents file-by-file, a separate, larger piece not
+  attempted this turn.
+
+  Also confirmed already built and working, per Keith's own third
+  point ("parsing COL files, even those in the img file"): ModelCache.
+  get_collision already reads COL data from both IMG-embedded entries
+  and standalone .col files - no new work needed there.
