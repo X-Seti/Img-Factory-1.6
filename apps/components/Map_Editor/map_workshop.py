@@ -12961,7 +12961,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         return panel
 
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 8
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 9
         """Build all QToolBar instances using QAction.
         Icon set resolved once — 'default' uses SVGIconFactory with currentColor,
         '3dsmax' uses MaxIconSet with hardcoded Max palette."""
@@ -13296,8 +13296,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         from apps.components.Map_Editor.depends.overlay_icons import OverlayIcons as _OverlayIconsForRepair
         repair_scale_btn.setIcon(_OverlayIconsForRepair.repair_scale_icon(24))
         repair_scale_btn.setToolTip(
-            "Fix any instance whose scale is (0,0,0) back to (1,1,1).")
+            "Left-click: fix any instance whose scale is (0,0,0) back to (1,1,1).\n"
+            "Right-click: choose a direction (also covers 1,1,1 -> 0,0,0).")
         repair_scale_btn.clicked.connect(self._repair_zero_scale_instances)
+        repair_scale_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        repair_scale_btn.customContextMenuRequested.connect(
+            lambda pos, b=repair_scale_btn: self._show_repair_scale_menu(b))
         tb_overlays.addWidget(repair_scale_btn)
 
         # Convert VC<->SA/SOL INST format (Aug 21 2026, per Keith:
@@ -27129,34 +27133,32 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         pos = btn.mapToGlobal(btn.rect().bottomLeft()) if btn is not None else self.mapToGlobal(self.rect().center())
         menu.exec(pos)
 
-    def _repair_zero_scale_instances(self): #vers 1
-        """Repair Scale button - fixes every currently loaded instance
-        whose own real scale is exactly (0,0,0) back to (1,1,1) (Aug
-        21 2026, per Keith's own real, worked VC/SA/SOL example lines
-        and a real, broken converted line: "so we need a function to
-        find and change 1, 1, 1, to 0, 0, 0" - the real, worked
-        example itself confirms a real zero scale is what's actually
-        broken, not the other direction, since a real, valid VC
-        instance always has scale (1,1,1) unless deliberately, non-
-        zero-scaled). IN MEMORY ONLY - no write-back to disk for INST
-        lines exists yet (see this button's own tooltip/the ribbon
-        comment above it), so this fixes what Keith sees in the
-        viewport but not yet the file itself."""
+    def _repair_scale_instances(self, from_scale, to_scale): #vers 1
+        """Generic version of Repair Scale - fixes every currently
+        loaded instance whose scale is exactly `from_scale` to
+        `to_scale`. Backs both directions on the Repair Scale ribbon
+        button (Sep 5 2026, per Keith: "add another option 1, 1, 1,
+        to 0, 0, 0") - the original 0,0,0 -> 1,1,1 direction (Aug 21
+        2026, per Keith's own real worked VC/SA/SOL example) plus its
+        exact reverse. IN MEMORY ONLY - no write-back to disk for
+        INST lines exists yet, same as before."""
         loader = getattr(self, '_world_loader', None)
         if loader is None:
             self._set_status("No world loaded")
             return
         instances = getattr(loader, 'instances', [])
+        fx, fy, fz = from_scale
+        tx, ty, tz = to_scale
         broken = [inst for inst in instances
-                  if inst.scale_x == 0.0 and inst.scale_y == 0.0 and inst.scale_z == 0.0]
+                  if inst.scale_x == fx and inst.scale_y == fy and inst.scale_z == fz]
         if not broken:
-            self._set_status("No zero-scale instances found")
+            self._set_status(f"No {from_scale} scale instances found")
             return
         originals = [(inst.scale_x, inst.scale_y, inst.scale_z) for inst in broken]
 
         def _do_fix():
             for inst in broken:
-                inst.scale_x, inst.scale_y, inst.scale_z = 1.0, 1.0, 1.0
+                inst.scale_x, inst.scale_y, inst.scale_z = tx, ty, tz
             self._apply_ipl_visibility_filter(auto_fit=False, clear_display_lists=True)
 
         def _do_undo():
@@ -27165,8 +27167,40 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._apply_ipl_visibility_filter(auto_fit=False, clear_display_lists=True)
 
         _do_fix()
-        self._push_map_undo(_do_undo, _do_fix, f"Repair {len(broken)} zero-scale instance(s)")
-        self._set_status(f"Repaired {len(broken)} zero-scale instance(s) - not yet saved to disk")
+        self._push_map_undo(_do_undo, _do_fix,
+            f"Repair {len(broken)} instance(s) {from_scale}->{to_scale}")
+        self._set_status(
+            f"Repaired {len(broken)} instance(s) {from_scale}->{to_scale} - not yet saved to disk")
+
+    def _repair_zero_scale_instances(self): #vers 2
+        """Repair Scale button, default direction: 0,0,0 -> 1,1,1
+        (Aug 21 2026, per Keith's own real, worked VC/SA/SOL example
+        lines and a real, broken converted line - the real, worked
+        example itself confirms a real zero scale is what's actually
+        broken, not the other direction, since a real, valid VC
+        instance always has scale (1,1,1) unless deliberately, non-
+        zero-scaled)."""
+        self._repair_scale_instances((0.0, 0.0, 0.0), (1.0, 1.0, 1.0))
+
+    def _repair_one_scale_instances(self): #vers 1
+        """Repair Scale button, reverse direction: 1,1,1 -> 0,0,0
+        (Sep 5 2026, per Keith: "add another option 1, 1, 1, to 0, 0,
+        0") - for IPL data converted the other way round, where a
+        genuinely-zero scale got mapped to (1,1,1) instead."""
+        self._repair_scale_instances((1.0, 1.0, 1.0), (0.0, 0.0, 0.0))
+
+    def _show_repair_scale_menu(self, btn): #vers 1
+        """Right-click menu for Repair Scale - pick which direction to
+        repair (Sep 5 2026), same right-click-for-options convention
+        already used by Cycle/Convert on this same ribbon."""
+        menu = QMenu(self)
+        act_0to1 = menu.addAction("Repair 0,0,0 -> 1,1,1")
+        act_1to0 = menu.addAction("Repair 1,1,1 -> 0,0,0")
+        chosen = menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
+        if chosen is act_0to1:
+            self._repair_zero_scale_instances()
+        elif chosen is act_1to0:
+            self._repair_one_scale_instances()
 
     def _add_zone(self): #vers 1
         """Add a new zone entry, per Keith: "we need to finish the

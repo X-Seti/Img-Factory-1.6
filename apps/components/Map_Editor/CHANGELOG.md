@@ -10944,3 +10944,11 @@ conclusively found despite extensive isolated testing.
      being out of sync - grge_icon/convert_icon/interior_icon were
      missing from it before this change), wired into the three
      buttons the same icon-only way Undo/Convert already are.
+
+- Sep 5 2026 (cont'd) - Repair Scale: added the reverse direction, per
+  Keith: "add another option 1, 1, 1, to 0, 0, 0". Refactored the
+  original 0,0,0 -> 1,1,1 fix into a generic _repair_scale_instances
+  (from_scale, to_scale) helper; left-click keeps the original
+  default direction, right-click opens a menu to pick either
+  direction explicitly - same right-click-for-options convention
+  already used by Cycle/Convert on this ribbon.
