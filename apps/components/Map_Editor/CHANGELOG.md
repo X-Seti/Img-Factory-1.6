@@ -10952,3 +10952,67 @@ conclusively found despite extensive isolated testing.
   default direction, right-click opens a menu to pick either
   direction explicitly - same right-click-for-options convention
   already used by Cycle/Convert on this ribbon.
+
+- Sep 5 2026 (cont'd) - bug sweep of map_workshop.py (Keith: "search for
+  bugs and note them"), several real, confirmed issues found and fixed:
+  1. resizeEvent, _toggle_backface_cull, _set_camera_view, _create_
+     preview_widget: all defined TWICE in their own class body - Python
+     only keeps the LAST definition, silently discarding the first.
+     - resizeEvent: dead first copy removed, no functionality lost
+       (the surviving one already does everything it did, plus more).
+     - _toggle_backface_cull: REAL BUG - the active copy read
+       vp._backface, an attribute that belongs to a different, unrelated
+       viewport class and was never set on the real one (DFFViewport) -
+       always defaulted False, so every click just disabled culling
+       again; culling could never actually be turned back on. Fixed to
+       read/write the correct attribute (_backface_cull) directly.
+     - _set_camera_view: surviving copy was missing the dead copy's own
+       hasattr(self,'viewer_3d')/VIEWPORT_AVAILABLE guard - could crash
+       with AttributeError. Restored it, fixed stray indentation.
+     - _create_preview_widget: NOT fixed, flagged for Keith - see below.
+  2. _show_paint_toolbar: referenced an undefined undo_btn (UnboundLocal
+     Error every time the paint toolbar populated) - should've been
+     self.paint_undo_btn, the real button. Fixed.
+  3. A preset-view button's icon-size call used undefined _QS (typo for
+     QSize, already imported) - silently swallowed by a broad except,
+     so icon sizing never actually applied. Fixed.
+  4. paintEvent (corner-drag-handle painting): used QPainterPath with no
+     import in scope (every other use site in this file has a local
+     import right before use; this one was missing it) - real crash
+     risk. Added the import.
+  5. _show_window_context_menu: imported QMenu but never instantiated it
+     (menu.addAction(...) on an undefined name) - currently unreachable
+     (nothing calls this method), fixed anyway since it's a one-line,
+     obvious gap.
+  6. _show_settings_dialog - REAL, CONFIRMED CRASH ON EVERY OPEN: a
+     typo'd `coll_group = QFormLayout()` reassigned/clobbered the just-
+     created QGroupBox instead of creating a new coll_form variable,
+     so every coll_form.addRow() below referenced an undefined name,
+     and the final coll_group.setLayout(coll_form)/scroll_layout.
+     addWidget(coll_group) ran on the wrong object type entirely.
+     Fixed - this dialog is reachable (wired to a hotkey), so this was
+     a real, live, always-happens crash, not theoretical.
+  STILL OPEN, need Keith's direction before touching further:
+  - _show_settings_dialog's own Apply/OK buttons are wired to a nested
+    apply_settings() closure that reads 7 checkboxes/spinboxes (export
+    preserve-alpha, export shadow-separate, import auto-name, dimension
+    limiting, splash-screen mode, custom max dimension, iff-import) that
+    are never actually created anywhere in this dialog's own UI-building
+    code - clicking Apply or OK would crash with NameError on whichever
+    one it hits first. Needs either the missing UI section built (needs
+    design/placement input) or those lines removed if the feature isn't
+    wanted yet - not guessed at unilaterally.
+  - _create_level_card / _create_preview_widget (dead copy) / _create_
+    info_section / _create_stats_grid / _create_action_section (~250
+    lines): orphaned TXD-Workshop-style "mipmap level card" scaffolding
+    with zero live callers anywhere - the dead _create_preview_widget
+    copy even references CollisionPreviewWidget, a class that doesn't
+    exist in this file, plus a leftover debug print("... # ADD THIS").
+    Recommend deleting the whole block; not done without confirming.
+  - COLEditorDialog class + open_col_editor/open_col_editor_with_file
+    convenience functions (~500+ lines, class starts ~line 31275): a
+    second, entirely separate, unreachable copy of the COL Editor
+    dialog - the real, actually-wired open_col_editor the rest of the
+    app uses lives in apps/components/Col_Editor/col_editor.py instead;
+    nothing anywhere imports this Map_Editor copy. Recommend deleting;
+    not done without confirming.

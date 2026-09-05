@@ -4144,7 +4144,7 @@ class _CornerOverlay(QWidget):
         super().resizeEvent(event)
         self._update_mask()
 
-    def paintEvent(self, event): #vers 2
+    def paintEvent(self, event): #vers 3
         s = self.SIZE
         _p = self.palette()
         _accent_fallback = _p.color(_p.ColorRole.Highlight)
@@ -4167,6 +4167,7 @@ class _CornerOverlay(QWidget):
         }
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        from PyQt6.QtGui import QPainterPath
         for name, pts in corners.items():
             path = QPainterPath()
             path.moveTo(*pts[0]); path.lineTo(*pts[1]); path.lineTo(*pts[2])
@@ -7030,7 +7031,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             vp.update()
         self._set_status(f"Paint material: {mat_id} — {name}")
 
-    def _show_paint_toolbar(self, mat_id: int, model=None): #vers 5
+    def _show_paint_toolbar(self, mat_id: int, model=None): #vers 6
         """Populate combo then show the floating paint bar."""
         tb    = self.paint_toolbar
         combo = self.paint_mat_combo
@@ -7100,8 +7101,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         combo.currentIndexChanged.connect(_on_mat_changed)
 
         # Enable undo button only if undo stack has entries
-        if undo_btn:
-            undo_btn.setEnabled(bool(getattr(self, 'undo_stack', [])))
+        if getattr(self, 'paint_undo_btn', None):
+            self.paint_undo_btn.setEnabled(bool(getattr(self, 'undo_stack', [])))
 
         # Trigger viewport repaint to show the paint overlay chips
         vp = getattr(self, 'preview_widget', None)
@@ -10468,13 +10469,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.drag_position = global_pos
 
 
-    def resizeEvent(self, event): #vers 2
-        """Update layout on resize."""
-        super().resizeEvent(event)
-        if hasattr(self, 'size_grip'):
-            self.size_grip.move(self.width() - 16, self.height() - 16)
-        self._update_transform_text_panel_visibility()
-
     def _on_splitter_moved(self, pos, index): #vers 2
         """Called when main splitter is dragged - update text panel and compact buttons."""
         self._update_transform_text_panel_visibility()
@@ -11162,16 +11156,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     # - DFF mode toolbar
 
-    def _toggle_backface_cull(self, enabled: bool): #vers 1
-        """Toggle back-face culling on the 3D viewport."""
-        vp = getattr(self, 'preview_widget', None)
-        if vp:
-            vp._backface_cull = enabled
-            vp.update()
-        btn = getattr(self, '_backface_cull_btn', None)
-        if btn:
-            btn.setChecked(enabled)
-
     def _toggle_viewport_shading(self, enabled: bool): #vers 1
         """Toggle Lambertian shading on/off in the viewport."""
         vp = getattr(self, 'preview_widget', None)
@@ -11326,7 +11310,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 ico_fn = _preset_icon_map.get(label)
                 if ico_fn:
                     pb.setIcon(getattr(_SVGL, ico_fn)(size=16))
-                    pb.setIconSize(_QS(16,16))
+                    pb.setIconSize(QSize(16,16))
             except Exception:
                 pass
             def _set_preset(checked=False, a=az2, e=el2):  #vers 1
@@ -11916,14 +11900,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     if b: b.setChecked(False)
                 grp.setExclusive(True)
 
-    def _toggle_backface_cull(self): #vers 1
+    def _toggle_backface_cull(self): #vers 2
         """Toggle backface culling — when ON only the front face is visible/selectable."""
         vp = getattr(self, 'preview_widget', None)
         if not vp:
             return
-        current = getattr(vp, '_backface', False)
-        vp.set_backface(not current)
-        state = "off (front+back)" if current else "on (front only)"
+        cull_on = not getattr(vp, '_backface_cull', True)
+        vp.set_backface_cull(cull_on)
+        state = "on (front only)" if cull_on else "off (front+back)"
         self._set_status(f"Backface cull: {state}")
 
     def _toggle_front_only_paint(self): #vers 1
@@ -14583,7 +14567,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         return settings_btn
 
 
-    def _show_settings_dialog(self): #vers 5
+    def _show_settings_dialog(self): #vers 6
         """Show comprehensive settings dialog with all tabs including hotkeys"""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTabWidget,
                                     QWidget, QLabel, QPushButton, QGroupBox,
@@ -14952,7 +14936,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         # Collision Operations Group
         coll_group = QGroupBox("Collision Operations")
-        coll_group = QFormLayout()
+        coll_form = QFormLayout()
 
         hotkey_edit_import = QKeySequenceEdit(self.hotkey_import.key() if hasattr(self, 'hotkey_import') else QKeySequence("Ctrl+I"))
         coll_form.addRow("Import Collision:", hotkey_edit_import)
@@ -15234,10 +15218,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         lay.addWidget(close_btn)
         dlg.exec()
 
-    def _show_window_context_menu(self, pos): #vers 1
+    def _show_window_context_menu(self, pos): #vers 2
         """Show context menu for titlebar right-click"""
         from PyQt6.QtWidgets import QMenu
-
+        menu = QMenu(self)
 
         # Move window action
         move_action = menu.addAction("Move Window")
@@ -31690,24 +31674,6 @@ class COLEditorDialog(QDialog): #vers 3
         return controls_widget
 
 
-    def _set_camera_view(self, view_type): #vers 1
-        """Set predefined camera view"""
-        if not VIEWPORT_AVAILABLE or not hasattr(self, 'viewer_3d'):
-            return
-
-        if view_type == 'top':
-            self.viewer_3d.rotation_x = 0.0
-            self.viewer_3d.rotation_y = 0.0
-        elif view_type == 'front':
-            self.viewer_3d.rotation_x = 90.0
-            self.viewer_3d.rotation_y = 0.0
-        elif view_type == 'side':
-            self.viewer_3d.rotation_x = 90.0
-            self.viewer_3d.rotation_y = 90.0
-
-        self.viewer_3d.update()
-
-
     def _svg_to_icon(self, svg_data, size=24): #vers 1
         """Convert SVG to QIcon"""
         from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor
@@ -31774,19 +31740,20 @@ class COLEditorDialog(QDialog): #vers 3
             self.status_bar.showMessage(f"Error: {str(e)}")
 
 
-    def _set_camera_view(self, view_type): #vers 1
-            """Set predefined camera view"""
-            if view_type == 'top':
-                self.viewer_3d.rotation_x = 0.0
-                self.viewer_3d.rotation_y = 0.0
-            elif view_type == 'front':
-                self.viewer_3d.rotation_x = 90.0
-                self.viewer_3d.rotation_y = 0.0
-            elif view_type == 'side':
-                self.viewer_3d.rotation_x = 90.0
-                self.viewer_3d.rotation_y = 90.0
-
-            self.viewer_3d.update()
+    def _set_camera_view(self, view_type): #vers 2
+        """Set predefined camera view"""
+        if not VIEWPORT_AVAILABLE or not hasattr(self, 'viewer_3d'):
+            return
+        if view_type == 'top':
+            self.viewer_3d.rotation_x = 0.0
+            self.viewer_3d.rotation_y = 0.0
+        elif view_type == 'front':
+            self.viewer_3d.rotation_x = 90.0
+            self.viewer_3d.rotation_y = 0.0
+        elif view_type == 'side':
+            self.viewer_3d.rotation_x = 90.0
+            self.viewer_3d.rotation_y = 90.0
+        self.viewer_3d.update()
 
 
 
