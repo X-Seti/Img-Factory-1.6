@@ -3326,7 +3326,7 @@ class GTAWorldLoader: #vers 3
         model_id - see timed_objects."""
         return self.timed_objects.get(model_id, [])
 
-    def resolve_lod_pairs(self) -> Dict[int, IPLInstance]:
+    def resolve_lod_pairs(self) -> Dict[int, IPLInstance]: #vers 2
         """Resolve each instance's paired LOD counterpart, where one
         exists. Two detection strategies, both run for every game and
         combined (Aug 1 2026, widened from being mutually exclusive
@@ -3378,27 +3378,36 @@ class GTAWorldLoader: #vers 3
                         and inst.lod_index < len(file_instances):
                     pairs[id(inst)] = file_instances[inst.lod_index]
 
-        # Strategy 2: "LOD" name-prefix matching
+        # Strategy 2: "LOD" name-prefix matching (Sep 5 2026, widened
+        # to span every loaded instance rather than only those sharing
+        # one source IPL file - per Keith: "switch to LOD only... I
+        # am seeing the normal models still" - his own real data
+        # splits a city's content across multiple simultaneously-
+        # loaded files for streaming reasons (LAn.ipl + lan_stream0/
+        # 1/2.ipl), unrelated to which instances are LOD pairs, so a
+        # normal building and its LOD counterpart can genuinely live
+        # in different files. The position-tolerance check below is
+        # already the real correctness guard here - two unrelated
+        # same-named objects sharing the exact same position anywhere
+        # on the whole map is effectively impossible, so this is safe
+        # to widen from "same file only".)
         pos_tol = 0.5   # units - allows tiny float/rounding differences
-        for file_instances in by_file.values():
-            # Index non-LOD instances in this file by name for fast,
-            # tolerant matching below.
-            by_name: Dict[str, list] = {}
-            for inst in file_instances:
-                if not inst.model_name.lower().startswith('lod'):
-                    by_name.setdefault(inst.model_name.lower(), []).append(inst)
-            for inst in file_instances:
-                name = inst.model_name
-                if not name.lower().startswith('lod'):
-                    continue
-                base_name = name[3:].lower()   # strip "LOD"/"lod" prefix
-                candidates = by_name.get(base_name, [])
-                for cand in candidates:
-                    if (abs(cand.pos_x - inst.pos_x) <= pos_tol and
-                            abs(cand.pos_y - inst.pos_y) <= pos_tol and
-                            abs(cand.pos_z - inst.pos_z) <= pos_tol):
-                        pairs[id(cand)] = inst
-                        break
+        by_name: Dict[str, list] = {}
+        for inst in self.instances:
+            if not inst.model_name.lower().startswith('lod'):
+                by_name.setdefault(inst.model_name.lower(), []).append(inst)
+        for inst in self.instances:
+            name = inst.model_name
+            if not name.lower().startswith('lod'):
+                continue
+            base_name = name[3:].lower()   # strip "LOD"/"lod" prefix
+            candidates = by_name.get(base_name, [])
+            for cand in candidates:
+                if (abs(cand.pos_x - inst.pos_x) <= pos_tol and
+                        abs(cand.pos_y - inst.pos_y) <= pos_tol and
+                        abs(cand.pos_z - inst.pos_z) <= pos_tol):
+                    pairs[id(cand)] = inst
+                    break
 
         return pairs
 

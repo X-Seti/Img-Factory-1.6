@@ -11176,3 +11176,30 @@ conclusively found despite extensive isolated testing.
   restored methods now have matching def+caller pairs, no new
   duplicate definitions introduced, ast.parse + pyflakes clean (only
   the two already-flagged, still-untouched dead blocks remain).
+
+- Sep 5 2026 (cont'd) - real bug fix: "Show LOD only" still showed
+  normal models, per Keith: "switch to LOD only... I think I am
+  seeing the normal models still, but I am noticing in the status
+  bar, LODs being loaded". Root cause in GTAWorldLoader.resolve_lod_
+  pairs (apps/methods/gta_dat_parser.py, shared): Strategy 2's "LOD"
+  name-prefix matching only ever paired a normal instance with its
+  LOD counterpart if both lived in the exact same source IPL file.
+  Keith's own real data splits a city's content across multiple
+  simultaneously-loaded files for streaming reasons unrelated to LOD
+  status (his own screenshot: LAn.ipl + lan_stream0/1/2.ipl) - a
+  normal building and its LOD version can genuinely end up in
+  different files, so most real pairs never registered at all,
+  leaving unpaired "normal" instances to fall through to the generic
+  draw-distance check (or pass through unfiltered) regardless of LOD
+  mode. Widened Strategy 2 to match across every loaded instance
+  instead of only those sharing one file - the existing position-
+  tolerance check (0.5 units) is already sufficient to prevent false
+  matches, since two unrelated same-named objects at the exact same
+  position anywhere on the whole map is effectively impossible.
+  Strategy 1 (lod_index field) correctly stays scoped per-file - that
+  field is itself just a numeric index into the local file's own
+  instance order, so it can never validly reference another file.
+  Verified with 3 synthetic tests: cross-file pair now resolves
+  correctly, same-file pairing (the original working case) still
+  works unchanged, and unrelated far-apart same-named instances still
+  correctly do NOT pair.
