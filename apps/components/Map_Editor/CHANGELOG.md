@@ -11418,3 +11418,41 @@ conclusively found despite extensive isolated testing.
   exclusive radio (LOD only/Normals/Both), same mechanism as before -
   _apply_lod_filter's own 'lod' handling was never actually removed,
   just unreachable via the menu, so this is a pure UI restore.
+
+- Sep 5 2026 (cont'd) - REAL, CONFIRMED BUG in VC collision resolution,
+  found via Keith's own real, uploaded gta3_img.png screenshot +
+  airport.col file. Vanilla VC embeds genuine multi-model REGIONAL
+  collision packages directly in gta3.img (airport.col, downtown.col,
+  mall.col, etc, ~19 of them) - confirmed by directly parsing the real
+  uploaded airport.col: 189 separately-named models inside (ap_tower,
+  apairprtbits01, Helipad0, etc.), none named "airport". model_cache.
+  index_img_files() was indexing these by container filename stem
+  only (the Aug 14 2026 assumption that IMG-embedded .col entries are
+  always one-model-per-entry like SA's real convention) - meaning
+  get_collision(<any real VC building's actual model name>) NEVER
+  found a match at all, silently returning None for essentially every
+  building in the game.
+
+  Fixed: added a lightweight header-only scanner (_scan_col_model_
+  names - chunk headers + names only, no geometry parsing) that runs
+  during index_img_files() for every .col entry, discovering and
+  indexing every real model name inside it instead of just the
+  container's own filename. Also added a per-container cache
+  (_col_container_cache) so many distinct model names sharing the
+  same regional package (all 189 of airport.col's) don't each
+  independently re-read and re-parse the whole ~324KB blob on their
+  own first lookup.
+
+  Verified directly against the real uploaded airport.col: the
+  scanner correctly finds all 189 real names; simulated the full
+  IMG-embedded lookup path end to end (get_collision('ap_tower') etc.
+  now correctly resolves, previously would have silently failed);
+  confirmed the container cache correctly deduplicates to one parse
+  across all 189 names when they share one entry object, matching
+  real index_img_files behaviour.
+
+  NOTE: this fixes collision resolution specifically. Keith's other
+  reported symptom this session ("Vice City only showing airplanes")
+  sounds like a model-geometry issue, not a collision-overlay one
+  (collision was always drawn independently of whether the model
+  itself renders) - still investigating that part separately.

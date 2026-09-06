@@ -21,6 +21,32 @@ from apps.components.Model_Editor.depends.col_workshop_classes import COLModel
 from apps.components.Model_Editor.depends.col_workshop_loader import COLFile
 
 
+def _scan_col_model_names(data: bytes) -> List[str]: #vers 1
+    """Lightweight scan of a (possibly multi-model) COL blob's chunk
+    headers to discover every model name inside, without parsing any
+    geometry (Sep 5 2026, per Keith's own real, uploaded VC gta3.img
+    evidence: vanilla VC embeds genuine multi-model REGIONAL COL
+    packages directly in gta3.img - airport.col alone holds 189
+    separately-named models, none of them named "airport" - not one
+    small COL entry per building the way SA's convention works).
+    Fast enough to run during index_img_files() for every .col entry
+    found there, unlike the full COLFile parse used later (in
+    get_collision) when a specific model's real collision data is
+    actually needed."""
+    names = []
+    pos, n = 0, len(data)
+    while pos + 8 <= n:
+        fourcc = data[pos:pos+4]
+        if fourcc not in (b'COLL', b'COL2', b'COL3', b'COL4'):
+            break
+        size = int.from_bytes(data[pos+4:pos+8], 'little')
+        name = data[pos+8:pos+30].split(b'\x00')[0].decode('ascii', errors='replace').strip()
+        if name:
+            names.append(name)
+        pos += 8 + size
+    return names
+
+
 class ModelCache:
     """See module docstring."""
 
@@ -70,6 +96,14 @@ class ModelCache:
         # as _opened_img_files: a multi-model .col can be large, don't
         # re-read/re-parse it from disk once per model name inside it.
         self._opened_col_files: Dict[str, object] = {}
+        # (img_path, id(entry)) -> loaded COLFile (Sep 5 2026) - same
+        # reasoning as _opened_col_files above, but for IMG-embedded
+        # multi-model regional packages (vanilla VC's airport.col
+        # etc.) where many distinct model names all resolve to the
+        # same underlying entry - without this, every one of e.g.
+        # airport.col's 189 models would re-read and re-parse the
+        # whole ~324KB container on its own first lookup.
+        self._col_container_cache: Dict[Tuple[str, int], object] = {}
         self.indexed_img_paths: List[str] = []
         self.indexed_col_paths: List[str] = []
         self.index_errors: List[str] = []
@@ -97,25 +131,34 @@ class ModelCache:
         # once per texture lookup.
         self._opened_img_files: Dict[str, 'object'] = {}
 
-    def index_img_files(self, img_paths: List[str]): #vers 2
+    def index_img_files(self, img_paths: List[str]): #vers 3
         """Scan a list of IMG archive paths, building name -> (path,
         entry) indexes for .dff, .txd, and .col entries. Call once
         after a world loads (or its IMG set changes) - reading
-        directory headers only, not entry contents, so this stays
-        fast even for large archives. Safe to call again to re-index
-        (clears previous indexes first).
+        directory headers only for .dff/.txd, so those stay fast even
+        for large archives. Safe to call again to re-index (clears
+        previous indexes first).
 
-        .col entries indexed here (Aug 14 2026) the same lightweight
-        way as .dff/.txd - see _col_img_index's own comment for why
-        that's correct for SA/VC's IMG-embedded collision specifically
-        (one model per entry, named like the model) but not for the
-        genuinely multi-model standalone archives index_col_files
-        handles separately."""
+        .col entries (Sep 5 2026, per Keith's own real, uploaded VC
+        gta3.img evidence) are NOT one-model-per-entry the way SA's
+        convention works - vanilla VC embeds genuine multi-model
+        REGIONAL collision packages directly in gta3.img (airport.col
+        alone holds 189 separately-named models, none named
+        "airport"). Indexing those by container filename stem (the
+        old Aug 14 2026 assumption) meant get_collision(<real building
+        name>) never found a match at all - every real building's
+        collision silently failed to resolve. Now reads each .col
+        entry's bytes immediately and does a lightweight header-only
+        scan (_scan_col_model_names - no geometry parsing, just chunk
+        headers) to discover and index every real model name inside
+        it, falling back to the container's own filename stem only if
+        that scan finds nothing (an unreadable/unexpected entry)."""
         from apps.methods.img_core_classes import IMGFile
 
         self._dff_index.clear()
         self._txd_index.clear()
         self._col_img_index.clear()
+        self._col_container_cache.clear()
         self.indexed_img_paths = []
         self.index_errors = []
 
@@ -140,7 +183,10 @@ class ModelCache:
                     elif ext_lower == 'txd':
                         self._txd_index.setdefault(stem_lower, []).append((img_path, entry))
                     elif ext_lower == 'col':
-                        self._col_img_index.setdefault(stem_lower, []).append((img_path, entry))
+                        data = self._read_entry(img_path, entry)
+                        model_names = _scan_col_model_names(data) if data else []
+                        for mname in (model_names or [stem_lower]):
+                            self._col_img_index.setdefault(mname.lower(), []).append((img_path, entry))
                 self.indexed_img_paths.append(img_path)
             except Exception as e:
                 self.index_errors.append(f"{img_path}: {e}")
@@ -192,6 +238,7 @@ class ModelCache:
         self._collision_cache.clear()
         self._opened_img_files.clear()
         self._opened_col_files.clear()
+        self._col_container_cache.clear()
         self.indexed_img_paths = []
         self.indexed_col_paths = []
         self.index_errors = []
@@ -299,7 +346,7 @@ class ModelCache:
         self._texture_cache[key] = result
         return result
 
-    def get_collision(self, model_name: str) -> Optional[COLModel]: #vers 2
+    def get_collision(self, model_name: str) -> Optional[COLModel]: #vers 3
         """Get the parsed COLModel for a model name. Tries the IMG-
         embedded index first (Aug 14 2026, per Keith: "In SA it should
         be reading them from the gta3.img... In VC, they can also be
@@ -322,12 +369,16 @@ class ModelCache:
         result = None
         for img_path, entry in self._col_img_index.get(key, []):
             try:
-                data = self._read_entry(img_path, entry)
-                if not data:
-                    continue
-                col_file = COLFile()
-                if not col_file.load_from_data(data, name=f"{model_name}.col"):
-                    continue
+                container_key = (img_path, id(entry))
+                col_file = self._col_container_cache.get(container_key)
+                if col_file is None:
+                    data = self._read_entry(img_path, entry)
+                    if not data:
+                        continue
+                    col_file = COLFile()
+                    if not col_file.load_from_data(data, name=f"{model_name}.col"):
+                        continue
+                    self._col_container_cache[container_key] = col_file
                 if not col_file.models:
                     continue
                 # Not col_file.get_model_by_name() (Aug 14 2026) - that
