@@ -25221,7 +25221,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return
         self._on_ipl_data_type_changed(keys[index])
 
-    def _create_ipl_controls_dock(self): #vers 3
+    def _create_ipl_controls_dock(self): #vers 4
         """Dedicated dock for IPL viewing/filtering controls."""
         panel = QWidget()
         from PyQt6.QtWidgets import QButtonGroup
@@ -25398,6 +25398,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
              "Overlay collision geometry at higher opacity than Ghosted"),
             ('wireframe',      "Show Wireframe Col",       "set_show_col_wireframe",
              "Overlay collision geometry as edges only"),
+            ('only',           "Show Col Only",            "set_show_col_only",
+             "Hide the model itself entirely (LODs and normals both) -\n"
+             "shows just whichever collision overlay mode(s) above are on"),
         ]
         for mode, label_text, setter_name, tooltip in col_specs:
             action = render_lod_menu.addAction(label_text)

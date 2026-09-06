@@ -11230,3 +11230,16 @@ conclusively found despite extensive isolated testing.
      prefix/suffix-LOD/plain instances now filter correctly in all 3
      modes, and the existing paired-substitution behaviour is
      unchanged (regression-tested).
+
+- Sep 5 2026 (cont'd) - added "Show Col Only" per Keith: "when
+  showing COL, have the option to show col only, without lods or
+  normals". New show_col_only flag + set_show_col_only setter in
+  dff_viewport.py, alongside the existing 4 collision-overlay flags;
+  _draw_world_instances now skips the model's own glCallList(list_id)
+  entirely when it's on, showing just whichever collision overlay
+  mode(s) (Ghosted/Semi-Solid/Wireframe/Surface Mapped) are also
+  enabled. New "Show Col Only" entry added to the Render dropdown's
+  col_specs list (map_workshop.py) - reuses the exact same generic
+  wiring loop as the other 4, since show_col_only/set_show_col_only
+  already follow that loop's naming convention (show_col_{mode}/
+  set_show_col_{mode}), no special-casing needed.
