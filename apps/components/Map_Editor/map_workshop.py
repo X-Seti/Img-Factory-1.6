@@ -30653,6 +30653,64 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             invert_x=axis.get('x', False),
             invert_y=axis.get('y', False))
 
+    def _update_mode_button_style(self): #vers 2
+        """Switch the Object Browser mode buttons (All/Most Used/
+        Favourites/Generic) between icon+text and icon-only, based on
+        whether the row currently has enough width to show all four
+        with their text labels. Defaults to icon-only."""
+        buttons = getattr(self, '_object_mode_buttons', None)
+        text_widths = getattr(self, '_object_mode_button_text_widths', None)
+        row_widget = getattr(self, '_ob_top_row_widget', None)
+        action_widget = getattr(self, '_ob_action_row_widget', None)
+        tab_buttons = getattr(self, '_object_browser_tab_buttons', None)
+        if not buttons or not text_widths or row_widget is None:
+            return
+        text_style = Qt.ToolButtonStyle.ToolButtonTextBesideIcon
+        icon_style = Qt.ToolButtonStyle.ToolButtonIconOnly
+
+        needed = sum(text_widths.values())
+        if tab_buttons:
+            needed += sum(btn.sizeHint().width() for btn in tab_buttons.values())
+        if action_widget is not None and action_widget.isVisible():
+            needed += action_widget.sizeHint().width()
+        available = row_widget.width()
+
+        target_style = text_style if available >= needed else icon_style
+        for btn in buttons.values():
+            if btn.toolButtonStyle() != target_style:
+                btn.setToolButtonStyle(target_style)
+
+    def _register_collapsible_button_row(self, row_widget, button_specs): #vers 1
+        """Register a row of icon+text QPushButtons (Edit/Save, Open/
+        Close/New/Delete, Extract/Add/Del/Rename/Rebuild, etc.) to
+        collapse to icon-only when the row doesn't have room to show
+        full text, expanding back once there's space - same idea as
+        Object Browser's mode-button collapse."""
+        if not hasattr(self, '_collapsible_button_rows'):
+            self._collapsible_button_rows = {}
+        self._collapsible_button_rows[row_widget] = button_specs
+        row_widget.installEventFilter(self)
+        self._update_button_row_collapse(row_widget)
+
+    def _update_button_row_collapse(self, row_widget): #vers 1
+        """Toggle every button in a registered row between icon+text
+        and icon-only, based on the row's current available width vs
+        each button's estimated icon+text width (font metrics, not an
+        actual style switch - avoids the same measure-during-resize
+        flicker _update_mode_button_style already works around)."""
+        specs = getattr(self, '_collapsible_button_rows', {}).get(row_widget)
+        if not specs:
+            return
+        from PyQt6.QtGui import QFontMetrics
+        needed = 0
+        for btn, text in specs:
+            fm = QFontMetrics(btn.font())
+            needed += fm.horizontalAdvance(text) + btn.iconSize().width() + 24
+        available = row_widget.width()
+        show_text = available >= needed
+        for btn, text in specs:
+            btn.setText(text if show_text else "")
+
     def _assign_world_pane_view(self, pane, label, yaw, pitch, projection): #vers 2
         """Apply a user-chosen preset to one world-view pane. If this
         pane is currently maximized, re-apply the 'Full View' label

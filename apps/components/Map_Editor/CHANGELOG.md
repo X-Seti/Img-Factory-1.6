@@ -11156,3 +11156,23 @@ conclusively found despite extensive isolated testing.
   distinct mode - bright red edges) zoomed in close on one object, to
   determine whether the overlay genuinely never draws at all, or is
   just too subtle/faint to notice on a wide aerial city shot.
+
+- Sep 5 2026 (cont'd) - CRITICAL HOTFIX: Map Workshop couldn't open at
+  all - AttributeError: 'ModelWorkshop' object has no attribute
+  '_update_mode_button_style', crashing __init__ every single time.
+  My own mistake: the earlier dead-code removal (b5eaac2,
+  _create_world_viewport_dock_tmp) deleted a 130-line range that
+  turned out to also contain 3 OTHER, completely unrelated, very much
+  real and actively-called methods sitting right after it -
+  _update_mode_button_style (2 real callers), _register_collapsible_
+  button_row (4 real callers), _update_button_row_collapse (2 real
+  callers) - my boundary check for that removal was wrong and missed
+  them. Restored all 3 verbatim from the pre-deletion commit. The 4th
+  method that diff also removed, _toggle_world_pane_maximize, genuinely
+  has zero remaining callers now that its own sibling dead code
+  (_create_world_viewport_dock_tmp) is gone, so that one correctly
+  stays removed. Also dropped one stray debug print() left in
+  _update_button_row_collapse while restoring it. Verified: all 3
+  restored methods now have matching def+caller pairs, no new
+  duplicate definitions introduced, ast.parse + pyflakes clean (only
+  the two already-flagged, still-untouched dead blocks remain).
