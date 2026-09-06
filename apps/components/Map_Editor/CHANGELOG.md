@@ -11456,3 +11456,31 @@ conclusively found despite extensive isolated testing.
   sounds like a model-geometry issue, not a collision-overlay one
   (collision was always drawn independently of whether the model
   itself renders) - still investigating that part separately.
+
+- Sep 5 2026 (cont'd) - REAL regression fix, per Keith: "we did have
+  COL models loading, but since then, for some reason this stopped
+  working... it should still find the model name in the col, not
+  just the img file, and show them".
+
+  Root cause: _refresh_world_view_impl only ever called model_cache.
+  get_collision(model_name) INSIDE the branch where the model's own
+  DFF geometry had already successfully resolved - when geometry
+  failed, converted[model_name] was set to None outright, which skips
+  the whole instance further down (if base is None: continue) before
+  collision is ever even attempted. Collision and geometry are
+  resolved completely independently (proven by the VC/SA regional-
+  package fix a few commits back) - a model missing its own DFF
+  shouldn't mean its real, resolvable collision never even gets
+  looked up.
+
+  Fixed: when geometry fails to resolve, collision is now looked up
+  independently; if found, builds a real entry with empty model
+  geometry (won't draw as a model in any render style) but real col_
+  vertices/col_triangles, so it still shows up whenever a collision
+  render mode is on - reaching the same "no model style selected"
+  self._mode is None mechanism from a few commits back, just arrived
+  at because this particular model has no geometry rather than
+  because the user deselected one. Verified the empty-geometry
+  display list path is safe (draw functions just iterate zero
+  triangles, no crash) and tested the decision logic directly with
+  both a has-collision and has-neither case.

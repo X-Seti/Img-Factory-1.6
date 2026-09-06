@@ -30588,7 +30588,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         finally:
             self._refresh_world_view_in_progress = False
 
-    def _refresh_world_view_impl(self, instances, auto_fit, clear_display_lists): #vers 3
+    def _refresh_world_view_impl(self, instances, auto_fit, clear_display_lists): #vers 4
         """The actual body of _refresh_world_view, split out only so
         the reentrancy guard above can wrap it in a try/finally
         without a second level of indentation across this whole
@@ -30647,7 +30647,36 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 QApplication.processEvents()
                 dff_model = model_cache.get_geometry(model_name)
                 if dff_model is None or not getattr(dff_model, 'geometries', None):
-                    converted[model_name] = None
+                    # Model geometry missing/unparsed - still attempt
+                    # collision independently by name (Sep 5 2026, per
+                    # Keith: "it should still find the model name in
+                    # the col, not just the img file, and show them").
+                    # Previously this set converted[model_name] = None
+                    # outright, which skipped the whole instance below
+                    # (if base is None: continue) - meaning collision
+                    # was never even looked up for any model whose own
+                    # DFF failed to resolve, even though collision is
+                    # indexed and resolved completely independently of
+                    # geometry. A None-geometry entry with real
+                    # col_vertices/col_triangles still lets this
+                    # instance show up whenever a collision render
+                    # mode is on, via _draw_world_instances' own
+                    # self._mode is None handling for "no model style
+                    # selected" - the same underlying mechanism, just
+                    # reached because THIS model has no geometry
+                    # rather than because the user deselected one.
+                    col_vertices, col_triangles = self._convert_collision_geometry(
+                        model_cache.get_collision(model_name))
+                    if col_vertices and col_triangles:
+                        converted[model_name] = {
+                            'vertices': [], 'normals': [], 'uvs': [],
+                            'triangles': [], 'materials': [], 'prelit': [],
+                            'geom_flags': 0,
+                            'col_vertices': col_vertices,
+                            'col_triangles': col_triangles,
+                        }
+                    else:
+                        converted[model_name] = None
                 else:
                     # Merge every geometry, not just the first (Aug 1 2026)
                     all_vertices, all_normals, all_uvs, all_prelit = [], [], [], []
