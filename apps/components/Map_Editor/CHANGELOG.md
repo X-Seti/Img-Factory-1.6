@@ -11203,3 +11203,30 @@ conclusively found despite extensive isolated testing.
   correctly, same-file pairing (the original working case) still
   works unchanged, and unrelated far-apart same-named instances still
   correctly do NOT pair.
+
+- Sep 5 2026 (cont'd) - two more real fixes per Keith:
+  1. "Don't reset the viewpoint location" when changing render views -
+     _set_lod_display_mode and _set_lod_override both called
+     _apply_ipl_visibility_filter() without auto_fit=False, unlike
+     every other similar toggle in this file - meant every LOD mode
+     change (or per-instance override) re-framed the camera to fit
+     the whole map, losing wherever Keith was actually looking. Fixed
+     both to pass auto_fit=False explicitly. (_set_zone_render_style
+     and the render-mode/col-overlay toggles don't call this function
+     at all, so they were never affected.)
+  2. "In LOD only, I still see the normal models, should only be
+     those prefix or suffixed with LOD" - two real gaps in
+     _apply_lod_filter: (a) unpaired instances (no detected LOD
+     counterpart) always fell through to an unconditional "show
+     regardless of mode" default - my first attempt at a fix still
+     had this same fallback for instances with no LOD signal at all,
+     caught via a synthetic test before pushing; corrected to hide
+     anything not flagged as LOD in 'lod' mode, full stop; (b) LOD-
+     name detection only recognised a "LOD" prefix, not a suffix -
+     new _is_lod_named() checks both, and GTAWorldLoader.resolve_lod_
+     pairs' own name-matching strategy (apps/methods/gta_dat_parser.py)
+     widened the same way so pairing itself also recognises suffix-
+     style LOD names. Verified with synthetic tests: unpaired
+     prefix/suffix-LOD/plain instances now filter correctly in all 3
+     modes, and the existing paired-substitution behaviour is
+     unchanged (regression-tested).

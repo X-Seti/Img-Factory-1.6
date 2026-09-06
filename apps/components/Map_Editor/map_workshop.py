@@ -30557,16 +30557,33 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         threshold = self.map_settings.get('lod_draw_dist_threshold')
         return draw_dist > threshold
 
-    def _apply_lod_filter(self, instances): #vers 3
+    def _is_lod_named(self, model_name): #vers 1
+        """True if model_name is styled as a LOD version by naming
+        convention - "LOD" prefix or suffix, case-insensitive (Sep 5
+        2026, per Keith: "should only be those prefix or suffixed
+        with LOD"). Matches GTAWorldLoader.resolve_lod_pairs' own
+        Strategy 2 naming rule exactly."""
+        name = (model_name or '').lower()
+        return name.startswith('lod') or name.endswith('lod')
+
+    def _apply_lod_filter(self, instances): #vers 4
         """Given an already-IPL-filtered instance list, decide for each
         LOD-paired primary instance which version(s) to keep - per-
         instance override (self._lod_overrides, keyed by id(primary
         instance), one of 'normal'/'lod'/'both'/None) takes precedence
-        over the global mode (self._lod_display_mode). Instances with
-        no LOD pair at all pass through unchanged.
+        over the global mode (self._lod_display_mode).
 
-        Also applies a separate, standalone draw-distance-based LOD
-        check (Aug 1 2026)"""
+        Instances with no detected LOD pair are now filtered directly
+        (Sep 5 2026, per Keith: "in LOD only, I still see the normal
+        models, should only be those prefix or suffixed with LOD") -
+        'lod' mode now shows ONLY instances flagged as LOD, by name
+        ("LOD" prefix/suffix, see _is_lod_named) or by the draw-
+        distance heuristic; everything else is hidden, full stop.
+        'normal' mode is the mirror - hides anything flagged either
+        way. Previously an instance with no LOD signal at all fell
+        through to an unconditional "always show" default in both
+        modes, which is exactly what let plain normal objects with no
+        LOD pair keep appearing in 'lod' mode."""
         pairs = getattr(self, '_lod_pairs', None)
         overrides = getattr(self, '_lod_overrides', {})
         global_mode = getattr(self, '_lod_display_mode', 'normal')
@@ -30583,19 +30600,24 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     result.append(pairs[iid])
                 else:  # 'normal'
                     result.append(inst)
-            elif pairs and iid in paired_target_ids:
+                continue
+            if pairs and iid in paired_target_ids:
                 # This instance IS someone's LOD target - it's only
                 # included via its primary above (in 'lod'/'both' mode),
                 # to avoid duplicates when both members of a pair pass
                 # the IPL filter.
                 continue
-            elif global_mode != 'both' and self._is_lod_by_draw_distance(inst):
-                if global_mode == 'lod':
-                    result.append(inst)
-                # global_mode == 'normal': excluded entirely, no
-                # counterpart to substitute in its place.
-            else:
+            if global_mode == 'both':
                 result.append(inst)
+                continue
+            is_lod = (self._is_lod_named(inst.model_name)
+                      or self._is_lod_by_draw_distance(inst))
+            if global_mode == 'lod':
+                if is_lod:
+                    result.append(inst)
+            else:  # 'normal'
+                if not is_lod:
+                    result.append(inst)
         return result
 
     def _set_lod_display_mode(self, mode): #vers 2
@@ -30605,7 +30627,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         Forces an immediate repaint (Aug 1 2026)"""
         self._lod_display_mode = mode
-        self._apply_ipl_visibility_filter(clear_display_lists=False)
+        self._apply_ipl_visibility_filter(auto_fit=False, clear_display_lists=False)
         vp = getattr(self, 'preview_widget', None)
         if vp is not None and hasattr(vp, 'repaint'):
             vp.repaint()
@@ -30637,7 +30659,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             overrides.pop(primary_key, None)
         else:
             overrides[primary_key] = mode
-        self._apply_ipl_visibility_filter(clear_display_lists=False)
+        self._apply_ipl_visibility_filter(auto_fit=False, clear_display_lists=False)
 
     def _apply_viewport_movement_settings(self, pane, label): #vers 1
         """Apply the configured pan-button/rotate-button/invert-axis

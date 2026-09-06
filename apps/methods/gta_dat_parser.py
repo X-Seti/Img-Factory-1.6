@@ -3326,7 +3326,7 @@ class GTAWorldLoader: #vers 3
         model_id - see timed_objects."""
         return self.timed_objects.get(model_id, [])
 
-    def resolve_lod_pairs(self) -> Dict[int, IPLInstance]: #vers 2
+    def resolve_lod_pairs(self) -> Dict[int, IPLInstance]: #vers 3
         """Resolve each instance's paired LOD counterpart, where one
         exists. Two detection strategies, both run for every game and
         combined (Aug 1 2026, widened from being mutually exclusive
@@ -3378,11 +3378,11 @@ class GTAWorldLoader: #vers 3
                         and inst.lod_index < len(file_instances):
                     pairs[id(inst)] = file_instances[inst.lod_index]
 
-        # Strategy 2: "LOD" name-prefix matching (Sep 5 2026, widened
-        # to span every loaded instance rather than only those sharing
-        # one source IPL file - per Keith: "switch to LOD only... I
-        # am seeing the normal models still" - his own real data
-        # splits a city's content across multiple simultaneously-
+        # Strategy 2: "LOD" name-prefix/suffix matching (Sep 5 2026,
+        # widened to span every loaded instance rather than only those
+        # sharing one source IPL file - per Keith: "switch to LOD
+        # only... I am seeing the normal models still" - his own real
+        # data splits a city's content across multiple simultaneously-
         # loaded files for streaming reasons (LAn.ipl + lan_stream0/
         # 1/2.ipl), unrelated to which instances are LOD pairs, so a
         # normal building and its LOD counterpart can genuinely live
@@ -3390,17 +3390,23 @@ class GTAWorldLoader: #vers 3
         # already the real correctness guard here - two unrelated
         # same-named objects sharing the exact same position anywhere
         # on the whole map is effectively impossible, so this is safe
-        # to widen from "same file only".)
+        # to widen from "same file only". Also widened same day to
+        # recognise a "LOD" SUFFIX, not just prefix, per Keith:
+        # "should only be those prefix or suffixed with LOD".)
         pos_tol = 0.5   # units - allows tiny float/rounding differences
         by_name: Dict[str, list] = {}
         for inst in self.instances:
-            if not inst.model_name.lower().startswith('lod'):
-                by_name.setdefault(inst.model_name.lower(), []).append(inst)
+            n = inst.model_name.lower()
+            if not (n.startswith('lod') or n.endswith('lod')):
+                by_name.setdefault(n, []).append(inst)
         for inst in self.instances:
-            name = inst.model_name
-            if not name.lower().startswith('lod'):
+            n = inst.model_name.lower()
+            if n.startswith('lod'):
+                base_name = n[3:]
+            elif n.endswith('lod'):
+                base_name = n[:-3]
+            else:
                 continue
-            base_name = name[3:].lower()   # strip "LOD"/"lod" prefix
             candidates = by_name.get(base_name, [])
             for cand in candidates:
                 if (abs(cand.pos_x - inst.pos_x) <= pos_tol and
