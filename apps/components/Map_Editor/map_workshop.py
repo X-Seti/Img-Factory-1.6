@@ -3387,6 +3387,19 @@ class MapSettings(QObject):
         'viewport_yaw': None,
         'viewport_pitch': None,
 
+        # Camera angle when centring on a selected instance (Sep 5
+        # 2026, per Keith: "when selecting a model in map workshop,
+        # can we change the camera view, have a setting, view from 0,
+        # +200 so we dont view the model from the bottom, we see it
+        # from the top instead") - off by default since it's a new
+        # behaviour change to opt into; _center_on_instance leaves the
+        # camera's current yaw/pitch alone otherwise, which can leave
+        # it looking up from underneath the model. When on, selecting
+        # an instance also resets pitch to a from-above angle and
+        # dist to focus_from_above_dist.
+        'focus_from_above': False,
+        'focus_from_above_dist': 200.0,
+
         # distinct from paths' red.
         'cull_box_color': (255, 217, 51),
 
@@ -8151,7 +8164,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         btn = getattr(self, 'menu_btn', None)
         if btn: menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
 
-    def _build_workshop_settings_tabs(self): #vers 1
+    def _build_workshop_settings_tabs(self): #vers 2
         """Build the workshop settings QTabWidget (Fonts/Display/
         Performance/Preview/Loading/Map Assets/Navigation) and the
         Apply callback that reads all their widgets back and
@@ -9432,6 +9445,32 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "or other viewport elements yet.")
         nav_lay.addWidget(hover_highlight_chk)
 
+        # View from above when selecting a model (Sep 5 2026, per
+        # Keith: "when selecting a model in map workshop, can we
+        # change the camera view, have a setting, view from 0, +200
+        # so we dont view the model from the bottom, we see it from
+        # the top instead")
+        focus_above_chk = QCheckBox("View from above when selecting a model")
+        focus_above_chk.setChecked(bool(self.map_settings.get('focus_from_above')))
+        focus_above_chk.setToolTip(
+            "When selecting/double-clicking a model, reset the camera\n"
+            "to look straight down from above instead of keeping\n"
+            "whatever angle it already happened to be at (which can\n"
+            "end up looking up at the model from underneath).")
+        nav_lay.addWidget(focus_above_chk)
+
+        focus_above_dist_row = QHBoxLayout()
+        focus_above_dist_row.addWidget(QLabel("From-above height:"))
+        focus_above_dist_spin = QDoubleSpinBox()
+        focus_above_dist_spin.setRange(10.0, 2000.0)
+        focus_above_dist_spin.setSingleStep(10.0)
+        focus_above_dist_spin.setValue(float(self.map_settings.get('focus_from_above_dist', 200.0)))
+        focus_above_dist_spin.setEnabled(focus_above_chk.isChecked())
+        focus_above_chk.toggled.connect(focus_above_dist_spin.setEnabled)
+        focus_above_dist_row.addWidget(focus_above_dist_spin)
+        nav_lay.addLayout(focus_above_dist_row)
+
+
         nav_lay.addStretch()
         tabs.addTab(nav_tab, "Navigation")
 
@@ -9527,6 +9566,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.map_settings.set('auto_highlight_hover', hover_highlight_chk.isChecked())
             if vp2 is not None and hasattr(vp2, 'set_hover_highlight_enabled'):
                 vp2.set_hover_highlight_enabled(hover_highlight_chk.isChecked())
+            self.map_settings.set('focus_from_above', focus_above_chk.isChecked())
+            self.map_settings.set('focus_from_above_dist', float(focus_above_dist_spin.value()))
 
             # Keybindings (Aug 16 2026)
             key_overrides = {}
@@ -21023,17 +21064,31 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         pane.update()
         self._show_instance_edit_panel(inst)
 
-    def _center_on_instance(self, inst, nav_info=None): #vers 2
+    def _center_on_instance(self, inst, nav_info=None): #vers 3
         """Centre all three World View panes' cameras on an instance,
         show an XYZ gizmo at its position, and show/update its edit
         panel - the shared behaviour for both single- and double-
         clicking an Instance List row, and (since the Object Browser
         merge) selecting a model row with one or more placements.
         nav_info, if given, is (current_index, total_count) for
-        Prev/Next cycling through a model's other placements."""
+        Prev/Next cycling through a model's other placements.
+
+        focus_from_above (Sep 5 2026, per Keith: "can we change the
+        camera view, have a setting, view from 0, +200 so we dont
+        view the model from the bottom, we see it from the top
+        instead") - when on, also resets yaw/pitch/dist to a fixed
+        from-above angle rather than leaving whatever angle the
+        camera already happened to be at, which could be looking up
+        from underneath the model."""
+        from_above = self.map_settings.get('focus_from_above', False)
+        focus_dist = self.map_settings.get('focus_from_above_dist', 200.0)
         for pane in getattr(self, '_world_panes', []):
             pane._pan_x = -inst.pos_x
             pane._pan_y = -inst.pos_y
+            if from_above:
+                pane._yaw = 0.0
+                pane._pitch = 89.0
+                pane._dist = focus_dist
             pane.set_gizmo_position((inst.pos_x, inst.pos_y, inst.pos_z))
         self._show_instance_edit_panel(inst, nav_info)
 
@@ -26832,19 +26887,33 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 self._set_status(f"Instance is inside zone '{name}'")
                 return
 
-    def _center_viewport_on_instance(self, inst): #vers 3
+    def _center_viewport_on_instance(self, inst): #vers 4
         """Pan/zoom self.preview_widget (our actual active viewport)
         to focus closely on one instance's position - _center_on_
         instance (existing, ported code) only ever updated the
         Map-specific _world_panes, which this build doesn't use (see
         CHANGELOG.md - "keep using Model Workshop's existing DFF
-        viewport"), so it never actually moved anything visible here."""
+        viewport"), so it never actually moved anything visible here.
+
+        focus_from_above (Sep 5 2026, per Keith: "when selecting a
+        model in map workshop, can we change the camera view, have a
+        setting, view from 0, +200 so we dont view the model from the
+        bottom, we see it from the top instead") - off by default;
+        when on, also resets yaw/pitch to a fixed from-above angle
+        rather than leaving whatever angle the camera already
+        happened to be at, which could be looking up from
+        underneath the model."""
         vp = getattr(self, 'preview_widget', None)
         if vp is None:
             return
         vp._pan_x = -inst.pos_x
         vp._pan_y = -inst.pos_y
-        vp._dist = getattr(self, '_goto_zoom_distance', 40.0)
+        if self.map_settings.get('focus_from_above', False):
+            vp._yaw = 0.0
+            vp._pitch = 89.0
+            vp._dist = self.map_settings.get('focus_from_above_dist', 200.0)
+        else:
+            vp._dist = getattr(self, '_goto_zoom_distance', 40.0)
         if getattr(vp, '_projection', None) == 'ortho':
             try:
                 vp.resizeGL(vp.width(), vp.height())

@@ -11041,3 +11041,31 @@ conclusively found despite extensive isolated testing.
      cutouts now, matching Keith's own screenshots exactly. Same bug,
      same fix, applied to all 4 copies of txd_parser.py (apps/methods,
      Model_Editor, Map_Editor, Vehicle_Workshop depends/ folders).
+
+- Sep 5 2026 (cont'd) - "View from above when selecting a model"
+  setting, per Keith: "when selecting a model in map workshop, can we
+  change the camera view, have a setting, view from 0, +200 so we
+  dont view the model from the bottom, we see it from the top
+  instead, but a display setting in map_workshop".
+
+  Found the real, active code path first: _center_on_instance (the
+  one selecting an Instance List row calls) turned out to be dead -
+  it only ever updates self._world_panes, which this build never
+  populates (confirmed: self._world_panes = [] and nothing ever
+  appends to it). The actual function moving the visible camera when
+  selecting a row in the Object Browser's IPL Inst File table is
+  _center_viewport_on_instance, which only ever touched pan_x/pan_y/
+  dist - never yaw/pitch - so the camera kept whatever angle it
+  already happened to be at, which could end up looking up from
+  underneath the model.
+
+  New focus_from_above / focus_from_above_dist settings (off by
+  default). When on, _center_viewport_on_instance also resets yaw to
+  0 and pitch to 89 (not 90 - matches this viewport's own existing
+  drag-rotation clamp of ±89, avoiding a gimbal-lock-style glitch
+  exactly straight down) and dist to the configurable height (default
+  200). New checkbox + height spinbox added to the Navigation section
+  of the real, working settings tabs (_build_workshop_settings_tabs -
+  distinct from the separate _show_settings_dialog fixed earlier
+  today), right next to the existing Zoom-to-cursor/Auto-highlight
+  toggles.
