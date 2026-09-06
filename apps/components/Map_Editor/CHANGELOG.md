@@ -11243,3 +11243,25 @@ conclusively found despite extensive isolated testing.
   wiring loop as the other 4, since show_col_only/set_show_col_only
   already follow that loop's naming convention (show_col_{mode}/
   set_show_col_{mode}), no special-casing needed.
+
+- Sep 5 2026 (cont'd) - moved "Show Col Only" per Keith's follow-up:
+  "show only col in the Dff normal, lod... etc section so i can
+  select Surface, Semi, wireframe, ghosted" - out of its own
+  standalone checkbox (added last commit) and into the Normal/LOD/
+  Both exclusive group instead, as a 4th "Show Col Only" option.
+
+  _set_lod_display_mode now handles 'col' specially: sets the
+  viewport's show_col_only flag (hides all models) while keeping the
+  real underlying _lod_display_mode at 'both' - so no instance's
+  collision is excluded just because it's a LOD or normal placement -
+  and tracks the menu's own radio selection separately via a new
+  _lod_menu_mode attribute (since _lod_display_mode itself has to stay
+  a real filter value, never literally 'col', for the two other
+  places that read it for actual filtering). Switching back to
+  Normal/LOD/Both turns show_col_only back off automatically. The 4
+  collision-style checkboxes (Ghosted/Surface Mapped/Semi-Solid/
+  Wireframe) are unchanged - picking Col-only first, then a style,
+  is the intended flow. Verified with a synthetic test: 'col' sets
+  show_col_only=True and _lod_display_mode='both'; switching to 'lod'
+  correctly resets show_col_only=False; switching col->both leaves
+  show_col_only=False and _lod_menu_mode='both' as expected.

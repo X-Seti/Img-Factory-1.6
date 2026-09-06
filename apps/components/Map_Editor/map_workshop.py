@@ -25221,7 +25221,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return
         self._on_ipl_data_type_changed(keys[index])
 
-    def _create_ipl_controls_dock(self): #vers 4
+    def _create_ipl_controls_dock(self): #vers 5
         """Dedicated dock for IPL viewing/filtering controls."""
         panel = QWidget()
         from PyQt6.QtWidgets import QButtonGroup
@@ -25377,11 +25377,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             ('lod',    "Show LOD only", "Show only LOD (low-detail) instances"),
             ('normal', "Show Normals",  "Show only normal-detail instances (default)"),
             ('both',   "Show Both",     "Show both normal and LOD (low-detail) instances together"),
+            ('col',    "Show Col Only", "Hide all models (LOD and normal both) - shows just\n"
+                                         "their collision geometry. Pick which style with the\n"
+                                         "Ghosted/Surface Mapped/Semi-Solid/Wireframe checkboxes below."),
         ]
         for mode, label_text, tooltip in lod_specs:
             action = render_lod_menu.addAction(label_text)
             action.setCheckable(True)
-            action.setChecked(mode == getattr(self, '_lod_display_mode', 'normal'))
+            action.setChecked(mode == getattr(self, '_lod_menu_mode', 'normal'))
             action.setToolTip(tooltip)
             action.triggered.connect(lambda checked, m=mode: self._set_lod_display_mode(m) if checked else None)
             lod_group.addAction(action)
@@ -25398,9 +25401,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
              "Overlay collision geometry at higher opacity than Ghosted"),
             ('wireframe',      "Show Wireframe Col",       "set_show_col_wireframe",
              "Overlay collision geometry as edges only"),
-            ('only',           "Show Col Only",            "set_show_col_only",
-             "Hide the model itself entirely (LODs and normals both) -\n"
-             "shows just whichever collision overlay mode(s) above are on"),
         ]
         for mode, label_text, setter_name, tooltip in col_specs:
             action = render_lod_menu.addAction(label_text)
@@ -30623,15 +30623,34 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     result.append(inst)
         return result
 
-    def _set_lod_display_mode(self, mode): #vers 2
-        """Global LOD display mode - 'normal' (default), 'lod', or
-        'both'. Per-instance overrides (set via the Instance List)
+    def _set_lod_display_mode(self, mode): #vers 3
+        """Global LOD display mode - 'normal' (default), 'lod', 'both',
+        or 'col'. Per-instance overrides (set via the Instance List)
         still take precedence over this for any instance they cover.
 
+        'col' (Sep 5 2026, per Keith: "show only col in the Dff
+        normal, lod... etc section so i can select Surface, Semi,
+        wireframe, ghosted" - moved here from a separate standalone
+        checkbox so picking Col-only and picking which collision
+        style to draw both live in one natural place) hides every
+        model via the viewport's show_col_only flag, and keeps the
+        underlying LOD/normal filter at 'both' so no instance's
+        collision is excluded just because of its own LOD status -
+        _lod_menu_mode (not _lod_display_mode, which must stay a real
+        filter value) is what the menu's own radio state reflects.
+
         Forces an immediate repaint (Aug 1 2026)"""
-        self._lod_display_mode = mode
-        self._apply_ipl_visibility_filter(auto_fit=False, clear_display_lists=False)
         vp = getattr(self, 'preview_widget', None)
+        self._lod_menu_mode = mode
+        if mode == 'col':
+            self._lod_display_mode = 'both'
+            if vp is not None and hasattr(vp, 'set_show_col_only'):
+                vp.set_show_col_only(True)
+        else:
+            self._lod_display_mode = mode
+            if vp is not None and hasattr(vp, 'set_show_col_only'):
+                vp.set_show_col_only(False)
+        self._apply_ipl_visibility_filter(auto_fit=False, clear_display_lists=False)
         if vp is not None and hasattr(vp, 'repaint'):
             vp.repaint()
 
