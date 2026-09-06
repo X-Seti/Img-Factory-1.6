@@ -11265,3 +11265,14 @@ conclusively found despite extensive isolated testing.
   show_col_only=True and _lod_display_mode='both'; switching to 'lod'
   correctly resets show_col_only=False; switching col->both leaves
   show_col_only=False and _lod_menu_mode='both' as expected.
+
+- Sep 5 2026 (cont'd) - "IPL file editor should stay on top, with a
+  settings toggle option" per Keith. New ipl_editor_always_on_top
+  setting (off by default) + checkbox in the Navigation settings
+  section, next to the other recent camera/viewport toggles. New
+  _apply_ipl_editor_on_top_setting() applies WindowStaysOnTopHint to
+  the IPL Object Editor dock - called both when the dock is first
+  created and when the setting is toggled live in Settings (Qt
+  requires re-showing a window after changing its flags while visible
+  for the change to actually apply, handled here rather than left as
+  a stale flag until the next reopen).

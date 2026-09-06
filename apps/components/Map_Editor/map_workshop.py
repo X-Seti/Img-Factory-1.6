@@ -3400,6 +3400,12 @@ class MapSettings(QObject):
         'focus_from_above': False,
         'focus_from_above_dist': 200.0,
 
+        # IPL Object Editor always-on-top (Sep 5 2026, per Keith: "the
+        # IPL file editor should stay on top, with a settings toggle
+        # option") - off by default, matching every other new opt-in
+        # behaviour toggle added this session.
+        'ipl_editor_always_on_top': False,
+
         # distinct from paths' red.
         'cull_box_color': (255, 217, 51),
 
@@ -8164,7 +8170,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         btn = getattr(self, 'menu_btn', None)
         if btn: menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
 
-    def _build_workshop_settings_tabs(self): #vers 2
+    def _build_workshop_settings_tabs(self): #vers 3
         """Build the workshop settings QTabWidget (Fonts/Display/
         Performance/Preview/Loading/Map Assets/Navigation) and the
         Apply callback that reads all their widgets back and
@@ -9470,6 +9476,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         focus_above_dist_row.addWidget(focus_above_dist_spin)
         nav_lay.addLayout(focus_above_dist_row)
 
+        # IPL Object Editor always-on-top (Sep 5 2026, per Keith: "the
+        # IPL file editor should stay on top, with a settings toggle
+        # option")
+        ipl_editor_on_top_chk = QCheckBox("Keep IPL Object Editor on top")
+        ipl_editor_on_top_chk.setChecked(bool(self.map_settings.get('ipl_editor_always_on_top')))
+        ipl_editor_on_top_chk.setToolTip(
+            "Keeps the IPL Object Editor window above other windows,\n"
+            "including outside this app, instead of it being able to\n"
+            "get covered by whatever you click on next.")
+        nav_lay.addWidget(ipl_editor_on_top_chk)
 
         nav_lay.addStretch()
         tabs.addTab(nav_tab, "Navigation")
@@ -9568,6 +9584,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 vp2.set_hover_highlight_enabled(hover_highlight_chk.isChecked())
             self.map_settings.set('focus_from_above', focus_above_chk.isChecked())
             self.map_settings.set('focus_from_above_dist', float(focus_above_dist_spin.value()))
+            self.map_settings.set('ipl_editor_always_on_top', ipl_editor_on_top_chk.isChecked())
+            self._apply_ipl_editor_on_top_setting()
 
             # Keybindings (Aug 16 2026)
             key_overrides = {}
@@ -21087,7 +21105,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             pane.set_gizmo_position((inst.pos_x, inst.pos_y, inst.pos_z))
         self._show_instance_edit_panel(inst, nav_info)
 
-    def _show_instance_edit_panel(self, inst, nav_info=None): #vers 3
+    def _show_instance_edit_panel(self, inst, nav_info=None): #vers 4
         """Show (creating on first use) the non-modal object edit panel
         for one instance - stays open and gets its content refreshed
         for whichever instance is currently selected, rather than a
@@ -21111,6 +21129,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             dock.setFloating(True)
             dock.setWindowFlags(
                 (dock.windowFlags() & ~Qt.WindowType.WindowType_Mask) | Qt.WindowType.Window)
+            self._apply_ipl_editor_on_top_setting()
             dock.show()
             dock.resize(620, 400)
 
@@ -21124,6 +21143,30 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                                 getattr(self, '_model_cache', None))
         dock.show()
         dock.raise_()
+
+    def _apply_ipl_editor_on_top_setting(self): #vers 1
+        """Apply the ipl_editor_always_on_top setting (Sep 5 2026, per
+        Keith: "the IPL file editor should stay on top, with a
+        settings toggle option") to the IPL Object Editor dock, if it
+        exists yet. Qt requires re-showing a window after changing its
+        flags while visible for the change to actually take effect,
+        so this re-shows it when already visible rather than just
+        setting the flag and leaving the old window state up."""
+        dock = getattr(self, '_instance_edit_dock', None)
+        if dock is None:
+            return
+        on_top = self.map_settings.get('ipl_editor_always_on_top', False)
+        flags = dock.windowFlags()
+        wants = bool(flags & Qt.WindowType.WindowStaysOnTopHint)
+        if wants == on_top:
+            return
+        was_visible = dock.isVisible()
+        if on_top:
+            dock.setWindowFlags(flags | Qt.WindowType.WindowStaysOnTopHint)
+        else:
+            dock.setWindowFlags(flags & ~Qt.WindowType.WindowStaysOnTopHint)
+        if was_visible:
+            dock.show()
 
     def _on_instance_edited(self, inst): #vers 3
         """Called by _InstanceEditPanel."""
