@@ -25221,7 +25221,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return
         self._on_ipl_data_type_changed(keys[index])
 
-    def _create_ipl_controls_dock(self): #vers 2
+    def _create_ipl_controls_dock(self): #vers 3
         """Dedicated dock for IPL viewing/filtering controls."""
         panel = QWidget()
         from PyQt6.QtWidgets import QButtonGroup
@@ -25402,7 +25402,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         for mode, label_text, setter_name, tooltip in col_specs:
             action = render_lod_menu.addAction(label_text)
             action.setCheckable(True)
-            action.setChecked(False)
+            action.setChecked(bool(getattr(
+                getattr(self, 'preview_widget', None), f'show_col_{mode}', False)))
             action.setToolTip(tooltip)
             action.triggered.connect(
                 lambda checked, s=setter_name: self._on_col_render_option_toggled(s, checked))

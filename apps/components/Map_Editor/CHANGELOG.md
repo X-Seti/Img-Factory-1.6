@@ -11119,3 +11119,40 @@ conclusively found despite extensive isolated testing.
   showEvent/resizeEvent don't call them at all; _toggle_cull_boxes
   is called "a real, working feature" in its own docstring but has no
   caller) - triaged one at a time as Keith confirms each.
+
+- Sep 5 2026 (cont'd) - investigated Keith's report: "check ghosted
+  col, surface mapped col, semi and wireframe col functions, as these
+  do not work" (screenshot showed all 4 checked in the Render dropdown
+  but a fully normal-looking city with no visible overlay).
+
+  Traced the whole chain end to end - all confirmed correct, no bugs:
+  menu action -> _on_col_render_option_toggled -> vp.set_show_col_* ->
+  col_modes list -> _draw_world_instances' entry.get('col_vertices')
+  check -> _draw_collision_faces. Also verified the data flow that
+  builds col_vertices/col_triangles per instance and copies them into
+  world entries - correct. Empirically tested the actual COLFile
+  parser against a real single-model COL chunk (sliced from a real
+  standalone .col package) to simulate exactly what SA's embedded-
+  in-IMG collision format looks like (a different code path than the
+  standalone-.col pattern already tested for VC/SOL earlier this
+  session) - parses correctly, 1 model found, correct name.
+
+  Did find one real, separate bug while comparing this menu section
+  against its sibling loops (lod_specs/zon_render_specs, right above
+  and below it in the same function): the 4 collision-overlay
+  checkboxes hardcoded action.setChecked(False) every single time the
+  Render dropdown menu was rebuilt, completely ignoring the viewport's
+  actual real show_col_* state, unlike its siblings which correctly
+  read real state (getattr(self,'_lod_display_mode',...) /
+  self.map_settings.get(...)). Fixed to read getattr(preview_widget,
+  f'show_col_{mode}', False) instead - the menu's checkmarks now
+  actually reflect reality instead of always looking freshly
+  unchecked regardless of what's actually toggled on.
+
+  Everything else in the actual render chain checks out architecturally
+  and empirically - unable to find a deeper bug from static analysis/
+  synthetic testing alone (no real GL rendering available in this
+  environment). Asked Keith to test Wireframe (the most visually
+  distinct mode - bright red edges) zoomed in close on one object, to
+  determine whether the overlay genuinely never draws at all, or is
+  just too subtle/faint to notice on a wide aerial city shot.
