@@ -11362,3 +11362,52 @@ conclusively found despite extensive isolated testing.
   scan, confirmed clean, then verified all 8 new icons actually render
   (non-null, rendered a real icon sheet and looked at it) before
   pushing anything.
+
+- Sep 5 2026 (cont'd) - full Render dropdown redesign per Keith's own
+  detailed follow-up on the earlier Col Only work:
+
+  Model render style (renamed): "Texture" -> "Model Textures",
+  "Non-texture" -> "Model W/Out Textures", "Semi-Solid" -> "Model
+  Semi-Solid", "Wireframe" -> "Model Wireframe", "Dots" -> "Show
+  models as Dots". Changed from a strict exclusive QActionGroup radio
+  to independently checkable entries with manual soft-exclusive logic
+  - "Each entry in render needs to be selected or unselected... check
+  to show Textures models and Wireframe COLs together, or Deselect
+  Model Textures to only show Col Wireframe". Picking one unchecks
+  any other in the group (still only one model style at a time makes
+  sense), but unlike a real QActionGroup, clicking the already-
+  checked one now deselects it, leaving self._mode = None.
+
+  "Show LOD only" and "Show Col Only" removed entirely ("does not
+  work. Please remove this" - stated separately for each). LOD group
+  is now just Show Normals/Show Both (unchanged mechanism, Keith
+  didn't ask to touch this pair specifically). Simplified _set_lod_
+  display_mode back down since the 'col' special-case (and its
+  _lod_menu_mode tracking) no longer exists.
+
+  Collision overlay (renamed): "Show Ghosted Col" -> "Show COL
+  Ghosted", "Show Surface Mapped Col" -> "Show COL Surfaces Mapping",
+  "Show Semi-Solid Col" -> "Show COL Semi-Solid", "Show Wireframe Col"
+  -> "Show COL Wireframe". Made soft-exclusive the same way - "Only
+  one COL entry should be shown, as there is no point trying to
+  select them all" - checking one explicitly turns the others off on
+  the viewport too (not just visually unchecked), still fully
+  deselectable to none.
+
+  dff_viewport.py: retired show_col_only/set_show_col_only entirely -
+  "no model style selected" (self._mode is None) now achieves the
+  same "collision only, no model" effect naturally, since collision
+  was always drawn independently of the model style choice anyway.
+  _draw_world_instances restructured with a genuine None branch that
+  draws collision overlays for every instance that has any, skipping
+  model geometry entirely, rather than a separate flag bolted onto
+  the existing textured/wireframe/etc branches.
+
+  Verified before pushing: full duplicate-method scan (clean, only
+  the already-flagged unrelated _create_preview_widget remains),
+  syntax check, and two direct empirical tests using real QActions in
+  a headless QApplication - confirmed the model-style group correctly
+  switches modes and deselects to None on a second click of the same
+  entry, and confirmed the COL group correctly turns other entries'
+  real viewport flags off (not just their checkboxes) when a new one
+  is selected.

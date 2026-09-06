@@ -402,12 +402,6 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self.show_col_semi_solid     = False
         self.show_col_wireframe      = False
         self.show_col_surface_mapped = False
-        # Hide the model itself entirely, showing only its collision
-        # overlay (Sep 5 2026, per Keith: "when showing COL, have the
-        # option to show col only, without lods or normals") -
-        # independent of which col overlay mode(s) are on; off by
-        # default.
-        self.show_col_only           = False
         # Separate display-list cache, keyed by (model_key, col mode) -
         # mirrors _world_display_lists exactly but kept apart since a
         # model's collision geometry is entirely different data
@@ -3680,13 +3674,6 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
     def set_show_col_surface_mapped(self, enabled: bool): #vers 1
         self.show_col_surface_mapped = enabled; self.update()
 
-    def set_show_col_only(self, enabled: bool): #vers 1
-        """Hide the model itself entirely (its own display list is
-        simply not called), showing only whichever collision overlay
-        mode(s) are currently on - see _draw_world_instances' own
-        skip of glCallList(list_id) right below this flag's check."""
-        self.show_col_only = enabled; self.update()
-
     def set_show_paths(self, enabled: bool): #vers 1
         self.show_paths = enabled; self.update()
 
@@ -5229,7 +5216,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._dots_cube_list_id = list_id
         return list_id
 
-    def _draw_world_instances(self): #vers 4
+    def _draw_world_instances(self): #vers 5
         """Per instance: glPushMatrix/translate/rotate/scale, then
         replay a pre-compiled display list (Aug 1 2026 perf fix, per
         Keith: "bottlenecking is trying to move the objects in the
@@ -5285,6 +5272,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         if self.show_col_semi_solid:     col_modes.append('semi_solid')
         if self.show_col_wireframe:      col_modes.append('wireframe')
         if self.show_col_surface_mapped: col_modes.append('surface_mapped')
+
         if self._mode == 'dots':
             list_id = self._ensure_dots_cube_display_list()
             glDisable(GL_LIGHTING)
@@ -5293,8 +5281,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 px, py, pz = entry.get('pos', (0.0, 0.0, 0.0))
                 glPushMatrix()
                 glTranslatef(px, py, pz)
-                if not self.show_col_only:
-                    glCallList(list_id)
+                glCallList(list_id)
                 if col_modes and entry.get('col_vertices') and entry.get('col_triangles'):
                     self._col_vertices  = entry.get('col_vertices')
                     self._col_triangles = entry.get('col_triangles')
@@ -5312,6 +5299,41 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 glPopMatrix()
             glEnable(GL_LIGHTING)
             return
+
+        if self._mode is None:
+            # No model render style selected (Sep 5 2026, per Keith:
+            # "Deselect Model Textures to only show Col Wireframe") -
+            # draw ONLY collision overlays, for every instance that
+            # has any, skipping model geometry entirely rather than
+            # the old separate show_col_only flag.
+            if not col_modes:
+                return
+            for entry in self._world_instances:
+                if not (entry.get('col_vertices') and entry.get('col_triangles')):
+                    continue
+                model_key = entry.get('model_key', id(entry))
+                glPushMatrix()
+                px, py, pz = entry.get('pos', (0.0, 0.0, 0.0))
+                glTranslatef(px, py, pz)
+                rx, ry, rz, rw = entry.get('rot', (0.0, 0.0, 0.0, 1.0))
+                glMultMatrixf(self._quat_to_gl_matrix(rx, ry, rz, rw))
+                sx, sy, sz = entry.get('scale', (1.0, 1.0, 1.0))
+                glScalef(sx, sy, sz)
+                self._col_vertices  = entry.get('col_vertices')
+                self._col_triangles = entry.get('col_triangles')
+                for mode in col_modes:
+                    col_cache_key = (model_key, mode)
+                    col_list_id = self._col_display_lists.get(col_cache_key)
+                    if col_list_id is None:
+                        col_list_id = glGenLists(1)
+                        glNewList(col_list_id, GL_COMPILE)
+                        self._draw_collision_faces(mode)
+                        glEndList()
+                        self._col_display_lists[col_cache_key] = col_list_id
+                    glCallList(col_list_id)
+                glPopMatrix()
+            return
+
         old_v,old_n,old_u,old_t,old_m,old_p,old_f = (
             self._vertices,self._normals,self._uvs,
             self._triangles,self._materials,self._prelit,
@@ -5366,8 +5388,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             glMultMatrixf(self._quat_to_gl_matrix(rx, ry, rz, rw))
             sx, sy, sz = entry.get('scale', (1.0, 1.0, 1.0))
             glScalef(sx, sy, sz)
-            if not self.show_col_only:
-                glCallList(list_id)
+            glCallList(list_id)
             # Collision overlay (Aug 14 2026) - drawn inside the same
             # instance transform, right after the model itself, so it
             # sits exactly where the model's own collision belongs.

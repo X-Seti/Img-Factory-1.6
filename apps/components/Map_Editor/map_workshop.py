@@ -25525,7 +25525,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return
         self._on_ipl_data_type_changed(keys[index])
 
-    def _create_ipl_controls_dock(self): #vers 6
+    def _create_ipl_controls_dock(self): #vers 7
         """Dedicated dock for IPL viewing/filtering controls."""
         panel = QWidget()
         from PyQt6.QtWidgets import QButtonGroup
@@ -25653,68 +25653,114 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         render_lod_btn.setStyleSheet(_compact_18)
         render_lod_menu = QMenu(render_lod_btn)
 
-        render_group = QActionGroup(render_lod_menu)
-        render_group.setExclusive(True)
+        # Model render style (Sep 5 2026, per Keith's own detailed
+        # follow-up: renamed for clarity, and changed from a strict
+        # exclusive radio group to independently checkable entries
+        # that can also all be deselected - "Each entry in render
+        # needs to be selected or unselected... Deselect Model
+        # Textures to only show Col Wireframe". Soft-exclusive: picking
+        # one unchecks any other (still only one model style makes
+        # sense at a time), but unlike a real QActionGroup, clicking
+        # the already-checked one turns it off, leaving self._mode as
+        # None - _draw_world_instances' own None branch then shows
+        # collision only, with no separate Col Only mode needed.
         render_specs = [
-            ('textured',   "Texture",     "Full textures, as loaded from the game's TXDs"),
-            ('solid',      "Non-texture", "Flat/lit shading, no textures"),
-            ('semi_solid', "Semi-Solid",  "Flat/lit shading with reduced opacity - a ghosted, see-through look"),
-            ('wireframe',  "Wireframe",   "Edges only, no fill"),
-            ('dots',       "Dots",        "Just a point at each instance's own placement - no model or\n"
-                                          "texture loading at all, for viewing/navigating a huge map fast"),
+            ('textured',   "Model Textures",         "Full textures, as loaded from the game's TXDs"),
+            ('solid',      "Model W/Out Textures",   "Flat/lit shading, no textures"),
+            ('semi_solid', "Model Semi-Solid",       "Flat/lit shading with reduced opacity - a ghosted, see-through look"),
+            ('wireframe',  "Model Wireframe",        "Edges only, no fill"),
+            ('dots',       "Show models as Dots",    "Just a point at each instance's own placement - no model or\n"
+                                                      "texture loading at all, for viewing/navigating a huge map fast"),
         ]
+        render_labels = {m: l for m, l, t in render_specs}
+        render_actions = []
+
+        def _on_render_style_toggled(checked, mode):
+            if checked:
+                for action, m in render_actions:
+                    if m != mode:
+                        action.blockSignals(True)
+                        action.setChecked(False)
+                        action.blockSignals(False)
+                self._set_world_render_mode(mode, render_labels[mode], render_lod_btn)
+            elif not any(a.isChecked() for a, m in render_actions):
+                self._set_world_render_mode(None, "None", render_lod_btn)
+
         for mode, label_text, tooltip in render_specs:
             action = render_lod_menu.addAction(label_text)
             action.setCheckable(True)
             action.setChecked(mode == getattr(
                 getattr(self, 'preview_widget', None), '_mode', 'textured'))
             action.setToolTip(tooltip)
-            action.triggered.connect(
-                lambda checked, m=mode, lbl=label_text, btn=render_lod_btn:
-                    self._set_world_render_mode(m, lbl, btn) if checked else None)
-            render_group.addAction(action)
+            render_actions.append((action, mode))
+        for action, mode in render_actions:
+            action.toggled.connect(lambda checked, m=mode: _on_render_style_toggled(checked, m))
 
         render_lod_menu.addSeparator()
 
+        # LOD display mode (Sep 5 2026, per Keith: "Show LOD only can
+        # go, does not work. Please remove this.") - down to just
+        # Normal/Both, unchanged mechanism (still a real exclusive
+        # radio - Keith didn't ask to change this pair, only to
+        # remove the broken "LOD only" entry, which has also taken
+        # the now-unused "Col Only" entry with it).
         lod_group = QActionGroup(render_lod_menu)
         lod_group.setExclusive(True)
         lod_specs = [
-            ('lod',    "Show LOD only", "Show only LOD (low-detail) instances"),
             ('normal', "Show Normals",  "Show only normal-detail instances (default)"),
             ('both',   "Show Both",     "Show both normal and LOD (low-detail) instances together"),
-            ('col',    "Show Col Only", "Hide all models (LOD and normal both) - shows just\n"
-                                         "their collision geometry. Pick which style with the\n"
-                                         "Ghosted/Surface Mapped/Semi-Solid/Wireframe checkboxes below."),
         ]
         for mode, label_text, tooltip in lod_specs:
             action = render_lod_menu.addAction(label_text)
             action.setCheckable(True)
-            action.setChecked(mode == getattr(self, '_lod_menu_mode', 'normal'))
+            action.setChecked(mode == getattr(self, '_lod_display_mode', 'normal'))
             action.setToolTip(tooltip)
             action.triggered.connect(lambda checked, m=mode: self._set_lod_display_mode(m) if checked else None)
             lod_group.addAction(action)
 
         render_lod_menu.addSeparator()
 
-        # Collision overlay options (Aug 14 2026)
+        # Collision overlay options (Aug 14 2026, renamed + made
+        # soft-exclusive Sep 5 2026 per Keith: "Only one COL entry
+        # should be shown, as there is no point trying to select them
+        # all" - same soft-exclusive-with-deselect pattern as the
+        # model-style group above, just against the 4 show_col_*
+        # viewport flags instead of self._mode.
         col_specs = [
-            ('ghosted',        "Show Ghosted Col",        "set_show_col_ghosted",
+            ('ghosted',        "Show COL Ghosted",        "set_show_col_ghosted",
              "Overlay collision geometry as a low-opacity ghost"),
-            ('surface_mapped', "Show Surface Mapped Col",  "set_show_col_surface_mapped",
+            ('surface_mapped', "Show COL Surfaces Mapping", "set_show_col_surface_mapped",
              "Overlay collision geometry coloured by surface/material type"),
-            ('semi_solid',     "Show Semi-Solid Col",      "set_show_col_semi_solid",
+            ('semi_solid',     "Show COL Semi-Solid",     "set_show_col_semi_solid",
              "Overlay collision geometry at higher opacity than Ghosted"),
-            ('wireframe',      "Show Wireframe Col",       "set_show_col_wireframe",
+            ('wireframe',      "Show COL Wireframe",      "set_show_col_wireframe",
              "Overlay collision geometry as edges only"),
         ]
+        col_actions = []
+
+        def _on_col_style_toggled(checked, mode, setter_name):
+            vp = getattr(self, 'preview_widget', None)
+            if checked:
+                for action, m, s in col_actions:
+                    if m != mode:
+                        action.blockSignals(True)
+                        action.setChecked(False)
+                        action.blockSignals(False)
+                        other_setter = getattr(vp, s, None) if vp is not None else None
+                        if callable(other_setter):
+                            other_setter(False)
+            self._on_col_render_option_toggled(setter_name, checked)
+
         for mode, label_text, setter_name, tooltip in col_specs:
             action = render_lod_menu.addAction(label_text)
             action.setCheckable(True)
             action.setChecked(bool(getattr(
                 getattr(self, 'preview_widget', None), f'show_col_{mode}', False)))
             action.setToolTip(tooltip)
-            action.triggered.connect(
-                lambda checked, s=setter_name: self._on_col_render_option_toggled(s, checked))
+            col_actions.append((action, mode, setter_name))
+        for action, mode, setter_name in col_actions:
+            action.toggled.connect(
+                lambda checked, m=mode, s=setter_name: _on_col_style_toggled(checked, m, s))
 
         render_lod_menu.addSeparator()
 
@@ -30937,34 +30983,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     result.append(inst)
         return result
 
-    def _set_lod_display_mode(self, mode): #vers 3
-        """Global LOD display mode - 'normal' (default), 'lod', 'both',
-        or 'col'. Per-instance overrides (set via the Instance List)
-        still take precedence over this for any instance they cover.
-
-        'col' (Sep 5 2026, per Keith: "show only col in the Dff
-        normal, lod... etc section so i can select Surface, Semi,
-        wireframe, ghosted" - moved here from a separate standalone
-        checkbox so picking Col-only and picking which collision
-        style to draw both live in one natural place) hides every
-        model via the viewport's show_col_only flag, and keeps the
-        underlying LOD/normal filter at 'both' so no instance's
-        collision is excluded just because of its own LOD status -
-        _lod_menu_mode (not _lod_display_mode, which must stay a real
-        filter value) is what the menu's own radio state reflects.
+    def _set_lod_display_mode(self, mode): #vers 4
+        """Global LOD display mode - 'normal' (default) or 'both'.
+        Per-instance overrides (set via the Instance List) still take
+        precedence over this for any instance they cover.
 
         Forces an immediate repaint (Aug 1 2026)"""
-        vp = getattr(self, 'preview_widget', None)
-        self._lod_menu_mode = mode
-        if mode == 'col':
-            self._lod_display_mode = 'both'
-            if vp is not None and hasattr(vp, 'set_show_col_only'):
-                vp.set_show_col_only(True)
-        else:
-            self._lod_display_mode = mode
-            if vp is not None and hasattr(vp, 'set_show_col_only'):
-                vp.set_show_col_only(False)
+        self._lod_display_mode = mode
         self._apply_ipl_visibility_filter(auto_fit=False, clear_display_lists=False)
+        vp = getattr(self, 'preview_widget', None)
         if vp is not None and hasattr(vp, 'repaint'):
             vp.repaint()
 
