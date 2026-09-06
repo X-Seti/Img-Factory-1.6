@@ -11094,3 +11094,28 @@ conclusively found despite extensive isolated testing.
   reachable apply_settings closure (the only remaining undefined-name
   hits in the file are all inside the two still-flagged, still-
   unreachable dead code blocks from the original sweep).
+
+- Sep 5 2026 (cont'd) - dead code sweep on map_workshop.py, per Keith:
+  "let's check for dead code". Ran an AST-based zero-caller scan
+  across this file plus every shared/related module it interoperates
+  with (dff_viewport.py, model_cache.py, overlay_icons.py, gta_dat_
+  parser.py, txd_parser.py) to rule out cross-file dynamic dispatch
+  false positives (2 caught: _on_world_instance_picked/_on_path_node_
+  picked are called via hasattr() from dff_viewport.py; a third,
+  get_settings_contribution, via getattr() from apps/utils/
+  app_settings_system.py's central settings registration - all 3 are
+  real, live code, not dead).
+  19 genuine zero-reference methods found. Removed the first, per
+  Keith's own confirmation: _create_world_viewport_dock_tmp (130
+  lines incl. its own nested pane-maximize closure) - self-documented
+  in its own docstring as "PARKED (Jul 31 2026) - the original
+  standalone World View dock... migrated into _create_viewport_dock",
+  and referenced self._world_panes, the same always-empty list
+  already confirmed dead during the camera-focus-setting work
+  earlier today. 18 more flagged, not yet touched - several look like
+  real wiring gaps rather than safe cleanup (e.g. _setup_corner_
+  overlay/_refresh_corner_overlay's own docstring claims they're
+  "called from showEvent and resizeEvent", but this file's own
+  showEvent/resizeEvent don't call them at all; _toggle_cull_boxes
+  is called "a real, working feature" in its own docstring but has no
+  caller) - triaged one at a time as Keith confirms each.
