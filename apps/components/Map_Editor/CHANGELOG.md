@@ -11276,3 +11276,39 @@ conclusively found despite extensive isolated testing.
   requires re-showing a window after changing its flags while visible
   for the change to actually apply, handled here rather than left as
   a stale flag until the next reopen).
+
+- Sep 5 2026 (cont'd) - two MAJOR bugs found and fixed per Keith:
+  "when any of the Models, Textured, Non-Texture, Semi-Solid or
+  Wireframe are selected, the COLs show perfectly on all col models,
+  but as soon as I pick show cols only, the COLs stop showing" and
+  "Trying to switch back to Texture Models is buggy; it's locked into
+  not showing anything besides dots. Major bug."
+
+  Root cause for both, traced to ONE bug: the Render dropdown's
+  Texture/Non-texture/Semi-Solid/Wireframe/Dots menu items hardcoded
+  action.setChecked(mode == 'textured') on every rebuild - the exact
+  same bug class already fixed for the collision-overlay checkboxes
+  earlier today, just missed on this sibling menu. If the menu ever
+  gets rebuilt while the real render mode is something other than
+  'textured' (e.g. Dots), "Texture" incorrectly shows as already
+  checked, and clicking an already-checked exclusive QAction doesn't
+  fire triggered in Qt - genuinely locking the user out of switching
+  back via that menu. Fixed to read the real vp._mode instead.
+
+  Separately, 'dots' mode is a full early-return in
+  _draw_world_instances that happens BEFORE collision overlays even
+  get computed - so being stuck on Dots (via the bug above) also
+  fully explains "Col Only shows nothing". Moved col_modes
+  computation above the dots branch and added the same show_col_only
+  skip + collision-overlay drawing to the dots branch itself, so
+  collision can now render correctly even in Dots mode.
+
+  Also renamed the texture viewer's two export buttons per Keith:
+  "Save.txd and Save all to Folder seem misleading" -
+  "Save as TXD..." and "Save as Single Textures..." respectively.
+
+  Still open from the same message, not yet done: resizable/zoomable
+  texture-selection viewer, Add/Del/Export/Replace/Rename/Apply/Save
+  texture buttons with duplicate-name checking, and a prelighting
+  on/off toggle for the "showing dark models" report - larger scope,
+  tackling separately.

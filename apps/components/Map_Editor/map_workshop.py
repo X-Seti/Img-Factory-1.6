@@ -4841,7 +4841,7 @@ class _InstanceEditPanel(QWidget):
         dlg.resize(420, 260)
         dlg.exec()
 
-    def _show_texture_thumbnail_strip(self): #vers 3
+    def _show_texture_thumbnail_strip(self): #vers 4
         """Compact horizontal row of small texture thumbnails, plus
         Save .txd... and Save All to Folder... buttons (Sep 5 2026,
         per Keith: "add an option not just to show the textures but
@@ -4865,11 +4865,11 @@ class _InstanceEditPanel(QWidget):
         else:
             top_row = QHBoxLayout()
             top_row.addStretch()
-            save_txd_btn = QPushButton("Save .txd...")
+            save_txd_btn = QPushButton("Save as TXD...")
             save_txd_btn.clicked.connect(
                 lambda: self._save_raw_txd_file(txd_name))
             top_row.addWidget(save_txd_btn)
-            save_btn = QPushButton("Save All to Folder...")
+            save_btn = QPushButton("Save as Single Textures...")
             save_btn.clicked.connect(
                 lambda: self._save_all_textures_to_folder(textures, txd_name))
             top_row.addWidget(save_btn)
@@ -25264,7 +25264,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return
         self._on_ipl_data_type_changed(keys[index])
 
-    def _create_ipl_controls_dock(self): #vers 5
+    def _create_ipl_controls_dock(self): #vers 6
         """Dedicated dock for IPL viewing/filtering controls."""
         panel = QWidget()
         from PyQt6.QtWidgets import QButtonGroup
@@ -25405,7 +25405,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         for mode, label_text, tooltip in render_specs:
             action = render_lod_menu.addAction(label_text)
             action.setCheckable(True)
-            action.setChecked(mode == 'textured')
+            action.setChecked(mode == getattr(
+                getattr(self, 'preview_widget', None), '_mode', 'textured'))
             action.setToolTip(tooltip)
             action.triggered.connect(
                 lambda checked, m=mode, lbl=label_text, btn=render_lod_btn:

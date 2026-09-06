@@ -5229,7 +5229,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._dots_cube_list_id = list_id
         return list_id
 
-    def _draw_world_instances(self): #vers 3
+    def _draw_world_instances(self): #vers 4
         """Per instance: glPushMatrix/translate/rotate/scale, then
         replay a pre-compiled display list (Aug 1 2026 perf fix, per
         Keith: "bottlenecking is trying to move the objects in the
@@ -5275,6 +5275,16 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         # with translate-only (see _ensure_dots_cube_display_list's
         # own docstring for the one-compiled-shape-reused-everywhere
         # approach that keeps this genuinely fast).
+        # Which collision overlay modes are currently on (Aug 14 2026,
+        # moved above the 'dots' branch Sep 5 2026 so collision can
+        # still show even in Dots mode - checked once per frame, not
+        # per instance, since none of these depend on anything
+        # instance-specific).
+        col_modes = []
+        if self.show_col_ghosted:        col_modes.append('ghosted')
+        if self.show_col_semi_solid:     col_modes.append('semi_solid')
+        if self.show_col_wireframe:      col_modes.append('wireframe')
+        if self.show_col_surface_mapped: col_modes.append('surface_mapped')
         if self._mode == 'dots':
             list_id = self._ensure_dots_cube_display_list()
             glDisable(GL_LIGHTING)
@@ -5283,7 +5293,22 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 px, py, pz = entry.get('pos', (0.0, 0.0, 0.0))
                 glPushMatrix()
                 glTranslatef(px, py, pz)
-                glCallList(list_id)
+                if not self.show_col_only:
+                    glCallList(list_id)
+                if col_modes and entry.get('col_vertices') and entry.get('col_triangles'):
+                    self._col_vertices  = entry.get('col_vertices')
+                    self._col_triangles = entry.get('col_triangles')
+                    model_key = entry.get('model_key', id(entry))
+                    for mode in col_modes:
+                        col_cache_key = (model_key, mode)
+                        col_list_id = self._col_display_lists.get(col_cache_key)
+                        if col_list_id is None:
+                            col_list_id = glGenLists(1)
+                            glNewList(col_list_id, GL_COMPILE)
+                            self._draw_collision_faces(mode)
+                            glEndList()
+                            self._col_display_lists[col_cache_key] = col_list_id
+                        glCallList(col_list_id)
                 glPopMatrix()
             glEnable(GL_LIGHTING)
             return
@@ -5291,14 +5316,6 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._vertices,self._normals,self._uvs,
             self._triangles,self._materials,self._prelit,
             getattr(self,'_current_geom_flags',0))
-        # Which collision overlay modes are currently on (Aug 14 2026)
-        # - checked once per frame, not per instance, since none of
-        # these depend on anything instance-specific.
-        col_modes = []
-        if self.show_col_ghosted:        col_modes.append('ghosted')
-        if self.show_col_semi_solid:     col_modes.append('semi_solid')
-        if self.show_col_wireframe:      col_modes.append('wireframe')
-        if self.show_col_surface_mapped: col_modes.append('surface_mapped')
         old_cv, old_ct = (getattr(self, '_col_vertices', None),
                           getattr(self, '_col_triangles', None))
         for entry in self._world_instances:
