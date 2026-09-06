@@ -4822,12 +4822,14 @@ class _InstanceEditPanel(QWidget):
         dlg.resize(420, 260)
         dlg.exec()
 
-    def _show_texture_thumbnail_strip(self): #vers 2
-        """Compact horizontal row of small texture thumbnails, plus a
-        Save All to Folder... button (Sep 5 2026, per Keith: "add an
-        option not just to show the textures but save those textures
-        to any chosen folder") - exports every texture in this TXD as
-        a full-resolution PNG, not just the 32px preview thumbnail."""
+    def _show_texture_thumbnail_strip(self): #vers 3
+        """Compact horizontal row of small texture thumbnails, plus
+        Save .txd... and Save All to Folder... buttons (Sep 5 2026,
+        per Keith: "add an option not just to show the textures but
+        save those textures to any chosen folder" / "we also need to
+        extract the .txd file aswell, not just the textures") -
+        exports either the original .txd container as-is, or every
+        decoded texture in it as a full-resolution PNG."""
         inst = self._inst
         if inst is None:
             return
@@ -4844,6 +4846,10 @@ class _InstanceEditPanel(QWidget):
         else:
             top_row = QHBoxLayout()
             top_row.addStretch()
+            save_txd_btn = QPushButton("Save .txd...")
+            save_txd_btn.clicked.connect(
+                lambda: self._save_raw_txd_file(txd_name))
+            top_row.addWidget(save_txd_btn)
             save_btn = QPushButton("Save All to Folder...")
             save_btn.clicked.connect(
                 lambda: self._save_all_textures_to_folder(textures, txd_name))
@@ -4869,6 +4875,30 @@ class _InstanceEditPanel(QWidget):
             scroller.setLayout(strip)
             outer.addWidget(scroller)
         dlg.exec()
+
+    def _save_raw_txd_file(self, txd_name): #vers 1
+        """Export the original, unmodified .txd container bytes for
+        txd_name (Sep 5 2026, per Keith: "we also need to extract the
+        .txd file aswell, not just the textures") - straight from the
+        IMG archive, no decode/re-encode, so whatever the alpha/
+        compression/format story turns out to be, this file is
+        exactly what the game itself has."""
+        model_cache = getattr(self._workshop, '_model_cache', None)
+        raw = model_cache.get_raw_txd(txd_name) if model_cache else None
+        if not raw:
+            QMessageBox.warning(self, "Save .txd", f"Couldn't read {txd_name}.txd's raw data.")
+            return
+        start_dir = getattr(self._workshop, '_texlist_folder', '') or os.path.expanduser('~')
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Save .txd", os.path.join(start_dir, txd_name + '.txd'), "TXD files (*.txd)")
+        if not path:
+            return
+        try:
+            with open(path, 'wb') as f:
+                f.write(raw)
+            QMessageBox.information(self, "Save .txd", f"Saved {txd_name}.txd to {path}")
+        except OSError as e:
+            QMessageBox.warning(self, "Save .txd", f"Failed to save: {e}")
 
     def _save_all_textures_to_folder(self, textures, txd_name): #vers 1
         """Export every texture in `textures` (the same dict passed to

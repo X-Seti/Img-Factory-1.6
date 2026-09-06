@@ -1,4 +1,4 @@
-# X-Seti - May 2026 - apps/methods/txd_parser.py - Version: 5
+# X-Seti - May 2026 - apps/methods/txd_parser.py - Version: 6
 # Self-contained GTA PC TXD parser (VC/III/SA).
 # Decodes DXT1, DXT3, DXT5 and uncompressed RGBA32/RGB24 textures to RGBA8888.
 # No external dependencies -- works standalone inside Model-Workshop.
@@ -293,11 +293,21 @@ def _parse_native_texture(data: bytes, base: int, _debug: bool = False) -> Optio
                     px[i*4:i*4+4] = bytes([r,g,b,a])
                 rgba = bytes(px)
             elif d3d_or_alpha == D3DFMT_X8R8G8B8:
+                # Real bug (Sep 5 2026, per Keith's own real, uploaded
+                # gta_tree_boak.txd etc): X8R8G8B8 means "top byte
+                # unused" by strict D3D9 spec, but real GTA TXDs
+                # commonly mislabel true A8R8G8B8 alpha data as
+                # X8R8G8B8 (a known TXD-authoring-tool quirk) - the 4th
+                # byte here often IS real, meaningful, smoothly-varying
+                # alpha (confirmed directly against the raw file
+                # bytes), not padding. Forcing 255 threw that away,
+                # showing a solid opaque background instead of the
+                # intended cutout. Now treated the same as A8R8G8B8.
                 fmt = 'RGBA32'
                 px = bytearray(w * h * 4)
                 for i in range(min(w * h, len(mip_data) // 4)):
-                    b,g,r,_ = mip_data[i*4], mip_data[i*4+1], mip_data[i*4+2], mip_data[i*4+3]
-                    px[i*4:i*4+4] = bytes([r,g,b,255])
+                    b,g,r,a = mip_data[i*4], mip_data[i*4+1], mip_data[i*4+2], mip_data[i*4+3]
+                    px[i*4:i*4+4] = bytes([r,g,b,a])
                 rgba = bytes(px)
             elif d3d_or_alpha == D3DFMT_R5G6B5:
                 fmt = 'RGB565'

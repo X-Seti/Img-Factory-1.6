@@ -398,6 +398,21 @@ class ModelCache:
         missing from img file" reporting)."""
         return model_name.lower() in self._dff_index
 
+    def get_raw_txd(self, txd_name: str) -> Optional[bytes]:
+        """Return the original, unmodified .txd container bytes for
+        txd_name straight from its IMG archive - no decoding, no
+        re-encoding, exactly as the game stores it (Sep 5 2026, per
+        Keith: "we also need to extract the .txd file aswell, not
+        just the textures"). Unlike get_textures, this is never
+        cached - it's a one-shot export path, not something read on
+        every frame."""
+        key = txd_name.lower()
+        entries = self._txd_index.get(key)
+        if not entries:
+            return None
+        img_path, entry = entries[0]
+        return self._read_entry(img_path, entry)
+
     def is_txd_indexed(self, txd_name: str) -> bool:
         """Same as is_dff_indexed, for TXD files."""
         return txd_name.lower() in self._txd_index

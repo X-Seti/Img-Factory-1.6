@@ -11016,3 +11016,28 @@ conclusively found despite extensive isolated testing.
     app uses lives in apps/components/Col_Editor/col_editor.py instead;
     nothing anywhere imports this Map_Editor copy. Recommend deleting;
     not done without confirming.
+
+- Sep 5 2026 (cont'd) - two more per Keith's real, uploaded files:
+  1. Added "Save .txd..." button next to "Save All to Folder..." in
+     the texture viewer - exports the original, unmodified .txd
+     container bytes straight from the IMG archive (new
+     ModelCache.get_raw_txd), not just the decoded textures.
+  2. REAL ALPHA BUG, root cause confirmed directly against Keith's
+     own uploaded gta_tree_boak.txd/gta_tree_pine.txd/gta_tree_palm.txd/
+     gta_tree_oldpine.txd: several tree/foliage textures (newtreeleavesb128,
+     newtreeleaves128, Newtreed256, kb_ivy2_256, etc) are labelled
+     D3DFMT_X8R8G8B8 in their raw header - which by strict D3D9 spec
+     means "top byte unused, no alpha" - but the raw 4th byte of every
+     pixel in the actual file is a real, smoothly-varying gradient
+     (confirmed by hand-decoding the raw bytes directly, bypassing the
+     parser entirely), not padding. This is a known real-world TXD-
+     authoring-tool quirk (mislabeling true A8R8G8B8 alpha data as
+     X8R8G8B8). txd_parser.py's own D3DFMT_X8R8G8B8 decode branch was
+     unconditionally discarding that byte and forcing alpha=255,
+     which is exactly what produced the solid khaki/olive backgrounds
+     instead of a transparent cutout. Fixed to preserve the real 4th
+     byte the same as A8R8G8B8 - verified by re-exporting all 4
+     textures from the real uploaded files: correct, clean transparent
+     cutouts now, matching Keith's own screenshots exactly. Same bug,
+     same fix, applied to all 4 copies of txd_parser.py (apps/methods,
+     Model_Editor, Map_Editor, Vehicle_Workshop depends/ folders).
