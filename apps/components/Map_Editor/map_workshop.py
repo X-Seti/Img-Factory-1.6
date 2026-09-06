@@ -14638,7 +14638,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         return settings_btn
 
 
-    def _show_settings_dialog(self): #vers 6
+    def _show_settings_dialog(self): #vers 7
         """Show comprehensive settings dialog with all tabs including hotkeys"""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTabWidget,
                                     QWidget, QLabel, QPushButton, QGroupBox,
@@ -15110,8 +15110,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
             # Apply export settings
             self.default_export_format = format_combo.currentText()
-            self.export_preserve_alpha = preserve_alpha_check.isChecked()
-            self.export_shadow_separate = export_shadow_check.isChecked()
+            self.export_preserve_shadow = preserve_shadow_check.isChecked()
+            self.export_shadow_separate = export_shadowm_check.isChecked()
             self.export_create_subfolders = create_subfolders_check.isChecked()
             # Texture Sources — texlist folder
             new_texlist = texlist_edit.text().strip()
@@ -15120,18 +15120,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 self._save_texlist_setting()
 
             # Apply import settings
-            self.import_auto_name = auto_name_check.isChecked()
             self.import_replace_existing = replace_check.isChecked()
             self.import_auto_format = auto_format_check.isChecked()
             self.default_import_format = import_format_combo.currentText()
 
             # Apply constraint settings
-            self.dimension_limiting_enabled = dimension_check.isChecked()
-            self.splash_screen_mode = splash_check.isChecked()
-            self.custom_max_dimension = max_dim_spin.value()
             self.name_limit_enabled = name_limit_check.isChecked()
             self.max_surface_name_length = char_limit_spin.value()
-            self.iff_import_enabled = iff_check.isChecked()
 
             # Apply hotkeys
             if hasattr(self, 'hotkey_open'):

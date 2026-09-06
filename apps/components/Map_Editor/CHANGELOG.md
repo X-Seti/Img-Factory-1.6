@@ -11069,3 +11069,28 @@ conclusively found despite extensive isolated testing.
   distinct from the separate _show_settings_dialog fixed earlier
   today), right next to the existing Zoom-to-cursor/Auto-highlight
   toggles.
+
+- Sep 5 2026 (cont'd) - fixed the Settings dialog's Apply/OK crash
+  flagged earlier in the bug sweep. Root cause turned out to be two
+  separate things, not one:
+  1. Real name mismatches: apply_settings() referenced preserve_alpha_
+     check and export_shadow_check, but the widgets actually created
+     above are named preserve_shadow_check and export_shadowm_check
+     (the latter a likely typo). The checkbox's own initial-value read
+     (preserve_shadow_check.setChecked(getattr(self,
+     'export_preserve_shadow', True))) already confirmed the intended
+     attribute name too - fixed apply_settings to use the real widgets
+     and matching attribute name.
+  2. auto_name_check/dimension_check/splash_check/max_dim_spin/
+     iff_check were referenced but never had matching widgets built
+     anywhere in this dialog at all - foreign concepts (texture
+     dimension limiting, splash-screen mode, iff-import) that don't
+     belong to Map Workshop's actual "Collision Naming" constraints
+     section; this whole Import/Export/Constraints tab set turns out
+     to be copy-pasted from a COL/TXD-Workshop-style settings dialog,
+     only partially adapted. Removed these 5 dead references rather
+     than inventing new UI for out-of-scope features.
+  Confirmed clean via pyflakes - zero undefined names left in the
+  reachable apply_settings closure (the only remaining undefined-name
+  hits in the file are all inside the two still-flagged, still-
+  unreachable dead code blocks from the original sweep).
