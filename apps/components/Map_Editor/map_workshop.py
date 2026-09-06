@@ -4841,14 +4841,24 @@ class _InstanceEditPanel(QWidget):
         dlg.resize(420, 260)
         dlg.exec()
 
-    def _show_texture_thumbnail_strip(self): #vers 4
-        """Compact horizontal row of small texture thumbnails, plus
-        Save .txd... and Save All to Folder... buttons (Sep 5 2026,
-        per Keith: "add an option not just to show the textures but
-        save those textures to any chosen folder" / "we also need to
-        extract the .txd file aswell, not just the textures") -
-        exports either the original .txd container as-is, or every
-        decoded texture in it as a full-resolution PNG."""
+    def _show_texture_thumbnail_strip(self): #vers 5
+        """Texture editor dialog - resizable grid of texture
+        thumbnails with Add/Del/Export/Replace/Rename/Apply/Save
+        actions (Sep 5 2026, per Keith's own texture-editor button
+        request), plus the existing Save as TXD/Save as Single
+        Textures export options. Double-click opens a big, resizable
+        close-up view of one texture (Sep 5 2026, per Keith: "i like
+        to see things close up").
+
+        HONEST LIMITATION: Add/Del/Replace/Rename only edit the in-
+        memory copy of the textures dict this dialog holds - there is
+        no real write-back-to-disk for TXD files anywhere in this
+        project yet (same limitation already documented for IPL/IDE/
+        DAT/IMG editing in the Editing Panel dock). Apply/Save keep
+        those in-memory edits for this dialog's own session, so Save
+        as TXD/Save as Single Textures export what you've actually
+        changed - they do not write anything back into the original
+        .img archive."""
         inst = self._inst
         if inst is None:
             return
@@ -4857,43 +4867,269 @@ class _InstanceEditPanel(QWidget):
         txd_name = obj.txd_name if obj else ""
         textures, _source, status = (self._workshop._get_txd_textures(txd_name)
                                      if txd_name else (None, None, 'missing'))
+        if not textures:
+            QMessageBox.information(self, "Textures",
+                f"{txd_name}.txd is {status}" if txd_name else "(no TXD)")
+            return
+        # Our own mutable copy - edits here don't touch model_cache's
+        # cached dict unless the user explicitly exports them out.
+        textures = dict(textures)
+
+        from apps.components.Map_Editor.depends.overlay_icons import OverlayIcons
+
         dlg = QDialog(self)
         dlg.setWindowTitle(f"Textures - {txd_name}.txd" if txd_name else "Textures")
+        dlg.resize(720, 520)
+        dlg.setMinimumSize(420, 320)
         outer = QVBoxLayout(dlg)
-        if not textures:
-            outer.addWidget(QLabel(f"{txd_name}.txd is {status}" if txd_name else "(no TXD)"))
-        else:
-            top_row = QHBoxLayout()
-            top_row.addStretch()
-            save_txd_btn = QPushButton("Save as TXD...")
-            save_txd_btn.clicked.connect(
-                lambda: self._save_raw_txd_file(txd_name))
-            top_row.addWidget(save_txd_btn)
-            save_btn = QPushButton("Save as Single Textures...")
-            save_btn.clicked.connect(
-                lambda: self._save_all_textures_to_folder(textures, txd_name))
-            top_row.addWidget(save_btn)
-            outer.addLayout(top_row)
-            strip = QHBoxLayout()
-            for tex in textures.values():
-                cell = QVBoxLayout()
-                thumb_lbl = QLabel()
-                pixmap = self._workshop._create_texture_thumbnail(
-                    tex.get('rgba_data'), tex.get('width', 0), tex.get('height', 0))
-                if pixmap is not None:
-                    thumb_lbl.setPixmap(pixmap)
-                thumb_lbl.setFixedSize(32, 32)
-                name_lbl = QLabel(tex.get('name', ''))
-                name_lbl.setStyleSheet("font-size: 9px;")
-                name_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                cell.addWidget(thumb_lbl)
-                cell.addWidget(name_lbl)
-                strip.addLayout(cell)
-            strip.addStretch()
-            scroller = QWidget()
-            scroller.setLayout(strip)
-            outer.addWidget(scroller)
+
+        list_widget = QListWidget()
+
+        def _selected_tex():
+            item = list_widget.currentItem()
+            return item.data(Qt.ItemDataRole.UserRole) if item else None
+
+        # Action row (Sep 5 2026, per Keith: "when adding new buttons,
+        # if space is limited, revert to SVG icons") - icon-only,
+        # tooltip carries the label.
+        action_row = QHBoxLayout()
+
+        def _mkbtn(icon_fn, tooltip, handler):
+            btn = QToolButton()
+            btn.setIcon(icon_fn(20))
+            btn.setToolTip(tooltip)
+            btn.clicked.connect(handler)
+            return btn
+
+        add_btn = _mkbtn(OverlayIcons.add_texture_icon, "Add Texture...",
+            lambda: self._on_add_texture(dlg, textures, list_widget))
+        del_btn = _mkbtn(OverlayIcons.del_texture_icon, "Delete Texture",
+            lambda: self._on_del_texture(dlg, textures, list_widget))
+        export_btn = _mkbtn(OverlayIcons.export_texture_icon, "Export Texture...",
+            lambda: self._on_export_one_texture(dlg, _selected_tex()))
+        replace_btn = _mkbtn(OverlayIcons.replace_texture_icon, "Replace Texture...",
+            lambda: self._on_replace_texture(dlg, textures, list_widget))
+        rename_btn = _mkbtn(OverlayIcons.rename_texture_icon, "Rename Texture...",
+            lambda: self._on_rename_texture(dlg, textures, list_widget))
+        apply_btn = _mkbtn(OverlayIcons.apply_texture_icon,
+            "Apply - keep these edits for this session", lambda: None)
+        save_btn = _mkbtn(OverlayIcons.save_texture_icon,
+            "Save - keep these edits, then close", lambda: dlg.accept())
+        for b in (add_btn, del_btn, export_btn, replace_btn, rename_btn):
+            action_row.addWidget(b)
+        action_row.addSpacing(12)
+        action_row.addWidget(apply_btn)
+        action_row.addWidget(save_btn)
+        action_row.addStretch()
+        save_txd_btn = QPushButton("Save as TXD...")
+        save_txd_btn.clicked.connect(lambda: self._save_raw_txd_file(txd_name))
+        action_row.addWidget(save_txd_btn)
+        save_folder_btn = QPushButton("Save as Single Textures...")
+        save_folder_btn.clicked.connect(
+            lambda: self._save_all_textures_to_folder(textures, txd_name))
+        action_row.addWidget(save_folder_btn)
+        outer.addLayout(action_row)
+
+        # Thumbnail grid (Sep 5 2026, per Keith: "have the ability to
+        # select the listed textures; show as a large, resizable
+        # option window. i like to see things close up.") -
+        # QListWidget IconMode gives real resizing/scrolling/selection
+        # for free, replacing the old fixed QHBoxLayout-of-QLabels strip.
+        list_widget.setViewMode(QListWidget.ViewMode.IconMode)
+        list_widget.setIconSize(QSize(48, 48))
+        list_widget.setResizeMode(QListWidget.ResizeMode.Adjust)
+        list_widget.setSpacing(10)
+        list_widget.setMovement(QListWidget.Movement.Static)
+        self._populate_texture_list_widget(list_widget, textures)
+        list_widget.itemDoubleClicked.connect(
+            lambda item: self._show_texture_zoom_view(
+                dlg, item.data(Qt.ItemDataRole.UserRole)))
+        outer.addWidget(list_widget, 1)
+
         dlg.exec()
+
+    def _populate_texture_list_widget(self, list_widget, textures): #vers 1
+        """(Re)build a QListWidget's items from a textures dict,
+        keyed by lowercase name - shared by the initial build and by
+        Add/Del/Rename/Replace's own refresh after editing."""
+        list_widget.clear()
+        for tex in textures.values():
+            pixmap = self._workshop._create_texture_thumbnail(
+                tex.get('rgba_data'), tex.get('width', 0), tex.get('height', 0))
+            item = QListWidgetItem(tex.get('name', ''))
+            if pixmap is not None:
+                item.setIcon(QIcon(pixmap))
+            item.setData(Qt.ItemDataRole.UserRole, tex)
+            list_widget.addItem(item)
+
+    def _show_texture_zoom_view(self, parent, tex): #vers 2
+        """Big, resizable close-up view of one texture (Sep 5 2026,
+        per Keith: "show as a large, resizable option window. i like
+        to see things close up.") - shown at native resolution (or
+        upscaled if tiny) inside a scroll area, so the window is
+        genuinely resizable and the image can be inspected at real
+        pixel detail rather than force-fitted and softened."""
+        if tex is None:
+            return
+        rgba = tex.get('rgba_data')
+        w, h = tex.get('width', 0), tex.get('height', 0)
+        if not (rgba and w > 0 and h > 0):
+            return
+        qi = QImage(bytes(rgba), w, h, w * 4, QImage.Format.Format_RGBA8888)
+        pixmap = QPixmap.fromImage(qi)
+        scale = 4 if max(w, h) <= 64 else (2 if max(w, h) <= 128 else 1)
+        if scale > 1:
+            pixmap = pixmap.scaled(w * scale, h * scale,
+                Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.FastTransformation)
+
+        dlg = QDialog(parent)
+        dlg.setWindowTitle(tex.get('name', 'Texture'))
+        dlg.resize(min(pixmap.width() + 40, 900), min(pixmap.height() + 80, 900))
+        lay = QVBoxLayout(dlg)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(False)
+        img_lbl = QLabel()
+        img_lbl.setPixmap(pixmap)
+        scroll.setWidget(img_lbl)
+        lay.addWidget(scroll, 1)
+        info = QLabel(f"{tex.get('name','')} — {w}x{h} — {tex.get('format','')}"
+                      + (f" (shown at {scale}x)" if scale > 1 else ""))
+        info.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lay.addWidget(info)
+        dlg.exec()
+
+    def _texture_name_exists(self, textures, name, exclude_name=None): #vers 1
+        """True if name (case-insensitive) already exists among
+        textures - checking every currently-loaded texture name in
+        this TXD, per Keith: "check with the database that the
+        texture I add or rename... doesn't already exist". Since a
+        texture's separate normal/alpha companion (e.g. GTA's own
+        "namea" convention) is itself just another regular named
+        entry in the same TXD, checking every existing name here
+        already covers those too - no separate suffix-specific logic
+        needed."""
+        name_lower = name.strip().lower()
+        if not name_lower:
+            return True
+        exclude_lower = exclude_name.strip().lower() if exclude_name else None
+        for tex in textures.values():
+            existing = tex.get('name', '').lower()
+            if existing == exclude_lower:
+                continue
+            if existing == name_lower:
+                return True
+        return False
+
+    def _on_add_texture(self, parent, textures, list_widget): #vers 1
+        """Add Texture - load an image file, ask for a name, check it
+        doesn't already exist in this TXD, add it to the in-memory
+        set (Sep 5 2026, per Keith's own texture-editor button
+        request)."""
+        path, _ = QFileDialog.getOpenFileName(
+            parent, "Add Texture", os.path.expanduser('~'),
+            "Images (*.png *.bmp *.jpg *.jpeg *.tga)")
+        if not path:
+            return
+        qi = QImage(path)
+        if qi.isNull():
+            QMessageBox.warning(parent, "Add Texture", f"Couldn't read image:\n{path}")
+            return
+        default_name = os.path.splitext(os.path.basename(path))[0]
+        name, ok = QInputDialog.getText(parent, "Add Texture", "Texture name:",
+                                         text=default_name)
+        if not ok or not name.strip():
+            return
+        if self._texture_name_exists(textures, name):
+            QMessageBox.warning(parent, "Add Texture",
+                f'A texture named "{name.strip()}" already exists in this TXD.')
+            return
+        qi = qi.convertToFormat(QImage.Format.Format_RGBA8888)
+        rgba = bytes(qi.bits().asstring(qi.width() * qi.height() * 4))
+        tex = {'name': name.strip(), 'width': qi.width(), 'height': qi.height(),
+               'rgba_data': rgba, 'format': 'RGBA32'}
+        textures[name.strip().lower()] = tex
+        self._populate_texture_list_widget(list_widget, textures)
+
+    def _on_del_texture(self, parent, textures, list_widget): #vers 1
+        """Delete Texture - remove the selected texture from the in-
+        memory set, after confirming."""
+        item = list_widget.currentItem()
+        if item is None:
+            return
+        tex = item.data(Qt.ItemDataRole.UserRole)
+        name = tex.get('name', '')
+        if QMessageBox.question(
+                parent, "Delete Texture", f'Delete "{name}" from this TXD?',
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                ) != QMessageBox.StandardButton.Yes:
+            return
+        textures.pop(name.lower(), None)
+        self._populate_texture_list_widget(list_widget, textures)
+
+    def _on_export_one_texture(self, parent, tex): #vers 1
+        """Export Texture - save just the currently-selected texture
+        as a full-resolution PNG."""
+        if tex is None:
+            QMessageBox.information(parent, "Export Texture", "Select a texture first.")
+            return
+        name = tex.get('name', '') or 'texture'
+        rgba, w, h = tex.get('rgba_data'), tex.get('width', 0), tex.get('height', 0)
+        if not (rgba and w > 0 and h > 0):
+            return
+        start_dir = getattr(self._workshop, '_texlist_folder', '') or os.path.expanduser('~')
+        path, _ = QFileDialog.getSaveFileName(
+            parent, "Export Texture", os.path.join(start_dir, name + '.png'),
+            "PNG files (*.png)")
+        if not path:
+            return
+        qi = QImage(bytes(rgba), w, h, w * 4, QImage.Format.Format_RGBA8888)
+        if not qi.save(path):
+            QMessageBox.warning(parent, "Export Texture", "Failed to save.")
+
+    def _on_replace_texture(self, parent, textures, list_widget): #vers 1
+        """Replace Texture - swap the selected texture's own image
+        data for a new file's, keeping its existing name."""
+        item = list_widget.currentItem()
+        if item is None:
+            return
+        tex = item.data(Qt.ItemDataRole.UserRole)
+        name = tex.get('name', '')
+        path, _ = QFileDialog.getOpenFileName(
+            parent, "Replace Texture", os.path.expanduser('~'),
+            "Images (*.png *.bmp *.jpg *.jpeg *.tga)")
+        if not path:
+            return
+        qi = QImage(path)
+        if qi.isNull():
+            QMessageBox.warning(parent, "Replace Texture", f"Couldn't read image:\n{path}")
+            return
+        qi = qi.convertToFormat(QImage.Format.Format_RGBA8888)
+        rgba = bytes(qi.bits().asstring(qi.width() * qi.height() * 4))
+        tex['width'], tex['height'], tex['rgba_data'] = qi.width(), qi.height(), rgba
+        tex['format'] = 'RGBA32'
+        textures[name.lower()] = tex
+        self._populate_texture_list_widget(list_widget, textures)
+
+    def _on_rename_texture(self, parent, textures, list_widget): #vers 1
+        """Rename Texture - check the new name doesn't already exist
+        in this TXD before renaming."""
+        item = list_widget.currentItem()
+        if item is None:
+            return
+        tex = item.data(Qt.ItemDataRole.UserRole)
+        old_name = tex.get('name', '')
+        new_name, ok = QInputDialog.getText(
+            parent, "Rename Texture", "New name:", text=old_name)
+        if not ok or not new_name.strip() or new_name.strip() == old_name:
+            return
+        if self._texture_name_exists(textures, new_name, exclude_name=old_name):
+            QMessageBox.warning(parent, "Rename Texture",
+                f'A texture named "{new_name.strip()}" already exists in this TXD.')
+            return
+        textures.pop(old_name.lower(), None)
+        tex['name'] = new_name.strip()
+        textures[new_name.strip().lower()] = tex
+        self._populate_texture_list_widget(list_widget, textures)
 
     def _save_raw_txd_file(self, txd_name): #vers 1
         """Export the original, unmodified .txd container bytes for
@@ -13034,7 +13270,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         return panel
 
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 9
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 10
         """Build all QToolBar instances using QAction.
         Icon set resolved once — 'default' uses SVGIconFactory with currentColor,
         '3dsmax' uses MaxIconSet with hardcoded Max palette."""
@@ -13421,6 +13657,31 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "own files already use.")
         optimize_btn.clicked.connect(self._optimize_dat_load_order_clicked)
         tb_overlays.addWidget(optimize_btn)
+
+        # Force Prelighting (Sep 5 2026, per Keith: "showing dark
+        # models. I think some models might not be loading the
+        # prelighting, so we need a prelighting on/off SVG button") -
+        # wires DFFViewport.set_prelight, an override that already
+        # existed and is already used by Vehicle Workshop/Model Viewer
+        # (self._use_prelight), just never wired into this workshop's
+        # own ribbon. Forces baked vertex-colour lighting on
+        # regardless of a model's own geom_flags detection, which only
+        # ever uses its first geometry's flags for the whole merged
+        # model (same known simplification as DFFViewport.load_all_
+        # geometries) - multi-geometry objects where a later geometry
+        # actually needs prelighting but the first one doesn't can end
+        # up rendered dark via real-time lighting instead. This is a
+        # manual escape hatch for exactly that case, not an attempt at
+        # fixing the underlying per-geometry detection.
+        prelight_btn = QToolButton()
+        prelight_btn.setCheckable(True)
+        prelight_btn.setIcon(_OverlayIconsForOptimize.prelight_icon(24))
+        prelight_btn.setToolTip(
+            "Force baked vertex-colour (pre-lit) lighting on for every\n"
+            "model, instead of each model's own auto-detected lighting -\n"
+            "use this if a model is rendering unexpectedly dark.")
+        prelight_btn.toggled.connect(self._on_toggle_force_prelight)
+        tb_overlays.addWidget(prelight_btn)
 
         _act(tb_rend, "Render Settings",
              _icon(self.icon_factory.render_settings_icon, 'render_settings_icon'),
@@ -25833,6 +26094,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         setter = getattr(vp, setter_name, None) if vp is not None else None
         if callable(setter):
             setter(checked)
+            vp.repaint()
+
+    def _on_toggle_force_prelight(self, checked): #vers 1
+        """Force Prelighting ribbon button toggled (Sep 5 2026, per
+        Keith: "showing dark models... we need a prelighting on/off
+        SVG button")."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is not None and hasattr(vp, 'set_prelight'):
+            vp.set_prelight(checked)
             vp.repaint()
 
     def _on_load_generic_txd_clicked(self): #vers 3

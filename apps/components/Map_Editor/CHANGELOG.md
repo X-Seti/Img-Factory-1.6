@@ -11312,3 +11312,53 @@ conclusively found despite extensive isolated testing.
   texture buttons with duplicate-name checking, and a prelighting
   on/off toggle for the "showing dark models" report - larger scope,
   tackling separately.
+
+- Sep 5 2026 (cont'd) - two more per Keith:
+
+  1. Prelighting on/off toggle ("showing dark models... we need a
+     prelighting on/off SVG button"). Turned out DFFViewport.
+     set_prelight already existed and is already wired in Vehicle
+     Workshop/Model Viewer (self._use_prelight) - just never wired
+     into Map Workshop, and neither of those other two workshops
+     actually has a real icon for it either (their own "shading"/
+     "brighten" icon lookups silently fail and fall back to a text-
+     only button). Added a genuine new prelight_icon (shaded-sphere
+     gradient) to overlay_icons.py and a checkable "Force Prelighting"
+     ribbon button wired to the existing setter - a manual override
+     for the known simplification that geom_flags detection only ever
+     uses a model's FIRST geometry's flags for its whole merged mesh
+     (same simplification DFFViewport.load_all_geometries already
+     has), which can leave a later geometry that actually needs
+     prelighting rendered dark via real-time lighting instead.
+
+  2. Texture editor overhaul (Add/Del/Export/Replace/Rename/Apply/
+     Save buttons, resizable/zoomable viewer, duplicate-name
+     checking). Rebuilt _show_texture_thumbnail_strip from a fixed
+     QHBoxLayout-of-QLabels strip into a resizable QListWidget
+     IconMode grid (real scrolling/selection for free). Double-click
+     opens a close-up view via QScrollArea at native (or upscaled if
+     tiny) resolution - deliberately not force-fitted/softened to the
+     window, so real pixel detail is visible, and genuinely resizable
+     since QDialog already is by default. Added 7 new SVG icons (Add/
+     Del/Export/Replace/Rename/Apply/Save), all icon-only per Keith's
+     own explicit ask ("if space is limited, revert to SVG icons").
+     New _texture_name_exists() checks every currently-loaded texture
+     name in the TXD before Add/Rename - since a texture's normal/
+     alpha companion (e.g. GTA's own "namea" convention) is itself
+     just another regular named entry in the same TXD, checking the
+     full name set already covers those, no separate suffix logic
+     needed. HONEST LIMITATION stated directly in the docstring and in
+     button tooltips: Add/Del/Replace/Rename only edit an in-memory
+     copy for this dialog's own session - there's no real write-back-
+     to-disk for TXD files anywhere in this project yet (same as IPL/
+     IDE/DAT/IMG editing), so Apply/Save keep the edits in memory and
+     Save as TXD/Save as Single Textures export what was actually
+     changed, not a modified original archive.
+
+  Caught and fixed my own mistake before pushing: my first attempt at
+  the texture-editor rebuild left the OLD implementation in place
+  alongside the new one - a genuine duplicate method (same bug class
+  fixed earlier in the dead-code sweep). Re-ran the duplicate-method
+  scan, confirmed clean, then verified all 8 new icons actually render
+  (non-null, rendered a real icon sheet and looked at it) before
+  pushing anything.

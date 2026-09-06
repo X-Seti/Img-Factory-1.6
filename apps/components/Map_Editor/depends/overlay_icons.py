@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/depends/overlay_icons.py - Version: 2
+#this belongs in apps/components/Map_Editor/depends/overlay_icons.py - Version: 4
 # X-Seti - Aug 2026 - IMG Factory 1.6 - Detailed colour SVG icons for Map Workshop's IPL Controls overlay buttons
 
 """
@@ -46,6 +46,14 @@ from apps.methods.imgfactory_svg_icons import SVGIconFactory
 # OverlayIcons.cycle_icon
 # OverlayIcons.repair_scale_icon
 # OverlayIcons.optimize_icon
+# OverlayIcons.prelight_icon
+# OverlayIcons.add_texture_icon
+# OverlayIcons.del_texture_icon
+# OverlayIcons.export_texture_icon
+# OverlayIcons.replace_texture_icon
+# OverlayIcons.rename_texture_icon
+# OverlayIcons.apply_texture_icon
+# OverlayIcons.save_texture_icon
 
 
 class OverlayIcons:
@@ -388,4 +396,87 @@ class OverlayIcons:
   <line x1="4" y1="12" x2="18" y2="12" stroke="#81c784" stroke-width="2" stroke-linecap="round"/>
   <line x1="4" y1="18" x2="20" y2="18" stroke="#81c784" stroke-width="2" stroke-linecap="round"/>
   <path d="M21 4 L21 10 M18 8 L21 11 L24 8" fill="none" stroke="#4caf50" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>''', size, color="#000000")
+
+    @staticmethod
+    def prelight_icon(size: int = 24) -> QIcon: #vers 1
+        """Force Prelighting toggle (Sep 5 2026, per Keith: "showing
+        dark models... some models might not be loading the
+        prelighting, so we need a prelighting on/off SVG button") - a
+        shaded sphere, bright-to-dark gradient, representing baked
+        vertex lighting as opposed to real-time dynamic lighting."""
+        return SVGIconFactory._create_icon('''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <defs>
+    <linearGradient id="prelightGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#fff59d"/>
+      <stop offset="100%" stop-color="#37474f"/>
+    </linearGradient>
+  </defs>
+  <circle cx="12" cy="12" r="9" fill="url(#prelightGrad)" stroke="#263238" stroke-width="1"/>
+</svg>''', size, color="#000000")
+
+    @staticmethod
+    def add_texture_icon(size: int = 24) -> QIcon: #vers 1
+        """Add Texture button (Sep 5 2026, per Keith's texture-editor
+        button request) - a picture frame with a plus sign, green."""
+        return SVGIconFactory._create_icon('''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <rect x="2" y="4" width="14" height="14" rx="1" fill="none" stroke="#90a4ae" stroke-width="1.6"/>
+  <circle cx="7" cy="9" r="1.6" fill="#90a4ae"/>
+  <path d="M4 16 L9 11 L12 14 L16 10" fill="none" stroke="#90a4ae" stroke-width="1.4"/>
+  <circle cx="18" cy="18" r="5.5" fill="#4caf50" stroke="#1b1b1b" stroke-width="0.6"/>
+  <path d="M18 15.3 L18 20.7 M15.3 18 L20.7 18" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>
+</svg>''', size, color="#000000")
+
+    @staticmethod
+    def del_texture_icon(size: int = 24) -> QIcon: #vers 1
+        """Delete Texture button - a picture frame with a red X."""
+        return SVGIconFactory._create_icon('''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <rect x="2" y="4" width="14" height="14" rx="1" fill="none" stroke="#90a4ae" stroke-width="1.6"/>
+  <circle cx="7" cy="9" r="1.6" fill="#90a4ae"/>
+  <path d="M4 16 L9 11 L12 14 L16 10" fill="none" stroke="#90a4ae" stroke-width="1.4"/>
+  <circle cx="18" cy="18" r="5.5" fill="#e53935" stroke="#1b1b1b" stroke-width="0.6"/>
+  <path d="M15.8 15.8 L20.2 20.2 M20.2 15.8 L15.8 20.2" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>
+</svg>''', size, color="#000000")
+
+    @staticmethod
+    def export_texture_icon(size: int = 24) -> QIcon: #vers 1
+        """Export Texture button - an arrow leaving an open box, blue."""
+        return SVGIconFactory._create_icon('''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <path d="M4 14 L4 20 L20 20 L20 14" fill="none" stroke="#42a5f5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M12 3 L12 14 M7 9 L12 4 L17 9" fill="none" stroke="#42a5f5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>''', size, color="#000000")
+
+    @staticmethod
+    def replace_texture_icon(size: int = 24) -> QIcon: #vers 1
+        """Replace Texture button - two curved swap arrows, orange."""
+        return SVGIconFactory._create_icon('''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <path d="M4 8 A8 8 0 0 1 19 5.5" fill="none" stroke="#ffa726" stroke-width="2" stroke-linecap="round"/>
+  <path d="M15.5 3 L19 5.5 L16 9" fill="none" stroke="#ffa726" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M20 16 A8 8 0 0 1 5 18.5" fill="none" stroke="#ffa726" stroke-width="2" stroke-linecap="round"/>
+  <path d="M8.5 21 L5 18.5 L8 15" fill="none" stroke="#ffa726" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>''', size, color="#000000")
+
+    @staticmethod
+    def rename_texture_icon(size: int = 24) -> QIcon: #vers 1
+        """Rename Texture button - a pencil over a text line, purple."""
+        return SVGIconFactory._create_icon('''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <path d="M4 18 L4 21 L7 21 L18 10 L15 7 L4 18 Z" fill="#ab47bc" stroke="#1b1b1b" stroke-width="0.6"/>
+  <path d="M14 8 L17 11" stroke="#f3e5f5" stroke-width="1.2"/>
+  <path d="M19 4 L21 6 L18.5 8.5 L16.5 6.5 Z" fill="#ab47bc" stroke="#1b1b1b" stroke-width="0.6"/>
+</svg>''', size, color="#000000")
+
+    @staticmethod
+    def apply_texture_icon(size: int = 24) -> QIcon: #vers 1
+        """Apply button - a plain checkmark, teal."""
+        return SVGIconFactory._create_icon('''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <path d="M4 13 L9.5 18.5 L20 6" fill="none" stroke="#26a69a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>''', size, color="#000000")
+
+    @staticmethod
+    def save_texture_icon(size: int = 24) -> QIcon: #vers 1
+        """Save button - a plain floppy disk, steel blue."""
+        return SVGIconFactory._create_icon('''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <path d="M4 4 L16 4 L20 8 L20 20 L4 20 Z" fill="#5c93c4" stroke="#1b1b1b" stroke-width="0.6"/>
+  <rect x="7" y="4" width="8" height="6" fill="#e3f2fd"/>
+  <rect x="6" y="13" width="12" height="7" fill="#e3f2fd"/>
 </svg>''', size, color="#000000")
