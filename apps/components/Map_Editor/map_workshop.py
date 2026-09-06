@@ -25525,7 +25525,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return
         self._on_ipl_data_type_changed(keys[index])
 
-    def _create_ipl_controls_dock(self): #vers 7
+    def _create_ipl_controls_dock(self): #vers 8
         """Dedicated dock for IPL viewing/filtering controls."""
         panel = QWidget()
         from PyQt6.QtWidgets import QButtonGroup
@@ -25698,15 +25698,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         render_lod_menu.addSeparator()
 
-        # LOD display mode (Sep 5 2026, per Keith: "Show LOD only can
-        # go, does not work. Please remove this.") - down to just
-        # Normal/Both, unchanged mechanism (still a real exclusive
-        # radio - Keith didn't ask to change this pair, only to
-        # remove the broken "LOD only" entry, which has also taken
-        # the now-unused "Col Only" entry with it).
+        # LOD display mode (Sep 5 2026, per Keith: originally reported
+        # as "Show LOD only can go, does not work" alongside removing
+        # Show Col Only, then clarified as a typo - only Col Only was
+        # meant to go) - back to a real 3-way exclusive radio, same
+        # mechanism as before, unaffected by the Col Only retirement.
         lod_group = QActionGroup(render_lod_menu)
         lod_group.setExclusive(True)
         lod_specs = [
+            ('lod',    "Show LOD only", "Show only LOD (low-detail) instances"),
             ('normal', "Show Normals",  "Show only normal-detail instances (default)"),
             ('both',   "Show Both",     "Show both normal and LOD (low-detail) instances together"),
         ]
@@ -30984,9 +30984,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         return result
 
     def _set_lod_display_mode(self, mode): #vers 4
-        """Global LOD display mode - 'normal' (default) or 'both'.
-        Per-instance overrides (set via the Instance List) still take
-        precedence over this for any instance they cover.
+        """Global LOD display mode - 'normal' (default), 'lod', or
+        'both'. Per-instance overrides (set via the Instance List)
+        still take precedence over this for any instance they cover.
 
         Forces an immediate repaint (Aug 1 2026)"""
         self._lod_display_mode = mode

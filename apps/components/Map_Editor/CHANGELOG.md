@@ -11411,3 +11411,10 @@ conclusively found despite extensive isolated testing.
   entry, and confirmed the COL group correctly turns other entries'
   real viewport flags off (not just their checkboxes) when a new one
   is selected.
+
+- Sep 5 2026 (cont'd) - restored "Show LOD only" per Keith's own
+  clarification - the earlier removal was a typo (he only meant to
+  remove Show Col Only, not this one too). Back to a real 3-way
+  exclusive radio (LOD only/Normals/Both), same mechanism as before -
+  _apply_lod_filter's own 'lod' handling was never actually removed,
+  just unreachable via the menu, so this is a pure UI restore.
