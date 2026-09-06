@@ -107,6 +107,18 @@ class ModelCache:
         self.indexed_img_paths: List[str] = []
         self.indexed_col_paths: List[str] = []
         self.index_errors: List[str] = []
+        # Raw .col entries found while scanning IMG archives (Sep 5
+        # 2026, per Keith: "it only found 3 .col files, what we need
+        # is something to say found *.col in img as many times as it
+        # finds them") - counts each real .col IMG directory entry
+        # once (e.g. VC's airport.col/downtown.col/etc, ~19 of them),
+        # regardless of how many individual model names get
+        # discovered inside each one by _scan_col_model_names. Kept
+        # separate from GTAWorldLoader.stats.col_files, which only
+        # counts standalone COLFILE-directive files (e.g. VC's
+        # generic.col/vehicles.col/weapons.col) - that number alone
+        # was what "only found 3" was reporting.
+        self.col_entries_found_in_img = 0
         # img_path -> already-opened IMGFile (Aug 1 2026, per Keith's
         # real crash trace: a Ctrl+C interrupt during "the app
         # freezes, no indication of doing anything" landed inside
@@ -131,7 +143,7 @@ class ModelCache:
         # once per texture lookup.
         self._opened_img_files: Dict[str, 'object'] = {}
 
-    def index_img_files(self, img_paths: List[str]): #vers 3
+    def index_img_files(self, img_paths: List[str]): #vers 4
         """Scan a list of IMG archive paths, building name -> (path,
         entry) indexes for .dff, .txd, and .col entries. Call once
         after a world loads (or its IMG set changes) - reading
@@ -161,6 +173,7 @@ class ModelCache:
         self._col_container_cache.clear()
         self.indexed_img_paths = []
         self.index_errors = []
+        self.col_entries_found_in_img = 0
 
         for img_path in img_paths:
             try:
@@ -183,6 +196,7 @@ class ModelCache:
                     elif ext_lower == 'txd':
                         self._txd_index.setdefault(stem_lower, []).append((img_path, entry))
                     elif ext_lower == 'col':
+                        self.col_entries_found_in_img += 1
                         data = self._read_entry(img_path, entry)
                         model_names = _scan_col_model_names(data) if data else []
                         for mname in (model_names or [stem_lower]):
@@ -242,6 +256,7 @@ class ModelCache:
         self.indexed_img_paths = []
         self.indexed_col_paths = []
         self.index_errors = []
+        self.col_entries_found_in_img = 0
 
     def get_geometry(self, model_name: str) -> Optional[DFFModel]:
         """Get the parsed DFF geometry for a model name, loading and

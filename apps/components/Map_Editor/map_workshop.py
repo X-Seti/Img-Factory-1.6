@@ -22065,7 +22065,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         finally:
             self._applying_loaded_world = False
 
-    def _apply_loaded_world_impl(self, loader, game, ok, source_desc): #vers 1
+    def _apply_loaded_world_impl(self, loader, game, ok, source_desc): #vers 2
         """Shared post-load handling for both _load_game_folder and
         _load_game_dat_file - status message, populating the World View
         panes/Instance List/IPL Sections panel, and the summary/error
@@ -22130,8 +22130,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             model_cache = ModelCache()
             self._model_cache = model_cache
         model_cache.index_img_files(loader.get_img_paths())
-        print(f"[MapWorkshop-MARKER] model_cache.index_img_files done "
-              f"({len(loader.get_img_paths())} paths, id={id(self)})")
+        col_in_img = model_cache.col_entries_found_in_img
+        if col_in_img:
+            self._set_status(
+                f"Indexed {len(loader.get_img_paths())} IMG archive(s) - "
+                f"found {col_in_img} .col file(s) inside them")
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(
+                    f"Found {col_in_img} .col file(s) in IMG archives "
+                    f"({len(model_cache._col_img_index)} model name(s) indexed)")
+        QApplication.processEvents()
 
         # Retool the world load's own already-working water auto-load
         # (Aug 20 2026, re-applied per Keith: "get the water working,

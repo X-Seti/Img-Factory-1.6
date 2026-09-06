@@ -11484,3 +11484,22 @@ conclusively found despite extensive isolated testing.
   display list path is safe (draw functions just iterate zero
   triangles, no crash) and tested the decision logic directly with
   both a has-collision and has-neither case.
+
+- Sep 5 2026 (cont'd) - added real status reporting for .col files
+  found inside IMG archives, per Keith: "it only found 3 .col files,
+  what we need is something to say found *.col in img as many times
+  as it finds them". The "3" was GTAWorldLoader.stats.col_files -
+  only ever counted standalone COLFILE-directive files (VC's
+  generic.col/vehicles.col/weapons.col) - nothing reported how many
+  raw .col entries were actually found while scanning the IMG
+  archives themselves (airport.col, downtown.col, etc).
+
+  New ModelCache.col_entries_found_in_img counter - counts each real
+  .col IMG directory entry once, regardless of how many individual
+  model names _scan_col_model_names finds inside it. Wired into a
+  real status bar + log message right after index_img_files() runs,
+  replacing a stray leftover debug print() that reported nothing
+  useful. Verified with a synthetic 3-entry, multi-model IMG (2+3+1
+  models across 3 .col entries): counter correctly reports 3, while
+  6 distinct model names get indexed underneath - the exact
+  distinction Keith needed.
