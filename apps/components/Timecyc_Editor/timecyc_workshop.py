@@ -254,22 +254,38 @@ class TimecycParser: #vers 1
         row = TimecycRow(weather=weather, time=time, values=values, comment=comment)
         return row
 
-    def load(self, path: str) -> bool: #vers 1
+    def load(self, path: str, known_game: str = None) -> bool: #vers 2
         try:
             self.rows.clear()
             self.header_lines.clear()
             with open(path, 'r', encoding='latin-1') as f:
                 lines = [ln for ln in f]
 
-            # Detect format from first data line
-            for ln in lines:
-                s = ln.strip()
-                if s and not s.startswith('/'):
-                    parts = s.split()
-                    if len(parts) >= 10:
-                        self.game = self._detect_game(len(parts), path)
-                        self.cols_per_row = len(parts)
-                        break
+            # Detect format from first data line - unless the caller
+            # already knows which game this is (known_game), in which
+            # case that's used directly instead of guessing from field
+            # count. SOL runs on the SA engine, so its own timecyc.dat
+            # shares SA's exact layout/column format - _get_game_layout
+            # and _timecyc_colors_for_hour's offset table both treat
+            # 'SOL' as an alias for 'SA' (see their own docstrings).
+            if known_game:
+                self.game = 'SA' if known_game.lower() == 'sol' else known_game.upper()
+                for ln in lines:
+                    s = ln.strip()
+                    if s and not s.startswith('/'):
+                        parts = s.split()
+                        if len(parts) >= 10:
+                            self.cols_per_row = len(parts)
+                            break
+            else:
+                for ln in lines:
+                    s = ln.strip()
+                    if s and not s.startswith('/'):
+                        parts = s.split()
+                        if len(parts) >= 10:
+                            self.game = self._detect_game(len(parts), path)
+                            self.cols_per_row = len(parts)
+                            break
 
             # Parse rows — weather-major ordering
             n_weathers, n_times = self._get_game_layout()

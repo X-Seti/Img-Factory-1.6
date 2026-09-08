@@ -8406,7 +8406,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         btn = getattr(self, 'menu_btn', None)
         if btn: menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
 
-    def _build_workshop_settings_tabs(self): #vers 3
+    def _build_workshop_settings_tabs(self): #vers 4
         """Build the workshop settings QTabWidget (Fonts/Display/
         Performance/Preview/Loading/Map Assets/Navigation) and the
         Apply callback that reads all their widgets back and
@@ -9056,14 +9056,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         timecyc_path_edit.setReadOnly(True)
         timecyc_path_edit.setPlaceholderText("Auto-detected next to the loaded game's own data folder, if found")
         timecyc_browse_btn = QPushButton("Browse…")
-        def _browse_timecyc(): #vers 1
+        def _browse_timecyc(): #vers 2
             path, _ = QFileDialog.getOpenFileName(
                 self, "Choose Timecyc File", "", "Timecyc (*.dat)")
             if path:
                 timecyc_path_edit.setText(path)
                 vp = getattr(self, 'preview_widget', None)
                 if vp is not None and hasattr(vp, 'set_timecyc_path'):
-                    vp.set_timecyc_path(path)
+                    known_game = getattr(getattr(self, '_world_loader', None), 'game', None)
+                    vp.set_timecyc_path(path, known_game=known_game)
         timecyc_browse_btn.clicked.connect(_browse_timecyc)
         timecyc_row = QHBoxLayout()
         timecyc_row.addWidget(timecyc_path_edit)
@@ -22065,7 +22066,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         finally:
             self._applying_loaded_world = False
 
-    def _apply_loaded_world_impl(self, loader, game, ok, source_desc): #vers 2
+    def _apply_loaded_world_impl(self, loader, game, ok, source_desc): #vers 3
         """Shared post-load handling for both _load_game_folder and
         _load_game_dat_file - status message, populating the World View
         panes/Instance List/IPL Sections panel, and the summary/error
@@ -22100,7 +22101,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if auto_timecyc_path:
             self.map_settings.set('timecyc_path', auto_timecyc_path)
             if vp_for_grid is not None and hasattr(vp_for_grid, 'set_timecyc_path'):
-                vp_for_grid.set_timecyc_path(auto_timecyc_path)
+                vp_for_grid.set_timecyc_path(auto_timecyc_path, known_game=getattr(loader, 'game', None))
         # Same for the radar tex layer, if it's on (Aug 20 2026) -
         # moved below, after model_cache.index_img_files() actually
         # runs (search "radar tex layer needs the freshly-indexed") -
@@ -24952,7 +24953,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._water2_cells_pending = self._water_shapes_to_cells(water_shapes)
             self._apply_water2_preload()
 
-    def _load_preloaded_file(self, path): #vers 2
+    def _load_preloaded_file(self, path): #vers 3
         """Recognise and load one real file by its own real filename
         (Aug 20 2026, per Keith's own Preload dialog request above).
         Returns True if this app knows how to load that real file
@@ -25056,7 +25057,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.map_settings.set('timecyc_path', path)
             vp = getattr(self, 'preview_widget', None)
             if vp is not None and hasattr(vp, 'set_timecyc_path'):
-                vp.set_timecyc_path(path)
+                known_game = getattr(getattr(self, '_world_loader', None), 'game', None)
+                vp.set_timecyc_path(path, known_game=known_game)
             tcyc_btn = getattr(self, '_tcyc_chk', None)
             if tcyc_btn is not None and hasattr(tcyc_btn, 'set_shown'):
                 tcyc_btn.set_shown(True)
@@ -25508,14 +25510,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             menu.addAction(name, lambda p=path: self._apply_alt_timecyc(p))
         menu.exec(button.mapToGlobal(button.rect().bottomLeft()))
 
-    def _apply_alt_timecyc(self, path): #vers 1
+    def _apply_alt_timecyc(self, path): #vers 2
         """Apply a manually-picked alternate timecyc.dat (Aug 20 2026,
         same real request as _show_alt_timecyc_menu above) - same real
         set_timecyc_path call the existing Settings > Browse... picker
         already uses."""
         vp = getattr(self, 'preview_widget', None)
         if vp is not None and hasattr(vp, 'set_timecyc_path'):
-            vp.set_timecyc_path(path)
+            known_game = getattr(getattr(self, '_world_loader', None), 'game', None)
+            vp.set_timecyc_path(path, known_game=known_game)
         self._set_status(f"Timecyc: using {os.path.basename(path)}")
 
     def _on_ipl_tab_changed(self, index): #vers 1

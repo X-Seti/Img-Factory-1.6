@@ -2570,10 +2570,15 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._skybox_tex_id = None
         self.update()
 
-    def set_timecyc_path(self, path): #vers 1
+    def set_timecyc_path(self, path, known_game=None): #vers 2
         """Load a timecyc.dat file via the real, already-field-mapped
         TimecycParser from Timecyc_Editor (same parser/mapping that
-        tool's own preview uses - not a second, separate parse)."""
+        tool's own preview uses - not a second, separate parse).
+        known_game, if given (e.g. from map_workshop.py's own loader.
+        game), is used directly instead of TimecycParser's own field-
+        count guessing - the only way SOL's own timecyc.dat (SA-engine
+        formatted, so field count alone can't tell it apart from real
+        SA) can ever be correctly recognised."""
         self._timecyc_path = path or ''
         self._timecyc_entries = []
         if not path:
@@ -2581,7 +2586,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         try:
             from apps.components.Timecyc_Editor.timecyc_workshop import TimecycParser
             parser = TimecycParser()
-            if parser.load(path):
+            if parser.load(path, known_game=known_game):
                 self._timecyc_entries = list(parser.rows)
                 self._timecyc_game = parser.game
         except Exception as e:

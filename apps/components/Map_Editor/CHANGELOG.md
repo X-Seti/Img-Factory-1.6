@@ -11503,3 +11503,39 @@ conclusively found despite extensive isolated testing.
   models across 3 .col entries): counter correctly reports 3, while
   6 distinct model names get indexed underneath - the exact
   distinction Keith needed.
+
+- Sep 5 2026 (cont'd) - Timecyc investigation #1 of the 4-item list,
+  per Keith: "we need to work out why Timecyc.dat / Timecycp.dat
+  doesn't work in GTA SA, and point out the issue with GTASOL".
+
+  Tested TimecycParser.load() directly against Keith's own real,
+  uploaded timecyc.dat (51 fields) and timecycp.dat (52 fields, PSP
+  decimal-precision variant) - both parse perfectly on their own:
+  correct game detection ('SA'), correct column count, exactly 184
+  rows matching SA's real 23-weather x 8-time layout. So the parser
+  itself is NOT broken for real SA data.
+
+  Confirmed the real GTASOL issue instead: TimecycParser._detect_game
+  can NEVER return 'SOL' at all - it only ever guesses GTA3/VC/SA by
+  field count (and a timecycp.dat filename special-case). Since SOL
+  runs on the SA engine, its own timecyc.dat almost certainly shares
+  SA's exact 51/52-field layout, so field-count guessing could never
+  tell it apart from real SA even if it tried to.
+
+  Fixed properly rather than patching the guess: map_workshop.py
+  already knows which game is actually loaded (loader.game) at every
+  point it calls set_timecyc_path - added an optional known_game
+  parameter all the way through (TimecycParser.load -> DFFViewport.
+  set_timecyc_path -> all 4 real call sites: auto-detect-on-world-
+  load, manual Browse picker, drag-dropped file, alternate-timecyc
+  menu), so the actual known game is passed directly instead of ever
+  being re-guessed from file content. known_game='sol' normalises to
+  'SA' internally (_get_game_layout/_timecyc_colors_for_hour's offset
+  table both already treat SOL as an SA-format alias, per their own
+  docstrings), while 'sa'/'vc'/'gta3' pass straight through.
+
+  Verified against the real uploaded files: no-hint and known_game=
+  'sa' both still correctly resolve to SA/184 rows (no regression);
+  known_game='sol' also correctly normalises to SA/184 rows; and a
+  known_game='vc' sanity check genuinely overrides the field-count
+  guess (proving the hint path is real, not coincidental agreement).
