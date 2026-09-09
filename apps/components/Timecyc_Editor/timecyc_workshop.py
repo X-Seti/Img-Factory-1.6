@@ -264,12 +264,27 @@ class TimecycParser: #vers 1
             # Detect format from first data line - unless the caller
             # already knows which game this is (known_game), in which
             # case that's used directly instead of guessing from field
-            # count. SOL runs on the SA engine, so its own timecyc.dat
-            # shares SA's exact layout/column format - _get_game_layout
-            # and _timecyc_colors_for_hour's offset table both treat
-            # 'SOL' as an alias for 'SA' (see their own docstrings).
+            # count.
+            #
+            # SOL (Sep 5 2026, corrected against Keith's own real,
+            # uploaded SOL timecyc files - timecyc.dat/timecyc_lc.dat/
+            # timecyc_lcs.dat/timecyc_sa.dat/timecyc_sol.dat/
+            # timecyc_vc.dat, all from GTASOL's root/Data/): despite
+            # SOL's IDE/IPL data being SA-format, all 6 of these real
+            # files use 52 fields and a genuine 24-real-hourly-slot-
+            # per-weather layout, confirmed directly from their own
+            # "Midnight"/"1AM".../"11PM" comment labels - even in
+            # timecyc_sa.dat, whose name might suggest otherwise. That
+            # is VC's real convention (_get_game_layout's own 7
+            # weathers x 24 times), not SA's real 8 non-uniform slots
+            # (Midnight/5AM/6AM/7AM/Noon/7PM/8PM/10PM) - so SOL's own
+            # timecyc data follows the VC engine's convention, same as
+            # its waterpro.dat already does, even though its IDE/IPL
+            # sections are SA-format. 'SOL' is normalised to 'VC'
+            # here, not 'SA' (an earlier, untested assumption this
+            # replaces).
             if known_game:
-                self.game = 'SA' if known_game.lower() == 'sol' else known_game.upper()
+                self.game = 'VC' if known_game.lower() == 'sol' else known_game.upper()
                 for ln in lines:
                     s = ln.strip()
                     if s and not s.startswith('/'):

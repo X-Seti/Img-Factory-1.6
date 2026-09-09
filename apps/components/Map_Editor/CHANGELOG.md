@@ -11539,3 +11539,22 @@ conclusively found despite extensive isolated testing.
   known_game='sol' also correctly normalises to SA/184 rows; and a
   known_game='vc' sanity check genuinely overrides the field-count
   guess (proving the hint path is real, not coincidental agreement).
+
+- Sep 5 2026 (cont'd) - corrected the GTASOL timecyc fix just pushed:
+  Keith shared all 6 real timecyc variants GTASOL actually ships
+  (timecyc.dat/timecyc_lc.dat/timecyc_lcs.dat/timecyc_sa.dat/
+  timecyc_sol.dat/timecyc_vc.dat, all from root/Data/) - every one of
+  them uses 52 fields and a genuine 24-real-hourly-slot-per-weather
+  layout (confirmed directly from their own "Midnight"/"1AM".../
+  "11PM" comment labels - even in timecyc_sa.dat, despite its name).
+  That's VC's real convention (7 weathers x 24 times), not SA's real
+  8 non-uniform slots - so despite SOL's IDE/IPL data being SA-format,
+  its timecyc data actually follows the VC engine's convention, the
+  same way its waterpro.dat already does. My earlier fix normalised
+  known_game='sol' to 'SA', which was wrong - corrected to 'VC'.
+
+  Verified against all 6 real files: all now correctly detect as VC/
+  52 cols; 5 of 6 parse exactly 168 rows (VC's real 7x24), the 6th
+  (timecyc_sa.dat) parses all 177 of its own real data lines without
+  loss. Re-confirmed 'sa'/'vc'/'gta3' hints still pass through
+  unchanged (this correction only touched the 'sol' mapping).

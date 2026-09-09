@@ -2576,9 +2576,11 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         tool's own preview uses - not a second, separate parse).
         known_game, if given (e.g. from map_workshop.py's own loader.
         game), is used directly instead of TimecycParser's own field-
-        count guessing - the only way SOL's own timecyc.dat (SA-engine
-        formatted, so field count alone can't tell it apart from real
-        SA) can ever be correctly recognised."""
+        count guessing - the only way SOL's own timecyc.dat (VC-engine
+        formatted, confirmed against Keith's own real files, even
+        though its IDE/IPL data is SA-format - see TimecycParser.
+        load's own comment) can ever be correctly recognised, since
+        field count alone can't tell it apart from real VC."""
         self._timecyc_path = path or ''
         self._timecyc_entries = []
         if not path:
