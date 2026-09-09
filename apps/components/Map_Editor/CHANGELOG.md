@@ -11698,3 +11698,34 @@ conclusively found despite extensive isolated testing.
   row-major ordering, so that part is very likely already correct;
   this wrap-extent mismatch appears to be the real, primary cause of
   the reported "mess".
+
+- Sep 5 2026 (cont'd) - added a real water grid size preset ladder,
+  per Keith: "so SOL is 384x384 and 768x768? So the presets scale
+  upto SOL and 2 more scale beyond, can you work out the stages, and
+  add that function".
+
+  Derived from the same real, confirmed 64-unit chunk every game
+  actually uses - vanilla VC/SA/GTA3's own real grid_width already IS
+  exactly one such chunk (64 visible/128 physical), and SOL's own 36
+  real macro-tiles (confirmed against its real engine source
+  yesterday) are each ALSO exactly one such chunk, just arranged 6x6
+  instead of 1x1. So the whole ladder collapses to one integer knob -
+  tiles_per_side - rather than an arbitrary size list:
+
+    1 ->  64/128    (vanilla VC/SA/GTA3)
+    2 -> 128/256
+    3 -> 192/384
+    4 -> 256/512
+    5 -> 320/640
+    6 -> 384/768    (SOL, exactly)
+    7 -> 448/896    (1 stage beyond SOL)
+    8 -> 512/1024   (2 stages beyond SOL)
+
+  New WATER_TILE_SIZE_PRESETS table + get_water_size_preset()
+  function in gta_dat_parser.py (works for any tiles_per_side, not
+  just the 8 named stages). Verified: SOL's own entry (stage 6)
+  matches WATER_GRID_PRESETS['sol'] exactly, and the generator
+  correctly extrapolates beyond the table too. Deliberately left out
+  Keith's own original 32x32/96x96 examples - they aren't multiples
+  of the real 64-unit chunk any actual game uses, so including them
+  would have been arbitrary rather than derived from something real.

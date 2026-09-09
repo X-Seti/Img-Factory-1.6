@@ -987,6 +987,78 @@ WATER_GRID_PRESETS = {
     'sol': {'grid_size': 24576.0, 'tiles_per_side': 6},
 }
 
+# Water grid size ladder, by real 64-unit chunk count per side (Sep 5
+# 2026, per Keith: "the presets scale up to SOL and 2 more scale
+# beyond, can you work out the stages, and add that function").
+#
+# Every game's water grid turns out to be built from the same real
+# 64-unit chunk: vanilla VC/SA/GTA3's own real grid_width already IS
+# exactly one such chunk (64 cells visible / 128 physical, per this
+# file's own long-confirmed real values), and SOL's own 36 real
+# macro-tiles (confirmed against its real engine source - see
+# WATER_GRID_PRESETS' own docstring just above) are ALSO each exactly
+# one such chunk, just arranged 6x6 instead of 1x1. So the whole
+# ladder is just one integer knob - how many real chunks per side -
+# rather than an arbitrary list of sizes:
+#
+#   tiles_per_side=1 ->  64x64  /  128x128   (vanilla VC/SA/GTA3)
+#   tiles_per_side=2 -> 128x128 /  256x256
+#   tiles_per_side=3 -> 192x192 /  384x384
+#   tiles_per_side=4 -> 256x256 /  512x512
+#   tiles_per_side=5 -> 320x320 /  640x640
+#   tiles_per_side=6 -> 384x384 /  768x768   (SOL, exactly)
+#   tiles_per_side=7 -> 448x448 /  896x896   (1 stage beyond SOL)
+#   tiles_per_side=8 -> 512x512 / 1024x1024  (2 stages beyond SOL)
+#
+# grid_size (real world units) = tiles_per_side * 4096.0 - the real,
+# confirmed per-chunk world size from the SOL engine source
+# (Hook_PreRenderNearWater's own -4096.0f*XPart/YPart tile offset).
+# Deliberately NOT including Keith's own original smaller 32x32/
+# 96x96 examples here - those aren't multiples of the real 64-unit
+# chunk any actual game uses, so they'd be arbitrary rather than
+# derived from anything real; every entry below corresponds to an
+# actual, whole number of real chunks.
+_WATER_CHUNK_CELLS = 64          # real cells per chunk, one side (visible)
+_WATER_CHUNK_WORLD_UNITS = 4096.0  # real world units per chunk, one side
+
+WATER_TILE_SIZE_PRESETS = {
+    n: {
+        'tiles_per_side': n,
+        'grid_size': n * _WATER_CHUNK_WORLD_UNITS,
+        'visible_width': n * _WATER_CHUNK_CELLS,
+        'physical_width': n * _WATER_CHUNK_CELLS * 2,
+        'label': label,
+    }
+    for n, label in {
+        1: "Vanilla (VC / SA / GTA3)",
+        2: "Small",
+        3: "Slightly Larger",
+        4: "Larger",
+        5: "Extra Large",
+        6: "SOL (6x6 real tiles)",
+        7: "Beyond SOL +1",
+        8: "Beyond SOL +2",
+    }.items()
+}
+
+
+def get_water_size_preset(tiles_per_side: int) -> dict: #vers 1
+    """Look up (or generate, for any tiles_per_side beyond the 8
+    named stages above) a water grid size preset - see WATER_TILE_
+    SIZE_PRESETS' own module-level comment for the full derivation.
+    Works for any positive integer, not just the 8 pre-built ones,
+    since the underlying math is just tiles_per_side * the real,
+    confirmed 64-unit chunk."""
+    if tiles_per_side in WATER_TILE_SIZE_PRESETS:
+        return WATER_TILE_SIZE_PRESETS[tiles_per_side]
+    return {
+        'tiles_per_side': tiles_per_side,
+        'grid_size': tiles_per_side * _WATER_CHUNK_WORLD_UNITS,
+        'visible_width': tiles_per_side * _WATER_CHUNK_CELLS,
+        'physical_width': tiles_per_side * _WATER_CHUNK_CELLS * 2,
+        'label': f"{tiles_per_side}x{tiles_per_side} tiles",
+    }
+
 
 def compute_radar_grid(grid_size: float = 6000.0, tiles_per_side: int = 12,
                        center_x: float = 0.0, center_y: float = 0.0) -> List[RadarTile]: #vers 2
