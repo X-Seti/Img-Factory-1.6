@@ -11664,3 +11664,37 @@ conclusively found despite extensive isolated testing.
   (cull/zone list), and Repair Scale's own right-click menus are all
   already correctly wired with no clash. No other buttons found
   needing a change.
+
+- Sep 5 2026 (cont'd) - REAL FOLLOW-UP BUG from yesterday's own
+  waterpro.dat grid-size fix, per Keith's real, uploaded badwater.png:
+  "The image is just wrong - badly offset, with what looks like the
+  outer edges offset, making a cross pattern in the middle."
+
+  Yesterday's fix corrected _waterpro_to_cells' own cell positioning
+  to use WATER_GRID_PRESETS (24576 units for SOL) instead of the
+  wrong RADAR_GRID_PRESETS value (12000) - but missed a SEPARATE call
+  site that sets the water wrap-around extent (set_water_map_extent,
+  used by _draw_water2's own real toroidal edge-wrapping logic for
+  the -400 unit VC offset) - that one still passed RADAR_GRID_
+  PRESETS' 12000-based half-extent (6000), unchanged.
+
+  Real, confirmed effect: cells were now correctly positioned across
+  the full, real 24576-unit map, but the wrap-around modulo math
+  still treated the map as only 12000 wide - verified directly
+  against the real waterpro.dat: 77.2% of all real water cells (109091
+  of 141312) fall outside that old, wrong 6000-unit half-extent, so
+  they got folded/wrapped back into the wrong, much smaller range -
+  the wrap boundaries themselves (at +-6000 on both axes) would show
+  up as visible discontinuities crossing right through the map's
+  centre, exactly matching the reported "cross pattern".
+
+  Fixed the missed call site to use WATER_GRID_PRESETS too, matching
+  yesterday's fix to _waterpro_to_cells.
+
+  Also tested 6 alternate tile-de-tiling orderings (row/col-major x
+  X/Y flips) against Keith's own real reference templates (viswater.
+  jpg/maskwater.jpg from yesterday) to rule out a tile-ordering bug
+  as a contributing cause - none matched better than the existing
+  row-major ordering, so that part is very likely already correct;
+  this wrap-extent mismatch appears to be the real, primary cause of
+  the reported "mess".

@@ -22066,7 +22066,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         finally:
             self._applying_loaded_world = False
 
-    def _apply_loaded_world_impl(self, loader, game, ok, source_desc): #vers 3
+    def _apply_loaded_world_impl(self, loader, game, ok, source_desc): #vers 4
         """Shared post-load handling for both _load_game_folder and
         _load_game_dat_file - status message, populating the World View
         panes/Instance List/IPL Sections panel, and the summary/error
@@ -22082,14 +22082,21 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # loaded, if that grid mode is active (Aug 20 2026)
         vp_for_grid = getattr(self, 'preview_widget', None)
         if vp_for_grid is not None and hasattr(vp_for_grid, 'set_radar_grid_extent'):
-            from apps.methods.gta_dat_parser import RADAR_GRID_PRESETS
+            from apps.methods.gta_dat_parser import RADAR_GRID_PRESETS, WATER_GRID_PRESETS
             game_key_for_grid = getattr(loader, 'game', 'sa')
             preset_for_grid = RADAR_GRID_PRESETS.get(game_key_for_grid, RADAR_GRID_PRESETS['sa'])
             grid_size_for_grid = preset_for_grid['grid_size']
             vp_for_grid.set_radar_grid_extent(
                 grid_size_for_grid / preset_for_grid['tiles_per_side'], grid_size_for_grid / 2.0)
             if hasattr(vp_for_grid, 'set_water_map_extent'):
-                vp_for_grid.set_water_map_extent(grid_size_for_grid / 2.0)
+                # Water's own real grid size can genuinely differ from
+                # radar's (Sep 5 2026, confirmed for SOL against real
+                # engine source - see WATER_GRID_PRESETS' own
+                # docstring) - use it here too, not radar's, so the
+                # wrap-around extent below matches the actual cell
+                # positions _waterpro_to_cells already uses.
+                water_preset_for_grid = WATER_GRID_PRESETS.get(game_key_for_grid, preset_for_grid)
+                vp_for_grid.set_water_map_extent(water_preset_for_grid['grid_size'] / 2.0)
         # Auto-detect timecyc.dat next to this world's own main .dat
         # file (Aug 20 2026, per Keith: "we need to be able to detect
         # the timecyc.dat file without the need for a path, and still
