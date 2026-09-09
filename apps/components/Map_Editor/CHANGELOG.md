@@ -11765,3 +11765,16 @@ conclusively found despite extensive isolated testing.
   28 fields instead of the 29 parse_water_dat requires, missing the
   trailing water_type flag entirely - a real, different sub-format
   not currently supported.
+
+- Sep 5 2026 (cont'd) - Water_Editor: CRITICAL CRASH FIX, per Keith's
+  own real traceback ("core dumped"): "AttributeError: 'SaWaterCanvas'
+  object has no attribute '_get_ui_color'" when switching from VC to
+  SA in water_workshop.py. SaWaterCanvas's own paintEvent already
+  called self._get_ui_color('viewport_text'), but that method only
+  ever existed on the sibling WaterGridWidget (VC's own canvas) class
+  - SaWaterCanvas never got its own copy. Added the same small, self-
+  contained method directly to SaWaterCanvas (matching every other
+  class in this app - no cross-class sharing). Verified directly:
+  instantiated SaWaterCanvas headless and called _get_ui_color() for
+  both real keys used elsewhere in this class - both return a real
+  QColor with no crash.

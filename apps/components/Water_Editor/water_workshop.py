@@ -644,6 +644,32 @@ class SaWaterCanvas(QWidget):
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
 
+    def _get_ui_color(self, key): #vers 1
+        """Get a theme-aware QColor from app_settings. No hardcoded
+        colors (Sep 5 2026 - real crash fix, per Keith's own real
+        traceback: "AttributeError: 'SaWaterCanvas' object has no
+        attribute '_get_ui_color'" when switching from VC to SA -
+        this class' own paintEvent already called this, but it only
+        ever existed on the sibling WaterGridWidget class; same small
+        method, copied here rather than shared, matching every other
+        class in this app)."""
+        from PyQt6.QtGui import QColor
+        try:
+            app_settings = getattr(self, 'app_settings', None) or \
+                getattr(getattr(self, 'main_window', None), 'app_settings', None)
+            if app_settings and hasattr(app_settings, 'get_ui_color'):
+                return app_settings.get_ui_color(key)
+        except Exception:
+            pass
+        # Palette fallback - no hardcoded values
+        pal = self.palette()
+        if key == 'viewport_bg':
+            return pal.color(pal.ColorRole.Base)
+        if key == 'viewport_text':
+            return pal.color(pal.ColorRole.PlaceholderText)
+        return pal.color(pal.ColorRole.WindowText)
+
+
     def setup(self, quads, bbox): #vers 1
         self._quads   = quads
         self._bbox    = bbox
