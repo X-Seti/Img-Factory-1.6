@@ -11558,3 +11558,30 @@ conclusively found despite extensive isolated testing.
   (timecyc_sa.dat) parses all 177 of its own real data lines without
   loss. Re-confirmed 'sa'/'vc'/'gta3' hints still pass through
   unchanged (this correction only touched the 'sol' mapping).
+
+- Sep 5 2026 (cont'd) - real fix for the Tcyc button's alternate-file
+  picker gesture, per Keith: "timecyc does not work. If there is
+  more than one timecycle, middle-click the time cycle button to
+  select it." It was wired to right-click (via the generic edit_
+  toggled "second action" signal, whose own comment already admitted
+  "not a genuine edit mode") - inconsistent with every other similar
+  alternate-picker button in this app (occl/grge/zon), which all use
+  middle-click via _MapOverlayToggleButton's own real middle_clicked
+  signal. Rewired to middle-click, supports_edit dropped (nothing
+  ever used a genuine edit mode for this button), and set_middle_
+  click_menu_available(True) called for the real flag mousePressEvent
+  checks - its own hardcoded tooltip text describes zone/box editing
+  though, so overridden right after with the correct text for this
+  button's actual behaviour. Likely explains the "does not work"
+  report on its own: middle-clicking (the gesture Keith expected) did
+  nothing at all before this fix, even though the underlying auto-
+  detected timecyc file was loading correctly underneath.
+
+  Radar tiles for GTASOL confirmed working by Keith after testing -
+  item 2/4 done, no further action needed there.
+
+  Waterpro.dat for GTASOL flagged as "a mess" (image referenced but
+  not actually attached this turn) - Keith's own priority: fix the
+  known bug in water_workshop.py first, before porting anything to
+  map_workshop's own water handling. Waiting on the real screenshot/
+  files to continue.

@@ -25482,7 +25482,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             vp.set_timecyc_playing(checked)
 
     def _show_alt_timecyc_menu(self, button): #vers 1
-        """Right-click [Tcyc]: pick an alternate timecyc.dat from this
+        """Middle-click [Tcyc]: pick an alternate timecyc.dat from this
         app's own depends/timecyc/ asset folder (Aug 20 2026, per
         Keith: "each game has its own timecyc.dat, so we need to show
         that, and also a right-click option to show other timecyc.dat
@@ -25536,7 +25536,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return
         self._on_ipl_data_type_changed(keys[index])
 
-    def _create_ipl_controls_dock(self): #vers 8
+    def _create_ipl_controls_dock(self): #vers 9
         """Dedicated dock for IPL viewing/filtering controls."""
         panel = QWidget()
         from PyQt6.QtWidgets import QButtonGroup
@@ -25848,19 +25848,27 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # Timecyc play/stop toggle (Aug 20 2026, per Keith: "the play
         # and stop for timecyc can be merged with the play stop [2DFX]
         # [TOJB] adding a new button on that line that says [TCYC]")
-        tcyc_chk = _MapOverlayToggleButton("Tcyc", supports_edit=True, icon=OverlayIcons.tcyc_icon(24))
+        tcyc_chk = _MapOverlayToggleButton("Tcyc", supports_edit=False, icon=OverlayIcons.tcyc_icon(24))
+        tcyc_chk.show_toggled.connect(self._on_tcyc_toggled)
+        # Middle-click picks an alternate timecyc.dat (Sep 5 2026, per
+        # Keith: "If there is more than one timecycle, middle-click
+        # the time cycle button to select it" - was wired to right-
+        # click/edit_toggled, a workaround that predates this button
+        # having its own real middle_clicked signal; every other
+        # similar alternate-picker button (occl/grge/zon) already uses
+        # middle-click, so this brings Tcyc in line with them instead
+        # of being the one exception). set_middle_click_menu_available
+        # sets the real flag mousePressEvent checks before emitting,
+        # but its own tooltip text ("add/delete/save/corner coords")
+        # describes zone/box editing, not file-picking - overridden
+        # with the correct text for this button right after.
+        tcyc_chk.set_middle_click_menu_available(True)
         tcyc_chk.setToolTip(
             "Left-click: play/stop the loaded timecyc file's own day/\n"
             "night sky colour cycle in the 3D view.\n"
-            "Right-click: pick a different timecyc.dat from this\n"
+            "Middle-click: pick a different timecyc.dat from this\n"
             "app's own depends/timecyc/ asset folder.")
-        tcyc_chk.show_toggled.connect(self._on_tcyc_toggled)
-        # Right-click picks an alternate timecyc.dat (Aug 20 2026, per
-        # Keith: "a right-click option to show other timecyc.dat files
-        # that I'll put in an asset folder") - reuses the same generic
-        # edit_toggled "second action" signal every edit-capable
-        # overlay button already has, not a genuine edit mode.
-        tcyc_chk.edit_toggled.connect(lambda checked: self._show_alt_timecyc_menu(tcyc_chk))
+        tcyc_chk.middle_clicked.connect(lambda: self._show_alt_timecyc_menu(tcyc_chk))
         self._tcyc_chk = tcyc_chk
 
         opts_row2.addWidget(show_tobj_chk)
