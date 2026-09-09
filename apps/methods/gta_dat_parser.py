@@ -955,6 +955,38 @@ RADAR_GRID_PRESETS = {
     'sol':  {'grid_size': 12000.0, 'tiles_per_side': 36},
 }
 
+# Water's own real grid size, separate from RADAR_GRID_PRESETS (Sep 5
+# 2026, per Keith's own real, uploaded GTASOL-CoreHacks source -
+# SOLCore/WaterHack.cpp). Confirmed against the real engine's own
+# PatchWater/Hook_PreRenderNearWater source: each of the 6x6 water
+# tile-blocks is positioned 4096 units apart (that function's own
+# -4096.0f*XPart/YPart offset math), giving SOL a real total water
+# grid width of 6*4096=24576 - NOT the 12000 units RADAR_GRID_PRESETS
+# uses for SOL, which is an unrelated measurement for the separate
+# 36x36 individual radar tiles (a different system, coincidentally
+# also 6x6-tiled at a higher level). 24576/384 (the real waterpro.dat
+# grid_width from Keith's own real uploaded file) gives exactly 64.0
+# units/cell, matching the engine's own 4096-units-per-tile /
+# 64-cells-per-tile relationship exactly - the old, wrong 12000-based
+# math gave a suspicious, non-round 31.25 units/cell instead.
+#
+# VC/SA/GTA3 are NOT included here - their own water-uses-radar's-
+# grid-size assumption has already been confirmed correct against
+# Keith's own real screenshots (see _waterpro_to_cells' own
+# docstring in map_workshop.py) - this is a SOL-specific correction
+# only, where water and radar genuinely use different real grid
+# sizes despite both happening to be 6x6-tiled at some level.
+#
+# NOT yet confirmed: the real engine's own tile-offset formula
+# (XPart = (i%6)-2.0, plus a hardcoded +400 unit shift on X only)
+# suggests the true grid isn't simply centered at world origin the
+# way _waterpro_to_cells currently assumes for every game - that
+# asymmetric-offset detail is not resolved by this fix and needs
+# further real-world confirmation before touching it.
+WATER_GRID_PRESETS = {
+    'sol': {'grid_size': 24576.0, 'tiles_per_side': 6},
+}
+
 
 def compute_radar_grid(grid_size: float = 6000.0, tiles_per_side: int = 12,
                        center_x: float = 0.0, center_y: float = 0.0) -> List[RadarTile]: #vers 2

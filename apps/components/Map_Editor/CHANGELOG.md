@@ -11585,3 +11585,49 @@ conclusively found despite extensive isolated testing.
   known bug in water_workshop.py first, before porting anything to
   map_workshop's own water handling. Waiting on the real screenshot/
   files to continue.
+
+- Sep 5 2026 (cont'd) - REAL, confirmed fix for GTASOL waterpro.dat
+  positioning, per Keith: "waterpro.dat is a mess... one file at a
+  time, there is 3 more... the source code to the water functions
+  are here" (GTASOL-CoreHacks-69.9.9-master.zip, the actual SOL
+  engine hack's own real source).
+
+  Traced the real engine source (SOLCore/WaterHack.cpp) directly.
+  Confirmed the existing 6x6 de-tiling math (tile_w=64, from an
+  earlier session) is architecturally correct - reconciles exactly
+  against the engine's own WATER_GRID_WIDTH=32/"4x" array-size macro
+  (4 x 32^2 = 64^2). That part was never the bug.
+
+  Found the REAL bug: _waterpro_to_cells/_waterpro_physical_to_cells
+  borrowed their real-world grid size from RADAR_GRID_PRESETS['sol']
+  (12000 units) - an unrelated measurement for the separate 36x36
+  individual radar tiles. The real engine's own Hook_PreRenderNear
+  Water positions each of the 6x6 water tile-blocks 4096 units apart,
+  giving a true total water grid width of 6*4096=24576 - exactly
+  double what the code was using. Confirmed against Keith's own real
+  uploaded waterpro.dat (grid_width=384): the old math gave a
+  suspicious, non-round 31.25 units/cell; the corrected math gives
+  exactly 64.0, matching the engine's own 4096-per-tile/64-cells-
+  per-tile relationship precisely. With the old math, real water data
+  was squeezed into half the actual map's real size, causing it to
+  overlap/double up across areas that should be dry land - exactly
+  matching the "solid mess covering everything" screenshot.
+
+  Added a new WATER_GRID_PRESETS (separate from RADAR_GRID_PRESETS,
+  SOL only) rather than changing the shared radar preset, since
+  VC/SA/GTA3's own water-uses-radar's-size assumption is already
+  confirmed correct against Keith's own real screenshots - this
+  correction is SOL-specific, where water and radar genuinely use
+  different real grid sizes.
+
+  Verified directly against the real uploaded waterpro.dat: same real
+  cell count either way (141312, so the water/dry data itself is
+  unaffected), extent now correctly doubles from 12000 to 24576 units
+  with a clean 64.0 units/cell.
+
+  NOT yet resolved, flagged honestly rather than guessed at: the real
+  engine's own tile-offset formula (XPart = (i%6)-2.0, plus a
+  hardcoded +400 unit shift on X only) suggests the true grid isn't
+  simply centered at world origin the way this code still assumes -
+  needs further real-world confirmation before touching it. Waiting
+  on the remaining 3 waterpro.dat files Keith mentioned to continue.

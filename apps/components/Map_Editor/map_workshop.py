@@ -24806,7 +24806,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 f"folder ({', '.join(missing)})")
         return loaded
 
-    def _waterpro_to_cells(self, waterpro, game): #vers 4
+    def _waterpro_to_cells(self, waterpro, game): #vers 5
         """Real, confirmed grid-to-cells logic (Aug 20 2026, re-
         applied) - shared between the manual Preload path and the
         automatic world-load retool below. Skips real "dry"/cutout
@@ -24831,8 +24831,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         corner reduces to row driving x directly, col driving y
         directly - see the git history for the full, real derivation
         this was first verified against."""
-        from apps.methods.gta_dat_parser import RADAR_GRID_PRESETS
-        preset = RADAR_GRID_PRESETS.get(game, RADAR_GRID_PRESETS['vc'])
+        from apps.methods.gta_dat_parser import RADAR_GRID_PRESETS, WATER_GRID_PRESETS
+        # SOL's water grid genuinely differs from its radar grid (Sep
+        # 5 2026, per Keith's own real, uploaded GTASOL-CoreHacks
+        # source - see WATER_GRID_PRESETS' own docstring for the full
+        # derivation) - every other game's water-uses-radar's-size
+        # assumption is already confirmed correct and unchanged here.
+        preset = WATER_GRID_PRESETS.get(game) or RADAR_GRID_PRESETS.get(game, RADAR_GRID_PRESETS['vc'])
         grid_size = preset['grid_size']
         half = grid_size / 2.0
         gw = waterpro.grid_width
@@ -24851,7 +24856,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 cells.append((min_x, min_y, min_x + cell, min_y + cell, height))
         return cells
 
-    def _waterpro_physical_to_cells(self, waterpro, game): #vers 3
+    def _waterpro_physical_to_cells(self, waterpro, game): #vers 4
         """The other real water layer (Aug 20 2026, per Keith: "when
         you right click the water button, show the other water
         layer") - waterpro.dat's own physical_map, a real, separate
@@ -24859,9 +24864,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         covering the same real world area at twice the resolution.
         Same real anticlockwise rotation as _waterpro_to_cells (see
         its own docstring for the full, real reasoning), since it's
-        the same real coordinate system just finer-grained."""
-        from apps.methods.gta_dat_parser import RADAR_GRID_PRESETS
-        preset = RADAR_GRID_PRESETS.get(game, RADAR_GRID_PRESETS['vc'])
+        the same real coordinate system just finer-grained. Same
+        SOL-specific grid-size correction as _waterpro_to_cells too
+        (Sep 5 2026) - see WATER_GRID_PRESETS' own docstring."""
+        from apps.methods.gta_dat_parser import RADAR_GRID_PRESETS, WATER_GRID_PRESETS
+        preset = WATER_GRID_PRESETS.get(game) or RADAR_GRID_PRESETS.get(game, RADAR_GRID_PRESETS['vc'])
         grid_size = preset['grid_size']
         half = grid_size / 2.0
         gw = waterpro.grid_width * 2
