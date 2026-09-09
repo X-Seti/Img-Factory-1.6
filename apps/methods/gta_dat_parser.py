@@ -989,19 +989,23 @@ WATER_GRID_PRESETS = {
 
 # Water grid size ladder, by real 64-unit chunk count per side (Sep 5
 # 2026, per Keith: "the presets scale up to SOL and 2 more scale
-# beyond, can you work out the stages, and add that function").
+# beyond, can you work out the stages, and add that function") - for
+# VC/GTA3/SOL specifically. SA does NOT use this rigid grid-chunk
+# format at all - confirmed against Keith's own real, uploaded SA
+# water.dat samples: SA's real water is a freeform list of variable-
+# sized quad/triangle shapes (WaterShape), not a fixed grid - see
+# SA_WATER_SNAP_PRESETS below for SA's own, differently-shaped ladder.
 #
-# Every game's water grid turns out to be built from the same real
-# 64-unit chunk: vanilla VC/SA/GTA3's own real grid_width already IS
-# exactly one such chunk (64 cells visible / 128 physical, per this
-# file's own long-confirmed real values), and SOL's own 36 real
-# macro-tiles (confirmed against its real engine source - see
-# WATER_GRID_PRESETS' own docstring just above) are ALSO each exactly
-# one such chunk, just arranged 6x6 instead of 1x1. So the whole
-# ladder is just one integer knob - how many real chunks per side -
-# rather than an arbitrary list of sizes:
+# VC/GTA3's own real grid_width already IS exactly one 64-unit chunk
+# (64 cells visible / 128 physical, per this file's own long-
+# confirmed real values), and SOL's own 36 real macro-tiles
+# (confirmed against its real engine source - see WATER_GRID_PRESETS'
+# own docstring just above) are ALSO each exactly one such chunk, just
+# arranged 6x6 instead of 1x1. So the whole ladder is just one integer
+# knob - how many real chunks per side - rather than an arbitrary
+# list of sizes:
 #
-#   tiles_per_side=1 ->  64x64  /  128x128   (vanilla VC/SA/GTA3)
+#   tiles_per_side=1 ->  64x64  /  128x128   (vanilla VC/GTA3)
 #   tiles_per_side=2 -> 128x128 /  256x256
 #   tiles_per_side=3 -> 192x192 /  384x384
 #   tiles_per_side=4 -> 256x256 /  512x512
@@ -1030,7 +1034,7 @@ WATER_TILE_SIZE_PRESETS = {
         'label': label,
     }
     for n, label in {
-        1: "Vanilla (VC / SA / GTA3)",
+        1: "Vanilla (VC / GTA3)",
         2: "Small",
         3: "Slightly Larger",
         4: "Larger",
@@ -1058,6 +1062,64 @@ def get_water_size_preset(tiles_per_side: int) -> dict: #vers 1
         'physical_width': tiles_per_side * _WATER_CHUNK_CELLS * 2,
         'label': f"{tiles_per_side}x{tiles_per_side} tiles",
     }
+
+
+# SA's own ladder is shaped differently (Sep 5 2026, per Keith: "and
+# the snap ladder size, and look at these files") - unlike VC/GTA3/
+# SOL, SA has no fixed-grid waterpro.dat at all. Confirmed directly
+# against Keith's own real, uploaded SA water.dat samples: it's a
+# freeform list of variable-sized quad/triangle shapes (WaterShape),
+# each corner placed by hand rather than snapped to one fixed engine
+# grid. There is a real, documented, crash-preventing reason to keep
+# shape corners on a clean grid anyway - WaterCorner's own docstring:
+# "All X and Y coordinates of corner points must be even, rounded
+# numbers... otherwise the game will crash when you approach the
+# water" - so a snap-size ladder is a genuinely useful EDITING AID
+# even though, unlike VC/GTA3/SOL's chunk size, it isn't an engine-
+# enforced constant.
+#
+# 16 units is the most common real recurring shape width/height
+# across Keith's own larger real sample (SA_water.dat, 307 shapes) -
+# a real, observed TENDENCY, not a hard rule the way VC/GTA3/SOL's
+# 64-unit chunk is: only ~62% of that sample's own real dimensions
+# are actually multiples of 16, and a second, smaller real sample
+# (98 shapes) showed mostly arbitrary, non-16-aligned dimensions
+# instead. Keith's own original example numbers (32, 64, 96, 128,
+# 256) are themselves all clean multiples of 16, which is why this
+# ladder uses 16 as its base unit rather than VC/GTA3/SOL's 64:
+#
+#   n=1 ->  16  (Finest)
+#   n=2 ->  32  (Small)
+#   n=3 ->  48
+#   n=4 ->  64  (matches VC/GTA3's own real grid chunk, coincidentally)
+#   n=6 ->  96  (Slightly Larger)
+#   n=8 -> 128  (Larger)
+#   n=16 -> 256 (Extra Large)
+_SA_SNAP_UNIT = 16.0   # real world units - see this block's own comment
+
+SA_WATER_SNAP_PRESETS = {
+    n: {'snap_size': n * _SA_SNAP_UNIT, 'label': label}
+    for n, label in {
+        1: "Finest",
+        2: "Small",
+        3: "Medium-Small",
+        4: "Medium (VC/GTA3 chunk size)",
+        6: "Slightly Larger",
+        8: "Larger",
+        16: "Extra Large",
+    }.items()
+}
+
+
+def get_sa_water_snap_preset(n: int) -> dict: #vers 1
+    """Look up (or generate, for any n beyond the 7 named stages
+    above) an SA water snap-size preset - see SA_WATER_SNAP_PRESETS'
+    own module-level comment for the full derivation. Works for any
+    positive integer, since the underlying math is just n * the
+    real, most-commonly-observed 16-unit snap size."""
+    if n in SA_WATER_SNAP_PRESETS:
+        return SA_WATER_SNAP_PRESETS[n]
+    return {'snap_size': n * _SA_SNAP_UNIT, 'label': f"{n * _SA_SNAP_UNIT:.0f} units"}
 
 
 def compute_radar_grid(grid_size: float = 6000.0, tiles_per_side: int = 12,

@@ -11729,3 +11729,39 @@ conclusively found despite extensive isolated testing.
   Keith's own original 32x32/96x96 examples - they aren't multiples
   of the real 64-unit chunk any actual game uses, so including them
   would have been arbitrary rather than derived from something real.
+
+- Sep 5 2026 (cont'd) - added SA's own water preset ladder, per
+  Keith: "now we need to do the same for SA... and the snap ladder
+  size, and look at these files" (real SA water.dat samples).
+
+  Tested against the real files first rather than assuming SA shares
+  VC/SOL's rigid grid format - it doesn't. Confirmed: SA's real water
+  is a freeform list of variable-sized quad/triangle shapes
+  (WaterShape), not a fixed grid at all. Corrected the earlier "VC /
+  SA / GTA3" vanilla-chunk label (and its matching module comment) to
+  just "VC / GTA3", since that grouping was never actually verified
+  for SA specifically - the same kind of unverified assumption that
+  turned out wrong for SOL's timecyc a few commits back.
+
+  Checked recurring shape dimensions in Keith's own real SA_water.dat
+  (307 shapes): 16 is the single most common real granularity, and
+  Keith's own original example numbers (32/64/96/128/256) are all
+  clean multiples of it - but only ~62% of that sample's own real
+  dimensions are actually divisible by 16 (a second, smaller real
+  sample, 98 shapes, was mostly non-16-aligned), so unlike VC/GTA3/
+  SOL's engine-enforced 64-unit chunk, this is a real, observed
+  tendency rather than a hard rule - documented honestly as such.
+
+  Added SA_WATER_SNAP_PRESETS + get_sa_water_snap_preset() - a snap-
+  size ladder (16/32/48/64/96/128/256) for freeform shape-corner
+  editing, tied to WaterCorner's own real, documented crash-
+  prevention requirement ("all X/Y coordinates... must be even,
+  rounded numbers... otherwise the game will crash"), rather than a
+  derived engine constant the way VC/GTA3/SOL's ladder is. Verified
+  all 5 of Keith's own original example numbers land exactly on it.
+
+  Also found (not yet fixed, a separate gap): 2 of Keith's uploaded
+  files (water1.dat/WATER1.DAT) parse to 0 shapes - their lines have
+  28 fields instead of the 29 parse_water_dat requires, missing the
+  trailing water_type flag entirely - a real, different sub-format
+  not currently supported.
