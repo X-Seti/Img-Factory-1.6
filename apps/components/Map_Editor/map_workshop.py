@@ -25543,7 +25543,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return
         self._on_ipl_data_type_changed(keys[index])
 
-    def _create_ipl_controls_dock(self): #vers 9
+    def _create_ipl_controls_dock(self): #vers 10
         """Dedicated dock for IPL viewing/filtering controls."""
         panel = QWidget()
         from PyQt6.QtWidgets import QButtonGroup
@@ -25994,43 +25994,59 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._interior_btn = interior_btn
 
         # Show Water (Aug 20 2026)
-        show_water_btn = _MapOverlayToggleButton("Water", supports_edit=True, icon=OverlayIcons.water_icon(24))
+        show_water_btn = _MapOverlayToggleButton("Water", supports_edit=False, icon=OverlayIcons.water_icon(24))
         show_water_btn.show_toggled.connect(self._on_show_water_toggled)
-        # Right-click switches water layers (Aug 20 2026, per Keith:
-        # "when you right click the water button, show the other
-        # water layer, right clicking again shows the first") -
-        # reuses the existing right-click/edit_toggled mechanism
-        # every edit-capable overlay button already has (a real,
-        # generic "second boolean state" signal), not a genuine edit
-        # mode for water - tooltip overridden below since the default
-        # one from _MapOverlayToggleButton's own __init__ says "edit
-        # mode", which isn't accurate here.
-        show_water_btn.edit_toggled.connect(self._on_water_layer_toggled)
+        # Middle-click switches water layers (Sep 5 2026, per Keith:
+        # "the right click toggle between vis_water and phy_water
+        # needs to be moved to the middle button so it doesnt clash
+        # with the right click menu" - was on right-click/edit_
+        # toggled, a simple two-state switch with no menu at all,
+        # which was occupying right-click and blocking a genuine
+        # context menu from ever being added there. supports_edit
+        # dropped too, since nothing here is a real edit mode.
+        show_water_btn.set_middle_click_menu_available(True)
+        show_water_btn.setToolTip(
+            "Left-click: show/hide Water.\n"
+            "Middle-click: switch between visible_map and\n"
+            "physical_map layers (waterpro.dat only).")
+        show_water_btn.middle_clicked.connect(
+            lambda: self._on_water_layer_toggled(
+                not getattr(self, '_water2_showing_physical', False)))
         self._show_water_chk = show_water_btn
         # Disabled until real water data is actually preloaded (Aug 20
         # 2026, re-applied) - re-enables itself automatically.
         show_water_btn.setEnabled(False)
         show_water_btn.setToolTip(
             "No water preloaded yet - File > Preload Game Data Files...\n"
-            "Right-click (once preloaded): switch to waterpro.dat's own\n"
+            "Middle-click (once preloaded): switch to waterpro.dat's own\n"
             "other real layer (physical_map, double the resolution).")
 
         # Generate Radar Tiles (Aug 20 2026)
         radar_gen_btn = _MapOverlayToggleButton("Radar", supports_edit=True, icon=OverlayIcons.radar_icon(24))
         radar_gen_btn.set_shown(bool(self.map_settings.get('show_radar_tex_layer')), emit=False)
         radar_gen_btn.show_toggled.connect(self._on_show_radar_tex_layer_toggled)
-        # Right-click generates the radar tiles (Aug 20 2026, per
-        # Keith: "right-clicking the radar button should generate the
-        # radar") - reuses the same real edit_toggled signal every
-        # edit-capable overlay button already has (a generic "second
-        # action" trigger), not a genuine edit mode - the boolean
-        # value itself is ignored, each right-click just re-triggers
-        # generation. Tooltip overridden below since the default
-        # "edit mode" wording isn't accurate here.
-        radar_gen_btn.edit_toggled.connect(lambda checked: self._on_generate_radar_tiles_clicked())
+        # Middle-click generates the radar tiles (Sep 5 2026, moved
+        # off right-click - see below - per Keith: "keeping right
+        # click menu, and middle click for other functions"). Was
+        # originally on right-click (Aug 20 2026, per Keith: "right-
+        # clicking the radar button should generate the radar"), which
+        # blocked this button's own real context menu
+        # (_on_radar_tiles_context_menu) from ever being reachable.
+        radar_gen_btn.set_middle_click_menu_available(True)
+        radar_gen_btn.middle_clicked.connect(lambda: self._on_generate_radar_tiles_clicked())
+        # Right-click wires up this button's own real context menu
+        # (Send to TXD Workshop/Radar Workshop/Export as RadarTex.img)
+        # - previously completely unreachable, since right-click was
+        # occupied by the simple "generate" action (now on middle-
+        # click instead, per Keith: "keeping right click menu, and
+        # middle click for other functions").
+        radar_gen_btn.edit_toggled.connect(
+            lambda checked: self._on_radar_tiles_context_menu(
+                radar_gen_btn, radar_gen_btn.rect().bottomLeft()))
         radar_gen_btn.setToolTip(
             "Left-click: show/hide the radar tex layer.\n"
-            "Right-click: generate radar tiles.")
+            "Middle-click: generate radar tiles.\n"
+            "Right-click: send/export options for generated tiles.")
         opts_row4 = QHBoxLayout()
         opts_row4.addWidget(show_sa_nodes_btn)
         opts_row4.addWidget(show_auzo_btn)
@@ -30177,16 +30193,21 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if vp is not None and hasattr(vp, 'set_show_water'):
             vp.set_show_water(checked)
 
-    def _on_water_layer_toggled(self, checked): #vers 1
-        """Right-click switches between waterpro.dat's own two real
-        layers (Aug 20 2026, per Keith: "when you right click the
-        water button, show the other water layer, right clicking
-        again shows the first") - visible_map (checked=False, the
-        default/first layer) vs physical_map (checked=True, double
-        the resolution). Only meaningful once a real waterpro.dat has
-        actually been preloaded (water.dat has no second layer at
-        all); silently does nothing otherwise, since there's nothing
-        real to switch to."""
+    def _on_water_layer_toggled(self, checked): #vers 2
+        """Middle-click switches between waterpro.dat's own two real
+        layers (Sep 5 2026, per Keith: "the right click toggle
+        between vis_water and phy_water needs to be moved to the
+        middle button so it doesnt clash with the right click menu" -
+        moved off right-click/edit_toggled, which also freed up
+        right-click for its own real context menu) - visible_map
+        (checked=False, the default/first layer) vs physical_map
+        (checked=True, double the resolution). Only meaningful once a
+        real waterpro.dat has actually been preloaded (water.dat has
+        no second layer at all); silently does nothing otherwise,
+        since there's nothing real to switch to. Tracks its own
+        current state (self._water2_showing_physical) now that the
+        button itself no longer does, since middle_clicked carries no
+        boolean the way edit_toggled used to."""
         waterpro = getattr(self, '_water2_waterpro_source', None)
         if waterpro is None:
             return
@@ -30194,6 +30215,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         vp = getattr(self, 'preview_widget', None)
         if vp is None or not hasattr(vp, 'set_water2_data'):
             return
+        self._water2_showing_physical = checked
         if checked:
             cells = self._waterpro_physical_to_cells(waterpro, game)
             self._set_status("Water: showing physical_map layer (double resolution)")

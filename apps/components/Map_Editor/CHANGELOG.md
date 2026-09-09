@@ -11631,3 +11631,36 @@ conclusively found despite extensive isolated testing.
   simply centered at world origin the way this code still assumes -
   needs further real-world confirmation before touching it. Waiting
   on the remaining 3 waterpro.dat files Keith mentioned to continue.
+
+- Sep 5 2026 (cont'd) - right-click/middle-click audit across every
+  overlay button, per Keith: "the right click toggle between vis_water
+  and phy_water needs to be moved to the middle button so it doesnt
+  clash with the right click menu, can you check the other buttons
+  aswell, keeping right click menu, and middle click for other
+  functions".
+
+  Water button: moved the vis_water/phys_water layer switch off
+  right-click (edit_toggled) onto middle-click - it's a simple two-
+  state switch with no menu at all, and was occupying right-click,
+  which is meant to host a genuine context menu. Rewrote _on_water_
+  layer_toggled to track its own state (self._water2_showing_
+  physical) now that middle_clicked (unlike edit_toggled) carries no
+  boolean. Also fixed a second, stale tooltip (the "disabled, no
+  water preloaded yet" one) that still said "Right-click" after the
+  first tooltip fix - two separate setToolTip calls, easy to miss.
+
+  Radar button: found the SAME clash, one step further - its own
+  real, substantial right-click context menu (_on_radar_tiles_
+  context_menu: Send to TXD Workshop/Radar Workshop/Export as
+  RadarTex.img) already existed in the file but was completely
+  unreachable, since right-click was occupied by the simple
+  "generate radar tiles" single action. Moved generate to middle-
+  click, wired the real menu onto right-click for the first time.
+
+  Audited every other overlay button for the same pattern: Paths/
+  Cull/Zone/Grge's right-click edit-mode toggles are genuine (real
+  viewport behaviour change, set_path_edit_mode/set_box_edit_mode),
+  not blocking any menu - left as-is. Interior picker, Cycle
+  (cull/zone list), and Repair Scale's own right-click menus are all
+  already correctly wired with no clash. No other buttons found
+  needing a change.
