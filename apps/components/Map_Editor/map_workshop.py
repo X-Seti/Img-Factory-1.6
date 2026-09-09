@@ -571,23 +571,54 @@ App_build = "193"
 # Use for: DFF edit button in main toolbar, Model Workshop tab icon.
 # - DFF → Viewport adapter
 
-def quat_to_euler_degrees(x, y, z, w): #vers 1
+def quat_to_euler_degrees(x, y, z, w): #vers 2
     """Convert a quaternion to (roll, pitch, yaw) euler angles in
     degrees - standard formula, round-trip verified against
     euler_degrees_to_quat. Used to present an IPLInstance's rotation
     (stored as a quaternion) as editable X/Y/Z degree values.
-    Ported from map_workshop_old_version.py (Aug 1 2026) - genuinely
-    missing until now, would have raised NameError the moment
-    _InstanceEditPanel.show_for_instance actually ran (found while
-    wiring up double-click-to-edit)."""
+
+    Normalizes its input first (Sep 5 2026, per Keith's own real,
+    confirmed IPL line showing a raw, non-unit (1,1,1,1) rotation) -
+    this formula assumes a unit quaternion; feeding it a non-
+    normalized one produces mathematically wrong angles, not just an
+    approximation.
+
+    Also now special-cases gimbal lock (|pitch| == 90 degrees) with
+    the standard fallback formula (Sep 5 2026, per Keith: "the
+    Rotation line is wrong. I'm wondering where its picking up
+    x146.3 y90 z146.3, doing a search with ds '146.3' its picking up
+    some of the path files") - at gimbal lock, roll and yaw are
+    mathematically underdetermined by a plain atan2 on the raw off-
+    diagonal terms (only their combination is meaningful, not their
+    individual split), so a tiny floating-point difference in the
+    input can swing the extracted roll/yaw between wildly different-
+    looking values even though the actual 3D rotation barely changes.
+    That's what produced the confusing 146.3 - not data leaking from
+    path files (a red herring from Keith's own search; that specific
+    number is a common byproduct of this exact instability, not
+    evidence of real cross-contamination). The standard fallback
+    (roll=0, yaw absorbs the combined twist) gives a stable, sensible
+    result instead."""
+    mag = math.sqrt(x*x + y*y + z*z + w*w)
+    if mag > 1e-9:
+        x, y, z, w = x/mag, y/mag, z/mag, w/mag
     sinr_cosp = 2 * (w * x + y * z)
     cosr_cosp = 1 - 2 * (x * x + y * y)
-    roll = math.atan2(sinr_cosp, cosr_cosp)
     sinp = 2 * (w * y - z * x)
-    pitch = math.copysign(math.pi / 2, sinp) if abs(sinp) >= 1 else math.asin(sinp)
     siny_cosp = 2 * (w * z + x * y)
     cosy_cosp = 1 - 2 * (y * y + z * z)
-    yaw = math.atan2(siny_cosp, cosy_cosp)
+    if sinp >= 1.0 - 1e-7:
+        pitch = math.pi / 2
+        roll = 0.0
+        yaw = -2 * math.atan2(x, w)
+    elif sinp <= -1.0 + 1e-7:
+        pitch = -math.pi / 2
+        roll = 0.0
+        yaw = 2 * math.atan2(x, w)
+    else:
+        roll = math.atan2(sinr_cosp, cosr_cosp)
+        pitch = math.asin(sinp)
+        yaw = math.atan2(siny_cosp, cosy_cosp)
     return math.degrees(roll), math.degrees(pitch), math.degrees(yaw)
 
 

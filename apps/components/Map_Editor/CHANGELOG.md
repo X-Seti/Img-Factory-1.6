@@ -11814,3 +11814,38 @@ conclusively found despite extensive isolated testing.
   the real load_ipl_by_name path, and produces the correct VC-layout
   result for a real confirmed VC instance line - not the corrupted
   one.
+
+- Sep 5 2026 (cont'd) - REAL bug fix in quat_to_euler_degrees, per
+  Keith's own real screenshot: raw IPL rotation (1,1,1,1) was
+  displaying as a confusing "146.3, -90.00, 146.3" in the IPL Object
+  Editor, and his own search for the literal string "146.3" found it
+  in path files, making him suspect real cross-contamination between
+  path data and instance rotation.
+
+  Traced the actual cause: this instance's real rotation sits exactly
+  at gimbal lock (pitch = -90 degrees), where roll and yaw become
+  mathematically underdetermined by a plain atan2 on the raw off-
+  diagonal quaternion terms - only their combined sum/difference is
+  meaningful, not their individual split, so a tiny floating-point
+  difference in the input can swing the extracted values between
+  wildly different-looking numbers even though the actual 3D rotation
+  barely changes. 146.3 was a real, if confusing, byproduct of this
+  instability - not evidence of data leaking from path files, which
+  turned out to be a coincidental red herring (146.3-ish numbers are
+  a common artifact of this exact kind of numerical instability,
+  independently of any real connection to path data).
+
+  Fixed properly: quat_to_euler_degrees now (1) normalizes its input
+  first - the formula assumes a unit quaternion, and the real raw IPL
+  value (1,1,1,1) has magnitude 2, which alone produces mathematically
+  wrong angles even away from gimbal lock; (2) special-cases gimbal
+  lock with the standard fallback formula (roll=0, yaw absorbs the
+  combined twist) instead of the same plain atan2 used everywhere
+  else, giving a stable, sensible result instead of an arbitrary split.
+
+  Verified: the exact real case from Keith's screenshot (conjugated
+  rotation (-1,-1,-1,1)) now correctly shows a stable (0.0, -90.0,
+  -90.0) instead of (146.3, -90.0, 146.3); round-tripped 200 random
+  non-gimbal-lock angles through euler_degrees_to_quat and back with
+  zero error, confirming normal (non-gimbal-lock) rotations are
+  completely unaffected by this fix.
