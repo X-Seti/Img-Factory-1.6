@@ -3406,6 +3406,12 @@ class MapSettings(QObject):
         # behaviour toggle added this session.
         'ipl_editor_always_on_top': False,
 
+        # IPL stems to parse as VC layout (Sep 5 2026, per Keith: "LC,
+        # MLL, VC are still in VC format... a loading toggle to adjust
+        # ipl loading patterns") - comma-separated, no extension, e.g.
+        # "lc,mll,vc" - empty by default (no change to normal loading).
+        'vc_layout_ipl_stems': '',
+
         # distinct from paths' red.
         'cull_box_color': (255, 217, 51),
 
@@ -9724,6 +9730,22 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "get covered by whatever you click on next.")
         nav_lay.addWidget(ipl_editor_on_top_chk)
 
+        # VC-layout IPL stems (Sep 5 2026, per Keith: "LC, MLL, VC are
+        # still in VC format... a loading toggle to adjust ipl loading
+        # patterns")
+        vc_layout_row = QHBoxLayout()
+        vc_layout_row.addWidget(QLabel("Load as VC format (stems):"))
+        vc_layout_ipl_stems_edit = QLineEdit(str(self.map_settings.get('vc_layout_ipl_stems', '')))
+        vc_layout_ipl_stems_edit.setPlaceholderText("e.g. lc,mll,vc")
+        vc_layout_ipl_stems_edit.setToolTip(
+            "Comma-separated IPL filename stems (no extension) to\n"
+            "parse using VC's own field layout instead of this\n"
+            "world's normal one - for sub-city IPLs (e.g. SOL's own\n"
+            "LC/MLL/VC ones) that are still genuinely VC-format even\n"
+            "though the rest of the world isn't.")
+        vc_layout_row.addWidget(vc_layout_ipl_stems_edit)
+        nav_lay.addLayout(vc_layout_row)
+
         nav_lay.addStretch()
         tabs.addTab(nav_tab, "Navigation")
 
@@ -9823,6 +9845,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.map_settings.set('focus_from_above_dist', float(focus_above_dist_spin.value()))
             self.map_settings.set('ipl_editor_always_on_top', ipl_editor_on_top_chk.isChecked())
             self._apply_ipl_editor_on_top_setting()
+            self.map_settings.set('vc_layout_ipl_stems', vc_layout_ipl_stems_edit.text().strip())
 
             # Keybindings (Aug 16 2026)
             key_overrides = {}
@@ -21430,6 +21453,18 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if was_visible:
             dock.show()
 
+    def _apply_vc_layout_ipl_stems(self, loader): #vers 1
+        """Populate loader.vc_layout_ipl_stems from the vc_layout_ipl_
+        stems setting (Sep 5 2026, per Keith: "LC, MLL, VC are still
+        in VC format... a loading toggle to adjust ipl loading
+        patterns") - a comma-separated list of IPL filename stems
+        (no extension, case-insensitive) to parse using VC's own
+        field layout instead of the world's own default game. Empty
+        setting means no change to normal loading behaviour."""
+        raw = self.map_settings.get('vc_layout_ipl_stems', '') or ''
+        stems = {s.strip().lower() for s in raw.split(',') if s.strip()}
+        loader.vc_layout_ipl_stems = stems
+
     def _on_instance_edited(self, inst): #vers 3
         """Called by _InstanceEditPanel."""
         vp = getattr(self, 'preview_widget', None)
@@ -21858,6 +21893,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return
 
         loader = GTAWorldLoader(game)
+        self._apply_vc_layout_ipl_stems(loader)
         loader.lazy_ipl_loading = True   # don't load/scan any
                                          # IPL's content (or its models'
                                          # geometry/textures) until the
@@ -21934,6 +21970,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         game_root = os.path.normpath(os.path.join(os.path.dirname(dat_path), ".."))
         loader = GTAWorldLoader(game)
+        self._apply_vc_layout_ipl_stems(loader)
         loader.lazy_ipl_loading = True
         ok = loader.load_from_dat(dat_path, game_root)
         self._game_root = game_root

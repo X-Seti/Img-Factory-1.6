@@ -2039,8 +2039,25 @@ class IPLParser: #vers 2
         self.auzos:     List[AuzoEntry]   = []
         self.stats      = ParseStats()
         self._valid     = GTAGame.IPL_SECTIONS.get(game, GTAGame.IPL_SECTIONS[GTAGame.GTA3])
+        self._current_inst_layout = game
 
-    def parse(self, ipl_path: str) -> bool: #vers 2
+    def parse(self, ipl_path: str, layout_override: str = None) -> bool: #vers 3
+        """layout_override (Sep 5 2026, per Keith: "LC, MLL, VC are
+        still in VC format... a loading toggle to adjust ipl loading
+        patterns") - a per-file override for which game's section set
+        and instance field layout to parse THIS file with, distinct
+        from self.game (the overall world's own game). Confirmed real
+        need: SOL's own LC/MLL/VC sub-city IPLs are still genuinely
+        VC-format even though the rest of SOL is SA-format - parsing
+        them with SA's field layout (interior,px,py,pz,rx,ry,rz,rw)
+        instead of VC's real one (interior,px,py,pz,SCALE_x,scale_y,
+        scale_z,rx,ry,rz,rw) silently misreads VC's own real scale
+        values as rotation components, since VC-format lines still
+        have enough fields to pass SA's own, looser length check
+        (>= 10) - not rejected outright, just silently wrong. Pass
+        e.g. GTAGame.VC here for one specific file; leave it None for
+        every normal file, which keeps today's behaviour (self.game)
+        unchanged."""
         if not os.path.isfile(ipl_path):
             self.stats.errors.append(f"IPL not found: {ipl_path}")
             return False
@@ -2055,6 +2072,11 @@ class IPLParser: #vers 2
         current_section        = None
         basename               = os.path.basename(ipl_path)
         current_path_group     = None   # Aug 1 2026, "path" section state
+        # Layout override applies for just this one parse() call - see
+        # this method's own docstring above for the real reason.
+        effective_layout = layout_override or self.game
+        self._valid = GTAGame.IPL_SECTIONS.get(effective_layout, GTAGame.IPL_SECTIONS[GTAGame.GTA3])
+        self._current_inst_layout = effective_layout
 
         for lineno, raw in enumerate(lines, 1):
             line = raw.split("#")[0].strip()
@@ -2224,10 +2246,11 @@ class IPLParser: #vers 2
             self.stats.warnings.append(f"enex line {lineno}: {e}")
             return None
 
-    def _parse_inst(self, line: str, source: str, lineno: int) -> Optional[IPLInstance]: #vers 2
+    def _parse_inst(self, line: str, source: str, lineno: int) -> Optional[IPLInstance]: #vers 3
         try:
             parts = [p.strip() for p in line.split(",")]
-            if self.game in (GTAGame.SA, GTAGame.SOL):
+            layout = getattr(self, '_current_inst_layout', self.game)
+            if layout in (GTAGame.SA, GTAGame.SOL):
                 if len(parts) < 10:
                     return None
                 return IPLInstance(
@@ -2237,7 +2260,7 @@ class IPLParser: #vers 2
                     rot_z=float(parts[8]), rot_w=float(parts[9]),
                     lod_index=int(parts[10]) if len(parts) > 10 else -1,
                     source_ipl=source, line_no=lineno)
-            elif self.game == GTAGame.VC:
+            elif layout == GTAGame.VC:
                 # VC: id, model, interior, px,py,pz, sx,sy,sz, rx,ry,rz,rw -
                 # confirmed empirically (not guessed) against a real line
                 # Keith provided: 429, mlamppost, 0, -686.7186279,
@@ -2726,6 +2749,17 @@ class GTAWorldLoader: #vers 3
         self.lazy_ipl_loading: bool = False
         self.available_ipls: Dict[str, DATEntry] = {}   # lowercase stem -> DATEntry
         self.loaded_ipls: set = set()   # lowercase stems already loaded on demand
+        # IPL stems (lowercase, no extension) to parse using VC's own
+        # section set and instance field layout instead of self.game's
+        # default (Sep 5 2026, per Keith: "LC, MLL, VC are still in VC
+        # format... a loading toggle to adjust ipl loading patterns") -
+        # for SOL sub-city IPLs that are still genuinely VC-format even
+        # though the rest of SOL is SA-format. Empty by default (no
+        # change to existing behaviour); populated by the caller (map_
+        # workshop.py's own Settings, per Keith's "loading toggle") for
+        # a specific world load. See IPLParser.parse's own docstring
+        # for the real reason this override matters.
+        self.vc_layout_ipl_stems: set = set()
 
     def load(self, game_root: str, progress_cb=None) -> bool: #vers 5
         """Full load from a game root directory.
@@ -3377,7 +3411,8 @@ class GTAWorldLoader: #vers 3
             self.stats.warnings.append(msg)
             return IPLLoadResult(success=False, abs_path=entry.abs_path, errors=[msg])
         parser = IPLParser(self.game)
-        ok = parser.parse(entry.abs_path)
+        layout_override = GTAGame.VC if ipl_stem.lower() in self.vc_layout_ipl_stems else None
+        ok = parser.parse(entry.abs_path, layout_override=layout_override)
         self.load_log.append(("on-demand", "IPL", entry.abs_path, ok))
         self.instances += parser.instances
         self.paths     += parser.paths
@@ -3404,7 +3439,9 @@ class GTAWorldLoader: #vers 3
             self.load_log.append((phase, "IPL", entry.abs_path, False))
             return
         parser = IPLParser(self.game)
-        ok     = parser.parse(entry.abs_path)
+        ipl_stem = os.path.splitext(os.path.basename(entry.abs_path))[0].lower()
+        layout_override = GTAGame.VC if ipl_stem in self.vc_layout_ipl_stems else None
+        ok     = parser.parse(entry.abs_path, layout_override=layout_override)
         self.load_log.append((phase, "IPL", entry.abs_path, ok))
         self.instances += parser.instances
         self.paths     += parser.paths

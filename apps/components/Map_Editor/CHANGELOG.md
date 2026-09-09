@@ -11778,3 +11778,39 @@ conclusively found despite extensive isolated testing.
   instantiated SaWaterCanvas headless and called _get_ui_color() for
   both real keys used elsewhere in this class - both return a real
   QColor with no crash.
+
+- Sep 5 2026 (cont'd) - IPL loading-pattern toggle (item 4 of
+  tonight's list), per Keith: "LC, MLL, VC are still in VC format...
+  Only the SA map ported for VC has the wrong scaling, but the VC
+  engine ignored this, all seems to show up ok, in game, but in map
+  workshop SA map loads, other parts dont... maybe a loading toggle
+  to adjust ipl loading patterns."
+
+  Root cause confirmed: IPLParser always parsed every IPL file for a
+  SOL world using SA's 10-field instance layout, but VC's real layout
+  has 13 fields with completely different semantics (separate scale
+  fields SA doesn't have). VC-format lines still have enough fields
+  to pass SA's own looser length check, so they weren't rejected -
+  just silently mis-parsed, with VC's real scale values read as
+  rotation components. Verified directly against a real, previously-
+  confirmed VC instance line: without the fix, rotation corrupts to
+  an invalid (1,1,1,0) quaternion; with it, correctly resolves to the
+  real valid quaternion (0,0,-0.999,0.044) plus the real scale
+  (1,1,1).
+
+  Added layout_override to IPLParser.parse() (per-file, not global -
+  affects both section validation and instance field layout for just
+  that one call). Added GTAWorldLoader.vc_layout_ipl_stems (a
+  configurable set of IPL filename stems to treat as VC-format),
+  wired into both real IPL-loading call sites (load_ipl_by_name and
+  _load_ipl). New vc_layout_ipl_stems setting + text field in Map
+  Workshop's own Settings > Navigation ("Load as VC format (stems):",
+  e.g. "lc,mll,vc"), applied to a freshly-constructed loader via a
+  new _apply_vc_layout_ipl_stems() helper at both real world-load
+  entry points.
+
+  Verified end-to-end: a settings-style comma-separated stem string
+  correctly flows through GTAWorldLoader.vc_layout_ipl_stems, through
+  the real load_ipl_by_name path, and produces the correct VC-layout
+  result for a real confirmed VC instance line - not the corrupted
+  one.
