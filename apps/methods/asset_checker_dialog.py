@@ -49,7 +49,13 @@ class AssetCheckerDialog(QDialog): #vers 2
         if self.result.img_path:
             names.append(os.path.basename(self.result.img_path))
         if self.result.col_path:
-            names.append(os.path.basename(self.result.col_path))
+            # col_path is either one real full path (basename it, same
+            # as img/ide) or an already-basename-joined string for the
+            # merged multi-file case (Sep 5 2026, SOL gta3 split COL) -
+            # only basename() the single-path case.
+            col_display = (self.result.col_path if "," in self.result.col_path
+                            else os.path.basename(self.result.col_path))
+            names.append(col_display)
         if self.result.ide_path:
             names.append(os.path.basename(self.result.ide_path))
         top_row.addWidget(QLabel("Checked: " + ", ".join(names) if names else "No sibling files found"))

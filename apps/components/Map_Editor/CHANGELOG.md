@@ -12241,3 +12241,25 @@ conclusively found despite extensive isolated testing.
   all - every row's every column came back exactly correct, error
   tinting confirmed only on the 4 real error rows, view switching to
   the new table confirmed working.
+
+- Sep 5 2026 (cont'd) - Asset Checker: special-case SOL's own real
+  gta3 split-COL layout, per Keith: "SOL only for gta3.img, gta3.ide
+  the col files are in /models/coll as peds.col, special.col,
+  vehicles.col and weapons.col. I will in time merge them into
+  gta3.col to match the img and col."
+
+  find_sibling_asset_files now tries a few reasonable candidate
+  locations for a real models/coll/ folder when a gta3-stem file has
+  no matching single gta3.col, and returns whichever of the 4 real
+  files actually exist as a list. check_assets now accepts col_path
+  as either one real path or a list, merging every real file's own
+  model names together into one col_names set. Best-effort since the
+  exact real folder layout wasn't given - once Keith merges these
+  into a real gta3.col himself, this whole special case stops being
+  needed and the plain single-file lookup takes over on its own.
+
+  Verified end-to-end with a realistic folder structure (data/gta3.
+  ide + models/coll/{peds,vehicles}.col, 2 of the 4 real files
+  present) - sibling detection correctly found exactly the 2 existing
+  files, and check_assets correctly merged both real files' own model
+  names into the expected combined set.

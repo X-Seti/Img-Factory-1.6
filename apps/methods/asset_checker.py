@@ -116,11 +116,24 @@ class AssetCheckResult: #vers 2
         return rows
 
 
-def find_sibling_asset_files(clicked_path: str): #vers 1
+def find_sibling_asset_files(clicked_path: str): #vers 2
     """Given one file's real path, look for the other two real sibling
     files sharing the same base stem (case-insensitive) in the same
     folder - the real game_vc.img/game_vc.col/game_vc.ide convention.
-    Returns (img_path_or_none, col_path_or_none, ide_path_or_none)."""
+    Returns (img_path_or_none, col_path_or_none_or_list, ide_path_or_none).
+
+    Special case for SOL's own gta3 (Sep 5 2026, per Keith: "SOL only
+    for gta3.img, gta3.ide the col files are in /models/coll as
+    peds.col, special.col, vehicles.col and weapons.col... I will in
+    time merge them into gta3.col") - there's no real gta3.col to find
+    this way at all; the real collision data is genuinely split across
+    4 differently-named files in a models/coll/ folder instead. Tries
+    a few reasonable candidate locations relative to the clicked file
+    (best-effort, since the exact real folder layout wasn't given) and
+    returns whichever of the 4 real files actually exist as a list.
+    Once Keith merges them into a real gta3.col, this whole special
+    case stops being needed and the plain single-file lookup above
+    takes over again on its own."""
     folder = os.path.dirname(clicked_path)
     stem = os.path.splitext(os.path.basename(clicked_path))[0].lower()
     found = {'.img': None, '.col': None, '.ide': None}
@@ -132,16 +145,36 @@ def find_sibling_asset_files(clicked_path: str): #vers 1
                 found[fext] = os.path.join(folder, fname)
     except OSError:
         pass
+
+    if found['.col'] is None and stem == 'gta3':
+        gta3_col_names = ('peds.col', 'special.col', 'vehicles.col', 'weapons.col')
+        for candidate_dir in (
+            os.path.join(folder, 'models', 'coll'),
+            os.path.join(folder, '..', 'models', 'coll'),
+            os.path.join(folder, '..', '..', 'models', 'coll'),
+        ):
+            existing = [os.path.join(candidate_dir, n) for n in gta3_col_names
+                        if os.path.isfile(os.path.join(candidate_dir, n))]
+            if existing:
+                found['.col'] = existing
+                break
+
     return found['.img'], found['.col'], found['.ide']
 
 
-def check_assets(img_path: str = None, col_path: str = None,
-                  ide_path: str = None, game: str = None) -> AssetCheckResult: #vers 3
+def check_assets(img_path: str = None, col_path=None,
+                  ide_path: str = None, game: str = None) -> AssetCheckResult: #vers 4
     """Load whichever of the 3 real files exist and cross-reference
     their real model names. Any of the 3 paths can be None/missing -
     the corresponding *_path stays empty and that source's own
     *_names set stays empty, so callers can tell "not checked" apart
-    from "checked, nothing found" via the path fields."""
+    from "checked, nothing found" via the path fields.
+
+    col_path can be one real path or a list of real paths (Sep 5 2026,
+    per Keith's own real SOL gta3 case, where collision data is split
+    across peds.col/special.col/vehicles.col/weapons.col instead of
+    one file) - every real file's own model names get merged together
+    into the same col_names set."""
     result = AssetCheckResult()
 
     if img_path and os.path.isfile(img_path):
@@ -169,13 +202,18 @@ def check_assets(img_path: str = None, col_path: str = None,
         except Exception as e:
             result.img_error = str(e)
 
-    if col_path and os.path.isfile(col_path):
+    col_paths = [col_path] if isinstance(col_path, str) else (col_path or [])
+    col_paths = [p for p in col_paths if p and os.path.isfile(p)]
+    if col_paths:
         try:
             from apps.methods.col_core_classes import COLFile
-            col_file = COLFile()
-            if col_file.load_from_file(col_path):
-                result.col_path = col_path
-                result.col_names = {m.name.lower() for m in col_file.models if m.name}
+            merged_names = set()
+            for one_path in col_paths:
+                col_file = COLFile()
+                if col_file.load_from_file(one_path):
+                    merged_names |= {m.name.lower() for m in col_file.models if m.name}
+            result.col_path = ", ".join(os.path.basename(p) for p in col_paths)
+            result.col_names = merged_names
         except Exception as e:
             result.col_error = str(e)
 
