@@ -8,12 +8,16 @@
 cross-referencing (Sep 5 2026, per Keith: "As 3 columns IMG archive |
 COL archive | IDE entry list | Error list... And another layout to
 show IMG, COL and IDE as 3 different lines, each with its own shade
-but theme-aware"). Two switchable layouts sharing one AssetCheckResult:
-a 4-column side-by-side view (one column per real source plus an
-Error list), and a merged view where each model name gets one row per
-source it's actually found in, each row tinted from the current
-theme's own palette (no hardcoded hex, per this app's own real
-convention) rather than a fixed colour."""
+but theme-aware" + his own follow-up: "we could have a txd 4th
+column... the ide file ID for the 1st column, dff for the 2rd, col,
+3rd, ide modelname 4th, texture entry, then errors"). Three switchable
+layouts sharing one AssetCheckResult: a 4-column side-by-side view
+(one column per real source plus an Error list), a merged view where
+each model name gets one row per source it's actually found in (each
+row tinted from the current theme's own palette, no hardcoded hex),
+and a per-model cross-reference table (ID/DFF/COL/IDE Model Name/
+Texture entry/Errors) that also checks whether each IDE entry's own
+declared texture actually exists in the IMG."""
 
 import os
 from PyQt6.QtWidgets import (
@@ -26,15 +30,16 @@ from PyQt6.QtGui import QColor
 from apps.methods.asset_checker import check_assets, find_sibling_asset_files
 
 
-class AssetCheckerDialog(QDialog): #vers 1
-    def __init__(self, parent, result): #vers 1
+class AssetCheckerDialog(QDialog): #vers 2
+    def __init__(self, parent, result): #vers 2
         super().__init__(parent)
         self.result = result
         self.setWindowTitle("Asset Checker")
-        self.resize(900, 560)
+        self.resize(980, 560)
         self._build_ui()
         self._populate_columns_view()
         self._populate_merged_view()
+        self._populate_cross_reference_view()
 
     def _build_ui(self): #vers 1
         lay = QVBoxLayout(self)
@@ -51,7 +56,7 @@ class AssetCheckerDialog(QDialog): #vers 1
         top_row.addStretch()
         top_row.addWidget(QLabel("View:"))
         self.view_combo = QComboBox()
-        self.view_combo.addItems(["4-Column View", "Merged View"])
+        self.view_combo.addItems(["4-Column View", "Merged View", "Cross-Reference Table"])
         self.view_combo.currentIndexChanged.connect(self._on_view_changed)
         top_row.addWidget(self.view_combo)
         lay.addLayout(top_row)
@@ -78,6 +83,16 @@ class AssetCheckerDialog(QDialog): #vers 1
         self.merged_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.merged_table.horizontalHeader().setStretchLastSection(True)
         self.stack.addWidget(self.merged_table)
+
+        # --- cross-reference table view ---
+        self.xref_table = QTableWidget()
+        self.xref_table.setColumnCount(6)
+        self.xref_table.setHorizontalHeaderLabels(
+            ["ID", "DFF", "COL", "IDE Model Name", "Texture entry", "Errors"])
+        self.xref_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.xref_table.horizontalHeader().setStretchLastSection(True)
+        self.xref_table.setSortingEnabled(True)
+        self.stack.addWidget(self.xref_table)
 
     def _make_column(self, splitter, title): #vers 1
         container = QWidget()
@@ -139,6 +154,32 @@ class AssetCheckerDialog(QDialog): #vers 1
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 item.setBackground(shades[source])
                 self.merged_table.setItem(row, col, item)
+
+    def _populate_cross_reference_view(self): #vers 1
+        """One row per real model name, in the real column order Keith
+        asked for (Sep 5 2026): ID | DFF | COL | IDE Model Name |
+        Texture entry | Errors - see AssetCheckResult.cross_reference_
+        rows' own docstring for how each column is actually derived.
+        Rows with a real error get a subtle red tint blended from the
+        current theme's own base colour, so problems stand out without
+        hardcoding a fixed hex value."""
+        base = self.palette().color(self.palette().currentColorGroup(),
+                                     self.palette().ColorRole.Base)
+        error_tint = QColor(
+            min(255, base.red() + 40), max(0, base.green() - 25), max(0, base.blue() - 25))
+
+        rows = self.result.cross_reference_rows()
+        self.xref_table.setSortingEnabled(False)
+        self.xref_table.setRowCount(len(rows))
+        for row, values in enumerate(rows):
+            has_error = values[5] != "OK"
+            for col, val in enumerate(values):
+                item = QTableWidgetItem(val)
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                if has_error:
+                    item.setBackground(error_tint)
+                self.xref_table.setItem(row, col, item)
+        self.xref_table.setSortingEnabled(True)
 
 
 def show_asset_checker(main_window, clicked_path: str, game: str = None): #vers 1

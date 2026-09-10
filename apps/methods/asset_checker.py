@@ -21,13 +21,16 @@ from typing import Optional, Set, Dict
 
 
 @dataclass
-class AssetCheckResult: #vers 1
+class AssetCheckResult: #vers 2
     img_path: str = ""
     col_path: str = ""
     ide_path: str = ""
-    img_names: Set[str] = field(default_factory=set)   # lowercase, no extension
+    img_names: Set[str] = field(default_factory=set)   # lowercase, no extension - real .dff models only
+    img_txd_names: Set[str] = field(default_factory=set)   # lowercase, no extension - real .txd textures
     col_names: Set[str] = field(default_factory=set)   # lowercase
     ide_names: Set[str] = field(default_factory=set)   # lowercase
+    ide_id_by_name: Dict[str, int] = field(default_factory=dict)      # lowercase name -> real model_id
+    ide_txd_by_name: Dict[str, str] = field(default_factory=dict)     # lowercase name -> real declared txd_name (lowercase)
     img_error: str = ""
     col_error: str = ""
     ide_error: str = ""
@@ -74,6 +77,44 @@ class AssetCheckResult: #vers 1
             parts.append("IDE" if in_ide else "no IDE")
         return " / ".join(parts)
 
+    def cross_reference_rows(self): #vers 1
+        """One row per real model name, in the real column order Keith
+        asked for (Sep 5 2026): ID | DFF | COL | IDE Model Name |
+        Texture entry | Errors. ID and Texture entry only ever come
+        from a real IDE declaration (a model with no IDE entry has no
+        real id or expected texture to check at all) - Texture entry
+        checks whether the IDE's own declared txd_name actually shows
+        up among the IMG's real .txd entries, not just whether the
+        model's own name has a texture."""
+        rows = []
+        for name in self.all_names:
+            model_id = self.ide_id_by_name.get(name, "")
+            dff_status = "Yes" if name in self.img_names else "—"
+            col_status = "Yes" if name in self.col_names else "—"
+            ide_model_name = name if name in self.ide_names else ""
+
+            declared_txd = self.ide_txd_by_name.get(name)
+            if declared_txd is None:
+                texture_status = ""   # not declared in IDE - nothing to check
+            elif declared_txd in self.img_txd_names:
+                texture_status = "Yes"
+            else:
+                texture_status = "Missing"
+
+            errors = []
+            if self.ide_path and name not in self.ide_names:
+                errors.append("Not in IDE")
+            if self.col_path and name not in self.col_names:
+                errors.append("Missing COL")
+            if self.img_path and name not in self.img_names:
+                errors.append("Missing DFF")
+            if texture_status == "Missing":
+                errors.append(f"Texture '{declared_txd}' missing")
+            error_text = "; ".join(errors) if errors else "OK"
+
+            rows.append((str(model_id), dff_status, col_status, ide_model_name, texture_status, error_text))
+        return rows
+
 
 def find_sibling_asset_files(clicked_path: str): #vers 1
     """Given one file's real path, look for the other two real sibling
@@ -95,7 +136,7 @@ def find_sibling_asset_files(clicked_path: str): #vers 1
 
 
 def check_assets(img_path: str = None, col_path: str = None,
-                  ide_path: str = None, game: str = None) -> AssetCheckResult: #vers 2
+                  ide_path: str = None, game: str = None) -> AssetCheckResult: #vers 3
     """Load whichever of the 3 real files exist and cross-reference
     their real model names. Any of the 3 paths can be None/missing -
     the corresponding *_path stays empty and that source's own
@@ -121,6 +162,10 @@ def check_assets(img_path: str = None, col_path: str = None,
                     os.path.splitext(e.name)[0].lower() for e in img_file.entries
                     if e.extension.upper() == 'DFF'
                 }
+                result.img_txd_names = {
+                    os.path.splitext(e.name)[0].lower() for e in img_file.entries
+                    if e.extension.upper() == 'TXD'
+                }
         except Exception as e:
             result.img_error = str(e)
 
@@ -141,6 +186,13 @@ def check_assets(img_path: str = None, col_path: str = None,
             if parser.parse(ide_path) and parser.objects:
                 result.ide_path = ide_path
                 result.ide_names = {o.model_name.lower() for o in parser.objects}
+                result.ide_id_by_name = {
+                    o.model_name.lower(): o.model_id for o in parser.objects
+                }
+                result.ide_txd_by_name = {
+                    o.model_name.lower(): o.txd_name.lower()
+                    for o in parser.objects if o.txd_name
+                }
         except Exception as e:
             result.ide_error = str(e)
 

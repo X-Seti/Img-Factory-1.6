@@ -12210,3 +12210,34 @@ conclusively found despite extensive isolated testing.
   "ap_blastdef_01.txd" alongside "ap_blastdef_01.dff") - confirmed
   only the real .dff model names end up in the comparison, both real
   .txd entries correctly excluded.
+
+- Sep 5 2026 (cont'd) - Asset Checker: added a 3rd view, the real
+  per-model cross-reference table Keith described in detail: "we
+  could have a txd 4th column, txd entry where we can show exists,
+  then the error coloum, we can show the ide file ID for the 1st
+  column, dff for the 2rd, col, 3rd, ide modelname 4th, texture
+  entry, then errors".
+
+  One row per real model name in that exact column order - ID | DFF |
+  COL | IDE Model Name | Texture entry | Errors. ID and Texture entry
+  only ever come from a real IDE declaration (a model with no IDE
+  entry has no id or expected texture to check); Texture entry checks
+  whether the IDE's own declared txd_name genuinely exists among the
+  IMG's real .txd entries, not just whether the model's own name has
+  a texture - a real, new cross-check beyond the earlier layouts.
+  Rows with a real error get a subtle red tint blended from the
+  current theme's own base colour (not a fixed hex), so problems
+  stand out at a glance.
+
+  Extended AssetCheckResult with img_txd_names (separate from the
+  .dff-only img_names), ide_id_by_name, and ide_txd_by_name lookups,
+  and a new cross_reference_rows() method computing all 6 columns per
+  model, including a real per-row error summary.
+
+  Verified thoroughly with a comprehensive mock scenario covering
+  every real case: a fully-matching model, one missing from COL, one
+  missing from DFF, one whose own declared texture is genuinely
+  missing, and one present in IMG/COL but never declared in IDE at
+  all - every row's every column came back exactly correct, error
+  tinting confirmed only on the 4 real error rows, view switching to
+  the new table confirmed working.
