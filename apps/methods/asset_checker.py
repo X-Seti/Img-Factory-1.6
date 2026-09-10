@@ -95,7 +95,7 @@ def find_sibling_asset_files(clicked_path: str): #vers 1
 
 
 def check_assets(img_path: str = None, col_path: str = None,
-                  ide_path: str = None, game: str = None) -> AssetCheckResult: #vers 1
+                  ide_path: str = None, game: str = None) -> AssetCheckResult: #vers 2
     """Load whichever of the 3 real files exist and cross-reference
     their real model names. Any of the 3 paths can be None/missing -
     the corresponding *_path stays empty and that source's own
@@ -109,8 +109,17 @@ def check_assets(img_path: str = None, col_path: str = None,
             img_file = IMGFile(img_path)
             if img_file.open():
                 result.img_path = img_path
+                # Only real model entries (.dff) count for this
+                # comparison (Sep 5 2026, per Keith: "hide tex names
+                # from the img file, because im also seeing not found
+                # messages") - an IMG archive holds both .dff models
+                # and .txd textures, but IDE entries reference a
+                # texture by its own txd_name field, not as a model
+                # name in its own right, so including .txd entries
+                # here just produced noise, never real matches.
                 result.img_names = {
                     os.path.splitext(e.name)[0].lower() for e in img_file.entries
+                    if e.extension.upper() == 'DFF'
                 }
         except Exception as e:
             result.img_error = str(e)

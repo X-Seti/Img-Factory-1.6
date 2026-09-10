@@ -12192,3 +12192,21 @@ conclusively found despite extensive isolated testing.
   switching); sibling auto-detection tested with real files on disk;
   full pipeline verified through the real handler with a real
   QWidget parent, no errors.
+
+- Sep 5 2026 (cont'd) - Asset Checker: filter IMG side to real .dff
+  models only, per Keith: "in assit checker can we hide tex names
+  from the img file, because im also seeing not found messages, i
+  need to work out if they dispear". An IMG archive holds both .dff
+  models and .txd textures; the earlier version compared both against
+  COL/IDE's own model names, but IDE entries reference a texture by
+  its own txd_name field, not as a model name in its own right - so
+  every real texture entry was pure noise, never a real match,
+  showing up as false "not found" entries. Now filters to entries
+  with extension=='DFF' only, matching the same real model-name
+  concept COL/IDE both already compare on.
+
+  Verified with mock entries covering the exact tricky case (a
+  texture sharing the same base name as a real model,
+  "ap_blastdef_01.txd" alongside "ap_blastdef_01.dff") - confirmed
+  only the real .dff model names end up in the comparison, both real
+  .txd entries correctly excluded.
