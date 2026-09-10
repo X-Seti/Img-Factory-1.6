@@ -2345,6 +2345,42 @@ class DATBrowserWidget(QWidget): #vers 3
             if mw and hasattr(mw, 'log_message'):
                 mw.log_message(f"COL Workshop error: {e}")
 
+    def _show_col_as_imglist(self, abs_path: str): #vers 1
+        """Show a standalone .col file's own models as a table, the
+        same way an .img archive's own entries are shown in IMG
+        Factory's main table (Sep 5 2026, per Keith: "right-clicking
+        .col files in dat_browser > show COL as imglist, the same way
+        we view .img files in img factory; I think the old function
+        is still there, populate_col_table.py") - reuses the real,
+        existing populate_table_with_col_data_debug (apps/methods/
+        populate_col_table.py), which turned out to already do exactly
+        this but was never actually wired up to DAT Browser at all."""
+        mw = self.main_window
+        if not abs_path or not os.path.isfile(abs_path):
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(f"COL file not found: {abs_path}")
+            return
+        try:
+            from apps.methods.col_core_classes import COLFile
+            from apps.methods.populate_col_table import populate_table_with_col_data_debug
+            col_file = COLFile()
+            if not col_file.load_from_file(abs_path):
+                if mw and hasattr(mw, 'log_message'):
+                    mw.log_message(f"Failed to load COL: {os.path.basename(abs_path)}")
+                return
+            if not populate_table_with_col_data_debug(mw, col_file):
+                if mw and hasattr(mw, 'log_message'):
+                    mw.log_message(f"Couldn't show COL as list: {os.path.basename(abs_path)}")
+                return
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(
+                    f"Showing {os.path.basename(abs_path)} as list in the main IMG "
+                    f"Factory table ({len(col_file.models)} model(s)) - switch to that "
+                    f"tab to see it")
+        except Exception as e:
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(f"Show COL as ImgList error: {e}")
+
     def _open_single_img_in_factory(self, abs_path: str): #vers 1
         """Open one specific IMG file in a new IMG Factory tab."""
         mw = self.main_window
@@ -3779,6 +3815,9 @@ class DATBrowserWidget(QWidget): #vers 3
                 open_col_act = menu.addAction("⬛  Open in COL Workshop")
                 open_col_act.triggered.connect(
                     lambda _=False, p=abs_path: self._open_col_in_workshop_path(p))
+                imglist_act = menu.addAction("📋  Show COL as ImgList")
+                imglist_act.triggered.connect(
+                    lambda _=False, p=abs_path: self._show_col_as_imglist(p))
             menu.addSeparator()
 
         elif entry_type == "COL▾":

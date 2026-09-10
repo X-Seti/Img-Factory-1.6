@@ -11952,3 +11952,32 @@ conclusively found despite extensive isolated testing.
   correctly and reports accurate layout/game values in an isolated
   test. Waiting on Keith to reload the world and report what this
   diagnostic actually shows for the real file in his own session.
+
+- Sep 5 2026 (cont'd) - added "Show COL as ImgList" to DAT Browser's
+  right-click menu for .col files, per Keith: "right-clicking .col
+  files in dat_browser > show COL as imglist, the same way we view
+  .img files in img factory; I think the old function is still
+  there, populate_col_table.py". Confirmed correct - reuses the
+  real, existing populate_table_with_col_data_debug (apps/methods/
+  populate_col_table.py), which was never actually wired up to DAT
+  Browser at all (zero callers found before this).
+
+  Found and fixed a MAJOR, widespread bug while testing this:
+  apps/methods/col_core_classes.py's FourCC signature check used
+  control-character bytes (0x02/0x03/0x04) instead of the real
+  format's literal ASCII text "COL2"/"COL3"/"COL4" (0x32/0x33/0x34) -
+  confirmed directly against the real bytes of Keith's own uploaded
+  lahills_1.col. This meant COLFile.load_from_file could only ever
+  successfully parse the rare, simple COLL format, silently failing
+  (empty load_error, is_loaded=False) on virtually every real COL2/
+  COL3/COL4 file. Fixed all 7 occurrences - both the reading side and
+  the writing side, which would have produced invalid files nothing
+  else could open. This module is imported in 27 different files
+  across the app, including imgfactory.py itself, so this fix likely
+  has reach well beyond just this one feature.
+
+  Verified thoroughly: re-tested against 4 real files (lahills_1.col:
+  19 models, lahills_2.col: 10, lahills_5.col: 30, airport.col: 189) -
+  every count matches what was already confirmed earlier this session
+  with a different COL parser. Full end-to-end test (load real file -
+  > populate a real QTableWidget) confirmed working correctly.

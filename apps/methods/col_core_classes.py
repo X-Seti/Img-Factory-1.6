@@ -447,7 +447,7 @@ class COLFile:
             # Read FourCC signature
             fourcc = data[offset:offset+4]
             
-            if fourcc not in [b'COLL', b'COL\x02', b'COL\x03', b'COL\x04']:
+            if fourcc not in [b'COLL', b'COL2', b'COL3', b'COL4']:
                 return None, 0
             
             # Read file size
@@ -464,11 +464,11 @@ class COLFile:
             # Determine version from signature
             if fourcc == b'COLL':
                 model.version = COLVersion.COL_1
-            elif fourcc == b'COL\x02':
+            elif fourcc == b'COL2':
                 model.version = COLVersion.COL_2
-            elif fourcc == b'COL\x03':
+            elif fourcc == b'COL3':
                 model.version = COLVersion.COL_3
-            elif fourcc == b'COL\x04':
+            elif fourcc == b'COL4':
                 model.version = COLVersion.COL_4
             
             # Extract model data (skip header)
@@ -894,11 +894,11 @@ class COLFile:
             
             # Build header with appropriate signature
             if model.version == COLVersion.COL_2:
-                data += b'COL\x02'
+                data += b'COL2'
             elif model.version == COLVersion.COL_3:
-                data += b'COL\x03'
+                data += b'COL3'
             else:
-                data += b'COL\x04'
+                data += b'COL4'
             
             data += struct.pack('<I', len(model_content))  # File size
             data += model_content
