@@ -12282,3 +12282,16 @@ conclusively found despite extensive isolated testing.
   name substring and a bare model ID correctly narrows to the right
   row with the right data, and the tab's own count label updates to
   match.
+
+- Sep 5 2026 (cont'd) - Asset Checker: show the real expected texture
+  filename instead of just "Missing", per Keith's own real example
+  (IDE line "2250, bnk_lft_door1, VCBk_lft_door2, 1, 80, 32"): "so on
+  missing, it should show VCBk_lft_door2.txd". The Texture entry
+  column now shows "<name>.txd (missing)" with the original case
+  preserved (a new ide_txd_display_by_name lookup, separate from the
+  lowercase one used for comparison) - the actionable filename
+  someone would actually need, not just that something's wrong.
+
+  Verified against Keith's own exact real IDE line - output is
+  literally "VCBk_lft_door2.txd (missing)", matching case and
+  extension exactly as described.

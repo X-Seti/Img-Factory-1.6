@@ -30,7 +30,8 @@ class AssetCheckResult: #vers 2
     col_names: Set[str] = field(default_factory=set)   # lowercase
     ide_names: Set[str] = field(default_factory=set)   # lowercase
     ide_id_by_name: Dict[str, int] = field(default_factory=dict)      # lowercase name -> real model_id
-    ide_txd_by_name: Dict[str, str] = field(default_factory=dict)     # lowercase name -> real declared txd_name (lowercase)
+    ide_txd_by_name: Dict[str, str] = field(default_factory=dict)     # lowercase name -> real declared txd_name (lowercase, for comparison)
+    ide_txd_display_by_name: Dict[str, str] = field(default_factory=dict)   # lowercase name -> real declared txd_name (original case, for display)
     img_error: str = ""
     col_error: str = ""
     ide_error: str = ""
@@ -77,7 +78,7 @@ class AssetCheckResult: #vers 2
             parts.append("IDE" if in_ide else "no IDE")
         return " / ".join(parts)
 
-    def cross_reference_rows(self): #vers 1
+    def cross_reference_rows(self): #vers 2
         """One row per real model name, in the real column order Keith
         asked for (Sep 5 2026): ID | DFF | COL | IDE Model Name |
         Texture entry | Errors. ID and Texture entry only ever come
@@ -94,12 +95,19 @@ class AssetCheckResult: #vers 2
             ide_model_name = name if name in self.ide_names else ""
 
             declared_txd = self.ide_txd_by_name.get(name)
+            declared_txd_display = self.ide_txd_display_by_name.get(name, declared_txd)
             if declared_txd is None:
                 texture_status = ""   # not declared in IDE - nothing to check
             elif declared_txd in self.img_txd_names:
                 texture_status = "Yes"
             else:
-                texture_status = "Missing"
+                # Show the real expected filename, not just "Missing"
+                # (Sep 5 2026, per Keith's own real example line "2250,
+                # bnk_lft_door1, VCBk_lft_door2, 1, 80, 32": "so on
+                # missing, it should show VCBk_lft_door2.txd") - that's
+                # the actionable information, not just that something
+                # is wrong.
+                texture_status = f"{declared_txd_display}.txd (missing)"
 
             errors = []
             if self.ide_path and name not in self.ide_names:
@@ -108,8 +116,8 @@ class AssetCheckResult: #vers 2
                 errors.append("Missing COL")
             if self.img_path and name not in self.img_names:
                 errors.append("Missing DFF")
-            if texture_status == "Missing":
-                errors.append(f"Texture '{declared_txd}' missing")
+            if declared_txd is not None and declared_txd not in self.img_txd_names:
+                errors.append(f"Texture '{declared_txd_display}.txd' missing")
             error_text = "; ".join(errors) if errors else "OK"
 
             rows.append((str(model_id), dff_status, col_status, ide_model_name, texture_status, error_text))
@@ -229,6 +237,10 @@ def check_assets(img_path: str = None, col_path=None,
                 }
                 result.ide_txd_by_name = {
                     o.model_name.lower(): o.txd_name.lower()
+                    for o in parser.objects if o.txd_name
+                }
+                result.ide_txd_display_by_name = {
+                    o.model_name.lower(): o.txd_name
                     for o in parser.objects if o.txd_name
                 }
         except Exception as e:
