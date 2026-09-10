@@ -11849,3 +11849,36 @@ conclusively found despite extensive isolated testing.
   non-gimbal-lock angles through euler_degrees_to_quat and back with
   zero error, confirming normal (non-gimbal-lock) rotations are
   completely unaffected by this fix.
+
+- Sep 5 2026 (cont'd) - MAJOR real bug found and fixed, per Keith:
+  "Could there be a conflict in the functions... where is 146.3 -90
+  146.3 coming from" + "I've noticed some SA IPLs loading in SOL with
+  the wrong data as well... this bug only affects objects loaded in
+  the GTASOL profile; Standard VC, LC, and SA load just fine."
+
+  Root cause: _find_instance_for_ipl_inst_file_row (used by double-
+  clicking a row in the IPL File Display table to open its edit
+  panel) matched only by model_name+model_id and returned the FIRST
+  instance found anywhere in the whole loaded world - correct for a
+  standalone VC/SA/LC world, where a given model_id rarely repeats,
+  but wrong for SOL, which merges multiple cities into one world:
+  common generic models (lcport43, GenVCapsteps1, etc.) legitimately
+  appear dozens of times across different sub-cities, all sharing the
+  same model_id+name. Double-clicking one specific row could silently
+  jump to and display a completely different instance's own data
+  instead - including its own, different rotation. NOT a parsing bug
+  at all, which is exactly why it affected both SA- and VC-format
+  objects equally, and only ever showed up in SOL specifically (the
+  only profile where this scale of model_id duplication happens).
+
+  Fixed: the lookup now also reads the clicked row's own Pos X/Y/Z
+  columns (already present for 'inst' rows) and picks whichever
+  name+id match sits closest to that real position, instead of just
+  the first one found anywhere.
+
+  Verified directly with a synthetic scenario matching Keith's own
+  real data: two instances sharing model_id 2017 "GenVCapsteps1" at
+  different positions with genuinely different rotations (identity
+  vs a real yaw) - clicking each row's own position now correctly
+  returns that row's own instance every time, instead of always
+  returning the first one regardless of which was clicked.

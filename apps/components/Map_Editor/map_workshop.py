@@ -27090,11 +27090,31 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if resolved_group is not None:
                 self._reverse_path_group_traffic_flow(resolved_group)
 
-    def _find_instance_for_ipl_inst_file_row(self, row): #vers 1
+    def _find_instance_for_ipl_inst_file_row(self, row): #vers 2
         """Look up the real IPLInstance for a row in the IPL Inst File
         table, matched by ID + Model name - factored out of
         _on_ipl_inst_file_cell_double_clicked so the context menu's
-        Info/Show Textures can reuse the same lookup."""
+        Info/Show Textures can reuse the same lookup.
+
+        Also disambiguates by position (Sep 5 2026, per Keith: "Could
+        there be a conflict in the functions... where is 146.3 -90
+        146.3 coming from" + "I've noticed some SA IPLs loading in SOL
+        with the wrong data as well... only affects objects loaded in
+        the GTASOL profile") - matching by name+id alone returned
+        whichever instance happened to be first anywhere in the whole
+        loaded world, which is fine for a standalone VC/SA/LC world
+        (a given model_id rarely repeats) but wrong for SOL, which
+        merges multiple cities into one world - common generic models
+        (lcport43, GenVCapsteps1, etc.) legitimately appear dozens of
+        times across different sub-cities, all sharing the same
+        model_id+name. Double-clicking one specific row could silently
+        return a completely different instance's own data instead,
+        including its own different rotation - not a parsing bug at
+        all, which is why it affected both SA- and VC-format objects
+        equally and only ever showed up in SOL. Now reads the row's
+        own Pos X/Y/Z columns (present for 'inst' rows) and picks
+        whichever name+id match sits closest to that real position,
+        rather than just the first one found."""
         table = getattr(self, '_ipl_inst_file_table', None)
         if table is None:
             return None
@@ -27107,13 +27127,28 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         except ValueError:
             target_id = None
         target_model = model_item.text()
-        for inst in getattr(self, '_all_instances', []):
-            if inst.model_name == target_model and (target_id is None or inst.model_id == target_id):
-                return inst
-        for inst in getattr(self, '_all_instances', []):
-            if inst.model_name == target_model:
-                return inst
-        return None
+
+        target_pos = None
+        if getattr(self, '_ipl_data_type', 'inst') == 'inst':
+            px_item, py_item, pz_item = (table.item(row, c) for c in (3, 4, 5))
+            if px_item is not None and py_item is not None and pz_item is not None:
+                try:
+                    target_pos = (float(px_item.text()), float(py_item.text()), float(pz_item.text()))
+                except ValueError:
+                    target_pos = None
+
+        candidates = [inst for inst in getattr(self, '_all_instances', [])
+                      if inst.model_name == target_model
+                      and (target_id is None or inst.model_id == target_id)]
+        if not candidates:
+            candidates = [inst for inst in getattr(self, '_all_instances', [])
+                          if inst.model_name == target_model]
+        if not candidates:
+            return None
+        if len(candidates) == 1 or target_pos is None:
+            return candidates[0]
+        tx, ty, tz = target_pos
+        return min(candidates, key=lambda i: (i.pos_x-tx)**2 + (i.pos_y-ty)**2 + (i.pos_z-tz)**2)
 
     def _find_path_group_for_line(self, display_name, line_no): #vers 1
         """Find the real, live PathGroup a clicked IPL File Display
@@ -27290,7 +27325,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._center_viewport_on_instance(match)
             self._center_on_instance(match)
 
-    def _on_ipl_inst_file_cell_double_clicked(self, row, col): #vers 4
+    def _on_ipl_inst_file_cell_double_clicked(self, row, col): #vers 5
         """Double-clicking the Model column (1) finds that row's real
         instance and jumps the viewport to it + opens its edit panel,
         matching double-clicking a row in the Instance List.
