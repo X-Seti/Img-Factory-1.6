@@ -12263,3 +12263,22 @@ conclusively found despite extensive isolated testing.
   present) - sibling detection correctly found exactly the 2 existing
   files, and check_assets correctly merged both real files' own model
   names into the expected combined set.
+
+- Sep 5 2026 (cont'd) - fixed the search box not filtering the COL DB
+  list, per Keith: "the search button on the botton needs to work for
+  all lists, col filelist, and ide filelist". _apply_filter (the
+  search box's own textChanged handler) only ever touched the
+  Objects (IDE) and Instances (IPL) tables - the COL DB tab wasn't
+  wired in at all, and its own _populate_col_db_tab had no filter
+  parameter to begin with. Added real filtering (by model name or
+  model ID, matching the same real-time behaviour Objects (IDE)
+  already had) to _populate_col_db_tab, and wired it into
+  _apply_filter. Also removed _apply_filter's own early-exit guard
+  (it skipped everything, including COL DB, whenever no IDE objects
+  happened to be loaded, even though COL DB has its own separate real
+  data source).
+
+  Verified with a realistic mocked database: filtering by both a
+  name substring and a bare model ID correctly narrows to the right
+  row with the right data, and the tab's own count label updates to
+  match.

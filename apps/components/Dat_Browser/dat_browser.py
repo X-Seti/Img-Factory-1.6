@@ -2234,13 +2234,13 @@ class DATBrowserWidget(QWidget): #vers 3
 
     #    Filter                                                              
 
-    def _apply_filter(self): #vers 1
-        if not self.loader.objects:
-            return
-        self._populate_objects(
-            self._search_edit.text(),
-            self._type_filter.currentText())
-        self._populate_instances(self._search_edit.text())
+    def _apply_filter(self): #vers 2
+        text = self._search_edit.text()
+        if self.loader.objects:
+            self._populate_objects(text, self._type_filter.currentText())
+            self._populate_instances(text)
+        if hasattr(self, '_col_db_table'):
+            self._populate_col_db_tab(text)
 
     #    Tree click — filter to selected file                                
 
@@ -4237,9 +4237,16 @@ class DATBrowserWidget(QWidget): #vers 3
         # Refresh tree status column to show ● in DB
         self._db_refresh_tree_status()
 
-    def _populate_col_db_tab(self): #vers 1
+    def _populate_col_db_tab(self, filter_text: str = ""): #vers 2
         """Fill the COL DB tab from asset_db.col_entries.
-        Shows every COL model indexed from any IMG in the DB."""
+        Shows every COL model indexed from any IMG in the DB.
+
+        filter_text (Sep 5 2026, per Keith: "the search button on the
+        botton needs to work for all lists, col filelist, and ide
+        filelist") - this table was never touched by the search box's
+        own textChanged handler (_apply_filter) at all before this;
+        filters on model_name/model_id, matching the same real
+        real-time-filter behaviour the Objects (IDE) tab already has."""
         tbl = self._col_db_table
         tbl.setRowCount(0)
 
@@ -4260,6 +4267,12 @@ class DATBrowserWidget(QWidget): #vers 3
             """).fetchall()
         except Exception:
             return
+
+        ft = filter_text.strip().lower()
+        if ft:
+            rows = [r for r in rows
+                    if ft in (r['model_name'] or '').lower()
+                    or ft in str(r['model_id'] or '')]
 
         tbl.setRowCount(len(rows))
         import os
