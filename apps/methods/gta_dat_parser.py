@@ -159,6 +159,17 @@ class IPLInstance:
     scale_z:     float = 1.0
     source_ipl:  str  = ""
     line_no:     int  = 0
+    raw_line:    str  = ""   # true, unmodified original text line (Sep 5
+                              # 2026) - the "Identity" section in the IPL
+                              # Object Editor previously rebuilt this text
+                              # from parsed fields instead, always
+                              # inserting VC-style scale_x/y/z even for
+                              # SA-format lines that never had separate
+                              # scale fields at all, which could show
+                              # values that don't match what's actually in
+                              # the real source file. Empty for binary-
+                              # parsed instances (BinaryIPLParser), which
+                              # have no original text line to preserve.
 
 
 @dataclass
@@ -2246,14 +2257,14 @@ class IPLParser: #vers 2
             self.stats.warnings.append(f"enex line {lineno}: {e}")
             return None
 
-    def _parse_inst(self, line: str, source: str, lineno: int) -> Optional[IPLInstance]: #vers 3
+    def _parse_inst(self, line: str, source: str, lineno: int) -> Optional[IPLInstance]: #vers 4
         try:
             parts = [p.strip() for p in line.split(",")]
             layout = getattr(self, '_current_inst_layout', self.game)
             if layout in (GTAGame.SA, GTAGame.SOL):
                 if len(parts) < 10:
                     return None
-                return IPLInstance(
+                inst = IPLInstance(
                     model_id=int(parts[0]), model_name=parts[1], interior=int(parts[2]),
                     pos_x=float(parts[3]), pos_y=float(parts[4]), pos_z=float(parts[5]),
                     rot_x=float(parts[6]), rot_y=float(parts[7]),
@@ -2274,7 +2285,7 @@ class IPLParser: #vers 2
                 # value as pos_x for every VC instance.
                 if len(parts) < 13:
                     return None
-                return IPLInstance(
+                inst = IPLInstance(
                     model_id=int(parts[0]), model_name=parts[1], interior=int(parts[2]),
                     pos_x=float(parts[3]), pos_y=float(parts[4]), pos_z=float(parts[5]),
                     scale_x=float(parts[6]), scale_y=float(parts[7]), scale_z=float(parts[8]),
@@ -2291,13 +2302,33 @@ class IPLParser: #vers 2
                 # right just because VC turned out to need a similar fix.
                 if len(parts) < 12:
                     return None
-                return IPLInstance(
+                inst = IPLInstance(
                     model_id=int(parts[0]), model_name=parts[1], interior=0,
                     pos_x=float(parts[2]), pos_y=float(parts[3]), pos_z=float(parts[4]),
                     scale_x=float(parts[5]), scale_y=float(parts[6]), scale_z=float(parts[7]),
                     rot_x=float(parts[8]), rot_y=float(parts[9]),
                     rot_z=float(parts[10]), rot_w=float(parts[11]),
                     source_ipl=source, line_no=lineno)
+
+            # Diagnostic (Sep 5 2026, per Keith's own real, still-
+            # unexplained rotation bug for a SOL sub-city instance -
+            # every code path traced so far checks out correctly on
+            # paper, but the real running result didn't match) - a
+            # valid rotation quaternion's magnitude must be ~1.0;
+            # anything far from that is a concrete, objective sign
+            # THIS line got parsed with the wrong field layout, no
+            # matter which layout value looked "correct" upstream.
+            # Surfaces which layout/game actually got used and where,
+            # directly in this app's own warnings, rather than
+            # requiring more guessing from static code alone.
+            mag2 = inst.rot_x**2 + inst.rot_y**2 + inst.rot_z**2 + inst.rot_w**2
+            if not (0.9 < mag2 < 1.1):
+                self.stats.warnings.append(
+                    f"{source}:{lineno} - {inst.model_name} rotation quaternion "
+                    f"magnitude^2={mag2:.3f} (should be ~1.0) - parsed as "
+                    f"'{layout}' layout (self.game='{self.game}'); likely the "
+                    f"wrong field layout for this line")
+            return inst
         except (ValueError, IndexError):
             self.stats.warnings.append(f"Skipped INST line {lineno}: {line[:70]}")
         return None

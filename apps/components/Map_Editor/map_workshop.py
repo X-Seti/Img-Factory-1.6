@@ -22438,7 +22438,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                         self._load_selected_ipls_with_log(
                             loader, model_cache, stems, load_models, load_textures)
 
-    def _load_selected_ipls_with_log(self, loader, model_cache, stems, load_models, load_textures): #vers 2
+    def _load_selected_ipls_with_log(self, loader, model_cache, stems, load_models, load_textures): #vers 3
         """Load a batch of specific IPLs (from the Load Options dialog)"""
         total_stems = len(stems)
         progress = QProgressDialog("Loading IPL files…", "Cancel", 0, total_stems, self)
@@ -22481,6 +22481,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                        + (f": {result.errors[0]}" if result.errors else ""))
                 continue
             any_loaded = True
+            for w in result.warnings:
+                _append(f"  WARNING: {w}")
+                if self.main_window and hasattr(self.main_window, 'log_message'):
+                    self.main_window.log_message(f"[{display_name}] {w}")
 
             new_instances = loader.instances[before_count:]
             for i, inst in enumerate(new_instances):

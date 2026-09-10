@@ -11906,3 +11906,49 @@ conclusively found despite extensive isolated testing.
   asked to lock it to already exists (added earlier today, Settings >
   Navigation > "Keep IPL Object Editor on top") - no new work needed
   there.
+
+- Sep 5 2026 (cont'd) - deep investigation of a real, still-unexplained
+  rotation bug for a SOL sub-city instance, per Keith's real screenshot
+  and follow-ups: "TbjVCmainla512" (2882, ..., 1, 1, 1, 1, 1, 0)
+  displayed rotation "116.57, -41.81, 116.57".
+
+  CONFIRMED, numerically exact: this matches parsing the real IPL
+  line with GTA3's field layout (rot_w ends up reading the line's
+  trailing "0" instead of SA/SOL's real rot_w="1") - not the earlier
+  gimbal-lock display bug, not the wrong-instance-lookup bug (Keith
+  confirmed only one placement), and not a stale-code issue (Keith
+  confirmed latest). The viewport-click path passes the instance by
+  direct reference with no re-lookup, so that's not it either.
+
+  Traced every known code path that could produce a GTA3 layout for a
+  SOL-loaded file: both real IPLParser construction sites correctly
+  use the loader's own self.game; the layout_override feature only
+  ever sets VC, never GTA3; there's no third construction site; the
+  one function with a GTA3 default parameter (prescan_dat_ipls) has
+  zero real callers anywhere - dead code. Both real game-detection
+  functions (detect_game/detect_game_from_dat_filename) correctly
+  return the lowercase 'sol' string. Keith confirmed the UI clearly
+  shows SOL as the active game. Root mechanism still not found through
+  static analysis alone.
+
+  Also found and fixed a separate, genuine issue along the way: the
+  "Identity" section's own "raw IPL line" text was rebuilt from parsed
+  fields (always inserting VC-style scale_x/y/z, even for SA-format
+  lines that never had separate scale fields), not a verbatim copy of
+  the real file text - misleading, since it looks like a raw line but
+  isn't one. Added a real raw_line field to IPLInstance to preserve
+  the true original text (not yet wired into the display - that's the
+  next step once the raw_line is actually being populated during
+  parsing and the layout mystery above is resolved).
+
+  Added a real diagnostic instead of continuing to guess further:
+  _parse_inst now checks every parsed rotation quaternion's magnitude
+  (should be ~1.0 for a valid rotation) and logs a warning - including
+  which layout/game was actually used - when it's significantly off,
+  a concrete, objective sign of a wrong-layout parse. Wired these
+  warnings into both the verbose loading dialog and the Activity Logs
+  panel (log_message) unconditionally, so they're visible regardless
+  of the verbose-dialog setting. Verified the diagnostic itself fires
+  correctly and reports accurate layout/game values in an isolated
+  test. Waiting on Keith to reload the world and report what this
+  diagnostic actually shows for the real file in his own session.
