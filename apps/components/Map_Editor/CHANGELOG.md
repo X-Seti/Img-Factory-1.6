@@ -12030,3 +12030,27 @@ conclusively found despite extensive isolated testing.
   Verified end-to-end with a real QTabWidget: tab correctly created
   and named after the file, real data (19 models from lahills_1.col)
   correctly populated in that tab.
+
+- Sep 5 2026 (cont'd) - partial fix + honest flag for a real bug, per
+  Keith: "when I tab away and come back, the col tab contents is
+  forgotten, seems to show a copy of the img file instead".
+
+  Found and fixed a real, concrete gap: _on_tab_changed's own COL
+  branch never re-populated its table when empty, unlike the IMG
+  branch right next to it, which already had this exact safety net
+  (if tab_table.rowCount() == 0: populate...). Added the same
+  defensive re-populate to the COL branch. This is a genuine
+  improvement, but honestly may not be the full story - Keith's own
+  wording ("shows a copy of the img file") suggests the table isn't
+  empty, it's showing wrong (IMG-looking) rows, which an empty-check
+  alone wouldn't catch.
+
+  Also found, NOT yet investigated for relevance: imgfactory.py
+  itself (the main app file) has 6 pre-existing duplicate method
+  definitions (_append_log_message, validate_img, show_about,
+  open_file_dialog, _on_load_progress, _toggle_maximize) - found via
+  the same AST duplicate-scan used throughout this session, not
+  introduced by this change. Python silently uses only the last
+  definition of each, so the first copy of each is completely dead
+  code. Not yet confirmed whether any of these relate to this
+  specific COL-tab bug.

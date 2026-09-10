@@ -3678,6 +3678,16 @@ class IMGFactory(QMainWindow):
             if file_type == 'COL':
                 self.current_col = file_object
                 self.current_img = None
+                # Re-populate if this tab's own table looks empty when we
+                # switch back to it (Sep 5 2026, per Keith: "when I tab
+                # away and come back, the col tab contents is forgotten,
+                # seems to show a copy of the img file instead") - the
+                # IMG branch right below already has this exact safety
+                # net; the COL branch never did.
+                if (tab_table and tab_table.rowCount() == 0
+                        and hasattr(file_object, 'models') and file_object.models):
+                    from apps.methods.populate_col_table import populate_table_with_col_data_debug
+                    populate_table_with_col_data_debug(self, file_object)
                 if hasattr(self, 'update_img_status'):
                     col_count = len(file_object.models) if hasattr(file_object, 'models') and file_object.models else 0
                     fp = getattr(file_object, 'file_path', '')
