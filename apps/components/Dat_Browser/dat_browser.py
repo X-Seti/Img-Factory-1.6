@@ -3867,7 +3867,9 @@ class DATBrowserWidget(QWidget): #vers 3
                 open_col_act = menu.addAction("⬛  Open in COL Workshop")
                 open_col_act.triggered.connect(
                     lambda _=False, p=abs_path: self._open_col_in_workshop_path(p))
-                imglist_act = menu.addAction("📋  Show COL as ImgList")
+                imglist_act = menu.addAction("Show COL as ImgList")
+                from apps.methods.imgfactory_svg_icons import get_list_view_icon
+                imglist_act.setIcon(get_list_view_icon(16))
                 imglist_act.triggered.connect(
                     lambda _=False, p=abs_path: self._show_col_as_imglist(p))
             menu.addSeparator()
@@ -3887,7 +3889,10 @@ class DATBrowserWidget(QWidget): #vers 3
                         self._search_edit.setText(""),
                         self._search_edit.blockSignals(False),
                         self._populate_objects_for_ide(b)))
-                menu.addAction("📋  Show IDE as List").triggered.connect(
+                ide_list_act = menu.addAction("Show IDE as List")
+                from apps.methods.imgfactory_svg_icons import get_list_view_icon
+                ide_list_act.setIcon(get_list_view_icon(16))
+                ide_list_act.triggered.connect(
                     lambda _=False, p=abs_path: self._show_ide_as_list(p))
                 menu.addAction(f"✏  Edit  {bname}").triggered.connect(
                     lambda _=False, p=abs_path: self._open_path_in_editor(p))

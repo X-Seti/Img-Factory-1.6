@@ -1402,11 +1402,14 @@ class DirectoryTreeBrowser(QWidget):
                 # the same function to Dir Tree browser" - this real,
                 # active dir tree browser had no .col-specific actions
                 # at all before this.
-                open_col_action = QAction("⬛  Open in COL Workshop", self)
+                from apps.methods.imgfactory_svg_icons import get_col_file_icon, get_list_view_icon
+                open_col_action = QAction("Open in COL Workshop", self)
+                open_col_action.setIcon(get_col_file_icon(16))
                 open_col_action.triggered.connect(
                     lambda _=False, p=file_path: self._open_col_in_workshop(p))
                 menu.addAction(open_col_action)
-                imglist_action = QAction("📋  Show COL as ImgList", self)
+                imglist_action = QAction("Show COL as ImgList", self)
+                imglist_action.setIcon(get_list_view_icon(16))
                 imglist_action.triggered.connect(
                     lambda _=False, p=file_path: self._show_col_as_imglist(p))
                 menu.addAction(imglist_action)
@@ -1436,7 +1439,9 @@ class DirectoryTreeBrowser(QWidget):
                     ide_action.triggered.connect(
                         lambda _=False, p=file_path: self._open_ide_editor(p))
                     menu.addAction(ide_action)
-                    imglist_action = QAction("📋  Show IDE as List", self)
+                    from apps.methods.imgfactory_svg_icons import get_list_view_icon
+                    imglist_action = QAction("Show IDE as List", self)
+                    imglist_action.setIcon(get_list_view_icon(16))
                     imglist_action.triggered.connect(
                         lambda _=False, p=file_path: self._show_ide_as_list(p))
                     menu.addAction(imglist_action)

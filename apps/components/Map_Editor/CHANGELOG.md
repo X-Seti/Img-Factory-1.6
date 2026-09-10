@@ -12128,3 +12128,27 @@ conclusively found despite extensive isolated testing.
   (real GTA3 objs format) through both components - tab created,
   named after the file, correctly populated with real parsed object
   data, alternating row colours confirmed on.
+
+- Sep 5 2026 (cont'd) - real fix, per Keith: "i hope you didnt use an
+  emoji, its against the rules, if we have to show icons, make them
+  SVG icons". He was right - the last few commits' own new menu
+  actions (Show COL as ImgList / Show IDE as List in both DAT Browser
+  and Dir Tree Browser, Open in COL Workshop in Dir Tree Browser)
+  used emoji characters in their text, matching the surrounding
+  (already emoji-heavy) code's own style instead of following AI_
+  Rules.md's actual "no emoji" rule.
+
+  New list_view_icon (apps/methods/imgfactory_svg_icons.py, 3 plain
+  horizontal rows) for "Show as List" actions; Open in COL Workshop
+  now uses the existing real get_col_file_icon instead of a plain-
+  text emoji. Replaced every emoji I'd added across both files with
+  plain text + a real .setIcon(...) call. Left pre-existing emoji in
+  dat_browser.py alone (not introduced this session, out of scope for
+  this specific fix).
+
+  Verified: new icon renders correctly (non-null, real 20x20 pixmap),
+  and both icons attach correctly to real QAction objects with plain,
+  emoji-free text. Also found, not fixed (pre-existing, unrelated to
+  this fix): imgfactory_svg_icons.py has 2 duplicate method
+  definitions (reset_view_icon, get_app_icon) via the same AST scan
+  used throughout this session.

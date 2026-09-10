@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 19
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 20
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -5013,6 +5013,28 @@ def get_fit_grid_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
     return QIcon(px)
 
 SVGIconFactory.fit_grid_icon = staticmethod(get_fit_grid_icon)
+
+
+def get_list_view_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+    """List view — 3 horizontal rows, for "Show as List" style menu
+    actions (Sep 5 2026, per Keith: "if we have to show icons, make
+    them SVG icons") - real SVG replacing emoji that got used by
+    mistake, matching AI_Rules.md's own "no emoji" rule this file's
+    own icons already follow everywhere else."""
+    from PyQt6.QtGui import QIcon, QPixmap, QPainter
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtSvg import QSvgRenderer
+    c = color or '#ffffff'
+    svg = f'''<svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+      <rect x="2" y="3" width="16" height="3.2" fill="{c}"/>
+      <rect x="2" y="8.4" width="16" height="3.2" fill="{c}"/>
+      <rect x="2" y="13.8" width="16" height="3.2" fill="{c}"/>
+    </svg>'''
+    px = QPixmap(size, size); px.fill(Qt.GlobalColor.transparent)
+    r = QSvgRenderer(svg.encode()); p = QPainter(px); r.render(p); p.end()
+    return QIcon(px)
+
+SVGIconFactory.list_view_icon = staticmethod(get_list_view_icon)
 
 
 def get_quad_view_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
