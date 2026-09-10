@@ -394,7 +394,7 @@ def update_references(main_window, tab_index: int): #vers 2
         main_window.log_message(f"Error updating references: {str(e)}")
 
 
-def switch_tab(main_window, tab_index: int): #vers 3
+def switch_tab(main_window, tab_index: int): #vers 4
     """Handle tab switch event - Updated to refresh table display"""
     try:
         if tab_index < 0:
@@ -421,13 +421,25 @@ def switch_tab(main_window, tab_index: int): #vers 3
         # Get file data for this tab
         file_object, file_type, table_widget = get_tab_data(tab_widget)
 
-        # Also get the main shared table from gui_layout
-        shared_table = main_window.gui_layout.table
+        # Sync gui_layout.table to THIS tab's own table (Sep 5 2026, per
+        # Keith's own real Activity Log confirming switch_tab - not
+        # _on_tab_changed - is the actual active handler, and real
+        # reproduction steps showing switching to the IMG tab corrupts
+        # a different, unrelated tab's own table) - this line was
+        # missing entirely; without it, gui_layout.table (used just
+        # below) stayed pointing at whatever tab last explicitly set it
+        # (e.g. get_active_table, when a COL tab gets populated), so
+        # switching to the IMG tab could populate a completely
+        # different tab's own table with IMG data instead of this one's.
+        if table_widget and hasattr(main_window, 'gui_layout'):
+            main_window.gui_layout.table = table_widget
 
         if file_type == 'IMG' and file_object and file_object.entries:
-            # Populate the shared table with this tab's IMG data
+            # Populate THIS tab's own table with its own IMG data - not
+            # main_window.gui_layout.table directly, which may not be
+            # this tab's table at all (see fix note above).
             from apps.methods.populate_img_table import populate_img_table
-            populate_img_table(shared_table, file_object)
+            populate_img_table(table_widget, file_object)
 
         elif file_type == 'COL' and file_object:
             from apps.components.Col_Editor.col_workshop import COLWorkshop

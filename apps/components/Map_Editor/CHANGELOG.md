@@ -12079,3 +12079,32 @@ conclusively found despite extensive isolated testing.
   switch happens, surfaced directly in Activity Logs as "[tab-diag]"
   lines - waiting on Keith to reproduce and share what these actually
   show for both tabs.
+
+- Sep 5 2026 (cont'd) - REAL, confirmed root cause found and fixed for
+  the "col tab shows img content" bug, per Keith's own real Activity
+  Log ("Switching to tab N" - confirming switch_tab in tab_system.py,
+  not _on_tab_changed in imgfactory.py, is the actual active handler
+  in this app) and precise reproduction steps (switching to the IMG
+  tab specifically corrupts a different, unrelated COL tab).
+
+  Root cause: switch_tab's own shared_table = main_window.gui_layout.
+  table was read once, directly, without ever re-syncing to the
+  CURRENT tab's own table first - gui_layout.table just stayed
+  pointing at whatever tab last explicitly set it (e.g. get_active_
+  table, when a COL tab gets populated via populate_table_with_col_
+  data_debug), so switching to the IMG tab would populate whatever
+  table gui_layout.table happened to still point at - not necessarily
+  the IMG tab's own table at all.
+
+  Fixed: now syncs gui_layout.table to the CURRENT tab's own table_
+  widget (already correctly retrieved via get_tab_data just above)
+  before using it, and populates that tab's own table directly rather
+  than the possibly-unrelated gui_layout.table.
+
+  Verified with a full, real reproduction of Keith's exact scenario:
+  built a real COL tab (19 models, "Model Name" header) then a real
+  IMG tab (5 entries) and called the real switch_tab - confirmed the
+  OLD logic corrupts the COL tab to 5 rows with an IMG-style "Name"
+  header (exactly matching Keith's report), and the FIXED logic
+  leaves the COL tab's own 19 rows and real header completely intact
+  after switching to and from the IMG tab.
