@@ -28,18 +28,19 @@ from apps.methods.col_core_classes import COLFile, COLModel
 # update_col_info_bar_enhanced
 # validate_col_file
 
-def populate_table_with_col_data_debug(main_window, col_file): #vers 1
+def populate_table_with_col_data_debug(main_window, col_file): #vers 2
     """Populate table with COL file data using IMG debug system"""
     try:
         if not col_file or not hasattr(col_file, 'models') or not col_file.models:
             img_debugger.warning("No COL data to populate")
             return False
 
-        if not hasattr(main_window, 'gui_layout') or not hasattr(main_window.gui_layout, 'table'):
+        from apps.methods.export_shared import get_active_table
+        table = get_active_table(main_window)
+        if table is None:
             img_debugger.error("No table widget available")
             return False
 
-        table = main_window.gui_layout.table
         models = col_file.models
 
         img_debugger.debug(f"Populating table with {len(models)} COL models")
@@ -219,14 +220,14 @@ def load_col_file_object(main_window, file_path): #vers 2
     except Exception as e:
         img_debugger.error(f"Error loading COL file: {str(e)}")
         return None
-def setup_col_table_structure(main_window): #vers 1
+def setup_col_table_structure(main_window): #vers 2
     """Setup table structure for COL data"""
     try:
-        if not hasattr(main_window, 'gui_layout') or not hasattr(main_window.gui_layout, 'table'):
+        from apps.methods.export_shared import get_active_table
+        table = get_active_table(main_window)
+        if table is None:
             img_debugger.error("No table widget available")
             return False
-        
-        table = main_window.gui_layout.table
         
         # COL-specific columns
         col_headers = ["Model Name", "Type", "Version", "Size", "Spheres", "Boxes", "Vertices", "Faces"]

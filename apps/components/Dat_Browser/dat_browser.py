@@ -2345,7 +2345,7 @@ class DATBrowserWidget(QWidget): #vers 3
             if mw and hasattr(mw, 'log_message'):
                 mw.log_message(f"COL Workshop error: {e}")
 
-    def _show_col_as_imglist(self, abs_path: str): #vers 1
+    def _show_col_as_imglist(self, abs_path: str): #vers 2
         """Show a standalone .col file's own models as a table, the
         same way an .img archive's own entries are shown in IMG
         Factory's main table (Sep 5 2026, per Keith: "right-clicking
@@ -2354,7 +2354,17 @@ class DATBrowserWidget(QWidget): #vers 3
         is still there, populate_col_table.py") - reuses the real,
         existing populate_table_with_col_data_debug (apps/methods/
         populate_col_table.py), which turned out to already do exactly
-        this but was never actually wired up to DAT Browser at all."""
+        this but was never actually wired up to DAT Browser at all.
+
+        Creates a real, visible tab first (Sep 5 2026, per Keith's own
+        follow-up: "however I see no tab") - populate_table_with_col_
+        data_debug's own table now correctly comes from get_active_
+        table (fixed alongside this), but that only ever reflects
+        whatever tab is CURRENTLY active - if no IMG tab happened to
+        already be open, there was nothing visible to populate at
+        all. create_tab (apps/methods/tab_system.py) makes a real new
+        tab, adds it to main_tab_widget, and switches to it, so the
+        populated data is guaranteed to actually be visible."""
         mw = self.main_window
         if not abs_path or not os.path.isfile(abs_path):
             if mw and hasattr(mw, 'log_message'):
@@ -2363,20 +2373,21 @@ class DATBrowserWidget(QWidget): #vers 3
         try:
             from apps.methods.col_core_classes import COLFile
             from apps.methods.populate_col_table import populate_table_with_col_data_debug
+            from apps.methods.tab_system import create_tab
             col_file = COLFile()
             if not col_file.load_from_file(abs_path):
                 if mw and hasattr(mw, 'log_message'):
                     mw.log_message(f"Failed to load COL: {os.path.basename(abs_path)}")
                 return
+            create_tab(mw, file_path=abs_path, file_type='COL', file_object=col_file)
             if not populate_table_with_col_data_debug(mw, col_file):
                 if mw and hasattr(mw, 'log_message'):
                     mw.log_message(f"Couldn't show COL as list: {os.path.basename(abs_path)}")
                 return
             if mw and hasattr(mw, 'log_message'):
                 mw.log_message(
-                    f"Showing {os.path.basename(abs_path)} as list in the main IMG "
-                    f"Factory table ({len(col_file.models)} model(s)) - switch to that "
-                    f"tab to see it")
+                    f"Showing {os.path.basename(abs_path)} as list "
+                    f"({len(col_file.models)} model(s))")
         except Exception as e:
             if mw and hasattr(mw, 'log_message'):
                 mw.log_message(f"Show COL as ImgList error: {e}")

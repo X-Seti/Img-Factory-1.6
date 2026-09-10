@@ -11981,3 +11981,33 @@ conclusively found despite extensive isolated testing.
   every count matches what was already confirmed earlier this session
   with a different COL parser. Full end-to-end test (load real file -
   > populate a real QTableWidget) confirmed working correctly.
+
+- Sep 5 2026 (cont'd) - real fix for "Show COL as ImgList" not
+  actually being visible, per Keith: "owing generics.col as list in
+  the main IMG Factory table (1146 model(s)) - switch to that tab to
+  see it, however I see no tab".
+
+  Root cause: populate_table_with_col_data_debug (and the setup
+  function it calls) accessed main_window.gui_layout.table directly -
+  a stale pattern predating the app's own established convention
+  (export_shared.get_active_table's own docstring literally says
+  "Always use this instead of gui_layout.table directly"). gui_layout.
+  table only reflects whatever IMG tab happened to be active; if none
+  was open yet (Keith's real situation, just browsing via DAT
+  Browser), there was nothing visible to populate at all - my earlier
+  "switch to that tab" message was itself wrong, since no such tab
+  existed.
+
+  Fixed both functions to use get_active_table properly, and had the
+  DAT Browser handler call the app's own real create_tab (apps/
+  methods/tab_system.py) first - creates a genuine new tab, adds it
+  to main_tab_widget, and switches to it, guaranteeing the populated
+  data is actually visible, the same way opening a real .img file
+  already works.
+
+  Verified fully end-to-end with a real QTabWidget (not just a mocked
+  table): create_tab correctly creates and activates a new tab named
+  after the real file, populate_table_with_col_data_debug correctly
+  finds that same active tab's own table via get_active_table, and
+  the real data (19 models from lahills_1.col, first row "cunte_
+  roads05") shows up exactly where expected.
