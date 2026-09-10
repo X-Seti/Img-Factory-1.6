@@ -12011,3 +12011,22 @@ conclusively found despite extensive isolated testing.
   finds that same active tab's own table via get_active_table, and
   the real data (19 models from lahills_1.col, first row "cunte_
   roads05") shows up exactly where expected.
+
+- Sep 5 2026 (cont'd) - added "Show COL as ImgList" (+ "Open in COL
+  Workshop", which didn't exist here either) to the real, active Dir
+  Tree Browser (apps/components/File_Editor/directory_tree_browser.py
+  - confirmed via real usage in imgfactory.py/gui_layout.py, unlike
+  the separate, unused FileBrowserWidget in file_dirtree_browser.py,
+  whose own "View COL Models" action turned out to be a complete
+  stub - a QMessageBox saying "This would show..."), per Keith: "col
+  list works, need to add the same function to Dir Tree browser".
+
+  Reuses the exact same real fix already verified for DAT Browser:
+  create_tab (apps/methods/tab_system.py) makes a genuine new tab and
+  switches to it, then populate_table_with_col_data_debug (apps/
+  methods/populate_col_table.py, already fixed to use get_active_
+  table properly) fills it in.
+
+  Verified end-to-end with a real QTabWidget: tab correctly created
+  and named after the file, real data (19 models from lahills_1.col)
+  correctly populated in that tab.

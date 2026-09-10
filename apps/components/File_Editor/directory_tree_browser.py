@@ -1264,7 +1264,7 @@ class DirectoryTreeBrowser(QWidget):
             self.file_opened.emit(file_path)
 
 
-    def show_context_menu(self, position): #vers 3
+    def show_context_menu(self, position): #vers 4
         """Show context menu - tracks which tree triggered it"""
         # Identify which tree sent the signal
         sender = self.sender()
@@ -1397,6 +1397,19 @@ class DirectoryTreeBrowser(QWidget):
                     "container format, unlike streams/ (see sa_audio_\n"
                     "stream.py's own docstring for the full, real story).")
                 menu.addAction(sfx_action)
+            elif file_ext == '.col':
+                # Sep 5 2026, per Keith: "col list works, need to add
+                # the same function to Dir Tree browser" - this real,
+                # active dir tree browser had no .col-specific actions
+                # at all before this.
+                open_col_action = QAction("⬛  Open in COL Workshop", self)
+                open_col_action.triggered.connect(
+                    lambda _=False, p=file_path: self._open_col_in_workshop(p))
+                menu.addAction(open_col_action)
+                imglist_action = QAction("📋  Show COL as ImgList", self)
+                imglist_action.triggered.connect(
+                    lambda _=False, p=file_path: self._show_col_as_imglist(p))
+                menu.addAction(imglist_action)
 
             #    Text-editable types get an "Edit" action               
             _TEXT_EDITABLE = ('.ide', '.ipl', '.dat', '.txt', '.cfg',
@@ -1711,6 +1724,62 @@ class DirectoryTreeBrowser(QWidget):
             f"Playing track 0 (preview only) from {os.path.basename(path)} - "
             f"use Map Workshop's own Settings > Render > Audio Streams > "
             f"Extract Tracks... to get every real track out as individual files.")
+
+    def _open_col_in_workshop(self, file_path: str): #vers 1
+        """Open a standalone .col file in COL Workshop (Sep 5 2026,
+        per Keith: "col list works, need to add the same function to
+        Dir Tree browser")."""
+        mw = self.main_window
+        if not file_path or not os.path.isfile(file_path):
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(f"COL file not found: {file_path}")
+            return
+        try:
+            from apps.components.Col_Editor.col_workshop import open_col_workshop
+            open_col_workshop(mw, file_path)
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(f"COL Workshop: {os.path.basename(file_path)}")
+        except Exception as e:
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(f"COL Workshop error: {e}")
+
+    def _show_col_as_imglist(self, file_path: str): #vers 1
+        """Show a standalone .col file's own models as a table, the
+        same way an .img archive's own entries are shown in IMG
+        Factory's main table (Sep 5 2026, per Keith: "col list works,
+        need to add the same function to Dir Tree browser") - same
+        real fix already verified for DAT Browser: creates a real,
+        visible tab via create_tab first (apps/methods/tab_system.py),
+        then populates it via populate_table_with_col_data_debug
+        (apps/methods/populate_col_table.py), which now correctly
+        targets that same tab's own table via get_active_table rather
+        than whatever gui_layout.table happened to point at."""
+        mw = self.main_window
+        if not file_path or not os.path.isfile(file_path):
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(f"COL file not found: {file_path}")
+            return
+        try:
+            from apps.methods.col_core_classes import COLFile
+            from apps.methods.populate_col_table import populate_table_with_col_data_debug
+            from apps.methods.tab_system import create_tab
+            col_file = COLFile()
+            if not col_file.load_from_file(file_path):
+                if mw and hasattr(mw, 'log_message'):
+                    mw.log_message(f"Failed to load COL: {os.path.basename(file_path)}")
+                return
+            create_tab(mw, file_path=file_path, file_type='COL', file_object=col_file)
+            if not populate_table_with_col_data_debug(mw, col_file):
+                if mw and hasattr(mw, 'log_message'):
+                    mw.log_message(f"Couldn't show COL as list: {os.path.basename(file_path)}")
+                return
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(
+                    f"Showing {os.path.basename(file_path)} as list "
+                    f"({len(col_file.models)} model(s))")
+        except Exception as e:
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(f"Show COL as ImgList error: {e}")
 
     def _open_smart_editor(self, file_path: str): #vers 1
         """Route file to specialist editor based on filename."""
