@@ -3582,7 +3582,7 @@ class IMGFactory(QMainWindow):
             self.log_message(f"Error logging tab state: {str(e)}")
 
 
-    def _on_tab_changed(self, index): #vers 10
+    def _on_tab_changed(self, index): #vers 11
         """Handle tab switching - DIR Tree, IMG, COL, TXD tabs"""
         try:
             current_tab = self.main_tab_widget.widget(index)
@@ -3598,6 +3598,21 @@ class IMGFactory(QMainWindow):
             tab_table = getattr(current_tab, 'table_ref', None)
             if tab_table and hasattr(self, 'gui_layout'):
                 self.gui_layout.table = tab_table
+
+            # Diagnostic (Sep 5 2026, per Keith's own real screenshots
+            # showing the COL tab's own table displaying IMG-style
+            # columns instead of its own real ones) - shows exactly
+            # which table object this tab actually has, and what its
+            # real column headers are right now, directly in the
+            # Activity Logs, rather than guessing further from static
+            # code alone.
+            if tab_table is not None:
+                headers = [tab_table.horizontalHeaderItem(i).text()
+                           if tab_table.horizontalHeaderItem(i) else '?'
+                           for i in range(tab_table.columnCount())]
+                self.log_message(
+                    f"[tab-diag] '{tab_name}' idx={index} file_type={file_type} "
+                    f"table_id={id(tab_table)} cols={headers} rows={tab_table.rowCount()}")
 
             #  Tool menu injection  
             # Remove any previously injected tool menu, then inject the

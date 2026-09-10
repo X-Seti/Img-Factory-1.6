@@ -12054,3 +12054,28 @@ conclusively found despite extensive isolated testing.
   definition of each, so the first copy of each is completely dead
   code. Not yet confirmed whether any of these relate to this
   specific COL-tab bug.
+
+- Sep 5 2026 (cont'd) - added a real diagnostic to _on_tab_changed,
+  per Keith's own real screenshots (shows_col_entries.png,
+  switched_back_to_game_vc_col.png, switched_to_game_vc_img.png)
+  showing the "game_vc" COL tab correctly listing 19 real COL models
+  with its own real columns (Model Name/Type/Version/Size/Spheres/
+  Boxes/Vertices/Faces) at first, but after switching to "game_vc.img"
+  and back, the SAME "game_vc" tab instead shows IMG-style columns
+  (Name/Type/Size/Offset/RW Address/RW Version/Encoding/Status/IDE
+  Model/IDE TXD) - not just wrong rows, the whole column structure
+  changed, which the earlier empty-check fix wouldn't catch.
+
+  Traced both real tab-creation paths (COL via my own DAT Browser/Dir
+  Tree handlers, IMG via _load_img_file_in_new_tab/_on_img_loaded) -
+  both correctly use create_tab with their own separate table_ref,
+  and _on_img_loaded correctly populates its own tab's table, not
+  gui_layout.table directly. Couldn't pin down the exact mechanism
+  causing one tab's table to show the other's column structure from
+  static analysis alone.
+
+  Added a diagnostic to _on_tab_changed logging the real table
+  object's own id(), column headers, and row count every time a tab
+  switch happens, surfaced directly in Activity Logs as "[tab-diag]"
+  lines - waiting on Keith to reproduce and share what these actually
+  show for both tabs.
