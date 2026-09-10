@@ -5037,6 +5037,28 @@ def get_list_view_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
 SVGIconFactory.list_view_icon = staticmethod(get_list_view_icon)
 
 
+def get_asset_checker_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+    """Asset Checker - a checkmark over 3 small rows, for the new
+    IMG/COL/IDE cross-reference feature (Sep 5 2026, per Keith:
+    "Asset checker as a right click on img, col and ide entries")."""
+    from PyQt6.QtGui import QIcon, QPixmap, QPainter
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtSvg import QSvgRenderer
+    c = color or '#ffffff'
+    svg = f'''<svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+      <rect x="1" y="2.5" width="11" height="2.4" fill="{c}" opacity="0.55"/>
+      <rect x="1" y="8.8" width="11" height="2.4" fill="{c}" opacity="0.55"/>
+      <rect x="1" y="15.1" width="11" height="2.4" fill="{c}" opacity="0.55"/>
+      <polyline points="9,15 13,19 19,5" fill="none" stroke="{c}"
+        stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>'''
+    px = QPixmap(size, size); px.fill(Qt.GlobalColor.transparent)
+    r = QSvgRenderer(svg.encode()); p = QPainter(px); r.render(p); p.end()
+    return QIcon(px)
+
+SVGIconFactory.asset_checker_icon = staticmethod(get_asset_checker_icon)
+
+
 def get_quad_view_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
     """Quad view — 4 separate panes (Top/Front/Side/Perspective split),
     like 3ds Max's viewport-configuration icon. Distinct from fit_grid_icon

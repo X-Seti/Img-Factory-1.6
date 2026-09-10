@@ -1264,7 +1264,7 @@ class DirectoryTreeBrowser(QWidget):
             self.file_opened.emit(file_path)
 
 
-    def show_context_menu(self, position): #vers 4
+    def show_context_menu(self, position): #vers 5
         """Show context menu - tracks which tree triggered it"""
         # Identify which tree sent the signal
         sender = self.sender()
@@ -1397,6 +1397,13 @@ class DirectoryTreeBrowser(QWidget):
                     "container format, unlike streams/ (see sa_audio_\n"
                     "stream.py's own docstring for the full, real story).")
                 menu.addAction(sfx_action)
+            elif file_ext == '.img':
+                from apps.methods.imgfactory_svg_icons import get_asset_checker_icon
+                asset_action = QAction("Asset Checker", self)
+                asset_action.setIcon(get_asset_checker_icon(16))
+                asset_action.triggered.connect(
+                    lambda _=False, p=file_path: self._show_asset_checker(p))
+                menu.addAction(asset_action)
             elif file_ext == '.col':
                 # Sep 5 2026, per Keith: "col list works, need to add
                 # the same function to Dir Tree browser" - this real,
@@ -1413,6 +1420,12 @@ class DirectoryTreeBrowser(QWidget):
                 imglist_action.triggered.connect(
                     lambda _=False, p=file_path: self._show_col_as_imglist(p))
                 menu.addAction(imglist_action)
+                from apps.methods.imgfactory_svg_icons import get_asset_checker_icon
+                asset_action = QAction("Asset Checker", self)
+                asset_action.setIcon(get_asset_checker_icon(16))
+                asset_action.triggered.connect(
+                    lambda _=False, p=file_path: self._show_asset_checker(p))
+                menu.addAction(asset_action)
 
             #    Text-editable types get an "Edit" action               
             _TEXT_EDITABLE = ('.ide', '.ipl', '.dat', '.txt', '.cfg',
@@ -1445,6 +1458,12 @@ class DirectoryTreeBrowser(QWidget):
                     imglist_action.triggered.connect(
                         lambda _=False, p=file_path: self._show_ide_as_list(p))
                     menu.addAction(imglist_action)
+                    from apps.methods.imgfactory_svg_icons import get_asset_checker_icon
+                    asset_action = QAction("Asset Checker", self)
+                    asset_action.setIcon(get_asset_checker_icon(16))
+                    asset_action.triggered.connect(
+                        lambda _=False, p=file_path: self._show_asset_checker(p))
+                    menu.addAction(asset_action)
 
             menu.addSeparator()
         copy_action = QAction("Copy", self)
@@ -1825,6 +1844,25 @@ class DirectoryTreeBrowser(QWidget):
         except Exception as e:
             if mw and hasattr(mw, 'log_message'):
                 mw.log_message(f"Show IDE as List error: {e}")
+
+    def _show_asset_checker(self, file_path: str): #vers 1
+        """Cross-reference real model names across an IMG archive, a
+        COL file, and an IDE file sharing the same base filename (Sep
+        5 2026, per Keith: "Asset checker as a right click on img,
+        col and ide entries on dat browser, dir tree"). This browser
+        has no known loaded-world game context (unlike DAT Browser's
+        own self.loader.game), so uses IDEParser's own default."""
+        mw = self.main_window
+        if not file_path or not os.path.isfile(file_path):
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(f"File not found: {file_path}")
+            return
+        try:
+            from apps.methods.asset_checker_dialog import show_asset_checker
+            show_asset_checker(mw, file_path)
+        except Exception as e:
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(f"Asset Checker error: {e}")
 
     def _open_smart_editor(self, file_path: str): #vers 1
         """Route file to specialist editor based on filename."""

@@ -2433,6 +2433,29 @@ class DATBrowserWidget(QWidget): #vers 3
             if mw and hasattr(mw, 'log_message'):
                 mw.log_message(f"Show IDE as List error: {e}")
 
+    def _show_asset_checker(self, abs_path: str): #vers 1
+        """Cross-reference real model names across an IMG archive, a
+        COL file, and an IDE file sharing the same base filename (Sep
+        5 2026, per Keith: "Asset checker as a right click on img,
+        col and ide entries on dat browser, dir tree... 3 columns IMG
+        archive | COL archive | IDE entry list | Error list... And
+        another layout to show IMG, COL and IDE as 3 different lines,
+        each with its own shade but theme-aware"). Uses the currently
+        loaded world's own real game type (self.loader.game) for IDE
+        parsing when known."""
+        mw = self.main_window
+        if not abs_path or not os.path.isfile(abs_path):
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(f"File not found: {abs_path}")
+            return
+        try:
+            from apps.methods.asset_checker_dialog import show_asset_checker
+            game = getattr(getattr(self, 'loader', None), 'game', None)
+            show_asset_checker(mw, abs_path, game=game)
+        except Exception as e:
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(f"Asset Checker error: {e}")
+
     def _open_single_img_in_factory(self, abs_path: str): #vers 1
         """Open one specific IMG file in a new IMG Factory tab."""
         mw = self.main_window
@@ -3788,7 +3811,7 @@ class DATBrowserWidget(QWidget): #vers 3
         for i in range(root.childCount()):
             _walk(root.child(i))
 
-    def _on_tree_context_menu(self, pos): #vers 2
+    def _on_tree_context_menu(self, pos): #vers 3
         item = self._tree.itemAt(pos)
         if not item:
             return
@@ -3850,6 +3873,11 @@ class DATBrowserWidget(QWidget): #vers 3
                 mv_act = menu.addAction("👁  Open in Model Viewer")
                 mv_act.triggered.connect(
                     lambda _=False, p=abs_path: self._open_img_in_model_viewer(p))
+                from apps.methods.imgfactory_svg_icons import get_asset_checker_icon
+                asset_act = menu.addAction("Asset Checker")
+                asset_act.setIcon(get_asset_checker_icon(16))
+                asset_act.triggered.connect(
+                    lambda _=False, p=abs_path: self._show_asset_checker(p))
             load_all_act = menu.addAction("⊞  Load ALL game IMGs into IMG Factory")
             load_all_act.triggered.connect(self._load_all_game_imgs)
             menu.addSeparator()
@@ -3872,6 +3900,11 @@ class DATBrowserWidget(QWidget): #vers 3
                 imglist_act.setIcon(get_list_view_icon(16))
                 imglist_act.triggered.connect(
                     lambda _=False, p=abs_path: self._show_col_as_imglist(p))
+                from apps.methods.imgfactory_svg_icons import get_asset_checker_icon
+                asset_act = menu.addAction("Asset Checker")
+                asset_act.setIcon(get_asset_checker_icon(16))
+                asset_act.triggered.connect(
+                    lambda _=False, p=abs_path: self._show_asset_checker(p))
             menu.addSeparator()
 
         elif entry_type == "COL▾":
@@ -3898,6 +3931,11 @@ class DATBrowserWidget(QWidget): #vers 3
                     lambda _=False, p=abs_path: self._open_path_in_editor(p))
                 menu.addAction("🔍  Open in IDE Editor").triggered.connect(
                     lambda _=False, p=abs_path: self._open_in_ide_editor(p))
+                from apps.methods.imgfactory_svg_icons import get_asset_checker_icon
+                asset_act = menu.addAction("Asset Checker")
+                asset_act.setIcon(get_asset_checker_icon(16))
+                asset_act.triggered.connect(
+                    lambda _=False, p=abs_path: self._show_asset_checker(p))
                 menu.addSeparator()
             elif ext == ".ipl":
                 menu.addAction(f"📋  Filter Instances to  {bname}").triggered.connect(

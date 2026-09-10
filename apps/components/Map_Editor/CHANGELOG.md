@@ -12152,3 +12152,43 @@ conclusively found despite extensive isolated testing.
   this fix): imgfactory_svg_icons.py has 2 duplicate method
   definitions (reset_view_icon, get_app_icon) via the same AST scan
   used throughout this session.
+
+- Sep 5 2026 (cont'd) - added Asset Checker, per Keith: "Asset checker
+  as a right click on img, col and ide entries on dat browser, dir
+  tree... As 3 columns IMG archive | COL archive | IDE entry list |
+  Error list, where we could show missing in COL, missing in IMG, not
+  found in IDE, or any combination that makes sense. And another
+  layout to show IMG, COL and IDE as 3 different lines, each with its
+  own shade but theme-aware."
+
+  New apps/methods/asset_checker.py - cross-references real model
+  names across an IMG archive, a COL file, and an IDE file sharing
+  the same base filename (the real game_vc.img/game_vc.col/
+  game_vc.ide convention). find_sibling_asset_files auto-locates the
+  other 2 real files from whichever one gets right-clicked. Computes
+  missing_from_col/missing_from_img/not_in_ide as real set operations.
+
+  New apps/methods/asset_checker_dialog.py - both real layouts
+  requested, switchable via a combo box: a 4-column side-by-side view
+  (IMG archive/COL archive/IDE entry list/Error list, the error list
+  showing categorized "Missing in COL: X" etc lines), and a merged
+  view where each model gets one row per real source it's actually
+  found in, shaded from the CURRENT palette's own base colour
+  (lighter/darker per source) rather than a fixed hex value, so it
+  stays theme-aware per this app's own real convention.
+
+  New asset_checker_icon SVG (checkmark over 3 rows) - no emoji, per
+  Keith's own recent correction. Wired "Asset Checker" into DAT
+  Browser and Dir Tree Browser's own right-click menus for .img/.col/
+  .ide files - Dir Tree Browser had no .img-specific menu section at
+  all before this, added one. DAT Browser uses the currently loaded
+  world's own real game type for IDE parsing; Dir Tree Browser has no
+  such context so uses the parser's own default.
+
+  Verified thoroughly: cross-referencing logic tested against real
+  data (a real COL model name correctly NOT flagged as missing, a
+  genuinely absent one correctly flagged); full dialog tested
+  end-to-end (correct list/error/merged-row counts, correct view
+  switching); sibling auto-detection tested with real files on disk;
+  full pipeline verified through the real handler with a real
+  QWidget parent, no errors.
