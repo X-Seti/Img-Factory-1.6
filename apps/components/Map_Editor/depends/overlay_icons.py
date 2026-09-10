@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/depends/overlay_icons.py - Version: 4
+#this belongs in apps/components/Map_Editor/depends/overlay_icons.py - Version: 5
 # X-Seti - Aug 2026 - IMG Factory 1.6 - Detailed colour SVG icons for Map Workshop's IPL Controls overlay buttons
 
 """
@@ -54,6 +54,7 @@ from apps.methods.imgfactory_svg_icons import SVGIconFactory
 # OverlayIcons.rename_texture_icon
 # OverlayIcons.apply_texture_icon
 # OverlayIcons.save_texture_icon
+# OverlayIcons.search_model_icon
 
 
 class OverlayIcons:
@@ -479,4 +480,15 @@ class OverlayIcons:
   <path d="M4 4 L16 4 L20 8 L20 20 L4 20 Z" fill="#5c93c4" stroke="#1b1b1b" stroke-width="0.6"/>
   <rect x="7" y="4" width="8" height="6" fill="#e3f2fd"/>
   <rect x="6" y="13" width="12" height="7" fill="#e3f2fd"/>
+</svg>''', size, color="#000000")
+
+    @staticmethod
+    def search_model_icon(size: int = 24) -> QIcon: #vers 1
+        """Search loaded instances by model name (Sep 5 2026, per
+        Keith: "a search [O'] function on the ribbon bar to find a
+        model name so I can see the IPL line") - plain magnifying
+        glass."""
+        return SVGIconFactory._create_icon('''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <circle cx="10" cy="10" r="6.5" fill="none" stroke="#90caf9" stroke-width="2.2"/>
+  <line x1="14.8" y1="14.8" x2="21" y2="21" stroke="#90caf9" stroke-width="2.4" stroke-linecap="round"/>
 </svg>''', size, color="#000000")

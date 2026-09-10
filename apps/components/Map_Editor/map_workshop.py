@@ -13325,7 +13325,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         return panel
 
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 10
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 11
         """Build all QToolBar instances using QAction.
         Icon set resolved once — 'default' uses SVGIconFactory with currentColor,
         '3dsmax' uses MaxIconSet with hardcoded Max palette."""
@@ -13712,6 +13712,18 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "own files already use.")
         optimize_btn.clicked.connect(self._optimize_dat_load_order_clicked)
         tb_overlays.addWidget(optimize_btn)
+
+        # Search loaded instances by model name (Sep 5 2026, per
+        # Keith: "a search [O'] function on the ribbon bar to find a
+        # model name so I can see the IPL line") - directly reuses
+        # the same real fix just made to the wrong-instance lookup
+        # bug (matches by name, disambiguates results the same way
+        # the Object Browser's own model-click already does).
+        search_btn = QToolButton()
+        search_btn.setIcon(_OverlayIconsForOptimize.search_model_icon(24))
+        search_btn.setToolTip("Search loaded instances by model name")
+        search_btn.clicked.connect(self._show_model_search_dialog)
+        tb_overlays.addWidget(search_btn)
 
         # Force Prelighting (Sep 5 2026, per Keith: "showing dark
         # models. I think some models might not be loading the
@@ -28628,6 +28640,69 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._set_status(f"Reordered {done} file(s); {len(failed)} failed: {'; '.join(failed)}")
         else:
             self._set_status(f"Reordered {done} .dat file(s) - reload the world to see the new order")
+
+    def _show_model_search_dialog(self): #vers 1
+        """Search loaded instances by model name (Sep 5 2026, per
+        Keith: "a search [O'] function on the ribbon bar to find a
+        model name so I can see the IPL line") - live-filtered as you
+        type, one row per unique model name with its own placement
+        count. Double-click jumps to it the exact same way clicking a
+        model in the Object Browser already does (_current_model_
+        instances/_current_instance_index set the same way, so Prev/
+        Next cycling through that model's own other placements
+        continues to work correctly afterward, same real fix as
+        _find_instance_for_ipl_inst_file_row's own position-based
+        disambiguation just made for the IPL File Display table)."""
+        all_instances = getattr(self, '_all_instances', [])
+        if not all_instances:
+            self._set_status("No world loaded")
+            return
+
+        by_name = {}
+        for inst in all_instances:
+            by_name.setdefault(inst.model_name, []).append(inst)
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Search Loaded Instances")
+        dlg.resize(420, 480)
+        lay = QVBoxLayout(dlg)
+        search_edit = QLineEdit()
+        search_edit.setPlaceholderText("Type a model name...")
+        lay.addWidget(search_edit)
+        results = QListWidget()
+        lay.addWidget(results, 1)
+        info_lbl = QLabel("")
+        lay.addWidget(info_lbl)
+
+        def _refresh(text):
+            results.clear()
+            text_lower = text.strip().lower()
+            names = sorted(by_name.keys())
+            if text_lower:
+                names = [n for n in names if text_lower in n.lower()]
+            for name in names[:500]:   # cap - a handful of chars usually narrows this down fast
+                count = len(by_name[name])
+                item = QListWidgetItem(f"{name}  ({count} placement{'s' if count != 1 else ''})")
+                item.setData(Qt.ItemDataRole.UserRole, name)
+                results.addItem(item)
+            info_lbl.setText(f"{len(names)} model name(s) match" if text_lower else
+                              f"{len(names)} unique model name(s) loaded - type to filter")
+
+        def _jump_to(item):
+            name = item.data(Qt.ItemDataRole.UserRole)
+            instances = by_name.get(name, [])
+            if not instances:
+                return
+            self._current_model_instances = instances
+            self._current_instance_index = 0
+            self._center_on_instance(instances[0], nav_info=(0, len(instances)))
+            dlg.accept()
+
+        search_edit.textChanged.connect(_refresh)
+        results.itemDoubleClicked.connect(_jump_to)
+        _refresh("")
+        search_edit.setFocus()
+        dlg.exec()
 
     def _save_grges(self): #vers 1
         """Save Garages button - writes every currently loaded garage

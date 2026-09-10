@@ -11882,3 +11882,27 @@ conclusively found despite extensive isolated testing.
   vs a real yaw) - clicking each row's own position now correctly
   returns that row's own instance every time, instead of always
   returning the first one regardless of which was clicked.
+
+- Sep 5 2026 (cont'd) - added a Search button to the ribbon, per
+  Keith: "a search [O'] function on the ribbon bar to find a model
+  name so I can see the IPL line". New search_model_icon (plain
+  magnifying glass) + Search button; opens a small dialog with a
+  live-filtered list (one row per unique model name, with its own
+  placement count) - double-click jumps to it exactly the way
+  clicking a model in the Object Browser already does, setting
+  _current_model_instances/_current_instance_index the same way, so
+  Prev/Next cycling through that model's other placements keeps
+  working afterward. Directly reuses the position-disambiguation
+  fix just made to _find_instance_for_ipl_inst_file_row, since both
+  now share the same underlying instance-selection approach.
+
+  Verified the grouping/filter/jump logic directly with synthetic
+  data matching this session's own real example (GenVCapsteps1 with
+  2 placements, lcport43 with 1) - filtering by "gen" correctly
+  narrows to GenVCapsteps1, and jumping correctly sets nav_info=(0,2)
+  for the multi-placement cycling.
+
+  Also confirmed the IPL Object Editor always-on-top setting Keith
+  asked to lock it to already exists (added earlier today, Settings >
+  Navigation > "Keep IPL Object Editor on top") - no new work needed
+  there.
