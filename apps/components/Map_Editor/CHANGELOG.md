@@ -12108,3 +12108,23 @@ conclusively found despite extensive isolated testing.
   header (exactly matching Keith's report), and the FIXED logic
   leaves the COL tab's own 19 rows and real header completely intact
   after switching to and from the IMG tab.
+
+- Sep 5 2026 (cont'd) - added "Show IDE as List" to both DAT Browser
+  and Dir Tree Browser, per Keith: "can we show the game_vc.ide in
+  the same format as the col, img, show the ide in a row table, with
+  odd and even pattern lines, highlighting game_vc.ide in both dat
+  browser, dir tree, show ide file". Same real create_tab pattern
+  already verified for COL. New apps/methods/populate_ide_table.py
+  reuses the real, established Objects (IDE) column convention DAT
+  Browser's own aggregate table already uses (ID/Model/TXD/Type/
+  Section/Draw Dist/Flags/Source IDE), so a single-file view matches
+  the app's own existing one exactly. Alternating row colours come
+  for free from create_tab's own table setup - nothing new needed for
+  that part. DAT Browser's own version uses the currently loaded
+  world's real game type (self.loader.game) for parsing; Dir Tree
+  Browser has no such context so uses IDEParser's own default.
+
+  Verified end-to-end with a small, realistic synthetic .ide file
+  (real GTA3 objs format) through both components - tab created,
+  named after the file, correctly populated with real parsed object
+  data, alternating row colours confirmed on.

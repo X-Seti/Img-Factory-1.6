@@ -1436,6 +1436,10 @@ class DirectoryTreeBrowser(QWidget):
                     ide_action.triggered.connect(
                         lambda _=False, p=file_path: self._open_ide_editor(p))
                     menu.addAction(ide_action)
+                    imglist_action = QAction("📋  Show IDE as List", self)
+                    imglist_action.triggered.connect(
+                        lambda _=False, p=file_path: self._show_ide_as_list(p))
+                    menu.addAction(imglist_action)
 
             menu.addSeparator()
         copy_action = QAction("Copy", self)
@@ -1780,6 +1784,42 @@ class DirectoryTreeBrowser(QWidget):
         except Exception as e:
             if mw and hasattr(mw, 'log_message'):
                 mw.log_message(f"Show COL as ImgList error: {e}")
+
+    def _show_ide_as_list(self, file_path: str): #vers 1
+        """Show a single .ide file's own real objects as a table (Sep
+        5 2026, per Keith: "highlighting game_vc.ide in both dat
+        browser, dir tree") - same real create_tab pattern already
+        verified for COL. This browser has no known loaded-world game
+        context (unlike DAT Browser's own self.loader.game), so uses
+        IDEParser's own default (GTA3) - fine for display purposes,
+        though field layout genuinely differs by game for a small
+        number of object types."""
+        mw = self.main_window
+        if not file_path or not os.path.isfile(file_path):
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(f"IDE file not found: {file_path}")
+            return
+        try:
+            from apps.methods.gta_dat_parser import IDEParser
+            from apps.methods.populate_ide_table import populate_table_with_ide_data
+            from apps.methods.tab_system import create_tab
+            parser = IDEParser()
+            if not parser.parse(file_path) or not parser.objects:
+                if mw and hasattr(mw, 'log_message'):
+                    mw.log_message(f"Failed to load IDE (or no objects): {os.path.basename(file_path)}")
+                return
+            create_tab(mw, file_path=file_path, file_type='NONE', file_object=parser.objects)
+            if not populate_table_with_ide_data(mw, parser.objects):
+                if mw and hasattr(mw, 'log_message'):
+                    mw.log_message(f"Couldn't show IDE as list: {os.path.basename(file_path)}")
+                return
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(
+                    f"Showing {os.path.basename(file_path)} as list "
+                    f"({len(parser.objects)} object(s))")
+        except Exception as e:
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(f"Show IDE as List error: {e}")
 
     def _open_smart_editor(self, file_path: str): #vers 1
         """Route file to specialist editor based on filename."""

@@ -2392,6 +2392,47 @@ class DATBrowserWidget(QWidget): #vers 3
             if mw and hasattr(mw, 'log_message'):
                 mw.log_message(f"Show COL as ImgList error: {e}")
 
+    def _show_ide_as_list(self, abs_path: str): #vers 1
+        """Show a single .ide file's own real objects as a table, the
+        same way a .col file's own models or an .img archive's own
+        entries are shown (Sep 5 2026, per Keith: "can we show the
+        game_vc.ide in the same format as the col, img, show the ide
+        in a row table, with odd and even pattern lines") - same real
+        create_tab pattern already verified for COL, using the real,
+        established Objects (IDE) column convention this app's own
+        aggregate table already uses (apps/methods/populate_ide_
+        table.py). Uses the currently loaded world's own real game
+        type (self.loader.game) for parsing when known, rather than a
+        generic default, since field layout genuinely differs by
+        game."""
+        mw = self.main_window
+        if not abs_path or not os.path.isfile(abs_path):
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(f"IDE file not found: {abs_path}")
+            return
+        try:
+            from apps.methods.gta_dat_parser import IDEParser, GTAGame
+            from apps.methods.populate_ide_table import populate_table_with_ide_data
+            from apps.methods.tab_system import create_tab
+            game = getattr(getattr(self, 'loader', None), 'game', GTAGame.GTA3)
+            parser = IDEParser(game)
+            if not parser.parse(abs_path) or not parser.objects:
+                if mw and hasattr(mw, 'log_message'):
+                    mw.log_message(f"Failed to load IDE (or no objects): {os.path.basename(abs_path)}")
+                return
+            create_tab(mw, file_path=abs_path, file_type='NONE', file_object=parser.objects)
+            if not populate_table_with_ide_data(mw, parser.objects):
+                if mw and hasattr(mw, 'log_message'):
+                    mw.log_message(f"Couldn't show IDE as list: {os.path.basename(abs_path)}")
+                return
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(
+                    f"Showing {os.path.basename(abs_path)} as list "
+                    f"({len(parser.objects)} object(s))")
+        except Exception as e:
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(f"Show IDE as List error: {e}")
+
     def _open_single_img_in_factory(self, abs_path: str): #vers 1
         """Open one specific IMG file in a new IMG Factory tab."""
         mw = self.main_window
@@ -3846,6 +3887,8 @@ class DATBrowserWidget(QWidget): #vers 3
                         self._search_edit.setText(""),
                         self._search_edit.blockSignals(False),
                         self._populate_objects_for_ide(b)))
+                menu.addAction("📋  Show IDE as List").triggered.connect(
+                    lambda _=False, p=abs_path: self._show_ide_as_list(p))
                 menu.addAction(f"✏  Edit  {bname}").triggered.connect(
                     lambda _=False, p=abs_path: self._open_path_in_editor(p))
                 menu.addAction("🔍  Open in IDE Editor").triggered.connect(
