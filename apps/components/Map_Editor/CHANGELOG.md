@@ -12466,3 +12466,34 @@ conclusively found despite extensive isolated testing.
   plus 2 real extras, COL has only 3 of the 6 - both correctly
   preserve IDE's own relative ID order for their matched names, IMG's
   2 extras correctly land at the end in alphabetical order.
+
+- Sep 5 2026 (cont'd) - Asset Checker: fixed real "+N vs actual entry
+  count" mismatch, per Keith's real report: "the row is still wrong,
+  ? hidden charartors?? and +4 when it shows 5 entries".
+
+  Investigated the "hidden characters" possibility first and ruled
+  it out - both real parse paths already handle this correctly (IDE
+  strips whitespace at parse time; IMG's binary name parser is null-
+  terminated and filename-safe by its own regex, confirmed by
+  reading both real implementations directly).
+
+  The real cause: the header showed a single signed NET number
+  (len(img)-len(ide)), while clicking it opened a popup for only ONE
+  direction (extras OR missing, never both). By simple set
+  arithmetic, net = extras - missing - so whenever a source has both
+  real extras AND is genuinely missing something else at the same
+  time, the net number can legitimately differ from either
+  direction's own real count. That's exactly what produced a header
+  reading "+4" while the actual popup for that one direction held 5
+  real names.
+
+  Fixed by showing both real directions as independent, always-
+  accurate buttons ("+N" only if real extras exist, "-M" only if
+  real missing entries exist, both together if both are genuinely
+  true) instead of one number that could mislead.
+
+  Verified by reproducing Keith's exact real symptom: a source
+  missing 1 real IDE entry while also having 5 real extras produces
+  a net of +4 (matching what he saw) - old code would show only
+  "+4"; fixed code correctly shows both "+5" and "-1" separately, and
+  each button's own popup entry count exactly matches its own label.

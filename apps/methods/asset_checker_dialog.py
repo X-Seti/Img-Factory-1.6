@@ -102,23 +102,19 @@ class AssetCheckerDialog(QDialog): #vers 3
         columns_lay.addWidget(splitter)
 
         ide_count = len(self.result.ide_names)
-        img_diff = (len(self.result.img_names) - ide_count
-                    if self.result.img_path and self.result.ide_path else None)
-        col_diff = (len(self.result.col_names) - ide_count
-                    if self.result.col_path and self.result.ide_path else None)
+        img_extra_count = len(self.result.img_extra_over_ide) if self.result.img_path and self.result.ide_path else 0
+        img_missing_count = len(self.result.missing_from_img) if self.result.img_path and self.result.ide_path else 0
+        col_extra_count = len(self.result.col_extra_over_ide) if self.result.col_path and self.result.ide_path else 0
+        col_missing_count = len(self.result.missing_from_col) if self.result.col_path and self.result.ide_path else 0
 
         self.id_list = self._make_column(splitter, "ID", None)
         self.ide_list = self._make_column(splitter, "IDE entry list", ide_count)
         self.img_list = self._make_column(
-            splitter, "IMG archive", ide_count, img_diff,
-            lambda: self._show_diff_popup(
-                self.result.img_extra_over_ide if img_diff > 0 else self.result.missing_from_img,
-                "IMG entries not in IDE" if img_diff > 0 else "IDE entries missing from IMG"))
+            splitter, "IMG archive", ide_count,
+            diffs=self._real_diffs(img_extra_count, img_missing_count, "IMG"))
         self.col_list = self._make_column(
-            splitter, "COL archive", ide_count, col_diff,
-            lambda: self._show_diff_popup(
-                self.result.col_extra_over_ide if col_diff > 0 else self.result.missing_from_col,
-                "COL entries not in IDE" if col_diff > 0 else "IDE entries missing from COL"))
+            splitter, "COL archive", ide_count,
+            diffs=self._real_diffs(col_extra_count, col_missing_count, "COL"))
         self.error_list = self._make_column(splitter, "Error list", None)
         self.stack.addWidget(columns_widget)
 
@@ -150,26 +146,31 @@ class AssetCheckerDialog(QDialog): #vers 3
         self.xref_table.customContextMenuRequested.connect(self._xref_context_menu)
         self.stack.addWidget(self.xref_table)
 
-    def _make_column(self, splitter, title, count, diff=None, on_diff_click=None): #vers 2
+    def _make_column(self, splitter, title, count, diffs=None): #vers 3
         """count is the base number shown in parentheses (Sep 5 2026,
         always the real IDE count for IMG/COL columns, per Keith's own
-        confirmed design), diff is the signed real difference from it
-        (None or 0 means no diff shown). on_diff_click opens the real
-        popup listing which specific names make up that difference."""
+        confirmed design). diffs is a list of (label, on_click) pairs
+        - e.g. [("+5", handler), ("-1", handler)] - one real, accurate
+        button per real direction that actually has entries, rather
+        than a single signed net number (Sep 5 2026, per Keith's own
+        real catch: "+4 when it shows 5 entries" - a net number can
+        legitimately differ from either individual direction's own
+        real count whenever a source has both real extras AND is
+        missing something else at the same time)."""
         container = QWidget()
         v = QVBoxLayout(container)
         v.setContentsMargins(2, 2, 2, 2)
         header_row = QHBoxLayout()
         label_text = title if count is None else f"{title} ({count})"
         header_row.addWidget(QLabel(label_text))
-        if diff:
+        for label, on_click in (diffs or []):
             from PyQt6.QtWidgets import QPushButton
-            diff_btn = QPushButton(f"{'+' if diff > 0 else ''}{diff}")
+            diff_btn = QPushButton(label)
             diff_btn.setFlat(True)
             diff_btn.setCursor(Qt.CursorShape.PointingHandCursor)
             diff_btn.setStyleSheet("text-decoration: underline;")
-            if on_diff_click:
-                diff_btn.clicked.connect(on_diff_click)
+            if on_click:
+                diff_btn.clicked.connect(on_click)
             header_row.addWidget(diff_btn)
         header_row.addStretch()
         v.addLayout(header_row)
@@ -177,6 +178,23 @@ class AssetCheckerDialog(QDialog): #vers 3
         v.addWidget(lst)
         splitter.addWidget(container)
         return lst
+
+    def _real_diffs(self, extra_count, missing_count, source_label): #vers 1
+        """Build the real, independently-accurate diff button list for
+        one source column - a "+N" button only if there are real
+        extras, a "-M" button only if there are real missing entries,
+        both at once if both are genuinely true (Sep 5 2026, per
+        Keith's own real catch that a single net number can mislead)."""
+        diffs = []
+        if extra_count:
+            diffs.append((f"+{extra_count}", lambda: self._show_diff_popup(
+                self.result.img_extra_over_ide if source_label == "IMG" else self.result.col_extra_over_ide,
+                f"{source_label} entries not in IDE")))
+        if missing_count:
+            diffs.append((f"-{missing_count}", lambda: self._show_diff_popup(
+                self.result.missing_from_img if source_label == "IMG" else self.result.missing_from_col,
+                f"IDE entries missing from {source_label}")))
+        return diffs
 
     def _on_sync_scroll(self, value): #vers 1
         """Keep ID/IDE/IMG/COL scrolled together (Sep 5 2026, per
