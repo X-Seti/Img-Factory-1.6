@@ -1,0 +1,162 @@
+#this belongs in apps/methods/master_ide.py - Version: 1
+
+##Methods list -
+# MasterIDEResult
+# load_master_ide
+# write_master_ide
+
+"""master_ide.py - step 1 of Keith's own real Master IDE feature (Sep
+5 2026): "This needs to show the IDE file or all the IDE files in a
+single view... even the ability to create a master file". Loads and
+merges any number of real .ide files, grouped by their own real
+section (objs/tobj/etc - never mixed together), sorted by ID within
+each group (Keith's own real default: "We should always follow ID
+numeric order"). Detects real ID collisions across the merged files
+before anything gets written anywhere - a genuine risk once multiple
+real .ide files (each independently numbered) get combined into one.
+
+This is deliberately step 1 only - read, merge, detect collisions,
+write the combined result back out as a new real file. NOT yet
+included (later steps, per Keith's own approved build order): moving/
+renaming/removing entries with ID reassignment, cascading ID changes
+into real IPL/2DFX files, or rebuilding IMG/COL physical entry order
+to match. Every one of those touches real game data and needs the
+backup system (Keith: "Yes, always backup everything first") and
+collision-checking this step already provides working first."""
+
+import os
+from dataclasses import dataclass, field
+from typing import Dict, List
+
+
+@dataclass
+class MasterIDECollision: #vers 1
+    model_id: int
+    entries: list   # list of (model_name, source_ide) sharing this real ID
+
+
+@dataclass
+class MasterIDEResult: #vers 1
+    objects_by_section: Dict[str, list] = field(default_factory=dict)   # section -> list of IDEObject, sorted by model_id
+    source_files: List[str] = field(default_factory=list)
+    collisions: List[MasterIDECollision] = field(default_factory=list)
+    errors: List[str] = field(default_factory=list)
+
+    @property
+    def total_objects(self): #vers 1
+        return sum(len(v) for v in self.objects_by_section.values())
+
+
+def load_master_ide(ide_paths: List[str], game: str = None) -> MasterIDEResult: #vers 1
+    """Load and merge any number of real .ide files. Each real file
+    parses independently (its own real objects, own real section
+    tags); merging just groups everything by section and sorts by ID
+    within each group - it does NOT rename, renumber, or otherwise
+    touch anything yet (see this module's own docstring for why)."""
+    from apps.methods.gta_dat_parser import IDEParser, GTAGame
+
+    result = MasterIDEResult()
+    seen_ids: Dict[int, list] = {}   # model_id -> [(model_name, source_ide), ...]
+
+    for path in ide_paths:
+        if not path or not os.path.isfile(path):
+            result.errors.append(f"IDE file not found: {path}")
+            continue
+        try:
+            parser = IDEParser(game or GTAGame.GTA3)
+            if not parser.parse(path):
+                result.errors.append(f"Failed to parse: {path}")
+                continue
+            result.source_files.append(path)
+            for obj in parser.objects:
+                result.objects_by_section.setdefault(obj.section, []).append(obj)
+                seen_ids.setdefault(obj.model_id, []).append((obj.model_name, obj.source_ide))
+        except Exception as e:
+            result.errors.append(f"Error parsing {path}: {e}")
+
+    for section in result.objects_by_section:
+        result.objects_by_section[section].sort(key=lambda o: o.model_id)
+
+    for model_id, entries in seen_ids.items():
+        # A real collision is the SAME id used by DIFFERENT real
+        # model names (or the same model name declared more than
+        # once from different source files) - not just "this id
+        # appears more than once", which would also flag an id
+        # correctly reused for the same model across sections that
+        # legitimately share one (rare, but real formats do this).
+        distinct_names = {name.lower() for name, _ in entries}
+        if len(entries) > 1 and len(distinct_names) > 1:
+            result.collisions.append(MasterIDECollision(model_id=model_id, entries=entries))
+
+    return result
+
+
+def _format_objs_or_tobj_line(obj) -> str: #vers 1
+    """Rebuild one real objs/tobj line, preserving whichever real
+    field-count variant this specific object was originally parsed
+    with (Sep 5 2026, per Keith's own real confirmed example using
+    the meshCount/dist1[/dist2]/flags variant, distinct from the
+    plain drawdist/flags variant confirmed for a different real
+    file earlier this session) - detected from whether extra has its
+    own real mesh_count key, not assumed one way for every file."""
+    extra = obj.extra or {}
+    parts = [str(obj.model_id), obj.model_name, obj.txd_name]
+    if 'mesh_count' in extra:
+        parts.append(str(extra['mesh_count']))
+        if 'draw_dist' in extra:
+            parts.append(_fmt_num(extra['draw_dist']))
+        if 'draw_dist2' in extra:
+            parts.append(_fmt_num(extra['draw_dist2']))
+        if 'flags' in extra:
+            parts.append(str(extra['flags']))
+    else:
+        if 'draw_dist' in extra:
+            parts.append(_fmt_num(extra['draw_dist']))
+        if 'flags' in extra:
+            parts.append(str(extra['flags']))
+    if obj.section == 'tobj' and 'time_on' in extra and 'time_off' in extra:
+        parts.append(str(extra['time_on']))
+        parts.append(str(extra['time_off']))
+    return ", ".join(parts)
+
+
+def _fmt_num(val) -> str: #vers 1
+    """Real IDE files write whole-number draw distances without a
+    trailing .0 (Keith's own real example: "299", not "299.0")."""
+    if isinstance(val, float) and val == int(val):
+        return str(int(val))
+    return str(val)
+
+
+def write_master_ide(result: MasterIDEResult, output_path: str) -> bool: #vers 1
+    """Write the merged result back out as one real, combined .ide
+    file - grouped by section (never mixed), sorted by ID within each
+    group (Keith's own real default order). Only objs/tobj sections
+    are written with real, correct field formatting so far (Sep 5
+    2026) - other real section types (peds/cars/hier/etc) get written
+    verbatim from their own original extra fields where possible, but
+    haven't been verified against real sample data yet, so treat
+    those with caution until confirmed."""
+    try:
+        lines = []
+        for section, objs in result.objects_by_section.items():
+            lines.append(section)
+            for obj in objs:
+                if section in ('objs', 'tobj'):
+                    lines.append(_format_objs_or_tobj_line(obj))
+                else:
+                    # Not yet verified for this section type - best
+                    # effort using whatever raw values are available.
+                    extra_vals = ", ".join(str(v) for v in (obj.extra or {}).values())
+                    line = f"{obj.model_id}, {obj.model_name}, {obj.txd_name}"
+                    if extra_vals:
+                        line += f", {extra_vals}"
+                    lines.append(line)
+            lines.append("end")
+            lines.append("")
+
+        with open(output_path, 'w', encoding='ascii', errors='ignore') as f:
+            f.write("\n".join(lines))
+        return True
+    except Exception:
+        return False

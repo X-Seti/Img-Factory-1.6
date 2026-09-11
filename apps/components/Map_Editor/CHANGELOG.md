@@ -12391,3 +12391,40 @@ conclusively found despite extensive isolated testing.
   column correctly aligned to IDE's own sorted order and real model
   IDs; scroll sync confirmed across all 4 lists with a real, small
   viewport forcing genuine scrolling.
+
+- Sep 5 2026 (cont'd) - Master IDE, step 1 of Keith's own approved
+  build order for a much larger feature: "This needs to show the IDE
+  file or all the IDE files in a single view... even the ability to
+  create a master file". Deliberately read-only for now - moving/
+  renaming/removing entries with real ID reassignment cascading into
+  IPL/2DFX files is a later, much higher-risk step, once this
+  foundation and the real backup system (Keith: "Yes, always backup
+  everything first") are both proven.
+
+  Along the way, verified Keith's own real new example line ("1400,
+  lampost_coast, soltraffic, 1, 299, 128" - the meshCount/dist1[/
+  dist2]/flags variant) against the existing parser - already handled
+  correctly via its own fallback path, no fix needed there. Confirmed
+  this differs from a different real file's own confirmed 5-field
+  drawdist/flags-only variant (earlier this session) - both are real,
+  and write_master_ide preserves whichever variant each object was
+  actually parsed with, rather than assuming one for everything.
+
+  New apps/methods/master_ide.py: loads and merges any number of real
+  .ide files, grouped by real section (objs/tobj/etc, never mixed),
+  sorted by ID within each group. Detects genuine ID collisions (the
+  same real ID used by different real model names across the merged
+  files) before anything gets written. write_master_ide writes the
+  combined result back out as one real file.
+
+  New apps/methods/master_ide_dialog.py: the real viewer - one row
+  per merged object, section/ID/model/txd/source columns, colliding
+  rows tinted the same theme-aware red already used in Asset Checker,
+  a real "Save as Master IDE..." button (warns first if collisions
+  exist, since nothing gets renumbered at this step).
+
+  Verified thoroughly: merged 2 real files with a genuine ID
+  collision (same ID, 2 different real model names) - correctly
+  detected and both rows correctly tinted; write-back and round-trip
+  re-parse both confirmed correct, including both real format
+  variants surviving intact.
