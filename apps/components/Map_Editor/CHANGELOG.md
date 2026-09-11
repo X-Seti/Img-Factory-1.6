@@ -12585,3 +12585,26 @@ conclusively found despite extensive isolated testing.
   +5/-1): total header row width now ~179px, comfortably inside the
   220px column, with the full "IMG archive (1146)" label text intact
   and un-truncated.
+
+- Sep 5 2026 (cont'd) - Asset Checker: now opens as a real tab and
+  registers in the real tool taskbar, per Keith: "The asset checker
+  needs to show in a tab, like the other apps, also in the taskbar".
+
+  show_asset_checker now embeds the same real AssetCheckerDialog as
+  a plain widget (WindowType.Widget) inside a real tab added to
+  main_tab_widget, using the exact same real pattern open_col_
+  workshop/open_txd_workshop already use for their own embedded mode
+  - and registers a matching entry in main_window.tool_taskbar via a
+  new _register_asset_checker_taskbar, mirroring DAT Browser's own
+  real _register_dat_taskbar. Falls back to the original standalone
+  modal dialog if main_window has no real tab system at all.
+
+  Both DAT Browser and Dir Tree Browser's own right-click handlers
+  already call this same entry point unchanged, so they automatically
+  get the new tab+taskbar behaviour with no further changes needed.
+
+  Verified fully end-to-end with a real QTabWidget and a mocked real
+  taskbar: tab correctly created and made current, taskbar entry
+  correctly registered and marked active, and the real embedded
+  Asset Checker content (actual parsed model names) confirmed
+  rendering correctly inside the tab.

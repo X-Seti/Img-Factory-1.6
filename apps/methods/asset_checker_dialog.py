@@ -1,8 +1,9 @@
-#this belongs in apps/methods/asset_checker_dialog.py - Version: 2
+#this belongs in apps/methods/asset_checker_dialog.py - Version: 3
 
 ##Methods list -
 # AssetCheckerDialog
 # show_asset_checker
+# _register_asset_checker_taskbar
 
 """asset_checker_dialog.py - the real UI for asset_checker.py's own
 cross-referencing (Sep 5 2026, per Keith: "As 3 columns IMG archive |
@@ -446,11 +447,19 @@ class AssetCheckerDialog(QDialog): #vers 3
             pass
 
 
-def show_asset_checker(main_window, clicked_path: str, game: str = None): #vers 1
+def show_asset_checker(main_window, clicked_path: str, game: str = None): #vers 2
     """Entry point for the real right-click action - finds the other
     real sibling files sharing clicked_path's own base stem, cross-
-    references them, and shows the result dialog. Safe to call even
-    if only 1 of the 3 real files exists."""
+    references them, and shows the result. Safe to call even if only
+    1 of the 3 real files exists.
+
+    Embeds as a real tab in main_tab_widget and registers in the real
+    tool taskbar when main_window has both (Sep 5 2026, per Keith:
+    "The asset checker needs to show in a tab, like the other apps,
+    also in the taskbar") - the same real pattern COL/TXD Workshop
+    already use (open_col_workshop/open_txd_workshop's own embedded-
+    mode code). Falls back to a standalone modal dialog when
+    main_window has no tab system at all (e.g. a bare test harness)."""
     img_path, col_path, ide_path = find_sibling_asset_files(clicked_path)
     ext = os.path.splitext(clicked_path)[1].lower()
     if ext == '.img':
@@ -461,5 +470,55 @@ def show_asset_checker(main_window, clicked_path: str, game: str = None): #vers 
         ide_path = clicked_path
 
     result = check_assets(img_path=img_path, col_path=col_path, ide_path=ide_path, game=game)
+
+    if main_window and hasattr(main_window, 'main_tab_widget'):
+        from PyQt6.QtWidgets import QVBoxLayout, QWidget
+
+        tab_container = QWidget()
+        tab_layout = QVBoxLayout(tab_container)
+        tab_layout.setContentsMargins(0, 0, 0, 0)
+
+        dlg = AssetCheckerDialog(tab_container, result)
+        dlg.setWindowFlags(Qt.WindowType.Widget)
+        tab_layout.addWidget(dlg)
+
+        names = [os.path.basename(p) for p in result.source_files] if hasattr(result, 'source_files') else []
+        tab_label = os.path.splitext(os.path.basename(clicked_path))[0] if clicked_path else "Asset Checker"
+        try:
+            from apps.methods.imgfactory_svg_icons import get_asset_checker_icon
+            icon = get_asset_checker_icon()
+            idx = main_window.main_tab_widget.addTab(tab_container, icon, f"Assets: {tab_label}")
+        except Exception:
+            idx = main_window.main_tab_widget.addTab(tab_container, f"Assets: {tab_label}")
+        main_window.main_tab_widget.setCurrentIndex(idx)
+        if hasattr(main_window, '_ensure_tab_area_visible'):
+            main_window._ensure_tab_area_visible()
+
+        _register_asset_checker_taskbar(tab_container, main_window)
+        return dlg
+
     dlg = AssetCheckerDialog(main_window, result)
     dlg.exec()
+    return dlg
+
+
+def _register_asset_checker_taskbar(widget, main_window): #vers 1
+    """Register or activate the Asset Checker button in the real
+    tool taskbar (Sep 5 2026, per Keith: "also in the taskbar") - same
+    real pattern DAT Browser's own _register_dat_taskbar already
+    uses. Silently does nothing if main_window has no real taskbar at
+    all (defensive, matching the same real pattern)."""
+    try:
+        tb = getattr(main_window, 'tool_taskbar', None)
+        if not tb:
+            return
+        if 'asset_checker' not in tb._tools:
+            from apps.methods.imgfactory_svg_icons import get_asset_checker_icon
+            icon = get_asset_checker_icon(16)
+            tb.register('asset_checker', 'Assets', icon, widget, 'Asset Checker')
+        else:
+            tb._tools['asset_checker']['target'] = widget
+        if hasattr(tb, '_set_exclusive_active'):
+            tb._set_exclusive_active('asset_checker')
+    except Exception:
+        pass
