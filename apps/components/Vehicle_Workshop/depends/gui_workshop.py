@@ -3,7 +3,7 @@
 # X-Seti - Apr 2026 - IMG Factory 1.6
 # GUIWorkshop — TEMPLATE ONLY. Copy into your workshop, do not import.
 #
-# ┌─────────────────────────────────────────────────────────────────┐
+# ┌                                                                 ┐
 # │ !! WARNING — DO NOT IMPORT THIS FILE INTO YOUR WORKSHOP !!      │
 # │                                                                 │
 # │ WRONG:  from apps.components.Tmp_Template.gui_workshop import   │
@@ -17,7 +17,7 @@
 # │ Importing this file creates a hard dependency that breaks       │
 # │ when the template changes, causes setup_ui() timing issues,     │
 # │ and makes workshops impossible to run independently.            │
-# └─────────────────────────────────────────────────────────────────┘
+# └                                                                 ┘
 #
 # HOW TO CREATE A NEW WORKSHOP:
 # 1. Copy bugs/Tmp_Template/ to apps/components/My_Workshop/

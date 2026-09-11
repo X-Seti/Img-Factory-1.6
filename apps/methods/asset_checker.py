@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 #this belongs in apps/methods/asset_checker.py - Version: 2
 
 ##Methods list -
@@ -9,13 +10,7 @@
 
 """asset_checker.py - cross-references real model names across an IMG
 archive, a COL file, and an IDE file that share the same base
-filename (Sep 5 2026, per Keith: "Asset checker as a right click on
-img, col and ide entries on dat browser, dir tree... where we could
-show missing in COL, missing in IMG, not found in IDE, or any
-combination that makes sense"). Real GTA convention - game_vc.img/
-game_vc.col/game_vc.ide share the same base stem "game_vc" - is used
-to auto-find the other two sibling files from whichever one gets
-right-clicked."""
+filename (Sep 5 2026)"""
 
 import os
 from dataclasses import dataclass, field
@@ -68,8 +63,7 @@ class AssetCheckResult: #vers 2
     @property
     def img_extra_over_ide(self): #vers 1
         """In IMG but not declared in IDE - the "+N" direction for the
-        IMG column header (Sep 5 2026, per Keith's own confirmed
-        header design)."""
+        IMG column header (Sep 5 2026)"""
         if not self.img_path or not self.ide_path:
             return set()
         return self.img_names - self.ide_names
@@ -98,14 +92,7 @@ class AssetCheckResult: #vers 2
         return " / ".join(parts)
 
     def cross_reference_rows(self): #vers 2
-        """One row per real model name, in the real column order Keith
-        asked for (Sep 5 2026): ID | DFF | COL | IDE Model Name |
-        Texture entry | Errors. ID and Texture entry only ever come
-        from a real IDE declaration (a model with no IDE entry has no
-        real id or expected texture to check at all) - Texture entry
-        checks whether the IDE's own declared txd_name actually shows
-        up among the IMG's real .txd entries, not just whether the
-        model's own name has a texture."""
+        """One row per real model name, in the real column order. ID | DFF | COL | IDE Model Name | Texture entry | Errors. ID and Texture entry only ever come from a real IDE declaration (a model with no IDE entry has no real id or expected texture to check at all) - Texture entry checks whether the IDE's own declared txd_name actually shows up among the IMG's real .txd entries, not just whether the model's own name has a texture."""
         rows = []
         for name in self.all_names:
             model_id = self.ide_id_by_name.get(name, "")
@@ -121,11 +108,7 @@ class AssetCheckResult: #vers 2
                 texture_status = "Yes"
             else:
                 # Show the real expected filename, not just "Missing"
-                # (Sep 5 2026, per Keith's own real example line "2250,
-                # bnk_lft_door1, VCBk_lft_door2, 1, 80, 32": "so on
-                # missing, it should show VCBk_lft_door2.txd") - that's
-                # the actionable information, not just that something
-                # is wrong.
+                # (Sep 5 2026)
                 texture_status = f"{declared_txd_display}.txd (missing)"
 
             errors = []
@@ -147,20 +130,7 @@ def find_sibling_asset_files(clicked_path: str): #vers 2
     """Given one file's real path, look for the other two real sibling
     files sharing the same base stem (case-insensitive) in the same
     folder - the real game_vc.img/game_vc.col/game_vc.ide convention.
-    Returns (img_path_or_none, col_path_or_none_or_list, ide_path_or_none).
-
-    Special case for SOL's own gta3 (Sep 5 2026, per Keith: "SOL only
-    for gta3.img, gta3.ide the col files are in /models/coll as
-    peds.col, special.col, vehicles.col and weapons.col... I will in
-    time merge them into gta3.col") - there's no real gta3.col to find
-    this way at all; the real collision data is genuinely split across
-    4 differently-named files in a models/coll/ folder instead. Tries
-    a few reasonable candidate locations relative to the clicked file
-    (best-effort, since the exact real folder layout wasn't given) and
-    returns whichever of the 4 real files actually exist as a list.
-    Once Keith merges them into a real gta3.col, this whole special
-    case stops being needed and the plain single-file lookup above
-    takes over again on its own."""
+    Returns (img_path_or_none, col_path_or_none_or_list, ide_path_or_none)."""
     folder = os.path.dirname(clicked_path)
     stem = os.path.splitext(os.path.basename(clicked_path))[0].lower()
     found = {'.img': None, '.col': None, '.ide': None}
@@ -195,13 +165,7 @@ def check_assets(img_path: str = None, col_path=None,
     their real model names. Any of the 3 paths can be None/missing -
     the corresponding *_path stays empty and that source's own
     *_names set stays empty, so callers can tell "not checked" apart
-    from "checked, nothing found" via the path fields.
-
-    col_path can be one real path or a list of real paths (Sep 5 2026,
-    per Keith's own real SOL gta3 case, where collision data is split
-    across peds.col/special.col/vehicles.col/weapons.col instead of
-    one file) - every real file's own model names get merged together
-    into the same col_names set."""
+    from "checked, nothing found" via the path fields."""
     result = AssetCheckResult()
 
     if img_path and os.path.isfile(img_path):
@@ -211,13 +175,7 @@ def check_assets(img_path: str = None, col_path=None,
             if img_file.open():
                 result.img_path = img_path
                 # Only real model entries (.dff) count for this
-                # comparison (Sep 5 2026, per Keith: "hide tex names
-                # from the img file, because im also seeing not found
-                # messages") - an IMG archive holds both .dff models
-                # and .txd textures, but IDE entries reference a
-                # texture by its own txd_name field, not as a model
-                # name in its own right, so including .txd entries
-                # here just produced noise, never real matches.
+                # comparison (Sep 5 2026)
                 result.img_names = {
                     os.path.splitext(e.name)[0].lower() for e in img_file.entries
                     if e.extension.upper() == 'DFF'

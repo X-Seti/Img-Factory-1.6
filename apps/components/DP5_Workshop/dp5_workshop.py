@@ -12390,9 +12390,9 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         overlay.raise_()
         self._zoom_lens = overlay
 
-    # ─────────────────────────────────────────────────────────────────────
+    #                                                                      
     #  Canvas Tool Overlay — shared by Snow, Colour Adjust, Seamless
-    # ─────────────────────────────────────────────────────────────────────
+    #                                                                      
     class _ToolOverlay(QWidget): #vers 1
         """
         Lens-style overlay parented to the canvas viewport.
@@ -17180,7 +17180,7 @@ class _IconEditor(QWidget): #vers 1
         root.setContentsMargins(4, 4, 4, 4)
         root.setSpacing(3)
 
-        # ── Title + [D] ───────────────────────────────────────────────────────
+        #    Title + [D]                                                        
         title_row = QHBoxLayout()
         title_lbl = QLabel("Icon Editor")
         title_lbl.setFont(QFont("Arial", 9, QFont.Weight.Bold))
@@ -17195,7 +17195,7 @@ class _IconEditor(QWidget): #vers 1
         title_row.addWidget(self._dock_btn)
         root.addLayout(title_row)
 
-        # ── Source folder ─────────────────────────────────────────────────────
+        #    Source folder                                                      
         folder_row = QHBoxLayout()
         self._folder_edit = QLineEdit()
         self._folder_edit.setPlaceholderText("Source folder…")
@@ -17213,7 +17213,7 @@ class _IconEditor(QWidget): #vers 1
         self._count_lbl.setFont(QFont("Arial", 7))
         root.addWidget(self._count_lbl)
 
-        # ── Icon grid ─────────────────────────────────────────────────────────
+        #    Icon grid                                                          
         self._icon_list = QListWidget()
         self._icon_list.setViewMode(QListWidget.ViewMode.IconMode)
         self._icon_list.setIconSize(QSize(36, 36))
@@ -17235,7 +17235,7 @@ class _IconEditor(QWidget): #vers 1
         sep = QFrame(); sep.setFrameShape(QFrame.Shape.HLine)
         root.addWidget(sep)
 
-        # ── Open icon file ────────────────────────────────────────────────────
+        #    Open icon file                                                     
         open_row = QHBoxLayout()
         self._path_edit = QLineEdit()
         self._path_edit.setPlaceholderText("Icon file…")
@@ -17263,7 +17263,7 @@ class _IconEditor(QWidget): #vers 1
         sep2 = QFrame(); sep2.setFrameShape(QFrame.Shape.HLine)
         root.addWidget(sep2)
 
-        # ── Col 0 = alpha  [colour swatch]  [format combo] ───────────────────
+        #    Col 0 = alpha  [colour swatch]  [format combo]                    
         alpha_fmt_row = QHBoxLayout()
         self._alpha_chk = QCheckBox("Col 0 = alpha")
         self._alpha_chk.setChecked(True)
@@ -17303,7 +17303,7 @@ class _IconEditor(QWidget): #vers 1
         self._alpha_chk.stateChanged.connect(lambda _: self._save_settings())
         self._on_format_changed(self._out_fmt.currentText())
 
-        # ── [Export] [All]  ───────────────────────────────────────────────────
+        #    [Export] [All]                                                     
         exp_row = QHBoxLayout()
         exp_row.setSpacing(4)
         exp_single = QPushButton("Export…")
@@ -17314,14 +17314,14 @@ class _IconEditor(QWidget): #vers 1
         exp_row.addWidget(exp_all, 1)
         root.addLayout(exp_row)
 
-        # ── Batch ─────────────────────────────────────────────────────────────
+        #    Batch                                                              
         batch_btn = QPushButton("Batch Convert…")
         batch_btn.clicked.connect(
             lambda: self._editor._batch_convert_icons()
             if self._editor else None)
         root.addWidget(batch_btn)
 
-        # ── Status ────────────────────────────────────────────────────────────
+        #    Status                                                             
         self._status = QLabel("")
         self._status.setFont(QFont("Arial", 8))
         self._status.setWordWrap(True)
@@ -17334,7 +17334,7 @@ class _IconEditor(QWidget): #vers 1
             if w:
                 w.setVisible(amiga)
 
-    # ── Load ──────────────────────────────────────────────────────────────────
+    #    Load                                                                   
 
     def _browse_folder(self): #vers 1
         """Set source icon folder and scan it."""
@@ -17800,7 +17800,7 @@ class _IconEditor(QWidget): #vers 1
         if 0 <= idx < len(self._variants):
             self._current = idx
 
-    # ── Alpha picker ──────────────────────────────────────────────────────────
+    #    Alpha picker                                                           
 
     def _alpha_swatch_context(self, pos): #vers 1
         """Right-click alpha swatch — show user palette as a colour picker."""
@@ -17934,7 +17934,7 @@ class _IconEditor(QWidget): #vers 1
         super().closeEvent(event)
 
 
-    # ── Open in canvas ────────────────────────────────────────────────────────
+    #    Open in canvas                                                         
 
     def _open_in_canvas(self): #vers 1
         if not self._variants or not self._editor:
@@ -17961,7 +17961,7 @@ class _IconEditor(QWidget): #vers 1
         except Exception as e:
             self._status.setText(f"Canvas error: {e}")
 
-    # ── Export ────────────────────────────────────────────────────────────────
+    #    Export                                                                 
 
     def _amiga_pal_to_mode(self): #vers 1
         t = self._amiga_pal_combo.currentText()

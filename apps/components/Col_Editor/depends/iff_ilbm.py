@@ -50,7 +50,7 @@ from typing import Optional, List, Tuple
 # _build_cmap
 # _build_bmhd
 
-# ── IFF chunk tags ────────────────────────────────────────────────────────────
+#    IFF chunk tags                                                             
 FORM = b'FORM'; ILBM = b'ILBM'; PBM  = b'PBM '
 BMHD = b'BMHD'; CMAP = b'CMAP'; BODY = b'BODY'
 CAMG = b'CAMG'; ANNO = b'ANNO'; GRAB = b'GRAB'

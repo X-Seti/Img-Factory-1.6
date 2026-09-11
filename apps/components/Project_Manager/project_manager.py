@@ -392,22 +392,7 @@ def show_project_manager_dialog(main_window):
 
 
 class NewProjectFlowDialog(QDialog): #vers 1
-    """Streamlined New Project dialog (Aug 1 2026), replacing the old
-    flow of three back-to-back native folder pickers (project folder,
-    game root, assets folder, each with no way to skip cleanly) with a
-    single dialog matching Keith's own proposed simplification, from
-    his own forum reply on the subject: "Pick the game folder
-    (optional) pick the assets folder or (skip). otherwise (Create in
-    root) assets folder in the game folder. Once you press [save],
-    you have the option to activate the game paths; this takes you to
-    the Dat_Browser."
-
-    Drops the separate "project folder" step from the old flow
-    entirely (Keith's own description of the simplified flow only
-    mentions game folder + assets folder) - create_project's own
-    project_folder parameter still exists and still gets passed
-    through, just always empty from this dialog now, matching what
-    Keith actually described wanting."""
+    """Streamlined New Project dialog (Aug 1 2026)"""
 
     def __init__(self, main_window, parent=None):
         super().__init__(parent)
@@ -444,7 +429,7 @@ class NewProjectFlowDialog(QDialog): #vers 1
         for i, rb in enumerate((self._assets_pick_radio, self._assets_root_radio, self._assets_skip_radio)):
             self._assets_group.addButton(rb, i)
             lay.addWidget(rb)
-        self._assets_root_radio.setChecked(True)   # sensible default matching Keith's "otherwise (Create in root)"
+        self._assets_root_radio.setChecked(True)
 
         assets_row = QHBoxLayout()
         self._assets_edit = QLineEdit()
@@ -476,11 +461,7 @@ class NewProjectFlowDialog(QDialog): #vers 1
             self, "Select Game Root Folder", os.path.expanduser("~"))
         if path:
             self._game_edit.setText(path)
-            # Once a game folder is picked, "create in game folder"
-            # becomes meaningful - nudge the radio selection there if
-            # the user hadn't already deliberately picked something
-            # else, since that's the sensible default with a game
-            # folder now known.
+
             if not self._assets_pick_radio.isChecked():
                 self._assets_root_radio.setChecked(True)
 
@@ -500,10 +481,7 @@ class NewProjectFlowDialog(QDialog): #vers 1
         if self._assets_pick_radio.isChecked():
             assets_path = self._assets_edit.text().strip()
         elif self._assets_root_radio.isChecked():
-            # "otherwise (Create in root) assets folder in the game
-            # folder" - only meaningful with a game folder actually
-            # set; falls back to skipped if there isn't one, same as
-            # explicitly choosing Skip, rather than erroring out.
+            # "otherwise (Create in root) assets folder in the game folder
             assets_path = os.path.join(game_root, "Assets") if game_root else ""
         else:
             assets_path = ""
@@ -516,26 +494,14 @@ class NewProjectFlowDialog(QDialog): #vers 1
         if assets_path:
             create_assists_folder_structure(self.main_window, assets_path)
         else:
-            # Note shown when no assets folder was set (Aug 1 2026,
-            # per Keith: "if the user has skipped the option to
-            # create a assets folder, i'd have a note saying you can
-            # aswell create this later by clicking on the project
-            # menu, set asset folder, find and apply it") - points
-            # directly at the "Set Current Assets Folder..." menu
-            # action added earlier, so skipping now doesn't leave
-            # someone wondering whether they've lost the option
-            # entirely.
+            # Note shown when no assets folder was set (Aug 1 2026)
+
             QMessageBox.information(
                 self, "No Assets Folder Set",
                 "No assets folder was set for this project.\n\n"
                 "You can create one later from the menu:\n"
                 "Project → Set Current Assets Folder... → find and apply it.")
 
-        # "Once you press [save], you have the option to activate the
-        # game paths; this takes you to the Dat_Browser" - streamlines
-        # the old New Project -> Open Project -> Activate -> DAT
-        # Browser -> load root tree chain (from Keith's own forum
-        # reply describing the current flow) into one step right here.
         activate = QMessageBox.question(
             self, "Project Created",
             f"Project '{name}' created successfully.\n\n"
@@ -550,30 +516,9 @@ class NewProjectFlowDialog(QDialog): #vers 1
             # panel switch happens on a fully visible main window.
             self.accept()
             try:
-                # Use the SAME call the working intro/welcome screen
-                # button uses (Aug 1 2026, per Keith: "DAT Browser
-                # re-opened is shown in the terminal, but i still have
-                # to pick the dat_browser from the list, can we use
-                # the same call as the intro button") - dat_browser.
-                # py's own show_dat_browser operates on main_window.
-                # main_tab_widget (a QTabWidget), which isn't this
-                # app's actual current UI layout at all; the real
-                # mechanism is gui_layout_custom.py's own (lowercase)
-                # _show_dat_browser, which switches left_stack (a
-                # QStackedWidget behind a collapsible splitter panel)
-                # to the DAT Browser's page and expands the panel -
-                # the same function the intro screen's own "Open DAT
-                # Browser" card is wired to, confirmed working
-                # reliably where the other call wasn't.
+
                 from apps.gui.gui_layout_custom import _show_dat_browser
-                # _show_dat_browser deliberately never creates the
-                # widget itself ("Never recreate it here — just use
-                # the existing widget") - it's normally created at
-                # startup by integrate_dat_browser, which should
-                # already have run long before a project gets created
-                # here, but falling back to creating it first covers
-                # the edge case where that startup step didn't happen
-                # for some reason, rather than silently doing nothing.
+
                 if getattr(self.main_window, 'dat_browser', None) is None:
                     from apps.components.Dat_Browser.dat_browser import integrate_dat_browser
                     integrate_dat_browser(self.main_window)
@@ -587,13 +532,7 @@ class NewProjectFlowDialog(QDialog): #vers 1
 
 
 def create_new_project(main_window, parent_dialog=None):
-    """Create a new project - streamlined single-dialog flow (Aug 1
-    2026), replacing three sequential native folder pickers with no
-    clean way to skip any of them. See NewProjectFlowDialog for the
-    full story. parent_dialog kept for call-site compatibility (the
-    project list refresh below still needs it) even though the new
-    flow no longer threads it through to the dialog construction the
-    way the old one implicitly did via being called inline."""
+    """Create a new project - streamlined single-dialog flow (Aug 1 2026)"""
     dlg = NewProjectFlowDialog(main_window, parent=parent_dialog or main_window)
     if dlg.exec() == QDialog.DialogCode.Accepted:
         name = dlg._name_edit.text().strip()
@@ -741,12 +680,7 @@ def handle_set_project_folder(main_window):
 
 
 def handle_set_assets_folder(main_window): #vers 1
-    """Handle Set Assets Folder menu action for current project - per
-    Keith: "option would be needed to setup an assets folder later, is
-    that covered." The New Project dialog's Skip option meant a
-    project could genuinely have no assets folder at all; this is the
-    direct, menu-level way back to setting (or changing) one later,
-    matching handle_set_project_folder's own pattern exactly."""
+    """Handle Set Assets Folder menu action for current project"""
     try:
         if not main_window.project_manager.current_project:
             result = QMessageBox.question(

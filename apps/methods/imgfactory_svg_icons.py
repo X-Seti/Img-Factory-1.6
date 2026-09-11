@@ -363,12 +363,7 @@ class SVGIconFactory: #vers 8
     @staticmethod
     def lod_test_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
         """LOD Test icon - two overlapping circles, one hollow, one
-        solid (Aug 1 2026, per Keith: "the LOD test function could be
-        an SVG icon on the ribbon, 2 overlapping Circles, one hollow,
-        other solid") - the hollow circle represents normal-detail
-        models, the solid circle represents LOD models, overlapping
-        to suggest the live switching between them the tool actually
-        does."""
+        solid (Aug 1 2026)"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <circle cx="9" cy="12" r="6.5" fill="none" stroke="currentColor" stroke-width="1.6"/>
             <circle cx="15" cy="12" r="6.5" fill="currentColor"/>
@@ -931,12 +926,7 @@ class SVGIconFactory: #vers 8
     @staticmethod
     def snap_to_center_icon(size: int = 20, color: str = None) -> QIcon: #vers 2
         """Crosshair/target reticle icon - originally made for Snap to
-        Centre (Aug 20 2026, per Keith: "fit to window and snap to
-        center have the same icon"), then reassigned away from it the
-        same session per Keith's own follow-up: "I like that button,
-        this can be used for something else" - kept defined here,
-        unused for now, ready for Keith to assign wherever he decides
-        it fits."""
+        Centre (Aug 20 2026)"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <circle cx="12" cy="12" r="6.5" stroke="currentColor" stroke-width="2.2" fill="none"/>
             <circle cx="12" cy="12" r="1.6" fill="currentColor"/>
@@ -947,12 +937,7 @@ class SVGIconFactory: #vers 8
 
     @staticmethod
     def converge_to_center_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
-        """Snap to Centre's own real icon now (Aug 20 2026, per Keith:
-        "how about 4 arrows, all pointing towards the center") - 4
-        arrowheads converging inward from each edge toward the
-        middle. Rendered and visually verified at both 24px and 96px
-        before committing, same real process as every icon this
-        session."""
+        """Snap to Centre's own real icon now (Aug 20 2026)"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <g stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none">
                 <path d="M12 2.5 L12 8.5 M9.4 6.3 L12 8.5 L14.6 6.3"/>
@@ -965,17 +950,7 @@ class SVGIconFactory: #vers 8
 
     @staticmethod
     def snap_vertex_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
-        """Vertex snap icon (Aug 20 2026, per Keith: "the biggest
-        problem sometimes with making models is sometimes there are
-        gaps, so we need a snap function" / "both using different
-        svg icons") - a loose, dashed vertex snapping into a solid
-        one via an arrow, distinct from Snap Targets' own existing
-        instance-level snap icons (snap_pivot_icon etc., from
-        MaxSVGIcons). Rendered and visually verified at both 24px and
-        96px before committing - two earlier attempts (converging
-        arrowheads from two dots, and a magnet shape) both read
-        ambiguously at actual size; this simpler dashed-to-solid
-        design reads clearly at both sizes."""
+        """Vertex snap icon (Aug 20 2026)"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <circle cx="5" cy="19" r="3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-dasharray="2 2"/>
             <path d="M8.5 16 L16 8.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
@@ -5017,10 +4992,7 @@ SVGIconFactory.fit_grid_icon = staticmethod(get_fit_grid_icon)
 
 def get_list_view_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
     """List view — 3 horizontal rows, for "Show as List" style menu
-    actions (Sep 5 2026, per Keith: "if we have to show icons, make
-    them SVG icons") - real SVG replacing emoji that got used by
-    mistake, matching AI_Rules.md's own "no emoji" rule this file's
-    own icons already follow everywhere else."""
+    actions (Sep 5 2026)"""
     from PyQt6.QtGui import QIcon, QPixmap, QPainter
     from PyQt6.QtCore import Qt
     from PyQt6.QtSvg import QSvgRenderer
@@ -5039,8 +5011,7 @@ SVGIconFactory.list_view_icon = staticmethod(get_list_view_icon)
 
 def get_asset_checker_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
     """Asset Checker - a checkmark over 3 small rows, for the new
-    IMG/COL/IDE cross-reference feature (Sep 5 2026, per Keith:
-    "Asset checker as a right click on img, col and ide entries")."""
+    IMG/COL/IDE cross-reference feature (Sep 5 2026)"""
     from PyQt6.QtGui import QIcon, QPixmap, QPainter
     from PyQt6.QtCore import Qt
     from PyQt6.QtSvg import QSvgRenderer
@@ -5519,12 +5490,6 @@ SVGIconFactory.water_workshop_icon    = staticmethod(get_water_workshop_icon)
 SVGIconFactory.timecyc_workshop_icon  = staticmethod(get_timecyc_workshop_icon)
 SVGIconFactory.get_timecyc_workshop_icon = staticmethod(get_timecyc_workshop_icon)
 
-
-# - MAP OVERLAY TOGGLE ICONS (Aug 20 2026, per Keith: "Cull, Zon,
-# Occlusion, Paths, Tracks, and TCYC can be moved to ribbons, with
-# nice SVG icons") - simple, monochrome, currentColor-based icons for
-# the map overlay toggle buttons in IPL Controls, following the same
-# get_folder_icon/get_trash_icon style as the rest of this file.
 
 def get_cull_zone_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
     """Cull zones - a 3D box outline (cull zones hide geometry when

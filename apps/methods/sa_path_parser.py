@@ -4,31 +4,6 @@
 """
 SA Path Node Parser - binary nodesXX.dat format (GTA San Andreas).
 
-Per GTAMods Wiki "Paths (GTA SA)": vehicle/ped paths in SA are NOT
-stored in the IPL "path" text section - that format (PathNode/
-PathGroup in gta_dat_parser.py, verified against Keith's real III/VC
-paths.ipl data) only applies to GTA III and Vice City. SA's own
-text-format path files still exist on disk but are unused leftovers;
-the game only reads 64 separate binary nodesN.dat files (N=0-63),
-one per 750x750-unit map area starting at (-3000,-3000) in row-major
-order, normally packed inside gta3.img (or another archive).
-
-This module is a from-scratch binary parser for that format, kept
-deliberately separate from gta_dat_parser.py's PathNode/PathGroup -
-different file format entirely, reusing those class names for this
-would be misleading. Format spec: https://gtamods.com/wiki/Paths_(GTA_SA)
-
-Shared, reusable module (Aug 14 2026, per Keith: "build the paths
-parser as a shared method set, that can be used by other tools,
-besides map workshop") - no Map Workshop/PyQt/GUI dependencies here,
-just struct/dataclasses, so any tool in this codebase can import and
-use it directly.
-
-Not yet verified against real nodesXX.dat sample data - built
-straight from the documented spec (which itself includes detailed
-real-world flag-usage statistics the parser's own field layout was
-cross-checked against), but Keith's own real data should confirm or
-correct anything the wiki got wrong/left ambiguous.
 """
 
 import os
@@ -150,28 +125,7 @@ class SAPathLink: #vers 2
     the same entry count and "can be treated as one record by
     editors" rather than three parallel arrays a caller would have
     to zip together themselves. navi_node_id/navi_area_id are None
-    for ped-node links (zero/unused in Section 5, per the wiki).
-
-    IMPORTANT, undocumented-by-the-wiki quirk discovered and verified
-    directly against Keith's own real, complete NODES0-63.DAT set
-    (Aug 19 2026, while building real path-graph visualization): when
-    a link's own source node is a PED node, this node_id is a
-    COMBINED index into the target area's vehicle_nodes+ped_nodes as
-    one contiguous array - NOT a ped_nodes-only index the way a
-    VEHICLE link's node_id already correctly is. A caller resolving a
-    ped link's real target must first subtract len(target_area.
-    vehicle_nodes) from this value before indexing into that area's
-    own ped_nodes list. Confirmed by direct measurement, not
-    hypothesis: resolving every real link across the whole map without
-    this adjustment left exactly 45,835 ped-originated links (100% of
-    all ped links, 0% of vehicle links - a clean, systematic split,
-    not noise) pointing at an out-of-range node_id; applying this
-    exact adjustment brought every single one of those down to zero
-    remaining failures. Vehicle links need no such adjustment - their
-    own node_id already indexes vehicle_nodes directly, confirmed
-    separately via ROADBLOX.DAT's own real data (325/325 real
-    roadblock entries resolve correctly against vehicle_nodes with no
-    offset needed at all)."""
+    for ped-node links (zero/unused in Section 5, per the wiki)."""
     area_id: int          # Section 3 - the linked-to node's area
     node_id: int          # Section 3 - the linked-to node's ID within that area (see the
                            # class docstring above for the real, confirmed ped-link offset quirk)

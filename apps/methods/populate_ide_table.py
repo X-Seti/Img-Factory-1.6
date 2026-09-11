@@ -4,18 +4,6 @@
 # populate_table_with_ide_data
 # setup_ide_table_structure
 
-"""populate_ide_table.py - populate a table with a single .ide file's
-own real objects, the same way an .img archive's own entries or a
-.col file's own models are shown in IMG Factory's main table (Sep 5
-2026, per Keith: "can we show the game_vc.ide in the same format as
-the col, img, show the ide in a row table, with odd and even pattern
-lines"). Reuses the same real, established column convention DAT
-Browser's own "Objects (IDE)" table already uses (ID/Model/TXD/Type/
-Section/Draw Dist/Flags/Source IDE), so a single file's own view
-matches the app's own existing aggregate one exactly. Alternating
-row colours come for free from create_tab's own table setup
-(setAlternatingRowColors(True)), not from anything in here."""
-
 from apps.methods.export_shared import get_active_table
 
 

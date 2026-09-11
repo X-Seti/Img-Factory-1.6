@@ -311,18 +311,7 @@ class WaterGridWidget(QWidget):
 
 
     def _grid_idx(self, cx, cy): #vers 2
-        """Convert screen cell (cx,cy) to byte index in grid storage.
-
-        Real fix (Aug 20 2026, same real bug/fix as _rebuild_cache's
-        own docstring - see that one for the full real story) - only
-        SOL's own real grid genuinely needs this real 6x6 tiling
-        conversion (its own grid_width is always an exact multiple of
-        6); every other game's own real grid_width never is, and
-        reading/writing through this same tiled-index math for them
-        was landing on the wrong real byte entirely - a real risk for
-        _set_cell specifically, since that's the pencil tool's own
-        real write path, silently corrupting a real VC/SA/III water
-        file's own data on save, not just a display bug."""
+        """Convert screen cell (cx,cy) to byte index in grid storage."""
         gw = self._grid_w
         if gw % 6 == 0:
             map_w = 6
@@ -350,23 +339,7 @@ class WaterGridWidget(QWidget):
         needs de-tiling: its own visible_map (384) and physical_map
         (768) are both real, exact multiples of 6 (6x6 map tiles,
         each tile stored sequentially) - the comment/logic below is
-        real and correct for SOL specifically.
-
-        Real fix (Aug 20 2026, per Keith: "why it's no-longer loading
-        waterpro.dat correctly") - this de-tiling was applied
-        unconditionally to every game's own grid, not just SOL's.
-        VC/SA/III's own real grid_width (64 for visible, 128 for
-        physical) isn't evenly divisible by 6 at all (64 // 6 = 10,
-        an integer-division truncation, not a real tile size) -
-        confirmed directly against Keith's own real VC_WATERPRO.DAT:
-        rendering it raw (no de-tiling) gives a real, coherent,
-        correct-looking island shape; applying this same de-tiling to
-        that same real data reproduces the exact "messed up", striped
-        pattern he reported. Only applies SOL's own real de-tiling
-        now when grid_w is actually a genuine, exact multiple of 6 -
-        every other game (whose own grid_width never is) renders
-        directly, row-major, matching its own real, already-correct
-        byte layout instead."""
+        real and correct for SOL specifically."""
         from PyQt6.QtGui import QImage
         gw = self._grid_w
         img = QImage(gw, gw, QImage.Format.Format_RGB32)
@@ -646,13 +619,7 @@ class SaWaterCanvas(QWidget):
 
     def _get_ui_color(self, key): #vers 1
         """Get a theme-aware QColor from app_settings. No hardcoded
-        colors (Sep 5 2026 - real crash fix, per Keith's own real
-        traceback: "AttributeError: 'SaWaterCanvas' object has no
-        attribute '_get_ui_color'" when switching from VC to SA -
-        this class' own paintEvent already called this, but it only
-        ever existed on the sibling WaterGridWidget class; same small
-        method, copied here rather than shared, matching every other
-        class in this app)."""
+        colors (Sep 5 2026)"""
         from PyQt6.QtGui import QColor
         try:
             app_settings = getattr(self, 'app_settings', None) or \

@@ -222,20 +222,7 @@ class TimecycParser: #vers 1
         return 7, 24  # VC
 
     def _parse_line(self, line: str, weather: int, time: int) -> Optional[TimecycRow]: #vers 2
-        """Parse one data line into a TimecycRow.
-
-        Real fix (Aug 21 2026, per Keith's own real, uploaded
-        timecyc.dat and timecycp.dat files: "timecyc.dat and
-        timecycp.dat don't seem to work when SA is loaded?") - every
-        value was force-converted to int() regardless of the real
-        token's own actual precision, silently truncating timecycp.
-        dat's own real decimal-precision fields (e.g. a real "0.30"
-        sun-size value became 0) - real, silent data corruption on
-        every real load of that newer format, not just display. Now
-        keeps a value as a real float only when its own real token
-        actually contained a decimal point - plain integer fields
-        (the vast majority, and everything timecyc.dat's own real,
-        integer-only format ever has) are completely unaffected."""
+        """Parse one data line into a TimecycRow."""
         s = line.strip()
         if not s or s.startswith('/'):
             return None
@@ -261,28 +248,6 @@ class TimecycParser: #vers 1
             with open(path, 'r', encoding='latin-1') as f:
                 lines = [ln for ln in f]
 
-            # Detect format from first data line - unless the caller
-            # already knows which game this is (known_game), in which
-            # case that's used directly instead of guessing from field
-            # count.
-            #
-            # SOL (Sep 5 2026, corrected against Keith's own real,
-            # uploaded SOL timecyc files - timecyc.dat/timecyc_lc.dat/
-            # timecyc_lcs.dat/timecyc_sa.dat/timecyc_sol.dat/
-            # timecyc_vc.dat, all from GTASOL's root/Data/): despite
-            # SOL's IDE/IPL data being SA-format, all 6 of these real
-            # files use 52 fields and a genuine 24-real-hourly-slot-
-            # per-weather layout, confirmed directly from their own
-            # "Midnight"/"1AM".../"11PM" comment labels - even in
-            # timecyc_sa.dat, whose name might suggest otherwise. That
-            # is VC's real convention (_get_game_layout's own 7
-            # weathers x 24 times), not SA's real 8 non-uniform slots
-            # (Midnight/5AM/6AM/7AM/Noon/7PM/8PM/10PM) - so SOL's own
-            # timecyc data follows the VC engine's convention, same as
-            # its waterpro.dat already does, even though its IDE/IPL
-            # sections are SA-format. 'SOL' is normalised to 'VC'
-            # here, not 'SA' (an earlier, untested assumption this
-            # replaces).
             if known_game:
                 self.game = 'VC' if known_game.lower() == 'sol' else known_game.upper()
                 for ln in lines:

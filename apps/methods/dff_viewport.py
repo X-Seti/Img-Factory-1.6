@@ -100,21 +100,7 @@ from PyQt6.QtCore import Qt, QPoint, pyqtSignal
 from PyQt6.QtWidgets import QWidget, QLabel
 from PyQt6.QtGui import QColor, QFont
 
-# Default viewport camera keybindings (Aug 16 2026, per Keith: "the
-# arrow keys dont pan or move the view left, right, up or down; the
-# arrow keys rotate instead. We need to be able to operate the tools
-# with keys, zoom in and out; it could be the numpad + -. A new tab
-# is needed in map workshop settings to define keys.") - arrow keys
-# now pan (previously rotated - see the class docstring on
-# keyPressEvent for that history), numpad 4/6/8/2 keep rotating
-# (unchanged), numpad +/- zoom. Each binding is {'key': int(Qt.Key),
-# 'numpad': bool} - numpad flag matters for digit/+/- keys (Qt
-# doesn't otherwise distinguish a numpad "4" from a top-row "4" by
-# key code alone) but not for the dedicated arrow keys. Overridable
-# per-instance via set_key_bindings() - map_workshop.py's Settings >
-# Keybindings tab persists a user's chosen bindings in MapSettings
-# and injects them the same way other viewport settings (background
-# colour, path line colour, etc.) already get pushed in.
+# Default viewport camera keybindings (Aug 16 2026)
 DEFAULT_KEY_BINDINGS = {
     'pan_left':          {'key': int(Qt.Key.Key_Left),  'numpad': False},
     'pan_right':         {'key': int(Qt.Key.Key_Right), 'numpad': False},
@@ -152,14 +138,7 @@ try:
     _fmt = QSurfaceFormat()
     _fmt.setProfile(QSurfaceFormat.OpenGLContextProfile.CompatibilityProfile)
     _fmt.setVersion(2, 1)
-    # Multisampling (Aug 20 2026, per Keith: "we need some kind of
-    # anti-alising, far away lines doesn't appear to flicker") - a
-    # real, standard 4x MSAA level, comprehensive rather than line-
-    # only (unlike GL_LINE_SMOOTH below, this anti-aliases every
-    # primitive - triangle edges too, not just lines), applied here
-    # at the surface-format level rather than per-drawing-call, so it
-    # costs nothing extra to manage per render path. Never configured
-    # here before this - genuinely absent, not just off.
+    # Multisampling (Aug 20 2026)
     _fmt.setSamples(4)
     QSurfaceFormat.setDefaultFormat(_fmt)
 except Exception:
@@ -169,17 +148,7 @@ except Exception:
 
 class _CRTTimeOverlay(QLabel):
     """Retro green CRT-style clock overlaid on the 3D viewport (Aug
-    20 2026, per Keith: "[TOJB] [2DFX] [TIME] showing the time in the
-    viewpoint like old style green CRT, click on time for stop and
-    start, right click for settings") - a small, clickable child
-    widget positioned in a corner of DFFViewport itself, replacing
-    the separate Time play/stop/settings row in IPL Controls. Left-
-    click toggles time-flow play/stop (the same real _start_time_
-    flow/_stop_time_flow map_workshop.py already has); right-click
-    opens the same real time-flow settings popup the old dedicated
-    settings button already used. Qt lets a child widget render on
-    top of its OpenGL parent's own content without any special
-    compositing work here."""
+    20 2026)"""
     left_clicked = pyqtSignal()
     right_clicked = pyqtSignal()
 
@@ -214,33 +183,10 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def __init__(self, parent=None): #vers 2
         super().__init__(parent)
-        # Mouse tracking (Aug 19 2026, for auto-highlight-on-hover) -
-        # off by default in Qt, meaning mouseMoveEvent normally only
-        # fires while a button is actually held. Without this, the
-        # hover-detection branch added to mouseMoveEvent below would
-        # never receive an event to run at all when no button is
-        # pressed, silently doing nothing regardless of the setting -
-        # caught this before it could ship as a feature that looked
-        # complete but never actually fired.
+        # Mouse tracking (Aug 19 2026)
         self.setMouseTracking(True)
         if OPENGL_AVAILABLE:
-            # Per-instance format, not just the module-level default
-            # (Aug 1 2026, per Keith: "we have a blank window in the
-            # last push... QOpenGLWidget: Failed to create context").
-            # QSurfaceFormat.setDefaultFormat (set at this module's
-            # import time, above) only reliably takes effect if it
-            # runs *before* QApplication is constructed - true when
-            # Map Workshop runs standalone (its own __main__ block
-            # constructs QApplication after this module is already
-            # imported... but genuinely too late whenever this module
-            # gets imported into an *already-running* host application
-            # instead - exactly Keith's confirmed setup, Map Workshop
-            # embedded as a tab inside IMG Factory's own main window,
-            # whose QApplication already exists before this module is
-            # ever imported). setFormat() directly on each widget
-            # instance works correctly regardless of that timing, so
-            # doing this too whenever an instance is actually created
-            # removes the dependency on import-order timing entirely.
+            # Per-instance format, not just the module-level default (Aug 1 2026)
             self.setFormat(_fmt)
         self.setMinimumSize(200, 200)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -270,42 +216,9 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._mode          = 'solid'
         self._backface_cull = False  # GTA models are often 2-sided; off by default
         self._show_grid     = True
-        # Grid visual style (Aug 20 2026, per Keith: "can we have an
-        # option for grid type squares, grid with blue square inside,
-        # marching ants lines, just dots, and switch grid off
-        # completly" - "off" is the existing self._show_grid=False,
-        # this is the style used whenever it's True). 'lines': the
-        # original, only style this ever had - open grid lines, no
-        # fill. 'squares': each cell gets a real, semi-transparent
-        # blue fill in addition to its own outline (Keith's own
-        # "blue square inside" wording, not just a differently-
-        # coloured outline). 'dashed': the real "marching ants" look
-        # - genuinely dashed lines via GL_LINE_STIPPLE (a real, valid
-        # legacy-OpenGL feature this app's own fixed-function pipeline
-        # already relies on elsewhere, not something invented for
-        # this), not just a colour/width change on the existing solid
-        # lines. 'dots': only the real grid intersection points drawn
-        # (GL_POINTS), no connecting lines at all - genuinely sparser
-        # than every other style, not dots drawn along the same lines.
+        # Grid visual style (Aug 20 2026)
         self._grid_type      = 'lines'
-        # 'squares' grid style's own real fill (Aug 20 2026, per
-        # Keith: "in the preview settings, the option with blue full
-        # colour, option to set the colour, blue as default, or a
-        # texture shown as the grid, with settings for 64x64 -
-        # 1028x1028 tiled" - "1028" read as the standard power-of-2
-        # 1024, the nearest real texture size to that figure, not a
-        # literal 1028). fill_mode='color' (the existing, original
-        # behaviour, unchanged) or 'texture' (a real image, tiled at
-        # tile_size world units per repeat - genuinely independent of
-        # the grid's own step spacing, since Keith's own request was
-        # for a configurable tile size, not "make the texture match
-        # whatever step happens to be active"). color stored as a
-        # real (r,g,b) 0-255 tuple, matching the same convention
-        # already used for cull/zone/occlusion box colours elsewhere
-        # in this app - blue (51,128,230) as the real, stated default.
-        # tex_id lazily loaded/cached the same real way _ensure_auzo_
-        # icon_texture's own SVG texture already is, not reloaded
-        # every frame - see _ensure_squares_texture's own docstring.
+        # 'squares' grid style's own real fill (Aug 20 2026)
         self._squares_fill_mode  = 'color'
         self._squares_color      = (51, 128, 230)
         self._squares_texture_path = ''
@@ -354,50 +267,14 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._assembly_mode = False
         self._show_lod      = False
 
-        # World instances (Aug 1 2026, per Keith: "wire every pane
-        # into the viewport, when I load ipl, these dont show" -
-        # full multi-instance 3D world view) - each entry is a dict:
-        # {'vertices','normals','uvs','triangles','materials','prelit',
-        #  'pos':(x,y,z), 'rot':(x,y,z,w) quaternion, 'scale':(x,y,z)}.
-        # Distinct from _all_geoms (which draws multiple geometries at
-        # the SAME shared origin/camera transform, for viewing one
-        # DFF's assembled parts) - these each get their own
-        # glPushMatrix/glTranslatef/rotate/glScalef/glPopMatrix.
+        # World instances (Aug 1 2026)
         self._world_instances = []
-        # Display-list cache, keyed by (model_key, render mode) (Aug 1
-        # 2026, per Keith: "bottlenecking is trying to move the
-        # objects in the viewer") - immediate-mode OpenGL (glBegin/
-        # glVertex per triangle) was being fully re-executed in Python
-        # for every instance, every single repaint (including every
-        # frame during an interactive camera drag) - with many
-        # instances sharing a handful of distinct models, this
-        # compiles each DISTINCT model's geometry into a GL display
-        # list ONCE, then every instance of it just replays the
-        # pre-compiled list (glCallList) - the expensive per-triangle
-        # work only happens once per model per render mode, not once
-        # per instance per frame.
+        # Display-list cache, keyed by (model_key, render mode) (Aug 1 2026)
         self._world_display_lists = {}
-        # Dots mode's own cube shape (Aug 20 2026) - deliberately NOT
-        # cleared alongside self._world_display_lists on a new world
-        # load (see clear_world_instances just below) - unlike those,
-        # this one static shape never depends on which world/models
-        # are currently loaded at all, so it's compiled once per
-        # session and reused across every world load, not needlessly
-        # rebuilt every time a new IPL loads.
+        # Dots mode's own cube shape (Aug 20 2026)
         self._dots_cube_list_id = None
 
-        # Collision overlay toggles (Aug 14 2026, per Keith: "add
-        # collisions to the IPL control pane... load solid collision,
-        # load semi-solid, wireframe cols, and solid with surface
-        # mapping" -> "Ghost is a good idea; Show Ghosted Col, Show
-        # Surface Mapped Col, Show Semi-Solid Col, Show Wireframe
-        # Col") - four independent checkboxes, not an exclusive
-        # group like render mode: any combination can be on at once
-        # (e.g. Wireframe Col over a Ghosted Col fill is a normal
-        # thing to want). Each draws as an overlay on top of the
-        # already-drawn model, never replacing it - "ghost" is the
-        # whole point, not just one of the four modes. All off by
-        # default.
+        # Collision overlay toggles (Aug 14 2026)
         self.show_col_ghosted        = False
         self.show_col_semi_solid     = False
         self.show_col_wireframe      = False
@@ -410,114 +287,28 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         # checkbox never needs to touch the model's own display lists.
         self._col_display_lists = {}
 
-        # Path visualization (Aug 14 2026, per Keith: "when
-        # displaying the paths in the viewpoint, I was expecting red
-        # lines and nodes. And a way to change the colour of the path
-        # lines in settings") - each entry in _path_segments is a pair
-        # of (x,y,z) endpoints, ((x1,y1,z1),(x2,y2,z2)), one real
-        # graph edge - NOT a polyline/list-of-consecutive-nodes
-        # (Aug 16 2026 rework, per Keith's real screenshot: "they
-        # don't look linked, node to node, instead one point" - long
-        # spurious lines fanning from one area. Root cause: a path
-        # group's raw on-disk node order does NOT match its actual
-        # connectivity - confirmed against Project Cerbera's own VC
-        # paths.ipl format doc: each node has its own "Next" field, a
-        # 0-11 index into that SAME group's fixed 12-node array
-        # (verified against Cerbera's own worked example, e.g. node 8
-        # linking to node 11, skipping 9-10 entirely) - naive
-        # "connect node i to node i+1" was simply the wrong topology,
-        # not just missing a few links. map_workshop.py's conversion
-        # step now builds the real edge list per node.node_type/
-        # next_id (see _refresh_path_visualization) - this widget
-        # stays pure-GL, no PathGroup/PathNode dataclass dependency
-        # here, just consumes whatever segments it's given). Off by
-        # default, matching every other optional overlay in this
-        # widget (Show Tobj, the Col overlays).
+        # Path visualization (Aug 14 2026)
         self.show_paths = False
         self._path_segments = []
-        self._path_line_color = (1.0, 0.0, 0.0)   # red, per Keith's expectation
-        self._path_node_color = (1.0, 0.8, 0.0)   # amber - distinct from the line itself
-        # Line thickness/node size (Aug 16 2026, per Keith: "under
-        # rander in settings, line thinkness, and node circle size,
-        # and color change option") - defaults match the values that
-        # used to be hardcoded (2.0->1.2px line, 6->3.5px node, from
-        # the earlier "blend in with the map" softening pass).
+        self._path_line_color = (1.0, 0.0, 0.0)   # red
+        self._path_node_color = (1.0, 0.8, 0.0)   # amber
+        # Line thickness/node size (Aug 16 2026)
         self._path_line_thickness = 1.2
         self._path_node_size = 3.5
 
-        # Interactive path node editing (Aug 17 2026, per Keith: "lets
-        # address the unbuilt work, editing paths first" - a real
-        # click-to-select-and-drag interaction for path nodes, the
-        # first piece of the larger "editing paths / moving whole IPL
-        # sections / rotating map sections" request, tackled in the
-        # order Keith himself prioritised). Scoped to VC/SA-style
-        # loader.paths only (the same scope New/Delete Path Group
-        # already settled on) - GTA III's own IDE-embedded paths
-        # attach to instances by model_id rather than holding a
-        # position of their own, a fundamentally different edit model
-        # not covered here.
-        #
-        # _path_node_owner_map keys each unique node's rounded (x,y,z)
-        # position to (group_ref, node_index) - the real, live
-        # PathGroup object and which of its 12 node slots this is -
-        # so a completed drag can be committed back to the actual
-        # data, not just this widget's own display cache. Populated
-        # by map_workshop.py's _refresh_path_visualization via set_
-        # path_node_owners, built alongside the segments list every
-        # refresh so the two never drift apart.
+        # Interactive path node editing (Aug 17 2026)
         self._path_edit_mode = False
         self._path_node_owner_map = {}
         self._dragging_path_node_start_key = None
         # ('cull'|'zone', index) of the box currently cycled/selected
-        # via the Cycle Zones/Cull button (Aug 21 2026, per Keith:
-        # "on zons we could also cycle through the entries list, and
-        # show the zon box highlighted, with right click options,
-        # this would be a failback, other then clicking on the zon
-        # box") - None means no box currently selected this way.
+        # via the Cycle Zones/Cull button (Aug 21 2026)
         self._selected_box = None
         self._dragging_path_node_current_pos = None
         self._path_node_drag_callback = None
 
-        # Whole-IPL-section dragging (Aug 18 2026, per Keith's own
-        # priority order for the interactive editing layer - "editing
-        # paths first" [done], then this: "Moving IPL file whole
-        # entires to anywhere on the map"). Click-drag any instance
-        # belonging to a loaded IPL to move that IPL's ENTIRE data as
-        # one rigid body - reuses update_instance_transform (built
-        # earlier for the Item Editor Dialog's own fast-path nudges)
-        # for cheap, real-time visual feedback on every instance
-        # belonging to the dragged IPL without touching the real
-        # IPLInstance data until release, and reuses the already-
-        # existing, already-verified _shift_ipl_coordinates (the
-        # dialog-based Shift Coordinates tool) to actually commit the
-        # move - including paths/cull/zone/occl, not just instances -
-        # once the drag finishes. First version's own honest scope
-        # limit: only INSTANCES get live visual feedback during the
-        # drag itself (cull/zone/occl boxes and paths have no
-        # equivalent identity-based "just update this one cached
-        # entry" mechanism the way instances do) - those snap to
-        # their correct new position on release, not mid-drag.
+        # Whole-IPL-section dragging (Aug 18 2026)
         self._ipl_drag_mode = False
-        # Multi-IPL selection/drag (Aug 19 2026, per Keith's own
-        # careful workflow spec: "holding [left control] left click
-        # entire .ipl is dragged / holding [left shift] and select
-        # multi entire ipls, ... if there all selected, it drags them
-        # all"). Ctrl+click starts an immediate single-IPL drag (the
-        # original, already-built behaviour, just now gated behind
-        # Ctrl instead of being the only option a plain click gave).
-        # Shift+click doesn't drag anything by itself - it toggles
-        # that instance's own whole IPL into/out of _multi_selected_
-        # ipl_names, building up a selection across as many separate
-        # Shift+clicks as wanted. A later plain click+drag (no
-        # modifier held), as long as that selection is non-empty,
-        # drags every one of those selected IPLs together as one
-        # combined rigid-body move - _dragging_ipl_names holds
-        # whichever IPL name(s) are actually being dragged at any
-        # given moment (set at press time, either {the one Ctrl-
-        # clicked IPL} or a copy of the whole multi-selection),
-        # generalised from a single name to a set so the same
-        # mouseMove/mouseRelease logic below works unchanged whether
-        # one IPL or several are being moved together.
+        # Multi-IPL selection/drag (Aug 19 2026)
         self._multi_selected_ipl_names = set()
         self._dragging_ipl_names = set()
         self._dragging_ipl_start_state = []   # list of (inst, pos, rot, scale) at drag start
@@ -527,59 +318,18 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._dragging_ipl_clicked_start_pos = None
         self._ipl_drag_callback = None
         self._ipl_selection_callback = None
-        # Axis lock (Aug 18 2026, per Keith: "[Drag ipl] right-click
-        # options, like lock z, only move x, y"). Z is already always
-        # effectively locked by the existing ground-plane-constrained
-        # drag design (the plane is fixed at the clicked instance's
-        # own starting height, so the resolved delta's own Z
-        # component is always 0 regardless of this setting - there's
-        # no separate "lock Z" toggle needed for that). This
-        # specifically covers the two REMAINING practical choices:
-        # locking X (so only Y actually moves) or locking Y (so only
-        # X moves) - None means free X/Y movement, the existing
-        # default behaviour.
+        # Axis lock (Aug 18 2026)
         self._ipl_drag_axis_lock = None
-        # 3-state Drag/Move/Rotate cycle (Aug 19 2026, per Keith: "1
-        # click turns into move ipl, click again rotate ipl, click
-        # back to drag ipl"). 'drag' (the existing default) means a
-        # click-and-hold on an instance starts the live-preview mouse
-        # drag already built; 'move'/'rotate' mean a plain click
-        # instead immediately fires ipl_click_callback with the
-        # picked IPL's name and does NOT start any drag tracking at
-        # all - map_workshop.py opens the corresponding numeric
-        # dialog (Shift Coordinates / Rotate) from that callback,
-        # since those two are precise-numeric-entry interactions, not
-        # mouse-drag ones.
+        # 3-state Drag/Move/Rotate cycle (Aug 19 2026)
         self._ipl_interaction_mode = 'drag'
         self._ipl_click_callback = None
 
-        # Auto-highlight on hover (Aug 19 2026, per Keith: "Auto
-        # object highlight setting in map_workshop settings: this
-        # could be a model, path node, anything in the viewpoint;
-        # once highlighted, right-click for options"). Off by
-        # default - a real, continuous per-mouse-move cost (same
-        # class of cost LOD Test mode's own callback already pays,
-        # not a new kind of expense this app hasn't already accepted
-        # elsewhere), so opt-in rather than always-on. Scoped to
-        # instances only for this first version, not "anything" quite
-        # yet - path nodes already have their own dedicated pick-up-
-        # and-drag interaction in Edit Paths mode, a genuinely
-        # different, more specific gesture than a general hover
-        # highlight, so left for a future pass rather than merged in
-        # here without a clear picture of how the two should coexist
-        # if both were active at once.
+        # Auto-highlight on hover (Aug 19 2026)
         self._hover_highlight_enabled = False
         self._hovered_instance_idx = None
         self._hover_context_callback = None
 
-        # Train track waypoints (Aug 17 2026, per Keith: "then the
-        # other path .dat files you pointed out earlier") - each
-        # track is drawn as one continuous polyline (ordered waypoint
-        # list, unlike VC/GTA3 paths' own Type/Next node graph - real
-        # tracks.dat/tracks2.dat data confirmed this is genuinely just
-        # a simple ordered point sequence, nothing more complex).
-        # Silver/grey by default, distinct from every other overlay
-        # colour this widget already uses, loosely evoking real rail.
+        # Train track waypoints (Aug 17 2026)
         self.show_tracks = False
         self._track_polylines = []   # list of [(x,y,z), ...] - one per track file
         self._track_color = (0.75, 0.75, 0.8)
@@ -589,51 +339,17 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._airtrain_color = (0.9, 0.6, 0.2)
         self._airtrain_line_thickness = 1.2
 
-        # SA path node graph (Aug 19 2026, per Keith's real NODES0-63.
-        # DAT data - "lets do those next" following the whole real
-        # path-file investigation this session). Unlike tracks (one
-        # continuous ordered line strip per file), SA's own path data
-        # is a genuine graph - disconnected line segments, one per
-        # link between two nodes, not a single strip - so this is a
-        # flat list of (start_xyz, end_xyz) segment pairs rather than
-        # a list of polylines. Resolution (looking up each link's own
-        # target node position, including across different area
-        # files, since links can cross area boundaries) happens in
-        # map_workshop.py, not here - this widget only ever draws
-        # already-resolved plain coordinate pairs, matching every
-        # other overlay's own "widget draws plain data, caller
-        # resolves it from the real objects" split.
+        # SA path node graph (Aug 19 2026)
         self.show_sa_nodes = False
         self._sa_node_segments = []   # list of ((x1,y1,z1),(x2,y2,z2))
         self._sa_node_color = (0.3, 0.9, 0.5)   # green, distinct from tracks' own silver-grey
 
-        # SA audio zones (Aug 20 2026, per Keith: "Implement support
-        # for the remaining SA, audiozone placements with sound svg
-        # icons; play the sounds"). Each entry is a plain (center_x,
-        # center_y, center_z, name, sound_id, environment_type,
-        # music_description) tuple - resolution (cube-vs-sphere
-        # center point, AUZO_TYPES lookup) happens in map_workshop.py,
-        # this widget only ever deals in plain, already-resolved data,
-        # matching every other overlay's own split. Rendered as a
-        # billboarded (always facing the camera) sound-icon texture
-        # quad at each zone's own center rather than a wireframe box/
-        # sphere outline the way cull/zone/occl already are - Keith's
-        # own request was specifically for icons, not shape outlines.
+        # SA audio zones (Aug 20 2026)
         self.show_auzo_zones = False
         self._auzo_zones = []
         self._auzo_icon_tex_id = None   # lazy-loaded once, cached (see _ensure_auzo_icon_texture)
 
-        # Water shapes (Aug 20 2026, per Keith: "lets get all the
-        # functions in" - water/radar recalculation on map moves).
-        # Each entry is a plain list of (x,y,z) corner tuples (3 or 4
-        # per shape) plus a water_type int - resolution (converting
-        # from the real WaterShape/WaterCorner dataclasses) happens in
-        # map_workshop.py, matching every other overlay's own "widget
-        # draws plain data, caller resolves it" split. Drawn as flat,
-        # translucent polygons rather than 3D boxes, since a real
-        # water shape genuinely is a flat plane, not a volume - a
-        # wireframe box the way cull/zone/occlusion already draw
-        # would misrepresent the real shape.
+        # Water shapes (Aug 20 2026)
         self.show_water = False
         self._water_shapes = []
         self._waterpro_cells = []   # list of (min_x, min_y, max_x, max_y, height) - flat, pre-resolved from map_workshop.py
@@ -645,162 +361,53 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._water_hide_outside_map = False
         self._water_map_half_extent = 3000.0   # grid_size/2 for the currently loaded game
 
-        # New, simpler water (Aug 20 2026, re-applied per Keith's own
-        # explicit "get water working from the preloaded file"
-        # priority - reuses self.show_water as the same on/off flag
-        # the [Water] button already toggles, but real data now comes
-        # only from the Preload dialog / auto-retooled loader.waterpro
-        # data, not settings-driven style/tile/hide-outside-map
-        # config. One real cell list, one optional real texture, one
-        # simple draw path.
+        # New, simpler water (Aug 20 2026)
         self._water2_cells = []   # list of (min_x, min_y, max_x, max_y, height)
         self._water2_texture_path = ''
         self._water2_tex_id = None
         self._water2_tex_path_loaded = None
-        # Real, in-game texture source (Aug 20 2026, per Keith: "the
-        # ../model/particle.txd water textures... with the option
-        # settings path for using other water textures") - a real
-        # texture extracted directly from the currently loaded game's
-        # own particle.txd (via ModelCache, the same real, already-
-        # indexed archive radar tiles already read from), rather than
-        # a file on disk. Takes priority over _water2_texture_path
-        # when set - see _ensure_water2_texture's own docstring for
-        # the real precedence rule. _water2_rgba_loaded tracks which
-        # real bytes object was last actually uploaded (identity, not
-        # equality - comparing raw texture bytes every frame would be
-        # wasteful), so re-setting the same real extracted texture
-        # doesn't force a needless re-upload.
+        # Real, in-game texture source (Aug 20 2026)
         self._water2_rgba = None
         self._water2_rgba_wh = (0, 0)
         self._water2_rgba_loaded = None
-        # Style toggle (Aug 20 2026, per Keith: "I like the blue, so
-        # we can keep it, or have an option to use the water
-        # texture") - independent of whether a texture happens to be
-        # preloaded, so switching styles doesn't need re-preloading.
+        # Style toggle (Aug 20 2026)
         self._water2_use_texture = False
-        # Height/transparency adjustments (Aug 20 2026, per Keith:
-        # "The water needs to be moved up and have transparency
-        # settings, but I'm not sure by how much. Looking at the
-        # radar map and water together would help") - height_offset
-        # is added to every cell's own real height at draw time
-        # (doesn't touch the underlying preloaded data itself, so
-        # switching water layers or re-preloading doesn't lose it);
-        # alpha replaces the hardcoded 0.45 flat-fill / 0.75 textured
+        # Height/transparency adjustments (Aug 20 2026)
         # transparency values.
         self._water2_height_offset = 0.0
         self._water2_alpha = 0.45
-        # X/Y offsets (Aug 20 2026, per Keith: "6 squares offset on
-        # the larger grid, or 14 on the smaller grid" - a real,
-        # measured VC-specific misalignment between water and radar/
-        # models) - matches water_workshop.py's own already-existing
-        # "World coordinate offset (applied on save)" X/Y/Z feature,
-        # since that confirms this offset is a real, recognised
-        # possibility per waterpro.dat file, not necessarily a fixed
-        # value true for every VC install - added here, live and non-
-        # destructive at draw time (same real pattern as height_
-        # offset), so Keith can dial in whatever this specific file
-        # actually needs by eye against the radar layer.
+        # X/Y offsets (Aug 20 2026)
         self._water2_x_offset = 0.0
         self._water2_y_offset = 0.0
-        # VC-only gate (Aug 20 2026, per Keith: "offset should only be
-        # for VC, so we need a toggle to effect VC waterpro.dat only")
-        # - LC/SA already line up perfectly with no offset at all;
-        # applying a saved VC-specific X/Y offset unconditionally
-        # would wrongly shift their own, already-correct water too the
-        # moment Keith switches games without first zeroing it back
-        # out. _water2_game is set by _try_auto_water2_from_loader
-        # (the same real place the current game is already known)
-        # each time a new world loads; the toggle defaults on since
-        # this offset is currently only known to be needed for VC at
-        # all.
+        # VC-only gate (Aug 20 2026)
         self._water2_game = ''
         self._water2_offset_vc_only = True
 
-        # Cull zone boxes (Aug 16 2026, per Keith: "continue with the
-        # cull files next", following the same "so I can view them"
-        # pattern as Show Paths/the .zon wiring) - the older MapView-
-        # port class (depends/map_viewport.py) already had cull-box
-        # drawing, but it's only ever reachable through the disabled
-        # 4-Pane View feature, not this, the actual primary viewport
-        # - cull boxes have never been visible to Keith in practice.
-        # Each entry in _cull_boxes is a plain (x1,y1,z1,x2,y2,z2)
-        # tuple - map_workshop.py's own conversion step reads the
-        # real CullEntry dataclass fields (fixed this session - see
-        # CullEntry's own docstring for the "was a wrong 7-field
-        # center/width/height guess, real format has 11 fields, two
-        # genuine corner points" story), this widget only ever deals
-        # in plain corner coordinates, same separation as paths/Col
-        # overlays elsewhere in this file.
+        # Cull zone boxes (Aug 16 2026)
         self.show_cull_boxes = False
         self._cull_boxes = []
         self._cull_box_color = (1.0, 0.85, 0.2)   # amber-yellow, distinct from paths' red
 
-        # Zone boxes (Aug 16 2026, per Keith: "ive loaded zon files,
-        # these show in the IPL File Display and the ZON tab is
-        # highlighted, but I cant see them in the viewpoint") - .zon
-        # loading/table-display was wired earlier this session, but
-        # nothing ever pushed the parsed zones to the 3D view - this
-        # is genuinely new, zones never had ANY viewport rendering at
-        # all before, unlike cull (which at least had dead code
-        # reaching an unreachable disabled feature). Same shape as
-        # cull boxes (min/max corners, axis-aligned) so this mirrors
-        # _draw_cull_boxes directly, just a different default colour.
+        # Zone boxes (Aug 16 2026)
         self.show_zone_boxes = False
         self._zone_boxes = []
         self._zone_box_color = (0.3, 0.7, 1.0)   # sky blue, distinct from cull's amber and paths' red
-        # Zon render style (Aug 16 2026, per Keith: "in zons, the
-        # render dropdown could show, Zon - Ghosted, Zon - Wireframe,
-        # Zon - translucent") - one of 'ghosted' (filled+outlined,
-        # default), 'wireframe' (edges only), 'translucent' (filled
-        # only, no outline, more see-through than ghosted). Scoped to
-        # zone boxes only, per Keith's own request - cull/occlusion
-        # keep their fixed ghosted look.
+        # Zon render style (Aug 16 2026)
         self._zone_render_style = 'ghosted'
 
-        # Occlusion zones (Aug 16 2026, continuing the cull/zon work -
-        # "occl" was never even a recognised VC section keyword
-        # before this, let alone rendered) - each entry is a plain
-        # (mid_x, mid_y, bottom_z, width_x, width_y, height, rotation)
-        # tuple, NOT axis-aligned like cull/zone boxes: rotation turns
-        # the box around its own vertical (Z) axis, so this needs its
-        # own draw method (computing 4 rotated corners from the
-        # center+half-extents) rather than reusing _draw_wireframe_
-        # boxes, which only ever takes two already-axis-aligned
-        # corner points.
+        # Occlusion zones (Aug 16 2026)
         self.show_occl_boxes = False
         self._occl_boxes = []
         self._occl_box_color = (1.0, 0.4, 0.8)   # pink, distinct from cull/zone/paths
-        # Garage boxes (Aug 21 2026, per Keith: "add support for
-        # GRGE") - a plain, unrotated AABB, same shape family as
-        # cull/zone rather than occlusion's own rotated one.
+        # Garage boxes (Aug 21 2026)
         self.show_grge_boxes = False
         self._grge_boxes = []
         self._grge_box_owners = []
         self._grge_box_color = (1.0, 0.65, 0.0)   # orange, distinct from cull/zone/occl/paths
-        # Axis-colored box faces (Aug 18 2026, per Keith: "Cull, Occl,
-        # Zon boxes have coloured sides: x (green), y (red) and z
-        # (blue) faces, which makes that easy to see") - off by
-        # default, overrides each box type's own configured colour
-        # when on (see _draw_ghosted_box_from_corners's own docstring
-        # for the exact per-face colour logic).
+        # Axis-colored box faces (Aug 18 2026)
         self._box_axis_colors = False
 
-        # Unique colour per box (Aug 19 2026, per Keith: "add colour
-        # zone boxes" - with real reference screenshots showing
-        # several distinct, individually-coloured cull/zone boxes
-        # side by side, not one uniform colour per box TYPE the way
-        # this app already does, and not axis-face colouring either -
-        # each individual box gets its own colour so adjacent/
-        # overlapping zones are easy to tell apart at a glance). A
-        # fixed, varied palette assigned by each box's own index
-        # within its loaded list, cycling if there are more boxes
-        # than palette entries - deterministic (the same box always
-        # gets the same colour within one session, not randomised
-        # every refresh) rather than a true random colour per box,
-        # which would flicker differently on every reload. Takes
-        # priority under axis_colored when both would otherwise
-        # apply to the same box - see _draw_ghosted_box_from_corners's
-        # own docstring for the exact precedence.
+        # Unique colour per box (Aug 19 2026)
         self._box_unique_colors = False
         self._box_color_palette = [
             (1.0, 0.55, 0.0),   # orange
@@ -813,28 +420,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             (0.1, 0.75, 0.75),  # teal
         ]
 
-        # Box corner resize (Aug 19 2026, per Keith's own priority
-        # order - "lets continue to complete that list. starting with
-        # No-clip" - box resizing itself is the real prerequisite,
-        # per this same feature's own earlier docstring: "actually
-        # moving a corner to resize the box is a separate, larger
-        # follow-up... mouse picking, drag math, and live data
-        # mutation, none of which exist yet"). Scoped to cull/zone
-        # only for this first version - both are simple, axis-aligned
-        # two-corner boxes with no rotation of their own to complicate
-        # things; occlusion boxes DO have their own rotation field, so
-        # "drag a corner" there would mean interpreting the drag in
-        # the box's own rotated local space rather than world space
-        # directly, a genuinely different, harder problem left for a
-        # separate pass rather than guessed at here.
-        #
-        # _pickable_box_corners is rebuilt fresh every _draw_cull_
-        # boxes/_draw_zone_boxes call (same "rebuild every refresh"
-        # pattern _path_node_owner_map already uses) - each entry maps
-        # a real, currently-drawn corner sphere's own world position
-        # to (box_type, box_ref, opposite corner's own position), so a
-        # click can resolve straight back to which real box/corner was
-        # actually picked.
+        # Box corner resize (Aug 19 2026)
         self._box_edit_mode = False
         self._pickable_box_corners = {}
         self._dragging_box_corner_key = None
@@ -861,26 +447,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._selected_faces = set()    # set of triangle indices
         self._select_mode    = 'object'  # 'vertex'|'edge'|'face'|'poly'|'object'
 
-        # Snap target toggles (Aug 19 2026, per Keith: "if the snap
-        # options are on, icons already exist on ribbons; use Edge of
-        # model, Centre of model, then we can remove the snaps we
-        # dont need from the ribbons" - simplified down from the
-        # original 7 mesh-editing-style targets (grid/pivot/vertex/
-        # endpoint/midpoint/edge/face) inherited from Model Workshop's
-        # own base, none of which were ever actually wired to any real
-        # behaviour here - confirmed by this code's own prior comment
-        # ("the actual snap-during-drag math... is a follow-up task,
-        # not wired yet") before removing anything, not assumed.
-        # 'centre' is the one made genuinely functional this pass -
-        # see DFFViewport's own whole-IPL-drag mouseMoveEvent logic.
-        # 'edge' stays as a real toggle but its own ribbon button is
-        # disabled with an explanatory tooltip rather than faked: a
-        # genuine "snap to the edge of a model" needs that model's own
-        # loaded geometry bounding box, which doesn't exist anywhere
-        # in this viewport yet - approximating it with an arbitrary
-        # offset would look like real geometry-based snapping while
-        # actually being a guess, which is worse than being upfront
-        # that it isn't built yet.
+        # Snap target toggles (Aug 19 2026)
         self._snap_targets = {'edge': False, 'centre': False}
         self._snap_axis_constraint = False   # "Enable Axis Constraints in Snaps"
 
@@ -896,13 +463,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._label_widget.move(4, 2)
         self._label_widget.hide()
 
-        # Retro CRT time overlay (Aug 20 2026, per Keith: "[TOJB]
-        # [2DFX] [TIME] showing the time in the viewpoint like old
-        # style green CRT, click on time for stop and start, right
-        # click for settings") - same real child-widget-on-top-of-
-        # OpenGL-parent pattern self._label_widget just above already
-        # uses. Hidden by default; map_workshop.py shows it once a
-        # real world with TOBJ/timecyc data is actually loaded.
+        # Retro CRT time overlay (Aug 20 2026)
         self._crt_time_overlay = _CRTTimeOverlay(self)
         self._crt_time_overlay.hide()
         self._position_crt_time_overlay()
@@ -921,21 +482,14 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         overlay.move(self.width() - overlay.width() - margin, margin)
 
     def set_crt_time_visible(self, visible): #vers 1
-        """Show/hide the on-viewport CRT time overlay (Aug 20 2026,
-        per Keith: "showing the time in the viewpoint like old style
-        green CRT") - map_workshop.py shows this once a real world
-        with TOBJ/timecyc data is actually loaded, replacing the old,
-        separate Time play/stop/settings row in IPL Controls."""
+        """Show/hide the on-viewport CRT time overlay (Aug 20 2026)"""
         overlay = getattr(self, '_crt_time_overlay', None)
         if overlay is None:
             return
         overlay.setVisible(bool(visible))
 
     def set_crt_time_text(self, text): #vers 1
-        """Update the CRT overlay's own displayed time (Aug 20 2026,
-        same real feature as set_crt_time_visible above) - called
-        whenever the underlying simulated hour changes, the same real
-        moments the old QTimeEdit widget used to update."""
+        """Update the CRT overlay's own displayed time (Aug 20 2026)"""
         overlay = getattr(self, '_crt_time_overlay', None)
         if overlay is None:
             return
@@ -943,11 +497,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def connect_crt_time_clicks(self, on_left=None, on_right=None): #vers 1
         """Wire the CRT overlay's own left/right-click signals to real
-        map_workshop.py handlers (Aug 20 2026, per Keith: "click on
-        time for stop and start, right click for settings") - kept as
-        a connector here rather than exposing the raw pyqtSignal
-        objects directly, so map_workshop.py doesn't need to reach
-        into DFFViewport's own private _crt_time_overlay attribute."""
+        map_workshop.py handlers (Aug 20 2026)"""
         overlay = getattr(self, '_crt_time_overlay', None)
         if overlay is None:
             return
@@ -1103,9 +653,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         and would be more precise, but re-testing every triangle of
         every instance on every click would be considerably slower for
         a whole loaded map - this is fast and good enough for clicking
-        roughly on/near an object). Aug 1 2026, per Keith: "im trying
-        to select a tree double clicking on it, so I can see its edit
-        dialog window.\""""
+        roughly on/near an object). Aug 1 2026"""
         ray = self._pick_ray(mx, my)
         if ray is None or not self._world_instances:
             return None
@@ -1125,39 +673,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def mouseDoubleClickEvent(self, event): #vers 3
         """Double-clicking a world instance opens its edit dialog (Aug
-        1 2026, per Keith - see _pick_world_instance's docstring).
-        Only active when a world (multi-instance) view is actually
-        loaded - self._workshop_ref is set at construction
-        (model_workshop.py) regardless of mode, so this checks
-        _world_instances specifically rather than assuming.
-
-        Real fix (Aug 21 2026, per Keith: "when clicking on paths, or
-        zons, other then ipl models, nothing comes up") - a path
-        node's own drag-to-move and a cull/zone box's own corner-
-        resize both already worked, but only after first switching on
-        their own dedicated edit-mode toggle, and neither ever showed
-        any info at all even then - clicking one outside that mode
-        (the same real way clicking a regular instance already just
-        works) genuinely did nothing, a real, honest UX gap, not
-        something Keith was missing. Falls through to try a path
-        node, then a cull/zone box, when no instance was hit -
-        whichever is found gets a real info popup via the same real
-        _workshop_ref callback pattern instance picking already uses.
-
-        Real fix (Aug 21 2026, per Keith's own real follow-up: "I've
-        tried to select a zon by its corner node, instead, the model
-        behide it gets selected instead, so when in zon mode, it
-        selects zons only, same with cull, paths, other functions") -
-        instance-picking was always tried first, unconditionally,
-        regardless of which overlays were actually visible at the
-        time - a real instance sitting at/near the same real screen
-        position as a path node or cull/zone box's own corner always
-        won, no matter which one Keith actually meant to click.
-        Whichever of paths/cull/zone is currently switched on (show_
-        paths/show_cull_boxes/show_zone_boxes) is tried first now,
-        instances only falling back afterward - the same real
-        priority Keith's own message describes wanting, per overlay,
-        not a fixed, one-size-fits-all order."""
+        1 2026)"""
         if self._world_instances or self._path_node_owner_map or self._cull_boxes or self._zone_boxes:
             pos = event.position()
             ws = getattr(self, '_workshop_ref', None)
@@ -1397,18 +913,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glRotatef(-self._pitch, 1, 0, 0)
         glRotatef(self._yaw, 0, 0, 1)
         # Sky drawn here - after yaw/pitch rotate the scene, before pan
-        # translates it (Aug 20 2026, per Keith: "the images show the
-        # rotation, but the sky doesn't pane" [pan]). The old version
-        # drew a fixed, screen-space orthographic overlay before any
-        # camera transform at all, so it never rotated with yaw/pitch
-        # the way a real sky visibly would - same flat gradient no
-        # matter which way the camera was actually facing. Now a real,
-        # world-space box sky (4 large side quads, same real gradient
-        # colours) that rotates along with yaw/pitch just like any
-        # other object in the scene, but sits before the pan
-        # translate so scrolling/panning the map doesn't drag the sky
-        # along with it the way a real, infinitely-distant sky
-        # wouldn't be affected by moving around on the ground.
+        # translates it (Aug 20 2026)
         if self._skybox_path:
             self._draw_skybox()
         elif self._timecyc_playing and self._sky_gradient_top and self._sky_gradient_bot:
@@ -1419,19 +924,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         else:
             glDisable(GL_CULL_FACE)
         self._setup_lighting()
-        # Real fix (Aug 20 2026, per Keith: "Tracks, Paths, Cull, zon
-        # or occlusion does not work until a map data .ipl is loaded,
-        # example. airport.ipl is loaded, and those other buttons
-        # start to work") - has_world used to depend solely on
-        # _world_instances (model placements, only ever populated by
-        # an actually-loaded .ipl's own INST entries under lazy IPL
-        # loading) even though it gates this entire overlay block,
-        # including several overlays that are genuinely independent
-        # of any .ipl at all (tracks.dat's own tracks, for one). Now
-        # also true if any of those other overlay types already have
-        # real data of their own, so toggling them on works
-        # immediately rather than silently doing nothing until some
-        # unrelated .ipl happens to load its own model instances too.
+
         has_world = bool(
             getattr(self, '_world_instances', None)
             or getattr(self, '_path_segments', None)
@@ -1450,12 +943,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._draw_2dfx_lights()
             if self.show_paths:
                 self._draw_paths()
-            # Cleared once per full render pass, right before either
-            # box type might register into it (Aug 19 2026, for box-
-            # corner resizing) - clearing inside _draw_cull_boxes or
-            # _draw_zone_boxes individually would wipe out whichever
-            # box type's own entries got registered first when the
-            # other one's draw call ran right after it.
+
             self._pickable_box_corners = {}
             if self.show_cull_boxes:
                 self._draw_cull_boxes()
@@ -1478,31 +966,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             if getattr(self, '_lod_test_center', None) is not None:
                 self._draw_lod_test_circle()
             if self._show_grid: self._draw_grid()
-            # Water drawn after the grid now (Aug 20 2026, per Keith:
-            # "I think the show water in settings show grid and
-            # 'Square (blue fill)' is overriding the [Water] button")
-            # - the grid (including its own squares/texture fill) is
-            # deliberately drawn with depth-testing disabled, so it's
-            # always visible as a reference overlay regardless of what
-            # else is on screen. Drawing it after water meant it
-            # always visually covered water wherever the two
-            # overlapped, whenever the grid style happened to be a
-            # filled one rather than plain lines - real water changes
-            # underneath would have been genuinely invisible, not
-            # actually broken. Water is real, meaningful map data, not
-            # a reference aid the way the grid is - it should take
-            # visual priority over a generic overlay, not the other
-            # way around.
-            #
-            # Re-applied (Aug 20 2026, per Keith: "get the water
-            # working, from the preloaded file, [water] button
-            # off/on toggle") - calls the new, simpler _draw_water2
-            # instead of the old two-method settings-driven pair. Old
-            # methods left in place, not deleted, since nothing else
-            # references them and last time deleting them alongside
-            # other cleanup accidentally swallowed 3 unrelated
-            # methods - safer to leave them as inert dead code for
-            # now than risk that again.
+            # Water drawn after the grid now (Aug 20 2026)
             if self.show_water:
                 self._draw_water2()
             self._draw_axes()
@@ -1523,42 +987,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._draw_axes()
 
     def _draw_paths(self): #vers 4
-        """Draw every real path link (red by default, per Keith: "I
-        was expecting red lines and nodes") plus a small marker at
-        each unique node position - line colour/thickness and node
-        size/colour all configurable via Settings > Render (Aug 16
-        2026, per Keith: "I like the path colors as a default but
-        under rander in settings, line thinkness, and node circle
-        size, and color change option" - node colour was previously
-        fixed/unconfigurable, "Keith only asked for the line colour
-        to be adjustable" no longer holds now that node colour was
-        explicitly requested too).
-
-        Draws self._path_segments (a flat list of ((x1,y1,z1),
-        (x2,y2,z2)) edge pairs, already resolved to the real per-node
-        Next-index graph by map_workshop.py's conversion step - see
-        that method's own docstring for the full "why raw file order
-        was wrong" story) as independent GL_LINES, not a connected
-        polyline - real path links routinely aren't one continuous
-        sequence (a node's Next can point anywhere else in its own
-        12-node group, and separate groups only connect where an
-        External node's position exactly matches another group's),
-        so nothing here should assume adjacency between one segment
-        and the next.
-
-        Thinner/smaller/semi-transparent (Aug 16 2026, per Keith,
-        comparing against MooMapper's own path overlay: "notice how
-        it blends in with the map") - was a flat 2px opaque line with
-        6px opaque dots, closer to a bold HUD overlay than something
-        that reads as part of the world. Depth test is still left
-        disabled here, same as before, not changed alongside this -
-        genuinely occluding paths behind buildings/terrain (so they
-        sit "in" the world rather than always drawing on top) is a
-        bigger, riskier change on real data (path Z values might not
-        track terrain height closely enough everywhere to avoid
-        making paths patchily invisible instead of just less bold) -
-        worth trying separately once this smaller change is
-        confirmed, not bundled into the same one."""
+        """Draw every real path link (red by default."""
         if not OPENGL_AVAILABLE or not self._path_segments: return
         glDisable(GL_LIGHTING)
         glDisable(GL_DEPTH_TEST)   # paths read clearer drawn on top, same as 2DFX lights
@@ -1575,20 +1004,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         nr, ng, nb = self._path_node_color
         glColor4f(nr, ng, nb, 0.75)
         glPointSize(self._path_node_size)
-        # Round points instead of the default squares (Aug 16 2026,
-        # per Keith: "we could make the path nodes round circles,
-        # makes it easy to click on them" - a real, standard OpenGL
-        # feature for this, not a custom shape: GL_POINT_SMOOTH
-        # anti-aliases each point into a circle rather than leaving
-        # its square corners visible. GL_NICEST asks for the best-
-        # quality rounding available, since these are large enough
-        # (node_size can go up to 30px, per Settings > Render) that
-        # visible squared-off corners would be obvious at that size.
-        # This is the visual half of Keith's own stated reason
-        # ("easy to click on them") - actual click-to-select/drag
-        # interaction on a node is separate, unbuilt work (same class
-        # as the still-open corner-sphere-dragging TODO), not
-        # included here.
+        # Round points instead of the default squares (Aug 16 2026)
         glEnable(GL_POINT_SMOOTH)
         glHint(GL_POINT_SMOOTH_HINT, GL_NICEST)
         glBegin(GL_POINTS)
@@ -1604,15 +1020,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glEnable(GL_DEPTH_TEST)
         glEnable(GL_LIGHTING)
 
-        # Highlight the currently held/dragged node, if any (Aug 18
-        # 2026, per Keith: "Clicking nodes brings up nothing?" - the
-        # real gap was that a successful pick never drew anything
-        # differently at all, so a click that didn't also move the
-        # mouse produced no visible change even though picking up the
-        # node had actually worked). Drawn as its own separate,
-        # larger, white point on top of everything else above, so
-        # picking a node up is visible the instant it happens, before
-        # any drag movement.
+        # Highlight the currently held/dragged node, if any (Aug 18 2026)
         held_pos = getattr(self, '_dragging_path_node_current_pos', None)
         if held_pos is not None and OPENGL_AVAILABLE:
             glDisable(GL_LIGHTING)
@@ -1633,36 +1041,12 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def _draw_cull_boxes(self): #vers 3
         """Draw every loaded cull zone as a ghosted (semi-transparent
-        filled + outlined) box, corner-to-corner (Aug 16 2026, per
-        Keith: "instead of wireframe boxes, we go for ghosted, see
-        through boxes, like the semi solid" - was plain wireframe
-        until this request). Uses the box's own two real corner
-        points directly (x1,y1,z1)-(x2,y2,z2) - the older MapViewport
-        class's own _draw_cull_boxes assumed a center+width/height
-        shape (matching the wrong 7-field parse that was fixed
-        alongside the original wireframe version), this draws the
-        actual documented box, no assumption needed."""
+        filled + outlined) box, corner-to-corner (Aug 16 2026)"""
         self._draw_ghosted_boxes(self._cull_boxes, self._cull_box_color)
 
     def _draw_zone_boxes(self): #vers 4
         """Draw every loaded map zone, style selectable via self.
-        _zone_render_style (Aug 16 2026, per Keith: "in zons, the
-        render dropdown could show, Zon - Ghosted, Zon - Wireframe,
-        Zon - translucent") - 'wireframe' draws edges only (no fill,
-        no corner spheres skipped either - see _draw_box_wireframe_
-        from_corners); 'ghosted' (default) and 'translucent' both go
-        through the same shared _draw_ghosted_box_from_corners, just
-        with different fill_alpha/draw_outline - translucent is more
-        see-through and has no outline at all, letting the corner
-        spheres alone mark the box's extent.
-
-        Per-box unique colouring (Aug 19 2026, per Keith: "add colour
-        zone boxes") applies here too, same _palette_color_for_index
-        lookup and same axis-colored-takes-priority rule as cull's
-        own _draw_ghosted_boxes - color set per-box inside each loop
-        below rather than once outside it, so the wireframe style
-        (which sets its own GL colour explicitly) can vary per box
-        too, not just the filled styles."""
+        _zone_render_style (Aug 16 2026) Per-box unique colouring (Aug 19 2026)"""
         if not OPENGL_AVAILABLE or not self._zone_boxes: return
         style = self._zone_render_style
         glDisable(GL_LIGHTING)
@@ -1704,12 +1088,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def _register_pickable_box_corners(self, box_type, box_index, corners_xy, z1, z2, box_ref): #vers 1
         """Register one box's own 8 corners as pickable for resizing
-        (Aug 19 2026, for box-corner resizing - see the fuller
-        explanation where self._pickable_box_corners is first
-        declared in __init__). Shared by cull's own _draw_ghosted_
-        boxes and both of zone's own render-style branches (wireframe
-        and ghosted/translucent) rather than duplicating the same
-        opposite-corner bookkeeping three times over."""
+        (Aug 19 2026)"""
         if box_ref is None:
             return
         for ci, (cx, cy) in enumerate(corners_xy):
@@ -1724,24 +1103,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 }
 
     def _draw_ghosted_boxes(self, boxes, color): #vers 2
-        """Shared ghosted axis-aligned-box drawing helper for cull
-        (Aug 16 2026, per Keith: "instead of wireframe boxes, we go
-        for ghosted, see through boxes, like the semi solid" -
-        replaces the earlier _draw_wireframe_boxes; zone moved to its
-        own _draw_zone_boxes once it gained selectable render styles)
-        - boxes is a list of (x1,y1,z1,x2,y2,z2) corner-pair tuples,
-        color an (r,g,b) 0-1 tuple. Derives the 4 XY corners from the
-        two opposite points and hands off to _draw_ghosted_box_from_
-        corners, the same per-box fill+outline routine _draw_occl_
-        boxes' rotated boxes use - only the corner computation
-        differs between an axis-aligned box and a rotated one, not
-        how it's actually drawn once corners exist. Also draws a
-        small solid sphere at each of the box's 8 corners (Aug 16
-        2026, per Keith: "the boxes we see need little solid spheres
-        on each corner so you can move the 6 sides, bigger, shorter,
-        longer, deeper, higher" - visual handles only for now, not
-        yet draggable/interactive; that's a bigger follow-up matching
-        the project's already-open "gizmo-based free object movement"
+        """Shared ghosted axis-aligned-box drawing helper for cull (Aug 16 2026)
         TODO, same class of feature)."""
         if not OPENGL_AVAILABLE or not boxes: return
         glDisable(GL_LIGHTING)
@@ -1759,11 +1121,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._draw_ghosted_box_from_corners(corners_xy, z1, z2, box_r, box_g, box_b,
                 axis_colored=axis_colored)
             self._draw_box_corner_spheres(corners_xy, z1, z2, box_r, box_g, box_b)
-            # Register each of this box's 8 corners as pickable (Aug
-            # 19 2026, for box-corner resizing) - fails safe if the
-            # owners list is missing or shorter than boxes (that box
-            # just isn't resizable this refresh), not with an
-            # IndexError.
+
             if i < len(owners):
                 self._register_pickable_box_corners('cull', i, corners_xy, z1, z2, owners[i])
         glDisable(GL_BLEND)
@@ -1776,42 +1134,9 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         """Draw one ghosted (semi-transparent filled faces + an
         optional, more opaque wireframe outline for definition) box
         from 4 already-computed (x,y) corner points in loop order and
-        a z1/z2 extrusion range (Aug 16 2026, per Keith: "instead of
-        wireframe boxes, we go for ghosted, see through boxes, like
-        the semi solid") - matches the existing collision Semi-Solid
-        render mode's own convention (_draw_solid's alpha_multiplier
-        path: filled alpha-blended triangles plus a subtle darker
-        edge pass), just for a simple box instead of arbitrary mesh
-        triangles. draw_outline=False (Aug 16 2026, for Zon -
-        Translucent) skips the edge pass entirely - just the filled
-        faces, letting the corner spheres alone mark the box's shape.
-        Shared by the axis-aligned cull/zone case (_draw_ghosted_
-        boxes/_draw_zone_boxes) and the rotated occlusion case
-        (_draw_occl_boxes) - only the corner computation differs
-        between them, not this actual drawing routine. Caller is
-        responsible for glEnable(GL_BLEND)/blend func and disabling
-        lighting/depth test around a whole batch, not repeated per
-        box here.
+        a z1/z2 extrusion range (Aug 16 2026)
 
-        axis_colored=True (Aug 19 2026, per Keith's colour spec: "box
-        sides colour Z sides blue, Y sides green, X sides red", then
-        corrected right back: "X=red/Y=green, swap them around to
-        X-Green, Y-Red" - so X=green, Y=red, Z=blue is the actual,
-        final intended scheme) - overrides the passed (r,g,b) with a
-        fixed per-face colour instead: the top/bottom caps (the box's
-        own Z extent) are blue, and of the 4 side faces, the two
-        connecting corners[0]-corners[1] and corners[2]-corners[3]
-        are red (these vary in X while Y stays constant along each -
-        i.e. their face normal points along Y), the other two
-        (corners[1]-corners[2], corners[3]-corners[0]) are green
-        (X-constant, normal along X). This holds correctly for
-        rotated boxes (occlusion) too, not just axis-aligned ones
-        (cull/zone) - verified with a standalone rotation test before
-        trusting it: corners_xy is always built by rotating the SAME
-        four local corner offsets in the SAME order, so which pair of
-        indices is the "local X face" vs "local Y face" is fixed by
-        construction and doesn't depend on the box's current rotation
-        in world space, even though the actual (x,y) values do."""
+        axis_colored=True (Aug 19 2026)"""
         def _face_color(default_alpha, side_index=None):
             if not axis_colored:
                 return (r, g, b, default_alpha)
@@ -1858,20 +1183,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def _draw_selected_box_highlight(self): #vers 2
         """Highlight whichever cull/zone/occlusion box is currently
-        cycled to via the Cycle Zones/Cull button (Aug 21 2026, per
-        Keith: "show the zon box highlighted... this would be a
-        failback, other then clicking on the zon box"; occl added
-        same day per Keith's own follow-up "both if you can"). A
-        bright, slightly-scaled-up wireframe outline around the box's
-        own real bounds, reusing _draw_box_wireframe_from_corners
-        directly - same real "raw geometry, own colour, own scale-up
-        to dodge z-fighting" approach _draw_hover_highlight already
-        uses for instances, adapted for a box shape instead of a
-        mesh. Occlusion's own corners are computed with the same real
-        rotation math _draw_occl_boxes already uses (its shape can be
-        rotated, unlike cull/zone), padded outward from its own real
-        center rather than a plain XY expand, so the highlight traces
-        the box's own actual rotated outline, not just its AABB."""
+        cycled to via the Cycle Zones/Cull button (Aug 21 2026)"""
         sel = getattr(self, '_selected_box', None)
         if sel is None:
             return
@@ -1909,13 +1221,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def _draw_box_wireframe_from_corners(self, corners_xy, z1, z2): #vers 1
         """Edges-only box drawing from 4 already-computed (x,y)
-        corner points and a z1/z2 extrusion range (Aug 16 2026, for
-        Zon - Wireframe) - the plain wireframe look every box type
-        had before the Semi-Solid-style ghosted rework; kept around
-        as an explicit style choice for zones specifically, per
-        Keith's own request, rather than removed entirely. Caller
-        sets colour/line width beforehand - this only emits
-        vertices."""
+        corner points and a z1/z2 extrusion range (Aug 16 2026)"""
         glBegin(GL_LINE_LOOP)
         for cx, cy in corners_xy:
             glVertex3f(cx, cy, z1)
@@ -1931,25 +1237,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def _draw_box_corner_spheres(self, corners_xy, z1, z2, r, g, b, radius=0.35): #vers 1
         """Draw a small solid sphere at each of a box's 8 corners
-        (Aug 16 2026, per Keith: "the boxes we see need little solid
-        spheres on each corner so you can move the 6 sides, bigger,
-        shorter, longer, deeper, higher" - visual handles only for
-        now, not yet clickable/draggable; actually moving a corner to
-        resize the box is a separate, larger follow-up matching the
-        project's already-open "gizmo-based free object movement"
-        TODO - same class of feature: mouse picking, drag math, and
-        live data mutation, none of which exist yet for anything in
-        this viewport).
-
-        Uses GLU's gluSphere (GLU already imported wildcard at module
-        level, alongside GL) at a deliberately low poly count (6
-        slices, 4 stacks) - a scene can easily have hundreds of boxes
-        visible at once (8 corners each), and immediate-mode gluSphere
-        calls aren't free; kept cheap per-corner rather than smooth,
-        since these are meant to read as small handles, not as
-        rendered objects in their own right. A single QuadricObj is
-        created once and reused (lazily, on first use) rather than
-        recreated every call."""
+        (Aug 16 2026)"""
         quadric = getattr(self, '_corner_sphere_quadric', None)
         if quadric is None:
             quadric = gluNewQuadric()
@@ -1964,32 +1252,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def _draw_occl_boxes(self): #vers 3
         """Draw every loaded occlusion zone as a ghosted (semi-
-        transparent filled + outlined) box (Aug 16 2026, per Keith:
-        "instead of wireframe boxes, we go for ghosted, see through
-        boxes, like the semi solid" - was plain wireframe until this
-        request). Unlike cull/zone boxes, an occlusion zone can be
-        ROTATED around its own vertical (Z) axis - computes all 4 XY
-        corners explicitly: half-extents from width_x/width_y,
-        rotated by `rotation` around (mid_x, mid_y), extruded from
-        bottom_z to bottom_z+height - then hands off to the same
-        _draw_ghosted_box_from_corners the axis-aligned cull/zone
-        boxes use, since once corners exist the actual fill+outline
-        drawing is identical regardless of rotation. Also draws
-        corner-sphere handles, same as cull/zone (see _draw_box_
-        corner_spheres) - the spheres themselves aren't rotated
-        (they're just points), only the box's corner positions are.
-
-        Rotation is treated as degrees, standard 2D rotation matrix
-        around Z - matches the field's evident purpose (turning an
-        axis-aligned box to match a rotated building) and its real
-        value range in Keith's data (up to ~180, consistent with
-        degrees, not radians), but the exact sign/direction
-        convention GTA itself uses (clockwise vs counter-clockwise)
-        is NOT independently confirmed against real in-game
-        behaviour - only the field values and their parsing are
-        verified, this rendering interpretation is a reasonable but
-        unverified best guess, same honesty standard as the GTA III
-        IDE path coordinates' unconfirmed scale factor."""
+        transparent filled + outlined) box (Aug 16 2026)"""
         if not OPENGL_AVAILABLE or not self._occl_boxes: return
         glDisable(GL_LIGHTING)
         glDisable(GL_DEPTH_TEST)
@@ -2019,16 +1282,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def _draw_grge_boxes(self): #vers 1
         """Draw every loaded garage as a ghosted (semi-transparent
-        filled + outlined) box, same real style as occlusion (Aug 21
-        2026, per Keith: "add support for GRGE") - a plain, unrotated
-        AABB (unlike occlusion), so this is a much simpler real
-        version of _draw_occl_boxes: 4 corners direct from x1/y1 to
-        x2/y2, no rotation math needed at all. Also registers each
-        box's own real corners as pickable (same real _register_
-        pickable_box_corners mechanism cull/zone already use), so a
-        garage's own corner-drag resize works the same real way
-        theirs does, even though Keith's own request only asked for
-        add/delete here, not resize."""
+        filled + outlined) box, same real style as occlusion (Aug 21 2026)"""
         if not OPENGL_AVAILABLE or not self._grge_boxes: return
         glDisable(GL_LIGHTING)
         glDisable(GL_DEPTH_TEST)
@@ -2053,14 +1307,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def _nice_grid_step(self, raw_step): #vers 1
         """Snap to the nearest value in a 1-2-5-10-20-50... sequence
-        instead of every raw integer (Aug 20 2026, per Keith: "its
-        not really locked, it wiggles around when zooming in or out,
-        making is jitter") - a plain int(raw_step) changes by 1 on
-        almost every frame during continuous zoom, visibly
-        repositioning every grid line each time; snapping to a small,
-        widely-spaced set of round steps means the grid only actually
-        changes size a handful of times across a full zoom range,
-        not continuously."""
+        instead of every raw integer (Aug 20 2026)"""
         raw_step = max(1.0, raw_step)
         import math
         magnitude = 10 ** math.floor(math.log10(raw_step))
@@ -2072,46 +1319,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def _draw_grid(self): #vers 3
         """Draw the viewport's own reference grid, in whichever real
-        visual style self._grid_type currently selects (Aug 20 2026,
-        per Keith: "can we have an option for grid type squares, grid
-        with blue square inside, marching ants lines, just dots, and
-        switch grid off completly" - "off" is the pre-existing self.
-        _show_grid=False, checked by every caller of this method
-        already; this method itself only ever runs when the grid is
-        genuinely on, dispatching purely on which of the other 4 real
-        styles is active). Shared step/rng extent computation, same
-        real values the original single-style version already used -
-        every style below covers the exact same real grid area, only
-        how each line/cell/point is actually drawn differs.
-
-        Real bug fixed in this same pass (Aug 20 2026, per Keith:
-        "the other thing I noticed about the original grid, is it
-        didn't cover the whole area, bigger maps overlapped it
-        massively... not just grid pattern size, but grid area size,
-        or limitless?") - the grid used to always sit fixed at world
-        origin (0,0), completely independent of self._pan_x/_pan_y
-        (the camera's own real pan position) - so panning away from
-        the origin at all, on ANY map (not just a genuinely large
-        one), left the grid behind entirely rather than following the
-        view; the "bigger maps overlapped it" symptom was really this
-        same bug, just more visible on a map large enough that normal
-        navigation moves the camera far from the origin as a matter
-        of course.
-
-        Real answer to Keith's own "grid area size, or limitless?"
-        question: limitless, not a fixed size - genuinely camera-
-        relative now rather than tied to any assumed map size (which
-        would need knowing the real map bounds in the first place,
-        the exact thing Keith said he can't calculate) - the grid's
-        own centre re-computes to the camera's real current focal
-        point every frame, snapped to the nearest real step-aligned
-        position first (self._pan_x/_pan_y are real floats, an
-        unsnapped centre would make the grid's own lines visibly
-        drift/jitter as the camera moves by sub-step amounts, rather
-        than the fixed, stable world-space reference lines a grid is
-        actually supposed to be) - only the visible RANGE of grid
-        lines shifts with the camera, the lines' own real world
-        positions stay fixed at step-aligned multiples throughout."""
+        visual style self._grid_type currently selects (Aug 20 2026)"""
         if not OPENGL_AVAILABLE: return
         glDisable(GL_LIGHTING)
         if self._grid_scale_mode == 'radar_tiles':
@@ -2124,26 +1332,13 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         if self._grid_scale_mode == 'radar_tiles':
             rng = int(self._radar_grid_half_extent)
         elif self._grid_scale_mode == 'fixed':
-            # Fixed cell size shouldn't cap visible range too - scale
-            # with zoom distance too so zooming out to see a
-            # far-away model still extends the grid to reach it
-            # (Aug 20 2026, per Keith: "the grid count doesn't cover
-            # the map, you can see the outer ipl models and the
-            # little yellow grid in the middle").
+
             rng = max(step * cell_radius, int(self._dist * 2))
         else:
             rng = step * cell_radius
-        # The real world point the camera is currently looking at is
-        # (-pan_x, -pan_y) - the scene itself is translated by (pan_x,
-        # pan_y) before the fixed camera views it (the same real
-        # relationship already verified numerically for capture_
-        # radar_tile's own camera math earlier this session).
+
         if self._grid_scale_mode == 'radar_tiles':
-            # Anchored to the real, fixed tile origin (0,0 - matching
-            # RADAR_GRID_PRESETS' own center_x/center_y default), not
-            # camera-relative - so cell boundaries genuinely line up
-            # with the actual exported radar tiles, not wherever the
-            # camera happens to be looking.
+
             cx = 0
             cy = 0
         else:
@@ -2153,18 +1348,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         if grid_type == 'none':
             glEnable(GL_LIGHTING)
             return
-        # Real fix (Aug 20 2026, per Keith: "grid disappears when IPL
-        # models are loaded") - the grid was never disabling GL_DEPTH_
-        # TEST the way every other overlay (_draw_paths, cull/zone
-        # boxes, 2DFX lights) already does. Before any world instances
-        # load, nothing's in the depth buffer to occlude the grid's
-        # own Z=0 lines - once ground-level building/road geometry
-        # draws before it (paintGL's own real order), depth testing
-        # correctly hides the grid wherever that geometry sits at or
-        # in front of it, same as any other occluded overlay would be.
-        # Reference overlays are supposed to draw on top regardless,
-        # matching the same real reasoning _draw_paths' own docstring
-        # already gives for doing this.
+
         was_depth_test = glIsEnabled(GL_DEPTH_TEST)
         glDisable(GL_DEPTH_TEST)
         if grid_type == 'squares':
@@ -2185,40 +1369,11 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def _draw_grid_lines(self, step, rng, cx=0, cy=0): #vers 3
         """'lines' grid style - the original, only style this feature
-        ever had before Keith's own request for real alternatives:
+        ever had before john M's own request for real alternatives:
         open grid lines, no fill, no dashing. cx/cy: the real, step-
         aligned world centre this grid's own visible range is
         currently built around (see _draw_grid's own docstring for
-        the full "why camera-relative, not fixed" reasoning).
-
-        Line anti-aliasing added here (Aug 20 2026, per Keith: "we
-        need some kind of anti-alising, far away lines doesn't appear
-        to flicker?") - a thin, unsmoothed line far from the camera
-        covers less than one pixel's worth of screen space per grid
-        step, so as the camera moves even slightly, which pixels the
-        line rasterizes to flips on and off between frames - the real
-        cause of the reported flicker. GL_LINE_SMOOTH genuinely
-        smooths line edges via real, correct alpha coverage rather
-        than an all-or-nothing pixel test, needing GL_BLEND enabled
-        to actually take visual effect (line smoothing without
-        blending is a real, well-known no-op) - both saved and
-        restored around just this method's own real line-drawing
-        work, not left globally on afterward, so this can't silently
-        affect any other, unrelated drawing call elsewhere that never
-        asked for blending. Applied here specifically (not wrapped
-        around the whole _draw_grid dispatch instead) because 'squares'
-        style already manages its own separate GL_BLEND window around
-        its own fill before ever reaching this method - wrapping here
-        instead avoids stepping on that already-correct, separate
-        blend toggle.
-
-        The real, more comprehensive fix for the same report is 4x
-        MSAA, now enabled at this whole viewport's own QSurfaceFormat
-        (see this module's own top-level format setup) - anti-aliases
-        every primitive, not just lines. This method's own GL_LINE_
-        SMOOTH is a real, additional, line-specific layer on top of
-        that, since MSAA sample coverage alone doesn't always fully
-        resolve a line that's sub-pixel-thin at a genuine distance."""
+        the full "why camera-relative, not fixed" reasoning)."""
         was_blend = glIsEnabled(GL_BLEND)
         glEnable(GL_LINE_SMOOTH)
         glHint(GL_LINE_SMOOTH_HINT, GL_NICEST)
@@ -2228,16 +1383,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         r, g, b = self._grid_line_color
         glColor4f(r / 255, g / 255, b / 255, 0.4)
 
-        # Hide-over-radar-tiles (Aug 20 2026, per Keith: "toggle the
-        # grid over radar, see it outside, but not on the radar
-        # tiles") - each line is drawn in up to 2 segments, skipping
-        # whichever middle portion falls within the radar tex layer's
-        # own real, known bounds (a square centred at the world
-        # origin, per RADAR_GRID_PRESETS/set_radar_grid_extent) -
-        # still drawn in full outside that area. Only takes effect
-        # while the radar tex layer is actually on; otherwise there's
-        # nothing to hide the grid "over", so the full grid draws as
-        # normal regardless of this setting.
+        # Hide-over-radar-tiles (Aug 20 2026)
         hide_over_radar = self._grid_hide_over_radar_tiles and self._show_radar_tex_layer
         half = self._radar_grid_half_extent if hide_over_radar else 0
 
@@ -2269,12 +1415,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
     def _draw_grid_squares(self, step, rng, cx=0, cy=0): #vers 4
         """'squares' grid style - colour fill (default) or a tiled
         user image/texture, per fill_mode. Outline lines on top are
-        now gated on self._grid_show_lines (Aug 20 2026, per Keith:
-        "the Hide grid needs to be elsewhere so that I can show the
-        texture without the grid") - separate from grid_type='none',
-        which hides the whole style (fill included); this only hides
-        the line overlay, so squares/texture fill can show cleanly on
-        its own."""
+        now gated on self._grid_show_lines (Aug 20 2026)"""
         if self._squares_fill_mode == 'texture' and self._squares_texture_path:
             tex_id = self._ensure_squares_texture()
             if tex_id:
@@ -2364,21 +1505,14 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self.update()
 
     def set_grid_show_lines(self, show): #vers 1
-        """Separate from grid_type='none' (Aug 20 2026, per Keith:
-        "the Hide grid needs to be elsewhere so that I can show the
-        texture without the grid") - hides only the outline lines
-        drawn on top of squares/texture fill, not the fill itself."""
+        """Separate from grid_type='none' (Aug 20 2026)"""
         self._grid_show_lines = bool(show)
         self.update()
 
     def set_grid_hide_over_radar_tiles(self, hide): #vers 1
         """Suppress grid lines specifically within the radar tex
         layer's own real bounds, while still drawing them outside
-        that area (Aug 20 2026, per Keith: "toggle the grid over
-        radar, see it outside, but not on the radar tiles"). No
-        effect while the radar tex layer itself is off - see _draw_
-        grid_lines' own real docstring/logic for how the split is
-        computed."""
+        that area (Aug 20 2026)"""
         self._grid_hide_over_radar_tiles = bool(hide)
         self.update()
 
@@ -2414,31 +1548,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def _draw_skybox(self): #vers 2
         """Real, world-space "box sky" - same real technique _draw_
-        sky_gradient now uses (Aug 20 2026, per Keith: "the images
-        show the rotation, but the sky doesn't pane" [pan]) - this
-        used to be a fixed, screen-space orthographic overlay, drawn
-        before any camera transform at all, so a skybox image never
-        actually rotated with yaw/pitch the way a real sky visibly
-        would. The image is mapped once around the 4 side faces in
-        sequence (each face gets one quarter of the image's own
-        width, wrapping around as the camera yaws), rather than the
-        same single frame repeated on all 4 sides - a real skybox
-        image is generally authored as a single wraparound panorama,
-        not 4 identical copies.
-
-        Real fix (Aug 20 2026, per Keith: "The sky has glitches...
-        Timecyc works, but at some angles it glitches with odd
-        shapes", confirmed directly in his own screenshots - a solid
-        black wedge cutting into the sky) - same real GL_CULL_FACE gap
-        _draw_sky_gradient's own docstring explains for that exact
-        same bug: this never touched cull-face state at all, so it
-        depended on whatever paintGL's own real backface-cull setting
-        happened to be left over from the previous frame. From inside
-        this box, every face is genuinely viewed from its own back
-        side - a real, standard skybox situation - so if culling was
-        left on, whole faces could vanish depending on which way the
-        camera was facing, showing the real clear colour (black, by
-        default) through the gap - the exact shape reported."""
+        sky_gradient now uses (Aug 20 2026)"""
         if not self._skybox_path:
             return
         tex_id = self._ensure_skybox_texture()
@@ -2453,7 +1563,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glColor4f(1, 1, 1, 1)
         radius = 80000.0
         top_z = radius
-        bottom_z = 0.0   # kept at the real horizon line, not below it - same real fix _draw_sky_gradient's own docstring explains (Aug 20 2026, per Keith's own "weird glitching... red in the sky" report)
+        bottom_z = 0.0   # kept at the real horizon line, not below it - same real fix _draw_sky_gradient's own docstring explains (Aug 20 2026)
         glBegin(GL_QUADS)
         for i, (x1, y1, x2, y2) in enumerate((
             (-radius, radius, radius, radius),      # north
@@ -2479,43 +1589,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         3-stop blend (sky_top at the zenith, sky_bot lower, sun_core
         as a brighter horizon-glow band near the bottom) rather than
         a flat single colour or a plain 2-colour linear blend (Aug 20
-        2026, per Keith: "still isn't being rendered like it would be
-        in game... all its doing it cycling through colours, no
-        horizon and sky bands") - the real, general shape a GTA sky
-        actually has: brighter/warmer near the horizon, darker/deeper
-        overhead, not uniform.
-
-        Real fix (Aug 20 2026, per Keith: "Sky effects, weird
-        glitching in the background... I dont remember RED in the
-        sky") - the horizon-glow band used to extend from the
-        horizon (Z=0) down to well below it (-radius*0.15). Since
-        this app's own map geometry is finite (unlike a real, endless
-        game world), a wide-angle view could genuinely look past the
-        edge of the map's own ground and into that "underground"
-        portion of the box sky in the gap beyond it - showing the
-        glow band's own bright colour (often a warm red/orange near
-        sunrise/sunset) somewhere a real sky would never actually be
-        visible from, since real terrain always extends to the
-        horizon in every direction. Kept the whole box sky at or
-        above the real horizon line (Z=0) now - the glow band is a
-        thin strip just above it instead of extending below.
-
-        Real fix (Aug 20 2026, per Keith: "The sky has glitches...
-        Timecyc works, but at some angles it glitches with odd
-        shapes") - this never touched GL_CULL_FACE at all, so its own
-        state here depended entirely on whatever paintGL's own real
-        backface-cull setting left over from the previous frame -
-        paintGL doesn't actually set that state until right after
-        this call returns, not before it. From inside this box, every
-        face is genuinely being viewed from its own back side (the
-        box surrounds the camera - a real, standard skybox situation,
-        not a mistake in the winding order itself), so if backface
-        culling happened to be left on from an earlier draw call,
-        whole faces could vanish depending on which way the camera
-        was actually facing at that moment - the real "odd shapes at
-        some angles" being reported. Explicitly disabled here now,
-        restored to whatever it was afterward, the same real pattern
-        _draw_grid's own earlier depth-test fix already established."""
+        2026)"""
         was_cull = glIsEnabled(GL_CULL_FACE)
         glDisable(GL_CULL_FACE)
         glDisable(GL_DEPTH_TEST)
@@ -2524,12 +1598,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._sky_gradient_top, self._sky_gradient_bot,
             self._sky_gradient_horizon or self._sky_gradient_bot)
         if self._sky_gradient_flipped:
-            # Settings toggle - swaps zenith/horizon (Aug 20 2026, per
-            # Keith: "Remember when I said the timecyc was upside
-            # down? We need a toggle to switch it either way, just in
-            # case I was wrong") - his own earlier report drove the
-            # "flip vertically" fix already shipped; this gives a way
-            # to flip it back if that fix turns out backwards after all.
+            # Settings toggle - swaps zenith/horizon (Aug 20 2026)
             top_color, horizon_color = horizon_color, top_color
         tr, tg, tb = top_color
         mr, mg, mb = bot_color
@@ -2571,16 +1640,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self.update()
 
     def set_timecyc_path(self, path, known_game=None): #vers 2
-        """Load a timecyc.dat file via the real, already-field-mapped
-        TimecycParser from Timecyc_Editor (same parser/mapping that
-        tool's own preview uses - not a second, separate parse).
-        known_game, if given (e.g. from map_workshop.py's own loader.
-        game), is used directly instead of TimecycParser's own field-
-        count guessing - the only way SOL's own timecyc.dat (VC-engine
-        formatted, confirmed against Keith's own real files, even
-        though its IDE/IPL data is SA-format - see TimecycParser.
-        load's own comment) can ever be correctly recognised, since
-        field count alone can't tell it apart from real VC."""
+        """Load a timecyc.dat file."""
         self._timecyc_path = path or ''
         self._timecyc_entries = []
         if not path:
@@ -2601,39 +1661,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         Editor's own _update_preview (ambient at [0-2] for every
         game; sky_top/sky_bot/sun_core differ per game - SA [9-11]/
         [12-14]/[15-17], GTA3 [6-8]/[9-11]/[12-14], VC [15-17]/
-        [18-20]/[21-23]).
-
-        Real, more accurate fix (Aug 20 2026, per Keith: "still isn't
-        being rendered like it would be in game... all its doing it
-        cycling through colours, no horizon and sky bands") - a
-        simple 2-colour top/bottom blend was a real improvement over
-        one flat colour, but still isn't what a real GTA sky actually
-        looks like: brighter near the horizon (often into sun_core's
-        own warm glow at sunrise/sunset), darker overhead - not a
-        plain linear blend between two colours. sun_core is now read
-        too so _draw_sky_gradient can build a real 3-stop gradient
-        instead of 2.
-
-        Note: Timecyc_Editor's own _update_preview has a real,
-        separate bug for SA's own sun_core specifically - its code
-        reads rgb(12) (the same offset as sky_bot, a likely copy-
-        paste slip) despite its own comment saying [15-17]. This
-        method uses the documented [15-17] offset, not that copied
-        value, since this is a separate implementation, not a reuse
-        of that one.
-
-        Returns (sky_top, sky_bot, ambient, sun_core), each an
-        (r,g,b) tuple, or None if no timecyc data is loaded.
-
-        Real bug fixed earlier (caught during a full review rather
-        than reported): row.time is NOT directly a 0-23 hour for
-        every game - only VC actually has 24 sequential time slots.
-        SA has 8 real, non-uniformly-spaced slots (confirmed directly
-        against Timecyc_Editor's own SA_TIME_LABELS: Midnight/5AM/
-        6AM/7AM/Noon/7PM/8PM/10PM -> real hours [0,5,6,7,12,19,20,
-        22]), and GTA3 has 12 slots at 2-hour intervals (confirmed
-        against that same file's own time_labels generation: hour =
-        time_index*2)."""
+        [18-20]/[21-23])."""
         if not self._timecyc_entries:
             return None
         game = getattr(self, '_timecyc_game', 'VC')
@@ -2668,34 +1696,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         return (sky_top, sky_bot, ambient, sun_core)
 
     def set_timecyc_playing(self, playing): #vers 3
-        """Real fix (Aug 20 2026, per Keith: "there appears to be
-        another timer running besides the tojb timer") - this used to
-        run its own separate QTimer/hour counter, a second, redundant
-        "time of day" clock alongside the app's real, existing one
-        (the TObj time-flow timer, self._time_flow_timer in map_
-        workshop.py, driving self._tobj_time_spin). Removed that
-        second timer entirely - set_timecyc_hour (called from map_
-        workshop.py's own _on_tobj_time_changed, which already fires
-        on every real change to that same shared clock) now drives
-        the hour instead, so timecyc genuinely tracks the one real
-        simulated time of day this app already has, not a second one
-        running independently alongside it. This method is now just
-        an on/off flag - recomputes immediately from whatever hour
-        was last set, so toggling on reflects the current real time
-        right away rather than waiting for the next change.
-
-        Real fix (Aug 20 2026, per Keith: "this would only trigger
-        the Timecyc on, or off, on I see the timecyc, off the timecyc
-        function stops") - turning this off used to only stop future
-        updates; the sky gradient/ambient tint/background override
-        from whatever hour was last applied stayed active forever,
-        since paintGL's own dispatch checked whether sky_gradient_top/
-        bot were set at all, not whether this flag was actually true.
-        Now genuinely reverts everything on off - clears the sky
-        gradient colours, the background override, and the ambient
-        tint back to (1,1,1) (no tint), so lighting/background/sky
-        all return to normal, not just the one thing (the gradient
-        quad itself) that paintGL's own dispatch already gated."""
+        """Real fix (Aug 20 2026)"""
         self._timecyc_playing = bool(playing)
         if playing:
             self._apply_timecyc_hour()
@@ -2710,44 +1711,13 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self.update()
 
     def set_timecyc_hour(self, hour): #vers 1
-        """Real, external hour source (Aug 20 2026) - called from map_
-        workshop.py's own _on_tobj_time_changed whenever the app's
-        one real simulated time of day changes, replacing this
-        viewport's own former independent timer/hour counter. No
-        effect while set_timecyc_playing(False) is the current state,
-        same as before."""
+        """Real, external hour source (Aug 20 2026)"""
         self._timecyc_hour = hour % 24
         if self._timecyc_playing:
             self._apply_timecyc_hour()
 
     def _apply_timecyc_hour(self): #vers 1
-        """Real, more accurate fix (Aug 20 2026, per Keith: "still
-        isn't being rendered like it would be in game... all its
-        doing it cycling through colours, no horizon and sky bands")
-        - reads _timecyc_colors_for_hour's own 4-colour version
-        (sky_top/sky_bot/ambient/sun_core), storing sun_core as self.
-        _sky_gradient_horizon so _draw_sky_gradient can build a real
-        3-stop gradient (brighter near the horizon, darker overhead -
-        the real, general shape of a GTA sky, rather than a flat
-        2-colour linear blend).
-
-        Real fix (Aug 20 2026, per Keith: "the color effect seems to
-        blink on and off, more so when I move or turn the view") -
-        this used to also call self.makeCurrent()/_setup_lighting()/
-        self.doneCurrent() directly here. paintGL already calls
-        _setup_lighting() itself, unconditionally, on every single
-        real frame - that direct call was pure duplication, and since
-        the old caller ran off its own independent QTimer rather than
-        Qt's own paint lifecycle, it could end up calling makeCurrent/
-        doneCurrent at the same moment Qt itself was handling a real,
-        rapid paintGL call during camera movement - the two competing
-        over the same GL context is what actually caused the reported
-        blinking, worse the more repaints were happening (i.e. worse
-        while actively moving/turning). Removed entirely - self.
-        update() below is enough on its own; the next real paintGL
-        call already re-applies the new ambient tint via its own
-        existing _setup_lighting() call, the same way any other state
-        change already works in this app."""
+        """Real, more accurate fix (Aug 20 2026)"""
         colors = self._timecyc_colors_for_hour(self._timecyc_hour)
         if colors:
             sky_top, sky_bot, ambient, sun_core = colors
@@ -2765,36 +1735,14 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self.update()
 
     def _draw_grid_dashed(self, step, rng, cx=0, cy=0): #vers 2
-        """'dashed' grid style - Keith's own "marching ants lines"
-        wording, matching the same visual language already used
-        elsewhere in this app for an edit-mode indicator (see _Map
-        OverlayToggleButton's own docstring for that other, static-
-        dashed-border use) - genuinely dashed here too, via real,
-        valid legacy-OpenGL GL_LINE_STIPPLE (this app's whole
-        rendering pipeline is already fixed-function/legacy OpenGL
-        throughout, so this is a real, correct fit for it, not a
-        modern-GL feature this codebase couldn't actually use). cx/cy:
-        see _draw_grid_lines' own docstring."""
+        """'dashed' grid style"""
         glEnable(GL_LINE_STIPPLE)
         glLineStipple(2, 0x00FF)   # a real, standard short-dash pattern
         self._draw_grid_lines(step, rng, cx, cy)
         glDisable(GL_LINE_STIPPLE)
 
     def _draw_grid_dots(self, step, rng, cx=0, cy=0): #vers 3
-        """'dots' grid style - Keith's own literal "just dots" wording
-        - only the real grid intersection points, no connecting lines
-        of any kind, genuinely sparser than every other style rather
-        than dots drawn along the same lines the other styles use.
-        cx/cy: see _draw_grid_lines' own docstring.
-
-        Point anti-aliasing added here too (Aug 20 2026, same real
-        "far away lines...flicker" report that fixed _draw_grid_lines
-        - a small point far from the camera is just as vulnerable to
-        the same sub-pixel on/off flicker a thin line is, so this
-        style needed the same real treatment, its own separate GL_
-        POINT_SMOOTH rather than GL_LINE_SMOOTH since this draws
-        GL_POINTS, a genuinely different primitive type) - saved and
-        restored the same way, not left globally on."""
+        """'dots' grid style"""
         was_blend = glIsEnabled(GL_BLEND)
         glEnable(GL_POINT_SMOOTH)
         glHint(GL_POINT_SMOOTH_HINT, GL_NICEST)
@@ -2814,11 +1762,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def _draw_grid_honeycomb(self, step, rng, cx=0, cy=0, dashed=False): #vers 2
         """'honeycomb' grid style, plus a dashed ("marching ants
-        honeycomb") variant (Aug 20 2026, per Keith: "marching ants
-        honeycomb"). See this method's own earlier version for the
-        real hexagon-tiling math; dashed just wraps the same drawing
-        in GL_LINE_STIPPLE, same real technique _draw_grid_dashed
-        already uses for the plain 'lines' style."""
+        honeycomb") variant (Aug 20 2026)"""
         import math
         s = step
         hex_w = math.sqrt(3) * s
@@ -2906,18 +1850,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
     def _draw_collision_faces(self, mode): #vers 1
         """Draw self._col_vertices/self._col_triangles as a ghost
         overlay on top of whatever's already been drawn for this
-        instance (Aug 14 2026, per Keith: "Ghost is a good idea" -
-        collision never replaces the model, always draws over it).
-        mode: 'ghosted'|'semi_solid'|'wireframe'|'surface_mapped'.
-        Unlit throughout (COLVertex carries no normal, unlike DFF
-        geometry) - flat colour reads clearly enough for a collision
-        overlay and avoids needing to fabricate face normals just for
-        lighting. col_triangles entries are (v1,v2,v3,r,g,b) with
-        r,g,b already resolved to floats 0-1 by the caller (map_
-        workshop.py, via col_materials.get_material_colour) -
-        surface_mapped uses them per-face, the other three modes use
-        one flat colour so every mode stays visually distinct from
-        the model's own render style and from each other."""
+        instance (Aug 14 2026)"""
         if not OPENGL_AVAILABLE: return
         verts = getattr(self, '_col_vertices', None)
         tris  = getattr(self, '_col_triangles', None)
@@ -3029,13 +1962,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             glDisable(GL_LIGHTING)
         use_p = (use_prelit or self._use_prelight) and bool(self._prelit)
         opaque = []; transparent = []
-        # alpha_multiplier < 1.0 (Aug 1 2026, Semi-Solid render mode -
-        # per Keith: "Render view should me merged with LOD view,
-        # labeled as Render: Texture, Non-texture, Semi-Solid,
-        # Wireframe...") forces every triangle through the blend path
-        # below instead of the opaque one, scaling its alpha down
-        # uniformly - a plain "ghosted" look, distinct from Non-
-        # Textured (which is fully opaque flat/lit shading).
+        # alpha_multiplier < 1.0 (Aug 1 2026)
         force_transparent = alpha_multiplier < 0.999
         for tri in self._triangles:
             fc = self._face_color(tri[3])
@@ -3085,20 +2012,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glEnable(GL_TEXTURE_2D)
         glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE,
                   GL_MODULATE if use_modulate else GL_REPLACE)
-        # Alpha-textured objects (Aug 1 2026, per Keith: "show any
-        # objects with alpha textures, as that would display in the
-        # game") - chain-link fences, foliage, glass etc. rely on
-        # per-pixel alpha baked into the texture itself (already
-        # uploaded to the GPU correctly via GL_RGBA in
-        # _upload_textures), not material face-color alpha, which is
-        # what the opaque/transparent batch split below is actually
-        # keyed on - most such objects' materials are still alpha=1.0,
-        # so without this they rendered fully opaque regardless of
-        # what their texture's own alpha channel says. GL_ALPHA_TEST
-        # gives cutout-style transparency (a pixel either draws fully
-        # or not at all, based on a threshold) rather than smooth
-        # blending - deliberately, since it needs no back-to-front
-        # sorting and doesn't disturb depth writes, unlike GL_BLEND.
+        # Alpha-textured objects (Aug 1 2026)
         glEnable(GL_ALPHA_TEST)
         glAlphaFunc(GL_GREATER, 0.5)
         use_p = (use_prelit or self._use_prelight) and bool(self._prelit)
@@ -3199,25 +2113,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             rgba = tex.get('rgba_data', b'')
             w    = tex.get('width', 0); h = tex.get('height', 0)
             if not (name and rgba and w > 0 and h > 0): continue
-            # Skip re-uploading an already-loaded texture (Aug 1 2026,
-            # per Keith: "loading textures using alot of memory",
-            # plus a real crash at glTexImage2D) - this previously
-            # created a brand new GL texture object unconditionally on
-            # every single call, even for a name already in self.
-            # _tex_ids, silently orphaning the old GL texture ID's
-            # VRAM (self._tex_ids[name] = gl_id just overwrites the
-            # dict entry, never calling glDeleteTextures on what it
-            # replaced) - a genuine, severe leak. Most damaging under
-            # LOD Test mode specifically, where _refresh_world_view
-            # (and therefore this method, with additive=True) reruns
-            # on every single mouse move, re-uploading the same
-            # already-loaded textures repeatedly and leaking a fresh
-            # copy of each one's VRAM every time, until the driver
-            # eventually fails to allocate more and crashes exactly
-            # where Keith's traceback shows. A texture's pixel data
-            # for a given name doesn't change between calls, so
-            # there's nothing to gain from re-uploading it - name is
-            # a stable, sufficient cache key here.
+            # Skip re-uploading an already-loaded texture (Aug 1 2026)
             if name in self._tex_ids:
                 continue
             if getattr(self, '_texture_downscale_enabled', False):
@@ -3258,34 +2154,13 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self.update()
 
     def set_texture_downscale_settings(self, enabled, threshold=512, target=256): #vers 1
-        """Configure texture downscaling - per Keith: "loading
-        textures using alot of memory, so im thinking about a texture
-        reduction option, keep 64. 128, 256 untouched but render down
-        to 256x256 anything over 512x512." Stored as instance
-        attributes rather than threaded through every call, since
-        _upload_textures is the single central place all texture
-        uploads go through regardless of caller (the world-view
-        pipeline, _flush_pending_textures, and any other direct
-        caller) - setting it once here covers all of them."""
+        """Configure texture downscaling"""
         self._texture_downscale_enabled = enabled
         self._texture_downscale_threshold = threshold
         self._texture_downscale_target = target
 
     def _downscale_rgba(self, rgba, w, h, target): #vers 1
-        """Downsample RGBA8888 pixel data to target x target using
-        numpy - per Keith's texture reduction request (see set_
-        texture_downscale_settings). Block-averaging for the clean-
-        multiple case (w and h both evenly divisible by target - true
-        for every size Keith actually mentioned: 512/256=2,
-        1024/256=4, 2048/256=8, all clean integer ratios for power-of-
-        2 game textures), which gives noticeably better quality than
-        nearest-neighbor since it blends each output pixel from its
-        whole source block rather than picking one sample and
-        discarding the rest. Falls back to simple nearest-neighbor
-        index sampling for any size that doesn't divide evenly (rare
-        for game textures, but not impossible) - always produces a
-        valid target x target result either way, never raises for a
-        mismatched size. Returns (new_rgba_bytes, target, target)."""
+        """Downsample RGBA8888 pixel data to target x target using numpy"""
         arr = np.frombuffer(rgba, dtype=np.uint8)
         expected = w * h * 4
         if arr.size != expected:
@@ -3342,17 +2217,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._show_grid = v; self.update()
 
     def set_grid_type(self, grid_type: str): #vers 1
-        """Real, direct setter for self._grid_type (Aug 20 2026, per
-        Keith's own real grid-style request) - matches set_show_grid's
-        own existing pattern right above exactly, for the same
-        settings-caller-applies-real-state convention already used
-        for every other viewport setting map_workshop.py's own apply_
-        settings drives. Valid values: 'lines'/'squares'/'dashed'/
-        'dots' - see _draw_grid's own docstring for what each one
-        actually draws. An unrecognised value falls back to 'lines'
-        (_draw_grid's own dispatch already treats anything it doesn't
-        recognise this way), so this never silently no-ops on a typo'd
-        value."""
+        """Real, direct setter for self._grid_type (Aug 20 2026)"""
         self._grid_type = grid_type; self.update()
 
     def set_grid_colors(self, bg_rgb, line_rgb): #vers 1
@@ -3379,7 +2244,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self.update()
 
     def set_grid_cell_count(self, count): #vers 1
-        """Total grid diameter in cells (Aug 20 2026, per Keith:
+        """Total grid diameter in cells (Aug 20 2026)
         "number of cells, hex 12, 24, 36, 48, 60, 72 etc") - replaces
         the old fixed *10 multiplier in _draw_grid's own rng
         computation, applies to every grid style (not just honeycomb),
@@ -3389,21 +2254,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def set_radar_tex_layer(self, enabled, tile_textures=None, game_key='sa'): #vers 2
         """Show the real radar tile textures (read directly from the
-        game's own loaded IMG archive - radarNN.txd entries, per
-        Keith: "those radar.txd files are in the gta3... unless it's
-        SOL where they're in another file") at their own real world
-        positions, as an alternative to the grid.
-
-        tile_textures: list of (rgba_bytes, width, height) or None
-        per tile (None for a tile whose TXD wasn't found), in the
-        same tile-index order compute_radar_grid produces - the
-        caller (map_workshop.py) is the one that actually reads these
-        from ModelCache.get_textures(), matching this app's existing
-        "widget draws plain data, caller resolves real data source"
-        split; this viewport never touches IMG files or ModelCache
-        directly. Clears any previously loaded tiles' own GL textures
-        first, so switching games/reloading doesn't leak the old
-        ones."""
+        game's own loaded IMG archive - radarNN.txd entries"""
         for tile in self._radar_tex_tiles:
             if tile.get('tex_id'):
                 try:
@@ -3464,15 +2315,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         if not self._radar_tex_tiles:
             return
         glDisable(GL_LIGHTING)
-        # Real fix (Aug 20 2026, same class of bug as _draw_grid's own
-        # "disappears when IPL models load" - this draws at Z=0 too,
-        # and drawing it BEFORE world instances means it would write
-        # depth values that then incorrectly occlude any real ground-
-        # level geometry at or below Z=0 drawn right after it. This is
-        # meant to be a pure background layer, not something that
-        # should participate in depth-testing against real geometry at
-        # all - disabling both the test and depth writes, not just the
-        # test, so it never affects what draws afterward either.
+
         was_depth_test = glIsEnabled(GL_DEPTH_TEST)
         glDisable(GL_DEPTH_TEST)
         glDepthMask(GL_FALSE)
@@ -3509,8 +2352,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
     def set_radar_grid_extent(self, tile_size, half_extent): #vers 1
         """Real world-unit tile size + half the total grid extent for
         the currently loaded game, per RADAR_GRID_PRESETS (Aug 20
-        2026, per Keith: "resize grid locked to the radar size...
-        show the radar rendered under the model spawn layout")."""
+        2026)"""
         self._radar_grid_tile_size = tile_size
         self._radar_grid_half_extent = half_extent
         self.update()
@@ -3687,45 +2529,19 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
     def set_path_segments(self, segments): #vers 2
         """Replace the path data drawn when show_paths is on. Each
         entry is a pair of (x,y,z) endpoint tuples, one real graph
-        edge (Aug 16 2026 rework - was a per-group ordered coordinate
-        list drawn as a connected polyline, wrong topology for real
-        path data; see _draw_paths' own docstring for the full
-        story). Conversion from PathGroup/PathNode (gta_dat_parser.
-        py's parsed loader.paths) into this flat edge-list shape
-        happens in map_workshop.py's _refresh_path_visualization -
-        this widget only ever deals in plain coordinate pairs, same
-        separation as everywhere else in this file (no PathGroup/
-        PathNode/COLModel dataclass imports here)."""
+        edge (Aug 16 2026)"""
         self._path_segments = segments or []
         self.update()
 
     def set_path_node_owners(self, owner_map): #vers 1
         """Set the (position -> (group_ref, node_index)) mapping used
         to resolve a picked/dragged node back to its real, live
-        PathGroup/PathNode data (Aug 17 2026, for interactive path
-        node editing - see the fuller explanation in __init__ where
-        self._path_node_owner_map is first declared). Built by map_
-        workshop.py's _refresh_path_visualization alongside the flat
-        segments list set_path_segments takes, using the exact same
-        (x,y,z) tuples - so a position looked up here always matches
-        a position actually present in _path_segments, no rounding or
-        tolerance needed for the dict lookup itself (only picking,
-        which is a nearest-point search over screen-space distance,
-        needs a tolerance)."""
+        PathGroup/PathNode data (Aug 17 2026)"""
         self._path_node_owner_map = owner_map or {}
 
     def set_path_edit_mode(self, enabled: bool): #vers 1
         """Toggle click-to-select-and-drag path node editing (Aug 17
-        2026, per Keith: "lets address the unbuilt work, editing
-        paths first"). While on, a left-click near a rendered path
-        node picks it up and drags it along the ground plane at that
-        node's own height (not free in 3D - a 2D mouse drag can't
-        unambiguously set 3 coordinates at once, and path nodes are
-        ground-level positions by nature, so constraining to height-
-        preserving horizontal movement is the actually useful
-        behaviour, not a limitation) until release, which commits the
-        new position to the real PathGroup/PathNode data via
-        set_path_node_drag_callback."""
+        2026)"""
         self._path_edit_mode = enabled
         if not enabled:
             self._dragging_path_node_start_key = None
@@ -3734,19 +2550,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def set_box_edit_mode(self, enabled: bool): #vers 1
         """Toggle click-to-select-and-drag box corner resizing (Aug
-        19 2026, per Keith's own priority order - box resize is the
-        real prerequisite for no-clip box editing, see the fuller
-        explanation where self._box_edit_mode is first declared in
-        __init__). While on, a left-click near a rendered cull/zone
-        box corner picks it up and drags it along the ground plane at
-        that corner's own height (not free in 3D - same "2D drag,
-        height-preserving" reasoning as path node editing) until
-        release, which commits the new corner position - and thus the
-        box's own new size - to the real CullEntry/zone dict via
-        set_box_resize_callback. The diagonally opposite corner (both
-        in XY and in Z) stays fixed throughout the drag, the same way
-        dragging one corner of a selection rectangle keeps the
-        opposite corner anchored."""
+        19 2026)"""
         self._box_edit_mode = enabled
         if not enabled:
             self._dragging_box_corner_key = None
@@ -3764,22 +2568,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._box_resize_callback = callback
 
     def set_no_clip_boxes(self, enabled: bool): #vers 1
-        """Toggle no-clip during box resizing (Aug 19 2026, per
-        Keith: "have a no-clipping option where you can't move one
-        box into another"). When on, a resize that would make the
-        dragged box's own new extents overlap any OTHER currently-
-        loaded cull/zone box is simply rejected for that mouse-move -
-        the box holds its last known-good, non-overlapping size
-        instead of jumping to the new, colliding one, rather than
-        attempting to compute some "closest non-overlapping size"
-        automatically (a harder geometric problem, especially with
-        several other boxes potentially blocking from different
-        directions at once, that a rushed first version could easily
-        get subtly wrong in a way that's worse than simply holding
-        still). See _box_resize_would_overlap's own docstring for the
-        actual AABB overlap test. Off by default - most resizing
-        genuinely doesn't need this, and the check adds a real per-
-        mouse-move cost testing against every other loaded box."""
+        """Toggle no-clip during box resizing (Aug 19 2026)"""
         self._no_clip_boxes = enabled
 
     def set_path_node_drag_callback(self, callback): #vers 1
@@ -3793,15 +2582,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._path_node_drag_callback = callback
 
     def set_ipl_drag_mode(self, enabled: bool): #vers 1
-        """Toggle click-drag whole-IPL-section moving (Aug 18 2026,
-        per Keith's own priority order for the interactive editing
-        layer). While on, clicking any instance belonging to a loaded
-        IPL and dragging moves that IPL's entire data as one rigid
-        body, along the ground at the clicked instance's own starting
-        height (same "2D drag, height-preserving" reasoning as path
-        node editing - see set_path_edit_mode's own docstring) until
-        release, which commits the final offset via set_ipl_drag_
-        callback."""
+        """Toggle click-drag whole-IPL-section moving (Aug 18 2026)"""
         self._ipl_drag_mode = enabled
         if not enabled:
             self._dragging_ipl_names = set()
@@ -3824,22 +2605,12 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def set_ipl_drag_axis_lock(self, axis): #vers 1
         """Set the axis-lock mode for whole-IPL dragging (Aug 18
-        2026, per Keith: "[Drag ipl] right-click options, like lock
-        z, only move x, y"). axis is None (free X/Y - the existing
-        default), 'x' (lock X - only Y actually moves), or 'y' (lock
-        Y - only X moves). Z is already always effectively locked by
-        the ground-plane-constrained drag design itself, independent
-        of this setting - see the fuller explanation where self.
-        _ipl_drag_axis_lock is first declared in __init__."""
+        2026)"""
         self._ipl_drag_axis_lock = axis if axis in ('x', 'y') else None
 
     def set_ipl_interaction_mode(self, mode): #vers 1
         """Set which of the 3-state Drag/Move/Rotate cycle is active
-        for whole-IPL interaction (Aug 19 2026, per Keith's own
-        priority order for the interactive editing layer). See the
-        fuller explanation where self._ipl_interaction_mode is first
-        declared in __init__ for exactly how each mode changes what a
-        click does. Falls back to 'drag' for anything unrecognised."""
+        for whole-IPL interaction (Aug 19 2026)"""
         self._ipl_interaction_mode = mode if mode in ('drag', 'move', 'rotate') else 'drag'
 
     def set_ipl_click_callback(self, callback): #vers 1
@@ -3865,25 +2636,12 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def set_multi_selected_ipl_names(self, names): #vers 1
         """Directly set the current multi-IPL selection from outside
-        (Aug 19 2026, per Keith: "Shift + left-click selects the
-        entire .ipls in the Object Browser" - a second, list-based way
-        to build the same selection this viewport's own Shift+click-
-        on-an-instance gesture builds, so map_workshop.py can sync
-        whichever rows are selected in the IPL Sections table into
-        this same underlying set). Both selection mechanisms feed the
-        one set - a Ctrl+drag or plain click-drag in the viewport
-        picks up whatever's currently selected regardless of which of
-        the two ways it was actually selected."""
+        (Aug 19 2026)"""
         self._multi_selected_ipl_names = set(names) if names else set()
         self.update()
 
     def set_hover_highlight_enabled(self, enabled: bool): #vers 1
-        """Toggle auto-highlight-on-hover (Aug 19 2026, per Keith's
-        own request - see the fuller explanation where self._hover_
-        highlight_enabled is first declared in __init__). Clears any
-        currently-hovered instance when turned off, so a stale
-        highlight can't linger on screen after the feature itself is
-        disabled."""
+        """Toggle auto-highlight-on-hover (Aug 19 2026)"""
         self._hover_highlight_enabled = enabled
         if not enabled:
             self._hovered_instance_idx = None
@@ -3902,10 +2660,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         middle-click (not a pan drag) anywhere in the viewport: a
         real, no-argument callback(). map_workshop.py wires this to
         the same _cycle_selected_box the Cycle Zones button's own
-        left-click already uses (Aug 21 2026, per Keith: "middle
-        click can cycle?") - same real widget-owns-interaction,
-        caller-owns-data pattern as set_hover_context_callback just
-        above."""
+        left-click already uses (Aug 21 2026)"""
         self._middle_click_cycle_callback = callback
 
     def set_show_tracks(self, enabled: bool): #vers 1
@@ -3914,10 +2669,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
     def set_track_polylines(self, polylines): #vers 1
         """Replace the track data drawn when show_tracks is on. Each
         entry is an ordered list of (x,y,z) waypoints forming one
-        continuous track (Aug 17 2026) - conversion from TrackWaypoint
-        (gta_dat_parser.py's parsed loader.tracks) happens in map_
-        workshop.py, same separation as every other overlay in this
-        widget (no TrackWaypoint dataclass import here)."""
+        continuous track (Aug 17 2026)"""
         self._track_polylines = polylines or []
         self.update()
 
@@ -3927,12 +2679,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def _draw_tracks(self): #vers 1
         """Draw every loaded train track as one continuous line strip
-        per track (Aug 17 2026) - simpler than _draw_paths, since real
-        tracks.dat/tracks2.dat data confirmed this is genuinely just
-        an ordered waypoint sequence, no node-type/Next-index graph to
-        resolve. No node markers - a train track has no meaningful
-        "node" concept the way a vehicle/ped path does; the polyline
-        itself is the whole picture."""
+        per track (Aug 17 2026)"""
         if not OPENGL_AVAILABLE or not self._track_polylines: return
         glDisable(GL_LIGHTING)
         glDisable(GL_DEPTH_TEST)
@@ -3965,11 +2712,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         """Replace the SA path-node graph data drawn when show_sa_
         nodes is on. Each entry is a plain ((x1,y1,z1),(x2,y2,z2))
         segment pair - one per real link between two nodes (Aug 19
-        2026, per Keith's real NODES0-63.DAT data). Resolution (each
-        link's own target node position, including across different
-        area files) happens in map_workshop.py - this widget never
-        imports SAPathNode/SAPathLink/SAPathFile, matching every
-        other overlay's own plain-data split."""
+        2026)"""
         self._sa_node_segments = segments or []
         self.update()
 
@@ -3995,26 +2738,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         """Lazily load a sound-icon SVG into a real OpenGL texture the
         first time an audio zone actually needs to be drawn, caching
         the result so this only ever happens once per session (Aug 20
-        2026, per Keith: "audiozone placements with sound svg
-        icons"). Reuses the app's own already-proven SVG-to-QPixmap
-        pipeline (apps/components/Map_Editor/depends/svg_icon_factory.
-        py's own volume_up_icon/_create_icon, the exact same QSvgRenderer
-        + QPixmap + QPainter approach already used for every other SVG
-        icon in this app) rather than building a second, separate SVG
-        rendering path - converts the resulting QPixmap to raw RGBA
-        bytes via QImage, then uploads it the same way real model
-        textures already are (same glGenTextures/glTexImage2D calls,
-        same _tex_ids-style single-entry cache pattern, just keyed
-        under its own reserved name rather than a real model texture
-        name, so it can never collide with one).
-
-        Local import here, not at this module's own top level - the
-        SVG icon factory lives under apps/components/Map_Editor/,
-        and this is a shared apps/methods/ module; importing a
-        components/-level module at the top of a methods/ module
-        would point the dependency the wrong way round. Only a caller
-        that actually needs the sound icon (i.e., Show Auzo Zones
-        actually turned on) pays this import's own cost."""
+        2026)"""
         if self._auzo_icon_tex_id is not None:
             return self._auzo_icon_tex_id
         try:
@@ -4044,12 +2768,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
     def _draw_auzo_zones(self): #vers 1
         """Draw a billboarded (always facing the camera) sound-icon
         quad at each real audio zone's own center position (Aug 20
-        2026, per Keith: "audiozone placements with sound svg icons").
-        Billboard orientation extracted directly from the current
-        modelview matrix's own right/up basis vectors (the standard,
-        general technique for "always face the camera" billboards,
-        correct regardless of the camera's current rotation/tilt,
-        unlike a simpler "always upright, only yaw" approximation)."""
+        2026)"""
         if not OPENGL_AVAILABLE or not self._auzo_zones:
             return
         tex_id = self._ensure_auzo_icon_texture()
@@ -4101,69 +2820,14 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def _draw_water_shapes(self): #vers 2
         """Draw real water.dat shapes as flat, translucent polygons
-        (Aug 20 2026, per Keith: "lets get all the functions in" -
-        water/radar recalculation on map moves). A real water shape
-        genuinely is a flat plane (3 or 4 corners, see WaterShape's
-        own docstring), not a volume - drawn as GL_TRIANGLE_FAN
-        (correct for both a triangle and a quad, unlike GL_QUADS
-        which would only handle the 4-corner case) rather than a
-        wireframe box the way cull/zone/occlusion boxes already are,
-        since a box would misrepresent the real shape entirely, not
-        just look different.
-
-        Honest, real uncertainty checked directly rather than assumed
-        away: fanning from corners[0] is a reasonable, standard choice
-        for turning an arbitrary quad into 2 triangles, but checking
-        it against real example data from the same documentation this
-        format was confirmed from (see WaterShape's own docstring)
-        found at least one real 4-corner line whose own corner order,
-        connected edge-to-edge in sequence, is a self-intersecting
-        "bowtie" shape (confirmed via the shoelace formula - zero net
-        area) rather than a simple, convex quad - the documented "NE-
-        NW-SE-SW" corner order doesn't hold for every real line found.
-        Fanning from corners[0] still produces a valid, non-crossing
-        pair of triangles regardless (it never assumes a particular
-        edge-walk order the way a naive "just connect them in
-        sequence" approach would), and is a reasonable approximation
-        for an editing aid showing roughly where water is - but this
-        is NOT a confirmed-exact match to whatever specific
-        triangulation the real game engine itself uses internally for
-        every possible real corner ordering, and that distinction is
-        worth remembering if a specific shape's own polygon fill ever
-        looks visually wrong for its real corner data.
-
-        Colour distinguishes real water type at a glance rather than
-        one flat colour for everything - deep blue for ocean
-        (is_shallow False, real infinite depth per the documented
-        format), lighter cyan-ish for a pool (is_shallow True, real
-        6-unit depth) - a real, meaningful distinction in the data
-        itself, not an arbitrary choice. Genuinely invisible water
-        (is_visible False - real, valid, intentional per the
-        documented format, used so a modder's own custom/animated
-        texture can show through) still gets drawn here at a lower
-        alpha rather than skipped entirely - this is an editing aid
-        showing where water actually IS, not a simulation of what a
-        player would see in-game."""
+        (Aug 20 2026)"""
         if not OPENGL_AVAILABLE or not self._water_shapes:
             return
         glDisable(GL_LIGHTING)
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         glDisable(GL_CULL_FACE)
-        # Depth writes off, test still on (Aug 20 2026, per Keith:
-        # "when water is being rendered, don't render over loaded IPL
-        # models"). Real fix (Aug 20 2026, per Keith's own follow-up
-        # report, confirmed view-angle-dependent: "looking at it side
-        # on... water level appear correct... looking from above or
-        # below, the water is blocking everything else out... is
-        # there a way to make the ipl models take priority") -
-        # GL_DEPTH_TEST is enabled explicitly here now rather than
-        # just assumed already on from initializeGL/earlier draw
-        # calls - defensive, guaranteed-correct regardless of any
-        # upstream state this app's own long, real draw-call chain
-        # (2DFX/paths/cull/zone/occl/tracks/nodes/auzo, each with its
-        # own real disable/enable pairs) might leave behind by the
-        # time water's own turn comes around.
+        # Depth writes off, test still on (Aug 20 2026)
         glEnable(GL_DEPTH_TEST)
         glDepthFunc(GL_LESS)
         glDepthMask(GL_FALSE)
@@ -4193,16 +2857,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def set_waterpro_cells(self, cells): #vers 1
         """Replace the waterpro.dat grid drawn when show_water is on
-        (Aug 20 2026, per Keith: "water function should also load the
-        waterpro.dat, and display it in the same way water_workshop
-        works"). Each entry is a plain (min_x, min_y, max_x, max_y,
-        height) tuple - one real, already-resolved cell of the grid's
-        own visible_map, per WaterProFile/WaterProLevel in gta_dat_
-        parser.py. Resolution (grid cell -> real world bounds, level
-        index -> real height) happens in map_workshop.py, same real
-        "widget only ever draws plain, already-resolved data" split
-        every other overlay here already follows - this widget never
-        touches WaterProFile/gta_dat_parser.py directly."""
+        (Aug 20 2026)"""
         self._waterpro_cells = cells or []
         self.update()
 
@@ -4229,24 +2884,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def _draw_waterpro_water(self): #vers 2
         """Draw waterpro.dat's own real grid, one per real grid cell,
-        at that cell's own real height (Aug 20 2026). Style now
-        configurable (Aug 20 2026, per Keith: "Maybe show water
-        should be in lines, dots, hexagons, with the water file
-        path... another entry for custom textures to be shown instead
-        of the grid") - 'fill' (the original, flat translucent quad,
-        same real deep-blue colour/alpha water.dat's own ocean water
-        already uses since waterpro.dat has no shallow/pool
-        distinction of its own to draw a second colour from), 'lines'
-        (outline only), 'dots' (a single point per cell centre),
-        'hexagons' (a hexagon outline approximating each cell's own
-        area, reusing the same real hex-tiling math the grid's own
-        honeycomb style already uses), or a user-chosen texture tiled
-        across the cells the same way the grid's own squares-texture
-        fill already works.
-
-        "Hide outside map boundary" (Aug 20 2026) - skips any cell
-        whose own centre falls outside self._water_map_half_extent,
-        when that setting is on."""
+        at that cell's own real height (Aug 20 2026)"""
         if not OPENGL_AVAILABLE or not self._waterpro_cells:
             return
         cells = self._waterpro_cells
@@ -4259,11 +2897,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glDisable(GL_LIGHTING)
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-        # Depth writes off, test still on. Real fix (Aug 20 2026, per
-        # Keith's own view-angle-dependent follow-up report - see
-        # _draw_water_shapes' own docstring for the full real quote
-        # and reasoning) - GL_DEPTH_TEST forced on explicitly here now
-        # rather than assumed, same defensive fix for the same reason.
+        # Depth writes off, test still on. Real fix (Aug 20 2026)
         glEnable(GL_DEPTH_TEST)
         glDepthFunc(GL_LESS)
         glDepthMask(GL_FALSE)
@@ -4363,11 +2997,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         return self._water_texture_tex_id
 
     def set_water2_data(self, cells, texture_path=''): #vers 1
-        """New, simple water data setter (Aug 20 2026, re-applied) -
-        called by the Preload dialog / auto-retool after parsing a
-        real water.dat/waterpro.dat (and optionally a real texture
-        from the app's own tex/ folder). cells is a flat list of
-        (min_x, min_y, max_x, max_y, height) tuples."""
+        """New, simple water data setter (Aug 20 2026)"""
         self._water2_cells = cells or []
         if texture_path:
             self._water2_texture_path = texture_path
@@ -4375,58 +3005,38 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def set_water2_texture_path(self, path): #vers 1
         """Set the file-path water texture independently of cells
-        (Aug 20 2026, per Keith: "the option settings path for using
-        other water textures") - a manually-chosen custom texture
-        needs to update just the texture, without touching the
-        already-loaded water cells the way set_water2_data's own
-        cells-or-[] fallback would if called with an empty list."""
+        (Aug 20 2026)"""
         self._water2_texture_path = path or ''
         self.update()
 
     def set_water2_use_texture(self, enabled): #vers 1
-        """Style toggle (Aug 20 2026, per Keith: "I like the blue, so
-        we can keep it, or have an option to use the water texture,
-        either from the game or the tex/ file from img factory") -
-        independent of whether a texture happens to be preloaded."""
+        """Style toggle (Aug 20 2026)"""
         self._water2_use_texture = bool(enabled)
         self.update()
 
     def set_water2_height_offset(self, offset): #vers 1
-        """Real Z adjustment (Aug 20 2026, per Keith: "The water
-        needs to be moved up and have transparency settings") - added
-        to every cell's own real height at draw time, doesn't touch
-        the underlying preloaded data itself."""
+        """Real Z adjustment (Aug 20 2026)"""
         self._water2_height_offset = float(offset)
         self.update()
 
     def set_water2_alpha(self, alpha): #vers 1
-        """Real transparency adjustment (Aug 20 2026, same real
-        request as set_water2_height_offset above) - replaces the
-        hardcoded flat-fill/textured alpha values."""
+        """Real transparency adjustment (Aug 20 2026)"""
         self._water2_alpha = max(0.0, min(1.0, float(alpha)))
         self.update()
 
     def set_water2_x_offset(self, offset): #vers 1
-        """Real X adjustment (Aug 20 2026, per Keith: "6 squares
-        offset on the larger grid, or 14 on the smaller grid" - a
-        real, measured VC-specific misalignment) - same real, non-
-        destructive draw-time pattern as set_water2_height_offset."""
+        """Real X adjustment (Aug 20 2026)"""
         self._water2_x_offset = float(offset)
         self.update()
 
     def set_water2_y_offset(self, offset): #vers 1
-        """Real Y adjustment (Aug 20 2026, same real request as
-        set_water2_x_offset above)."""
+        """Real Y adjustment (Aug 20 2026)"""
         self._water2_y_offset = float(offset)
         self.update()
 
     def set_water2_game(self, game_key): #vers 1
         """Track which real game the current water2 data actually
-        belongs to (Aug 20 2026, per Keith: "offset should only be
-        for VC") - called each time a new world loads, so _draw_
-        water2 can gate the X/Y offset to VC only rather than
-        applying it unconditionally to whichever game happens to be
-        loaded."""
+        belongs to (Aug 20 2026)"""
         self._water2_game = (game_key or '').lower()
         self.update()
 
@@ -4442,19 +3052,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
     def _ensure_water2_texture(self): #vers 2
         """Lazily load a water2 texture as a real GL texture - no
         makeCurrent()/doneCurrent() here, always called from within an
-        already-active paintGL.
-
-        Real precedence rule added (Aug 20 2026, per Keith: "the
-        ../model/particle.txd water textures... with the option
-        settings path for using other water textures") - a real
-        texture extracted from the currently loaded game's own
-        particle.txd (self._water2_rgba, set via set_water2_texture_
-        rgba) takes priority over a plain file on disk (self._water2_
-        texture_path) when both happen to be set, since the in-game
-        one is the more authentic, real source for that specific
-        game - falls back to the file path (e.g. this app's own tex/
-        folder asset) only when no real in-game texture was actually
-        found/extracted."""
+        already-active paintGL."""
         if self._water2_rgba is not None:
             if self._water2_tex_id and self._water2_rgba_loaded is self._water2_rgba:
                 return self._water2_tex_id
@@ -4506,50 +3104,13 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def set_water2_texture_rgba(self, rgba, width, height): #vers 1
         """Set a real, in-game water texture directly from already-
-        decoded RGBA bytes (Aug 20 2026, per Keith: "the ../model/
-        particle.txd water textures") - the same real, already-
-        working ModelCache.get_textures/parse_txd pipeline radar
-        tiles already use, so any RW texture format (confirmed across
-        Keith's own real screenshots: PAL8 for LC's own water_old,
-        ARGB8888 for SA's own waterclear256, DXT1 for VC's own
-        waterclear256) arrives here pre-decoded to plain RGBA -
-        nothing format-specific needed at this layer at all. Pass
-        rgba=None to clear it and fall back to the plain file-path
-        texture (self._water2_texture_path) instead."""
+        decoded RGBA bytes (Aug 20 2026)"""
         self._water2_rgba = rgba
         self._water2_rgba_wh = (width, height)
         self.update()
 
     def _draw_water2(self): #vers 2
-        """New, simple water draw (Aug 20 2026, re-applied) - one real
-        cell list, textured if a real texture was preloaded, a plain
-        flat fill otherwise. GL_DEPTH_TEST forced on and GL_DEPTH_FUNC
-        set explicitly rather than assumed, depth writes off (the
-        correct, standard pattern for translucent geometry - reads
-        depth so it's correctly occluded by opaque models, doesn't
-        write it so it doesn't interfere with other transparent
-        overlays drawn after it).
-
-        Real wrap-around fix (Aug 20 2026, per Keith: "as the the
-        water, because I've offset it by -400x, roll the edge so it
-        covers the square... kind of like a conveyor belt") - a
-        genuine, real per-file X/Y offset (his own empirically-found
-        -400 units for this real VC install, confirmed against his
-        own screenshot) pushes cells past one edge of the map into
-        the void while leaving a real gap on the opposite edge, since
-        a plain, unwrapped add just slides the whole grid sideways.
-        Water genuinely surrounds the whole map uniformly, so the
-        correct real fix treats the map as continuous/toroidal:
-        whichever cells the offset pushes past one edge wrap back
-        around onto the opposite edge, the same way a texture set to
-        GL_REPEAT would, or Keith's own "conveyor belt" description.
-        Wraps each cell's own real centre (not its raw min/max corners
-        directly - that would let a straddling cell stretch to nearly
-        the full map width) through modulo arithmetic against self.
-        _water_map_half_extent (the same real, already-current-game-
-        aware half-extent set_water_map_extent already tracks), then
-        rebuilds min/max from the wrapped centre so every cell keeps
-        its own real, original width and height exactly."""
+        """New, simple water draw """
         if not OPENGL_AVAILABLE or not self._water2_cells:
             return
         glDisable(GL_LIGHTING)
@@ -4611,16 +3172,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def _draw_sa_nodes(self): #vers 1
         """Draw SA's real vehicle/ped path node graph as disconnected
-        line segments (Aug 19 2026, per Keith's real NODES0-63.DAT
-        data - "lets do those next") - genuinely different from
-        _draw_tracks' own single-continuous-strip-per-file approach:
-        this is a real graph (nodes can have more than 2 links, and
-        links aren't necessarily chained in any particular order), not
-        an ordered sequence, so GL_LINES (independent segment pairs)
-        is the correct primitive here, not GL_LINE_STRIP. No node
-        markers for this first version, matching _draw_tracks' own
-        reasoning - the segments themselves already show every real
-        node's own position as a line endpoint."""
+        line segments (Aug 19 2026)"""
         if not OPENGL_AVAILABLE or not self._sa_node_segments: return
         glDisable(GL_LIGHTING)
         glDisable(GL_DEPTH_TEST)
@@ -4637,29 +3189,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def _draw_hover_highlight(self): #vers 2
         """Highlight whatever instance is currently hovered (Aug 19
-        2026, per Keith: "Auto object highlight setting in map_
-        workshop settings: this could be a model, path node, anything
-        in the viewpoint; once highlighted, right-click for options" -
-        the visual half of that request; scoped to instances only for
-        this first version, see the fuller explanation where self.
-        _hover_highlight_enabled is first declared in __init__ for
-        why path nodes aren't included yet).
-
-        Real fix (Aug 20 2026, per Keith: "instead can we highlight
-        the mesh instead, for a cleaner look") - the original version
-        drew a small, fixed-size sphere at the instance's own
-        position, unrelated to the model's own actual shape. This
-        draws a wireframe outline of the hovered instance's own real
-        loaded geometry instead, transformed the same way the main
-        instance draw loop positions/rotates/scales it, so the
-        highlight actually traces the model's own silhouette.
-
-        Draws raw vertex/triangle data directly rather than replaying
-        the instance's own cached display list - a display list's own
-        compiled draw calls could set their own internal colour state
-        (e.g. prelit vertex colours), which would silently override
-        a colour set here before glCallList; drawing raw data keeps
-        the highlight colour reliably in full control."""
+        2026)"""
         idx = getattr(self, '_hovered_instance_idx', None)
         if idx is None or idx >= len(self._world_instances):
             return
@@ -4700,12 +3230,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def _pick_path_node(self, mx: float, my: float): #vers 1
         """Return the (x,y,z) position of the closest path node to
-        the ray through (mx,my), within a small screen-space-
-        equivalent tolerance, or None - same pattern as _pick_vertex/
-        _pick_world_instance just above (reuses the exact same _pick_
-        ray/_closest_point_on_ray infrastructure), testing against
-        self._path_node_owner_map's own keys rather than mesh
-        vertices or instance positions."""
+        the ray through (mx,my)"""
         ray = self._pick_ray(mx, my)
         if ray is None or not self._path_node_owner_map:
             return None
@@ -4723,26 +3248,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
     def _pick_cull_or_zone_box(self, mx: float, my: float): #vers 3
         """Return ('cull'|'zone'|'occl'|'grge', index) of the closest
         box whose own bounds the ray through (mx,my) actually enters,
-        or None (Aug 21 2026, per Keith: "when clicking on paths, or
-        zons, other then ipl models, nothing comes up"; occl/grge
-        added same day per Keith's own follow-up: "both if you can")
-        - unlike _pick_box_corner just above (only finds a corner
-        *handle*, and only while box edit mode is already on), this
-        tests each box's own real volume directly, working regardless
-        of edit mode - a real, standard ray/AABB slab test, closest
-        hit (smallest entry t) wins when more than one box's own
-        bounds overlap. Garage boxes are a plain (x1,y1,z1,x2,y2,z2)
-        AABB, same shape family as cull/zone, so no special handling
-        needed beyond adding it to that same loop.
-
-        Occlusion boxes are rotated (unlike cull/zone/grge), so their
-        own axis-aligned picking bounds are computed fresh here from
-        their own real rotated corners (same real rotation math
-        _draw_occl_boxes already uses) rather than stored as a plain
-        (x1,y1,z1,x2,y2,z2) tuple - an honest, correctly-enclosing
-        AABB of the rotated shape, not the exact rotated shape
-        itself, same real approach already used for SA cull's own
-        real skew."""
+        or None (Aug 21 2026)"""
         ray = self._pick_ray(mx, my)
         if ray is None:
             return None
@@ -4794,13 +3300,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
     def _pick_box_corner(self, mx: float, my: float): #vers 1
         """Return the key (into self._pickable_box_corners) of the
         closest box corner to the ray through (mx,my), within a small
-        screen-space-equivalent tolerance, or None (Aug 19 2026, for
-        box-corner resizing) - same _pick_ray/_closest_point_on_ray
-        pattern _pick_path_node just above already uses, testing
-        against each entry's own 'pos' value rather than the dict's
-        keys directly (a box corner's own identity is the composite
-        (box_type, box_index, corner_index, z) key itself, not its
-        position - unlike path nodes, where position IS the key)."""
+        screen-space-equivalent tolerance, or None (Aug 19 2026)"""
         ray = self._pick_ray(mx, my)
         if ray is None or not self._pickable_box_corners:
             return None
@@ -4818,21 +3318,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
     def _box_resize_would_overlap(self, box_type, box_index, x1, y1, x2, y2, z1, z2): #vers 1
         """Standard AABB-vs-AABB overlap test: would a box with these
         new proposed extents intersect any OTHER currently-loaded
-        cull or zone box (Aug 19 2026, for Snap: No-Clip - see set_
-        no_clip_boxes' own docstring for the full behaviour this
-        gates). Checks against both self._cull_boxes and self._zone_
-        boxes together, not just same-type boxes - Keith's own
-        wording ("you can't move one box into another") wasn't scoped
-        to same-type collisions only, and there's no real reason a
-        cull box overlapping a zone box would be any less of "a mess"
-        than two cull boxes overlapping each other. Excludes only the
-        specific (box_type, box_index) actually being resized, so a
-        box is never considered to be overlapping itself.
-
-        Strict inequalities (< / >, not <=/>=) - boxes that merely
-        touch edge-to-edge with zero actual overlap volume are not
-        considered colliding, only boxes that genuinely intersect in
-        3D space are."""
+        cull or zone box (Aug 19 2026)"""
         def overlaps(other):
             ox1, oy1, oz1, ox2, oy2, oz2 = other
             return (x1 < ox2 and x2 > ox1 and
@@ -4852,29 +3338,23 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         return False
 
     def set_path_line_color(self, r: float, g: float, b: float): #vers 1
-        """Aug 14 2026, per Keith: "a way to change the colour of the
-        path lines in settings" - r/g/b as 0-1 floats, matching every
-        other colour this widget already works in (glColor3f etc)."""
+        """a way to change the colour of the path lines in settings" - r/g/b as 0-1 floats,
+        matching every other colour this widget already works in (glColor3f etc)."""
         self._path_line_color = (r, g, b)
         self.update()
 
     def set_path_node_color(self, r: float, g: float, b: float): #vers 1
-        """Aug 16 2026, per Keith: "...and color change option" -
-        node markers were previously a fixed amber with no way to
-        change them; now configurable the same way line colour
-        already was."""
+        """color change option."""
         self._path_node_color = (r, g, b)
         self.update()
 
     def set_path_line_thickness(self, px: float): #vers 1
-        """Aug 16 2026, per Keith: "under rander in settings, line
-        thinkness..." - px is the raw glLineWidth value."""
+        """under rander in settings, line thinkness..." - px is the raw glLineWidth value."""
         self._path_line_thickness = max(0.1, px)
         self.update()
 
     def set_path_node_size(self, px: float): #vers 1
-        """Aug 16 2026, per Keith: "...and node circle size..." - px
-        is the raw glPointSize value."""
+        """and node circle size..." - px is the raw glPointSize value."""
         self._path_node_size = max(0.1, px)
         self.update()
 
@@ -4932,12 +3412,10 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self.update()
 
     def set_zone_render_style(self, style: str): #vers 1
-        """Aug 16 2026, per Keith: "in zons, the render dropdown
-        could show, Zon - Ghosted, Zon - Wireframe, Zon -
-        translucent" - style is one of 'ghosted'/'wireframe'/
-        'translucent', see _draw_zone_boxes for what each looks
-        like. Falls back to 'ghosted' for an unrecognised value
-        rather than silently drawing nothing."""
+        """Render dropdown could show, Zon - Ghosted, Zon - Wireframe, Zon -
+        translucent" - style is one of 'ghosted'/'wireframe'/ 'translucent',
+        see _draw_zone_boxes for what each looks like. Falls back to 'ghosted'
+        for an unrecognised value rather than silently drawing nothing."""
         self._zone_render_style = style if style in (
             'ghosted', 'wireframe', 'translucent') else 'ghosted'
         self.update()
@@ -4964,11 +3442,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def set_grge_boxes(self, boxes): #vers 1
         """Replace the garage boxes drawn when show_grge_boxes is on.
-        Each entry is a plain (x1,y1,z1,x2,y2,z2) tuple (Aug 21 2026,
-        per Keith: "add support for GRGE") - conversion from the real
-        GrgeEntry dataclass happens in map_workshop.py's own real
-        _refresh_grge_box_visualization, same real pattern cull/zone/
-        occl already use."""
+        Each entry is a plain (x1,y1,z1,x2,y2,z2) tuple (Aug 21 2026)"""
         self._grge_boxes = boxes or []
         self.update()
 
@@ -4984,20 +3458,12 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self.update()
 
     def set_box_axis_colors(self, enabled: bool): #vers 1
-        """Toggle axis-colored box faces (Aug 18 2026, per Keith's own
-        request - see _draw_ghosted_box_from_corners's own docstring
-        for the full colour scheme). Overrides each box type's own
-        configured colour when on, for every cull/zone/occlusion box
-        at once - not a per-type setting, since the whole point is a
-        consistent way to read orientation regardless of which box
-        type is being edited."""
+        """Toggle axis-colored box faces (Aug 18 2026)"""
         self._box_axis_colors = enabled
         self.update()
 
     def set_box_unique_colors(self, enabled: bool): #vers 1
-        """Toggle unique-colour-per-box (Aug 19 2026, per Keith's own
-        request - see the fuller explanation where self._box_unique_
-        colors is first declared in __init__)."""
+        """Toggle unique-colour-per-box (Aug 19 2026)"""
         self._box_unique_colors = enabled
         self.update()
 
@@ -5050,50 +3516,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def set_world_instances(self, entries, auto_fit=True, clear_display_lists=True): #vers 4
         """Load a whole set of positioned instances for a full
-        multi-instance world view (Aug 1 2026, per Keith: "wire every
-        pane into the viewport, when I load ipl, these dont show").
-        entries: list of dicts, each:
-          {'vertices': [(x,y,z),...], 'normals': [...] or [],
-           'uvs': [...] or [], 'triangles': [(v1,v2,v3,mat_id),...],
-           'materials': [...], 'prelit': [...] or [],
-           'pos': (x,y,z), 'rot': (x,y,z,w) quaternion, 'scale': (x,y,z),
-           'model_key': <hashable, shared by every instance of the
-           same model - used to build one display list per distinct
-           model instead of one per instance>}
-        Caller (ModelWorkshop._refresh_world_view) is responsible for
-        converting each instance's cached DFFModel geometry into this
-        shape - same field names/format load_geometry() already uses
-        internally, just per-instance instead of one shared set.
-
-        clear_display_lists=False (Aug 1 2026, per Keith: "touching
-        time, tick, 12:00 [Play] Appears to freeze things?") - by
-        default this discards every previously-compiled display list
-        on every single call ("a new world/IPL selection means the
-        old models' compiled geometry is no longer relevant" - true
-        for a genuine new-world load, but this same method also gets
-        called on every single TOBJ time-flow tick and every 2DFX
-        light refresh via _refresh_world_view, none of which change
-        which distinct *models* exist - only which instances of them
-        are currently visible). Unconditionally recompiling every
-        model's display lists once a second (the default tick
-        interval) for a map with many distinct models is exactly the
-        "freeze" Keith saw when pressing Play - unnecessary work, not
-        a real limitation. Callers that know the model set itself
-        hasn't changed (just instance-level visibility) can now skip
-        the wipe and let already-compiled lists for still-visible
-        models keep being reused as-is.
-
-        auto_fit=False (Aug 1 2026, per Keith: "When moving an object
-        with the object editor... the viewpoint zooms out
-        automatically; the viewpoint should stay on the chosen
-        object") - every nudge edit re-applies the IPL visibility
-        filter to keep the World View panes in sync
-        (ModelWorkshop._on_instance_edited), which calls this same
-        method; auto-fitting on every single nudge was re-framing the
-        camera to the whole map's bounding box each time, fighting
-        whatever position the user had just navigated to. Real loads/
-        IPL switches still want the fit (finding the newly-visible
-        content is the point there); edit-triggered refreshes don't."""
+        multi-instance world view (Aug 1 2026)"""
         if clear_display_lists:
             self._clear_world_display_lists()
             self._clear_col_display_lists()
@@ -5105,25 +3528,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
     def update_instance_transform(self, inst, pos, rot, scale): #vers 1
         """Update just one already-rendered instance's position/
         rotation/scale in place, without touching any other entry or
-        rebuilding the world-instances list at all - per Keith: "when
-        moving any object using the IPL object editor, it takes so
-        long for anything to change; is there a way to only update
-        the object thats been moved, not freshing the whole
-        viewport." Previously every nudge went through the full
-        _apply_ipl_visibility_filter -> _refresh_world_view pipeline,
-        rebuilding a fresh entry dict for every visible instance in
-        the whole map just to reflect one changed instance - correct
-        but wasteful for a single edit, since geometry/display lists
-        for every *other* instance are completely unaffected by it.
-
-        Finds the matching entry by identity (entry['instance'] is
-        inst, set when _refresh_world_view originally built the list -
-        see its own code) rather than by position/name, since those
-        are exactly what's changing and can't be used to look the
-        instance up. Returns True if a match was found and updated,
-        False otherwise (caller should fall back to the full pipeline
-        in that case - e.g. the very first time this instance is
-        edited before any full refresh has ever run)."""
+        rebuilding the world-instances list at all."""
         for entry in getattr(self, '_world_instances', None) or []:
             if entry.get('instance') is inst:
                 entry['pos'] = pos
@@ -5168,27 +3573,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
     def _ensure_dots_cube_display_list(self): #vers 1
         """Lazily build (once, cached) a display list for the small,
         axis-coloured cube Dots mode draws at every instance's own
-        position (Aug 20 2026, per Keith: "dots look good, maybe 3
-        colour cubes, like the zons, Green, Red and Blue sides") -
-        genuinely built once and reused via translate-only for every
-        instance (see _draw_world_instances' own dots-mode branch),
-        not rebuilt per instance or per frame - a huge map's worth of
-        instances all share this exact same compiled shape.
-
-        Colours match cull/zone/occlusion boxes' own already-
-        established axis scheme exactly (see _draw_ghosted_box_from_
-        corners' own docstring for the full colour-choice history) -
-        X sides green (0.25,1.0,0.25), Y sides red (1.0,0.25,0.25), Z
-        sides (top/bottom) blue (0.2,0.4,1.0) - same RGB triples,
-        copied directly from that method rather than approximated, so
-        a cube here and a zone box elsewhere read as the same colour
-        language rather than two similar-but-not-quite-matching
-        schemes.
-
-        Small, fixed half-size (0.5 world units - a 1x1x1 cube) -
-        these are meant to read as placement markers at normal map-
-        viewing zoom, not compete visually with real building-sized
-        geometry the way a full-scale model would."""
+        position (Aug 20 2026)"""
         if self._dots_cube_list_id is not None:
             return self._dots_cube_list_id
         h = 0.5   # half-size
@@ -5225,55 +3610,9 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def _draw_world_instances(self): #vers 5
         """Per instance: glPushMatrix/translate/rotate/scale, then
-        replay a pre-compiled display list (Aug 1 2026 perf fix, per
-        Keith: "bottlenecking is trying to move the objects in the
-        viewer") - built once per (model, render mode) the first time
-        it's needed, cached in self._world_display_lists, and just
-        glCallList'd (cheap - no Python per-triangle loop, no
-        per-vertex glBegin/glVertex calls) on every subsequent
-        instance and every subsequent frame. Building a list happens
-        with NO transform applied (raw local-space geometry only) -
-        the per-instance position/rotation/scale is applied outside
-        the list, every time, via the surrounding
-        glPushMatrix/.../glPopMatrix, so one compiled list correctly
-        serves every instance of that model regardless of where
-        they're each positioned."""
+        replay a pre-compiled display list (Aug 1 2026)"""
         if not OPENGL_AVAILABLE: return
-        # Dots render mode (Aug 20 2026, per Keith: "load just the IPL
-        # data as dots, just placement without models or textures",
-        # then: "dots look good, maybe 3 colour cubes, like the zons,
-        # Green, Red and Blue sides") - a genuinely separate, much
-        # simpler fast path, not threaded through the per-instance
-        # display-list loop below at all. Dots-mode entries (built in
-        # map_workshop.py's own _refresh_world_view_impl) never have
-        # real vertices/triangles/materials to begin with - letting
-        # them fall through to the normal display-list-compile logic
-        # below would just compile and cache an empty, invisible list
-        # per model, showing nothing at all rather than the actual
-        # visible markers Keith asked for.
-        #
-        # Small axis-coloured cubes now, not plain points - matches
-        # the same X=green/Y=red/Z=blue face-colour convention already
-        # used for cull/zone/occlusion boxes (see _draw_ghosted_box_
-        # from_corners' own docstring for that established scheme),
-        # for visual consistency across every box-shaped overlay in
-        # this app, not a new, different colour scheme invented just
-        # for this one. Deliberately NOT reusing that same shared
-        # helper here, though - it has real transparency/blending
-        # overhead built for a handful of large zone boxes per map,
-        # whereas Dots mode needs to stay fast for potentially
-        # thousands of tiny per-instance markers at once; a cube looks
-        # identical regardless of rotation/scale the same way a plain
-        # point did, so this still skips the whole glPushMatrix/
-        # rotate/scale/glPopMatrix dance entirely too, replacing it
-        # with translate-only (see _ensure_dots_cube_display_list's
-        # own docstring for the one-compiled-shape-reused-everywhere
-        # approach that keeps this genuinely fast).
-        # Which collision overlay modes are currently on (Aug 14 2026,
-        # moved above the 'dots' branch Sep 5 2026 so collision can
-        # still show even in Dots mode - checked once per frame, not
-        # per instance, since none of these depend on anything
-        # instance-specific).
+        # Dots render mode (Aug 20 2026)
         col_modes = []
         if self.show_col_ghosted:        col_modes.append('ghosted')
         if self.show_col_semi_solid:     col_modes.append('semi_solid')
@@ -5308,11 +3647,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             return
 
         if self._mode is None:
-            # No model render style selected (Sep 5 2026, per Keith:
-            # "Deselect Model Textures to only show Col Wireframe") -
-            # draw ONLY collision overlays, for every instance that
-            # has any, skipping model geometry entirely rather than
-            # the old separate show_col_only flag.
+            # No model render style selected (Sep 5 2026)
             if not col_modes:
                 return
             for entry in self._world_instances:
@@ -5359,25 +3694,6 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 self._triangles = entry.get('triangles', [])
                 self._materials = entry.get('materials', [])
                 self._prelit    = entry.get('prelit', [])
-                # Real fix (Aug 21 2026, per Keith's own real,
-                # uploaded alpha_showing.png screenshot: "some alpha
-                # objects not being rendered as they should be") -
-                # this real model's own real geometry flags
-                # (rpGEOMETRYLIGHT etc., driving whether _draw_
-                # textured lights this model at all) were never set
-                # here at all, unlike vertices/normals/triangles/
-                # materials/prelit just above - _geom_flags() would
-                # silently fall back to whatever self._current_geom_
-                # flags happened to still hold from unrelated, earlier
-                # single-model editing, genuinely never this specific
-                # model's own real flags. Foliage-style objects whose
-                # own real DFF data says "don't light me" (relying on
-                # their own real prelit vertex colours or plain
-                # texture colour instead) got lit anyway, against
-                # normals that weren't designed for it - real, wrong,
-                # dark-looking foliage instead of showing its own
-                # real, green cutout texture, even though the alpha-
-                # test cutout shape itself was already correct.
                 self._current_geom_flags = entry.get(
                     'geom_flags',
                     self.rpGEOMETRYLIGHT | self.rpGEOMETRYMODULATEMATERIALCOLOR | self.rpGEOMETRYNORMALS)
@@ -5396,15 +3712,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             sx, sy, sz = entry.get('scale', (1.0, 1.0, 1.0))
             glScalef(sx, sy, sz)
             glCallList(list_id)
-            # Collision overlay (Aug 14 2026) - drawn inside the same
-            # instance transform, right after the model itself, so it
-            # sits exactly where the model's own collision belongs.
-            # A separate display list per (model_key, col mode), built
-            # lazily the same way as the model's own lists - only
-            # entries with actual col_vertices/col_triangles (from a
-            # model that had matching collision data indexed) produce
-            # anything; the rest are silent no-ops via the length
-            # check in _draw_collision_faces.
+            # Collision overlay (Aug 14 2026)
             if col_modes and entry.get('col_vertices') and entry.get('col_triangles'):
                 self._col_vertices  = entry.get('col_vertices')
                 self._col_triangles = entry.get('col_triangles')
@@ -5425,30 +3733,12 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._col_vertices, self._col_triangles = old_cv, old_ct
 
     def set_2dfx_lights(self, lights): #vers 1
-        """Store the current set of 2DFX light points to render - per
-        Keith: "lets add the 2dfx support next, showing 2dfx lighting
-        at night." lights: list of (x, y, z, r, g, b, a, size) tuples
-        in WORLD space (caller - ModelWorkshop._refresh_2dfx_lights -
-        is responsible for computing each light's world position from
-        its owning instance's position/rotation plus the 2DFX entry's
-        own local offset, and for deciding which lights should be
-        showing at all based on the simulated time-of-day, e.g. only
-        collecting them at night). Empty list clears them (e.g. Time
-        switch off, or daytime)."""
+        """Store the current set of 2DFX light points to render"""
         self._2dfx_lights = lights or []
         self.update()
 
     def _draw_2dfx_lights(self): #vers 1
-        """Render every current 2DFX light as a glowing point - a
-        deliberately simple, reliable rendering technique (a single
-        GL_POINTS draw with additive blending and no depth writes,
-        rather than sprite/billboard geometry) since it needs no UV/
-        texture setup and still reads as "something is glowing here"
-        at typical map-view zoom levels. size (parsed from the 2DFX
-        entry's own corona_size where available, else a fallback)
-        scales the point - real corona sprites would scale with
-        camera distance for a true billboard look, which this doesn't
-        attempt yet."""
+        """Render every current 2DFX light as a glowing point"""
         if not OPENGL_AVAILABLE: return
         lights = getattr(self, '_2dfx_lights', None)
         if not lights:
@@ -5512,48 +3802,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                            show_grid: bool = False): #vers 2
         """Capture one, exact, correctly-oriented top-down orthographic
         snapshot of the currently loaded world, centred on a real
-        RadarTile's own world-space centre (Aug 20 2026, per Keith:
-        "look at radar editor for how the radar works" - the actual
-        rendering half of map-to-radar generation).
-
-        pitch=0/yaw=0 is the real, numerically-verified top-down,
-        north-up orientation for this viewport's own camera convention
-        - NOT pitch=90 (an earlier, wrong first guess caught before it
-        was ever implemented: the full lookAt+rotate transform chain
-        was worked out on paper with real coordinates first, which
-        showed pitch=90 is actually a SIDE-on view here, not top-down
-        at all - pitch=0 is the one where a taller world point stays
-        centred on screen rather than shifting sideways, matching what
-        a real top-down capture needs). pan_x/pan_y are the NEGATIVE
-        of the desired world centre (also verified numerically, not
-        assumed) - the scene itself is translated by this amount
-        before the fixed camera views it, so this is what actually
-        puts the desired world point at screen centre.
-
-        show_grid=False by default (Aug 20 2026, per Keith: "the
-        square grid gets saved in with the radar tiles, can we have a
-        settings option to not show the grid") - self._show_grid
-        controls the same square reference grid drawn in every normal
-        interactive view, and paintGL draws it unconditionally
-        whenever that flag is set, with no distinction between an
-        interactive view and a background capture like this one - so
-        without this, whatever grid state the person's own live view
-        happened to be in bled straight into every generated tile.
-        Deliberately a real parameter here, not a hardcoded "always
-        off" - map_workshop.py's own caller reads the actual, real
-        MapSettings toggle and passes it through, so a genuine
-        settings option controls this rather than this method quietly
-        deciding on its own; this viewport class has no direct
-        MapSettings access itself, matching the same "widget draws
-        plain data/state, the caller resolves real settings" split
-        already used for every other overlay this session.
-
-        Saves and restores every camera state variable touched
-        afterward - a batch tile-generation run must not permanently
-        disrupt whatever view the person had open before starting it.
-        Returns a QImage (the raw captured framebuffer), leaving what
-        to do with it (crop to a real radarNN.txd, save as PNG, etc.)
-        to the caller."""
+        RadarTile's own world-space centre (Aug 20 2026)"""
         saved = (self._yaw, self._pitch, self._dist, self._pan_x,
                  self._pan_y, self._projection, self._show_grid)
         try:
@@ -5603,69 +3852,22 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
     def mousePressEvent(self, event): #vers 5
         self._last_pos = event.pos()
         if event.button() == Qt.MouseButton.RightButton:
-            # Tracks where a right-click started (Aug 19 2026, for
-            # hover-highlight's own right-click-for-options request) -
-            # right-click-and-drag already means "rotate the camera"
-            # (see mouseMoveEvent), so a genuine click needs telling
-            # apart from the start of a drag; compared against the
-            # release position in mouseReleaseEvent to decide which
-            # one actually happened.
+            # Tracks where a right-click started (Aug 19 2026)
             self._right_press_pos = event.pos()
         if event.button() == Qt.MouseButton.MiddleButton:
-            # Tracks where a middle-click started (Aug 21 2026, per
-            # Keith: "middle click can cycle?") - same real reason and
-            # same real tolerance-based click-vs-drag distinction as
-            # right-click's own tracking just above: middle-drag
-            # already means "pan the camera" (see mouseMoveEvent), so
-            # a genuine plain click needs telling apart from the start
-            # of a pan drag.
+            # Tracks where a middle-click started (Aug 21 2026)
             self._middle_press_pos = event.pos()
         if event.button() == Qt.MouseButton.LeftButton:
-            # Path node editing (Aug 17 2026) - its own independent
-            # toggle, not part of the vertex/edge/face _select_mode
-            # system below (a path node isn't part of any loaded
-            # mesh), checked first and handled completely separately
-            # rather than trying to fold it into that system.
+            # Path node editing (Aug 17 2026)
             if getattr(self, '_path_edit_mode', False):
                 mx, my = event.pos().x(), event.pos().y()
                 pos = self._pick_path_node(mx, my)
                 if pos is not None:
                     self._dragging_path_node_start_key = pos
                     self._dragging_path_node_current_pos = pos
-                    # Real UX gap found (Aug 18 2026, per Keith:
-                    # "Clicking nodes brings up nothing?") - a
-                    # successful pick never triggered a repaint here,
-                    # and nothing was ever drawn differently for the
-                    # currently-held node either (see _draw_paths'
-                    # own highlight logic, added alongside this fix)
-                    # - so a click that didn't happen to also move
-                    # the mouse enough to shift the node's ground
-                    # projection produced literally zero visible
-                    # change, even though the pick itself had
-                    # actually succeeded. This call plus the new
-                    # highlight together mean picking a node up is
-                    # now visible immediately, before any drag
-                    # movement happens at all.
+                    # Real UX gap found (Aug 18 2026)
                     self.update()
                 return
-            # Real fix (Aug 21 2026, per Keith's own real, uploaded
-            # zon.png screenshot: "clicking on those corners does
-            # nothing") - box corner resizing used to require box
-            # edit mode to already be switched on first before a
-            # corner click did anything at all, the same real "gated
-            # behind a separate mode toggle" friction already found
-            # and removed for double-click info on a path node/cull/
-            # zone box last turn. Tries picking a corner
-            # unconditionally now - but only ever returns (consuming
-            # the click) when one was actually found; a miss falls
-            # straight through to every other real left-click
-            # handling below exactly as if this block didn't exist,
-            # so this can't ever swallow a normal instance-selection/
-            # IPL-drag click by mistake. set_box_edit_mode/self._box_
-            # edit_mode itself is kept (still toggled the same real
-            # way, still cleared on disable) since nothing else here
-            # depends on removing it, only on this real gate no
-            # longer blocking a genuine corner hit.
             mx, my = event.pos().x(), event.pos().y()
             key = self._pick_box_corner(mx, my)
             if key is not None:
@@ -5673,25 +3875,11 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 self._dragging_box_corner_key = key
                 self._dragging_box_corner_info = info
                 self._dragging_box_corner_current_pos = info['pos']
-                # Live, mutable Z for this drag (Aug 21 2026, per
-                # Keith: "I can't do anything about Z depth, unless
-                # there is a way to toggle between move modes,
-                # holding shift for z?") - separate from start_z
-                # (kept fixed, part of _dragging_box_corner_key itself)
-                # since Shift-drag below adjusts this one instead of
-                # ever touching start_z, letting a drag freely switch
-                # between XY-only (Shift up) and Z-only (Shift held)
-                # without losing whichever Z was already set.
+                # Live, mutable Z for this drag (Aug 21 2026)
                 self._dragging_box_corner_live_z = info['pos'][2]
                 self.update()
                 return
-            # Whole-IPL-section dragging (Aug 18 2026) - also its own
-            # independent toggle, checked right after path node
-            # editing so the two mutually-exclusive interactive modes
-            # don't fight over the same click (a person would only
-            # ever have one of them on at a time in practice, but
-            # checking both explicitly here rather than assuming
-            # keeps that intentional, not accidental).
+            # Whole-IPL-section dragging (Aug 18 2026)
             if getattr(self, '_ipl_drag_mode', False):
                 mx, my = event.pos().x(), event.pos().y()
                 idx = self._pick_world_instance(mx, my)
@@ -5702,43 +3890,13 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                     if ipl_name:
                         interaction_mode = getattr(self, '_ipl_interaction_mode', 'drag')
                         if interaction_mode != 'drag':
-                            # Move/Rotate mode (Aug 19 2026) - a plain
-                            # click immediately hands the picked IPL's
-                            # name off to map_workshop.py's own
-                            # numeric-dialog callback and stops right
-                            # here - no drag-state tracking starts at
-                            # all for these two modes, unlike Drag
-                            # mode just below. Unaffected by the
-                            # Ctrl/Shift multi-select workflow below -
-                            # that's specific to Drag mode's own click-
-                            # and-hold gesture, which Move/Rotate don't
-                            # use at all.
+                            # Move/Rotate mode (Aug 19 2026)
                             callback = getattr(self, '_ipl_click_callback', None)
                             if callback is not None:
                                 callback(ipl_name)
                             return
 
-                        # Multi-IPL selection/drag workflow (Aug 19
-                        # 2026, per Keith's own careful, two-part spec
-                        # - see the fuller explanation where self.
-                        # _multi_selected_ipl_names is first declared
-                        # in __init__). Shift+click builds a selection
-                        # (own IPL Sections table row-clicks feed the
-                        # exact same set too, via set_multi_selected_
-                        # ipl_names). Ctrl+click+hold+drag is the ONE
-                        # way to actually start a drag - "Left Control
-                        # key, click and hold left mouse drags entire
-                        # IPL(s)" (plural), so it drags the CURRENT
-                        # selection if one exists, or falls back to
-                        # just the clicked instance's own IPL if
-                        # nothing's selected. A plain click with
-                        # neither modifier does nothing at all now -
-                        # Ctrl is the single, universal, explicit
-                        # gesture for "drag", simpler and less
-                        # ambiguous than the earlier version of this
-                        # same workflow, which split "drag one" and
-                        # "drag the selection" across two different
-                        # triggers (Ctrl vs a plain click).
+                        # Multi-IPL selection/drag workflow (Aug 19 2026)
                         modifiers = event.modifiers()
                         if modifiers & Qt.KeyboardModifier.ShiftModifier:
                             # Shift+click: toggle this IPL into/out of
@@ -5778,14 +3936,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                             if getattr(e.get('instance'), 'source_ipl', None) in drag_names
                         ]
                         # The specific instance actually clicked (Aug
-                        # 19 2026, for Snap: Centre of Model) - stored
-                        # separately from the full start_state list
-                        # above, which covers EVERY instance across
-                        # every dragged IPL; the snap check below needs
-                        # to know which one specifically to search a
-                        # snap target near, not the whole group's own
-                        # centroid or every one of its instances at
-                        # once.
+                        # 19 2026)
                         self._dragging_ipl_clicked_inst = inst
                         self._dragging_ipl_clicked_start_pos = entry['pos']
                         self._dragging_ipl_ground_start = self._screen_to_ground_position(
@@ -5821,41 +3972,12 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._yaw   += dx * 0.5 * sens
             self._pitch += dy * 0.5 * sens
         elif event.buttons() & Qt.MouseButton.MiddleButton:
-            # Yaw-compensated pan (Aug 1 2026, per Keith: "moving the
-            # mouse left, should always reflect moving left in the
-            # viewpoint... mouse movement seems to switch depending on
-            # viewing angle") - self._pan_x/y get applied via
-            # glTranslatef *before* the scene's own glRotatef(yaw,...)
-            # in paintGL's transform chain (translate happens first on
-            # the actual geometry, since OpenGL applies transforms in
-            # the reverse of call order), so the raw screen-space drag
-            # delta was being interpreted directly as a world-space
-            # offset with no yaw compensation at all - "left" only
-            # felt consistent from whatever one specific angle the
-            # camera happened to start at. _apply_pan_step (below)
-            # pre-rotates the screen delta by -yaw to exactly cancel
-            # the scene's own +yaw rotation once applied, keeping the
-            # net pan direction locked to actual screen-space
-            # regardless of viewing angle - shared with keyboard
-            # panning (keyPressEvent) so both feel identical.
+            # Yaw-compensated pan (Aug 1 2026)
             scale = self._dist * 0.002 * sens
             self._apply_pan_step(dx * scale, -dy * scale)
         elif (event.buttons() & Qt.MouseButton.LeftButton
               and getattr(self, '_dragging_path_node_start_key', None) is not None):
-            # Path node drag in progress (Aug 17 2026) - constrained
-            # to the ground plane at the node's OWN starting height
-            # (see set_path_edit_mode's own docstring for why this is
-            # the right constraint, not a shortcut), reusing _screen_
-            # to_ground_position exactly as LOD Test mode already
-            # does just below - same proven ray-plane math, different
-            # caller. Updates self._path_segments directly for
-            # immediate visual feedback every frame, without touching
-            # the real PathNode data or triggering a full map_
-            # workshop.py refresh until the drag actually completes
-            # (mouseReleaseEvent) - redoing that full resolve/rebuild
-            # on every single mouse-move pixel would be needless work
-            # for something that only needs to happen once, at the
-            # end.
+            # Path node drag in progress (Aug 17 2026)
             start_z = self._dragging_path_node_start_key[2]
             new_pos = self._screen_to_ground_position(
                 event.pos().x(), event.pos().y(), ground_z=start_z)
@@ -5867,39 +3989,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 self._dragging_path_node_current_pos = new_pos
         elif (event.buttons() & Qt.MouseButton.LeftButton
               and getattr(self, '_dragging_box_corner_key', None) is not None):
-            # Box corner resize drag in progress (Aug 19 2026) - same
-            # ground-plane-at-starting-height constraint as path node
-            # dragging (2D drag, height-preserving - a 2D mouse can't
-            # unambiguously set both XY and Z at once). Live preview
-            # mutates the actual (x1,y1,z1,x2,y2,z2) tuple sitting in
-            # self._cull_boxes/self._zone_boxes at the dragged corner's
-            # own box_index directly - unlike _pickable_box_corners
-            # (rebuilt fresh from scratch every single paintGL call,
-            # so mutating IT wouldn't survive to the next frame), the
-            # box tuple lists themselves are genuinely persistent
-            # between frames, only ever replaced wholesale when map_
-            # workshop.py calls set_cull_boxes/set_zone_boxes again -
-            # so swapping just this one box's own tuple is enough for
-            # the very next paintGL call to draw the resized box
-            # immediately, without needing a second, parallel "live
-            # preview" data structure the way path nodes needed one.
-            #
-            # Real fix (Aug 21 2026, per Keith: "I can't do anything
-            # about Z depth, unless there is a way to toggle between
-            # move modes, holding shift for z?") - holding Shift
-            # switches this same drag from XY-only to Z-only: the
-            # corner's own vertical *screen* movement since the last
-            # frame (event.pos().y() - self._last_pos.y()) adjusts
-            # self._dragging_box_corner_live_z directly instead of
-            # projecting onto the XY ground plane at all, so X/Y stay
-            # exactly where they already were. Scaled by self._dist
-            # (the same zoom-proportional scale picking tolerance
-            # already uses elsewhere) so it feels consistent whether
-            # zoomed in close or looking at the whole map. Releasing
-            # Shift mid-drag returns to real XY dragging using
-            # whatever live_z Shift last set, rather than snapping
-            # back to the corner's own original start_z - the two
-            # modes can be freely switched between within one drag.
+            # Box corner resize drag in progress
             info = self._dragging_box_corner_info
             box_type, box_index, corner_idx, start_z = self._dragging_box_corner_key
             live_z = getattr(self, '_dragging_box_corner_live_z', start_z)
@@ -5924,32 +4014,11 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                     if 0 <= box_index < len(box_list):
                         box_list[box_index] = (x1, y1, z1, x2, y2, z2)
                     self._dragging_box_corner_current_pos = new_pos
-                # else: no-clip is on and this would overlap another
-                # box - box_list[box_index] is simply left untouched,
-                # holding its last known-good, non-overlapping size
-                # for this frame rather than jumping to the colliding
-                # one; the very next mouse-move tries again from
-                # wherever the cursor has moved to by then.
+
                 self.update()
         elif (event.buttons() & Qt.MouseButton.LeftButton
               and getattr(self, '_dragging_ipl_names', None)):
-            # Whole-IPL drag in progress (Aug 18 2026, generalised Aug
-            # 19 2026 to cover one OR several IPLs being dragged
-            # together at once - see the fuller multi-select workflow
-            # explanation where self._multi_selected_ipl_names is
-            # first declared in __init__) - same ground-plane-at-
-            # starting-height constraint as path node dragging,
-            # reusing the exact same _screen_to_ground_position call.
-            # Computes ONE delta (current ground pos minus the ground
-            # pos captured at drag start), then applies that SAME
-            # delta to every instance captured in _dragging_ipl_
-            # start_state via update_instance_transform - cheap (just
-            # updates each instance's own cached display entry, no
-            # geometry/display-list rebuilding), and crucially never
-            # touches the real IPLInstance data until the drag
-            # actually completes (mouseReleaseEvent) - if released
-            # with no real movement, or the mode gets turned off mid-
-            # drag, nothing was ever actually mutated.
+
             start_ground = self._dragging_ipl_ground_start
             if start_ground is not None:
                 cur_ground = self._screen_to_ground_position(
@@ -5958,40 +4027,14 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                     ddx = cur_ground[0] - start_ground[0]
                     ddy = cur_ground[1] - start_ground[1]
                     ddz = cur_ground[2] - start_ground[2]
-                    # Axis lock (Aug 18 2026) - applied as a simple
-                    # post-processing mask on the already-computed
-                    # delta, rather than changing the underlying
-                    # ground-plane projection itself: zero out
-                    # whichever axis is locked before it ever reaches
-                    # the live preview or gets stored for the eventual
-                    # commit, so a locked axis genuinely never moves,
-                    # not just visually suppressed.
+
                     axis_lock = getattr(self, '_ipl_drag_axis_lock', None)
                     if axis_lock == 'x':
                         ddx = 0.0
                     elif axis_lock == 'y':
                         ddy = 0.0
                     if self._snap_targets.get('centre'):
-                        # Snap: Centre of Model (Aug 19 2026, per
-                        # Keith: "if the snap options are on... use
-                        # Edge of model, Centre of model") - once the
-                        # clicked instance's own WOULD-BE position
-                        # (its start position plus the current delta)
-                        # comes within a small threshold of any OTHER
-                        # instance's real position (excluding any of
-                        # the IPL(s) actually being dragged, so it
-                        # can't snap to one of its own siblings - a
-                        # real bug fixed here too: this used to
-                        # reference a bare "ipl_name" that was never
-                        # actually defined anywhere within THIS
-                        # method's own scope at all, a NameError
-                        # waiting to happen the first time anyone
-                        # actually dragged with this snap mode on,
-                        # caught while generalising this same check to
-                        # cover a whole SET of dragged IPLs rather
-                        # than just one), the delta gets nudged so it
-                        # lands EXACTLY on that instance's position
-                        # instead of merely close to it.
+
                         clicked_start = getattr(self, '_dragging_ipl_clicked_start_pos', None)
                         dragged_names = getattr(self, '_dragging_ipl_names', set())
                         if clicked_start is not None:
@@ -6017,28 +4060,11 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                         self.update_instance_transform(inst, new_pos, orot, oscale)
         elif (event.buttons() == Qt.MouseButton.NoButton
               and getattr(self, '_hover_highlight_enabled', False)):
-            # Auto-highlight on hover (Aug 19 2026, per Keith's own
-            # request) - only when no button is held at all, so it
-            # never fights with rotate/pan/drag, which all already
-            # have their own meaning for mouse movement. Reuses the
-            # exact same _pick_world_instance already proven for
-            # double-click-to-edit and whole-IPL dragging, rather than
-            # a new picking mechanism. The unconditional self.update()
-            # a few lines below already repaints on every mouseMoveEvent
-            # regardless, so this branch only needs to update the
-            # stored hover state itself, not trigger its own separate
-            # repaint too.
+
             idx = self._pick_world_instance(event.pos().x(), event.pos().y())
             self._hovered_instance_idx = idx
         self._last_pos = event.pos(); self.update()
 
-        # LOD test mode (Aug 1 2026, per Keith's crash: "AttributeError:
-        # 'DFFViewport' object has no attribute 'set_lod_test_callback'"
-        # - the original LOD-test implementation only added this to
-        # MapViewport, but preview_widget (what the toggle actually
-        # wires up to) is a DFFViewport, a different class entirely
-        # with its own camera system - same feature, same callback
-        # pattern, added here too now).
         callback = getattr(self, '_lod_test_callback', None)
         if callback is not None and not getattr(self, '_dragging_path_node_start_key', None):
             ground_pos = self._screen_to_ground_position(event.pos().x(), event.pos().y())
@@ -6105,14 +4131,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
     def mouseReleaseEvent(self, event): #vers 4
         self._last_pos = event.pos()
         if event.button() == Qt.MouseButton.RightButton:
-            # Right-click for options on a hovered instance (Aug 19
-            # 2026, per Keith: "once highlighted, right-click for
-            # options"). A real click (barely moved since press) is
-            # told apart from a right-click-drag (camera rotation) by
-            # comparing against the position stored at press time -
-            # small pixel tolerance for a hand that isn't perfectly
-            # still between press and release, not a strict pixel-
-            # for-pixel match.
+            # Right-click for options on a hovered instance (Aug 19 2026)
             press_pos = getattr(self, '_right_press_pos', None)
             self._right_press_pos = None
             if press_pos is not None:
@@ -6125,14 +4144,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                     if inst is not None:
                         callback(inst)
         if event.button() == Qt.MouseButton.MiddleButton:
-            # Middle-click to cycle (Aug 21 2026, per Keith: "middle
-            # click can cycle?") - same real click-vs-drag tolerance
-            # check as right-click's own handling just above; a real
-            # click (not the start of a pan drag) calls the same real
-            # cycle callback the Cycle Zones button's own left-click
-            # already uses, so a plain middle-click anywhere in the
-            # viewport is a quicker, no-mouse-travel-to-the-panel
-            # alternative to that button.
+            # Middle-click to cycle (Aug 21 2026)
             press_pos = getattr(self, '_middle_press_pos', None)
             self._middle_press_pos = None
             if press_pos is not None:
@@ -6140,12 +4152,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 callback = getattr(self, '_middle_click_cycle_callback', None)
                 if moved <= 4 and callback is not None:
                     callback()
-        # Commit a completed path node drag (Aug 17 2026) - looks up
-        # the real (group_ref, node_index) via the ORIGINAL start
-        # position (self._path_node_owner_map's own keys never change
-        # mid-drag; only the live segments/current-drag-position did,
-        # for visual feedback), so this lookup is unaffected by
-        # however far the node actually moved.
+        # Commit a completed path node drag (Aug 17 2026)
         start_key = getattr(self, '_dragging_path_node_start_key', None)
         if start_key is not None:
             final_pos = getattr(self, '_dragging_path_node_current_pos', None)
@@ -6157,23 +4164,10 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 callback(group_ref, node_index, fx, fy, fz)
             self._dragging_path_node_start_key = None
             self._dragging_path_node_current_pos = None
-            # Explicit repaint here too (Aug 18 2026), not just relying
-            # on the callback's own downstream refresh - if the owner
-            # lookup or callback happened to be unavailable for any
-            # reason, the held-node highlight state above still needs
-            # to clear from the screen, not just from self's own
-            # tracking variables.
+            # Explicit repaint here too (Aug 18 2026)
             self.update()
 
-        # Commit a completed box corner resize (Aug 19 2026) - the
-        # committed values are read straight out of box_list[box_
-        # index] (whatever the live-preview mouseMoveEvent logic last
-        # actually wrote there - already the final, resolved x1/y1/
-        # z1/x2/y2/z2, with no-clip's own rejection already baked in
-        # if that was on), rather than recomputed here - avoids
-        # duplicating the same min/max-against-opposite-corner and
-        # no-clip-overlap logic a second time for what should be
-        # exactly the same result.
+        # Commit a completed box corner resize (Aug 19 2026)
         corner_key = getattr(self, '_dragging_box_corner_key', None)
         if corner_key is not None:
             box_type, box_index, corner_idx, start_z = corner_key
@@ -6190,22 +4184,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._dragging_box_corner_live_z = None
             self.update()
 
-        # Commit a completed whole-IPL drag (Aug 18 2026, generalised
-        # Aug 19 2026 to cover one or several IPLs at once) - calls
-        # the registered callback once PER dragged IPL name, with the
-        # same final (dx, dy, dz) for each - map_workshop.py wires
-        # this to the already-existing, already-verified _shift_ipl_
-        # coordinates (the same method the dialog-based Shift
-        # Coordinates tool uses) - that's what actually mutates the
-        # real data (instances AND paths/cull/zone/occl, everything
-        # belonging to each IPL, not just the instances that got live
-        # visual feedback during the drag itself) and triggers a
-        # full, correctly-synced refresh for each one. A release with
-        # zero actual movement (delta all zeros - e.g. a plain click
-        # that picked up a selection but never dragged it) is skipped
-        # entirely rather than calling the callback with a no-op
-        # move, avoiding a pointless undo-stack entry for nothing
-        # having actually happened.
+        # Commit a completed whole-IPL drag (Aug 18 2026)
         dragged_names = getattr(self, '_dragging_ipl_names', None)
         if dragged_names:
             dx, dy, dz = getattr(self, '_dragging_ipl_delta', (0.0, 0.0, 0.0))
@@ -6223,34 +4202,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def wheelEvent(self, event): #vers 4
         """Zoom in/out, optionally toward the mouse cursor rather than
-        the current pan centre (Aug 18 2026, per Keith: "when I zoom
-        in, or zoom out, have a settings option to zoom in to the
-        mouse pointer. so if i move the point to the top, and zoom
-        in, it zooms in that area").
-
-        Standard "zoom to cursor" technique, reusing the already-
-        proven _screen_to_ground_position (same ray-cast machinery
-        already used for LOD Test mode and path node dragging, not
-        new geometry code) rather than deriving new trigonometry:
-        find the world-space ground point under the cursor BEFORE
-        changing _dist, apply the zoom, find where that same screen
-        pixel now points to AFTER the zoom, then shift _pan_x/_pan_y
-        by the difference. Since _pan_x/_pan_y already directly
-        offset the world in the exact same coordinate space _screen_
-        to_ground_position resolves into (both go through the same
-        glTranslatef(pan_x, pan_y, 0) in the modelview chain), the
-        shift needed is just that raw delta - no yaw compensation
-        needed here (unlike _apply_pan_step, which takes a raw
-        screen-space input and has to pre-rotate it; this delta is
-        already in world space, coming out of a real ray-plane
-        intersection). Net effect: the world point that was under the
-        cursor before the wheel event is still under it afterward,
-        so zooming visually pulls in toward wherever the mouse
-        actually is instead of always toward the fixed pan centre.
-
-        Off by default (self._zoom_to_cursor, matching the setting's
-        own MapSettings default) - preserves the existing, always-
-        zooms-toward-pan-centre behaviour unless explicitly turned on."""
+        the current pan centre (Aug 18 2026)"""
         zoom_to_cursor = getattr(self, '_zoom_to_cursor', False)
         before_pos = None
         if zoom_to_cursor:
@@ -6275,39 +4227,11 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self.update()
 
     def set_zoom_to_cursor(self, enabled: bool): #vers 1
-        """Toggle zoom-toward-mouse-cursor (Aug 18 2026, per Keith's
-        own request - see wheelEvent's own docstring for the full
-        mechanism). Off by default, matching the existing, always-
-        zooms-toward-pan-centre behaviour."""
+        """Toggle zoom-toward-mouse-cursor (Aug 18 2026)"""
         self._zoom_to_cursor = enabled
 
     def keyPressEvent(self, event): #vers 2
-        """Configurable camera controls, held keys giving continuous
-        motion - per Keith: originally "arrow keys, and numpad to
-        rotate" (Aug 1 2026), later corrected: "the arrow keys dont
-        pan or move the view left, right, up or down; the arrow keys
-        rotate instead. We need to be able to operate the tools with
-        keys, zoom in and out; it could be the numpad + -" (Aug 16
-        2026). Default bindings now: arrows pan, numpad 4/6/8/2
-        rotate (unchanged from the original request), numpad +/-
-        zoom - see DEFAULT_KEY_BINDINGS. A reliable keyboard
-        alternative to drag-based camera control regardless of
-        whatever's causing the reported mouse-button flakiness
-        (middle-click pan and left-click-select both "don't always
-        work", right-click rotate "just fine").
-
-        Bindings are looked up from self._key_bindings (defaults to
-        DEFAULT_KEY_BINDINGS, overridable via set_key_bindings) rather
-        than hardcoded here, so Settings > Keybindings can rebind any
-        of them. Numpad keys detected via KeypadModifier specifically
-        (Qt doesn't otherwise distinguish a numpad "4" from a top-row
-        "4" by key code alone) - only bindings with 'numpad': True
-        require it, so arrow keys (numpad: False) still work
-        regardless of NumLock state.
-
-        Continuous motion while a key is held (not one fixed step per
-        press) via a repeating QTimer, matching the smooth feel of
-        drag-based rotation/pan rather than a discrete jump."""
+        """Configurable camera controls, held keys giving continuous motion."""
         key = event.key()
         is_numpad = bool(event.modifiers() & Qt.KeyboardModifier.KeypadModifier)
         bindings = getattr(self, '_key_bindings', None) or DEFAULT_KEY_BINDINGS
@@ -6328,13 +4252,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         super().keyReleaseEvent(event)
 
     def set_key_bindings(self, bindings: dict): #vers 1
-        """Replace the viewport's camera keybindings (Aug 16 2026,
-        per Keith's Settings > Keybindings request) - expects the
-        same {action: {'key': int, 'numpad': bool}} shape as
-        DEFAULT_KEY_BINDINGS; any action missing from the given dict
-        keeps its default binding rather than becoming unbound, so a
-        partial/older saved-settings dict doesn't silently disable
-        actions added after it was saved."""
+        """Replace the viewport's camera keybindings (Aug 16 2026)"""
         merged = dict(DEFAULT_KEY_BINDINGS)
         merged.update(bindings or {})
         self._key_bindings = merged
@@ -6343,10 +4261,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         """Apply one yaw-compensated pan step, in already-scaled
         screen-space units (positive screen_dx = pan right, positive
         screen_dy = pan up) - shared by mouseMoveEvent's middle-drag
-        pan and keyPressEvent's keyboard pan (Aug 16 2026 refactor;
-        see mouseMoveEvent's own comment for the full yaw-compensation
-        reasoning) so both feel identical rather than risking drift
-        between two separately-maintained copies of the same math."""
+        pan and keyPressEvent's keyboard pan (Aug 16 2026)"""
         rad = math.radians(-self._yaw)
         cos_a, sin_a = math.cos(rad), math.sin(rad)
         self._pan_x += screen_dx * cos_a - screen_dy * sin_a
@@ -6429,27 +4344,14 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._auto_fit(); self.update()
 
     def snap_to_center(self): #vers 1
-        """Re-centre the pan only (Aug 20 2026, per Keith: "a snap to
-        centre view button on the ribbon") - distinct from the
-        existing, fuller Reset View (which also resets yaw/pitch and
-        re-fits zoom via _auto_fit) - this only zeroes _pan_x/_pan_y,
-        leaving the camera's own current angle and zoom exactly as
-        they were, for snapping back to centre without losing how the
-        view was rotated/zoomed."""
+        """Re-centre the pan only (Aug 20 2026)"""
         self._pan_x = 0.0
         self._pan_y = 0.0
         self.update()
 
     def set_camera_state(self, dist=None, pan_x=None, pan_y=None,
                           yaw=None, pitch=None): #vers 1
-        """Restore a previously-saved camera state (Aug 20 2026, per
-        Keith: "remember the zoom settings, and view location when
-        app is closed") - each real argument is optional and applied
-        independently, since a settings file saved before this
-        feature existed won't have all (or any) of them yet; a real
-        None here means "nothing saved for this one, leave the
-        viewport's own built-in default in place" rather than
-        stomping it with a wrong 0.0/guessed value."""
+        """Restore a previously-saved camera state (Aug 20 2026)"""
         if dist is not None:
             self._dist = float(dist)
         if pan_x is not None:

@@ -12,13 +12,13 @@ import struct
 from typing import List, Optional
 
 
-# ─── RW chunk types ──────────────────────────────────────────────────────────
+#     RW chunk types                                                           
 RW_STRUCT           = 0x01
 RW_STRING           = 0x02
 RW_TEXTURE_DICT     = 0x16
 RW_TEXTURE_NATIVE   = 0x15
 
-# ─── Raster format flags (used in VC/III/SA PC TXDs) ─────────────────────────
+#     Raster format flags (used in VC/III/SA PC TXDs)                          
 RASTER_FORMAT_DEFAULT = 0x0000
 RASTER_1555     = 0x0100   # ARGB1555
 RASTER_565      = 0x0200   # RGB565

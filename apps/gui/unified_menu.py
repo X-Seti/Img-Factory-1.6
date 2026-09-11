@@ -244,10 +244,7 @@ class UnifiedMenuSystem: #vers 1
         self._add(m, "open_project",   "Open Project…",     None, None)
         self._add(m, "save_project",   "Save Project",      None, "save_icon")
         m.addSeparator()
-        # Set Game Root/Set Project Folder removed (Aug 1 2026, per
-        # Keith: "we dont need set game folder or set project folder,
-        # as open project, new project and save project, cover this")
-        # - New/Open/Save Project already cover picking these paths.
+
         self._add(m, "set_assets_folder", "Set Current Assets Folder…", None, "folder_icon")
         self._menus['project'] = m
 

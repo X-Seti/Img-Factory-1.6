@@ -12,13 +12,13 @@ import struct
 from typing import List, Optional
 
 
-# ─── RW chunk types ──────────────────────────────────────────────────────────
+#     RW chunk types                                                           
 RW_STRUCT           = 0x01
 RW_STRING           = 0x02
 RW_TEXTURE_DICT     = 0x16
 RW_TEXTURE_NATIVE   = 0x15
 
-# ─── Raster format flags (used in VC/III/SA PC TXDs) ─────────────────────────
+#     Raster format flags (used in VC/III/SA PC TXDs)                          
 RASTER_FORMAT_DEFAULT = 0x0000
 RASTER_1555     = 0x0100   # ARGB1555
 RASTER_565      = 0x0200   # RGB565
@@ -293,16 +293,7 @@ def _parse_native_texture(data: bytes, base: int, _debug: bool = False) -> Optio
                     px[i*4:i*4+4] = bytes([r,g,b,a])
                 rgba = bytes(px)
             elif d3d_or_alpha == D3DFMT_X8R8G8B8:
-                # Real bug (Sep 5 2026, per Keith's own real, uploaded
-                # gta_tree_boak.txd etc): X8R8G8B8 means "top byte
-                # unused" by strict D3D9 spec, but real GTA TXDs
-                # commonly mislabel true A8R8G8B8 alpha data as
-                # X8R8G8B8 (a known TXD-authoring-tool quirk) - the 4th
-                # byte here often IS real, meaningful, smoothly-varying
-                # alpha (confirmed directly against the raw file
-                # bytes), not padding. Forcing 255 threw that away,
-                # showing a solid opaque background instead of the
-                # intended cutout. Now treated the same as A8R8G8B8.
+
                 fmt = 'RGBA32'
                 px = bytearray(w * h * 4)
                 for i in range(min(w * h, len(mip_data) // 4)):

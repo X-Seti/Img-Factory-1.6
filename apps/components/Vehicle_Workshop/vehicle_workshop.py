@@ -2346,7 +2346,7 @@ class _LayoutMixin:
         def _lbl(text):  #vers 1
             l = QLabel(text); l.setFont(self.panel_font); return l
 
-        # ── Render ──────────────────────────────────────
+        #    Render                                       
         lay.addWidget(_lbl("Render"))
         self._mode_group = QButtonGroup(self); self._mode_group.setExclusive(True)
         mode_row = QWidget(); mode_h = QHBoxLayout(mode_row)
@@ -2373,13 +2373,13 @@ class _LayoutMixin:
         lay.addWidget(_row(self._cull_btn, self._grid_btn, self._prelit_btn))
         lay.addWidget(_sep())
 
-        # ── Camera + Light ───────────────────────────────
+        #    Camera + Light                                
         _reset_btn = _tbtn_txt("Reset", "Reset camera", self.viewport.reset_camera, 'refresh')
         _light_btn = _tbtn_txt("Light", "Light setup",  self._light_setup_dialog,   'weather')
         lay.addWidget(_row(_reset_btn, _light_btn))
         lay.addWidget(_sep())
 
-        # ── Paint ────────────────────────────────────────
+        #    Paint                                         
         lay.addWidget(_lbl("Paint"))
         self._paint1_btn = QPushButton("Pri")
         self._paint2_btn = QPushButton("Sec")
@@ -2399,7 +2399,7 @@ class _LayoutMixin:
         lay.addWidget(self._carcols_widget)
         lay.addWidget(_sep())
 
-        # ── Assembly ─────────────────────────────────────
+        #    Assembly                                      
         lay.addWidget(_lbl("Assembly"))
         self._assemble_btn = _tbtn_txt("All",    "Show all parts", self._toggle_assembly_mode, 'select_all', True, False)
         self._damage_btn   = _tbtn_txt("Damage", "Damaged state",  self._toggle_damage_mode,   'warning',    True, False)
@@ -2407,7 +2407,7 @@ class _LayoutMixin:
         lay.addWidget(_row(self._assemble_btn, self._damage_btn, self._lod_btn))
         lay.addWidget(_sep())
 
-        # ── Animate ──────────────────────────────────────
+        #    Animate                                       
         lay.addWidget(_lbl("Animate"))
         self._anim_btn = _tbtn_txt('Play', 'Play door animation',
             self._toggle_animation, 'go', True, False)
@@ -2439,7 +2439,7 @@ class _LayoutMixin:
         lay.addWidget(door_row)
         lay.addWidget(_sep())
 
-        # ── Wheels ───────────────────────────────────────
+        #    Wheels                                        
         self._wheels_btn = _tbtn_txt("Wheels", "Show wheels",
                                      self._toggle_show_wheels, 'col_workshop', True, False)
         self._wheels_btn.setFixedWidth(72)
@@ -2476,7 +2476,7 @@ class _LayoutMixin:
         lay.addWidget(scale_row)
         lay.addWidget(_sep())
 
-        # ── Model Info (collapsible) ──────────────────────
+        #    Model Info (collapsible)                       
         info_toggle = _QTB(); info_toggle.setText("▸ Info")
         info_toggle.setFont(self.infobar_font); info_toggle.setFixedHeight(22)
         info_toggle.setCheckable(True)
@@ -2494,7 +2494,7 @@ class _LayoutMixin:
             info_toggle.setText(("▾ Info" if c else "▸ Info"))))
         lay.addWidget(_sep())
 
-        # ── Editing ──────────────────────────────────────
+        #    Editing                                       
         lay.addWidget(_lbl("Editing"))
         # Row 1: CoM, Dummies, Suspension
         # Row 2: Seats, Bounds, Export
@@ -2583,7 +2583,7 @@ class _LayoutMixin:
             l = QLabel(text); l.setFont(self.panel_font)
             return l
 
-        # ── Render ──────────────────────────────────────
+        #    Render                                       
         lay.addWidget(_lbl("Render"))
         self._mode_group = QButtonGroup(self); self._mode_group.setExclusive(True)
         mode_row = QWidget(); mode_h = QHBoxLayout(mode_row)
@@ -2603,7 +2603,7 @@ class _LayoutMixin:
             self._mode_group.addButton(b); mode_h.addWidget(b)
         lay.addWidget(mode_row)
 
-        # ── View toggles (Backface + Grid same row) ──────
+        #    View toggles (Backface + Grid same row)       
         self._cull_btn   = _tbtn("Backface", "Toggle backface culling",  self.viewport.set_backface_cull, 'backface', True, False)
         self._grid_btn   = _tbtn("Grid",     "Toggle grid",              self.viewport.set_show_grid,     'grid',     True, True)
         self._prelit_btn = _tbtn("PreLit",   "Vertex pre-lighting",      self.viewport.set_prelight,      'shading',  True, False)
@@ -2612,14 +2612,14 @@ class _LayoutMixin:
 
         lay.addWidget(_sep())
 
-        # ── Camera + Light same row ──────────────────────
+        #    Camera + Light same row                       
         _reset_btn = _tbtn("Reset", "Reset camera", self.viewport.reset_camera, 'reset')
         _light_btn = _tbtn("Light", "Light setup",  self._light_setup_dialog,   'light')
         lay.addWidget(_row(_reset_btn, _light_btn))
 
         lay.addWidget(_sep())
 
-        # ── Paint ────────────────────────────────────────
+        #    Paint                                         
         lay.addWidget(_lbl("Paint"))
         self._paint1_btn = QPushButton("Pri")
         self._paint2_btn = QPushButton("Sec")
@@ -2638,7 +2638,7 @@ class _LayoutMixin:
 
         lay.addWidget(_sep())
 
-        # ── Assembly (3 buttons same row with icons) ─────
+        #    Assembly (3 buttons same row with icons)      
         lay.addWidget(_lbl("Assembly"))
         self._assemble_btn = _tbtn("All",    "Show all parts assembled", self._toggle_assembly_mode, 'mesh',     True, False)
         self._damage_btn   = _tbtn("Damage", "Show damaged state",       self._toggle_damage_mode,   'warning',  True, False)
@@ -2647,7 +2647,7 @@ class _LayoutMixin:
 
         lay.addWidget(_sep())
 
-        # ── Animate: [Play] Speed [---x---] same row ─────
+        #    Animate: [Play] Speed [---x---] same row      
         lay.addWidget(_lbl("Animate"))
         self._anim_btn = _tbtn('Play', 'Start/stop animation',
             lambda: self.viewport.set_animation(self._anim_btn.isChecked()),
@@ -2679,7 +2679,7 @@ class _LayoutMixin:
 
         lay.addWidget(_sep())
 
-        # ── Wheels: [Show Wheels] Steer [--x--] same row ─
+        #    Wheels: [Show Wheels] Steer [--x--] same row  
         self._wheels_btn = _tbtn("Wheels", "Show wheels at dummy positions",
                                  self._toggle_show_wheels, 'mesh', True, False)
         self._wheels_btn.setFixedWidth(70)
@@ -2697,7 +2697,7 @@ class _LayoutMixin:
 
         lay.addWidget(_sep())
 
-        # ── Model Info (collapsible) ──────────────────────
+        #    Model Info (collapsible)                       
         info_header = QWidget(); info_h = QHBoxLayout(info_header)
         info_h.setContentsMargins(0,0,0,0); info_h.setSpacing(4)
         info_toggle = _QTB(); info_toggle.setText("▸ Model Info")
@@ -2722,7 +2722,7 @@ class _LayoutMixin:
 
         lay.addWidget(_sep())
 
-        # ── Edit Buttons (icon + text, collapse to icon-only when narrow) ──
+        #    Edit Buttons (icon + text, collapse to icon-only when narrow)   
         lay.addWidget(_lbl("Editing"))
         edit_actions = [
             ("CoM",     "Centre of Mass indicator",       self._toggle_com_indicator,  'target',   True),

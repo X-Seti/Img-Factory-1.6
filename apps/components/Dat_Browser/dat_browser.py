@@ -2924,7 +2924,7 @@ class DATBrowserWidget(QWidget): #vers 3
 
         menu = QMenu(self)
 
-        # ── Show / open ─────────────────────────────────────────────────────
+        #    Show / open                                                      
         if is_ide_table:
             show_mw_act  = menu.addAction(f"⏎  Show in Model Workshop  [{model_name}]")
             show_glv_act = menu.addAction(f"⏎  Show in Model Viewer (GL)  [{model_name}]")
@@ -2934,13 +2934,13 @@ class DATBrowserWidget(QWidget): #vers 3
                 show_txd_act = None
             menu.addSeparator()
 
-            # ── DFF ─────────────────────────────────────────────────────────
+            #    DFF                                                          
             export_dff_act  = menu.addAction(f"Export DFF…  [{model_name}.dff]")
             replace_dff_act = menu.addAction(f"Replace DFF…  [{model_name}.dff]")
             rename_act      = menu.addAction(f"Rename model…  [{model_name}]")
             menu.addSeparator()
 
-            # ── TXD ─────────────────────────────────────────────────────────
+            #    TXD                                                          
             if txd_name and txd_name not in ('', '—', 'null'):
                 open_txd_act    = menu.addAction(f"Open in TXD Workshop  [{txd_name}.txd]")
                 export_txd_act  = menu.addAction(f"Export TXD…  [{txd_name}.txd]")
@@ -2949,7 +2949,7 @@ class DATBrowserWidget(QWidget): #vers 3
                 open_txd_act = export_txd_act = replace_txd_act = None
             menu.addSeparator()
 
-            # ── IDE edit ────────────────────────────────────────────────────
+            #    IDE edit                                                     
             dd_act    = menu.addAction("Edit draw distance…")
             flags_act = menu.addAction("Edit flags…")
             txdn_act  = menu.addAction("Edit TXD name…")
@@ -2958,7 +2958,7 @@ class DATBrowserWidget(QWidget): #vers 3
                 f"Delete {len(sel_rows)} selected entries" if multi else "Delete entry")
             menu.addSeparator()
 
-            # ── ID tools ────────────────────────────────────────────────────
+            #    ID tools                                                     
             copy_id_act  = menu.addAction(f"Copy ID  [{model_id}]")
             scan_ids_act = menu.addAction("Scan free IDs (0–32767)…")
             menu.addSeparator()
@@ -2970,7 +2970,7 @@ class DATBrowserWidget(QWidget): #vers 3
             dd_act = flags_act = txdn_act = add_act = del_act = None
             copy_id_act = scan_ids_act = None
 
-        # ── Common ──────────────────────────────────────────────────────────
+        #    Common                                                           
         copy_name_act = menu.addAction("Copy model name")
         copy_row_act  = menu.addAction("Copy row as text")
         menu.addSeparator()
@@ -2983,7 +2983,7 @@ class DATBrowserWidget(QWidget): #vers 3
         else:
             dump_sel_act = dump_all_act = None
 
-        # ── Execute ─────────────────────────────────────────────────────────
+        #    Execute                                                          
         chosen = menu.exec(table.viewport().mapToGlobal(pos))
         if not chosen:
             return
@@ -3039,7 +3039,7 @@ class DATBrowserWidget(QWidget): #vers 3
         elif dump_all_act and chosen == dump_all_act:
             self._dump_all_game_txds()
 
-    # ── Context menu action helpers ─────────────────────────────────────────
+    #    Context menu action helpers                                          
 
     def _get_row_xref(self, table, row):
         """Resolve DFF/TXD IMG paths for a row using xref. Returns dict."""

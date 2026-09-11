@@ -92,18 +92,9 @@ class GTAGame:
     }
 
     IPL_SECTIONS = {
-        # "path" (Aug 1 2026, per Keith: "we need to address... path
-        # for GTAIII and extended for VC") - GTA3/VC only. SA uses a
-        # completely different, binary, per-area path file format
-        # (not part of the text IPL at all), so it's deliberately
-        # excluded here.
+        # "path" (Aug 1 2026)
         "gta3": {"inst", "cull", "pick", "jump", "enex", "cars", "auzo", "path"},
-        # "occl" added to VC (Aug 16 2026 fix) - was missing entirely
-        # even though occlu.ipl is a real VC file (confirmed via
-        # GTAMods/Grand Theft Wiki: "OCCL is a section... in Vice
-        # City, San Andreas, and GTA IV" - VC was simply left off this
-        # set by mistake, occl sections in a real VC IPL would have
-        # silently gone unrecognised).
+        # "occl" added to VC (Aug 16 2026 fix)
         "vc":   {"inst", "cull", "pick", "jump", "enex", "cars", "auzo", "zone", "path", "occl"},
         "sa":   {"inst", "cull", "pick", "jump", "enex", "cars", "auzo",
                  "zone", "occl", "mult", "grge", "tcyc", "scrn"},
@@ -159,30 +150,11 @@ class IPLInstance:
     scale_z:     float = 1.0
     source_ipl:  str  = ""
     line_no:     int  = 0
-    raw_line:    str  = ""   # true, unmodified original text line (Sep 5
-                              # 2026) - the "Identity" section in the IPL
-                              # Object Editor previously rebuilt this text
-                              # from parsed fields instead, always
-                              # inserting VC-style scale_x/y/z even for
-                              # SA-format lines that never had separate
-                              # scale fields at all, which could show
-                              # values that don't match what's actually in
-                              # the real source file. Empty for binary-
-                              # parsed instances (BinaryIPLParser), which
-                              # have no original text line to preserve.
-
+    raw_line:    str  = ""
 
 @dataclass
 class PathNode: #vers 1
-    """One sub-node within a path group (Aug 1 2026, per Keith: "we
-    need to address... path for GTAIII and extended for VC"). Twelve
-    fields per Project Cerbera's VC path documentation: node_type,
-    next, zero (always 0, unused), x/y/z (already converted from the
-    file's own precision units to standard world units - see
-    IPLParser._parse_path_node for the conversion), median, left,
-    right, flag1-3. x/y/z land in the same coordinate space as inst
-    positions, so a path node's position is directly comparable to
-    (and, e.g., nudge-editable alongside) instance/object positions."""
+    """One sub-node within a path group (Aug 1 2026)"""
     node_type:  int
     next_id:    int
     x:          float
@@ -213,25 +185,7 @@ class PathGroup: #vers 1
 @dataclass
 class IDEPathNode: #vers 1
     """One sub-node within a GTA III IDE-embedded path group (Aug 16
-    2026, per Keith: "gta3 game files need special treatment; the
-    IPL path data is stored within the .ide map files" and his real
-    uploaded comse.ide/comSE.ipl sample). Nine fields per Project
-    Cerbera's own "PATH (IDE Section)" documentation, confirmed
-    field-for-field against that real file: NodeType, NextNode,
-    IsCrossRoad, XRel, YRel, ZRel, Median, LeftLanes, RightLanes -
-    genuinely different from VC/SA's own path node shape, not just a
-    shorter version of it (no separate Flag1-3, an added IsCrossRoad
-    flag VC doesn't have).
-
-    x_rel/y_rel/z_rel are relative to wherever the *placed instance*
-    of this group's own model actually sits in the world (see
-    IDEPathGroup's own docstring) - unlike VC/SA path nodes, which
-    already carry absolute world coordinates directly. No confirmed
-    scale-division factor for these (unlike SA's documented /8 or
-    VC's confirmed /16) - Keith's real sample values are already
-    plausible small building-relative offsets (tens to low hundreds
-    of units), so stored as read with no scaling applied; revisit if
-    real placed-instance rendering later shows otherwise."""
+    2026)"""
     node_type:    int
     next_id:      int
     is_crossroad: int
@@ -249,7 +203,7 @@ class IDEPathGroup: #vers 1
     object definition rather than living freestanding in an IPL, per
     Project Cerbera: "GTA III uses an IDE-related paths system, which
     binds paths to certain objects." group_type is "ped" or "car"
-    (confirmed both appear in Keith's real comse.ide); model_id/
+    (confirmed both appear in the real comse.ide); model_id/
     model_name identify which OBJS entry this group belongs to - a
     group only becomes a real, world-space path once that model_id is
     actually placed somewhere via a normal INST line in a matching
@@ -268,14 +222,7 @@ class IDEPathGroup: #vers 1
 
 @dataclass
 class GrgeEntry: #vers 1
-    """One SA "grge" section entry - a garage (Aug 1 2026, per Keith's
-    real example data: "2502.31, -1699.36, 12.4323, 2508.61, -1699.36,
-    2502.31, -1691.01, 16.5666, 1, 16, cjsafe"). Eleven fields,
-    verified against SannyBuilder forum documentation and Keith's own
-    data (door_type=1, garage_type=16 = "Save garage (Ganton)",
-    name="cjsafe" - all consistent with each other): X1,Y1,Z1 (lower
-    corner), front_x,front_y (front-face corner), X2,Y2,Z2 (upper
-    corner), door_type, garage_type, name."""
+    """One SA "grge" section entry - a garage (Aug 1 2026)"""
     x1:          float
     y1:          float
     z1:          float
@@ -293,15 +240,7 @@ class GrgeEntry: #vers 1
 
 @dataclass
 class EnexEntry: #vers 1
-    """One SA "enex" section entry - an entrance/exit marker (Aug 1
-    2026, per Keith's real example data: "2309.62, -1643.63, 13.8385,
-    0, 1.6, 1.6, 8, 2308.12, -1643.63, 13.8385, 93, 0, 260, "BAR2", 0,
-    2, 0, 24"). Eighteen fields, verified against Grand Theft Wiki's
-    ENEX documentation and confirmed matching Keith's own data field-
-    for-field: enter_x/y/z (marker position), enter_angle, size_x/y/z
-    (trigger box), exit_x/y/z (where the player ends up), exit_angle,
-    target_interior, flags, name (interior name string, e.g. "BAR2"),
-    sky, num_peds_to_spawn, time_on, time_off."""
+    """One SA "enex" section entry - an entrance/exit marker (Aug 1 2026)"""
     enter_x:            float
     enter_y:            float
     enter_z:            float
@@ -326,25 +265,7 @@ class EnexEntry: #vers 1
 
 @dataclass
 class CullEntry: #vers 1
-    """One GTA3/VC "cull" section entry - a cull zone (Aug 16 2026,
-    per Keith's real cull.ipl upload). Eleven fields, confirmed
-    against multiple independent wiki sources (GTA Wiki Fandom,
-    GTAMods, Grand Theft Wiki all agree) and verified field-for-field
-    against Keith's real data: CenterX/Y/Z, X1/Y1/Z1 (one box corner),
-    X2/Y2/Z2 (the opposite corner), flags, wanted_level_drop.
-
-    The center position is a real, documented oddity, not a mistake
-    in this dataclass: per the wiki, "changing the zone's center
-    coordinates does not directly affect the zone itself" - the box
-    shape is defined entirely by the two corner points, center is
-    only used for distance calculations (e.g. how far the player is
-    from the zone) and isn't required to be the box's geometric
-    centre at all, so it's stored verbatim rather than derived.
-
-    This replaces a previous version that returned a plain dict with
-    an entirely wrong field layout (assumed 7 fields - a center/
-    width/height box - when real cull.ipl lines have 11, two real
-    corner points, not a width+height pair at all)."""
+    """One GTA3/VC "cull" section entry - a cull zone (Aug 16 2026)"""
     center_x:          float
     center_y:          float
     center_z:          float
@@ -362,22 +283,7 @@ class CullEntry: #vers 1
 
 @dataclass
 class OcclEntry: #vers 1
-    """One "occl" section entry - an occlusion culling zone (Aug 16
-    2026, per Keith's real occlu.ipl upload). Seven fields, confirmed
-    against GTAMods/Grand Theft Wiki (both agree word-for-word) and
-    verified field-for-field against Keith's real data: MidX, MidY,
-    BottomZ, WidthX, WidthY, Height, Rotation - an axis-aligned box in
-    plan (X/Y extent from the center, per the wiki: "MidX, MidY") but
-    NOT axis-aligned in world space, since Rotation turns the whole
-    box around its own vertical (Z) axis - genuinely different from
-    CullEntry's two-corner-points shape, which has no rotation at
-    all. Used "to create occlusion culling zones... since it is
-    wasteful to render models behind opaque models, these zones can
-    disable the rendering of any models that are directly behind
-    them" - per the wiki, deleting buildings near an occlusion zone
-    without also removing the zone itself causes visible pop-in,
-    since the zone keeps hiding whatever used to be behind the
-    building that's no longer there."""
+    """One "occl" section entry - an occlusion culling zone (Aug 16 2026)"""
     mid_x:      float
     mid_y:      float
     bottom_z:   float
@@ -389,13 +295,7 @@ class OcclEntry: #vers 1
     line_no:    int   = 0
 
 
-# Audio Zone Types (Aug 20 2026, per Keith: "Implement support for
-# the remaining SA, audiozone placements with sound svg icons; play
-# the sounds") - the real, published environment-type/music-track
-# table for AUZO's own ID field, confirmed via GTAMods wiki. Any ID
-# from 0-70 inclusive not present in this dict generates no
-# background sound at all, per the wiki's own note - that's a real,
-# documented "silent zone" case, not a gap in this table.
+# Audio Zone Types (Aug 20 2026) TODO; Audio zone icons do not display in viewpoint.
 AUZO_TYPES = {
     0: ("drugged", None), 1: ("plain", None), 2: ("forest", None),
     3: ("city", None), 4: ("living room", "St Mark's violin music"),
@@ -439,19 +339,7 @@ AUZO_TYPES = {
     67: ("living room", "Unused background melody"),
 }
 
-# Vice City interior numbers -> real, named areas (Aug 20 2026, per
-# Keith's own direct observation in the app, cross-confirmed against
-# GTAMods' own documented "Interior" page list - each real number
-# uniquely identifies exactly one area in VC, unlike SA (see below).
-# 2 real, honest discrepancies between Keith's own list and GTAMods'
-# own documented one, kept as GTAMods' own names here since that's a
-# real, published source rather than a single data point, but worth
-# Keith knowing about: Keith's own "10, Ammo Store / Hogan's" vs
-# GTAMods' own "Rifle Range" (thematically close, not identical);
-# Keith's own "13, Print Works" vs GTAMods' own "13 = Everywhere
-# (reserved for pickups)" - GTAMods' own list puts "Print Works" at
-# 18 instead, which may mean Keith's own loaded map has custom/
-# modified interior data at that number, not vanilla VC.
+# Vice City interior numbers -> real, named areas (Aug 20 2026)
 VC_INTERIOR_NAMES = {
     0: "Main World (exterior)",
     1: "Ocean View Hotel",
@@ -474,23 +362,7 @@ VC_INTERIOR_NAMES = {
     18: "Print Works",
 }
 
-# San Andreas interior *file* names -> real, named areas (Aug 20 2026,
-# per Keith: "full list for VC, now im looking for SA" - confirmed via
-# the same GTAMods "Interior" page's own documented SA table). Keyed
-# by the interior/IPL file's own short name (case-insensitive - e.g.
-# "abatoir", the actual real source_ipl basename an instance carries),
-# NOT by the numeric interior value - unlike VC, an SA interior number
-# does not uniquely identify one real area on its own (SA's own
-# documented table lists many unrelated real buildings sharing the
-# same real number, e.g. interior 1 alone covers this table's own
-# ABATOIR/AMMUN1/CARMOD1/FDREST1/GF1/JETINT/LACS1/LAHS1B/MAFCAS/
-# MAFCAS2/SMASHTV/SVVGHO1/SWEETS/TSDINER/WUZIBET and 3 more unnamed
-# real entries GTAMods' own table leaves blank) - only the real
-# interior *file* name is unique, so that's what's used as the real
-# key here. A handful of GTAMods' own real table rows have no real
-# file-name column at all (blank "-" entries, e.g. "Saint Mark's",
-# "Trailer") - genuinely not included here, since there is no real
-# key to match a loaded instance's own source_ipl against.
+# San Andreas interior *file* names -> real, named areas (Aug 20 2026)
 SA_INTERIOR_FILE_NAMES = {
     "abatoir": "Sindacco Abattoir", "ammun1": "Ammu-Nation",
     "carmod1": "TransFender", "fdrest1": "World of Coq",
@@ -564,28 +436,7 @@ SA_INTERIOR_FILE_NAMES = {
 
 @dataclass
 class AuzoEntry: #vers 1
-    """One "auzo" section entry - a San Andreas audio zone (Aug 20
-    2026, per Keith: "Implement support for the remaining SA,
-    audiozone placements with sound svg icons; play the sounds").
-    Format confirmed against GTAMods wiki: two real shapes exist, told
-    apart here by how many numeric fields follow the name/id/switch
-    (is_sphere True when there are exactly 4 more - X,Y,Z,Radius -
-    False when there are 6 - X1,Y1,Z1,X2,Y2,Z2, matching the two
-    documented layouts exactly rather than guessing from field count
-    alone). Cube fields (x2/y2/z2) are None for a sphere entry and
-    vice versa (radius is None for a cube entry) - never populated
-    with a meaningless default like 0.0 that could be mistaken for a
-    real, deliberate zero-sized value.
-
-    Real, honest limitation: sound_id only maps to a documented
-    environment type and (sometimes) a music/ambience TRACK NAME via
-    AUZO_TYPES - not an actual playable audio sample. The real SA
-    audio itself lives inside the game's own compiled audio bank
-    archives (a completely separate, unrelated binary format this app
-    doesn't read at all), so there is no actual sound data anywhere
-    in the loaded IPL/IDE data this could point to and play - "play
-    the sounds" for now means a placeholder tone confirming which
-    zone was clicked, not the real, in-game San Andreas audio."""
+    """One "auzo" section entry - a San Andreas audio zone (Aug 20 2026)"""
     name:       str
     sound_id:   int
     switch:     int
@@ -613,19 +464,7 @@ class AuzoEntry: #vers 1
 
 @dataclass
 class WaterCorner: #vers 1
-    """One corner point of a real SA water.dat shape (Aug 20 2026,
-    per Keith: "lets get all the functions in" - Water/radar
-    recalculation on map moves is the first of the 3 items on his own
-    list, and this is the real prerequisite for the "water" half:
-    water.dat wasn't parsed at all before this). Format confirmed
-    against a detailed, community-verified GTAForums documentation
-    thread (steve-m, 2005 - extensively tested and refined by many
-    contributors over years, not a single unverified source): 7
-    floats per corner - X, Y, Z (world position), then current_x/
-    current_y (water current/flow speed along each axis), wave_
-    unknown ("influences waves, maximum is 1.0" - the source itself
-    documents this field's own exact effect as unconfirmed), and
-    wave_height."""
+    """One corner point of a real SA water.dat shape (Aug 20 2026)"""
     x: float
     y: float
     z: float
@@ -638,23 +477,7 @@ class WaterCorner: #vers 1
 @dataclass
 class WaterShape: #vers 1
     """One real water.dat shape entry - SA's own text format only
-    (Aug 20 2026, see WaterCorner's own docstring for the fuller
-    format-confirmation story). A real shape is EITHER a triangle (3
-    corners) or a quad (4 corners) - documented and independently re-
-    confirmed by testers: "the game only uses cubes, rectangles and
-    triangles... at least one corner must be 90°" for a triangle.
-    water_type is a real, confirmed 2-bit flag value (documented
-    directly, not guessed): bit 0 = visible, bit 1 = shallow/pool
-    (vs invisible/deep-ocean) - 0=invisible ocean, 1=visible ocean,
-    2=invisible pool, 3=visible pool. Corner order matters for a real,
-    game-crash-preventing reason documented directly - the source's
-    own emphatic warning: "All X and Y coordinates of corner points
-    must be even, rounded numbers... otherwise the game will crash
-    when you approach the water" - this app reads coordinates as
-    given, verbatim, rather than silently "fixing" them, since
-    correctness here is the modder's own responsibility and this app
-    altering values without being asked risks introducing exactly
-    this crash."""
+    (Aug 20 2026)"""
     corners:    List[WaterCorner]
     water_type: int
     source_file: str = ""
@@ -672,24 +495,7 @@ class WaterShape: #vers 1
 
 
 def parse_water_dat(path: str) -> List[WaterShape]: #vers 1
-    """Parse a real SA water.dat file (Aug 20 2026 - see WaterShape's
-    own docstring for the full format confirmation). Standalone
-    module-level function, not tied to IPLParser/IDEParser - water.
-    dat is neither an IPL nor IDE section, it's its own, separate top-
-    level file referenced from gta.dat's own WATER directive,
-    matching sa_path_parser.py's own established "standalone function
-    for a standalone file format" convention rather than being force-
-    fit into either of those classes.
-
-    The file's own first non-blank, non-comment line must literally
-    be the word "processed" (confirmed directly: "The water.dat file
-    starts with the word 'processed' in the first line") - skipped,
-    not treated as data. Every subsequent real line is whitespace-
-    split and its own value count used to tell a triangle (3*7+1=22
-    values) from a quad (4*7+1=29) - real lines that match neither
-    count are skipped rather than guessed at. '#'-prefixed lines are
-    real, documented comments (same convention as IPL/IDE files) and
-    skipped, matching the source's own explicit confirmation of this."""
+    """Parse a real SA water.dat file (Aug 20 2026)"""
     shapes: List[WaterShape] = []
     try:
         with open(path, 'r', encoding='ascii', errors='ignore') as f:
@@ -734,62 +540,13 @@ def parse_water_dat(path: str) -> List[WaterShape]: #vers 1
 @dataclass
 class WaterProLevel: #vers 2
     """One water level from a real GTA III/VC/PS2-LC/SOL waterpro.dat
-    (Aug 20 2026 - the binary counterpart to SA's own text water.dat,
-    a completely different game/format despite the similar purpose;
-    see WaterShape's own docstring for that one). height is this
-    level's own real water height ("recommended 0.0 for GTA III and
-    6.0 for GTA Vice City" - a real, documented per-game default, not
-    the same for both games despite sharing this one format).
-
-    Real correction made to this class (Aug 20 2026, per Keith
-    pointing at a real, existing, more carefully-researched reference
-    tool: "look at water_workshop") - an earlier version of this same
-    class also carried zone_start_x/y and zone_end_x/y fields,
-    interpreting the header's own bytes 196-964 as 48 real {StartX,
-    StartY,EndX,EndY} rectangles. That reference tool's own WaterproParser
-    (apps/components/Water_Editor/water_workshop.py) - which explicitly
-    cites a specific, named source ("WaterHack.cpp") and, critically,
-    already correctly handles PS2/SOL variants with genuinely
-    different, non-vanilla grid sizes, something the earlier version
-    of this class never accounted for at all - treats that exact same
-    byte range as opaque, unidentified data instead, preserved
-    verbatim for round-tripping rather than decoded into a specific
-    structure. Given a more careful, already-proven reference now
-    directly contradicts the earlier zone-rectangle interpretation,
-    the honest, correct move is to defer to it rather than keep
-    presenting an unconfirmed guess as settled fact - see WaterProFile's
-    own unk_block field for where those bytes now live instead."""
+    (Aug 20 2026)"""
     height: float
 
 
 @dataclass
 class WaterProFile: #vers 2
-    """A fully parsed GTA III/VC/PS2-LC/SOL waterpro.dat (Aug 20 2026,
-    see WaterProLevel's own docstring for the real correction made to
-    this class and why). levels: up to 48 real WaterProLevel entries
-    (only the first `level_count` are meaningful - the file always
-    reserves space for the full 48, unlike a variable-length list).
-    unk_block: the real, raw 768 bytes at header offset 196-964 -
-    genuinely unidentified data (not zone rectangles, an earlier,
-    now-corrected guess - see WaterProLevel's own docstring), kept
-    verbatim so round-tripping this file (load then save unmodified)
-    reproduces it exactly rather than silently discarding or
-    reinventing bytes this app doesn't actually understand.
-
-    visible_map: the real grid the game actually shows on the in-game
-    radar/minimap, physical_map: the real, separate grid (exactly
-    double visible_map's own width/height per side) that actually
-    determines where the player can swim/the water is physically
-    present - these are genuinely two different real grids at two
-    different resolutions, not the same data duplicated. grid_width
-    is visible_map's own real width/height (64 for vanilla SA/VC/III -
-    physical_map is always exactly double this, both dimensions - but
-    genuinely different for a PS2/SOL or custom/expanded map, per
-    water_workshop.py's own already-proven variable-grid-size
-    handling, not assumed fixed the way an earlier version of this
-    class incorrectly did). Each grid cell's own byte value is an
-    index into `levels` (which real level's own height applies at
-    that grid cell)."""
+    """A fully parsed GTA III/VC/PS2-LC/SOL waterpro.dat (Aug 20 2026)"""
     level_count:  int
     levels:       List[WaterProLevel]
     grid_width:   int
@@ -801,34 +558,7 @@ class WaterProFile: #vers 2
 
 def _detile_sol_grid(raw: bytes, grid_width: int, map_w: int = 6) -> List[List[int]]: #vers 1
     """Real de-tiling fix for SOL's own waterpro.dat grid layout (Aug
-    20 2026, per Keith's real bug report - "the other is the parsing
-    of SOL waterpro files, you can see this in the image" - the
-    striped/banded, incoherent visual result confirming exactly the
-    gap this session had already found and honestly documented, not
-    yet fixed, before Keith uploaded real SOL sample data).
-
-    SOL's own real grid data is genuinely subdivided into map_w x
-    map_w (6x6) separate tiles, each stored as its own contiguous
-    block, rather than one flat, row-major grid across the whole map
-    the way vanilla SA/VC/III data actually is - confirmed by cross-
-    checking real uploaded sample data directly: a real 738244-byte
-    SOL waterpro.dat's own computed grid_width (384, via this same
-    module's own already-correct size-detection formula) exactly
-    matches water_workshop.py's own real, already-correct UI display
-    ("384x384 visible ... 768x768 physical"), and 384 is exactly
-    6*64 - confirming the tile subdivision directly rather than
-    assuming it from that other tool's own comments alone.
-
-    This logic matches water_workshop.py's own `_rebuild_cache`
-    method exactly (the one place that tool's own de-tiling math
-    actually lives, previously only in its own DISPLAY code, never
-    its own file-parsing code - see WaterProFile's own docstring for
-    the fuller story) - reused here as the actual fix, not just
-    referenced. Real, deliberate detection rule for when this applies
-    at all: only when grid_width divides evenly by 6 - vanilla SA/
-    VC/III's own real grid_width (64, confirmed earlier this session)
-    is never evenly divisible by 6, so a real vanilla file is
-    correctly left as a simple flat grid, never mistakenly de-tiled."""
+    20 2026)"""
     tile_w = grid_width // map_w
     out = [[0] * grid_width for _ in range(grid_width)]
     for tile_idx in range(map_w * map_w):
@@ -844,30 +574,7 @@ def _detile_sol_grid(raw: bytes, grid_width: int, map_w: int = 6) -> List[List[i
 
 
 def parse_waterpro_dat(path: str) -> Optional[WaterProFile]: #vers 3
-    """Parse a real GTA III/VC/PS2-LC/SOL waterpro.dat (Aug 20 2026 -
-    see WaterProLevel's own docstring for the earlier correction made
-    to this function, and _detile_sol_grid's own docstring for the
-    real SOL de-tiling fix now applied here). Standalone module-level
-    function, not tied to any parser class - matches parse_water_dat's
-    own established "standalone function for a standalone file
-    format" convention just above.
-
-    Real, confirmed 964-byte header (int32 level count + 48 real
-    float32 heights + a real, deliberately-unidentified 768-byte
-    block - see WaterProLevel/WaterProFile's own docstrings for why
-    this isn't decoded into zone rectangles any more), followed by a
-    variable-size grid pair whose own real dimensions are derived
-    from the file's own remaining size after that header: remaining
-    bytes = visible_map (grid_width^2 cells) + physical_map
-    ((2*grid_width)^2 cells) = 5*grid_width^2 total, so grid_width =
-    sqrt(remaining/5) - checked to be a real, exact perfect square
-    (a non-square result means a genuinely corrupt/foreign file, not
-    silently truncated data). If that grid_width divides evenly by 6
-    (true for SOL's own real files, never true for vanilla SA/VC/III's
-    own real grid_width of 64), both grids are de-tiled via _detile_
-    sol_grid before being returned - a real, confirmed fix now, not
-    the honest, still-open gap an earlier version of this same
-    function's own docstring stated."""
+    """Parse a real GTA III/VC/PS2-LC/SOL waterpro.dat (Aug 20 2026)"""
     try:
         with open(path, 'rb') as f:
             data = f.read()
@@ -910,39 +617,7 @@ def parse_waterpro_dat(path: str) -> Optional[WaterProFile]: #vers 3
 @dataclass
 class RadarTile: #vers 2
     """One real radar/minimap tile's own world-space bounding box for
-    a given GTA game (Aug 20 2026, per Keith: "look at radar editor
-    for how the radar works", then "radar_workshop has the radar
-    code" - following the earlier "map-to-radar generation" request,
-    genuinely blocked before this until real confirmed grid numbers
-    were found). Corresponds to one real "radarNN.txd" file the game
-    actually loads.
-
-    Real, confirmed facts this is built from, not guessed - checked
-    directly against two independent real sources, one of them a
-    local, already-existing, explicitly-marked "authoritative" tool:
-
-    - `apps/components/Radar_Editor/radar_workshop.py`'s own real,
-      already-working `GAME_PRESETS`/`_GAME_WORLD_BOUNDS` (a comment
-      on the latter reads literally: "Grid constants (authoritative
-      — do not change without verifying against game files)") - SA:
-      144 tiles (12x12), world bounds -3000..3000 both axes; VC/III
-      (and LCS/VCS too): 64 tiles (8x8), world bounds -2000..2000
-      both axes; SOL: 1296 tiles (36x36), world bounds -6000..6000.
-      Both SA (500 units/tile) and VC/III (4000/8=500 units/tile)
-      land on the exact same 500-unit-per-tile figure independently.
-    - The same real tile file naming range this class's own earlier
-      version was already built from - "radar00.txd" through
-      "radar143.txd" for SA (144 files) - directly matches this
-      tool's own real SA preset ("radar00.txd to radar143.txd (144
-      tiles, 12x12 grid)" - its own literal hint text).
-
-    Tile-index ordering (row-major, index 0 at the map's own north-
-    west corner) - an earlier version of this class carried this as
-    an honest, unconfirmed guess. `radar_workshop.py`'s own real code
-    states this directly and explicitly, not just implies it: "Tile
-    grid origin is top-left = (world_min_x, world_max_y)" - the exact
-    same convention this class already assumed, now genuinely
-    confirmed rather than merely reasonable."""
+    a given GTA game (Aug 20 2026)"""
     index: int
     row: int
     col: int
@@ -952,13 +627,7 @@ class RadarTile: #vers 2
     max_y: float
 
 
-# Real, confirmed per-game radar grid presets (Aug 20 2026, sourced
-# directly from radar_workshop.py's own real, already-working, "do
-# not change without verifying against game files" GAME_PRESETS/
-# _GAME_WORLD_BOUNDS - see RadarTile's own docstring for the fuller
-# confirmation story). grid_size is the real, full world-unit span
-# (world bounds are symmetric around the origin for every game this
-# tool documents, so grid_size/2 gives min/max directly).
+# Real, confirmed per-game radar grid presets (Aug 20 2026)
 RADAR_GRID_PRESETS = {
     'gta3': {'grid_size': 4000.0, 'tiles_per_side': 8},
     'vc':   {'grid_size': 4000.0, 'tiles_per_side': 8},
@@ -966,55 +635,12 @@ RADAR_GRID_PRESETS = {
     'sol':  {'grid_size': 12000.0, 'tiles_per_side': 36},
 }
 
-# Water's own real grid size, separate from RADAR_GRID_PRESETS (Sep 5
-# 2026, per Keith's own real, uploaded GTASOL-CoreHacks source -
-# SOLCore/WaterHack.cpp). Confirmed against the real engine's own
-# PatchWater/Hook_PreRenderNearWater source: each of the 6x6 water
-# tile-blocks is positioned 4096 units apart (that function's own
-# -4096.0f*XPart/YPart offset math), giving SOL a real total water
-# grid width of 6*4096=24576 - NOT the 12000 units RADAR_GRID_PRESETS
-# uses for SOL, which is an unrelated measurement for the separate
-# 36x36 individual radar tiles (a different system, coincidentally
-# also 6x6-tiled at a higher level). 24576/384 (the real waterpro.dat
-# grid_width from Keith's own real uploaded file) gives exactly 64.0
-# units/cell, matching the engine's own 4096-units-per-tile /
-# 64-cells-per-tile relationship exactly - the old, wrong 12000-based
-# math gave a suspicious, non-round 31.25 units/cell instead.
-#
-# VC/SA/GTA3 are NOT included here - their own water-uses-radar's-
-# grid-size assumption has already been confirmed correct against
-# Keith's own real screenshots (see _waterpro_to_cells' own
-# docstring in map_workshop.py) - this is a SOL-specific correction
-# only, where water and radar genuinely use different real grid
-# sizes despite both happening to be 6x6-tiled at some level.
-#
-# NOT yet confirmed: the real engine's own tile-offset formula
-# (XPart = (i%6)-2.0, plus a hardcoded +400 unit shift on X only)
-# suggests the true grid isn't simply centered at world origin the
-# way _waterpro_to_cells currently assumes for every game - that
-# asymmetric-offset detail is not resolved by this fix and needs
-# further real-world confirmation before touching it.
+# Water's own real grid size, separate from RADAR_GRID_PRESETS (Sep 5 2026)
 WATER_GRID_PRESETS = {
     'sol': {'grid_size': 24576.0, 'tiles_per_side': 6},
 }
 
-# Water grid size ladder, by real 64-unit chunk count per side (Sep 5
-# 2026, per Keith: "the presets scale up to SOL and 2 more scale
-# beyond, can you work out the stages, and add that function") - for
-# VC/GTA3/SOL specifically. SA does NOT use this rigid grid-chunk
-# format at all - confirmed against Keith's own real, uploaded SA
-# water.dat samples: SA's real water is a freeform list of variable-
-# sized quad/triangle shapes (WaterShape), not a fixed grid - see
-# SA_WATER_SNAP_PRESETS below for SA's own, differently-shaped ladder.
-#
-# VC/GTA3's own real grid_width already IS exactly one 64-unit chunk
-# (64 cells visible / 128 physical, per this file's own long-
-# confirmed real values), and SOL's own 36 real macro-tiles
-# (confirmed against its real engine source - see WATER_GRID_PRESETS'
-# own docstring just above) are ALSO each exactly one such chunk, just
-# arranged 6x6 instead of 1x1. So the whole ladder is just one integer
-# knob - how many real chunks per side - rather than an arbitrary
-# list of sizes:
+# Water grid size ladder.
 #
 #   tiles_per_side=1 ->  64x64  /  128x128   (vanilla VC/GTA3)
 #   tiles_per_side=2 -> 128x128 /  256x256
@@ -1025,14 +651,7 @@ WATER_GRID_PRESETS = {
 #   tiles_per_side=7 -> 448x448 /  896x896   (1 stage beyond SOL)
 #   tiles_per_side=8 -> 512x512 / 1024x1024  (2 stages beyond SOL)
 #
-# grid_size (real world units) = tiles_per_side * 4096.0 - the real,
-# confirmed per-chunk world size from the SOL engine source
-# (Hook_PreRenderNearWater's own -4096.0f*XPart/YPart tile offset).
-# Deliberately NOT including Keith's own original smaller 32x32/
-# 96x96 examples here - those aren't multiples of the real 64-unit
-# chunk any actual game uses, so they'd be arbitrary rather than
-# derived from anything real; every entry below corresponds to an
-# actual, whole number of real chunks.
+
 _WATER_CHUNK_CELLS = 64          # real cells per chunk, one side (visible)
 _WATER_CHUNK_WORLD_UNITS = 4096.0  # real world units per chunk, one side
 
@@ -1075,29 +694,7 @@ def get_water_size_preset(tiles_per_side: int) -> dict: #vers 1
     }
 
 
-# SA's own ladder is shaped differently (Sep 5 2026, per Keith: "and
-# the snap ladder size, and look at these files") - unlike VC/GTA3/
-# SOL, SA has no fixed-grid waterpro.dat at all. Confirmed directly
-# against Keith's own real, uploaded SA water.dat samples: it's a
-# freeform list of variable-sized quad/triangle shapes (WaterShape),
-# each corner placed by hand rather than snapped to one fixed engine
-# grid. There is a real, documented, crash-preventing reason to keep
-# shape corners on a clean grid anyway - WaterCorner's own docstring:
-# "All X and Y coordinates of corner points must be even, rounded
-# numbers... otherwise the game will crash when you approach the
-# water" - so a snap-size ladder is a genuinely useful EDITING AID
-# even though, unlike VC/GTA3/SOL's chunk size, it isn't an engine-
-# enforced constant.
-#
-# 16 units is the most common real recurring shape width/height
-# across Keith's own larger real sample (SA_water.dat, 307 shapes) -
-# a real, observed TENDENCY, not a hard rule the way VC/GTA3/SOL's
-# 64-unit chunk is: only ~62% of that sample's own real dimensions
-# are actually multiples of 16, and a second, smaller real sample
-# (98 shapes) showed mostly arbitrary, non-16-aligned dimensions
-# instead. Keith's own original example numbers (32, 64, 96, 128,
-# 256) are themselves all clean multiples of 16, which is why this
-# ladder uses 16 as its base unit rather than VC/GTA3/SOL's 64:
+# SA's own ladder is shaped differently (Sep 5 2026)
 #
 #   n=1 ->  16  (Finest)
 #   n=2 ->  32  (Small)
@@ -1136,20 +733,7 @@ def get_sa_water_snap_preset(n: int) -> dict: #vers 1
 def compute_radar_grid(grid_size: float = 6000.0, tiles_per_side: int = 12,
                        center_x: float = 0.0, center_y: float = 0.0) -> List[RadarTile]: #vers 2
     """Compute the real world-space bounding box for every tile in a
-    radar grid (Aug 20 2026 - see RadarTile's own docstring for the
-    full confirmation story, and RADAR_GRID_PRESETS for the real,
-    confirmed per-game defaults to pass here). Defaults match vanilla
-    SA (6000 units, 12x12, centred on the origin) purely for backward
-    compatibility with this function's own first version - callers
-    generating tiles for a specific game should pass RADAR_GRID_
-    PRESETS[game_key]'s own values explicitly rather than relying on
-    this default, since VC/GTA III use a genuinely different, smaller
-    4000-unit/8x8 grid, not SA's.
-
-    Tile 0 is the north-west corner (min X, max Y), row-major,
-    increasing west-to-east then north-to-south - see RadarTile's own
-    docstring for the real confirmation behind this (no longer an
-    unconfirmed assumption)."""
+    radar grid (Aug 20 2026)"""
     tile_size = grid_size / tiles_per_side
     half = grid_size / 2.0
     origin_x = center_x - half   # west edge
@@ -1172,33 +756,7 @@ def compute_radar_grid(grid_size: float = 6000.0, tiles_per_side: int = 12,
 
 @dataclass
 class ChaseFrame: #vers 1
-    """One recorded frame from a real GTA III CHASE*.DAT file (Aug 19
-    2026, per Keith's real sample - "lets do those next"). Format
-    confirmed against real, published documentation (GTAMods wiki -
-    "near identical to its successor, RRR, in San Andreas") AND
-    cross-checked directly against Keith's own real CHASE0.DAT: a
-    fixed 28-byte record, no header/count at all - the file's own
-    size divided cleanly by 28 with zero remainder (151200 / 28 =
-    5400.0 exactly), and real decoded positions land in a tight,
-    plausible cluster of real GTA III world coordinates that change
-    smoothly frame-to-frame, matching a recorded vehicle path for the
-    introduction cutscene's chase scene (13 unique cars, one CHASE*.
-    DAT file per car/path index) rather than a coincidental byte
-    alignment.
-
-    vel_x/y/z: INT16, divide by 16383.5 for the real float velocity.
-    right_x/y/z, top_x/y/z: INT8, divide by 127.0 - the vehicle's own
-    right and top orientation basis vectors for that frame (together
-    with the implicit forward vector, these fully describe the
-    vehicle's 3D rotation for that frame, the same way DFF frame
-    matrices store an object's orientation as basis vectors rather
-    than Euler angles or a quaternion).
-    steering: INT8, divide by 20.0. gas/brake: INT8, divide by 100.0.
-    handbrake: bool (1/0 in the file). pos_x/y/z: standard IEEE-754
-    float, real world-space position for that frame - no scale
-    factor, matching tracks.dat/flight.dat's own real-world-units
-    convention rather than IPL/IDE path data's own /16-scaled
-    convention."""
+    """One recorded frame from a real GTA III CHASE*.DAT file (Aug 19 2026)"""
     vel_x: float = 0.0
     vel_y: float = 0.0
     vel_z: float = 0.0
@@ -1222,20 +780,7 @@ class ChaseFrame: #vers 1
 @dataclass
 class RoadblockEntry: #vers 1
     """One police roadblock placement from SA's real ROADBLOX.DAT
-    (Aug 19 2026, per Keith's real sample - "lets do those next").
-    Format confirmed against real, published documentation (GTAMods
-    wiki) AND cross-checked directly against Keith's own real data:
-    a 4-byte int32 count, followed by up to 325 fixed (area_id: int16,
-    node_id: uint16) slots - only the first `count` are meaningful,
-    matching the file's own exact 1304-byte size (4 + 325*4). Each
-    entry references a real vehicle path node from the SA node system
-    (see sa_nodes/SAPathFile) - a roadblock spawns AT that node's own
-    position when the game decides to place one there. Verified this
-    isn't just a plausible-looking format match: cross-referenced all
-    325 real entries in Keith's own real ROADBLOX.DAT against his own
-    real, complete NODES0-63.DAT set - every single one resolves to a
-    real, valid vehicle node index within its own stated area, not
-    just a format that happens to parse without error."""
+    (Aug 19 2026)"""
     area_id: int = 0
     node_id: int = 0
 
@@ -1243,43 +788,7 @@ class RoadblockEntry: #vers 1
 @dataclass
 class TrackWaypoint: #vers 1
     """One waypoint from a real GTA III/VC/SA train track file
-    (data/paths/tracks.dat, tracks2.dat, etc - Aug 17 2026, per
-    Keith: "then the other path .dat files you pointed out earlier",
-    following on from real path node editing). Confirmed via direct
-    inspection of Keith's own real tracks.dat/tracks2.dat: a plain
-    text file, first line is a waypoint COUNT, then exactly that many
-    "X Y Z" lines (space-separated floats), one waypoint per line, in
-    real world-space coordinates - no scale factor involved, unlike
-    IPL/IDE path data. Genuinely simpler than every other path format
-    in this app - just an ordered list of points forming one
-    continuous track, no node types, no Next-index graph, no per-
-    game format variation. Not referenced anywhere in gta.dat/
-    gta3.dat's own directive list - the game loads these from a
-    fixed, well-known relative path (data/paths/) rather than a
-    listed directive, confirmed by their absence from a real,
-    complete gta3.dat.
-
-    Also shared, unchanged, by flight.dat/flight2/3/4.dat (Aug 19
-    2026, per Keith's real LC/VC/SA samples) and spath0.dat - all
-    confirmed to be the exact same "count then X Y Z lines" shape,
-    verified directly against real files rather than assumed from the
-    tracks.dat naming alone.
-
-    flag (Aug 19 2026, per Keith's real SA tracks.dat/tracks2/3/4.dat
-    samples) - a 4th value some lines carry, previously silently
-    dropped entirely rather than stored. Confirmed via direct
-    inspection of all 4 real SA tracks files: always present when it
-    appears (every SA tracks*.dat line actually has 4 values, not 3 -
-    VC/GTA III's own tracks.dat/tracks2.dat samples only ever had 3,
-    hence the format being understood as 3 originally), always 0 or
-    1, and in the largest file (tracks.dat, 926 points) exactly 6
-    points carry a 1 while every other point (and every point in the
-    3 smaller files) carries 0 - a strong, plausible match for "this
-    is a real station stop" given SA has 6 real train stations, but
-    presented as a hypothesis rather than a confirmed fact - no
-    published documentation of this specific field was found. None
-    for files (like flight*.dat/spath0.dat) that only ever have 3
-    values per line."""
+    (data/paths/tracks.dat, tracks2.dat, etc - Aug 17 2026)"""
     x: float
     y: float
     z: float
@@ -1291,10 +800,7 @@ class TrackWaypoint: #vers 1
 @dataclass
 class IPLLoadResult:
     """Result of one on-demand IPL load (GTAWorldLoader.load_ipl_by_
-    name) - per Keith's request for per-IPL success/error reporting
-    ("path/airport.ipl loaded - no errors" / "path/airportN.ipl loaded
-    - 4 errors found, check log added to the maps folder"), rather
-    than just a bare bool."""
+    name)"""
     success:       bool = False
     abs_path:      str = ""
     instance_count: int = 0
@@ -1463,13 +969,8 @@ class IDEParser: #vers 2
     def __init__(self, game: str = GTAGame.GTA3):
         self.game    = game
         self.objects: List[IDEObject] = []
-        # GTA III's own IDE-embedded path groups (Aug 16 2026, per
-        # Keith: "gta3 game files need special treatment; the IPL
-        # path data is stored within the .ide map files" and his real
-        # comse.ide/comSE.ipl sample) - a completely separate list
-        # from self.objects, since a path group isn't an IDEObject at
-        # all (no txd/section/extra fields that make sense for it) -
-        # see IDEPathGroup's own docstring for the full format story.
+
+        # GTA III's own IDE-embedded path groups (Aug 16 2026)
         self.ide_paths: List[IDEPathGroup] = []
         self.stats   = ParseStats()
         self._valid  = GTAGame.IDE_SECTIONS.get(game, GTAGame.IDE_SECTIONS[GTAGame.GTA3])
@@ -1534,8 +1035,7 @@ class IDEParser: #vers 2
     def _parse_ide_path_group_header(self, line: str, source: str, lineno: int): #vers 1
         """Parse a GTA III IDE path group's header line - "GroupType,
         Id, ModelName" per Project Cerbera's own "PATH (IDE Section)"
-        doc, confirmed against Keith's real comse.ide (both "ped" and
-        "car" group types appear there)."""
+        doc."""
         try:
             p = [x.strip() for x in line.split(",")]
             if len(p) < 3:
@@ -1550,7 +1050,7 @@ class IDEParser: #vers 2
         """Parse one GTA III IDE path node line - "NodeType, NextNode,
         IsCrossRoad, XRel, YRel, ZRel, Median, LeftLanes, RightLanes"
         (9 fields), per Project Cerbera's own doc, confirmed against
-        Keith's real comse.ide field-for-field."""
+        comse.ide field-for-field."""
         try:
             p = [x.strip() for x in line.split(",")]
             if len(p) < 6:
@@ -1570,26 +1070,6 @@ class IDEParser: #vers 2
             parts = [p.strip() for p in line.split(",")]
 
             if section in ("objs", "tobj"):
-                # Verified against Keith's real LAe.ide (Aug 1 2026,
-                # per his own uploaded file): every single objs line
-                # is exactly 5 fields, every tobj line exactly 7 -
-                # id, model, txd, drawdist, flags[, time_on, time_off]
-                # - NOT "id, model, txd, meshCount, dist1[, dist2],
-                # flags" as this parser assumed until now. That
-                # assumption meant every real draw distance (e.g.
-                # "150" in "5390, laeskateparkLA, glenpark7_lae, 150,
-                # 0") was being read as a bogus "150 meshes" mesh_
-                # count, and the real flags value read as a bogus
-                # draw_dist of 0 - exactly backwards, and exactly why
-                # Keith's own "draw distance over 300 means LOD" idea
-                # couldn't have worked against the previous parsing.
-                # No confirmed real-world evidence of the multi-
-                # distance-chain variant this previously assumed
-                # (checked Keith's whole file: zero occurrences) -
-                # kept as a defensive fallback below only for a field
-                # count that doesn't match either direct pattern,
-                # rather than removed outright, in case some other
-                # game/file genuinely uses it.
                 if len(parts) < 5:
                     return None
                 model_id   = int(parts[0])
@@ -1738,23 +1218,7 @@ class IDEParser: #vers 2
                                  "weapon", section, extra, source, lineno)
 
             elif section == "hier":
-                # HIER's real, published format (Aug 20 2026,
-                # confirmed via GTAMods) is universal across EVERY
-                # game - always exactly 3 fields (Id, ModelName,
-                # TxdName), no SA-specific extras at all. The
-                # previous version of this branch's own comment
-                # claimed "SA hier: id, model, txd, animFile,
-                # drawDist (5 fields)" and read those extra fields
-                # for SA - that was a real, mistaken conflation with
-                # ANIM's own, genuinely separate SA-specific format
-                # (which DOES have those extra fields, plus a 6th
-                # Flags field this same conflation was also missing
-                # entirely - see the dedicated "anim" branch just
-                # below). A real hier line only ever has 3 fields to
-                # begin with, so this mistake never actually crashed
-                # anything (the old code's own `if len(parts) > 3`
-                # guard just never fired against real data) - but it
-                # was still wrong, not just imprecise.
+                # HIER's real, published format (Aug 20 2026)
                 if len(parts) < 3:
                     return None
                 return IDEObject(int(parts[0]), parts[1], parts[2],
@@ -1779,7 +1243,7 @@ class IDEParser: #vers 2
             elif section == "anim":
                 # ANIM's real, published SA format (Aug 20 2026,
                 # confirmed via GTAMods, and directly verified against
-                # two of Keith's own real IDE samples - "10744,
+                # two of my own real IDE samples - "10744,
                 # BS_building_SFS, bs_sfs, SFs, 130, 128" and "14642,
                 # mafcas_spiral_dad, mafcasspiral, int_veg, 100, 0",
                 # both matching field-for-field): Id, ModelName,
@@ -1815,26 +1279,7 @@ class IDEParser: #vers 2
 
             elif section == "2dfx":
                 # id, offsetX, offsetY, offsetZ, r, g, b, a, effectType[, type-specific fields...]
-                # (Aug 1 2026, per Keith: "lets add the 2dfx support
-                # next, showing 2dfx lighting at night") - previously
-                # a placeholder stub with completely empty extra={},
-                # no offset/color/type data parsed at all, which
-                # can't support rendering an actual light. Based on
-                # community-documented format (GTAMods wiki-style,
-                # not verified against official documentation or any
-                # real sample data - unlike the rotation/LOD fixes
-                # earlier this session, which had Keith's actual raw
-                # IPL lines to check against): effectType 0 = light is
-                # the one this parses fully (offset, RGBA color, plus
-                # best-effort corona_far_clip/point_light_range/
-                # corona_size where present - lower confidence on the
-                # exact field order/count for these SA-specific extras
-                # beyond the core offset+color+type, since no real
-                # sample data was available to verify against). Other
-                # effect types (1=particle, 2=text/ped attractor,
-                # 3=sun glare/enter-exit, 4=roadsign, 5=trigger point,
-                # 6=cover point, 7=escalator, ...) aren't parsed beyond
-                # their own offset/type - not needed for lighting.
+                # (Aug 1 2026)
                 if len(parts) < 9:
                     return None
                 model_id = int(parts[0])
@@ -1887,41 +1332,7 @@ def detect_ipl_format(data: bytes) -> str: #vers 1
 
 
 class BinaryIPLParser: #vers 2
-    """Parser for binary-format IPL data (see detect_ipl_format).
-
-    Verified empirically against two real sample files Keith provided
-    (crack.ipl: 60 instances, countn2_stream1.ipl: 355 instances) -
-    not from official documentation, but cross-checked several
-    independent ways: quaternion magnitude is exactly 1.0 for every
-    single instance across both files (415 total, not a coincidence);
-    world positions cluster in plausible SA coordinate ranges; model
-    IDs fall within SA's valid ID range; and the header's own internal
-    fields correctly predict the actual computed offset where instance
-    data ends (76 + inst_count*40) in both files independently.
-
-    Confirmed structure:
-    - Magic: b"bnry" (4 bytes)
-    - Header: 18 x int32 LE (72 bytes) immediately after the magic -
-      total header is 76 bytes. Only two fields' meaning is confirmed:
-      index 0 = inst_count, index 6 = 76 (constant - the header size/
-      offset where inst data begins). The other 16 header fields are
-      presumably counts/offsets for other sections (cull, zone, etc,
-      per the text-format IPL_SECTIONS list) but which index maps to
-      which section, and their exact record formats, are NOT yet
-      confirmed - only the inst section is parsed here.
-    - Each inst record is 40 bytes, starting right after the header:
-      7x float32 LE (pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, rot_w),
-      then 3x int32 LE (model_id, a second field, lod_index). The
-      second field is NOT interior (an earlier guess) - its observed
-      values are almost all exact powers of 2 (0/256/512/1024) with
-      one outlier (18), strongly suggesting a per-instance flags
-      bitmask rather than an interior number; exposed as-is without
-      inventing bit meanings that aren't confirmed.
-
-    Cull/zone/other sections are NOT parsed yet - the header fields
-    that likely locate them haven't been confirmed the way inst_count/
-    inst_offset have. Write-back is not implemented at all yet -
-    round-tripping needs the read side proven reliable first."""
+    """Parser for binary-format IPL data (see detect_ipl_format)."""
 
     _MAGIC = b"bnry"
     _HEADER_SIZE = 76
@@ -1977,41 +1388,7 @@ class BinaryIPLParser: #vers 2
 
 def write_binary_ipl_inst_only(instances: List['IPLInstance']) -> bytes: #vers 1
     """Write instances out as binary-format IPL data - inst section
-    only (Aug 20 2026, per Keith's own TODO comment: "When working
-    with SA files, have the ability to click on a text ipl, convert
-    to binary.ipl"). The write-side counterpart to BinaryIPLParser,
-    built directly from that class's own confirmed structure - same
-    magic, header size, and 40-byte inst record layout.
-
-    REAL, IMPORTANT LIMITATION, stated here as plainly as in the UI
-    itself: only 2 of the binary header's 18 int32 fields are actually
-    confirmed (index 0 = inst_count, index 6 = the constant 76 - see
-    BinaryIPLParser's own docstring for the full reasoning behind
-    those two and why the other 16 aren't). This writer sets every
-    other header field to 0 - the most conservative, least-assuming
-    choice available, not a confirmed-correct value, because what
-    those 16 fields actually mean (very possibly counts/offsets for
-    other sections a real game-shipped file might expect to find,
-    per the published "binary IPL supports inst and cars" scope) has
-    never been determined. A per-instance record's own second int32
-    field (documented on BinaryIPLParser as "not interior... a per-
-    instance flags bitmask" with unconfirmed bit meanings) is also
-    written as 0 here for the same reason. This has been verified by
-    round-tripping synthetic data back through BinaryIPLParser itself
-    and confirming an exact match (see the direct test run before this
-    was trusted) - but that only proves the OUTPUT'S OWN INST SECTION
-    is byte-correct and self-consistent, not that a real, unmodified
-    game would accept the whole file without incident; no real binary
-    IPL sample exists in this environment to test that against, and
-    the file has never been tested in an actual running game.
-
-    cars is not written at all - not parsed by this app on the read
-    side either, so there's nothing here to convert it from; every
-    other IPL section (cull/zone/path/occl/grge/enex) genuinely has
-    no binary-IPL representation at all per the format's own real,
-    published scope (confirmed via research before this was built,
-    not assumed) - inst is the only thing a binary IPL can hold that
-    this app's own text-IPL data also has."""
+    only (Aug 20 2026)"""
     header = bytearray(76)
     header[0:4] = b'bnry'
     struct.pack_into('<i', header, 4, len(instances))
@@ -2053,22 +1430,7 @@ class IPLParser: #vers 2
         self._current_inst_layout = game
 
     def parse(self, ipl_path: str, layout_override: str = None) -> bool: #vers 3
-        """layout_override (Sep 5 2026, per Keith: "LC, MLL, VC are
-        still in VC format... a loading toggle to adjust ipl loading
-        patterns") - a per-file override for which game's section set
-        and instance field layout to parse THIS file with, distinct
-        from self.game (the overall world's own game). Confirmed real
-        need: SOL's own LC/MLL/VC sub-city IPLs are still genuinely
-        VC-format even though the rest of SOL is SA-format - parsing
-        them with SA's field layout (interior,px,py,pz,rx,ry,rz,rw)
-        instead of VC's real one (interior,px,py,pz,SCALE_x,scale_y,
-        scale_z,rx,ry,rz,rw) silently misreads VC's own real scale
-        values as rotation components, since VC-format lines still
-        have enough fields to pass SA's own, looser length check
-        (>= 10) - not rejected outright, just silently wrong. Pass
-        e.g. GTAGame.VC here for one specific file; leave it None for
-        every normal file, which keeps today's behaviour (self.game)
-        unchanged."""
+        """layout_override (Sep 5 2026)"""
         if not os.path.isfile(ipl_path):
             self.stats.errors.append(f"IPL not found: {ipl_path}")
             return False
@@ -2154,9 +1516,7 @@ class IPLParser: #vers 2
 
     def _parse_path_group_header(self, line: str, source: str, lineno: int): #vers 1
         """A path group's own header line - two comma-separated
-        integers (Aug 1 2026, per Keith's real uploaded paths.ipl:
-        "1, -1" / "0, -1" etc.) preceding up to 12 tab-indented
-        PathNode lines."""
+        integers (Aug 1 2026)"""
         try:
             parts = [p.strip() for p in line.split(",")]
             if len(parts) < 2:
@@ -2174,18 +1534,7 @@ class IPLParser: #vers 2
         Project Cerbera's VC path documentation: Type, Next, 0, X, Y,
         Z, Median, Left, Right, Flag1, Flag2, Flag3.
 
-        X/Y/Z scale conversion (Aug 1 2026, per Keith: "the path
-        coords arent the same scale as the IPL data, this needs to be
-        worked up") - confirmed against his real uploaded paths.ipl:
-        raw coordinates like (-13866.1, -10439.2) are roughly 16x too
-        large to be standard world units (VC's map is roughly -2000 to
-        +2000), and Project Cerbera's own VC path documentation states
-        these are stored in "precision units, which are sixteen times
-        smaller than standard units" - dividing by 16 brings them to
-        (-866.6, -652.5), squarely within VC's normal world bounds.
-        Applied here so a PathNode's x/y/z land in the same coordinate
-        space as everything else (inst positions, etc.), not the
-        file's own internal, differently-scaled units."""
+        X/Y/Z scale conversion (Aug 1 2026)"""
         try:
             parts = [p.strip() for p in line.split(",")]
             if len(parts) < 6:
@@ -2211,9 +1560,8 @@ class IPLParser: #vers 2
             return None
 
     def _parse_grge(self, line: str, source: str, lineno: int): #vers 1
-        """One SA "grge" (garage) line - eleven fields, per Keith's
-        real example data and confirmed SannyBuilder forum
-        documentation: X1,Y1,Z1, frontX,frontY, X2,Y2,Z2, DoorType,
+        """One SA "grge" (garage) line - eleven fields, my real example data and confirmed
+        SannyBuilder forum documentation: X1,Y1,Z1, frontX,frontY, X2,Y2,Z2, DoorType,
         GarageType, Name."""
         try:
             parts = [p.strip() for p in line.split(",")]
@@ -2231,12 +1579,7 @@ class IPLParser: #vers 2
             return None
 
     def _parse_enex(self, line: str, source: str, lineno: int): #vers 1
-        """One SA "enex" (entrance/exit) line - eighteen fields, per
-        Keith's real example data and confirmed Grand Theft Wiki
-        documentation: X1,Y1,Z1, EnterAngle, SizeX,SizeY,SizeZ,
-        X2,Y2,Z2, ExitAngle, TargetInterior, Flags, Name, Sky,
-        NumPedsToSpawn, TimeOn, TimeOff. Name arrives as a literal
-        quoted string (e.g. "BAR2") - quotes stripped for storage."""
+        """One SA "enex" (entrance/exit) line - eighteen fields)"""
         try:
             parts = [p.strip() for p in line.split(",")]
             if len(parts) < 18:
@@ -2274,15 +1617,7 @@ class IPLParser: #vers 2
             elif layout == GTAGame.VC:
                 # VC: id, model, interior, px,py,pz, sx,sy,sz, rx,ry,rz,rw -
                 # confirmed empirically (not guessed) against a real line
-                # Keith provided: 429, mlamppost, 0, -686.7186279,
-                # 593.7156982, 14.58199501, 1, 1, 1, 0, 0, -0.999048233,
-                # 0.0436193347 - the last 4 values form a valid unit
-                # quaternion (magnitude^2 = 1.0000000182), and MooMapper's
-                # own Item Editor labels the field at index 2 "Interior"
-                # for a real islandsf.ipl instance. This was previously
-                # folded into the same branch as GTA3 with NO interior/
-                # scale fields at all, silently reading the interior
-                # value as pos_x for every VC instance.
+
                 if len(parts) < 13:
                     return None
                 inst = IPLInstance(
@@ -2293,13 +1628,8 @@ class IPLParser: #vers 2
                     rot_z=float(parts[11]), rot_w=float(parts[12]),
                     source_ipl=source, line_no=lineno)
             else:
-                # GTA3: id, model, px, py, pz, sx, sy, sz, rx, ry, rz, rw -
-                # NOT yet empirically verified the way VC now is (best-
-                # effort recollection: GTA3's simpler/older format has no
-                # interior field, unlike VC's confirmed one) - needs its
-                # own real sample line to confirm or correct, the same
-                # way VC's format just got fixed. Don't assume this is
-                # right just because VC turned out to need a similar fix.
+                # GTA3: id, model, px, py, pz, sx, sy, sz, rx, ry, rz, rw
+
                 if len(parts) < 12:
                     return None
                 inst = IPLInstance(
@@ -2310,17 +1640,7 @@ class IPLParser: #vers 2
                     rot_z=float(parts[10]), rot_w=float(parts[11]),
                     source_ipl=source, line_no=lineno)
 
-            # Diagnostic (Sep 5 2026, per Keith's own real, still-
-            # unexplained rotation bug for a SOL sub-city instance -
-            # every code path traced so far checks out correctly on
-            # paper, but the real running result didn't match) - a
-            # valid rotation quaternion's magnitude must be ~1.0;
-            # anything far from that is a concrete, objective sign
-            # THIS line got parsed with the wrong field layout, no
-            # matter which layout value looked "correct" upstream.
-            # Surfaces which layout/game actually got used and where,
-            # directly in this app's own warnings, rather than
-            # requiring more guessing from static code alone.
+            # Diagnostic (Sep 5 2026)
             mag2 = inst.rot_x**2 + inst.rot_y**2 + inst.rot_z**2 + inst.rot_w**2
             if not (0.9 < mag2 < 1.1):
                 self.stats.warnings.append(
@@ -2336,13 +1656,7 @@ class IPLParser: #vers 2
     def _parse_zone(self, line: str, source: str, lineno: int) -> Optional[Dict]: #vers 2
         """Parse one "zone" section line - Name, Type, MinX/Y/Z,
         MaxX/Y/Z, Island[, TextKey]. Now carries source_ipl/line_no
-        (Aug 16 2026 fix, per Keith: "ive loaded zon files... but I
-        cant see them in the viewpoint") - every other section type
-        this parser handles (inst/cull/grge/enex/path) already tracks
-        which file a parsed entry came from, for per-IPL visibility
-        filtering; zone was the one exception, meaning zone boxes
-        couldn't be shown/hidden per-file consistently with
-        everything else even once viewport rendering existed."""
+        (Aug 16 2026 fix)"""
         try:
             p = [x.strip() for x in line.split(",")]
             if len(p) < 8:
@@ -2362,76 +1676,13 @@ class IPLParser: #vers 2
 
         III/VC: CenterX/Y/Z, X1/Y1/Z1, X2/Y2/Z2, Flags,
         WantedLevelDrop (11 fields, two genuine corner points) - Aug
-        16 2026, per Keith's real cull.ipl upload, confirmed field-
-        for-field against that real file and multiple independent
-        wiki sources.
-
-        SA: CenterX/Y/Z, Unknown1 (XSkew), Length, Bottom, Width,
-        Unknown2 (YSkew), Top, Flag, then either Unknown3 (11 fields)
-        or Vx/Vy/Vz/Cm real mirror-plane data (14 fields) - both real
-        variants confirmed present in Keith's own real, uploaded
-        cull.ipl (Aug 21 2026); only the first 10 fields matter here
-        either way.
-
-        Real fix v1 (Aug 21 2026, per Keith's own real, uploaded
-        SA_Cull_Files.png screenshot: "SA cull file not being parsed
-        correctly") first confirmed SA uses this genuinely different
-        field layout at all, vs the III/VC parser's own two-corner-
-        point assumption which was reading SA's own real "length"
-        field as a literal X1 coordinate and so on - real, garbled
-        nonsense geometry, matching the tangled shapes in that
-        screenshot.
-
-        Real fix v2 (Aug 21 2026, once Keith's own real, uploaded
-        cull.ipl file itself let this be checked against real data,
-        not just wiki text) - v1's own X/Y-extent formula was still
-        wrong in 2 real ways, confirmed via GTAMods' own real Talk:
-        CULL page, itself confirmed by a real user's own real, cross-
-        checked example against an actual in-game building (a cull
-        zone above Santa Maria Beach, Los Santos): (1) the field
-        names are genuinely swapped from what the main CULL page
-        implies - "Length" (this field's own real position, index 4)
-        is actually the real Y-axis distance from CenterY, "Width"
-        (index 6) the real X-axis distance from CenterX, the opposite
-        of v1's own assumption; (2) each field IS ALREADY the real
-        half-extent ("distance from center"), not a full width to
-        halve again - v1's own /2.0 was real, silent over-shrinking,
-        making every real box half its own true size.
-
-        There's also a real, confirmed skew effect (Unknown1/
-        Unknown2, genuinely non-zero in the majority - 702 of 1230,
-        57% - of Keith's own real cull.ipl lines, not a rare edge
-        case) that turns the box into a real, skewed quadrilateral,
-        not a plain axis-aligned rectangle - a crude form of rotation
-        confirmed by that same real user's own cross-check (a real,
-        10-degree-rotated building). Full support would need this
-        codebase's own CullEntry/box rendering/corner-drag-resize/
-        picking to all store and handle 4 independent real corners
-        instead of a plain 2-corner AABB, a real, much larger change
-        touching many real files - not attempted here. Computes the
-        real, skewed quadrilateral's own 4 corners with the confirmed
-        formula, then takes their own real min/max X/Y as this box's
-        own stored (x1,y1)-(x2,y2) - a real, correctly-enclosing
-        axis-aligned bounding box, honestly not the exact skewed
-        shape itself, but a large, confirmed improvement over v1's
-        own real, silently-wrong, unskewed, half-sized box."""
+        16 2026)"""
         try:
             p = [x.strip() for x in line.split(",")]
             if len(p) < 9:
                 return None
             cx, cy, cz = float(p[0]), float(p[1]), float(p[2])
-            # Real fix (Aug 21 2026, per Keith: "when loading SOL, are
-            # you using the SA parser or VC parser?") - SOL is its
-            # own, distinct GTAGame value (not "sa"), so this check
-            # never matched it, despite SOL being explicitly, real,
-            # documented elsewhere in this same file as running on
-            # the SA engine with SA-format IPL sections (IPL_SECTIONS
-            # ['sol'] is identical to ['sa'], and build_xref's own
-            # real game in (SA, SOL) check already treats them the
-            # same). SOL cull.ipl lines were silently falling through
-            # to the III/VC two-corner-point branch instead - the
-            # exact same real, garbled-geometry bug SA itself had
-            # before this whole fix existed.
+            # Real fix (Aug 21 2026)
             if self.game in (GTAGame.SA, GTAGame.SOL):
                 xskew, length, bottom = float(p[3]), float(p[4]), float(p[5])
                 width, yskew, top = float(p[6]), float(p[7]), float(p[8])
@@ -2465,7 +1716,7 @@ class IPLParser: #vers 2
         """Parse one "occl" section line - MidX, MidY, BottomZ,
         WidthX, WidthY, Height, Rotation (7 fields). Confirmed against
         GTAMods/Grand Theft Wiki (word-for-word agreement between the
-        two) and verified field-for-field against Keith's real
+        two) and verified field-for-field against my real
         occlu.ipl upload. "occl" wasn't even a recognised section
         keyword for VC before this (see IPL_SECTIONS' own fix note) -
         a real occlu.ipl's occl lines would have silently gone
@@ -2696,11 +1947,7 @@ class GTAWorldLoader: #vers 3
         self.timed_objects: Dict[int, List[IDEObject]] = {}
         self.instances:  List[IPLInstance]    = []
         self.paths:      List[PathGroup]      = []
-        # GTA III's own IDE-embedded path groups (Aug 16 2026) - kept
-        # separate from self.paths (VC/SA's own IPL-section path
-        # format) since they're a genuinely different shape (relative
-        # to a placed instance, not standalone world coordinates) -
-        # see IDEPathGroup's own docstring for the full story.
+        # GTA III's own IDE-embedded path groups (Aug 16 2026)
         self.ide_paths:  List[IDEPathGroup]   = []
         self.grges:      List[GrgeEntry]       = []
         self.enexes:     List[EnexEntry]       = []
@@ -2708,53 +1955,18 @@ class GTAWorldLoader: #vers 3
         self.culls:      List[CullEntry]      = []
         self.occls:      List[OcclEntry]      = []
         self.auzos:      List[AuzoEntry]      = []
-        # Train track waypoints (Aug 17 2026) - keyed by source
-        # filename (e.g. "tracks.dat", "tracks2.dat"), each value an
-        # ordered list of TrackWaypoint - not part of the IDE/IPL
-        # section system at all, loaded separately by load_tracks_dat
-        # since these files aren't referenced in gta.dat/gta3.dat's
-        # own directive list.
+        # Train track waypoints (Aug 17 2026)
         self.tracks:     Dict[str, List[TrackWaypoint]] = {}
-        # SA vehicle/ped path node data (Aug 19 2026, per Keith: "i'd
-        # be nice to see whats in those node.dat files, for SA") -
-        # keyed by area_id (0-63), each value a fully-parsed SAPathFile
-        # (apps/methods/sa_path_parser.py - a genuinely separate binary
-        # format from III/VC's own self.paths, SA-only, not part of
-        # the IDE/IPL section system at all, same "loaded separately"
-        # reasoning as self.tracks just above). Populated by
+        # SA vehicle/ped path node data (Aug 19 2026)
         # load_sa_nodes, SA only.
         self.sa_nodes:   Dict[int, object] = {}
-        # Police roadblock placements (Aug 19 2026, per Keith's real
-        # ROADBLOX.DAT sample) - SA-only, references real vehicle
-        # path nodes from self.sa_nodes above (see RoadblockEntry's
-        # own docstring for the full format confirmation). Populated
-        # by load_sa_roadblox, SA only.
+        # Police roadblock placements (Aug 19 2026)
         self.sa_roadblocks: List[RoadblockEntry] = []
-        # Real water plane shapes (Aug 20 2026, per Keith: "lets get
-        # all the functions in" - water/radar recalculation on map
-        # moves, item 1 of 3 on his own list). SA's own text water.dat
-        # only (see WaterShape's own docstring for the full format
-        # confirmation) - III/VC use a completely different, binary
-        # waterpro.dat format, stored separately below in self.
-        # waterpro instead (a genuinely different structure, not a
-        # list of shapes at all - see WaterProFile's own docstring).
-        # Populated by load_water_dat.
+        # Real water plane shapes (Aug 20 2026)
         self.water_shapes: List[object] = []
-        # III/VC's own binary waterpro.dat (Aug 20 2026, same request
-        # as water_shapes just above) - a single WaterProFile or None,
-        # not a list, since the real format itself is one fixed-size
-        # binary structure (48 levels + a 64x64 visible map + a
-        # 128x128 physical map), not a variable list of shapes the
-        # way SA's own text water.dat is. Populated by load_waterpro_dat.
+        # III/VC's own binary waterpro.dat (Aug 20 2026)
         self.waterpro: Optional[object] = None
-        # GTA III chase-scene car paths (Aug 19 2026, per Keith's
-        # real CHASE0-19.DAT sample) - keyed by source filename (e.g.
-        # "CHASE0.DAT"), each value the full ordered list of real,
-        # per-frame ChaseFrame records for that one car's own
-        # recorded path through the introduction cutscene. GTA III
-        # only, same "loaded separately, not part of the IDE/IPL
-        # section system" reasoning as self.tracks. Populated by
-        # load_chase_dat.
+        # GTA III chase-scene car paths (Aug 19 2026)
         self.chase_paths: Dict[str, List[object]] = {}
         # (phase, type, abs_path, success)
         self.load_log:   List[Tuple[str, str, str, bool]] = []
@@ -2766,7 +1978,7 @@ class GTAWorldLoader: #vers 3
         # load()/load_from_dat() - _reset() doesn't touch this, so it
         # survives across those calls.
         self.ipl_filter: Optional[set] = None
-        # Per Keith's MooMapper comparison: it lists every available IPL
+        # MooMapper comparison: it lists every available IPL
         # path immediately but doesn't actually parse/load an IPL's
         # content until the user asks for it. Opt-in (default False,
         # existing eager-load-everything behaviour unchanged) since
@@ -2782,14 +1994,7 @@ class GTAWorldLoader: #vers 3
         self.loaded_ipls: set = set()   # lowercase stems already loaded on demand
         # IPL stems (lowercase, no extension) to parse using VC's own
         # section set and instance field layout instead of self.game's
-        # default (Sep 5 2026, per Keith: "LC, MLL, VC are still in VC
-        # format... a loading toggle to adjust ipl loading patterns") -
-        # for SOL sub-city IPLs that are still genuinely VC-format even
-        # though the rest of SOL is SA-format. Empty by default (no
-        # change to existing behaviour); populated by the caller (map_
-        # workshop.py's own Settings, per Keith's "loading toggle") for
-        # a specific world load. See IPLParser.parse's own docstring
-        # for the real reason this override matters.
+        # default (Sep 5 2026)
         self.vc_layout_ipl_stems: set = set()
 
     def load(self, game_root: str, progress_cb=None) -> bool: #vers 5
@@ -2886,25 +2091,12 @@ class GTAWorldLoader: #vers 3
         self.stats.instances      = len(self.instances)
         self.load_tracks_dat(data_dir)
         if self.game == GTAGame.SA:
-            # SA-only (Aug 19 2026, per Keith: "i'd be nice to see
-            # whats in those node.dat files, for SA") - vehicle/ped
-            # path nodes are a completely different, binary-only
-            # format specific to SA (III uses IDE-embedded paths, VC
-            # uses the text IPL "path" section - neither has a
-            # nodesN.dat equivalent at all), so this is gated the same
-            # way GTA III's own IDE-path resolution already is,
-            # unlike load_tracks_dat just above which applies across
-            # multiple games.
+            # SA-only (Aug 19 2026)
             self.load_sa_nodes(game_root, data_dir)
             self.load_sa_roadblox(data_dir)
             self.load_water_dat(data_dir)
         if self.game == GTAGame.GTA3:
-            # GTA III-only (Aug 19 2026, per Keith's real CHASE0-19.
-            # DAT sample) - the introduction cutscene's own chase-
-            # scene car paths, a format specific to III (its own
-            # successor RRR/carrec.img is a completely different SA/
-            # GTA IV mechanism entirely, not something this app reads
-            # or writes today).
+            # GTA III-only (Aug 19 2026)
             self.load_chase_dat(data_dir)
         if self.game in (GTAGame.GTA3, GTAGame.VC, GTAGame.SOL):
             # III/VC/SOL - waterpro.dat is a completely different,
@@ -2912,50 +2104,12 @@ class GTAWorldLoader: #vers 3
             # text water.dat instead, see load_water_dat just above;
             # SOL is built on the VC engine, so it uses the same
             # binary format VC does, not SA's).
-            #
-            # SOL-specific real fix (Aug 20 2026, per Keith: "with
-            # GTASOL looking for /sol/gta_sol.dat the waterpro.dat
-            # would be in gameroot/data/waterpro.dat") - data_dir here
-            # is the folder main_dat's own path actually lives in,
-            # which for SOL is gameroot/sol, not gameroot/data - using
-            # it directly for SOL's own waterpro.dat fallback would
-            # look in the wrong folder entirely. game_root/data is the
-            # real, correct folder for every one of these three games.
             waterpro_dir = os.path.join(game_root, "data") if self.game == GTAGame.SOL else data_dir
             self.load_waterpro_dat(waterpro_dir)
         return True
 
     def load_tracks_dat(self, data_dir: str): #vers 2
-        """Load train track waypoints, and (Aug 19 2026, per Keith's
-        real LC/VC/SA path-folder samples) every other file confirmed
-        to share the exact same "count then X Y Z[ flag] lines" shape
-        - flight.dat/flight2.dat/flight3.dat/flight4.dat (per Keith:
-        "some are Airplane paths") and spath0.dat, alongside the
-        original tracks.dat/tracks2.dat. Also fixed a real gap this
-        same pass: SA genuinely has FOUR tracks files (tracks3.dat/
-        tracks4.dat too, confirmed present and same format in Keith's
-        real SA sample) - the original `wanted` set only covered two,
-        silently missing two real, valid track files for SA every
-        time this ran.
-
-        Not referenced anywhere in gta.dat/gta3.dat's own directive
-        list for any of these (confirmed absent from a real, complete
-        gta3.dat) - the game loads these from this fixed, well-known
-        relative path instead, so this is called unconditionally at
-        the end of load_from_dat rather than gated by any directive.
-        Case-insensitive lookup for both the "paths" subdirectory and
-        the filenames themselves, matching this file's own
-        established convention for locating real files on a case-
-        sensitive filesystem (Linux) against data that may have been
-        packaged with different casing.
-
-        flight*.dat/spath0.dat are stored in self.tracks too (same
-        dict, same TrackWaypoint shape) rather than a separate
-        collection - they're genuinely the same format and the same
-        "an ordered point list, no node graph" nature as tracks.dat
-        itself, just a different in-game purpose (aircraft paths vs
-        rail paths) - a caller that wants to tell them apart can
-        still do so via each TrackWaypoint's own source_file."""
+        """Load train track waypoints, and (Aug 19 2026)"""
         if not data_dir or not os.path.isdir(data_dir):
             return
         paths_dir = None
@@ -2979,34 +2133,7 @@ class GTAWorldLoader: #vers 3
 
     def load_sa_nodes(self, game_root: str = "", data_dir: str = ""): #vers 1
         """Load every real, game-used nodesN.dat area file for SA (Aug
-        19 2026, per Keith: "i'd be nice to see whats in those
-        node.dat files, for SA"). Confirmed via direct research before
-        writing this, not assumed: the wiki-documented "the game
-        ignores nodesN.dat" claim specifically refers to LOOSE copies
-        sitting in data/paths/ on disk - the real, actually-used copies
-        the game reads for genuine vehicle/ped pathfinding are the 64
-        area files packed INSIDE gta3.img (or another archive), at the
-        standard game_root/models/gta3.img location. Tries that real
-        location first via apps.methods.sa_path_parser's already-built
-        find_nodes_dat_in_img/load_nodes_dat_from_img_entry (a local
-        import here, not at this module's own top level - img_core_
-        classes.py pulls in PyQt6, and this module is deliberately
-        kept GUI-free at import time so it stays usable in a headless
-        context; only a caller that actually needs this pays that
-        cost). Falls back to the loose data/paths/ directory (via sa_
-        path_parser's own load_all_nodes_dat_from_dir) only if the
-        archive isn't found/openable - genuinely useful as a fallback
-        for comparison/reference even though the wiki says the game
-        itself won't read that particular copy, so this doesn't
-        refuse to load it, it just can't be presented as the "real"
-        in-game data the way the archive copy can.
-
-        Populates self.sa_nodes keyed by area_id. All 64 areas are
-        loaded together (not one at a time on demand) because links
-        between path nodes can cross between areas - resolving a
-        link's own target position correctly needs the whole combined
-        set already loaded, not just the one area file a caller might
-        currently be looking at."""
+        19 2026)"""
         from apps.methods.sa_path_parser import (
             find_nodes_dat_in_img, load_nodes_dat_from_img_entry,
             load_all_nodes_dat_from_dir)
@@ -3055,22 +2182,9 @@ class GTAWorldLoader: #vers 3
 
     def load_sa_roadblox(self, data_dir: str): #vers 1
         """Load SA's real police-roadblock placement data from data/
-        paths/ROADBLOX.DAT (Aug 19 2026, per Keith's real sample -
-        "lets do those next"). Format confirmed against real,
-        published documentation (GTAMods wiki) AND cross-checked
-        directly: a 4-byte int32 count followed by up to 325 fixed
-        (area_id: int16, node_id: uint16) slots, matching the real
-        file's own exact 1304-byte size (4 + 325*4) - only the first
-        `count` slots are meaningful, the rest is fixed padding always
-        present regardless of how many roadblocks are actually
-        defined. Verified all 325 real entries in Keith's own real
-        file resolve to a genuinely valid vehicle node index within
-        their own stated area, cross-referenced against his own real,
-        complete NODES0-63.DAT set - not just a format that happens
-        to parse without error.
-
-        Same case-insensitive "paths" subdirectory lookup convention
-        already established by load_tracks_dat/load_sa_nodes."""
+        paths/ROADBLOX.DAT (Aug 19 2026) Same case-insensitive "paths"
+        subdirectory lookup convention already established by
+        load_tracks_dat/load_sa_nodes."""
         if not data_dir or not os.path.isdir(data_dir):
             return
         paths_dir = None
@@ -3094,12 +2208,6 @@ class GTAWorldLoader: #vers 3
                 return
             count = struct.unpack_from('<i', data, 0)[0]
             if count < 0 or count > 325:
-                # Documented as a real, valid way to disable the file
-                # entirely ("count can be set to -1... roadblocks
-                # will be ignored") - and a corrupt/unexpected value
-                # beyond the fixed 325-slot capacity is never trusted
-                # either way, rather than reading past the file's own
-                # real bounds.
                 return
             entries = []
             for i in range(count):
@@ -3119,17 +2227,7 @@ class GTAWorldLoader: #vers 3
         dat.water_entries()) - the directive is real, documented (per
         GTAMods' own gta.dat page: "these entries link to external
         water plane placement files"). Falls back to the real,
-        standard data_dir/water.dat path (Aug 20 2026, per Keith's own
-        real-install report for waterpro.dat's identical gap - "those
-        files would be in the same place as gta_vc.dat/gta3.dat/gta.
-        dat") if no directive is found, for the same real robustness
-        reason that fallback was added for waterpro.dat. Uses the
-        first real, resolved, existing entry found - a real gta.dat
-        could list more than one WATER line (GTAMods: "the WATER
-        identifier can hold more than one parameter"), but SA's own
-        real water1.dat is documented as a dead, unused leftover, so
-        taking the first real match is the correct choice, not an
-        oversimplification."""
+        standard data_dir/water.dat path (Aug 20 2026)"""
         entries = getattr(self.main_dat, 'water_entries', lambda: [])()
         for entry in entries:
             if entry.exists:
@@ -3139,12 +2237,7 @@ class GTAWorldLoader: #vers 3
                     self.load_log.append(("water", "WATER", entry.abs_path, True))
                     return
         if data_dir:
-            # Case-insensitive fix (Aug 20 2026, same real bug as
-            # load_waterpro_dat's own fix just above - see its own
-            # docstring for the full real story confirmed against
-            # Keith's own VC install) - applied here too pre-
-            # emptively, since a real SA install could just as easily
-            # have its own water.dat named in a different case.
+            # Case-insensitive fix (Aug 20 2026)
             fallback_path = _resolve_ci(data_dir, "water.dat")
             if fallback_path:
                 shapes = parse_water_dat(fallback_path)
@@ -3156,37 +2249,7 @@ class GTAWorldLoader: #vers 3
     def load_waterpro_dat(self, data_dir: str = ''): #vers 4
         """Load GTA III/VC's own binary waterpro.dat.
 
-        Real fix (Aug 20 2026, per Keith: "I am using the original VC
-        install, the waterpro.dat is in gameroot/data/waterpro.dat")
-        - the original version relied entirely on main_dat's own real,
-        parsed WATER directive entries, the same way load_water_dat
-        (SA's own text water.dat) already does. That's genuinely
-        correct for SA - its own gta.dat really does carry a real,
-        explicit WATER directive - but a real, vanilla III/VC gta3.
-        dat/gta_vc.dat does not: waterpro.dat is a fixed, hardcoded
-        file for those two games, always at data/waterpro.dat next to
-        the main .dat file itself, never referenced by a directive at
-        all. Relying solely on the directive-based lookup meant this
-        silently found nothing for any real, unmodified VC/III
-        install, exactly as Keith reported. Now tries the WATER
-        directive first (still correct for a modded gta*.dat that
-        does define one), then falls back to the real, standard
-        data_dir/waterpro.dat path GTAMods documents for these two
-        games specifically.
-
-        Real fix (Aug 20 2026, per Keith's own confirmed `ls -la`:
-        "-rwxrwxr-x 1 x2 x2 21444 ... WATERPRO.DAT") - this real VC
-        install's own file is genuinely named in all-caps on disk,
-        while the fallback above only ever tried the one, exact-case
-        "waterpro.dat" via plain os.path.join+isfile - correct on
-        Windows' own case-insensitive filesystem, but silently fails
-        on a real, case-sensitive Linux one. The same real reason LC
-        happened to work and VC didn't despite completely identical
-        code - purely a difference in how each real install's own
-        files happen to be cased on disk, not a real per-game
-        difference at all. _resolve_ci (the same real, already-
-        existing helper SOL's own case quirks already rely on) fixes
-        this the same way."""
+        Real fix (Aug 20 2026)"""
         entries = getattr(self.main_dat, 'water_entries', lambda: [])()
         for entry in entries:
             if entry.exists:
@@ -3196,19 +2259,7 @@ class GTAWorldLoader: #vers 3
                     self.load_log.append(("water", "WATERPRO", entry.abs_path, True))
                     return
         if data_dir:
-            # Real fix (Aug 20 2026, per Keith's own real, confirmed
-            # `ls -la`: "-rwxrwxr-x 1 x2 x2 21444 ... WATERPRO.DAT" -
-            # this real VC install's own real file is genuinely named
-            # in all-caps on disk, while a plain os.path.join+isfile
-            # only ever tried the one, exact-case "waterpro.dat" -
-            # correct on Windows' own case-insensitive filesystem, but
-            # silently fails on Keith's own real, case-sensitive Linux
-            # one. Same real reason LC happened to work and VC didn't
-            # despite identical code - purely a difference in how each
-            # real install's own files happen to be cased on disk, not
-            # a real game-specific difference at all. _resolve_ci (the
-            # same real, already-existing helper SOL's own case
-            # quirks already rely on) fixes this the same way.
+
             fallback_path = _resolve_ci(data_dir, "waterpro.dat")
             if fallback_path:
                 result = parse_waterpro_dat(fallback_path)
@@ -3219,27 +2270,7 @@ class GTAWorldLoader: #vers 3
 
     def load_chase_dat(self, data_dir: str): #vers 1
         """Load every real GTA III CHASE*.DAT chase-scene car path
-        found in data/paths/ (Aug 19 2026, per Keith's real sample -
-        "lets do those next"). Format confirmed against real,
-        published documentation (GTAMods wiki) AND cross-checked
-        directly against Keith's own real CHASE0.DAT: no header or
-        count at all, just a plain, fixed-size 28-byte record repeated
-        for the whole file - the real file's own size divided cleanly
-        by 28 with zero remainder, and real decoded positions form a
-        tight, plausible cluster of GTA III world coordinates that
-        change smoothly frame-to-frame, not a coincidental byte
-        alignment. GTA III only - its own successor mechanism (RRR
-        files inside carrec.img) is a completely different SA/GTA IV
-        format this app doesn't read.
-
-        Scans for ANY file matching CHASE<N>.DAT (case-insensitive) in
-        the paths directory, rather than a fixed list of exactly 20 -
-        Keith's own real upload only had 14 of the 20 possible index
-        numbers present (some indices are simply unused in a real
-        install), so a fixed "must have all 20" list would silently
-        skip real, present files. Same case-insensitive "paths"
-        subdirectory lookup convention already established by load_
-        tracks_dat/load_sa_nodes/load_sa_roadblox."""
+        found in data/paths/ (Aug 19 2026)"""
         if not data_dir or not os.path.isdir(data_dir):
             return
         paths_dir = None
@@ -3260,14 +2291,7 @@ class GTAWorldLoader: #vers 3
                 self.load_log.append(("chase", "CHASE_PATH", abs_path, True))
 
     def _parse_chase_file(self, abs_path: str, source_name: str): #vers 1
-        """Parse one CHASE*.DAT file - a plain sequence of fixed
-        28-byte records, no header (see ChaseFrame's own docstring
-        for the full field layout and real-data confirmation).
-        Ignores any trailing partial record (a file whose size isn't
-        an exact multiple of 28 - shouldn't happen for a real,
-        uncorrupted file, but division here is int-truncating, so a
-        stray few extra bytes at the end are simply never read as a
-        record rather than raising or reading past the file)."""
+        """Parse one CHASE*.DAT file."""
         try:
             with open(abs_path, 'rb') as f:
                 data = f.read()
@@ -3300,7 +2324,7 @@ class GTAWorldLoader: #vers 3
         first line, then exactly that many "X Y Z" (or "X Y Z FLAG")
         lines (see TrackWaypoint's own docstring for the full format
         confirmation, including the 4th value's own confirmation
-        against Keith's real SA tracks.dat/tracks2/3/4.dat samples -
+        against my real SA tracks.dat/tracks2/3/4.dat samples -
         VC/GTA III's own tracks.dat/tracks2.dat only ever had 3 per
         line, which is why this only expected 3 originally). Genuinely
         simpler than every other path format handled in this file -
@@ -3417,21 +2441,7 @@ class GTAWorldLoader: #vers 3
         self.stats.warnings += parser.stats.warnings
 
     def load_ipl_by_name(self, ipl_stem: str) -> IPLLoadResult: #vers 2
-        """Actually parse and load one specific IPL's content, given its
-        lowercase stem (no extension) as it appears in available_ipls -
-        the on-demand counterpart to lazy_ipl_loading's discovery-only
-        _process_dat pass. Adds the resulting instances/zones/culls to
-        this loader's own lists (so everything downstream - Object
-        Browser, World View, LOD pairing, etc - sees them exactly as if
-        they'd been loaded eagerly), and records the stem in
-        loaded_ipls so it isn't reloaded (or double-counted) if
-        requested again.
-
-        Returns an IPLLoadResult (not a bare bool) with per-IPL error/
-        warning counts and messages - per Keith's request for per-IPL
-        success/error reporting during loading, which needs to know
-        specifically what went wrong with THIS one IPL, not just the
-        loader's overall accumulated stats."""
+        """Actually parse and load one specific IPL's content."""
         if ipl_stem in self.loaded_ipls:
             return IPLLoadResult(success=True)   # already loaded, nothing to do
         entry = self.available_ipls.get(ipl_stem)
@@ -3533,14 +2543,7 @@ class GTAWorldLoader: #vers 3
         disk - same accessor pattern as get_img_paths, reading the
         same load_log (COLFILE entries are already appended there in
         _process_dat, "so DAT Browser tree can display and open
-        them"). Aug 14 2026, per Keith: in GTA3 collision is ONLY
-        reachable this way (no COL entries in the IMG at all - the
-        .dat's COLFILE paths point into data/maps/); in VC most
-        per-object collision is in gta3.img like the models, but a
-        handful of shared collision (e.g. generic.col) is still
-        COLFILE-referenced; SA has zero COLFILE directives (all
-        collision lives in the IMG, indexed by ModelCache.
-        index_img_files instead - see its own docstring)."""
+        them"). Aug 14 2026)"""
         seen = set()
         paths = []
         for phase, entry_type, abs_path, exists in self.load_log:
@@ -3564,42 +2567,7 @@ class GTAWorldLoader: #vers 3
         """Resolve each instance's paired LOD counterpart, where one
         exists. Two detection strategies, both run for every game and
         combined (Aug 1 2026, widened from being mutually exclusive
-        by game - per Keith: "when LOD only is set, it still loads
-        everything, when Norm is set, it loads the lods aswell,
-        filenames for lods, Start of LOD or lod" - his own real SA
-        data has always shown lod_index=-1 in practice (e.g.
-        LODroadB48 in LAe.ipl), so the lod_index-only strategy
-        previously gated to SA/SOL found nothing there; his own
-        model name ("LODroadB48") confirms SA uses the same "LOD"
-        prefix naming convention as GTA3/VC, not lod_index alone -
-        same lesson as the rotation conjugate fix, which also turned
-        out to need widening from an initially SA/VC-specific
-        assumption to apply universally):
-
-        1. lod_index field (SA/SOL, best-effort, based on community-
-           documented format - not verified against official
-           documentation): a positive lod_index is the 0-based
-           position, among just the "inst" entries of that SAME
-           source .ipl file, of this instance's paired counterpart.
-           -1 means no LOD pair via this field. Still checked for
-           every game, in case some data genuinely uses it, even
-           though real SA sample data seen so far hasn't.
-
-        2. "LOD" name-prefix matching (all games): an instance whose
-           model name starts with "lod" (case-insensitive) pairs with
-           another instance in the same source IPL file whose model
-           name matches the remainder (e.g. "LODdock10" -> "dock10",
-           "LODroadB48" -> "roadB48") AND whose position is at (or
-           extremely close to) the same coordinates - the position
-           check guards against two unrelated objects that happen to
-           share a name pattern coincidentally.
-
-        Returns a dict mapping id(instance) -> its paired IPLInstance,
-        for every instance that resolves to a valid pair via either
-        strategy. Keyed by id() rather than model_id/position, since
-        multiple instances can share a model_id and this is about a
-        specific placement's specific pairing, not anything
-        model-level."""
+        by game."""
         pairs: Dict[int, IPLInstance] = {}
         by_file: Dict[str, list] = {}
         for inst in self.instances:
@@ -3612,21 +2580,7 @@ class GTAWorldLoader: #vers 3
                         and inst.lod_index < len(file_instances):
                     pairs[id(inst)] = file_instances[inst.lod_index]
 
-        # Strategy 2: "LOD" name-prefix/suffix matching (Sep 5 2026,
-        # widened to span every loaded instance rather than only those
-        # sharing one source IPL file - per Keith: "switch to LOD
-        # only... I am seeing the normal models still" - his own real
-        # data splits a city's content across multiple simultaneously-
-        # loaded files for streaming reasons (LAn.ipl + lan_stream0/
-        # 1/2.ipl), unrelated to which instances are LOD pairs, so a
-        # normal building and its LOD counterpart can genuinely live
-        # in different files. The position-tolerance check below is
-        # already the real correctness guard here - two unrelated
-        # same-named objects sharing the exact same position anywhere
-        # on the whole map is effectively impossible, so this is safe
-        # to widen from "same file only". Also widened same day to
-        # recognise a "LOD" SUFFIX, not just prefix, per Keith:
-        # "should only be those prefix or suffixed with LOD".)
+        # Strategy 2: "LOD" name-prefix/suffix matching (Sep 5 2026)
         pos_tol = 0.5   # units - allows tiny float/rounding differences
         by_name: Dict[str, list] = {}
         for inst in self.instances:
@@ -3994,39 +2948,7 @@ def optimize_dat_load_order(dat_path, entries): #vers 1
     """Rewrite a real, already-loaded .dat file's own real IDE/IPL/
     COLFILE/IMG directive lines, grouped and sorted the same real way
     Rockstar's own real gta_vc.dat file explicitly documents doing it
-    itself (Aug 21 2026, per Keith: "if the model names, col names,
-    and ide/ipl entries loaded in the same order the game spends less
-    work matching them up, result is the game loads and renders
-    faster... the SOL files have been organized this way, with 3
-    times the data, it loads faster then standard VC") - confirmed,
-    not guessed: gta_vc.dat's own real header comments read, word for
-    word, "Load IDEs first, then the models and after that the IPLs
-    ... everything is loaded on a per directory basis and in
-    alphabetical order to improve the speed of loading."
-
-    Real algorithm, matching that real, official documentation
-    exactly: directive *types* keep their own real, original relative
-    order (IDE-before-IPL stays IDE-before-IPL, exactly as Rockstar's
-    own comment specifies) - only the real entries *within* each real
-    type are regrouped, by (directory, then filename), both real,
-    plain alphabetical order, matching "per directory basis and in
-    alphabetical order" precisely. COLFILE/IMG/CDIMAGE entries get the
-    same real treatment - Keith's own request names col files
-    specifically alongside models.
-
-    entries: the real, already-parsed list of DATEntry objects (e.g.
-    loader.main_dat.entries) - read for their own real path/directive
-    fields only, never mutated.
-
-    Real, honest limitation: only reorders directive *lines* in the
-    real .dat file itself - does NOT reorder real model definitions
-    within an IDE file, or real instance placements within an IPL
-    file (Keith's own request also mentions "model names... loaded in
-    the same order" at that finer level) - that would need touching
-    real IDE/IPL file *contents* file-by-file, a real, separate,
-    larger piece not attempted here.
-
-    Returns (success: bool, message: str)."""
+    itself (Aug 21 2026)"""
     try:
         with open(dat_path, 'r', encoding='ascii', errors='ignore') as f:
             original_lines = f.readlines()
@@ -4092,36 +3014,7 @@ def optimize_dat_load_order(dat_path, entries): #vers 1
 
 def convert_inst_fields(parts, from_game, to_game): #vers 1
     """Convert one already-split INST line's own real fields between
-    VC and SA/SOL layouts (Aug 21 2026, per Keith's own real, worked
-    VC/SA/SOL example lines: "so we need a function to find and
-    change 1, 1, 1, to 0, 0, 0 and convert [SA line] to VC ... and VC
-    to SA"). Field orders used here are IPLParser._parse_inst's own
-    already-empirically-confirmed layouts (VC's own real, confirmed-
-    against-a-real-line quaternion check; SA has no scale fields at
-    all) - not re-derived from Keith's own hand-typed example, since
-    that example's own scale placement doesn't actually match either
-    real, confirmed layout and is very likely a typo, not a real,
-    different format.
-
-    VC:      id, model, interior, px,py,pz, sx,sy,sz, rx,ry,rz,rw
-    SA/SOL:  id, model, interior, px,py,pz, rx,ry,rz,rw[, lod]
-
-    SA/SOL -> VC inserts scale (1.0, 1.0, 1.0) - the real, standard
-    "unscaled" value (never 0,0,0 - a real zero scale collapses the
-    object to nothing, see repair_zero_scale_inst_fields below) -
-    since SA/SOL instances have no real scale of their own to carry
-    over; the trailing lod field, if present, is dropped (VC has none).
-
-    VC -> SA/SOL drops the 3 real scale fields entirely - honest, real
-    data loss for any real instance that was actually scaled (SA/SOL's
-    own IPL inst format has no field to hold that at all); lod is set
-    to -1 (no real LOD parent), since VC has no lod field to carry
-    over either.
-
-    Returns a new list of string fields (ready to ', '.join and write),
-    or None if from_game/to_game aren't a real, supported combination
-    or parts doesn't have enough real fields for from_game's own
-    layout."""
+    VC and SA/SOL layouts (Aug 21 2026)"""
     sa_like = (GTAGame.SA, GTAGame.SOL)
     if from_game in sa_like and to_game == GTAGame.VC:
         if len(parts) < 10:
@@ -4143,15 +3036,7 @@ def repair_zero_scale_inst_fields(parts): #vers 1
     """Fix a real, broken VC-layout INST line whose own real scale
     fields (index 6,7,8) are (0,0,0) instead of the real, standard
     (1,1,1) - a real zero scale collapses the object to nothing in-
-    game (Aug 21 2026, per Keith's own real, worked example: a SOL
-    line converted on the VC engine, "652, new_bushsm, 0, -4513.01,
-    -1286.23, 21.664, 0, 0, 0, 0, 0, -0.016, 1" - fields 6-8 are the
-    real, broken (0,0,0) scale). Only touches a line whose own scale
-    is exactly (0,0,0) - a real, deliberately tiny-but-nonzero scale
-    (an actually shrunk object) is left alone, not assumed broken.
-    Returns a new list of string fields with the fix applied, or the
-    same parts unchanged if scale isn't (0,0,0) or parts is too short
-    to be a real VC-layout line at all."""
+    game (Aug 21 2026)"""
     if len(parts) < 13:
         return parts
     try:

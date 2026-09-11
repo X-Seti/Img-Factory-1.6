@@ -5,24 +5,7 @@
 # load_master_ide
 # write_master_ide
 
-"""master_ide.py - step 1 of Keith's own real Master IDE feature (Sep
-5 2026): "This needs to show the IDE file or all the IDE files in a
-single view... even the ability to create a master file". Loads and
-merges any number of real .ide files, grouped by their own real
-section (objs/tobj/etc - never mixed together), sorted by ID within
-each group (Keith's own real default: "We should always follow ID
-numeric order"). Detects real ID collisions across the merged files
-before anything gets written anywhere - a genuine risk once multiple
-real .ide files (each independently numbered) get combined into one.
-
-This is deliberately step 1 only - read, merge, detect collisions,
-write the combined result back out as a new real file. NOT yet
-included (later steps, per Keith's own approved build order): moving/
-renaming/removing entries with ID reassignment, cascading ID changes
-into real IPL/2DFX files, or rebuilding IMG/COL physical entry order
-to match. Every one of those touches real game data and needs the
-backup system (Keith: "Yes, always backup everything first") and
-collision-checking this step already provides working first."""
+"""master_ide.py - step 1 of Keith's own real Master IDE feature (Sep 5 2026)"""
 
 import os
 from dataclasses import dataclass, field
@@ -94,11 +77,7 @@ def load_master_ide(ide_paths: List[str], game: str = None) -> MasterIDEResult: 
 def _format_objs_or_tobj_line(obj) -> str: #vers 1
     """Rebuild one real objs/tobj line, preserving whichever real
     field-count variant this specific object was originally parsed
-    with (Sep 5 2026, per Keith's own real confirmed example using
-    the meshCount/dist1[/dist2]/flags variant, distinct from the
-    plain drawdist/flags variant confirmed for a different real
-    file earlier this session) - detected from whether extra has its
-    own real mesh_count key, not assumed one way for every file."""
+    with (Sep 5 2026)"""
     extra = obj.extra or {}
     parts = [str(obj.model_id), obj.model_name, obj.txd_name]
     if 'mesh_count' in extra:
@@ -122,7 +101,7 @@ def _format_objs_or_tobj_line(obj) -> str: #vers 1
 
 def _fmt_num(val) -> str: #vers 1
     """Real IDE files write whole-number draw distances without a
-    trailing .0 (Keith's own real example: "299", not "299.0")."""
+    trailing .0 (Keith's own real example: "299", not "299.0")"""
     if isinstance(val, float) and val == int(val):
         return str(int(val))
     return str(val)
@@ -130,13 +109,7 @@ def _fmt_num(val) -> str: #vers 1
 
 def write_master_ide(result: MasterIDEResult, output_path: str) -> bool: #vers 1
     """Write the merged result back out as one real, combined .ide
-    file - grouped by section (never mixed), sorted by ID within each
-    group (Keith's own real default order). Only objs/tobj sections
-    are written with real, correct field formatting so far (Sep 5
-    2026) - other real section types (peds/cars/hier/etc) get written
-    verbatim from their own original extra fields where possible, but
-    haven't been verified against real sample data yet, so treat
-    those with caution until confirmed."""
+    file - grouped by section (never mixed), sorted by ID within each group."""
     try:
         lines = []
         for section, objs in result.objects_by_section.items():

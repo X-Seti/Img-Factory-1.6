@@ -3,10 +3,6 @@
 # Keeps apps/utils/app_settings_system.py and the standalone
 # App-Settings-System repo identical.
 #
-# Run from Img-Factory-1.6 root after any edit to app_settings_system.py:
-#   ./sync_app_settings.sh "optional commit message"
-#
-# Keith's paths (adjust ASS_REPO if your clone is elsewhere):
 IMGFACTORY_ROOT="$(cd "$(dirname "$0")" && pwd)"
 IMGF_FILE="$IMGFACTORY_ROOT/apps/utils/app_settings_system.py"
 

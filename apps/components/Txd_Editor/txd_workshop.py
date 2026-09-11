@@ -906,7 +906,7 @@ class RibbonManagerDialog(QDialog): #vers 1
         self._action_label.setText(f"{name} — actions")
         for act in tb.actions():
             if act.isSeparator():
-                item = QListWidgetItem("── separator ──")
+                item = QListWidgetItem("   separator   ")
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsDragEnabled)
             else:
                 item = QListWidgetItem(act.text() or act.toolTip() or "Action")
@@ -3221,7 +3221,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
                 setattr(self, attr, act)
             return act
 
-        # ── Ribbon 1: Transform ───────────────────────────────────────────
+        #    Ribbon 1: Transform                                            
         tb_xform = _tb("Transform")
         _act(tb_xform, "Flip Vertical",   self.icon_factory.flip_vert_icon,
              self._flip_vertical,   enabled=False, attr='flip_vert_btn')
@@ -3262,7 +3262,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         _act(tb_xform, "Properties",    self.icon_factory.properties_icon,
              self.show_properties,          enabled=False, attr='props_btn')
 
-        # ── Ribbon 2: Navigation ──────────────────────────────────────────
+        #    Ribbon 2: Navigation                                           
         tb_nav = _tb("Navigation", Qt.ToolBarArea.RightToolBarArea)
         _act(tb_nav, "Zoom In",       self.icon_factory.zoom_in_icon,  pw.zoom_in)
         _act(tb_nav, "Zoom Out",      self.icon_factory.zoom_out_icon, pw.zoom_out)
@@ -3279,7 +3279,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         _act(tb_nav, "Resize Texture",  self.icon_factory._resize_icon,
              self._resize_texture, attr='resize_texture_btn')
 
-        # ── Ribbon 3: Effects ─────────────────────────────────────────────
+        #    Ribbon 3: Effects                                              
         tb_fx = _tb("Effects", Qt.ToolBarArea.RightToolBarArea)
         _act(tb_fx, "Colour Adjustments…", self.icon_factory.knob_icon,
              self._open_colour_adjust)
@@ -3297,7 +3297,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         _act(tb_fx, "White Background", self.icon_factory.settings_icon,
              lambda: pw.set_background_color(self._get_ui_color('viewport_bg')))
 
-        # ── Ribbon 4: Name ────────────────────────────────────────────────
+        #    Ribbon 4: Name                                                 
         # Replaces the old info_group QGroupBox (name/alpha fields + format/
         # bitdepth/resize/compress buttons) which duplicated itself between
         # icons-mode and text-mode with several latent bugs (undefined
@@ -3332,7 +3332,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         self.info_alpha_name.setVisible(False)
         self._info_alpha_name_action = tb_name.addWidget(self.info_alpha_name)
 
-        # ── Ribbon 5: Format ──────────────────────────────────────────────
+        #    Ribbon 5: Format                                               
         tb_format = _tb("Format", Qt.ToolBarArea.RightToolBarArea)
 
         self.format_combo = QComboBox()
@@ -3368,7 +3368,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
              lambda color=None: self._create_export_icon(), self.export_selected_texture,
              enabled=False, attr='export_btn')
 
-        # ── Ribbon 6: Mipmaps ─────────────────────────────────────────────
+        #    Ribbon 6: Mipmaps                                              
         tb_mips = _tb("Mipmaps", Qt.ToolBarArea.RightToolBarArea)
 
         self.info_format = QLabel("Mipmaps:")

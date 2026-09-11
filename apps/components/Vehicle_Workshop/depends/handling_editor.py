@@ -56,9 +56,9 @@ from PyQt6.QtGui import QColor, QFont
 from apps.components.Vehicle_Workshop.depends.gui_workshop import GUIWorkshop
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+#                                                                              
 # Field definitions
-# ─────────────────────────────────────────────────────────────────────────────
+#                                                                              
 
 # (name, type, min, max, tooltip)
 VC_FIELDS = [
@@ -133,9 +133,9 @@ HANDLING_FLAGS = {
 }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+#                                                                              
 # Data classes
-# ─────────────────────────────────────────────────────────────────────────────
+#                                                                              
 
 @dataclass
 class HandlingEntry: #vers 1
@@ -223,9 +223,9 @@ class HandlingParser: #vers 1
             return False
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+#                                                                              
 # Editor widget
-# ─────────────────────────────────────────────────────────────────────────────
+#                                                                              
 
 class HandlingEditor(GUIWorkshop): #vers 1
     App_name   = "Handling Editor"

@@ -110,21 +110,7 @@ _BITDEPTH = {
 }
 
 GAME_PRESETS = {
-    # PC versions — tiles in gta3.img / gta.img / RadarTex.img
-    # rw_ver (Aug 20 2026, per Keith's own real crash/rendering
-    # report: "the radar textures saved back to SA are not rendering
-    # in-game") - the real, correct RenderWare version each game's own
-    # real TXD chunk headers actually need, confirmed directly against
-    # a real, uploaded vanilla SA radar00.txd (its own real header
-    # bytes decode to 0x1803FFFF, RW 3.6.0.3 - SA's own real, known
-    # version) versus a real, uploaded "saved back to SA" tile that
-    # instead had 0x1003FFFF baked in (RW 3.4.0.3, the III/VC-era
-    # value RadarTxdReader.write's own hardcoded default used
-    # regardless of which game was actually being saved to) - the
-    # real, root cause of that rendering failure. III/VC/LCS/VCS are
-    # genuinely earlier-RenderWare games (0x1003FFFF is correct for
-    # them specifically, not a mistake in general - only wrong when
-    # used for SA/SOL instead).
+    # PC versions — tiles in gta3.img / gta.img / RadarTex.img rw_ver (Aug 20 2026)
     "III PC":  {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
                 "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$",
                 "img_source":"img",  "label":"GTA III (PC/PS2/Xbox)",
@@ -420,19 +406,7 @@ class RadarTxdReader:
 
     @staticmethod
     def write(rgba,w,h,tex_name,rw_ver=0x1803FFFF): #vers 2
-        """Real fix (Aug 20 2026, per Keith's own real crash/rendering
-        report: "the radar textures saved back to SA are not
-        rendering in-game") - default changed from a hardcoded
-        0x1003FFFF (RW 3.4.0.3, the real, correct version for III/VC/
-        LCS/VCS specifically) to 0x1803FFFF (RW 3.6.0.3, SA's own
-        real version - confirmed directly against a real, uploaded
-        vanilla SA radar00.txd's own actual header bytes). Every real
-        caller of this function should still pass rw_ver explicitly
-        based on the real, actual target game (see GAME_PRESETS' own
-        new rw_ver field) rather than rely on this default at all -
-        this default only matters for the rare case nothing was
-        passed, and SA is the more common real target than III/VC for
-        this function's own two real call sites."""
+
         dxt=encode_dxt1(rgba,w,h)
         nb=tex_name.encode('latin1')[:31].ljust(32,b'\x00'); ab=b'\x00'*32
         nat=bytearray()
@@ -515,19 +489,7 @@ class ImgReader:
 # - Radar grid widget
 def _get_ui_color_for(widget, key): #vers 1
     """Real, shared implementation behind every class's own _get_ui_
-    color(key) method (Aug 20 2026, per Keith's own crash report:
-    "AttributeError: '_TileZoomView' object has no attribute
-    '_get_ui_color'"). Confirmed directly - RadarGridWidget's own
-    original version of this logic only ever used generic, real
-    QWidget-level concepts (self.palette(), self.app_settings/self.
-    main_window.app_settings), nothing specific to RadarGridWidget's
-    own state at all - so extracting it here as a real, shared,
-    standalone function both that class and _TileZoomView can
-    genuinely call (each via their own thin _get_ui_color wrapper) is
-    the correct fix, not a guess at making _TileZoomView somehow
-    inherit from RadarGridWidget (they're real, separate sibling
-    QWidget subclasses, not related by inheritance at all) or
-    duplicating this same logic a second time."""
+    color(key) method (Aug 20 2026)"""
     from PyQt6.QtGui import QColor
     try:
         app_settings = getattr(widget, 'app_settings', None) or \
@@ -1135,17 +1097,7 @@ class _BoredomPuzzle(QDialog):
         self._draw()
 
     def _get_ui_color(self, key): #vers 1
-        """Real fix for the same real crash class Keith reported
-        directly for _TileZoomView ("AttributeError: ... has no
-        attribute '_get_ui_color'") - confirmed via direct search that
-        this class has the exact same real gap (calls self._get_ui_
-        color('viewport_bg') further down in this same class, with no
-        method of that name ever defined here) - not yet triggered/
-        reported, but a real, latent crash of the identical kind,
-        fixed here proactively rather than left for the next time
-        this dialog happens to paint. See _get_ui_color_for's own
-        docstring for why this is a thin delegate, not a second,
-        separate copy of the underlying logic."""
+        """Real fix for the same real crash class."""
         return _get_ui_color_for(self, key)
 
     def _shuffle(self): #vers 1
@@ -1242,16 +1194,7 @@ class _TileZoomView(QWidget):
         self._rebuild_pixmap()
 
     def _get_ui_color(self, key): #vers 1
-        """Real fix for the real crash Keith reported directly:
-        "AttributeError: '_TileZoomView' object has no attribute
-        '_get_ui_color'" (paintEvent calling this on line 1275,
-        aborting the whole app - a real, hard crash, not a caught
-        exception). Delegates to the same real, shared _get_ui_color_
-        for this session's own RadarGridWidget fix also uses - passes
-        self here directly (this widget's own real self.palette(),
-        not self._workshop) since that shared function only ever
-        needs generic QWidget-level access, which this class already
-        has on its own."""
+
         return _get_ui_color_for(self, key)
 
     def _rebuild_pixmap(self): #vers 2
@@ -1487,18 +1430,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
     window_closed   = pyqtSignal()
 
     def _get_ui_color(self, key): #vers 1
-        """Real fix for the same real crash class Keith reported
-        directly for _TileZoomView ("AttributeError: ... has no
-        attribute '_get_ui_color'") - confirmed via direct search
-        that this class (the main RadarWorkshop widget itself) has
-        the exact same real gap (calls self._get_ui_color('viewport_
-        bg') further down in this same class, with no method of that
-        name ever defined here) - not yet triggered/reported, but a
-        real, latent crash of the identical kind, fixed here
-        proactively rather than left for the next time this happens
-        to run. See _get_ui_color_for's own docstring for why this is
-        a thin delegate, not a second, separate copy of the
-        underlying logic."""
+        """Real fix for the same real crash class."""
         return _get_ui_color_for(self, key)
 
     def _build_menus_into_qmenu(self, pm): #vers 2
@@ -1717,24 +1649,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self.menu_toggle_btn.setMinimumHeight(28)
         self.menu_toggle_btn.setMaximumHeight(28)
         self.menu_toggle_btn.clicked.connect(self._on_menu_btn_clicked)
-        # Menu/Settings (Aug 20 2026, per Keith: "radar_workshop shows
-        # the title bar when docked" - the same real complaint already
-        # fixed for Water Workshop's own titlebar, applied here too,
-        # but NOT by hiding this whole toolbar the same way that fix
-        # did - this toolbar also carries real, functional controls
-        # (the Game selector, cols/rows spin boxes just below) that
-        # aren't duplicated anywhere else in this tool's own UI,
-        # confirmed by direct search - hiding the whole frame here
-        # would make those genuinely inaccessible while docked, a real
-        # regression, not just a cosmetic fix. Hides only the window-
-        # chrome-style elements that actually duplicate the outer
-        # tab's own title/controls when docked (this button, Settings,
-        # Undo, Info, and Theme/Properties below), matching exactly
-        # which elements Water Workshop's own fix ended up hiding too
-        # (that tool's whole toolbar only ever held chrome, no
-        # functional controls, so hiding it all had the same practical
-        # effect) - was explicitly "show in both standalone and
-        # docked" before this, now conditional instead.
+        # Menu/Settings (Aug 20 2026)
         self.menu_toggle_btn.setVisible(self.standalone_mode)
         layout.addWidget(self.menu_toggle_btn)
 
@@ -4406,14 +4321,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             self.dock_btn.setVisible(False)
         # Hide the same window-chrome-style toolbar elements _create_
         # toolbar itself hides at construction time when starting
-        # docked (Aug 20 2026, per Keith: "radar_workshop shows the
-        # title bar when docked") - that construction-time check alone
-        # only ever covers the tool's own INITIAL state; without also
-        # updating these here, toggling dock/undock after the tool is
-        # already open would leave these stuck at whatever visibility
-        # they started with, not actually reacting to the real,
-        # current dock state the way the rest of this method already
-        # does for _workshop_toolbar/docked_settings_btn/dock_btn.
+        # docked (Aug 20 2026,
         for attr in ('menu_toggle_btn', 'settings_btn', 'toolbar_undo_btn',
                      'info_radar_btn', 'properties_btn'):
             if hasattr(self, attr):

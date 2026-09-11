@@ -56,9 +56,9 @@ from PyQt6.QtGui import QColor, QFont
 from apps.components.Handling_Editor.gui_workshop import GUIWorkshop
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+#                                                                              
 # Field definitions
-# ─────────────────────────────────────────────────────────────────────────────
+#                                                                              
 
 # (name, type, min, max, tooltip)
 # GTA3/VC handling.cfg: 32 fields (A through AF in the file header)
@@ -135,9 +135,9 @@ HANDLING_FLAGS = {
 }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+#                                                                              
 # Data classes
-# ─────────────────────────────────────────────────────────────────────────────
+#                                                                              
 
 @dataclass
 class HandlingEntry: #vers 1
@@ -225,9 +225,9 @@ class HandlingParser: #vers 1
             return False
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+#                                                                              
 # Editor widget
-# ─────────────────────────────────────────────────────────────────────────────
+#                                                                              
 
 class HandlingEditor(GUIWorkshop): #vers 1
     App_name   = "Handling Editor"

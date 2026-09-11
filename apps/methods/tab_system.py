@@ -421,16 +421,7 @@ def switch_tab(main_window, tab_index: int): #vers 4
         # Get file data for this tab
         file_object, file_type, table_widget = get_tab_data(tab_widget)
 
-        # Sync gui_layout.table to THIS tab's own table (Sep 5 2026, per
-        # Keith's own real Activity Log confirming switch_tab - not
-        # _on_tab_changed - is the actual active handler, and real
-        # reproduction steps showing switching to the IMG tab corrupts
-        # a different, unrelated tab's own table) - this line was
-        # missing entirely; without it, gui_layout.table (used just
-        # below) stayed pointing at whatever tab last explicitly set it
-        # (e.g. get_active_table, when a COL tab gets populated), so
-        # switching to the IMG tab could populate a completely
-        # different tab's own table with IMG data instead of this one's.
+        # Sync gui_layout.table to THIS tab's own table (Sep 5 2026)
         if table_widget and hasattr(main_window, 'gui_layout'):
             main_window.gui_layout.table = table_widget
 

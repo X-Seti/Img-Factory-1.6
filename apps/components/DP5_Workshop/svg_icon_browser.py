@@ -68,7 +68,7 @@ class SVGIconBrowser(QWidget):
             if workshop.dp5_settings.get('svg_browser_docked', False):
                 QTimer.singleShot(200, self._snap_to_canvas)
 
-    # ── UI ────────────────────────────────────────────────────────────────────
+    #    UI                                                                     
 
     def _build_ui(self): #vers 1
         root = QVBoxLayout(self)
@@ -168,7 +168,7 @@ class SVGIconBrowser(QWidget):
         reload_btn.clicked.connect(self._reload_icons)
         root.addWidget(reload_btn)
 
-    # ── Icon loading ──────────────────────────────────────────────────────────
+    #    Icon loading                                                           
 
     def _load_icons(self): #vers 2
         try:
@@ -276,7 +276,7 @@ class SVGIconBrowser(QWidget):
             pass
         return self.palette().color(self.palette().ColorRole.WindowText).name()
 
-    # ── Selection ─────────────────────────────────────────────────────────────
+    #    Selection                                                              
 
     def _icon_context_menu(self, pos): #vers 1
         """Right-click: replace icon with file, remove override, open in canvas."""
@@ -363,7 +363,7 @@ class SVGIconBrowser(QWidget):
         for btn in [self._open_btn, self._save_svg_btn, self._save_method_btn]:
             btn.setEnabled(True)
 
-    # ── Source helpers ────────────────────────────────────────────────────────
+    #    Source helpers                                                         
 
     def _get_svg_source(self, name): #vers 1
         try:
@@ -444,7 +444,7 @@ class SVGIconBrowser(QWidget):
             print(f"[_build_replacement_method] {e}")
             return self._get_full_method_source(name)
 
-    # ── Canvas integration ────────────────────────────────────────────────────
+    #    Canvas integration                                                     
 
     def _load_into_canvas(self, *_): #vers 1
         if not self._current_name or not self.workshop:
@@ -504,7 +504,7 @@ class SVGIconBrowser(QWidget):
         except Exception as e:
             QMessageBox.warning(self, "Render Error", str(e))
 
-    # ── Update in file ────────────────────────────────────────────────────────
+    #    Update in file                                                         
 
     def _update_in_file(self): #vers 2
         """Open built-in find/replace dialog — OS-agnostic."""
@@ -549,7 +549,7 @@ class SVGIconBrowser(QWidget):
                 pass
         return 'xdg-open'
 
-    # ── Export ────────────────────────────────────────────────────────────────
+    #    Export                                                                 
 
     def _get_icons_dir(self): #vers 1
         """Return apps/icons/ path."""
@@ -642,7 +642,7 @@ class SVGIconBrowser(QWidget):
                         + method_src[m.end(2):])
         return method_src
 
-    # ── Built-in find/replace dialog ─────────────────────────────────────────
+    #    Built-in find/replace dialog                                          
 
     class _MethodReplaceDialog: #vers 1
         """
@@ -817,7 +817,7 @@ class SVGIconBrowser(QWidget):
                 self._status.setText(f"Save error: {e}")
 
 
-    # ── Dock ──────────────────────────────────────────────────────────────────
+    #    Dock                                                                   
 
     def _toggle_dock(self): #vers 1
         if self._dock_btn.isChecked():
@@ -868,7 +868,7 @@ class SVGIconBrowser(QWidget):
         self.show()
         self._dock_btn.setChecked(False)
 
-    # ── Theme ─────────────────────────────────────────────────────────────────
+    #    Theme                                                                  
 
     def _apply_theme(self): #vers 1
         pal = self.palette()

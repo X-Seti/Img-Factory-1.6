@@ -1147,29 +1147,8 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         self.undo_btn.setMaximumWidth(40)
         self.undo_btn.setMinimumHeight(30)
         self.undo_btn.setToolTip("Undo last change")
-        # Real fix (Aug 21 2026, per Keith: "there is also the undo
-        # button on img factory, does nothing from what I can
-        # remember") - was permanently setEnabled(False) here and
-        # never re-enabled anywhere else in the whole real codebase -
-        # a disabled Qt button doesn't respond to clicks at all,
-        # regardless of what it's even wired to. Enabled now - the
-        # real handler it's wired to below already reports "nothing
-        # to undo" gracefully rather than doing anything harmful when
-        # there genuinely isn't one.
         self.undo_btn.setEnabled(True)
 
-        # Real fix, same request as above: "is there a way to pass
-        # whatever is docked, to that undo button" - was wired
-        # directly to self.main_window.undo_manager.undo, a real,
-        # completely separate undo system (IMG-archive import/export/
-        # rebuild undo) with no concept at all of Map Workshop's own,
-        # separate undo stack. _smart_undo_action (imgfactory.py)
-        # delegates to Map Workshop's own real undo/redo when it's
-        # the currently-active tab, falling back to this same real
-        # undo_manager-based system otherwise - connected
-        # unconditionally now (not gated behind hasattr(undo_manager)
-        # like before), since that fallback path is handled inside
-        # _smart_undo_action itself.
         if hasattr(self.main_window, '_smart_undo_action'):
             self.undo_btn.clicked.connect(self.main_window._smart_undo_action)
         elif hasattr(self.main_window, 'undo_manager'):

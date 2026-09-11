@@ -56,9 +56,9 @@ from PyQt6.QtGui import QFont, QColor
 from apps.components.Breakable_Editor.gui_workshop import GUIWorkshop
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+#                                                                              
 # Field definitions per section
-# ─────────────────────────────────────────────────────────────────────────────
+#                                                                              
 
 # GTA3/LC/VC object.dat: 11 fields (no section headers, tab+comma separated)
 # Name  Mass  TurnMass  AirRes  Elasticity  PercSub  UprootLim  ColDmg  FxType  FxOffset(x,y,z)... wait
@@ -113,9 +113,9 @@ FX_TYPES = {
 SECTIONS = ["OBJECT", "TOBJ", "ANIM", "OBJS", "TXDP"]
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+#                                                                              
 # Data classes
-# ─────────────────────────────────────────────────────────────────────────────
+#                                                                              
 
 @dataclass
 class ObjectEntry: #vers 1
@@ -218,9 +218,9 @@ class BreakableParser: #vers 1
             return False
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+#                                                                              
 # Editor
-# ─────────────────────────────────────────────────────────────────────────────
+#                                                                              
 
 class BreakableEditor(GUIWorkshop): #vers 1
     App_name   = "Breakable Objects Editor"

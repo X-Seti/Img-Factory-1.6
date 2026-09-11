@@ -1753,9 +1753,9 @@ class _ColListDelegate(QStyledItemDelegate): #vers 1
         return QSize(w, max(72, r.height() + 12))
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+#                                                                              
 # Surface.dat parser (used by Surface Data tab in COLWorkshop)
-# ─────────────────────────────────────────────────────────────────────────────
+#                                                                              
 
 # (name, type, min, max, tooltip)
 _SURFACE_FIELDS = [
@@ -2008,7 +2008,7 @@ class RibbonManagerDialog(QDialog): #vers 1
         self._action_label.setText(f"{name} — actions")
         for act in tb.actions():
             if act.isSeparator():
-                item = QListWidgetItem("── separator ──")
+                item = QListWidgetItem("   separator   ")
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsDragEnabled)
             else:
                 item = QListWidgetItem(act.text() or act.toolTip() or "Action")
@@ -5449,7 +5449,7 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
                 setattr(self, attr, act)
             return act
 
-        # ── Ribbon 1: Transform ───────────────────────────────────────────
+        #    Ribbon 1: Transform                                            
         # NOTE: attr= names match the original QPushButton names exactly
         # (flip_vert_btn etc.) so _set_col_buttons_enabled()/_refresh_icons()
         # elsewhere in this file keep working unchanged against QActions -
@@ -5487,7 +5487,7 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
         _act(tb_xform, "Build from TXD",self.icon_factory.build_icon,
              self._build_col_from_txd,       attr='build_from_txd_btn')
 
-        # ── Ribbon 2: Navigation ──────────────────────────────────────────
+        #    Ribbon 2: Navigation                                           
         tb_nav = _tb("Navigation", Qt.ToolBarArea.RightToolBarArea)
         _act(tb_nav, "Zoom In",       self.icon_factory.zoom_in_icon,  pw.zoom_in)
         _act(tb_nav, "Zoom Out",      self.icon_factory.zoom_out_icon, pw.zoom_out)
@@ -5501,7 +5501,7 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
         tb_nav.addSeparator()
         self.setup_gl_toggle(tb_nav, icon_color)
 
-        # ── Ribbon 3: Render ──────────────────────────────────────────────
+        #    Ribbon 3: Render                                               
         tb_rend = _tb("Render", Qt.ToolBarArea.RightToolBarArea)
         _act(tb_rend, "Render / Background Settings",
              self.icon_factory.color_picker_icon, self._open_render_settings_dialog)
@@ -5515,7 +5515,7 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
         self.backface_btn     = _act(tb_rend, "Toggle Backface",self.icon_factory.backface_icon,
              lambda v: pw.set_backface(v),     checkable=True, checked=False, attr='_backface_act')
 
-        # ── Ribbon 4: Name ────────────────────────────────────────────────
+        #    Ribbon 4: Name                                                 
         # Replaces the old bottom info_group QFrame (COL name field + format/
         # switch/convert/compress/shadow buttons, duplicated between a wide
         # text+icon row and a narrow icon-only row that only showed below a
@@ -5529,7 +5529,7 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
         self.info_name.mousePressEvent = lambda e: self._enable_name_edit(e, False)
         tb_name.addWidget(self.info_name)
 
-        # ── Ribbon 5: Format ──────────────────────────────────────────────
+        #    Ribbon 5: Format                                               
         tb_format = _tb("Format", Qt.ToolBarArea.RightToolBarArea)
         self.format_combo = QComboBox()
         self.format_combo.addItems(["COL", "COL2", "COL3", "COL4"])
@@ -5551,7 +5551,7 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
         _act(tb_format, "Export",            self.icon_factory.export_icon,
              self.export_selected,      enabled=False, attr='export_btn')
 
-        # ── Ribbon 6: Shadow Mesh ─────────────────────────────────────────
+        #    Ribbon 6: Shadow Mesh                                          
         tb_shadow = _tb("Shadow Mesh", Qt.ToolBarArea.RightToolBarArea)
         self.info_format = QLabel("Shadow Mesh:")
         self.info_format.setMinimumWidth(90)

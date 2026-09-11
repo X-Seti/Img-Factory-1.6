@@ -46,7 +46,7 @@ from PyQt6.QtCore import Qt, QPoint, QRect, pyqtSignal
 # class DP5PaintEditor
 # open_dp5_paint_editor   (launcher helper used by txd_workshop)
 
-# ── Tool IDs ──────────────────────────────────────────────────────────────────
+#    Tool IDs                                                                   
 TOOL_PENCIL = 'pencil'
 TOOL_FILL   = 'fill'
 TOOL_SPRAY  = 'spray'
@@ -57,7 +57,7 @@ TOOL_PICKER = 'picker'
 TOOL_ERASER = 'eraser'
 
 
-# ── Theme helper ──────────────────────────────────────────────────────────────
+#    Theme helper                                                               
 
 def _get_app_settings(widget):
     """Walk parent chain to find app_settings. Returns None if not found."""
@@ -87,7 +87,7 @@ def _get_stylesheet(widget) -> str:
     return ""
 
 
-# ── Canvas widget ─────────────────────────────────────────────────────────────
+#    Canvas widget                                                              
 
 class DP5Canvas(QWidget):
     """Zoomable pixel-accurate paint canvas."""
@@ -117,7 +117,7 @@ class DP5Canvas(QWidget):
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setMinimumSize(200, 200)
 
-    # ── Coordinate helpers ────────────────────────────────────────────────────
+    #    Coordinate helpers                                                     
 
     def _widget_to_tex(self, p: QPoint) -> Tuple[int, int]:
         x = (p.x() + self.offset.x()) // self.zoom
@@ -128,7 +128,7 @@ class DP5Canvas(QWidget):
         return QPoint(tx * self.zoom - self.offset.x(),
                       ty * self.zoom - self.offset.y())
 
-    # ── Pixel access ──────────────────────────────────────────────────────────
+    #    Pixel access                                                           
 
     def get_pixel(self, x: int, y: int) -> QColor:
         if 0 <= x < self.tex_w and 0 <= y < self.tex_h:
@@ -149,7 +149,7 @@ class DP5Canvas(QWidget):
                 if s == 1 or (dx*dx + dy*dy) < s*s:
                     self.set_pixel(cx+dx, cy+dy, c)
 
-    # ── Drawing ops ───────────────────────────────────────────────────────────
+    #    Drawing ops                                                            
 
     def flood_fill(self, sx: int, sy: int, fill_col: QColor):
         if not (0 <= sx < self.tex_w and 0 <= sy < self.tex_h):
@@ -215,7 +215,7 @@ class DP5Canvas(QWidget):
             if dx*dx + dy*dy <= r*r:
                 self.set_pixel(cx+dx, cy+dy, self.color)
 
-    # ── Paint ──────────────────────────────────────────────────────────────────
+    #    Paint                                                                   
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -250,7 +250,7 @@ class DP5Canvas(QWidget):
             elif self.tool == TOOL_CIRCLE:
                 painter.drawEllipse(QRect(s, e).normalized())
 
-    # ── Mouse events ─────────────────────────────────────────────────────────
+    #    Mouse events                                                          
 
     def mousePressEvent(self, e: QMouseEvent):
         if e.button() != Qt.MouseButton.LeftButton: return
@@ -320,7 +320,7 @@ class DP5Canvas(QWidget):
         self.update()
 
 
-# ── Palette bar ───────────────────────────────────────────────────────────────
+#    Palette bar                                                                
 
 class DP5PaletteBar(QWidget):
     """Vertical 24px-wide colour swatch strip, DP5 right-side style."""
@@ -398,7 +398,7 @@ class DP5PaletteBar(QWidget):
         self.update()
 
 
-# ── Main editor ───────────────────────────────────────────────────────────────
+#    Main editor                                                                
 
 class DP5PaintEditor(QDialog):
     """
@@ -440,7 +440,7 @@ class DP5PaintEditor(QDialog):
         if self.app_settings and hasattr(self.app_settings, 'theme_changed'):
             self.app_settings.theme_changed.connect(self._apply_theme)
 
-    # ── Theme ─────────────────────────────────────────────────────────────────
+    #    Theme                                                                  
 
     def _apply_theme(self): #vers 1
         """Re-apply the current app theme stylesheet."""
@@ -453,7 +453,7 @@ class DP5PaintEditor(QDialog):
         # Fallback via theme_utils
         self.setStyleSheet(_get_stylesheet(self))
 
-    # ── UI construction ───────────────────────────────────────────────────────
+    #    UI construction                                                        
 
     def _build_ui(self):
         root = QVBoxLayout(self)
@@ -637,7 +637,7 @@ class DP5PaintEditor(QDialog):
 
         return frame
 
-    # ── Tool / zoom helpers ───────────────────────────────────────────────────
+    #    Tool / zoom helpers                                                    
 
     def _select_tool(self, tool_id: str):
         self.canvas.tool = tool_id
@@ -692,7 +692,7 @@ class DP5PaintEditor(QDialog):
             f"Tool: {self.canvas.tool}")
         self._update_color_btn()
 
-    # ── Undo / redo ───────────────────────────────────────────────────────────
+    #    Undo / redo                                                            
 
     def _push_undo(self):
         self._undo_stack.append(bytes(self.rgba))
@@ -712,7 +712,7 @@ class DP5PaintEditor(QDialog):
             self.canvas.rgba = self.rgba
             self.canvas.update()
 
-    # ── Picture ops ───────────────────────────────────────────────────────────
+    #    Picture ops                                                            
 
     def _clear(self):
         self._push_undo()
@@ -758,7 +758,7 @@ class DP5PaintEditor(QDialog):
             self.rgba[i+2] = max(0, min(255, self.rgba[i+2] + delta))
         self.canvas.update()
 
-    # ── File I/O ──────────────────────────────────────────────────────────────
+    #    File I/O                                                               
 
     def _import_iff(self):
         path, _ = QFileDialog.getOpenFileName(
@@ -855,7 +855,7 @@ class DP5PaintEditor(QDialog):
         except Exception as e:
             QMessageBox.warning(self, "Theme", f"Could not open theme settings:\n{e}")
 
-    # ── Keyboard shortcuts ────────────────────────────────────────────────────
+    #    Keyboard shortcuts                                                     
 
     def keyPressEvent(self, e):
         k = e.key()
@@ -876,14 +876,14 @@ class DP5PaintEditor(QDialog):
         else:
             super().keyPressEvent(e)
 
-    # ── Apply ─────────────────────────────────────────────────────────────────
+    #    Apply                                                                  
 
     def _apply(self):
         self.tex['rgba_data'] = bytes(self.rgba)
         self.accept()
 
 
-# ── Launcher helper ───────────────────────────────────────────────────────────
+#    Launcher helper                                                            
 
 def open_dp5_paint_editor(tex: dict, parent=None) -> bool:
     """
@@ -894,7 +894,7 @@ def open_dp5_paint_editor(tex: dict, parent=None) -> bool:
     return editor.exec() == QDialog.DialogCode.Accepted
 
 
-# ── Standalone entry point ────────────────────────────────────────────────────
+#    Standalone entry point                                                     
 
 if __name__ == '__main__':
     import traceback

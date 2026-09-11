@@ -11837,9 +11837,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         ci = getattr(self, 'current_img', None) or (
              getattr(mw, 'current_img', None) if mw else None)
         # Diagnostic: log what we actually got, to help pin down the
-        # docked-mode "TXD not found" regression Keith reported - this
-        # tier used to work, but nothing in this function was touched
-        # recently, so the cause isn't confirmed yet.
+        # docked-mode "TXD not found" regression, this tier used to work,
+        # but nothing in this function was touched recently, so the cause
+        # isn't confirmed yet.
         if mw and hasattr(mw, 'log_message'):
             mw.log_message(
                 f"[TXD lookup] looking for '{txd_filename}' - "

@@ -480,13 +480,6 @@ def handle_project_settings(main_window): #vers 2
         
         layout.addWidget(override_group)
         
-        # Game Path Presets group (Aug 19 2026, per Keith: "I'd like
-        # to add, in [Menu] Project settings -> Game path presets,
-        # the locations of those games installed on your system, so
-        # you can pick them in Dat Browser for quick access."). GTA3/
-        # VC/SA only - GTASOL deliberately excluded, per "lets ignore
-        # GTASOL for now" - not merely hidden from a group that still
-        # has a row for it, genuinely not one of the rows at all.
         presets_group = QGroupBox("Game Path Presets")
         presets_layout = QFormLayout(presets_group)
         presets_hint = QLabel(
@@ -826,16 +819,6 @@ def load_project_settings(main_window): #vers 1
     except Exception as e:
         main_window.log_message(f"Error loading settings: {str(e)}")
 
-
-# Game Path Presets (Aug 19 2026, per Keith: "I'd like to add, in
-# [Menu] Project settings -> Game path presets, the locations of
-# those games installed on your system, so you can pick them in Dat
-# Browser for quick access") - GTA3/VC/SA only, per his own "lets
-# ignore GTASOL for now": GTASOL is deliberately not one of these
-# keys at all, not merely hidden from a list that still includes it.
-# Stored in the same QSettings("IMG Factory", "Project Settings")
-# group every other project setting on this page already uses,
-# rather than a new, separate storage mechanism.
 GAME_PATH_PRESET_GAMES = [
     ('GTA3', 'GTA III'),
     ('VC', 'Vice City'),

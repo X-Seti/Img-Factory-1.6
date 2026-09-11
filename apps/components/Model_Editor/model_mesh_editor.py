@@ -12,14 +12,14 @@ Features:
   - Surface material picker per face
 
 Layout:
-  ┌─────────────────────────────────────────────────┐
+  ┌                                                 ┐
   │  [Face List]    │  [Vertex Table]  │  [Preview]  │
   │  id  a  b  c  mat│  id  X   Y   Z  │             │
   │  ...            │  ...             │  (mini view)│
-  ├─────────────────────────────────────────────────┤
+  ├                                                 ┤
   │  [Add Face] [Del Face] [Del Vertex] [Move Vert] │
   │  [Undo]  [Apply & Close]  [Close]               │
-  └─────────────────────────────────────────────────┘
+  └                                                 ┘
 """
 
 import copy
@@ -236,7 +236,7 @@ class COLMeshEditorViewport(QWidget): #vers 1
         verts = getattr(self._model, 'vertices', [])
         faces = getattr(self._model, 'faces', [])
 
-        # ── projection helpers ────────────────────────────────────────────
+        #    projection helpers                                             
         yr = math.radians(self._yaw);   cy, sy = math.cos(yr), math.sin(yr)
         pr = math.radians(self._pitch); cp, sp = math.cos(pr), math.sin(pr)
 
@@ -276,7 +276,7 @@ class COLMeshEditorViewport(QWidget): #vers 1
             px, py = proj3(x, y, z)
             return px*scale + ox, py*scale + oy
 
-        # ── reference grid ────────────────────────────────────────────────
+        #    reference grid                                                 
         raw_step = extent / 4.0
         mag  = 10 ** math.floor(math.log10(max(raw_step, 0.001)))
         step = round(raw_step / mag) * mag;  step = max(step, 0.01)
@@ -294,7 +294,7 @@ class COLMeshEditorViewport(QWidget): #vers 1
             p.drawLine(int(x0), int(y0), int(x1), int(y1))
         p.setRenderHint(p.renderHints().__class__.Antialiasing, True)
 
-        # ── faces ─────────────────────────────────────────────────────────
+        #    faces                                                          
         if not verts or not faces:
             p.setPen(QColor(100, 100, 100))
             p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "No mesh")
@@ -325,7 +325,7 @@ class COLMeshEditorViewport(QWidget): #vers 1
                 if vi < len(verts):
                     p.drawEllipse(int(scx(vi))-4, int(scy(vi))-4, 8, 8)
 
-        # ── XYZ gizmo (bottom-left) ───────────────────────────────────────
+        #    XYZ gizmo (bottom-left)                                        
         gx, gy, arm = 42, H-42, 30
         axes = [((1,0,0), QColor(220,60,60), 'X'),
                 ((0,1,0), QColor(60,200,60), 'Y'),
@@ -346,7 +346,7 @@ class COLMeshEditorViewport(QWidget): #vers 1
         p.setBrush(QBrush(QColor(220,220,220))); p.setPen(QPen(QColor(180,180,180),1))
         p.drawEllipse(gx-3, gy-3, 6, 6)
 
-        # ── HUD ───────────────────────────────────────────────────────────
+        #    HUD                                                            
         p.setPen(QColor(180, 180, 180))
         p.setFont(QFont('Arial', 7))
         p.drawText(4, 12, f"F:{len(faces)} V:{len(verts)}")
@@ -382,16 +382,16 @@ class COLMeshEditor(QDialog): #vers 1
         self.viewport.on_selection_changed = self._on_viewport_selection
         self._populate_all()
 
-    # ── UI construction ───────────────────────────────────────────────────
+    #    UI construction                                                    
 
     def _build_ui(self):
         root = QVBoxLayout(self)
         root.setSpacing(4)
 
-        # ── Main splitter: tabs left, viewport right ──────────────────────
+        #    Main splitter: tabs left, viewport right                       
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
-        # ── Tab widget ────────────────────────────────────────────────────
+        #    Tab widget                                                     
         self.tabs = QTabWidget()
         self.tabs.setMinimumWidth(420)
 
@@ -406,7 +406,7 @@ class COLMeshEditor(QDialog): #vers 1
 
         splitter.addWidget(self.tabs)
 
-        # ── Viewport ──────────────────────────────────────────────────────
+        #    Viewport                                                       
         vp_grp = QGroupBox("Preview")
         vpl = QVBoxLayout(vp_grp)
         self.viewport = COLMeshEditorViewport()
@@ -417,7 +417,7 @@ class COLMeshEditor(QDialog): #vers 1
         splitter.setSizes([480, 260])
         root.addWidget(splitter, 1)
 
-        # ── Status + game selector ────────────────────────────────────────
+        #    Status + game selector                                         
         stat_row = QHBoxLayout()
         self._status = QLabel("Ready")
         self._status.setStyleSheet("color:#aaa;font-size:10px;")
@@ -432,7 +432,7 @@ class COLMeshEditor(QDialog): #vers 1
         stat_row.addWidget(self._game_combo)
         root.addLayout(stat_row)
 
-        # ── Bottom buttons ────────────────────────────────────────────────
+        #    Bottom buttons                                                 
         bot = QHBoxLayout()
         self._undo_btn = self._btn(bot, "↩ Undo  [Ctrl+Z]", self._undo)
         self._undo_btn.setEnabled(False)
@@ -603,7 +603,7 @@ class COLMeshEditor(QDialog): #vers 1
         return w
 
 
-    # ── Material combo helpers ────────────────────────────────────────────
+    #    Material combo helpers                                             
 
     def _refresh_material_combo(self): #vers 1
         """Repopulate the Add Face material combo for the current game."""
@@ -627,7 +627,7 @@ class COLMeshEditor(QDialog): #vers 1
         self._populate_faces()      # update material names in face table
         self.viewport.update()      # update face colours
 
-    # ── Populate ──────────────────────────────────────────────────────────
+    #    Populate                                                           
 
     def _populate_all(self):
         self._refresh_material_combo()
@@ -664,7 +664,7 @@ class COLMeshEditor(QDialog): #vers 1
                 self.vert_table.setItem(i, col, item)
         self.vert_table.blockSignals(False)
 
-    # ── Selection sync ────────────────────────────────────────────────────
+    #    Selection sync                                                     
 
     def _on_face_selection(self):
         rows = {idx.row() for idx in self.face_table.selectedIndexes()}
@@ -682,7 +682,7 @@ class COLMeshEditor(QDialog): #vers 1
         rows = {idx.row() for idx in self.vert_table.selectedIndexes()}
         self.viewport.set_selected_verts(rows)
 
-    # ── Inline cell editing ───────────────────────────────────────────────
+    #    Inline cell editing                                                
 
     def _on_face_cell_changed(self, item):
         row = item.row()
@@ -727,7 +727,7 @@ class COLMeshEditor(QDialog): #vers 1
         except ValueError:
             self._populate_verts()
 
-    # ── Operations ────────────────────────────────────────────────────────
+    #    Operations                                                         
 
     def _add_face(self):
         """Open add-face form (just scrolls to it — it's already visible)."""
@@ -841,7 +841,7 @@ class COLMeshEditor(QDialog): #vers 1
         self._set_dirty()
         self._status.setText(f"Removed {len(orphans)} orphan vert(s).")
 
-    # ── Undo ──────────────────────────────────────────────────────────────
+    #    Undo                                                               
 
     def _push_undo(self, description=""):
         self._undo_stack.append((description, copy.deepcopy(self._model)))
@@ -858,7 +858,7 @@ class COLMeshEditor(QDialog): #vers 1
         self._undo_btn.setEnabled(bool(self._undo_stack))
         self._status.setText(f"Undone: {desc}")
 
-    # ── Dirty tracking + apply ────────────────────────────────────────────
+    #    Dirty tracking + apply                                             
 
     def _set_dirty(self):
         self._dirty = True
@@ -868,7 +868,7 @@ class COLMeshEditor(QDialog): #vers 1
             f"Mesh Editor* — {getattr(self._model.header, 'name', 'Model')}  "
             f"F:{n_f} V:{n_v}")
 
-    # ── Box helpers ──────────────────────────────────────────────────────
+    #    Box helpers                                                       
 
     def _pt(self, obj):
         """Return (x,y,z) from Vector3, tuple, or list."""
@@ -881,7 +881,7 @@ class COLMeshEditor(QDialog): #vers 1
         mx = getattr(box,'max_point', getattr(box,'max', None))
         return mn, mx
 
-    # ── Box populate / edit ───────────────────────────────────────────────
+    #    Box populate / edit                                                
 
     def _populate_boxes(self):
         self.box_table.blockSignals(True)
@@ -957,7 +957,7 @@ class COLMeshEditor(QDialog): #vers 1
             if r < len(boxes): boxes.append(copy.deepcopy(boxes[r]))
         self._populate_boxes(); self._set_dirty()
 
-    # ── Sphere populate / edit ────────────────────────────────────────────
+    #    Sphere populate / edit                                             
 
     def _populate_spheres(self):
         self.sphere_table.blockSignals(True)
@@ -1027,7 +1027,7 @@ class COLMeshEditor(QDialog): #vers 1
             if r < len(spheres): spheres.append(copy.deepcopy(spheres[r]))
         self._populate_spheres(); self._set_dirty()
 
-    # ── Bounds populate / edit ────────────────────────────────────────────
+    #    Bounds populate / edit                                             
 
     def _populate_bounds(self):
         bounds = getattr(self._model,'bounds',None)
@@ -1094,7 +1094,7 @@ class COLMeshEditor(QDialog): #vers 1
         self._populate_bounds(); self._set_dirty()
         self._status.setText(f"Bounds recalculated: r={r:.3f} centre=({cx:.2f},{cy:.2f},{cz:.2f})")
 
-    # ── Keyboard shortcuts ───────────────────────────────────────────────
+    #    Keyboard shortcuts                                                
 
     def keyPressEvent(self, event):
         key  = event.key()
@@ -1118,7 +1118,7 @@ class COLMeshEditor(QDialog): #vers 1
         else:
             super().keyPressEvent(event)
 
-    # ── Selection sync viewport ↔ tables ──────────────────────────────────
+    #    Selection sync viewport ↔ tables                                   
 
     def _on_viewport_selection(self, sel_faces, sel_verts):
         """Called when user clicks a face/vert in the viewport."""
@@ -1169,7 +1169,7 @@ class COLMeshEditor(QDialog): #vers 1
         self.viewport.set_selected_faces(set())
         self.viewport.set_selected_verts(set())
 
-    # ── Flip faces ────────────────────────────────────────────────────────
+    #    Flip faces                                                         
 
     def _flip_faces(self, face_indices=None):
         """Reverse winding order of selected faces (flips normal direction)."""
@@ -1188,7 +1188,7 @@ class COLMeshEditor(QDialog): #vers 1
         self._set_dirty()
         self._status.setText(f"Flipped {len(targets)} face(s).")
 
-    # ── Select connected ──────────────────────────────────────────────────
+    #    Select connected                                                   
 
     def _select_connected(self, seed_faces=None):
         """Select all faces sharing at least one vertex with seed faces."""
@@ -1223,7 +1223,7 @@ class COLMeshEditor(QDialog): #vers 1
         self.viewport.set_selected_faces(connected)
         self._status.setText(f"Selected {len(connected)} connected face(s).")
 
-    # ── Merge close vertices ──────────────────────────────────────────────
+    #    Merge close vertices                                               
 
     def _merge_verts_dialog(self):
         from PyQt6.QtWidgets import QInputDialog

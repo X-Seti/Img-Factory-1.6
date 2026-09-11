@@ -4,16 +4,7 @@
 # MasterIDEDialog
 # show_master_ide
 
-"""master_ide_dialog.py - the real UI for master_ide.py's own step-1
-merge (Sep 5 2026, per Keith: "This needs to show the IDE file or all
-the IDE files in a single view... even the ability to create a
-master file"). Read-only for now (Keith's own approved build order -
-moving/renaming/removing with real ID cascading into IPL/2DFX comes
-in a later step, once this foundation and the backup system are both
-proven). Shows every merged object grouped by its own real section,
-sorted by ID (Keith's own real default order), with genuine ID
-collisions highlighted in a theme-aware tint - the same real red-tint
-approach already used and confirmed elsewhere in Asset Checker."""
+"""master_ide_dialog.py - the real UI for master_ide.py's own step-1 merge (Sep 5 2026)"""
 
 import os
 from PyQt6.QtWidgets import (

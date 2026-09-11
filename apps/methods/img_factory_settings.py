@@ -177,29 +177,7 @@ class IMGFactorySettings:
 def get_img_factory_qsettings(): #vers 1
     """A single, shared, app-folder-relative QSettings instance for
     IMG Factory's own window geometry/splitter state/game_root (Aug
-    20 2026, per Keith: "lets fix map workshop and img factory first"
-    - same real reasoning as _img_factory_config_dir just above).
-
-    Real, confirmed mess this consolidates: imgfactory.py had FOUR
-    separate QSettings(...) call sites using TWO different (org, app)
-    name pairs - QSettings("IMG-Factory", "IMG-Factory") for game_root,
-    QSettings("XSeti", "IMGFactory") for window geometry/splitter
-    state - each pair creating its own, separate native-location
-    settings file (on Linux, a separate ~/.config/<org>/<app>.conf
-    each), on top of the several OTHER differently-named "IMG
-    Factory"-ish QSettings organizations already found scattered
-    elsewhere in this app (a real, wider audit still to come). These
-    two specific ones are consolidated into one shared .ini file here
-    since their own keys never actually collide (game_root vs
-    geometry/splitter_state), reducing both the file count and the
-    chance of yet another accidentally-different name being
-    introduced later.
-
-    QSettings.Format.IniFormat with an explicit file path bypasses
-    Qt's own native (org, app) -> OS-standard-location lookup
-    entirely - this is what actually makes it app-folder-relative
-    rather than just picking a differently-worded org/app pair that
-    would still resolve to some other ~/.config subfolder."""
+    20 2026)"""
     from PyQt6.QtCore import QSettings
     ini_path = _img_factory_config_dir() / 'img_factory_state.ini'
     return QSettings(str(ini_path), QSettings.Format.IniFormat)

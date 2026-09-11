@@ -4220,17 +4220,7 @@ class SettingsDialog(QDialog): #vers 15
         self.tabs.addTab(self.debug_tab, "Debug")
 
         # Extra tabs contributed by any docked tool currently open as
-        # a main-window tab (Map Workshop, and any future tool doing
-        # the same) - Aug 15 2026, per Keith: "the map workshop
-        # settings dialogue when standalone, which isn't available
-        # when it's docked with img factory, so we need a way to
-        # push those settings into img factory's settings, as extra
-        # tabs". See _collect_settings_contributions for how these
-        # are found (generic/duck-typed, no specific-tool import
-        # here - map_workshop.py already imports SettingsDialog from
-        # this very module, so importing anything from map_workshop.py
-        # back here would be a real circular import, not just an
-        # avoidable one).
+        # a main-window tab (Map Workshop, and any future tool doing the same)
         self._extra_apply_callbacks = []
         try:
             for label, widget in self._collect_settings_contributions():
@@ -9682,30 +9672,7 @@ Ready for operations..."""
 
     def _collect_settings_contributions(self): #vers 1
         """Find any docked tool currently open as a tab in the main
-        window that exposes get_settings_contribution() (Map
-        Workshop, and any future tool implementing the same method),
-        and pull in its settings as extra tabs here instead of
-        requiring its own separate settings dialog (Aug 15 2026, per
-        Keith's request - see the call site in __init__ for the
-        full quote). Generic/duck-typed by design - checks for the
-        method's presence, not any specific tool's class - so
-        nothing here needs to import map_workshop.py (which would be
-        a genuine circular import: map_workshop.py already imports
-        SettingsDialog from this module) or any other tool module.
-
-        Scoped to each open tab's own widget tree (not the whole
-        application) to keep the scan bounded - this dialog opens
-        rarely enough that a one-time scan cost at open time is fine,
-        but scanning every widget in the entire app regardless of
-        which tabs are even open would be needless work.
-
-        Returns a list of (label, widget) tuples to add as tabs.
-        Each contributor's own apply callback is collected into
-        self._extra_apply_callbacks (already initialised by the
-        caller before this runs) - invoked from _apply_settings
-        alongside this dialog's own Apply, each wrapped individually
-        so one tool's broken apply logic can't block another's or
-        this dialog's own settings from saving."""
+        window that exposes get_settings_contribution()"""
         contributions = []
         mw = getattr(self, 'main_window', None)
         tab_widget = getattr(mw, 'main_tab_widget', None)
@@ -9817,12 +9784,7 @@ Ready for operations..."""
             print(f"Panel effects error: {_pe}")
 
         # Apply any settings contributed by docked tools (Map
-        # Workshop, etc.) alongside this dialog's own Apply above
-        # (Aug 15 2026, per Keith's request - see
-        # _collect_settings_contributions) - each wrapped
-        # individually so one tool's broken apply logic can't block
-        # another's, or this dialog's own settings (already saved
-        # above, before this point).
+        # Workshop, etc.)
         for extra_apply in getattr(self, '_extra_apply_callbacks', []):
             try:
                 extra_apply()

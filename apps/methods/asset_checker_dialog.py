@@ -6,32 +6,7 @@
 # _register_asset_checker_taskbar
 
 """asset_checker_dialog.py - the real UI for asset_checker.py's own
-cross-referencing (Sep 5 2026, per Keith: "As 3 columns IMG archive |
-COL archive | IDE entry list | Error list... And another layout to
-show IMG, COL and IDE as 3 different lines, each with its own shade
-but theme-aware" + his own follow-up: "we could have a txd 4th
-column... the ide file ID for the 1st column, dff for the 2rd, col,
-3rd, ide modelname 4th, texture entry, then errors" + his own later
-confirmed 4-column redesign: "ID | ide (2453) | Img (2453) +1 | col
-(2453) +1 | Errors... Clicking the +1 shows the filename, with the
-option to copy the filename... have the ability to lock the scroll
-across all 4... except the Errors column"). Three switchable layouts
-sharing one AssetCheckResult:
-
-- 4-column view: ID | IDE entry list | IMG archive | COL archive |
-  Error list. ID and IDE scroll-locked together with IMG/COL (Errors
-  excluded). IMG/COL headers show IDE's own real count as their base
-  number plus a signed, clickable +N/-N diff from it (+ when that
-  source has extras IDE doesn't declare, - when IDE declares things
-  that source is missing) - clicking it lists the real specific names
-  involved, with copy options. Equal counts don't guarantee matching
-  sets; the Error list still does the real, full comparison.
-- Merged view: each model name gets one row per source it's actually
-  found in, each row tinted from the current theme's own palette.
-- Cross-reference table: one row per model (ID/DFF/COL/IDE Model
-  Name/Texture entry/Errors), checking whether each IDE entry's own
-  declared texture actually exists in the IMG, with a right-click
-  menu (copy cell/row, open TXD Workshop for a missing texture)."""
+cross-referencing"""
 
 import os
 from PyQt6.QtWidgets import (
@@ -84,19 +59,6 @@ class AssetCheckerDialog(QDialog): #vers 3
         self.stack = QStackedWidget()
         lay.addWidget(self.stack, 1)
 
-        # --- 4-column view ---
-        # New ID column + IDE-relative header diffs (Sep 5 2026, per
-        # Keith's own confirmed design: "ID | ide (2453) | Img (2453)
-        # +1 | col (2453) +1 | Errors... does that make logical sense
-        # to you, and what if there are more items in the ide, then
-        # col or img" -> "perfect"). Diff can run either way (+N when
-        # a source has extras IDE doesn't declare, -N when IDE
-        # declares things that source is missing) - both directions
-        # use the SAME real IDE count as their base number, so they're
-        # directly comparable at a glance; clicking the diff opens the
-        # specific real names involved. Equal counts don't guarantee
-        # matching sets (see this dialog's own README on that) - the
-        # Error list still does the real, full comparison regardless.
         columns_widget = QWidget()
         columns_lay = QHBoxLayout(columns_widget)
         splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -119,9 +81,7 @@ class AssetCheckerDialog(QDialog): #vers 3
         self.error_list = self._make_column(splitter, "Error list", None)
         self.stack.addWidget(columns_widget)
 
-        # Locked scrolling across ID/IDE/IMG/COL, Errors excluded (Sep
-        # 5 2026, per Keith: "have the ability to lock the scroll
-        # across all 4... except the Errors column").
+        # Locked scrolling across ID/IDE/IMG/COL, Errors excluded (Sep 5 2026)
         self._sync_lists = [self.id_list, self.ide_list, self.img_list, self.col_list]
         self._sync_guard = False
         for lst in self._sync_lists:
@@ -148,40 +108,15 @@ class AssetCheckerDialog(QDialog): #vers 3
         self.stack.addWidget(self.xref_table)
 
     def _make_column(self, splitter, title, count, diffs=None): #vers 8
-        """count is the base number shown in parentheses (Sep 5 2026,
-        always the real IDE count for IMG/COL columns, per Keith's own
-        confirmed design). diffs is a list of (label, tooltip,
-        on_click) triples - one real, accurate, clearly-labelled
-        button per real direction that actually has entries, rather
-        than a single signed net number (Sep 5 2026, per Keith's own
-        real catch: "+4 when it shows 5 entries"). The tooltip spells
-        out exactly what the number means (Sep 5 2026, per Keith's own
-        follow-up: "now it says +5 -1? confused" - correct isn't the
-        same as self-explanatory).
-
-        Label and diff buttons share one row (Sep 5 2026, per Keith
-        confirming he wants "Img Archive (1146) +5 -1" all on the
-        same line, after an earlier attempt moved them to separate
-        rows to fix a real bug where the label disappeared entirely).
-        That earlier bug was caused by QSizePolicy.Policy.Ignored on
-        the label, which doesn't just allow shrinking - it tells the
-        layout to disregard the label's size hint ENTIRELY. This
-        version leaves the label's size policy at its normal default
-        instead, relying on the column's own wider 220px minimum width
-        (already in place) to make room for both on one line without
-        that same mistake."""
+        """count is the base number shown in parentheses (Sep 5 2026)"""
         container = QWidget()
-        container.setMinimumWidth(220)   # wider columns (Sep 5 2026,
-                                          # per Keith: "the widths for
-                                          # the columns can be wider")
+        container.setMinimumWidth(220)   # wider columns (Sep 5 2026)
         v = QVBoxLayout(container)
         v.setContentsMargins(2, 2, 2, 2)
         header_row = QHBoxLayout()
         label_text = title if count is None else f"{title} ({count})"
         header_lbl = QLabel(label_text)
-        # Lighter theme-aware header text (Sep 5 2026, per Keith: "use
-        # a lighter theme color for the header") - BrightText is the
-        # real palette role for this, not a hardcoded hex value.
+        # Lighter theme-aware header text
         bright = self.palette().color(self.palette().currentColorGroup(),
                                        self.palette().ColorRole.BrightText)
         header_lbl.setStyleSheet(f"color: {bright.name()}; font-weight: bold;")
@@ -191,11 +126,7 @@ class AssetCheckerDialog(QDialog): #vers 3
             diff_btn = QPushButton(label)
             diff_btn.setFlat(True)
             diff_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            # Compact padding (Sep 5 2026, per Keith: "the numbers at
-            # the end shouldn't be throwing the table below out") -
-            # the label + buttons together were wider than the 220px
-            # column, forcing the header (and the whole column) wider
-            # than the list widget below it actually needed.
+            # Compact padding (Sep 5 2026)
             diff_btn.setStyleSheet(
                 "text-decoration: underline; padding: 0px 3px; font-size: 11px;")
             diff_btn.setMaximumWidth(diff_btn.fontMetrics().horizontalAdvance(label) + 10)
@@ -206,10 +137,7 @@ class AssetCheckerDialog(QDialog): #vers 3
         header_row.addStretch()
         v.addLayout(header_row)
         lst = QListWidget()
-        # Alternating row colours (Sep 5 2026, per Keith: "pattern the
-        # entry list below") - same real pattern already used
-        # throughout this app's own tables (create_tab's own table
-        # setup, etc).
+        # Alternating row colours (Sep 5 2026)
         lst.setAlternatingRowColors(True)
         v.addWidget(lst)
         splitter.addWidget(container)
@@ -219,13 +147,7 @@ class AssetCheckerDialog(QDialog): #vers 3
         """Build the real, independently-accurate diff button list for
         one source column - a "+N" button only if there are real
         extras, a "-M" button only if there are real missing entries,
-        both at once if both are genuinely true (Sep 5 2026, per
-        Keith's own real catch that a single net number can mislead).
-        Each comes with a plain-English tooltip (Sep 5 2026, per
-        Keith's own follow-up: "now it says +5 -1? confused, does it
-        mean 4 extra and 1 missing?" - no, +5 and -1 are each their
-        own real, independent count, not something to do more mental
-        arithmetic on - the tooltip says so directly)."""
+        both at once if both are genuinely true."""
         diffs = []
         if extra_count:
             diffs.append((
@@ -246,10 +168,7 @@ class AssetCheckerDialog(QDialog): #vers 3
         return diffs
 
     def _on_sync_scroll(self, value): #vers 1
-        """Keep ID/IDE/IMG/COL scrolled together (Sep 5 2026, per
-        Keith's own confirmed design) - guarded against re-entrant
-        signal loops, since setting one list's scrollbar would
-        otherwise re-trigger this same handler for that list too."""
+        """Keep ID/IDE/IMG/COL scrolled together (Sep 5 2026)"""
         if self._sync_guard:
             return
         self._sync_guard = True
@@ -262,8 +181,7 @@ class AssetCheckerDialog(QDialog): #vers 3
 
     def _show_diff_popup(self, names, title): #vers 1
         """Small popup listing the real specific names behind a "+N"/
-        "-N" header diff (Sep 5 2026, per Keith: "Clicking the +1
-        shows the filename, with the option to copy the filename")."""
+        "-N" header diff (Sep 5 2026)"""
         from PyQt6.QtWidgets import QApplication, QPushButton, QHBoxLayout as _QHBoxLayout
         dlg = QDialog(self)
         dlg.setWindowTitle(title)
@@ -293,35 +211,15 @@ class AssetCheckerDialog(QDialog): #vers 3
     def _populate_columns_view(self): #vers 4
         r = self.result
         # IMG/COL now sort by the same IDE-ID-driven order as ID/IDE
-        # (Sep 5 2026, per Keith confirming "yes" after asking why the
-        # 4 columns looked "down sloped" - alphabetical name-order
-        # only loosely correlates with numeric ID-order, which is
-        # exactly what produced that visual mismatch instead of either
-        # a clean line-up or true randomness). A name that's actually
-        # in IDE sorts by its real IDE model_id, matching IDE's own
-        # row position for direct comparison; a name with no IDE
-        # entry at all (the real "+N" extras) has no ID to align to,
-        # so it sorts alphabetically among the other unmatched extras
-        # instead, pushed after every matched one via the infinity
-        # sentinel.
+
         def _ide_order_key(name):
             return (r.ide_id_by_name.get(name, float('inf')), name)
         self.img_list.addItems(sorted(r.img_names, key=_ide_order_key))
         self.col_list.addItems(sorted(r.col_names, key=_ide_order_key))
-        # ID numeric order by default (Sep 5 2026, per Keith: "We
-        # should always follow ID numeric order: 1, 2, 3, 4..... only
-        # time we show the models in alphanumeric order is when we
-        # want to rearrange" - and his own real follow-up catching
-        # this exact bug: "we seem to be forcing the model names to
-        # display alpha numeric, it should be shown in ID other").
-        # sorted() on the plain name strings was alphabetical, not
-        # numeric by ID at all.
+        # ID numeric order by default (Sep 5 2026)
         sorted_ide_names = sorted(r.ide_names, key=lambda n: r.ide_id_by_name.get(n, 0))
         self.ide_list.addItems(sorted_ide_names)
-        # ID column aligned to the same sorted order as IDE (Sep 5
-        # 2026, per Keith: "ID column is the object ID shown in the
-        # IDE file, with that I can just lookup the ID in the real
-        # ide file, to match the model").
+        # ID column aligned to the same sorted order as IDE (Sep 5 026)
         self.id_list.addItems(str(r.ide_id_by_name.get(name, "")) for name in sorted_ide_names)
 
         errors = []
@@ -337,11 +235,7 @@ class AssetCheckerDialog(QDialog): #vers 3
 
     def _populate_merged_view(self): #vers 1
         """Each model name gets one row per source it's actually
-        found in (Sep 5 2026, per Keith: "show IMG, COL and IDE as 3
-        different lines, each with its own shade but theme-aware") -
-        shading comes from the current palette's own base colour,
-        lightened/darkened per source rather than a fixed hex value,
-        so it still fits whatever theme is active."""
+        found in (Sep 5 2026)"""
         base = self.palette().color(self.palette().currentColorGroup(),
                                      self.palette().ColorRole.Base)
         shades = {
@@ -367,7 +261,7 @@ class AssetCheckerDialog(QDialog): #vers 3
                 self.merged_table.setItem(row, col, item)
 
     def _populate_cross_reference_view(self): #vers 1
-        """One row per real model name, in the real column order Keith
+        """One row per real model name, in the real column order
         asked for (Sep 5 2026): ID | DFF | COL | IDE Model Name |
         Texture entry | Errors - see AssetCheckResult.cross_reference_
         rows' own docstring for how each column is actually derived.
@@ -393,22 +287,7 @@ class AssetCheckerDialog(QDialog): #vers 3
         self.xref_table.setSortingEnabled(True)
 
     def _xref_context_menu(self, pos): #vers 1
-        """Right-click menu on the cross-reference table (Sep 5 2026,
-        per Keith: "with right click options to edit that table, add
-        the missing txd, rename, delete, copy and paste cell names").
-        Copy cell/row is always available. "Open in TXD Workshop" only
-        shows for a row whose own Texture entry is genuinely missing
-        (per Keith's own confirmed answer: open the real workshop so
-        he can add a real texture there himself, not an automated
-        write) - opens TXD Workshop against this checker's own real
-        img_path, the same archive the missing texture would need to
-        go into.
-
-        Rename/Delete-with-backup-undo and the game-wide IPL scan for
-        model-name uniqueness are real, separate, larger pieces (the
-        former edits real files, the latter needs scanning every real
-        .dat file for every real IPL) - not implemented yet, scoped
-        as their own follow-up rather than rushed in here."""
+        """Right-click menu on the cross-reference table (Sep 5 2026)"""
         item = self.xref_table.itemAt(pos)
         if item is None:
             return
@@ -451,15 +330,7 @@ def show_asset_checker(main_window, clicked_path: str, game: str = None): #vers 
     """Entry point for the real right-click action - finds the other
     real sibling files sharing clicked_path's own base stem, cross-
     references them, and shows the result. Safe to call even if only
-    1 of the 3 real files exists.
-
-    Embeds as a real tab in main_tab_widget and registers in the real
-    tool taskbar when main_window has both (Sep 5 2026, per Keith:
-    "The asset checker needs to show in a tab, like the other apps,
-    also in the taskbar") - the same real pattern COL/TXD Workshop
-    already use (open_col_workshop/open_txd_workshop's own embedded-
-    mode code). Falls back to a standalone modal dialog when
-    main_window has no tab system at all (e.g. a bare test harness)."""
+    1 of the 3 real files exists."""
     img_path, col_path, ide_path = find_sibling_asset_files(clicked_path)
     ext = os.path.splitext(clicked_path)[1].lower()
     if ext == '.img':
@@ -504,10 +375,7 @@ def show_asset_checker(main_window, clicked_path: str, game: str = None): #vers 
 
 def _register_asset_checker_taskbar(widget, main_window): #vers 1
     """Register or activate the Asset Checker button in the real
-    tool taskbar (Sep 5 2026, per Keith: "also in the taskbar") - same
-    real pattern DAT Browser's own _register_dat_taskbar already
-    uses. Silently does nothing if main_window has no real taskbar at
-    all (defensive, matching the same real pattern)."""
+    tool taskbar (Sep 5 2026)"""
     try:
         tb = getattr(main_window, 'tool_taskbar', None)
         if not tb:

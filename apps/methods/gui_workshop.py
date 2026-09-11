@@ -3,12 +3,12 @@
 # X-Seti - Apr 2026 - IMG Factory 1.6
 # GUIWorkshop — reusable base class for all workshop tools.
 #
-# ┌─────────────────────────────────────────────────────────────────┐
+# ┌┐
 # │ SECTION 1 │ GUI Core — imports, WorkshopSettings, _CornerOverlay│
 # │ SECTION 2 │ Toolbar — Menu, Settings UI, Info [i], Cog [⚙]     │
 # │ SECTION 3 │ Layout  — setup_ui, left, centre, right, statusbar  │
 # │ SECTION 4 │ Logic   — stubs to override in your subclass        │
-# └─────────────────────────────────────────────────────────────────┘
+# └┘
 #
 # Subclass example:
 #   class WaterWorkshop(GUIWorkshop):
@@ -34,10 +34,8 @@ from PyQt6.QtGui import (
 from PyQt6.QtCore import Qt, QSize, QPoint, pyqtSignal
 
 
-# ═════════════════════════════════════════════════════════════════════════════
 # SECTION 1 — GUI Core
 # Imports, optional deps, WorkshopSettings, _CornerOverlay
-# ═════════════════════════════════════════════════════════════════════════════
 
 APPSETTINGS_AVAILABLE = False
 try:
@@ -72,7 +70,7 @@ __author__  = "X-Seti"
 __year__    = "2026"
 
 
-# ── WorkshopSettings ─────────────────────────────────────────────────────────
+# WorkshopSettings
 
 class WorkshopSettings:
     """Per-app JSON settings.  Stored at ~/.config/imgfactory/{config_key}.json
@@ -143,7 +141,7 @@ class WorkshopSettings:
                 if Path(p).exists()]
 
 
-# ── _CornerOverlay ────────────────────────────────────────────────────────────
+# _CornerOverlay
 
 class _CornerOverlay(QWidget):
     """Transparent overlay that draws accent-coloured resize triangles.
@@ -233,9 +231,8 @@ class _CornerOverlay(QWidget):
         p.end()
 
 
-# ═════════════════════════════════════════════════════════════════════════════
+
 # SECTION 2 — Toolbar: Menu, Settings UI, Info [i], Cog [⚙]
-# ═════════════════════════════════════════════════════════════════════════════
 #
 # Toolbar layout (left → right):
 #   [Menu] [Settings]  <stretch>  <Title>  <stretch>
@@ -253,7 +250,7 @@ class _ToolbarMixin:
     Mixed into GUIWorkshop — not used standalone.
     """
 
-    # ── Toolbar creation ──────────────────────────────────────────────────────
+    # Toolbar creation
 
     def _create_toolbar(self):
         self.toolbar = QFrame()
@@ -282,7 +279,7 @@ class _ToolbarMixin:
             b.clicked.connect(slot)
             return b
 
-        # ── Left: [Menu] [Settings] ───────────────────────────────────────
+        # Left: [Menu] [Settings]
         self.menu_btn = QPushButton("Menu")
         self.menu_btn.setFont(self.button_font)
         self.menu_btn.setMinimumHeight(28)
@@ -310,7 +307,7 @@ class _ToolbarMixin:
         lo.addSpacing(4)
         lo.addStretch()
 
-        # ── Centre: title ─────────────────────────────────────────────────
+        # Centre: title
         self.title_label = QLabel(self.App_name)
         self.title_label.setFont(self.title_font)
         self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -320,7 +317,7 @@ class _ToolbarMixin:
         lo.addStretch()
         lo.addSpacing(4)
 
-        # ── Right: action buttons ─────────────────────────────────────────
+        #  Right: action buttons
         self.open_btn   = _ibtn("open_icon",   "Open  Ctrl+O",  self._open_file)
         self.save_btn   = _ibtn("save_icon",   "Save  Ctrl+S",  self._save_file)
         self.export_btn = _ibtn("export_icon", "Export",        self._export_file)
@@ -367,29 +364,11 @@ class _ToolbarMixin:
             self.dock_btn.clicked.connect(self.toggle_dock_mode)
             lo.addWidget(self.dock_btn)
 
-        # Hide the whole titlebar/toolbar when docked (Aug 20 2026,
-        # per Keith: "the titlebar should not be showing when docked"
-        # - visible in a real Water Workshop screenshot, docked inside
-        # IMG Factory, still showing its own full internal titlebar
-        # (Menu/Settings/title text/undo/info/settings/D) duplicating
-        # the outer tab's own title). Shared GUIWorkshop base class,
-        # so this fixes every "*_Workshop" tool at once, not just
-        # Water Workshop - the standalone-only window controls
-        # (minimize/maximize/close) already only ever showed in
-        # standalone mode; hiding the whole bar rather than just those
-        # is the natural extension of that same, already-established
-        # distinction, not a new one. self.dock_btn (the "D" button
-        # this same toolbar builds above) is hidden along with
-        # everything else here - undocking while already docked needs
-        # its own, separate real access point elsewhere if that's
-        # still wanted; simply always showing the whole titlebar again
-        # just to keep this one button reachable would bring back
-        # exactly the duplication being fixed.
         self.toolbar.setVisible(self.standalone_mode)
 
         return self.toolbar
 
-    # ── Menu button handler ───────────────────────────────────────────────────
+    # Menu button handler
 
     def _on_menu_btn_clicked(self):
         """[Menu] button — dropdown or toggle top bar per settings."""
@@ -412,7 +391,7 @@ class _ToolbarMixin:
     def _show_popup_menu(self):   # compat alias
         self._show_dropdown_menu()
 
-    # ── [ℹ] Info — About dialog ───────────────────────────────────────────────
+    #  [ℹ] Info — About dialog
 
     def _show_about(self):
         """[ℹ] button — show About / Info for this workshop."""
@@ -425,7 +404,7 @@ class _ToolbarMixin:
             + f"Copyright \u00a9 {year}  {author}\n"
               f"Part of IMG Factory 1.6 — a GTA modding toolkit.")
 
-    # ── [⚙] Cog — Global AppSettings theme dialog ────────────────────────────
+    #  [⚙] Cog — Global AppSettings theme dialog
 
     def _launch_theme_settings(self):
         """[⚙] Cog — opens the global AppSettings / SettingsDialog.
@@ -447,7 +426,7 @@ class _ToolbarMixin:
             QMessageBox.warning(self, "Theme Error",
                 f"Could not open theme settings:\n{e}")
 
-    # ── [Settings] — Workshop-local settings dialog ───────────────────────────
+    #  [Settings] — Workshop-local settings dialog
 
     def _show_workshop_settings(self):
         """[Settings] button — workshop-local settings.
@@ -467,7 +446,7 @@ class _ToolbarMixin:
         tabs = QTabWidget()
         ws  = self.WS
 
-        # ── Tab 1: Fonts ──────────────────────────────────────────────────
+        #  Tab 1: Fonts
         ft  = QWidget(); fl = QVBoxLayout(ft)
 
         def _font_row(label, fam_key, sz_key, def_fam, def_sz, mn=7, mx=32):
@@ -493,7 +472,7 @@ class _ToolbarMixin:
         fl.addStretch()
         tabs.addTab(ft, "Fonts")
 
-        # ── Tab 2: Display ────────────────────────────────────────────────
+        #  Tab 2: Display
         dt = QWidget(); dl = QVBoxLayout(dt)
 
         bm_grp = QGroupBox("Button Display Mode"); bm_lo = QVBoxLayout(bm_grp)
@@ -524,7 +503,7 @@ class _ToolbarMixin:
         dl.addStretch()
         tabs.addTab(dt, "Display")
 
-        # ── Tab 3: Menu ───────────────────────────────────────────────────
+        #  Tab 3: Menu
         mt = QWidget(); ml = QVBoxLayout(mt)
 
         ms_grp = QGroupBox("Menu Style"); ms_lo = QVBoxLayout(ms_grp)
@@ -548,7 +527,7 @@ class _ToolbarMixin:
         ml.addStretch()
         tabs.addTab(mt, "Menu")
 
-        # ── Tab 4: About ──────────────────────────────────────────────────
+        #  Tab 4: About
         at  = QWidget(); al = QVBoxLayout(at)
         atx = QTextEdit(); atx.setReadOnly(True)
         author = getattr(self, "App_author",      __author__)
@@ -566,7 +545,7 @@ class _ToolbarMixin:
         al.addWidget(atx)
         tabs.addTab(at, "About")
 
-        # ── Dialog buttons ────────────────────────────────────────────────
+        #  Dialog buttons
         lo.addWidget(tabs)
         btns = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok |
@@ -578,7 +557,7 @@ class _ToolbarMixin:
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return
 
-        # ── Save ─────────────────────────────────────────────────────────
+        #  Save
         ws.set("font_title_family",        fc_tit.currentFont().family())
         ws.set("font_title_size",          sc_tit.value())
         ws.set("font_panel_family",        fc_pan.currentFont().family())
@@ -605,7 +584,7 @@ class _ToolbarMixin:
             self._sidebar_frame.setFixedWidth(ws.get("sidebar_width", 82))
         self._set_status("Settings saved.")
 
-    # ── Theme helpers ─────────────────────────────────────────────────────────
+    #  Theme helpers
 
     def _get_icon_color(self) -> str:
         """Returns text_primary from current theme."""
@@ -878,7 +857,7 @@ class _LogicStubsMixin:
     Replace these with your actual file format, drawing, and undo logic.
     """
 
-    # ── ToolMenuMixin protocol ────────────────────────────────────────────────
+    #  ToolMenuMixin protocol
     def get_menu_title(self) -> str:
         return self.App_name
 
@@ -910,7 +889,7 @@ class _LogicStubsMixin:
         vm.addSeparator()
         vm.addAction("About " + self.App_name, self._show_about)
 
-    # ── File operations ───────────────────────────────────────────────────────
+    #  File operations
     def _open_file(self, path=None):   pass   # override: load your format
     def _save_file(self):              pass   # override: save your format
     def _export_file(self):            pass   # override: export
@@ -919,18 +898,18 @@ class _LogicStubsMixin:
         self.WS._data["recent_files"] = []; self.WS.save()
         self._set_status("Recent files cleared")
 
-    # ── Edit operations ───────────────────────────────────────────────────────
+    #  Edit operations
     def _undo(self):         self._set_status("Undo — override in subclass")
     def _redo(self):         self._set_status("Redo — override in subclass")
     def _copy_item(self):    pass   # override: copy selection
     def _paste_item(self):   pass   # override: paste clipboard
 
-    # ── View operations ───────────────────────────────────────────────────────
+    #  View operations
     def _zoom(self, factor: float): pass   # override: zoom your canvas
     def _fit(self):                 pass   # override: fit view
     def _jump(self):                pass   # override: jump to selection
 
-    # ── Panel callbacks ───────────────────────────────────────────────────────
+    #  Panel callbacks
     def _on_list_selection_changed(self, row: int): pass
     def _on_tab_changed(self, idx: int):            pass
     def _on_add_item(self):
@@ -940,10 +919,10 @@ class _LogicStubsMixin:
         row = self._item_list.currentRow()
         if row >= 0: self._item_list.takeItem(row)
 
-    # ── Toolbar actions ───────────────────────────────────────────────────────
+    #  Toolbar actions
     def _on_toolbar_action(self, action: str): pass  # rotate/flip/edit etc.
 
-    # ── Tool management ───────────────────────────────────────────────────────
+    #  Tool management
     def _set_active_tool(self, tool: str):
         self._active_tool = tool
         for name, btn in self._draw_btns.items():
@@ -961,7 +940,7 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
     management are inherited from the four sections above.
     """
 
-    # ── Subclass identity — OVERRIDE ALL OF THESE ─────────────────────────────
+    #  Subclass identity — OVERRIDE ALL OF THESE
     App_name        = "Workshop"
     App_build       = "Build 1"
     App_author      = "X-Seti"
@@ -969,11 +948,11 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
     App_description = "GUIWorkshop base template — IMG Factory 1.6"
     config_key      = "gui_workshop"
 
-    # ── Signals ───────────────────────────────────────────────────────────────
+    #  Signals
     workshop_closed = pyqtSignal()
     window_closed   = pyqtSignal()
 
-    # ── Init ──────────────────────────────────────────────────────────────────
+    #  Init
     def __init__(self, parent=None, main_window=None):
         super().__init__(parent)
         self.main_window     = main_window
@@ -1073,7 +1052,7 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
         QShortcut(QKeySequence("Shift+R"), self).activated.connect(
             lambda: self._set_active_tool("rect_fill"))
 
-    # ── Window chrome ─────────────────────────────────────────────────────────
+    #  Window chrome
     def showEvent(self, ev):
         super().showEvent(ev)
         if not hasattr(self, "_corner_overlay"):
@@ -1165,9 +1144,7 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
         super().closeEvent(ev)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Standalone launcher
-# ─────────────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     import traceback

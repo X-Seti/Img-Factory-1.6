@@ -63,9 +63,9 @@ App_build  = "Build 1"
 config_key = "hex_workshop"
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+#                                                                              
 # 3-Panel Hex View
-# ─────────────────────────────────────────────────────────────────────────────
+#                                                                              
 
 class HexViewWidget(QWidget):  #vers 1
     """3-panel hex display: Address | Hex values | ASCII"""
@@ -177,9 +177,9 @@ class HexViewWidget(QWidget):  #vers 1
         except Exception: pass
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+#                                                                              
 # Structure / parse view (right panel)
-# ─────────────────────────────────────────────────────────────────────────────
+#                                                                              
 
 class StructureView(QTableWidget):  #vers 1
     goto_requested = pyqtSignal(int)
@@ -249,9 +249,9 @@ class StructureView(QTableWidget):  #vers 1
                 break
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+#                                                                              
 # Main Workshop
-# ─────────────────────────────────────────────────────────────────────────────
+#                                                                              
 
 class HexWorkshop(GUIWorkshop):  #vers 1
     App_name   = App_name
@@ -382,9 +382,9 @@ class HexWorkshop(GUIWorkshop):  #vers 1
         vm.addAction("Go to offset…", lambda: self._goto_input.setFocus())
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+#                                                                              
 # Backward compat helpers (used by imgfactory + right_click_actions)
-# ─────────────────────────────────────────────────────────────────────────────
+#                                                                              
 
 def show_hex_editor_for_file(main_window, file_path, entry_info=None):  #vers 1
     w = HexWorkshop(main_window=main_window)
