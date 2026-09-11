@@ -557,7 +557,7 @@ class WaterProFile: #vers 2
 
 
 def _detile_sol_grid(raw: bytes, grid_width: int, map_w: int = 6) -> List[List[int]]: #vers 1
-    """Real de-tiling fix for SOL's own waterpro.dat grid layout (Aug
+    """ de-tiling fix for SOL's own waterpro.dat grid layout (Aug
     20 2026)"""
     tile_w = grid_width // map_w
     out = [[0] * grid_width for _ in range(grid_width)]
@@ -944,7 +944,7 @@ class DATParser: #vers 2
     def ipl_entries(self)  -> List[DATEntry]: return self.get_by_directive("IPL")
     def col_entries(self)  -> List[DATEntry]: return self.get_by_directive("COLFILE")
     def water_entries(self) -> List[DATEntry]: #vers 1
-        """Real WATER directive entries (Aug 20 2026) - the generic
+        """ WATER directive entries (Aug 20 2026) - the generic
         "any directive not specifically matched above" branch in
         parse() already captures these correctly (WATER <path>, same
         shape as every other simple single-path directive), this is
@@ -1682,7 +1682,7 @@ class IPLParser: #vers 2
             if len(p) < 9:
                 return None
             cx, cy, cz = float(p[0]), float(p[1]), float(p[2])
-            # Real fix (Aug 21 2026)
+            #  fix (Aug 21 2026)
             if self.game in (GTAGame.SA, GTAGame.SOL):
                 xskew, length, bottom = float(p[3]), float(p[4]), float(p[5])
                 width, yskew, top = float(p[6]), float(p[7]), float(p[8])
@@ -1962,7 +1962,7 @@ class GTAWorldLoader: #vers 3
         self.sa_nodes:   Dict[int, object] = {}
         # Police roadblock placements (Aug 19 2026)
         self.sa_roadblocks: List[RoadblockEntry] = []
-        # Real water plane shapes (Aug 20 2026)
+        #  water plane shapes (Aug 20 2026)
         self.water_shapes: List[object] = []
         # III/VC's own binary waterpro.dat (Aug 20 2026)
         self.waterpro: Optional[object] = None
@@ -2249,7 +2249,7 @@ class GTAWorldLoader: #vers 3
     def load_waterpro_dat(self, data_dir: str = ''): #vers 4
         """Load GTA III/VC's own binary waterpro.dat.
 
-        Real fix (Aug 20 2026)"""
+         fix (Aug 20 2026)"""
         entries = getattr(self.main_dat, 'water_entries', lambda: [])()
         for entry in entries:
             if entry.exists:

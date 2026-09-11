@@ -577,14 +577,14 @@ def quat_to_euler_degrees(x, y, z, w): #vers 2
     euler_degrees_to_quat. Used to present an IPLInstance's rotation
     (stored as a quaternion) as editable X/Y/Z degree values.
 
-    Normalizes its input first (Sep 5 2026, per Keith's own real,
+    Normalizes its input first (Sep 5 2026  own real,
     confirmed IPL line showing a raw, non-unit (1,1,1,1) rotation) -
     this formula assumes a unit quaternion; feeding it a non-
     normalized one produces mathematically wrong angles, not just an
     approximation.
 
     Also now special-cases gimbal lock (|pitch| == 90 degrees) with
-    the standard fallback formula (Sep 5 2026, per Keith: "the
+    the standard fallback formula (Sep 5 2026,  "the
     Rotation line is wrong. I'm wondering where its picking up
     x146.3 y90 z146.3, doing a search with ds '146.3' its picking up
     some of the path files") - at gimbal lock, roll and yaw are
@@ -594,7 +594,7 @@ def quat_to_euler_degrees(x, y, z, w): #vers 2
     input can swing the extracted roll/yaw between wildly different-
     looking values even though the actual 3D rotation barely changes.
     That's what produced the confusing 146.3 - not data leaking from
-    path files (a red herring from Keith's own search; that specific
+    path files (a red herring from my own search; that specific
     number is a common byproduct of this exact instability, not
     evidence of real cross-contamination). The standard fallback
     (roll=0, yaw absorbs the combined twist) gives a stable, sensible
@@ -1430,7 +1430,7 @@ class COL3DViewport(QWidget): #vers 2
 
     def _snap_vertices(self, threshold=0.05): #vers 2
         """Close gaps in a mesh by moving nearby vertices together
-        (Aug 20 2026, per Keith: "the biggest problem sometimes with
+        (Aug 20 2026,  "the biggest problem sometimes with
         making models is sometimes there are gaps, so we need a snap
         function" - confirmed to also mean this, vertex-level, mesh-
         editing sense, alongside the already-existing, separate
@@ -3040,7 +3040,7 @@ class RibbonManagerDialog(QDialog): #vers 1
     def _refresh_action_list(self): #vers 2
         """Populate right pane with actions in the selected toolbar.
 
-        Real fix (Aug 21 2026, per Keith: "Ribbon Manager icons in
+         fix (Aug 21 2026,  "Ribbon Manager icons in
         Overlays show as Action, with no icon or name for that
         function, and the selection group as an Action label") -
         every real button added to a toolbar via addWidget (Cull/Zon/
@@ -3329,7 +3329,7 @@ class MapSettings(QObject):
 
         'recent_dat_files':  [],
         # Auto-load the most recently used game world on startup (Aug
-        # 20 2026, per Keith's own explicit "option 2" choice: "build
+        # 20 2026  own explicit "option 2" choice: "build
         # auto-restore last world on startup, so preload can fire
         # without a manual reload each time") - default on since he
         # chose it, but toggleable since it's a real startup-behaviour
@@ -3337,7 +3337,7 @@ class MapSettings(QObject):
         # time the tool opens).
         'auto_load_last_world': True,
         # Auto-dismiss the load summary dialog (Aug 20 2026, per
-        # Keith: "that dat window, countdown from 10, then
+        #  : "that dat window, countdown from 10, then
         # automatically press ok, also show the preloaded files in
         # that dialog window") - off by default, since a popup
         # closing itself is a bigger behaviour change to opt into
@@ -3371,44 +3371,44 @@ class MapSettings(QObject):
         'water_tile_size': 256,
         'water_hide_outside_map': False,
         'preload_saved_files': [],
-        # Water2's own style toggle (Aug 20 2026, per Keith: "I like
+        # Water2's own style toggle (Aug 20 2026,  "I like
         # the blue, so we can keep it, or have an option to use the
         # water texture, either from the game or the tex/ file from
-        # img factory") - off by default (Keith's own stated
+        # img factory") - off by default (my own stated
         # preference), independent of whether a texture happens to be
         # preloaded, so switching back and forth doesn't need re-
         # preloading each time.
         'water2_use_texture': False,
         # Real, manually-chosen custom water texture path (Aug 20
-        # 2026, per Keith: "the option settings path for using other
+        # 2026,  "the option settings path for using other
         # water textures") - empty means "no custom override, try the
         # loaded game's own particle.txd first, then this app's own
         # tex/ folder asset if preloaded via that route instead".
         'water2_custom_texture_path': '',
-        # Height/transparency adjustments (Aug 20 2026, per Keith:
+        # Height/transparency adjustments (Aug 20 2026, .per:
         # "The water needs to be moved up and have transparency
         # settings, but I'm not sure by how much").
         'water2_height_offset': 0.0,
         'water2_alpha': 0.45,
-        # X/Y offsets (Aug 20 2026, per Keith: "6 squares offset on
+        # X/Y offsets (Aug 20 2026,  "6 squares offset on
         # the larger grid, or 14 on the smaller grid") - matches
         # water_workshop.py's own "World coordinate offset" X/Y/Z
         # feature; per-file, not assumed to be the same for every VC
         # install.
         'water2_x_offset': 0.0,
         'water2_y_offset': 0.0,
-        # VC-only gate (Aug 20 2026, per Keith: "offset should only be
+        # VC-only gate (Aug 20 2026,  "offset should only be
         # for VC, so we need a toggle to effect VC waterpro.dat only")
         'water2_offset_vc_only': True,
 
-        # IPL Controls display style (Aug 20 2026, per Keith: "we
+        # IPL Controls display style (Aug 20 2026,  "we
         # could add a toggle in settings, Show IPL Controls = as
         # [Buttons] or ribbon icons") - off (buttons/text) by default,
         # since not every overlay toggle button has real icon artwork
         # yet.
         'ipl_controls_icon_only': False,
 
-        # Viewport camera state (Aug 20 2026, per Keith: "remember the
+        # Viewport camera state (Aug 20 2026,  "remember the
         # zoom settings, and view location when app is closed") - None
         # means "never saved yet, use the viewport's own built-in
         # default" rather than a real 0.0/wrong guessed default.
@@ -3419,7 +3419,7 @@ class MapSettings(QObject):
         'viewport_pitch': None,
 
         # Camera angle when centring on a selected instance (Sep 5
-        # 2026, per Keith: "when selecting a model in map workshop,
+        # 2026,  "when selecting a model in map workshop,
         # can we change the camera view, have a setting, view from 0,
         # +200 so we dont view the model from the bottom, we see it
         # from the top instead") - off by default since it's a new
@@ -3431,13 +3431,13 @@ class MapSettings(QObject):
         'focus_from_above': False,
         'focus_from_above_dist': 200.0,
 
-        # IPL Object Editor always-on-top (Sep 5 2026, per Keith: "the
+        # IPL Object Editor always-on-top (Sep 5 2026,  "the
         # IPL file editor should stay on top, with a settings toggle
         # option") - off by default, matching every other new opt-in
         # behaviour toggle added this session.
         'ipl_editor_always_on_top': False,
 
-        # IPL stems to parse as VC layout (Sep 5 2026, per Keith: "LC,
+        # IPL stems to parse as VC layout (Sep 5 2026,  "LC,
         # MLL, VC are still in VC format... a loading toggle to adjust
         # ipl loading patterns") - comma-separated, no extension, e.g.
         # "lc,mll,vc" - empty by default (no change to normal loading).
@@ -3589,7 +3589,7 @@ class MapSettings(QObject):
         'radar_tiles_output_dir': '',
         'radar_tiles_pack_txd':   True,
         'radar_tiles_copy_to_assists': True,
-        # Real bug fixed (Aug 20 2026)
+        #  bug fixed (Aug 20 2026)
         'radar_tiles_show_grid':  False,
         # The real "other grid options" this same comment block above
         # already flagged as coming later (Aug 20 2026)
@@ -4238,7 +4238,7 @@ class _MapOverlayToggleButton(QToolButton): #vers 2
     """One compact button replacing a pair of checkboxes (show/hide +
     edit mode) for a single map overlay type (Aug 18 2026).
 
-    Optional icon support added (Aug 20 2026, per Keith: "we could
+    Optional icon support added (Aug 20 2026,  "we could
     add a toggle in settings, Show IPL Controls = as [Buttons] or
     ribbon icons") - label is always kept as this button's own real
     text (used for its tooltip and QMessageBox-style status text
@@ -4269,7 +4269,7 @@ class _MapOverlayToggleButton(QToolButton): #vers 2
 
     def set_middle_click_menu_available(self, available: bool): #vers 1
         """Mark whether this button has a real middle-click menu
-        connected (Aug 21 2026, per Keith: "add these to the svg icon
+        connected (Aug 21 2026,  "add these to the svg icon
         zon button with a middle-click, and move those functions
         over. Same with cull, occl, auzo, grge") - only updates this
         button's own real tooltip text; map_workshop.py itself still
@@ -4285,12 +4285,12 @@ class _MapOverlayToggleButton(QToolButton): #vers 2
 
     def set_display_style(self, icon_only: bool): #vers 2
         """Switch between this button's own real text label and its
-        real icon (Aug 20 2026, per Keith: "Show IPL Controls = as
+        real icon (Aug 20 2026,  "Show IPL Controls = as
         [Buttons] or ribbon icons") - falls back to text-only when
         icon_only is requested but no real icon was ever actually set
         for this button, rather than rendering a blank button.
 
-        Real fix (Aug 20 2026, per Keith: "the svg icons, need to be
+         fix (Aug 20 2026,  "the svg icons, need to be
         square like the others in the ribbons... its only the new
         ribbon buttons that are a different size, they need to be the
         same size as the existing buttons") - __init__ only ever fixed
@@ -4328,7 +4328,7 @@ class _MapOverlayToggleButton(QToolButton): #vers 2
                 if mw is not None and hasattr(mw, '_set_status'):
                     mw._set_status(f"No edit mode available for {self.text()} yet")
         elif event.button() == Qt.MouseButton.MiddleButton:
-            # Real fix (Aug 21 2026, per Keith: "the new buttons,
+            #  fix (Aug 21 2026,  "the new buttons,
             # +zon, -zon, and save zon... add these to the svg icon
             # zon button with a middle-click, and move those
             # functions over") - just emits; map_workshop.py owns
@@ -4366,7 +4366,7 @@ class _MapOverlayToggleButton(QToolButton): #vers 2
 
     def set_label(self, text: str): #vers 1
         """Update this button's own visible text after construction
-        (Aug 20 2026, per Keith: "[TCYC] button doesn't appear to
+        (Aug 20 2026,  "[TCYC] button doesn't appear to
         change as time advances") - lets a caller show live feedback
         (e.g. the current simulated hour) on the button itself,
         rather than only the toolbar row's separate time display."""
@@ -4881,10 +4881,10 @@ class _InstanceEditPanel(QWidget):
     def _show_texture_thumbnail_strip(self): #vers 5
         """Texture editor dialog - resizable grid of texture
         thumbnails with Add/Del/Export/Replace/Rename/Apply/Save
-        actions (Sep 5 2026, per Keith's own texture-editor button
+        actions (Sep 5 2026  own texture-editor button
         request), plus the existing Save as TXD/Save as Single
         Textures export options. Double-click opens a big, resizable
-        close-up view of one texture (Sep 5 2026, per Keith: "i like
+        close-up view of one texture (Sep 5 2026,  "i like
         to see things close up").
 
         HONEST LIMITATION: Add/Del/Replace/Rename only edit the in-
@@ -4926,7 +4926,7 @@ class _InstanceEditPanel(QWidget):
             item = list_widget.currentItem()
             return item.data(Qt.ItemDataRole.UserRole) if item else None
 
-        # Action row (Sep 5 2026, per Keith: "when adding new buttons,
+        # Action row (Sep 5 2026,  "when adding new buttons,
         # if space is limited, revert to SVG icons") - icon-only,
         # tooltip carries the label.
         action_row = QHBoxLayout()
@@ -4967,7 +4967,7 @@ class _InstanceEditPanel(QWidget):
         action_row.addWidget(save_folder_btn)
         outer.addLayout(action_row)
 
-        # Thumbnail grid (Sep 5 2026, per Keith: "have the ability to
+        # Thumbnail grid (Sep 5 2026,  "have the ability to
         # select the listed textures; show as a large, resizable
         # option window. i like to see things close up.") -
         # QListWidget IconMode gives real resizing/scrolling/selection
@@ -5001,7 +5001,7 @@ class _InstanceEditPanel(QWidget):
 
     def _show_texture_zoom_view(self, parent, tex): #vers 2
         """Big, resizable close-up view of one texture (Sep 5 2026,
-        per Keith: "show as a large, resizable option window. i like
+         "show as a large, resizable option window. i like
         to see things close up.") - shown at native resolution (or
         upscaled if tiny) inside a scroll area, so the window is
         genuinely resizable and the image can be inspected at real
@@ -5038,7 +5038,7 @@ class _InstanceEditPanel(QWidget):
     def _texture_name_exists(self, textures, name, exclude_name=None): #vers 1
         """True if name (case-insensitive) already exists among
         textures - checking every currently-loaded texture name in
-        this TXD, per Keith: "check with the database that the
+        this TXD,  "check with the database that the
         texture I add or rename... doesn't already exist". Since a
         texture's separate normal/alpha companion (e.g. GTA's own
         "namea" convention) is itself just another regular named
@@ -5060,7 +5060,7 @@ class _InstanceEditPanel(QWidget):
     def _on_add_texture(self, parent, textures, list_widget): #vers 1
         """Add Texture - load an image file, ask for a name, check it
         doesn't already exist in this TXD, add it to the in-memory
-        set (Sep 5 2026, per Keith's own texture-editor button
+        set (Sep 5 2026  own texture-editor button
         request)."""
         path, _ = QFileDialog.getOpenFileName(
             parent, "Add Texture", os.path.expanduser('~'),
@@ -5170,7 +5170,7 @@ class _InstanceEditPanel(QWidget):
 
     def _save_raw_txd_file(self, txd_name): #vers 1
         """Export the original, unmodified .txd container bytes for
-        txd_name (Sep 5 2026, per Keith: "we also need to extract the
+        txd_name (Sep 5 2026,  "we also need to extract the
         .txd file aswell, not just the textures") - straight from the
         IMG archive, no decode/re-encode, so whatever the alpha/
         compression/format story turns out to be, this file is
@@ -5750,7 +5750,7 @@ class _VerboseLoadingDialog(QDialog):
         header_font.setBold(True)
         self._header_label.setFont(header_font)
         layout.addWidget(self._header_label)
-        # Real load-percentage indicator (Aug 20 2026)
+        #  load-percentage indicator (Aug 20 2026)
         self._progress_bar = QProgressBar()
         self._progress_bar.setRange(0, 100)
         self._progress_bar.setValue(0)
@@ -5769,7 +5769,7 @@ class _VerboseLoadingDialog(QDialog):
         QApplication.processEvents()   # header changes are rare - always pump immediately
 
     def set_progress(self, current, total): #vers 1
-        """Real load-percentage indicator (Aug 20 2026)"""
+        """ load-percentage indicator (Aug 20 2026)"""
         pct = int((current / total) * 100) if total > 0 else 0
         self._progress_bar.setValue(max(0, min(100, pct)))
         QApplication.processEvents()
@@ -5783,7 +5783,7 @@ class _VerboseLoadingDialog(QDialog):
             self._last_pump = now
 
 
-# Real diagnostic marker (Aug 20 2026) - see __init__'s own docstring
+#  diagnostic marker (Aug 20 2026) - see __init__'s own docstring
 _MODEL_WORKSHOP_INSTANCE_COUNT = 0
 
 
@@ -5845,7 +5845,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     # to QDockWidgets in the same QMainWindow (EXPERIMENTAL, Jul 2026) -
     # user can now freely drag/float/tab any panel, not just ribbons.
     # 3 = Overlays ribbon changed substantially (Aug 21 2026, per
-    # Keith: "the save function for the ribbon manager isn't
+    #  : "the save function for the ribbon manager isn't
     # working, or the config isn't being picked up, when the ribbon
     # manager is called") - Cycle, Undo, and Grge's own show/hide
     # toggle were all added this session, and a dozen separate +X/-X/
@@ -5862,7 +5862,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def __init__(self, parent=None, main_window=None): #vers 12
         """initialize_features"""
-        # Real diagnostic marker (Aug 20 2026, per Keith: "we need a
+        #  diagnostic marker (Aug 20 2026,  "we need a
         # marker to show in the terminal for each dialog window,
         # there coming up twice, and loading the img file twice") -
         # module-level counter so a real double-construction (the
@@ -5959,7 +5959,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._show_boxes = True
         self._show_mesh = True
 
-        # Real settings, now loaded from self.map_settings (Aug 20
+        #  settings, now loaded from self.map_settings (Aug 20
         # 2026 - same real bug/fix as button_display_mode/fonts
         # above: these lived as ad-hoc self.xxx attributes that Apply
         # updated correctly in-memory but never actually persisted).
@@ -6028,7 +6028,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # exists (Aug 19 2026)
         QTimer.singleShot(0, self._restore_dock_state)
 
-        # Real fix (Aug 20 2026, per Keith: "I've noticed moving icons
+        #  fix (Aug 20 2026,  "I've noticed moving icons
         # to hidden, and save, these movements dont get saved") -
         # _save_toolbar_state was correctly writing the toolbar state
         # (including which icons had been moved to the Hidden toolbar)
@@ -6041,7 +6041,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         QTimer.singleShot(0, self._restore_toolbar_state)
 
         # Move the overlay toggle buttons onto the new "Overlays"
-        # ribbon (Aug 20 2026, per Keith: "The New Icons on the IPL
+        # ribbon (Aug 20 2026,  "The New Icons on the IPL
         # Control pane, can be moved to the ribbon") - deferred the
         # same real way as _restore_toolbar_state just above, and for
         # the same real reason: _build_toolbars (where the "Overlays"
@@ -6052,7 +6052,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         QTimer.singleShot(0, self._apply_ipl_controls_display_style)
 
         # Auto-load the most recently used game world on startup (Aug
-        # 20 2026, per Keith's own explicit "option 2" choice: "build
+        # 20 2026  own explicit "option 2" choice: "build
         # auto-restore last world on startup, so preload can fire
         # without a manual reload each time" - confirmed still needed
         # by his own follow-up: "nothing about loading preloaded
@@ -8245,7 +8245,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.status_label = QLabel("Ready")
         layout.addWidget(self.status_label)
 
-        # Zoom level, left of memory usage (Aug 20 2026, per Keith:
+        # Zoom level, left of memory usage (Aug 20 2026, .per:
         # "a zoom value display left of the memory usage on the
         # status bar, for the viewpoint")
         layout.addStretch()
@@ -8269,7 +8269,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _update_zoom_status_label(self): #vers 1
         """Refresh the status bar's zoom label (Aug 20 2026, per
-        Keith: "a zoom value display left of the memory usage on the
+         : "a zoom value display left of the memory usage on the
         status bar, for the viewpoint") - reads the viewport's own
         real camera-distance-from-target value (self._dist), the same
         real quantity every zoom in/out/wheel action already changes,
@@ -8591,7 +8591,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         button_group.setLayout(button_layout)
         display_layout.addWidget(button_group)
 
-        # IPL Controls display style (Aug 20 2026, per Keith: "we
+        # IPL Controls display style (Aug 20 2026,  "we
         # could add a toggle in settings, Show IPL Controls = as
         # [Buttons] or ribbon icons") - a separate, real toggle from
         # the general "Button Display Mode" combo just above, since
@@ -8875,7 +8875,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         grid_type_combo = QComboBox()
         grid_type_items = [
             ('lines',            'Lines (default)'),
-            # ('squares',          'Squares (blue fill)'),  # Temporarily disabled (Aug 20 2026, per Keith: "remove the square (blue fill) entry, temp comment it out if possible. So that function doesn't affect testing") - kept as its own entry, since Keith's own request was to comment it out rather than delete it, in case it's needed again later.
+            # ('squares',          'Squares (blue fill)'),  # Temporarily disabled (Aug 20 2026,  "remove the square (blue fill) entry, temp comment it out if possible. So that function doesn't affect testing") - kept as its own entry, since my own request was to comment it out rather than delete it, in case it's needed again later.
             ('dashed',           'Marching ants (dashed)'),
             ('dots',             'Dots only'),
             ('honeycomb',        'Honeycomb (hexagons)'),
@@ -9030,7 +9030,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "generated radar/minimap tiles. Off by default.")
         radar_form.addRow(radar_show_grid_chk)
 
-        # radar_tex_layer_chk removed (Aug 20 2026, per Keith: "moving
+        # radar_tex_layer_chk removed (Aug 20 2026,  "moving
         # the Radar settings from the settings, to the button would
         # follow the pattern of the other buttons, leaving the
         # settings, for those buttons in the map_workshop settings") -
@@ -9128,7 +9128,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         water_path_edit.setPlaceholderText("Not found - Browse to point at it directly")
         water_browse_btn = QPushButton("Browse…")
         water_browse_btn.setToolTip(
-            "Per Keith: \"the waterpro.dat is in gameroot/data/waterpro.\n"
+            "Per  : \"the waterpro.dat is in gameroot/data/waterpro.\n"
             "dat; if it's not found, ask for it, [browse] with the path\n"
             "to where the waterpro.dat is.\" Manually point at a real\n"
             "water.dat or waterpro.dat if auto-detection (the game's\n"
@@ -9209,7 +9209,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         render_layout.addWidget(boxes_grp)
         render_layout.addWidget(radar_grp)
         # water_grp (the old, settings-driven group) disconnected (Aug
-        # 20 2026, re-applied per Keith's own "get water working"
+        # 20 2026, re-applied per my own "get water working"
         # priority) - widget still built above (harmless, just not
         # shown) so this can be reused or fully removed later once
         # the new preload-driven water is confirmed solid.
@@ -9230,7 +9230,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         water2_tex_path_edit.setPlaceholderText("Auto: the loaded game's own particle.txd water texture")
         water2_tex_browse_btn = QPushButton("Browse...")
         def _browse_water2_texture(): #vers 2
-            """Real fix (Aug 20 2026, per Keith: "the option settings
+            """ fix (Aug 20 2026,  "the option settings
             path for using other water textures") - a manually-chosen
             custom texture is a deliberate, explicit choice, so it
             takes priority over the automatic particle.txd extraction
@@ -9301,7 +9301,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "Off: applies the offset regardless of game.")
         water2_form.addRow(water2_vc_only_chk)
 
-        # Real fix (Aug 20 2026, per Keith: "Change it by 20+ on the
+        #  fix (Aug 20 2026,  "Change it by 20+ on the
         # height in settings, doesn't update the view") - these two
         # only ever applied on Apply/OK before; live updates as the
         # spinbox itself changes make far more sense for a "not sure
@@ -9336,10 +9336,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         render_layout.addWidget(water2_grp)
 
-        # Audio Streams (Aug 20 2026, per Keith: "i can send you the
+        # Audio Streams (Aug 20 2026,  "i can send you the
         # sounds, would that help") - real, working extraction from
         # SA's own real "audio stream" file format (AMBIENCE, GENRL,
-        # radio station files) confirmed against Keith's own real,
+        # radio station files) confirmed against my own real,
         # uploaded AMBIENCE file (documented XOR key + track header
         # from GTAMods, verified via ffprobe: extracted tracks are
         # fully valid Ogg Vorbis, probe_score=100).
@@ -9726,7 +9726,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         nav_lay.addWidget(hover_highlight_chk)
 
         # View from above when selecting a model (Sep 5 2026, per
-        # Keith: "when selecting a model in map workshop, can we
+        #  : "when selecting a model in map workshop, can we
         # change the camera view, have a setting, view from 0, +200
         # so we dont view the model from the bottom, we see it from
         # the top instead")
@@ -9750,7 +9750,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         focus_above_dist_row.addWidget(focus_above_dist_spin)
         nav_lay.addLayout(focus_above_dist_row)
 
-        # IPL Object Editor always-on-top (Sep 5 2026, per Keith: "the
+        # IPL Object Editor always-on-top (Sep 5 2026,  "the
         # IPL file editor should stay on top, with a settings toggle
         # option")
         ipl_editor_on_top_chk = QCheckBox("Keep IPL Object Editor on top")
@@ -9761,7 +9761,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "get covered by whatever you click on next.")
         nav_lay.addWidget(ipl_editor_on_top_chk)
 
-        # VC-layout IPL stems (Sep 5 2026, per Keith: "LC, MLL, VC are
+        # VC-layout IPL stems (Sep 5 2026,  "LC, MLL, VC are
         # still in VC format... a loading toggle to adjust ipl loading
         # patterns")
         vc_layout_row = QHBoxLayout()
@@ -10096,7 +10096,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 self._checkerboard_size = cb_spin.value()
                 self._overlay_opacity = opacity_spin.value()
 
-                # Real persistence for everything just applied above (Aug 20 2026)
+                #  persistence for everything just applied above (Aug 20 2026)
                 self.map_settings.set('default_font_family', default_font_family)
                 self.map_settings.set('default_font_size', default_font_size_v)
                 self.map_settings.set('title_font_family', title_font_family)
@@ -10972,7 +10972,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         signal. Flushes any still-pending debounced settings save
         (Aug 16 2026)
 
-        Real fix (Aug 20 2026, per Keith: "remember the zoom settings,
+         fix (Aug 20 2026,  "remember the zoom settings,
         and view location when app is closed") - saves the viewport's
         own real camera state (zoom/_dist, pan_x/pan_y, yaw/pitch)
         here on close specifically, rather than on every zoom/pan/
@@ -12202,7 +12202,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._set_status(f"Geometry [{idx}] duplicated.")
 
     def _on_snap_vertices_clicked(self): #vers 1
-        """Snap Vertices button handler (Aug 20 2026, per Keith: "the
+        """Snap Vertices button handler (Aug 20 2026,  "the
         biggest problem sometimes with making models is sometimes
         there are gaps, so we need a snap function") - delegates to
         the viewport's own real _snap_vertices, then reports the real
@@ -13219,7 +13219,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             saved_skybox = self.map_settings.get('skybox_path')
             if saved_skybox:
                 self.preview_widget.set_skybox_path(saved_skybox)
-        # Real fix (Aug 20 2026, per Keith: "the timecyc.dat also has a
+        #  fix (Aug 20 2026,  "the timecyc.dat also has a
         # fixed path, but the radar loads fine across the game
         # versions") - removed the startup restore of a previously-
         # saved timecyc_path here. Auto-detection already re-runs on
@@ -13293,7 +13293,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 bool(self.map_settings.get('auto_highlight_hover')))
         if hasattr(self.preview_widget, 'set_hover_context_callback'):
             self.preview_widget.set_hover_context_callback(self._on_hover_context_menu)
-        # Middle-click cycle (Aug 21 2026, per Keith: "middle click
+        # Middle-click cycle (Aug 21 2026,  "middle click
         # can cycle?") - same real callback the Cycle Zones button's
         # own left-click already uses.
         if hasattr(self.preview_widget, 'set_middle_click_cycle_callback'):
@@ -13425,7 +13425,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._sel_face_act.setChecked(True)
         self._select_mode_group = sel_group
 
-        # Hidden - Model Workshop icon, per Keith (Aug 20 2026)
+        # Hidden - Model Workshop icon,  (Aug 20 2026)
         for a in (self._sel_vert_act, self._sel_edge_act,
                   self._sel_face_act, self._sel_poly_act):
             a.setVisible(False)
@@ -13447,7 +13447,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
              self.icon_factory.view_icon,
              lambda v: self._toggle_front_only_paint(),
              checkable=True, attr='_front_paint_act')
-        # Hidden - Model Workshop icon, per Keith (Aug 20 2026)
+        # Hidden - Model Workshop icon,  (Aug 20 2026)
         self._front_paint_act.setVisible(False)
 
         # - Ribbon 2: Snap Targets
@@ -13519,7 +13519,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
              _icon(lambda color=icon_color: MaxSVGIcons.snap_percent_icon(
                  size=20, color=color), 'snap_percent_icon'),
              checkable=True, attr='_snap_percent_act')
-        # Hidden - Model Workshop icons, per Keith (Aug 20 2026)
+        # Hidden - Model Workshop icons,  (Aug 20 2026)
         for a in (self._snap_axis_act, self._snap_angle_act, self._snap_percent_act):
             a.setVisible(False)
 
@@ -13529,7 +13529,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
              _icon(lambda color=icon_color: MaxSVGIcons.mirror_icon(
                  size=20, color=color), 'mirror_icon'),
              callback=self._mirror_dialog, attr='_mirror_act')
-        # Hidden - Model Workshop icon, per Keith (Aug 20 2026)
+        # Hidden - Model Workshop icon,  (Aug 20 2026)
         self._mirror_act.setVisible(False)
         _act(tb_geo, "Align",
              _icon(lambda color=icon_color: MaxSVGIcons.align_icon(
@@ -13563,7 +13563,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         _act(tb_nav, "4-Pane View",
              _icon(self.icon_factory.quad_view_icon, 'quad_view_icon'),
              self._toggle_quad_view, checkable=True, attr='_quad_view_act')
-        # Hidden - Model Workshop icon, per Keith (Aug 20 2026)
+        # Hidden - Model Workshop icon,  (Aug 20 2026)
         self._quad_view_act.setEnabled(False)
         self._quad_view_act.setVisible(False)
         self._quad_view_act.setToolTip(
@@ -13573,7 +13573,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         # - Ribbon 5: Render
         tb_rend = _tb("Render", Qt.ToolBarArea.RightToolBarArea)
-        # New "Overlays" ribbon (Aug 20 2026, per Keith: "The New Icons
+        # New "Overlays" ribbon (Aug 20 2026,  "The New Icons
         # on the IPL Control pane, can be moved to the ribbon" - the
         # arrow in his own screenshot pointed from IPL Controls' own
         # overlay toggle buttons up to this same top toolbar area).
@@ -13583,7 +13583,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # and moved in here afterwards, deferred, by _move_overlay_
         # buttons_to_ribbon.
         tb_overlays = _tb("Overlays", Qt.ToolBarArea.RightToolBarArea)
-        # Cycle Zones/Cull (Aug 21 2026, per Keith: "on zons we could
+        # Cycle Zones/Cull (Aug 21 2026,  "on zons we could
         # also cycle through the entries list, and show the zon box
         # highlighted, with right click options, this would be a
         # failback, other then clicking on the zon box" - moved here,
@@ -13612,10 +13612,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         tb_overlays.addWidget(cycle_zones_btn)
 
         # Add/Delete/Save for Zon/Cull/Occlusion/Garage (Aug 21 2026,
-        # per Keith: "we need to finish the add, del, save functions
+        #  "we need to finish the add, del, save functions
         # for zon" / "lets build add, del for zon, cull, occu and ipl
         # changes" / "both if you can") moved off the ribbon entirely
-        # (Aug 21 2026, per Keith's own follow-up: "the new buttons,
+        # (Aug 21 2026  own follow-up: "the new buttons,
         # +zon, -zon, and save zon... add these to the svg icon zon
         # button with a middle-click, and move those functions over.
         # Same with cull, occl, auzo, grge") - each is now on its own
@@ -13624,7 +13624,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # show_occl_btn/show_grge_btn's own middle_clicked wiring,
         # and _show_overlay_middle_click_menu).
 
-        # Undo (Aug 21 2026, per Keith: "we need an undo button
+        # Undo (Aug 21 2026,  "we need an undo button
         # /ribbon icon") - the real, map-undo-aware handler (_on_
         # undo_clicked, wired to Ctrl+Z/Ctrl+Y earlier this session)
         # was previously only reachable from inside the Item Editor
@@ -13638,19 +13638,19 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         undo_ribbon_btn.clicked.connect(self._on_undo_ribbon_clicked)
         tb_overlays.addWidget(undo_ribbon_btn)
 
-        # Repair zero-scale instances (Aug 21 2026, per Keith's own
+        # Repair zero-scale instances (Aug 21 2026  own
         # real, worked VC/SA/SOL example lines: "so we need a function
         # to find and change 1, 1, 1, to 0, 0, 0 ... but I can see
         # there is an error in how I converted the files") - fixes any
         # instance whose scale is (0,0,0) back to (1,1,1) (see repair_
         # zero_scale_inst_fields's own docstring for the full, real
         # "why 0,0,0 and not the other direction" reasoning - a real
-        # zero scale is never correct, unlike Keith's own hand-typed
+        # zero scale is never correct, unlike my own hand-typed
         # example which had the direction backwards).
         #
         # Scope note: a real, correct SA<->VC line converter (convert_
         # inst_fields, gta_dat_parser.py) is already built and tested
-        # against Keith's own real example lines, but wiring it up to
+        # against my own real example lines, but wiring it up to
         # actually convert and write back every real instance in a
         # loaded world is a separate, much larger piece (needs its own
         # real INST-section write-back infrastructure, unlike zone/
@@ -13668,7 +13668,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             lambda pos, b=repair_scale_btn: self._show_repair_scale_menu(b))
         tb_overlays.addWidget(repair_scale_btn)
 
-        # Convert VC<->SA/SOL INST format (Aug 21 2026, per Keith:
+        # Convert VC<->SA/SOL INST format (Aug 21 2026, .per:
         # "having VC -> SA or SA -> VC is something I need, under a
         # convertion SVG icon, right clicked for options, and selected
         # ipl files to convert, anywhere on the harddrive or loaded
@@ -13688,7 +13688,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         convert_btn.clicked.connect(lambda: self._show_convert_ipl_menu(convert_btn))
         tb_overlays.addWidget(convert_btn)
 
-        # Optimize Load Order (Aug 21 2026, per Keith: "if the model
+        # Optimize Load Order (Aug 21 2026,  "if the model
         # names, col names, and ide/ipl entries loaded in the same
         # order the game spends less work matching them up, result is
         # the game loads and renders faster. the SOL files have been
@@ -13714,7 +13714,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         tb_overlays.addWidget(optimize_btn)
 
         # Search loaded instances by model name (Sep 5 2026, per
-        # Keith: "a search [O'] function on the ribbon bar to find a
+        #  : "a search [O'] function on the ribbon bar to find a
         # model name so I can see the IPL line") - directly reuses
         # the same real fix just made to the wrong-instance lookup
         # bug (matches by name, disambiguates results the same way
@@ -13725,7 +13725,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         search_btn.clicked.connect(self._show_model_search_dialog)
         tb_overlays.addWidget(search_btn)
 
-        # Force Prelighting (Sep 5 2026, per Keith: "showing dark
+        # Force Prelighting (Sep 5 2026,  "showing dark
         # models. I think some models might not be loading the
         # prelighting, so we need a prelighting on/off SVG button") -
         # wires DFFViewport.set_prelight, an override that already
@@ -13894,14 +13894,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         """Remove all existing toolbars and rebuild with the current
         icon set.
 
-        Real fix (Aug 20 2026, per Keith: "The New Icons on the IPL
+         fix (Aug 20 2026,  "The New Icons on the IPL
         Control pane, can be moved to the ribbon") - the overlay
         toggle buttons (Water/Radar/Tcyc/etc.) now live as real child
         widgets of the "Overlays" toolbar (_move_overlay_buttons_to_
         ribbon), not QActions rebuilt fresh by _build_toolbars itself
         - deleteLater() on that toolbar would have deleted those real
         buttons right along with it, permanently, the next time
-        Keith changed icon sets. Re-parents them to self first (kept
+          changed icon sets. Re-parents them to self first (kept
         alive, off-screen) before any toolbar is destroyed, then
         re-adds them to the freshly rebuilt "Overlays" toolbar
         afterwards."""
@@ -13999,17 +13999,17 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         restore (Qt's own toolbar-name hashing does this invisibly and
         without any way to detect success/failure).
 
-        Real fix (Aug 20 2026, per Keith: "I've noticed moving icons
+         fix (Aug 20 2026,  "I've noticed moving icons
         to hidden, and save, these movements dont get saved") - the
         real "Hidden" toolbar is only ever created lazily, the first
         time the Ribbon Manager dialog itself opens (_get_or_create_
         hidden_toolbar) - it genuinely didn't exist yet at either of
         this method's own real call times (both fire from startup
-        timers, well before Keith would have opened that dialog even
+        timers, well before   would have opened that dialog even
         once this session). Qt's own restoreState() can only
         reassociate a saved button with a toolbar object that already
         exists at the moment it's called - with no real "Hidden"
-        toolbar object to hand icons back to, any icon Keith had
+        toolbar object to hand icons back to, any icon   had
         moved there and saved was silently dropped back to whichever
         toolbar it started in, every single time. Creating it here
         first, unconditionally, before restoreState() runs, ensures
@@ -15695,7 +15695,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     @staticmethod
     def _make_world_map_icon(): #vers 2
-        """Real multi-color SVG Earth icon (blue ocean, green-to-yellow
+        """ multi-color SVG Earth icon (blue ocean, green-to-yellow
         continent shapes near the equator)"""
         from PyQt6.QtSvg import QSvgRenderer
         icon = QIcon()
@@ -20334,7 +20334,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # === EDIT OPERATIONS ===
 
         # Undo (Ctrl+Z)
-        # Real fix (Aug 20 2026, per Keith: "Undo/redo for mapping
+        #  fix (Aug 20 2026,  "Undo/redo for mapping
         # changes") - was only ever wired to the older, separate
         # paint/material undo system (_undo_last_action, from the
         # collision-paint context) - the newer, general map-edit undo
@@ -21194,7 +21194,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         format doesn't) - that needs real file-writing infrastructure,
         tracked separately.
 
-        Undoable now (Aug 20 2026, per Keith: "Undo/redo for mapping
+        Undoable now (Aug 20 2026,  "Undo/redo for mapping
         changes") - was explicitly called out in TODO.md as an in-
         memory-only Object Browser action that isn't undoable yet."""
         loader = getattr(self, '_world_loader', None)
@@ -21259,7 +21259,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         file - that needs real file-writing infrastructure, tracked
         separately.
 
-        Undoable now (Aug 20 2026, per Keith: "Undo/redo for mapping
+        Undoable now (Aug 20 2026,  "Undo/redo for mapping
         changes") - was explicitly called out in TODO.md as an in-
         memory-only Object Browser action that isn't undoable yet."""
         loader = getattr(self, '_world_loader', None)
@@ -21301,7 +21301,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _delete_all_instances_of_model(self, model_id): #vers 2
         """Remove every placement of a model.
 
-        Undoable now (Aug 20 2026, per Keith: "Undo/redo for mapping
+        Undoable now (Aug 20 2026,  "Undo/redo for mapping
         changes") - was explicitly called out in TODO.md as an in-
         memory-only Object Browser action that isn't undoable yet."""
         loader = getattr(self, '_world_loader', None)
@@ -21414,7 +21414,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         nav_info, if given, is (current_index, total_count) for
         Prev/Next cycling through a model's other placements.
 
-        focus_from_above (Sep 5 2026, per Keith: "can we change the
+        focus_from_above (Sep 5 2026,  "can we change the
         camera view, have a setting, view from 0, +200 so we dont
         view the model from the bottom, we see it from the top
         instead") - when on, also resets yaw/pitch/dist to a fixed
@@ -21474,7 +21474,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _apply_ipl_editor_on_top_setting(self): #vers 1
         """Apply the ipl_editor_always_on_top setting (Sep 5 2026, per
-        Keith: "the IPL file editor should stay on top, with a
+         : "the IPL file editor should stay on top, with a
         settings toggle option") to the IPL Object Editor dock, if it
         exists yet. Qt requires re-showing a window after changing its
         flags while visible for the change to actually take effect,
@@ -21498,7 +21498,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _apply_vc_layout_ipl_stems(self, loader): #vers 1
         """Populate loader.vc_layout_ipl_stems from the vc_layout_ipl_
-        stems setting (Sep 5 2026, per Keith: "LC, MLL, VC are still
+        stems setting (Sep 5 2026,  "LC, MLL, VC are still
         in VC format... a loading toggle to adjust ipl loading
         patterns") - a comma-separated list of IPL filename stems
         (no extension, case-insensitive) to parse using VC's own
@@ -21525,7 +21525,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._apply_ipl_visibility_filter(auto_fit=False, clear_display_lists=False)
 
     def _on_ctrl_z_pressed(self): #vers 1
-        """Ctrl+Z's own real handler (Aug 20 2026, per Keith: "Undo/
+        """Ctrl+Z's own real handler (Aug 20 2026,  "Undo/
         redo for mapping changes") - tries the general map-edit undo
         stack first (the more relevant context for the main Map
         Workshop view), falling back to the older, separate paint/
@@ -21541,7 +21541,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._set_status("Nothing to undo")
 
     def _on_undo_ribbon_clicked(self): #vers 1
-        """Undo ribbon button (Aug 21 2026, per Keith: "we need an
+        """Undo ribbon button (Aug 21 2026,  "we need an
         undo button /ribbon icon") - the real, map-undo-aware handler
         (_InstanceEditPanel's own _on_undo_clicked, wired to Ctrl+Z/
         Ctrl+Y earlier this session) was previously only reachable
@@ -21957,7 +21957,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _auto_load_last_world(self): #vers 1
         """Auto-load the most recently used game world on startup
-        (Aug 20 2026, per Keith's own explicit "option 2" choice).
+        (Aug 20 2026  own explicit "option 2" choice).
         Uses the same real recent_dat_files list/_load_game_dat_file
         path the Recent menu's own entries already use, rather than a
         separate mechanism - the most recent entry is always index 0
@@ -22062,19 +22062,19 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._refresh_recent_dat_menu()
 
     def _show_world_load_summary(self, title, summary_text, preloaded_files): #vers 2
-        """Real replacement for the plain QMessageBox.information this
-        summary used to show (Aug 20 2026, per Keith: "that dat
+        """ replacement for the plain QMessageBox.information this
+        summary used to show (Aug 20 2026,  "that dat
         window, countdown from 10, then automatically press ok, also
         show the preloaded files in that dialog window").
 
         Appends a real "Preloaded:" line when anything was actually
-        preloaded this load, and - only when Keith's own new Auto-
+        preloaded this load, and - only when my own new Auto-
         dismiss setting is on - makes the OK button count down its
         own label each second and click itself once it reaches zero,
         rather than needing to be dismissed by hand every time
         (useful alongside Auto-load last world).
 
-        Real fix (Aug 21 2026, per Keith's own real, uploaded
+         fix (Aug 21 2026  own real, uploaded
         tidyup.png screenshot: "this needs to be tidied up, even if
         it has to scroll one entry per line") - the preloaded files
         list used to be joined into one, single, comma-separated
@@ -22121,7 +22121,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         dlg.exec()
 
     def _apply_loaded_world(self, loader, game, ok, source_desc): #vers 2
-        """Real re-entrancy guard (Aug 20 2026, per Keith's own
+        """ re-entrancy guard (Aug 20 2026  own
         terminal markers: two full _apply_loaded_world calls on the
         exact same instance, back to back, for the same load) - the
         real root cause: __init__'s own deferred QTimer.singleShot(0,
@@ -22178,7 +22178,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 water_preset_for_grid = WATER_GRID_PRESETS.get(game_key_for_grid, preset_for_grid)
                 vp_for_grid.set_water_map_extent(water_preset_for_grid['grid_size'] / 2.0)
         # Auto-detect timecyc.dat next to this world's own main .dat
-        # file (Aug 20 2026, per Keith: "we need to be able to detect
+        # file (Aug 20 2026,  "we need to be able to detect
         # the timecyc.dat file without the need for a path, and still
         # keep the toggle") - re-checked on every world load (not just
         # once), so switching between different games' maps picks up
@@ -22230,10 +22230,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         QApplication.processEvents()
 
         # Retool the world load's own already-working water auto-load
-        # (Aug 20 2026, re-applied per Keith: "get the water working,
+        # (Aug 20 2026, re-applied  "get the water working,
         # from the preloaded file") - loader.waterpro/water_shapes are
         # already real and populated by this same world load, so
-        # water2 doesn't need Keith to separately re-pick the same
+        # water2 doesn't need ,separately re-pick the same
         # file through Preload every time - only the texture still
         # does.
         try:
@@ -22244,7 +22244,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._set_status(f"Water auto-apply failed: {e}")
 
         # Also register each real IMG file as a real, visible tab in
-        # IMG Factory's own main tab system (Aug 20 2026, per Keith:
+        # IMG Factory's own main tab system (Aug 20 2026, .per:
         # "loading img into img factory the other tools like txd
         # workshop, rader workshop, see the files, but preloading the
         # img into map workshop, the radar workshop, model workshop,
@@ -22273,7 +22273,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         # radar tex layer needs the freshly-indexed ModelCache, so
         # this runs here rather than earlier in this method (Aug 20
-        # 2026, per Keith: "those radar.txd files are in the gta3...
+        # 2026,  "those radar.txd files are in the gta3...
         # unless it's SOL where they're in another file").
         if (vp_for_grid is not None and hasattr(vp_for_grid, 'set_radar_tex_layer')
                 and self.map_settings.get('show_radar_tex_layer')):
@@ -22281,12 +22281,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             tile_textures_for_tex = self._load_radar_tex_tiles(game_key_for_tex)
             vp_for_grid.set_radar_tex_layer(True, tile_textures_for_tex, game_key_for_tex)
 
-        # Real in-game water texture (Aug 20 2026, per Keith: "the
+        #  in-game water texture (Aug 20 2026,  "the
         # ../model/particle.txd water textures... with the option
         # settings path for using other water textures") - same real
         # reason as radar's own tex layer just above: needs the
         # freshly-indexed ModelCache, so this runs here too. Only
-        # attempted when Keith's own "Use water texture" toggle is on
+        # attempted when my own "Use water texture" toggle is on
         # - matches that same toggle's own existing meaning (prefer a
         # real texture over the plain flat fill) rather than a second,
         # separate on/off switch. Skipped when a real, manually-chosen
@@ -22302,7 +22302,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if water_tex is not None:
                 vp_for_grid.set_water2_texture_rgba(*water_tex)
 
-        # CRT time overlay (Aug 20 2026, per Keith: "[TIME] showing
+        # CRT time overlay (Aug 20 2026,  "[TIME] showing
         # the time in the viewpoint like old style green CRT, click on
         # time for stop and start, right click for settings") - wired
         # once per real viewport instance (guarded, since this real
@@ -22369,7 +22369,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         QApplication.processEvents()
         self._populate_ipl_sections(loader)
 
-        # Real fix (Aug 20 2026, per Keith: "preload from startup
+        #  fix (Aug 20 2026,  "preload from startup
         # does not work, but if I bring up preload dialog, and press
         # load, it works?") - moved here, after _populate_ipl_sections
         # actually runs, not before it. The earlier position ran a
@@ -23057,7 +23057,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         preload_act.setToolTip(
             "Browse the game's own data folder directly and load real,\n"
             "non-IPL files like waterpro.dat/water.dat/timecyc.dat -\n"
-            "see Keith's own real \"can't seem to find it otherwise\"\n"
+            "see my own real \"can't seem to find it otherwise\"\n"
             "request for why this exists alongside the IPL list above.")
         preload_act.triggered.connect(self._show_preload_dialog)
 
@@ -23212,7 +23212,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         by a fixed (dx,dy,dz) offset - added so converted/ported map
         data.
 
-        Undoable now (Aug 20 2026, per Keith: "Undo/redo for mapping
+        Undoable now (Aug 20 2026,  "Undo/redo for mapping
         changes") - was a real, significant gap: moving/rotating a
         whole IPL section (potentially many instances plus cull/zone/
         path/grge/enex/occl entries all at once) had no undo at all
@@ -23291,7 +23291,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         around a given (pivot_x, pivot_y) point, by angle_deg around
         the vertical (Z) axis (Aug 19 2026).
 
-        Undoable now (Aug 20 2026, per Keith: "Undo/redo for mapping
+        Undoable now (Aug 20 2026,  "Undo/redo for mapping
         changes") - same real gap and same real fix as _shift_ipl_
         coordinates' own docstring describes. _record_undo=False is
         used internally by the undo/redo closures below themselves."""
@@ -23835,7 +23835,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _on_show_radar_tex_layer_toggled(self, checked): #vers 1
         """Show/hide the radar tex layer - real fix (Aug 20 2026, per
-        Keith: "The radar button also needs to switch the radar on
+         : "The radar button also needs to switch the radar on
         and off, and right-clicking the radar button should generate
         the radar... moving the Radar settings from the settings, to
         the button would follow the pattern of the other buttons") -
@@ -23859,7 +23859,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _apply_ipl_controls_display_style(self): #vers 2
         """Switch every real overlay toggle button between its own
-        text label and its own icon (Aug 20 2026, per Keith: "we could
+        text label and its own icon (Aug 20 2026,  "we could
         add a toggle in settings, Show IPL Controls = as [Buttons] or
         ribbon icons") - each button falls back to text-only on its
         own if it was never actually given a real icon yet (see
@@ -23876,7 +23876,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _move_overlay_buttons_to_ribbon(self): #vers 2
         """Move every real overlay toggle button from IPL Controls
-        onto the new "Overlays" ribbon (Aug 20 2026, per Keith: "The
+        onto the new "Overlays" ribbon (Aug 20 2026,  "The
         New Icons on the IPL Control pane, can be moved to the
         ribbon" - the arrow in his own screenshot pointed from these
         exact buttons up to the top toolbar area).
@@ -23892,14 +23892,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         already-constructed widget re-parents it automatically - no
         need to change where these buttons are originally built.
 
-        Real fix (Aug 20 2026, per Keith: "in ribbon manager the new
+         fix (Aug 20 2026,  "in ribbon manager the new
         icons show up as Action, needs to show like the other icons,
         then name") - QToolBar.addWidget internally wraps the widget
         in a real QWidgetAction, but never copies the widget's own
         real text/icon onto it - RibbonManagerDialog's own real list-
         population line (act.text() or act.toolTip() or "Action")
         found both empty and fell all the way through to that literal
-        fallback string, exactly matching what Keith saw. Sets both
+        fallback string, exactly matching what   saw. Sets both
         explicitly on the real QWidgetAction addWidget returns, the
         same real text/icon _act's own QAction-based buttons already
         carry."""
@@ -23951,7 +23951,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         progress.setWindowModality(Qt.WindowModality.WindowModal)
         saved = 0
 
-        # Real paths of every tile actually saved this run (Aug 20 2026)
+        #  paths of every tile actually saved this run (Aug 20 2026)
         self._last_radar_tile_paths = []
         for tile in tiles:
             if progress.wasCanceled():
@@ -24059,7 +24059,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 failed += 1
                 print(f"[Radar->TXD] Failed to pack {png_path}: {e}")
 
-        # Real assists folder (Project Manager's own concept)
+        #  assists folder (Project Manager's own concept)
         assists_path = getattr(self.main_window, 'assists_path', None) if self.main_window else None
         copied = 0
         if assists_path and os.path.isdir(assists_path):
@@ -24547,7 +24547,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._refresh_ipl_inst_file_panel()
 
     def _show_preload_dialog(self): #vers 2
-        """New "Preload" dialog (Aug 20 2026, per Keith: "we need a
+        """New "Preload" dialog (Aug 20 2026,  "we need a
         preload menu, on a right click, and map workshop menu, where
         it shows the contents on the game/data/ folder, picking the
         file >> over to the preload box, including the waterpro.dat,
@@ -24560,14 +24560,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         file types this app actually knows how to load (water.dat/
         waterpro.dat/timecyc.dat/.img right now) - unrecognised file
         types stay listed but do nothing when loaded, rather than
-        silently being hidden, since Keith's own request was to see
+        silently being hidden, since my own request was to see
         the real folder contents directly, not a filtered guess at
         what he might want.
 
-        Real additions (Aug 20 2026, per Keith: "need a save button
+         additions (Aug 20 2026,  "need a save button
         that remembers picked entries, also able to see the path
         files, dir level up down"):
-        - Real directory navigation - a real, editable current-folder
+        -  directory navigation - a real, editable current-folder
           path field, an "Up" button, and double-clicking a real
           subfolder entry (shown with a trailing "/") navigates into
           it, not just the one fixed data folder.
@@ -24642,7 +24642,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 current_folder[0] = typed
                 _refresh_avail_list()
         def _go_to_app_tex(): #vers 2
-            """Real fix (Aug 20 2026, per Keith: "tex folder was moved
+            """ fix (Aug 20 2026,  "tex folder was moved
             to depends/tex/ in map_workshop") - was computing the repo
             root (3 levels up from this file) then looking for tex/
             there; the real, current location is one level down from
@@ -24712,7 +24712,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         for full in saved_picks:
             full = self._to_gamedata_role_marker(full)
             if full.startswith('<gamedata-role>/'):
-                # Real fix (Aug 20 2026, same real role marker
+                #  fix (Aug 20 2026, same real role marker
                 # _apply_saved_preload_picks/_do_load below both
                 # resolve - without this, os.path.isfile below would
                 # always be False for a real "<gamedata-role>/..."
@@ -24749,7 +24749,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         outer.addLayout(btn_row)
 
         def _do_save(): #vers 3
-            """Real fix (Aug 20 2026, per Keith: "reload has the
+            """ fix (Aug 20 2026,  "reload has the
             entries saved but there not being loaded") - this never
             called map_settings.save() (only .set(), which just
             updates the in-memory dict) - real persistence to disk
@@ -24759,7 +24759,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             explicit "save this setting now" action in this file
             already uses.
 
-            Real fix (Aug 20 2026, per Keith: "../data/waterpro.dat -
+             fix (Aug 20 2026,  "../data/waterpro.dat -
             for LC and VC, but SA map looks for ../data/water.dat") -
             the marker used to hardcode the specific filename it was
             saved with ("<gamedata>/waterpro.dat"), which broke the
@@ -24786,7 +24786,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.map_settings.save()
             status_label.setText(f"Saved {len(paths)} pick(s) - restored automatically next time this opens.")
         def _do_load(): #vers 4
-            """Real fix (Aug 20 2026, same real role marker
+            """ fix (Aug 20 2026, same real role marker
             _apply_saved_preload_picks/the restore-into-UI logic above
             both resolve, via the same shared _resolve_gamedata_role_
             marker) - a manually-clicked "Load" on a real, saved
@@ -24808,7 +24808,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     loaded.append(item.text())
                 else:
                     unrecognised.append(item.text())
-            # Real fix (Aug 20 2026, per Keith: "I'd prefer to show
+            #  fix (Aug 20 2026,  "I'd prefer to show
             # those one line at a time, not as a single word-wrapped
             # line") - each real loaded/unrecognised filename now gets
             # its own real line, instead of one comma-joined, wrapped
@@ -24830,7 +24830,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _apply_saved_preload_picks(self): #vers 2
         """Automatically re-apply the Preload dialog's own saved
         picks once a real world is available to apply them to (Aug
-        20 2026, per Keith: "starting map_workshop back up, I noticed
+        20 2026,  "starting map_workshop back up, I noticed
         there is nothing in the startup, saying preloading files,
         etc") - Save Picks previously only restored the saved list
         back into the dialog's own UI the next time it was manually
@@ -24839,7 +24839,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         preloaded_file every dialog Load/manual pick already uses, so
         behaviour is identical either way - just automatic now.
 
-        Real fix (Aug 20 2026, per Keith: "preload still not working,
+         fix (Aug 20 2026,  "preload still not working,
         and nothing in the status log, is there a conflict somewhere")
         - traced map_settings' own real save/load path (singleton,
         debounced auto-save, app-folder-relative config path) and it
@@ -24859,7 +24859,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         QApplication.processEvents()
         loaded, unrecognised, missing = [], [], []
         for path in paths:
-            # Self-healing (Aug 20 2026, per Keith: "the VC waterpro.
+            # Self-healing (Aug 20 2026,  "the VC waterpro.
             # dat shows across SA and LC, so this needs fixing") -
             # normalises a real legacy absolute path (saved before the
             # marker fix existed) to the same real marker a fresh save
@@ -24868,7 +24868,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             # directly as-is.
             path = self._to_gamedata_role_marker(path)
             if path.startswith('<gamedata-role>/'):
-                # Real fix (Aug 20 2026, per Keith: "../data/waterpro.
+                #  fix (Aug 20 2026,  "../data/waterpro.
                 # dat - for LC and VC, but SA map looks for
                 # ../data/water.dat") - resolved via the shared
                 # _resolve_gamedata_role_marker, which tries every
@@ -24906,7 +24906,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         index bounds check below too, but named explicitly for
         clarity.
 
-        Real fix (Aug 20 2026, per Keith: "the water is 90 degrees
+         fix (Aug 20 2026,  "the water is 90 degrees
         clockwise oriented, wrong against the radar") - re-applies
         the real anticlockwise rotation, undoing the previous revert.
         That revert was the real mistake, not this rotation: matching
@@ -24916,7 +24916,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         variables do - "radar is the trusted reference" meant fix
         water to visually align with it, not copy its code verbatim
         regardless of whether the underlying data agrees. Confirmed
-        directly, again, by Keith's own real screenshot after the
+        directly, again, by my own real screenshot after the
         revert: water was genuinely still 90 degrees off against the
         real radar layer. (x,y) -> (-y,x) applied to every real cell
         corner reduces to row driving x directly, col driving y
@@ -24924,7 +24924,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         this was first verified against."""
         from apps.methods.gta_dat_parser import RADAR_GRID_PRESETS, WATER_GRID_PRESETS
         # SOL's water grid genuinely differs from its radar grid (Sep
-        # 5 2026, per Keith's own real, uploaded GTASOL-CoreHacks
+        # 5 2026  own real, uploaded GTASOL-CoreHacks
         # source - see WATER_GRID_PRESETS' own docstring for the full
         # derivation) - every other game's water-uses-radar's-size
         # assumption is already confirmed correct and unchanged here.
@@ -24948,7 +24948,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         return cells
 
     def _waterpro_physical_to_cells(self, waterpro, game): #vers 4
-        """The other real water layer (Aug 20 2026, per Keith: "when
+        """The other real water layer (Aug 20 2026,  "when
         you right click the water button, show the other water
         layer") - waterpro.dat's own physical_map, a real, separate
         grid exactly double visible_map's own width/height per side,
@@ -25020,12 +25020,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         water2 system automatically at world-load time (Aug 20 2026,
         re-applied) - those are already populated by the existing,
         already-working auto-load pipeline (load_waterpro_dat/load_
-        water_dat), so water2 doesn't need Keith to separately re-pick
+        water_dat), so water2 doesn't need ,separately re-pick
         the same file through the Preload dialog every time - only
         the texture (a real app asset, not part of any game's own
         data) still needs a manual preload.
 
-        Real fix (Aug 20 2026, per Keith: "offset should only be for
+         fix (Aug 20 2026,  "offset should only be for
         VC, so we need a toggle to effect VC waterpro.dat only") -
         pushes the current game to the viewport via set_water2_game
         each time, so _draw_water2 can gate the X/Y offset to VC only
@@ -25053,12 +25053,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _load_preloaded_file(self, path): #vers 3
         """Recognise and load one real file by its own real filename
-        (Aug 20 2026, per Keith's own Preload dialog request above).
+        (Aug 20 2026  own Preload dialog request above).
         Returns True if this app knows how to load that real file
         type and did so, False if the type isn't recognised (the
         dialog still lists it, just can't act on it yet).
 
-        Real fix (Aug 20 2026, per Keith: "if those files pre loaded,
+         fix (Aug 20 2026,  "if those files pre loaded,
         in objects browser the ipl and zon entries would already be
         highlighted, so the off on buttons wouldn't need to change")
         - loading the raw data alone wasn't enough on its own:
@@ -25073,7 +25073,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         name = os.path.basename(path).lower()
         if name.endswith('.img'):
             # Same real fix as the world-load hook (Aug 20 2026, per
-            # Keith: "preloading the img needs to follow the same
+            #  : "preloading the img needs to follow the same
             # rules as loading the img file into img factory and show
             # the tab so the other tools pick up those models") -
             # opens it as a real, visible tab via the same real entry
@@ -25091,7 +25091,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 mw._load_img_file_in_new_tab(path)
             return True
         if name.endswith('.ipl') or name.endswith('.zon'):
-            # Real fix (Aug 20 2026, per Keith: "automatically search
+            #  fix (Aug 20 2026,  "automatically search
             # for maps, paths, dat files") - routes through the same
             # real IPL Sections table entry every eye-icon click
             # already uses (_on_ipl_section_cell_clicked), rather than
@@ -25113,7 +25113,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     return True
             return False   # not a real row in this world's own IPL list
         if name.endswith('.png') or name.endswith('.jpg') or name.endswith('.jpeg'):
-            # Real texture asset (Aug 20 2026, re-applied per Keith:
+            #  texture asset (Aug 20 2026, re-applied .per:
             # "there is a tex folder now in img-factory-1.6, in there
             # is the water texture, so this can also be preloaded as
             # an asset") - doesn't need a world already loaded, just
@@ -25127,7 +25127,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if loader is None:
             return False
         if name == 'waterpro.dat':
-            # Re-applied (Aug 20 2026, per Keith: "get the water
+            # Re-applied (Aug 20 2026,  "get the water
             # working, from the preloaded file, [water] button
             # off/on toggle") - pushes to the new water2 system via
             # the shared _waterpro_to_cells helper (also used by the
@@ -25167,7 +25167,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _app_asset_folder(self, name): #vers 1
         """This app's own "depends/<name>/" asset folder (Aug 20
-        2026, per Keith: "a right-click option to show other
+        2026,  "a right-click option to show other
         timecyc.dat files that I'll put in an asset folder" / "the
         option settings path for using other water textures") -
         shared helper for the same real "depends/<name>/" location
@@ -25215,7 +25215,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _resolve_gamedata_role_marker(self, marker): #vers 1
         """Resolve a real "<gamedata-role>/<role>" marker (Aug 20
-        2026, per Keith: "../data/waterpro.dat - for LC and VC, but
+        2026,  "../data/waterpro.dat - for LC and VC, but
         SA map looks for ../data/water.dat") - each real role tries
         every real filename that role's own real game families
         actually use, in order, returning the first that genuinely
@@ -25237,7 +25237,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             'water': ['waterpro.dat', 'water.dat'],
             'timecyc': ['timecyc.dat'],
         }.get(role, [])
-        # Case-insensitive fix (Aug 20 2026, per Keith's own confirmed
+        # Case-insensitive fix (Aug 20 2026  own confirmed
         # `ls -la`: VC's own real waterpro.dat is genuinely named
         # WATERPRO.DAT on disk - a plain os.path.join+isfile only
         # tries the one, exact given case, correct on Windows' own
@@ -25256,10 +25256,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _to_gamedata_role_marker(self, path): #vers 1
         """Normalise a saved preload entry to a real "<gamedata-role>/
         <role>" marker if its own filename is one of the 3 real, per-
-        game roles - self-healing fix (Aug 20 2026, per Keith: "the VC
+        game roles - self-healing fix (Aug 20 2026,  "the VC
         waterpro.dat shows across SA and LC, so this needs fixing") -
         a pick saved before the marker fix existed is still a real,
-        plain absolute path in Keith's own real, already-persisted
+        plain absolute path in my own real, already-persisted
         settings file; that old fix only changed how new saves are
         written, it never migrated what was already there, so the old
         real, stale absolute path kept right on loading regardless of
@@ -25280,13 +25280,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _auto_detect_timecyc_path(self): #vers 4
         """Look for a real timecyc.dat next to the currently loaded
-        game's own real data folder (Aug 20 2026, per Keith: "we need
+        game's own real data folder (Aug 20 2026,  "we need
         to be able to detect the timecyc.dat file without the need
         for a path, and still keep the toggle" - "show from gameroot/
         data/timecyc.dat"). Case-insensitive match (real installs
         vary). Returns the real path if found, else ''.
 
-        Real SOL fix (Aug 20 2026, per Keith: "with GTASOL looking
+         SOL fix (Aug 20 2026,  "with GTASOL looking
         for /sol/gta_sol.dat the waterpro.dat would be in gameroot/
         data/waterpro.dat" - the identical real gap applies to
         timecyc.dat too) - the folder self._loaded_dat_path's own
@@ -25296,7 +25296,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         real, shared SOL-aware logic rather than a second, separate
         copy of it.
 
-        Real fallback added (Aug 20 2026, per Keith: "we also have
+         fallback added (Aug 20 2026,  "we also have
         the project profiles to fall back on") - if the loaded
         world's own folder doesn't have it, also tries self.main_
         window.game_root/data - the real, already-existing Project
@@ -25306,7 +25306,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         lives" independent of whatever .dat file happened to be
         loaded this session.
 
-        Real fix (Aug 21 2026, per Keith's own real, uploaded
+         fix (Aug 21 2026  own real, uploaded
         timecyc.dat and timecycp.dat files: "timecyc.dat and
         timecycp.dat don't seem to work when SA is loaded?") - this
         only ever looked for "timecyc.dat", never "timecycp.dat" at
@@ -25330,13 +25330,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _load_water_texture_from_particle_txd(self): #vers 1
         """Read the currently loaded game's own real water texture
-        directly from particle.txd (Aug 20 2026, per Keith: "Next are
+        directly from particle.txd (Aug 20 2026,  "Next are
         the ../model/particle.txd water textures; you have the
         screenshots to fall back on") - same real, already-working
         ModelCache.get_textures/parse_txd pipeline _load_radar_tex_
         tiles already uses (any RW format decoded to plain RGBA
         automatically). Tries every real name confirmed directly from
-        Keith's own screenshots: "waterclear256" (VC's own real 256x256
+        my own screenshots: "waterclear256" (VC's own real 256x256
         DXT1, and SA's own real, differently-sized/formatted 128x128
         ARGB8888 - same name, two genuinely different real files, per-
         game, not a conflict since only one game's own particle.txd is
@@ -25363,7 +25363,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _load_radar_tex_tiles(self, game_key): #vers 1
         """Read every real radarNN.txd texture for game_key directly
         from whichever IMG archive is already loaded (via ModelCache -
-        the same index used for models/collision), per Keith: "those
+        the same index used for models/collision),  "those
         radar.txd files are in the gta3... unless it's SOL where
         they're in another file" - no separate tiles folder needed,
         this reads the game's own real, already-indexed archive.
@@ -25399,7 +25399,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         """Show/load every currently-hidden row among the given table
         rows - the "Load Selected" context menu action.
 
-        Real fix (Aug 20 2026, per Keith: "when selecting multiply
+         fix (Aug 20 2026,  "when selecting multiply
         ipls, all select, load all, this opens multiple dialogues. It
         should be one window with the title and process change; below
         should be the IPL data") - each selected IPL used to get its
@@ -25550,9 +25550,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         """[TCYC] toggle - show/hide the loaded timecyc file's own
         sky/ambient effect at whatever the current Tobj/2DFX time
         happens to be, merged into the same row as [2DFX]/[TObj]
-        (Aug 20 2026, per Keith's own request).
+        (Aug 20 2026  own request).
 
-        Real fix (Aug 20 2026, per Keith: "Timecyc playing should be
+         fix (Aug 20 2026,  "Timecyc playing should be
         linked to TOJB, 2DFX time button, we dont need to start time
         with TCYC button, thats only meant to toggle the sky on or
         off?") - a real, direct correction to an earlier version of
@@ -25568,7 +25568,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         not a gap to paper over by reaching into a control this
         button was never meant to own.
 
-        Real fix (Aug 20 2026, per Keith: "turning the button on
+         fix (Aug 20 2026,  "turning the button on
         shows a timer inside it, we dont need that") - removed the
         earlier "live time label" this button used to grow while
         playing; the same real time already shows on the separate
@@ -25582,7 +25582,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _show_alt_timecyc_menu(self, button): #vers 1
         """Middle-click [Tcyc]: pick an alternate timecyc.dat from this
         app's own depends/timecyc/ asset folder (Aug 20 2026, per
-        Keith: "each game has its own timecyc.dat, so we need to show
+         : "each game has its own timecyc.dat, so we need to show
         that, and also a right-click option to show other timecyc.dat
         files that I'll put in an asset folder"). A manual pick here
         overrides the current, auto-detected file for this world/
@@ -25762,7 +25762,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         render_lod_btn.setStyleSheet(_compact_18)
         render_lod_menu = QMenu(render_lod_btn)
 
-        # Model render style (Sep 5 2026, per Keith's own detailed
+        # Model render style (Sep 5 2026  own detailed
         # follow-up: renamed for clarity, and changed from a strict
         # exclusive radio group to independently checkable entries
         # that can also all be deselected - "Each entry in render
@@ -25807,7 +25807,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         render_lod_menu.addSeparator()
 
-        # LOD display mode (Sep 5 2026, per Keith: originally reported
+        # LOD display mode (Sep 5 2026,  originally reported
         # as "Show LOD only can go, does not work" alongside removing
         # Show Col Only, then clarified as a typo - only Col Only was
         # meant to go) - back to a real 3-way exclusive radio, same
@@ -25830,7 +25830,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         render_lod_menu.addSeparator()
 
         # Collision overlay options (Aug 14 2026, renamed + made
-        # soft-exclusive Sep 5 2026 per Keith: "Only one COL entry
+        # soft-exclusive Sep 5 2026  "Only one COL entry
         # should be shown, as there is no point trying to select them
         # all" - same soft-exclusive-with-deselect pattern as the
         # model-style group above, just against the 4 show_col_*
@@ -25943,13 +25943,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         show_tobj_chk.show_toggled.connect(self._on_show_tobj_toggled)
         self._show_tobj_chk = show_tobj_chk
 
-        # Timecyc play/stop toggle (Aug 20 2026, per Keith: "the play
+        # Timecyc play/stop toggle (Aug 20 2026,  "the play
         # and stop for timecyc can be merged with the play stop [2DFX]
         # [TOJB] adding a new button on that line that says [TCYC]")
         tcyc_chk = _MapOverlayToggleButton("Tcyc", supports_edit=False, icon=OverlayIcons.tcyc_icon(24))
         tcyc_chk.show_toggled.connect(self._on_tcyc_toggled)
         # Middle-click picks an alternate timecyc.dat (Sep 5 2026, per
-        # Keith: "If there is more than one timecycle, middle-click
+        #  : "If there is more than one timecycle, middle-click
         # the time cycle button to select it" - was wired to right-
         # click/edit_toggled, a workaround that predates this button
         # having its own real middle_clicked signal; every other
@@ -25972,21 +25972,21 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         opts_row2.addWidget(show_tobj_chk)
         opts_row2.addWidget(tcyc_chk)
         opts_row2.addWidget(dfx_chk)
-        # time_chk disconnected too (Aug 20 2026, per Keith: "[time]
+        # time_chk disconnected too (Aug 20 2026,  "[time]
         # button is still on the ipl controls, its not needed there as
         # it's on the ribbon instead") - superseding the earlier,
         # narrower call to keep it (which assumed its own TOBJ time-
-        # filtering function was non-redundant) - Keith's own follow-up
+        # filtering function was non-redundant) - my own follow-up
         # confirms this should go too, alongside time_edit.
         # opts_row2.addWidget(time_chk)
         # time_edit disconnected from the visible layout (Aug 20 2026,
-        # per Keith: "The time/clock in IPL controls can be removed
+        #  "The time/clock in IPL controls can be removed
         # since thats on the ribbons / viewpoint") - the on-viewport
         # CRT overlay already shows the current time; this QTimeEdit
         # was now purely redundant with it.
         # opts_row2.addWidget(time_edit)
         # time_play_btn/time_stop_btn/time_settings_btn disconnected
-        # from the visible layout (Aug 20 2026, per Keith: "[TIME]
+        # from the visible layout (Aug 20 2026,  "[TIME]
         # showing the time in the viewpoint like old style green CRT,
         # click on time for stop and start, right click for
         # settings") - the on-viewport CRT overlay's own left/right-
@@ -26038,7 +26038,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         show_occl_btn.set_middle_click_menu_available(True)
         self._show_occl_chk = show_occl_btn
 
-        # Show Garages (Aug 21 2026, per Keith: "add support for GRGE")
+        # Show Garages (Aug 21 2026,  "add support for GRGE")
         show_grge_btn = _MapOverlayToggleButton("Grge", supports_edit=True, icon=OverlayIcons.grge_icon(24))
         show_grge_btn.show_toggled.connect(self._on_show_grge_boxes_toggled)
         show_grge_btn.edit_toggled.connect(self._on_edit_boxes_toggled)
@@ -26067,7 +26067,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         show_auzo_btn.show_toggled.connect(self._on_show_auzo_toggled)
         self._show_auzo_chk = show_auzo_btn
 
-        # Interior filter (Aug 20 2026, per Keith: "Can we look at
+        # Interior filter (Aug 20 2026,  "Can we look at
         # interior values? ... We need a svg to toggle interior
         # models: show 0 only on the viewpoint; showing 0 to 14+ by
         # selecting them") - left-click toggles between the default
@@ -26087,7 +26087,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # Show Water (Aug 20 2026)
         show_water_btn = _MapOverlayToggleButton("Water", supports_edit=False, icon=OverlayIcons.water_icon(24))
         show_water_btn.show_toggled.connect(self._on_show_water_toggled)
-        # Middle-click switches water layers (Sep 5 2026, per Keith:
+        # Middle-click switches water layers (Sep 5 2026, .per:
         # "the right click toggle between vis_water and phy_water
         # needs to be moved to the middle button so it doesnt clash
         # with the right click menu" - was on right-click/edit_
@@ -26117,9 +26117,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         radar_gen_btn.set_shown(bool(self.map_settings.get('show_radar_tex_layer')), emit=False)
         radar_gen_btn.show_toggled.connect(self._on_show_radar_tex_layer_toggled)
         # Middle-click generates the radar tiles (Sep 5 2026, moved
-        # off right-click - see below - per Keith: "keeping right
+        # off right-click - see below -  "keeping right
         # click menu, and middle click for other functions"). Was
-        # originally on right-click (Aug 20 2026, per Keith: "right-
+        # originally on right-click (Aug 20 2026,  "right-
         # clicking the radar button should generate the radar"), which
         # blocked this button's own real context menu
         # (_on_radar_tiles_context_menu) from ever being reachable.
@@ -26129,7 +26129,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # (Send to TXD Workshop/Radar Workshop/Export as RadarTex.img)
         # - previously completely unreachable, since right-click was
         # occupied by the simple "generate" action (now on middle-
-        # click instead, per Keith: "keeping right click menu, and
+        # click instead,  "keeping right click menu, and
         # middle click for other functions").
         radar_gen_btn.edit_toggled.connect(
             lambda checked: self._on_radar_tiles_context_menu(
@@ -26147,7 +26147,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         lay.addLayout(opts_row4)
 
         # Collected for the display-style toggle (Aug 20 2026, per
-        # Keith: "we could add a toggle in settings, Show IPL Controls
+        #  : "we could add a toggle in settings, Show IPL Controls
         # = as [Buttons] or ribbon icons") - every real overlay toggle
         # button in this dock, so the toggle can apply to all of them
         # at once rather than needing a separate call per button.
@@ -26252,7 +26252,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._refresh_ipl_inst_file_panel()
 
     def _on_toggle_mesh_col(self, checked): #vers 1
-        """Toggle Mesh button, repurposed per Keith: "toggle mesh icon
+        """Toggle Mesh button, repurposed  "toggle mesh icon
         can switch between col model and normal model" - checked
         shows the regular model mesh; unchecked hides it and shows
         collision instead (semi-solid, reusing the same real overlay
@@ -26277,7 +26277,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _on_toggle_force_prelight(self, checked): #vers 1
         """Force Prelighting ribbon button toggled (Sep 5 2026, per
-        Keith: "showing dark models... we need a prelighting on/off
+         : "showing dark models... we need a prelighting on/off
         SVG button")."""
         vp = getattr(self, 'preview_widget', None)
         if vp is not None and hasattr(vp, 'set_prelight'):
@@ -26334,7 +26334,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "Rot X", "Rot Y", "Rot Z", "Rot W"]) #TODO need to check Rot w.
         table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
-        # Real fix (Aug 21 2026, per Keith's own real, uploaded
+        #  fix (Aug 21 2026  own real, uploaded
         # zon.png screenshot: "clicking the model in the file list
         # window, wants to rename it, not take us to the zon entries
         # that belongs to it") - DoubleClicked as an edit trigger
@@ -26393,7 +26393,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         _on_tobj_time_toggled.
 
         Also syncs timecyc's own hour to this same real, existing
-        game-time state (Aug 20 2026, per Keith: "there appears to be
+        game-time state (Aug 20 2026,  "there appears to be
         another timer running besides the tojb timer") - timecyc used
         to run its own separate QTimer/hour counter, a second,
         redundant "time of day" clock alongside this real, already-
@@ -26409,7 +26409,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         vp = getattr(self, 'preview_widget', None)
         if vp is not None and hasattr(vp, 'set_timecyc_hour'):
             vp.set_timecyc_hour(qtime.hour() + qtime.minute() / 60.0)
-        # CRT overlay text (Aug 20 2026, per Keith: "[TIME] showing
+        # CRT overlay text (Aug 20 2026,  "[TIME] showing
         # the time in the viewpoint like old style green CRT") - same
         # real single hook every other time change already flows
         # through (manual edit or _on_time_flow_tick's own automatic
@@ -26522,7 +26522,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _on_crt_time_clicked(self): #vers 1
         """Left-click on the on-viewport CRT time overlay (Aug 20
-        2026, per Keith: "click on time for stop and start") - toggles
+        2026,  "click on time for stop and start") - toggles
         the same real time-flow timer the old, separate Play/Stop
         buttons already controlled, just from one, unified on-viewport
         control instead. Those old buttons still exist (just no
@@ -26554,7 +26554,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         minutes_spin.valueChanged.connect(on_minutes_change)
         lay.addWidget(minutes_spin)
 
-        lay.addWidget(QLabel("Real seconds per tick"))
+        lay.addWidget(QLabel(" seconds per tick"))
         interval_spin = QDoubleSpinBox()
         interval_spin.setRange(0.1, 60.0)
         interval_spin.setSingleStep(0.5)
@@ -26674,7 +26674,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 table.setItem(r, c, item)
 
     def _play_auzo_placeholder_tone(self, sound_id, name): #vers 2
-        """Play a sound for one audio zone (Aug 20 2026, per Keith:
+        """Play a sound for one audio zone (Aug 20 2026, .per:
         "auzo list play the sounds" / "i can send you the sounds,
         would that help") - the real, in-game San Andreas audio
         itself lives inside the game's own compiled audio bank
@@ -26684,13 +26684,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         real sound data anywhere in the loaded IPL/IDE data this
         could actually play on its own.
 
-        Real fix (Aug 20 2026, same real request as above) - checks
+         fix (Aug 20 2026, same real request as above) - checks
         this app's own depends/auzo_sounds/ asset folder first (the
         same real "depends/<name>/" pattern _app_asset_folder already
         shares with timecyc's own asset folder) for a real, actual
-        sound file Keith can drop in - tried by both sound_id and
+        sound file   can drop in - tried by both sound_id and
         zone name, in a few common real audio extensions, since the
-        exact naming convention for whatever files Keith sends isn't
+        exact naming convention for whatever files   sends isn't
         known yet. Falls back to a synthetic sine-wave placeholder
         tone (pitch derived from sound_id, so different zones are at
         least audibly distinguishable from each other even without
@@ -26713,7 +26713,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         real_path = None
         folder = self._app_asset_folder('auzo_sounds')
         if os.path.isdir(folder):
-            # Real fix (Aug 20 2026, per Keith's own uploaded Audiozon.
+            #  fix (Aug 20 2026  own uploaded Audiozon.
             # ipl/AudioEvents.txt, cross-referenced against AUZO_TYPES'
             # own "music description" field - e.g. sound_id 54 -> real
             # radio station "KDST") - the game's own real radio station
@@ -26721,7 +26721,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             # stored as plain, separate stream files in a real SA
             # install's own audio/ folder, not compiled into the same
             # inaccessible bank format - a real, meaningful name like
-            # "KDST.wav" is a far more natural real filename for Keith
+            # "KDST.wav" is a far more natural real filename for  
             # to actually use than the bare numeric sound_id alone.
             music_desc = None
             try:
@@ -26785,7 +26785,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         """Build the IPL Inst File table from SA's real, already-
         parsed audio zones for this specific IPL (Aug 20 2026).
 
-        Double-click-to-play hint added (Aug 20 2026, per Keith:
+        Double-click-to-play hint added (Aug 20 2026, .per:
         "auzo list play the sounds") - _on_ipl_inst_file_cell_double_
         clicked handles the actual playback; this just makes it
         discoverable."""
@@ -27112,7 +27112,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         _on_ipl_inst_file_cell_double_clicked so the context menu's
         Info/Show Textures can reuse the same lookup.
 
-        Also disambiguates by position (Sep 5 2026, per Keith: "Could
+        Also disambiguates by position (Sep 5 2026,  "Could
         there be a conflict in the functions... where is 146.3 -90
         146.3 coming from" + "I've noticed some SA IPLs loading in SOL
         with the wrong data as well... only affects objects loaded in
@@ -27346,14 +27346,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         instance and jumps the viewport to it + opens its edit panel,
         matching double-clicking a row in the Instance List.
 
-        Real fix (Aug 20 2026, per Keith: "auzo list play the sounds")
+         fix (Aug 20 2026,  "auzo list play the sounds")
         - the Auzo table's own columns (Name/Sound ID/Switch/Shape/...)
         are nothing like the Inst table's own Model-at-column-1 layout
         the col != 1 guard below assumes, so this real Auzo case is
         checked and handled first, before that guard would otherwise
         block it entirely.
 
-        Real fix (Aug 21 2026, per Keith's own real, uploaded zon.png
+         fix (Aug 21 2026  own real, uploaded zon.png
         screenshot: "wants to rename it, not take us to the zon
         entries that belongs to it") - the actual "wants to rename"
         symptom was a real, separate table-setup bug fixed above (see
@@ -27361,7 +27361,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         not this handler. But this real handler itself only ever
         centered the viewport on the instance - never actually looked
         for a real zone the instance's own position falls inside, the
-        real behaviour Keith's own message describes wanting instead.
+        real behaviour my own message describes wanting instead.
         Now also does that: finds the first loaded zone box whose own
         real (min/max) bounds contain the instance's own real (x,y)
         position, and highlights it the same real way the Cycle Zones
@@ -27392,7 +27392,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         """Find the first loaded zone box whose own real bounds
         contain inst's own real (x,y) position, and highlight it the
         same real way the Cycle Zones button's own picker does (Aug
-        21 2026, per Keith's own real, uploaded zon.png screenshot:
+        21 2026  own real, uploaded zon.png screenshot:
         "not take us to the zon entries that belongs to it"). Doesn't
         re-center the viewport (the caller already did that, on the
         instance itself) - only sets the real highlight state, so
@@ -27422,7 +27422,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         CHANGELOG.md - "keep using Model Workshop's existing DFF
         viewport"), so it never actually moved anything visible here.
 
-        focus_from_above (Sep 5 2026, per Keith: "when selecting a
+        focus_from_above (Sep 5 2026,  "when selecting a
         model in map workshop, can we change the camera view, have a
         setting, view from 0, +200 so we dont view the model from the
         bottom, we see it from the top instead") - off by default;
@@ -27463,7 +27463,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _on_path_node_picked(self, node_pos, owner): #vers 1
         """Called by DFFViewport.mouseDoubleClickEvent when the user
         double-clicks a path node in the 3D world view (Aug 21 2026,
-        per Keith: "when clicking on paths, or zons, other then ipl
+         "when clicking on paths, or zons, other then ipl
         models, nothing comes up") - centers the viewport on the node
         (same real feedback double-clicking a regular instance already
         gives) and reports its own real data via the status bar, since
@@ -27492,16 +27492,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _on_cull_or_zone_box_picked(self, kind, box_index): #vers 3
         """Called by DFFViewport.mouseDoubleClickEvent when the user
         double-clicks a cull/zone/occlusion box in the 3D world view
-        (Aug 21 2026, per Keith: "when clicking on paths, or zons,
+        (Aug 21 2026,  "when clicking on paths, or zons,
         other then ipl models, nothing comes up"; occl added same day
-        per Keith's own follow-up "both if you can") - centers the
+        per my own follow-up "both if you can") - centers the
         viewport on the box (same real feedback double-clicking a
         regular instance already gives) and reports its own real data
         via the status bar, since none of the three have a dedicated
         edit dialog of their own yet beyond corner-drag resizing (cull/
         zone only - see TODO.md).
 
-        Also sets the real box highlight (Aug 21 2026, per Keith's
+        Also sets the real box highlight (Aug 21 2026 
         own follow-up "show the zon box highlighted") - the same real
         state the Cycle Zones button's own left-click/right-click
         picker set, so a direct 3D double-click and the fallback
@@ -27586,7 +27586,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 [('grge', i) for i in range(len(getattr(vp, '_grge_boxes', [])))])
 
     def _cycle_selected_box(self): #vers 1
-        """Cycle Zones button, left-click (Aug 21 2026, per Keith: "on
+        """Cycle Zones button, left-click (Aug 21 2026,  "on
         zons we could also cycle through the entries list, and show
         the zon box highlighted... this would be a failback, other
         then clicking on the zon box") - steps to the next cull/zone
@@ -27607,9 +27607,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._on_cull_or_zone_box_picked(kind, box_index)
 
     def _show_box_picker_menu(self, cycle_btn): #vers 3
-        """Cycle Zones button, right-click (Aug 21 2026, per Keith's
+        """Cycle Zones button, right-click (Aug 21 2026 
         own follow-up: "with right click options, this would be a
-        failback"; occl/grge added same day per Keith's own follow-up
+        failback"; occl/grge added same day per my own follow-up
         "both if you can") - lists every real cull/zone/occlusion/
         garage box currently loaded, by real name where one exists
         (zones, garages) or index (cull/occl, neither has a name
@@ -27641,7 +27641,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _box_corners_3d(self, kind, box_index): #vers 1
         """Return all 8 real (x,y,z) corners of one box, any type
-        (Aug 21 2026, per Keith: "add show coords for all corners") -
+        (Aug 21 2026,  "add show coords for all corners") -
         or None if the index doesn't resolve. Cull/zone/grge are a
         plain AABB, so this is just the 2x2x2 combination of their
         own (x1/x2, y1/y2, z1/z2); occlusion is rotated, so its own 4
@@ -27674,7 +27674,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _show_box_corner_coords(self, kind, box_index): #vers 1
         """Show every real (x,y,z) corner of one box in a plain
-        message box (Aug 21 2026, per Keith: "add show coords for all
+        message box (Aug 21 2026,  "add show coords for all
         corners") - available from any overlay button's own middle-
         click menu, for whichever box is currently selected there."""
         corners = self._box_corners_3d(kind, box_index)
@@ -27691,14 +27691,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _show_overlay_middle_click_menu(self, kind, add_fn, delete_fn, save_fn): #vers 2
         """Build and show one overlay button's own middle-click menu
-        (Aug 21 2026, per Keith: "the new buttons, +zon, -zon, and
+        (Aug 21 2026,  "the new buttons, +zon, -zon, and
         save zon... add these to the svg icon zon button with a
         middle-click, and move those functions over. Same with cull,
         occl, auzo, grge") - one real, shared menu-builder rather than
         4 near-identical copies, parameterized by which real add/
         delete/save methods this particular box type actually uses.
 
-        Real fix (Aug 21 2026, per Keith: "Show coords does not work
+         fix (Aug 21 2026,  "Show coords does not work
         on occl, zon or cull?") - "Show Corner Coordinates" used to
         only ever enable once a box of this exact type was already
         the one selected via Cycle Zones - genuinely disabled/inert
@@ -27747,9 +27747,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         """Generic version of Repair Scale - fixes every currently
         loaded instance whose scale is exactly `from_scale` to
         `to_scale`. Backs both directions on the Repair Scale ribbon
-        button (Sep 5 2026, per Keith: "add another option 1, 1, 1,
+        button (Sep 5 2026,  "add another option 1, 1, 1,
         to 0, 0, 0") - the original 0,0,0 -> 1,1,1 direction (Aug 21
-        2026, per Keith's own real worked VC/SA/SOL example) plus its
+        2026  own real worked VC/SA/SOL example) plus its
         exact reverse. IN MEMORY ONLY - no write-back to disk for
         INST lines exists yet, same as before."""
         loader = getattr(self, '_world_loader', None)
@@ -27784,7 +27784,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _repair_zero_scale_instances(self): #vers 2
         """Repair Scale button, default direction: 0,0,0 -> 1,1,1
-        (Aug 21 2026, per Keith's own real, worked VC/SA/SOL example
+        (Aug 21 2026  own real, worked VC/SA/SOL example
         lines and a real, broken converted line - the real, worked
         example itself confirms a real zero scale is what's actually
         broken, not the other direction, since a real, valid VC
@@ -27794,7 +27794,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _repair_one_scale_instances(self): #vers 1
         """Repair Scale button, reverse direction: 1,1,1 -> 0,0,0
-        (Sep 5 2026, per Keith: "add another option 1, 1, 1, to 0, 0,
+        (Sep 5 2026,  "add another option 1, 1, 1, to 0, 0,
         0") - for IPL data converted the other way round, where a
         genuinely-zero scale got mapped to (1,1,1) instead."""
         self._repair_scale_instances((1.0, 1.0, 1.0), (0.0, 0.0, 0.0))
@@ -27813,13 +27813,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._repair_one_scale_instances()
 
     def _add_zone(self): #vers 1
-        """Add a new zone entry, per Keith: "we need to finish the
+        """Add a new zone entry,  "we need to finish the
         add, del, save functions for zon" (Aug 21 2026) - IN MEMORY
         ONLY until Save Zones is used (see _write_back_zone_section
         below). Placed as a small (20x20x10) box centred on wherever
         the viewport is currently looking, in the first currently-
         loaded zone source file found (loader.zones' own source_ipl,
-        Keith's own "add" request has no way to ask which file a
+        my own "add" request has no way to ask which file a
         brand new zone should belong to, so this is a reasonable,
         visible default rather than silently picking nothing at
         all) - source_ipl can be changed later by editing the zone's
@@ -27854,12 +27854,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._set_status(f"Added zone '{new_zone['name']}' - not yet saved to disk")
 
     def _delete_zone(self): #vers 1
-        """Delete the currently cycled/selected zone, per Keith:
+        """Delete the currently cycled/selected zone, .per:
         "we need to finish the add, del, save functions for zon" (Aug
         21 2026) - IN MEMORY ONLY until Save Zones is used. Acts on
         whichever zone the Cycle Zones button (or a direct viewport
         double-click) last selected (preview_widget._selected_box) -
-        cull boxes have no delete support here since Keith's own
+        cull boxes have no delete support here since my own
         request named zon specifically."""
         loader = getattr(self, '_world_loader', None)
         vp = getattr(self, 'preview_widget', None)
@@ -27889,7 +27889,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._set_status(f"Deleted zone '{removed_name}' - not yet saved to disk")
 
     def _add_cull(self): #vers 1
-        """Add a new cull box, per Keith: "lets build add, del for
+        """Add a new cull box,  "lets build add, del for
         zon, cull, occu and ipl changes" (Aug 21 2026) - IN MEMORY
         ONLY until Save Cull Zones is used. Placed as a small (20x20x
         10) box centred on wherever the viewport is currently
@@ -27925,7 +27925,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._set_status("Added cull box - not yet saved to disk")
 
     def _delete_cull(self): #vers 1
-        """Delete the currently cycled/selected cull box, per Keith:
+        """Delete the currently cycled/selected cull box, .per:
         "lets build add, del for zon, cull, occu and ipl changes"
         (Aug 21 2026) - IN MEMORY ONLY until Save Cull Zones is used.
         Acts on whichever cull box the Cycle Zones button (or a
@@ -27959,7 +27959,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _write_back_cull_section(self, abs_path, cull_entries, game): #vers 1
         """Write a real "cull...end" section back to its own real IPL
-        file on disk (Aug 21 2026, per Keith: "lets build add, del
+        file on disk (Aug 21 2026,  "lets build add, del
         for zon, cull, occu and ipl changes") - same real replace-
         only-that-section/keep-everything-else/write-a-.bak-first
         approach as _write_back_zone_section (see its own docstring
@@ -27969,7 +27969,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         ever stores the resolved (x1,y1,z1,x2,y2,z2) axis-aligned
         bounding box, not the original center/length/width/skew
         fields a real SA cull line actually has (see _parse_cull's
-        own docstring for the full, real confirmed-against-Keith's-
+        own docstring for the full, real confirmed-against-my-
         real-file story) - a real skewed zone's own skew is genuinely
         lost on write-back, reconstructed here as an unskewed
         (Unknown1=Unknown2=0) box of the same real overall size
@@ -27995,7 +27995,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         new_lines = []
         for c in cull_entries:
-            # Real fix (Aug 21 2026, per Keith: "when loading SOL, are
+            #  fix (Aug 21 2026,  "when loading SOL, are
             # you using the SA parser or VC parser?") - SOL is its own,
             # distinct GTAGame value, so this never matched it despite
             # SOL running on the SA engine with SA-format IPL sections
@@ -28043,7 +28043,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _save_culls(self): #vers 1
         """Save Cull Zones button - writes every currently loaded cull
         box back to its own real source IPL file(s) on disk (Aug 21
-        2026, per Keith: "lets build add, del for zon, cull, occu and
+        2026,  "lets build add, del for zon, cull, occu and
         ipl changes"). Same real grouping/resolve/confirm/write
         pattern as _save_zones (see its own docstring)."""
         loader = getattr(self, '_world_loader', None)
@@ -28089,7 +28089,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._set_status(f"Saved {len(culls)} cull box(es) across {written} file(s)")
 
     def _add_occl(self): #vers 1
-        """Add a new occlusion box, per Keith: "lets build add, del
+        """Add a new occlusion box,  "lets build add, del
         for zon, cull, occu and ipl changes" / "both if you can" (Aug
         21 2026) - IN MEMORY ONLY until Save Occlusion is used. Placed
         as a small, unrotated (20x20x10) box centred on wherever the
@@ -28124,7 +28124,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _delete_occl(self): #vers 1
         """Delete the currently cycled/selected occlusion box, per
-        Keith: "lets build add, del for zon, cull, occu and ipl
+         : "lets build add, del for zon, cull, occu and ipl
         changes" / "both if you can" (Aug 21 2026) - IN MEMORY ONLY
         until Save Occlusion is used. Acts on whichever occlusion box
         the Cycle Zones button (or a direct viewport double-click)
@@ -28157,7 +28157,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _write_back_occl_section(self, abs_path, occl_entries): #vers 1
         """Write a real "occl...end" section back to its own real IPL
-        file on disk (Aug 21 2026, per Keith: "lets build add, del
+        file on disk (Aug 21 2026,  "lets build add, del
         for zon, cull, occu and ipl changes" / "both if you can") -
         same real replace-only-that-section/keep-everything-else/
         write-a-.bak-first approach as _write_back_zone_section (see
@@ -28215,7 +28215,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _save_occls(self): #vers 1
         """Save Occlusion button - writes every currently loaded
         occlusion box back to its own real source IPL file(s) on disk
-        (Aug 21 2026, per Keith: "lets build add, del for zon, cull,
+        (Aug 21 2026,  "lets build add, del for zon, cull,
         occu and ipl changes" / "both if you can"). Same real
         grouping/resolve/confirm/write pattern as _save_zones/_save_
         culls (see their own docstrings)."""
@@ -28258,18 +28258,18 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._set_status(f"Saved {len(occls)} occlusion box(es) across {written} file(s)")
 
     def _add_grge(self): #vers 2
-        """Add a new garage, per Keith: "add support for GRGE" / "lets
+        """Add a new garage,  "add support for GRGE" / "lets
         build add, del for zon, cull, occu and ipl changes" / "both if
         you can" (Aug 21 2026) - IN MEMORY ONLY until Save Garages is
-        used. Placed as a small (14x23x6, matching Keith's own real
+        used. Placed as a small (14x23x6, matching my own real
         example garages' own typical size) box centred on wherever
         the viewport is currently looking, in the first currently-
         loaded garage source file found (same real "no way to ask
         which file" reasoning as _add_zone/_add_cull/_add_occl).
 
-        Real fix (Aug 21 2026, per Keith's own real, uploaded GRGE
+         fix (Aug 21 2026  own real, uploaded GRGE
         example lines) - front_x/x2/front_y now follow the same real
-        field convention every one of Keith's own real garage lines
+        field convention every one of my own real garage lines
         actually uses (see _refresh_grge_box_visualization's own
         docstring for the full, confirmed real field meaning):
         front_x holds the box's own real second X corner, front_y
@@ -28304,7 +28304,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._set_status(f"Added garage '{new_grge.name}' - not yet saved to disk")
 
     def _delete_grge(self): #vers 1
-        """Delete the currently cycled/selected garage, per Keith:
+        """Delete the currently cycled/selected garage, .per:
         "add support for GRGE" / "lets build add, del for zon, cull,
         occu and ipl changes" / "both if you can" (Aug 21 2026) - IN
         MEMORY ONLY until Save Garages is used. Acts on whichever
@@ -28339,13 +28339,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _write_back_grge_section(self, abs_path, grge_entries): #vers 1
         """Write a real "grge...end" section back to its own real IPL
-        file on disk (Aug 21 2026, per Keith: "add support for GRGE" /
+        file on disk (Aug 21 2026,  "add support for GRGE" /
         "lets build add, del for zon, cull, occu and ipl changes" /
         "both if you can") - same real replace-only-that-section/
         keep-everything-else/write-a-.bak-first approach as _write_
         back_zone_section (see its own docstring for the full, real
         safety reasoning, identical here). Garage names aren't quoted
-        on write-back - Keith's own real example data (see GrgeEntry's
+        on write-back - my own real example data (see GrgeEntry's
         own docstring) shows plain, unquoted names ("cjsafe"), not
         SannyBuilder-style quoted strings."""
         try:
@@ -28397,7 +28397,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _detect_inst_field_game(self, parts): #vers 1
         """Guess which game an already-split INST line's own fields
-        belong to, from field count alone (Aug 21 2026, per Keith:
+        belong to, from field count alone (Aug 21 2026, .per:
         "having VC -> SA or SA -> VC is something I need... selected
         ipl files to convert, anywhere on the harddrive") - VC's own
         real, confirmed layout always has 13 fields (scale+rotation);
@@ -28415,7 +28415,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _convert_ipl_inst_section(self, abs_path, to_game, from_game=None): #vers 1
         """Convert every real INST line in one real IPL file to
         to_game's own real field layout, in place (Aug 21 2026, per
-        Keith: "having VC -> SA or SA -> VC is something I need,
+         : "having VC -> SA or SA -> VC is something I need,
         under a conversion SVG icon, right clicked for options, and
         selected ipl files to convert, anywhere on the harddrive or
         loaded ipl browser list"). Only real INST lines are touched -
@@ -28486,10 +28486,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         return True, f"Converted {converted} INST line(s) in {os.path.basename(abs_path)}{suffix}"
 
     def _convert_ipl_files_dialog(self, to_game): #vers 1
-        """Convert IPL File(s) From Disk... - lets Keith pick any real
+        """Convert IPL File(s) From Disk... - lets   pick any real
         .ipl file(s) anywhere on the hard drive and convert their own
         real INST sections to to_game's own real layout (Aug 21 2026,
-        per Keith: "selected ipl files to convert, anywhere on the
+         "selected ipl files to convert, anywhere on the
         harddrive"). Confirms first, since this genuinely changes real
         files on disk (with a real .bak backup, but still a real,
         deliberate action)."""
@@ -28510,9 +28510,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._run_ipl_inst_conversion(paths, to_game)
 
     def _convert_loaded_ipls_dialog(self, to_game): #vers 1
-        """Convert Loaded IPL(s)... - lets Keith pick from whichever
+        """Convert Loaded IPL(s)... - lets   pick from whichever
         real IPL files the currently-loaded world actually came from
-        (Aug 21 2026, per Keith: "...or loaded ipl browser list"),
+        (Aug 21 2026,  "...or loaded ipl browser list"),
         rather than only browsing the hard drive blind. Lists every
         real path from loader.load_log (every real loaded IPL is
         already recorded there)."""
@@ -28576,7 +28576,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _show_convert_ipl_menu(self, button): #vers 1
         """Convert button, left or right-click (Aug 21 2026, per
-        Keith: "having VC -> SA or SA -> VC is something I need,
+         : "having VC -> SA or SA -> VC is something I need,
         under a convertion SVG icon, right clicked for options, and
         selected ipl files to convert, anywhere on the harddrive or
         loaded ipl browser list") - both real source paths (disk
@@ -28596,7 +28596,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         menu.exec(button.mapToGlobal(button.rect().bottomLeft()))
 
     def _optimize_dat_load_order_clicked(self): #vers 1
-        """Optimize Order button (Aug 21 2026, per Keith: "if the
+        """Optimize Order button (Aug 21 2026,  "if the
         model names, col names, and ide/ipl entries loaded in the
         same order the game spends less work matching them up, result
         is the game loads and renders faster") - reorders the
@@ -28647,7 +28647,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _show_model_search_dialog(self): #vers 1
         """Search loaded instances by model name (Sep 5 2026, per
-        Keith: "a search [O'] function on the ribbon bar to find a
+         : "a search [O'] function on the ribbon bar to find a
         model name so I can see the IPL line") - live-filtered as you
         type, one row per unique model name with its own placement
         count. Double-click jumps to it the exact same way clicking a
@@ -28711,7 +28711,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _save_grges(self): #vers 1
         """Save Garages button - writes every currently loaded garage
         back to its own real source IPL file(s) on disk (Aug 21 2026,
-        per Keith: "add support for GRGE" / "lets build add, del for
+         "add support for GRGE" / "lets build add, del for
         zon, cull, occu and ipl changes" / "both if you can"). Same
         real grouping/resolve/confirm/write pattern as _save_zones/
         _save_culls/_save_occls (see their own docstrings)."""
@@ -29408,7 +29408,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         dlg = None
         if verbose and not bulk_loading and (new_instances or stream_entries):
             # Suppressed during a bulk multi-IPL load (Aug 20 2026,
-            # per Keith: "this opens multiple dialogues. It should be
+            #  "this opens multiple dialogues. It should be
             # one window") - _load_selected_ipl_sections' own real,
             # shared progress dialog already reports which IPL is
             # loading; a separate detailed log window per IPL on top
@@ -29464,15 +29464,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return None
 
     def _style_ipl_name_item(self, name_item, hidden, loaded=False): #vers 5
-        """Grey out a disabled/hidden IPL's name text. Real fix (Aug
-        20 2026, per Keith: "once proloaded, mark them as loaded
+        """Grey out a disabled/hidden IPL's name text.  fix (Aug
+        20 2026,  "once proloaded, mark them as loaded
         white in the obj browser ipl llst") - loaded entries now get
         a genuinely brighter/white text colour, not just the existing
         "(Loaded)" text suffix, so a loaded IPL is visually distinct
         from an unloaded one at a glance, not just readable on close
         inspection.
 
-        Real fix (Aug 20 2026, per Keith: "entries should be
+         fix (Aug 20 2026,  "entries should be
         displaying the theme aware white") - a hardcoded QColor(255,
         255, 255) isn't theme-aware at all; a light theme's own
         background could be close to pure white too, making loaded
@@ -29699,7 +29699,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         every loaded instance, if none given), with a progress dialog
         showing what's currently being processed.
 
-        Real fix (Aug 20 2026, per Keith: "when selecting multiply
+         fix (Aug 20 2026,  "when selecting multiply
         ipls, all select, load all, this opens multiple dialogues. It
         should be one window with the title and process change") -
         this used to always create its own new QProgressDialog every
@@ -30013,12 +30013,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         """Right-click on a box-type overlay button (Cull/Zon/Grge)
         toggled box-corner resize edit mode (Aug 19 2026).
 
-        Real fix (Aug 21 2026, per Keith: "Bug: Right radar also
+         fix (Aug 21 2026,  "Bug: Right radar also
         highlights cull; both buttons seem to be linked when you
         right-click them") - used to force-sync every other box-type
         button's own visual state (editing dashes + shown) to match
         whichever one was actually right-clicked, including force-
-        turning a box type ON that Keith may never have wanted shown
+        turning a box type ON that   may never have wanted shown
         at all. That syncing was left over from when self._box_edit_
         mode genuinely gated corner-picking on the viewport side - it
         no longer does (removed turns ago, corner-clicking works
@@ -30101,7 +30101,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         """Push loaded SA audio zones to the viewport's own sound-
         icon overlay (Aug 20 2026).
 
-        Real bugs fixed here (Aug 20 2026, per Keith: "clicking on the
+         bugs fixed here (Aug 20 2026,  "clicking on the
         Auzo button still doesn't show the contents on the auzo file,
         from auzo entry" - and his own real, working comparison to
         paths/zon/cull/occl: "clicked on first, then [Paths] button to
@@ -30114,7 +30114,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
            occl_box_visualization, all four called there already)
            refreshes from whenever IPL visibility changes - i.e.
            exactly the "click the IPL entry" half of the workflow
-           Keith describes. Auzo only ever refreshed from its own
+             describes. Auzo only ever refreshed from its own
            toggle button's own change handler, so clicking a new
            auzo-containing IPL entry never actually pushed anything
            new to the viewport unless the toggle itself happened to
@@ -30158,7 +30158,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         """Push loaded water.dat shapes AND waterpro.dat's own real
         grid to the viewport's own overlay (Aug 20 2026).
 
-        Real fixes here, per Keith:
+         fixes here, .per:
 
         1. "besides the button on the IPL control that doesnt seem to
            work" - this was never called from _apply_ipl_visibility_
@@ -30215,7 +30215,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     for col in range(gw):
                         level_idx = waterpro.visible_map[row][col]
                         # Real, confirmed "cutout" sentinel (Aug 20
-                        # 2026, per Keith: "waterpro.dat allowing cut
+                        # 2026,  "waterpro.dat allowing cut
                         # out areas, making sure waterpro.dat is used
                         # is very important, look at water_workshop
                         # as resource") - water_workshop.py's own
@@ -30272,7 +30272,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._refresh_auzo_visualization()
 
     def _on_interior_show_all_toggled(self, checked): #vers 1
-        """Interior button left-click (Aug 20 2026, per Keith: "show 0
+        """Interior button left-click (Aug 20 2026,  "show 0
         only on the viewpoint; showing 0 to 14+ by selecting them") -
         checked shows every interior value together (no filtering);
         unchecked returns to the default, interior 0 (exterior) only."""
@@ -30284,20 +30284,20 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._set_status("Showing interior 0 (exterior) only")
 
     def _show_interior_picker_menu(self, interior_btn): #vers 3
-        """Interior button right-click (Aug 20 2026, per Keith's own
+        """Interior button right-click (Aug 20 2026  own
         follow-up: "I have no idea how many there are for GTA 3, GTA
         VC, or SA") - lists every interior value actually present in
-        the currently loaded instances, with counts, so Keith can see
+        the currently loaded instances, with counts, so   can see
         exactly what a given world uses rather than guessing, and
         pick one to isolate.
 
-        Real names shown for VC (Aug 20 2026, per Keith's own real,
+         names shown for VC (Aug 20 2026  own real,
         direct list of VC interior areas, cross-confirmed against
         GTAMods' own documented "Interior" page - see VC_INTERIOR_
         NAMES' own docstring in gta_dat_parser.py for the full, real
         confirmation story).
 
-        Real fix for SA (Aug 20 2026, per Keith: "full list for VC,
+         fix for SA (Aug 20 2026,  "full list for VC,
         now im looking for SA") - unlike VC, an SA interior number
         does NOT uniquely identify one real area on its own (GTAMods'
         own documented SA list shows many unrelated real buildings
@@ -30371,7 +30371,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _on_show_water_toggled(self, checked): #vers 3
         """Show Water checked/unchecked.
 
-        Re-applied (Aug 20 2026, per Keith: "get the water working,
+        Re-applied (Aug 20 2026,  "get the water working,
         from the preloaded file, [water] button off/on toggle") -
         real data now comes only from the Preload dialog (or the
         auto-retooled loader.waterpro/water_shapes data), which
@@ -30384,7 +30384,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _on_water_layer_toggled(self, checked): #vers 2
         """Middle-click switches between waterpro.dat's own two real
-        layers (Sep 5 2026, per Keith: "the right click toggle
+        layers (Sep 5 2026,  "the right click toggle
         between vis_water and phy_water needs to be moved to the
         middle button so it doesnt clash with the right click menu" -
         moved off right-click/edit_toggled, which also freed up
@@ -30492,7 +30492,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _resolve_ipl_abs_path(self, source_ipl_basename): #vers 1
         """Find the real, full, absolute path a loaded IPL's own
         basename (source_ipl, e.g. "map.zon") corresponds to on disk
-        (Aug 21 2026, per Keith: "we need to finish the add, del,
+        (Aug 21 2026,  "we need to finish the add, del,
         save functions for zon") - searches loader.load_log (a real
         list of (phase, "IPL", abs_path, ok) tuples every real loaded
         IPL is already recorded in, for on-demand and eager loading
@@ -30512,10 +30512,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         """Write a real "zone...end" section back to its own real IPL
         file on disk, replacing only that section's own real content -
         every other real line (other sections, comments, blank lines)
-        is left completely untouched (Aug 21 2026, per Keith: "we
+        is left completely untouched (Aug 21 2026,  "we
         need to finish the add, del, save functions for zon").
 
-        Real safety: writes a real ".bak" backup of the file's own
+         safety: writes a real ".bak" backup of the file's own
         real, current content first (only if one doesn't already
         exist, so repeated saves in one real session don't overwrite
         an earlier, real pre-edit backup with an already-edited one).
@@ -30579,7 +30579,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _save_zones(self): #vers 1
         """Save Zones button - writes every currently loaded zone back
         to its own real source IPL file(s) on disk (Aug 21 2026, per
-        Keith: "we need to finish the add, del, save functions for
+         : "we need to finish the add, del, save functions for
         zon"). Groups loader.zones by source_ipl (several files can
         each have their own real zone entries), resolves each real
         basename to its own real, full path via _resolve_ipl_abs_
@@ -30587,7 +30587,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         A confirmation dialog is shown first, since this genuinely
         overwrites real files on disk (with a real .bak safety copy,
         but still a real, deliberate action, not something to fire
-        without Keith's own explicit go-ahead each time)."""
+        without my own explicit go-ahead each time)."""
         loader = getattr(self, '_world_loader', None)
         if loader is None:
             self._set_status("No world loaded")
@@ -30681,7 +30681,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _refresh_grge_box_visualization(self): #vers 1
         """Push the currently visible IPLs' garages to the viewport's
-        box overlay (Aug 21 2026, per Keith: "add support for GRGE"),
+        box overlay (Aug 21 2026,  "add support for GRGE"),
         same real pattern _refresh_occl_box_visualization uses."""
         vp = getattr(self, 'preview_widget', None)
         if vp is None or not hasattr(vp, 'set_grge_boxes'):
@@ -30704,12 +30704,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return
         hidden = getattr(self, '_hidden_ipls', set())
         grges = [g for g in getattr(loader, 'grges', []) if g.source_ipl not in hidden]
-        # Real fix (Aug 21 2026, per Keith's own real, uploaded GRGE
+        #  fix (Aug 21 2026  own real, uploaded GRGE
         # example lines: "the grge data seems to be found in most of
-        # the ipl's") - checking Keith's own real data against it
+        # the ipl's") - checking my own real data against it
         # revealed x2 doesn't hold a real, distinct second X corner at
         # all - it's always exactly equal to x1 in every real line
-        # Keith posted. Confirmed via a real, independent source (a
+        #   posted. Confirmed via a real, independent source (a
         # SannyBuilder-community IPL format reference): the field this
         # codebase calls "front_x" is actually the box's own real
         # second X corner ("Lower Right Front"), and the field this
@@ -30886,7 +30886,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 if dff_model is None or not getattr(dff_model, 'geometries', None):
                     # Model geometry missing/unparsed - still attempt
                     # collision independently by name (Sep 5 2026, per
-                    # Keith: "it should still find the model name in
+                    #  : "it should still find the model name in
                     # the col, not just the img file, and show them").
                     # Previously this set converted[model_name] = None
                     # outright, which skipped the whole instance below
@@ -30946,7 +30946,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                         'triangles': all_triangles,
                         'materials': all_materials,
                         'prelit':    all_prelit,
-                        # Real fix (Aug 21 2026, per Keith's own real,
+                        #  fix (Aug 21 2026  own real,
                         # uploaded alpha_showing.png screenshot: "some
                         # alpha objects not being rendered as they
                         # should be") - this real model's own real
@@ -31121,7 +31121,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     def _apply_interior_filter(self, instances): #vers 1
         """Filter instances by their own interior value (Aug 20 2026,
-        per Keith: "Can we look at interior values? We see all models
+         "Can we look at interior values? We see all models
         using the value 0. Still, interior rendering is hidden until
         you're inside buildings. We need a svg to toggle interior
         models: show 0 only on the viewpoint; showing 0 to 14+ by
@@ -31136,7 +31136,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._interior_filter_value: None means no filtering (show
         every interior value together); an int means show only
         instances with that exact interior value. Defaults to 0,
-        matching Keith's own stated default."""
+        matching my own stated default."""
         value = getattr(self, '_interior_filter_value', 0)
         if value is None:
             return instances
@@ -31189,7 +31189,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _is_lod_named(self, model_name): #vers 1
         """True if model_name is styled as a LOD version by naming
         convention - "LOD" prefix or suffix, case-insensitive (Sep 5
-        2026, per Keith: "should only be those prefix or suffixed
+        2026,  "should only be those prefix or suffixed
         with LOD"). Matches GTAWorldLoader.resolve_lod_pairs' own
         Strategy 2 naming rule exactly."""
         name = (model_name or '').lower()
@@ -31203,7 +31203,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         over the global mode (self._lod_display_mode).
 
         Instances with no detected LOD pair are now filtered directly
-        (Sep 5 2026, per Keith: "in LOD only, I still see the normal
+        (Sep 5 2026,  "in LOD only, I still see the normal
         models, should only be those prefix or suffixed with LOD") -
         'lod' mode now shows ONLY instances flagged as LOD, by name
         ("LOD" prefix/suffix, see _is_lod_named) or by the draw-

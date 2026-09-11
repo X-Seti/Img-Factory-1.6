@@ -1,5 +1,5 @@
 
-- **Aug 19, 2026** — Added Game Path Presets, per Keith: "I'd like to
+- **Aug 19, 2026** — Added Game Path Presets,  "I'd like to
   add, in [Menu] Project settings -> Game path presets, the locations
   of those games installed on your system, so you can pick them in
   Dat Browser for quick access." GTA III/Vice City/San Andreas only -
@@ -10,7 +10,7 @@
   Investigated the existing DAT Browser first rather than assuming
   what needed building: `detect_game()`/`find_dat_file()` already
   correctly handle all three games' own main DAT filenames (gta3.dat/
-  gta_vc.dat/gta.dat) - Keith's own framing ("We know GTAIII uses
+  gta_vc.dat/gta.dat) - my own framing ("We know GTAIII uses
   gta3.dat and automatically load the dat file...") was confirming
   already-working behaviour as context for the new feature, not
   describing a gap to fix. What was actually missing was a quick-
@@ -52,20 +52,20 @@
   three touched files; confirmed via AST no duplicate method
   definitions.
 
-- **Aug 20, 2026** — Tackled all three of Keith's own real TODO
+- **Aug 20, 2026** — Tackled all three of my own real TODO
   comments left in the code, then wrote them up here: merged Game
   Path Presets into the DAT Browser's own Game combo, built real
   text-IPL-to-binary-IPL conversion, and made the directory tree
   browser lazy-load.
 
-  **Game combo IS the presets now** (`dat_browser.py`), per Keith's
+  **Game combo IS the presets now** (`dat_browser.py`) 
   own comment: "\"GTA III\", \"Vice City\", \"San Andreas\", should be
   the presets. so merge the presets into the game_combo." Selecting
   GTA III/Vice City/San Andreas directly from the Game dropdown now
   checks Menu > Project Settings > Game Path Presets and, if a path's
   been saved for that game, fills it straight into the path field and
   starts loading - no separate button needed any more. Removed the
-  "Presets ▾" button and its own menu handler entirely, per Keith's
+  "Presets ▾" button and its own menu handler entirely 
   own follow-up note ("this can go, once merged into game_combo"),
   not just hidden. **Caught a real bug while wiring this up**:
   `_browse_game_root` was setting the combo programmatically (after
@@ -79,7 +79,7 @@
 
   **Text IPL → Binary IPL conversion is real now** (`map_workshop.py`
   + new `write_binary_ipl_inst_only` in `gta_dat_parser.py`), per
-  Keith's own comment: "When working with SA files, have the ability
+  my own comment: "When working with SA files, have the ability
   to click on a text ipl, convert to binary.ipl. save options, save
   to img file, save to desktop." The menu item calling `_save_ipl_
   data_as_binary` already existed in the code - the method itself
@@ -116,7 +116,7 @@
   game - the dialog says so plainly, not just this changelog entry.
 
   **Directory tree browser now lazy-loads** (`directory_tree_browser
-  .py`), per Keith's own comment: "The folder list folders need to be
+  .py`)  own comment: "The folder list folders need to be
   closed, until the folder is opened to show it's contents." Was
   eagerly recursing 3 whole levels deep on every single load before
   this - for a large real game install's own directory tree, that
@@ -158,7 +158,7 @@
   flag, not just a child-count-equals-one check, correctly tells the
   two apart.
 
-  The "different View options" half of Keith's own directory-tree
+  The "different View options" half of my own directory-tree
   comment (icons/detailed-list/short-list view modes, "replicating a
   proper file browser") is real, separate scope not started this
   pass.
@@ -167,7 +167,7 @@
   duplicate method definitions in any of them.
 
 - **Aug 20, 2026** — Consolidated IMG Factory's own config files into
-  an app-folder-relative `config/` subfolder, per Keith: "lets fix map
+  an app-folder-relative `config/` subfolder,  "lets fix map
   workshop and img factory first since we're working on those" -
   same real fix, same reasoning, already applied to Map/Model
   Workshop just before this.
@@ -184,7 +184,7 @@
   fallback to `~/.config/img-factory` if that folder genuinely isn't
   writable.
 
-  **Real bug found and fixed along the way**: `IMGFactorySettings`
+  ** bug found and fixed along the way**: `IMGFactorySettings`
   had `def set(...)` defined TWICE (once untyped, once with a type
   hint) - the second silently shadowed the first, dead duplicate code
   doing the exact same thing. Removed the redundant one.
@@ -223,13 +223,13 @@
   in `notepad.py`, `open.py`, `file_menu_integration.py`, `file_
   dirtree_browser.py`, `directory_tree_browser.py`, plus 3 stale
   duplicate copies of `img_factory_settings.py` in `Map_Editor`/
-  `Model_Editor`/`Col_Editor`'s own `depends/` folders) - Keith's own
+  `Model_Editor`/`Col_Editor`'s own `depends/` folders) - my own
   explicit plan is Map Workshop + IMG Factory first (this pass), then
   a second audit pass to convert the remaining apps over, alongside
   whatever other layout/bug/data-saving work still needs doing in
   each.
 
-- **Aug 20, 2026** — Fixed two real bugs in Water Workshop, per Keith:
+- **Aug 20, 2026** — Fixed two real bugs in Water Workshop, .per:
   "many issues with Waterpro, first the titlebar should not be
   showing when docked, the other is the parsing of SOL waterpro
   files, you can see this in the image."
@@ -249,7 +249,7 @@
 
   Verified directly against both real uploaded SOL files: grid_width
   (384) and all 4 real water level heights (6.0, 68.5435, 46.0, 14.5)
-  exactly match the real screenshot Keith provided. Rendered the de-
+  exactly match the real screenshot   provided. Rendered the de-
   tiled visible/physical grids as real images and confirmed directly
   by eye - a coherent, real map-shaped landmass, not the striped/
   banded, scrambled pattern the real screenshot showed before this
@@ -259,7 +259,7 @@
   existing, already-correct flat-grid reading still applies.
 
   **Titlebar showing when docked** - a real, confirmed bug directly
-  visible in Keith's own screenshot: Water Workshop, docked inside
+  visible in my own screenshot: Water Workshop, docked inside
   IMG Factory, still showing its own full internal titlebar (Menu/
   Settings/title text/undo/info/settings/D) duplicating the outer
   tab's own title. Traced to the shared `_create_toolbar` method -
@@ -279,7 +279,7 @@
   copied into each tool's own folder and maintained independently.
   Water Workshop's own real copy is `apps/components/Water_Editor/
   gui_workshop.py`, not the methods/ one - the actual fix was applied
-  there, matching where Keith's own real bug report is. A separate,
+  there, matching where my own real bug report is. A separate,
   genuinely stale, unused duplicate was also found at `apps/
   components/Water_Editor/depends/gui_workshop.py` (an older Aug 14
   copy, confirmed via direct search that nothing anywhere imports it)
@@ -289,7 +289,7 @@
   Real, honest scope note: given the deliberate "each workshop owns
   its own copy" design just confirmed, this same titlebar-when-docked
   bug likely exists identically in every other `*_Workshop` tool's
-  own copy of this same method too - not fixed here, since Keith's
+  own copy of this same method too - not fixed here, since my
   own report was specifically about Water Workshop; extending this
   same fix to the other tools would be its own, separate, deliberate
   pass rather than something to guess at doing silently here.
@@ -297,7 +297,7 @@
   `ast.parse` clean on both touched files; confirmed via AST no
   duplicate method/function definitions.
 
-- **Aug 20, 2026** — Fixed two real bugs Keith reported directly.
+- **Aug 20, 2026** — Fixed two real bugs   reported directly.
 
   **MapSettings save crash** - "Failed to save .../map_workshop.json:
   name 'json' is not defined." A real, genuine oversight from this
@@ -346,7 +346,7 @@
   duplicate method definitions.
 
 - **Aug 20, 2026** — Fixed two real bugs in the Breakable Objects
-  Editor (object.dat), per Keith: "Breakable objects editor
+  Editor (object.dat),  "Breakable objects editor
   (objects.dat) is showing its titlebar, and the open dialog can go,
   let the user decide to open the objects dat."
 
@@ -370,7 +370,7 @@
   remembered `object.dat` path from `self.vehicle_data_paths` and,
   if set, auto-load it the instant the tab opened via a `QTimer.
   singleShot` straight into `_open_file` - not a literal dialog
-  popup, but the same real effect Keith's report describes: the tool
+  popup, but the same real effect my report describes: the tool
   deciding to open a file on its own rather than the person choosing
   to. Now genuinely opens empty unless a real, explicit path is
   passed in (e.g. DAT Browser's own "Object" entry, which
@@ -384,7 +384,7 @@
   duplicate method definitions.
 
 - **Aug 20, 2026 (cont'd)** — Caught 2 more real bugs in Breakable
-  Objects Editor while confirming Keith's own follow-up ("Any needed
+  Objects Editor while confirming my own follow-up ("Any needed
   buttons on the title bar when docked can follow the same pattern
   as the other tools") - re-reading `__init__` to confirm the earlier
   titlebar fix was actually correct surfaced two genuine, pre-
@@ -410,7 +410,7 @@
   remains and no other `self.toolbar.hide()` call exists in the file.
 
 - **Aug 20, 2026 (cont'd)** — Real, structural fix for the titlebar-
-  when-docked problem in Breakable Objects Editor, per Keith: "so
+  when-docked problem in Breakable Objects Editor,  "so
   compact buttons, like map/model editor, panes and ribbons is the
   way to go, this way when docked those needed buttons can be added
   to the object pane." A concrete, immediate first step toward that
@@ -420,7 +420,7 @@
   New file-action row in `_build_left_panel` (`breakable_editor.py`) -
   Open/Save/Export/Import, compact style (fixed 18px height, tight
   padding) matching Map/Model Workshop's own established dense-
-  button-row convention, the specific reference Keith named. Lives
+  button-row convention, the specific reference   named. Lives
   directly in the Objects pane, which is always visible regardless of
   dock state - nothing to conditionally hide or show at all, the
   structural fix rather than another patch on top of the toolbar's
@@ -494,7 +494,7 @@
   first surfaced this while testing the new RadarTex.img feature.
 
   New Map Workshop feature (`apps/components/Map_Editor/map_
-  workshop.py`) built on top of this now-fixed core API, per Keith:
+  workshop.py`) built on top of this now-fixed core API, .per:
   "I am thinking about creating a RadarTex.img option from Radar_
   Workshop, this way the user can just add the new img file to the
   gta_xx.dat file" - a third right-click option on the Radar button,
@@ -526,7 +526,7 @@
   `ast.parse` clean on all touched files; confirmed via AST no
   duplicate method definitions.
 
-- **Aug 20, 2026** — Fixed a real, hard crash Keith reported directly:
+- **Aug 20, 2026** — Fixed a real, hard crash   reported directly:
   "AttributeError: '_TileZoomView' object has no attribute '_get_ui_
   color'... Aborted (core dumped)."
 
@@ -543,7 +543,7 @@
   ui_color_for(widget, key)` function, then gave `RadarGridWidget` a
   thin delegate to it instead of its own separate copy. Then searched
   the whole file directly for every other real call site of `self.
-  _get_ui_color(...)` rather than stopping at the one Keith actually
+  _get_ui_color(...)` rather than stopping at the one   actually
   hit - found the exact same real gap already latent in two more
   classes, `_BoredomPuzzle` and `RadarWorkshop` itself (the main
   widget), neither of which had ever defined the method either -
@@ -567,10 +567,10 @@
   file`) called it without ever overriding that default, regardless
   of which game was actually being saved to.
 
-  Confirmed directly against Keith's own real, uploaded sample data,
+  Confirmed directly against my own real, uploaded sample data,
   not assumed: a real vanilla SA `radar00.txd`'s own actual header
   bytes decode to `0x1803FFFF` (RW 3.6.0.3, SA's own real, correct
-  version), while a real tile Keith had saved back specifically to SA
+  version), while a real tile   had saved back specifically to SA
   had `0x1003FFFF` baked in instead - the exact, confirmed mismatch,
   not a guess.
 
@@ -587,7 +587,7 @@
 
   Verified the fix directly, not just that it compiles - built a real
   TXD chunk header the same exact way `write()` does, confirmed its
-  own real version bytes now match Keith's own real, uploaded vanilla
+  own real version bytes now match my own real, uploaded vanilla
   SA `radar00.txd` byte-for-byte at the same offset.
 
   `ast.parse` clean; confirmed via AST no duplicate function

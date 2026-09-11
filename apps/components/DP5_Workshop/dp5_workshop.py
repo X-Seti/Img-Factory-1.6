@@ -7309,7 +7309,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
             # Brush-parameter tools get a right-click settings menu
             # (brush size plus intensity/strength/density) - the "brush
-            # settings" chunk Keith asked for.
+            # settings" chunk   asked for.
             elif tool_id in (TOOL_BLUR_BRUSH, TOOL_SMUDGE, TOOL_LINE,
                              TOOL_ERASER, TOOL_SPRAY, TOOL_SPRAYCAN,
                              TOOL_LIGHTEN, TOOL_DARKEN):
@@ -7791,7 +7791,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 f"QToolBar {{ spacing: {max(0, int(padding))}px; }} " + btn_rule)
 
         # Right-click anywhere on the ribbon's empty background opens a
-        # menu with Ribbon Manager access (per Keith's request) - only
+        # menu with Ribbon Manager access (per my request) - only
         # wire this once per toolbar, since _apply_ribbon_style also
         # re-runs on every orientationChanged
         if not getattr(toolbar, '_ribbon_ctx_menu_wired', False):
@@ -7910,7 +7910,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
     _TEXT_TOOLS = {TOOL_TEXT}
 
     def _create_tool_settings_ribbon(self): #vers 1
-        """Tool Settings ribbon - always-visible, top-right (per Keith's
+        """Tool Settings ribbon - always-visible, top-right (per my
         request), showing the CURRENTLY SELECTED tool's Size (GIMP-style
         plain numeric field, label changes per tool - 'Pen Size',
         'Line Size', 'Eraser Size', etc), Strength/Intensity where that
@@ -7918,7 +7918,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         Updates live via _refresh_tool_settings_ribbon(), called from
         _select_tool on every switch. The right-click popup menus
         (_show_tool_settings_menu) still exist as a secondary path, but
-        this ribbon is the primary always-visible one Keith asked for."""
+        this ribbon is the primary always-visible one   asked for."""
         from PyQt6.QtWidgets import QToolBar, QWidgetAction, QDoubleSpinBox
 
         tb = QToolBar("Tool Settings")
@@ -8046,7 +8046,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             setattr(c, attr, v)
 
     def _pick_ts_font(self): #vers 1
-        """Font button clicked - open a font picker, matching Keith's
+        """Font button clicked - open a font picker, matching my
         'font type, when you click on the font shown' request."""
         from PyQt6.QtGui import QFontDialog
         current = QFont(self._default_text_font_family)
@@ -8301,14 +8301,14 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             ('marker_ellipse', None, 'Marker Ellipse', TOOL_MARKER_ELLIPSE),
         ])
 
-        # Text group - Text Pointer/Text Arrow removed per Keith
+        # Text group - Text Pointer/Text Arrow removed .per
         # (buggy leader-line/arrow variants), plain Text only now
         self._make_dropdown_tool_button(tb, [
             (None, 'dp_text_icon', 'Text',      TOOL_TEXT),
         ])
 
         # Number group (+ Dots/Bullet Points variants, + reset numbering)
-        # Number Pointer/Number Arrow removed per Keith - didn't work right.
+        # Number Pointer/Number Arrow removed  - didn't work right.
         self._make_dropdown_tool_button(tb, [
             ('number', None, 'Number',           TOOL_NUMBER),
             ('dot', None, 'Dots (plain marker, no number)', TOOL_DOT),
@@ -8671,7 +8671,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         """Reduce the canvas to the selected bit depth and render the
         change - a real colour-depth reduction, not the palette-display
         blending step (see _blend_palette_colors for that, kept as its
-        own separate, explicit function per Keith's decision)."""
+        own separate, explicit function per my decision)."""
         if not self.dp5_canvas: return
         depth = self._bit_depth_combo.currentText()
         try:
@@ -8708,7 +8708,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         """Quantize the canvas into an averaged palette (median-cut
         colour clustering) and apply that blend back onto the canvas,
         updating the palette grid to match. This is the behaviour that
-        used to run unconditionally inside bit-depth Apply - Keith found
+        used to run unconditionally inside bit-depth Apply -   found
         it an interesting effect worth keeping, so it's now its own
         explicit button rather than a side effect of Apply.
 
@@ -9375,7 +9375,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         (brush size plus whichever intensity/strength/density setting
         applies). Follows the same context-menu-on-toolbutton pattern
         as _zoom_mode_menu. Covers Blur/Smudge/Line/Eraser/Airbrush/
-        Spraycan/Lighten/Darken/Sharpen - the brush settings Keith
+        Spraycan/Lighten/Darken/Sharpen - the brush settings  
         asked for."""
         from PyQt6.QtWidgets import QWidgetAction, QDoubleSpinBox
         c = self.dp5_canvas
@@ -14340,7 +14340,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         if b':ICONFACE' in data:
             return None, 0, 0, "OS3.5-ICONFACE (proprietary format)"
 
-        #    Real WB3.9 256-colour palette (from actual WB3_9.pal prefs)   
+        #     WB3.9 256-colour palette (from actual WB3_9.pal prefs)   
         WB39 = [
             (144,148,149),(43,0,0),(255,255,255),(0,98,255),(120,120,120),(175,175,175),(170,144,124),(255,169,151),  # 0
             (149,149,149),(238,85,0),(153,255,17),(238,187,0),(85,85,255),(153,34,255),(0,255,136),(204,204,204),  # 8
@@ -14375,7 +14375,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             (170,85,170),(238,119,238),(223,0,0),(206,0,0),(190,0,0),(174,0,0),(158,0,0),(142,0,0),  # 240
             (125,0,0),(109,0,0),(62,162,190),(144,148,149),(123,123,123),(175,175,175),(170,144,124),(255,169,151),  # 248
         ]
-        #    Real WB3.9 XL 256-colour palette (from amigaos3_9xl.pal)   
+        #     WB3.9 XL 256-colour palette (from amigaos3_9xl.pal)   
         WB39_XL = [
             (144,148,149),(43,0,0),(255,255,255),(0,98,255),(123,121,123),(175,175,175),(170,144,124),(255,169,151),  # 0
             (149,149,149),(238,85,0),(153,255,17),(238,187,0),(85,85,255),(153,34,255),(0,255,136),(204,204,204),  # 8

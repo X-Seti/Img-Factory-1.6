@@ -293,7 +293,7 @@ def _parse_native_texture(data: bytes, base: int, _debug: bool = False) -> Optio
                     px[i*4:i*4+4] = bytes([r,g,b,a])
                 rgba = bytes(px)
             elif d3d_or_alpha == D3DFMT_X8R8G8B8:
-                # Real bug (Sep 5 2026, per Keith's own real, uploaded
+                #  bug (Sep 5 2026  own real, uploaded
                 # gta_tree_boak.txd etc): X8R8G8B8 means "top byte
                 # unused" by strict D3D9 spec, but real GTA TXDs
                 # commonly mislabel true A8R8G8B8 alpha data as

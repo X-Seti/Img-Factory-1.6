@@ -24,7 +24,7 @@ built and tested; real per-instance rendering and editing still to come.
   renders a placeholder marker cube per instance + a ground grid, not
   real per-instance geometry yet.
 - World View dock - Top/Side/3D triple-pane (one horizontal splitter,
-  NOT a 2x2 quad - confirmed this explicitly per Keith), each pane
+  NOT a 2x2 quad - confirmed this explicitly .per), each pane
   right-click-on-LABEL-only reassignable (Top/Side/Front/3D), double-
   click or menu to maximize/restore any pane to fill the whole dock
   (shows a "Full View" label while maximized, which is also the
@@ -45,20 +45,20 @@ built and tested; real per-instance rendering and editing still to come.
   existed), the quad-pane maximize feature not existing at all in
   Model Workshop, and the pane context menu covering the whole pane
   instead of just its label (which broke right-click-drag rotate).
-- Rendering fixed for real-world scale (tested against Keith's actual
+- Rendering fixed for real-world scale (tested against my actual
   GTASOL data: 13,178 objects, 51,711 instances, 106 IPL files) -
   first pass used glVertexPointer/glDrawArrays (client-side vertex
   arrays) for a single fast draw call, which crashed hard (process
-  abort/core dump) on Keith's actual hardware since that legacy API
+  abort/core dump) on my actual hardware since that legacy API
   isn't exposed by his driver. Reverted to glBegin(GL_POINTS)/
   glVertex3f/glEnd (confirmed working elsewhere in this codebase,
   e.g. Model Workshop) - still points not cubes (24x fewer vertices
   per instance than the original approach), just without the
   crash-prone upload step. Instance List also switched from
   QTableWidget (2.6s UI freeze at 51,711 rows) to QTableView + a lazy
-  QAbstractTableModel (0.002s) - both confirmed at Keith's real scale.
+  QAbstractTableModel (0.002s) - both confirmed at my real scale.
 - IPL Sections panel - repurposes the central-widget area the canvas
-  leaves empty when hidden (Keith's own suggestion from a screenshot):
+  leaves empty when hidden (my own suggestion from a screenshot):
   lists every IPL that contributed instances, each with a Show/Hide
   toggle, filtering both World View and Instance List in-memory
   without reloading.
@@ -76,7 +76,7 @@ built and tested; real per-instance rendering and editing still to come.
 - Object Browser dock - search box + four filter modes (All/Most
   Used/Favourites/Generic) over the loaded object catalog, with
   per-model instance counts and persisted favourites.
-- Confirmed, via Keith's real default.dat/gta_vc.dat/gta3.dat/gta.dat/
+- Confirmed, via my real default.dat/gta_vc.dat/gta3.dat/gta.dat/
   gta_quick.dat files, that every .dat directive the engine actually
   uses across GTA3/VC/SA is now handled (IDE/IPL/MAPZONE/COLFILE/IMG/
   TEXDICTION/MODELFILE/SPLASH) - see the two gotchas below for what
@@ -104,7 +104,7 @@ built and tested; real per-instance rendering and editing still to come.
   know the exact binary struct layout. A BinaryIPLParser stub exists
   but deliberately does NOT attempt real parsing yet - see below.
 
-### Needs Keith's input / real data to proceed safely
+### Needs my input / real data to proceed safely
 
 - **LOD pairing semantics** - the interpretation above (lod_index as a
   0-based position among a file's own inst entries) produced correct
@@ -114,7 +114,7 @@ built and tested; real per-instance rendering and editing still to come.
 
 ### Binary IPL - RESOLVED (read side), verified against real data
 
-Keith provided 165 real binary .ipl files (crack.ipl, countn2_stream*,
+  provided 165 real binary .ipl files (crack.ipl, countn2_stream*,
 vegasw_stream*, etc, all standard SA "streaming" IPL naming). Read-
 side format confirmed empirically, not from documentation:
 - Magic b"bnry" + 76-byte header (18 x int32 LE) - only inst_count
@@ -142,7 +142,7 @@ side format confirmed empirically, not from documentation:
 
 ### Next up, in priority order
 
-0. **Requested ribbon features not yet built** (Keith's own list, for
+0. **Requested ribbon features not yet built** (my own list, for
    a "new icons for one of the ribbons" pass once real geometry exists
    enough to make some of these meaningful):
    - Search icon - a quick-access icon/shortcut to the Object Browser's
@@ -166,7 +166,7 @@ side format confirmed empirically, not from documentation:
      input, and how this interacts with LOD-paired instances (moving
      one member of a pair presumably needs to move both).
 
-0.5 **Inst editing suite - fully scoped/confirmed with Keith, nothing
+0.5 **Inst editing suite - fully scoped/confirmed with  , nothing
    built yet.** This is a big, multi-part feature; breaking it out here
    so each piece can be picked up independently:
 
@@ -205,7 +205,7 @@ side format confirmed empirically, not from documentation:
      blindly (this sandbox has no real GPU to visually verify camera
      behaviour against). Added in response to a real reported bug (Top
      view's left/right felt switched, other views' up/down felt
-     switched) - defaults are unchanged/non-inverted; Keith can now
+     switched) - defaults are unchanged/non-inverted;   can now
      tune each mode's feel directly through the UI. Applies immediately
      on save, no restart needed.
 
@@ -239,11 +239,11 @@ side format confirmed empirically, not from documentation:
      established COL/TXD Workshop icon style.
 
    - **Object Browser + Instance List merge**: DONE. Design decisions
-     made (Keith said "continue" without answering the open questions
+     made (  said "continue" without answering the open questions
      from the previous write-up, so proceeded with documented,
      reasonable choices rather than blocking): the merged panel is
      Object Browser's UI (search + All/Most Used/Favourites/Generic),
-     now showing Star/ID/Model/TXD/Instances per Keith's exact spec;
+     now showing Star/ID/Model/TXD/Instances per my exact spec;
      the standalone Instance List dock is retired (code left in place,
      unused, not deleted, for reversibility). Since a row now
      represents a MODEL that may have zero, one, or many placements,
@@ -273,7 +273,7 @@ side format confirmed empirically, not from documentation:
      messages that nothing is written back to disk yet.
 
      Initially these only existed as right-click context menu entries -
-     Keith rightly caught via screenshot that they weren't discoverable
+       rightly caught via screenshot that they weren't discoverable
      at all (no visible icon/button/affordance hinting they existed).
      Fixed: real Add/Delete/Rename SVG icon buttons now sit above
      Object Browser's search box (get_add_icon/get_trash_icon/get_
@@ -325,7 +325,7 @@ side format confirmed empirically, not from documentation:
 
    - **"Shift IDs +2000/-2000" icon**: bulk-renumber selected entities'
      IDs by a fixed offset, for merging maps or avoiding collisions.
-     Confirmed with Keith: this needs to renumber the whole chain
+     Confirmed with  : this needs to renumber the whole chain
      consistently (the IDE object definition too, and every instance/
      reference using that ID) - not just the IPL instance's own
      reference, or model lookups would break.
@@ -337,9 +337,9 @@ side format confirmed empirically, not from documentation:
      box centre? user-specified?) is still an open question - wasn't
      answered in the confirmation round, so default to something
      reasonable (bounding-box centre is the least surprising choice)
-     and let Keith redirect if that's wrong once this is actually built.
+     and let   redirect if that's wrong once this is actually built.
 
-1. **Real per-instance DFF/TXD geometry** (the big one) - MAJOR
+1. ** per-instance DFF/TXD geometry** (the big one) - MAJOR
    PROGRESS this session: ModelCache (apps/components/Map_Editor/
    depends/model_cache.py) indexes IMG archives and lazily loads/
    caches DFF geometry + TXD textures by name; MapViewport now renders
@@ -347,7 +347,7 @@ side format confirmed empirically, not from documentation:
    with Solid/Semi/Wireframe modes (a real ribbon dropdown, not a
    stub), falling back to the existing point/dot rendering for any
    instance whose model isn't indexed or fails to parse - exactly what
-   Keith asked for ("render meshes and textures, show them as solid,
+     asked for ("render meshes and textures, show them as solid,
    semi, wireframe, by centre pivot (dot) like it is now" for the
    fallback case). Verified against a real, hand-crafted, byte-valid
    IMG archive through the full real load pipeline, not just mocks.
@@ -361,7 +361,7 @@ side format confirmed empirically, not from documentation:
      loading for every distinct referenced model happened eagerly
      right after a world loaded, via a QProgressDialog (MapWorkshop.
      _preload_world_assets) - this fixed the original reported hang
-     (a silent, unexplained freeze) but Keith then reported it as
+     (a silent, unexplained freeze) but   then reported it as
      "very slow scanning" and pointed out it should only scan a
      specific IPL's models when that IPL is actually loaded, not the
      whole world at startup - exactly matching how MooMapper itself
@@ -386,7 +386,7 @@ side format confirmed empirically, not from documentation:
      loading-time concern is now resolved at its root rather than
      patched over.
    - **Per-IPL loading result reporting**: follow-up to the above -
-     Keith described the exact format he wanted ("path/airport.ipl
+       described the exact format he wanted ("path/airport.ipl
      loaded - no errors" / "path/airportN.ipl loaded - 4 errors found,
      check log added to the maps folder"). load_ipl_by_name now
      returns a real IPLLoadResult (error/warning counts and messages
@@ -397,7 +397,7 @@ side format confirmed empirically, not from documentation:
      tracked as a warning by the parser, not a hard error, but is still
      worth surfacing to the user). Verified against a genuinely
      malformed test line, not just success-path assumptions.
-   - **STILL NOT DONE**: the upfront "Load Options" dialog Keith also
+   - **STILL NOT DONE**: the upfront "Load Options" dialog   also
      described as part of the same idea - a mesh-only vs mesh+textures
      choice, plus a checklist of the root .dat file's contents (every
      discovered IPL, matching MooMapper's own "select which files to
@@ -442,7 +442,7 @@ side format confirmed empirically, not from documentation:
      to tackle after correctness). Followed - correctness confirmed
      first via a single hand-crafted test model before considering
      the scale/culling question above.
-   - **VC-specific gotcha, confirmed against Keith's real default.dat/
+   - **VC-specific gotcha, confirmed against my real default.dat/
 
      gta_vc.dat**: default.dat references some TXD/DFF files directly
      via TEXDICTION/MODELFILE directives (generic wheel/aircraft
@@ -456,7 +456,7 @@ side format confirmed empirically, not from documentation:
      need their own resolution path (direct file load) alongside the
      IMG-archive-based one, or any model built from generic.txd/
      wheels.txd will silently fail to find its textures for VC.
-   - **GTA3-specific gotcha, found and FIXED, confirmed against Keith's
+   - **GTA3-specific gotcha, found and FIXED, confirmed against my
      real gta3.dat**: GTA3 loads its zone file (MAP.ZON) via a
      different directive keyword entirely - MAPZONE, not IPL (VC/SA
      both use IPL DATA\MAP.ZON for the equivalent file). This was a
@@ -516,9 +516,9 @@ side format confirmed empirically, not from documentation:
    existing per-ribbon context menu already has an "Icon Set" submenu
    pattern (Default/3ds Max style) worth referencing when this comes up.
 
-### MooMapper comparison (Keith got it running for reference) - notes, not yet acted on
+### MooMapper comparison (  got it running for reference) - notes, not yet acted on
 
-Keith shared screenshots of MooMapper (the established GTA III/VC
+  shared screenshots of MooMapper (the established GTA III/VC
 reference map editor) running via Wine, both its main window and its
 Item Editor Dialog for a real instance from islandsf.ipl. Comparing
 against what's built here:
@@ -528,7 +528,7 @@ MooMapper's Item Editor showed the raw IPL line
 `2608, cdseabed08, 0, -272.208, 194.538, -143.231, 1, 1, 1, 0, 0, 0, 1`
 labeled: ID 2608, Model cdseabed08, **Interior 0**, Position
 (-272.208, 194.538, -143.231), Scale (1,1,1), Rotation (converted
-from the trailing quaternion). Keith then provided a second real line
+from the trailing quaternion).   then provided a second real line
 to check directly: `429, mlamppost, 0, -686.7186279, 593.7156982,
 14.58199501, 1, 1, 1, 0, 0, -0.999048233, 0.0436193347` - the last 4
 values form a valid unit quaternion (magnitude^2 = 1.0000000182),
@@ -540,10 +540,10 @@ layout (previously folded into the same code as GTA3, assuming NO
 interior/scale at all, silently reading the interior value as pos_x
 for every VC instance). Added scale_x/y/z to IPLInstance (default
 1.0) so VC's real scale data isn't discarded either. Verified directly
-against Keith's exact real line, plus full regression across existing
+against my exact real line, plus full regression across existing
 GTA3/SA/VC test data.
 
-GTA3 and SA now CONFIRMED CORRECT too - Keith provided two more real
+GTA3 and SA now CONFIRMED CORRECT too -   provided two more real
 lines to check directly: `2813, landpart88, -858.571, -853.626,
 9.01985, 1, 1, 1, 0, 0, 0, 1` (12 fields, id+model+pos(3)+scale(3)+
 quat(4), quat magnitude^2 = 1.0 exactly - identity rotation) and
@@ -555,12 +555,12 @@ _parse_inst code (GTA3 branch for the first, SA branch for the
 second, since the second's structure - interior field + trailing lod
 index - matches SA/SOL's format exactly, not GTA3's, regardless of
 which file it was pulled from) - every field extracted correctly
-against both. Keith's own summary matches exactly what both lines
+against both. my own summary matches exactly what both lines
 show: "only VC, and SA, SOL has the 0" (interior field) - GTA3 has
 none. No code changes needed for either - both were already right;
 the confirmed, actually-broken case was specifically VC.
 
-Keith then provided a further batch of 12 real SA lines (sm_veg_
+  then provided a further batch of 12 real SA lines (sm_veg_
 tree7vbig/sm_veg_tree4_vbig at various positions/rotations, a 13th cut
 off mid-paste and not usable) - ran all 12 through the actual SA
 parser: every single one's quaternion magnitude^2 came out to exactly
@@ -593,7 +593,7 @@ were already correct.
 - "Duplicate" as a distinct action from "Add Item" - copying an
   existing placement to a new location, vs placing a fresh instance
   of a model. We only have "Add Instance Here" (always at the origin).
-- Real per-instance geometry rendering (buildings visible, not just
+-  per-instance geometry rendering (buildings visible, not just
   points) with Wireframe Mode toggle - confirms real DFF/TXD geometry
   rendering (already the #1 item in this file) is genuinely the gap
   that matters most for visual parity.
@@ -640,7 +640,7 @@ were already correct.
 
 ### Still not addressed - instance position/rotation nudge ribbon
 
-Keith asked (a few turns back): "the toolbar for inst [xyz] and xyz
+  asked (a few turns back): "the toolbar for inst [xyz] and xyz
 rotate could be a horizotll ribbon?" - converting the Instance Edit
 Panel's position/rotation nudge controls (currently only in the
 floating, non-modal panel - see the "Instance List redesign" item
@@ -659,7 +659,7 @@ or supplement it (both available)? What does the ribbon show when no
 instance is selected? For vertical orientation support, does the
 whole ribbon need to reflow (X/Y/Z position and rotation stacked
 differently), or is a fixed layout that just relocates acceptable?
-Worth confirming with Keith before implementing, given the ribbon
+Worth confirming with   before implementing, given the ribbon
 system already supports drag-to-reorient (orientationChanged is
 already wired for the other ribbons) - the harder part is likely the
 nudge controls' own internal layout adapting to whichever orientation
@@ -667,7 +667,7 @@ the ribbon ends up in.
 
 ### Control Panel dock - replicates MooMapper's layout, foundation to build on
 
-Per Keith: "can we mimic the show / hide control panel, as a panel in
+Per  : "can we mimic the show / hide control panel, as a panel in
 map editor, i think if we replicate all the functions, get this
 working, then we can build on this later." New dock (Object Browser/
 IPL Sections group, split below rather than tabbed - MooMapper itself
@@ -692,16 +692,16 @@ checkbox; First Person checkbox (no first-person nav mode, only
 orbit/pan); Background Map checkbox (no reference map image support);
 "Normal Mode" dropdown (MooMapper shows this but its exact purpose
 wasn't confirmed from the reference screenshot alone - worth asking
-Keith what it actually does in the original before building anything
+  what it actually does in the original before building anything
 for it).
 
-### Width/height display + compact UI pass (addressing Keith's in-code TODOs)
+### Width/height display + compact UI pass (addressing my in-code TODOs)
 
-Per Keith: "add height and width values to the inst name, and object
+Per  : "add height and width values to the inst name, and object
 browser, making the ui window more compact... height of some sections
 and buttons needs looking at." Searched for and addressed every TODO
 comment left directly in map_workshop.py (excluding *_old* files, per
-Keith's instruction to ignore those).
+my instruction to ignore those).
 
 - ModelCache.get_dimensions() - real axis-aligned bounding box from
   actual vertex data (width/depth/height), not just the existing
@@ -723,7 +723,7 @@ Keith's instruction to ignore those).
 
 ### Tabbed Editing Panel (IDE/IPL/DAT/IMG) - major MooMapper-matched milestone
 
-Per Keith: "show me what you can really do" - replaced the standalone
+Per  : "show me what you can really do" - replaced the standalone
 IPL Sections dock with a tabbed "Editing Panel" (IDE/IPL/DAT/IMG,
 24px hand-drawn icons), matching MooMapper's own tabbed structure, plus
 a new "IPL Inst File" dock in IPL Sections' old physical location.
@@ -862,7 +862,7 @@ tile grid. Addition needed:
 Currently switching to a different model in the files list appears to just
 replace the current one - no way back except reopening from scratch.
 
-- [ ] Give each opened model its own tab, OR (Keith's preferred simpler
+- [ ] Give each opened model its own tab, OR (my preferred simpler
   alternative) show an "opened" SVG icon next to already-opened models in
   the files list, so clicking it swaps back to that model instead of the
   app silently discarding it
@@ -876,7 +876,7 @@ replace the current one - no way back except reopening from scratch.
 **Priority**: High (freezes the app)
 
 Reported: lag builds up the more you switch between models (with many
-loaded), eventually freezing the app. Keith's question was whether this is
+loaded), eventually freezing the app. my question was whether this is
 a Python/memory issue from handling too much data.
 
 Investigated (static code reading, not live profiling) in

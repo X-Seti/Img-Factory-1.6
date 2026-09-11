@@ -4,7 +4,7 @@
 
 """
 All of this app's own real audio parsing, decoding, and playback
-functions in one place (Aug 20 2026, per Keith: "Could all the audio
+functions in one place (Aug 20 2026,  "Could all the audio
 functions go into an audioparser.py"). Consolidates 3 real modules
 that grew up separately across the same session into one:
 
@@ -55,10 +55,10 @@ from typing import List, NamedTuple, Optional
 # ============ SA "audio stream" format (AMBIENCE/GENRL/radio) ============
 """
 Decoder for GTA San Andreas's own "audio stream" file format (Aug 20
-2026, per Keith: "i can send you the sounds, would that help" - he
+2026,  "i can send you the sounds, would that help" - he
 sent a real, uploaded AMBIENCE file, ~44MB). Format documented at
 https://gtamods.com/wiki/Audio_stream - this module implements it
-directly, confirmed against Keith's own real file: the track header
+directly, confirmed against my own real file: the track header
 signature decodes to the documented "01 00 CD CD", immediately
 followed by real "OggS" magic bytes, and ffprobe confirms the
 extracted first track as a fully valid Ogg Vorbis stream
@@ -80,7 +80,7 @@ problem, not addressed by this module).
 Real, honest limitation still open: which specific track index within
 a given stream file corresponds to which specific AuzoEntry's own
 sound_id/environment type isn't documented anywhere found so far -
-extract_all_tracks lets Keith pull every real track out as individual,
+extract_all_tracks lets   pull every real track out as individual,
 numbered Ogg files and identify them by ear, rather than guessing at
 an unconfirmed mapping.
 """
@@ -169,12 +169,12 @@ def extract_track(path: str, track: StreamTrack) -> bytes: #vers 1
 
 def extract_all_tracks(path: str, out_dir: str, prefix: Optional[str] = None) -> List[str]: #vers 1
     """Extract every real track in a stream file to individual,
-    numbered .ogg files in out_dir (Aug 20 2026, per Keith's own real
+    numbered .ogg files in out_dir (Aug 20 2026  own real
     request) - real, honest limitation: which specific track index
     corresponds to which specific AuzoEntry's own sound_id isn't
     documented anywhere found so far, so this names files by index
     alone (or index prefixed with a real, given stream name, e.g.
-    "AMBIENCE_0007.ogg") for Keith to identify by ear and rename
+    "AMBIENCE_0007.ogg") for ,identify by ear and rename
     himself, rather than guessing at an unconfirmed mapping."""
     os.makedirs(out_dir, exist_ok=True)
     prefix = prefix or os.path.splitext(os.path.basename(path))[0]
@@ -192,15 +192,15 @@ def extract_all_tracks(path: str, out_dir: str, prefix: Optional[str] = None) ->
 # ============ III/VC SFX format (SFX.RAW + SFX.SDT) ============
 """
 Decoder for the SFX.RAW/SFX.SDT archive pair used by GTA 2, III, and
-Vice City for short sound effects (Aug 20 2026, per Keith's own real,
+Vice City for short sound effects (Aug 20 2026  own real,
 uploaded SFX23.RAW/SFX23.SDT sample pair). GrandTheftWiki documents
 the .SDT entry as 24 bytes (offset, size, samples/sec, unknown, loop
 start, loop end - all 4-byte ints), but that structure did not
-produce a plausible result against Keith's own real files.
+produce a plausible result against my own real files.
 
 Instead, a 12-byte entry (offset, size, samples/sec only) was tried
 and confirmed with mathematical certainty: the offsets and sizes tile
-Keith's own real SFX23.RAW exactly, byte for byte, across all 4
+my own real SFX23.RAW exactly, byte for byte, across all 4
 entries, with zero gaps or overlaps - and re-deriving what a 24-byte
 reading of the same real bytes would show proves it exactly: its own
 "unknown"/"loop start"/"loop end" fields are, byte for byte, just the
@@ -208,7 +208,7 @@ reading of the same real bytes would show proves it exactly: its own
 entry. GrandTheftWiki's own 24-byte structure most likely documents a
 different real SDT variant (a different game version, or the main,
 game-native SFX.SDT rather than whatever specifically produced
-Keith's own "SFX23" sample pair) - not confirmed either way, but the
+my own "SFX23" sample pair) - not confirmed either way, but the
 12-byte reading is the one that is actually, provably correct for
 these two real files.
 
@@ -267,14 +267,14 @@ def sfx_entry_to_wav(raw_path: str, entry: SfxEntry, out_path: str) -> None: #ve
 # ============ III/VC .ADF format (music/ambient streams) ============
 """
 Decoder for GTA III/Vice City's own real .ADF music/ambient stream
-files (Aug 20 2026, per Keith's own real, uploaded FLASH.ADF sample -
+files (Aug 20 2026  own real, uploaded FLASH.ADF sample -
 confirmed by both PS2 .VB files replacing .ADF files in VBDec's own
 real, documented .ini configuration examples, e.g. "AUDIO\\WILD.ADF
 will be changed to AUDIO\\WILD.VB", and this file itself).
 
 Real, confirmed format: a completely standard MP3 file, obfuscated
 with a trivial, constant single-byte XOR (0x22) applied to every
-byte. Confirmed directly against Keith's own real FLASH.ADF: XOR-
+byte. Confirmed directly against my own real FLASH.ADF: XOR-
 decoding with 0x22 reveals real, standard LAME encoder tags ("Info",
 "LAME3.96r") at the exact real offset a standard MP3/Xing/LAME header
 would put them, and both `file` and ffprobe confirm the fully decoded
@@ -310,10 +310,10 @@ def decode_adf_file(path: str) -> str: #vers 1
 """
 Decoder for the PS2 versions of GTA III/Vice City/Liberty City
 Stories/Vice City Stories' own real ".VB" audio files (Aug 20 2026,
-per Keith: "in LC, VC .wav plays... .vb"). Confirmed directly against
-Keith's own real, uploaded AMBSIL.VB file.
+ "in LC, VC .wav plays... .vb"). Confirmed directly against
+my own real, uploaded AMBSIL.VB file.
 
-Real format, confirmed via the actual authors of GTAForums' own VBDec
+ format, confirmed via the actual authors of GTAForums' own VBDec
 tool (https://gtaforums.com/topic/881485-vbdec/): real, headerless PS
 ADPCM ("4-bit ADPCM"), no embedded metadata of any real kind at all,
 real, fixed 2000-byte real stereo interleave (block of left channel,
@@ -332,7 +332,7 @@ see https://rewiki.miraheze.org/wiki/PlayStation_VAG_Audio for the
 real, documented 48-byte header layout used here), decodes each
 channel separately via a real ffmpeg subprocess, then re-interleaves
 the two real, decoded PCM channels back into one real, final stereo
-WAV. Confirmed correct against Keith's own real AMBSIL.VB: the
+WAV. Confirmed correct against my own real AMBSIL.VB: the
 decoded left channel is exactly, perfectly silent (peak=0, rms=0.0) -
 exactly what a file named "ambient silence" should be.
 """
@@ -391,7 +391,7 @@ def _decode_mono_channel(adpcm_data: bytes, sample_rate: int) -> bytes: #vers 1
 def decode_vb_file(path: str, sample_rate: int = DEFAULT_SAMPLE_RATE, stereo: bool = True) -> str: #vers 1
     """Decode a real, whole, headerless PS2 .VB file into a real,
     standard, playable stereo (or mono) WAV file, returning that WAV
-    file's own real path (Aug 20 2026, per Keith: "in LC, VC .wav
+    file's own real path (Aug 20 2026,  "in LC, VC .wav
     plays... .vb"). Caches to a real, deterministic temp path so
     repeated real plays of the same file don't re-decode every real
     time.
@@ -452,7 +452,7 @@ def decode_vb_file(path: str, sample_rate: int = DEFAULT_SAMPLE_RATE, stereo: bo
 
 # ============ Shared playback (MiniAudioPlayer + transcode_to_wav) ============
 """
-Small, shared "mini player" widget (Aug 20 2026, per Keith: "maybe a
+Small, shared "mini player" widget (Aug 20 2026,  "maybe a
 tooltip player, showing just the name, and a progress bar, stop,
 start") - one real widget used by both Dir Tree's own right-click
 Play/Extract & Play actions and Map Workshop's own Auzo list
@@ -462,7 +462,7 @@ QSoundEffect.play() with no visible feedback at all.
 Uses QMediaPlayer (not QSoundEffect) as its own real playback engine
 - QSoundEffect is built for short, low-latency, uncompressed-or-Ogg
 sound effects and does not decode MP3 at all (this is the real, direct
-cause of Keith's own real bug report: "wav plays. mp3 doesn't seen to
+cause of my own real bug report: "wav plays. mp3 doesn't seen to
 work."). QMediaPlayer is Qt's own real, full media pipeline backed by
 the OS's own real codecs, and it also gives real position/duration
 signals for free, which the progress bar needs anyway.
@@ -512,7 +512,7 @@ def transcode_to_wav(src_path: str, ffmpeg_args: list = None) -> str: #vers 1
 
 
 class MiniAudioPlayer(QWidget): #vers 1
-    """Small player bar (Aug 20 2026, per Keith's own real request) -
+    """Small player bar (Aug 20 2026  own real request) -
     shows the currently-playing file's own real name, a real,
     seekable progress slider, and Play/Pause + Stop. A single real
     instance is meant to be created once per parent window and reused
@@ -567,7 +567,7 @@ class MiniAudioPlayer(QWidget): #vers 1
 
     def stop(self): #vers 1
         """Stop playback and reset position to the start (Aug 20
-        2026, per Keith's own real request for a real Stop
+        2026  own real request for a real Stop
         control)."""
         self._player.stop()
 

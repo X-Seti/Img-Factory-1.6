@@ -334,7 +334,7 @@ class DirectoryTreeBrowser(QWidget):
         self.tree.customContextMenuRequested.connect(self.show_context_menu)
         self.tree.itemClicked.connect(self.on_item_clicked)
         self.tree.itemDoubleClicked.connect(self.on_item_double_clicked)
-        # Lazy-loading (Aug 20 2026, per Keith: "The folder list
+        # Lazy-loading (Aug 20 2026,  "The folder list
         # folders need to be closed, until the folder is opened to
         # show it's contents") - populate_tree_recursive only ever
         # fills in one level plus lazy placeholders now; this is what
@@ -993,7 +993,7 @@ class DirectoryTreeBrowser(QWidget):
 
     def populate_tree(self, root_path: str): #vers 2
         """Populate tree with directory contents. Lazy-loading (Aug
-        20 2026, per Keith's own TODO comment: "The folder list
+        20 2026  own TODO comment: "The folder list
         folders need to be closed, until the folder is opened to show
         it's contents") - only the root's own direct children are
         populated eagerly now; every folder that has any real
@@ -1012,7 +1012,7 @@ class DirectoryTreeBrowser(QWidget):
             root_item.setData(0, Qt.ItemDataRole.UserRole, root_path)
             root_item.setIcon(0, get_folder_icon())
             self.populate_tree_recursive(root_item, root_path)
-            # Real fix (Aug 20 2026, per Keith: "the other bug with dir
+            #  fix (Aug 20 2026,  "the other bug with dir
             # tree is all the folders are open, they need to start
             # colapsed") - every folder below the root already starts
             # collapsed (via the lazy-loading placeholder above), but
@@ -1027,7 +1027,7 @@ class DirectoryTreeBrowser(QWidget):
 
     def _on_tree_item_expanded(self, item): #vers 1
         """Populate a folder's real contents the first time it's
-        actually expanded (Aug 20 2026, per Keith's own lazy-loading
+        actually expanded (Aug 20 2026  own lazy-loading
         request - see populate_tree's own docstring for the full
         reasoning). Detects "not populated yet" by checking for the
         single dummy placeholder child _add_lazy_placeholder left
@@ -1052,7 +1052,7 @@ class DirectoryTreeBrowser(QWidget):
     def _add_lazy_placeholder(self, parent_item, dir_path): #vers 1
         """Add a single, cheap placeholder child to parent_item so its
         own expand arrow shows, without actually reading dir_path's
-        real contents yet (Aug 20 2026, per Keith's own lazy-loading
+        real contents yet (Aug 20 2026  own lazy-loading
         request). Uses os.scandir's own iterator directly rather than
         os.listdir - only needs to know whether at least one entry
         exists at all, not build a full list of them, so this stays
@@ -1282,7 +1282,7 @@ class DirectoryTreeBrowser(QWidget):
             open_action.triggered.connect(lambda: self.file_opened.emit(file_path))
             menu.addAction(open_action)
 
-            # Real fix (Aug 20 2026, per Keith: "dir tree shows audio
+            #  fix (Aug 20 2026,  "dir tree shows audio
             # files, so we can now right click them to play") - a
             # standard, directly-playable audio file gets a real Play
             # action; a recognised SA audio-stream filename (from the
@@ -1292,15 +1292,15 @@ class DirectoryTreeBrowser(QWidget):
             # apps/methods/audioparser.py before anything inside
             # them can be played at all.
             #
-            # Real fix (Aug 20 2026, per Keith: "in LC, VC .wav plays...
+            #  fix (Aug 20 2026,  "in LC, VC .wav plays...
             # .at3 .vb") - .at3 (Sony ATRAC3+, confirmed via ffprobe
-            # against Keith's own real, uploaded philcollins.at3 file
+            # against my own real, uploaded philcollins.at3 file
             # as a standard RIFF/WAVE container ffmpeg already decodes
             # directly) plays via the same Play action as standard
             # audio, transcoded through ffmpeg first since QMediaPlayer
             # has no native ATRAC3+ support of its own. .vb (PS2 4-bit
             # PS-ADPCM, headerless, confirmed via apps/methods/ps2_vb_
-            # audio.py against Keith's own real, uploaded AMBSIL.VB -
+            # audio.py against my own real, uploaded AMBSIL.VB -
             # decoded left channel came back exactly, perfectly silent,
             # exactly matching what a file named "ambient silence"
             # should be) gets its own dedicated action, since it needs
@@ -1311,7 +1311,7 @@ class DirectoryTreeBrowser(QWidget):
                 'aa', 'adverts', 'ambience', 'beats', 'ch', 'co', 'cr',
                 'cutscene', 'ds', 'hc', 'mh', 'mr', 'nj', 're', 'rg', 'tk',
             }
-            # Real SFX bank files (a genuinely different, unsolved real
+            #  SFX bank files (a genuinely different, unsolved real
             # format - raw PCM samples packed with a SoundMeta
             # structure, no encoding at all but also no real container
             # format, unlike the streams above) - shown with an honest
@@ -1340,7 +1340,7 @@ class DirectoryTreeBrowser(QWidget):
                     lambda _=False, p=file_path: self._play_ps2_vb_file(p))
                 menu.addAction(play_action)
             elif file_ext == '.adf':
-                # Real fix (Aug 20 2026, per Keith's own real, uploaded
+                #  fix (Aug 20 2026  own real, uploaded
                 # FLASH.ADF sample) - III/VC's own real music/ambient
                 # stream format, confirmed as a completely standard
                 # MP3 wrapped in a trivial, constant single-byte XOR
@@ -1355,23 +1355,23 @@ class DirectoryTreeBrowser(QWidget):
                     lambda _=False, p=file_path: self._play_adf_file(p))
                 menu.addAction(play_action)
             elif file_ext in ('.raw', '.sdt') and self._find_sfx_pair(file_path):
-                # Real fix (Aug 20 2026, per Keith's own real, uploaded
+                #  fix (Aug 20 2026  own real, uploaded
                 # SFX23.RAW/SFX23.SDT sample pair) - GTA 2/III/VC's own
                 # real SFX archive format, a real .RAW (sample data) +
                 # .SDT (index) pair sharing the same real base filename.
                 # The entry structure itself is confirmed correct with
                 # mathematical certainty (see audioparser.py's own
                 # "III/VC SFX format" section - a documented 24-byte
-                # SDT entry didn't match Keith's own real files; a
+                # SDT entry didn't match my own real files; a
                 # 12-byte entry does, tiling his own real SFX23.RAW
-                # exactly). But Keith's own real listening test on the
+                # exactly). But my own real listening test on the
                 # extracted result: "Sfx23 sounds like statis" - the
                 # real offsets/sizes are right, something about the
                 # real sample encoding itself still isn't (see this
                 # class's own real _play_sfx_pair docstring for the
                 # full, honest story). Disabled rather than left as a
                 # confident Play action that's known to sound wrong,
-                # per Keith's own real "put Sfx23 to the side" - still
+                # per my own real "put Sfx23 to the side" - still
                 # here, and still findable, while paused.
                 sfx_action = QAction("Play first entry (known issue: sounds like static)", self)
                 sfx_action.setEnabled(False)
@@ -1379,7 +1379,7 @@ class DirectoryTreeBrowser(QWidget):
                     "The real offset/size structure is confirmed correct\n"
                     "(it tiles the .RAW file exactly), but the decoded\n"
                     "audio itself still sounds like static - paused per\n"
-                    "Keith's own real \"put Sfx23 to the side\" (Aug 20\n"
+                    "my own real \"put Sfx23 to the side\" (Aug 20\n"
                     "2026), not yet solved.")
                 menu.addAction(sfx_action)
             elif file_base in _SA_STREAM_NAMES:
@@ -1405,7 +1405,7 @@ class DirectoryTreeBrowser(QWidget):
                     lambda _=False, p=file_path: self._show_asset_checker(p))
                 menu.addAction(asset_action)
             elif file_ext == '.col':
-                # Sep 5 2026, per Keith: "col list works, need to add
+                # Sep 5 2026,  "col list works, need to add
                 # the same function to Dir Tree browser" - this real,
                 # active dir tree browser had no .col-specific actions
                 # at all before this.
@@ -1515,11 +1515,11 @@ class DirectoryTreeBrowser(QWidget):
 
     def _get_mini_player(self): #vers 1
         """Get (creating once, first time it's needed) the shared
-        MiniAudioPlayer widget (Aug 20 2026, per Keith: "maybe a
+        MiniAudioPlayer widget (Aug 20 2026,  "maybe a
         tooltip player, showing just the name, and a progress bar,
         stop, start") - one real widget instance reused for every
         real file played from Dir Tree, shown as a real, small,
-        floating window rather than a modal dialog so Keith can keep
+        floating window rather than a modal dialog so   can keep
         browsing while something plays."""
         player = getattr(self, '_mini_player', None)
         if player is not None:
@@ -1538,10 +1538,10 @@ class DirectoryTreeBrowser(QWidget):
 
     def _play_audio_file(self, path): #vers 2
         """Play a standard audio file directly (Aug 20 2026, per
-        Keith: "dir tree shows audio files, so we can now right click
+         : "dir tree shows audio files, so we can now right click
         them to play").
 
-        Real fix (Aug 20 2026, per Keith: "wav plays. mp3 doesn't seen
+         fix (Aug 20 2026,  "wav plays. mp3 doesn't seen
         to work.") - switched from QSoundEffect to the shared
         MiniAudioPlayer's own QMediaPlayer. QSoundEffect is built for
         short, low-latency, uncompressed-or-Ogg sound effects and does
@@ -1549,7 +1549,7 @@ class DirectoryTreeBrowser(QWidget):
         cause of the bug, not anything wrong with the MP3 files
         themselves. QMediaPlayer is Qt's own real, full media pipeline
         and decodes MP3 correctly, plus gives the real name/progress
-        bar/stop/start mini player Keith also asked for."""
+        bar/stop/start mini player   also asked for."""
         player = self._get_mini_player()
         if player is None:
             return
@@ -1561,8 +1561,8 @@ class DirectoryTreeBrowser(QWidget):
     def _play_via_ffmpeg_transcode(self, path): #vers 1
         """Play a file QMediaPlayer can't decode natively by
         transcoding it through a real, external ffmpeg process first
-        (Aug 20 2026, per Keith: "in LC, VC .wav plays... .at3") -
-        confirmed directly against Keith's own real, uploaded
+        (Aug 20 2026,  "in LC, VC .wav plays... .at3") -
+        confirmed directly against my own real, uploaded
         philcollins.at3 file: ffprobe reads it as a standard RIFF/WAVE
         container wrapping real ATRAC3+ audio, and ffmpeg decodes it
         to a real, standard WAV cleanly."""
@@ -1585,9 +1585,9 @@ class DirectoryTreeBrowser(QWidget):
         player.raise_()
 
     def _play_ps2_vb_file(self, path): #vers 1
-        """Decode and play a PS2 .VB file (Aug 20 2026, per Keith: "in
+        """Decode and play a PS2 .VB file (Aug 20 2026,  "in
         LC, VC .wav plays... .vb") - real, working decoder confirmed
-        against Keith's own real, uploaded AMBSIL.VB (see apps/
+        against my own real, uploaded AMBSIL.VB (see apps/
         methods/audioparser.py's own docstring for the full, real
         confirmation story: the decoded left channel came back
         exactly, perfectly silent, matching what a file named
@@ -1621,8 +1621,8 @@ class DirectoryTreeBrowser(QWidget):
 
     def _play_adf_file(self, path): #vers 1
         """Decode and play a III/VC .ADF music/ambient stream file
-        (Aug 20 2026, per Keith's own real, uploaded FLASH.ADF sample)
-        - real, working decoder confirmed against Keith's own real
+        (Aug 20 2026  own real, uploaded FLASH.ADF sample)
+        - real, working decoder confirmed against my own real
         file (see audioparser.py's own "III/VC .ADF format" section
         for the full, real confirmation story: real LAME encoder tags
         appear at exactly the right real offset once XOR-decoded with
@@ -1651,7 +1651,7 @@ class DirectoryTreeBrowser(QWidget):
         """Given either a real .RAW or .SDT path, return the real
         (raw_path, sdt_path) pair if its own real partner file (same
         real base filename, in the same real folder) exists too, or
-        None if it doesn't (Aug 20 2026, per Keith's own real,
+        None if it doesn't (Aug 20 2026  own real,
         uploaded SFX23.RAW/SFX23.SDT sample pair) - III/VC's own SFX
         archive format is a real pair, and neither file alone can be
         decoded without the other."""
@@ -1673,12 +1673,12 @@ class DirectoryTreeBrowser(QWidget):
 
     def _play_sfx_pair(self, path): #vers 1
         """Decode and play the first real entry from a III/VC SFX.RAW/
-        SFX.SDT pair (Aug 20 2026, per Keith's own real, uploaded
+        SFX.SDT pair (Aug 20 2026  own real, uploaded
         SFX23.RAW/SFX23.SDT sample pair) - real, working decoder
-        confirmed with mathematical certainty against Keith's own real
+        confirmed with mathematical certainty against my own real
         files (see audioparser.py's own "III/VC SFX format" section
         for the full, real confirmation story). A given pair can have
-        several real entries (Keith's own real SFX23 pair had 4) -
+        several real entries (my own real SFX23 pair had 4) -
         this plays only the first as a real, quick preview."""
         pair = self._find_sfx_pair(path)
         if pair is None:
@@ -1714,17 +1714,17 @@ class DirectoryTreeBrowser(QWidget):
         """Decode a recognised SA audio-stream file (Ambience/Genrl/
         radio station files - no real file extension, so identified
         by filename alone) and play its own first real track (Aug 20
-        2026, per Keith: "dir tree shows audio files, so we can now
+        2026,  "dir tree shows audio files, so we can now
         right click them to play") - real, working decoder confirmed
-        against Keith's own real, uploaded AMBIENCE file (see apps/
+        against my own real, uploaded AMBIENCE file (see apps/
         methods/audioparser.py's own docstring for the full, real
         confirmation story: ffprobe verified extracted tracks as
         fully valid Ogg Vorbis). A given stream file has many real
-        tracks (Keith's own real AMBIENCE had 40) - this plays only
+        tracks (my own real AMBIENCE had 40) - this plays only
         the first as a real, quick preview; the dedicated "Extract
         Tracks..." button in Map Workshop's own Settings > Render >
         Audio Streams pulls every real track out to individual files
-        for Keith to identify and rename properly.
+        for ,identify and rename properly.
 
         Switched to the shared MiniAudioPlayer (Aug 20 2026, same
         real reason as _play_audio_file's own real fix)."""
@@ -1755,7 +1755,7 @@ class DirectoryTreeBrowser(QWidget):
 
     def _open_col_in_workshop(self, file_path: str): #vers 1
         """Open a standalone .col file in COL Workshop (Sep 5 2026,
-        per Keith: "col list works, need to add the same function to
+         "col list works, need to add the same function to
         Dir Tree browser")."""
         mw = self.main_window
         if not file_path or not os.path.isfile(file_path):
@@ -1774,7 +1774,7 @@ class DirectoryTreeBrowser(QWidget):
     def _show_col_as_imglist(self, file_path: str): #vers 1
         """Show a standalone .col file's own models as a table, the
         same way an .img archive's own entries are shown in IMG
-        Factory's main table (Sep 5 2026, per Keith: "col list works,
+        Factory's main table (Sep 5 2026,  "col list works,
         need to add the same function to Dir Tree browser") - same
         real fix already verified for DAT Browser: creates a real,
         visible tab via create_tab first (apps/methods/tab_system.py),
@@ -1811,7 +1811,7 @@ class DirectoryTreeBrowser(QWidget):
 
     def _show_ide_as_list(self, file_path: str): #vers 1
         """Show a single .ide file's own real objects as a table (Sep
-        5 2026, per Keith: "highlighting game_vc.ide in both dat
+        5 2026,  "highlighting game_vc.ide in both dat
         browser, dir tree") - same real create_tab pattern already
         verified for COL. This browser has no known loaded-world game
         context (unlike DAT Browser's own self.loader.game), so uses
@@ -1848,7 +1848,7 @@ class DirectoryTreeBrowser(QWidget):
     def _show_asset_checker(self, file_path: str): #vers 1
         """Cross-reference real model names across an IMG archive, a
         COL file, and an IDE file sharing the same base filename (Sep
-        5 2026, per Keith: "Asset checker as a right click on img,
+        5 2026,  "Asset checker as a right click on img,
         col and ide entries on dat browser, dir tree"). This browser
         has no known loaded-world game context (unlike DAT Browser's
         own self.loader.game), so uses IDEParser's own default."""

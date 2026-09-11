@@ -1,7 +1,7 @@
 # Changelog
 
 History extracted from map_workshop.py's header comment block (moved
-out per Keith, Aug 1 2026, to keep the source file focused on code).
+out .per, Aug 1 2026, to keep the source file focused on code).
 
 ## Origin (Model Workshop base, before the Map Workshop fork)
 
@@ -88,11 +88,11 @@ conclusively found despite extensive isolated testing.
   crashing, and the per-IPL lazy-load path
   (`_on_ipl_section_cell_clicked` -> `_ensure_ipl_loaded`) was
   confirmed intact and complete. World Viewport panes intentionally
-  not wired in for this pass, per Keith - keeping Model Workshop's
+  not wired in for this pass,  - keeping Model Workshop's
   existing DFF viewport, data-only (Object Browser/IPL Sections/etc.)
   is enough for now.
 
-- **Aug 1, 2026 (cont'd)** — Fixed a "weird cycling loop" Keith found
+- **Aug 1, 2026 (cont'd)** — Fixed a "weird cycling loop"   found
   when actually loading real IPLs live (screenshot confirmed real
   parsed instance data showing correctly in the IPL Inst File panel -
   the core load chain does work). Root cause:
@@ -126,7 +126,7 @@ conclusively found despite extensive isolated testing.
   (keyword args, both the `dat_path` and no-args cases confirmed
   working end-to-end).
 
-- **Aug 1, 2026 (cont'd)** — Per Keith's question ("are there
+- **Aug 1, 2026 (cont'd)** — Per my question ("are there
   functions missing that we still need to add, not counting the
   viewport, as we're using the existing instead, can you change the
   functions needed... to use the viewport"): ran a systematic audit
@@ -153,7 +153,7 @@ conclusively found despite extensive isolated testing.
   loading functionality - pre-existing gaps in the base app, not
   addressed here.
 
-- **Aug 1, 2026 (cont'd)** — Per Keith's screenshot: the right-click/
+- **Aug 1, 2026 (cont'd)** — Per my screenshot: the right-click/
   Panels menu correctly showed tick marks for every dock, but
   clicking an item didn't actually toggle it ("right click pane
   selection not working"). Root cause: this is the exact same
@@ -178,7 +178,7 @@ conclusively found despite extensive isolated testing.
   `DockWidgetClosable` automatically.
 
 
-- **Aug 1, 2026 (cont'd)** — Per Keith: "the panel list with the tick
+- **Aug 1, 2026 (cont'd)** — Per  : "the panel list with the tick
   marks to indicate the loaded panes needs work, I should be able to
   hide panels." The View menu already existed (Menu button -> View)
   but only had a "Sort" action - close_btn's tooltip on every dock's
@@ -192,7 +192,7 @@ conclusively found despite extensive isolated testing.
   reflects whatever docks exist at the time, including Control Panel
   once it's re-enabled.
 
-- **Aug 1, 2026 (cont'd)** — Per Keith: "need to save unticked
+- **Aug 1, 2026 (cont'd)** — Per  : "need to save unticked
   panes." `_restore_outer_layout` had a leftover safety net that
   unconditionally force-showed Files/Models/Frame Hierarchy/Textures
   on every startup, regardless of what was actually saved -
@@ -206,7 +206,7 @@ conclusively found despite extensive isolated testing.
   timer fire, confirmed Object Browser was still hidden (both
   `isVisible()` and the toggle action's checked state).
 
-- **Aug 1, 2026 (cont'd)** — Per Keith: "wire every pane into the
+- **Aug 1, 2026 (cont'd)** — Per  : "wire every pane into the
   viewport, when I load ipl, these dont show" - a full multi-instance
   3D world view (confirmed scope, not just single-selection preview).
   `DFFViewport` only ever supported showing one model at a time
@@ -239,10 +239,10 @@ conclusively found despite extensive isolated testing.
   missing/unparseable model correctly skipped rather than crashing.
   Could not verify actual live OpenGL rendering or GTA-specific
   rotation/coordinate conventions (PyOpenGL isn't installed in this
-  environment) - needs Keith's visual confirmation with real data
+  environment) - needs my visual confirmation with real data
   once pulled.
 
-- **Aug 1, 2026 (cont'd)** — Keith confirmed the multi-instance world
+- **Aug 1, 2026 (cont'd)** —   confirmed the multi-instance world
   view works live with real data (screenshot: a real wireframe map
   rendering), but reported bottlenecking when interacting with the
   viewport (rotating/panning during drag), and asked for the loaded
@@ -288,10 +288,10 @@ conclusively found despite extensive isolated testing.
   label updates too). Full `QApplication` instantiation clean,
   `ast.parse` clean on both files. Could not verify actual live
   OpenGL display-list performance (no PyOpenGL in this environment) -
-  needs Keith's confirmation that dragging feels smoother once
+  needs my confirmation that dragging feels smoother once
   pulled.
 
-- **Aug 1, 2026 (cont'd)** — Per Keith, using real GTA SOL IPL data
+- **Aug 1, 2026 (cont'd)** — Per  , using real GTA SOL IPL data
   as reference (SA data converted to VC's format across all cities):
   "We need to change how the IPL inst at displayed in the IPL panel
   ... The IPL would need to be in a cells table, so we can highlight
@@ -311,11 +311,11 @@ conclusively found despite extensive isolated testing.
   placeholder `(0,0,0)` scale in the Scale columns instead of the
   normal `(1,1,1)` unit scale his VC/LC data correctly shows.
   Checking it treats a `(1,1,1)` scale as equivalent to `(0,0,0)` for
-  interpretation purposes only - confirmed with Keith this should
+  interpretation purposes only - confirmed with   this should
   never write anything back to the file ("leaving the ipl
   untouched").
 
-  Verified end-to-end with Keith's own real example data (a
+  Verified end-to-end with my own real example data (a
   temporary IPL file built from his `vgncarshow1`/`man_backside`
   lines): correct 13-field parsing, correct row count, and confirmed
   the Ignore Scaling toggle only affects cells that actually show
@@ -323,7 +323,7 @@ conclusively found despite extensive isolated testing.
   untouched, the VC row's `1,1,1` correctly became `0,0,0`). Full
   `QApplication` instantiation clean, `ast.parse` clean.
 
-- **Aug 1, 2026 (cont'd)** — Per Keith's larger multi-part request
+- **Aug 1, 2026 (cont'd)** — Per my larger multi-part request
   (using real GTA SOL IPL data, plus reference screenshots of a
   MooMapper-style "Item Editor Dialog"): implemented the first,
   lower-risk subset this pass -
@@ -359,7 +359,7 @@ conclusively found despite extensive isolated testing.
   degrees) were referenced but never defined anywhere - ported both
   from `map_workshop_old_version.py`, where they'd always existed.
 
-  Verified end-to-end with Keith's own real example data (a real
+  Verified end-to-end with my own real example data (a real
   `IPLInstance` for `vgncarshow1`): double-click correctly finds the
   instance, centres the viewport (`pan_x`/`pan_y` computed correctly),
   and opens a genuinely visible edit panel - confirming both new bugs
@@ -375,15 +375,15 @@ conclusively found despite extensive isolated testing.
   textures on models in the viewport (currently untextured
   wireframe/solid only); a Validation checklist section in the edit
   panel matching the reference dialog image; and the VC/LC IPL
-  display issue, which Keith asked to address last since the above
+  display issue, which   asked to address last since the above
   changes might resolve it as a side effect.
 
-- **Aug 1, 2026 (cont'd)** — Confirmed by Keith testing against a
+- **Aug 1, 2026 (cont'd)** — Confirmed by   testing against a
   real copy of the PC version of Vice City: the multi-instance 3D
   world view renders objects correctly. **Works on PC version of
   Vice City.**
 
-- **Aug 1, 2026 (cont'd)** — Per Keith: "lets start implementing
+- **Aug 1, 2026 (cont'd)** — Per  : "lets start implementing
   functions like textures on models and texture tiles, shown in
   texture pane." Two related pieces -
 
@@ -399,7 +399,7 @@ conclusively found despite extensive isolated testing.
   decompression itself), so this just builds/scales a `QPixmap` from
   it, no extra decoding needed. Set as each row's `DecorationRole`.
 
-  Textures on models in the viewport: per Keith, "we need to load the
+  Textures on models in the viewport: .per, "we need to load the
   textures with the models in the viewport." `DFFViewport._draw_
   textured()` already existed (used for regular single-model preview)
   and looks up textures via a single shared `self._tex_ids` dict
@@ -425,14 +425,14 @@ conclusively found despite extensive isolated testing.
   switch to `'textured'`, correct instance count pushed. Full
   `QApplication` instantiation clean, `ast.parse` clean. Could not
   verify actual live OpenGL texture binding (no PyOpenGL in this
-  environment) - needs Keith's visual confirmation with real data.
+  environment) - needs my visual confirmation with real data.
 
-- **Aug 1, 2026 (cont'd)** — Per Keith: "the INST CULL ZON PATH
+- **Aug 1, 2026 (cont'd)** — Per  : "the INST CULL ZON PATH
   buttons need to be in there own pane, with [ignore scaling]
   [Generic.txd] [LOD view] the [LOD view] button has 3 toggles,
   [Show All] [Show Norm] [Show LOD] the Generic.txd button should
   load the generic.txd from gta3.img and root/models/generic.txd" -
-  confirmed with Keith as a brand new, separate dock (own title bar,
+  confirmed with   as a brand new, separate dock (own title bar,
   dockable/movable like every other one), not folded into IPL Inst
   File or Object Browser where these pieces previously lived.
 
@@ -446,7 +446,7 @@ conclusively found despite extensive isolated testing.
   first (which searches every indexed IMG archive - `gta3.img` is
   always auto-indexed for every game, per `GTAWorldLoader.load()`'s
   own docstring: "Always enforces models/gta3.img... so TXD Workshop
-  and the Dump TXDs feature can always find it"), confirmed by Keith
+  and the Dump TXDs feature can always find it"), confirmed by  
   as the right order, then falls back to `{game root}/models/
   generic.txd` as a loose file (parsed directly via `parse_txd`) if
   not found there - `self._game_root` was already tracked from
@@ -473,7 +473,7 @@ conclusively found despite extensive isolated testing.
   == 'both'`). Full `QApplication` instantiation clean, `ast.parse`
   clean.
 
-- **Aug 1, 2026 (cont'd)** — Per Keith: "when selecting the IDE tab,
+- **Aug 1, 2026 (cont'd)** — Per  : "when selecting the IDE tab,
   the IPL inst file, turns into IDE Objects, and displays the IDE
   entries in cells just like the IPLs." Added `self._ipl_inst_file_
   mode` ('ipl'/'ide') to `_on_object_browser_tab_changed`: selecting
@@ -509,7 +509,7 @@ conclusively found despite extensive isolated testing.
   correctly padded with empty cells; switching back to IPL mode
   correctly restores both the title and the fixed 13-column schema.
 
-- **Aug 1, 2026 (cont'd)** — Per Keith's screenshot: "IPL secton
+- **Aug 1, 2026 (cont'd)** — Per my screenshot: "IPL secton
   buttons are a perfect size so the IPL control buttons need to be
   the same size." The IPL Controls dock's buttons (INST/CULL/ZON/
   PATH, Ignore Scaling, Generic.txd, LOD view) had been built without
@@ -520,10 +520,10 @@ conclusively found despite extensive isolated testing.
   buttons/checkbox, matching exactly. Verified: every button in the
   dock confirmed `height() == 18`.
 
-- **Aug 1, 2026 (cont'd)** — Confirmed by Keith: the multi-instance
+- **Aug 1, 2026 (cont'd)** — Confirmed by  : the multi-instance
   world view now renders real Vice City docks geometry with textures
   correctly (screenshot showed cranes, containers, buildings all
-  textured properly). Per Keith: "im trying to select a tree double
+  textured properly). Per  : "im trying to select a tree double
   clicking on it, so I can see its edit dialog window" - implemented
   double-click-to-select directly in the 3D viewport, the deferred
   item from earlier in the session.
@@ -567,7 +567,7 @@ conclusively found despite extensive isolated testing.
   already-proven code being reused here, not new. Full `QApplication`
   instantiation clean, `ast.parse` clean on both files.
 
-- **Aug 1, 2026 (cont'd)** — Per Keith: "When selecting the object, it
+- **Aug 1, 2026 (cont'd)** — Per  : "When selecting the object, it
   takes me to the object, which is good, but the zoom in is too
   strong, I have to zoom out alot to see the object, maybe in time we
   need a setting for pick [goto] and zoom values, add todo." Bumped
@@ -579,7 +579,7 @@ conclusively found despite extensive isolated testing.
   with making models is sometimes there are gaps, so we need a snap
   function, and a smooth mesh function").
 
-  Also per Keith: "more important when selecting and viewing a single
+  Also  "more important when selecting and viewing a single
   object, this should be highlighted in the IPL Inst file list."
   Added `_sync_ipl_inst_file_selection`, called from `_on_world_
   instance_picked` - matches the picked instance's `source_ipl`
@@ -596,7 +596,7 @@ conclusively found despite extensive isolated testing.
   real `IPLInstance` lookup out into a shared `_find_instance_for_ipl_
   inst_file_row`, now used by both the context menu and the existing
   double-click handler (previously duplicated inline). Two more menu
-  items Keith asked for - "load into model workshop" and "edit the
+  items   asked for - "load into model workshop" and "edit the
   model in map editor" - need their exact intended behaviour
   clarified before building (tracked in TODO.md); Info and Show
   Textures were unambiguous enough to add directly.
@@ -610,7 +610,7 @@ conclusively found despite extensive isolated testing.
   context-menu path. Full `QApplication` instantiation clean,
   `ast.parse` clean.
 
-- **Aug 1, 2026 (cont'd)** — Per Keith's screenshot (the Object Editor
+- **Aug 1, 2026 (cont'd)** — Per my screenshot (the Object Editor
   Dialog working well, showing real comprehensive data - Identity,
   IDE Info, Position/Rotation with nudge controls, Placement Info,
   2DFX Effects, TOBJ): "When loading the ipls, we also need to
@@ -632,7 +632,7 @@ conclusively found despite extensive isolated testing.
   insensitive) reuses the same already-fetched, robust-fallback
   textures instead of a second plain lookup.
 
-  Also per Keith's screenshot: "the buttons in the object info, the
+  Also per my screenshot: "the buttons in the object info, the
   buttons need to be the same size as the others, like Zon, Cull, and
   so on, all buttons should be uniform." The Item Editor Dialog's
   nudge buttons (the chevron `«` `<` `>` `»` icons for Position/
@@ -648,7 +648,7 @@ conclusively found despite extensive isolated testing.
   reports `height() == 18`. Full `QApplication` instantiation clean,
   `ast.parse` clean.
 
-- **Aug 1, 2026 (cont'd)** — Per Keith: "its not just generic.txd,
+- **Aug 1, 2026 (cont'd)** — Per  : "its not just generic.txd,
   there are other texture files needed; these are found in
   generic.ide thats called from gta_vc.dat... IDE DATA\MAPS\generic.IDE
   loads those textures into memory... so we'll be looking for
@@ -679,7 +679,7 @@ conclusively found despite extensive isolated testing.
   recomputing (re-iterating every loaded IDE object, re-fetching each
   TXD) every time would have been wasted, repeated work.
 
-  Verified end-to-end with Keith's own example data (a mock built
+  Verified end-to-end with my own example data (a mock built
   from his actual generic.ide excerpt - `mine`/`bollard`/
   `bollardlight`/`barrel1`/`barrel2`, plus one `downtown.ide` object
   as a negative control): correctly fetched exactly 3 distinct TXDs
@@ -707,7 +707,7 @@ conclusively found despite extensive isolated testing.
 
 
 
-- **Aug 1, 2026 (cont'd)** — Per Keith, using his real `docks.ipl` and
+- **Aug 1, 2026 (cont'd)** — Per  , using his real `docks.ipl` and
   `generic.ide` (comparison screenshots against MooMapper running the
   same file): "I don't see any indication that the genericide
   textures are being loaded, shown in the status, and those objects
@@ -725,12 +725,12 @@ conclusively found despite extensive isolated testing.
   genuinely does find `mine`/`metal`/`dynbarrels`/etc. when given
   real data), and correctly reported a 0-fetched worst case when the
   texture lookup itself was simulated to fail. This should reveal in
-  Keith's live environment whether `generic.ide` is loading at all
+  my live environment whether `generic.ide` is loading at all
   (0 objects found would mean it isn't - a separate, upstream issue)
   or whether the fetch step itself is what's failing.
 
   **Rotation investigation**: verified every layer of the pipeline
-  against Keith's real data and found each one correct on its own -
+  against my real data and found each one correct on its own -
   `detect_game_from_dat_filename('gta_vc.dat')` correctly returns VC;
   `GTAWorldLoader`/`IPLParser` construction correctly propagates that
   game value through; `IPLParser`'s VC-specific 13-field branch
@@ -742,10 +742,10 @@ conclusively found despite extensive isolated testing.
   value and produced an identical matrix. Could not find the actual
   cause through static analysis alone given everything checked out
   correct in isolation - narrowing this down further needs either
-  Keith's live environment directly, or a closer visual comparison of
+  my live environment directly, or a closer visual comparison of
   which specific objects look misaligned between the two screenshots.
 
-- **Aug 1, 2026 (cont'd)** — Per Keith: "Right-click on the model >
+- **Aug 1, 2026 (cont'd)** — Per  : "Right-click on the model >
   Show textures brings nothing up nothing, i was expecting to see
   tiles, or something telling me there missing, also showing the IDE
   line" - confirmed the same underlying bug as the earlier generic.ide
@@ -764,20 +764,20 @@ conclusively found despite extensive isolated testing.
   and both now include the requested IDE source/line info (e.g. "TXD
   from docks.ide, line 127").
 
-  Also logged Keith's fuller Item Editor Dialog redesign spec to
+  Also logged my fuller Item Editor Dialog redesign spec to
   TODO.md - a real header format, showing both raw IPL/IDE lines
   verbatim, editable fields with live viewport sync and write-back,
   Interior/2DFX/TOBJ as buttons, Apply/Undo/Save, and SA section
   support - a substantial roadmap item, not built this pass.
 
-  Verified end-to-end with Keith's own real example (`b_hse_pier`/
+  Verified end-to-end with my own real example (`b_hse_pier`/
   `boathouse`/`docks.ide` line 127): both the not-found case (clear
   message, IDE line shown) and the found case (correct texture count,
   source, IDE line) confirmed working correctly. Full `QApplication`
   instantiation clean, `ast.parse` clean.
 
 - **Aug 1, 2026 (cont'd)** — Redesigned the Item Editor Dialog
-  (`_InstanceEditPanel`) per Keith's fuller spec, using his real
+  (`_InstanceEditPanel`) per my fuller spec, using his real
   example (`veg_palmkb2`, ID 451, `nbeach.ipl`):
 
   - Window title now reads `[IPL object editor] ID 451 | veg_palmkb2
@@ -785,7 +785,7 @@ conclusively found despite extensive isolated testing.
   - Identity section now shows both the raw IPL inst line and the
     matching IDE line verbatim (reconstructed from parsed fields -
     the original file text isn't kept in memory), plus a note on
-    which TXD is expected. Verified exact match against Keith's own
+    which TXD is expected. Verified exact match against my own
     example precision (`-847.8391113` etc., `.10g` formatting).
   - Added a genuinely missing Scale nudge section (Position/Rotation
     already had one via `_add_nudge_section`, Scale never did) plus a
@@ -807,7 +807,7 @@ conclusively found despite extensive isolated testing.
   still open this directly now that right-click "Info" covers the
   same ground; and real Undo.
 
-  Verified end-to-end with Keith's own exact example data: window
+  Verified end-to-end with my own exact example data: window
   title, both raw lines (byte-for-byte match on the IPL line,
   including full precision), TXD note, 2DFX/TOBJ button counts, Scale
   spins defaulting to (1,1,1) and correctly updating to (0,0,0) via
@@ -815,7 +815,7 @@ conclusively found despite extensive isolated testing.
   all confirmed correct. Full `QApplication` instantiation clean,
   `ast.parse` clean.
 
-- **Aug 1, 2026 (cont'd)** — Per Keith: "when i close all the panes,
+- **Aug 1, 2026 (cont'd)** — Per  : "when i close all the panes,
   there is noway to bring them back, so I suggest we add them to the
   ribbon right click aswell." The Panels submenu (dynamic dock list
   with tick marks, added earlier) only lived under Menu -> View -
@@ -836,7 +836,7 @@ conclusively found despite extensive isolated testing.
   clean, `ast.parse` clean.
 
 - **Aug 1, 2026 (cont'd)** — Refined the Item Editor Dialog per
-  Keith's follow-up screenshot/feedback, using his real example
+  my follow-up screenshot/feedback, using his real example
   (`washer`, ID 331, `starisl.ipl`, TXD `dynjunk`):
 
   - Removed the "IDE Info" section entirely (Type/Section/Source/
@@ -858,7 +858,7 @@ conclusively found despite extensive isolated testing.
     callers of this method for the new 3-tuple return.
   - Position/Rotation/Scale changed from one row per axis (3 rows per
     section) to one row per *section* - X/Y/Z side by side, each
-    showing just label + single-step `-`/`+` + value (per Keith:
+    showing just label + single-step `-`/`+` + value (.per:
     "instead show as X <> Y <> Z <> to save space"). The large-step
     («/») buttons are hidden in this mode rather than removed, so
     they're still there to reintroduce later if wanted. Caught and
@@ -866,12 +866,12 @@ conclusively found despite extensive isolated testing.
     3-per-axis column stride when each axis actually needs 4 widgets,
     causing the 2nd/3rd axis to silently overlap the 1st's buttons).
 
-  Note: Keith's fuller spec also mentioned "[Show] textures as tiles
+  Note: my fuller spec also mentioned "[Show] textures as tiles
   with name as a dropdown" - the tiles part is wired (reuses the
   existing Textures dock), but what a name dropdown should actually
   do here isn't clear yet, left for a follow-up.
 
-  Verified end-to-end with Keith's own real example data: Identity
+  Verified end-to-end with my own real example data: Identity
   correctly shows the raw IPL line, the IDE line with source info
   appended, and all three TXD status messages (tested missing/
   loaded/failed cases individually, confirming the Show button only
@@ -881,7 +881,7 @@ conclusively found despite extensive isolated testing.
   `ast.parse` clean.
 
 - **Aug 1, 2026 (cont'd)** — Further refined the Item Editor Dialog
-  per Keith's latest screenshot/feedback, using his real example
+  per my latest screenshot/feedback, using his real example
   (`veg_palwee01`, ID 448, `littleha.ipl`):
 
   - Made it a real dockable panel, starting floating by default
@@ -907,7 +907,7 @@ conclusively found despite extensive isolated testing.
   - Tightened margins/spacing throughout (main layout, each section
     box, the nudge grids) for a more compact overall panel.
 
-  Verified end-to-end with Keith's own real example data: dock
+  Verified end-to-end with my own real example data: dock
   confirmed created and floating on first show; Placement Info
   confirmed gone; TXD status row confirmed showing "generic.txd is
   loaded" + Show button + "Interior: 0   LOD index: -1" all on one
@@ -916,7 +916,7 @@ conclusively found despite extensive isolated testing.
   Close confirmed hiding the dock. Full `QApplication` instantiation
   clean, `ast.parse` clean.
 
-- **Aug 1, 2026 (cont'd)** — Per Keith's feedback (using a real
+- **Aug 1, 2026 (cont'd)** — Per my feedback (using a real
   screenshot showing his game folder has both "Generic.txd" and
   "generic.txd" as two different files - 348.0 KiB vs 256.4 KiB):
   "since we have another generic.txd, just load them both without the
@@ -933,7 +933,7 @@ conclusively found despite extensive isolated testing.
   conflicting same-named TXDs without ever surfacing that a conflict
   existed. Updated all 9 call sites for the renamed method.
 
-  Also per Keith: "In the Identify section, right-click veg_palwee01
+  Also  "In the Identify section, right-click veg_palwee01
   and show the names of the textures from veg_palwee01, Show tex
   names shown in image, and Show Textures would display as [T] [T]
   [T] [T] [T] as small thumbnails in a row" (image was RW Analyze's
@@ -961,7 +961,7 @@ conclusively found despite extensive isolated testing.
   "Req"); both new dialogs confirmed running without crashing. Full
   `QApplication` instantiation clean, `ast.parse` clean.
 
-- **Aug 1, 2026 (cont'd)** — Per Keith's screenshot: "[Show] button
+- **Aug 1, 2026 (cont'd)** — Per my screenshot: "[Show] button
   can't be seen; only showing 3px in height for the font", "the ipl
   values are barely visible", and "3 buttons; hard to see, should be
   3 in a row - space then the 4 buttons under them, I can't tell what
@@ -987,22 +987,22 @@ conclusively found despite extensive isolated testing.
   (not collapsed). Full `QApplication` instantiation clean, `ast.parse`
   clean.
 
-- **Aug 1, 2026 (cont'd)** — Per Keith: merged "Set Scaling to 0"
+- **Aug 1, 2026 (cont'd)** — Per  : merged "Set Scaling to 0"
   (previously its own row) with the `[2DFX]`/`[TOBJ]` buttons into a
   single row of three - `[2DFX (n)] [TOBJ (n)] [Set Scaling to 0]`.
-  Fixed a `self.` reference bug present in Keith's own draft snippet
+  Fixed a `self.` reference bug present in my own draft snippet
   along the way (`_zero_btn.setToolTip(...)` without `self.` would
   have raised `NameError`). Kept the 18px height convention used
   throughout. Verified all three buttons report `height() == 18` and
   Set Scaling to 0 still correctly zeroes the instance's scale. Full
   `QApplication` instantiation clean, `ast.parse` clean.
 
-- **Aug 1, 2026 (cont'd)** — Per Keith: "buttons still unreadable, so
+- **Aug 1, 2026 (cont'd)** — Per  : "buttons still unreadable, so
   im moving this around. looking at the code on IPL sections [IPL]
   Tab, we need to show buttons in that size, and note that all
   buttons on widgets and panels, are to that standard." Re-examined
   the exact IPL Sections Open/Close/New/Delete button code (the one
-  Keith confirmed as "a perfect size" a few passes ago) and found the
+    confirmed as "a perfect size" a few passes ago) and found the
   real standard includes more than just `setFixedHeight(18)` + the
   compact stylesheet, which is all earlier passes at the Item Editor
   Dialog had been applying: an 18x18 icon alongside the text too.
@@ -1024,7 +1024,7 @@ conclusively found despite extensive isolated testing.
   Scaling to 0 confirmed correctly icon-less but still properly
   sized. Full `QApplication` instantiation clean, `ast.parse` clean.
 
-- **Aug 1, 2026 (cont'd)** — Per Keith's screenshot: "the value
+- **Aug 1, 2026 (cont'd)** — Per my screenshot: "the value
   entries need to be 4px wider, and the red lines show unused space,
   so we can remove the emtpy areas" (red lines marking blank vertical
   space within each Position/Rotation/Scale section).
@@ -1053,7 +1053,7 @@ conclusively found despite extensive isolated testing.
   instantiation clean, `ast.parse` clean.
 
 - **Aug 1, 2026 (cont'd)** — Addressed two of the `#TODO` comments
-  Keith added himself while reviewing the dialog:
+    added himself while reviewing the dialog:
 
   "Show textures work but texture names, shows the name texture name
   in all cells" - `_show_tex_names_dialog` now deduplicates required
@@ -1082,7 +1082,7 @@ conclusively found despite extensive isolated testing.
   but no longer forcing it more than 7px under). Full `QApplication`
   instantiation clean, `ast.parse` clean.
 
-- **Aug 1, 2026 (cont'd)** — Per Keith's screenshot: "the values need
+- **Aug 1, 2026 (cont'd)** — Per my screenshot: "the values need
   2px added, so the bottom of the text shows, and we can add << >>
   back." Bumped the nudge row height from 22 to 24px. Restored the
   large-step (`«`/`»`) buttons into the compact row (each axis now
@@ -1096,17 +1096,17 @@ conclusively found despite extensive isolated testing.
   grid (label/«/-/value/+/» at columns 0-5). Full `QApplication`
   instantiation clean, `ast.parse` clean.
 
-- **Aug 1, 2026 (cont'd)** — Per Keith, commented out
+- **Aug 1, 2026 (cont'd)** — Per  , commented out
   `self._lay.addStretch()` in the Item Editor Dialog (his own local
   edit, applied here to keep the repo in sync) - the stretch had been
   added a few passes ago to push any leftover vertical space to the
   bottom of the panel rather than having it spread across each
-  section; Keith removed it, presumably because the section-level
+  section;   removed it, presumably because the section-level
   `QSizePolicy.Fixed` fix from that same pass is enough on its own
   now that the dock/panel minimum sizes were also brought down to
   match the real compact content size.
 
-- **Aug 1, 2026 (cont'd)** — Per Keith: "the world map icons that is
+- **Aug 1, 2026 (cont'd)** — Per  : "the world map icons that is
   seen in Dat Browser, when right clicking the dat file, can be used
   for map workshops app icon, shown in the taskbar, when standalone."
 
@@ -1129,12 +1129,12 @@ conclusively found despite extensive isolated testing.
   shape) rather than coming back empty. Could not visually confirm
   the glyph renders as the intended colour emoji specifically (this
   sandbox may lack proper emoji font support that a real desktop
-  would have) - worth Keith's visual confirmation once pulled. Full
+  would have) - worth my visual confirmation once pulled. Full
   `QApplication` instantiation clean, `ast.parse` clean.
 
-- **Aug 1, 2026 (cont'd)** — Three pieces per Keith's latest message:
+- **Aug 1, 2026 (cont'd)** — Three pieces per my latest message:
 
-  **1. Real SVG Earth icon** (replacing the emoji-rendering approach
+  **1.  SVG Earth icon** (replacing the emoji-rendering approach
   from last pass): "needs to be multi color svg, blue background,
   greeny to yellow dithed contenents on the equator, showing Earth.
   There should be no emojis, except in DP5 point." Built a real SVG
@@ -1177,7 +1177,7 @@ conclusively found despite extensive isolated testing.
   way textures can, so this just stops one bad duplicate from
   blocking a working one under the same name).
 
-  Verified with a mock 2-archive scenario mirroring Keith's real
+  Verified with a mock 2-archive scenario mirroring my real
   case: two duplicate-named entries with different content (one
   texture shared with different sizes, one texture unique to each) -
   confirmed both distinct texture names end up available, and the
@@ -1185,7 +1185,7 @@ conclusively found despite extensive isolated testing.
   either silently disappearing. Full `QApplication` instantiation
   clean, `ast.parse` clean on both files.
 
-- **Aug 1, 2026 (cont'd)** — Two real bugs fixed from Keith's latest
+- **Aug 1, 2026 (cont'd)** — Two real bugs fixed from my latest
   testing (DAT loading and textures now confirmed working standalone):
 
   **1. LOD view stubbed for VC**: "Fix display: Show All, Show LOD,
@@ -1194,14 +1194,14 @@ conclusively found despite extensive isolated testing.
   SOL (`if self.game not in (SA, SOL): return {}`), since it relied
   entirely on SA's `lod_index` field, which GTA3/VC's inst format
   doesn't have at all - so for VC, `_lod_pairs` was always empty and
-  the three display modes had nothing to filter, matching Keith's
+  the three display modes had nothing to filter, matching my
   "seems to be stubbed" exactly. Added a second detection path for
   GTA3/VC: an instance whose model name starts with "LOD"
   (case-insensitive) pairs with another instance in the same source
   IPL file whose name matches the remainder (e.g. "LODdock10" ->
   "dock10") AND sits at the same position (within a small tolerance,
   guarding against unrelated objects sharing a name pattern
-  coincidentally) - matches the naming convention visible in Keith's
+  coincidentally) - matches the naming convention visible in my
   own earlier docks.ipl data ("LODdock10", "LODks85", "LODks96"
   alongside their normal counterparts).
 
@@ -1237,7 +1237,7 @@ conclusively found despite extensive isolated testing.
   movement (Ctrl+click-drag on X/Y/Z with a lockable axis gizmo), and
   object-to-object snapping while moving.
 
-- **Aug 1, 2026 (cont'd)** — Two more pieces from Keith's request:
+- **Aug 1, 2026 (cont'd)** — Two more pieces from my request:
 
   **Alpha-textured objects**: "show any objects with alpha textures,
   as that would display in the game." Found the texture's own alpha
@@ -1277,16 +1277,16 @@ conclusively found despite extensive isolated testing.
   Deliberately did not invent a "semi-solid" mode - what that should
   actually mean (fixed reduced opacity applied globally? something
   else?) isn't clear yet; the three modes with unambiguous meaning
-  are wired, holding this one for Keith's clarification.
+  are wired, holding this one for my clarification.
 
   Verified: mock render-mode-set test confirmed first load forces
   `'textured'`, a user's subsequent manual pick (`'wireframe'`)
   sticks, and a following edit-triggered refresh no longer resets it.
   Full `QApplication` instantiation clean, `ast.parse` clean on both
   files. Could not runtime-test the actual OpenGL alpha-test behavior
-  (no PyOpenGL in this sandbox) - needs Keith's visual confirmation.
+  (no PyOpenGL in this sandbox) - needs my visual confirmation.
 
-- **Aug 1, 2026 (cont'd)** — Per Keith: "When there are binary IPLs,
+- **Aug 1, 2026 (cont'd)** — Per  : "When there are binary IPLs,
   these should also be shown in object browser in IPL files | Binary
   IPL as a name column." Added a third "Format" column to the IPL
   Sections table, showing "Binary IPL" for files detected as binary
@@ -1300,7 +1300,7 @@ conclusively found despite extensive isolated testing.
   clean, `ast.parse` clean.
 
 - **Aug 1, 2026 (cont'd)** — Solved the SA Z-rotation misalignment
-  Keith discovered and reported with two comparison screenshots:
+    discovered and reported with two comparison screenshots:
   "the Z rotation alignment issue - on some lines, it's not reading
   the -90.0, for example. It's only reading 90.0; adding the - fixed
   the issue." Traced this to a real difference in SA's rotation
@@ -1310,7 +1310,7 @@ conclusively found despite extensive isolated testing.
   files): `5533, LODroadB48, 0, 1932.59375, -1782.101563, 12.5, 0, 0,
   0.4516149163, 0.8922129869, -1`. Standard quaternion-to-euler math
   (cross-checked against `scipy` earlier this session, so trusted as
-  mathematically correct) converts this to yaw=+53.6deg - but Keith's
+  mathematically correct) converts this to yaw=+53.6deg - but my
   screenshots showed the object only aligns correctly when the Z
   spinbox reads -53.69deg. Working backward: `euler_degrees_to_quat
   (0,0,-53.69)` produces `(0,0,-0.4516,+0.8922)` - the *conjugate* of
@@ -1325,7 +1325,7 @@ conclusively found despite extensive isolated testing.
 
   Added `ModelWorkshop._effective_rotation`/`_conjugate_rotation_for_
   game`, applying this conjugate for SA/SOL specifically - not VC/
-  GTA3, which Keith already confirmed renders correctly as-is with
+  GTA3, which   already confirmed renders correctly as-is with
   real Vice City data, so this is scoped by game rather than applied
   universally (avoiding any risk of regressing already-working
   behaviour). Used in two places: `_refresh_world_view` (actual
@@ -1338,7 +1338,7 @@ conclusively found despite extensive isolated testing.
   `inst.rot_x/y/z/w` themselves - the Identity section's raw IPL line
   still shows the genuinely verbatim file values.
 
-  Verified end-to-end with Keith's exact real data: effective
+  Verified end-to-end with my exact real data: effective
   rotation for SA computed as `(-0,-0,-0.4516,+0.8922)`, converting
   to yaw=-53.69deg - an exact match to his manual fix; VC confirmed
   completely unaffected (effective rotation identical to raw); raw
@@ -1347,7 +1347,7 @@ conclusively found despite extensive isolated testing.
   Rotation Z spin box. Full `QApplication` instantiation clean,
   `ast.parse` clean.
 
-- **Aug 1, 2026 (cont'd)** — Two pieces per Keith's follow-up:
+- **Aug 1, 2026 (cont'd)** — Two pieces per my follow-up:
 
   **Binary IPLs embedded in gta3.img**: "the binary ipl's are in the
   gta3.img, i think the paths to these are hard-coded in the exe...
@@ -1363,7 +1363,7 @@ conclusively found despite extensive isolated testing.
   under a synthetic stem (there's no on-disk loose file the way a
   regular entry has). The Format column's "Binary IPL" detection now
   checks this set first before falling back to reading a loose file's
-  bytes. This is the listing/counting half only, matching Keith's own
+  bytes. This is the listing/counting half only, matching my own
   wording - actually loading their instance content is a follow-up
   (`BinaryIPLParser` already accepts raw bytes, so feasible later).
 
@@ -1391,11 +1391,11 @@ conclusively found despite extensive isolated testing.
   standard (non-conjugated) math, same as before. Didn't apply the
   SA conjugate to VC/GTA3 without further evidence, since doing so
   would very likely break this already-verified-correct behaviour
-  rather than fix anything - asked Keith for a specific VC object/
+  rather than fix anything - asked   for a specific VC object/
   example to investigate properly instead of guessing.
 
 - **Aug 1, 2026 (cont'd)** — Corrected the binary IPL scanning per
-  Keith's detailed follow-up explanation: "gta.dat contains entries
+  my detailed follow-up explanation: "gta.dat contains entries
   for text-based IPL files... Binary IPLs (streaming files like
   LAe2_stream0.ipl) are not directly listed in gta.dat. Instead, they
   are stored inside the .img archives... The game engine automatically
@@ -1417,14 +1417,14 @@ conclusively found despite extensive isolated testing.
   entries with no matching text IPL at all still get their own row
   and "Binary IPL" label.
 
-  Verified with a scenario matching Keith's own example exactly: a
+  Verified with a scenario matching my own example exactly: a
   known text `LAe2.IPL` plus a binary `LAe2_stream0.ipl` found in the
   archive, alongside an unrelated standalone binary `crack.ipl` -
   confirmed the stream file correctly associated with `LAe2.IPL`
   (no separate row created) while `crack.ipl` correctly got its own
   row. Full `QApplication` instantiation clean, `ast.parse` clean.
 
-- **Aug 1, 2026 (cont'd)** — Per Keith: "also binary ipls might show
+- **Aug 1, 2026 (cont'd)** — Per  : "also binary ipls might show
   in the gta3.img as LAn2_stream0.ipl, LAn2_stream1.ipl,
   LAn2_stream2.ipl and so on." Upgraded
   `_ipl_names_with_binary_stream` from a boolean set (just "has some
@@ -1434,13 +1434,13 @@ conclusively found despite extensive isolated testing.
   generic "Text + Binary Stream" - and the actual entry names are now
   tracked, ready for a future loading feature to use.
 
-  Verified with 3 numbered stream files matching Keith's exact
+  Verified with 3 numbered stream files matching my exact
   example (`LAn2_stream0/1/2.ipl`) against a known text `LAn2.IPL`:
   all 3 correctly grouped together, Format column correctly reads
   "Text + 3 Binary Streams". Full `QApplication` instantiation clean,
   `ast.parse` clean.
 
-- **Aug 1, 2026 (cont'd)** — Per Keith's screenshot: "hard to see, i
+- **Aug 1, 2026 (cont'd)** — Per my screenshot: "hard to see, i
   can not move the cell width of IPL file, but all I can see is
   test... does it show the name of the img3 file dir LAn2_Stream0.ipl
   naming format?"
@@ -1468,7 +1468,7 @@ conclusively found despite extensive isolated testing.
   stream file names correctly, newline-separated. Full `QApplication`
   instantiation clean, `ast.parse` clean.
 
-- **Aug 1, 2026 (cont'd)** — Two more pieces per Keith:
+- **Aug 1, 2026 (cont'd)** — Two more pieces .per:
 
   **Merged Render/LOD menu**: "Render view should me merged with LOD
   view, labeled as Render: Texture, Non-texture, Semi-Solid,
@@ -1477,7 +1477,7 @@ conclusively found despite extensive isolated testing.
   containing two independent exclusive action groups (render style
   and LOD filter are orthogonal - e.g. Wireframe + Show Both is a
   valid combination), separated by a divider - exact labels and order
-  as Keith specified.
+  as   specified.
 
   Also implemented Semi-Solid as a real render mode, rather than
   holding off on it as in an earlier pass. Added an `alpha_multiplier`
@@ -1502,7 +1502,7 @@ conclusively found despite extensive isolated testing.
   (this codebase's own quaternion math is internally consistent with
   the standard convention) but never actually proved that convention
   matches RenderWare's on-disk one - that was an unwarranted leap
-  from "the math is self-consistent" to "VC is fine," which Keith's
+  from "the math is self-consistent" to "VC is fine," which my
   direct report now corrects.
 
   Removed the SA/SOL-only gate from `_conjugate_rotation_for_game` -
@@ -1510,13 +1510,13 @@ conclusively found despite extensive isolated testing.
   stored `inst.rot_x/y/z/w` themselves (only rendering and the
   Rotation spin boxes use the effective value, exactly as before).
 
-  Verified with Keith's own real VC data (`docks10`, `docks.ipl`):
+  Verified with my own real VC data (`docks10`, `docks.ipl`):
   effective rotation now correctly conjugated
   `(-0,-0,-0.1908,+0.9816)`, yaw flips from +22deg to -22deg; raw
   stored `rot_z`/`rot_w` confirmed unchanged. Full `QApplication`
   instantiation clean, `ast.parse` clean on both files.
 
-- **Aug 1, 2026 (cont'd)** — Per Keith: "option to hold control and
+- **Aug 1, 2026 (cont'd)** — Per  : "option to hold control and
   highlight ipl entries, right click load all selected .ipls." The
   IPL Sections table defaulted to Qt's `SingleSelection` (never set
   explicitly), so Ctrl/Shift-click couldn't build a multi-row
@@ -1539,7 +1539,7 @@ conclusively found despite extensive isolated testing.
   both in an all-hidden selection. Full `QApplication` instantiation
   clean, `ast.parse` clean.
 
-- **Aug 1, 2026 (cont'd)** — Per Keith's multi-part message:
+- **Aug 1, 2026 (cont'd)** — Per my multi-part message:
 
   **GTA3 rotation question**: "rotation bug fixed in SA and VC, do we
   need to look at gta3?" Confirmed `_conjugate_rotation_for_game` no
@@ -1550,7 +1550,7 @@ conclusively found despite extensive isolated testing.
   **Alpha textures re-raised**: confirmed the `GL_ALPHA_TEST` fix
   from an earlier pass is still correctly in place in the code -
   couldn't verify the actual visual result (no PyOpenGL in this
-  sandbox), logged as needing Keith's specific feedback in TODO.md.
+  sandbox), logged as needing my specific feedback in TODO.md.
 
   **Mouse navigation direction bug**: "moving the mouse left, should
   always reflect moving left in the viewpoint... mouse movement seems
@@ -1575,7 +1575,7 @@ conclusively found despite extensive isolated testing.
 
   Also added a `_mouse_sensitivity` multiplier (applied to both
   rotate and pan deltas) and a "Nav" button in IPL Controls opening a
-  small settings popup with a sensitivity slider - per Keith: "need a
+  small settings popup with a sensitivity slider -  "need a
   way to toggle these settings, mouse strength, other needed
   settings." Only sensitivity is wired up so far; logged to TODO.md
   that "other needed settings" isn't specified yet.
@@ -1588,12 +1588,12 @@ conclusively found despite extensive isolated testing.
   Full `QApplication` instantiation clean, `ast.parse` clean on both
   files.
 
-- **Aug 1, 2026 (cont'd)** — Per Keith: "as we're loading both
+- **Aug 1, 2026 (cont'd)** — Per  : "as we're loading both
   Generic files and this works, we don't need to show this in a
   button, this can be replaced as an [Advanced] button." Replaced the
   top-level "Generic.txd" button with an "Advanced" button/menu -
   since the automatic `generic.ide` preloading already handles
-  generic.txd loading seamlessly (confirmed working in Keith's own
+  generic.txd loading seamlessly (confirmed working in my own
   testing), manually loading it is now a rare/diagnostic action
   rather than something needing a prominent button. Kept it available
   as "Load Generic.txd Manually" under the new menu rather than
@@ -1604,11 +1604,11 @@ conclusively found despite extensive isolated testing.
   correctly wired to the existing handler. Full `QApplication`
   instantiation clean, `ast.parse` clean.
 
-- **Aug 1, 2026 (cont'd)** — Continuing through TODO.md per Keith's
+- **Aug 1, 2026 (cont'd)** — Continuing through TODO.md per my
   "lets continue adding the rest of whats on the todo list":
 
   Marked two items as resolved after investigation/confirmation:
-  the missing splitter bug (Keith confirmed already fixed), and the
+  the missing splitter bug (  confirmed already fixed), and the
   "18px compact sizing" general clipping concern (audited every
   `setFixedHeight(18)` call in the file - none affect a spinbox
   outside the Item Editor Dialog case already fixed earlier).
@@ -1623,7 +1623,7 @@ conclusively found despite extensive isolated testing.
   clean, `ast.parse` clean.
 
 - **Aug 1, 2026 (cont'd)** — Solved "SA trees not showing alpha, VC
-  works" - Keith corrected my initial rotation-bug hypothesis: "its
+  works" -   corrected my initial rotation-bug hypothesis: "its
   not a rotation bug, its the alpha layer not working on the SA tree
   models" (with a screenshot showing pale, blocky, uniformly-white
   tree shapes - not what an alpha-cutout failure looks like, which
@@ -1633,7 +1633,7 @@ conclusively found despite extensive isolated testing.
 
   Found the real cause: `_preload_generic_ide_textures` only ever
   collected TXDs from objects whose `source_ide` matched
-  `generic.ide` literally. Keith's own screenshot's selected object
+  `generic.ide` literally. my own screenshot's selected object
   showed `Source dynamic2.ide` - SA vegetation objects are defined in
   a different shared IDE entirely, so their TXDs were never being
   preloaded at all, and fell back to untextured white geometry -
@@ -1645,12 +1645,12 @@ conclusively found despite extensive isolated testing.
   world has.
 
   Verified with objects spanning 3 different IDE files (`generic.ide`,
-  `dynamic2.ide` matching Keith's real example, and a hypothetical
+  `dynamic2.ide` matching my real example, and a hypothetical
   vegetation IDE): all 3 distinct TXDs now correctly collected, where
   the old filter would have only found the `generic.ide` one. Full
   `QApplication` instantiation clean, `ast.parse` clean.
 
-- **Aug 1, 2026 (cont'd)** — Per Keith: "then I need to find where
+- **Aug 1, 2026 (cont'd)** — Per  : "then I need to find where
   the tree textures are being stored." `_get_txd_textures` previously
   returned a generic "an indexed IMG archive (e.g. gta3.img)" string
   regardless of which archive a TXD actually came from, even though
@@ -1672,7 +1672,7 @@ conclusively found despite extensive isolated testing.
   archives. Full `QApplication` instantiation clean, `ast.parse`
   clean.
 
-- **Aug 1, 2026 (cont'd)** — Two pieces per Keith's binary IPL
+- **Aug 1, 2026 (cont'd)** — Two pieces per my binary IPL
   follow-up:
 
   **Format column redesign**: "instead of text + 6, with tooltop for
@@ -1707,7 +1707,7 @@ conclusively found despite extensive isolated testing.
   re-applied. Full `QApplication` instantiation clean, `ast.parse`
   clean.
 
-- **Aug 1, 2026 (cont'd)** — First TOBJ support, per Keith: "lets
+- **Aug 1, 2026 (cont'd)** — First TOBJ support,  "lets
   start support tobj first, with a time switch under Ignore Scaling,
   on the IPL Sections pane."
 
@@ -1742,7 +1742,7 @@ conclusively found despite extensive isolated testing.
   checkbox is checked. Full `QApplication` instantiation clean,
   `ast.parse` clean on both files.
 
-- **Aug 1, 2026 (cont'd)** — Per Keith: "put time and nav under on a
+- **Aug 1, 2026 (cont'd)** — Per  : "put time and nav under on a
   new line." IPL Controls' Time switch and Nav button had ended up on
   the same crowded row as Ignore Scaling/Advanced/Render/LOD - moved
   both to their own second row (opts_row2) below it. Verified
@@ -1750,7 +1750,7 @@ conclusively found despite extensive isolated testing.
   enable-on-check behavior unchanged). Full `QApplication`
   instantiation clean, `ast.parse` clean.
 
-- **Aug 1, 2026 (cont'd)** — Full time-flow controls, per Keith: "time
+- **Aug 1, 2026 (cont'd)** — Full time-flow controls,  "time
   is hard to see, we need a [play] and [stop] and Settings [*] Cog
   for time settings, we need to impliment movement of time, so we can
   see the switching of tobjs on the map."
@@ -1783,25 +1783,25 @@ conclusively found despite extensive isolated testing.
   lighting/ambient changes, not just which instances show/hide).
 
 - **Aug 1, 2026 (cont'd)** — Fixed LOD Show-Only/Show-Normals doing
-  nothing for SA data, per Keith: "when LOD only is set, it still
+  nothing for SA data,  "when LOD only is set, it still
   loads everything, when Norm is set, it loads the lods aswell,
   filenames for lods, Start of LOD or lod." Same lesson as the
   rotation conjugate fix earlier this session: `resolve_lod_pairs`'s
   two detection strategies (lod_index field vs "LOD" name-prefix
   matching) were mutually exclusive by game, with SA/SOL gated to
-  lod_index only - but Keith's own real SA data (`LODroadB48` from
+  lod_index only - but my own real SA data (`LODroadB48` from
   `LAe.ipl`) always has `lod_index=-1` in practice, and its own model
   name confirms SA uses the same "LOD" prefix convention as GTA3/VC.
   Widened both strategies to run for every game and combine their
   results, rather than being gated by game at all.
 
-  Verified with Keith's real SA example: `resolve_lod_pairs` now
+  Verified with my real SA example: `resolve_lod_pairs` now
   correctly pairs `roadB48`/`LODroadB48` despite `lod_index=-1`; Show
   LOD only correctly returns just the LOD instance, Show Normals
   correctly returns just the base one - both previously did nothing
   for this data. Full `ast.parse` clean.
 
-- **Aug 1, 2026 (cont'd)** — Rounded out TOBJ support per Keith's
+- **Aug 1, 2026 (cont'd)** — Rounded out TOBJ support per my
   "lets complete the tojs, everything needed to get that work":
 
   The TOBJ popup (Item Editor Dialog's "TOBJ (n)" button) previously
@@ -1829,7 +1829,7 @@ conclusively found despite extensive isolated testing.
 
   Full `QApplication` instantiation clean, `ast.parse` clean.
 
-- **Aug 1, 2026 (cont'd)** — 2DFX lighting at night, per Keith:
+- **Aug 1, 2026 (cont'd)** — 2DFX lighting at night, .per:
   "lets add the 2dfx support next, showing 2dfx lighting at night."
 
   Found the real starting gap: 2DFX IDE entries were being parsed as
@@ -1841,7 +1841,7 @@ conclusively found despite extensive isolated testing.
   confidence on the exact field order/count for these SA-specific
   extras beyond the core offset+color+type, since no real 2DFX
   sample data was available to verify against, unlike the rotation/
-  LOD fixes earlier this session which had Keith's actual raw lines
+  LOD fixes earlier this session which had my actual raw lines
   to check). Other effect types (particle, text, roadsign, etc.)
   aren't parsed beyond their own offset/type - not needed for
   lighting specifically.
@@ -1868,7 +1868,7 @@ conclusively found despite extensive isolated testing.
   shows, world position confirmed as instance position + rotated
   offset, color/size confirmed passed through). Couldn't visually
   verify the actual OpenGL glow rendering (no PyOpenGL in this
-  sandbox) - needs Keith's live confirmation.
+  sandbox) - needs my live confirmation.
 
   Logged the separate Model Workshop 2DFX *editor* (a different
   component - editing a model's own 2DFX entries, not Map Workshop's
@@ -1876,7 +1876,7 @@ conclusively found despite extensive isolated testing.
   started.
 
 - **Aug 1, 2026 (cont'd)** — Fixed a real crash/freeze bug in binary
-  IPL loading, plus two follow-on display fixes, per Keith: "there is
+  IPL loading, plus two follow-on display fixes,  "there is
   a bug in loading IPL, the app freezes, no dialog status, plus ive
   noticed the ipl's not linked to the other data files. that show as
   just Binary IPL. single binary files should just show as there file
@@ -1889,7 +1889,7 @@ conclusively found despite extensive isolated testing.
   stem is a synthetic `"img:<archive>:<entry>"` string, never a real
   entry in `loader.available_ipls` the way a text IPL's stem is, so
   this could only ever fail with exactly the "Unknown IPL" error
-  Keith hit. Fixed by detecting the `"img:"` stem prefix and routing
+    hit. Fixed by detecting the `"img:"` stem prefix and routing
   to the already-existing `_load_binary_ipl_stream` instead. Added
   `self._loaded_binary_ipls` to track which binary IPLs have actually
   been loaded (separate from `loader.loaded_ipls`, which only ever
@@ -1904,7 +1904,7 @@ conclusively found despite extensive isolated testing.
   was falling through every branch to an empty string) - now checks
   `_loaded_binary_ipls` too, keeping the filename shown either way.
 
-  And per Keith's specific display request: standalone (unlinked)
+  And per my specific display request: standalone (unlinked)
   binary IPLs previously showed the generic label "Binary IPL" in the
   Format column - now show the file's own name instead, matching how
   linked stream files already display their real names.
@@ -1915,7 +1915,7 @@ conclusively found despite extensive isolated testing.
   so the binary parser's actual output can be inspected/compared
   against a known-good file rather than trusted blindly.
 
-  Verified end-to-end against Keith's exact bug scenario (a
+  Verified end-to-end against my exact bug scenario (a
   standalone `truthsfarm.ipl` binary entry, eye-icon toggle): instance
   count and resolved model name both confirmed correct (previously 0
   instances with the Unknown IPL error); double-toggle confirmed not
@@ -1926,7 +1926,7 @@ conclusively found despite extensive isolated testing.
 
 - **Aug 1, 2026 (cont'd)** — Found and fixed the real root cause
   behind "app freezes, no dialog?" after a binary IPL load that had
-  actually succeeded, per Keith: "[COL] Loaded barriers1.ipl: 8
+  actually succeeded,  "[COL] Loaded barriers1.ipl: 8
   instances (8 model names resolved) nothing, but a frozen app, no
   dialog? and just noticed [COL] this isnt col workshop."
 
@@ -1958,12 +1958,12 @@ conclusively found despite extensive isolated testing.
 
   Verified: `status_label` confirmed to now actually exist on a real
   `ModelWorkshop` instance (previously didn't); `_set_status` with
-  Keith's exact message text confirmed correctly reaching
+  my exact message text confirmed correctly reaching
   `status_label.text()`. Full `QApplication` instantiation clean,
   `ast.parse` clean.
 
 - **Aug 1, 2026 (cont'd)** — Fixed the IPL Inst File pane showing
-  nothing for binary IPLs, per Keith: "loading LAe2.ipl, i can see
+  nothing for binary IPLs,  "loading LAe2.ipl, i can see
   the ipl data below in the ipl inst file pane, when clicking on a
   binary ipl, I should still beable to see the ipl lines aswell,
   loading should be the same behavour as the data ipls. go from gray
@@ -1989,7 +1989,7 @@ conclusively found despite extensive isolated testing.
   `_rebuild_ipl_sections_rows` (which `_load_binary_ipl_stream` already
   calls) re-applies it for every row on load.
 
-  Verified end-to-end with Keith's own `LAe2.ipl` example: IPL Inst
+  Verified end-to-end with my own `LAe2.ipl` example: IPL Inst
   File pane went from 0 rows (before) to correctly showing the real
   parsed instance (model ID/name/position/rotation all correct) on
   first click, with no separate load step; instance confirmed
@@ -1998,7 +1998,7 @@ conclusively found despite extensive isolated testing.
   white). Full `QApplication` instantiation clean, `ast.parse` clean.
 
 - **Aug 1, 2026 (cont'd)** — Found and fixed the real cause of the
-  reported freeze, using Keith's own Ctrl+C interrupt traceback (not
+  reported freeze, using my own Ctrl+C interrupt traceback (not
   actually a binary IPL parsing issue - the trace showed it hung
   inside `_apply_ipl_visibility_filter -> _refresh_world_view ->
   _preload_generic_ide_textures -> ... -> model_cache._read_entry ->
@@ -2028,7 +2028,7 @@ conclusively found despite extensive isolated testing.
   (would have been 50 times before this fix). Full `ast.parse` clean
   on both files.
 
-- **Aug 1, 2026 (cont'd)** — Added recent DAT files, per Keith: "when
+- **Aug 1, 2026 (cont'd)** — Added recent DAT files,  "when
   loading Dat files, standalone, remember past files." Added `recent_
   dat_files` to `MapSettings.DEFAULTS` (most recent first, deduped,
   capped at 10), populated by `_add_recent_dat_file` on every
@@ -2046,7 +2046,7 @@ conclusively found despite extensive isolated testing.
   instead of duplicating; clear correctly empties the list. Full
   `QApplication` instantiation clean, `ast.parse` clean.
 
-- **Aug 1, 2026 (cont'd)** — Per Keith: "when clicking on a binary
+- **Aug 1, 2026 (cont'd)** — Per  : "when clicking on a binary
   ipl, i should beable to see this, and have an option to save it to
   name_me.ipl." The IPL Inst File pane already shows a binary IPL's
   data on click (fixed in an earlier pass this session), but the
@@ -2070,7 +2070,7 @@ conclusively found despite extensive isolated testing.
   Full `QApplication` instantiation clean, `ast.parse` clean.
 
 - **Aug 1, 2026 (cont'd)** — Added "Show" jump-to-line icons in the
-  Item Editor Dialog's Identity section, per Keith: "have a show
+  Item Editor Dialog's Identity section,  "have a show
   icon, before IPL and before IDE rows, that bring up the IPL /IDE
   editors, there it says line (343) highlight the line in either
   editor."
@@ -2103,7 +2103,7 @@ conclusively found despite extensive isolated testing.
   Full `QApplication` instantiation clean, `ast.parse` clean.
 
 - **Aug 1, 2026 (cont'd)** — Added per-step status visibility for the
-  ~2 minute post-parse hang Keith reported: "there is a long hang
+  ~2 minute post-parse hang   reported: "there is a long hang
   between ipl dialog loading, it reads the last line, then nothing
   for 2 mins, i'd like to know what it's going, paring, sorting,
   something other then think its silently crashed."
@@ -2131,7 +2131,7 @@ conclusively found despite extensive isolated testing.
   Instance List resolves TXD names lazily per-cell rather than
   upfront). Didn't find a smoking gun to fix directly - the
   instrumentation itself is the more reliable next step, since it'll
-  show exactly which real step is slow on Keith's actual data rather
+  show exactly which real step is slow on my actual data rather
   than requiring a guess.
 
   Verified the full pipeline end-to-end with a mock loader: every
@@ -2139,7 +2139,7 @@ conclusively found despite extensive isolated testing.
   reaches every step. Full `QApplication` instantiation clean,
   `ast.parse` clean.
 
-- **Aug 1, 2026 (cont'd)** — Four real bugs fixed from Keith's latest
+- **Aug 1, 2026 (cont'd)** — Four real bugs fixed from my latest
   screenshots/report:
 
   **1. Garbled/overlapping Identity section text**: the plain "while
@@ -2208,7 +2208,7 @@ conclusively found despite extensive isolated testing.
   Full `QApplication` instantiation clean, `ast.parse` clean.
 
 - **Aug 1, 2026 (cont'd)** — Two more real bugs, one reported by
-  Keith directly with a traceback, one from his own question:
+    directly with a traceback, one from his own question:
 
   **Time-flow "freeze" (bug, not a limitation)**: "touching time,
   tick, 12:00 [Play] Appears to freeze things? bug or limitation?"
@@ -2230,7 +2230,7 @@ conclusively found despite extensive isolated testing.
   plain/default call (a genuine load) still correctly defaults to
   `True`.
 
-  **Lighting crash (`IndexError: tuple index out of range`)**: Keith
+  **Lighting crash (`IndexError: tuple index out of range`)**:  
   logged a real traceback as a `#TODO` comment - crashed at `ld[3]`
   in `_setup_lighting`, which always expects a 4-element `(x,y,z,w)`
   light direction. Traced to the Light Setup Dialog's live-preview
@@ -2243,17 +2243,17 @@ conclusively found despite extensive isolated testing.
   (which only ever saves/loads `dir_x/y/z` in its JSON config, never
   a `w` component). All four now consistently build 4-element tuples
   with `w=0.0` (directional light), matching `DFFViewport`'s own
-  convention. Verified by directly reproducing Keith's exact crash
+  convention. Verified by directly reproducing my exact crash
   with the old 3-tuple (confirmed it raises the identical
   `IndexError`) and confirming the new 4-tuple works correctly.
-  Removed Keith's `#TODO bug` comment now that the underlying issue
+  Removed my `#TODO bug` comment now that the underlying issue
   is fixed.
 
   Full `QApplication` instantiation clean, `ast.parse` clean on both
   files.
 
 - **Aug 1, 2026 (cont'd)** — Debugged the continued binary IPL freeze
-  Keith reported after the earlier fix, per: "the is still an issue
+    reported after the earlier fix, per: "the is still an issue
   with the binary ipl, even if I click on them, everything freezes,
   we need to debug this, or atleast check our parser can decode the
   binary.ipl, and read them, and in time write data to the binary.ipl,
@@ -2304,7 +2304,7 @@ conclusively found despite extensive isolated testing.
   `ast.parse` clean.
 
 - **Aug 1, 2026 (cont'd)** — Found the actual remaining freeze cause,
-  using Keith's own real binary IPL files (164 files, including the
+  using my own real binary IPL files (164 files, including the
   exact `crack.ipl`/`countn2_stream1.ipl` referenced in `BinaryIPLParser`'s
   own docstring) - per: "verify seems to show some, but load, freezes,
   nor can I see the IPL data in the IPL inst file."
@@ -2343,7 +2343,7 @@ conclusively found despite extensive isolated testing.
   File panel confirmed refreshed. Full `QApplication` instantiation
   clean, `ast.parse` clean.
 
-- **Aug 1, 2026 (cont'd)** — Two more real fixes from Keith loading
+- **Aug 1, 2026 (cont'd)** — Two more real fixes from   loading
   `LAe.ipl`: "I see LOD file in the IPL inst, I have show norm
   selected, so it should ignore any LOD suffick files. however there
   is a ton of memory usage, and a very long delay, between the last
@@ -2385,10 +2385,10 @@ conclusively found despite extensive isolated testing.
   `clear_display_lists=False`. Full `QApplication` instantiation
   clean, `ast.parse` clean.
 
-- **Aug 1, 2026 (cont'd)** — Two more real fixes from Keith's own
+- **Aug 1, 2026 (cont'd)** — Two more real fixes from my own
   crash trace and follow-up request:
 
-  **DXT1 decode freeze/memory**: Keith's Ctrl+C interrupt landed deep
+  **DXT1 decode freeze/memory**: my Ctrl+C interrupt landed deep
   inside `_decode_dxt1`'s per-pixel loop, with "memory used, doesn't
   seem to get released." The size guard in `_parse_native_texture`
   already caps dimensions at 4096x4096 (ruling out a runaway
@@ -2419,7 +2419,7 @@ conclusively found despite extensive isolated testing.
   pure-Python pattern and likely the same issue - logged to TODO.md
   rather than rushed through in the same pass.
 
-  **Memory usage on the status bar**: per Keith's follow-up, "i think
+  **Memory usage on the status bar**: per my follow-up, "i think
   we also need to add a function on the statas bar, to show memory
   usage" - added a right-aligned "Memory: N MB" label, updated every
   2 seconds via a timer. Tries `psutil` first (not a pre-existing
@@ -2435,7 +2435,7 @@ conclusively found despite extensive isolated testing.
   `QApplication` instantiation clean, `ast.parse` clean on both files.
 
 - **Aug 1, 2026 (cont'd)** — Fixed the memory usage label to actually
-  be cross-platform, per Keith: "the memory fix would need to work on
+  be cross-platform,  "the memory fix would need to work on
   any platform the user runs this app on." Previous fallback (when
   psutil isn't installed) read `/proc/self/status` directly - Linux-
   only, so a Windows or macOS user without psutil would see nothing
@@ -2470,7 +2470,7 @@ conclusively found despite extensive isolated testing.
   instantiation clean, `ast.parse` clean.
 
 - **Aug 1, 2026 (cont'd)** — Investigated a blank Map Workshop window
-  with "QOpenGLWidget: Failed to create context", per Keith: "we have
+  with "QOpenGLWidget: Failed to create context",  "we have
   a blank window in the last push." First confirmed neither of the
   last two pushes touched anything OpenGL-related at all - the entire
   diff across both was the status bar memory label (a `QLabel` +
@@ -2484,7 +2484,7 @@ conclusively found despite extensive isolated testing.
   call, executed once at import time. Per Qt's own documented
   requirement, this only reliably takes effect if it runs *before*
   `QApplication` is constructed - true for Map Workshop's own
-  standalone `__main__` path, but Keith confirmed Map Workshop runs
+  standalone `__main__` path, but   confirmed Map Workshop runs
   *embedded as a tab inside IMG Factory's own main window* - meaning
   IMG Factory's `QApplication` already exists before these Map
   Workshop modules are ever imported, making the module-level call too
@@ -2496,20 +2496,20 @@ conclusively found despite extensive isolated testing.
   happens to be constructed relative to module import entirely.
 
   Verified the format-setting fix itself directly: constructed
-  `QApplication` first (matching Keith's embedded scenario exactly),
+  `QApplication` first (matching my embedded scenario exactly),
   then imported both viewport modules afterward - both widgets
   correctly receive the expected profile/version. Could not fully
   verify actual context creation succeeds end-to-end, since this
   sandbox has no real GPU/display server either (reproduced the
   identical "Failed to create context" message here too, confirming
   it's a genuine no-GPU-available condition rather than a crash) -
-  Keith's own machine is the real test. Full `QApplication`
+  my own machine is the real test. Full `QApplication`
   instantiation clean (app doesn't crash even when context creation
   fails, it renders blank rather than erroring out - matching the
   reported symptom exactly), `ast.parse` clean on both files.
 
 - **Aug 1, 2026 (cont'd)** — Found the actual, definitive root cause
-  of the blank-window/context-failure issue, using Keith's terminal
+  of the blank-window/context-failure issue, using my terminal
   log this time (not just the screenshot): "QRhiGles2: Failed to
   create QRhi" appearing *before* the repeated "QOpenGLWidget: Failed
   to create context" lines.
@@ -2546,13 +2546,13 @@ conclusively found despite extensive isolated testing.
   this one addresses the separate Qt Quick/RHI backend selection the
   terminal log actually showed failing first. Together they should
   cover the most likely causes, though this still can't be verified
-  end-to-end without Keith's own GPU/driver setup - `launch.py`
+  end-to-end without my own GPU/driver setup - `launch.py`
   parses cleanly and the fix is placed correctly, but the real test
   is whether Map Workshop actually renders on his machine now.
 
 - **Aug 1, 2026 (cont'd)** — Reverted the status bar memory usage
   feature entirely (both the initial addition and the follow-up
-  cross-platform fix), per Keith's request: "revert back to the last
+  cross-platform fix)  request: "revert back to the last
   fix, before where I said 'I think we also need to add a function on
   the statas bar, to show memory usage.'" - part of isolating what's
   actually causing the blank-window/context-failure issue by removing
@@ -2563,7 +2563,7 @@ conclusively found despite extensive isolated testing.
   memory_mb_stdlib` removed entirely. The DXT1 vectorization fix
   (same commit as the original memory bar addition) is deliberately
   kept - that's a separate, already-verified fix for a different real
-  crash, not part of what Keith asked to revert. The GL context timing
+  crash, not part of what   asked to revert. The GL context timing
   fixes (`DFFViewport`/`MapViewport` per-instance `setFormat()`,
   `launch.py`'s `QSG_RHI_BACKEND` fix) are also kept, since diff review
   already confirmed neither touches anything related to the memory bar.
@@ -2578,7 +2578,7 @@ conclusively found despite extensive isolated testing.
 
 - **Aug 1, 2026 (cont'd)** — Reverted the GL context timing fixes too
   (`DFFViewport`/`MapViewport` per-instance `setFormat()`, `launch.py`'s
-  `QSG_RHI_BACKEND` change), per Keith: "maybe revert back on more;
+  `QSG_RHI_BACKEND` change),  "maybe revert back on more;
   blank screen" - the window is still blank on his machine even with
   those fixes in place, plus a new terminal log showing the same
   "QOpenGLWidget: Failed to create context" repeated 4 times, then a
@@ -2595,13 +2595,13 @@ conclusively found despite extensive isolated testing.
   session's GL-related changes). This is a diagnostic step, not a
   claimed fix - those changes addressed two real, genuine Qt timing
   requirements (documented, verifiable from Qt's own behavior), but
-  neither actually resolved the blank window on Keith's real hardware,
+  neither actually resolved the blank window on my real hardware,
   so they're stripped back out to get to the simplest possible
   baseline for isolating what's actually happening. The persistent
   "Failed to create context" appearing identically in this sandbox's
   own test both before and after every one of these GL-related changes
   (this sandbox has no real GPU at all) reinforces that whatever is
-  actually failing on Keith's machine likely needs to be diagnosed
+  actually failing on my machine likely needs to be diagnosed
   through what the terminal itself is willing to show, rather than
   more speculative code changes.
 
@@ -2610,7 +2610,7 @@ conclusively found despite extensive isolated testing.
 
 - **Aug 1, 2026 (cont'd)** — Found and fixed a real, high-impact
   performance bug behind the "long pause after loading closes" and
-  large memory jump Keith reported: "loading LAe.ipl sent the memory
+  large memory jump   reported: "loading LAe.ipl sent the memory
   from 5.6Gb to 8.2Gb interesting... once the loading dialog closed, a
   long pause, thinking it was frozen, becuase the IPL file is
   displayed, the long pause was about 2 mins."
@@ -2645,7 +2645,7 @@ conclusively found despite extensive isolated testing.
   `QApplication` instantiation clean, `ast.parse` clean.
 
 - **Aug 1, 2026 (cont'd)** — Added progress visibility to the "long
-  pause" phase itself, per Keith: "seems the long parse is loading
+  pause" phase itself,  "seems the long parse is loading
   assets, maybe we should at that to the dialog, model and texture,
   so we know its doing something."
 
@@ -2669,19 +2669,19 @@ conclusively found despite extensive isolated testing.
   intent). Full `QApplication` instantiation clean, `ast.parse` clean.
 
 - **Aug 1, 2026 (cont'd)** — Found and fixed a major, foundational IDE
-  parsing bug using Keith's real uploaded `LAe.ide`: "So the draw
+  parsing bug using my real uploaded `LAe.ide`: "So the draw
   distance is higher than 300 to be an LOD... 5454, laeLODds03,
   lod2lae1, 1500, 0."
 
   `objs`/`tobj` parsing had assumed field 3 was always a "mesh count"
   determining how many draw-distance fields follow (`id, model, txd,
-  meshCount, dist1[, dist2], flags`) - checked against Keith's entire
+  meshCount, dist1[, dist2], flags`) - checked against my entire
   real file (293 objs/tobj lines) and found this format never
   actually occurs there at all: every single `objs` line is exactly 5
   fields, every `tobj` line exactly 7 - `id, model, txd, drawdist,
   flags[, time_on, time_off]`, with no count field whatsoever. The old
   assumption meant every real draw distance (e.g. `150` in a normal
-  entry, `1500` in Keith's LOD example) was being read as a bogus
+  entry, `1500` in my LOD example) was being read as a bogus
   "N meshes" count, and the real flags value read as a bogus draw_dist
   of 0 - exactly backwards, and exactly why draw-distance-based LOD
   detection couldn't have worked against the old parsing at all.
@@ -2692,7 +2692,7 @@ conclusively found despite extensive isolated testing.
   real-world evidence it's ever actually used, but not removed
   outright in case some other game/file genuinely needs it).
 
-  Verified against Keith's own exact real lines: `draw_dist` now
+  Verified against my own exact real lines: `draw_dist` now
   correctly reads `1500.0` for his two LOD examples, `150.0` for a
   normal (non-LOD) entry from the same file (well under his suggested
   300 threshold), and the `tobj` line correctly extracts drawdist/
@@ -2700,7 +2700,7 @@ conclusively found despite extensive isolated testing.
   clean, `ast.parse` clean.
 
 - **Aug 1, 2026 (cont'd)** — Added draw-distance-based LOD detection,
-  per Keith's real LAe.ide data: "they dont follow the same pattern as
+  per my real LAe.ide data: "they dont follow the same pattern as
   those prefixed as LODelname... the draw distance is higher than 300
   to be an LOD... So we need a setting: detect LOD by draw distance
   higher than 300."
@@ -2720,7 +2720,7 @@ conclusively found despite extensive isolated testing.
   session, name-prefix only) got the identical draw-distance check
   too.
 
-  Verified against Keith's exact real data end-to-end in both places:
+  Verified against my exact real data end-to-end in both places:
   `laeLODds03` (draw_dist=1500) correctly detected as LOD despite the
   name mismatch, correctly excluded from Show Normals and correctly
   the only entry under Show LOD only, while a normal object from the
@@ -2728,7 +2728,7 @@ conclusively found despite extensive isolated testing.
   `QApplication` instantiation clean, `ast.parse` clean.
 
 - **Aug 1, 2026 (cont'd)** — Added the real-time LOD test tool, per
-  Keith: "i'd like to add a model switching test where there is a
+   : "i'd like to add a model switching test where there is a
   circle around the mouse pointer, size 300, anything in the circle
   is normal models, everything outside is lod. in realtime."
 
@@ -2771,7 +2771,7 @@ conclusively found despite extensive isolated testing.
   circle. Full `QApplication` instantiation clean, `ast.parse` clean
   on both files.
 
-- **Aug 1, 2026 (cont'd)** — Fixed a real crash Keith hit immediately:
+- **Aug 1, 2026 (cont'd)** — Fixed a real crash   hit immediately:
   "AttributeError: 'DFFViewport' object has no attribute
   'set_lod_test_callback'." The earlier LOD Test implementation only
   added the callback/circle/unprojection methods to `MapViewport` -
@@ -2792,7 +2792,7 @@ conclusively found despite extensive isolated testing.
   directly (unlike `MapViewport`'s Y-up conversion), so the ground
   plane and circle are drawn in Z/XY terms here instead of Y/XZ.
 
-  Also: per Keith, "click it when nothing is loaded, just to see" -
+  Also: .per, "click it when nothing is loaded, just to see" -
   confirmed the toggle is already safe with no world loaded (both
   `_apply_ipl_visibility_filter` and `_on_lod_test_mouse_moved`
   early-return cleanly); and "LOD can go on a new row, row 3" - moved
@@ -2801,12 +2801,12 @@ conclusively found despite extensive isolated testing.
   Time/Nav.
 
   Verified: toggling on/off with nothing loaded produces no crash (the
-  exact scenario Keith hit); `preview_widget` (the real `DFFViewport`
+  exact scenario   hit); `preview_widget` (the real `DFFViewport`
   instance) now confirmed has all three new methods present. Full
   `QApplication` instantiation clean, `ast.parse` clean on both files.
 
 - **Aug 1, 2026 (cont'd)** — Found and fixed a real texture-corruption
-  bug, per Keith: "selecting 4 ipl files LAe.ipl, LAn.ipl, LAs.ipl,
+  bug,  "selecting 4 ipl files LAe.ipl, LAn.ipl, LAs.ipl,
   LAw.ipl, the first LAe.ipl loads and looks ok, the second part loads
   in (LAn.Ipl), and the textures on the first LAe.ipl get corrupted."
 
@@ -2822,7 +2822,7 @@ conclusively found despite extensive isolated testing.
   (from a prior IPL, now cached) stopped re-collecting its own
   textures, the wipe-then-partial-reupload left its still-cached,
   still-referenced display list pointing at texture IDs that had just
-  been deleted - exactly the corruption Keith saw, and exactly the
+  been deleted - exactly the corruption   saw, and exactly the
   kind of inconsistency that can slip in when two related caches
   (geometry and textures) aren't kept in sync with each other.
 
@@ -2842,7 +2842,7 @@ conclusively found despite extensive isolated testing.
   parse` clean.
 
 - **Aug 1, 2026 (cont'd)** — Solved the "40% of models missing"
-  mystery and shipped everything Keith asked for once he found the
+  mystery and shipped everything   asked for once he found the
   actual cause himself: "looking at the ipl's most of them are listed
   LODs, so where are the normal models? Maybe in the stream.ipl...
   if the look at the files, almost all the LODs are in the text
@@ -2862,7 +2862,7 @@ conclusively found despite extensive isolated testing.
   **"Show Full Loading Models (Debug)"** - new Advanced menu checkbox
   (default off), new `show_verbose_loading_dialog` setting. Added
   `_VerboseLoadingDialog` - a 500x400 scrolling list dialog matching
-  Keith's exact spec: "Loading {name}.ipl and N binary ipls." header,
+  my exact spec: "Loading {name}.ipl and N binary ipls." header,
   one line per model as it loads, then "Loading linked ipl file
   {stream}" headers with their own per-model lines for each stream in
   turn.
@@ -2881,7 +2881,7 @@ conclusively found despite extensive isolated testing.
   `QApplication` instantiation clean, `ast.parse` clean.
 
 - **Aug 1, 2026 (cont'd)** — Added a true single-instance fast path
-  for nudge edits, per Keith: "when moving any object using the IPL
+  for nudge edits,  "when moving any object using the IPL
   object editor, it takes so long for anything to change; is there a
   way to only update the object thats been moved, not freshing the
   whole viewport."
@@ -2924,7 +2924,7 @@ conclusively found despite extensive isolated testing.
   files.
 
 - **Aug 1, 2026 (cont'd)** — Fixed the "wrapped C/C++ object of type
-  QTableWidgetItem has been deleted" crash Keith hit, and the "massive
+  QTableWidgetItem has been deleted" crash   hit, and the "massive
   bottleneck on loading" it was reported alongside.
 
   Found the real root cause: `_on_ipl_section_cell_clicked` captured
@@ -2954,7 +2954,7 @@ conclusively found despite extensive isolated testing.
   thousands of full event-queue pumps, each with real overhead, not
   just a cosmetic issue. Throttled to roughly 10 updates/second
   instead, still visibly live but no longer doing that work per line.
-  Also redesigned the dialog per Keith's request ("I might want to
+  Also redesigned the dialog per my request ("I might want to
   keep the loading xxxx.ipl above, and the scrolling below") - the
   current-file header is now a fixed label above the list, not a
   scrolling entry that disappears as more models load underneath it.
@@ -2965,11 +2965,11 @@ conclusively found despite extensive isolated testing.
   reused and the table is properly re-enabled afterward. Full
   `QApplication` instantiation clean, `ast.parse` clean.
 
-- **Aug 1, 2026 (cont'd)** — Two real fixes from Keith's latest
+- **Aug 1, 2026 (cont'd)** — Two real fixes from my latest
   report:
 
   **Item Editor Dialog snapping back to a fixed position** - per
-  Keith: "Every time I click on an object in the viewpoint, the IPL
+   : "Every time I click on an object in the viewpoint, the IPL
   object editor snaps back; it should stay wherever I leave it."
   Found `dock.move(...)` sat *outside* the "dock is None" first-
   creation block in `_show_instance_edit_panel`, so it ran on every
@@ -2980,7 +2980,7 @@ conclusively found despite extensive isolated testing.
   different object, correctly leaves it exactly where it was moved to.
 
   **IPL Inst File single-click not centering the viewport** - per
-  Keith: "When I click any line in the IPL inst file, it should take
+   : "When I click any line in the IPL inst file, it should take
   me to the object in the viewpoint." A double-click handler already
   did this, but only for the Model column specifically, and only on
   double-click. Added a `cellClicked` connection and a new single-
@@ -2988,7 +2988,7 @@ conclusively found despite extensive isolated testing.
   (not just Model) on a single click correctly centers the viewport
   on that row's real instance.
 
-  Also investigated Keith's other two reports - render mode changes
+  Also investigated my other two reports - render mode changes
   (Wireframe/Non-texture/Semi-Solid/Textured) and LOD display mode
   changes (Show Normal/LOD/Both) not updating the viewport. Reviewed
   `_set_world_render_mode`/`DFFViewport.set_render_mode` and `_set_
@@ -2999,7 +2999,7 @@ conclusively found despite extensive isolated testing.
   panes`) is the only active viewport in this build, so there's no
   wrong-viewport mismatch either. Didn't find an obvious code-level
   bug on inspection - logged for further diagnosis with more specific
-  detail from Keith (e.g. whether the button label updates but the 3D
+  detail from   (e.g. whether the button label updates but the 3D
   view visibly doesn't, versus the change never happening at all,
   which would point toward a slow-repaint/display-list-recompilation
   cost for render mode specifically rather than a wiring bug).
@@ -3007,7 +3007,7 @@ conclusively found despite extensive isolated testing.
   Full `QApplication` instantiation clean, `ast.parse` clean.
 
 - **Aug 1, 2026 (cont'd)** — Followed up on render mode/LOD mode not
-  updating the viewport, per Keith's answer to a diagnostic question:
+  updating the viewport  answer to a diagnostic question:
   "Button/menu label changes but 3D view looks identical." That
   confirms the menu wiring genuinely fires (the label update proves
   it), narrowing the problem to somewhere between the mode being set
@@ -3031,7 +3031,7 @@ conclusively found despite extensive isolated testing.
   immediately) right after the mode change, instead of relying solely
   on `update()` (which only schedules a repaint for the next event
   loop iteration). Can't confirm this is the actual cause without
-  visual access to Keith's running app, but it's the most plausible
+  visual access to my running app, but it's the most plausible
   remaining explanation once the rendering logic itself is ruled out,
   and it's a safe, low-risk change regardless of whether it's the
   real fix.
@@ -3040,9 +3040,9 @@ conclusively found despite extensive isolated testing.
   mode change. Full `QApplication` instantiation clean, `ast.parse`
   clean.
 
-- **Aug 1, 2026 (cont'd)** — Three things from Keith's latest report:
+- **Aug 1, 2026 (cont'd)** — Three things from my latest report:
 
-  **Status never returning to "Ready"** - per Keith: "Once map
+  **Status never returning to "Ready"** -  "Once map
   workshop has loaded all the models, it should say ready, othereise
   loading models still shows throughout the session." Nothing
   previously reset the status bar after the last "Loading model:
@@ -3050,7 +3050,7 @@ conclusively found despite extensive isolated testing.
   added a final "Ready" status once that method genuinely completes.
 
   **The real crash** (`glTexImage2D` failing, `RuntimeError` in
-  Keith's traceback via the LOD Test mouse-move callback) - found a
+  my traceback via the LOD Test mouse-move callback) - found a
   genuine, severe GPU memory leak in `_upload_textures`: it
   unconditionally created a brand new GL texture object on *every*
   call, even for a texture name already uploaded, silently orphaning
@@ -3061,20 +3061,20 @@ conclusively found despite extensive isolated testing.
   mouse move while that's active, re-uploading the same already-
   loaded textures repeatedly and leaking a fresh copy of each one's
   VRAM every time, until the driver eventually failed to allocate
-  more - exactly Keith's crash. Fixed by skipping re-upload entirely
+  more - exactly my crash. Fixed by skipping re-upload entirely
   for a name already in `self._tex_ids` (a texture's pixel data for a
   given name doesn't change between calls, so there's nothing to gain
   from re-uploading it). Verified directly: 50 repeated upload calls
   for the same texture (simulating LOD Test's mouse-move-triggered
   reruns) now correctly produce exactly 1 GL texture, not 51.
 
-  **Texture downscale option** - per Keith: "im thinking about a
+  **Texture downscale option** -  "im thinking about a
   texture reduction option, keep 64. 128, 256 untouched but render
   down to 256x256 anything over 512x512." Added "Reduce Large
   Textures (256x256)" to the Advanced menu (off by default), with
-  configurable threshold/target settings (defaults matching Keith's
+  configurable threshold/target settings (defaults matching my
   own numbers). Implemented `DFFViewport._downscale_rgba` - numpy
-  block-averaging for the clean-multiple case (every size Keith
+  block-averaging for the clean-multiple case (every size  
   actually mentioned divides evenly: 512/256=2, 1024/256=4,
   2048/256=8), giving meaningfully better quality than nearest-
   neighbor since each output pixel blends its whole source block
@@ -3086,13 +3086,13 @@ conclusively found despite extensive isolated testing.
   Verified extensively: the block-average math directly checked
   against a hand-built 4-color test image (each output pixel
   correctly matches its source block's color exactly); the full
-  threshold logic checked against Keith's exact six-size spec
+  threshold logic checked against my exact six-size spec
   (64/128/256/512 sent through untouched, 1024/2048 both correctly
   reduced to 256x256). Full `QApplication` instantiation clean,
   `ast.parse` clean on both files.
 
 - **Aug 1, 2026 (cont'd)** — Added keyboard rotation shortcuts, per
-  Keith: "im thinking about adding keyboard shortcuts, arrow keys,
+   : "im thinking about adding keyboard shortcuts, arrow keys,
   and numpad to rotate." Arrow keys and numpad both rotate the
   camera (numpad detected via `KeypadModifier` specifically, so it
   doesn't collide with top-row number keys used for anything else -
@@ -3111,7 +3111,7 @@ conclusively found despite extensive isolated testing.
   triangle test), and pan/rotate share an `elif` chain with `_view_
   locked` checked only on the rotate branch. Neither directly
   explains the specific "middle sometimes, right always" asymmetry
-  Keith described, and couldn't rule out an OS/window-manager-level
+    described, and couldn't rule out an OS/window-manager-level
   cause (e.g. middle-click-paste, a common X11 convention) without
   being able to reproduce interactively. Logged to TODO.md with what
   was and wasn't found, plus a diagnostic suggestion (checking
@@ -3133,9 +3133,9 @@ conclusively found despite extensive isolated testing.
   plain "6" is not treated as a rotate key, a numpad "6" is). Full
   `ast.parse` clean.
 
-- **Aug 1, 2026 (cont'd)** — Two fixes from Keith's latest request:
+- **Aug 1, 2026 (cont'd)** — Two fixes from my latest request:
 
-  **Settings dialog reorganization** - per Keith: "these settings, can
+  **Settings dialog reorganization** -  "these settings, can
   be added to map_workshop's settings on the title bar (topbar) as a
   new tab in the settings dialog, this would tidy up the IPL
   controls." Added a new "Loading" tab to the existing `MapSettings
@@ -3162,7 +3162,7 @@ conclusively found despite extensive isolated testing.
   reconstructing 15 unrelated paint-tool widgets - every genuinely-
   used setting across every tab now saves correctly.
 
-  **LOD Test made bidirectional** - per Keith: "LOD test option
+  **LOD Test made bidirectional** -  "LOD test option
   should work 2 ways, if normal models are loaded, those in the
   circle get switch to LOD, where if Show LOD is set, then in the
   circle show normal models." The circle previously always meant
@@ -3190,7 +3190,7 @@ conclusively found despite extensive isolated testing.
   standalone-instance edge case confirmed staying visible everywhere.
   Full `QApplication` instantiation clean, `ast.parse` clean.
 
-- **Aug 1, 2026 (cont'd)** — Per Keith: "generic.txd loading can be
+- **Aug 1, 2026 (cont'd)** — Per  : "generic.txd loading can be
   added to settings also under map assits tab." Added a new "Map
   Assets" tab to the Settings dialog with a "Load Generic.txd
   Manually" button (a one-time action rather than a persistent
@@ -3208,7 +3208,7 @@ conclusively found despite extensive isolated testing.
   clean.
 
 - **Aug 1, 2026 (cont'd)** — Fixed a real mistake from earlier this
-  session: per Keith, "class MapSettingsDialog(QDialog): is where the
+  session: .per, "class MapSettingsDialog(QDialog): is where the
   new settings should be, I don't see Map Assits tab with the Advance
   settings moved too?" Investigated and found `MapSettingsDialog` is
   never actually instantiated anywhere in the file - there are
@@ -3243,7 +3243,7 @@ conclusively found despite extensive isolated testing.
   instantiation clean, `ast.parse` clean.
 
 - **Aug 1, 2026 (cont'd)** — Implemented `path` section parsing for
-  GTA3/VC, per Keith: "we need to address... path for GTAIII and
+  GTA3/VC,  "we need to address... path for GTAIII and
   extended for VC. the path coords arent the same scale as the IPL
   data, this needs to be worked up." `path` was completely absent
   from `IPL_SECTIONS` before this - not recognized as a section at
@@ -3273,7 +3273,7 @@ conclusively found despite extensive isolated testing.
   reachable going forward rather than only living inside a single
   `IPLParser` instance.
 
-  Verified extensively against Keith's real uploaded `paths.ipl`
+  Verified extensively against my real uploaded `paths.ipl`
   (1957 path groups, 23,484 total nodes): parse completes with zero
   errors/warnings; the first node's converted coordinates match the
   expected /16 calculation exactly `(-866.63125, -652.45,
@@ -3286,7 +3286,7 @@ conclusively found despite extensive isolated testing.
   `GTAWorldLoader._load_ipl` as well, not just the standalone parser.
 
   Not yet done - see TODO.md: showing path data anywhere in the UI,
-  editing, write-back, and the rest of Keith's broader request (pick
+  editing, write-back, and the rest of my broader request (pick
   support, cull zones as editable boxes, IDE tobj/path/2dfx editor
   for Model Workshop) are all separate, unstarted pieces.
 
@@ -3303,7 +3303,7 @@ conclusively found despite extensive isolated testing.
   widget`, and both correctly persist and show as checked when the
   dialog is re-opened. Confirmed working correctly.
 
-  Added a dedicated LOD Test circle radius setting, per Keith: "we
+  Added a dedicated LOD Test circle radius setting,  "we
   also need a settings for the LOD test circle, its set as 300, would
   be nice to have a settings in Map-Assists to adject the circle
   size." The circle's radius was previously tied directly to `lod_
@@ -3311,7 +3311,7 @@ conclusively found despite extensive isolated testing.
   meant adjusting both together. Added `lod_test_circle_radius` as
   its own separate setting (same 300.0 default, so no behavior change
   until actually adjusted) and a spinbox in Settings > Map Assets, per
-  Keith's exact requested placement, with a live update to any
+  my exact requested placement, with a live update to any
   already-active LOD Test session too, not just future ones.
 
   Verified: default value matches prior behavior exactly (300);
@@ -3320,7 +3320,7 @@ conclusively found despite extensive isolated testing.
   Full `QApplication` instantiation clean, `ast.parse` clean.
 
 - **Aug 1, 2026 (cont'd)** — Moved the LOD Test toggle from an IPL
-  Controls checkbox to a ribbon icon, per Keith: "the LOD test
+  Controls checkbox to a ribbon icon,  "the LOD test
   function could be an SVG icon on the ribbon, 2 overlapping Circles,
   one hollow, other solid. with the tooltip. this way it does have to
   use up space on the ipl control, but keep row3 for future
@@ -3328,7 +3328,7 @@ conclusively found despite extensive isolated testing.
 
   Added `SVGIconFactory.lod_test_icon` - two overlapping circles, one
   hollow (normal-detail models) and one solid (LOD models), matching
-  Keith's exact spec and suggesting the live switching the tool
+  my exact spec and suggesting the live switching the tool
   actually performs. Added as a checkable action in the Render ribbon
   group (alongside the other render/viewport-mode toggles it
   conceptually belongs with - Toggle Mesh, Toggle Backface, Cycle
@@ -3338,7 +3338,7 @@ conclusively found despite extensive isolated testing.
 
   Removed the old checkbox from IPL Controls row 3 - left the row's
   layout intact and empty rather than removing it, reserved for the
-  visibility toggles Keith mentioned (TOBJ/paths/zones), logged to
+  visibility toggles   mentioned (TOBJ/paths/zones), logged to
   TODO.md.
 
   Verified: new icon renders without error; ribbon action correctly
@@ -3349,7 +3349,7 @@ conclusively found despite extensive isolated testing.
   checkbox anywhere. Full `QApplication` instantiation clean, `ast.
   parse` clean on both files.
 
-- **Aug 1, 2026 (cont'd)** — Fixed the crash Keith hit immediately
+- **Aug 1, 2026 (cont'd)** — Fixed the crash   hit immediately
   after toggling Shading: "TypeError: ModelWorkshop._toggle_viewport_
   shading() missing 1 required positional argument: 'enabled'." The
   ribbon action's callback lambda discarded the checkbox state
@@ -3370,7 +3370,7 @@ conclusively found despite extensive isolated testing.
   `.setChecked()`/`.setIcon()`/`.blockSignals()` interface these sites
   already expected, so no other logic needed to change.
 
-  Per Keith's context for keeping this feature - "this can be used to
+  Per my context for keeping this feature - "this can be used to
   generate pre-lighting, that can be saved back to the models" -
   logged the pre-lighting bake/write-back idea to TODO.md as a real,
   substantial future direction, not attempted this turn.
@@ -3383,7 +3383,7 @@ conclusively found despite extensive isolated testing.
   parse` clean.
 
 - **Aug 1, 2026 (cont'd)** — Disabled the 4-Pane View toggle, per
-  Keith: "4 panels icon, keep, but the function isnt needed, it
+   : "4 panels icon, keep, but the function isnt needed, it
   creates a strange beheavour." Icon stays visible in the Navigation
   ribbon group exactly as requested; the action itself is now
   disabled (greyed out, unclickable) with a tooltip explaining why.
@@ -3411,7 +3411,7 @@ conclusively found despite extensive isolated testing.
 
 - **Aug 1, 2026 (cont'd)** — Converted IPL Controls' INST/CULL/ZON/
   PATH buttons into a real tab bar, and added `grge`/`enex` parsing,
-  per Keith: "in IPL Controls we have the labels, made into tabs...
+   "in IPL Controls we have the labels, made into tabs...
   but when loading SA maps, there would be more tabs" plus real
   example `grge`/`enex` data.
 
@@ -3420,7 +3420,7 @@ conclusively found despite extensive isolated testing.
   angle, size X/Y/Z, exit X/Y/Z/angle, target interior, flags, name,
   sky, num peds, time on/off) dataclasses, cross-verified against
   established GTA modding documentation (SannyBuilder forums for
-  GRGE, Grand Theft Wiki for ENEX) - both matched Keith's own real
+  GRGE, Grand Theft Wiki for ENEX) - both matched my own real
   example data field-for-field (his `grge` line's garage type 16 =
   "Save garage," entirely consistent with its name "cjsafe"; all 10
   of his real `enex` lines parsed with zero errors). Wired into
@@ -3431,7 +3431,7 @@ conclusively found despite extensive isolated testing.
   IPL sections: INST/CULL/ZON/PATH/GRGE/ENEX now enabled (PATH newly
   enabled too, since last session's work made it real, no longer a
   stub); PICK/JUMP/TCYC/AUZO/MULT added as disabled stub tabs with
-  explanatory tooltips (AUZO's notes Keith's audio-icon idea
+  explanatory tooltips (AUZO's notes my audio-icon idea
   specifically) rather than not existing at all - scales to many more
   sections without the row running out of horizontal space.
 
@@ -3440,14 +3440,14 @@ conclusively found despite extensive isolated testing.
   own 11 columns, ENEX its own 18, with headers matching each
   section's real field names.
 
-  Logged two things needing Keith's input/further work to TODO.md:
+  Logged two things needing my input/further work to TODO.md:
   what exactly "tobj/path added to ipl objects" means for the IDE
   side (a few plausible interpretations, didn't want to guess wrong),
   and that PICK/JUMP/TCYC/AUZO/MULT still need real parsing once
   sample data exists to verify against.
 
   Verified extensively: `_parse_grge`/`_parse_enex` tested directly
-  against Keith's exact real lines; a full test file with all 10 of
+  against my exact real lines; a full test file with all 10 of
   his real `enex` lines plus the `grge` line parses with zero errors/
   warnings; confirmed accumulating correctly through `GTAWorldLoader`;
   tab bar confirmed showing all 11 tabs with correct enabled/disabled
@@ -3458,13 +3458,13 @@ conclusively found despite extensive isolated testing.
   parse` clean on both files.
 
 - **Aug 1, 2026 (cont'd)** — Properly fixed the `bg_color` error
-  Keith kept seeing when saving settings: "[Settings] Some pre-
+    kept seeing when saving settings: "[Settings] Some pre-
   existing settings could not be applied: 'DFFViewport' object has no
   attribute 'bg_color'... trying to save, full loading debug or
   texture size reducing, gives that error." This had been left as a
   swallowed warning by the earlier defensive try/except - functional
   underneath, but visibly alarming every single time, exactly what
-  Keith reported.
+    reported.
 
   Traced the actual root cause: `self.preview_widget.bg_color` never
   existed anywhere - that plain `bg_color` attribute (no underscore)
@@ -3478,11 +3478,11 @@ conclusively found despite extensive isolated testing.
   port` has no real checkerboard rendering at all, per its own
   docstring). Found and fixed a second, separate instance of the
   identical bug in `_pick_background_color` (a "Pick Background
-  Color" action, untriggered by Keith's report but would have crashed
+  Color" action, untriggered by my report but would have crashed
   identically if ever used) - now uses `DFFViewport`'s own `_get_bg_
   color()` to supply a real `QColor`.
 
-  Verified: reproduced Keith's exact scenario (Apply Settings with
+  Verified: reproduced my exact scenario (Apply Settings with
   both "Show Full Loading" and texture downscale changed) with stdout
   captured - confirmed zero `bg_color` output where the warning used
   to appear every time, both settings still save correctly; separately
@@ -3490,7 +3490,7 @@ conclusively found despite extensive isolated testing.
   `QApplication` instantiation clean, `ast.parse` clean.
 
 - **Aug 1, 2026 (cont'd)** — Added a hidden toolbar section to the
-  Ribbon Manager, per Keith: "in ribbon manager i'd like a hidden
+  Ribbon Manager,  "in ribbon manager i'd like a hidden
   section where anything placed there cant be seen." A special
   "Hidden" toolbar is created automatically the first time the Ribbon
   Manager opens, behaves like any other toolbar there (appears in the
@@ -3512,7 +3512,7 @@ conclusively found despite extensive isolated testing.
   clean.
 
 - **Aug 1, 2026 (cont'd)** — Added "Show Tobj" and moved Nav to
-  Settings, per Keith's follow-up: "have an option to toggle showing
+  Settings  follow-up: "have an option to toggle showing
   tobj [Show Tobj], in row 3, timed objects will be shown, depending
   on there time values. tojb can be shown along side the inst,
   towards the botton, keeping the placement order of the ipl. if we
@@ -3547,7 +3547,7 @@ conclusively found despite extensive isolated testing.
   parse` clean.
 
 - **Aug 14, 2026** — Added collision render options to IPL Controls,
-  per Keith: "add to collisions to the IPL control pane, under render
+   "add to collisions to the IPL control pane, under render
   options, load solid collision, load semi-solid, wireframe cols, and
   solid with surface mapping" -> "Ghost is a good idea; Show Ghosted
   Col, Show Surface Mapped Col, Show Semi-Solid Col, Show Wireframe
@@ -3585,12 +3585,12 @@ conclusively found despite extensive isolated testing.
 
   `ast.parse` clean on all three changed files (`model_cache.py`,
   `dff_viewport.py`, `map_workshop.py`). Not yet tested against
-  Keith's real data - depends on his game folder actually having
+  my real data - depends on his game folder actually having
   standalone `.col` files under the game root for anything to show.
 
 - **Aug 14, 2026 (cont'd)** — Moved the four collision render options
   out of their own IPL Controls row and into the Render: dropdown
-  itself, per Keith: "the 4 col options should be in the Render:
+  itself,  "the 4 col options should be in the Render:
   dropdown, with LOD and Normal models, Normal models, list first,
   then LOD, and COL under". Menu order is now: render style (Texture/
   Non-texture/Semi-Solid/Wireframe), separator, LOD filter (Show LOD
@@ -3604,16 +3604,16 @@ conclusively found despite extensive isolated testing.
   feature existed. `ast.parse` clean.
 
 - **Aug 14, 2026 (cont'd)** — Fixed collision indexing only ever
-  finding 1 file, per Keith: "in SA it should be reading them from
+  finding 1 file,  "in SA it should be reading them from
   the gta3.img... In VC, they can also be found in the gta3.img file,
   just like the models, or linked in gta_vc.dat paths to cols with
   the map files, in gta3, there in the map files only paths to map/".
   The previous approach (blind-glob every *.col under the game root)
   was wrong for all three games - it happened to find whatever loose
-  .col Keith's SA folder had lying around, but missed the real source
+  .col my SA folder had lying around, but missed the real source
   entirely.
 
-  Real per-game picture, now handled correctly:
+   per-game picture, now handled correctly:
   - SA: ALL collision lives inside gta3.img (no COLFILE directives in
     gta.dat at all) - `ModelCache.index_img_files` now also indexes
     .col entries the same lightweight way as .dff/.txd (one model per
@@ -3647,9 +3647,9 @@ conclusively found despite extensive isolated testing.
   `ModelCache()`/`GTAWorldLoader()` instantiation and the new
   `get_col_paths`/`get_collision`/`is_col_indexed` methods directly
   (no crash, correct empty-state output) - not yet tested against
-  Keith's real data.
+  my real data.
 
-- **Aug 14, 2026 (cont'd)** — Fixed a real crash Keith hit
+- **Aug 14, 2026 (cont'd)** — Fixed a real crash   hit
   immediately on launch: `TypeError: 'bool' object is not callable`
   in `_on_col_render_option_toggled`. `col_specs` was passing the
   FLAG name ("show_col_ghosted") instead of the SETTER name
@@ -3669,7 +3669,7 @@ conclusively found despite extensive isolated testing.
 
 - **Aug 14, 2026 (cont'd)** — Matched IPL Controls' section QTabBar
   (INST/CULL/ZON/PATH/GRGE/etc) to Object Browser's IMG/DAT/IDE/IPL
-  tab-button sizing, per Keith: "the tabs in the iPL control panel
+  tab-button sizing,  "the tabs in the iPL control panel
   need to be the same size as the ones in the object browser". Added
   an explicit `QTabBar::tab` stylesheet (18px height matching
   `OBJECT_BROWSER_BUTTON_H`, same compact 0px-vertical/bold styling
@@ -3677,7 +3677,7 @@ conclusively found despite extensive isolated testing.
   to the app's default (much taller) QTabBar look. `ast.parse` clean.
 
 - **Aug 14, 2026 (cont'd)** — Narrowed IPL Controls' section tabs
-  further, per Keith: "the INST, CULL tabs, can be narrower, just
+  further,  "the INST, CULL tabs, can be narrower, just
   enough to fit the text" - added `min-width: 0px` to the QTabBar::tab
   stylesheet added earlier this session. Padding alone wasn't enough:
   Qt's built-in style still enforces its own minimum tab width
@@ -3685,7 +3685,7 @@ conclusively found despite extensive isolated testing.
   overridden, which is why short labels (INST/CULL/ZON) were still
   sitting in extra whitespace despite the earlier fix.
 
-  Added double-click-to-open on the IPL Sections table, per Keith:
+  Added double-click-to-open on the IPL Sections table, .per:
   "you can select IPL files, maybe just double-click them to open
   them on the filename... right click unload ipl, or just hide the
   file from view - whatever is the most logical way of doing this."
@@ -3698,7 +3698,7 @@ conclusively found despite extensive isolated testing.
   functional on inspection) are unchanged - this adds a second,
   more standard way in, it doesn't replace what was there.
 
-  Logged Keith's "Ghosted view could be useful for LOD and Normal"
+  Logged my "Ghosted view could be useful for LOD and Normal"
   aside to TODO.md rather than implementing speculatively - not
   scoped enough yet (needs confirmation on which of Normal/LOD should
   be the ghosted one) to build without guessing.
@@ -3706,15 +3706,15 @@ conclusively found despite extensive isolated testing.
   `ast.parse` clean on all three changes.
 
 - **Aug 14, 2026 (cont'd)** — Built a shared, standalone binary
-  parser for SA's real path data, per Keith: "build the paths parser
+  parser for SA's real path data,  "build the paths parser
   as a shared method set, that can be used by other tools, besides
   map workshop". New module `apps/methods/sa_path_parser.py` - no
   Map Workshop/PyQt/GUI dependencies at all, just struct/dataclasses,
   so anything in this codebase can import and use it directly.
 
-  Real finding first: SA does NOT use the IPL text `path` section for
+   finding first: SA does NOT use the IPL text `path` section for
   actual path data at all - that format (gta_dat_parser.py's
-  PathNode/PathGroup, verified against Keith's own III/VC data) only
+  PathNode/PathGroup, verified against my own III/VC data) only
   applies to GTA III/VC. SA's own text-format path files still exist
   on disk but are unused leftovers (per GTAMods Wiki); the game reads
   64 separate binary `nodesN.dat` files instead (one per 750x750-unit
@@ -3762,14 +3762,14 @@ conclusively found despite extensive isolated testing.
   (file/dir/IMG) against real temp files and a fake IMG object.
   `ast.parse` clean.
 
-  Not yet verified against Keith's own real nodesXX.dat sample
+  Not yet verified against my own real nodesXX.dat sample
   data (built straight from the documented spec) - and not yet
   integrated into Map Workshop's PATH tab/viewport at all, that's
   the next step once this shared parser itself is confirmed correct.
 
 - **Aug 14, 2026 (cont'd)** — Fixed the empty "IPL Inst File" panel
   when a PATH-only file (e.g. VC's real dedicated paths.ipl) was
-  selected, per Keith: "When I click paths.ipl or any other paths
+  selected,  "When I click paths.ipl or any other paths
   file, no listing is shown". Root cause: `headers_by_type` had no
   'path' entry at all - silently fell back to inst's 13-column ID/
   Model/Int/Pos.../Rot... layout, which doesn't match a path
@@ -3790,13 +3790,13 @@ conclusively found despite extensive isolated testing.
 
   Renamed "IPL Inst File" to "IPL File Display" throughout the user-
   visible UI (dock title, collapsible-dock label, the dynamic title
-  that switches to "IDE Objects"), per Keith: "Maybe we should rename
+  that switches to "IDE Objects"),  "Maybe we should rename
   'IPL inst file' to just 'IPL File Display' or something better...
   This makes more sense if we're using this to display any type of
   IPL file". `objectName` deliberately left as the old string so
   saved dock-layout state isn't silently dropped.
 
-  Added path visualization to the 3D world view, per Keith: "when
+  Added path visualization to the 3D world view,  "when
   displaying the paths in the viewpoint, I was expecting red lines
   and nodes. And a way to change the colour of the path lines in
   settings." New "Show Paths" checkbox in IPL Controls row 3 (the row
@@ -3835,13 +3835,13 @@ conclusively found despite extensive isolated testing.
   gating behavior smoke-tested in isolation.
 
 - **Aug 15, 2026** — Fixed the real remaining gap in the PATH-file
-  display fix from yesterday, per Keith's actual uploaded paths.ipl/
+  display fix from yesterday  actual uploaded paths.ipl/
   paths2.ipl/paths3.ipl/paths4.ipl/paths5.ipl: "clicking on any of
   the path files, the IPL file display should also include path
   data." Yesterday's fix only handled a section being entirely
   *absent* from a file; these real files all have `inst`/`cull`
   sections that are genuinely *present but empty* (literally just
-  "inst\nend" with nothing between them, per Keith's own uploads) -
+  "inst\nend" with nothing between them  own uploads) -
   a different case that still fell straight through to zero rows
   with no explanation, since the section was technically "found".
 
@@ -3854,11 +3854,11 @@ conclusively found despite extensive isolated testing.
   clicked file, automatically switches to the first enabled tab that
   does - never overrides a tab that's already showing something
   real, and no-ops for binary IPLs (no raw text to scan). Verified
-  against all 5 of Keith's real uploaded files: every one correctly
+  against all 5 of my real uploaded files: every one correctly
   auto-switches from INST to PATH.
 
   Also caught and fixed a real display-completeness gap while
-  verifying against the real data: node lines in Keith's real files
+  verifying against the real data: node lines in my real files
   genuinely have 13 comma-separated fields, not the 12 the documented
   Project Cerbera spec lists - `_parse_path_node` (verified, already
   shipped) already tolerates this correctly by only reading the first
@@ -3877,7 +3877,7 @@ conclusively found despite extensive isolated testing.
 - **Aug 15, 2026 (cont'd)** — Made Map Workshop's own settings
   (Fonts/Display/Performance/Preview/Loading/Map Assets/Navigation)
   available through IMG Factory's own Settings dialog when docked,
-  per Keith: "the map workshop settings dialogue when standalone,
+   "the map workshop settings dialogue when standalone,
   which isn't available when it's docked with img factory, so we
   need a way to push those settings into img factory's settings, as
   extra tabs."
@@ -3933,7 +3933,7 @@ conclusively found despite extensive isolated testing.
   Qt/OpenGL environment available here).
 
 - **Aug 15, 2026 (cont'd)** — Added a docked-only cog icon to IPL
-  Controls row 3 (right side, after Show Paths), per Keith: "We could
+  Controls row 3 (right side, after Show Paths),  "We could
   just add a cog SVG icon when docked. On the right of row 3. ipl
   control panel, but not to be shown in standalone." Opens IMG
   Factory's own Settings dialog (which now includes Map Workshop's
@@ -3943,7 +3943,7 @@ conclusively found despite extensive isolated testing.
   too so toggling dock/undock at runtime updates it correctly, not
   just at creation time.
 
-  Real separate bug found and fixed while tracing which method to
+   separate bug found and fixed while tracing which method to
   wire the cog to: `show_gui_settings` was defined twice in
   imgfactory.py - the real one (builds the full tabbed SettingsDialog
   with live theme switching) and, later in the same class body, an
@@ -3965,7 +3965,7 @@ conclusively found despite extensive isolated testing.
   newly-added method are each defined exactly once.
 
 - **Aug 15, 2026 (cont'd)** — Fixed the docked-only cog icon opening
-  the wrong dialog, per Keith: "Right cog brings up theme settings
+  the wrong dialog,  "Right cog brings up theme settings
   from app_system_settings, that's wrong, it should be map_workshops
   settings from the left [settings] on the titlebar." It was wired to
   main_window.show_settings() (IMG Factory's global Settings dialog),
@@ -3978,7 +3978,7 @@ conclusively found despite extensive isolated testing.
   is just a direct shortcut to Map Workshop's own dialog instead,
   not a route through the bigger global one.
 
-  Also fixed a small cosmetic bug visible in Keith's screenshot: the
+  Also fixed a small cosmetic bug visible in my screenshot: the
   dialog's title read "Map WorkshopSettings" (no space) -
   App_name + "Settings" concatenated with nothing between them; now
   App_name + " Settings".
@@ -3987,7 +3987,7 @@ conclusively found despite extensive isolated testing.
 
 - **Aug 16, 2026** — Fixed a real, non-deterministic bug: "any models
   in some places disappeared, this sometimes happens, as you load a
-  new part in, the preveus is effected" (Keith). Root cause: a
+  new part in, the preveus is effected" ( ). Root cause: a
   reentrancy hazard in `_refresh_world_view`. It calls `QApplication.
   processEvents()` inside its own per-instance conversion loop (to
   keep "Loading model: X..." status feedback responsive during a
@@ -4028,7 +4028,7 @@ conclusively found despite extensive isolated testing.
   correctly resets afterward. `ast.parse` clean.
 
 - **Aug 16, 2026 (cont'd)** — Two real, concrete perf fixes, per
-  Keith comparing Map Workshop against MooMapper (an old GTA mapping
+    comparing Map Workshop against MooMapper (an old GTA mapping
   tool he found again): "the speed of this program is impressive; it
   handles data way faster than map_workshop."
 
@@ -4057,7 +4057,7 @@ conclusively found despite extensive isolated testing.
      a fresh chance on the next rebuild rather than being stuck
      unresolved forever). Also reset in `_apply_loaded_world`.
 
-  Also softened the path-line rendering per Keith's MooMapper
+  Also softened the path-line rendering per my MooMapper
   comparison ("notice how it blends in with the map"): thinner lines
   (2.0px -> 1.2px), smaller node markers (6px -> 3.5px), and alpha
   blending (0.75) so paths read as part of the scene rather than a
@@ -4074,7 +4074,7 @@ conclusively found despite extensive isolated testing.
   cache) - all correct. `ast.parse` clean on both files.
 
 - **Aug 16, 2026 (cont'd)** — Fixed the real path-rendering topology
-  bug behind Keith's screenshot: "testing paths, they don't look
+  bug behind my screenshot: "testing paths, they don't look
   linked, nod to each other nod, instead one point" - long spurious
   lines fanning out from roughly one area, not a road-like network.
 
@@ -4130,7 +4130,7 @@ conclusively found despite extensive isolated testing.
   `set_path_groups` names.
 
 - **Aug 16, 2026 (cont'd)** — Fixed settings not surviving to the
-  next session, per Keith's screenshot of the Loading tab: "the
+  next session  screenshot of the Loading tab: "the
   settings function for showing debug and TXD size. saves those
   options, so the next session remembers them." Found the real,
   systemic cause auditing every `MapSettings.set()` call site (~18 of
@@ -4152,7 +4152,7 @@ conclusively found despite extensive isolated testing.
   public API every existing call site already uses (now redundant
   but harmless - forces an immediate write, bypassing the debounce).
 
-  Also added the new option Keith asked for alongside this: Settings
+  Also added the new option   asked for alongside this: Settings
   > Loading > "Preload IMG archives on DAT load" (off by default) -
   `_preload_img_archives_to_os_cache`, triggered right after IMG
   indexing in `_apply_loaded_world` when loading a game's main .dat
@@ -4160,7 +4160,7 @@ conclusively found despite extensive isolated testing.
   referenced IMG archive once in 8MB chunks, discarding the bytes -
   the only purpose is letting the OS cache the file in RAM ahead of
   time, so later per-model reads during actual IPL loading hit cache
-  instead of disk. Doubles as the status-bar feedback Keith separately
+  instead of disk. Doubles as the status-bar feedback   separately
   asked for ("any feedback besides a long pause helps") - explicit
   per-archive messages ("Preloading gta3.img (128.4 MB)... 45%")
   rather than a silent gap. Never fatal - an unreadable/missing
@@ -4177,14 +4177,14 @@ conclusively found despite extensive isolated testing.
   graceful OSError handling for a missing file). `ast.parse` clean;
   confirmed via AST no duplicate class/method definitions introduced.
   PyQt6 unavailable in this sandbox, so nothing here has run inside a
-  real Qt event loop - worth confirming on Keith's end that the
+  real Qt event loop - worth confirming on my end that the
   debounced save timer and the preload's processEvents() calls behave
   as expected in the actual running app.
 
-- **Aug 16, 2026 (cont'd)** — Added the second option Keith asked
+- **Aug 16, 2026 (cont'd)** — Added the second option   asked
   for: DAT Browser's right-click menu on a main .dat file now has
   "Load with Map Workshop, preload IMG(s) file…" alongside the
-  existing "Load with Map Workshop…" - per Keith: "in Dat Browser,
+  existing "Load with Map Workshop…" -  "in Dat Browser,
   right click dat file, open in map workshop, add another option to
   open in map workshop, preload img(s) file". Forces the IMG-preload-
   to-OS-cache behaviour (added earlier this session) for just that
@@ -4203,7 +4203,7 @@ conclusively found despite extensive isolated testing.
   check, so it only ever applies to the one load that requested it
   and never silently leaks into a later, unrelated load.
 
-  Also logged a new TODO per Keith: "Every UI change, splitter
+  Also logged a new TODO  "Every UI change, splitter
   position, and cell size should be remembered" - a broader, systemic
   ask beyond this session's settings-persistence and column-width
   fixes (splitter positions, dock geometry, tab order, collapsed-
@@ -4218,13 +4218,13 @@ conclusively found despite extensive isolated testing.
   NOT inherit the forced behaviour).
 
 - **Aug 16, 2026 (cont'd)** — Reworked keyboard camera controls per
-  Keith: "the arrow keys dont pan or move the view left, right, up or
+   : "the arrow keys dont pan or move the view left, right, up or
   down; the arrow keys rotate instead. We need to be able to operate
   the tools with keys, zoom in and out; it could be the numpad + -.
   A new tab is needed in map workshop settings to define keys."
 
   Arrow keys now pan (previously rotated - an Aug 1 2026 addition per
-  Keith's own earlier request, now corrected); numpad 4/6/8/2 keep
+  my own earlier request, now corrected); numpad 4/6/8/2 keep
   rotating (unchanged); numpad +/- zoom (new). All camera-key
   handling in `DFFViewport` rewritten from a hardcoded rotate-only
   dict to a configurable, action-based system:
@@ -4284,11 +4284,11 @@ conclusively found despite extensive isolated testing.
   `_rotate_key_timer`/`_on_rotate_key_tick`/`_ensure_rotate_key_timer`
   names this replaced. PyQt6 unavailable in this sandbox, so none of
   the actual widget/event-loop behaviour has run for real - worth
-  confirming on Keith's end that key capture, the timer-driven
+  confirming on my end that key capture, the timer-driven
   continuous pan/zoom, and settings persistence all feel right in
   the real app.
 
-- **Aug 16, 2026 (cont'd)** — Added the Path Group Editor, per Keith:
+- **Aug 16, 2026 (cont'd)** — Added the Path Group Editor, .per:
   "we need to add edit functions for connecting, moving, adding, or
   deleting nodes, a dialog like the object editor." New "Edit Path
   Group..." right-click action in the IPL File Display table, shown
@@ -4339,11 +4339,11 @@ conclusively found despite extensive isolated testing.
   clean; confirmed via AST no duplicate class/method definitions.
   PyQt6 unavailable in this sandbox, so none of the actual dialog/
   table-widget behaviour has run for real - worth confirming on
-  Keith's end that the cell-widget table renders and edits correctly
+  my end that the cell-widget table renders and edits correctly
   in the live app.
 
 - **Aug 16, 2026 (cont'd)** — Added GTA III's own IDE-embedded path
-  parsing, per Keith: "gta3 game files need special treatment; the
+  parsing,  "gta3 game files need special treatment; the
   IPL path data is stored within the .ide map files" (real sample:
   comse.ide/comSE.ipl). Confirmed via Project Cerbera's own "PATH
   (IDE Section)" documentation and cross-checked field-for-field
@@ -4352,7 +4352,7 @@ conclusively found despite extensive isolated testing.
   `IDEParser._parse_line` had no branch for it at all, so every path
   line in every GTA III .ide file silently produced nothing.
 
-  Real format, genuinely different from VC/SA's own path node shape
+   format, genuinely different from VC/SA's own path node shape
   (not just a shorter version of it): a group header line is
   `GroupType, Id, ModelName` ("ped, 1440, scraperkb3_nit" or "car,
   ...", both confirmed present in the real file) - paths are bound to
@@ -4399,9 +4399,9 @@ conclusively found despite extensive isolated testing.
   flight3.dat/spath0.dat files.
 
 - **Aug 16, 2026 (cont'd)** — Wired up standalone .zon file viewing,
-  per Keith: "just need to wire the zon files, so I can click and
+   "just need to wire the zon files, so I can click and
   view them." Zone parsing itself was already correct (`_parse_zone`
-  verified against all 3 of Keith's real .zon files earlier this
+  verified against all 3 of my real .zon files earlier this
   session), and `IPLParser.parse()` is fully format-agnostic - it
   just reads whatever section keywords it finds regardless of a
   file's own extension - so nothing needed fixing there. The actual
@@ -4411,7 +4411,7 @@ conclusively found despite extensive isolated testing.
   pipeline to find.
 
   New "Open Zone..." button in the IPL tab's title row (alongside
-  Open/Close/New/Delete) - `_on_ipl_tab_open_zone_clicked` lets Keith
+  Open/Close/New/Delete) - `_on_ipl_tab_open_zone_clicked` lets  
   pick one or more .zon files via a file dialog and registers each as
   a real `DATEntry` in `loader.available_ipls` (the exact same shape
   every normal IPL entry already has), plus the matching `_ipl_
@@ -4429,7 +4429,7 @@ conclusively found despite extensive isolated testing.
   layout. Added the correct columns (Name/Type/Min X-Z/Max X-Z/
   Island/Text Key, mirroring `_parse_zone`'s own raw field order).
 
-  Verified end-to-end against real data: parsed Keith's actual
+  Verified end-to-end against real data: parsed my actual
   `info.zon` through the unmodified `IPLParser` pipeline (165 zones,
   first entry checked field-for-field), and the full registration
   logic (available_ipls/_ipl_display_to_stem/_ipl_display_order/
@@ -4440,7 +4440,7 @@ conclusively found despite extensive isolated testing.
   definitions introduced.
 
 - **Aug 16, 2026 (cont'd)** — Fixed the real, confirmed `_parse_cull`
-  bug, per Keith: "continue with the cull files next." The previous
+  bug,  "continue with the cull files next." The previous
   version expected 7 fields (a center/width/height box) - real
   cull.ipl lines have 11 fields, two genuine corner points, not a
   width+height pair at all. Confirmed against three independent wiki
@@ -4453,7 +4453,7 @@ conclusively found despite extensive isolated testing.
   binary IPL cull parsing isn't implemented at all, a separate,
   unstarted feature, not touched here).
 
-  Real finding along the way: the viewport Keith actually uses
+   finding along the way: the viewport   actually uses
   (`DFFViewport`) has never had ANY cull-box rendering at all - the
   existing `_toggle_cull_boxes`/cull-box drawing only ever reached
   `MapViewport` (`depends/map_viewport.py`), a separate class only
@@ -4487,7 +4487,7 @@ conclusively found despite extensive isolated testing.
   paragraph spotted in `_refresh_path_visualization` while working
   nearby.
 
-  Verified end-to-end against Keith's real cull.ipl: 631 cull zones
+  Verified end-to-end against my real cull.ipl: 631 cull zones
   parsed correctly (previous version parsed 0 usable entries, since
   every real line has 11 fields but the old code required at least 7
   meaningfully-wrong ones), first entry checked field-for-field. Cull
@@ -4499,9 +4499,9 @@ conclusively found despite extensive isolated testing.
   definitions introduced anywhere.
 
 - **Aug 16, 2026 (cont'd)** — Fixed zones not showing in the
-  viewport, per Keith: "ive loaded zon files, these show in the IPL
+  viewport,  "ive loaded zon files, these show in the IPL
   File Display and the ZON tab is highlighted, but I cant see them in
-  the viewpoint." Real gap: zone loading/table-display was wired
+  the viewpoint."  gap: zone loading/table-display was wired
   earlier this session, but nothing ever pushed parsed zones to the
   3D view - zones never had ANY viewport rendering at all before,
   unlike cull (which at least had unreachable dead code).
@@ -4528,7 +4528,7 @@ conclusively found despite extensive isolated testing.
   and returned dict, updated its one call site.
 
   Also merged the "Open Zone..." button into a single "Open File..."
-  button, per Keith: "open zone, and open ipl, both can be merged,
+  button,  "open zone, and open ipl, both can be merged,
   looking for ipl, and zon files" - one file dialog now accepts
   either `.ipl` or `.zon` files (combined filter, both still
   selectable individually too), `_on_ipl_tab_open_zone_clicked`
@@ -4555,7 +4555,7 @@ conclusively found despite extensive isolated testing.
   to the old `_on_ipl_tab_open_zone_clicked`/`open_zone_btn` names.
 
 - **Aug 16, 2026 (cont'd)** — Added occlusion zone support, per
-  Keith: "lets add occl next" (continuing the cull/zon viewport work).
+   : "lets add occl next" (continuing the cull/zon viewport work).
   "occl" wasn't even a recognised VC section keyword before this -
   confirmed via GTAMods/Grand Theft Wiki (word-for-word agreement):
   `OCCL is a section... in Vice City, San Andreas, and GTA IV` - VC
@@ -4591,7 +4591,7 @@ conclusively found despite extensive isolated testing.
   zone/cull all had before being fixed) so IPL File Display shows the
   correct columns instead of the wrong inst-style layout.
 
-  Verified end-to-end against Keith's real occlu.ipl: 344 zones
+  Verified end-to-end against my real occlu.ipl: 344 zones
   parsed correctly, first entry checked field-for-field. Box
   conversion and hidden-IPL filtering verified directly against the
   real parsed data; `occl_box_color`'s DEFAULTS round-trip verified
@@ -4602,12 +4602,12 @@ conclusively found despite extensive isolated testing.
   TODO.md.
 
 - **Aug 16, 2026 (cont'd)** — Made path line thickness, node size, and
-  node colour all configurable in Settings > Render, per Keith: "I
+  node colour all configurable in Settings > Render,  "I
   like the path colors as a default but under rander in settings,
   line thinkness, and node circle size, and color change option."
   Line colour was already configurable (added earlier this session);
   node colour was previously fixed amber with no way to change it -
-  widened to match, since Keith explicitly grouped it with node size
+  widened to match, since   explicitly grouped it with node size
   in the same request.
 
   `DFFViewport` gained `set_path_node_color`/`set_path_line_
@@ -4636,7 +4636,7 @@ conclusively found despite extensive isolated testing.
   files; confirmed via AST no duplicate method definitions.
 
 - **Aug 16, 2026 (cont'd)** — Made GTA III paths actually show when
-  Show Paths is ticked, per Keith: "GTA3 paths arnt showing, i know I
+  Show Paths is ticked,  "GTA3 paths arnt showing, i know I
   am selecting ipl files, to load map sections, but the path entires
   are in the ide files, so how do we load those? for gta3 parse the
   paths from the ide files, and show them when show paths is
@@ -4682,7 +4682,7 @@ conclusively found despite extensive isolated testing.
 
 - **Aug 16, 2026 (cont'd)** — Switched cull/zone/occlusion boxes from
   plain wireframe to ghosted, semi-transparent filled boxes, per
-  Keith: "instead of wireframe boxes, we go for ghosted, see through
+   : "instead of wireframe boxes, we go for ghosted, see through
   boxes, like the semi solid." Matches the existing collision Semi-
   Solid render mode's own visual convention (`_draw_solid`'s
   `alpha_multiplier` path: filled alpha-blended triangles plus a
@@ -4707,7 +4707,7 @@ conclusively found despite extensive isolated testing.
   definitions and no stale references anywhere in the project to the
   removed `_draw_wireframe_boxes` name.
 
-- **Aug 16, 2026 (cont'd)** — Pulled Keith's own manual edits first
+- **Aug 16, 2026 (cont'd)** — Pulled my own manual edits first
   (checkbox label shortening - Paths/Cull/Zon/Occlusion instead of
   the longer "Show..." labels; a partial in-progress merge of the
   Open/Open File buttons, left as his own WIP with his own TODO
@@ -4720,10 +4720,10 @@ conclusively found despite extensive isolated testing.
   real data lines correctly found and would display with the right
   11-column layout. Likely observed before his local copy had the
   earlier `headers_by_type['cull']` fix from this session - flagged
-  for Keith to retest against latest rather than guessed-and-changed
+  for ,retest against latest rather than guessed-and-changed
   further without being able to reproduce it.
 
-  Added a Zon-specific render style dropdown, per Keith: "in zons,
+  Added a Zon-specific render style dropdown,  "in zons,
   the render dropdown could show, Zon - Ghosted, Zon - Wireframe,
   Zon - translucent" - new exclusive `QActionGroup` in the same
   Render dropdown (after the Col overlay options), three mutually-
@@ -4731,7 +4731,7 @@ conclusively found despite extensive isolated testing.
   default `'ghosted'`) and applied immediately (no separate Apply
   step, matching how the Col toggles already work) plus restored on
   next launch (same pattern as the keybindings restore). Scoped to
-  zone boxes specifically, per Keith's own "in zons" framing - cull/
+  zone boxes specifically  own "in zons" framing - cull/
   occlusion boxes keep their fixed ghosted look, not touched.
   `DFFViewport._draw_zone_boxes` now dispatches on `self._zone_
   render_style`: `'wireframe'` draws edges only (the pre-ghosted
@@ -4741,7 +4741,7 @@ conclusively found despite extensive isolated testing.
   (new `draw_outline` param on `_draw_ghosted_box_from_corners`).
 
   Added small solid corner-sphere handles to every cull/zone/occlusion
-  box, per Keith: "the boxes we see need little solid spheres on each
+  box,  "the boxes we see need little solid spheres on each
   corner so you can move the 6 sides, bigger, shorter, longer, deeper,
   higher." New `_draw_box_corner_spheres` draws a real `gluSphere` (GLU
   already imported wildcard at module level) at each of a box's 8
@@ -4762,9 +4762,9 @@ conclusively found despite extensive isolated testing.
   themselves haven't run for real - these are long-standing, standard
   GLU function names, but worth confirming they render correctly (and
   checking actual frame-rate impact with many boxes visible at once)
-  on Keith's end.
+  on my end.
 
-- **Aug 16, 2026 (cont'd)** — Fixed a real bug, per Keith: "there is
+- **Aug 16, 2026 (cont'd)** — Fixed a real bug,  "there is
   a bug where, loading zons, or other ipl files, seems to partly
   remove other objects." A second, related bug to the reentrancy fix
   already shipped earlier this session for `_refresh_world_view` -
@@ -4775,7 +4775,7 @@ conclusively found despite extensive isolated testing.
   session's newer path/cull/zone/occl overlay refreshes) weren't
   covered by the earlier fix at all.
 
-  Real mechanism: `_apply_ipl_visibility_filter` computes `visible`
+   mechanism: `_apply_ipl_visibility_filter` computes `visible`
   ONCE at the top, before calling the slow `_refresh_world_view`
   (which pumps the Qt event queue via `QApplication.processEvents()`
   partway through its own per-instance loop). If something re-enters
@@ -4809,7 +4809,7 @@ conclusively found despite extensive isolated testing.
 
   Also moved the IPL Controls cog settings button to the Object
   Browser's Add/Delete/Rename icon row, right after Rename, per
-  Keith: "the Cog settings on the 3rd row, move this to the Object
+   : "the Cog settings on the 3rd row, move this to the Object
   Browser, far right instead, after rename icon" (matching his own
   TODO note left in the code: "This needs to be moved to the [IMG]
   [DAT] [IDE] [IPL] <other buttons> [*] on the far right of the
@@ -4823,7 +4823,7 @@ conclusively found despite extensive isolated testing.
   button was originally built. Resized to match its new siblings
   (18x18, same as Add/Del/Rename) rather than its old bespoke 20x18.
 
-  Pulled and merged Keith's own commits first (checkbox labels
+  Pulled and merged my own commits first (checkbox labels
   shortened - Paths/Cull/Zon/Occlusion; a partial in-progress Open/
   Open File button merge left as his own WIP, not touched further).
   Investigated his "Cull does not show in the IPL file display" note
@@ -4840,7 +4840,7 @@ conclusively found despite extensive isolated testing.
   button gets constructed.
 
 - **Aug 16, 2026 (cont'd)** — Corrected the `_apply_ipl_visibility_
-  filter` reentrancy fix from earlier today, per Keith's real
+  filter` reentrancy fix from earlier today  real
   screenshots confirming after pulling that fix: "loading zons, or
   other ipl files, seems to partly remove other objects" - still
   happening. The first attempt used the wrong strategy for this
@@ -4850,7 +4850,7 @@ conclusively found despite extensive isolated testing.
   skip a nested call outright, reasoning "whatever triggered it fires
   again shortly regardless." True for `_refresh_world_view`'s actual
   callers (periodic TOBJ ticks, continuous LOD-Test mouse-move) - but
-  FALSE for what Keith's screenshots actually show: clicking an eye
+  FALSE for what my screenshots actually show: clicking an eye
   icon to show a newly-loaded IPL is a ONE-TIME event with nothing to
   naturally retry it. If that click's call happened to arrive while
   an unrelated periodic tick's call was still mid-flight (pumping the
@@ -4892,7 +4892,7 @@ conclusively found despite extensive isolated testing.
   method.
 
 - **Aug 16, 2026 (cont'd)** — Extended "Save IPL Data As..." to cover
-  every section, not just inst, per Keith: "we need a way to save the
+  every section, not just inst,  "we need a way to save the
   .ipl date [data], save back to original file, but this would
   overwrite existing data, so a save as right click option" ->
   clarified: "Need it to cover all sections, not just inst." (The
@@ -4927,7 +4927,7 @@ conclusively found despite extensive isolated testing.
   actually was, silently wrong for VC/GTA3 saves.
 
   Verified with real round-trip tests, not just written and assumed
-  correct: parsed Keith's real cull.ipl, serialized all 631 cull
+  correct: parsed my real cull.ipl, serialized all 631 cull
   entries with the new format, wrote to a temp file, re-parsed that
   file with the actual `IPLParser`, and confirmed every single entry
   matches the original field-for-field. Same full round-trip for
@@ -4941,7 +4941,7 @@ conclusively found despite extensive isolated testing.
   duplicate method definitions.
 
 - **Aug 16, 2026 (cont'd)** — Fixed a real crash on Settings > Apply,
-  per Keith: "'ModelWorkshop' object has no attribute '_apply_
+   "'ModelWorkshop' object has no attribute '_apply_
   button_mode_to_button'" (hit after reducing texture size to 128 and
   enabling the verbose loading debug checkbox, but not actually
   caused by either of those - a pre-existing, unrelated gap that any
@@ -4964,7 +4964,7 @@ conclusively found despite extensive isolated testing.
   flagging in case worth a follow-up.
 
   On "settings are not being saved": confirmed this crash did NOT
-  actually block Keith's specific changes (texture size, debug
+  actually block my specific changes (texture size, debug
   loading) from saving. `apply_settings`'s own existing comment
   already documents exactly this failure class from once before (a
   different broken reference, `self.format_combo`) - the Loading/Map
@@ -4985,7 +4985,7 @@ conclusively found despite extensive isolated testing.
 
 - **Aug 16, 2026 (cont'd)** — Added "Unload" and moved "Save IPL Data
   As..." onto the IPL Sections table's own right-click menu, per
-  Keith: "also loading.ipl, how about an option to unload.ipl by
+   : "also loading.ipl, how about an option to unload.ipl by
   right clicking them, also move the save as function there aswell."
 
   New `_unload_ipl_section` - genuinely removes an IPL's loaded
@@ -5020,7 +5020,7 @@ conclusively found despite extensive isolated testing.
   than tracing a confirmed path, unlike every other fix this session.
 
 - **Aug 16, 2026 (cont'd)** — Reordered the IPL Sections list to nest
-  binary streams under their parent text IPL, per Keith: "I'd
+  binary streams under their parent text IPL,  "I'd
   reorder the IPL list to show LAe.ipl > tab 4 spaces, show the
   binary under LAe.ipl... instead of placing the binary on the
   bottom." Exact mockup: `LAe.ipl (Loaded)` followed by its indented
@@ -5043,7 +5043,7 @@ conclusively found despite extensive isolated testing.
   `_rebuild_ipl_sections_rows` now renders an indented, "(Loaded)"-
   suffixed display name for stream rows (a row only exists once
   actually loaded, so the suffix is effectively unconditional for
-  those, matching Keith's own mockup) and a plain, conditionally-
+  those, matching my own mockup) and a plain, conditionally-
   suffixed name for text IPL rows (loaded or not, since a text IPL's
   row exists in the list before it's ever loaded, unlike streams).
   Purely cosmetic - the eye icon's own stored data (used by every
@@ -5054,20 +5054,20 @@ conclusively found despite extensive isolated testing.
   `.zon` files (and any other genuinely standalone entries) are
   unaffected by this reordering - they were never part of the parent/
   stream relationship this targets, so they keep accumulating at the
-  bottom of the list exactly as before, per Keith's own explicit
+  bottom of the list exactly as before  own explicit
   note: "placing all the .zon on the button would make it easy to
   find them" - already true, nothing needed changing there.
 
-  Confirmed the two other things Keith flagged in the same message
+  Confirmed the two other things   flagged in the same message
   ("clicking on them we need view, and save as for binary aswell")
   already work - both `_refresh_ipl_inst_file_panel` (view) and the
   IPL Sections context menu's Save actions already handle binary/
   stream rows via the existing `stem.startswith('img:')`/`_loaded_
   binary_ipls` checks, which streams satisfy the same way standalone
-  binary IPLs do (matching what Keith found himself: "I just noticed
+  binary IPLs do (matching what   found himself: "I just noticed
   a copy of the binary on the bottom for binary where I can save").
 
-  Verified with a direct smoke-test matching Keith's own mockup
+  Verified with a direct smoke-test matching my own mockup
   scenario exactly: loading all 4 of one parent's streams one at a
   time produces the identical grouped order he described; loading a
   second parent's streams afterward correctly nests under IT without
@@ -5082,7 +5082,7 @@ conclusively found despite extensive isolated testing.
 
 - **Aug 16, 2026 (cont'd)** — Found and fixed the actual root cause
   of "loading zons, or other ipl files, seems to partly remove other
-  objects," per Keith's own conclusive diagnostic: saving the
+  objects," per my own conclusive diagnostic: saving the
   stream's own row (`lae_stream0.ipl`) after loading a different text
   IPL came back with EVERY section completely empty -
   `inst\nend\ncull\nend\nzone\nend...` - zero entries anywhere,
@@ -5091,7 +5091,7 @@ conclusively found despite extensive isolated testing.
   byte-identical, correctly ruling out the text data - the gap was
   never checking the stream's own separately-tracked data until now).
 
-  Real mechanism, fully traced and confirmed: `_load_binary_ipl_
+   mechanism, fully traced and confirmed: `_load_binary_ipl_
   stream` added a newly-loaded stream's instances directly to
   `self._all_instances` ONLY - never to `loader.instances`, the
   loader's own canonical list. Four separate places in this file
@@ -5104,7 +5104,7 @@ conclusively found despite extensive isolated testing.
   showing a different text IPL (`LAe2.ipl`) after `LAe`'s stream had
   already loaded was enough to trigger a rebuild that wiped it out
   entirely - exactly matching every real screenshot and diagnostic
-  file Keith provided across this whole investigation.
+  file   provided across this whole investigation.
 
   Fixed at the root: `_load_binary_ipl_stream` now extends `loader.
   instances` directly (the one list every rebuild site already
@@ -5131,14 +5131,14 @@ conclusively found despite extensive isolated testing.
   throughout. `ast.parse` clean; confirmed via AST exactly one
   definition of the fixed method.
 
-- **Aug 16, 2026 (cont'd)** — Three fixes from Keith's latest report
+- **Aug 16, 2026 (cont'd)** — Three fixes from my latest report
   ("Bug appears to have been fixed; everything is loading, nothing is
   disappearing" - confirming the binary-stream data-loss fix from
   last turn - plus three new items).
 
   **GTA3 path rendering mess** (per his real screenshot: "makes a
   nice mess in the viewpoint", hundreds of long, criss-crossing lines
-  spanning the whole loaded city). Real cause: `_refresh_path_
+  spanning the whole loaded city).  cause: `_refresh_path_
   visualization`'s GTA III world-space resolution matched a path
   group's `model_id` against every currently-visible instance CITY-
   WIDE, with no notion of which district a group or an instance
@@ -5148,7 +5148,7 @@ conclusively found despite extensive isolated testing.
   placement, so a global lookup happens to be correct by coincidence
   for that file alone), but a whole-city load pulls in many
   districts' own IDE files together, and different districts'
-  "null node" path-anchor markers (Keith's own real comse.ide has
+  "null node" path-anchor markers (my own real comse.ide has
   per-district names like `comsenullnodea02` through
   `comsenullnodea11`) plausibly reuse the same small numeric
   `model_id` ranges across different, unrelated districts, the same
@@ -5176,11 +5176,11 @@ conclusively found despite extensive isolated testing.
   map. Being upfront about confidence here: this is a well-reasoned
   fix based on sound logic and confirmed not to break the one real
   case available, but the actual multi-district collision scenario
-  couldn't be directly reproduced without Keith's real, larger city-
+  couldn't be directly reproduced without my real, larger city-
   wide dataset - worth confirming this actually clears up the mess
   on his end.
 
-  **`.zon` files always at the bottom**, per Keith: "Next are the zon
+  **`.zon` files always at the bottom**,  "Next are the zon
   files, always at the bottom of the ipl list" - a stronger, always-
   enforced guarantee than just "happens to end up there from
   insertion order", which the stream-nesting reorder from a few turns
@@ -5198,9 +5198,9 @@ conclusively found despite extensive isolated testing.
   sorted cases are both correctly no-ops (idempotent, no spurious
   reordering).
 
-  **Settings saved but not loaded on the next session**, per Keith:
+  **Settings saved but not loaded on the next session**, .per:
   "the settings are being saved for map workshop, there just not
-  being loaded." Real mechanism found: `MapSettings.set()` debounces
+  being loaded."  mechanism found: `MapSettings.set()` debounces
   its own auto-save by 800ms - closing the Map Workshop tab (or
   quitting the app) shortly after changing a setting could leave that
   change still pending, unwritten, at the exact moment the widget
@@ -5218,7 +5218,7 @@ conclusively found despite extensive isolated testing.
   untouched).
 
 - **Aug 16, 2026 (cont'd)** — Fixed "occlusion data not showing in
-  ipl display", per Keith's real screenshot. Real cause: `"occl"` had
+  ipl display"  real screenshot.  cause: `"occl"` had
   full parsing (`_parse_occl`) and real viewport rendering (Show
   Occlusion, ghosted boxes) since a few turns ago, but was never
   actually added to `tab_specs` - the IPL Controls tab bar simply had
@@ -5232,7 +5232,7 @@ conclusively found despite extensive isolated testing.
   keys`, which is itself just derived from `tab_specs`.
 
   Added colour pickers for cull/zone/occlusion box colours to
-  Settings > Render, per Keith: "Zon settings for box colour, same
+  Settings > Render,  "Zon settings for box colour, same
   with occlusion." All three (`cull_box_color`/`zone_box_color`/
   `occl_box_color`) have had real viewport rendering and their own
   `MapSettings` entries for several turns, but this dialog never
@@ -5252,7 +5252,7 @@ conclusively found despite extensive isolated testing.
   this addition - purely about colour.
 
   Path line/node colour and thickness/size themselves were already
-  built (confirmed present, not re-added) - Keith's "Settings objects
+  built (confirmed present, not re-added) - my "Settings objects
   for nodes and lines (paths) line/node colour and thinkness" request
   matches what already exists exactly; flagging in case it wasn't
   visible/found on his end rather than assuming it needs rebuilding.
@@ -5263,13 +5263,13 @@ conclusively found despite extensive isolated testing.
   via AST exactly one definition of the settings-dialog method.
 
 - **Aug 16, 2026 (cont'd)** — Fixed a real discoverability problem,
-  per Keith's screenshot of the actual Settings dialog: "there is no
+  per my screenshot of the actual Settings dialog: "there is no
   render in map workshop settings?" Every earlier reference this
   session to "Settings > Render" was genuinely misleading - that
   content lived in a completely separate dialog
   (`_open_render_settings_dialog`, opened only via the "Render
   Settings" ribbon button under Object Browser), not as a tab in the
-  actual "Map Workshop Settings" dialog Keith was looking at (Fonts/
+  actual "Map Workshop Settings" dialog   was looking at (Fonts/
   Display/Performance/Preview/Loading/Map Assets/Navigation/
   Keybindings, per his own screenshot) at all.
 
@@ -5313,7 +5313,7 @@ conclusively found despite extensive isolated testing.
   exists anywhere in this file at all.
 
 - **Aug 16, 2026 (cont'd)** — Reverted the previous GTA III path
-  area-scoping fix, per Keith's real, complete `gta3.IDE` upload
+  area-scoping fix  real, complete `gta3.IDE` upload
   ("gta3.ide appears to have all the ide files, in one file" - every
   path section for the whole game, combined). That fix was based on
   a theory that turned out wrong: parsed all 870 real path groups
@@ -5343,7 +5343,7 @@ conclusively found despite extensive isolated testing.
   with no area/district scoping of its own either, reinforcing that
   the global lookup is the right model, not an area-scoped one.
 
-  The real cause of Keith's "long criss-crossing lines" mess is still
+  The real cause of my "long criss-crossing lines" mess is still
   open - this verification confirms the IDE side (parsing, model_id
   uniqueness, multi-group-per-object handling) is solid, so the bug
   must be in the instance-matching or position/rotation transform for
@@ -5355,7 +5355,7 @@ conclusively found despite extensive isolated testing.
 
 - **Aug 16, 2026 (cont'd)** — Found and fixed the REAL root cause of
   both "makes a nice mess in the viewpoint" and "the paths dont line
-  up at all with the roads", per Keith's own decisive diagnostic: he
+  up at all with the roads"  own decisive diagnostic: he
   uploaded `pathslc.ipl` - a real, community-converted (by "sorup")
   port of these exact same Liberty City paths into Vice City's own
   coordinate space and file format ("here are the paths that was
@@ -5364,7 +5364,7 @@ conclusively found despite extensive isolated testing.
   validate against, rather than reasoning about the transform in
   isolation.
 
-  Resolved the same real path groups against Keith's real, complete
+  Resolved the same real path groups against my real, complete
   `gta3.dat` world (from the previous upload) and compared shape
   statistics directly - specifically each group's own max distance
   between any two of its real nodes, a metric that's independent of
@@ -5396,11 +5396,11 @@ conclusively found despite extensive isolated testing.
   against a real, independently-known-correct reference rather than
   just internal consistency checks - the earlier reentrancy and area-
   scoping investigations were real, necessary work, but this is what
-  actually explains the visual symptoms Keith was seeing throughout.
+  actually explains the visual symptoms   was seeing throughout.
   `ast.parse` clean.
 
 - **Aug 16, 2026 (cont'd)** — Added a "Shift Coordinates..." action
-  to the IPL Sections right-click menu, per Keith: "we are planning
+  to the IPL Sections right-click menu,  "we are planning
   to add coords shifting abilities, this should work accoss all
   loading ipls, zon or path, this will allow me to drag those vc
   convert paths to where LC really is" - his real pathslc.ipl (a
@@ -5413,7 +5413,7 @@ conclusively found despite extensive isolated testing.
   offset to every real WORLD POSITION an IPL's loaded data holds -
   inst, cull, zone, the VC/GTA3 IPL "path" text section (what
   `pathslc.ipl` itself actually contains), grge, enex, and occl -
-  covering every section type an IPL can hold, per Keith's own
+  covering every section type an IPL can hold  own
   "across all loading ipls, zon or path" framing, not just instances.
   Deliberately only ever shifts positions, never dimensions, angles,
   or flags - a cull/occlusion box's width/height, a path node's
@@ -5429,7 +5429,7 @@ conclusively found despite extensive isolated testing.
 
   New `_prompt_shift_ipl_coordinates` - small dialog collecting a
   (dx,dy,dz) offset (wide range, ±100,000, matching the real scale of
-  Keith's own pathslc.ipl coordinates), applies it and refreshes the
+  my own pathslc.ipl coordinates), applies it and refreshes the
   viewport immediately. Both new actions only enabled when the row is
   actually loaded, same as Unload/Save IPL Data As... alongside them.
   Live in-memory only, same as every other edit this app makes - Save
@@ -5444,7 +5444,7 @@ conclusively found despite extensive isolated testing.
   definitions.
 
 - **Aug 16, 2026 (cont'd)** — Added Delete and New Path Group actions
-  alongside the existing Edit Path Group, per Keith: "we don't have
+  alongside the existing Edit Path Group,  "we don't have
   the ability to edit the paths, delete, add, make paths from
   scratch." Both wired into the same PATH-tab-gated right-click menu
   Edit Path Group already lives in.
@@ -5485,10 +5485,10 @@ conclusively found despite extensive isolated testing.
   definitions.
 
 - **Aug 16, 2026 (cont'd)** — Fixed the Render tab being invisible
-  despite genuinely existing, per Keith: "he can't find the settings,
+  despite genuinely existing,  "he can't find the settings,
   they should be in map-workshop settings, I've looked here, there
   not found?" (his friend, giving fresh, uncoached feedback, couldn't
-  find the same Render tab added earlier this session - and Keith
+  find the same Render tab added earlier this session - and  
   himself couldn't spot it either on looking).
 
   Root cause: the "Map Workshop Settings" dialog's minimum width
@@ -5510,7 +5510,7 @@ conclusively found despite extensive isolated testing.
   later - every tab stays visible, at worst slightly narrower, never
   hidden behind an easy-to-miss arrow. Confirmed `App_name` is
   literally `"Map Workshop"`, so the dialog's own title is exactly
-  "Map Workshop Settings" - matching Keith's wording and his earlier
+  "Map Workshop Settings" - matching my wording and his earlier
   screenshot precisely, confirming this is the right dialog. Also
   confirmed both the standalone dialog and the docked-mode settings
   contribution share the exact same underlying tab-building method
@@ -5521,7 +5521,7 @@ conclusively found despite extensive isolated testing.
   definitions.
 
 - **Aug 16, 2026 (cont'd)** — Made path node markers round instead of
-  square, per Keith: "we could make the path nodes round circles,
+  square,  "we could make the path nodes round circles,
   makes it easy to click on them." Standard OpenGL technique, not a
   custom shape: enabled `GL_POINT_SMOOTH` (anti-aliases each point
   into a circle rather than leaving its square corners visible)
@@ -5533,7 +5533,7 @@ conclusively found despite extensive isolated testing.
   established enable/disable-around-the-draw-call pattern already
   used for everything else in this method.
 
-  This is the visual half of what Keith described - actual click-to-
+  This is the visual half of what   described - actual click-to-
   select or drag interaction on a node is separate, unbuilt work (the
   same class of feature as the still-open corner-sphere-dragging
   TODO: real mouse picking and drag math, neither of which exist yet
@@ -5548,7 +5548,7 @@ conclusively found despite extensive isolated testing.
   this session.
 
 - **Aug 17, 2026** — Built real interactive path node editing (click
-  to select, drag to move, release to commit), per Keith: "lets
+  to select, drag to move, release to commit),  "lets
   address the unbuilt work, editing paths first" - the first of three
   pieces from his own priority order (path editing, then whole-IPL-
   section dragging, then rotating map sections - the latter two not
@@ -5596,13 +5596,13 @@ conclusively found despite extensive isolated testing.
   definitions anywhere in the new code.
 
 - **Aug 17, 2026 (cont'd)** — Added train track support (data/paths/
-  tracks.dat, tracks2.dat), per Keith: "then the other path .dat
+  tracks.dat, tracks2.dat),  "then the other path .dat
   files you pointed out earlier" - the second item from his own
   priority list, right after path node editing.
 
   New `TrackWaypoint` dataclass and `GTAWorldLoader.load_tracks_dat`/
   `_parse_tracks_file` - a real, verified parser, not guessed at:
-  inspected Keith's own real tracks.dat/tracks2.dat directly first
+  inspected my own real tracks.dat/tracks2.dat directly first
   (plain text, a waypoint count on line 1, then exactly that many
   "X Y Z" lines - genuinely the simplest path-adjacent format in this
   app, no section keywords, no node graph, just an ordered point
@@ -5627,7 +5627,7 @@ conclusively found despite extensive isolated testing.
   tied to any IPL or area, so there's no per-IPL visibility concept
   to apply; loaded once at world-load time, shown or not as a whole.
 
-  Verified against Keith's real files before trusting any of it: 168
+  Verified against my real files before trusting any of it: 168
   and 557 waypoints parsed (matching each file's own stated count
   exactly), first waypoint's coordinates matched byte-for-byte, and
   the full `load_tracks_dat` → polyline-conversion pipeline run
@@ -5641,7 +5641,7 @@ conclusively found despite extensive isolated testing.
   closely related to tracks.dat) and found a substantially different,
   more complex format - comma-separated station data with a
   `999,999,999` sentinel pattern and what look like linked-track
-  position references. Real format, not yet understood well enough to
+  position references.  format, not yet understood well enough to
   implement without guessing - left for a proper follow-up rather
   than rushed into this pass; noted in TODO.md with what's actually
   known about it so far.
@@ -5649,7 +5649,7 @@ conclusively found despite extensive isolated testing.
   `ast.parse` clean on all three touched files; confirmed via AST no
   duplicate method definitions anywhere in the new code.
 
-- **Aug 18, 2026** — First response to Keith's real testing feedback
+- **Aug 18, 2026** — First response to my real testing feedback
   (6 items from actually using path editing/tracks in practice).
   Addressed the two most concrete, highest-confidence items now;
   the rest need more investigation or are substantial UI redesigns
@@ -5676,7 +5676,7 @@ conclusively found despite extensive isolated testing.
   debounced auto-save: `ModelWorkshop.__init__` now also hooks
   `QApplication.aboutToQuit` to force an immediate `map_settings.
   save()`, alongside the existing `closeEvent` flush from a few turns
-  ago. Real gap this closes: the `closeEvent` flush only fires if
+  ago.  gap this closes: the `closeEvent` flush only fires if
   Map Workshop's own `closeEvent` actually runs, which depends on the
   whole app quitting through a clean per-widget close sequence - if
   it exits some other way instead, that flush would never run and the
@@ -5690,7 +5690,7 @@ conclusively found despite extensive isolated testing.
   upfront: this is an additive safety net addressing the most
   plausible gap found, not a confirmed root-cause fix the way the
   binary-stream/`/16`-scale bugs earlier this session were - worth
-  Keith retesting specifically to confirm this actually resolves it.
+    retesting specifically to confirm this actually resolves it.
 
   **(2) Middle-mouse drag stopping near models** - investigated but
   not yet resolved. Re-read the current middle-button pan handling in
@@ -5712,14 +5712,14 @@ conclusively found despite extensive isolated testing.
   `ast.parse` clean; confirmed via AST no duplicate method
   definitions.
 
-- **Aug 18, 2026 (cont'd)** — Two real pieces from Keith's follow-up
+- **Aug 18, 2026 (cont'd)** — Two real pieces from my follow-up
   message.
 
   **GTA III paths now follow their attached object when it moves**,
-  per Keith: "when I move models in GTA3, shouldn't the paths
+   "when I move models in GTA3, shouldn't the paths
   attached to them move as well." Real, confirmed bug: `_on_instance_
   edited`'s own fast path (built specifically for performance, per
-  Keith's earlier "takes so long for anything to change" complaint)
+  my earlier "takes so long for anything to change" complaint)
   returns immediately after updating the viewport's cached transform,
   never calling `_refresh_path_visualization`. Since GTA III's own
   IDE-embedded paths are resolved fresh from the placing instance's
@@ -5735,7 +5735,7 @@ conclusively found despite extensive isolated testing.
   world: 553 of 8689 real instances have a path attached, correctly
   distinguished from the rest.
 
-  **A real, working undo/redo system**, per Keith: "we need to get
+  **A real, working undo/redo system**,  "we need to get
   the undo function working" - was previously an honest stub
   (`_on_undo_clicked`: "STUB - undo/redo for mapping changes... isn't
   implemented yet"). New `_push_map_undo`/`_map_undo`/`_map_redo` on
@@ -5773,10 +5773,10 @@ conclusively found despite extensive isolated testing.
   `ast.parse` clean; confirmed via AST exactly one definition of
   every touched/new method.
 
-- **Aug 18, 2026 (cont'd)** — Two more pieces from Keith's ongoing
+- **Aug 18, 2026 (cont'd)** — Two more pieces from my ongoing
   feedback.
 
-  **Zoom to mouse cursor**, per Keith: "when I zoom in, or zoom out,
+  **Zoom to mouse cursor**,  "when I zoom in, or zoom out,
   have a settings option to zoom in to the mouse pointer. so if i
   move the point to the top, and zoom in, it zooms in that area."
   New `DFFViewport.wheelEvent` behaviour (off by default, a new
@@ -5795,7 +5795,7 @@ conclusively found despite extensive isolated testing.
   (after_pos - before_pos)` is the correct direction.
 
   **IPL Controls row 3 redesigned from 6 checkboxes into 5 buttons**,
-  per Keith: "looking at the bottom-right object control panel, we
+   "looking at the bottom-right object control panel, we
   can make clickable buttons instead; one click shows the paths,
   right-click paths allows edit mode, and the other buttons with tick
   marks can work the same way, saving space... When pressing the
@@ -5842,7 +5842,7 @@ conclusively found despite extensive isolated testing.
   toggled` API the new widget actually provides.
 
 - **Aug 18, 2026 (cont'd)** — Built whole-IPL-section dragging in the
-  3D viewport, the next item in Keith's own priority order for the
+  3D viewport, the next item in my own priority order for the
   interactive editing layer ("editing paths first" [done], then
   "Moving IPL file whole entires to anywhere on the map").
 
@@ -5900,7 +5900,7 @@ conclusively found despite extensive isolated testing.
   during the live preview. `ast.parse` clean on both touched files.
 
 - **Aug 18, 2026 (cont'd)** — A large multi-part feature/feedback
-  message from Keith arrived covering the drag-IPL mode cycle, axis-
+  message from   arrived covering the drag-IPL mode cycle, axis-
   lock right-click options, snap-to-edge/centre reuse, numeric Move/
   Rotate panels with per-section-type tick-boxes, water/radar
   recalculation, radar/minimap generation, path traffic-flow
@@ -5911,7 +5911,7 @@ conclusively found despite extensive isolated testing.
   properly this turn; the rest logged accurately for later rather
   than guessed at half-scoped.
 
-  **Axis-coloured box faces**, per Keith: "Cull, Occl, Zon boxes have
+  **Axis-coloured box faces**,  "Cull, Occl, Zon boxes have
   coloured sides: x (green), y (red) and z (blue) faces, which makes
   that easy to see." New optional per-face colour mode for the shared
   `_draw_ghosted_box_from_corners` (used by all three box types) -
@@ -5932,7 +5932,7 @@ conclusively found despite extensive isolated testing.
   (not just one) so it takes effect correctly regardless of which
   specific box type happens to be visible at the time.
 
-  **Removed the Extrude Faces ribbon icon**, per Keith: "we don't
+  **Removed the Extrude Faces ribbon icon**,  "we don't
   need extrude or emboss ribbon icons either." Couldn't find an
   "Emboss" button anywhere in this file to remove alongside it -
   confirmed via direct search, flagging rather than guessing which
@@ -5944,7 +5944,7 @@ conclusively found despite extensive isolated testing.
   the real drawing code. `ast.parse` clean on both touched files;
   confirmed via AST no duplicate method definitions.
 
-  **Logged, not built**, per Keith's own explicit deferral for two of
+  **Logged, not built**  own explicit deferral for two of
   them: water/radar recalculation on IPL moves, and a map-to-radar
   (top-down capture) generation feature - both added to TODO.md with
   his own framing preserved.
@@ -5955,7 +5955,7 @@ conclusively found despite extensive isolated testing.
   existing snap-to-edge/snap-to-centre ribbon tools for IPL dragging;
   numeric +/- Move and Rotate panels with per-section-type (paths/
   zones/tracks/cull/occlusion) tick-boxes controlling what actually
-  moves; a path right-click "reverse traffic flow" option (Keith's
+  moves; a path right-click "reverse traffic flow" option (my
   own note: "I think we just flip the nodes. needs looking at" -
   a genuine investigation task, not a fully-specified feature yet);
   an auto-highlight-on-hover setting for anything under the cursor;
@@ -5963,13 +5963,13 @@ conclusively found despite extensive isolated testing.
   cull/zone/occlusion sizes.
 
 - **Aug 18, 2026 (cont'd)** — Investigated and built path traffic-
-  flow reversal, per Keith's own framing: "Path right-click option,
+  flow reversal  own framing: "Path right-click option,
   reverse traffic flow: I think we just flip the nodes. needs looking
   at" - the investigation he explicitly asked for, done before
   building anything.
 
   Checked the real structure of path groups against 2032 real ones
-  from Keith's own `pathslc.ipl` before assuming a naive "swap next_id
+  from my own `pathslc.ipl` before assuming a naive "swap next_id
   direction" approach would work: 937 of them (~46%) have at least one
   node with MULTIPLE other nodes pointing to it (up to 4 seen) - a
   junction where several lanes merge into one. Since each node has
@@ -6009,7 +6009,7 @@ conclusively found despite extensive isolated testing.
   confirmed via AST no duplicate method definitions.
 
 - **Aug 18, 2026 (cont'd)** — Added axis-lock right-click options for
-  whole-IPL dragging, per Keith: "[Drag ipl] right-click options,
+  whole-IPL dragging,  "[Drag ipl] right-click options,
   like lock z, only move x, y."
 
   Z is already always effectively locked by the drag's own existing
@@ -6046,7 +6046,7 @@ conclusively found despite extensive isolated testing.
 
 - **Aug 19, 2026** — Converted the 2DFX and Tobj checkboxes to the
   same `_MapOverlayToggleButton` widget as the other row 2/3 toggles,
-  per Keith: "the 2dfx, tojb buttons need the same adjustments, as
+   "the 2dfx, tojb buttons need the same adjustments, as
   the other buttons." Both were plain `QCheckBox`, left behind when
   Paths/Tracks/Cull/Zone/Occlusion got converted earlier - now
   consistent styling/behaviour across every overlay toggle in IPL
@@ -6065,16 +6065,16 @@ conclusively found despite extensive isolated testing.
   stale `.toggled`/`.setChecked()` references remain anywhere for
   either widget.
 
-- **Aug 19, 2026** — Three items from Keith's real testing feedback,
+- **Aug 19, 2026** — Three items from my real testing feedback,
   after pulling and merging his own ribbon adjustments (removed
   "Create Primitive" alongside the Extrude Faces icon dropped a few
   turns ago - not something Map Workshop needs either).
 
   **GTA III's IDE-embedded paths now show in the IPL File Display**,
-  per Keith: "showing paths in GTA3 viewpoint works, but the path
+   "showing paths in GTA3 viewpoint works, but the path
   data exists in IDE files. We have an empty (No paths) shown in the
   IPL File Display. For GTA3 only, show the paths in the IDE files."
-  Real cause: this panel reads a selected IPL's own raw text for
+   cause: this panel reads a selected IPL's own raw text for
   whichever section is active - correct for every other case, but
   genuinely wrong for GTA III specifically, whose paths live in a
   completely different file (IDE, not IPL) and attach to an object by
@@ -6097,12 +6097,12 @@ conclusively found despite extensive isolated testing.
   corresponding entry in `loader.paths` for those actions to resolve
   against at all.
 
-  Also, per Keith's own suggestion in the same message: the dock
+  Also  own suggestion in the same message: the dock
   itself now renames to "Paths Display" while the PATH tab is active,
   for any game, reverting to "IPL File Display" otherwise.
 
   **Hid IPL Controls tabs the loaded game can never have data for**,
-  per Keith: "hiding functions not supported by GTA3, including some
+   "hiding functions not supported by GTA3, including some
   of the IPL Object pane tabs [GRGE] [ENEX] [JUMP] [TCYC] [AUZO] and
   [MULT], these are GTA SA only... [PICK] in ipl file, [OCCL] tabs,
   This is VC and SA only." `_apply_loaded_world` now hides GRGE/ENEX/
@@ -6117,7 +6117,7 @@ conclusively found despite extensive isolated testing.
   Verified extensively against real data before trusting any of it:
   the tab-hiding set computation and the "switch away from a tab
   about to be hidden" logic, tested in isolation across GTA3/VC/SA;
-  the GTA3 IDE-path row-building logic run against Keith's own real,
+  the GTA3 IDE-path row-building logic run against my own real,
   complete `gta3.dat` world - `comSE.ipl` correctly resolved to 79
   real path groups (948 total node rows) out of 213 unique model IDs
   among 566 real instances placed in that file, every row's column
@@ -6135,7 +6135,7 @@ conclusively found despite extensive isolated testing.
   honestly rather than rushed alongside everything above.
 
 - **Aug 19, 2026 (cont'd)** — Built the Drag/Move/Rotate three-state
-  cycle for whole-IPL interaction, per Keith: "Same button process
+  cycle for whole-IPL interaction,  "Same button process
   for drag ipl: 1 click turns into move ipl, click again rotate ipl,
   click back to drag ipl" - plus moved it "from row 3 to after Render
   Row 1" as he asked.
@@ -6196,11 +6196,11 @@ conclusively found despite extensive isolated testing.
   remaining references anywhere in the file to the removed `_drag_
   ipl_chk` attribute or `_on_ipl_drag_mode_toggled` handler.
 
-- **Aug 19, 2026 (cont'd)** — Two more items from Keith's follow-up.
+- **Aug 19, 2026 (cont'd)** — Two more items from my follow-up.
 
   **Corrected axis-colour box faces to X=green, Y=red, Z=blue** - the
   colour scheme went through a brief back-and-forth this same turn
-  (Keith's initial correction said "Z sides blue, Y sides green, X
+  (my initial correction said "Z sides blue, Y sides green, X
   sides red", swapping X and Y from what had been built a few turns
   earlier - then a follow-up message swapped them straight back:
   "X=red/Y=green, swap them around to X-Green, Y-Red"). Final,
@@ -6213,7 +6213,7 @@ conclusively found despite extensive isolated testing.
   cancelled out correctly.
 
   **Generalised the "<TAB> Display" dock rename to every tab, not
-  just PATH**, per Keith: "when looking at cull, or zon, the IPL File
+  just PATH**,  "when looking at cull, or zon, the IPL File
   Display should show to ZON Display or CULL Display for
   consistancy." `_on_ipl_data_type_changed` now reads the active
   tab's own label directly off the tab bar (`tabText`) rather than a
@@ -6221,7 +6221,7 @@ conclusively found despite extensive isolated testing.
   drift out of sync with `tab_specs`' own labels - INST keeps the
   original "IPL File Display" name (the default, already-familiar
   view this dock is named after, not a specialised section type the
-  way the others are), PATH keeps "Paths Display" (Keith's own
+  way the others are), PATH keeps "Paths Display" (my own
   originally-requested wording for that one specifically), and every
   other tab becomes "<LABEL> Display" - CULL Display, ZON Display,
   GRGE Display, OCCL Display, and so on automatically, with no need
@@ -6233,7 +6233,7 @@ conclusively found despite extensive isolated testing.
   files; confirmed via AST no duplicate method definitions.
 
 - **Aug 19, 2026 (cont'd)** — Built auto-highlight-on-hover, per
-  Keith: "Auto object highlight setting in map_workshop settings:
+   : "Auto object highlight setting in map_workshop settings:
   this could be a model, path node, anything in the viewpoint; once
   highlighted, right-click for options." Scoped to instances only
   for this first version - path nodes already have their own
@@ -6284,7 +6284,7 @@ conclusively found despite extensive isolated testing.
   this feature was last checked in.
 
 - **Aug 19, 2026 (cont'd)** — Built Snap: Centre of Model for whole-
-  IPL dragging, per Keith: "[Drag ipl] any direction; if the snap
+  IPL dragging,  "[Drag ipl] any direction; if the snap
   options are on, icons already exist on ribbons; use Edge of model,
   Centre of model, then we can remove the snaps we dont need from
   the ribbons; we don't need extrude or emboss ribbon icons either."
@@ -6330,7 +6330,7 @@ conclusively found despite extensive isolated testing.
 
 - **Aug 19, 2026 (cont'd)** — Completed the fuller Move/Rotate
   dialogs with per-section-type tick-boxes and +/- nudge buttons, per
-  Keith: "[Move ipl] any direction; using -/+ z value -/+ x value,
+   : "[Move ipl] any direction; using -/+ z value -/+ x value,
   -/+ y value. right-click options for move ipl, move paths, move
   zones, move tracks, move cull, move occlusion. Tick the options you
   want to move" (and the same for Rotate).
@@ -6377,7 +6377,7 @@ conclusively found despite extensive isolated testing.
   clean; confirmed via AST no duplicate method definitions anywhere,
   including `_on_ipl_dragged` after the fix.
 
-- **Aug 19, 2026 (cont'd)** — Built unique-colour-per-box, per Keith:
+- **Aug 19, 2026 (cont'd)** — Built unique-colour-per-box, .per:
   "add colour zone boxes" (with real reference screenshots of several
   distinctly-coloured cull/zone boxes side by side, confirming this
   means each individual box getting its own colour, not the axis-
@@ -6408,7 +6408,7 @@ conclusively found despite extensive isolated testing.
   via AST no duplicate method definitions.
 
   **Also from the same message, addressed as clarification rather
-  than code**: Keith's own question about whether Drag currently
+  than code**: my own question about whether Drag currently
   moves "a single object or selected objects using Shift" surfaced a
   real mismatch - the existing Drag mode actually moves the ENTIRE
   IPL a clicked instance belongs to, not a single object or a multi-
@@ -6424,7 +6424,7 @@ conclusively found despite extensive isolated testing.
   rather than assumed already seen.
 
 - **Aug 19, 2026 (cont'd)** — Implemented the careful Ctrl/Shift Drag
-  workflow Keith worked through step by step: "we can build on this;
+  workflow   worked through step by step: "we can build on this;
   holding [left control] left click entire .ipl is dragged / holding
   [left shift] and select multi entire ipls, ... if there all
   selected, it drags them all."
@@ -6484,7 +6484,7 @@ conclusively found despite extensive isolated testing.
   the old singular `_dragging_ipl_name` attribute.
 
 - **Aug 19, 2026 (cont'd)** — Refined the multi-IPL workflow after
-  Keith's own second pass at it: "Rethinking this; Shift + left-click
+  my own second pass at it: "Rethinking this; Shift + left-click
   selects the entire .ipls in the Object Browser, with right-click
   options: Load All, Unload All, Select All, Deselect All; shown in
   the status bar... Left Control key, click and hold left mouse drags
@@ -6525,7 +6525,7 @@ conclusively found despite extensive isolated testing.
   the same underlying action (Ctrl now covers both cases on its own,
   simpler and less to remember).
 
-  Status bar wording now matches Keith's own example exactly ("N
+  Status bar wording now matches my own example exactly ("N
   entire ipl(s) selected") - the existing `_on_ipl_selection_changed`
   (from a session or two ago's viewport-side Shift+click work) is
   reused directly for the table's own selection changes too, rather
@@ -6544,7 +6544,7 @@ conclusively found despite extensive isolated testing.
   AST no duplicate method definitions.
 
 - **Aug 19, 2026 (cont'd)** — Extended Move/Rotate to respect the
-  multi-IPL selection, per Keith: "lets add the Paths, ZOnes, Cuil
+  multi-IPL selection,  "lets add the Paths, ZOnes, Cuil
   for move and rotate" - the per-section-type tick-boxes themselves
   already existed; what was still single-IPL-only was the selection
   Move/Rotate actually operate on, unlike Drag's own Ctrl+drag which
@@ -6568,7 +6568,7 @@ conclusively found despite extensive isolated testing.
   equivalent multi-IPL drag already moves everything as one rigid
   body rather than each IPL drifting toward its own destination.
 
-  **Real correctness issue caught and handled deliberately, not
+  ** correctness issue caught and handled deliberately, not
   guessed at**: Tracks is genuinely global data (not tied to any
   single IPL's own `source_ipl` at all - already true before this
   change). Looping the tracks shift/rotate call once per selected IPL
@@ -6589,13 +6589,13 @@ conclusively found despite extensive isolated testing.
   confirmed via AST no duplicate method definitions.
 
 - **Aug 19, 2026** — Found and fixed the real root cause of settings
-  not persisting, per Keith: "everything clicked in Map Workshop
+  not persisting,  "everything clicked in Map Workshop
   Settings, isn't remembered either." A safety net (QApplication.
   aboutToQuit flush) was added for this a while back, but never
   confirmed as the actual root cause - this time traced it properly
   instead of adding another guess.
 
-  Real cause: `MapSettings()` gets constructed fresh inside `ModelWorkshop
+   cause: `MapSettings()` gets constructed fresh inside `ModelWorkshop
   .__init__`, and `ModelWorkshop(...)` itself gets constructed from 7
   separate places in this file (opening from the menu, docked,
   undocked, standalone `__main__`, and others) - each one creating its
@@ -6649,7 +6649,7 @@ conclusively found despite extensive isolated testing.
   `ast.parse` clean.
 
 - **Aug 19, 2026 (cont'd)** — Added dock/splitter layout persistence,
-  per Keith: "General UI-state persistence — splitter positions, dock
+   "General UI-state persistence — splitter positions, dock
   layout, tab order not remembered between sessions."
 
   Uses Qt's own built-in `QMainWindow.saveState()`/`restoreState()`
@@ -6699,7 +6699,7 @@ conclusively found despite extensive isolated testing.
 
 - **Aug 19, 2026 (cont'd)** — Built real box-corner resizing for
   cull/zone boxes, the genuine prerequisite for No-Clip box editing
-  (per Keith: "lets continue to complete that list. starting with
+  ( "lets continue to complete that list. starting with
   No-clip" - the corner-sphere handles had been purely visual since
   Aug 16, "actually moving a corner to resize the box is a separate,
   larger follow-up... mouse picking, drag math, and live data
@@ -6743,13 +6743,13 @@ conclusively found despite extensive isolated testing.
   structure the way path nodes needed one.
 
   **No-Clip** (`set_no_clip_boxes`, new `no_clip_boxes` `MapSettings`
-  entry + Settings > Render checkbox), per Keith: "have a no-clipping
+  entry + Settings > Render checkbox),  "have a no-clipping
   option where you can't move one box into another." New `_box_
   resize_would_overlap` - a standard AABB-vs-AABB overlap test
   (strict inequalities, so boxes that merely touch edge-to-edge with
   zero actual overlap volume aren't flagged) against both `_cull_
   boxes` and `_zone_boxes` together, not scoped to same-type
-  collisions only - Keith's own wording wasn't scoped that way, and
+  collisions only - my own wording wasn't scoped that way, and
   there's no real reason a cull box overlapping a zone box would be
   any less of a mess than two cull boxes overlapping each other.
   Deliberately simplified from an initially-considered "clamp to the
@@ -6791,7 +6791,7 @@ conclusively found despite extensive isolated testing.
   touched files; confirmed via AST no duplicate method definitions.
 
 - **Aug 19, 2026** — Wired SA's real nodesN.dat vehicle/ped path data
-  into GTAWorldLoader, per Keith: "i'd be nice to see whats in those
+  into GTAWorldLoader,  "i'd be nice to see whats in those
   node.dat files, for SA". Loader-level integration only this pass -
   loading, not yet visualization or an editor.
 
@@ -6843,14 +6843,14 @@ conclusively found despite extensive isolated testing.
   **Not yet built**: visualization (rendering path nodes/links in the
   3D viewport - a separate piece needing cross-area link resolution
   and a rendering approach, since paths form a graph, not a simple
-  line strip) and the "LC, VC" part of Keith's same message, which
+  line strip) and the "LC, VC" part of my same message, which
   needs clarifying first - GTA III and VC don't actually have a
   nodesN.dat equivalent at all (III uses its own IDE-embedded system,
   VC uses the text IPL "path" section, both already fully supported
   elsewhere in this app).
 
 - **Aug 19, 2026 (cont'd)** — Investigated real path-related .dat data
-  Keith uploaded for all 3 games at once (LC_Paths_Folder.7z, VC_data
+    uploaded for all 3 games at once (LC_Paths_Folder.7z, VC_data
   _paths.7z, VC_map_folder_dat.7z, SA_other_Dat.7z), verified sa_path_
   parser.py against real data for the first time, found and fixed a
   real gap in tracks.dat handling, and extended tracks.dat/tracks2/3/
@@ -6860,7 +6860,7 @@ conclusively found despite extensive isolated testing.
   first time** - all 64 real NODES0-63.DAT files (SA_other_Dat.7z)
   parsed with zero errors: 30,587 vehicle nodes, 37,650 ped nodes,
   31,466 navi nodes, 143,622 links, all plausible for a full SA map.
-  Real node positions and link targets checked directly, not just
+   node positions and link targets checked directly, not just
   "it didn't crash" - a genuine first confirmation this parser, built
   from documentation alone back on Aug 14, actually matches real
   on-disk data.
@@ -6873,13 +6873,13 @@ conclusively found despite extensive isolated testing.
   points) - possibly a shared template/test file rather than either
   game's own real map data, noted rather than assumed either way.
 
-  **Real gap found and fixed**: SA genuinely has FOUR tracks files
-  (tracks3.dat/tracks4.dat too, confirmed present in Keith's real SA
+  ** gap found and fixed**: SA genuinely has FOUR tracks files
+  (tracks3.dat/tracks4.dat too, confirmed present in my real SA
   sample, same format as tracks.dat/tracks2.dat) - `load_tracks_dat`'s
   own `wanted` set only ever looked for two, silently missing two
   real, valid files every time it ran against a real SA install.
 
-  **Real data previously silently dropped, now captured**: every real
+  ** data previously silently dropped, now captured**: every real
   SA tracks*.dat line actually has 4 values, not 3 (`X Y Z FLAG`) -
   VC/GTA III's own tracks.dat/tracks2.dat samples only ever had 3,
   which is why the format was understood as 3-only originally. The
@@ -6919,16 +6919,16 @@ conclusively found despite extensive isolated testing.
   definitions.
 
 - **Aug 19, 2026 (cont'd)** — Built ROADBLOX.DAT and CHASE*.DAT
-  parsers, per Keith's real samples: "lets do those next."
+  parsers  real samples: "lets do those next."
 
   **ROADBLOX.DAT** (SA police roadblock placements) - format found
   via real, published documentation (GTAMods wiki), confirmed against
-  Keith's own real file: a 4-byte int32 count followed by a fixed 325
+  my own real file: a 4-byte int32 count followed by a fixed 325
   (area_id: int16, node_id: uint16) slots, matching the real file's
   exact 1304-byte size (4 + 325*4) - only the first `count` slots are
   meaningful. New `RoadblockEntry` dataclass, `GTAWorldLoader.load_sa_
   roadblox` (SA-only), `self.sa_roadblocks`. Went beyond "it parses
-  without error": cross-referenced all 325 real entries in Keith's
+  without error": cross-referenced all 325 real entries in my
   own real ROADBLOX.DAT directly against his own real, complete
   NODES0-63.DAT set - every single one resolves to a genuinely valid
   vehicle node index within its own stated area, confirming the
@@ -6938,7 +6938,7 @@ conclusively found despite extensive isolated testing.
   **CHASE*.DAT** (GTA III introduction-cutscene chase-scene car
   paths) - format found via real, published documentation (GTAMods
   wiki: "near identical to its successor, RRR, in San Andreas"),
-  confirmed against Keith's own real CHASE0.DAT: no header or count
+  confirmed against my own real CHASE0.DAT: no header or count
   at all, just a plain, fixed 28-byte record repeated for the whole
   file - the real file's own size (151200 bytes) divided cleanly by
   28 with zero remainder (5400.0 exactly), and real decoded positions
@@ -6949,13 +6949,13 @@ conclusively found despite extensive isolated testing.
   world position, all per-frame), `GTAWorldLoader.load_chase_dat`
   (GTA III-only) + `_parse_chase_file`, `self.chase_paths` keyed by
   source filename. Scans for any `CHASE<N>.DAT` present (regex
-  match) rather than a fixed list of exactly 20 - Keith's own real
+  match) rather than a fixed list of exactly 20 - my own real
   upload only had 14 of the 20 possible index numbers present, so a
   fixed "must have all 20" list would have silently skipped real,
   present files.
 
   Verified both end-to-end via `GTAWorldLoader` directly against
-  every one of Keith's own real files: all 325 real ROADBLOX.DAT
+  every one of my own real files: all 325 real ROADBLOX.DAT
   entries load and resolve correctly; all 14 real CHASE*.DAT files
   load with plausible frame counts (2400 or 5400 depending on the
   car/path) and world-coordinate ranges. `ast.parse` clean; confirmed
@@ -6971,7 +6971,7 @@ conclusively found despite extensive isolated testing.
   confidence.
 
 - **Aug 19, 2026 (cont'd)** — Built viewport visualization for SA's
-  real path node graph, per Keith: "lets continue" - the natural next
+  real path node graph,  "lets continue" - the natural next
   step after last session's loading-only work on `nodes*.dat`.
 
   New `DFFViewport.show_sa_nodes`/`set_sa_node_segments`/`_draw_sa_
@@ -6992,7 +6992,7 @@ conclusively found despite extensive isolated testing.
   than drawn (and held in memory) twice over.
 
   **Real, previously-undiscovered format quirk found and fixed while
-  building this**: resolving every real link across Keith's own
+  building this**: resolving every real link across my own
   complete, real 64-area map left exactly 45,835 links unresolved -
   100% of all ped-originated links, 0% of vehicle-originated ones, a
   clean systematic split rather than noise. Root cause, confirmed by
@@ -7010,7 +7010,7 @@ conclusively found despite extensive isolated testing.
   future consumer of this data doesn't have to rediscover it blind.
 
   Verified extensively before trusting any of it: the resolution
-  logic run against Keith's own real, complete 64-file NODES0-63.DAT
+  logic run against my own real, complete 64-file NODES0-63.DAT
   set produced exactly 71,811 unique segments (a clean, exact 50/50
   split of the real 143,622 total links - deduplication working
   correctly), zero resolution failures after the ped-offset fix
@@ -7028,9 +7028,9 @@ conclusively found despite extensive isolated testing.
 
 - **Aug 20, 2026** — Built SA's real `auzo` (audio zone) IPL section
   support, and found+fixed a real, silent field-loss bug in IDE's
-  `anim` section while investigating Keith's own real data samples.
+  `anim` section while investigating my own real data samples.
 
-  **AUZO (audio zones)**, per Keith: "Implement support for the
+  **AUZO (audio zones)**,  "Implement support for the
   remaining SA, audiozone placements with sound svg icons; play the
   sounds." Format confirmed via GTAMods wiki: two real shapes, told
   apart by field count - cube (`Name, ID, Switch, X1,Y1,Z1, X2,Y2,Z2`
@@ -7058,8 +7058,8 @@ conclusively found despite extensive isolated testing.
   in-game San Andreas audio for a given zone is real, separate,
   substantial scope this pass doesn't attempt.
 
-  **Real bug found and fixed in IDE's own `anim` section** while
-  checking Keith's own two real samples ("10744, BS_building_SFS,
+  ** bug found and fixed in IDE's own `anim` section** while
+  checking my own two real samples ("10744, BS_building_SFS,
   bs_sfs, SFs, 130, 128" and "14642, mafcas_spiral_dad, mafcasspiral,
   int_veg, 100, 0") against the existing parser. GTAMods confirms
   ANIM's real, published SA format is 6 fields - `Id, ModelName,
@@ -7081,7 +7081,7 @@ conclusively found despite extensive isolated testing.
   returns None honestly rather than being silently grouped with
   hier/anim's own real, different fields.
 
-  Verified directly against both of Keith's own real anim samples
+  Verified directly against both of my own real anim samples
   (Flags now correctly captured as 128 and 0 respectively, previously
   silently dropped both times) and a synthetic real-shaped hier line
   (correctly parses with an empty extras dict, no incorrect attempt
@@ -7110,15 +7110,15 @@ conclusively found despite extensive isolated testing.
   the documentation alone.
 
 - **Aug 20, 2026 (cont'd)** — Built the viewport visualization half of
-  Keith's own AUZO request: "audiozone placements with sound svg
-  icons." Real SA audio zones now show as a billboarded (always
+  my own AUZO request: "audiozone placements with sound svg
+  icons."  SA audio zones now show as a billboarded (always
   facing the camera, correct regardless of camera rotation/tilt, not
   a simpler upright-only approximation) sound-icon quad at each real
   zone's own centre position.
 
   New `DFFViewport.show_auzo_zones`/`set_auzo_zones`/`_draw_auzo_
   zones`, new "Auzo" toggle button alongside "SA Nodes" on the same
-  row Keith already added. `_ensure_auzo_icon_texture` reuses the
+  row   already added. `_ensure_auzo_icon_texture` reuses the
   app's own already-proven SVG-to-QPixmap pipeline (apps/components/
   Map_Editor/depends/svg_icon_factory.py's own `volume_up_icon`/
   `_create_icon` - the same `QSvgRenderer`+`QPixmap`+`QPainter`
@@ -7168,7 +7168,7 @@ conclusively found despite extensive isolated testing.
   duplicate method definitions.
 
 - **Aug 20, 2026** — Compacted the IPL Controls Tobj/2DFX/Time/Play/
-  Stop/Settings row, per Keith: "Time can be clickable like the
+  Stop/Settings row,  "Time can be clickable like the
   others, and the 12:00 value box doesn't need to take up all the
   width, Play and Stop can be SVG icons, and the * that's time
   settings, can be a click icon" - plus a slight, broader tightening
@@ -7202,15 +7202,15 @@ conclusively found despite extensive isolated testing.
   **General button padding tightened slightly** on `_MapOverlayToggleButton`
   itself (`padding: 1px 6px` → `1px 4px`) - applies automatically to
   every button already using this shared class, not just this one
-  row, per Keith's own explicit "should be a rule across all
+  row  own explicit "should be a rule across all
   projects" framing.
 
   `ast.parse` clean; confirmed via AST no duplicate method
   definitions.
 
-- **Aug 20, 2026 (cont'd)** — Fixed a real bug Keith caught: "when
+- **Aug 20, 2026 (cont'd)** — Fixed a real bug   caught: "when
   auzo is highlighted and audiozon.ipl is loaded, I see no data in
-  the IPL Display below the object browser." Real cause: the AUZO
+  the IPL Display below the object browser."  cause: the AUZO
   tab in IPL File Display was still marked disabled with a stale
   "Not parsed yet" tooltip left over from before auzo actually got
   built earlier this session - there was never any way to select it
@@ -7238,7 +7238,7 @@ conclusively found despite extensive isolated testing.
   correctly populate X2/Y2/Z2 with Radius left blank, sphere entries
   correctly populate Radius with Y2/Z2 left blank.
 
-  Also fixed the Time value box's own width, per Keith: "the 12:0
+  Also fixed the Time value box's own width,  "the 12:0
   (then shows up/down arrows) needs about 5 px to show 12:00" - the
   fixed width added earlier this session (58px) was cutting off the
   trailing digit; bumped to 63px.
@@ -7247,7 +7247,7 @@ conclusively found despite extensive isolated testing.
   definitions.
 
 - **Aug 20, 2026 (cont'd)** — Went looking for other stubs "like
-  auzo" per Keith's own request, and found one real, concrete case:
+  auzo" per my own request, and found one real, concrete case:
   `_save_ipl_data_as_full`'s own `STRUCTURED` set (which decides
   whether a section writes from live, structured data or just copies
   the original raw text through unchanged) had never been updated to
@@ -7289,7 +7289,7 @@ conclusively found despite extensive isolated testing.
   `ast.parse` clean; confirmed via AST no duplicate method
   definitions.
 
-- **Aug 20, 2026 (cont'd)** — Built "Dots" render mode, per Keith:
+- **Aug 20, 2026 (cont'd)** — Built "Dots" render mode, .per:
   "One request in the Render options in IPL controls is to load just
   the IPL data as dots, just placement without models or textures."
 
@@ -7304,7 +7304,7 @@ conclusively found despite extensive isolated testing.
   completely for every single instance while this mode is active,
   not merely displaying already-loaded geometry differently. A real,
   substantial speed win for navigating a huge map's worth of
-  instances, matching Keith's own framing of the request.
+  instances, matching my own framing of the request.
 
   New `DFFViewport._draw_world_instances` fast path for `self._mode
   == 'dots'` - a genuinely separate branch from the normal per-
@@ -7324,7 +7324,7 @@ conclusively found despite extensive isolated testing.
   Wireframe) - reuses the same menu/button/mode-switching
   infrastructure already built for those, no new UI plumbing needed.
 
-  **Real mistake caught before it shipped**: an early version checked
+  ** mistake caught before it shipped**: an early version checked
   `self._world_render_mode` (on `ModelWorkshop`) to decide whether
   dots mode was active - that attribute doesn't exist anywhere in
   this file at all. The real current mode is stored on the viewport
@@ -7343,13 +7343,13 @@ conclusively found despite extensive isolated testing.
   `ast.parse` clean on both touched files; confirmed via AST no
   duplicate method definitions.
 
-  Also noted, not acted on: Keith confirmed the DFF import/export
+  Also noted, not acted on:   confirmed the DFF import/export
   format stubs found in the earlier stub audit (MDL/FBX/3DS/DAE, PAK,
   etc.) should stay as real, intentional stubs - genuinely planned
   future format support, not dead code to clean up.
 
 - **Aug 20, 2026 (cont'd)** — Upgraded Dots render mode from plain
-  points to small, axis-coloured cubes, per Keith: "dots look good,
+  points to small, axis-coloured cubes,  "dots look good,
   maybe 3 colour cubes, like the zons, Green, Red and Blue sides."
 
   New `DFFViewport._ensure_dots_cube_display_list` - a small (1x1x1
@@ -7366,7 +7366,7 @@ conclusively found despite extensive isolated testing.
   already-established scheme (X green, Y red, Z/top-bottom blue) -
   same RGB triples, not approximated - so a Dots-mode cube and a
   cull/zone/occlusion box read as the same colour language across the
-  whole app, matching Keith's own explicit "like the zons" framing.
+  whole app, matching my own explicit "like the zons" framing.
 
   Deliberately NOT built by reusing `_draw_ghosted_box_from_corners`
   itself, despite the matching colours - that method carries real
@@ -7386,7 +7386,7 @@ conclusively found despite extensive isolated testing.
   `ast.parse` clean; confirmed via AST no duplicate method
   definitions.
 
-- **Aug 20, 2026** — Found and fixed the real cause of Keith's own
+- **Aug 20, 2026** — Found and fixed the real cause of my own
   reported bug: "the settings in map_workshop, it says settings are
   saved, but there arn't being picked up with loading map_
   workshop.py." Traced through `apply_settings`' own pre-existing
@@ -7440,7 +7440,7 @@ conclusively found despite extensive isolated testing.
   `ast.parse` clean; confirmed via AST no duplicate method
   definitions.
 
-- **Aug 20, 2026 (cont'd)** — Investigated Keith's own follow-up
+- **Aug 20, 2026 (cont'd)** — Investigated my own follow-up
   report: "I've added colour box faces by axis, saved the settings,
   reloaded map_workshop.py and its unticked, same for Show full
   loading (debug), Reduce Large Textures set to 256, and Zoom to
@@ -7470,7 +7470,7 @@ conclusively found despite extensive isolated testing.
   silently, with the very next launch falling back to every single
   DEFAULTS value at once - which would look exactly like several
   unrelated settings all "not being loaded" together, matching what
-  Keith described.
+    described.
 
   `_save_now` now writes to a temp file first, then atomically renames
   it over the real path (`os.replace`, in the same directory so the
@@ -7488,7 +7488,7 @@ conclusively found despite extensive isolated testing.
 
   Stated honestly, not overclaimed: this is a real, genuine fix for a
   plausible root cause, verified as correct on its own terms - it
-  isn't a confirmed reproduction of Keith's own exact failure, since
+  isn't a confirmed reproduction of my own exact failure, since
   every other part of the actual save/load chain for these 4 settings
   was already checked and found correct. If the issue persists after
   this, the real map_workshop.json's own contents would be the next,
@@ -7499,7 +7499,7 @@ conclusively found despite extensive isolated testing.
 
 - **Aug 20, 2026 (cont'd)** — Moved every config file this app writes
   out of `~/.config/imgfactory` and into the app's own folder, per
-  Keith: "that will not work for standland, all config files would
+   : "that will not work for standland, all config files would
   need to be with the own app folder." A standalone deployment needs
   the whole app, settings included, to be self-contained and portable
   rather than scattered into the running user's own home directory.
@@ -7537,7 +7537,7 @@ conclusively found despite extensive isolated testing.
   new shared helper.
 
 - **Aug 20, 2026 (cont'd)** — Moved Map/Model Workshop's own config
-  files into a dedicated `config/` subfolder, per Keith: "we could add
+  files into a dedicated `config/` subfolder,  "we could add
   a config folder in the same folder as app_name/depends/ app_name.py
   new folder app_name/config/ json/conf files." Matches the already-
   established `depends/` pattern - JSON/conf data now kept
@@ -7561,21 +7561,21 @@ conclusively found despite extensive isolated testing.
   subfolder alongside the app's own source file, and that a settings
   file writes correctly inside it.
 
-  Scope note, not yet done: Keith's own wider complaint (multiple
+  Scope note, not yet done: my own wider complaint (multiple
   differently-named `~/.config/imgfactory*` folders scattered across
   the whole app - `"IMG Factory"`, `"IMG-Factory"`, `"XSeti"`/
   `"IMGFactory"`, `"img-factory"`) spans several files well outside
   Map Workshop's own domain (`imgfactory.py`, `notepad.py`, `open.py`,
   `file_menu_integration.py`, plus 3 stale, out-of-sync duplicate
   copies of `img_factory_settings.py`) - this pass covers Map/Model
-  Workshop's own config only, confirmed with Keith before touching
+  Workshop's own config only, confirmed with   before touching
   those other, shared files.
 
   `ast.parse` clean; confirmed via AST no duplicate method
   definitions.
 
 - **Aug 20, 2026** — Built real SA `water.dat` parsing, the first
-  concrete piece of Keith's own 3-item list ("lets get all the
+  concrete piece of my own 3-item list ("lets get all the
   functions in... Water/radar recalculation when a map section
   moves, Map-to-radar generation, SCM coordinate sync on map moves") -
   a genuine prerequisite for the "water" half of item 1, since
@@ -7618,10 +7618,10 @@ conclusively found despite extensive isolated testing.
   water shape data via `GTAWorldLoader.load_from_dat` itself, not
   just the parser function in isolation.
 
-  **Real scope check, stated plainly**: this is loading only - the
+  ** scope check, stated plainly**: this is loading only - the
   actual "recalculate water when a map section moves" logic, "map-to-
   radar generation", and "SCM coordinate sync on map moves" (the
-  other 2 of Keith's own 3 listed items) are each still substantial,
+  other 2 of my own 3 listed items) are each still substantial,
   separate, unstarted pieces of work - this pass covers the genuine
   prerequisite for one third of one third of the full request, not
   the request itself.
@@ -7631,12 +7631,12 @@ conclusively found despite extensive isolated testing.
 
 - **Aug 20, 2026 (cont'd)** — Built water.dat viewport visualization
   and whole-map move/rotate support - the second concrete piece of
-  Keith's own "lets get all the functions in" list, continuing on
+  my own "lets get all the functions in" list, continuing on
   from parsing.
 
   **Viewport visualization**: new `DFFViewport.show_water`/`set_water_
   shapes`/`_draw_water_shapes` + "Water" toggle button (alongside SA
-  Nodes/Auzo on Keith's own row4). Drawn as flat, translucent
+  Nodes/Auzo on my own row4). Drawn as flat, translucent
   `GL_TRIANGLE_FAN` polygons (correct for both a real triangle and a
   real quad shape) rather than a wireframe box the way cull/zone/
   occlusion already are - a real water shape genuinely is a flat
@@ -7648,7 +7648,7 @@ conclusively found despite extensive isolated testing.
   editing aid rather than skipped, since this shows where water
   actually is, not what a player would see in-game.
 
-  **Real uncertainty checked directly, not assumed away**: verified
+  ** uncertainty checked directly, not assumed away**: verified
   the `GL_TRIANGLE_FAN` fan-from-corner-0 approach against real
   example data from the same documentation the format itself was
   confirmed from, and found at least one real 4-corner line whose own
@@ -7680,7 +7680,7 @@ conclusively found despite extensive isolated testing.
   data conversion (real `WaterShape`/`WaterCorner` objects correctly
   converted to the plain tuples the viewport actually consumes).
 
-  **Real scope check, stated plainly, same as last entry**: this is
+  ** scope check, stated plainly, same as last entry**: this is
   visualization + move/rotate support, not the actual "recalculate
   water correctly for a moved map section" decision logic (which
   water shapes should even move when a specific IPL moves is
@@ -7688,14 +7688,14 @@ conclusively found despite extensive isolated testing.
   making it an explicit, opt-in global choice, matching Tracks, not
   by guessing at an automatic per-IPL association that doesn't really
   exist in the data). Map-to-radar generation and SCM coordinate sync
-  (items 2 and 3 of Keith's own list) remain fully unstarted.
+  (items 2 and 3 of my own list) remain fully unstarted.
 
   `ast.parse` clean on both touched files; confirmed via AST no
   duplicate method definitions.
 
 - **Aug 20, 2026 (cont'd)** — Built real GTA III/VC waterpro.dat
   parsing (the binary counterpart to SA's own text water.dat, built
-  earlier today) - completes the "water" side of item 1 on Keith's
+  earlier today) - completes the "water" side of item 1 on my
   own list for all three games, not just SA.
 
   Format confirmed against multiple independent, byte-for-byte
@@ -7741,7 +7741,7 @@ conclusively found despite extensive isolated testing.
   for VC (no cross-contamination between the two, completely
   different, per-game water systems).
 
-  Real scope check, same honesty as every other entry today: this is
+   scope check, same honesty as every other entry today: this is
   loading only - no visualization or move/rotate support built for
   `waterpro.dat` yet (its own real shape is a grid, not a set of
   discrete corner-based shapes the way SA's water.dat is, so it would
@@ -7753,7 +7753,7 @@ conclusively found despite extensive isolated testing.
   class definitions.
 
 - **Aug 20, 2026 (cont'd)** — Built the first real piece of "map-to-
-  radar generation" (item 2 of Keith's own 3-item list), after he
+  radar generation" (item 2 of my own 3-item list), after he
   pointed at a real radar editor tool ("look at radar editor for how
   the radar works") when a plain web search hadn't turned up a
   precise, confirmed technical spec.
@@ -7814,11 +7814,11 @@ conclusively found despite extensive isolated testing.
   confirmed fact. Naming saved files by their own real (row, col)
   rather than a single index number was a deliberate choice so a
   wrong ordering guess doesn't silently mislabel which physical tile
-  is which - Keith can re-verify/correct this against a real
+  is which -   can re-verify/correct this against a real
   `radarNN.txd` from an actual install without needing anything re-
   run.
 
-  **Real scope check, stated plainly**: this generates plain PNG
+  ** scope check, stated plainly**: this generates plain PNG
   tiles, a real, useful starting point - it does not yet slice/pack
   the result into a real, loadable TXD, and doesn't touch item 3 (SCM
   coordinate sync) at all, which remains fully unstarted. The actual
@@ -7832,7 +7832,7 @@ conclusively found despite extensive isolated testing.
   duplicate method/function/class definitions.
 
 - **Aug 20, 2026 (cont'd)** — Corrected `WaterProLevel`/`WaterProFile`/
-  `parse_waterpro_dat`, per Keith pointing at a real, existing,
+  `parse_waterpro_dat`,  pointing at a real, existing,
   already-proven reference tool: "look at water_workshop." Found a
   real, complete, already-working `WaterproParser` in `apps/
   components/Water_Editor/water_workshop.py` (1502 lines, an entire
@@ -7883,7 +7883,7 @@ conclusively found despite extensive isolated testing.
   `ast.parse` clean; confirmed via AST no duplicate definitions.
 
 - **Aug 20, 2026 (cont'd)** — Extended radar tile generation to VC and
-  GTA III, per Keith: "we also need to do the same for VC and
+  GTA III,  "we also need to do the same for VC and
   GTAIII, radar and water, look at water_workshop" - and separately,
   "radar_workshop has the radar code."
 
@@ -7926,7 +7926,7 @@ conclusively found despite extensive isolated testing.
   with no mismatch.
 
   **A real, separate correction, not glossed over**: while checking
-  `water_workshop.py` again per Keith's own explicit warning ("water_
+  `water_workshop.py` again per my own explicit warning ("water_
   workshop doesn't handle SOL correctly"), found the actual gap -
   that tool's own comments describe real SOL `waterpro.dat` grid data
   as genuinely subdivided into 6x6 tiles, each stored as its own
@@ -7947,7 +7947,7 @@ conclusively found despite extensive isolated testing.
 
 - **Aug 20, 2026 (cont'd)** — Moved the radar tile generation button
   onto row4 (alongside SA Nodes/Auzo/Water) and shortened its name,
-  per Keith: "generate water tiles needs to be moved to row4, as it
+   "generate water tiles needs to be moved to row4, as it
   takes up to much space, and just name it Water, with the tooltop
   Generate Water Tiles."
 
@@ -7969,7 +7969,7 @@ conclusively found despite extensive isolated testing.
   for this specific button.
 
 - **Aug 20, 2026** — Hid row4's own SA-only overlay buttons (SA Nodes,
-  Auzo) for every other game, per Keith: "In GTA III. VC or SOL, we
+  Auzo) for every other game,  "In GTA III. VC or SOL, we
   should not be seeing SA buttons, SA names, or Auzo" - confirmed
   directly via a real screenshot showing a loaded VC world (OceanDrive.
   ipl/PrawnIsland.ipl) with both buttons still visible.
@@ -7986,7 +7986,7 @@ conclusively found despite extensive isolated testing.
   those for non-SA games would hide real, working functionality, not
   clutter.
 
-  Also fixed, in the same pass: a real settings-save crash Keith
+  Also fixed, in the same pass: a real settings-save crash  
   reported directly - "[MapSettings] Failed to save .../map_workshop.
   json: name 'json' is not defined." A genuine oversight from this
   session's own earlier atomic-write fix - `MapSettings._load`/
@@ -8002,8 +8002,8 @@ conclusively found despite extensive isolated testing.
 
   `ast.parse` clean.
 
-- **Aug 20, 2026 (cont'd)** — Real fixes and a new feature for radar
-  tile generation, per Keith: "radar tiles generation works, need to
+- **Aug 20, 2026 (cont'd)** —  fixes and a new feature for radar
+  tile generation,  "radar tiles generation works, need to
   add settings for those, also the radar button seems to stretch,
   should be a compact button like the others, right click the radar
   button to send the tiles to txd workshop, add radarXX.png to
@@ -8041,7 +8041,7 @@ conclusively found despite extensive isolated testing.
   list (Models/Maps/Collisions/Textures, confirmed directly in `project_
   manager.py`) never had one before this. Genuinely conditional, not
   required - silently skipped, not an error, when no assists folder
-  is configured, matching Keith's own explicit "if assists folder
+  is configured, matching my own explicit "if assists folder
   exists" wording.
 
   Verified thoroughly: a full, real round-trip (a real synthetic PNG
@@ -8056,7 +8056,7 @@ conclusively found despite extensive isolated testing.
   definitions.
 
 - **Aug 20, 2026 (cont'd)** — New right-click "Send to Radar Workshop"
-  option, per Keith: "another right click option, send to radar
+  option,  "another right click option, send to radar
   workshop" - the second option alongside "Send to TXD Workshop" on
   the same context menu.
 
@@ -8087,7 +8087,7 @@ conclusively found despite extensive isolated testing.
   definitions.
 
 - **Aug 20, 2026 (cont'd)** — Fixed a real bug and added a genuine
-  settings toggle for it, per Keith: "one thing i've noticed is the
+  settings toggle for it,  "one thing i've noticed is the
   square grid gets saved in with the radar tiles, can we have a
   settings option to not show the grid, in time we could have other
   grid options."
@@ -8111,7 +8111,7 @@ conclusively found despite extensive isolated testing.
   and passes it straight through on every tile captured.
 
   Deliberately its own separate settings key, not folded into an
-  existing group - Keith's own "in time we could have other grid
+  existing group - my own "in time we could have other grid
   options" framing marks this as the start of a real, small settings
   group of its own, not a one-off toggle.
 
@@ -8123,7 +8123,7 @@ conclusively found despite extensive isolated testing.
   `ast.parse` clean on both touched files; confirmed via AST no
   duplicate method definitions.
 
-- **Aug 20, 2026 (cont'd)** — Real grid style options, per Keith: "can
+- **Aug 20, 2026 (cont'd)** —  grid style options,  "can
   we have an option for grid type squares, grid with blue square
   inside, marching ants lines, just dots, and switch grid off
   completly."
@@ -8133,10 +8133,10 @@ conclusively found despite extensive isolated testing.
   `_draw_grid_squares`/`_draw_grid_dashed`/`_draw_grid_dots`) instead
   of the one, only style this feature ever had before: `lines` (the
   original, unchanged), `squares` (a real, semi-transparent blue
-  `GL_QUADS` fill inside every cell, per Keith's own literal "blue
+  `GL_QUADS` fill inside every cell  own literal "blue
   square inside" wording - a real superset of the lines style, not a
   replacement that drops the outlines), `dashed` (genuinely dashed via
-  real `GL_LINE_STIPPLE`, matching Keith's own "marching ants" wording
+  real `GL_LINE_STIPPLE`, matching my own "marching ants" wording
   and the same visual language already used elsewhere in this app for
   an edit-mode indicator), `dots` (only the real grid intersection
   points as `GL_POINTS`, no connecting lines at all - genuinely
@@ -8168,7 +8168,7 @@ conclusively found despite extensive isolated testing.
   duplicate method definitions.
 
 - **Aug 20, 2026 (cont'd)** — Fixed the real, underlying grid-coverage
-  bug, per Keith: "the other thing I noticed about the original grid,
+  bug,  "the other thing I noticed about the original grid,
   is it didn't cover the whole area, bigger maps overlapped it
   massively, I cant calculate the size needed to cover all map sides,
   so not just grid pattern size, but grid area size, or limitless?"
@@ -8183,10 +8183,10 @@ conclusively found despite extensive isolated testing.
   that normal navigation moves the camera well away from the origin
   as a matter of course.
 
-  Real answer to Keith's own "grid area size, or limitless?" question:
+   answer to my own "grid area size, or limitless?" question:
   limitless, not a fixed size - genuinely camera-relative now rather
   than tied to any assumed map size, which would need knowing the
-  real map bounds in the first place, the exact thing Keith said he
+  real map bounds in the first place, the exact thing   said he
   couldn't calculate. `_draw_grid` now computes the camera's own real
   current focal point (`-pan_x`/`-pan_y` - the same real relationship
   already verified numerically for `capture_radar_tile`'s own camera
@@ -8212,13 +8212,13 @@ conclusively found despite extensive isolated testing.
   definitions.
 
 - **Aug 20, 2026 (cont'd)** — Fixed a real, understandable point of
-  confusion Keith ran into: "have you added the other grid types, all
+  confusion   ran into: "have you added the other grid types, all
   I see is solid, checkerboard, grid in preview tab, in settings, and
   there doesn't appear to be other grid styles?"
 
   The 4 new grid styles (Lines/Squares/Dashed/Dots) were genuinely
   already added and pushed - they live on the Render settings tab's
-  own "Grid & Radar Tiles" group, not the Preview tab. What Keith was
+  own "Grid & Radar Tiles" group, not the Preview tab. What   was
   actually looking at is a real, separate, pre-existing setting -
   Background Mode's own "Solid Color / Checkerboard / Grid" choice on
   the Preview tab - which controls the viewport's flat, 2D background
@@ -8231,7 +8231,7 @@ conclusively found despite extensive isolated testing.
 
   `ast.parse` clean.
 
-- **Aug 20, 2026 (cont'd)** — Added real anti-aliasing, per Keith: "we
+- **Aug 20, 2026 (cont'd)** — Added real anti-aliasing,  "we
   need some kind of anti-alising, far away lines doesn't appear to
   flicker?" A thin, unsmoothed line far from the camera covers less
   than one pixel's worth of screen space per grid step, so as the
@@ -8273,7 +8273,7 @@ conclusively found despite extensive isolated testing.
   `ast.parse` clean; confirmed via AST no duplicate method
   definitions.
 
-- **Aug 20, 2026 (cont'd)** — Added a 5th grid style, per Keith: "Can
+- **Aug 20, 2026 (cont'd)** — Added a 5th grid style,  "Can
   and add honeycomb effects."
 
   New `_draw_grid_honeycomb` - a real, standard hexagonal tiling
@@ -8299,7 +8299,7 @@ conclusively found despite extensive isolated testing.
   definitions.
 
 - **Aug 20, 2026** — Fixed 2 real gaps in the startup "Load Options"
-  bulk-IPL-loading dialog (`_load_selected_ipls_with_log`), per Keith:
+  bulk-IPL-loading dialog (`_load_selected_ipls_with_log`), .per:
   "When I start the app and load the data file, any version of GTA...
   I get the popup where you can load selected entries or skip; this
   dialogue does not show the IPL name in a separate section above
@@ -8395,7 +8395,7 @@ conclusively found despite extensive isolated testing.
 
 - **Aug 20, 2026** — Wrapped the Render tab in a real QScrollArea -
   it had never had one, which was the direct cause of the overlapping/
-  overflowing controls Keith's screenshot showed once enough groups
+  overflowing controls my screenshot showed once enough groups
   (Path Lines/Grid/Environment) were added to it. Tightened group
   spacing too.
 
@@ -8441,7 +8441,7 @@ conclusively found despite extensive isolated testing.
   folder Browse in Grid & Radar Tiles settings. Auto-refreshes tile
   paths/bounds to match whichever game's world is actually loaded.
 
-- **Aug 20, 2026** — Full review pass, per Keith: "grid disappears
+- **Aug 20, 2026** — Full review pass,  "grid disappears
   when IPL models are loaded, can you check all functions we have
   done tonight for bugs." Found and fixed 3 real bugs:
 
@@ -8466,25 +8466,25 @@ conclusively found despite extensive isolated testing.
      2-hour intervals. Added the real per-game slot-to-hour mapping.
 
 - **Aug 20, 2026** — Merged Timecyc play/stop into a new [Tcyc]
-  toggle on the same toolbar row as [2DFX]/[Tobj], per Keith's own
+  toggle on the same toolbar row as [2DFX]/[Tobj]  own
   request. Removed the now-redundant separate Play/Stop button from
   Settings > Render > Environment - that row is Browse-only now.
 
-- **Aug 20, 2026** — Fixed radar tex layer not working, per Keith:
+- **Aug 20, 2026** — Fixed radar tex layer not working, .per:
   "those radar.txd files are in the gta3... unless it's SOL where
   they're in another file." The feature assumed loose radarNN.png
   files in a user-chosen folder; real radar tiles are radarNN.txd
   entries inside the game's own already-loaded IMG archive. Reworked
   to read them directly via ModelCache.get_textures() (same index
   already used for models/collision) - no folder picker needed
-  anymore. Real naming per game: RADAR00-NN (SA/VC/III) vs
+  anymore.  naming per game: RADAR00-NN (SA/VC/III) vs
   radar0000-NNNN (SOL), matching radar_workshop.py's own real naming
   functions. Also fixed a real ordering bug this surfaced: the world-
   load hook was reading ModelCache before index_img_files() had
   actually indexed that world's own IMG files - moved to run after it.
 
 - **Aug 20, 2026** — Fixed real segfault using an image as the grid
-  texture tile, per Keith: "trying to use this image as the texture
+  texture tile,  "trying to use this image as the texture
   tile crashes the app. Segmentation fault (core dumped)."
 
   Root cause: _ensure_squares_texture (and _ensure_skybox_texture,
@@ -8503,7 +8503,7 @@ conclusively found despite extensive isolated testing.
   context current for them.
 
   Also added a "Reset Grid to Defaults" button to the Grid & Radar
-  Tiles settings, per Keith: "it's easy to enter large values and
+  Tiles settings,  "it's easy to enter large values and
   mess things up."
 
 - **Aug 20, 2026** — Texture opacity setting for grid squares/texture
@@ -8516,7 +8516,7 @@ conclusively found despite extensive isolated testing.
   new controls too.
 
 - **Aug 20, 2026** — Fixed timecyc looking like a flat single colour
-  instead of a real day/night effect, per Keith: "not the effect of
+  instead of a real day/night effect,  "not the effect of
   how it seen in game." The old version only ever read sky_bot and
   used it as one flat background clear colour - no sky gradient, and
   no effect on the actual lighting models are lit with.
@@ -8537,7 +8537,7 @@ conclusively found despite extensive isolated testing.
   rather than sticking on one row.
 
 - **Aug 20, 2026** — New "Hide grid over radar tiles" checkbox, per
-  Keith: "toggle the grid over radar, see it outside, but not on the
+   : "toggle the grid over radar, see it outside, but not on the
   radar tiles." Grid lines within the radar tex layer's own real
   bounds are now suppressed (each line split into up to 2 segments,
   skipping the middle portion that overlaps the map area) while still
@@ -8545,8 +8545,8 @@ conclusively found despite extensive isolated testing.
   layer itself is on. Verified the segment-splitting math directly
   against a simulated bounds/range before wiring it in.
 
-- **Aug 20, 2026** — Real improvement to timecyc sky rendering, per
-  Keith: "still isn't being rendered like it would be in game...
+- **Aug 20, 2026** —  improvement to timecyc sky rendering, per
+   : "still isn't being rendered like it would be in game...
   all its doing it cycling through colours, no horizon and sky
   bands." A flat 2-colour top/bottom blend was still not what a real
   GTA sky looks like - brighter/warmer near the horizon (sun_core),
@@ -8572,11 +8572,11 @@ conclusively found despite extensive isolated testing.
 
 - **Aug 20, 2026** — Fixed the sky gradient rendering upside-down
   (zenith at the bottom, horizon glow at the top) - flipped, per
-  Keith: "the sky need flipping vertically." Noted for later:
+   : "the sky need flipping vertically." Noted for later:
   fog is still on the list of real effects to add alongside this.
 
 - **Aug 20, 2026** — Fixed timecyc colour effect blinking on and off,
-  worse while moving/turning the view, per Keith. _on_timecyc_tick
+  worse while moving/turning the view, .per. _on_timecyc_tick
   runs off its own independent QTimer, not Qt's paint lifecycle, but
   was directly calling self.makeCurrent()/_setup_lighting()/self.
   doneCurrent() on top of that - pure duplication, since paintGL
@@ -8589,7 +8589,7 @@ conclusively found despite extensive isolated testing.
   ambient tint through its own existing lighting setup.
 
 - **Aug 20, 2026** — Fixed timecyc running its own separate, redundant
-  timer, per Keith: "there appears to be another timer running
+  timer,  "there appears to be another timer running
   besides the tojb timer." It was a real, second "time of day" clock
   alongside the app's actual one (the TObj time-flow timer driving
   the Time switch's own QTimeEdit). Removed timecyc's own internal
@@ -8617,7 +8617,7 @@ conclusively found despite extensive isolated testing.
   to the same non-existent control, now pointing at the real new
   quick toggle instead.
 
-- **Aug 20, 2026** — Fixed Auzo not showing content, per Keith:
+- **Aug 20, 2026** — Fixed Auzo not showing content, .per:
   "clicking on the Auzo button still doesn't show the contents on the
   auzo file, from auzo entry" (comparing to the real, working paths/
   zon/cull/occl workflow: "clicked on first, then [Paths] button to
@@ -8632,7 +8632,7 @@ conclusively found despite extensive isolated testing.
   related gap: it never filtered by which IPLs are actually visible/
   hidden at all, unlike every other overlay here.
 
-- **Aug 20, 2026** — Two real fixes, per Keith:
+- **Aug 20, 2026** — Two real fixes, .per:
 
   1. "water function should also load the waterpro.dat, and display
      it in the same way water_workshop works" - load_waterpro_dat was
@@ -8667,11 +8667,11 @@ conclusively found despite extensive isolated testing.
 - **Aug 20, 2026** — Also reworked the user-image Skybox to the same
   real, world-space box-sky technique the gradient sky just got - it
   had the identical "doesn't pan with the camera" bug, just not yet
-  reported since Keith's own screenshots showed the gradient sky
+  reported since my own screenshots showed the gradient sky
   specifically. Image now maps around the 4 side faces as a single
   wraparound panorama rather than repeating the same frame on each side.
 
-- **Aug 20, 2026** — Fixed real sky glitching, per Keith: "weird
+- **Aug 20, 2026** — Fixed real sky glitching,  "weird
   glitching in the background... I dont remember RED in the sky."
   The box sky's own horizon-glow band used to extend from the
   horizon (Z=0) down to well below it. Since this app's own map
@@ -8683,18 +8683,18 @@ conclusively found despite extensive isolated testing.
   real horizon line now, for both the gradient and image skybox.
 
   Added a "Flip sky gradient" checkbox (Environment settings), per
-  Keith: "Remember when I said the timecyc was upside down? We need
+   : "Remember when I said the timecyc was upside down? We need
   a toggle to switch it either way, just in case I was wrong."
 
 - **Aug 20, 2026** — Added "Show Load Options dialog on world load"
   checkbox to Loading settings (already flagged as a TODO at the
-  call site), per Keith: "we need a settings option for this popup
+  call site),  "we need a settings option for this popup
   so we can disable it if needed." Off skips the dialog entirely and
   stays fully lazy, same as picking "Load from .dat file" in it
   would.
 
 - **Aug 20, 2026** — Fixed multiple dialogues opening when loading
-  several IPLs at once, per Keith: "when selecting multiply ipls,
+  several IPLs at once,  "when selecting multiply ipls,
   all select, load all, this opens multiple dialogues. It should be
   one window with the title and process change." Each selected IPL
   used to get its own separate _preload_world_assets progress dialog
@@ -8707,7 +8707,7 @@ conclusively found despite extensive isolated testing.
   suppressed during a bulk load (the shared dialog already reports
   which IPL is loading).
 
-- **Aug 20, 2026** — New "Water Display" settings group, per Keith:
+- **Aug 20, 2026** — New "Water Display" settings group, .per:
   "Maybe show water should be in lines, dots, hexagons, with the
   water file path... another entry for custom textures to be shown
   instead of the grid... also retaining the option to show grid
@@ -8722,7 +8722,7 @@ conclusively found despite extensive isolated testing.
     real map area instead of the void beyond it)
 
 - **Aug 20, 2026** — [Tcyc] button now shows live time feedback (e.g.
-  "Tcyc 14:30") while playing, per Keith: "[TCYC] button doesn't
+  "Tcyc 14:30") while playing,  "[TCYC] button doesn't
   appear to change as time advances." Updated from _on_tobj_time_
   changed, the same real, shared clock callback that already drives
   timecyc's own hour - only while the button is actually checked, and
@@ -8730,7 +8730,7 @@ conclusively found despite extensive isolated testing.
   showing a stale time.
 
 - **Aug 20, 2026** — Fixed the real root cause of water/timecyc not
-  working for a real, unmodified install, per Keith: "I am using the
+  working for a real, unmodified install,  "I am using the
   original VC install, the waterpro.dat is in gameroot/data/waterpro.
   dat." load_waterpro_dat/load_water_dat relied entirely on gta*.dat's
   own WATER directive - genuinely correct for SA (its own gta.dat
@@ -8743,7 +8743,7 @@ conclusively found despite extensive isolated testing.
   fix to timecyc.dat auto-detection.
 
 - **Aug 20, 2026** — Water no longer writes to the depth buffer while
-  drawing, per Keith: "when water is being rendered, don't render
+  drawing,  "when water is being rendered, don't render
   over loaded IPL models." GL_DEPTH_TEST was already correctly
   enabled globally and untouched before water draws, so opaque model
   geometry already occluded it correctly - the real, standard gap for
@@ -8755,26 +8755,26 @@ conclusively found despite extensive isolated testing.
 
 - **Aug 20, 2026** — Timecyc auto-detection now also falls back to
   the active Project Manager's own main_window.game_root/data folder,
-  per Keith: "we also have the project profiles to fall back on" -
+   "we also have the project profiles to fall back on" -
   a second, real source of "where this game actually lives"
   independent of whichever world happens to be loaded this session.
 
   Added a real "Browse…" button next to the Water file status in
-  Water Display settings, per Keith: "if it's not found, ask for it,
+  Water Display settings,  "if it's not found, ask for it,
   [browse] with the path to where the waterpro.dat is." Manually
   parses the chosen file as either format (waterpro.dat first, water.
   dat as fallback) and refreshes the water overlay immediately.
 
 - **Aug 20, 2026** — Applied the same real GL_CULL_FACE fix to the
   image Skybox that _draw_sky_gradient already got - confirmed
-  directly from Keith's own screenshots (a solid black wedge cutting
+  directly from my own screenshots (a solid black wedge cutting
   into the sky at certain angles), the exact shape a culled box-sky
   face would leave behind. Neither method ever touched cull-face
   state, so it depended on whatever was left over from the previous
   frame's own draw calls.
 
 - **Aug 20, 2026** — Made water's depth-testing explicit and
-  defensive, per Keith's follow-up: "looking at it side on, water
+  defensive  follow-up: "looking at it side on, water
   level appear correct... looking from above or below, the water is
   blocking everything else out... is there a way to make the ipl
   models take priority." Traced the full paintGL draw chain
@@ -8787,7 +8787,7 @@ conclusively found despite extensive isolated testing.
   whatever state preceded them was already correct.
 
 - **Aug 20, 2026** — Added explicit dry/cutout handling to waterpro
-  grid cells, per Keith: "waterpro.dat allowing cut out areas, making
+  grid cells,  "waterpro.dat allowing cut out areas, making
   sure waterpro.dat is used is very important, look at water_workshop
   as resource." Confirmed water_workshop.py's own real logic
   (WaterGridWidget._cell_col): val == 128 means dry/land, any other
@@ -8801,7 +8801,7 @@ conclusively found despite extensive isolated testing.
   covering the whole map on its own.
 
 - **Aug 20, 2026** — Fixed [Tcyc] not actually stopping when turned
-  off, per Keith: "this would only trigger the Timecyc on, or off, on
+  off,  "this would only trigger the Timecyc on, or off, on
   I see the timecyc, off the timecyc function stops." Turning it off
   used to only stop future updates - the sky gradient/ambient tint/
   background override from whatever hour was last applied stayed
@@ -8812,7 +8812,7 @@ conclusively found despite extensive isolated testing.
   tint, so lighting/background/sky all actually return to normal.
 
 - **Aug 20, 2026** — Removed [Tcyc] auto-starting the shared Tobj
-  time-flow timer, per Keith's own direct correction: "Timecyc
+  time-flow timer  own direct correction: "Timecyc
   playing should be linked to TOJB, 2DFX time button, we dont need
   to start time with TCYC button, thats only meant to toggle the sky
   on or off?" Correct - [Tcyc] is a pure show/hide toggle for the
@@ -8824,7 +8824,7 @@ conclusively found despite extensive isolated testing.
 
 - **Aug 20, 2026** — Re-verified [Water]'s full real chain (click ->
   signal -> handler -> set_show_water -> paintGL's own dispatch),
-  per Keith: "the Water button pressed does nothing, we need to fix
+   "the Water button pressed does nothing, we need to fix
   this." All of it was already correctly wired - the real, remaining
   explanation is no water data being loaded to show at all (his own
   earlier settings screenshot already confirmed "Water file: Not
@@ -8832,7 +8832,7 @@ conclusively found despite extensive isolated testing.
   so directly in the status bar when there's genuinely nothing
   loaded, pointing at Settings > Render > Water Display > Browse.
 
-- **Aug 20, 2026** — Two real fixes, per Keith's own screenshots:
+- **Aug 20, 2026** — Two real fixes  own screenshots:
 
   1. "I think the show water in settings show grid and 'Square (blue
      fill)' is overriding the [Water] button" - confirmed and fixed.
@@ -8848,7 +8848,7 @@ conclusively found despite extensive isolated testing.
      the same time already shows on the separate Time display right
      next to it in the same IPL Controls row, genuinely redundant.
 
-- **Aug 20, 2026** — New "Preload Game Data Files" dialog, per Keith:
+- **Aug 20, 2026** — New "Preload Game Data Files" dialog, .per:
   "we need a preload menu, on a right click, and map workshop menu,
   where it shows the contents on the game/data/ folder, picking the
   file >> over to the preload box, including the waterpro.dat,
@@ -8870,7 +8870,7 @@ conclusively found despite extensive isolated testing.
   function-count check instead).
 
 - **Aug 20, 2026** — Preloading a real, recognised file now also
-  turns its own on/off toggle on, per Keith: "if those files pre
+  turns its own on/off toggle on,  "if those files pre
   loaded, in objects browser the ipl and zon entries would already
   be highlighted, so the off on buttons wouldn't need to change."
   Loading the raw data alone wasn't enough - the water/timecyc
@@ -8882,7 +8882,7 @@ conclusively found despite extensive isolated testing.
 
 - **Aug 20, 2026** — Fixed preloaded IMG files being invisible to
   other tools (TXD Workshop, Radar Workshop, Model Workshop, COL
-  Workshop), per Keith: "loading img into img factory the other
+  Workshop),  "loading img into img factory the other
   tools... see the files, but preloading the img into map workshop,
   the radar workshop, model workshop, col workshop don't see the
   files, so preloading the img needs to follow the same rules as
@@ -8899,12 +8899,12 @@ conclusively found despite extensive isolated testing.
   doesn't pile up duplicate tabs. Same real fix added to the Preload
   dialog for .img entries specifically.
 
-- **Aug 20, 2026** — Two real fixes, per Keith's own screenshot
+- **Aug 20, 2026** — Two real fixes  own screenshot
   confirming waterpro.dat loaded successfully:
 
   1. "remove the square (blue fill) entry, temp comment it out if
      possible... add 'Hide Grid'" - Squares commented out (not
-     deleted, per Keith's own explicit preference) in the grid style
+     deleted  own explicit preference) in the grid style
      dropdown; a saved grid_type of 'squares' from before now falls
      back to Lines rather than silently disappearing. Re-added the
      earlier-removed "Hide grid" ('none') option to the same
@@ -8914,7 +8914,7 @@ conclusively found despite extensive isolated testing.
      are genuinely independent dispatches in paintGL), so this gives
      a second, alternate way to hide the grid to test against.
 
-  2. Preload dialog real additions, per Keith: "need a save button
+  2. Preload dialog real additions,  "need a save button
      that remembers picked entries, also able to see the path files,
      dir level up down" - real directory navigation now (editable
      path field, Up button, double-click a folder to open it,
@@ -8924,17 +8924,17 @@ conclusively found despite extensive isolated testing.
      restored the next time the dialog opens.
 
 - Aug 20 2026 - Loaded IPL rows now show white text (was greyed/
-  normal same as unloaded), per Keith: mark preloaded entries as
+  normal same as unloaded),  mark preloaded entries as
   loaded white in obj browser ipl list. _style_ipl_name_item takes a
   loaded flag now, both real call sites updated.
 - Aug 20 2026 - Preload dialog now recognises .ipl/.zon files, per
-  Keith: automatically search for maps, paths, dat files. Matches
+   : automatically search for maps, paths, dat files. Matches
   the file against the existing IPL Sections table by name and
   triggers the same load path the eye-icon click uses, instead of
   showing "not a recognised type".
 
 - Aug 20 2026 - Restored map_workshop.py/dff_viewport.py to this
-  exact point (commit 2f509b56), per Keith: "restore just before we
+  exact point (commit 2f509b56),  "restore just before we
   removed the water code." The whole water rewrite that followed
   (disconnect from settings, new Preload-driven water2 system, full
   removal of the old system, retooling the auto-load pipeline, plus
@@ -8943,18 +8943,18 @@ conclusively found despite extensive isolated testing.
   Cull/Zon/Occlusion/Paths/Tracks/Tcyc (910099cf), since that came
   after this point too - flagged separately, can be re-applied
   cleanly if wanted. tex/waterclear256.png and projects.json (both
-  Keith's own separate commit) were left untouched.
+  my own separate commit) were left untouched.
 
 - Aug 20 2026 - Loaded IPL row text now uses the palette's own real
   BrightText role instead of a hardcoded QColor(255,255,255), per
-  Keith: "entries should be displaying the theme aware white." A
+   : "entries should be displaying the theme aware white." A
   fixed pure white isn't theme-aware - a light theme's own background
   could sit close to it too, making loaded entries hard to tell apart
   from the background rather than from unloaded rows. BrightText is
   Qt's own standard role for exactly this (distinct/emphasised text),
   so it adapts correctly whatever theme is active.
 
-- Aug 20 2026 - Two real fixes, per Keith: "starting map_workshop
+- Aug 20 2026 - Two real fixes,  "starting map_workshop
   back up, I noticed there is nothing in the startup, saying
   preloading files, etc":
 
@@ -8973,7 +8973,7 @@ conclusively found despite extensive isolated testing.
      never reached disk at all, so there was nothing for the new
      auto-apply above to find on a real restart.
 
-- Aug 20 2026 - Diagnostics added, per Keith: "preload still not
+- Aug 20 2026 - Diagnostics added,  "preload still not
   working, and nothing in the status log, is there a conflict
   somewhere." Traced map_settings' own real save/load path in full
   (singleton pattern via __new__, debounced auto-save on every set(),
@@ -8987,7 +8987,7 @@ conclusively found despite extensive isolated testing.
   _apply_loaded_world is now wrapped in try/except too, in case an
   uncaught exception there was silently swallowing the real error.
 
-- Aug 20 2026 - Auto-load last world on startup, per Keith's own
+- Aug 20 2026 - Auto-load last world on startup  own
   explicit "option 2" choice from yesterday, confirmed still needed
   by his own follow-up log ("nothing about loading preloaded files")
   - traced that to no world ever being loaded at all during that
@@ -9001,7 +9001,7 @@ conclusively found despite extensive isolated testing.
   auto_load_last_world setting is off, or the file no longer exists
   on disk.
 
-- Aug 20 2026 - Three real additions, per Keith: "auto_load_last_world
+- Aug 20 2026 - Three real additions,  "auto_load_last_world
   where in settings is this setting, and as we're on settings, can we
   add another for, that dat window, countdown from 10, then
   automatically press ok, also show the preloaded files in that
@@ -9023,7 +9023,7 @@ conclusively found despite extensive isolated testing.
      summary can show it directly instead of only the status bar.
 
 - Aug 20 2026 - Added [MapWorkshop-MARKER] terminal print statements,
-  per Keith: "we need a marker to show in the terminal for each
+   "we need a marker to show in the terminal for each
   dialog window, there coming up twice, and loading the img file
   twice." Markers at: ModelWorkshop.__init__ (with a real module-
   level instance counter - the most direct explanation for both
@@ -9037,7 +9037,7 @@ conclusively found despite extensive isolated testing.
   twice" with no way to tell which.
 
 - Aug 20 2026 - Fixed real re-entrancy bug behind double dialogs/
-  double IMG load, confirmed via Keith's own terminal markers: two
+  double IMG load, confirmed via my own terminal markers: two
   full _apply_loaded_world calls on the exact same instance (same
   id), back to back. Root cause: __init__'s own deferred QTimer.
   singleShot(0, self._auto_load_last_world) was still pending by the
@@ -9046,7 +9046,7 @@ conclusively found despite extensive isolated testing.
   timer right there, mid-method, nesting a second, re-entrant call to
   the entire load pipeline before the first had finished.
 
-  Real fix: _apply_loaded_world is now a thin wrapper (renamed the
+   fix: _apply_loaded_world is now a thin wrapper (renamed the
   real body to _apply_loaded_world_impl, unchanged) with an instance-
   level re-entrancy guard - a nested call while one's already in
   progress is skipped with a clear log line instead of silently
@@ -9084,7 +9084,7 @@ conclusively found despite extensive isolated testing.
   their own underlying data to exist at all.
 
 - Aug 20 2026 - Re-applied the entire preload-driven water2 system,
-  per Keith's own priority: "get the water working, from the
+  per my own priority: "get the water working, from the
   preloaded file, [water] button off/on toggle." This is the same
   design that worked before it was lost in the earlier full water-
   rewrite revert - kept isolated this time from the 3 separate bugs
@@ -9109,7 +9109,7 @@ conclusively found despite extensive isolated testing.
   dialog shortcut re-added (map_workshop.py).
 
 - Aug 20 2026 - Added a real "Use water texture (if preloaded)"
-  toggle, per Keith: "I like the blue, so we can keep it, or have an
+  toggle,  "I like the blue, so we can keep it, or have an
   option to use the water texture." Off by default (his own stated
   preference) - independent of whether a texture happens to be
   preloaded, so switching styles doesn't need re-preloading each
@@ -9117,7 +9117,7 @@ conclusively found despite extensive isolated testing.
   texture on the viewport; restored at startup alongside the other
   viewport settings.
 
-- Aug 20 2026 - Two real fixes, per Keith's own screenshot (filename
+- Aug 20 2026 - Two real fixes  own screenshot (filename
   "turn_90d_anti_clock") and follow-up request:
 
   1. Fixed real 90-degree rotation bug in _waterpro_to_cells - the
@@ -9130,7 +9130,7 @@ conclusively found despite extensive isolated testing.
      own SW, not NE (which would have been the wrong, clockwise
      result).
 
-  2. New "other water layer" right-click toggle, per Keith: "when you
+  2. New "other water layer" right-click toggle,  "when you
      right click the water button, show the other water layer, right
      clicking again shows the first." [Water] now supports_edit=True,
      with edit_toggled wired to a new _on_water_layer_toggled that
@@ -9141,14 +9141,14 @@ conclusively found despite extensive isolated testing.
      mode" wording isn't accurate for this real use.
 
 - Aug 20 2026 - Fixed the Preload dialog's "App Textures" shortcut,
-  per Keith: "tex folder was moved to depends/tex/ in map_workshop."
+   "tex folder was moved to depends/tex/ in map_workshop."
   Was computing the repo root (3 levels up from map_workshop.py) then
   looking for tex/ there - the real, current location is one level
   down from map_workshop.py's own directory instead
   (depends/tex/waterclear256.png). Verified the fix resolves to the
   real, existing path directly.
 
-- Aug 20 2026 - Fixed real crash bug, per Keith: "Traceback...
+- Aug 20 2026 - Fixed real crash bug,  "Traceback...
   RuntimeError: wrapped C/C++ object of type QComboBox has been
   deleted... Aborted (core dumped)." The same real crash-bug pattern
   from earlier in this session recurred - disconnecting water_grp
@@ -9162,7 +9162,7 @@ conclusively found despite extensive isolated testing.
   texture was already being saved/applied elsewhere in this same
   handler).
 
-- Aug 20 2026 - Converted [Radar] to a real toggle button, per Keith:
+- Aug 20 2026 - Converted [Radar] to a real toggle button, .per:
   "The radar button also needs to switch the radar on and off, and
   right-clicking the radar button should generate the radar...
   moving the Radar settings from the settings, to the button would
@@ -9177,7 +9177,7 @@ conclusively found despite extensive isolated testing.
   the crash bug just fixed above was caused by exactly that pattern.
 
 - Aug 20 2026 - Added real water height offset and transparency
-  controls, per Keith: "The water needs to be moved up and have
+  controls,  "The water needs to be moved up and have
   transparency settings, but I'm not sure by how much. Looking at
   the radar map and water together would help." New "Height offset"
   and "Transparency" spinboxes in the Water settings group -
@@ -9191,7 +9191,7 @@ conclusively found despite extensive isolated testing.
   both can now be switched on to compare/align visually.
 
 - Aug 20 2026 - Water height offset/transparency now update live as
-  the spinbox itself changes, per Keith: "Change it by 20+ on the
+  the spinbox itself changes,  "Change it by 20+ on the
   height in settings, doesn't update the view." Previously only
   applied on Apply/OK - for a "not sure by how much, need to see it
   interactively" adjustment, live updates make more sense than
@@ -9199,7 +9199,7 @@ conclusively found despite extensive isolated testing.
   also persists the value to settings as before.
 
 - Aug 20 2026 - Reverted the earlier "90-degree anticlockwise
-  rotation" fix - confirmed a real misdiagnosis, per Keith: "radar
+  rotation" fix - confirmed a real misdiagnosis,  "radar
   aligns perfect with the models, so the issue is the water grid."
   compute_radar_grid (the trusted reference, confirmed correctly
   aligned with real models) uses min_x = -half + col*cell, min_y =
@@ -9213,7 +9213,7 @@ conclusively found despite extensive isolated testing.
 
 - Aug 20 2026 - Re-applied the real anticlockwise rotation to water,
   undoing the previous revert - that revert was the actual mistake,
-  per Keith's own direct confirmation: "the water is 90 degrees
+  per my own direct confirmation: "the water is 90 degrees
   clockwise oriented, wrong against the radar." Matching compute_
   radar_grid's own code textually doesn't guarantee real alignment if
   waterpro.dat's own raw row/col axes don't carry the same real
@@ -9225,7 +9225,7 @@ conclusively found despite extensive isolated testing.
   directly again (the same real (x,y)->(-y,x) derivation confirmed
   earlier - see git history for the full math).
 
-- Aug 20 2026 - Fixed real bug, per Keith: "I changed the path to
+- Aug 20 2026 - Fixed real bug,  "I changed the path to
   Liberty City, and loaded from gta3.dat... its still grabbing the VC
   waterpro.dat, and not the one in GTALC/data/waterpro.dat...
   waterpro.dat needs to be handled some for each install it finds the
@@ -9244,7 +9244,7 @@ conclusively found despite extensive isolated testing.
   on its own.
 
 - Aug 20 2026 - Replaced last turn's "skip these 3 file types
-  entirely" fix with a better one, per Keith: "we can have them in
+  entirely" fix with a better one,  "we can have them in
   saved picks as we know they are going to be in the /data folder,
   the only change is the gameroot folder." waterpro.dat/water.dat/
   timecyc.dat are now saved as a real "<gamedata>/<filename>" marker
@@ -9259,7 +9259,7 @@ conclusively found despite extensive isolated testing.
   list (previously would have silently vanished, since a literal
   "<gamedata>/..." string is never a real, existing file path).
 
-- Aug 20 2026 - Fixed real gap in the "<gamedata>/" marker, per Keith:
+- Aug 20 2026 - Fixed real gap in the "<gamedata>/" marker, .per:
   "../data/waterpro.dat - for LC and VC, but SA map looks for
   ../data/water.dat." The marker used to hardcode the specific
   filename it was saved with, which broke the moment the current
@@ -9274,7 +9274,7 @@ conclusively found despite extensive isolated testing.
   that previously each had their own inline copy of this logic
   (automatic apply, manual Load, dialog list restore).
 
-- Aug 20 2026 - Fixed real gap in timecyc.dat, per Keith: "the
+- Aug 20 2026 - Fixed real gap in timecyc.dat,  "the
   timecyc.dat also has a fixed path, but the radar loads fine across
   the game versions." Traced the real structural difference: radar
   never persists a path into settings at all (_load_radar_tex_tiles
@@ -9293,10 +9293,10 @@ conclusively found despite extensive isolated testing.
   auto-detect+persist+startup-restore pattern (_auto_detect_timecyc_
   path is the only one).
 
-- Aug 20 2026 - Self-healing fix, per Keith: "the VC waterpro.dat
+- Aug 20 2026 - Self-healing fix,  "the VC waterpro.dat
   shows across SA and LC, so this needs fixing." Confirmed root
   cause: a pick saved before the "<gamedata-role>/" marker fix
-  existed is still a real, plain absolute path in Keith's own already-
+  existed is still a real, plain absolute path in my own already-
   persisted settings file - that earlier fix only changed how new
   saves are written, it never migrated what was already saved, so the
   old, stale absolute VC path kept right on loading regardless of
@@ -9308,14 +9308,14 @@ conclusively found despite extensive isolated testing.
   clicks, and the dialog's own list restore.
 
 - Aug 20 2026 - Preload dialog's "Loaded"/"Not a recognised type"
-  status now lists one file per line, per Keith: "I'd prefer to show
+  status now lists one file per line,  "I'd prefer to show
   those one line at a time, not as a single word-wrapped line" - was
   a single comma-joined line, hard to scan for a longer list like
   SA's own larger set of extra files. status_label now also has word
   wrap enabled directly, as a safety net for any future long line.
 
 - Aug 20 2026 - ROOT CAUSE FOUND AND FIXED for the VC water button
-  bug, per Keith's own confirmed `ls -la`: "-rwxrwxr-x 1 x2 x2 21444
+  bug  own confirmed `ls -la`: "-rwxrwxr-x 1 x2 x2 21444
   ... WATERPRO.DAT". This real VC install's own file is genuinely
   named in all-caps on disk, while load_waterpro_dat's own fallback
   only ever tried the one, exact-case "waterpro.dat" via plain
@@ -9335,7 +9335,7 @@ conclusively found despite extensive isolated testing.
   the temporary diagnostic markers from both this and the previous 2
   turns now that root cause is confirmed.
 
-- Aug 20 2026 - Added water X/Y offset controls, per Keith's own
+- Aug 20 2026 - Added water X/Y offset controls  own
   measured VC-specific misalignment: "6 squares offset on the larger
   grid, or 14 on the smaller grid." Investigated water_workshop.py's
   own code and found it already has a manual "World coordinate offset
@@ -9350,7 +9350,7 @@ conclusively found despite extensive isolated testing.
   _draw_water2 without touching the underlying preloaded data,
   restored at startup the same way the other water2 settings are.
 
-- Aug 20 2026 - Water X/Y offsets now wrap around, per Keith: "as the
+- Aug 20 2026 - Water X/Y offsets now wrap around,  "as the
   the water, because I've offset it by -400x, roll the edge so it
   covers the square... kind of like a conveyor belt." A plain,
   unwrapped offset slides the whole grid sideways, pushing cells past
@@ -9367,7 +9367,7 @@ conclusively found despite extensive isolated testing.
   wrap direction against a concrete edge case (a cell pushed off the
   west edge correctly reappears near the east edge).
 
-  Keith's own empirically-found -400 unit X offset for this real VC
+  my own empirically-found -400 unit X offset for this real VC
   install is a clean, round number (close to his own earlier "6
   squares" measurement) - worth revisiting as a possible automatic,
   built-in correction if this turns out to be a fixed, documented
@@ -9375,7 +9375,7 @@ conclusively found despite extensive isolated testing.
   (confirmed this specific file was never editable/saved, ruling out
   a previous-edit explanation).
 
-- Aug 20 2026 - Two new UI features, per Keith: "One thing I do need
+- Aug 20 2026 - Two new UI features,  "One thing I do need
   is a zoom value display left of the memory usage on the status bar,
   for the viewpoint, and a snap to centre view button on the ribbon."
 
@@ -9397,13 +9397,13 @@ conclusively found despite extensive isolated testing.
      SVG icon - distinguished by its own text label.
 
 - Aug 20 2026 - Water X/Y offset controls stay as manual settings, per
-  Keith: "this offset only is needed for VC, and we might as well
+   : "this offset only is needed for VC, and we might as well
   keep the offset functions in settings, which could be useful in the
   future" - confirmed decision, no automatic per-game correction
   added.
 
 - Aug 20 2026 - Viewport camera state (zoom/pan/angle) now persists
-  across app restarts, per Keith: "remember the zoom settings, and
+  across app restarts,  "remember the zoom settings, and
   view location when app is closed." Saved specifically in closeEvent
   (not on every zoom/pan/rotate change, which fire every single mouse-
   drag frame) - new viewport_dist/pan_x/pan_y/yaw/pitch settings,
@@ -9419,7 +9419,7 @@ conclusively found despite extensive isolated testing.
   during a normal world load and would silently overwrite the
   restored state.
 
-- Aug 20 2026 - Water X/Y offset now gated to VC only, per Keith:
+- Aug 20 2026 - Water X/Y offset now gated to VC only, .per:
   "offset should only be for VC, so we need a toggle to effect VC
   waterpro.dat only." Fixed a real gap: the offset was previously
   applied unconditionally regardless of which game was loaded - LC/
@@ -9435,7 +9435,7 @@ conclusively found despite extensive isolated testing.
   _apply_water2_preload/_try_auto_water2_from_loader now that the
   underlying VC case-sensitivity bug is confirmed fixed.
 
-- Aug 20 2026 - [Tcyc] right-click added, per Keith: "each game has
+- Aug 20 2026 - [Tcyc] right-click added,  "each game has
   its own timecyc.dat, so we need to show that, and also a right-
   click option to show other timecyc.dat files that I'll put in an
   asset folder." New shared _app_asset_folder helper (the same real
@@ -9448,13 +9448,13 @@ conclusively found despite extensive isolated testing.
   world load's own auto-detection (confirmed already correctly re-
   running every time, per game) takes back over naturally.
 
-- Aug 20 2026 - Real in-game water texture support, per Keith: "Next
+- Aug 20 2026 -  in-game water texture support,  "Next
   are the ../model/particle.txd water textures; you have the
   screenshots to fall back on, with the option settings path for
   using other water textures." New _load_water_texture_from_particle_
   txd reuses the same real, already-working ModelCache.get_textures/
   parse_txd pipeline radar tiles already use - any RW texture format
-  decoded to plain RGBA automatically (confirmed across Keith's own
+  decoded to plain RGBA automatically (confirmed across my own
   screenshots: PAL8 for LC's own water_old, ARGB8888 for SA's own
   waterclear256, DXT1 for VC's own waterclear256 - same name, two
   genuinely different files, never a conflict since only one game's
@@ -9480,7 +9480,7 @@ conclusively found despite extensive isolated testing.
   reloads rather than being silently overwritten every time.
 
 - Aug 20 2026 - Retro green CRT time overlay in the 3D viewport, per
-  Keith: "[TOJB] [2DFX] [TIME] showing the time in the viewpoint like
+   : "[TOJB] [2DFX] [TIME] showing the time in the viewpoint like
   old style green CRT, click on time for stop and start, right click
   for settings." New _CRTTimeOverlay (a small, clickable QLabel child
   of DFFViewport itself, anchored top-right, green-on-dark styling,
@@ -9500,7 +9500,7 @@ conclusively found despite extensive isolated testing.
   real hook every other time change (manual edit or the automatic
   flow-tick) already flows through.
 
-- Aug 20 2026 - IPL Controls display-style toggle, per Keith: "we
+- Aug 20 2026 - IPL Controls display-style toggle,  "we
   could add a toggle in settings, Show IPL Controls = as [Buttons] or
   ribbon icons" - a lower-risk alternative to permanently moving the
   overlay toggle buttons to a separate ribbon bar, letting both
@@ -9517,7 +9517,7 @@ conclusively found despite extensive isolated testing.
   detailed, 24x24 colour SVG icons for each is the next real step.
 
 - Aug 20 2026 - First batch of well-detailed, 24x24 colour SVG icons
-  for IPL Controls overlay buttons, per Keith's own earlier request
+  for IPL Controls overlay buttons  own earlier request
   and this turn's "continue": Water (blue droplet, gradient body,
   highlight, ripple lines), Radar (green radar screen, bold ring,
   bright sweep wedge, blip), Tcyc (disc split day/night: moon+stars
@@ -9530,7 +9530,7 @@ conclusively found despite extensive isolated testing.
   Rendered and visually verified each one myself at both 24px (actual
   size) and 96px (4x zoom) before finalising, using cairosvg - caught
   and fixed two real problems this way before they ever reached
-  Keith: the first Radar design (3 thin rings + crosshairs) was too
+   : the first Radar design (3 thin rings + crosshairs) was too
   muddy to read at actual size, and the first Tcyc design (gradient
   split with an offset-circle crescent) read as an unintentional
   face/eye rather than a moon. Both redesigned to fewer, bolder shapes
@@ -9544,7 +9544,7 @@ conclusively found despite extensive isolated testing.
   get their own real icons too).
 
 - Aug 20 2026 - Fixed real bug: hidden toolbar icon moves never
-  persisted, per Keith: "I've noticed moving icons to hidden, and
+  persisted,  "I've noticed moving icons to hidden, and
   save, these movements dont get saved." Traced it: _save_toolbar_
   state was correctly writing the toolbar state (including icons
   moved to the Hidden toolbar) to disk every time - _restore_toolbar_
@@ -9554,7 +9554,7 @@ conclusively found despite extensive isolated testing.
   same deferred pattern _restore_dock_state already uses, so it runs
   after every toolbar has actually been constructed.
 
-- Aug 20 2026 - Fixed real bug, per Keith: "I've noticed moving icons
+- Aug 20 2026 - Fixed real bug,  "I've noticed moving icons
   to hidden, and save, these movements dont get saved." The "Hidden"
   toolbar (where dragged-out icons go) was only ever created lazily,
   the first time the Ribbon Manager dialog itself opens - it genuinely
@@ -9568,7 +9568,7 @@ conclusively found despite extensive isolated testing.
 
 - Aug 20 2026 - Moved all 12 overlay toggle buttons (2DFX/Tobj/Tcyc/
   Paths/Tracks/Cull/Zon/Occlusion/SA Nodes/Auzo/Water/Radar) from IPL
-  Controls onto a new "Overlays" ribbon, per Keith: "The New Icons on
+  Controls onto a new "Overlays" ribbon,  "The New Icons on
   the IPL Control pane, can be moved to the ribbon" (the arrow in his
   own screenshot pointed from these buttons up to the top toolbar
   area). New tb_overlays created in _build_toolbars; new _move_
@@ -9583,19 +9583,19 @@ conclusively found despite extensive isolated testing.
   regardless of that ordering.
 
   Also fixed a real, serious risk this surfaced: _rebuild_toolbars
-  (fires when Keith changes icon sets) destroys every toolbar via
+  (fires when   changes icon sets) destroys every toolbar via
   deleteLater() and rebuilds from scratch - since the overlay buttons
   are now real child widgets of a real toolbar (not QActions rebuilt
   fresh each time, unlike everything else _build_toolbars creates),
   this would have permanently deleted all 12 real buttons the next
-  time Keith changed icon sets. Now re-parents them to self (kept
+  time   changed icon sets. Now re-parents them to self (kept
   alive, off-screen) before any toolbar is destroyed, then re-adds
   them to the freshly rebuilt ribbon afterwards.
 
   ipl_controls_icon_only (the display-style toggle) still applies -
   same buttons, same toggle, just a different parent widget now.
 
-- Aug 20 2026 - Finished the remaining 9 overlay icons, per Keith's
+- Aug 20 2026 - Finished the remaining 9 overlay icons 
   own "continue": Tobj (glowing lamp + clock badge), 2DFX (light-burst
   sparkle), Paths (winding route + arrowhead + nodes), Tracks (bold
   rails + sleepers), Cull (translucent box + white X), Zon (planted
@@ -9621,7 +9621,7 @@ conclusively found despite extensive isolated testing.
   instead of the previous mix of 3 icons + 9 text fallbacks.
 
 - Aug 20 2026 - Three follow-up fixes on the overlay icons/ribbon
-  work, per Keith:
+  work, .per:
 
   1. "The new icons need to be the same size as the other icons on
      the ribbons, 24x24?" - all 12 icon() calls now generate at 24
@@ -9644,10 +9644,10 @@ conclusively found despite extensive isolated testing.
      button's own real text/icon onto it; RibbonManagerDialog's own
      list line (act.text() or act.toolTip() or "Action") found both
      empty and fell through to that literal fallback, exactly
-     matching what Keith saw. _move_overlay_buttons_to_ribbon now
+     matching what   saw. _move_overlay_buttons_to_ribbon now
      sets both explicitly on the real action addWidget returns.
 
-- Aug 20 2026 - Two more follow-up fixes, per Keith:
+- Aug 20 2026 - Two more follow-up fixes, .per:
 
   1. "[time] button is still on the ipl controls, its not needed
      there as it's on the ribbon instead" - the Time checkbox (TOBJ
@@ -9667,7 +9667,7 @@ conclusively found despite extensive isolated testing.
      icon size + standard Qt toolbar padding) in icon-only mode, and
      releases back to auto/flexible width for text mode.
 
-- Aug 20 2026 - Gave "Snap to Centre" its own real icon, per Keith:
+- Aug 20 2026 - Gave "Snap to Centre" its own real icon, .per:
   "fit to window and snap to center have the same icon" - a
   deliberate choice earlier this session (to avoid risking an
   untested new SVG), now addressed properly. New snap_to_center_icon
@@ -9680,13 +9680,13 @@ conclusively found despite extensive isolated testing.
   this session.
 
 - Aug 20 2026 - Snap to Centre's icon replaced with 4 converging
-  arrows, per Keith: "I like that button, this can be used for
+  arrows,  "I like that button, this can be used for
   something else, how about 4 arrows, all pointing towards the
   center." New converge_to_center_icon now wired to Snap to Centre;
   the crosshair (snap_to_center_icon) stays defined, unused for now,
-  ready for Keith to reassign wherever he decides it fits.
+  ready for ,reassign wherever he decides it fits.
 
-- Aug 20 2026 - Auzo list can now play sounds, per Keith: "auzo list
+- Aug 20 2026 - Auzo list can now play sounds,  "auzo list
   play the sounds." Found substantial Auzo infrastructure already
   built (by a parallel session this same day) - AuzoEntry parsing,
   the IPL File Display's own read-only Auzo table, and billboarded
@@ -9709,13 +9709,13 @@ conclusively found despite extensive isolated testing.
   discoverable.
 
   Still open: audio-zone icons aren't draggable/movable in the
-  viewport yet (Keith's other real request, "that we can move") -
+  viewport yet (my other real request, "that we can move") -
   genuinely more involved (3D ray-picking against a billboarded
   quad, then constrained-plane dragging, the same real technique
   path node editing already uses) - left for a following turn rather
   than rushed.
 
-- Aug 20 2026 - Confirmed AUZO_TYPES' own accuracy against Keith's own
+- Aug 20 2026 - Confirmed AUZO_TYPES' own accuracy against my own
   real, uploaded Audiozon.ipl - cross-checked every real zone name
   against its own sound_id's own table entry and all matched
   sensibly (OTB/off-track betting -> "Racing sounds heard in ITB
@@ -9738,14 +9738,14 @@ conclusively found despite extensive isolated testing.
   to document all 3 lookup candidates.
 
 - Aug 20 2026 - Real, working decoder for SA's own "audio stream"
-  format (AMBIENCE/GENRL/radio station files), per Keith: "i can send
+  format (AMBIENCE/GENRL/radio station files),  "i can send
   you the sounds, would that help" - he sent a real, uploaded
   AMBIENCE file (~44MB). Found the real, documented format at
   https://gtamods.com/wiki/Audio_stream: a simple 16-byte XOR cipher
   wrapping a consecutive list of tracks, each with an 8068-byte
   header (8000 bytes of Dance/Lowrider minigame beat data, 64 bytes
   of length info, 4 constant signature bytes) followed directly by
-  real Ogg Vorbis audio. Confirmed directly against Keith's own real
+  real Ogg Vorbis audio. Confirmed directly against my own real
   file: the decoded track header signature matches the documented
   "01 00 CD CD" exactly, immediately followed by real "OggS" magic
   bytes; ffprobe confirms the extracted first track as fully valid
@@ -9764,7 +9764,7 @@ conclusively found despite extensive isolated testing.
 
   Real, honest limitation still open: which specific track index
   corresponds to which specific Auzo zone's own sound_id isn't
-  documented anywhere found so far - Keith listens to the extracted
+  documented anywhere found so far -   listens to the extracted
   tracks and renames the ones that match a zone to that zone's own
   name/sound_id, so the existing lookup (sound_id, zone name, or
   AUZO_TYPES' own music description) finds them.
@@ -9774,7 +9774,7 @@ conclusively found despite extensive isolated testing.
   also no container format, raw PCM packed with metadata) not
   addressed by this module.
 
-- Aug 20 2026 - Two Dir Tree fixes, per Keith:
+- Aug 20 2026 - Two Dir Tree fixes, .per:
 
   1. "dir tree shows audio files, so we can now right click them to
      play" - right-click on a standard audio file (.wav/.mp3/.ogg/
@@ -9798,7 +9798,7 @@ conclusively found despite extensive isolated testing.
      starts fully collapsed, root included.
 
 - Aug 20 2026 - Fixed Dir Tree's own SA audio-file recognition, per
-  Keith's own real, uploaded screenshot of his own audio/ folder:
+  my own real, uploaded screenshot of his own audio/ folder:
   "when I click on those files, I don't see a right click play
   option?" The stream-filename set was both incomplete (missing 6
   real filenames - AA/ADVERTS/BEATS/CH/CR/HC - that genuinely exist
@@ -9808,7 +9808,7 @@ conclusively found despite extensive isolated testing.
   station's own display name, not its real filename). Full, correct
   16-name list confirmed against GTAMods' own real, documented "Game
   directory (SA)" page and cross-checked against every file visible
-  in Keith's own screenshot.
+  in my own screenshot.
 
   Also added real recognition for SA's own SFX bank files (Feet/
   Genrl/Pain_A/Script/Spc_*) - a genuinely different, still-unsolved
@@ -9818,7 +9818,7 @@ conclusively found despite extensive isolated testing.
   all for these files, which would have looked like they were simply
   overlooked rather than a real, open limitation.
 
-- Aug 20 2026 - Major audio work, per Keith: "in LC, VC .wav plays,
+- Aug 20 2026 - Major audio work,  "in LC, VC .wav plays,
   maybe a tooltip player, showing just the name, and a progress bar,
   stop, start. .wav plays. .mp3 doesn't seen to work. .at3 .vb"
   (plus 5 more real sample files: AMBIENCE.PAK, AMBSIL.VB, FLASH.ADF,
@@ -9827,7 +9827,7 @@ conclusively found despite extensive isolated testing.
   New apps/methods/mini_audio_player.py - shared MiniAudioPlayer
   widget (name, seekable progress slider, Play/Pause, Stop), used by
   every real Dir Tree playback action instead of each firing a
-  silent, fire-and-forget QSoundEffect.play(). Real fix for the MP3
+  silent, fire-and-forget QSoundEffect.play().  fix for the MP3
   bug this same change delivers: QSoundEffect is built for short,
   low-latency, uncompressed-or-Ogg sound effects and does not decode
   MP3 at all - that mismatch was the real, direct cause, not the MP3
@@ -9836,7 +9836,7 @@ conclusively found despite extensive isolated testing.
   position/duration signals the progress bar needs anyway.
 
   New apps/methods/ps2_vb_audio.py - real, working decoder for PS2
-  .VB files (GTA III/VC/LCS/VCS), confirmed directly against Keith's
+  .VB files (GTA III/VC/LCS/VCS), confirmed directly against my
   own real, uploaded AMBSIL.VB. Format confirmed via GTAForums' own
   VBDec tool thread (its own real authors): headerless PS-ADPCM
   ("4-bit ADPCM"), real, fixed 2000-byte stereo interleave, real,
@@ -9848,11 +9848,11 @@ conclusively found despite extensive isolated testing.
   real, synthesised standard "VAGp" header, decodes each via a real
   ffmpeg subprocess (which already has a correct adpcm_psx decoder),
   then re-interleaves. Confirmed correct: the decoded left channel of
-  Keith's own AMBSIL.VB came back exactly, perfectly silent
+  my own AMBSIL.VB came back exactly, perfectly silent
   (peak=0, rms=0.0) - exactly what a file named "ambient silence"
   should be.
 
-  .at3 (Sony ATRAC3+) confirmed via ffprobe against Keith's own real,
+  .at3 (Sony ATRAC3+) confirmed via ffprobe against my own real,
   uploaded philcollins.at3: a standard RIFF/WAVE container ffmpeg
   already decodes directly - plays via a real ffmpeg transcode-to-WAV
   step (transcode_to_wav in mini_audio_player.py) then the same mini
@@ -9865,17 +9865,17 @@ conclusively found despite extensive isolated testing.
   Real, honest limitations still open, investigated this same turn
   but not yet solved: AMBIENCE.PAK, FLASH.ADF, and the exact
   III/VC SFX.RAW/SFX.SDT entry structure (GrandTheftWiki's own
-  documented 24-byte/6-DWORD entry didn't match Keith's own real
+  documented 24-byte/6-DWORD entry didn't match my own real
   SFX23.SDT - a 12-byte/3-DWORD structure tiled his own real
   SFX23.RAW exactly, byte for byte, suggesting either a real, game-
   specific format variation or an inaccuracy in that documentation -
   not confirmed either way yet).
 
 - Aug 20 2026 - Consolidated all 3 audio modules (sa_audio_stream.py,
-  ps2_vb_audio.py, mini_audio_player.py) into one, per Keith: "Could
+  ps2_vb_audio.py, mini_audio_player.py) into one,  "Could
   all the audio functions go into an audioparser.py in the depends
   map_workshop.py and img-factory methods/ folder?" New audioparser.py
-  kept in both real locations Keith asked for: apps/methods/
+  kept in both real locations   asked for: apps/methods/
   audioparser.py (this app's own shared location, imported by
   directory_tree_browser.py, part of the main app) and apps/
   components/Map_Editor/depends/audioparser.py (Map Workshop's own
@@ -9886,7 +9886,7 @@ conclusively found despite extensive isolated testing.
   Verified the merge is functionally identical to the 3 separate
   files it replaces before deleting them: re-ran both of this
   session's own real confirmation tests against the merged module -
-  parse_stream_tracks still finds all 40 real tracks in Keith's own
+  parse_stream_tracks still finds all 40 real tracks in my own
   uploaded AMBIENCE file, and decode_vb_file's own decoded left
   channel still comes back exactly, perfectly silent for his own
   uploaded AMBSIL.VB. All import sites updated (1 in map_workshop.py,
@@ -9895,7 +9895,7 @@ conclusively found despite extensive isolated testing.
   module files removed.
 
 - Aug 20 2026 - Solved the III/VC SFX.RAW/SFX.SDT discrepancy from
-  last turn, confirmed with mathematical certainty against Keith's own
+  last turn, confirmed with mathematical certainty against my own
   real, uploaded SFX23.RAW/SFX23.SDT pair. GrandTheftWiki documents a
   24-byte SDT entry (offset/size/rate/unknown/loop start/loop end),
   but re-deriving what that reading would show proves it's actually a
@@ -9923,11 +9923,11 @@ conclusively found despite extensive isolated testing.
   console-platform variant of the same underlying format, not yet
   confirmed or decoded.
 
-- Aug 20 2026 - Paused SFX23 (III/VC SFX.RAW/SFX.SDT), per Keith:
+- Aug 20 2026 - Paused SFX23 (III/VC SFX.RAW/SFX.SDT), .per:
   "put Sfx23 to the side, lets work on the others, Sfx23 sounds like
   statis." The real offset/size structure from last turn is still
   confirmed correct (mathematically proven to tile SFX23.RAW
-  exactly), but Keith's own real listening test on the decoded result
+  exactly), but my own real listening test on the decoded result
   found it sounds like static - something about the real sample
   encoding itself still isn't right. Dir Tree's own menu entry
   disabled with an honest tooltip explaining exactly this, rather
@@ -9936,7 +9936,7 @@ conclusively found despite extensive isolated testing.
   whenever the real encoding issue gets solved.
 
 - Aug 20 2026 - Solved .ADF (III/VC music/ambient streams), confirmed
-  against Keith's own real, uploaded FLASH.ADF sample. Real, complete
+  against my own real, uploaded FLASH.ADF sample. Real, complete
   format: a completely standard MP3 file, obfuscated with a trivial,
   constant single-byte XOR (0x22) applied to every byte - not
   anywhere near as complex as SA's own 16-byte key. Found the lead
@@ -9953,18 +9953,18 @@ conclusively found despite extensive isolated testing.
   for .adf files directly.
 
   Also tested and ruled out 2 hypotheses for AMBIENCE.PAK this turn,
-  per Keith's own real listening test: "pak files is static, low
+  per my own real listening test: "pak files is static, low
   volume." Mono PS-ADPCM at 24000Hz decoded without error and looked
   statistically plausible (much lower zero-crossing rate/amplitude
   than SFX23's own static-sounding result), but still sounded like
-  static per Keith. A 2000-byte stereo-interleave attempt (the same
+  static .per. A 2000-byte stereo-interleave attempt (the same
   pattern confirmed correct for .VB) outright failed to decode at
   all. Neither hypothesis panned out - AMBIENCE.PAK remains
-  unsolved, set aside for now per Keith's own "lets work on the
+  unsolved, set aside for now per my own "lets work on the
   others."
 
 - Aug 20 2026 - Fixed a real, crashing bug in MiniAudioPlayer, per
-  Keith's own real traceback: "NameError: name 'QMediaPlayer' is not
+  my own real traceback: "NameError: name 'QMediaPlayer' is not
   defined" at __init__. Root cause: last turn's own consolidation of
   sa_audio_stream.py/ps2_vb_audio.py/mini_audio_player.py into
   audioparser.py stripped every line starting with "from ... import"
@@ -9982,7 +9982,7 @@ conclusively found despite extensive isolated testing.
   by actually instantiating the widget and exercising all 3 real,
   previously-broken code paths directly.
 
-- Aug 20 2026 - Undo/redo for mapping changes, per Keith's own chosen
+- Aug 20 2026 - Undo/redo for mapping changes  own chosen
   priority for "what's next for map_workshop." The core undo/redo
   stack (_push_map_undo/_map_undo/_map_redo, from Aug 18 2026) was
   already solid and already wired to Position/Rotation/Scale nudges,
@@ -10015,7 +10015,7 @@ conclusively found despite extensive isolated testing.
      operation (negative shift / negative-angle rotation around the
      same pivot) as their own undo, reusable directly as redo too.
 
-- Aug 20 2026 - Snap function (vertex level), per Keith's own chosen
+- Aug 20 2026 - Snap function (vertex level)  own chosen
   priority: "the biggest problem sometimes with making models is
   sometimes there are gaps, so we need a snap function" - and, once
   asked which level and target: "both using different svg icons."
@@ -10039,13 +10039,13 @@ conclusively found despite extensive isolated testing.
 
   New snap_vertex_icon in SVGIconFactory, distinct from Snap Targets'
   own existing MaxSVGIcons-based instance-level snap icons, per
-  Keith's own explicit request. Two earlier icon attempts (converging
+  my own explicit request. Two earlier icon attempts (converging
   arrowheads from two dots; a magnet shape) both read ambiguously at
   actual 24px size and were replaced before committing; the final
   design (a loose, dashed vertex snapping into a solid one via an
   arrow) reads clearly at both 24px and 96px.
 
-- Aug 20 2026 - Shortened tooltips across the file, per Keith: "do
+- Aug 20 2026 - Shortened tooltips across the file,  "do
   you remembe me saying to you about keeping it brief, in the tool
   tips, it reads like a changelog, tooltop are jusr meant to show the
   function." 10 tooltips had grown into full changelog-style entries
@@ -10054,7 +10054,7 @@ conclusively found despite extensive isolated testing.
   function only.
 
 - Aug 20 2026 - Hid 10 Model Workshop icons from Map Workshop's own
-  ribbons, per Keith's own exact list: "Mirror Icon, 4 Pane icon,
+  ribbons  own exact list: "Mirror Icon, 4 Pane icon,
   percent snap, angle snap, axis snap, front only paint, Vertex
   Select, Edge Select, Face Select, Polygon Select." All were either
   confirmed non-functional stubs (Mirror: "not yet implemented,
@@ -10064,12 +10064,12 @@ conclusively found despite extensive isolated testing.
   setEnabled(False) - 4-Pane View had already been disabled since Aug
   1 2026 but stayed visible, taking up ribbon space; now hidden
   outright, same as the other 9. Kept intact and unhidden, per
-  Keith's own exact list (deliberately not expanded to related items
+  my own exact list (deliberately not expanded to related items
   like Align or Backface Culling): Snap Vertices (explicitly
   requested for Map Workshop last turn), Snap: Centre of Model
   (working, map-relevant), and the rest of Navigation.
 
-- Aug 20 2026 - Repurposed Toggle Mesh, per Keith: "toggle mesh icon
+- Aug 20 2026 - Repurposed Toggle Mesh,  "toggle mesh icon
   can switch between col model and normal model" (also confirmed
   Backface Culling and render styles work as-is, unchanged). Checked
   shows the regular model mesh (as before); unchecked now also hides
@@ -10079,7 +10079,7 @@ conclusively found despite extensive isolated testing.
   mesh with nothing shown in its place.
 
 - Aug 20 2026 - Hover highlight now outlines the actual mesh, per
-  Keith: "next is the hover over highlight, its a small dont over
+   : "next is the hover over highlight, its a small dont over
   the model, instead can we highlight the mesh instead, for a
   cleaner look." The original version drew a small, fixed-size
   sphere at the instance's own position, unrelated to the model's
@@ -10096,7 +10096,7 @@ conclusively found despite extensive isolated testing.
   entirely) so the outline only shows on visible surfaces, not
   through walls/other objects.
 
-- Aug 20 2026 - Interior value filtering, per Keith: "Can we look at
+- Aug 20 2026 - Interior value filtering,  "Can we look at
   interior values? We see all models using the value 0. Still,
   interior rendering is hidden until you're inside buildings. We
   need a svg to toggle interior models: show 0 only on the
@@ -10122,25 +10122,25 @@ conclusively found despite extensive isolated testing.
   a number badge) on the Overlays ribbon: left-click toggles between
   the default (interior 0/exterior only) and showing every interior
   together; right-click opens a menu listing every interior value
-  actually present in the loaded world, with counts, so Keith can
+  actually present in the loaded world, with counts, so   can
   see exactly what a given world uses instead of guessing, and pick
   one to isolate.
 
 - Aug 20 2026 - Interior picker menu now shows real, named VC areas,
-  per Keith's own real, direct list: "1, Hotel 2, Mansion 17, Club
+  per my own real, direct list: "1, Hotel 2, Mansion 17, Club
   4, Mall 6, Lawyers 8, Concerth 3, Bank 10, Ammo Store / Hogan's
   11, Biker Bar 12, Hvood / Police Dept 13, Print Works 14, Stadium
   16, Race track 15, Bowl? 5, ? 7, ? 9, ?" Cross-confirmed against
   GTAMods' own documented "Interior" page, which has the complete,
-  official 0-18 VC list - filled in Keith's own 3 unknowns directly:
+  official 0-18 VC list - filled in my own 3 unknowns directly:
   5 = Pole Position Club (strip club), 7 = Cafe Robina (coffee
   shop), 9 = Love Fist Recording Studio. Two real, honest
   discrepancies kept as GTAMods' own documented names rather than
-  silently overridden: Keith's own "10, Ammo Store / Hogan's" vs
+  silently overridden: my own "10, Ammo Store / Hogan's" vs
   GTAMods' own "Rifle Range" (thematically close, not identical);
-  Keith's own "13, Print Works" vs GTAMods' own "13 = Everywhere,
+  my own "13, Print Works" vs GTAMods' own "13 = Everywhere,
   reserved for pickups" (GTAMods' own list puts Print Works at 18
-  instead - may mean Keith's own loaded map has custom/modified
+  instead - may mean my own loaded map has custom/modified
   interior data at 13, not vanilla VC).
 
   New VC_INTERIOR_NAMES in gta_dat_parser.py. Deliberately NOT done
@@ -10153,7 +10153,7 @@ conclusively found despite extensive isolated testing.
   entries stay as plain "Interior N (count)".
 
 - Aug 20 2026 - SA interior names added to the picker menu, per
-  Keith: "full list for VC, now im looking for SA" - transcribed the
+   : "full list for VC, now im looking for SA" - transcribed the
   complete, official SA table from the same GTAMods "Interior" page
   (135 real interior/IPL file entries). Unlike VC, an SA interior
   *number* still doesn't uniquely identify one real area (interior 1
@@ -10166,17 +10166,17 @@ conclusively found despite extensive isolated testing.
   (245) - Ammu-Nation, Sindacco Abattoir, TransFender, +6 more"),
   resolved via new SA_INTERIOR_FILE_NAMES in gta_dat_parser.py.
 
-- Aug 21 2026 - Full TODO.md review, per Keith: "lets check everything
+- Aug 21 2026 - Full TODO.md review,  "lets check everything
   on the todo list, then check if we have implemented anything
   related, so we're not adding the same function twice." Found and
   fixed 3 substantially stale entries where real, working features
   already existed but weren't marked done: AUZO's own sound-svg-icon
-  + playback feature (Keith's own original ask, fully built across
+  + playback feature (my own original ask, fully built across
   several turns), the IPL Controls Show TOBJ/Paths/Zones visibility
   toggles (all 3 built and already on the Overlays ribbon), and path
   section UI (visualization, node dragging, and cull/zone box editing
   all already done - only add/remove node, flags, and write-back
-  still open). Also updated the 4-Pane View entry to reflect Keith's
+  still open). Also updated the 4-Pane View entry to reflect my
   own later instruction superseding his earlier one (kept visible-
   but-disabled -> hidden entirely, per his own Model Workshop icon
   list).
@@ -10202,7 +10202,7 @@ conclusively found despite extensive isolated testing.
   status bar, since neither has a dedicated edit dialog of its own
   yet beyond corner-drag resizing.
 
-- Aug 21 2026 - Cycle Zones fallback, per Keith: "on zons we could
+- Aug 21 2026 - Cycle Zones fallback,  "on zons we could
   also cycle through the entries list, and show the zon box
   highlighted, with right click options, this would be a failback,
   other then clicking on the zon box." New "Cycle" button (IPL
@@ -10228,7 +10228,7 @@ conclusively found despite extensive isolated testing.
   objects" wasn't specific enough yet to know what else to build -
   left for a following turn rather than rushed or guessed at.
 
-- Aug 21 2026 - Middle-click to cycle, per Keith: "middle click can
+- Aug 21 2026 - Middle-click to cycle,  "middle click can
   cycle?" Same real click-vs-drag tolerance check right-click's own
   hover-options handling already uses (middle-drag already means
   "pan the camera", so a genuine plain click needs telling apart
@@ -10238,7 +10238,7 @@ conclusively found despite extensive isolated testing.
   to-the-panel alternative to that button. New set_middle_click_
   cycle_callback (DFFViewport), wired in map_workshop.py.
 
-- Aug 21 2026 - Three fixes, per Keith: "looking at zons, the cycle
+- Aug 21 2026 - Three fixes,  "looking at zons, the cycle
   button should be on the ribbons, but how to you editor the size of
   the box? and we need an undo button /ribbon icon"
 
@@ -10269,7 +10269,7 @@ conclusively found despite extensive isolated testing.
      opens by double-clicking an instance - genuinely unreachable any
      other way before this.
 
-- Aug 21 2026 - Fixed IMG Factory's own real Undo button, per Keith:
+- Aug 21 2026 - Fixed IMG Factory's own real Undo button, .per:
   "there is also the undo button on img factory, does nothing from
   what I can remember be if there is a way to pass whatever is
   docked, to that undo button." Two real, separate causes, both
@@ -10289,7 +10289,7 @@ conclusively found despite extensive isolated testing.
      indirection was always meant to eventually reach - same real
      fix applied to _redo_action.
 
-  Then, Keith's own real second half of the request - delegating to
+  Then, my own real second half of the request - delegating to
   "whatever is docked": new _find_active_map_workshop (duck-typed via
   _on_undo_ribbon_clicked, avoiding a real circular-import risk
   between imgfactory.py and map_workshop.py) and _smart_undo_action/
@@ -10299,7 +10299,7 @@ conclusively found despite extensive isolated testing.
   handler.
 
 - Aug 21 2026 - Fixed "clicking on those corners does nothing" (per
-  Keith's own real, uploaded zon.png screenshot) - box corner
+  my own real, uploaded zon.png screenshot) - box corner
   resizing required box edit mode to already be switched on first
   before a corner click did anything at all, the same real "gated
   behind a separate mode toggle" friction already found and removed
@@ -10314,7 +10314,7 @@ conclusively found despite extensive isolated testing.
 
 - Aug 21 2026 - Fixed "clicking the model in the file list window,
   wants to rename it, not take us to the zon entries that belongs to
-  it" (per Keith's own confirmation this means the IPL Inst File
+  it" (per my own confirmation this means the IPL Inst File
   table). Two real, separate causes, both fixed:
 
   1. The actual "wants to rename" symptom: the table's own
@@ -10342,7 +10342,7 @@ conclusively found despite extensive isolated testing.
   corner resizing, but last turn's own real fix (removing the box
   edit mode gate on corner clicking) made that step unnecessary.
 
-- Aug 21 2026 - Fixed double-click picking priority, per Keith: "I've
+- Aug 21 2026 - Fixed double-click picking priority,  "I've
   tried to select a zon by its corner node, instead, the model
   behide it gets selected instead, so when in zon mode, it selects
   zons only, same with cull, paths, other functions." mouseDouble
@@ -10350,14 +10350,14 @@ conclusively found despite extensive isolated testing.
   regardless of which overlays were actually visible - a real
   instance sitting at/near the same screen position as a path node
   or cull/zone box's own corner always won the pick, no matter which
-  one Keith actually meant to click. Now checks which overlay is
+  one   actually meant to click. Now checks which overlay is
   currently switched on (show_paths/show_cull_boxes/show_zone_boxes)
   and tries that type first; instances only fall back afterward -
   and if neither the active overlay nor an instance was hit, still
   tries whichever overlay type wasn't already tried, so nothing that
   worked before stops working, it's just correctly prioritized now.
 
-- Aug 21 2026 - Fixed a real, crashing bug Keith hit opening Map
+- Aug 21 2026 - Fixed a real, crashing bug   hit opening Map
   Workshop: TypeError: setIcon(self, icon: QIcon): argument 1 has
   unexpected type 'function', at the new Undo ribbon button from a
   couple turns ago. Root cause: _build_toolbars' own local _icon(...)
@@ -10369,7 +10369,7 @@ conclusively found despite extensive isolated testing.
   button's own custom right-click menu, and matched for consistency)
   and passed _icon(...)'s own raw return value straight to setIcon()
   without ever actually calling it - genuinely never caught by a
-  syntax check, only by Keith actually running the app. Fixed to
+  syntax check, only by   actually running the app. Fixed to
   actually call the returned function with color=icon_color, same as
   every other direct self.icon_factory.x_icon(color=...) call in this
   file already does. Verified this time with a real, offscreen-
@@ -10378,7 +10378,7 @@ conclusively found despite extensive isolated testing.
   not just a syntax check.
 
 - Aug 21 2026 - Fixed the Load Game DAT File summary dialog's own
-  Preloaded list, per Keith's own real, uploaded tidyup.png
+  Preloaded list  own real, uploaded tidyup.png
   screenshot: "this needs to be tidied up, even if it has to scroll
   one entry per line." The preloaded files list was joined into one,
   single, comma-separated QLabel line with no word-wrap at all,
@@ -10387,11 +10387,11 @@ conclusively found despite extensive isolated testing.
   long list scrolls inside its own fixed-height box instead of
   stretching the whole dialog taller without limit. Verified this
   time by actually constructing the real dialog in an offscreen Qt
-  session with Keith's own real 14-file preloaded list from the
+  session with my own real 14-file preloaded list from the
   screenshot, not just a syntax check.
 
 - Aug 21 2026 - Added Z-depth adjustment for cull/zone box corner
-  resizing, per Keith: "i can change the Z-axis box by X, Y, both
+  resizing,  "i can change the Z-axis box by X, Y, both
   sides and direction but I can't do anything about Z depth, unless
   there is a way to toggle between move modes, holding shift for z?"
   Confirmed real cause: corner dragging was deliberately constrained
@@ -10399,7 +10399,7 @@ conclusively found despite extensive isolated testing.
   XY and Z at once), so Z depth genuinely had no way to change at all
   before this - not a bug, a real, missing mode.
 
-  Holding Shift while dragging a corner now does exactly what Keith
+  Holding Shift while dragging a corner now does exactly what  
   suggested: switches that same drag from XY-only to Z-only. The
   corner's own vertical screen movement since the last frame adjusts
   its own Z directly (X/Y stay exactly where they already were),
@@ -10411,7 +10411,7 @@ conclusively found despite extensive isolated testing.
   switched between within one single drag.
 
 - Aug 21 2026 - Fixed "SA cull file not being parsed correctly" (per
-  Keith's own real, uploaded SA_Cull_Files.png screenshot showing
+  my own real, uploaded SA_Cull_Files.png screenshot showing
   tangled, overlapping, garbled box shapes). Confirmed via 3
   independent sources (GTAMods' own real "CULL" page and its own
   Talk page, GTA Wiki/Fandom's own real "CULL" page, word-for-word
@@ -10431,10 +10431,10 @@ conclusively found despite extensive isolated testing.
   may not always be full extents, and Unknown1/Unknown2 aren't
   always genuinely 0 in real mirror-zone cases - this covers the
   ordinary case, verified against a synthetic test line, not yet
-  against Keith's own real SA cull.ipl data.
+  against my own real SA cull.ipl data.
 
 - Aug 21 2026 - Fixed "some alpha objects not being rendered as they
-  should be" (per Keith's own real, uploaded alpha_showing.png
+  should be" (per my own real, uploaded alpha_showing.png
   screenshot - dark, jagged tree/foliage shapes among otherwise
   normal-looking trees). GL_ALPHA_TEST cutout rendering itself was
   already correct and working (confirmed by the jagged, leaf-shaped
@@ -10463,7 +10463,7 @@ conclusively found despite extensive isolated testing.
   itself already uses when a real entry happens to lack the field.
 
 - Aug 21 2026 - Corrected the SA cull.ipl formula from last turn, now
-  verified against Keith's own real, uploaded cull.ipl file (1253
+  verified against my own real, uploaded cull.ipl file (1253
   lines, 1230 real cull entries) rather than just wiki text and a
   synthetic test line. Found via GTAMods' own Talk:CULL page - itself
   confirmed there by a real user's own cross-check against an actual
@@ -10480,7 +10480,7 @@ conclusively found despite extensive isolated testing.
      to half its true size.
 
   Also found and handled a real skew effect (Unknown1/Unknown2) -
-  genuinely non-zero in 702 of 1230 (57%) of Keith's own real lines,
+  genuinely non-zero in 702 of 1230 (57%) of my own real lines,
   not a rare edge case - which turns the box into a real, skewed
   quadrilateral (a crude form of rotation), not a plain rectangle.
   Full support would need CullEntry/rendering/corner-drag-resize/
@@ -10496,7 +10496,7 @@ conclusively found despite extensive isolated testing.
   (min>max) boxes, sensible width/height/depth ranges throughout -
   not just a synthetic test line like last turn.
 
-- Aug 21 2026 - Add/Delete/Save for zones, per Keith: "we need to
+- Aug 21 2026 - Add/Delete/Save for zones,  "we need to
   finish the add, del, save functions for zon." First real write-
   back-to-disk capability built this whole session - everything
   before this was in-memory only.
@@ -10527,13 +10527,13 @@ conclusively found despite extensive isolated testing.
   itself to confirm the written-back file re-parses to the exact
   same zone data.
 
-  Cull has no matching add/delete/save yet - Keith's own request
+  Cull has no matching add/delete/save yet - my own request
   named zon specifically; GRGE support (also requested this same
   turn) is a separate, large piece (no visualization/UI exists for
   it at all yet, only parsing) - deferred to a following turn given
   the size of this one.
 
-- Aug 21 2026 - Add/Delete/Save for cull zones, per Keith: "lets
+- Aug 21 2026 - Add/Delete/Save for cull zones,  "lets
   build add, del for zon, cull, occu and ipl changes." Same real
   in-memory-until-saved pattern as zones (last turn): "+Cull"/"-Cull"
   ribbon buttons, undoable both ways; "Save Cull" writes back to each
@@ -10553,7 +10553,7 @@ conclusively found despite extensive isolated testing.
   _add_cull's own new CullEntry(...) call would have raised a real
   NameError the first time anyone clicked +Cull. Added the missing
   local import (same per-method pattern this file already uses for
-  GTAGame elsewhere) before this ever reached Keith, caught by
+  GTAGame elsewhere) before this ever reached  , caught by
   actually running the constructor call in an isolated test rather
   than trusting a syntax check alone.
 
@@ -10562,14 +10562,14 @@ conclusively found despite extensive isolated testing.
   SA's own center+length/width/bottom/top format) - both wrote and
   re-parsed back to the exact same CullEntry values.
 
-  GRGE and Occlusion (both also named in Keith's own same request)
+  GRGE and Occlusion (both also named in my own same request)
   are separate, still open - Occlusion already has visualization to
   build add/delete/save on top of (next, most direct piece); GRGE
   has none at all yet (parsing only) - deferred, same real reason as
   last turn: kept this turn's own scope to what could be built and
   properly verified, not rushed.
 
-- Aug 21 2026 - Add/Delete/Save for occlusion boxes, per Keith:
+- Aug 21 2026 - Add/Delete/Save for occlusion boxes, .per:
   "lets build add, del for zon, cull, occu and ipl changes" / "both
   if you can." Genuinely more involved than Cull's own copy of the
   Zone pattern - occlusion boxes are rotated around their own
@@ -10594,7 +10594,7 @@ conclusively found despite extensive isolated testing.
   rotation gives a plain box, 45 degrees correctly expands it), and
   a full write-back + round-trip-through-the-real-parser test.
 
-- Aug 21 2026 - Two real fixes plus GRGE support, per Keith: "Bug:
+- Aug 21 2026 - Two real fixes plus GRGE support,  "Bug:
   Right radar also highlights cull; both buttons seem to be linked
   when you right-click them" and "add support for GRGE" / "both if
   you can" [continuing from occlusion last turn].
@@ -10603,7 +10603,7 @@ conclusively found despite extensive isolated testing.
      (shared by every box-type overlay button's own right-click) used
      to force-sync every OTHER box-type button's own visual state
      (editing dashes + shown) to match whichever one was actually
-     clicked - including force-turning a box type ON that Keith may
+     clicked - including force-turning a box type ON that   may
      never have wanted visible at all. Traced to a leftover: this
      syncing existed because self._box_edit_mode used to genuinely
      gate corner-picking on the viewport side - it no longer does
@@ -10627,9 +10627,9 @@ conclusively found despite extensive isolated testing.
   Verified with real, isolated tests before wiring up any UI, same
   standard as zone/cull/occlusion: the GrgeEntry constructor call,
   and a full write-back + round-trip-through-the-real-parser test
-  using Keith's own real example garage data.
+  using my own real example garage data.
 
-  Still open from Keith's own same message, deliberately not
+  Still open from my own same message, deliberately not
   attempted this turn given its size: moving add/delete/save/a new
   "show coords for all corners" feature into each overlay button's
   own middle-click menu (removing the separate ribbon buttons);
@@ -10639,7 +10639,7 @@ conclusively found despite extensive isolated testing.
   labels; its own Save function not working/not picking up config).
 
 - Aug 21 2026 - Moved Add/Delete/Save off the ribbon into each
-  overlay button's own middle-click menu, per Keith: "the new
+  overlay button's own middle-click menu,  "the new
   buttons, +zon, -zon, and save zon, add show coords for all
   corners: add these to the SVG icon zon button with a middle-click,
   and move those functions over. Same with cull, occl, auzo, grge."
@@ -10664,14 +10664,14 @@ conclusively found despite extensive isolated testing.
   callback goes through - confirmed this deliberately since getting
   it wrong would silently break the menu's own positioning.
 
-  Auzo (also named in Keith's own message) still has no Add/Delete/
+  Auzo (also named in my own message) still has no Add/Delete/
   Save built at all - deliberately not attempted this turn, since it
   would need that built from scratch first before it could join this
   same menu pattern. Ribbon Manager's two separate bugs (icons
   showing as generic "Action" labels; its own Save not persisting)
   also still open - not yet investigated.
 
-- Aug 21 2026 - Two Ribbon Manager bugs, per Keith: "Ribbon Manager
+- Aug 21 2026 - Two Ribbon Manager bugs,  "Ribbon Manager
   icons in Overlays show as Action, with no icon or name for that
   function, and the selection group as an Action label. Also, the
   save function for the ribbon manager isn't working, or the config
@@ -10701,7 +10701,7 @@ conclusively found despite extensive isolated testing.
      against a toolbar that no longer matched what was actually
      saved, without the version check ever catching it. Bumped to 3.
 
-- Aug 21 2026 - Three separate real fixes, per Keith's own follow-up
+- Aug 21 2026 - Three separate real fixes  own follow-up
   message: "Show coords does not work on occl, zon or cull? And
   timecyc.dat and timecycp.dat don't seem to work when SA is loaded?
   and the grge data seems to be found in most of the ipl's" [with a
@@ -10716,7 +10716,7 @@ conclusively found despite extensive isolated testing.
      Cycle step needed at all.
 
   2. timecyc.dat/timecycp.dat - two real, separate bugs, both
-     confirmed and fixed against Keith's own real, uploaded files.
+     confirmed and fixed against my own real, uploaded files.
      _auto_detect_timecyc_path only ever looked for "timecyc.dat",
      never "timecycp.dat" at all - an SA install shipping only the
      newer file had nothing to auto-detect; now checks both, real
@@ -10726,12 +10726,12 @@ conclusively found despite extensive isolated testing.
      fields (a real 0.30 sun-size value became 0) - real, silent data
      corruption on every load of that format. Now keeps a value as a
      real float only when its own real token actually had a decimal
-     point. Verified against Keith's own real files: timecycp.dat's
+     point. Verified against my own real files: timecycp.dat's
      decimal fields round-trip exactly now; timecyc.dat (integer-
      only) completely unaffected.
 
   3. GRGE - a real, confirmed field-meaning bug, caught by checking
-     Keith's own real example lines directly: x2 never held a real,
+     my own real example lines directly: x2 never held a real,
      distinct second X corner - it's always exactly equal to x1 in
      every real line. Confirmed against an independent, real IPL
      format reference: the field this codebase calls "front_x" is
@@ -10740,13 +10740,13 @@ conclusively found despite extensive isolated testing.
      Rear" - same X, by definition of "Left"). _refresh_grge_box_
      visualization and _add_grge both fixed to use front_x as the
      box's own true second X corner - verified against all 4 of
-     Keith's own real example lines, giving sensible 8-14 unit widths
+     my own real example lines, giving sensible 8-14 unit widths
      instead of zero. _parse_grge/_write_back_grge_section themselves
      needed no change - they already faithfully preserve the real,
      raw field values as parsed, for correct round-trip write-back.
 
 - Aug 21 2026 - Fixed a real bug in SA cull.ipl parsing/write-back,
-  found directly by Keith's own question: "when loading SOL, are you
+  found directly by my own question: "when loading SOL, are you
   using the SA parser or VC parser?" Both checks used `self.game ==
   GTAGame.SA` - SOL is its own, distinct GTAGame value ("sol", not
   "sa"), so this never matched it, despite SOL being explicitly
@@ -10766,7 +10766,7 @@ conclusively found despite extensive isolated testing.
   identical to SA's, not on an assumption that every SOL format
   follows SA - each format still needs its own real confirmation.
 
-- Aug 21 2026 - Two new pieces, per Keith's own real, worked VC/SA/
+- Aug 21 2026 - Two new pieces  own real, worked VC/SA/
   SOL example lines: "so we need a function to find and change 1, 1,
   1, to 0, 0, 0 and convert [SA line] to VC ... and VC to SA ... but
   I can see there is an error in how I converted the files."
@@ -10775,17 +10775,17 @@ conclusively found despite extensive isolated testing.
   INST line converter, using IPLParser._parse_inst's own already-
   empirically-confirmed field layouts (VC has a real, confirmed
   scale-then-rotation layout; SA/SOL has no scale fields at all) -
-  not re-derived from Keith's own hand-typed example, since that
+  not re-derived from my own hand-typed example, since that
   example's own scale placement doesn't match either real, confirmed
   layout and is very likely a typo. SA/SOL->VC inserts real scale
   (1.0,1.0,1.0); VC->SA/SOL drops scale entirely (honest, real data
   loss - SA/SOL's own format has nowhere to keep it) and sets lod=-1.
   Verified with a full round-trip (SA->VC->SA recovers the exact
-  original rotation) against Keith's own real example lines.
+  original rotation) against my own real example lines.
 
   New "Repair Scale" ribbon button - fixes every currently loaded
   instance whose own real scale is exactly (0,0,0) back to (1,1,1),
-  undoable. Confirmed via Keith's own real, broken example line
+  undoable. Confirmed via my own real, broken example line
   ("652, new_bushsm..." with scale fields 0,0,0) that a real zero
   scale is what's actually broken - not the reverse direction his own
   hand-typed sentence literally described, which conflicts with his
@@ -10802,11 +10802,11 @@ conclusively found despite extensive isolated testing.
   this turn. Repair Scale is in-memory only for the same reason -
   no INST write-back exists yet at all.
 
-- Aug 21 2026 - Full IPL INST file conversion, per Keith: "so having
+- Aug 21 2026 - Full IPL INST file conversion,  "so having
   VC -> SA or SA -> VC is something I need, under a convertion SVG
   icon, right clicked for options, and selected ipl files to convert,
   anywhere on the harddrive or loaded ipl browser list." Builds on
-  last turn's convert_inst_fields (already tested against Keith's
+  last turn's convert_inst_fields (already tested against my
   own real example lines) with the write-back half.
 
   New "Convert" ribbon button (new convert_icon SVG - two opposing
@@ -10827,7 +10827,7 @@ conclusively found despite extensive isolated testing.
   than one real INST section independently.
 
   Verified end-to-end with a real, synthetic test file mixing both
-  of Keith's own real example lines (a normal-rotation one, and the
+  of my own real example lines (a normal-rotation one, and the
   broken-scale one) plus an untouched cull section - confirmed both
   real lines converted correctly (scale correctly inserted for SA->VC,
   broken (0,0,0) scale corrected to (1,1,1) as part of the same real
@@ -10841,7 +10841,7 @@ conclusively found despite extensive isolated testing.
   NameError the first time this ribbon was ever built. Added its own
   local import instead of assuming the same name was already in scope.
 
-- Aug 21 2026 - New "Optimize Order" ribbon button, per Keith: "the
+- Aug 21 2026 - New "Optimize Order" ribbon button,  "the
   game optimizing, if the model names, col names, and ide/ipl entries
   loaded in the same order the game spends less work matching them
   up, result is the game loads and renders faster. the SOL files have
@@ -10854,7 +10854,7 @@ conclusively found despite extensive isolated testing.
   models and after that the IPLs ... everything is loaded on a per
   directory basis and in alphabetical order to improve the speed of
   loading." That's Rockstar's own documented convention, and matches
-  Keith's own real-world SOL observation directly.
+  my own real-world SOL observation directly.
 
   New optimize_dat_load_order (gta_dat_parser.py) - rewrites a real
   .dat file's own IDE/IPL/COLFILE/IMG directive lines to match that
@@ -10875,19 +10875,19 @@ conclusively found despite extensive isolated testing.
   Honest scope limit, disclosed in the button's own confirmation
   dialog: this reorders directive *lines* in the .dat file itself
   only - it does not reorder model definitions within an IDE file or
-  instance placements within an IPL file, which Keith's own message
+  instance placements within an IPL file, which my own message
   also touched on at that finer level. That would mean touching real
   IDE/IPL file contents file-by-file, a separate, larger piece not
   attempted this turn.
 
-  Also confirmed already built and working, per Keith's own third
+  Also confirmed already built and working  own third
   point ("parsing COL files, even those in the img file"): ModelCache.
   get_collision already reads COL data from both IMG-embedded entries
   and standalone .col files - no new work needed there.
 
 - Sep 5 2026 - Fixed real bug: alpha-textured objects (trees etc.)
   losing their texture entirely and rendering as flat, untextured
-  colour after unload/shift/rotate IPL operations, per Keith's own
+  colour after unload/shift/rotate IPL operations  own
   re-uploaded alpha_showing.png (same screenshot as the Aug 21 fix,
   but a genuinely different cause this time - that fix was lighting
   flags, this one is missing textures).
@@ -10920,13 +10920,13 @@ conclusively found despite extensive isolated testing.
   Model_Editor's separate copy. Changed to `light[0], light[1],
   light[2]`.
 
-- Sep 5 2026 (cont'd) - three small UI fixes/features per Keith:
+- Sep 5 2026 (cont'd) - three small UI fixes/features .per:
   1. Texture viewer ("Textures - <txd>.txd" popup, opened from the
      Identity section's right-click menu) gained a "Save All to
      Folder..." button - exports every texture in the TXD as a
      full-resolution PNG into a folder the user picks, rather than
      only previewing 32px thumbnails as before.
-  2. Real bug: the Grge (garage) overlay toggle button was still
+  2.  bug: the Grge (garage) overlay toggle button was still
      stuck in the IPL Controls dock while every sibling overlay
      button (Cull/Zone/Occl/Paths/etc) had already been moved onto
      the Overlays ribbon. Root cause: show_grge_btn was added (Aug
@@ -10946,14 +10946,14 @@ conclusively found despite extensive isolated testing.
      buttons the same icon-only way Undo/Convert already are.
 
 - Sep 5 2026 (cont'd) - Repair Scale: added the reverse direction, per
-  Keith: "add another option 1, 1, 1, to 0, 0, 0". Refactored the
+   : "add another option 1, 1, 1, to 0, 0, 0". Refactored the
   original 0,0,0 -> 1,1,1 fix into a generic _repair_scale_instances
   (from_scale, to_scale) helper; left-click keeps the original
   default direction, right-click opens a menu to pick either
   direction explicitly - same right-click-for-options convention
   already used by Cycle/Convert on this ribbon.
 
-- Sep 5 2026 (cont'd) - bug sweep of map_workshop.py (Keith: "search for
+- Sep 5 2026 (cont'd) - bug sweep of map_workshop.py ( : "search for
   bugs and note them"), several real, confirmed issues found and fixed:
   1. resizeEvent, _toggle_backface_cull, _set_camera_view, _create_
      preview_widget: all defined TWICE in their own class body - Python
@@ -10969,7 +10969,7 @@ conclusively found despite extensive isolated testing.
      - _set_camera_view: surviving copy was missing the dead copy's own
        hasattr(self,'viewer_3d')/VIEWPORT_AVAILABLE guard - could crash
        with AttributeError. Restored it, fixed stray indentation.
-     - _create_preview_widget: NOT fixed, flagged for Keith - see below.
+     - _create_preview_widget: NOT fixed, flagged for   - see below.
   2. _show_paint_toolbar: referenced an undefined undo_btn (UnboundLocal
      Error every time the paint toolbar populated) - should've been
      self.paint_undo_btn, the real button. Fixed.
@@ -10992,7 +10992,7 @@ conclusively found despite extensive isolated testing.
      addWidget(coll_group) ran on the wrong object type entirely.
      Fixed - this dialog is reachable (wired to a hotkey), so this was
      a real, live, always-happens crash, not theoretical.
-  STILL OPEN, need Keith's direction before touching further:
+  STILL OPEN, need my direction before touching further:
   - _show_settings_dialog's own Apply/OK buttons are wired to a nested
     apply_settings() closure that reads 7 checkboxes/spinboxes (export
     preserve-alpha, export shadow-separate, import auto-name, dimension
@@ -11017,12 +11017,12 @@ conclusively found despite extensive isolated testing.
     nothing anywhere imports this Map_Editor copy. Recommend deleting;
     not done without confirming.
 
-- Sep 5 2026 (cont'd) - two more per Keith's real, uploaded files:
+- Sep 5 2026 (cont'd) - two more per my real, uploaded files:
   1. Added "Save .txd..." button next to "Save All to Folder..." in
      the texture viewer - exports the original, unmodified .txd
      container bytes straight from the IMG archive (new
      ModelCache.get_raw_txd), not just the decoded textures.
-  2. REAL ALPHA BUG, root cause confirmed directly against Keith's
+  2. REAL ALPHA BUG, root cause confirmed directly against my
      own uploaded gta_tree_boak.txd/gta_tree_pine.txd/gta_tree_palm.txd/
      gta_tree_oldpine.txd: several tree/foliage textures (newtreeleavesb128,
      newtreeleaves128, Newtreed256, kb_ivy2_256, etc) are labelled
@@ -11038,12 +11038,12 @@ conclusively found despite extensive isolated testing.
      instead of a transparent cutout. Fixed to preserve the real 4th
      byte the same as A8R8G8B8 - verified by re-exporting all 4
      textures from the real uploaded files: correct, clean transparent
-     cutouts now, matching Keith's own screenshots exactly. Same bug,
+     cutouts now, matching my own screenshots exactly. Same bug,
      same fix, applied to all 4 copies of txd_parser.py (apps/methods,
      Model_Editor, Map_Editor, Vehicle_Workshop depends/ folders).
 
 - Sep 5 2026 (cont'd) - "View from above when selecting a model"
-  setting, per Keith: "when selecting a model in map workshop, can we
+  setting,  "when selecting a model in map workshop, can we
   change the camera view, have a setting, view from 0, +200 so we
   dont view the model from the bottom, we see it from the top
   instead, but a display setting in map_workshop".
@@ -11073,7 +11073,7 @@ conclusively found despite extensive isolated testing.
 - Sep 5 2026 (cont'd) - fixed the Settings dialog's Apply/OK crash
   flagged earlier in the bug sweep. Root cause turned out to be two
   separate things, not one:
-  1. Real name mismatches: apply_settings() referenced preserve_alpha_
+  1.  name mismatches: apply_settings() referenced preserve_alpha_
      check and export_shadow_check, but the widgets actually created
      above are named preserve_shadow_check and export_shadowm_check
      (the latter a likely typo). The checkbox's own initial-value read
@@ -11095,7 +11095,7 @@ conclusively found despite extensive isolated testing.
   hits in the file are all inside the two still-flagged, still-
   unreachable dead code blocks from the original sweep).
 
-- Sep 5 2026 (cont'd) - dead code sweep on map_workshop.py, per Keith:
+- Sep 5 2026 (cont'd) - dead code sweep on map_workshop.py, .per:
   "let's check for dead code". Ran an AST-based zero-caller scan
   across this file plus every shared/related module it interoperates
   with (dff_viewport.py, model_cache.py, overlay_icons.py, gta_dat_
@@ -11106,7 +11106,7 @@ conclusively found despite extensive isolated testing.
   app_settings_system.py's central settings registration - all 3 are
   real, live code, not dead).
   19 genuine zero-reference methods found. Removed the first, per
-  Keith's own confirmation: _create_world_viewport_dock_tmp (130
+  my own confirmation: _create_world_viewport_dock_tmp (130
   lines incl. its own nested pane-maximize closure) - self-documented
   in its own docstring as "PARKED (Jul 31 2026) - the original
   standalone World View dock... migrated into _create_viewport_dock",
@@ -11118,9 +11118,9 @@ conclusively found despite extensive isolated testing.
   "called from showEvent and resizeEvent", but this file's own
   showEvent/resizeEvent don't call them at all; _toggle_cull_boxes
   is called "a real, working feature" in its own docstring but has no
-  caller) - triaged one at a time as Keith confirms each.
+  caller) - triaged one at a time as   confirms each.
 
-- Sep 5 2026 (cont'd) - investigated Keith's report: "check ghosted
+- Sep 5 2026 (cont'd) - investigated my report: "check ghosted
   col, surface mapped col, semi and wireframe col functions, as these
   do not work" (screenshot showed all 4 checked in the Render dropdown
   but a fully normal-looking city with no visible overlay).
@@ -11152,7 +11152,7 @@ conclusively found despite extensive isolated testing.
   Everything else in the actual render chain checks out architecturally
   and empirically - unable to find a deeper bug from static analysis/
   synthetic testing alone (no real GL rendering available in this
-  environment). Asked Keith to test Wireframe (the most visually
+  environment). Asked ,test Wireframe (the most visually
   distinct mode - bright red edges) zoomed in close on one object, to
   determine whether the overlay genuinely never draws at all, or is
   just too subtle/faint to notice on a wide aerial city shot.
@@ -11178,13 +11178,13 @@ conclusively found despite extensive isolated testing.
   the two already-flagged, still-untouched dead blocks remain).
 
 - Sep 5 2026 (cont'd) - real bug fix: "Show LOD only" still showed
-  normal models, per Keith: "switch to LOD only... I think I am
+  normal models,  "switch to LOD only... I think I am
   seeing the normal models still, but I am noticing in the status
   bar, LODs being loaded". Root cause in GTAWorldLoader.resolve_lod_
   pairs (apps/methods/gta_dat_parser.py, shared): Strategy 2's "LOD"
   name-prefix matching only ever paired a normal instance with its
   LOD counterpart if both lived in the exact same source IPL file.
-  Keith's own real data splits a city's content across multiple
+  my own real data splits a city's content across multiple
   simultaneously-loaded files for streaming reasons unrelated to LOD
   status (his own screenshot: LAn.ipl + lan_stream0/1/2.ipl) - a
   normal building and its LOD version can genuinely end up in
@@ -11204,13 +11204,13 @@ conclusively found despite extensive isolated testing.
   works unchanged, and unrelated far-apart same-named instances still
   correctly do NOT pair.
 
-- Sep 5 2026 (cont'd) - two more real fixes per Keith:
+- Sep 5 2026 (cont'd) - two more real fixes .per:
   1. "Don't reset the viewpoint location" when changing render views -
      _set_lod_display_mode and _set_lod_override both called
      _apply_ipl_visibility_filter() without auto_fit=False, unlike
      every other similar toggle in this file - meant every LOD mode
      change (or per-instance override) re-framed the camera to fit
-     the whole map, losing wherever Keith was actually looking. Fixed
+     the whole map, losing wherever   was actually looking. Fixed
      both to pass auto_fit=False explicitly. (_set_zone_render_style
      and the render-mode/col-overlay toggles don't call this function
      at all, so they were never affected.)
@@ -11231,7 +11231,7 @@ conclusively found despite extensive isolated testing.
      modes, and the existing paired-substitution behaviour is
      unchanged (regression-tested).
 
-- Sep 5 2026 (cont'd) - added "Show Col Only" per Keith: "when
+- Sep 5 2026 (cont'd) - added "Show Col Only"  "when
   showing COL, have the option to show col only, without lods or
   normals". New show_col_only flag + set_show_col_only setter in
   dff_viewport.py, alongside the existing 4 collision-overlay flags;
@@ -11244,7 +11244,7 @@ conclusively found despite extensive isolated testing.
   already follow that loop's naming convention (show_col_{mode}/
   set_show_col_{mode}), no special-casing needed.
 
-- Sep 5 2026 (cont'd) - moved "Show Col Only" per Keith's follow-up:
+- Sep 5 2026 (cont'd) - moved "Show Col Only" per my follow-up:
   "show only col in the Dff normal, lod... etc section so i can
   select Surface, Semi, wireframe, ghosted" - out of its own
   standalone checkbox (added last commit) and into the Normal/LOD/
@@ -11267,7 +11267,7 @@ conclusively found despite extensive isolated testing.
   show_col_only=False and _lod_menu_mode='both' as expected.
 
 - Sep 5 2026 (cont'd) - "IPL file editor should stay on top, with a
-  settings toggle option" per Keith. New ipl_editor_always_on_top
+  settings toggle option" .per. New ipl_editor_always_on_top
   setting (off by default) + checkbox in the Navigation settings
   section, next to the other recent camera/viewport toggles. New
   _apply_ipl_editor_on_top_setting() applies WindowStaysOnTopHint to
@@ -11277,7 +11277,7 @@ conclusively found despite extensive isolated testing.
   for the change to actually apply, handled here rather than left as
   a stale flag until the next reopen).
 
-- Sep 5 2026 (cont'd) - two MAJOR bugs found and fixed per Keith:
+- Sep 5 2026 (cont'd) - two MAJOR bugs found and fixed .per:
   "when any of the Models, Textured, Non-Texture, Semi-Solid or
   Wireframe are selected, the COLs show perfectly on all col models,
   but as soon as I pick show cols only, the COLs stop showing" and
@@ -11303,7 +11303,7 @@ conclusively found despite extensive isolated testing.
   skip + collision-overlay drawing to the dots branch itself, so
   collision can now render correctly even in Dots mode.
 
-  Also renamed the texture viewer's two export buttons per Keith:
+  Also renamed the texture viewer's two export buttons .per:
   "Save.txd and Save all to Folder seem misleading" -
   "Save as TXD..." and "Save as Single Textures..." respectively.
 
@@ -11313,7 +11313,7 @@ conclusively found despite extensive isolated testing.
   on/off toggle for the "showing dark models" report - larger scope,
   tackling separately.
 
-- Sep 5 2026 (cont'd) - two more per Keith:
+- Sep 5 2026 (cont'd) - two more .per:
 
   1. Prelighting on/off toggle ("showing dark models... we need a
      prelighting on/off SVG button"). Turned out DFFViewport.
@@ -11340,7 +11340,7 @@ conclusively found despite extensive isolated testing.
      tiny) resolution - deliberately not force-fitted/softened to the
      window, so real pixel detail is visible, and genuinely resizable
      since QDialog already is by default. Added 7 new SVG icons (Add/
-     Del/Export/Replace/Rename/Apply/Save), all icon-only per Keith's
+     Del/Export/Replace/Rename/Apply/Save), all icon-only per my
      own explicit ask ("if space is limited, revert to SVG icons").
      New _texture_name_exists() checks every currently-loaded texture
      name in the TXD before Add/Rename - since a texture's normal/
@@ -11363,7 +11363,7 @@ conclusively found despite extensive isolated testing.
   (non-null, rendered a real icon sheet and looked at it) before
   pushing anything.
 
-- Sep 5 2026 (cont'd) - full Render dropdown redesign per Keith's own
+- Sep 5 2026 (cont'd) - full Render dropdown redesign per my own
   detailed follow-up on the earlier Col Only work:
 
   Model render style (renamed): "Texture" -> "Model Textures",
@@ -11380,7 +11380,7 @@ conclusively found despite extensive isolated testing.
 
   "Show LOD only" and "Show Col Only" removed entirely ("does not
   work. Please remove this" - stated separately for each). LOD group
-  is now just Show Normals/Show Both (unchanged mechanism, Keith
+  is now just Show Normals/Show Both (unchanged mechanism,  
   didn't ask to touch this pair specifically). Simplified _set_lod_
   display_mode back down since the 'col' special-case (and its
   _lod_menu_mode tracking) no longer exists.
@@ -11412,7 +11412,7 @@ conclusively found despite extensive isolated testing.
   real viewport flags off (not just their checkboxes) when a new one
   is selected.
 
-- Sep 5 2026 (cont'd) - restored "Show LOD only" per Keith's own
+- Sep 5 2026 (cont'd) - restored "Show LOD only" per my own
   clarification - the earlier removal was a typo (he only meant to
   remove Show Col Only, not this one too). Back to a real 3-way
   exclusive radio (LOD only/Normals/Both), same mechanism as before -
@@ -11420,7 +11420,7 @@ conclusively found despite extensive isolated testing.
   just unreachable via the menu, so this is a pure UI restore.
 
 - Sep 5 2026 (cont'd) - REAL, CONFIRMED BUG in VC collision resolution,
-  found via Keith's own real, uploaded gta3_img.png screenshot +
+  found via my own real, uploaded gta3_img.png screenshot +
   airport.col file. Vanilla VC embeds genuine multi-model REGIONAL
   collision packages directly in gta3.img (airport.col, downtown.col,
   mall.col, etc, ~19 of them) - confirmed by directly parsing the real
@@ -11451,13 +11451,13 @@ conclusively found despite extensive isolated testing.
   across all 189 names when they share one entry object, matching
   real index_img_files behaviour.
 
-  NOTE: this fixes collision resolution specifically. Keith's other
+  NOTE: this fixes collision resolution specifically. my other
   reported symptom this session ("Vice City only showing airplanes")
   sounds like a model-geometry issue, not a collision-overlay one
   (collision was always drawn independently of whether the model
   itself renders) - still investigating that part separately.
 
-- Sep 5 2026 (cont'd) - REAL regression fix, per Keith: "we did have
+- Sep 5 2026 (cont'd) - REAL regression fix,  "we did have
   COL models loading, but since then, for some reason this stopped
   working... it should still find the model name in the col, not
   just the img file, and show them".
@@ -11486,7 +11486,7 @@ conclusively found despite extensive isolated testing.
   both a has-collision and has-neither case.
 
 - Sep 5 2026 (cont'd) - added real status reporting for .col files
-  found inside IMG archives, per Keith: "it only found 3 .col files,
+  found inside IMG archives,  "it only found 3 .col files,
   what we need is something to say found *.col in img as many times
   as it finds them". The "3" was GTAWorldLoader.stats.col_files -
   only ever counted standalone COLFILE-directive files (VC's
@@ -11502,13 +11502,13 @@ conclusively found despite extensive isolated testing.
   useful. Verified with a synthetic 3-entry, multi-model IMG (2+3+1
   models across 3 .col entries): counter correctly reports 3, while
   6 distinct model names get indexed underneath - the exact
-  distinction Keith needed.
+  distinction   needed.
 
 - Sep 5 2026 (cont'd) - Timecyc investigation #1 of the 4-item list,
-  per Keith: "we need to work out why Timecyc.dat / Timecycp.dat
+   "we need to work out why Timecyc.dat / Timecycp.dat
   doesn't work in GTA SA, and point out the issue with GTASOL".
 
-  Tested TimecycParser.load() directly against Keith's own real,
+  Tested TimecycParser.load() directly against my own real,
   uploaded timecyc.dat (51 fields) and timecycp.dat (52 fields, PSP
   decimal-precision variant) - both parse perfectly on their own:
   correct game detection ('SA'), correct column count, exactly 184
@@ -11541,7 +11541,7 @@ conclusively found despite extensive isolated testing.
   guess (proving the hint path is real, not coincidental agreement).
 
 - Sep 5 2026 (cont'd) - corrected the GTASOL timecyc fix just pushed:
-  Keith shared all 6 real timecyc variants GTASOL actually ships
+    shared all 6 real timecyc variants GTASOL actually ships
   (timecyc.dat/timecyc_lc.dat/timecyc_lcs.dat/timecyc_sa.dat/
   timecyc_sol.dat/timecyc_vc.dat, all from root/Data/) - every one of
   them uses 52 fields and a genuine 24-real-hourly-slot-per-weather
@@ -11560,7 +11560,7 @@ conclusively found despite extensive isolated testing.
   unchanged (this correction only touched the 'sol' mapping).
 
 - Sep 5 2026 (cont'd) - real fix for the Tcyc button's alternate-file
-  picker gesture, per Keith: "timecyc does not work. If there is
+  picker gesture,  "timecyc does not work. If there is
   more than one timecycle, middle-click the time cycle button to
   select it." It was wired to right-click (via the generic edit_
   toggled "second action" signal, whose own comment already admitted
@@ -11573,21 +11573,21 @@ conclusively found despite extensive isolated testing.
   checks - its own hardcoded tooltip text describes zone/box editing
   though, so overridden right after with the correct text for this
   button's actual behaviour. Likely explains the "does not work"
-  report on its own: middle-clicking (the gesture Keith expected) did
+  report on its own: middle-clicking (the gesture   expected) did
   nothing at all before this fix, even though the underlying auto-
   detected timecyc file was loading correctly underneath.
 
-  Radar tiles for GTASOL confirmed working by Keith after testing -
+  Radar tiles for GTASOL confirmed working by   after testing -
   item 2/4 done, no further action needed there.
 
   Waterpro.dat for GTASOL flagged as "a mess" (image referenced but
-  not actually attached this turn) - Keith's own priority: fix the
+  not actually attached this turn) - my own priority: fix the
   known bug in water_workshop.py first, before porting anything to
   map_workshop's own water handling. Waiting on the real screenshot/
   files to continue.
 
 - Sep 5 2026 (cont'd) - REAL, confirmed fix for GTASOL waterpro.dat
-  positioning, per Keith: "waterpro.dat is a mess... one file at a
+  positioning,  "waterpro.dat is a mess... one file at a
   time, there is 3 more... the source code to the water functions
   are here" (GTASOL-CoreHacks-69.9.9-master.zip, the actual SOL
   engine hack's own real source).
@@ -11604,7 +11604,7 @@ conclusively found despite extensive isolated testing.
   individual radar tiles. The real engine's own Hook_PreRenderNear
   Water positions each of the 6x6 water tile-blocks 4096 units apart,
   giving a true total water grid width of 6*4096=24576 - exactly
-  double what the code was using. Confirmed against Keith's own real
+  double what the code was using. Confirmed against my own real
   uploaded waterpro.dat (grid_width=384): the old math gave a
   suspicious, non-round 31.25 units/cell; the corrected math gives
   exactly 64.0, matching the engine's own 4096-per-tile/64-cells-
@@ -11616,7 +11616,7 @@ conclusively found despite extensive isolated testing.
   Added a new WATER_GRID_PRESETS (separate from RADAR_GRID_PRESETS,
   SOL only) rather than changing the shared radar preset, since
   VC/SA/GTA3's own water-uses-radar's-size assumption is already
-  confirmed correct against Keith's own real screenshots - this
+  confirmed correct against my own real screenshots - this
   correction is SOL-specific, where water and radar genuinely use
   different real grid sizes.
 
@@ -11630,10 +11630,10 @@ conclusively found despite extensive isolated testing.
   hardcoded +400 unit shift on X only) suggests the true grid isn't
   simply centered at world origin the way this code still assumes -
   needs further real-world confirmation before touching it. Waiting
-  on the remaining 3 waterpro.dat files Keith mentioned to continue.
+  on the remaining 3 waterpro.dat files   mentioned to continue.
 
 - Sep 5 2026 (cont'd) - right-click/middle-click audit across every
-  overlay button, per Keith: "the right click toggle between vis_water
+  overlay button,  "the right click toggle between vis_water
   and phy_water needs to be moved to the middle button so it doesnt
   clash with the right click menu, can you check the other buttons
   aswell, keeping right click menu, and middle click for other
@@ -11666,7 +11666,7 @@ conclusively found despite extensive isolated testing.
   needing a change.
 
 - Sep 5 2026 (cont'd) - REAL FOLLOW-UP BUG from yesterday's own
-  waterpro.dat grid-size fix, per Keith's real, uploaded badwater.png:
+  waterpro.dat grid-size fix  real, uploaded badwater.png:
   "The image is just wrong - badly offset, with what looks like the
   outer edges offset, making a cross pattern in the middle."
 
@@ -11692,7 +11692,7 @@ conclusively found despite extensive isolated testing.
   yesterday's fix to _waterpro_to_cells.
 
   Also tested 6 alternate tile-de-tiling orderings (row/col-major x
-  X/Y flips) against Keith's own real reference templates (viswater.
+  X/Y flips) against my own real reference templates (viswater.
   jpg/maskwater.jpg from yesterday) to rule out a tile-ordering bug
   as a contributing cause - none matched better than the existing
   row-major ordering, so that part is very likely already correct;
@@ -11700,7 +11700,7 @@ conclusively found despite extensive isolated testing.
   the reported "mess".
 
 - Sep 5 2026 (cont'd) - added a real water grid size preset ladder,
-  per Keith: "so SOL is 384x384 and 768x768? So the presets scale
+   "so SOL is 384x384 and 768x768? So the presets scale
   upto SOL and 2 more scale beyond, can you work out the stages, and
   add that function".
 
@@ -11726,12 +11726,12 @@ conclusively found despite extensive isolated testing.
   just the 8 named stages). Verified: SOL's own entry (stage 6)
   matches WATER_GRID_PRESETS['sol'] exactly, and the generator
   correctly extrapolates beyond the table too. Deliberately left out
-  Keith's own original 32x32/96x96 examples - they aren't multiples
+  my own original 32x32/96x96 examples - they aren't multiples
   of the real 64-unit chunk any actual game uses, so including them
   would have been arbitrary rather than derived from something real.
 
 - Sep 5 2026 (cont'd) - added SA's own water preset ladder, per
-  Keith: "now we need to do the same for SA... and the snap ladder
+   : "now we need to do the same for SA... and the snap ladder
   size, and look at these files" (real SA water.dat samples).
 
   Tested against the real files first rather than assuming SA shares
@@ -11743,9 +11743,9 @@ conclusively found despite extensive isolated testing.
   for SA specifically - the same kind of unverified assumption that
   turned out wrong for SOL's timecyc a few commits back.
 
-  Checked recurring shape dimensions in Keith's own real SA_water.dat
+  Checked recurring shape dimensions in my own real SA_water.dat
   (307 shapes): 16 is the single most common real granularity, and
-  Keith's own original example numbers (32/64/96/128/256) are all
+  my own original example numbers (32/64/96/128/256) are all
   clean multiples of it - but only ~62% of that sample's own real
   dimensions are actually divisible by 16 (a second, smaller real
   sample, 98 shapes, was mostly non-16-aligned), so unlike VC/GTA3/
@@ -11758,15 +11758,15 @@ conclusively found despite extensive isolated testing.
   prevention requirement ("all X/Y coordinates... must be even,
   rounded numbers... otherwise the game will crash"), rather than a
   derived engine constant the way VC/GTA3/SOL's ladder is. Verified
-  all 5 of Keith's own original example numbers land exactly on it.
+  all 5 of my own original example numbers land exactly on it.
 
-  Also found (not yet fixed, a separate gap): 2 of Keith's uploaded
+  Also found (not yet fixed, a separate gap): 2 of my uploaded
   files (water1.dat/WATER1.DAT) parse to 0 shapes - their lines have
   28 fields instead of the 29 parse_water_dat requires, missing the
   trailing water_type flag entirely - a real, different sub-format
   not currently supported.
 
-- Sep 5 2026 (cont'd) - Water_Editor: CRITICAL CRASH FIX, per Keith's
+- Sep 5 2026 (cont'd) - Water_Editor: CRITICAL CRASH FIX 
   own real traceback ("core dumped"): "AttributeError: 'SaWaterCanvas'
   object has no attribute '_get_ui_color'" when switching from VC to
   SA in water_workshop.py. SaWaterCanvas's own paintEvent already
@@ -11780,7 +11780,7 @@ conclusively found despite extensive isolated testing.
   QColor with no crash.
 
 - Sep 5 2026 (cont'd) - IPL loading-pattern toggle (item 4 of
-  tonight's list), per Keith: "LC, MLL, VC are still in VC format...
+  tonight's list),  "LC, MLL, VC are still in VC format...
   Only the SA map ported for VC has the wrong scaling, but the VC
   engine ignored this, all seems to show up ok, in game, but in map
   workshop SA map loads, other parts dont... maybe a loading toggle
@@ -11816,7 +11816,7 @@ conclusively found despite extensive isolated testing.
   one.
 
 - Sep 5 2026 (cont'd) - REAL bug fix in quat_to_euler_degrees, per
-  Keith's own real screenshot: raw IPL rotation (1,1,1,1) was
+  my own real screenshot: raw IPL rotation (1,1,1,1) was
   displaying as a confusing "146.3, -90.00, 146.3" in the IPL Object
   Editor, and his own search for the literal string "146.3" found it
   in path files, making him suspect real cross-contamination between
@@ -11843,14 +11843,14 @@ conclusively found despite extensive isolated testing.
   combined twist) instead of the same plain atan2 used everywhere
   else, giving a stable, sensible result instead of an arbitrary split.
 
-  Verified: the exact real case from Keith's screenshot (conjugated
+  Verified: the exact real case from my screenshot (conjugated
   rotation (-1,-1,-1,1)) now correctly shows a stable (0.0, -90.0,
   -90.0) instead of (146.3, -90.0, 146.3); round-tripped 200 random
   non-gimbal-lock angles through euler_degrees_to_quat and back with
   zero error, confirming normal (non-gimbal-lock) rotations are
   completely unaffected by this fix.
 
-- Sep 5 2026 (cont'd) - MAJOR real bug found and fixed, per Keith:
+- Sep 5 2026 (cont'd) - MAJOR real bug found and fixed, .per:
   "Could there be a conflict in the functions... where is 146.3 -90
   146.3 coming from" + "I've noticed some SA IPLs loading in SOL with
   the wrong data as well... this bug only affects objects loaded in
@@ -11876,7 +11876,7 @@ conclusively found despite extensive isolated testing.
   name+id match sits closest to that real position, instead of just
   the first one found anywhere.
 
-  Verified directly with a synthetic scenario matching Keith's own
+  Verified directly with a synthetic scenario matching my own
   real data: two instances sharing model_id 2017 "GenVCapsteps1" at
   different positions with genuinely different rotations (identity
   vs a real yaw) - clicking each row's own position now correctly
@@ -11884,7 +11884,7 @@ conclusively found despite extensive isolated testing.
   returning the first one regardless of which was clicked.
 
 - Sep 5 2026 (cont'd) - added a Search button to the ribbon, per
-  Keith: "a search [O'] function on the ribbon bar to find a model
+   : "a search [O'] function on the ribbon bar to find a model
   name so I can see the IPL line". New search_model_icon (plain
   magnifying glass) + Search button; opens a small dialog with a
   live-filtered list (one row per unique model name, with its own
@@ -11902,21 +11902,21 @@ conclusively found despite extensive isolated testing.
   narrows to GenVCapsteps1, and jumping correctly sets nav_info=(0,2)
   for the multi-placement cycling.
 
-  Also confirmed the IPL Object Editor always-on-top setting Keith
+  Also confirmed the IPL Object Editor always-on-top setting  
   asked to lock it to already exists (added earlier today, Settings >
   Navigation > "Keep IPL Object Editor on top") - no new work needed
   there.
 
 - Sep 5 2026 (cont'd) - deep investigation of a real, still-unexplained
-  rotation bug for a SOL sub-city instance, per Keith's real screenshot
+  rotation bug for a SOL sub-city instance  real screenshot
   and follow-ups: "TbjVCmainla512" (2882, ..., 1, 1, 1, 1, 1, 0)
   displayed rotation "116.57, -41.81, 116.57".
 
   CONFIRMED, numerically exact: this matches parsing the real IPL
   line with GTA3's field layout (rot_w ends up reading the line's
   trailing "0" instead of SA/SOL's real rot_w="1") - not the earlier
-  gimbal-lock display bug, not the wrong-instance-lookup bug (Keith
-  confirmed only one placement), and not a stale-code issue (Keith
+  gimbal-lock display bug, not the wrong-instance-lookup bug ( 
+  confirmed only one placement), and not a stale-code issue ( 
   confirmed latest). The viewport-click path passes the instance by
   direct reference with no re-lookup, so that's not it either.
 
@@ -11927,7 +11927,7 @@ conclusively found despite extensive isolated testing.
   one function with a GTA3 default parameter (prescan_dat_ipls) has
   zero real callers anywhere - dead code. Both real game-detection
   functions (detect_game/detect_game_from_dat_filename) correctly
-  return the lowercase 'sol' string. Keith confirmed the UI clearly
+  return the lowercase 'sol' string.   confirmed the UI clearly
   shows SOL as the active game. Root mechanism still not found through
   static analysis alone.
 
@@ -11950,11 +11950,11 @@ conclusively found despite extensive isolated testing.
   panel (log_message) unconditionally, so they're visible regardless
   of the verbose-dialog setting. Verified the diagnostic itself fires
   correctly and reports accurate layout/game values in an isolated
-  test. Waiting on Keith to reload the world and report what this
+  test. Waiting on ,reload the world and report what this
   diagnostic actually shows for the real file in his own session.
 
 - Sep 5 2026 (cont'd) - added "Show COL as ImgList" to DAT Browser's
-  right-click menu for .col files, per Keith: "right-clicking .col
+  right-click menu for .col files,  "right-clicking .col
   files in dat_browser > show COL as imglist, the same way we view
   .img files in img factory; I think the old function is still
   there, populate_col_table.py". Confirmed correct - reuses the
@@ -11966,7 +11966,7 @@ conclusively found despite extensive isolated testing.
   apps/methods/col_core_classes.py's FourCC signature check used
   control-character bytes (0x02/0x03/0x04) instead of the real
   format's literal ASCII text "COL2"/"COL3"/"COL4" (0x32/0x33/0x34) -
-  confirmed directly against the real bytes of Keith's own uploaded
+  confirmed directly against the real bytes of my own uploaded
   lahills_1.col. This meant COLFile.load_from_file could only ever
   successfully parse the rare, simple COLL format, silently failing
   (empty load_error, is_loaded=False) on virtually every real COL2/
@@ -11983,7 +11983,7 @@ conclusively found despite extensive isolated testing.
   > populate a real QTableWidget) confirmed working correctly.
 
 - Sep 5 2026 (cont'd) - real fix for "Show COL as ImgList" not
-  actually being visible, per Keith: "owing generics.col as list in
+  actually being visible,  "owing generics.col as list in
   the main IMG Factory table (1146 model(s)) - switch to that tab to
   see it, however I see no tab".
 
@@ -11993,7 +11993,7 @@ conclusively found despite extensive isolated testing.
   (export_shared.get_active_table's own docstring literally says
   "Always use this instead of gui_layout.table directly"). gui_layout.
   table only reflects whatever IMG tab happened to be active; if none
-  was open yet (Keith's real situation, just browsing via DAT
+  was open yet (my real situation, just browsing via DAT
   Browser), there was nothing visible to populate at all - my earlier
   "switch to that tab" message was itself wrong, since no such tab
   existed.
@@ -12018,7 +12018,7 @@ conclusively found despite extensive isolated testing.
   - confirmed via real usage in imgfactory.py/gui_layout.py, unlike
   the separate, unused FileBrowserWidget in file_dirtree_browser.py,
   whose own "View COL Models" action turned out to be a complete
-  stub - a QMessageBox saying "This would show..."), per Keith: "col
+  stub - a QMessageBox saying "This would show..."),  "col
   list works, need to add the same function to Dir Tree browser".
 
   Reuses the exact same real fix already verified for DAT Browser:
@@ -12032,7 +12032,7 @@ conclusively found despite extensive isolated testing.
   correctly populated in that tab.
 
 - Sep 5 2026 (cont'd) - partial fix + honest flag for a real bug, per
-  Keith: "when I tab away and come back, the col tab contents is
+   : "when I tab away and come back, the col tab contents is
   forgotten, seems to show a copy of the img file instead".
 
   Found and fixed a real, concrete gap: _on_tab_changed's own COL
@@ -12040,7 +12040,7 @@ conclusively found despite extensive isolated testing.
   branch right next to it, which already had this exact safety net
   (if tab_table.rowCount() == 0: populate...). Added the same
   defensive re-populate to the COL branch. This is a genuine
-  improvement, but honestly may not be the full story - Keith's own
+  improvement, but honestly may not be the full story - my own
   wording ("shows a copy of the img file") suggests the table isn't
   empty, it's showing wrong (IMG-looking) rows, which an empty-check
   alone wouldn't catch.
@@ -12056,7 +12056,7 @@ conclusively found despite extensive isolated testing.
   specific COL-tab bug.
 
 - Sep 5 2026 (cont'd) - added a real diagnostic to _on_tab_changed,
-  per Keith's own real screenshots (shows_col_entries.png,
+  per my own real screenshots (shows_col_entries.png,
   switched_back_to_game_vc_col.png, switched_to_game_vc_img.png)
   showing the "game_vc" COL tab correctly listing 19 real COL models
   with its own real columns (Model Name/Type/Version/Size/Spheres/
@@ -12077,11 +12077,11 @@ conclusively found despite extensive isolated testing.
   Added a diagnostic to _on_tab_changed logging the real table
   object's own id(), column headers, and row count every time a tab
   switch happens, surfaced directly in Activity Logs as "[tab-diag]"
-  lines - waiting on Keith to reproduce and share what these actually
+  lines - waiting on ,reproduce and share what these actually
   show for both tabs.
 
 - Sep 5 2026 (cont'd) - REAL, confirmed root cause found and fixed for
-  the "col tab shows img content" bug, per Keith's own real Activity
+  the "col tab shows img content" bug  own real Activity
   Log ("Switching to tab N" - confirming switch_tab in tab_system.py,
   not _on_tab_changed in imgfactory.py, is the actual active handler
   in this app) and precise reproduction steps (switching to the IMG
@@ -12101,16 +12101,16 @@ conclusively found despite extensive isolated testing.
   before using it, and populates that tab's own table directly rather
   than the possibly-unrelated gui_layout.table.
 
-  Verified with a full, real reproduction of Keith's exact scenario:
+  Verified with a full, real reproduction of my exact scenario:
   built a real COL tab (19 models, "Model Name" header) then a real
   IMG tab (5 entries) and called the real switch_tab - confirmed the
   OLD logic corrupts the COL tab to 5 rows with an IMG-style "Name"
-  header (exactly matching Keith's report), and the FIXED logic
+  header (exactly matching my report), and the FIXED logic
   leaves the COL tab's own 19 rows and real header completely intact
   after switching to and from the IMG tab.
 
 - Sep 5 2026 (cont'd) - added "Show IDE as List" to both DAT Browser
-  and Dir Tree Browser, per Keith: "can we show the game_vc.ide in
+  and Dir Tree Browser,  "can we show the game_vc.ide in
   the same format as the col, img, show the ide in a row table, with
   odd and even pattern lines, highlighting game_vc.ide in both dat
   browser, dir tree, show ide file". Same real create_tab pattern
@@ -12129,7 +12129,7 @@ conclusively found despite extensive isolated testing.
   named after the file, correctly populated with real parsed object
   data, alternating row colours confirmed on.
 
-- Sep 5 2026 (cont'd) - real fix, per Keith: "i hope you didnt use an
+- Sep 5 2026 (cont'd) - real fix,  "i hope you didnt use an
   emoji, its against the rules, if we have to show icons, make them
   SVG icons". He was right - the last few commits' own new menu
   actions (Show COL as ImgList / Show IDE as List in both DAT Browser
@@ -12153,7 +12153,7 @@ conclusively found despite extensive isolated testing.
   definitions (reset_view_icon, get_app_icon) via the same AST scan
   used throughout this session.
 
-- Sep 5 2026 (cont'd) - added Asset Checker, per Keith: "Asset checker
+- Sep 5 2026 (cont'd) - added Asset Checker,  "Asset checker
   as a right click on img, col and ide entries on dat browser, dir
   tree... As 3 columns IMG archive | COL archive | IDE entry list |
   Error list, where we could show missing in COL, missing in IMG, not
@@ -12178,7 +12178,7 @@ conclusively found despite extensive isolated testing.
   stays theme-aware per this app's own real convention.
 
   New asset_checker_icon SVG (checkmark over 3 rows) - no emoji, per
-  Keith's own recent correction. Wired "Asset Checker" into DAT
+  my own recent correction. Wired "Asset Checker" into DAT
   Browser and Dir Tree Browser's own right-click menus for .img/.col/
   .ide files - Dir Tree Browser had no .img-specific menu section at
   all before this, added one. DAT Browser uses the currently loaded
@@ -12194,7 +12194,7 @@ conclusively found despite extensive isolated testing.
   QWidget parent, no errors.
 
 - Sep 5 2026 (cont'd) - Asset Checker: filter IMG side to real .dff
-  models only, per Keith: "in assit checker can we hide tex names
+  models only,  "in assit checker can we hide tex names
   from the img file, because im also seeing not found messages, i
   need to work out if they dispear". An IMG archive holds both .dff
   models and .txd textures; the earlier version compared both against
@@ -12212,7 +12212,7 @@ conclusively found despite extensive isolated testing.
   .txd entries correctly excluded.
 
 - Sep 5 2026 (cont'd) - Asset Checker: added a 3rd view, the real
-  per-model cross-reference table Keith described in detail: "we
+  per-model cross-reference table   described in detail: "we
   could have a txd 4th column, txd entry where we can show exists,
   then the error coloum, we can show the ide file ID for the 1st
   column, dff for the 2rd, col, 3rd, ide modelname 4th, texture
@@ -12243,7 +12243,7 @@ conclusively found despite extensive isolated testing.
   the new table confirmed working.
 
 - Sep 5 2026 (cont'd) - Asset Checker: special-case SOL's own real
-  gta3 split-COL layout, per Keith: "SOL only for gta3.img, gta3.ide
+  gta3 split-COL layout,  "SOL only for gta3.img, gta3.ide
   the col files are in /models/coll as peds.col, special.col,
   vehicles.col and weapons.col. I will in time merge them into
   gta3.col to match the img and col."
@@ -12254,7 +12254,7 @@ conclusively found despite extensive isolated testing.
   files actually exist as a list. check_assets now accepts col_path
   as either one real path or a list, merging every real file's own
   model names together into one col_names set. Best-effort since the
-  exact real folder layout wasn't given - once Keith merges these
+  exact real folder layout wasn't given - once   merges these
   into a real gta3.col himself, this whole special case stops being
   needed and the plain single-file lookup takes over on its own.
 
@@ -12265,7 +12265,7 @@ conclusively found despite extensive isolated testing.
   names into the expected combined set.
 
 - Sep 5 2026 (cont'd) - fixed the search box not filtering the COL DB
-  list, per Keith: "the search button on the botton needs to work for
+  list,  "the search button on the botton needs to work for
   all lists, col filelist, and ide filelist". _apply_filter (the
   search box's own textChanged handler) only ever touched the
   Objects (IDE) and Instances (IPL) tables - the COL DB tab wasn't
@@ -12284,7 +12284,7 @@ conclusively found despite extensive isolated testing.
   match.
 
 - Sep 5 2026 (cont'd) - Asset Checker: show the real expected texture
-  filename instead of just "Missing", per Keith's own real example
+  filename instead of just "Missing"  own real example
   (IDE line "2250, bnk_lft_door1, VCBk_lft_door2, 1, 80, 32"): "so on
   missing, it should show VCBk_lft_door2.txd". The Texture entry
   column now shows "<name>.txd (missing)" with the original case
@@ -12292,12 +12292,12 @@ conclusively found despite extensive isolated testing.
   lowercase one used for comparison) - the actionable filename
   someone would actually need, not just that something's wrong.
 
-  Verified against Keith's own exact real IDE line - output is
+  Verified against my own exact real IDE line - output is
   literally "VCBk_lft_door2.txd (missing)", matching case and
   extension exactly as described.
 
 - Sep 5 2026 (cont'd) - MAJOR crash + silent data-loss fix in
-  col_workshop_parser.py's COLWriter, per Keith's own real crash
+  col_workshop_parser.py's COLWriter  own real crash
   traceback: "'COLBox' object has no attribute 'min_point'" when
   saving in COL Workshop.
 
@@ -12335,19 +12335,19 @@ conclusively found despite extensive isolated testing.
   real box coordinates are correctly present.
 
 - Sep 5 2026 (cont'd) - Asset Checker: reorder 4-column view, per
-  Keith: "Should show IDE first as that is main file. then img then
+   : "Should show IDE first as that is main file. then img then
   col." Column order is now IDE entry list | IMG archive | COL
   archive | Error list. Verified via the real splitter's own widget
   order.
 
 - Sep 5 2026 (cont'd) - Asset Checker: added a right-click context
-  menu to the cross-reference table, per Keith: "with right click
+  menu to the cross-reference table,  "with right click
   options to edit that table, add the missing txd, rename, delete,
   copy and paste cell names". Implemented the safe, immediately
   achievable pieces this turn: Copy Cell and Copy Row (always
   available), and "Open in TXD Workshop to add missing texture"
   (shown only for a row whose Texture entry is genuinely missing) -
-  per Keith's own confirmed answer, this opens the real TXD Workshop
+  per my own confirmed answer, this opens the real TXD Workshop
   against the checker's own real img_path so he can add a real
   texture there himself, not an automated file write.
 
@@ -12358,13 +12358,13 @@ conclusively found despite extensive isolated testing.
   implemented yet, scoped as their own follow-up rather than rushed
   in alongside this.
 
-  Verified with real data (Keith's own bnk_lft_door1/VCBk_lft_door2
+  Verified with real data (my own bnk_lft_door1/VCBk_lft_door2
   example): Copy Cell and Copy Row both produce the correct real
   text, and the TXD Workshop action's own show condition correctly
   evaluates true for a genuinely missing texture.
 
 - Sep 5 2026 (cont'd) - Asset Checker: redesigned the 4-column view
-  per Keith's own confirmed design (real screenshot + detailed
+  per my own confirmed design (real screenshot + detailed
   back-and-forth to nail down the exact behaviour before committing):
   "ID | ide (2453) | Img (2453) +1 | col (2453) +1 | Errors...
   Clicking the +1 shows the filename, with the option to copy the
@@ -12392,16 +12392,16 @@ conclusively found despite extensive isolated testing.
   IDs; scroll sync confirmed across all 4 lists with a real, small
   viewport forcing genuine scrolling.
 
-- Sep 5 2026 (cont'd) - Master IDE, step 1 of Keith's own approved
+- Sep 5 2026 (cont'd) - Master IDE, step 1 of my own approved
   build order for a much larger feature: "This needs to show the IDE
   file or all the IDE files in a single view... even the ability to
   create a master file". Deliberately read-only for now - moving/
   renaming/removing entries with real ID reassignment cascading into
   IPL/2DFX files is a later, much higher-risk step, once this
-  foundation and the real backup system (Keith: "Yes, always backup
+  foundation and the real backup system ( : "Yes, always backup
   everything first") are both proven.
 
-  Along the way, verified Keith's own real new example line ("1400,
+  Along the way, verified my own real new example line ("1400,
   lampost_coast, soltraffic, 1, 299, 128" - the meshCount/dist1[/
   dist2]/flags variant) against the existing parser - already handled
   correctly via its own fallback path, no fix needed there. Confirmed
@@ -12430,23 +12430,23 @@ conclusively found despite extensive isolated testing.
   variants surviving intact.
 
 - Sep 5 2026 (cont'd) - Asset Checker: fixed a real bug in the ID/IDE
-  column sort, per Keith's own real screenshot ("we seem to be
+  column sort  own real screenshot ("we seem to be
   forcing the model names to display alpha numeric, it should be
   shown in ID other. need to fix this first"). sorted_ide_names used
   plain sorted() on the name strings - alphabetical, not numeric by
-  ID at all - directly contradicting Keith's own earlier, explicit
+  ID at all - directly contradicting my own earlier, explicit
   requirement: "We should always follow ID numeric order: 1, 2, 3,
   4..... only time we show the models in alphanumeric order is when
   we want to rearrange". Now sorts by the real IDE model_id.
 
-  Verified against data matching Keith's own real screenshot exactly
+  Verified against data matching my own real screenshot exactly
   (admiral=175, airtrain=180, airtrain_vlo=257, ambulan=146,
   angel=166, army=4) - ID column now correctly shows true numeric
   order (4, 146, 166, 175, 180, 257), with army correctly first
   instead of admiral.
 
 - Sep 5 2026 (cont'd) - Asset Checker: IMG/COL columns now sort by
-  the same IDE-ID-driven order as ID/IDE, per Keith confirming "yes"
+  the same IDE-ID-driven order as ID/IDE,  confirming "yes"
   after asking why the 4-column view looked "down sloped" - alphabetical
   name-order only loosely correlates with real numeric ID-order (IDs
   are usually assigned in roughly the order things were added, and
@@ -12468,7 +12468,7 @@ conclusively found despite extensive isolated testing.
   2 extras correctly land at the end in alphabetical order.
 
 - Sep 5 2026 (cont'd) - Asset Checker: fixed real "+N vs actual entry
-  count" mismatch, per Keith's real report: "the row is still wrong,
+  count" mismatch  real report: "the row is still wrong,
   ? hidden charartors?? and +4 when it shows 5 entries".
 
   Investigated the "hidden characters" possibility first and ruled
@@ -12492,14 +12492,14 @@ conclusively found despite extensive isolated testing.
   real missing entries exist, both together if both are genuinely
   true) instead of one number that could mislead.
 
-  Verified by reproducing Keith's exact real symptom: a source
+  Verified by reproducing my exact real symptom: a source
   missing 1 real IDE entry while also having 5 real extras produces
   a net of +4 (matching what he saw) - old code would show only
   "+4"; fixed code correctly shows both "+5" and "-1" separately, and
   each button's own popup entry count exactly matches its own label.
 
 - Sep 5 2026 (cont'd) - Asset Checker: added explicit tooltips to the
-  +N/-M header buttons, per Keith's own real follow-up confusion:
+  +N/-M header buttons  own real follow-up confusion:
   "now it says +5 -1? confused, does it mean 4 extra and 1 missing?"
   - the fix from last commit was correct (each number is its own
   real, independent count), but correct isn't the same as self-
@@ -12519,10 +12519,10 @@ conclusively found despite extensive isolated testing.
   Verified tooltip text is correct and clear for both directions,
   and the header label's size policy is correctly set to shrinkable.
   Visual alignment itself can't be fully confirmed without seeing it
-  rendered - flagged honestly, asked Keith to confirm it looks right.
+  rendered - flagged honestly, asked ,confirm it looks right.
 
 - Sep 5 2026 (cont'd) - Asset Checker: fixed a real regression I
-  introduced last commit, per Keith's own real catch: "now the title
+  introduced last commit  own real catch: "now the title
   bar is missing, and those numbers are of settings other entries".
   QSizePolicy.Policy.Ignored on the header label doesn't just allow
   shrinking - it tells the layout to disregard the label's own size
@@ -12543,7 +12543,7 @@ conclusively found despite extensive isolated testing.
   the buttons the way the broken version did.
 
 - Sep 5 2026 (cont'd) - Asset Checker: 3 real UI improvements, per
-  Keith: "use a lighter theme color for the header, then pattern the
+   : "use a lighter theme color for the header, then pattern the
   entry list below, the widths for the columns can be wider".
   Header text now uses the real theme's own BrightText palette role
   (not a hardcoded hex value). Entry lists now use alternating row
@@ -12554,10 +12554,10 @@ conclusively found despite extensive isolated testing.
   header stylesheet confirmed contains a real palette-derived color.
 
 - Sep 5 2026 (cont'd) - Asset Checker: reverted header label and diff
-  buttons to sharing one row, per Keith confirming: "can we have Img
+  buttons to sharing one row,  confirming: "can we have Img
   Archive (1146) +5 -1 in the same column, both on the same row?".
   The earlier separate-rows change was a real fix for a real bug
-  (the label disappearing due to a wrong size policy), but Keith
+  (the label disappearing due to a wrong size policy), but  
   prefers the same-line layout he originally described. This version
   puts them back on one row without repeating that mistake - the
   label's size policy is left at its normal default, relying on the
@@ -12571,23 +12571,23 @@ conclusively found despite extensive isolated testing.
   QHBoxLayout).
 
 - Sep 5 2026 (cont'd) - Asset Checker: made the diff buttons
-  genuinely compact, per Keith: "Maybe the compact style we have
+  genuinely compact,  "Maybe the compact style we have
   been using for other tools, the numbers at the end shouldn't be
   throwing the table below out. i need to see the code myself".
   Reduced button padding/font size and capped their real width to
   just what their own text needs (+10px), rather than the default,
   larger button sizing that was forcing the header (and the whole
   column) wider than its own list widget below, causing the visible
-  misalignment/truncation in Keith's own real screenshot ("IMG
+  misalignment/truncation in my own real screenshot ("IMG
   archive (1'" cut off).
 
-  Verified directly against Keith's own real numbers (1146 entries,
+  Verified directly against my own real numbers (1146 entries,
   +5/-1): total header row width now ~179px, comfortably inside the
   220px column, with the full "IMG archive (1146)" label text intact
   and un-truncated.
 
 - Sep 5 2026 (cont'd) - Asset Checker: now opens as a real tab and
-  registers in the real tool taskbar, per Keith: "The asset checker
+  registers in the real tool taskbar,  "The asset checker
   needs to show in a tab, like the other apps, also in the taskbar".
 
   show_asset_checker now embeds the same real AssetCheckerDialog as

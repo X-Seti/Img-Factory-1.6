@@ -91,7 +91,7 @@ class MasterIDEDialog(QDialog): #vers 1
     def _on_save(self): #vers 1
         if self.result.collisions:
             reply = QMessageBox.warning(
-                self, "Real ID Collisions Found",
+                self, " ID Collisions Found",
                 f"{len(self.result.collisions)} model ID(s) are used by more than one "
                 f"different model across the merged files. Saving now will keep both "
                 f"colliding entries as-is (nothing is renumbered by this step). "

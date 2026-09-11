@@ -24,7 +24,7 @@ from apps.components.Model_Editor.depends.col_workshop_loader import COLFile
 def _scan_col_model_names(data: bytes) -> List[str]: #vers 1
     """Lightweight scan of a (possibly multi-model) COL blob's chunk
     headers to discover every model name inside, without parsing any
-    geometry (Sep 5 2026, per Keith's own real, uploaded VC gta3.img
+    geometry (Sep 5 2026  own real, uploaded VC gta3.img
     evidence: vanilla VC embeds genuine multi-model REGIONAL COL
     packages directly in gta3.img - airport.col alone holds 189
     separately-named models, none of them named "airport" - not one
@@ -53,7 +53,7 @@ class ModelCache:
     def __init__(self): #vers 2
         # lowercase entry name (no extension) -> [(img_path, IMGEntry), ...]
         # A list, not a single tuple (Aug 1 2026) - if the same name is
-        # indexed more than once (e.g. Keith's real game folder has
+        # indexed more than once (e.g. my real game folder has
         # both "Generic.txd" and "generic.txd" as genuinely different
         # files), a single-tuple version would silently drop whichever
         # got indexed first, with no way to recover its content. See
@@ -62,7 +62,7 @@ class ModelCache:
         self._txd_index: Dict[str, List[Tuple[str, object]]] = {}
         # lowercase entry stem -> [(img_path, IMGEntry), ...] for .col
         # entries found directly inside the game's own IMG archives
-        # (Aug 14 2026, per Keith: "In SA it should be reading them
+        # (Aug 14 2026,  "In SA it should be reading them
         # from the gta3.img... In VC, they can also be found in the
         # gta3.img file, just like the models") - same lightweight
         # container-name indexing as _dff_index/_txd_index (SA/VC
@@ -73,7 +73,7 @@ class ModelCache:
         # lowercase model name -> [(col_file_path, model_index_in_file), ...]
         # (Aug 14 2026) For standalone .col files reached via COLFILE
         # directives in the .dat (GTAWorldLoader.get_col_paths) - per
-        # Keith: GTA3 collision is ONLY reachable this way (no COL in
+        #  : GTA3 collision is ONLY reachable this way (no COL in
         # the IMG at all, paths point into data/maps/), VC also has a
         # handful of shared collision this way (e.g. generic.col)
         # alongside its IMG-embedded per-object collision, SA has none
@@ -108,7 +108,7 @@ class ModelCache:
         self.indexed_col_paths: List[str] = []
         self.index_errors: List[str] = []
         # Raw .col entries found while scanning IMG archives (Sep 5
-        # 2026, per Keith: "it only found 3 .col files, what we need
+        # 2026,  "it only found 3 .col files, what we need
         # is something to say found *.col in img as many times as it
         # finds them") - counts each real .col IMG directory entry
         # once (e.g. VC's airport.col/downtown.col/etc, ~19 of them),
@@ -119,7 +119,7 @@ class ModelCache:
         # generic.col/vehicles.col/weapons.col) - that number alone
         # was what "only found 3" was reporting.
         self.col_entries_found_in_img = 0
-        # img_path -> already-opened IMGFile (Aug 1 2026, per Keith's
+        # img_path -> already-opened IMGFile (Aug 1 2026 
         # real crash trace: a Ctrl+C interrupt during "the app
         # freezes, no indication of doing anything" landed inside
         # IMGFile._open_version_2 -> entry.set_img_file, reached via
@@ -151,7 +151,7 @@ class ModelCache:
         for large archives. Safe to call again to re-index (clears
         previous indexes first).
 
-        .col entries (Sep 5 2026, per Keith's own real, uploaded VC
+        .col entries (Sep 5 2026  own real, uploaded VC
         gta3.img evidence) are NOT one-model-per-entry the way SA's
         convention works - vanilla VC embeds genuine multi-model
         REGIONAL collision packages directly in gta3.img (airport.col
@@ -330,7 +330,7 @@ class ModelCache:
 
         Merges across every entry indexed under this name (Aug 1
         2026) rather than only ever reading one - if duplicate-named
-        TXDs genuinely differ (Keith's real case: "Generic.txd" and
+        TXDs genuinely differ (my real case: "Generic.txd" and
         "generic.txd" are two different files with different sizes),
         each contributes whichever texture names the others don't
         already have, rather than one silently winning and the
@@ -363,7 +363,7 @@ class ModelCache:
 
     def get_collision(self, model_name: str) -> Optional[COLModel]: #vers 3
         """Get the parsed COLModel for a model name. Tries the IMG-
-        embedded index first (Aug 14 2026, per Keith: "In SA it should
+        embedded index first (Aug 14 2026,  "In SA it should
         be reading them from the gta3.img... In VC, they can also be
         found in the gta3.img file, just like the models") - lazily
         reads+parses the entry's bytes on first request here (index
@@ -460,7 +460,7 @@ class ModelCache:
         IMG archives at all - distinguishes "genuinely missing from
         the archive" from "present but failed to parse" (get_geometry
         returning None covers both cases; this is for callers that
-        need to tell them apart, e.g. Keith's requested "road43.dff
+        need to tell them apart, e.g. my requested "road43.dff
         missing from img file" reporting)."""
         return model_name.lower() in self._dff_index
 
@@ -468,7 +468,7 @@ class ModelCache:
         """Return the original, unmodified .txd container bytes for
         txd_name straight from its IMG archive - no decoding, no
         re-encoding, exactly as the game stores it (Sep 5 2026, per
-        Keith: "we also need to extract the .txd file aswell, not
+         : "we also need to extract the .txd file aswell, not
         just the textures"). Unlike get_textures, this is never
         cached - it's a one-shot export path, not something read on
         every frame."""

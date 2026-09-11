@@ -1097,7 +1097,7 @@ class _BoredomPuzzle(QDialog):
         self._draw()
 
     def _get_ui_color(self, key): #vers 1
-        """Real fix for the same real crash class."""
+        """ fix for the same real crash class."""
         return _get_ui_color_for(self, key)
 
     def _shuffle(self): #vers 1
@@ -1430,7 +1430,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
     window_closed   = pyqtSignal()
 
     def _get_ui_color(self, key): #vers 1
-        """Real fix for the same real crash class."""
+        """ fix for the same real crash class."""
         return _get_ui_color_for(self, key)
 
     def _build_menus_into_qmenu(self, pm): #vers 2

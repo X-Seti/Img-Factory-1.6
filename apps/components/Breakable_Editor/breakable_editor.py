@@ -240,7 +240,7 @@ class BreakableEditor(GUIWorkshop): #vers 1
         self._blocking      = False
         self._section_filter = ""
         self.setup_ui()
-        # Real double-call bug found and fixed (Aug 20 2026) - setup_ui()
+        #  double-call bug found and fixed (Aug 20 2026) - setup_ui()
         # was called twice in a row here, needlessly rebuilding every
         # widget a second time. The old self.toolbar.hide() that used
         # to follow it is also gone - that line unconditionally hid
@@ -251,7 +251,7 @@ class BreakableEditor(GUIWorkshop): #vers 1
         # left genuinely visible either way - see that file's own
         # _create_toolbar for the real reasoning) - meaning that
         # earlier, more careful fix never actually took effect at all
-        # while this line still existed. Per Keith: "Any needed
+        # while this line still existed. Per  : "Any needed
         # buttons on the title bar when docked can follow the same
         # pattern as the other tools" - removing this line is what
         # lets that already-correct pattern actually apply here now.
@@ -265,7 +265,7 @@ class BreakableEditor(GUIWorkshop): #vers 1
 
         lay.addWidget(QLabel("Objects"))
 
-        # File actions (Aug 20 2026, per Keith: "compact buttons, like
+        # File actions (Aug 20 2026,  "compact buttons, like
         # map/model editor, panes and ribbons is the way to go, this
         # way when docked those needed buttons can be added to the
         # object pane") - the real, structural fix for the titlebar-
@@ -279,7 +279,7 @@ class BreakableEditor(GUIWorkshop): #vers 1
         # padding) matches Map/Model Workshop's own established
         # convention for dense button rows, not this tool's own
         # previous, taller Add/Del row below - a deliberate visual
-        # match to the reference Keith named, not just "smaller for
+        # match to the reference   named, not just "smaller for
         # its own sake". Mirrors the toolbar's own existing 4-button
         # set exactly (not a different subset) - honest note, not
         # introduced by this change: Export/Import are real, already-
@@ -543,7 +543,7 @@ if __name__ == '__main__':
     w = BreakableEditor()
     w.resize(1000, 680); w.show()
     # No longer forces an Open dialog immediately on startup when run
-    # standalone without a path argument (Aug 20 2026, per Keith: "the
+    # standalone without a path argument (Aug 20 2026,  "the
     # open dialog can go, let the user decide to open the objects
     # dat") - opens genuinely empty instead, same real principle as
     # the docked launch path's own fix in imgfactory.py's own open_

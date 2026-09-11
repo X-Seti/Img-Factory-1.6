@@ -1,6 +1,6 @@
 # TODO
 
-Extracted from inline `#TODO` comments in map_workshop.py, per Keith
+Extracted from inline `#TODO` comments in map_workshop.py, .per
 (Aug 1, 2026), to keep the source file cleaner.
 
 ## Known bugs / rough edges
@@ -10,7 +10,7 @@ Extracted from inline `#TODO` comments in map_workshop.py, per Keith
 - [FIXED] Missing splitter between the middle panel and right panel
   (or between the right panel and the "middle panel" that got moved
   to its right) - dock layout didn't have a proper resize handle
-  there. Confirmed fixed by Keith (Aug 1 2026).
+  there. Confirmed fixed by   (Aug 1 2026).
 - "X" close button on collapsible dock title bars: the right-click
   menu recovery for bringing a closed dock back doesn't fully work yet
   ("use the View menu or another dock's right-click menu to bring it
@@ -24,7 +24,7 @@ Extracted from inline `#TODO` comments in map_workshop.py, per Keith
   own open/collapse state, not the surrounding bars that get collapsed
   when it's used; needs rethinking before re-enabling.
 - Object Browser's width can still lock up in some cases (reported by
-  Keith, Aug 1 2026) - a `QStackedWidget` sizing bug (largest page
+   , Aug 1 2026) - a `QStackedWidget` sizing bug (largest page
   forcing the minimum regardless of visible page) was found and fixed,
   but the lock was still reported afterward; root cause not fully
   confirmed yet.
@@ -82,7 +82,7 @@ Extracted from inline `#TODO` comments in map_workshop.py, per Keith
 - [DONE Aug 1 2026] Pick/goto settings: double-clicking an object in
   the viewport zoomed in too tightly (was a hardcoded distance) -
   added self._goto_zoom_distance (default 40.0, matching the value
-  Keith had already settled on), exposed as a spinbox in the same Nav
+    had already settled on), exposed as a spinbox in the same Nav
   settings popup used for mouse sensitivity. Still not scaled to the
   object's own size - a further refinement, not done here.
 - [DONE Aug 20 2026] Snap function - instance-level half (Snap
@@ -92,14 +92,14 @@ Extracted from inline `#TODO` comments in map_workshop.py, per Keith
   COL3DViewport groups nearby vertices into clusters and moves each
   cluster to its own centroid, closing gaps; a new, distinct
   snap_vertex_icon and "Snap Vertices" button (Edit Geometry ribbon)
-  per Keith's own "both using different svg icons"; fully undoable.
+  per my own "both using different svg icons"; fully undoable.
   Real, deliberate scope limit: moves vertices to a shared position
   without a full topology-changing weld/merge (which would also need
   face-index remapping) - a real, separate, harder problem if this
   isn't enough on its own.
-- Smooth mesh function (Aug 1 2026, per Keith, same context as snap
+- Smooth mesh function (Aug 1 2026, .per, same context as snap
   above) - smoothing a mesh's surface. Not designed yet.
-- Right-click menu on the IPL Inst File table (Aug 1 2026, per Keith):
+- Right-click menu on the IPL Inst File table (Aug 1 2026, .per):
   "load into model workshop" and "edit the model in map editor" -
   exact intended behavior for these two needs clarifying before
   building (how they should differ from each other, and from what
@@ -107,9 +107,9 @@ Extracted from inline `#TODO` comments in map_workshop.py, per Keith
   straightforward enough to add directly; these two weren't.
 
 
-## Item Editor Dialog redesign (Aug 1 2026, Keith's spec)
+## Item Editor Dialog redesign (Aug 1 2026, my spec)
 
-Keith laid out a fuller redesign for the Item Editor Dialog
+  laid out a fuller redesign for the Item Editor Dialog
 (_InstanceEditPanel), using a real example (veg_palmkb2, ID 451,
 nbeach.ipl). Implemented Aug 1 2026:
 
@@ -136,9 +136,9 @@ Still open:
   Settings buttons with a real QTimer actually advancing time and
   live-refreshing which TOBJ instances show. Settings cog controls
   in-game-minutes-per-tick and real-seconds-per-tick separately,
-  giving the "1 min for every Second adjustable" rate Keith asked for
+  giving the "1 min for every Second adjustable" rate   asked for
   (not a single fixed ratio). Time and Nav moved to their own row per
-  Keith's follow-up.
+  my follow-up.
 - Remaining, not yet started - each needs its own rendering-side
   design pass: day/night shading (ambient/directional lighting or
   fog color shifting based on the simulated time, so the world
@@ -146,27 +146,27 @@ Still open:
   instances show/hide) and 2DFX objects lighting up at night
   specifically (2DFX light-source entries rendering an actual glow/
   light effect, gated by the same simulated time).
-- Todo (Keith's own words): "The above can be edited and saved; any
+- Todo (my own words): "The above can be edited and saved; any
   changes are updated in the main viewpoint" - editing the raw
   IPL/IDE line text directly (not just the existing Position/
   Rotation/Scale nudge controls, which already do apply live), with
   actual write-back to disk. Depends on the general write-back
   infrastructure noted elsewhere in this file.
-- Todo (Keith's own words): "There are other buttons that can go here
+- Todo (my own words): "There are other buttons that can go here
   that switch the view. SA has other sections" - SA's IDE format has
   additional section types (peds/cars/hier/etc. beyond objs/tobj)
   that this dialog doesn't account for yet.
-- Todo (Keith's own words): "Show info can be removed and added to
+- Todo (my own words): "Show info can be removed and added to
   the right-click on the model" - reconsider whether double-click
   should still open this directly once right-click "Info" covers the
   same thing, or keep both.
-- Real Undo (currently a stub) - same underlying design work as the
+-  Undo (currently a stub) - same underlying design work as the
   general undo/redo item above.
 
 
-## Compare TXD (TXD Workshop, Aug 1 2026, Keith's request)
+## Compare TXD (TXD Workshop, Aug 1 2026, my request)
 
-Per Keith: "Compare TXD should be an option for txd workshop, as we
+Per  : "Compare TXD should be an option for txd workshop, as we
 have generic.txd and Generic.txd, it would say list both txd, and
 highlight the extra txd." This is a TXD Workshop
 (apps/components/Txd_Editor/txd_workshop.py) feature, not Map
@@ -177,12 +177,12 @@ collisions like this (case-different or otherwise duplicate TXD
 names across indexed locations) and list/highlight them so the
 conflict is visible rather than silently resolved one way or another.
 Directly related to why the fallback logic was removed from Map
-Workshop's texture loading (see CHANGELOG.md) - Keith's stated
+Workshop's texture loading (see CHANGELOG.md) - my stated
 principle is "there should be no fallbacks, it should either work or
 fail," and a duplicate-detection feature is the right way to surface
 this kind of conflict instead.
 
-## Interactive object movement (Aug 1 2026, Keith's request)
+## Interactive object movement (Aug 1 2026, my request)
 
 Substantial features, not started - each needs its own design pass:
 
@@ -209,11 +209,11 @@ Substantial features, not started - each needs its own design pass:
 
 ## Follow-ups from Aug 1 2026 batch
 
-- Alpha-textured objects: Keith raised this again ("textures with
+- Alpha-textured objects:   raised this again ("textures with
   alpha layers, these need to show like they do in the game") after
   the GL_ALPHA_TEST fix was already pushed - confirmed the fix is
   still correctly in place in the code, but couldn't verify the
-  actual visual result (no PyOpenGL in this sandbox). Needs Keith's
+  actual visual result (no PyOpenGL in this sandbox). Needs my
   specific feedback on whether it's still wrong, and if so which
   objects/textures, since a hard 0.5 cutout threshold may not match
   every case (some GTA textures might want smoother blending instead
@@ -224,13 +224,13 @@ Substantial features, not started - each needs its own design pass:
   this Map Workshop session, but worth fixing there too since Vehicle
   Workshop would have the exact same "mouse left doesn't always mean
   screen left" issue.
-- Nav settings popup currently only has mouse sensitivity - Keith
+- Nav settings popup currently only has mouse sensitivity -  
   asked for "other needed settings" too, not yet specified which
   ones.
 
-## Model Workshop 2DFX Editor (Aug 1 2026, Keith's request)
+## Model Workshop 2DFX Editor (Aug 1 2026, my request)
 
-Per Keith: "then after for model_workshop, 2dfx editor, where we can
+Per  : "then after for model_workshop, 2dfx editor, where we can
 edit the model with the 2dfx objects." A separate, substantial
 feature for a different component (apps/components/Model_Editor/
 model_workshop.py, not Map Workshop) - editing a model's own 2DFX
@@ -258,7 +258,7 @@ reported yet - worth the same fix there too.
 
 ## Map Workshop taskbar presence when embedded in IMG Factory (Aug 1 2026)
 
-Per Keith: "Map editor isnt needs to show on the task bar in img
+Per  : "Map editor isnt needs to show on the task bar in img
 factory, and any tools called like ide editor, ipl editor." Two
 distinct pieces:
 
@@ -270,11 +270,11 @@ distinct pieces:
   switching its window type field to Window after floating. Verified:
   the dock's window type field confirmed genuinely Window, not Tool.
   Any other similar floating dock/dialog "editor" windows should get
-  the same treatment if this is found not to cover everything Keith
+  the same treatment if this is found not to cover everything  
   meant by "any tools called like ide editor, ipl editor."
 
 - NOT fixable purely from within this component: Map Workshop itself,
-  Keith confirmed, currently runs *embedded as a tab/panel inside IMG
+    confirmed, currently runs *embedded as a tab/panel inside IMG
   Factory's own main window* when opened that way - a genuine child
   widget with no top-level window of its own at all, not merely a
   window with the wrong flags. A child widget embedded in a parent's
@@ -285,15 +285,15 @@ distinct pieces:
   tab - a decision and implementation on IMG Factory's own launching
   code, outside apps/components/Map_Editor/map_workshop.py entirely.
 
-## Binary IPL writer - "make our own binary ipls" (Aug 1 2026, Keith's request)
+## Binary IPL writer - "make our own binary ipls" (Aug 1 2026, my request)
 
-Per Keith: "in time write data to the binary.ipl, and make our own
+Per  : "in time write data to the binary.ipl, and make our own
 binary ipls." Not started - the read side (BinaryIPLParser) needs to
 stay proven reliable first, per its own docstring, before building a
 writer that could round-trip through it.
 
 The confirmed binary format (from BinaryIPLParser's own docstring,
-verified against Keith's real sample files - crack.ipl/
+verified against my real sample files - crack.ipl/
 countn2_stream1.ipl):
 - Magic: `b"bnry"` (4 bytes)
 - Header: 18 x int32 LE (72 bytes) - only 2 of 18 fields confirmed:
@@ -320,7 +320,7 @@ parser), not for producing files the real game accepts.
 ## DXT3/DXT5 texture decoding still pure-Python (Aug 1 2026)
 
 _decode_dxt1 was rewritten to a vectorized numpy fast path (see
-CHANGELOG.md) after Keith's real crash trace showed a freeze/high
+CHANGELOG.md) after my real crash trace showed a freeze/high
 memory usage deep inside its per-pixel decode loop. _decode_dxt3 and
 _decode_dxt5 have the identical pure-Python per-pixel loop pattern
 and very likely the same performance problem for large textures -
@@ -335,7 +335,7 @@ directly to both.
 
 ## Mouse button reliability + game controller support (Aug 1 2026)
 
-Per Keith: "right click held down rotates just fine, middle mouse
+Per  : "right click held down rotates just fine, middle mouse
 doesn't always work, left click to select object doesn't always work,
 im thinking about adding keyboard shortcuts, arrow keys, and numpad
 to rotate, but why stop there, we could use the thumbsticks on a
@@ -352,7 +352,7 @@ games controller."
   mouseMoveEvent/mousePressEvent/mouseReleaseEvent in full. Object
   selection is double-click-only (_pick_world_instance, a Möller-
   Trumbore ray/triangle test against every visible instance's
-  geometry) - Keith describing this as "left click" suggests either a
+  geometry) -   describing this as "left click" suggests either a
   UX mismatch (expecting single-click to also work) or that double-
   click itself is what's landing inconsistently; the ray-pick logic
   itself wasn't found to have an obvious bug on inspection, though a
@@ -366,26 +366,26 @@ games controller."
   driver-level cause (e.g. middle-click-paste being a common X11
   convention that could intercept the button before this app ever
   sees it) without being able to reproduce interactively - worth
-  Keith checking whether the same flakiness happens in a completely
+    checking whether the same flakiness happens in a completely
   different app's own middle-click handling, to help separate "this
   app's bug" from "system-level middle-click behavior."
 
-- NOT started - game controller/thumbstick support. Real feature, not
+- NOT started - game controller/thumbstick support.  feature, not
   a quick add: Qt itself has no built-in gamepad API (would need
   QtGamepad specifically, a separate PyQt6 package not currently a
   dependency - needs checking whether it's actually available/
-  installable in Keith's environment) or a third-party library like
+  installable in my environment) or a third-party library like
   pygame's joystick module or inputs/evdev directly. Also needs a
   polling loop (gamepad state isn't event-driven the way keyboard/
   mouse are) - would reuse the same QTimer-driven continuous-rotation
   pattern the new keyboard shortcuts just established, reading stick
   axis values each tick instead of a fixed per-tick step. Scoping
   this out until the mouse/keyboard side is confirmed solid and
-  Keith wants to prioritize it specifically.
+    wants to prioritize it specifically.
 
 ## LOD Test tool future expansion (Aug 1 2026)
 
-Per Keith: "this function in the future can be explanded. (todo)" -
+Per  : "this function in the future can be explanded. (todo)" -
 now bidirectional (see CHANGELOG). Not scoped yet, but logging the
 open door: possible directions include a configurable circle radius
 independent of the draw-distance threshold, multiple simultaneous
@@ -396,7 +396,7 @@ LOD detail level.
 
 ## Three duplicate settings dialogs exist (Aug 1 2026)
 
-Per Keith: "class MapSettingsDialog(QDialog): is where the new
+Per  : "class MapSettingsDialog(QDialog): is where the new
 settings should be, I don't see Map Assits tab with the Advance
 settings moved too?" Investigated and found the earlier Loading/Map
 Assets tab work had gone into the wrong dialog entirely.
@@ -418,7 +418,7 @@ process without ever being consolidated:
 
 3. `_show_workshop_settings` (Fonts/Display/Performance/Preview tabs)
    - THE REAL ONE, wired to the actual top-bar Settings button
-     (self.settings_btn.clicked). This is what Keith actually sees.
+     (self.settings_btn.clicked). This is what   actually sees.
      Uses its own ad-hoc self.xxx = ... attributes for persistence,
      NOT MapSettings - a second, different mechanism from #1.
 
@@ -467,7 +467,7 @@ Still not done:
 ## [DONE] IPL Controls visibility toggles (Aug 1 2026, confirmed
 done during a full TODO review, Aug 21 2026)
 
-Per Keith, after moving LOD Test to a ribbon icon: "keep row3 for
+Per  , after moving LOD Test to a ribbon icon: "keep row3 for
 future functions, like show tojb, show Paths, show zons." All 3
 built since this entry was written, each with its own SVG icon
 (overlay_icons.py) and now living on the Overlays ribbon (moved
@@ -476,7 +476,7 @@ Show Paths (show_paths_btn), Show Zones (show_zone_btn).
 
 ## Pre-lighting bake, saved back to models (Aug 1 2026)
 
-Per Keith, confirming Toggle Shading stays: "we want to keep toggle
+Per  , confirming Toggle Shading stays: "we want to keep toggle
 shading, this can be used to generate pre-lighting, that can be saved
 back to the models." Not started - the idea is using the viewport's
 existing Lambertian shading calculation (currently just a live
@@ -495,7 +495,7 @@ infrastructure for any file type" TODO item).
 ## 4-Pane View - now hidden, not just disabled (Aug 1 2026, updated
 Aug 20 2026)
 
-Per Keith (Aug 1): "4 panels icon, keep, but the function isnt
+Per   (Aug 1): "4 panels icon, keep, but the function isnt
 needed, it creates a strange beheavour." Originally disabled rather
 than removed (icon stayed visible, greyed out, tooltip explaining
 why). Root cause: `_sync_quad_from_main` only ever mirrored single-
@@ -504,7 +504,7 @@ single-DFF editing base), never `_world_instances` - so it showed
 blank panes whenever an actual map was loaded, Map Workshop's real
 primary use case.
 
-Keith's own later instruction (Aug 20) changed this: 4-Pane View was
+my own later instruction (Aug 20) changed this: 4-Pane View was
 explicitly named in his own list of Model Workshop icons to hide
 from Map Workshop entirely ("Mirror Icon, 4 Pane icon, percent snap,
 angle snap, axis snap, front only paint, Vertex Select, Edge Select,
@@ -514,9 +514,9 @@ is wanted later, it would need its own sync logic built around
 `_world_instances` from scratch, not a fix to the existing single-
 model one - and would need re-showing the button first.
 
-## IDE tobj/path "add to ipl objects" - scope unclear, need to ask Keith (Aug 1 2026)
+## IDE tobj/path "add to ipl objects" - scope unclear, need to ask   (Aug 1 2026)
 
-Per Keith's IDE section list: "tobj #to be added to ipl objects" and
+Per my IDE section list: "tobj #to be added to ipl objects" and
 "path #to be added to ipl objects" (IDE path, not IPL path - a
 different section, model-related). tobj parsing itself is already
 done (TOBJ time-flow feature, earlier session). Not clear yet exactly
@@ -524,17 +524,17 @@ what "added to ipl objects" means here - possibilities: (a) tobj/
 IDE-path model entries should appear in the same Object Browser
 listing as regular objs entries, currently separate/not shown there,
 (b) something about how tobj-driven instances get included in the
-IPL Inst File table specifically. Needs clarifying with Keith rather
+IPL Inst File table specifically. Needs clarifying with   rather
 than guessing at the wrong integration.
 
 ## PICK/JUMP/TCYC/AUZO/MULT tab status (Aug 1 2026, updated Aug 21
-2026 during a full TODO review, per Keith: "lets check everything on
+2026 during a full TODO review,  "lets check everything on
 the todo list, then check if we have implemented anything related")
 
 - [DONE] TCYC - real parsing, a right-click alt-timecyc menu (browses
   depends/timecyc/), and the CRT time overlay in the viewport, all
   built since this entry was first written.
-- [DONE] AUZO - Keith's own specific ask here, "show audio svg icons,
+- [DONE] AUZO - my own specific ask here, "show audio svg icons,
   plays the sound file", is fully built: real AuzoEntry parsing,
   billboarded SVG sound-icon markers drawn in the viewport at each
   real zone's own position, and real sound playback from the Auzo
@@ -560,13 +560,13 @@ IMG-embedded (SA/VC) and COLFILE-directive standalone (GTA3/VC) COL
 sources are now indexed - but:
 - Only COL mesh (vertices/faces) is drawn - spheres and boxes
   (COLSphere/COLBox) aren't rendered at all yet.
-- Not yet verified against Keith's real data at all - needs his
+- Not yet verified against my real data at all - needs his
   confirmation that collision actually loads/draws correctly once he
   tests it, for all three games (SA/VC/GTA3).
 
 ## col_3d_viewport.py field-mismatch bugs - FIXED (Aug 14 2026)
 
-Found while checking col_workshop surface types, fixed per Keith: "if
+Found while checking col_workshop surface types, fixed  "if
 you found a bug, we fix it". `apps/components/Col_Editor/depends/
 col_3d_viewport.py` (IMG Factory 1.5 era) was written against a COL
 shape that never matched the real, shared col_workshop_classes.py
@@ -604,20 +604,20 @@ but no longer known-broken if something does start using it.
 
 ## Ghosted render mode for LOD/Normal models (noted Aug 14 2026)
 
-Per Keith: "Ghosted view could be useful for LOD and Normal" - a
+Per  : "Ghosted view could be useful for LOD and Normal" - a
 passing suggestion, not yet scoped/implemented. Most likely reading:
 when the LOD filter is set to "Show Both" (Normal + LOD together),
 render one of the two ghosted so overlapping Normal/LOD meshes are
 visually distinguishable - same overlay concept as the Col ghosting
 already built (DFFViewport._draw_solid already takes an
 alpha_multiplier, used for semi_solid - a low-alpha "ghosted" variant
-would reuse the same mechanism). Needs Keith to confirm which of
+would reuse the same mechanism). Needs ,confirm which of
 Normal/LOD should be the ghosted one (or if he means something else
 entirely) before building it.
 
 ## Remember all UI state (noted Aug 16 2026)
 
-Per Keith: "Every UI change, splitter position, and cell size should
+Per  : "Every UI change, splitter position, and cell size should
 be remembered." A broader, systemic version of persistence gaps
 already found/fixed piecemeal this session (settings not saving -
 MapSettings.set() now auto-saves, debounced; individual column-width
@@ -637,14 +637,14 @@ each on startup. Not started.
 
 ## Floating dialog windows: pin/stay-on-top option (noted Aug 16 2026)
 
-Per Keith: "option tick on top of floating dialog windows to stay on
+Per  : "option tick on top of floating dialog windows to stay on
 top" - a checkbox/toggle on floating dialogs (Item Editor Dialog,
 Path Group Editor, etc.) to keep them above the main window rather
 than getting buried when clicking back into the 3D view. Not started.
 
 ## Path format conversion between GTA3/VC/SA (noted Aug 16 2026)
 
-Per Keith, describing another user's request: "When looking at path
+Per  , describing another user's request: "When looking at path
 files for GTA 3, vc or SA, have the ability to convert between them.
 With GTA 3 path files, have the ability to copy and save as
 paths.ipl; this means scanning all the GTA IDE files for the path
@@ -662,18 +662,18 @@ correctly rendering GTA III paths in the viewport at all, since
 right now the parsed IDEPathGroup data has no rendering path of its
 own yet either).
 
-## Deferred: other path-adjacent files (noted Aug 16 2026, per Keith:
+## Deferred: other path-adjacent files (noted Aug 16 2026, .per:
 
 "there are also other path files, i put them in last, those can be
 added later, add todo") - flight.dat, flight2.dat, flight3.dat (SA
 aircraft flight paths?), spath0.dat (a numbered SA sub-path file? -
 naming suggests spath1.dat/spath2.dat/etc likely also exist).
 Uploaded but not yet inspected/parsed - deliberately lower priority
-per Keith's own framing. Not started.
+per my own framing. Not started.
 
-## File-type support audit against Keith's real, complete GTA III data (Aug 16 2026)
+## File-type support audit against my real, complete GTA III data (Aug 16 2026)
 
-Per Keith: "here are all the data files, we can also check if we have
+Per  : "here are all the data files, we can also check if we have
 supported all of them, if there are any files we haven't addressed,
 add them to the TODO list, for GTA3/GTAIII" - full inventory from his
 uploaded data_all_files.7z (a real, complete GTA III install's data
@@ -689,7 +689,7 @@ embedded path format.
 ### Genuinely relevant, not yet supported - map/path-adjacent data
 - `paths/CHASE0.DAT` through `CHASE19.DAT` - **DONE (Aug 19 2026)**:
   GTA III introduction-cutscene chase-car paths, real parser verified
-  against all 14 of Keith's real files (fixed 28-byte records, no
+  against all 14 of my real files (fixed 28-byte records, no
   header - format confirmed via GTAMods wiki, cross-checked directly:
   file sizes divide cleanly by 28, decoded positions form plausible,
   smoothly-changing GTA III world-coordinate clusters). New
@@ -714,7 +714,7 @@ embedded path format.
   way.
 - `paths/ROADBLOX.DAT` - **DONE (Aug 19 2026)**: SA police roadblock
   placements, real published format found and confirmed against
-  Keith's real file - every one of its 325 real entries cross-checked
+  my real file - every one of its 325 real entries cross-checked
   directly against his own real NODES0-63.DAT set and confirmed to
   resolve to a genuinely valid vehicle node. New `RoadblockEntry`/
   `GTAWorldLoader.load_sa_roadblox`.
@@ -736,7 +736,7 @@ embedded path format.
   value; probably not worth pursuing unless a specific need comes up.
 
 ### Least important - genuinely couldn't figure out the format (Aug
-19 2026, per Keith: "the ones we don't understand, put to the side in
+19 2026,  "the ones we don't understand, put to the side in
 the TODO, least important")
 - `paths/train.dat`, `train2.dat` (SA) - the one real gap left after
   this session's own real-data investigation pass. Confirmed this is
@@ -746,7 +746,7 @@ the TODO, least important")
   read by the game even in III/VC, so not a real lead to follow for
   SA's own version either). Two separate, dedicated web searches for
   SA's own real train.dat format turned up nothing published
-  anywhere. Real, empirically-observed pattern from Keith's own real
+  anywhere. Real, empirically-observed pattern from my own real
   file, for whoever picks this up next: comma-separated, no count
   header, 14 real values per line - looks like a station position
   (X,Y,Z), a `999,999,999` sentinel (possibly "no linked track" for
@@ -781,20 +781,20 @@ configuration) - not investigated further, low priority unless a
 specific need comes up.
 
 
-## Deferred by Keith himself (Aug 18 2026) - not urgent, logged as asked
+## Deferred by   himself (Aug 18 2026) - not urgent, logged as asked
 - When moving IPL content (whole-IPL drag/shift), water level data and
   the radar/minimap would both need recalculating to stay in sync with
-  the new positions - Keith explicitly said this is fine to defer:
+  the new positions -   explicitly said this is fine to defer:
   "When moving IPL content, I would like time to recalculate the water
   and radar, but that is for the TODO." Not started, not investigated.
-- Generate-map-to-radar option - Keith's own framing: "Radar would be
+- Generate-map-to-radar option - my own framing: "Radar would be
   a top-down view; generate map-to-radar option." A new export/render
   feature (an orthographic top-down capture of the loaded world,
   presumably for producing an in-game radar/minimap texture) - not
   started, not investigated, genuinely new scope beyond editing the
   map itself.
 
-## Logged per Keith (Aug 19 2026) - real, deferred requirements, not started
+## Logged  (Aug 19 2026) - real, deferred requirements, not started
 - When an IPL's whole map section is moved/shifted/rotated/dragged,
   the corresponding coordinates in the mission SCM file need updating
   too - currently only the loaded map data itself (instances/paths/
@@ -820,7 +820,7 @@ specific need comes up.
   session), so updating it in sync with a move is a second layer of
   work on top of a format this app doesn't understand yet at all.
 
-## SCM compiler (Aug 20 2026, per Keith: "We haven't begun the SCM
+## SCM compiler (Aug 20 2026,  "We haven't begun the SCM
 compiler yet, do that for the todo")
 - The real, missing prerequisite underneath the "SCM coordinate sync
   on map moves" goal already logged above - that entry describes WHAT
@@ -840,7 +840,7 @@ compiler yet, do that for the todo")
   definitions" vs "SA SCM" as two separate, real reference pages) -
   not a plain data file with a fixed, describable byte layout the way
   every other format this app has built support for this session
-  actually is. Real work this would need, roughly in order: (1) a
+  actually is.  work this would need, roughly in order: (1) a
   real opcode table for each game (a substantial reference dataset in
   its own right, not something to hand-transcribe casually);
   (2) a disassembler that walks a compiled .scm's own byte stream via
@@ -859,7 +859,7 @@ compiler yet, do that for the todo")
   scoped, ready-to-start task.
 
 ## waterpro.dat SOL grid de-tiling not correct (Aug 20 2026, per
-Keith: "water_workshop doesn't handle SOL correctly")
+ : "water_workshop doesn't handle SOL correctly")
 - `parse_waterpro_dat` in gta_dat_parser.py (this session's own real
   work, corrected once already against apps/components/Water_Editor/
   water_workshop.py's own more carefully-researched WaterproParser)
@@ -878,22 +878,22 @@ Keith: "water_workshop doesn't handle SOL correctly")
   de-tiling math worked into the parser itself before this can be
   trusted for SOL specifically.
 
-## Grid type: "Voyager holodeck" style (Aug 20 2026, per Keith:
+## Grid type: "Voyager holodeck" style (Aug 20 2026, .per:
 "its very interesting. I've been looking for the Voyager grid
 effect; I can't seem to find it. However, having a grid like that
 would help; it doesn't have a square grid. It has overlapping
 squares spaced out between the crossed sections")
 - Came up while adding real grid style options (Lines/Squares/
-  Dashed/Dots) to the viewport - Keith wants a 5th style based on a
+  Dashed/Dots) to the viewport -   wants a 5th style based on a
   Star Trek holodeck look he remembers from Voyager, but a genuinely
   different pattern from a plain square grid: smaller, offset squares
   positioned between the main grid's own crossing points, layered/
   overlapping rather than a single flat tessellation.
-- Real image searches for "Star Trek holodeck grid"/"Voyager
+-  image searches for "Star Trek holodeck grid"/"Voyager
   holodeck grid" only turned up the well-known, shared yellow-gold-
   on-black square grid look common across TNG/DS9/Voyager - not this
-  specific offset-overlapping-squares pattern Keith is describing.
-  Keith himself confirmed he can't find a reference image for it
+  specific offset-overlapping-squares pattern   is describing.
+    himself confirmed he can't find a reference image for it
   either - this may be his own mental composite rather than one
   specific, findable frame, not something either of us has a real
   source image for yet.
@@ -901,14 +901,14 @@ squares spaced out between the crossed sections")
   (unlike the "Holodeck" yellow/black/vertical-lines idea also
   discussed the same session, which has a real, found reference
   image behind it). Needs either a real reference image eventually,
-  or Keith's own more detailed description of the exact offset/
+  or my own more detailed description of the exact offset/
   spacing relationship between the main grid and the smaller squares,
   before real geometry can be designed for it.
 
-## Audio formats still unsolved (Aug 20 2026, per Keith: "add those
+## Audio formats still unsolved (Aug 20 2026,  "add those
 to the todo list, we need to finish map_workshop")
 Set aside to get back to Map Workshop's own core feature work - not
-abandoned, just paused. Both confirmed against Keith's own real,
+abandoned, just paused. Both confirmed against my own real,
 uploaded sample files this same session; solving either would extend
 apps/methods/audioparser.py (and its own synced copy in this
 component's own depends/ folder).
@@ -922,7 +922,7 @@ component's own depends/ folder).
   own end - likely a console-platform variant (a directory listing
   documenting this exact structure also includes sa_xbox_dsp.bin, an
   Xbox-specific config file, suggesting Xbox). Two decode hypotheses
-  tried and ruled out by Keith's own real listening test ("pak files
+  tried and ruled out by my own real listening test ("pak files
   is static, low volume"): mono PS-ADPCM at 24000Hz decoded without
   error and looked statistically far more plausible than SFX23's own
   result (much lower zero-crossing rate/amplitude), but still sounded
@@ -937,7 +937,7 @@ component's own depends/ folder).
   per-sec - tiles SFX23.RAW exactly, byte for byte, across all 4
   entries; GrandTheftWiki's own documented 24-byte entry was proven
   to be a misalignment artifact of this same 12-byte reading, not a
-  separate, real structure). But per Keith's own real listening test:
+  separate, real structure). But per my own real listening test:
   "Sfx23 sounds like statis" - something about the real sample
   encoding itself still isn't right, despite GrandTheftWiki's own
   claim that the RAW file contains plain, uncompressed 16-bit mono
@@ -947,14 +947,14 @@ component's own depends/ folder).
   whenever this gets solved.
 
 
-## Fine-grained load-order reordering: model/instance order within IDE/IPL file contents (Aug 21 2026, per Keith)
+## Fine-grained load-order reordering: model/instance order within IDE/IPL file contents (Aug 21 2026, .per)
 
 Confirmed real, deliberate scope limit on this same turn's own new
 Optimize Order button (optimize_dat_load_order) - that feature only
 reorders directive *lines* (IDE/IPL/COLFILE/IMG) within a .dat file
 itself, matching gta_vc.dat's own real, documented convention
 ("everything is loaded on a per directory basis and in alphabetical
-order"). Per Keith: "we're going to add reordering, but lets add that
+order"). Per  : "we're going to add reordering, but lets add that
 to the TODO list" - the finer-grained half of his original request
 is still open: reordering real model definitions *within* an IDE
 file's own contents, and real instance placements *within* an IPL
@@ -970,7 +970,7 @@ Not started - needs its own design pass before implementation:
   question not yet answered by anything found this session - may
   need its own real source/confirmation (a SOL file directly compared
   against its own vanilla equivalent, entry-by-entry, might reveal
-  the real pattern SOL itself uses, since Keith's own claim is that
+  the real pattern SOL itself uses, since my own claim is that
   SOL's own files are already organized this way).
 - Reordering entries within an IDE file changes model_id assignment
   order for auto-numbered formats, and reordering INST lines within

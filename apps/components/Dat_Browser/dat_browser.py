@@ -760,7 +760,7 @@ class DATBrowserWidget(QWidget): #vers 3
             "Game Root (Dir Tree)",
         ])
         # GTA III/Vice City/San Andreas entries ARE the presets now
-        # (Aug 20 2026, per Keith: "should be the presets. so merge
+        # (Aug 20 2026,  "should be the presets. so merge
         # the presets into the game_combo") - selecting one of them
         # directly loads its saved Game Path Preset, if one exists.
         # See _on_game_combo_changed's own docstring for the full
@@ -1493,14 +1493,14 @@ class DATBrowserWidget(QWidget): #vers 3
         no Browse or Load click required.
 
         Indices 1/2/3 = GTA III/Vice City/San Andreas (Aug 20 2026, per
-        Keith's own TODO comment: '"GTA III", "Vice City", "San Andreas",
+        my own TODO comment: '"GTA III", "Vice City", "San Andreas",
         should be the presets. so merge the presets into the game_combo')
         - the combo entries themselves now ARE the presets: selecting one
         directly checks Menu > Project Settings > Game Path Presets for a
         saved path for that game and, if one exists, fills it straight
         into _path_edit and starts loading immediately - no separate
         Presets button/menu needed any more (removed from the toolbar,
-        per Keith's own follow-up note: "this can go, once merged into
+        per my own follow-up note: "this can go, once merged into
         game_combo"). A game with no saved preset yet just leaves the
         path field as it was, same as selecting that entry always did
         before this - nothing forces a preset to exist.
@@ -2348,7 +2348,7 @@ class DATBrowserWidget(QWidget): #vers 3
     def _show_col_as_imglist(self, abs_path: str): #vers 2
         """Show a standalone .col file's own models as a table, the
         same way an .img archive's own entries are shown in IMG
-        Factory's main table (Sep 5 2026, per Keith: "right-clicking
+        Factory's main table (Sep 5 2026,  "right-clicking
         .col files in dat_browser > show COL as imglist, the same way
         we view .img files in img factory; I think the old function
         is still there, populate_col_table.py") - reuses the real,
@@ -2356,7 +2356,7 @@ class DATBrowserWidget(QWidget): #vers 3
         populate_col_table.py), which turned out to already do exactly
         this but was never actually wired up to DAT Browser at all.
 
-        Creates a real, visible tab first (Sep 5 2026, per Keith's own
+        Creates a real, visible tab first (Sep 5 2026  own
         follow-up: "however I see no tab") - populate_table_with_col_
         data_debug's own table now correctly comes from get_active_
         table (fixed alongside this), but that only ever reflects
@@ -2395,7 +2395,7 @@ class DATBrowserWidget(QWidget): #vers 3
     def _show_ide_as_list(self, abs_path: str): #vers 1
         """Show a single .ide file's own real objects as a table, the
         same way a .col file's own models or an .img archive's own
-        entries are shown (Sep 5 2026, per Keith: "can we show the
+        entries are shown (Sep 5 2026,  "can we show the
         game_vc.ide in the same format as the col, img, show the ide
         in a row table, with odd and even pattern lines") - same real
         create_tab pattern already verified for COL, using the real,
@@ -2436,7 +2436,7 @@ class DATBrowserWidget(QWidget): #vers 3
     def _show_asset_checker(self, abs_path: str): #vers 1
         """Cross-reference real model names across an IMG archive, a
         COL file, and an IDE file sharing the same base filename (Sep
-        5 2026, per Keith: "Asset checker as a right click on img,
+        5 2026,  "Asset checker as a right click on img,
         col and ide entries on dat browser, dir tree... 3 columns IMG
         archive | COL archive | IDE entry list | Error list... And
         another layout to show IMG, COL and IDE as 3 different lines,
@@ -2532,7 +2532,7 @@ class DATBrowserWidget(QWidget): #vers 3
     def _load_dat_in_map_workshop_preload_img(self, dat_path: str): #vers 1
         """Same as _load_dat_in_map_workshop, but forces Map
         Workshop's "preload IMG archives to OS cache" behaviour for
-        just this one load (Aug 16 2026, per Keith: "in Dat Browser,
+        just this one load (Aug 16 2026,  "in Dat Browser,
         right click dat file, open in map workshop, add another
         option to open in map workshop, preload img(s) file") -
         independent of, and doesn't change, the persistent Loading-tab
@@ -3833,7 +3833,7 @@ class DATBrowserWidget(QWidget): #vers 3
             dat_abs_path = getattr(self.loader.main_dat, "dat_path", "") if self.loader else ""
             mw = self.main_window
             load_map_act = menu.addAction("🗺  Load with Map Workshop…")
-            # Second option (Aug 16 2026, per Keith: "add another
+            # Second option (Aug 16 2026,  "add another
             # option to open in map workshop, preload img(s) file") -
             # forces Map Workshop's IMG-preload-to-OS-cache behaviour
             # for just this one load, without needing to visit
@@ -4241,7 +4241,7 @@ class DATBrowserWidget(QWidget): #vers 3
         """Fill the COL DB tab from asset_db.col_entries.
         Shows every COL model indexed from any IMG in the DB.
 
-        filter_text (Sep 5 2026, per Keith: "the search button on the
+        filter_text (Sep 5 2026,  "the search button on the
         botton needs to work for all lists, col filelist, and ide
         filelist") - this table was never touched by the search box's
         own textChanged handler (_apply_filter) at all before this;

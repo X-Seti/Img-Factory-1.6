@@ -12,31 +12,7 @@ from typing import Dict, Any
 def _img_factory_config_dir() -> Path: #vers 1
     """The one, correct location for IMG Factory's own app_settings.json
     - a dedicated config/ subfolder alongside imgfactory.py itself
-    (Aug 20 2026, per Keith: "lets fix map workshop and img factory
-    first since we're working on those" - same real fix already
-    applied to Map/Model Workshop's own config just before this, for
-    the same underlying reason: "all config files would need to be
-    with the own app folder" for a standalone deployment to be truly
-    self-contained and portable, rather than scattered into the
-    running user's own home directory).
-
-    This module (apps/methods/img_factory_settings.py) is a shared
-    helper, not the real app file itself - imgfactory.py (apps/
-    components/Img_Factory/imgfactory.py) is - so this can't just use
-    this module's own __file__ the way Map Workshop's identical fix
-    could (that fix's own settings class lives directly inside the
-    one file it configures). Navigates from this file's own known,
-    fixed location (apps/methods/) up to apps/, then down into
-    components/Img_Factory/config/ - reliable as long as that
-    directory relationship holds, which it structurally always does
-    for this app.
-
-    Falls back to the old ~/.config/img-factory location only if the
-    app's own folder genuinely isn't writable (a real, if less
-    common, possibility - e.g. a read-only system install) - settings
-    simply won't travel with the app folder in that one specific
-    case, which is still strictly better than every config-writing
-    call in this app failing outright."""
+    (Aug 20 2026)"""
     cfg_dir = Path(__file__).resolve().parent.parent / 'components' / 'Img_Factory' / 'config'
     try:
         cfg_dir.mkdir(parents=True, exist_ok=True)

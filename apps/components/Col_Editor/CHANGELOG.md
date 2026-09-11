@@ -5,7 +5,7 @@
   `COLSphere`/`COLBox`/`COLBounds` dataclasses (`col_workshop_
   classes.py`) - found while checking Col Workshop's surface-type
   colours for Map Workshop's new collision render options, fixed per
-  Keith: "if you found a bug, we fix it". This file (IMG Factory 1.5
+   : "if you found a bug, we fix it". This file (IMG Factory 1.5
   era) was written against field names that never matched the
   current shared classes:
   - `face.vertex_indices` -> real field is separate `a`/`b`/`c` ints

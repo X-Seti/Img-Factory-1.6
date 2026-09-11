@@ -989,7 +989,7 @@ class IMGFactory(QMainWindow):
             if not autoload_enabled:
                 return
 
-            # Resolve game root (Aug 20 2026, per Keith: "lets fix map
+            # Resolve game root (Aug 20 2026,  "lets fix map
             # workshop and img factory" - now the one, shared, app-
             # folder-relative QSettings instance, not a separate
             # QSettings("IMG-Factory", "IMG-Factory") native location)
@@ -1675,7 +1675,7 @@ class IMGFactory(QMainWindow):
         currently-loaded game root). dat_path, if given instead, loads
         from that specific .dat file directly (e.g. right-clicking a
         .dat entry in the DAT Browser tree). force_preload_img (Aug 16
-        2026, per Keith: "add another option to open in map workshop,
+        2026,  "add another option to open in map workshop,
         preload img(s) file") - passed through to dat_path's load
         only, a one-off override for the Loading tab's persistent
         preload setting."""
@@ -2628,8 +2628,8 @@ class IMGFactory(QMainWindow):
         """Undo last action (IMG-archive undo - import/export/rebuild,
         via self.undo_manager).
 
-        Real fix (Aug 21 2026, found while wiring up Map Workshop's
-        own real undo delegation below, per Keith's own real "there is
+         fix (Aug 21 2026, found while wiring up Map Workshop's
+        own real undo delegation below  own real "there is
         also the undo button on img factory, does nothing" report) -
         was calling self.undo(), which is set once, unconditionally,
         to self._undo_action itself (self.undo = self._undo_action,
@@ -2654,7 +2654,7 @@ class IMGFactory(QMainWindow):
     def _find_active_map_workshop(self): #vers 1
         """Return the real, live Map Workshop instance if it's the
         currently-active tab, or None otherwise (Aug 21 2026, per
-        Keith: "there is also the undo button on img factory, does
+         : "there is also the undo button on img factory, does
         nothing from what I can remember be if there is a way to pass
         whatever is docked, to that undo button") - Map Workshop's
         own real ModelWorkshop instance is nested one level deep
@@ -2679,7 +2679,7 @@ class IMGFactory(QMainWindow):
         return None
 
     def _smart_undo_action(self): #vers 1
-        """Real Undo button handler (Aug 21 2026, per Keith's own real
+        """ Undo button handler (Aug 21 2026  own real
         request above) - delegates to Map Workshop's own real undo/
         redo (_on_undo_ribbon_clicked, same left-click=undo, Shift+
         click=redo behavior its own ribbon button already has) when
@@ -2693,7 +2693,7 @@ class IMGFactory(QMainWindow):
         self._undo_action()
 
     def _smart_redo_action(self): #vers 1
-        """Real Redo button handler (Aug 21 2026) - same real
+        """ Redo button handler (Aug 21 2026) - same real
         delegation as _smart_undo_action just above, Map Workshop's
         own real redo when it's the active tab, the existing IMG-
         archive redo system otherwise."""
@@ -3599,7 +3599,7 @@ class IMGFactory(QMainWindow):
             if tab_table and hasattr(self, 'gui_layout'):
                 self.gui_layout.table = tab_table
 
-            # Diagnostic (Sep 5 2026, per Keith's own real screenshots
+            # Diagnostic (Sep 5 2026  own real screenshots
             # showing the COL tab's own table displaying IMG-style
             # columns instead of its own real ones) - shows exactly
             # which table object this tab actually has, and what its
@@ -3694,7 +3694,7 @@ class IMGFactory(QMainWindow):
                 self.current_col = file_object
                 self.current_img = None
                 # Re-populate if this tab's own table looks empty when we
-                # switch back to it (Sep 5 2026, per Keith: "when I tab
+                # switch back to it (Sep 5 2026,  "when I tab
                 # away and come back, the col tab contents is forgotten,
                 # seems to show a copy of the img file instead") - the
                 # IMG branch right below already has this exact safety
@@ -6729,13 +6729,13 @@ class IMGFactory(QMainWindow):
         """Open Breakable Editor docked in a tab.
 
         No longer auto-fills a remembered object.dat path when opened
-        without one (Aug 20 2026, per Keith: "the open dialog can go,
+        without one (Aug 20 2026,  "the open dialog can go,
         let the user decide to open the objects dat") - this used to
         silently pull self.vehicle_data_paths['object'] and, if set,
         auto-load that file the moment the tab opened (via _open_
         workshop_tab's own QTimer.singleShot(100, ...) call straight
         into _open_file with a known path - not a literal dialog
-        popup, but the same real effect Keith's report describes: the
+        popup, but the same real effect my report describes: the
         tool deciding to open a file on its own rather than the user
         choosing to). Now genuinely opens empty unless a real,
         explicit file_path is passed in (e.g. from DAT Browser's own

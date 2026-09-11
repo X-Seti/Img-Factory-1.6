@@ -126,7 +126,7 @@ def _ps2_mip_size(fmt: str, w: int, h: int) -> int:  # vers 1
     """
     Calculate raw byte size of one PS2 mip level (pre-swizzle layout).
 
-    NOTE: Real GS memory layout differs due to swizzling. This gives the
+    NOTE:  GS memory layout differs due to swizzling. This gives the
     logical (unswizzled) size used for reading raw bytes from the file.
     """
     if fmt == 'PAL8':

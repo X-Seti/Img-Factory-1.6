@@ -5,7 +5,7 @@
 # load_master_ide
 # write_master_ide
 
-"""master_ide.py - step 1 of Keith's own real Master IDE feature (Sep 5 2026)"""
+"""master_ide.py - Master IDE feature (Sep 5 2026)"""
 
 import os
 from dataclasses import dataclass, field
@@ -100,8 +100,8 @@ def _format_objs_or_tobj_line(obj) -> str: #vers 1
 
 
 def _fmt_num(val) -> str: #vers 1
-    """Real IDE files write whole-number draw distances without a
-    trailing .0 (Keith's own real example: "299", not "299.0")"""
+    """ IDE files write whole-number draw distances without a
+    trailing .0 real example: "299", not "299.0")"""
     if isinstance(val, float) and val == int(val):
         return str(int(val))
     return str(val)

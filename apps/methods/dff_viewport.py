@@ -1696,7 +1696,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         return (sky_top, sky_bot, ambient, sun_core)
 
     def set_timecyc_playing(self, playing): #vers 3
-        """Real fix (Aug 20 2026)"""
+        """ fix (Aug 20 2026)"""
         self._timecyc_playing = bool(playing)
         if playing:
             self._apply_timecyc_hour()
@@ -2350,7 +2350,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self.update()
 
     def set_radar_grid_extent(self, tile_size, half_extent): #vers 1
-        """Real world-unit tile size + half the total grid extent for
+        """ world-unit tile size + half the total grid extent for
         the currently loaded game, per RADAR_GRID_PRESETS (Aug 20
         2026)"""
         self._radar_grid_tile_size = tile_size
@@ -2897,7 +2897,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glDisable(GL_LIGHTING)
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-        # Depth writes off, test still on. Real fix (Aug 20 2026)
+        # Depth writes off, test still on.  fix (Aug 20 2026)
         glEnable(GL_DEPTH_TEST)
         glDepthFunc(GL_LESS)
         glDepthMask(GL_FALSE)
@@ -3015,22 +3015,22 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self.update()
 
     def set_water2_height_offset(self, offset): #vers 1
-        """Real Z adjustment (Aug 20 2026)"""
+        """ Z adjustment (Aug 20 2026)"""
         self._water2_height_offset = float(offset)
         self.update()
 
     def set_water2_alpha(self, alpha): #vers 1
-        """Real transparency adjustment (Aug 20 2026)"""
+        """ transparency adjustment (Aug 20 2026)"""
         self._water2_alpha = max(0.0, min(1.0, float(alpha)))
         self.update()
 
     def set_water2_x_offset(self, offset): #vers 1
-        """Real X adjustment (Aug 20 2026)"""
+        """ X adjustment (Aug 20 2026)"""
         self._water2_x_offset = float(offset)
         self.update()
 
     def set_water2_y_offset(self, offset): #vers 1
-        """Real Y adjustment (Aug 20 2026)"""
+        """ Y adjustment (Aug 20 2026)"""
         self._water2_y_offset = float(offset)
         self.update()
 
@@ -3041,7 +3041,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self.update()
 
     def set_water2_offset_vc_only(self, enabled): #vers 1
-        """Real toggle (Aug 20 2026, same real request as
+        """ toggle (Aug 20 2026, same real request as
         set_water2_game above) - on (default) restricts the X/Y
         offset to VC only; off applies it regardless of which game
         is loaded, for a future game that might turn out to need the
@@ -3865,7 +3865,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 if pos is not None:
                     self._dragging_path_node_start_key = pos
                     self._dragging_path_node_current_pos = pos
-                    # Real UX gap found (Aug 18 2026)
+                    #  UX gap found (Aug 18 2026)
                     self.update()
                 return
             mx, my = event.pos().x(), event.pos().y()

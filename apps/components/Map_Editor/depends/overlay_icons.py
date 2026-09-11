@@ -4,7 +4,7 @@
 
 """
 Detailed, full-colour SVG icons for Map Workshop's own IPL Controls
-overlay toggle buttons (Water, Radar, Tcyc, etc.) - per Keith: "I'd
+overlay toggle buttons (Water, Radar, Tcyc, etc.) -  "I'd
 like well detailed 24x24 colour SVG icons, the ones we had before was
 too simplyed."
 
@@ -14,7 +14,7 @@ currentColor/currentAccent icons) - these are neither. Each icon uses
 its own fixed, explicit colours intrinsic to what it represents
 (water is blue, a radar screen is green, timecyc's own day/night
 split uses real sky colours) rather than a theme-driven token, since
-Keith's own request was specifically for real colour, not another
+my own request was specifically for real colour, not another
 monochrome set. Still delegates to SVGIconFactory._create_icon() for
 the actual QSvgRenderer-to-QPixmap-to-QIcon pipeline (the currentColor/
 currentAccent substitution it performs is a harmless no-op here, since
@@ -289,7 +289,7 @@ class OverlayIcons:
     @staticmethod
     def grge_icon(size: int = 24) -> QIcon: #vers 1
         """Garage toggle - a simple garage door/shutter shape (Aug 21
-        2026, per Keith: "add support for GRGE") - orange to match
+        2026,  "add support for GRGE") - orange to match
         _grge_box_color, distinct from cull/zone/occl/paths."""
         return SVGIconFactory._create_icon('''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
   <path d="M3 10 L12 3 L21 10 V20 H3 Z" fill="#ffa600" stroke="#a86a00" stroke-width="1"/>
@@ -302,7 +302,7 @@ class OverlayIcons:
     def convert_icon(size: int = 24) -> QIcon: #vers 1
         """Convert (VC<->SA/SOL INST format) button - two opposing
         curved arrows, a standard "convert/exchange" motif (Aug 21
-        2026, per Keith: "having VC -> SA or SA -> VC is something I
+        2026,  "having VC -> SA or SA -> VC is something I
         need, under a convertion SVG icon")."""
         return SVGIconFactory._create_icon('''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
   <path d="M4 8 H16 L13 4" fill="none" stroke="#4fc3f7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -368,7 +368,7 @@ class OverlayIcons:
 
     @staticmethod
     def cycle_icon(size: int = 24) -> QIcon: #vers 1
-        """Cycle Zones/Cull button (Sep 5 2026, per Keith: "Cycle,
+        """Cycle Zones/Cull button (Sep 5 2026,  "Cycle,
         Repair Scale, and Optimize Order need to also be SVG icons")
         - a circular loop arrow, the standard "cycle/step through"
         motif, purple to stay visually distinct from Convert's blue
@@ -401,7 +401,7 @@ class OverlayIcons:
 
     @staticmethod
     def prelight_icon(size: int = 24) -> QIcon: #vers 1
-        """Force Prelighting toggle (Sep 5 2026, per Keith: "showing
+        """Force Prelighting toggle (Sep 5 2026,  "showing
         dark models... some models might not be loading the
         prelighting, so we need a prelighting on/off SVG button") - a
         shaded sphere, bright-to-dark gradient, representing baked
@@ -418,7 +418,7 @@ class OverlayIcons:
 
     @staticmethod
     def add_texture_icon(size: int = 24) -> QIcon: #vers 1
-        """Add Texture button (Sep 5 2026, per Keith's texture-editor
+        """Add Texture button (Sep 5 2026  texture-editor
         button request) - a picture frame with a plus sign, green."""
         return SVGIconFactory._create_icon('''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
   <rect x="2" y="4" width="14" height="14" rx="1" fill="none" stroke="#90a4ae" stroke-width="1.6"/>
@@ -485,7 +485,7 @@ class OverlayIcons:
     @staticmethod
     def search_model_icon(size: int = 24) -> QIcon: #vers 1
         """Search loaded instances by model name (Sep 5 2026, per
-        Keith: "a search [O'] function on the ribbon bar to find a
+         : "a search [O'] function on the ribbon bar to find a
         model name so I can see the IPL line") - plain magnifying
         glass."""
         return SVGIconFactory._create_icon('''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">

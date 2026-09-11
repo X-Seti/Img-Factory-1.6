@@ -315,7 +315,7 @@ class _ToolbarMixin:
         self.menu_btn.clicked.connect(self._on_menu_btn_clicked)
         lo.addWidget(self.menu_btn)
         # Hide window-chrome-style toolbar elements when docked (Aug
-        # 20 2026, per Keith: "Breakable objects editor (objects.dat)
+        # 20 2026,  "Breakable objects editor (objects.dat)
         # is showing its titlebar" - same real complaint already fixed
         # for Water/Radar Workshop, applied here with the same real
         # distinction Radar Workshop's own fix needed: this toolbar
@@ -367,7 +367,7 @@ class _ToolbarMixin:
         for b in (self.open_btn, self.save_btn,
                   self.export_btn, self.import_btn):
             lo.addWidget(b)
-            # Hidden when docked (Aug 20 2026, per Keith: "when docked
+            # Hidden when docked (Aug 20 2026,  "when docked
             # those needed buttons can be added to the object pane") -
             # these 4 now live directly in BreakableEditor's own left
             # Objects pane too (breakable_editor.py's own _build_left_

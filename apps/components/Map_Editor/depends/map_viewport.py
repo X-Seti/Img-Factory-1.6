@@ -55,7 +55,7 @@ class MapViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             # before QApplication is constructed, which isn't
             # guaranteed when this module loads into an already-
             # running host application (Map Workshop embedded as a
-            # tab inside IMG Factory, per Keith's confirmed setup) -
+            # tab inside IMG Factory  confirmed setup) -
             # this is the class actually used for each world pane in
             # that same multi-pane layout, so it needed the identical
             # fix.
@@ -103,7 +103,7 @@ class MapViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         # style-based paint path rather than the lightweight "alien
         # widget" compositing normally used for child widgets on a
         # QOpenGLWidget - a known trigger for repeated "paintEngine
-        # should no longer be called" warnings (Keith's report).
+        # should no longer be called" warnings (my report).
         # QPalette + a bold font set directly avoids the stylesheet
         # machinery entirely while keeping the exact same appearance
         # and all existing functionality (right-click menu still
@@ -132,7 +132,7 @@ class MapViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         one draw call for the whole set, at the cost of a simpler point-
         based visual instead of cubes (real per-instance DFF/TXD
         geometry is the actual long-term fix - this keeps the same
-        'plot x,y,z' concept Keith described, just fast)."""
+        'plot x,y,z' concept   described, just fast)."""
         out = []
         for inst in instances:
             if hasattr(inst, 'pos_x'):
@@ -344,7 +344,7 @@ class MapViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def set_lod_test_center(self, world_pos): #vers 1
         """Set (or clear, with None) the LOD test circle's center in
-        this viewport's own Y-up local space - per Keith: "i'd like to
+        this viewport's own Y-up local space -  "i'd like to
         add a model switching test where there is a circle around the
         mouse pointer, size 300, anything in the circle is normal
         models, everything outside is lod. in realtime." Called from
@@ -357,7 +357,7 @@ class MapViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
     def _draw_lod_test_circle(self): #vers 1
         """Draw a flat circle outline on the ground plane at self.
         _lod_test_center, radius self._lod_test_radius - the visual
-        boundary for the real-time LOD test: per Keith's own spec,
+        boundary for the real-time LOD test: per my own spec,
         models inside render at normal detail, models outside render
         as LOD. Drawing only, not the actual model-switching logic
         (that's ModelWorkshop's job, via the same distance-from-center
@@ -691,7 +691,7 @@ class MapViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         and intersect it with the horizontal plane y=ground_y (this
         viewport's own Y-up local space) - the "where is the mouse
         pointing at, on the ground" position needed for the LOD test
-        circle (Aug 1 2026, per Keith: "i'd like to add a model
+        circle (Aug 1 2026,  "i'd like to add a model
         switching test where there is a circle around the mouse
         pointer... in realtime"). Works across all view modes (Top/
         Side/Front/Perspective) via genuine ray-plane intersection
@@ -751,7 +751,7 @@ class MapViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         the workshop itself. Passing the pane itself (not just the
         instance) lets the callback scope its response to just this
         one pane, rather than needing to guess or affect all panes -
-        per Keith's report that clicking an object was repositioning
+        per my report that clicking an object was repositioning
         all 3 views instead of just responding to the one clicked."""
         self._pick_callback = callback
 
@@ -789,7 +789,7 @@ class MapViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._pan_y -= (-dy if invert_y else dy) * scale
         self._last_pos = event.pos(); self.update()
 
-        # LOD test mode (Aug 1 2026, per Keith: "i'd like to add a
+        # LOD test mode (Aug 1 2026,  "i'd like to add a
         # model switching test where there is a circle around the
         # mouse pointer, size 300, anything in the circle is normal
         # models, everything outside is lod. in realtime.") - on

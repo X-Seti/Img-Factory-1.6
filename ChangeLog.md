@@ -147,7 +147,7 @@
   horizontally" - changed to "Flip model..."
 - Analyze/Copy/Paste buttons carried over from COL Workshop verbatim
   ("Analyze collision data", "Copy/Paste col to/from clipboard") -
-  Keith is keeping these three in Model Workshop as-is, just renamed:
+    is keeping these three in Model Workshop as-is, just renamed:
   Analyse Model, Copy Model, Paste Model (labels + tooltips)
 - Confirmed Rotate Left/Right wording is fine, no change needed there
 
@@ -176,7 +176,7 @@
   right-click menu, 2 texture-load paths) - latent no-ops/crashes
   depending on whether _render_style happened to already exist as a
   stray instance attribute. Texture panel's Semi button now maps to
-  Solid (closest equivalent, per Keith)
+  Solid (closest equivalent, .per)
 
 
 ## June 2026 - Build 387.83 - IMG tabs missing taskbar button and collapsed splitter
@@ -205,7 +205,7 @@
 - App_build still said "May 19 2026" despite App_build_num/
   App_imgfactory_version being bumped to 386.82 last entry - welcome
   screen header showed "Img Factory 1.6 - Build May 19 2026", caught
-  by Keith. Updated to June 28 2026.
+  by  . Updated to June 28 2026.
 
 
 ## June 2026 - Build 386.82 - Vehicle Workshop moved to Asset Editors
@@ -264,7 +264,7 @@ apps/components/Hex_Editor/hex_workshop.py:**
   (not a percentage) to decide "is intro currently showing" - changed
   to percentage-based so a partial-width leftover state can't be
   misread as intro being open
-- Confirmed fixed by Keith
+- Confirmed fixed by  
 
 
 ## June 2026 - Workshop tabs squeezed half-width by left panel
@@ -286,7 +286,7 @@ apps/components/Model_Editor/model_workshop.py, apps/components/Img_Factory/imgf
 - Reverted the raise_()/activateWindow() standalone-window changes from
   the previous session - wrong fix for this bug, these workshops are
   docked tabs, not standalone windows
-- Real cause: TXD, COL, Model Workshop and Model Viewer embedded-tab opens
+-  cause: TXD, COL, Model Workshop and Model Viewer embedded-tab opens
   called setCurrentIndex() but never _ensure_tab_area_visible(), so
   content_splitter kept the tab area at ~0% width - tab was selected but
   invisible until the splitter handle was dragged open by hand
@@ -3960,6 +3960,6 @@ smart_file_router updated: train*.dat, flight*.dat, spath0.dat → Path Workshop
 
 **Docked-tool settings tab contribution (app_settings_system.py, apps/utils):**
 - New SettingsDialog._collect_settings_contributions() - scans main_window.main_tab_widget for any open tab exposing get_settings_contribution() (duck-typed, no specific-tool import) and pulls its tabs + apply callback into the main app Settings dialog
-- First consumer: Map Workshop (get_settings_contribution() added in map_workshop.py, split out of the old monolithic _show_workshop_settings) - per Keith: "the map workshop settings dialogue when standalone, which isn't available when it's docked with img factory, so we need a way to push those settings into img factory's settings, as extra tabs"
+- First consumer: Map Workshop (get_settings_contribution() added in map_workshop.py, split out of the old monolithic _show_workshop_settings) -  "the map workshop settings dialogue when standalone, which isn't available when it's docked with img factory, so we need a way to push those settings into img factory's settings, as extra tabs"
 - Any future embedded tool (Model Workshop, COL Workshop, etc.) gets the same integration for free by implementing the same method name
 - Each contributed apply callback wrapped individually in _apply_settings so one tool's broken settings logic can't block another's or the dialog's own save
