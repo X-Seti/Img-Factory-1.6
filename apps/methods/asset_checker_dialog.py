@@ -22,7 +22,7 @@ declared texture actually exists in the IMG."""
 import os
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QListWidget, QTableWidget,
-    QTableWidgetItem, QStackedWidget, QComboBox, QSplitter, QWidget,
+    QTableWidgetItem, QStackedWidget, QComboBox, QSplitter, QWidget, QMenu,
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
@@ -98,6 +98,8 @@ class AssetCheckerDialog(QDialog): #vers 2
         self.xref_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.xref_table.horizontalHeader().setStretchLastSection(True)
         self.xref_table.setSortingEnabled(True)
+        self.xref_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.xref_table.customContextMenuRequested.connect(self._xref_context_menu)
         self.stack.addWidget(self.xref_table)
 
     def _make_column(self, splitter, title): #vers 1
@@ -186,6 +188,60 @@ class AssetCheckerDialog(QDialog): #vers 2
                     item.setBackground(error_tint)
                 self.xref_table.setItem(row, col, item)
         self.xref_table.setSortingEnabled(True)
+
+    def _xref_context_menu(self, pos): #vers 1
+        """Right-click menu on the cross-reference table (Sep 5 2026,
+        per Keith: "with right click options to edit that table, add
+        the missing txd, rename, delete, copy and paste cell names").
+        Copy cell/row is always available. "Open in TXD Workshop" only
+        shows for a row whose own Texture entry is genuinely missing
+        (per Keith's own confirmed answer: open the real workshop so
+        he can add a real texture there himself, not an automated
+        write) - opens TXD Workshop against this checker's own real
+        img_path, the same archive the missing texture would need to
+        go into.
+
+        Rename/Delete-with-backup-undo and the game-wide IPL scan for
+        model-name uniqueness are real, separate, larger pieces (the
+        former edits real files, the latter needs scanning every real
+        .dat file for every real IPL) - not implemented yet, scoped
+        as their own follow-up rather than rushed in here."""
+        item = self.xref_table.itemAt(pos)
+        if item is None:
+            return
+        row = item.row()
+        menu = QMenu(self)
+
+        copy_cell_act = menu.addAction("Copy Cell")
+        copy_cell_act.triggered.connect(lambda: self._xref_copy_cell(item))
+        copy_row_act = menu.addAction("Copy Row")
+        copy_row_act.triggered.connect(lambda: self._xref_copy_row(row))
+
+        texture_item = self.xref_table.item(row, 4)
+        if (texture_item and "(missing)" in texture_item.text()
+                and self.result.img_path):
+            menu.addSeparator()
+            txd_act = menu.addAction("Open in TXD Workshop to add missing texture")
+            txd_act.triggered.connect(lambda: self._xref_open_txd_workshop())
+
+        menu.exec(self.xref_table.viewport().mapToGlobal(pos))
+
+    def _xref_copy_cell(self, item): #vers 1
+        from PyQt6.QtWidgets import QApplication
+        QApplication.clipboard().setText(item.text())
+
+    def _xref_copy_row(self, row): #vers 1
+        from PyQt6.QtWidgets import QApplication
+        values = [self.xref_table.item(row, c).text() if self.xref_table.item(row, c) else ""
+                   for c in range(self.xref_table.columnCount())]
+        QApplication.clipboard().setText("\t".join(values))
+
+    def _xref_open_txd_workshop(self): #vers 1
+        try:
+            from apps.components.Txd_Editor.txd_workshop import open_txd_workshop
+            open_txd_workshop(self.parent(), self.result.img_path)
+        except Exception:
+            pass
 
 
 def show_asset_checker(main_window, clicked_path: str, game: str = None): #vers 1

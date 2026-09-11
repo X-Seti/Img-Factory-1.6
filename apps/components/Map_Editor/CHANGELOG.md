@@ -12339,3 +12339,26 @@ conclusively found despite extensive isolated testing.
   col." Column order is now IDE entry list | IMG archive | COL
   archive | Error list. Verified via the real splitter's own widget
   order.
+
+- Sep 5 2026 (cont'd) - Asset Checker: added a right-click context
+  menu to the cross-reference table, per Keith: "with right click
+  options to edit that table, add the missing txd, rename, delete,
+  copy and paste cell names". Implemented the safe, immediately
+  achievable pieces this turn: Copy Cell and Copy Row (always
+  available), and "Open in TXD Workshop to add missing texture"
+  (shown only for a row whose Texture entry is genuinely missing) -
+  per Keith's own confirmed answer, this opens the real TXD Workshop
+  against the checker's own real img_path so he can add a real
+  texture there himself, not an automated file write.
+
+  Rename/Delete-with-backup-folder-undo and the game-wide IPL scan
+  for model-name uniqueness (scanning gta.dat/gta_vc.dat/gta3.dat/
+  gtasol.dat/gta_sol.dat for every real IPL, then checking uniqueness
+  across every real IDE) are real, separate, larger pieces - not
+  implemented yet, scoped as their own follow-up rather than rushed
+  in alongside this.
+
+  Verified with real data (Keith's own bnk_lft_door1/VCBk_lft_door2
+  example): Copy Cell and Copy Row both produce the correct real
+  text, and the TXD Workshop action's own show condition correctly
+  evaluates true for a genuinely missing texture.
