@@ -146,7 +146,7 @@ class AssetCheckerDialog(QDialog): #vers 3
         self.xref_table.customContextMenuRequested.connect(self._xref_context_menu)
         self.stack.addWidget(self.xref_table)
 
-    def _make_column(self, splitter, title, count, diffs=None): #vers 4
+    def _make_column(self, splitter, title, count, diffs=None): #vers 5
         """count is the base number shown in parentheses (Sep 5 2026,
         always the real IDE count for IMG/COL columns, per Keith's own
         confirmed design). diffs is a list of (label, tooltip,
@@ -158,36 +158,37 @@ class AssetCheckerDialog(QDialog): #vers 3
         follow-up: "now it says +5 -1? confused" - correct isn't the
         same as self-explanatory).
 
-        The header label uses Preferred/shrinkable sizing rather than
-        forcing its own natural text width (Sep 5 2026, per Keith:
-        "the title row needs to aligned properly") - the label+buttons
-        together could be wider than the list widget below in a narrow
-        column, letting the header visually spill into the next
-        column's space; the real column width should come from the
-        list widget, with the header eliding/tooltipping its full text
-        instead of forcing the column wider than intended."""
-        from PyQt6.QtWidgets import QSizePolicy
+        Label and diff buttons go on separate lines (Sep 5 2026, per
+        Keith's own real catch: "now the title bar is missing, and
+        those numbers are of settings other entries") - an earlier
+        attempt at this used QSizePolicy.Policy.Ignored on the label,
+        which doesn't just allow shrinking, it tells the layout to
+        disregard the label's size hint ENTIRELY, letting it collapse
+        to zero width and disappear rather than fixing the alignment.
+        Putting the label and the buttons on their own separate rows
+        means neither one ever competes with the other for horizontal
+        space in the first place, regardless of how narrow the column
+        gets."""
         container = QWidget()
         v = QVBoxLayout(container)
         v.setContentsMargins(2, 2, 2, 2)
-        header_row = QHBoxLayout()
         label_text = title if count is None else f"{title} ({count})"
         header_lbl = QLabel(label_text)
-        header_lbl.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
-        header_lbl.setToolTip(label_text)
-        header_row.addWidget(header_lbl)
-        for label, tooltip, on_click in (diffs or []):
-            from PyQt6.QtWidgets import QPushButton
-            diff_btn = QPushButton(label)
-            diff_btn.setFlat(True)
-            diff_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            diff_btn.setStyleSheet("text-decoration: underline;")
-            diff_btn.setToolTip(tooltip)
-            if on_click:
-                diff_btn.clicked.connect(on_click)
-            header_row.addWidget(diff_btn)
-        header_row.addStretch()
-        v.addLayout(header_row)
+        v.addWidget(header_lbl)
+        if diffs:
+            diff_row = QHBoxLayout()
+            for label, tooltip, on_click in diffs:
+                from PyQt6.QtWidgets import QPushButton
+                diff_btn = QPushButton(label)
+                diff_btn.setFlat(True)
+                diff_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+                diff_btn.setStyleSheet("text-decoration: underline;")
+                diff_btn.setToolTip(tooltip)
+                if on_click:
+                    diff_btn.clicked.connect(on_click)
+                diff_row.addWidget(diff_btn)
+            diff_row.addStretch()
+            v.addLayout(diff_row)
         lst = QListWidget()
         v.addWidget(lst)
         splitter.addWidget(container)

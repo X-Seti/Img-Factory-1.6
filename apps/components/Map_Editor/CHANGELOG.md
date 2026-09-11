@@ -12520,3 +12520,24 @@ conclusively found despite extensive isolated testing.
   and the header label's size policy is correctly set to shrinkable.
   Visual alignment itself can't be fully confirmed without seeing it
   rendered - flagged honestly, asked Keith to confirm it looks right.
+
+- Sep 5 2026 (cont'd) - Asset Checker: fixed a real regression I
+  introduced last commit, per Keith's own real catch: "now the title
+  bar is missing, and those numbers are of settings other entries".
+  QSizePolicy.Policy.Ignored on the header label doesn't just allow
+  shrinking - it tells the layout to disregard the label's own size
+  hint entirely, which let it collapse to zero width and disappear,
+  leaving the +N/-M buttons floating with nothing labelling which
+  column they belonged to.
+
+  Fixed properly this time: the header label and the diff-button row
+  now go on their own separate lines within the column's vertical
+  layout, instead of sharing one horizontal row and competing for
+  the same space. Neither can crowd out the other now, regardless of
+  how narrow the column gets.
+
+  Verified directly: the header label has a real, non-zero size hint
+  width (92px for "IMG archive (6)") and correct text, and is
+  structurally confirmed to be on its own row (a QVBoxLayout with the
+  label and the button row as separate items), not sharing a row with
+  the buttons the way the broken version did.
