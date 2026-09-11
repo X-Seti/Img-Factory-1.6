@@ -1,9 +1,11 @@
-#this belongs in apps/methods/asset_checker.py - Version: 1
+#this belongs in apps/methods/asset_checker.py - Version: 2
 
 ##Methods list -
 # find_sibling_asset_files
 # check_assets
 # AssetCheckResult
+# AssetCheckResult.img_extra_over_ide
+# AssetCheckResult.col_extra_over_ide
 
 """asset_checker.py - cross-references real model names across an IMG
 archive, a COL file, and an IDE file that share the same base
@@ -62,6 +64,23 @@ class AssetCheckResult: #vers 2
         if not self.ide_path:
             return set()
         return (self.img_names | self.col_names) - self.ide_names
+
+    @property
+    def img_extra_over_ide(self): #vers 1
+        """In IMG but not declared in IDE - the "+N" direction for the
+        IMG column header (Sep 5 2026, per Keith's own confirmed
+        header design)."""
+        if not self.img_path or not self.ide_path:
+            return set()
+        return self.img_names - self.ide_names
+
+    @property
+    def col_extra_over_ide(self): #vers 1
+        """In COL but not declared in IDE - the "+N" direction for the
+        COL column header."""
+        if not self.col_path or not self.ide_path:
+            return set()
+        return self.col_names - self.ide_names
 
     def status_for(self, name: str) -> str: #vers 1
         """One-line status for a given model name, for the merged

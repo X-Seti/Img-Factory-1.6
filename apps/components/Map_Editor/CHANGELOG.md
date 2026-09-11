@@ -12362,3 +12362,32 @@ conclusively found despite extensive isolated testing.
   example): Copy Cell and Copy Row both produce the correct real
   text, and the TXD Workshop action's own show condition correctly
   evaluates true for a genuinely missing texture.
+
+- Sep 5 2026 (cont'd) - Asset Checker: redesigned the 4-column view
+  per Keith's own confirmed design (real screenshot + detailed
+  back-and-forth to nail down the exact behaviour before committing):
+  "ID | ide (2453) | Img (2453) +1 | col (2453) +1 | Errors...
+  Clicking the +1 shows the filename, with the option to copy the
+  filename... have the ability to lock the scroll across all 4...
+  except the Errors column".
+
+  New ID column (leftmost), showing each row's real IDE model_id,
+  aligned to the same sorted order as the IDE column. IMG and COL
+  column headers now show IDE's own real count as their shared base
+  number, plus a signed, clickable +N/-N diff from it - + when that
+  source has real extras IDE doesn't declare, - when IDE declares
+  things that source is genuinely missing (both directions confirmed
+  needed: "what if there are more items in the ide, then col or img,
+  we need to show this to"). Clicking the diff opens a small popup
+  listing the exact real names involved, with Copy Selected/Copy All
+  options. New AssetCheckResult.img_extra_over_ide/col_extra_over_ide
+  properties for the "+N" direction (missing_from_img/missing_from_col
+  already covered "-N"). ID/IDE/IMG/COL scroll together as one group
+  via a guarded scrollbar sync; Errors scrolls independently.
+
+  Verified thoroughly: a realistic scenario with IMG having a real
+  extra (+1, correctly opens showing that exact name) and COL missing
+  a real entry (-1, correctly opens showing that exact name); ID
+  column correctly aligned to IDE's own sorted order and real model
+  IDs; scroll sync confirmed across all 4 lists with a real, small
+  viewport forcing genuine scrolling.

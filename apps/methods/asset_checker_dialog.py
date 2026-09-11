@@ -1,4 +1,4 @@
-#this belongs in apps/methods/asset_checker_dialog.py - Version: 1
+#this belongs in apps/methods/asset_checker_dialog.py - Version: 2
 
 ##Methods list -
 # AssetCheckerDialog
@@ -10,14 +10,27 @@ COL archive | IDE entry list | Error list... And another layout to
 show IMG, COL and IDE as 3 different lines, each with its own shade
 but theme-aware" + his own follow-up: "we could have a txd 4th
 column... the ide file ID for the 1st column, dff for the 2rd, col,
-3rd, ide modelname 4th, texture entry, then errors"). Three switchable
-layouts sharing one AssetCheckResult: a 4-column side-by-side view
-(one column per real source plus an Error list), a merged view where
-each model name gets one row per source it's actually found in (each
-row tinted from the current theme's own palette, no hardcoded hex),
-and a per-model cross-reference table (ID/DFF/COL/IDE Model Name/
-Texture entry/Errors) that also checks whether each IDE entry's own
-declared texture actually exists in the IMG."""
+3rd, ide modelname 4th, texture entry, then errors" + his own later
+confirmed 4-column redesign: "ID | ide (2453) | Img (2453) +1 | col
+(2453) +1 | Errors... Clicking the +1 shows the filename, with the
+option to copy the filename... have the ability to lock the scroll
+across all 4... except the Errors column"). Three switchable layouts
+sharing one AssetCheckResult:
+
+- 4-column view: ID | IDE entry list | IMG archive | COL archive |
+  Error list. ID and IDE scroll-locked together with IMG/COL (Errors
+  excluded). IMG/COL headers show IDE's own real count as their base
+  number plus a signed, clickable +N/-N diff from it (+ when that
+  source has extras IDE doesn't declare, - when IDE declares things
+  that source is missing) - clicking it lists the real specific names
+  involved, with copy options. Equal counts don't guarantee matching
+  sets; the Error list still does the real, full comparison.
+- Merged view: each model name gets one row per source it's actually
+  found in, each row tinted from the current theme's own palette.
+- Cross-reference table: one row per model (ID/DFF/COL/IDE Model
+  Name/Texture entry/Errors), checking whether each IDE entry's own
+  declared texture actually exists in the IMG, with a right-click
+  menu (copy cell/row, open TXD Workshop for a missing texture)."""
 
 import os
 from PyQt6.QtWidgets import (
@@ -30,8 +43,8 @@ from PyQt6.QtGui import QColor
 from apps.methods.asset_checker import check_assets, find_sibling_asset_files
 
 
-class AssetCheckerDialog(QDialog): #vers 2
-    def __init__(self, parent, result): #vers 2
+class AssetCheckerDialog(QDialog): #vers 3
+    def __init__(self, parent, result): #vers 3
         super().__init__(parent)
         self.result = result
         self.setWindowTitle("Asset Checker")
@@ -71,16 +84,51 @@ class AssetCheckerDialog(QDialog): #vers 2
         lay.addWidget(self.stack, 1)
 
         # --- 4-column view ---
+        # New ID column + IDE-relative header diffs (Sep 5 2026, per
+        # Keith's own confirmed design: "ID | ide (2453) | Img (2453)
+        # +1 | col (2453) +1 | Errors... does that make logical sense
+        # to you, and what if there are more items in the ide, then
+        # col or img" -> "perfect"). Diff can run either way (+N when
+        # a source has extras IDE doesn't declare, -N when IDE
+        # declares things that source is missing) - both directions
+        # use the SAME real IDE count as their base number, so they're
+        # directly comparable at a glance; clicking the diff opens the
+        # specific real names involved. Equal counts don't guarantee
+        # matching sets (see this dialog's own README on that) - the
+        # Error list still does the real, full comparison regardless.
         columns_widget = QWidget()
         columns_lay = QHBoxLayout(columns_widget)
         splitter = QSplitter(Qt.Orientation.Horizontal)
         columns_lay.addWidget(splitter)
 
-        self.ide_list = self._make_column(splitter, f"IDE entry list ({len(self.result.ide_names)})")
-        self.img_list = self._make_column(splitter, f"IMG archive ({len(self.result.img_names)})")
-        self.col_list = self._make_column(splitter, f"COL archive ({len(self.result.col_names)})")
-        self.error_list = self._make_column(splitter, "Error list")
+        ide_count = len(self.result.ide_names)
+        img_diff = (len(self.result.img_names) - ide_count
+                    if self.result.img_path and self.result.ide_path else None)
+        col_diff = (len(self.result.col_names) - ide_count
+                    if self.result.col_path and self.result.ide_path else None)
+
+        self.id_list = self._make_column(splitter, "ID", None)
+        self.ide_list = self._make_column(splitter, "IDE entry list", ide_count)
+        self.img_list = self._make_column(
+            splitter, "IMG archive", ide_count, img_diff,
+            lambda: self._show_diff_popup(
+                self.result.img_extra_over_ide if img_diff > 0 else self.result.missing_from_img,
+                "IMG entries not in IDE" if img_diff > 0 else "IDE entries missing from IMG"))
+        self.col_list = self._make_column(
+            splitter, "COL archive", ide_count, col_diff,
+            lambda: self._show_diff_popup(
+                self.result.col_extra_over_ide if col_diff > 0 else self.result.missing_from_col,
+                "COL entries not in IDE" if col_diff > 0 else "IDE entries missing from COL"))
+        self.error_list = self._make_column(splitter, "Error list", None)
         self.stack.addWidget(columns_widget)
+
+        # Locked scrolling across ID/IDE/IMG/COL, Errors excluded (Sep
+        # 5 2026, per Keith: "have the ability to lock the scroll
+        # across all 4... except the Errors column").
+        self._sync_lists = [self.id_list, self.ide_list, self.img_list, self.col_list]
+        self._sync_guard = False
+        for lst in self._sync_lists:
+            lst.verticalScrollBar().valueChanged.connect(self._on_sync_scroll)
 
         # --- merged view ---
         self.merged_table = QTableWidget()
@@ -102,24 +150,90 @@ class AssetCheckerDialog(QDialog): #vers 2
         self.xref_table.customContextMenuRequested.connect(self._xref_context_menu)
         self.stack.addWidget(self.xref_table)
 
-    def _make_column(self, splitter, title): #vers 1
+    def _make_column(self, splitter, title, count, diff=None, on_diff_click=None): #vers 2
+        """count is the base number shown in parentheses (Sep 5 2026,
+        always the real IDE count for IMG/COL columns, per Keith's own
+        confirmed design), diff is the signed real difference from it
+        (None or 0 means no diff shown). on_diff_click opens the real
+        popup listing which specific names make up that difference."""
         container = QWidget()
         v = QVBoxLayout(container)
         v.setContentsMargins(2, 2, 2, 2)
-        v.addWidget(QLabel(title))
+        header_row = QHBoxLayout()
+        label_text = title if count is None else f"{title} ({count})"
+        header_row.addWidget(QLabel(label_text))
+        if diff:
+            from PyQt6.QtWidgets import QPushButton
+            diff_btn = QPushButton(f"{'+' if diff > 0 else ''}{diff}")
+            diff_btn.setFlat(True)
+            diff_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            diff_btn.setStyleSheet("text-decoration: underline;")
+            if on_diff_click:
+                diff_btn.clicked.connect(on_diff_click)
+            header_row.addWidget(diff_btn)
+        header_row.addStretch()
+        v.addLayout(header_row)
         lst = QListWidget()
         v.addWidget(lst)
         splitter.addWidget(container)
         return lst
 
+    def _on_sync_scroll(self, value): #vers 1
+        """Keep ID/IDE/IMG/COL scrolled together (Sep 5 2026, per
+        Keith's own confirmed design) - guarded against re-entrant
+        signal loops, since setting one list's scrollbar would
+        otherwise re-trigger this same handler for that list too."""
+        if self._sync_guard:
+            return
+        self._sync_guard = True
+        try:
+            for lst in self._sync_lists:
+                if lst.verticalScrollBar().value() != value:
+                    lst.verticalScrollBar().setValue(value)
+        finally:
+            self._sync_guard = False
+
+    def _show_diff_popup(self, names, title): #vers 1
+        """Small popup listing the real specific names behind a "+N"/
+        "-N" header diff (Sep 5 2026, per Keith: "Clicking the +1
+        shows the filename, with the option to copy the filename")."""
+        from PyQt6.QtWidgets import QApplication, QPushButton, QHBoxLayout as _QHBoxLayout
+        dlg = QDialog(self)
+        dlg.setWindowTitle(title)
+        dlg.resize(360, 400)
+        v = QVBoxLayout(dlg)
+        v.addWidget(QLabel(f"{len(names)} entr{'y' if len(names) == 1 else 'ies'}:"))
+        lst = QListWidget()
+        lst.addItems(sorted(names))
+        v.addWidget(lst)
+        btn_row = _QHBoxLayout()
+        copy_one_btn = QPushButton("Copy Selected")
+        copy_one_btn.clicked.connect(
+            lambda: QApplication.clipboard().setText(
+                lst.currentItem().text() if lst.currentItem() else ""))
+        copy_all_btn = QPushButton("Copy All")
+        copy_all_btn.clicked.connect(
+            lambda: QApplication.clipboard().setText("\n".join(sorted(names))))
+        btn_row.addWidget(copy_one_btn)
+        btn_row.addWidget(copy_all_btn)
+        btn_row.addStretch()
+        v.addLayout(btn_row)
+        dlg.exec()
+
     def _on_view_changed(self, index): #vers 1
         self.stack.setCurrentIndex(index)
 
-    def _populate_columns_view(self): #vers 1
+    def _populate_columns_view(self): #vers 2
         r = self.result
         self.img_list.addItems(sorted(r.img_names))
         self.col_list.addItems(sorted(r.col_names))
-        self.ide_list.addItems(sorted(r.ide_names))
+        sorted_ide_names = sorted(r.ide_names)
+        self.ide_list.addItems(sorted_ide_names)
+        # ID column aligned to the same sorted order as IDE (Sep 5
+        # 2026, per Keith: "ID column is the object ID shown in the
+        # IDE file, with that I can just lookup the ID in the real
+        # ide file, to match the model").
+        self.id_list.addItems(str(r.ide_id_by_name.get(name, "")) for name in sorted_ide_names)
 
         errors = []
         for name in sorted(r.missing_from_col):
