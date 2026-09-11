@@ -76,9 +76,9 @@ class AssetCheckerDialog(QDialog): #vers 2
         splitter = QSplitter(Qt.Orientation.Horizontal)
         columns_lay.addWidget(splitter)
 
+        self.ide_list = self._make_column(splitter, f"IDE entry list ({len(self.result.ide_names)})")
         self.img_list = self._make_column(splitter, f"IMG archive ({len(self.result.img_names)})")
         self.col_list = self._make_column(splitter, f"COL archive ({len(self.result.col_names)})")
-        self.ide_list = self._make_column(splitter, f"IDE entry list ({len(self.result.ide_names)})")
         self.error_list = self._make_column(splitter, "Error list")
         self.stack.addWidget(columns_widget)
 

@@ -12333,3 +12333,9 @@ conclusively found despite extensive isolated testing.
   regardless), the real model name and model_id both show up
   correctly in the output bytes (previously silently lost), and the
   real box coordinates are correctly present.
+
+- Sep 5 2026 (cont'd) - Asset Checker: reorder 4-column view, per
+  Keith: "Should show IDE first as that is main file. then img then
+  col." Column order is now IDE entry list | IMG archive | COL
+  archive | Error list. Verified via the real splitter's own widget
+  order.
