@@ -223,11 +223,19 @@ class AssetCheckerDialog(QDialog): #vers 3
     def _on_view_changed(self, index): #vers 1
         self.stack.setCurrentIndex(index)
 
-    def _populate_columns_view(self): #vers 2
+    def _populate_columns_view(self): #vers 3
         r = self.result
         self.img_list.addItems(sorted(r.img_names))
         self.col_list.addItems(sorted(r.col_names))
-        sorted_ide_names = sorted(r.ide_names)
+        # ID numeric order by default (Sep 5 2026, per Keith: "We
+        # should always follow ID numeric order: 1, 2, 3, 4..... only
+        # time we show the models in alphanumeric order is when we
+        # want to rearrange" - and his own real follow-up catching
+        # this exact bug: "we seem to be forcing the model names to
+        # display alpha numeric, it should be shown in ID other").
+        # sorted() on the plain name strings was alphabetical, not
+        # numeric by ID at all.
+        sorted_ide_names = sorted(r.ide_names, key=lambda n: r.ide_id_by_name.get(n, 0))
         self.ide_list.addItems(sorted_ide_names)
         # ID column aligned to the same sorted order as IDE (Sep 5
         # 2026, per Keith: "ID column is the object ID shown in the

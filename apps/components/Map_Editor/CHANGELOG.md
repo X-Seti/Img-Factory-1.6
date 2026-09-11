@@ -12428,3 +12428,19 @@ conclusively found despite extensive isolated testing.
   detected and both rows correctly tinted; write-back and round-trip
   re-parse both confirmed correct, including both real format
   variants surviving intact.
+
+- Sep 5 2026 (cont'd) - Asset Checker: fixed a real bug in the ID/IDE
+  column sort, per Keith's own real screenshot ("we seem to be
+  forcing the model names to display alpha numeric, it should be
+  shown in ID other. need to fix this first"). sorted_ide_names used
+  plain sorted() on the name strings - alphabetical, not numeric by
+  ID at all - directly contradicting Keith's own earlier, explicit
+  requirement: "We should always follow ID numeric order: 1, 2, 3,
+  4..... only time we show the models in alphanumeric order is when
+  we want to rearrange". Now sorts by the real IDE model_id.
+
+  Verified against data matching Keith's own real screenshot exactly
+  (admiral=175, airtrain=180, airtrain_vlo=257, ambulan=146,
+  angel=166, army=4) - ID column now correctly shows true numeric
+  order (4, 146, 166, 175, 180, 257), with army correctly first
+  instead of admiral.
