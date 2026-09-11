@@ -12541,3 +12541,14 @@ conclusively found despite extensive isolated testing.
   structurally confirmed to be on its own row (a QVBoxLayout with the
   label and the button row as separate items), not sharing a row with
   the buttons the way the broken version did.
+
+- Sep 5 2026 (cont'd) - Asset Checker: 3 real UI improvements, per
+  Keith: "use a lighter theme color for the header, then pattern the
+  entry list below, the widths for the columns can be wider".
+  Header text now uses the real theme's own BrightText palette role
+  (not a hardcoded hex value). Entry lists now use alternating row
+  colours, matching the same real pattern already used throughout
+  this app's own other tables. Column minimum width increased to
+  220px. Verified all 3 directly: alternatingRowColors() true on
+  every list in the view, container minimum width confirmed >=220,
+  header stylesheet confirmed contains a real palette-derived color.

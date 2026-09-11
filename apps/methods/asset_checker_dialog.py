@@ -146,7 +146,7 @@ class AssetCheckerDialog(QDialog): #vers 3
         self.xref_table.customContextMenuRequested.connect(self._xref_context_menu)
         self.stack.addWidget(self.xref_table)
 
-    def _make_column(self, splitter, title, count, diffs=None): #vers 5
+    def _make_column(self, splitter, title, count, diffs=None): #vers 6
         """count is the base number shown in parentheses (Sep 5 2026,
         always the real IDE count for IMG/COL columns, per Keith's own
         confirmed design). diffs is a list of (label, tooltip,
@@ -170,10 +170,19 @@ class AssetCheckerDialog(QDialog): #vers 3
         space in the first place, regardless of how narrow the column
         gets."""
         container = QWidget()
+        container.setMinimumWidth(220)   # wider columns (Sep 5 2026,
+                                          # per Keith: "the widths for
+                                          # the columns can be wider")
         v = QVBoxLayout(container)
         v.setContentsMargins(2, 2, 2, 2)
         label_text = title if count is None else f"{title} ({count})"
         header_lbl = QLabel(label_text)
+        # Lighter theme-aware header text (Sep 5 2026, per Keith: "use
+        # a lighter theme color for the header") - BrightText is the
+        # real palette role for this, not a hardcoded hex value.
+        bright = self.palette().color(self.palette().currentColorGroup(),
+                                       self.palette().ColorRole.BrightText)
+        header_lbl.setStyleSheet(f"color: {bright.name()}; font-weight: bold;")
         v.addWidget(header_lbl)
         if diffs:
             diff_row = QHBoxLayout()
@@ -190,6 +199,11 @@ class AssetCheckerDialog(QDialog): #vers 3
             diff_row.addStretch()
             v.addLayout(diff_row)
         lst = QListWidget()
+        # Alternating row colours (Sep 5 2026, per Keith: "pattern the
+        # entry list below") - same real pattern already used
+        # throughout this app's own tables (create_tab's own table
+        # setup, etc).
+        lst.setAlternatingRowColors(True)
         v.addWidget(lst)
         splitter.addWidget(container)
         return lst
