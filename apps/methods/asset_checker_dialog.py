@@ -146,29 +146,43 @@ class AssetCheckerDialog(QDialog): #vers 3
         self.xref_table.customContextMenuRequested.connect(self._xref_context_menu)
         self.stack.addWidget(self.xref_table)
 
-    def _make_column(self, splitter, title, count, diffs=None): #vers 3
+    def _make_column(self, splitter, title, count, diffs=None): #vers 4
         """count is the base number shown in parentheses (Sep 5 2026,
         always the real IDE count for IMG/COL columns, per Keith's own
-        confirmed design). diffs is a list of (label, on_click) pairs
-        - e.g. [("+5", handler), ("-1", handler)] - one real, accurate
+        confirmed design). diffs is a list of (label, tooltip,
+        on_click) triples - one real, accurate, clearly-labelled
         button per real direction that actually has entries, rather
         than a single signed net number (Sep 5 2026, per Keith's own
-        real catch: "+4 when it shows 5 entries" - a net number can
-        legitimately differ from either individual direction's own
-        real count whenever a source has both real extras AND is
-        missing something else at the same time)."""
+        real catch: "+4 when it shows 5 entries"). The tooltip spells
+        out exactly what the number means (Sep 5 2026, per Keith's own
+        follow-up: "now it says +5 -1? confused" - correct isn't the
+        same as self-explanatory).
+
+        The header label uses Preferred/shrinkable sizing rather than
+        forcing its own natural text width (Sep 5 2026, per Keith:
+        "the title row needs to aligned properly") - the label+buttons
+        together could be wider than the list widget below in a narrow
+        column, letting the header visually spill into the next
+        column's space; the real column width should come from the
+        list widget, with the header eliding/tooltipping its full text
+        instead of forcing the column wider than intended."""
+        from PyQt6.QtWidgets import QSizePolicy
         container = QWidget()
         v = QVBoxLayout(container)
         v.setContentsMargins(2, 2, 2, 2)
         header_row = QHBoxLayout()
         label_text = title if count is None else f"{title} ({count})"
-        header_row.addWidget(QLabel(label_text))
-        for label, on_click in (diffs or []):
+        header_lbl = QLabel(label_text)
+        header_lbl.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        header_lbl.setToolTip(label_text)
+        header_row.addWidget(header_lbl)
+        for label, tooltip, on_click in (diffs or []):
             from PyQt6.QtWidgets import QPushButton
             diff_btn = QPushButton(label)
             diff_btn.setFlat(True)
             diff_btn.setCursor(Qt.CursorShape.PointingHandCursor)
             diff_btn.setStyleSheet("text-decoration: underline;")
+            diff_btn.setToolTip(tooltip)
             if on_click:
                 diff_btn.clicked.connect(on_click)
             header_row.addWidget(diff_btn)
@@ -179,21 +193,34 @@ class AssetCheckerDialog(QDialog): #vers 3
         splitter.addWidget(container)
         return lst
 
-    def _real_diffs(self, extra_count, missing_count, source_label): #vers 1
+    def _real_diffs(self, extra_count, missing_count, source_label): #vers 2
         """Build the real, independently-accurate diff button list for
         one source column - a "+N" button only if there are real
         extras, a "-M" button only if there are real missing entries,
         both at once if both are genuinely true (Sep 5 2026, per
-        Keith's own real catch that a single net number can mislead)."""
+        Keith's own real catch that a single net number can mislead).
+        Each comes with a plain-English tooltip (Sep 5 2026, per
+        Keith's own follow-up: "now it says +5 -1? confused, does it
+        mean 4 extra and 1 missing?" - no, +5 and -1 are each their
+        own real, independent count, not something to do more mental
+        arithmetic on - the tooltip says so directly)."""
         diffs = []
         if extra_count:
-            diffs.append((f"+{extra_count}", lambda: self._show_diff_popup(
-                self.result.img_extra_over_ide if source_label == "IMG" else self.result.col_extra_over_ide,
-                f"{source_label} entries not in IDE")))
+            diffs.append((
+                f"+{extra_count}",
+                f"{extra_count} {source_label} entr{'y' if extra_count == 1 else 'ies'} "
+                f"not declared anywhere in IDE",
+                lambda: self._show_diff_popup(
+                    self.result.img_extra_over_ide if source_label == "IMG" else self.result.col_extra_over_ide,
+                    f"{source_label} entries not in IDE")))
         if missing_count:
-            diffs.append((f"-{missing_count}", lambda: self._show_diff_popup(
-                self.result.missing_from_img if source_label == "IMG" else self.result.missing_from_col,
-                f"IDE entries missing from {source_label}")))
+            diffs.append((
+                f"-{missing_count}",
+                f"{missing_count} IDE entr{'y' if missing_count == 1 else 'ies'} "
+                f"with no matching {source_label} file",
+                lambda: self._show_diff_popup(
+                    self.result.missing_from_img if source_label == "IMG" else self.result.missing_from_col,
+                    f"IDE entries missing from {source_label}")))
         return diffs
 
     def _on_sync_scroll(self, value): #vers 1

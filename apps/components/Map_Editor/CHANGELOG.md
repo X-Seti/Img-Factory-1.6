@@ -12497,3 +12497,26 @@ conclusively found despite extensive isolated testing.
   a net of +4 (matching what he saw) - old code would show only
   "+4"; fixed code correctly shows both "+5" and "-1" separately, and
   each button's own popup entry count exactly matches its own label.
+
+- Sep 5 2026 (cont'd) - Asset Checker: added explicit tooltips to the
+  +N/-M header buttons, per Keith's own real follow-up confusion:
+  "now it says +5 -1? confused, does it mean 4 extra and 1 missing?"
+  - the fix from last commit was correct (each number is its own
+  real, independent count), but correct isn't the same as self-
+  explanatory. Hovering "+5" now says "5 IMG entries not declared
+  anywhere in IDE"; hovering "-1" says "1 IDE entry with no matching
+  IMG file" - no mental arithmetic needed.
+
+  Also addressed "the title row needs to aligned properly" - the
+  header label now uses a shrinkable size policy instead of forcing
+  its own natural text width, since the label plus 2 diff buttons
+  together could be wider than the list widget below in a narrower
+  column, letting the header visually spill into the next column's
+  space. The real column width should come from the list widget, not
+  the header text; the header now elides/shrinks with its full text
+  available via its own tooltip instead.
+
+  Verified tooltip text is correct and clear for both directions,
+  and the header label's size policy is correctly set to shrinkable.
+  Visual alignment itself can't be fully confirmed without seeing it
+  rendered - flagged honestly, asked Keith to confirm it looks right.
