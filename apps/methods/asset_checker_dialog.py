@@ -223,10 +223,24 @@ class AssetCheckerDialog(QDialog): #vers 3
     def _on_view_changed(self, index): #vers 1
         self.stack.setCurrentIndex(index)
 
-    def _populate_columns_view(self): #vers 3
+    def _populate_columns_view(self): #vers 4
         r = self.result
-        self.img_list.addItems(sorted(r.img_names))
-        self.col_list.addItems(sorted(r.col_names))
+        # IMG/COL now sort by the same IDE-ID-driven order as ID/IDE
+        # (Sep 5 2026, per Keith confirming "yes" after asking why the
+        # 4 columns looked "down sloped" - alphabetical name-order
+        # only loosely correlates with numeric ID-order, which is
+        # exactly what produced that visual mismatch instead of either
+        # a clean line-up or true randomness). A name that's actually
+        # in IDE sorts by its real IDE model_id, matching IDE's own
+        # row position for direct comparison; a name with no IDE
+        # entry at all (the real "+N" extras) has no ID to align to,
+        # so it sorts alphabetically among the other unmatched extras
+        # instead, pushed after every matched one via the infinity
+        # sentinel.
+        def _ide_order_key(name):
+            return (r.ide_id_by_name.get(name, float('inf')), name)
+        self.img_list.addItems(sorted(r.img_names, key=_ide_order_key))
+        self.col_list.addItems(sorted(r.col_names, key=_ide_order_key))
         # ID numeric order by default (Sep 5 2026, per Keith: "We
         # should always follow ID numeric order: 1, 2, 3, 4..... only
         # time we show the models in alphanumeric order is when we

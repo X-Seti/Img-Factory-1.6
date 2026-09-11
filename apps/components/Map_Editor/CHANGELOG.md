@@ -12444,3 +12444,25 @@ conclusively found despite extensive isolated testing.
   angel=166, army=4) - ID column now correctly shows true numeric
   order (4, 146, 166, 175, 180, 257), with army correctly first
   instead of admiral.
+
+- Sep 5 2026 (cont'd) - Asset Checker: IMG/COL columns now sort by
+  the same IDE-ID-driven order as ID/IDE, per Keith confirming "yes"
+  after asking why the 4-column view looked "down sloped" - alphabetical
+  name-order only loosely correlates with real numeric ID-order (IDs
+  are usually assigned in roughly the order things were added, and
+  similarly-named things often get added around the same time), which
+  is exactly what produced that visual mismatch instead of a clean
+  line-up or true randomness.
+
+  A name that's actually declared in IDE now sorts by its real IDE
+  model_id, matching IDE's own row position for direct comparison,
+  even across real gaps (a source missing some of IDE's names still
+  keeps its own remaining names in the same relative ID order). A
+  name with no IDE entry at all (the real "+N" extras) has no ID to
+  align to, so it sorts alphabetically among the other unmatched
+  extras instead, pushed after every matched one.
+
+  Verified with a realistic scenario: IMG has all 6 real IDE names
+  plus 2 real extras, COL has only 3 of the 6 - both correctly
+  preserve IDE's own relative ID order for their matched names, IMG's
+  2 extras correctly land at the end in alphabetical order.
