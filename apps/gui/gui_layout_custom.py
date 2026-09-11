@@ -1068,7 +1068,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         # App title in center
         try:
             from apps.app_info import get_full_build as _gbuild
-            _title_text = f"{App_name}  —  {_gbuild()}"
+            _title_text = f"{App_name} - {_gbuild()}"
         except ImportError:
             _title_text = App_name
         self.title_label = QLabel(_title_text)
