@@ -12569,3 +12569,19 @@ conclusively found despite extensive isolated testing.
   now structurally confirmed to share the same row as its diff
   buttons ("IMG archive (6)", "+5", "-1" all found in the same
   QHBoxLayout).
+
+- Sep 5 2026 (cont'd) - Asset Checker: made the diff buttons
+  genuinely compact, per Keith: "Maybe the compact style we have
+  been using for other tools, the numbers at the end shouldn't be
+  throwing the table below out. i need to see the code myself".
+  Reduced button padding/font size and capped their real width to
+  just what their own text needs (+10px), rather than the default,
+  larger button sizing that was forcing the header (and the whole
+  column) wider than its own list widget below, causing the visible
+  misalignment/truncation in Keith's own real screenshot ("IMG
+  archive (1'" cut off).
+
+  Verified directly against Keith's own real numbers (1146 entries,
+  +5/-1): total header row width now ~179px, comfortably inside the
+  220px column, with the full "IMG archive (1146)" label text intact
+  and un-truncated.

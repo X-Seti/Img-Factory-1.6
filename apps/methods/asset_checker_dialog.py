@@ -146,7 +146,7 @@ class AssetCheckerDialog(QDialog): #vers 3
         self.xref_table.customContextMenuRequested.connect(self._xref_context_menu)
         self.stack.addWidget(self.xref_table)
 
-    def _make_column(self, splitter, title, count, diffs=None): #vers 7
+    def _make_column(self, splitter, title, count, diffs=None): #vers 8
         """count is the base number shown in parentheses (Sep 5 2026,
         always the real IDE count for IMG/COL columns, per Keith's own
         confirmed design). diffs is a list of (label, tooltip,
@@ -190,7 +190,14 @@ class AssetCheckerDialog(QDialog): #vers 3
             diff_btn = QPushButton(label)
             diff_btn.setFlat(True)
             diff_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            diff_btn.setStyleSheet("text-decoration: underline;")
+            # Compact padding (Sep 5 2026, per Keith: "the numbers at
+            # the end shouldn't be throwing the table below out") -
+            # the label + buttons together were wider than the 220px
+            # column, forcing the header (and the whole column) wider
+            # than the list widget below it actually needed.
+            diff_btn.setStyleSheet(
+                "text-decoration: underline; padding: 0px 3px; font-size: 11px;")
+            diff_btn.setMaximumWidth(diff_btn.fontMetrics().horizontalAdvance(label) + 10)
             diff_btn.setToolTip(tooltip)
             if on_click:
                 diff_btn.clicked.connect(on_click)
