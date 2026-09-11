@@ -146,7 +146,7 @@ class AssetCheckerDialog(QDialog): #vers 3
         self.xref_table.customContextMenuRequested.connect(self._xref_context_menu)
         self.stack.addWidget(self.xref_table)
 
-    def _make_column(self, splitter, title, count, diffs=None): #vers 6
+    def _make_column(self, splitter, title, count, diffs=None): #vers 7
         """count is the base number shown in parentheses (Sep 5 2026,
         always the real IDE count for IMG/COL columns, per Keith's own
         confirmed design). diffs is a list of (label, tooltip,
@@ -158,23 +158,24 @@ class AssetCheckerDialog(QDialog): #vers 3
         follow-up: "now it says +5 -1? confused" - correct isn't the
         same as self-explanatory).
 
-        Label and diff buttons go on separate lines (Sep 5 2026, per
-        Keith's own real catch: "now the title bar is missing, and
-        those numbers are of settings other entries") - an earlier
-        attempt at this used QSizePolicy.Policy.Ignored on the label,
-        which doesn't just allow shrinking, it tells the layout to
-        disregard the label's size hint ENTIRELY, letting it collapse
-        to zero width and disappear rather than fixing the alignment.
-        Putting the label and the buttons on their own separate rows
-        means neither one ever competes with the other for horizontal
-        space in the first place, regardless of how narrow the column
-        gets."""
+        Label and diff buttons share one row (Sep 5 2026, per Keith
+        confirming he wants "Img Archive (1146) +5 -1" all on the
+        same line, after an earlier attempt moved them to separate
+        rows to fix a real bug where the label disappeared entirely).
+        That earlier bug was caused by QSizePolicy.Policy.Ignored on
+        the label, which doesn't just allow shrinking - it tells the
+        layout to disregard the label's size hint ENTIRELY. This
+        version leaves the label's size policy at its normal default
+        instead, relying on the column's own wider 220px minimum width
+        (already in place) to make room for both on one line without
+        that same mistake."""
         container = QWidget()
         container.setMinimumWidth(220)   # wider columns (Sep 5 2026,
                                           # per Keith: "the widths for
                                           # the columns can be wider")
         v = QVBoxLayout(container)
         v.setContentsMargins(2, 2, 2, 2)
+        header_row = QHBoxLayout()
         label_text = title if count is None else f"{title} ({count})"
         header_lbl = QLabel(label_text)
         # Lighter theme-aware header text (Sep 5 2026, per Keith: "use
@@ -183,21 +184,19 @@ class AssetCheckerDialog(QDialog): #vers 3
         bright = self.palette().color(self.palette().currentColorGroup(),
                                        self.palette().ColorRole.BrightText)
         header_lbl.setStyleSheet(f"color: {bright.name()}; font-weight: bold;")
-        v.addWidget(header_lbl)
-        if diffs:
-            diff_row = QHBoxLayout()
-            for label, tooltip, on_click in diffs:
-                from PyQt6.QtWidgets import QPushButton
-                diff_btn = QPushButton(label)
-                diff_btn.setFlat(True)
-                diff_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-                diff_btn.setStyleSheet("text-decoration: underline;")
-                diff_btn.setToolTip(tooltip)
-                if on_click:
-                    diff_btn.clicked.connect(on_click)
-                diff_row.addWidget(diff_btn)
-            diff_row.addStretch()
-            v.addLayout(diff_row)
+        header_row.addWidget(header_lbl)
+        for label, tooltip, on_click in (diffs or []):
+            from PyQt6.QtWidgets import QPushButton
+            diff_btn = QPushButton(label)
+            diff_btn.setFlat(True)
+            diff_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            diff_btn.setStyleSheet("text-decoration: underline;")
+            diff_btn.setToolTip(tooltip)
+            if on_click:
+                diff_btn.clicked.connect(on_click)
+            header_row.addWidget(diff_btn)
+        header_row.addStretch()
+        v.addLayout(header_row)
         lst = QListWidget()
         # Alternating row colours (Sep 5 2026, per Keith: "pattern the
         # entry list below") - same real pattern already used

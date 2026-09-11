@@ -12552,3 +12552,20 @@ conclusively found despite extensive isolated testing.
   220px. Verified all 3 directly: alternatingRowColors() true on
   every list in the view, container minimum width confirmed >=220,
   header stylesheet confirmed contains a real palette-derived color.
+
+- Sep 5 2026 (cont'd) - Asset Checker: reverted header label and diff
+  buttons to sharing one row, per Keith confirming: "can we have Img
+  Archive (1146) +5 -1 in the same column, both on the same row?".
+  The earlier separate-rows change was a real fix for a real bug
+  (the label disappearing due to a wrong size policy), but Keith
+  prefers the same-line layout he originally described. This version
+  puts them back on one row without repeating that mistake - the
+  label's size policy is left at its normal default, relying on the
+  column's own wider 220px minimum width (already in place from the
+  previous fix) to make room for both.
+
+  Verified directly: the header label still has a real, non-zero
+  size hint width (no repeat of the disappearing-label bug), and is
+  now structurally confirmed to share the same row as its diff
+  buttons ("IMG archive (6)", "+5", "-1" all found in the same
+  QHBoxLayout).
