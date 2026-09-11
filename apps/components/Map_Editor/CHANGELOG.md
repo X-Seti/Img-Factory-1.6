@@ -12295,3 +12295,41 @@ conclusively found despite extensive isolated testing.
   Verified against Keith's own exact real IDE line - output is
   literally "VCBk_lft_door2.txd (missing)", matching case and
   extension exactly as described.
+
+- Sep 5 2026 (cont'd) - MAJOR crash + silent data-loss fix in
+  col_workshop_parser.py's COLWriter, per Keith's own real crash
+  traceback: "'COLBox' object has no attribute 'min_point'" when
+  saving in COL Workshop.
+
+  Confirmed the real COLBox (the exact class both col_workshop.py and
+  this file import) uses .min/.max, typed as plain tuples - not
+  .min_point/.max_point, and not objects with their own .x/.y/.z.
+  Fixed both occurrences (write_model's own box-writing loop and
+  _write_col23_body) to use the real attribute name and real tuple
+  indexing.
+
+  Found 2 more real bugs in the same crashing function while fixing
+  it: write_model read model.version/model.name/model.model_id
+  directly, but COLModel has no such fields at all - only via
+  model.header.version/.name/.model_id. The parse path happens to
+  also copy these onto the model object as extra runtime attributes,
+  which is why some models worked and this only crashed for others -
+  but relying on that was fragile; now reads from model.header
+  directly, always present regardless of how the model was built.
+  Also found: 2 separate local "from apps.methods.col_workshop_
+  classes import COLVersion" imports (write_model and _write_col23_
+  body) silently shadowed the correct module-level COLVersion (from
+  Col_Editor.depends.col_workshop_classes) with a COMPLETELY
+  DIFFERENT, unrelated enum class - confirmed different object
+  identity and different values - meaning fourcc_map's own lookup
+  and the "ver == COLVersion.COL_2" check inside _write_col23_body
+  could never correctly match, silently forcing every real model's
+  fourcc/version handling onto the wrong path regardless of its real
+  version. Removed both wrong local imports.
+
+  Verified thoroughly with a real COLModel/COLHeader/COLBounds/COLBox
+  instance: write succeeds with no crash, the real fourcc (COL2) is
+  correctly chosen (previously would have silently defaulted
+  regardless), the real model name and model_id both show up
+  correctly in the output bytes (previously silently lost), and the
+  real box coordinates are correctly present.

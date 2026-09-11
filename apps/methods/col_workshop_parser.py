@@ -872,11 +872,10 @@ class COLWriter: #vers 1
     def write_model(cls, model) -> bytes:
         """Serialise one COLModel to bytes (header + payload)."""
         import struct
-        from apps.methods.col_workshop_classes import COLVersion
 
-        ver   = model.version
-        name  = getattr(model, 'name', '') or ''
-        mid   = getattr(model, 'model_id', 0)
+        ver   = model.header.version
+        name  = model.header.name or ''
+        mid   = model.header.model_id
 
         #    choose fourcc                                               
         fourcc_map = {
@@ -934,11 +933,11 @@ class COLWriter: #vers 1
 
         # Boxes: min(12) + max(12) + mat(1) + flag(1) + pad(2) = 28 bytes
         for box in boxes:
-            mn = box.min_point; mx = box.max_point
+            mn = box.min; mx = box.max
             mat_id = getattr(getattr(box, 'material', None), 'material_id', 0)
             flag   = getattr(getattr(box, 'material', None), 'flag', 0)
             buf += struct.pack('<ffffffBBH',
-                mn.x, mn.y, mn.z, mx.x, mx.y, mx.z, mat_id, flag, 0)
+                mn[0], mn[1], mn[2], mx[0], mx[1], mx[2], mat_id, flag, 0)
 
         # Vertex count (2) + face count (2)
         buf += struct.pack('<HH', len(verts), len(faces))
@@ -959,7 +958,6 @@ class COLWriter: #vers 1
     def _write_col23_body(cls, model, ver) -> bytes:
         """COL2/3 body after bounds: offset table + data sections."""
         import struct
-        from apps.methods.col_workshop_classes import COLVersion
 
         spheres = model.spheres  or []
         boxes   = model.boxes    or []
@@ -977,9 +975,9 @@ class COLWriter: #vers 1
 
         box_bytes = bytearray()
         for box in boxes:
-            mn = box.min_point; mx = box.max_point
+            mn = box.min; mx = box.max
             mat_id = getattr(getattr(box, 'material', None), 'material_id', 0)
-            box_bytes += struct.pack('<ffffff', mn.x, mn.y, mn.z, mx.x, mx.y, mx.z)
+            box_bytes += struct.pack('<ffffff', mn[0], mn[1], mn[2], mx[0], mx[1], mx[2])
             box_bytes += struct.pack('<BB', mat_id, 0)
             box_bytes += b'\x00\x00'
 
