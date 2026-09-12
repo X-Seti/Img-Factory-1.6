@@ -1,4 +1,11 @@
-#this belongs in root /ChangeLog.md - Version: 92
+#this belongs in root /ChangeLog.md - Version: 93
+
+## Sep 12 2026 - Backup system: real backup-before-write, tested in isolation, Build 396.90
+
+file_backup.py: backup_file/backup_files/list_backups/restore_
+backup. Timestamped .bak in .imgfactory_backups/, size-verified.
+Tested standalone before any write path uses it - Master IDE plan
+step 3, required before the ID slider/cascading step.
 
 ## Sep 12 2026 - Master IDE: 3 new checks, Build 395.90
 
