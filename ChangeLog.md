@@ -1,4 +1,10 @@
-#this belongs in root /ChangeLog.md - Version: 88
+#this belongs in root /ChangeLog.md - Version: 89
+
+## Sep 12 2026 - Asset Checker: fix window-stretching file list, Build 392.90
+
+Checked-files label was one giant comma string for whole-game
+checks, stretching window off-screen. Now a short summary + "Show
+list" button + auto 5s-close popup, one file per line.
 
 ## Sep 12 2026 - Asset Checker: project Continue/Browse prompt, Build 391.90
 
