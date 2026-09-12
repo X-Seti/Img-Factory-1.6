@@ -1,4 +1,4 @@
-#this belongs in apps/methods/asset_checker_dialog.py - Version: 5
+#this belongs in apps/methods/asset_checker_dialog.py - Version: 6
 
 ##Methods list -
 # AssetCheckerDialog
@@ -6,6 +6,8 @@
 # show_asset_checker_from_dat
 # _present_asset_check_result
 # _register_asset_checker_taskbar
+# _all_checked_names
+# _show_checked_files_popup
 # _on_master_ide
 
 """asset_checker_dialog.py - the real UI for asset_checker.py's own
@@ -23,8 +25,8 @@ from PyQt6.QtGui import QColor
 from apps.methods.asset_checker import check_assets, find_sibling_asset_files, find_game_asset_files
 
 
-class AssetCheckerDialog(QDialog): #vers 4
-    def __init__(self, parent, result): #vers 3
+class AssetCheckerDialog(QDialog): #vers 5
+    def __init__(self, parent, result): #vers 4
         super().__init__(parent)
         self.result = result
         self.setWindowTitle("Asset Checker")
@@ -33,25 +35,67 @@ class AssetCheckerDialog(QDialog): #vers 4
         self._populate_columns_view()
         self._populate_merged_view()
         self._populate_cross_reference_view()
+        all_checked = self._all_checked_names()
+        if len(all_checked) > 3:
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(200, lambda: self._show_checked_files_popup(all_checked))
 
-    def _build_ui(self): #vers 1
-        lay = QVBoxLayout(self)
-
-        top_row = QHBoxLayout()
+    def _all_checked_names(self): #vers 1
+        """Every real checked filename, one per file (Sep 12 2026 -
+        a long comma-joined "Checked: ..." string in one label was
+        stretching the window off-screen for whole-game checks with
+        many IDE files)."""
         names = []
         if self.result.img_path:
             names.append(os.path.basename(self.result.img_path))
         if self.result.col_path:
-            # col_path is either one real full path (basename it, same
-            # as img/ide) or an already-basename-joined string for the
-            # merged multi-file case (Sep 5 2026, SOL gta3 split COL) -
-            # only basename() the single-path case.
-            col_display = (self.result.col_path if "," in self.result.col_path
-                            else os.path.basename(self.result.col_path))
-            names.append(col_display)
+            # col_path is either one real full path or an already
+            # basename-joined string for the merged multi-file case
+            # (SOL gta3 split COL / whole-game check).
+            if "," in self.result.col_path:
+                names.extend(n.strip() for n in self.result.col_path.split(","))
+            else:
+                names.append(os.path.basename(self.result.col_path))
         if self.result.ide_path:
-            names.append(os.path.basename(self.result.ide_path))
-        top_row.addWidget(QLabel("Checked: " + ", ".join(names) if names else "No sibling files found"))
+            names.extend(n.strip() for n in self.result.ide_path.split(","))
+        return names
+
+    def _show_checked_files_popup(self, names): #vers 1
+        """Small non-modal popup listing every checked file, one per
+        line, auto-closing after 5 seconds (Sep 12 2026, per Keith:
+        "a timed popup window listing those line by line, then 5
+        seconds close")."""
+        from PyQt6.QtCore import QTimer
+        popup = QDialog(self)
+        popup.setWindowTitle(f"Checked files ({len(names)})")
+        v = QVBoxLayout(popup)
+        lst = QListWidget()
+        lst.addItems(names)
+        v.addWidget(lst)
+        popup.resize(360, 400)
+        popup.setModal(False)
+        popup.show()
+        QTimer.singleShot(5000, popup.close)
+
+    def _build_ui(self): #vers 2
+        lay = QVBoxLayout(self)
+
+        top_row = QHBoxLayout()
+        all_checked = self._all_checked_names()
+        if not all_checked:
+            summary = "No sibling files found"
+        elif len(all_checked) <= 3:
+            summary = "Checked: " + ", ".join(all_checked)
+        else:
+            summary = (f"Checked: {', '.join(all_checked[:2])} "
+                       f"+{len(all_checked) - 2} more")
+        top_row.addWidget(QLabel(summary))
+        if len(all_checked) > 3:
+            from PyQt6.QtWidgets import QPushButton
+            show_files_btn = QPushButton("Show list")
+            show_files_btn.clicked.connect(
+                lambda: self._show_checked_files_popup(all_checked))
+            top_row.addWidget(show_files_btn)
         top_row.addStretch()
         top_row.addWidget(QLabel("View:"))
         self.view_combo = QComboBox()
