@@ -1,4 +1,11 @@
-#this belongs in root /ChangeLog.md - Version: 103
+#this belongs in root /ChangeLog.md - Version: 104
+
+## Sep 12 2026 - ID Shift dialog: editable Engine ID Ceiling, Build 407.90
+
+New editable "Engine ID ceiling" field, defaults from this app's
+own ID_RANGES (not asserted authoritative - real limits vary per
+engine/patch). "To highest loaded ID" and "To engine ceiling" are
+now separate buttons - loaded-max vs the editable engine limit.
 
 ## Sep 12 2026 - ID Shift dialog: To highest ID button, Build 406.90
 
