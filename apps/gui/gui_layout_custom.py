@@ -1,4 +1,4 @@
-#belongs in gui/gui_layout_custom.py - Version 17
+#belongs in gui/gui_layout_custom.py - Version 18
 # X-Seti - February04 2026 - Img Factory 1.6 - Custom UI Module
 
 from PyQt6.QtWidgets import (
@@ -235,6 +235,9 @@ def _show_intro_panel(mw): #vers 5
                     ws.open_hex_workshop.connect(
                         lambda: mw.open_hex_workshop_docked()
                         if hasattr(mw, 'open_hex_workshop_docked') else None)
+                    ws.open_asset_checker.connect(
+                        lambda: mw.open_asset_checker()
+                        if hasattr(mw, 'open_asset_checker') else None)
                 except Exception:
                     pass
             from PyQt6.QtCore import QTimer

@@ -1,4 +1,4 @@
-# apps/components/Img_Factory/welcome_screen.py — Version 19
+# apps/components/Img_Factory/welcome_screen.py — Version 20
 # X-Seti - 25Apr2026 - IMG Factory 1.6 - Welcome / Intro screen
 """Welcome / Intro screen shown on startup.
 Full documentation of all IMG Factory features and workflows.
@@ -175,6 +175,7 @@ class WelcomeScreen(QWidget):
     open_vehicle_workshop  = pyqtSignal()
     open_scm_workshop      = pyqtSignal()
     open_hex_workshop      = pyqtSignal()
+    open_asset_checker     = pyqtSignal()
 
     def __init__(self, main_window=None, parent=None):
         super().__init__(parent)
@@ -455,6 +456,10 @@ class WelcomeScreen(QWidget):
              "Preview vehicle DFFs with steering, wheels and door animation. "
              "VC/SA dummy detection, frame hierarchy tree.",
              self.open_vehicle_workshop),
+            (_SVG.asset_checker_icon(36, _ic), "Asset Checker",
+             "Cross-reference model names across an IMG archive, a COL file "
+             "and an IDE file sharing the same base name.",
+             self.open_asset_checker),
         ]
         for i, (ico, ttl, dsc, sig) in enumerate(eds):
             c = WelcomeCard(ico, ttl, dsc); c.clicked.connect(sig.emit)
