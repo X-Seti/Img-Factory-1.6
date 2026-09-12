@@ -1,4 +1,4 @@
-#this belongs in apps/methods/master_ide_dialog.py - Version: 7
+#this belongs in apps/methods/master_ide_dialog.py - Version: 8
 
 ##Methods list -
 # MasterIDEDialog
@@ -22,7 +22,7 @@ from apps.methods.master_ide_edit import rename_entry, add_entry, remove_entry, 
 from apps.methods.file_backup import backup_file
 
 
-class MasterIDEDialog(QDialog): #vers 6
+class MasterIDEDialog(QDialog): #vers 7
     def __init__(self, parent, result, source_paths, game=None): #vers 2
         super().__init__(parent)
         self.result = result
@@ -332,25 +332,45 @@ class MasterIDEDialog(QDialog): #vers 6
         self._refresh_top()
         self._populate()
 
-    def _on_table_context_menu(self, pos): #vers 1
+    def _on_table_context_menu(self, pos): #vers 2
+        """Rename/Remove now operate on the real full selection, not
+        just the row under the cursor (Sep 12 2026, per Keith:
+        "rename and remove single, selected (shift) clicked lines").
+        Right-clicking a row outside the current selection replaces
+        the selection with just that row, matching ordinary list/
+        table conventions. Rename only ever applies to exactly one
+        selected row (renaming several entries to the same name at
+        once isn't a real operation); Remove applies to every
+        selected objs/tobj row."""
         row = self.table.rowAt(pos.y())
         if row < 0:
             return
-        section = self.table.item(row, 0).text()
-        model_id = int(self.table.item(row, 1).text())
-        source_ide = self.table.item(row, 4).text()
+        selected_rows = sorted({idx.row() for idx in self.table.selectionModel().selectedRows()})
+        if row not in selected_rows:
+            self.table.selectRow(row)
+            selected_rows = [row]
+
+        targets = []
+        for r in selected_rows:
+            section = self.table.item(r, 0).text()
+            model_id = int(self.table.item(r, 1).text())
+            source_ide = self.table.item(r, 4).text()
+            targets.append((section, model_id, source_ide))
+        editable = [t for t in targets if t[0] in ("objs", "tobj")]
+
         from PyQt6.QtWidgets import QMenu
         menu = QMenu(self)
         rename_act = menu.addAction("Rename...")
-        remove_act = menu.addAction("Remove")
-        if section not in ("objs", "tobj"):
-            rename_act.setEnabled(False)
-            remove_act.setEnabled(False)
+        rename_act.setEnabled(len(editable) == 1)
+        remove_label = "Remove" if len(editable) <= 1 else f"Remove ({len(editable)})"
+        remove_act = menu.addAction(remove_label)
+        remove_act.setEnabled(len(editable) >= 1)
         action = menu.exec(self.table.viewport().mapToGlobal(pos))
         if action == rename_act:
+            _, model_id, source_ide = editable[0]
             self._on_rename_row(model_id, source_ide)
         elif action == remove_act:
-            self._on_remove_row(model_id, source_ide)
+            self._on_remove_rows(editable)
 
     def _on_rename_row(self, model_id, source_ide): #vers 1
         from PyQt6.QtWidgets import QInputDialog
@@ -368,23 +388,41 @@ class MasterIDEDialog(QDialog): #vers 6
             return
         self._reload_after_edit()
 
-    def _on_remove_row(self, model_id, source_ide): #vers 1
-        source_path = self._resolve_source_path(source_ide)
+    def _on_remove_rows(self, targets): #vers 1
+        """Remove every given (section, model_id, source_ide) target
+        - one confirmation for the whole batch, one write per real
+        touched file (not per entry)."""
+        if not targets:
+            return
+        if len(targets) == 1:
+            _, model_id, source_ide = targets[0]
+            prompt = f"Remove ID {model_id} from {os.path.basename(self._resolve_source_path(source_ide))}?"
+        else:
+            prompt = f"Remove {len(targets)} selected entries?"
         reply = QMessageBox.question(
-            self, "Remove Entry",
-            f"Remove ID {model_id} from {os.path.basename(source_path)}? "
-            f"A backup is made before writing.",
+            self, "Remove Entries", f"{prompt} A backup is made before writing each file.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         if reply != QMessageBox.StandardButton.Yes:
             return
-        err = remove_entry(self.result, model_id, source_path)
-        if err:
-            QMessageBox.warning(self, "Remove Failed", err)
-            return
-        if not write_source_file(self.result, source_path):
-            QMessageBox.warning(self, "Remove Failed",
-                f"Removed in memory but could not write:\n{source_path}")
-            return
+
+        failures = []
+        touched_paths = set()
+        for _section, model_id, source_ide in targets:
+            source_path = self._resolve_source_path(source_ide)
+            err = remove_entry(self.result, model_id, source_path)
+            if err:
+                failures.append(f"ID {model_id}: {err}")
+            else:
+                touched_paths.add(source_path)
+
+        write_failures = [p for p in touched_paths if not write_source_file(self.result, p)]
+        if failures or write_failures:
+            msg = []
+            if failures:
+                msg.append("Failed to remove: " + "; ".join(failures))
+            if write_failures:
+                msg.append("Failed to write: " + ", ".join(os.path.basename(p) for p in write_failures))
+            QMessageBox.warning(self, "Remove Failed", "\n".join(msg))
         self._reload_after_edit()
 
     def _on_add_entry(self): #vers 1
