@@ -1,4 +1,18 @@
-#this belongs in root /ChangeLog.md - Version: 105
+#this belongs in root /ChangeLog.md - Version: 106
+
+## Sep 12 2026 - Master IDE: standalone dockable workshop, Build 409.90
+
+Converted from QDialog to MasterIDEWorkshop(QWidget) in its own
+apps/components/Master_Ide/ folder - same dual-mode pattern as
+every other workshop (tab-embedded or standalone window, taskbar
+registered). Button row now inside a real DockableToolbar (own
+copy, float/collapse/drag/dock).
+
+New ignore_base_files option (checkbox, on by default): skips
+default.ide/gta3.ide (matched by basename regardless of folder)
+when loading from a .dat, so ID counting/reassignment starts from
+the first real world (generic) IDE file. All call sites updated;
+old master_ide_dialog.py removed.
 
 ## Sep 12 2026 - Master IDE: status bar with IDs used/free, Build 408.90
 
