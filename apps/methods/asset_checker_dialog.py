@@ -1,9 +1,10 @@
-#this belongs in apps/methods/asset_checker_dialog.py - Version: 3
+#this belongs in apps/methods/asset_checker_dialog.py - Version: 4
 
 ##Methods list -
 # AssetCheckerDialog
 # show_asset_checker
 # _register_asset_checker_taskbar
+# _on_master_ide
 
 """asset_checker_dialog.py - the real UI for asset_checker.py's own
 cross-referencing"""
@@ -19,7 +20,7 @@ from PyQt6.QtGui import QColor
 from apps.methods.asset_checker import check_assets, find_sibling_asset_files
 
 
-class AssetCheckerDialog(QDialog): #vers 3
+class AssetCheckerDialog(QDialog): #vers 4
     def __init__(self, parent, result): #vers 3
         super().__init__(parent)
         self.result = result
@@ -54,6 +55,11 @@ class AssetCheckerDialog(QDialog): #vers 3
         self.view_combo.addItems(["4-Column View", "Merged View", "Cross-Reference Table"])
         self.view_combo.currentIndexChanged.connect(self._on_view_changed)
         top_row.addWidget(self.view_combo)
+        if self.result.ide_path:
+            from PyQt6.QtWidgets import QPushButton
+            master_ide_btn = QPushButton("Master IDE...")
+            master_ide_btn.clicked.connect(self._on_master_ide)
+            top_row.addWidget(master_ide_btn)
         lay.addLayout(top_row)
 
         self.stack = QStackedWidget()
@@ -207,6 +213,11 @@ class AssetCheckerDialog(QDialog): #vers 3
 
     def _on_view_changed(self, index): #vers 1
         self.stack.setCurrentIndex(index)
+
+    def _on_master_ide(self): #vers 1
+        """Open Master IDE for this same real IDE file."""
+        from apps.methods.master_ide_dialog import show_master_ide
+        show_master_ide(self.parent(), self.result.ide_path)
 
     def _populate_columns_view(self): #vers 4
         r = self.result

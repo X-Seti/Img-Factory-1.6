@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in components/Dat_Browser/dat_browser.py - Version: 4
+#this belongs in components/Dat_Browser/dat_browser.py - Version: 5
 # X-Seti - March 2026 - IMG Factory 1.6 - GTA DAT/IDE/IPL Browser
 """
 DAT Browser — viewer panel for the GTA world data load chain.
@@ -2456,6 +2456,27 @@ class DATBrowserWidget(QWidget): #vers 3
             if mw and hasattr(mw, 'log_message'):
                 mw.log_message(f"Asset Checker error: {e}")
 
+    def _show_master_ide(self, ide_path: str): #vers 1
+        """Merge a single real IDE file (Master IDE view)."""
+        mw = self.main_window
+        try:
+            from apps.methods.master_ide_dialog import show_master_ide
+            game = getattr(getattr(self, 'loader', None), 'game', None)
+            show_master_ide(mw, ide_path, game=game)
+        except Exception as e:
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(f"Master IDE error: {e}")
+
+    def _show_master_ide_from_dat(self, dat_path: str): #vers 1
+        """Resolve and merge every real IDE a game's .dat loads."""
+        mw = self.main_window
+        try:
+            from apps.methods.master_ide_dialog import show_master_ide_from_dat
+            show_master_ide_from_dat(mw, dat_path)
+        except Exception as e:
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(f"Master IDE error: {e}")
+
     def _open_single_img_in_factory(self, abs_path: str): #vers 1
         """Open one specific IMG file in a new IMG Factory tab."""
         mw = self.main_window
@@ -3848,6 +3869,12 @@ class DATBrowserWidget(QWidget): #vers 3
             else:
                 load_map_act.setEnabled(False)
                 load_map_preload_act.setEnabled(False)
+            master_ide_act = menu.addAction("Master IDE...")
+            if dat_abs_path and os.path.isfile(dat_abs_path):
+                master_ide_act.triggered.connect(
+                    lambda _=False, p=dat_abs_path: self._show_master_ide_from_dat(p))
+            else:
+                master_ide_act.setEnabled(False)
             menu.addSeparator()
 
         #    IMG / CDIMAGE specific options                                
@@ -3936,6 +3963,9 @@ class DATBrowserWidget(QWidget): #vers 3
                 asset_act.setIcon(get_asset_checker_icon(16))
                 asset_act.triggered.connect(
                     lambda _=False, p=abs_path: self._show_asset_checker(p))
+                master_ide_act = menu.addAction("Master IDE...")
+                master_ide_act.triggered.connect(
+                    lambda _=False, p=abs_path: self._show_master_ide(p))
                 menu.addSeparator()
             elif ext == ".ipl":
                 menu.addAction(f"📋  Filter Instances to  {bname}").triggered.connect(

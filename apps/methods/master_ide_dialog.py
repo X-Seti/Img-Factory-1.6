@@ -1,8 +1,9 @@
-#this belongs in apps/methods/master_ide_dialog.py - Version: 1
+#this belongs in apps/methods/master_ide_dialog.py - Version: 2
 
 ##Methods list -
 # MasterIDEDialog
 # show_master_ide
+# show_master_ide_from_dat
 
 """master_ide_dialog.py - the real UI for master_ide.py's own step-1 merge (Sep 5 2026)"""
 
@@ -13,39 +14,30 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 
-from apps.methods.master_ide import load_master_ide, write_master_ide
+from apps.methods.master_ide import (
+    load_master_ide, write_master_ide, collect_ide_paths_from_dat)
 
 
-class MasterIDEDialog(QDialog): #vers 1
-    def __init__(self, parent, result, source_paths): #vers 1
+class MasterIDEDialog(QDialog): #vers 2
+    def __init__(self, parent, result, source_paths, game=None): #vers 2
         super().__init__(parent)
         self.result = result
         self.source_paths = source_paths
+        self.game = game
         self.setWindowTitle("Master IDE")
         self.resize(820, 560)
         self._build_ui()
+        self._refresh_top()
         self._populate()
 
-    def _build_ui(self): #vers 1
-        lay = QVBoxLayout(self)
+    def _build_ui(self): #vers 2
+        self._lay = QVBoxLayout(self)
+        lay = self._lay
 
-        top = QHBoxLayout()
-        names = ", ".join(os.path.basename(p) for p in self.result.source_files)
-        top.addWidget(QLabel(f"Merged: {names} ({self.result.total_objects} object(s))"))
-        top.addStretch()
-        lay.addLayout(top)
-
-        if self.result.collisions:
-            warn = QLabel(
-                f"WARNING: {len(self.result.collisions)} real ID collision(s) found - "
-                f"see highlighted rows below. Resolve these before using this as a real "
-                f"combined file.")
-            warn.setStyleSheet("font-weight: bold;")
-            lay.addWidget(warn)
-
-        if self.result.errors:
-            for err in self.result.errors:
-                lay.addWidget(QLabel(f"Error: {err}"))
+        self._top = QHBoxLayout()
+        lay.addLayout(self._top)
+        self._warn_lbl = None
+        self._error_lbls = []
 
         self.table = QTableWidget()
         self.table.setColumnCount(5)
@@ -55,6 +47,9 @@ class MasterIDEDialog(QDialog): #vers 1
         lay.addWidget(self.table, 1)
 
         btn_row = QHBoxLayout()
+        load_dat_btn = QPushButton("Load from .dat...")
+        load_dat_btn.clicked.connect(self._on_load_from_dat)
+        btn_row.addWidget(load_dat_btn)
         save_btn = QPushButton("Save as Master IDE...")
         save_btn.clicked.connect(self._on_save)
         btn_row.addWidget(save_btn)
@@ -63,6 +58,50 @@ class MasterIDEDialog(QDialog): #vers 1
         close_btn.clicked.connect(self.accept)
         btn_row.addWidget(close_btn)
         lay.addLayout(btn_row)
+
+    def _refresh_top(self): #vers 1
+        """Rebuild the header info/warning/error labels - called on\n        init and again after a Load from .dat swaps self.result."""
+        while self._top.count():
+            item = self._top.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        names = ", ".join(os.path.basename(p) for p in self.result.source_files)
+        self._top.addWidget(QLabel(f"Merged: {names} ({self.result.total_objects} object(s))"))
+        self._top.addStretch()
+
+        for lbl in getattr(self, '_extra_lbls', []):
+            self._lay.removeWidget(lbl)
+            lbl.deleteLater()
+        self._extra_lbls = []
+        if self.result.collisions:
+            warn = QLabel(
+                f"WARNING: {len(self.result.collisions)} real ID collision(s) found - "
+                f"see highlighted rows below. Resolve these before using this as a real "
+                f"combined file.")
+            warn.setStyleSheet("font-weight: bold;")
+            self._lay.insertWidget(1, warn)
+            self._extra_lbls.append(warn)
+        for err in self.result.errors:
+            lbl = QLabel(f"Error: {err}")
+            self._lay.insertWidget(1, lbl)
+            self._extra_lbls.append(lbl)
+
+    def _on_load_from_dat(self): #vers 1
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Select GTA .dat file", "",
+            "GTA DAT files (gta3.dat gta_vc.dat gta.dat gta_sol.dat gtasol.dat);;All files (*.dat)")
+        if not path:
+            return
+        ide_paths, game = collect_ide_paths_from_dat(path)
+        if not ide_paths:
+            QMessageBox.warning(self, "Master IDE",
+                f"No IDE files found from:\n{path}")
+            return
+        self.result = load_master_ide(ide_paths, game=game)
+        self.source_paths = ide_paths
+        self.game = game
+        self._refresh_top()
+        self._populate()
 
     def _populate(self): #vers 1
         base = self.palette().color(self.palette().currentColorGroup(),
@@ -109,11 +148,22 @@ class MasterIDEDialog(QDialog): #vers 1
             QMessageBox.warning(self, "Save Failed", "Could not write the master IDE file.")
 
 
-def show_master_ide(main_window, ide_paths, game: str = None): #vers 1
+def show_master_ide(main_window, ide_paths, game: str = None): #vers 2
     """Entry point - loads and merges the given real .ide files and
     shows the result. ide_paths can be a single path or a list."""
     if isinstance(ide_paths, str):
         ide_paths = [ide_paths]
     result = load_master_ide(ide_paths, game=game)
-    dlg = MasterIDEDialog(main_window, result, ide_paths)
+    dlg = MasterIDEDialog(main_window, result, ide_paths, game=game)
     dlg.exec()
+
+
+def show_master_ide_from_dat(main_window, dat_path: str): #vers 1
+    """Entry point - resolves every real IDE a game's .dat loads
+    (default.dat + main dat), merges, and shows the result."""
+    ide_paths, game = collect_ide_paths_from_dat(dat_path)
+    if not ide_paths:
+        QMessageBox.warning(main_window, "Master IDE",
+            f"No IDE files found from:\n{dat_path}")
+        return
+    show_master_ide(main_window, ide_paths, game=game)

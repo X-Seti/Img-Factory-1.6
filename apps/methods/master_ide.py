@@ -2,6 +2,7 @@
 
 ##Methods list -
 # MasterIDEResult
+# collect_ide_paths_from_dat
 # load_master_ide
 # write_master_ide
 
@@ -28,6 +29,35 @@ class MasterIDEResult: #vers 1
     @property
     def total_objects(self): #vers 1
         return sum(len(v) for v in self.objects_by_section.values())
+
+
+def collect_ide_paths_from_dat(dat_path: str, game_root: str = None): #vers 1
+    """Resolve every real IDE file a game's .dat actually loads (Sep
+    2026, per Keith: "load them all from /data/gta*.dat or /sol/
+    gta*.dat and combine"). Reuses GTAWorldLoader's own real 2-phase
+    load (default.dat/special.dat, then the main dat) instead of
+    duplicating that logic - just pulls the resolved IDE paths back
+    out afterwards. Returns (ide_paths, game)."""
+    from apps.methods.gta_dat_parser import (
+        detect_game_from_dat_filename, GTAWorldLoader)
+
+    game = detect_game_from_dat_filename(dat_path)
+    if not game:
+        return [], None
+    if not game_root:
+        game_root = os.path.normpath(os.path.join(os.path.dirname(dat_path), ".."))
+
+    loader = GTAWorldLoader(game)
+    loader.lazy_ipl_loading = True
+    loader.load_from_dat(dat_path, game_root)
+
+    paths, seen = [], set()
+    for dat in (loader.default_dat, loader.main_dat):
+        for entry in dat.ide_entries():
+            if entry.exists and entry.abs_path not in seen:
+                seen.add(entry.abs_path)
+                paths.append(entry.abs_path)
+    return paths, game
 
 
 def load_master_ide(ide_paths: List[str], game: str = None) -> MasterIDEResult: #vers 1

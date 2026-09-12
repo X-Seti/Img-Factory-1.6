@@ -1,4 +1,4 @@
-#this belongs in apps/components/File_Editor/directory_tree_browser.py - Version: 2
+#this belongs in apps/components/File_Editor/directory_tree_browser.py - Version: 3
 # X-Seti - January10 2026 - IMG Factory 1.6 - Complete Directory Tree Browser
 """
 COMPLETE DIRECTORY TREE BROWSER
@@ -1464,6 +1464,15 @@ class DirectoryTreeBrowser(QWidget):
                     asset_action.triggered.connect(
                         lambda _=False, p=file_path: self._show_asset_checker(p))
                     menu.addAction(asset_action)
+                    master_ide_action = QAction("Master IDE...", self)
+                    master_ide_action.triggered.connect(
+                        lambda _=False, p=file_path: self._show_master_ide(p))
+                    menu.addAction(master_ide_action)
+                elif file_ext == '.dat':
+                    master_ide_dat_action = QAction("Master IDE...", self)
+                    master_ide_dat_action.triggered.connect(
+                        lambda _=False, p=file_path: self._show_master_ide_from_dat(p))
+                    menu.addAction(master_ide_dat_action)
 
             menu.addSeparator()
         copy_action = QAction("Copy", self)
@@ -1863,6 +1872,26 @@ class DirectoryTreeBrowser(QWidget):
         except Exception as e:
             if mw and hasattr(mw, 'log_message'):
                 mw.log_message(f"Asset Checker error: {e}")
+
+    def _show_master_ide(self, file_path: str): #vers 1
+        """Merge a single real IDE file (Master IDE view)."""
+        mw = self.main_window
+        try:
+            from apps.methods.master_ide_dialog import show_master_ide
+            show_master_ide(mw, file_path)
+        except Exception as e:
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(f"Master IDE error: {e}")
+
+    def _show_master_ide_from_dat(self, file_path: str): #vers 1
+        """Resolve and merge every real IDE a game's .dat loads."""
+        mw = self.main_window
+        try:
+            from apps.methods.master_ide_dialog import show_master_ide_from_dat
+            show_master_ide_from_dat(mw, file_path)
+        except Exception as e:
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(f"Master IDE error: {e}")
 
     def _open_smart_editor(self, file_path: str): #vers 1
         """Route file to specialist editor based on filename."""
