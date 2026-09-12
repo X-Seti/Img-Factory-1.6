@@ -1,4 +1,11 @@
-#this belongs in root /ChangeLog.md - Version: 98
+#this belongs in root /ChangeLog.md - Version: 99
+
+## Sep 12 2026 - Master IDE: ID Shift dialog (slider-equivalent UI), Build 402.90
+
+id_shift_dialog.py: Start/End ID + offset, Preview shows moved
+count or full conflict list, optional IPL cascade file list. Apply
+writes touched IDE file(s) + cascades IPL, reports results. Wired
+as a button in Master IDE. Verified end-to-end against real data.
 
 ## Sep 12 2026 - Master IDE: txdp false-collision fix + SOL file-range check, Build 401.90
 
