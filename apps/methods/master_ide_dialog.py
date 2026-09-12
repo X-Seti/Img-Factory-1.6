@@ -1,4 +1,4 @@
-#this belongs in apps/methods/master_ide_dialog.py - Version: 8
+#this belongs in apps/methods/master_ide_dialog.py - Version: 9
 
 ##Methods list -
 # MasterIDEDialog
@@ -22,7 +22,7 @@ from apps.methods.master_ide_edit import rename_entry, add_entry, remove_entry, 
 from apps.methods.file_backup import backup_file
 
 
-class MasterIDEDialog(QDialog): #vers 7
+class MasterIDEDialog(QDialog): #vers 8
     def __init__(self, parent, result, source_paths, game=None): #vers 2
         super().__init__(parent)
         self.result = result
@@ -44,8 +44,8 @@ class MasterIDEDialog(QDialog): #vers 7
         self._error_lbls = []
 
         self.table = QTableWidget()
-        self.table.setColumnCount(5)
-        self.table.setHorizontalHeaderLabels(["Section", "ID", "Model", "TXD", "Source IDE"])
+        self.table.setColumnCount(4)
+        self.table.setHorizontalHeaderLabels(["ID", "Model", "TXD", "Source IDE"])
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.horizontalHeader().setStretchLastSection(True)
@@ -277,7 +277,7 @@ class MasterIDEDialog(QDialog): #vers 7
             return
         self._reload_after_edit()
 
-    def _populate(self): #vers 2
+    def _populate(self): #vers 3
         base = self.palette().color(self.palette().currentColorGroup(),
                                      self.palette().ColorRole.Base)
         from PyQt6.QtGui import QColor
@@ -289,30 +289,52 @@ class MasterIDEDialog(QDialog): #vers 7
         flagged_ids |= {o.model_id for o in self.result.out_of_range}
         flagged_ids |= {v.model_id for v in self.result.file_range_violations}
 
-        rows = []
-        for section, objs in self.result.objects_by_section.items():
-            # 2dfx (and every section pooled as raw_section_lines
-            # instead of parsed IDEObjects) never gets its own table
-            # row - it has no real model name of its own, only an ID
-            # shared with its base object, so showing it here is
-            # noise at best and the corrupted-looking synthetic
-            # "2dfx_<id>" name at worst (Sep 12 2026, per Keith: "2dfx
-            # should not be shown in the dialogue window").
-            if section in self.result.raw_section_lines:
+        rows = []   # each entry: ('entry', model_id, model_name, txd_name, source_ide) or ('header'|'end'|'blank', section)
+        for section in ("objs", "tobj"):
+            objs = self.result.objects_by_section.get(section)
+            if not objs:
                 continue
+            if rows:
+                rows.append(("blank", None))
+            rows.append(("header", section))
             for obj in objs:
-                rows.append((section, obj.model_id, obj.model_name,
-                             obj.txd_name, os.path.basename(obj.source_ide)))
+                rows.append(("entry", obj.model_id, obj.model_name, obj.txd_name,
+                             os.path.basename(obj.source_ide)))
+            rows.append(("end", section))
 
         self.table.setRowCount(len(rows))
-        for row, (section, model_id, model_name, txd_name, source_ide) in enumerate(rows):
-            has_flag = model_id in flagged_ids
-            for col, val in enumerate([section, str(model_id), model_name, txd_name, source_ide]):
-                item = QTableWidgetItem(val)
-                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                if has_flag:
-                    item.setBackground(collision_tint)
-                self.table.setItem(row, col, item)
+        header_bg = self.palette().color(self.palette().currentColorGroup(),
+                                          self.palette().ColorRole.Mid)
+        for row, entry in enumerate(rows):
+            kind = entry[0]
+            if kind in ("header", "end"):
+                text = entry[1] if kind == "header" else "end"
+                item = QTableWidgetItem(text)
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable & ~Qt.ItemFlag.ItemIsSelectable)
+                font = item.font()
+                font.setBold(True)
+                item.setFont(font)
+                item.setBackground(header_bg)
+                self.table.setItem(row, 0, item)
+                self.table.setSpan(row, 0, 1, 4)
+                item.setData(Qt.ItemDataRole.UserRole, "marker")
+            elif kind == "blank":
+                item = QTableWidgetItem("")
+                item.setFlags(Qt.ItemFlag.NoItemFlags)
+                self.table.setItem(row, 0, item)
+                self.table.setSpan(row, 0, 1, 4)
+                item.setData(Qt.ItemDataRole.UserRole, "marker")
+            else:
+                _kind, model_id, model_name, txd_name, source_ide = entry
+                has_flag = model_id in flagged_ids
+                for col, val in enumerate([str(model_id), model_name, txd_name, source_ide]):
+                    item = QTableWidgetItem(val)
+                    item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                    if has_flag:
+                        item.setBackground(collision_tint)
+                    if col == 0:
+                        item.setData(Qt.ItemDataRole.UserRole, "entry")
+                    self.table.setItem(row, col, item)
 
     def _resolve_source_path(self, basename_or_path): #vers 1
         """Resolve a real full source path from result.source_files
@@ -332,18 +354,20 @@ class MasterIDEDialog(QDialog): #vers 7
         self._refresh_top()
         self._populate()
 
-    def _on_table_context_menu(self, pos): #vers 2
-        """Rename/Remove now operate on the real full selection, not
-        just the row under the cursor (Sep 12 2026, per Keith:
-        "rename and remove single, selected (shift) clicked lines").
+    def _on_table_context_menu(self, pos): #vers 3
+        """Rename/Remove operate on the real full selection (Sep 12
+        2026, per Keith). Marker rows (section header/end/blank
+        spacer, from the file-shaped layout) are never real entries -
+        skipped entirely rather than treated as selectable targets.
         Right-clicking a row outside the current selection replaces
-        the selection with just that row, matching ordinary list/
-        table conventions. Rename only ever applies to exactly one
-        selected row (renaming several entries to the same name at
-        once isn't a real operation); Remove applies to every
-        selected objs/tobj row."""
+        the selection with just that row. Rename only ever applies
+        to exactly one selected row; Remove applies to every
+        selected real entry row."""
         row = self.table.rowAt(pos.y())
         if row < 0:
+            return
+        id_item = self.table.item(row, 0)
+        if id_item is None or id_item.data(Qt.ItemDataRole.UserRole) != "entry":
             return
         selected_rows = sorted({idx.row() for idx in self.table.selectionModel().selectedRows()})
         if row not in selected_rows:
@@ -352,25 +376,27 @@ class MasterIDEDialog(QDialog): #vers 7
 
         targets = []
         for r in selected_rows:
-            section = self.table.item(r, 0).text()
-            model_id = int(self.table.item(r, 1).text())
-            source_ide = self.table.item(r, 4).text()
-            targets.append((section, model_id, source_ide))
-        editable = [t for t in targets if t[0] in ("objs", "tobj")]
+            item0 = self.table.item(r, 0)
+            if item0 is None or item0.data(Qt.ItemDataRole.UserRole) != "entry":
+                continue
+            model_id = int(item0.text())
+            source_ide = self.table.item(r, 3).text()
+            targets.append((model_id, source_ide))
+        if not targets:
+            return
 
         from PyQt6.QtWidgets import QMenu
         menu = QMenu(self)
         rename_act = menu.addAction("Rename...")
-        rename_act.setEnabled(len(editable) == 1)
-        remove_label = "Remove" if len(editable) <= 1 else f"Remove ({len(editable)})"
+        rename_act.setEnabled(len(targets) == 1)
+        remove_label = "Remove" if len(targets) == 1 else f"Remove ({len(targets)})"
         remove_act = menu.addAction(remove_label)
-        remove_act.setEnabled(len(editable) >= 1)
         action = menu.exec(self.table.viewport().mapToGlobal(pos))
         if action == rename_act:
-            _, model_id, source_ide = editable[0]
+            model_id, source_ide = targets[0]
             self._on_rename_row(model_id, source_ide)
         elif action == remove_act:
-            self._on_remove_rows(editable)
+            self._on_remove_rows(targets)
 
     def _on_rename_row(self, model_id, source_ide): #vers 1
         from PyQt6.QtWidgets import QInputDialog
@@ -388,14 +414,14 @@ class MasterIDEDialog(QDialog): #vers 7
             return
         self._reload_after_edit()
 
-    def _on_remove_rows(self, targets): #vers 1
-        """Remove every given (section, model_id, source_ide) target
-        - one confirmation for the whole batch, one write per real
+    def _on_remove_rows(self, targets): #vers 2
+        """Remove every given (model_id, source_ide) target - one
+        confirmation for the whole batch, one write per real
         touched file (not per entry)."""
         if not targets:
             return
         if len(targets) == 1:
-            _, model_id, source_ide = targets[0]
+            model_id, source_ide = targets[0]
             prompt = f"Remove ID {model_id} from {os.path.basename(self._resolve_source_path(source_ide))}?"
         else:
             prompt = f"Remove {len(targets)} selected entries?"
@@ -407,7 +433,7 @@ class MasterIDEDialog(QDialog): #vers 7
 
         failures = []
         touched_paths = set()
-        for _section, model_id, source_ide in targets:
+        for model_id, source_ide in targets:
             source_path = self._resolve_source_path(source_ide)
             err = remove_entry(self.result, model_id, source_path)
             if err:
