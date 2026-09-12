@@ -1,4 +1,9 @@
-#this belongs in root /ChangeLog.md - Version: 85
+#this belongs in root /ChangeLog.md - Version: 86
+
+## Sep 12 2026 - Asset Checker tile on Intro page, Build 389.88
+
+New tile right of Vehicle Workshop in Asset Editors group. Prompts
+for an IMG/COL/IDE file when opened with no context.
 
 ## Sep 12 2026 - Master IDE: load from .dat, wired into UI
 
