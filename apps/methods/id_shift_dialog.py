@@ -22,16 +22,17 @@ from apps.methods.id_reassign import plan_id_shift, apply_id_shift, cascade_ipl_
 from apps.methods.master_ide_edit import write_source_file
 
 
-class IDShiftDialog(QDialog): #vers 2
-    def __init__(self, parent, result): #vers 1
+class IDShiftDialog(QDialog): #vers 3
+    def __init__(self, parent, result, game=None): #vers 2
         super().__init__(parent)
         self.result = result
+        self.game = game
         self.plan = None
         self.setWindowTitle("Move / Reassign ID Block")
-        self.resize(560, 480)
+        self.resize(560, 520)
         self._build_ui()
 
-    def _build_ui(self): #vers 2
+    def _build_ui(self): #vers 3
         lay = QVBoxLayout(self)
 
         form = QFormLayout()
@@ -42,17 +43,34 @@ class IDShiftDialog(QDialog): #vers 2
         self.end_spin = QSpinBox()
         self.end_spin.setRange(0, 999999)
         end_row.addWidget(self.end_spin)
-        to_highest_btn = QPushButton("To highest ID")
+        to_highest_btn = QPushButton("To highest loaded ID")
         to_highest_btn.setToolTip(
-            "Fill End ID with the highest real ID currently loaded - "
-            "e.g. \"clear space at 2000\" or \"collapse from 2000\" "
-            "without hunting for the ceiling yourself.")
+            "Fill End ID with the highest real ID CURRENTLY LOADED - "
+            "not the engine's own limit, which may be higher and is "
+            "editable below.")
         to_highest_btn.clicked.connect(self._on_to_highest_id)
         end_row.addWidget(to_highest_btn)
+        to_ceiling_btn = QPushButton("To engine ceiling")
+        to_ceiling_btn.setToolTip(
+            "Fill End ID with the Engine ID Ceiling field below - "
+            "e.g. \"leave IDs 2000-3000 free for later\" against the "
+            "real engine limit, not just what's currently loaded.")
+        to_ceiling_btn.clicked.connect(self._on_to_ceiling)
+        end_row.addWidget(to_ceiling_btn)
         form.addRow("End ID:", end_row)
         self.offset_spin = QSpinBox()
         self.offset_spin.setRange(-999999, 999999)
         form.addRow("Shift by:", self.offset_spin)
+
+        self.ceiling_spin = QSpinBox()
+        self.ceiling_spin.setRange(0, 999999)
+        self.ceiling_spin.setValue(self._default_ceiling())
+        self.ceiling_spin.setToolTip(
+            "The real engine's own max ID - varies by engine and can be "
+            "raised by an ASI patch, so this is editable, not fixed. "
+            "Defaults to this app's own stored range for the detected "
+            "game, which may not match your actual patched engine.")
+        form.addRow("Engine ID ceiling:", self.ceiling_spin)
         lay.addLayout(form)
 
         ipl_group = QGroupBox("IPL files to cascade into (optional)")
@@ -87,6 +105,21 @@ class IDShiftDialog(QDialog): #vers 2
         close_btn.clicked.connect(self.reject)
         btn_row.addWidget(close_btn)
         lay.addLayout(btn_row)
+
+    def _default_ceiling(self): #vers 1
+        """This app's own stored ID_RANGES max for the detected game -
+        a starting guess, not an authoritative engine limit (Sep 12
+        2026, per Keith: "the ceiling for any RW engine can be
+        changed" - vanilla limits differ from real ASI-patched ones,
+        so this is only ever a default, always editable above)."""
+        try:
+            from apps.methods.gta_dat_parser import GTAGame
+            return GTAGame.ID_RANGES.get(self.game, (0, 32767))[1]
+        except Exception:
+            return 32767
+
+    def _on_to_ceiling(self): #vers 1
+        self.end_spin.setValue(self.ceiling_spin.value())
 
     def _on_to_highest_id(self): #vers 1
         """Fill End ID with the real highest declared ID currently

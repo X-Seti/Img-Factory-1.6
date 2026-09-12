@@ -472,9 +472,9 @@ class MasterIDEDialog(QDialog): #vers 8
             return
         self._reload_after_edit()
 
-    def _on_id_shift(self): #vers 1
+    def _on_id_shift(self): #vers 2
         from apps.methods.id_shift_dialog import IDShiftDialog
-        dlg = IDShiftDialog(self, self.result)
+        dlg = IDShiftDialog(self, self.result, game=self.game)
         if dlg.exec() == QDialog.DialogCode.Accepted:
             self._reload_after_edit()
 
