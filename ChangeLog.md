@@ -1,4 +1,10 @@
-#this belongs in root /ChangeLog.md - Version: 84
+#this belongs in root /ChangeLog.md - Version: 85
+
+## Sep 12 2026 - Master IDE: load from .dat, wired into UI
+
+Load all IDE files a game's .dat loads (default.dat+main, GTA3/VC/
+SA/SOL) and merge. Added Master IDE action to DAT Browser and Dir
+Tree right-click (.dat, .ide), and a button in Asset Checker.
 
 ## Sep 5 2026 - Model Workshop: viewport light-direction crash
 
