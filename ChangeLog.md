@@ -1,4 +1,11 @@
-#this belongs in root /ChangeLog.md - Version: 104
+#this belongs in root /ChangeLog.md - Version: 105
+
+## Sep 12 2026 - Master IDE: status bar with IDs used/free, Build 408.90
+
+New status bar: "IDs used: N | Free: M (range min-max)" - real
+distinct declared IDs within this app's default range for the
+detected game. Updates on every reload. Verified: 573 used, 5427
+free of VC's 0-5999.
 
 ## Sep 12 2026 - ID Shift dialog: editable Engine ID Ceiling, Build 407.90
 
