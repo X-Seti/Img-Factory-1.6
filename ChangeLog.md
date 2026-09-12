@@ -1,4 +1,13 @@
-#this belongs in root /ChangeLog.md - Version: 99
+#this belongs in root /ChangeLog.md - Version: 100
+
+## Sep 12 2026 - Master IDE: Insert IDE File / Insert Text / Remove File, Build 403.90
+
+Insert IDE File adds one more real .ide to the merge. Insert Text
+pastes raw IDE text, appended to an existing loaded file (backed up
+first) or saved as new - both real text on disk before merging.
+Remove File unloads one file from the session (disk untouched).
+Verified end-to-end: append/new-file merge correctly, remove drops
+only that file's entries.
 
 ## Sep 12 2026 - Master IDE: ID Shift dialog (slider-equivalent UI), Build 402.90
 
