@@ -116,7 +116,7 @@ class AssetCheckerDialog(QDialog): #vers 4
     def _make_column(self, splitter, title, count, diffs=None): #vers 8
         """count is the base number shown in parentheses (Sep 5 2026)"""
         container = QWidget()
-        container.setMinimumWidth(220)   # wider columns (Sep 5 2026)
+        container.setMinimumWidth(150)   # wider columns (Sep 5 2026)
         v = QVBoxLayout(container)
         v.setContentsMargins(2, 2, 2, 2)
         header_row = QHBoxLayout()

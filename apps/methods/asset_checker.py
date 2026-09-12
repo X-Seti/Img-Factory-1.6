@@ -12,6 +12,8 @@
 archive, a COL file, and an IDE file that share the same base
 filename (Sep 5 2026)"""
 
+#TODO; All views need to allow copy to clipboard, in Cross Ref Table replace the line numbers with the obj ID.
+
 import os
 from dataclasses import dataclass, field
 from typing import Optional, Set, Dict
