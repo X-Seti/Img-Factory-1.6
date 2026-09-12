@@ -1,4 +1,12 @@
-#this belongs in root /ChangeLog.md - Version: 95
+#this belongs in root /ChangeLog.md - Version: 96
+
+## Sep 12 2026 - Master IDE: ID block reassignment + 2dfx/IPL cascading, Build 399.90
+
+plan_id_shift (dry-run, conflict detection, all-or-nothing) +
+apply_id_shift (objs/tobj + 2dfx cascade in memory) + cascade_ipl_
+files (backs up, substitutes only the leading ID field on inst/cars
+lines, everything else byte-untouched). Tested: conflict rejection,
+2dfx cascade, IPL substitution byte-exact, backups for both.
 
 ## Sep 12 2026 - Master IDE UI: wire rename/remove/add entry, Build 398.90
 
