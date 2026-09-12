@@ -1,4 +1,10 @@
-#this belongs in root /ChangeLog.md - Version: 102
+#this belongs in root /ChangeLog.md - Version: 103
+
+## Sep 12 2026 - ID Shift dialog: To highest ID button, Build 406.90
+
+Fills End ID with the real max declared ID currently loaded - "shift
+everything from 2000 onward" is now one click instead of hunting
+for the ceiling. Verified against real data.
 
 ## Sep 12 2026 - Master IDE: file-shaped table view, Build 405.90
 
