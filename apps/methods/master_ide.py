@@ -1,4 +1,4 @@
-#this belongs in apps/methods/master_ide.py - Version: 2
+#this belongs in apps/methods/master_ide.py - Version: 3
 
 ##Methods list -
 # MasterIDEResult
@@ -63,7 +63,7 @@ def collect_ide_paths_from_dat(dat_path: str, game_root: str = None, game: str =
     return paths, game
 
 
-def load_master_ide(ide_paths: List[str], game: str = None) -> MasterIDEResult: #vers 1
+def load_master_ide(ide_paths: List[str], game: str = None) -> MasterIDEResult: #vers 2
     """Load and merge any number of real .ide files. Each real file
     parses independently (its own real objects, own real section
     tags); merging just groups everything by section and sorts by ID
@@ -86,7 +86,17 @@ def load_master_ide(ide_paths: List[str], game: str = None) -> MasterIDEResult: 
             result.source_files.append(path)
             for obj in parser.objects:
                 result.objects_by_section.setdefault(obj.section, []).append(obj)
-                seen_ids.setdefault(obj.model_id, []).append((obj.model_name, obj.source_ide))
+                # 2dfx entries deliberately share their base object's
+                # real model_id (a synthetic "2dfx_<id>" stub name,
+                # see IDEParser's own docstring) - that is expected
+                # attachment, not a real duplicate ID assignment, so
+                # they're excluded from collision detection (Sep 12
+                # 2026, per Keith: "we don't need to list the id's
+                # again from the 2dfx section/ifx files"). Still
+                # grouped under their own "2dfx" section above like
+                # every other entry.
+                if obj.section != "2dfx":
+                    seen_ids.setdefault(obj.model_id, []).append((obj.model_name, obj.source_ide))
         except Exception as e:
             result.errors.append(f"Error parsing {path}: {e}")
 
