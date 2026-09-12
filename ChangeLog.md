@@ -1,4 +1,14 @@
-#this belongs in root /ChangeLog.md - Version: 96
+#this belongs in root /ChangeLog.md - Version: 97
+
+## Sep 12 2026 - Master IDE: fix 2dfx data corruption in Save/merge, Build 400.90
+
+write_master_ide's generic fallback reconstructed 2dfx from parsed
+fields, losing quoted corona names and trailing fields - real bug
+report, corrupted data on every save. Fixed: non-editable sections
+pooled as raw lines per file, written back combined+sorted
+numerically, never reconstructed. Dialog: 2dfx no longer shown as
+rows or counted in the header total. Verified against real data:
+126 in, 126 out, byte-identical.
 
 ## Sep 12 2026 - Master IDE: ID block reassignment + 2dfx/IPL cascading, Build 399.90
 
