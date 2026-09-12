@@ -1,4 +1,11 @@
-#this belongs in root /ChangeLog.md - Version: 89
+#this belongs in root /ChangeLog.md - Version: 90
+
+## Sep 12 2026 - Asset Checker: exclude 2dfx/ifx stub entries, Build 393.90
+
+2dfx entries carry a synthetic "2dfx_<id>" name sharing the real
+object's ID - falsely counted as a separate missing model. Real
+model already covered by objs/tobj. Only relevant again once real
+ID reassignment/cascading exists (Master IDE future step).
 
 ## Sep 12 2026 - Asset Checker: fix window-stretching file list, Build 392.90
 
