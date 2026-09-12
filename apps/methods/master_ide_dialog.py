@@ -1,7 +1,8 @@
-#this belongs in apps/methods/master_ide_dialog.py - Version: 6
+#this belongs in apps/methods/master_ide_dialog.py - Version: 7
 
 ##Methods list -
 # MasterIDEDialog
+# _InsertTextDialog
 # _AddEntryDialog
 # show_master_ide
 # show_master_ide_from_dat
@@ -18,9 +19,10 @@ from PyQt6.QtCore import Qt
 from apps.methods.master_ide import (
     load_master_ide, write_master_ide, collect_ide_paths_from_dat)
 from apps.methods.master_ide_edit import rename_entry, add_entry, remove_entry, write_source_file
+from apps.methods.file_backup import backup_file
 
 
-class MasterIDEDialog(QDialog): #vers 5
+class MasterIDEDialog(QDialog): #vers 6
     def __init__(self, parent, result, source_paths, game=None): #vers 2
         super().__init__(parent)
         self.result = result
@@ -56,6 +58,15 @@ class MasterIDEDialog(QDialog): #vers 5
         load_dat_btn = QPushButton("Load from .dat...")
         load_dat_btn.clicked.connect(self._on_load_from_dat)
         btn_row.addWidget(load_dat_btn)
+        insert_file_btn = QPushButton("Insert IDE File...")
+        insert_file_btn.clicked.connect(self._on_insert_ide_file)
+        btn_row.addWidget(insert_file_btn)
+        insert_text_btn = QPushButton("Insert Text...")
+        insert_text_btn.clicked.connect(self._on_insert_text)
+        btn_row.addWidget(insert_text_btn)
+        remove_file_btn = QPushButton("Remove File...")
+        remove_file_btn.clicked.connect(self._on_remove_file)
+        btn_row.addWidget(remove_file_btn)
         add_entry_btn = QPushButton("Add Entry...")
         add_entry_btn.clicked.connect(self._on_add_entry)
         btn_row.addWidget(add_entry_btn)
@@ -185,6 +196,86 @@ class MasterIDEDialog(QDialog): #vers 5
         self.game = game
         self._refresh_top()
         self._populate()
+
+    def _on_insert_ide_file(self): #vers 1
+        """Add one more real .ide file to the current merge (Sep 12
+        2026, per Keith: "insert text or an ide file, that gets
+        merged in") - reruns load_master_ide against the expanded
+        file list so it's grouped/checked exactly the same as any
+        other loaded file."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Select IDE file to insert", "", "IDE Files (*.ide);;All files (*)")
+        if not path:
+            return
+        if path in self.source_paths:
+            QMessageBox.information(self, "Master IDE", "That file is already loaded.")
+            return
+        self.source_paths.append(path)
+        self._reload_after_edit()
+
+    def _on_insert_text(self): #vers 1
+        """Paste raw IDE-format text (e.g. "objs\\n...\\nend") and
+        either append it to an already-loaded real file or save it
+        as a brand-new one - either way it's real text on disk
+        before being merged, never held only in memory."""
+        dlg = _InsertTextDialog(self, self.source_paths)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        text, target = dlg.values()
+        if not text.strip():
+            return
+
+        if target == "__new__":
+            path, _ = QFileDialog.getSaveFileName(
+                self, "Save New IDE File", "", "IDE Files (*.ide)")
+            if not path:
+                return
+            try:
+                with open(path, "w", encoding="ascii", errors="ignore") as f:
+                    f.write(text)
+            except Exception as e:
+                QMessageBox.warning(self, "Insert Text Failed", f"Could not write {path}:\n{e}")
+                return
+            self.source_paths.append(path)
+        else:
+            if backup_file(target) is None:
+                QMessageBox.warning(self, "Insert Text Failed",
+                    f"Could not back up before writing:\n{target}")
+                return
+            try:
+                with open(target, "a", encoding="ascii", errors="ignore") as f:
+                    f.write("\n" + text if not text.startswith("\n") else text)
+            except Exception as e:
+                QMessageBox.warning(self, "Insert Text Failed", f"Could not append to {target}:\n{e}")
+                return
+
+        self._reload_after_edit()
+
+    def _on_remove_file(self): #vers 1
+        """Unload one real loaded file from this merge session -
+        does NOT delete or modify the real file on disk, just
+        removes it from the current merge scope."""
+        if not self.source_paths:
+            return
+        from PyQt6.QtWidgets import QInputDialog
+        names = [os.path.basename(p) for p in self.source_paths]
+        name, ok = QInputDialog.getItem(
+            self, "Remove File", "Unload which loaded file from this merge?",
+            names, 0, False)
+        if not ok or not name:
+            return
+        reply = QMessageBox.question(
+            self, "Remove File",
+            f"Unload {name} from this merge? The real file on disk is not touched.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        self.source_paths = [p for p in self.source_paths if os.path.basename(p) != name]
+        if not self.source_paths:
+            QMessageBox.warning(self, "Master IDE", "At least one file must stay loaded.")
+            self.source_paths = [p for p in self.result.source_files]
+            return
+        self._reload_after_edit()
 
     def _populate(self): #vers 2
         base = self.palette().color(self.palette().currentColorGroup(),
@@ -355,6 +446,45 @@ class MasterIDEDialog(QDialog): #vers 5
             QMessageBox.information(self, "Saved", f"Master IDE saved to:\n{path}")
         else:
             QMessageBox.warning(self, "Save Failed", "Could not write the master IDE file.")
+
+
+class _InsertTextDialog(QDialog): #vers 1
+    """Small form for Insert Text - a plain text box for pasting raw
+    real IDE-format text, plus where it goes: appended to an already
+    loaded real file, or saved as a brand-new one (Sep 12 2026, per
+    Keith: "insert text or an ide file, that gets merged in")."""
+    def __init__(self, parent, source_paths): #vers 1
+        super().__init__(parent)
+        self.setWindowTitle("Insert Text")
+        self.resize(520, 420)
+        from PyQt6.QtWidgets import QTextEdit, QComboBox, QFormLayout
+        self._source_paths = source_paths
+        lay = QVBoxLayout(self)
+
+        lay.addWidget(QLabel("Paste real IDE-format text (e.g. \"objs\\n<id>, <model>, "
+                              "<txd>, <dist>, <flags>\\nend\"):"))
+        self.text_edit = QTextEdit()
+        lay.addWidget(self.text_edit, 1)
+
+        form = QFormLayout()
+        self.target_combo = QComboBox()
+        self.target_combo.addItem("New file...", "__new__")
+        for p in source_paths:
+            self.target_combo.addItem(f"Append to {os.path.basename(p)}", p)
+        form.addRow("Add to:", self.target_combo)
+        lay.addLayout(form)
+
+        btn_row = QHBoxLayout()
+        ok_btn = QPushButton("Insert")
+        ok_btn.clicked.connect(self.accept)
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self.reject)
+        btn_row.addWidget(ok_btn)
+        btn_row.addWidget(cancel_btn)
+        lay.addLayout(btn_row)
+
+    def values(self): #vers 1
+        return self.text_edit.toPlainText(), self.target_combo.currentData()
 
 
 class _AddEntryDialog(QDialog): #vers 1
