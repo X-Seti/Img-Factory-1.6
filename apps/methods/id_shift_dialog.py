@@ -1,4 +1,4 @@
-#this belongs in apps/methods/id_shift_dialog.py - Version: 1
+#this belongs in apps/methods/id_shift_dialog.py - Version: 2
 # X-Seti - September 12 2026 - IMG Factory 1.6 - ID Shift Dialog
 
 """id_shift_dialog.py - the real UI for id_reassign.py's own plan/
@@ -22,7 +22,7 @@ from apps.methods.id_reassign import plan_id_shift, apply_id_shift, cascade_ipl_
 from apps.methods.master_ide_edit import write_source_file
 
 
-class IDShiftDialog(QDialog): #vers 1
+class IDShiftDialog(QDialog): #vers 2
     def __init__(self, parent, result): #vers 1
         super().__init__(parent)
         self.result = result
@@ -31,16 +31,25 @@ class IDShiftDialog(QDialog): #vers 1
         self.resize(560, 480)
         self._build_ui()
 
-    def _build_ui(self): #vers 1
+    def _build_ui(self): #vers 2
         lay = QVBoxLayout(self)
 
         form = QFormLayout()
         self.start_spin = QSpinBox()
         self.start_spin.setRange(0, 999999)
         form.addRow("Start ID:", self.start_spin)
+        end_row = QHBoxLayout()
         self.end_spin = QSpinBox()
         self.end_spin.setRange(0, 999999)
-        form.addRow("End ID:", self.end_spin)
+        end_row.addWidget(self.end_spin)
+        to_highest_btn = QPushButton("To highest ID")
+        to_highest_btn.setToolTip(
+            "Fill End ID with the highest real ID currently loaded - "
+            "e.g. \"clear space at 2000\" or \"collapse from 2000\" "
+            "without hunting for the ceiling yourself.")
+        to_highest_btn.clicked.connect(self._on_to_highest_id)
+        end_row.addWidget(to_highest_btn)
+        form.addRow("End ID:", end_row)
         self.offset_spin = QSpinBox()
         self.offset_spin.setRange(-999999, 999999)
         form.addRow("Shift by:", self.offset_spin)
@@ -78,6 +87,21 @@ class IDShiftDialog(QDialog): #vers 1
         close_btn.clicked.connect(self.reject)
         btn_row.addWidget(close_btn)
         lay.addLayout(btn_row)
+
+    def _on_to_highest_id(self): #vers 1
+        """Fill End ID with the real highest declared ID currently
+        loaded (Sep 12 2026, per Keith: "shift ID's up, or collapse
+        ID down... leave free id's 2000 to 3000 for later
+        additions") - only objs/tobj carry a real declared ID (see
+        master_ide.py's own _EDITABLE_SECTIONS), matching every
+        other check in this feature."""
+        all_ids = [obj.model_id for section in ("objs", "tobj")
+                   for obj in self.result.objects_by_section.get(section, [])]
+        if not all_ids:
+            QMessageBox.information(self, "Move / Reassign ID Block",
+                "No real objs/tobj entries are currently loaded.")
+            return
+        self.end_spin.setValue(max(all_ids))
 
     def _on_add_ipl_files(self): #vers 1
         paths, _ = QFileDialog.getOpenFileNames(
