@@ -1,4 +1,12 @@
-#this belongs in root /ChangeLog.md - Version: 86
+#this belongs in root /ChangeLog.md - Version: 87
+
+## Sep 12 2026 - Asset Checker: whole-game check from a .dat, Build 390.89
+
+check_assets/ide_path takes a list now, merges multiple real IDE
+files. find_game_asset_files resolves gta3.img+COL+all IDE from a
+game's .dat, falls back to GTA3-style parsing for unknown .dat
+names (other modding projects). Intro tile, DAT Browser/Dir Tree
+.dat right-click ask for the game .dat, not one file.
 
 ## Sep 12 2026 - Asset Checker tile on Intro page, Build 389.88
 
