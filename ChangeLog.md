@@ -1,4 +1,13 @@
-#this belongs in root /ChangeLog.md - Version: 93
+#this belongs in root /ChangeLog.md - Version: 94
+
+## Sep 12 2026 - Master IDE: safe single-entry rename/add/remove, Build 397.90
+
+rename_entry/add_entry/remove_entry (objs/tobj only) + write_
+source_file (backs up, writes back ONE real source file). Every
+other section copied through from original raw text verbatim -
+generic formatter is lossy for anything but objs/tobj. add_entry
+requires real required fields, caught by round-trip test that an
+incomplete entry silently fails to re-parse.
 
 ## Sep 12 2026 - Backup system: real backup-before-write, tested in isolation, Build 396.90
 
