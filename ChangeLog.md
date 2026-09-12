@@ -1,4 +1,12 @@
-#this belongs in root /ChangeLog.md - Version: 100
+#this belongs in root /ChangeLog.md - Version: 101
+
+## Sep 12 2026 - Master IDE: multi-select Rename/Remove, Build 404.90
+
+Right-click now works on the real full shift/ctrl-click selection,
+not just the clicked row. Rename stays single-target; Remove
+applies to every selected objs/tobj row, one confirmation, one
+write per touched file. Verified: 3-row batch remove = 1 write,
+count drops by exactly 3.
 
 ## Sep 12 2026 - Master IDE: Insert IDE File / Insert Text / Remove File, Build 403.90
 
