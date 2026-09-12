@@ -1,4 +1,10 @@
-#this belongs in root /ChangeLog.md - Version: 94
+#this belongs in root /ChangeLog.md - Version: 95
+
+## Sep 12 2026 - Master IDE UI: wire rename/remove/add entry, Build 398.90
+
+Right-click Rename/Remove on rows (objs/tobj only). Add Entry
+button opens a form. Each op calls master_ide_edit then write_
+source_file, reloads merged view+checks on success.
 
 ## Sep 12 2026 - Master IDE: safe single-entry rename/add/remove, Build 397.90
 
