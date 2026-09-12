@@ -1,4 +1,18 @@
-#this belongs in root /ChangeLog.md - Version: 90
+#this belongs in root /ChangeLog.md - Version: 92
+
+## Sep 12 2026 - Master IDE: 3 new checks, Build 395.90
+
+name_collisions: same model name under different IDs across files
+(load-order risk). redefinitions: same ID+name, different txd/
+section/data. out_of_range: ID outside the game's real ID range.
+Dialog: short warning + Details popup per check, all flagged rows
+highlighted, save prompt lists every category.
+
+## Sep 12 2026 - Master IDE: exclude 2dfx/ifx stubs from collision detection, Build 394.90
+
+Same root cause as the Asset Checker fix - 2dfx entries share their
+base object's real ID by design, not a genuine collision. Still
+grouped under their own 2dfx section in the merged output.
 
 ## Sep 12 2026 - Asset Checker: exclude 2dfx/ifx stub entries, Build 393.90
 
