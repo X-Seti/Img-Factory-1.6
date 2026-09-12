@@ -1,4 +1,10 @@
-#this belongs in root /ChangeLog.md - Version: 87
+#this belongs in root /ChangeLog.md - Version: 88
+
+## Sep 12 2026 - Asset Checker: project Continue/Browse prompt, Build 391.90
+
+open_asset_checker checks the current project's real game_root,
+detects the game, finds its .dat, offers "Continue to load project
+path 'X, gta_vc.dat'" or "Browse..." for a different .dat.
 
 ## Sep 12 2026 - Asset Checker: whole-game check from a .dat, Build 390.89
 
