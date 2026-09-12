@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in components/Dat_Browser/dat_browser.py - Version: 5
+#this belongs in components/Dat_Browser/dat_browser.py - Version: 6
 # X-Seti - March 2026 - IMG Factory 1.6 - GTA DAT/IDE/IPL Browser
 """
 DAT Browser — viewer panel for the GTA world data load chain.
@@ -2477,6 +2477,17 @@ class DATBrowserWidget(QWidget): #vers 3
             if mw and hasattr(mw, 'log_message'):
                 mw.log_message(f"Master IDE error: {e}")
 
+    def _show_asset_checker_from_dat(self, dat_path: str): #vers 1
+        """Resolve a whole game's real IMG/COL/IDE files from its
+        main .dat and cross-reference them."""
+        mw = self.main_window
+        try:
+            from apps.methods.asset_checker_dialog import show_asset_checker_from_dat
+            show_asset_checker_from_dat(mw, dat_path)
+        except Exception as e:
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(f"Asset Checker error: {e}")
+
     def _open_single_img_in_factory(self, abs_path: str): #vers 1
         """Open one specific IMG file in a new IMG Factory tab."""
         mw = self.main_window
@@ -3875,6 +3886,14 @@ class DATBrowserWidget(QWidget): #vers 3
                     lambda _=False, p=dat_abs_path: self._show_master_ide_from_dat(p))
             else:
                 master_ide_act.setEnabled(False)
+            from apps.methods.imgfactory_svg_icons import get_asset_checker_icon
+            asset_dat_act = menu.addAction("Asset Checker")
+            asset_dat_act.setIcon(get_asset_checker_icon(16))
+            if dat_abs_path and os.path.isfile(dat_abs_path):
+                asset_dat_act.triggered.connect(
+                    lambda _=False, p=dat_abs_path: self._show_asset_checker_from_dat(p))
+            else:
+                asset_dat_act.setEnabled(False)
             menu.addSeparator()
 
         #    IMG / CDIMAGE specific options                                

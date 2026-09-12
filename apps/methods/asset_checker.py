@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/asset_checker.py - Version: 2
+#this belongs in apps/methods/asset_checker.py - Version: 3
 
 ##Methods list -
 # find_sibling_asset_files
+# find_game_asset_files
 # check_assets
 # AssetCheckResult
 # AssetCheckResult.img_extra_over_ide
@@ -20,10 +21,11 @@ from typing import Optional, Set, Dict
 
 
 @dataclass
-class AssetCheckResult: #vers 2
+class AssetCheckResult: #vers 3
     img_path: str = ""
     col_path: str = ""
     ide_path: str = ""
+    ide_paths: list = field(default_factory=list)   # real usable path(s), for Master IDE handoff
     img_names: Set[str] = field(default_factory=set)   # lowercase, no extension - real .dff models only
     img_txd_names: Set[str] = field(default_factory=set)   # lowercase, no extension - real .txd textures
     col_names: Set[str] = field(default_factory=set)   # lowercase
@@ -162,12 +164,14 @@ def find_sibling_asset_files(clicked_path: str): #vers 2
 
 
 def check_assets(img_path: str = None, col_path=None,
-                  ide_path: str = None, game: str = None) -> AssetCheckResult: #vers 4
+                  ide_path=None, game: str = None) -> AssetCheckResult: #vers 5
     """Load whichever of the 3 real files exist and cross-reference
     their real model names. Any of the 3 paths can be None/missing -
     the corresponding *_path stays empty and that source's own
     *_names set stays empty, so callers can tell "not checked" apart
-    from "checked, nothing found" via the path fields."""
+    from "checked, nothing found" via the path fields. ide_path can
+    be one real path or a list (Sep 12 2026, whole-game check merges
+    every real IDE the game's .dat loads)."""
     result = AssetCheckResult()
 
     if img_path and os.path.isfile(img_path):
@@ -204,25 +208,63 @@ def check_assets(img_path: str = None, col_path=None,
         except Exception as e:
             result.col_error = str(e)
 
-    if ide_path and os.path.isfile(ide_path):
+    ide_paths = [ide_path] if isinstance(ide_path, str) else (ide_path or [])
+    ide_paths = [p for p in ide_paths if p and os.path.isfile(p)]
+    if ide_paths:
         try:
             from apps.methods.gta_dat_parser import IDEParser, GTAGame
-            parser = IDEParser(game or GTAGame.GTA3)
-            if parser.parse(ide_path) and parser.objects:
-                result.ide_path = ide_path
-                result.ide_names = {o.model_name.lower() for o in parser.objects}
+            all_objects = []
+            for one_path in ide_paths:
+                parser = IDEParser(game or GTAGame.GTA3)
+                if parser.parse(one_path):
+                    all_objects.extend(parser.objects)
+            if all_objects:
+                result.ide_path = ", ".join(os.path.basename(p) for p in ide_paths)
+                result.ide_paths = ide_paths
+                result.ide_names = {o.model_name.lower() for o in all_objects}
                 result.ide_id_by_name = {
-                    o.model_name.lower(): o.model_id for o in parser.objects
+                    o.model_name.lower(): o.model_id for o in all_objects
                 }
                 result.ide_txd_by_name = {
                     o.model_name.lower(): o.txd_name.lower()
-                    for o in parser.objects if o.txd_name
+                    for o in all_objects if o.txd_name
                 }
                 result.ide_txd_display_by_name = {
                     o.model_name.lower(): o.txd_name
-                    for o in parser.objects if o.txd_name
+                    for o in all_objects if o.txd_name
                 }
         except Exception as e:
             result.ide_error = str(e)
 
     return result
+
+
+def find_game_asset_files(dat_path: str): #vers 1
+    """Resolve a whole game's real IMG/COL/IDE files from its main
+    .dat (Sep 12 2026, per Keith: "asset check needs all 3 img col
+    ide, so i'd ask for the game gta_vc.dat, gta3.dat... to load
+    another gta modding project"). The real main archive is always
+    named gta3.img regardless of game (III/VC/SA/SOL all keep this
+    historical name) - same convention DAT Browser's own "Load ALL
+    game IMGs" already relies on. Returns (img_path, col_path_or_
+    list, ide_paths_list, game)."""
+    from apps.methods.master_ide import collect_ide_paths_from_dat
+
+    game_root = os.path.normpath(os.path.join(os.path.dirname(dat_path), ".."))
+    ide_paths, game = collect_ide_paths_from_dat(dat_path, game_root)
+
+    img_path = None
+    for candidate in (
+        os.path.join(game_root, "models", "gta3.img"),
+        os.path.join(game_root, "MODELS", "GTA3.IMG"),
+        os.path.join(game_root, "models", "GTA3.IMG"),
+    ):
+        if os.path.isfile(candidate):
+            img_path = candidate
+            break
+
+    col_path = None
+    if img_path:
+        _, col_path, _ = find_sibling_asset_files(img_path)
+
+    return img_path, col_path, ide_paths, game

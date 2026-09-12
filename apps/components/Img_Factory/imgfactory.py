@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in components/Img_Factory/imgfactory.py - Version: 88
+#this belongs in components/Img_Factory/imgfactory.py - Version: 89
 # X-Seti - Feb 24 2026 - IMG Factory 1.6 - Icon system, button layout
 
 """
@@ -6633,18 +6633,22 @@ class IMGFactory(QMainWindow):
         from apps.components.Hex_Editor.hex_workshop import open_hex_workshop
         return open_hex_workshop(self, file_path)
 
-    def open_asset_checker(self, file_path=None): #vers 1
-        """Open Asset Checker - prompts for an IMG/COL/IDE file if
-        none given (Intro page tile has no file context of its own)."""
-        if not file_path:
+    def open_asset_checker(self, dat_path=None): #vers 2
+        """Open Asset Checker - prompts for a game's main .dat if
+        none given (Intro page tile has no file context of its own).
+        Needs a whole .dat, not a single file, since Asset Checker
+        cross-references all 3 of IMG/COL/IDE together (Sep 12
+        2026, per Keith)."""
+        if not dat_path:
             from PyQt6.QtWidgets import QFileDialog
-            file_path, _ = QFileDialog.getOpenFileName(
-                self, "Select IMG, COL or IDE file", "",
-                "Game asset files (*.img *.col *.ide);;All files (*)")
-            if not file_path:
+            dat_path, _ = QFileDialog.getOpenFileName(
+                self, "Select game .dat file", "",
+                "GTA DAT files (gta3.dat gta_vc.dat gta.dat gta_sol.dat "
+                "gtasol.dat gta_quick.dat);;All files (*.dat)")
+            if not dat_path:
                 return
-        from apps.methods.asset_checker_dialog import show_asset_checker
-        show_asset_checker(self, file_path)
+        from apps.methods.asset_checker_dialog import show_asset_checker_from_dat
+        show_asset_checker_from_dat(self, dat_path)
 
     def open_radar_map(self): #vers 5
         """Open Radar Workshop docked in a tab (DP5 pattern), or standalone fallback."""

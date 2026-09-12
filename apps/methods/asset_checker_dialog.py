@@ -1,8 +1,10 @@
-#this belongs in apps/methods/asset_checker_dialog.py - Version: 4
+#this belongs in apps/methods/asset_checker_dialog.py - Version: 5
 
 ##Methods list -
 # AssetCheckerDialog
 # show_asset_checker
+# show_asset_checker_from_dat
+# _present_asset_check_result
 # _register_asset_checker_taskbar
 # _on_master_ide
 
@@ -13,11 +15,12 @@ import os
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QListWidget, QTableWidget,
     QTableWidgetItem, QStackedWidget, QComboBox, QSplitter, QWidget, QMenu,
+    QMessageBox,
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
 
-from apps.methods.asset_checker import check_assets, find_sibling_asset_files
+from apps.methods.asset_checker import check_assets, find_sibling_asset_files, find_game_asset_files
 
 
 class AssetCheckerDialog(QDialog): #vers 4
@@ -214,10 +217,11 @@ class AssetCheckerDialog(QDialog): #vers 4
     def _on_view_changed(self, index): #vers 1
         self.stack.setCurrentIndex(index)
 
-    def _on_master_ide(self): #vers 1
-        """Open Master IDE for this same real IDE file."""
+    def _on_master_ide(self): #vers 2
+        """Open Master IDE for the same real IDE file(s)."""
         from apps.methods.master_ide_dialog import show_master_ide
-        show_master_ide(self.parent(), self.result.ide_path)
+        paths = self.result.ide_paths or [self.result.ide_path]
+        show_master_ide(self.parent(), paths)
 
     def _populate_columns_view(self): #vers 4
         r = self.result
@@ -352,7 +356,31 @@ def show_asset_checker(main_window, clicked_path: str, game: str = None): #vers 
         ide_path = clicked_path
 
     result = check_assets(img_path=img_path, col_path=col_path, ide_path=ide_path, game=game)
+    tab_label = os.path.splitext(os.path.basename(clicked_path))[0] if clicked_path else "Asset Checker"
+    return _present_asset_check_result(main_window, result, tab_label)
 
+
+def show_asset_checker_from_dat(main_window, dat_path: str): #vers 1
+    """Entry point for the Intro page tile (no file context of its
+    own) - resolves a whole game's real gta3.img/COL/all-IDE files
+    from its main .dat and cross-references them (Sep 12 2026, per
+    Keith: "asset check needs all 3 img col ide, so i'd ask for the
+    game gta_vc.dat, gta3.dat... to load another gta modding
+    project")."""
+    img_path, col_path, ide_paths, game = find_game_asset_files(dat_path)
+    if not img_path and not col_path and not ide_paths:
+        QMessageBox.warning(main_window, "Asset Checker",
+            f"Could not find any real IMG/COL/IDE files from:\n{dat_path}")
+        return
+    result = check_assets(img_path=img_path, col_path=col_path,
+                           ide_path=ide_paths, game=game)
+    tab_label = os.path.splitext(os.path.basename(dat_path))[0]
+    return _present_asset_check_result(main_window, result, tab_label)
+
+
+def _present_asset_check_result(main_window, result, tab_label: str): #vers 1
+    """Shared display logic - real embedded tab when main_window has
+    a tab system, standalone modal dialog otherwise."""
     if main_window and hasattr(main_window, 'main_tab_widget'):
         from PyQt6.QtWidgets import QVBoxLayout, QWidget
 
@@ -364,8 +392,6 @@ def show_asset_checker(main_window, clicked_path: str, game: str = None): #vers 
         dlg.setWindowFlags(Qt.WindowType.Widget)
         tab_layout.addWidget(dlg)
 
-        names = [os.path.basename(p) for p in result.source_files] if hasattr(result, 'source_files') else []
-        tab_label = os.path.splitext(os.path.basename(clicked_path))[0] if clicked_path else "Asset Checker"
         try:
             from apps.methods.imgfactory_svg_icons import get_asset_checker_icon
             icon = get_asset_checker_icon()

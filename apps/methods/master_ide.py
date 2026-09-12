@@ -1,4 +1,4 @@
-#this belongs in apps/methods/master_ide.py - Version: 1
+#this belongs in apps/methods/master_ide.py - Version: 2
 
 ##Methods list -
 # MasterIDEResult
@@ -31,19 +31,22 @@ class MasterIDEResult: #vers 1
         return sum(len(v) for v in self.objects_by_section.values())
 
 
-def collect_ide_paths_from_dat(dat_path: str, game_root: str = None): #vers 1
+def collect_ide_paths_from_dat(dat_path: str, game_root: str = None, game: str = None): #vers 2
     """Resolve every real IDE file a game's .dat actually loads (Sep
     2026, per Keith: "load them all from /data/gta*.dat or /sol/
     gta*.dat and combine"). Reuses GTAWorldLoader's own real 2-phase
     load (default.dat/special.dat, then the main dat) instead of
     duplicating that logic - just pulls the resolved IDE paths back
-    out afterwards. Returns (ide_paths, game)."""
+    out afterwards. Falls back to GTA3-style parsing (game=None,
+    Sep 12 2026, per Keith: "gta(anyother).dat to load another gta
+    modding project") when the .dat's own filename isn't one of the
+    known real names - a different modding project's own .dat, not
+    silently ignored. Returns (ide_paths, game)."""
     from apps.methods.gta_dat_parser import (
-        detect_game_from_dat_filename, GTAWorldLoader)
+        detect_game_from_dat_filename, GTAWorldLoader, GTAGame)
 
-    game = detect_game_from_dat_filename(dat_path)
     if not game:
-        return [], None
+        game = detect_game_from_dat_filename(dat_path) or GTAGame.GTA3
     if not game_root:
         game_root = os.path.normpath(os.path.join(os.path.dirname(dat_path), ".."))
 
