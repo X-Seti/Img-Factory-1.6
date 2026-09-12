@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/asset_checker.py - Version: 3
+#this belongs in apps/methods/asset_checker.py - Version: 4
 
 ##Methods list -
 # find_sibling_asset_files
@@ -164,7 +164,7 @@ def find_sibling_asset_files(clicked_path: str): #vers 2
 
 
 def check_assets(img_path: str = None, col_path=None,
-                  ide_path=None, game: str = None) -> AssetCheckResult: #vers 5
+                  ide_path=None, game: str = None) -> AssetCheckResult: #vers 6
     """Load whichever of the 3 real files exist and cross-reference
     their real model names. Any of the 3 paths can be None/missing -
     the corresponding *_path stays empty and that source's own
@@ -218,6 +218,15 @@ def check_assets(img_path: str = None, col_path=None,
                 parser = IDEParser(game or GTAGame.GTA3)
                 if parser.parse(one_path):
                     all_objects.extend(parser.objects)
+            # 2dfx entries share their base object's real model_id but
+            # carry a synthetic "2dfx_<id>" stub name (see IDEParser's
+            # own docstring) - the real model is already listed via
+            # its own objs/tobj entry, so counting the stub too would
+            # falsely flag a "missing" model that never really existed
+            # (Sep 12 2026, per Keith: "we done need to list the id's
+            # again from the 2dfx section/ifx files"). Only relevant
+            # again once real ID reassignment/cascading exists.
+            all_objects = [o for o in all_objects if o.section != "2dfx"]
             if all_objects:
                 result.ide_path = ", ".join(os.path.basename(p) for p in ide_paths)
                 result.ide_paths = ide_paths
