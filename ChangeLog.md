@@ -1,4 +1,11 @@
-#this belongs in root /ChangeLog.md - Version: 101
+#this belongs in root /ChangeLog.md - Version: 102
+
+## Sep 12 2026 - Master IDE: file-shaped table view, Build 405.90
+
+Table mirrors the real .ide structure - section header row, its
+entries, "end" row, blank spacer between sections - instead of a
+repeated Section column. Header/end/blank rows unselectable. 4
+columns now (ID/Model/TXD/Source IDE).
 
 ## Sep 12 2026 - Master IDE: multi-select Rename/Remove, Build 404.90
 
