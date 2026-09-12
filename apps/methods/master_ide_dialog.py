@@ -1,4 +1,4 @@
-#this belongs in apps/methods/master_ide_dialog.py - Version: 9
+#this belongs in apps/methods/master_ide_dialog.py - Version: 10
 
 ##Methods list -
 # MasterIDEDialog
@@ -82,7 +82,11 @@ class MasterIDEDialog(QDialog): #vers 8
         btn_row.addWidget(close_btn)
         lay.addLayout(btn_row)
 
-    def _refresh_top(self): #vers 2
+        self.status_bar = QLabel()
+        self.status_bar.setStyleSheet("padding: 2px 4px;")
+        lay.addWidget(self.status_bar)
+
+    def _refresh_top(self): #vers 3
         """Rebuild the header info/warning/error labels - called on\n        init and again after a Load from .dat swaps self.result."""
         while self._top.count():
             item = self._top.takeAt(0)
@@ -137,6 +141,31 @@ class MasterIDEDialog(QDialog): #vers 8
             lbl = QLabel(f"Error: {err}")
             self._lay.insertWidget(1, lbl)
             self._extra_lbls.append(lbl)
+
+        self._refresh_status_bar()
+
+    def _refresh_status_bar(self): #vers 1
+        """IDs used / free within the engine's own ID range (Sep 12
+        2026, per Keith: "show things like number of IDs used 6357,
+        free ID's 500") - "free" is real remaining capacity in that
+        range, not a count of literal gaps between used IDs. Uses
+        this app's own stored ID_RANGES as a default only - the real
+        engine limit varies and isn't asserted here (see id_shift_
+        dialog.py's own "Engine ID ceiling" note on the same point)."""
+        try:
+            from apps.methods.gta_dat_parser import GTAGame
+            min_id, max_id = GTAGame.ID_RANGES.get(self.game, (0, 32767))
+        except Exception:
+            min_id, max_id = 0, 32767
+
+        used_ids = {obj.model_id for section in ("objs", "tobj")
+                    for obj in self.result.objects_by_section.get(section, [])}
+        used_in_range = sum(1 for i in used_ids if min_id <= i <= max_id)
+        capacity = max_id - min_id + 1
+        free = max(0, capacity - used_in_range)
+        self.status_bar.setText(
+            f"IDs used: {used_in_range}  |  Free: {free}  "
+            f"(range {min_id}-{max_id}, this app's default for the detected game)")
 
     def _add_warning_row(self, items, text_fn, line_fn, popup_title): #vers 1
         """One short warning line + a Details button, for any of the
