@@ -1,4 +1,4 @@
-#this belongs in apps/components/File_Editor/directory_tree_browser.py - Version: 4
+#this belongs in apps/components/File_Editor/directory_tree_browser.py - Version: 5
 # X-Seti - January10 2026 - IMG Factory 1.6 - Complete Directory Tree Browser
 """
 COMPLETE DIRECTORY TREE BROWSER
@@ -1879,22 +1879,22 @@ class DirectoryTreeBrowser(QWidget):
             if mw and hasattr(mw, 'log_message'):
                 mw.log_message(f"Asset Checker error: {e}")
 
-    def _show_master_ide(self, file_path: str): #vers 1
-        """Merge a single real IDE file (Master IDE view)."""
+    def _show_master_ide(self, file_path: str): #vers 2
+        """Merge a single real IDE file (Master IDE workshop)."""
         mw = self.main_window
         try:
-            from apps.methods.master_ide_dialog import show_master_ide
-            show_master_ide(mw, file_path)
+            from apps.components.Master_Ide.master_ide_workshop import open_master_ide_workshop
+            open_master_ide_workshop(mw, ide_paths=file_path)
         except Exception as e:
             if mw and hasattr(mw, 'log_message'):
                 mw.log_message(f"Master IDE error: {e}")
 
-    def _show_master_ide_from_dat(self, file_path: str): #vers 1
+    def _show_master_ide_from_dat(self, file_path: str): #vers 2
         """Resolve and merge every real IDE a game's .dat loads."""
         mw = self.main_window
         try:
-            from apps.methods.master_ide_dialog import show_master_ide_from_dat
-            show_master_ide_from_dat(mw, file_path)
+            from apps.components.Master_Ide.master_ide_workshop import open_master_ide_workshop
+            open_master_ide_workshop(mw, dat_path=file_path)
         except Exception as e:
             if mw and hasattr(mw, 'log_message'):
                 mw.log_message(f"Master IDE error: {e}")

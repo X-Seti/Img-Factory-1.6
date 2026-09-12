@@ -1,4 +1,4 @@
-#this belongs in apps/methods/asset_checker_dialog.py - Version: 6
+#this belongs in apps/methods/asset_checker_dialog.py - Version: 7
 
 ##Methods list -
 # AssetCheckerDialog
@@ -25,7 +25,7 @@ from PyQt6.QtGui import QColor
 from apps.methods.asset_checker import check_assets, find_sibling_asset_files, find_game_asset_files
 
 
-class AssetCheckerDialog(QDialog): #vers 5
+class AssetCheckerDialog(QDialog): #vers 6
     def __init__(self, parent, result): #vers 4
         super().__init__(parent)
         self.result = result
@@ -261,11 +261,11 @@ class AssetCheckerDialog(QDialog): #vers 5
     def _on_view_changed(self, index): #vers 1
         self.stack.setCurrentIndex(index)
 
-    def _on_master_ide(self): #vers 2
+    def _on_master_ide(self): #vers 3
         """Open Master IDE for the same real IDE file(s)."""
-        from apps.methods.master_ide_dialog import show_master_ide
+        from apps.components.Master_Ide.master_ide_workshop import open_master_ide_workshop
         paths = self.result.ide_paths or [self.result.ide_path]
-        show_master_ide(self.parent(), paths)
+        open_master_ide_workshop(self.parent(), ide_paths=paths)
 
     def _populate_columns_view(self): #vers 4
         r = self.result

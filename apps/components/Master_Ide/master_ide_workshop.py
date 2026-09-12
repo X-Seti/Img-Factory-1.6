@@ -1,18 +1,25 @@
-#this belongs in apps/methods/master_ide_dialog.py - Version: 10
+#this belongs in apps/components/Master_Ide/master_ide_workshop.py - Version: 1
+# X-Seti - September 12 2026 - IMG Factory 1.6 - Master IDE Workshop
+
+"""master_ide_workshop.py - Master IDE as its own standalone,
+dockable workshop (Sep 12 2026, per Keith: "it should also be
+standalone, own dockable window, using col style UI"). Same dual-
+mode pattern every workshop here uses (open_col_workshop's own
+shape): embeds as a tab if main_window has one, real standalone
+floating window otherwise, registers in the tool taskbar. The
+button row lives inside a real DockableToolbar (float/collapse/
+drag/dock, its own saved layout) instead of a plain row."""
 
 ##Methods list -
-# MasterIDEDialog
+# MasterIDEWorkshop
 # _InsertTextDialog
 # _AddEntryDialog
-# show_master_ide
-# show_master_ide_from_dat
-
-"""master_ide_dialog.py - the real UI for master_ide.py's own step-1 merge (Sep 5 2026)"""
+# open_master_ide_workshop
 
 import os
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, QTableWidgetItem,
-    QPushButton, QFileDialog, QMessageBox, QWidget, QListWidget,
+    QPushButton, QFileDialog, QMessageBox, QWidget, QListWidget, QCheckBox,
 )
 from PyQt6.QtCore import Qt
 
@@ -20,28 +27,49 @@ from apps.methods.master_ide import (
     load_master_ide, write_master_ide, collect_ide_paths_from_dat)
 from apps.methods.master_ide_edit import rename_entry, add_entry, remove_entry, write_source_file
 from apps.methods.file_backup import backup_file
+from apps.components.Master_Ide.dockable_toolbar import DockableToolbar
 
 
-class MasterIDEDialog(QDialog): #vers 8
-    def __init__(self, parent, result, source_paths, game=None): #vers 2
+class MasterIDEWorkshop(QWidget): #vers 1
+    def __init__(self, parent, main_window=None): #vers 1
         super().__init__(parent)
-        self.result = result
-        self.source_paths = source_paths
-        self.game = game
-        self.setWindowTitle("Master IDE")
-        self.resize(820, 560)
+        self.main_window = main_window
+        self.result = None
+        self.source_paths = []
+        self.game = None
+        self.dat_path = None   # last real .dat used, for reloading with a changed ignore-files option
+        self.ignore_base_files = True
+        self._tab_container = None
         self._build_ui()
-        self._refresh_top()
-        self._populate()
 
-    def _build_ui(self): #vers 2
+    def load_ide_paths(self, ide_paths, game=None): #vers 1
+        """Load from a plain real .ide path list (single-file or
+        multi-file right-click entry points)."""
+        if isinstance(ide_paths, str):
+            ide_paths = [ide_paths]
+        self.dat_path = None
+        self.source_paths = list(ide_paths)
+        self.game = game
+        self._reload_after_edit()
+
+    def load_from_dat(self, dat_path): #vers 1
+        """Load by resolving every real IDE a game's .dat loads."""
+        self.dat_path = dat_path
+        ide_paths, game = collect_ide_paths_from_dat(
+            dat_path, ignore_base_files=self.ignore_base_files)
+        if not ide_paths:
+            QMessageBox.warning(self, "Master IDE", f"No IDE files found from:\n{dat_path}")
+            return
+        self.source_paths = ide_paths
+        self.game = game
+        self._reload_after_edit()
+
+    def _build_ui(self): #vers 1
         self._lay = QVBoxLayout(self)
-        lay = self._lay
 
         self._top = QHBoxLayout()
-        lay.addLayout(self._top)
-        self._warn_lbl = None
-        self._error_lbls = []
+        self._lay.addLayout(self._top)
+        self._extra_lbls = []
 
         self.table = QTableWidget()
         self.table.setColumnCount(4)
@@ -49,15 +77,27 @@ class MasterIDEDialog(QDialog): #vers 8
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.horizontalHeader().setStretchLastSection(True)
-        from PyQt6.QtWidgets import QMenu
         self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.table.customContextMenuRequested.connect(self._on_table_context_menu)
-        lay.addWidget(self.table, 1)
+        self._lay.addWidget(self.table, 1)
 
-        btn_row = QHBoxLayout()
+        self.toolbar = DockableToolbar(self, self, settings_key='master_ide_toolbar_layout')
+        btn_bar = QWidget()
+        btn_row = QHBoxLayout(btn_bar)
+        btn_row.setContentsMargins(2, 2, 2, 2)
+
         load_dat_btn = QPushButton("Load from .dat...")
         load_dat_btn.clicked.connect(self._on_load_from_dat)
         btn_row.addWidget(load_dat_btn)
+        self.ignore_base_chk = QCheckBox("Ignore default.ide/gta3.ide")
+        self.ignore_base_chk.setChecked(self.ignore_base_files)
+        self.ignore_base_chk.setToolTip(
+            "Skip the base engine's own default.ide/gta3.ide (peds/cars/"
+            "wheels/weapons/hier only) when loading from a .dat, so ID "
+            "counting/reassignment starts from the first real world "
+            "(generic) IDE file instead.")
+        self.ignore_base_chk.toggled.connect(self._on_ignore_base_toggled)
+        btn_row.addWidget(self.ignore_base_chk)
         insert_file_btn = QPushButton("Insert IDE File...")
         insert_file_btn.clicked.connect(self._on_insert_ide_file)
         btn_row.addWidget(insert_file_btn)
@@ -77,17 +117,21 @@ class MasterIDEDialog(QDialog): #vers 8
         save_btn.clicked.connect(self._on_save)
         btn_row.addWidget(save_btn)
         btn_row.addStretch()
-        close_btn = QPushButton("Close")
-        close_btn.clicked.connect(self.accept)
-        btn_row.addWidget(close_btn)
-        lay.addLayout(btn_row)
+
+        self.toolbar.set_content(btn_bar)
+        self._lay.insertWidget(0, self.toolbar)
 
         self.status_bar = QLabel()
         self.status_bar.setStyleSheet("padding: 2px 4px;")
-        lay.addWidget(self.status_bar)
+        self._lay.addWidget(self.status_bar)
 
-    def _refresh_top(self): #vers 3
-        """Rebuild the header info/warning/error labels - called on\n        init and again after a Load from .dat swaps self.result."""
+    def _on_ignore_base_toggled(self, checked): #vers 1
+        self.ignore_base_files = checked
+        if self.dat_path:
+            self.load_from_dat(self.dat_path)
+
+    def _refresh_top(self): #vers 1
+        """Rebuild the header info/warning/error labels."""
         while self._top.count():
             item = self._top.takeAt(0)
             if item.widget():
@@ -139,19 +183,17 @@ class MasterIDEDialog(QDialog): #vers 8
 
         for err in self.result.errors:
             lbl = QLabel(f"Error: {err}")
-            self._lay.insertWidget(1, lbl)
+            self._lay.insertWidget(2, lbl)
             self._extra_lbls.append(lbl)
 
         self._refresh_status_bar()
 
     def _refresh_status_bar(self): #vers 1
-        """IDs used / free within the engine's own ID range (Sep 12
-        2026, per Keith: "show things like number of IDs used 6357,
-        free ID's 500") - "free" is real remaining capacity in that
-        range, not a count of literal gaps between used IDs. Uses
-        this app's own stored ID_RANGES as a default only - the real
-        engine limit varies and isn't asserted here (see id_shift_
-        dialog.py's own "Engine ID ceiling" note on the same point)."""
+        """IDs used / free within the engine's own ID range - "free"
+        is real remaining capacity in that range, not a count of
+        literal gaps between used IDs. Uses this app's own stored
+        ID_RANGES as a default only - the real engine limit varies
+        and isn't asserted here."""
         try:
             from apps.methods.gta_dat_parser import GTAGame
             min_id, max_id = GTAGame.ID_RANGES.get(self.game, (0, 32767))
@@ -169,9 +211,8 @@ class MasterIDEDialog(QDialog): #vers 8
 
     def _add_warning_row(self, items, text_fn, line_fn, popup_title): #vers 1
         """One short warning line + a Details button, for any of the
-        4 real checks - keeps the header short instead of dumping
-        every entry inline (Sep 12 2026 - same lesson as Asset
-        Checker's own window-stretching fix)."""
+        checks - keeps the header short instead of dumping every
+        entry inline."""
         if not items:
             return
         container = QWidget()
@@ -180,19 +221,16 @@ class MasterIDEDialog(QDialog): #vers 8
         warn = QLabel(text_fn(len(items)))
         warn.setStyleSheet("font-weight: bold;")
         row.addWidget(warn)
-        from PyQt6.QtWidgets import QPushButton
         details_btn = QPushButton("Details...")
         details_btn.clicked.connect(
             lambda: self._show_details_popup(popup_title, [line_fn(i) for i in items]))
         row.addWidget(details_btn)
         row.addStretch()
-        self._lay.insertWidget(1, container)
+        self._lay.insertWidget(2, container)
         self._extra_lbls.append(container)
 
     def _show_details_popup(self, title, lines): #vers 1
-        """Plain listing popup for warning details - manually closed,
-        not auto-timed, since these need reviewing/acting on (unlike
-        Asset Checker's purely informational checked-files list)."""
+        """Plain listing popup for warning details - manually closed."""
         popup = QDialog(self)
         popup.setWindowTitle(title)
         popup.resize(480, 400)
@@ -202,7 +240,6 @@ class MasterIDEDialog(QDialog): #vers 8
         v.addWidget(lst)
         close_btn_row = QHBoxLayout()
         close_btn_row.addStretch()
-        from PyQt6.QtWidgets import QPushButton
         close_btn = QPushButton("Close")
         close_btn.clicked.connect(popup.close)
         close_btn_row.addWidget(close_btn)
@@ -215,23 +252,9 @@ class MasterIDEDialog(QDialog): #vers 8
             "GTA DAT files (gta3.dat gta_vc.dat gta.dat gta_sol.dat gtasol.dat);;All files (*.dat)")
         if not path:
             return
-        ide_paths, game = collect_ide_paths_from_dat(path)
-        if not ide_paths:
-            QMessageBox.warning(self, "Master IDE",
-                f"No IDE files found from:\n{path}")
-            return
-        self.result = load_master_ide(ide_paths, game=game)
-        self.source_paths = ide_paths
-        self.game = game
-        self._refresh_top()
-        self._populate()
+        self.load_from_dat(path)
 
     def _on_insert_ide_file(self): #vers 1
-        """Add one more real .ide file to the current merge (Sep 12
-        2026, per Keith: "insert text or an ide file, that gets
-        merged in") - reruns load_master_ide against the expanded
-        file list so it's grouped/checked exactly the same as any
-        other loaded file."""
         path, _ = QFileDialog.getOpenFileName(
             self, "Select IDE file to insert", "", "IDE Files (*.ide);;All files (*)")
         if not path:
@@ -243,10 +266,6 @@ class MasterIDEDialog(QDialog): #vers 8
         self._reload_after_edit()
 
     def _on_insert_text(self): #vers 1
-        """Paste raw IDE-format text (e.g. "objs\\n...\\nend") and
-        either append it to an already-loaded real file or save it
-        as a brand-new one - either way it's real text on disk
-        before being merged, never held only in memory."""
         dlg = _InsertTextDialog(self, self.source_paths)
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return
@@ -281,9 +300,6 @@ class MasterIDEDialog(QDialog): #vers 8
         self._reload_after_edit()
 
     def _on_remove_file(self): #vers 1
-        """Unload one real loaded file from this merge session -
-        does NOT delete or modify the real file on disk, just
-        removes it from the current merge scope."""
         if not self.source_paths:
             return
         from PyQt6.QtWidgets import QInputDialog
@@ -306,7 +322,7 @@ class MasterIDEDialog(QDialog): #vers 8
             return
         self._reload_after_edit()
 
-    def _populate(self): #vers 3
+    def _populate(self): #vers 1
         base = self.palette().color(self.palette().currentColorGroup(),
                                      self.palette().ColorRole.Base)
         from PyQt6.QtGui import QColor
@@ -318,7 +334,7 @@ class MasterIDEDialog(QDialog): #vers 8
         flagged_ids |= {o.model_id for o in self.result.out_of_range}
         flagged_ids |= {v.model_id for v in self.result.file_range_violations}
 
-        rows = []   # each entry: ('entry', model_id, model_name, txd_name, source_ide) or ('header'|'end'|'blank', section)
+        rows = []
         for section in ("objs", "tobj"):
             objs = self.result.objects_by_section.get(section)
             if not objs:
@@ -366,10 +382,6 @@ class MasterIDEDialog(QDialog): #vers 8
                     self.table.setItem(row, col, item)
 
     def _resolve_source_path(self, basename_or_path): #vers 1
-        """Resolve a real full source path from result.source_files
-        matching by basename - table rows only ever display a
-        basename (obj.source_ide is basename-only, see master_ide_
-        edit.py's own docstring on this pre-existing convention)."""
         target = os.path.basename(basename_or_path)
         for p in self.result.source_files:
             if os.path.basename(p) == target:
@@ -377,21 +389,11 @@ class MasterIDEDialog(QDialog): #vers 8
         return None
 
     def _reload_after_edit(self): #vers 1
-        """Re-run load_master_ide against the same real source files
-        so the merged view/checks reflect a just-written edit."""
         self.result = load_master_ide(self.source_paths, game=self.game)
         self._refresh_top()
         self._populate()
 
-    def _on_table_context_menu(self, pos): #vers 3
-        """Rename/Remove operate on the real full selection (Sep 12
-        2026, per Keith). Marker rows (section header/end/blank
-        spacer, from the file-shaped layout) are never real entries -
-        skipped entirely rather than treated as selectable targets.
-        Right-clicking a row outside the current selection replaces
-        the selection with just that row. Rename only ever applies
-        to exactly one selected row; Remove applies to every
-        selected real entry row."""
+    def _on_table_context_menu(self, pos): #vers 1
         row = self.table.rowAt(pos.y())
         if row < 0:
             return
@@ -443,10 +445,7 @@ class MasterIDEDialog(QDialog): #vers 8
             return
         self._reload_after_edit()
 
-    def _on_remove_rows(self, targets): #vers 2
-        """Remove every given (model_id, source_ide) target - one
-        confirmation for the whole batch, one write per real
-        touched file (not per entry)."""
+    def _on_remove_rows(self, targets): #vers 1
         if not targets:
             return
         if len(targets) == 1:
@@ -501,13 +500,13 @@ class MasterIDEDialog(QDialog): #vers 8
             return
         self._reload_after_edit()
 
-    def _on_id_shift(self): #vers 2
+    def _on_id_shift(self): #vers 1
         from apps.methods.id_shift_dialog import IDShiftDialog
         dlg = IDShiftDialog(self, self.result, game=self.game)
         if dlg.exec() == QDialog.DialogCode.Accepted:
             self._reload_after_edit()
 
-    def _on_save(self): #vers 3
+    def _on_save(self): #vers 1
         total_flags = (len(self.result.collisions) + len(self.result.name_collisions) +
                        len(self.result.redefinitions) + len(self.result.out_of_range) +
                        len(self.result.file_range_violations))
@@ -542,10 +541,9 @@ class MasterIDEDialog(QDialog): #vers 8
 
 
 class _InsertTextDialog(QDialog): #vers 1
-    """Small form for Insert Text - a plain text box for pasting raw
-    real IDE-format text, plus where it goes: appended to an already
-    loaded real file, or saved as a brand-new one (Sep 12 2026, per
-    Keith: "insert text or an ide file, that gets merged in")."""
+    """Small form for Insert Text - paste raw real IDE-format text,
+    plus where it goes: appended to an already loaded real file, or
+    saved as a brand-new one."""
     def __init__(self, parent, source_paths): #vers 1
         super().__init__(parent)
         self.setWindowTitle("Insert Text")
@@ -661,22 +659,71 @@ class _AddEntryDialog(QDialog): #vers 1
         }
 
 
-def show_master_ide(main_window, ide_paths, game: str = None): #vers 2
-    """Entry point - loads and merges the given real .ide files and
-    shows the result. ide_paths can be a single path or a list."""
-    if isinstance(ide_paths, str):
-        ide_paths = [ide_paths]
-    result = load_master_ide(ide_paths, game=game)
-    dlg = MasterIDEDialog(main_window, result, ide_paths, game=game)
-    dlg.exec()
+def open_master_ide_workshop(main_window, ide_paths=None, dat_path=None, game=None): #vers 1
+    """Entry point - real dual-mode pattern every workshop here uses
+    (matches open_col_workshop's own shape): embeds as a tab if
+    main_window has one, real standalone floating window otherwise,
+    registers in the tool taskbar. Pass either ide_paths (a single
+    path or list) or dat_path (resolves the whole game), not both."""
+    try:
+        if not main_window or not hasattr(main_window, 'main_tab_widget'):
+            workshop = MasterIDEWorkshop(None, main_window)
+            workshop.setWindowFlags(Qt.WindowType.Window)
+            if dat_path:
+                workshop.load_from_dat(dat_path)
+            elif ide_paths:
+                workshop.load_ide_paths(ide_paths, game=game)
+            workshop.setWindowTitle("Master IDE")
+            workshop.resize(1000, 650)
+            workshop.show()
+            return workshop
+
+        tab_container = QWidget()
+        tab_layout = QVBoxLayout(tab_container)
+        tab_layout.setContentsMargins(0, 0, 0, 0)
+
+        workshop = MasterIDEWorkshop(tab_container, main_window)
+        workshop._tab_container = tab_container
+        tab_layout.addWidget(workshop)
+
+        if dat_path:
+            workshop.load_from_dat(dat_path)
+        elif ide_paths:
+            workshop.load_ide_paths(ide_paths, game=game)
+
+        tab_label = "Master IDE"
+        try:
+            from apps.methods.imgfactory_svg_icons import get_asset_checker_icon
+            icon = get_asset_checker_icon()
+            idx = main_window.main_tab_widget.addTab(tab_container, icon, tab_label)
+        except Exception:
+            idx = main_window.main_tab_widget.addTab(tab_container, tab_label)
+        main_window.main_tab_widget.setCurrentIndex(idx)
+        if hasattr(main_window, '_ensure_tab_area_visible'):
+            main_window._ensure_tab_area_visible()
+
+        _register_master_ide_taskbar(tab_container, main_window)
+        return workshop
+    except Exception as e:
+        if main_window and hasattr(main_window, 'log_message'):
+            main_window.log_message(f"Error opening Master IDE: {e}")
+        return None
 
 
-def show_master_ide_from_dat(main_window, dat_path: str): #vers 1
-    """Entry point - resolves every real IDE a game's .dat loads
-    (default.dat + main dat), merges, and shows the result."""
-    ide_paths, game = collect_ide_paths_from_dat(dat_path)
-    if not ide_paths:
-        QMessageBox.warning(main_window, "Master IDE",
-            f"No IDE files found from:\n{dat_path}")
-        return
-    show_master_ide(main_window, ide_paths, game=game)
+def _register_master_ide_taskbar(widget, main_window): #vers 1
+    """Register or activate the Master IDE button in the real tool
+    taskbar, matching Asset Checker's own convention."""
+    try:
+        tb = getattr(main_window, 'tool_taskbar', None)
+        if not tb:
+            return
+        if 'master_ide' not in tb._tools:
+            from apps.methods.imgfactory_svg_icons import get_asset_checker_icon
+            icon = get_asset_checker_icon(16)
+            tb.register('master_ide', 'Master IDE', icon, widget, 'Master IDE')
+        else:
+            tb._tools['master_ide']['target'] = widget
+        if hasattr(tb, '_set_exclusive_active'):
+            tb._set_exclusive_active('master_ide')
+    except Exception:
+        pass

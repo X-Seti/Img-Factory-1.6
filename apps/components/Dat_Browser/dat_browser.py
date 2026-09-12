@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in components/Dat_Browser/dat_browser.py - Version: 6
+#this belongs in components/Dat_Browser/dat_browser.py - Version: 7
 # X-Seti - March 2026 - IMG Factory 1.6 - GTA DAT/IDE/IPL Browser
 """
 DAT Browser — viewer panel for the GTA world data load chain.
@@ -2456,23 +2456,23 @@ class DATBrowserWidget(QWidget): #vers 3
             if mw and hasattr(mw, 'log_message'):
                 mw.log_message(f"Asset Checker error: {e}")
 
-    def _show_master_ide(self, ide_path: str): #vers 1
-        """Merge a single real IDE file (Master IDE view)."""
+    def _show_master_ide(self, ide_path: str): #vers 2
+        """Merge a single real IDE file (Master IDE workshop)."""
         mw = self.main_window
         try:
-            from apps.methods.master_ide_dialog import show_master_ide
+            from apps.components.Master_Ide.master_ide_workshop import open_master_ide_workshop
             game = getattr(getattr(self, 'loader', None), 'game', None)
-            show_master_ide(mw, ide_path, game=game)
+            open_master_ide_workshop(mw, ide_paths=ide_path, game=game)
         except Exception as e:
             if mw and hasattr(mw, 'log_message'):
                 mw.log_message(f"Master IDE error: {e}")
 
-    def _show_master_ide_from_dat(self, dat_path: str): #vers 1
+    def _show_master_ide_from_dat(self, dat_path: str): #vers 2
         """Resolve and merge every real IDE a game's .dat loads."""
         mw = self.main_window
         try:
-            from apps.methods.master_ide_dialog import show_master_ide_from_dat
-            show_master_ide_from_dat(mw, dat_path)
+            from apps.components.Master_Ide.master_ide_workshop import open_master_ide_workshop
+            open_master_ide_workshop(mw, dat_path=dat_path)
         except Exception as e:
             if mw and hasattr(mw, 'log_message'):
                 mw.log_message(f"Master IDE error: {e}")

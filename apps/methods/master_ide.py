@@ -1,4 +1,4 @@
-#this belongs in apps/methods/master_ide.py - Version: 6
+#this belongs in apps/methods/master_ide.py - Version: 7
 
 ##Methods list -
 # MasterIDEResult
@@ -14,6 +14,20 @@ from dataclasses import dataclass, field
 from typing import Dict, List
 
 _EDITABLE_SECTIONS = ("objs", "tobj")   # only sections this app reconstructs from parsed fields
+
+# Base engine declaration files (Sep 12 2026, per Keith's own real
+# files: "default.ide is found in the /data folder, gta3.ide in
+# some versions is found in /models/... with the gta3.img dir") -
+# these ship with every install and declare only the base engine's
+# own peds/cars/wheels/weapons/hier (see the real "ID Key (usage)"
+# doc's own 0-299ish ranges), never a project's own world content.
+# Matched by basename only, regardless of which real folder they
+# live in, since that varies by game/version.
+_BASE_ENGINE_FILENAMES = {"default.ide", "gta3.ide"}
+
+
+def _is_base_engine_file(path: str) -> bool: #vers 1
+    return os.path.basename(path).lower() in _BASE_ENGINE_FILENAMES
 
 # Sections whose leading number is NOT a real declared object ID -
 # excluded from every ID-based check (Sep 12 2026, per Keith's own
@@ -139,7 +153,8 @@ def _leading_id(line: str) -> int: #vers 1
         return 2**31 - 1
 
 
-def collect_ide_paths_from_dat(dat_path: str, game_root: str = None, game: str = None): #vers 2
+def collect_ide_paths_from_dat(dat_path: str, game_root: str = None, game: str = None,
+                                ignore_base_files: bool = False): #vers 3
     """Resolve every real IDE file a game's .dat actually loads (Sep
     2026, per Keith: "load them all from /data/gta*.dat or /sol/
     gta*.dat and combine"). Reuses GTAWorldLoader's own real 2-phase
@@ -149,7 +164,12 @@ def collect_ide_paths_from_dat(dat_path: str, game_root: str = None, game: str =
     Sep 12 2026, per Keith: "gta(anyother).dat to load another gta
     modding project") when the .dat's own filename isn't one of the
     known real names - a different modding project's own .dat, not
-    silently ignored. Returns (ide_paths, game)."""
+    silently ignored. ignore_base_files=True drops default.ide/
+    gta3.ide (matched by basename regardless of folder) so real
+    world-content ID counting/reassignment starts from the first
+    real "world (generic)" IDE file instead (Sep 12 2026, per Keith:
+    "option needed to ignore these two files, starting the id's
+    from world (generic) ide"). Returns (ide_paths, game)."""
     from apps.methods.gta_dat_parser import (
         detect_game_from_dat_filename, GTAWorldLoader, GTAGame)
 
@@ -166,6 +186,8 @@ def collect_ide_paths_from_dat(dat_path: str, game_root: str = None, game: str =
     for dat in (loader.default_dat, loader.main_dat):
         for entry in dat.ide_entries():
             if entry.exists and entry.abs_path not in seen:
+                if ignore_base_files and _is_base_engine_file(entry.abs_path):
+                    continue
                 seen.add(entry.abs_path)
                 paths.append(entry.abs_path)
     return paths, game
