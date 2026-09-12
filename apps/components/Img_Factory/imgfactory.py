@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in components/Img_Factory/imgfactory.py - Version: 89
+#this belongs in components/Img_Factory/imgfactory.py - Version: 90
 # X-Seti - Feb 24 2026 - IMG Factory 1.6 - Icon system, button layout
 
 """
@@ -6633,12 +6633,18 @@ class IMGFactory(QMainWindow):
         from apps.components.Hex_Editor.hex_workshop import open_hex_workshop
         return open_hex_workshop(self, file_path)
 
-    def open_asset_checker(self, dat_path=None): #vers 2
+    def open_asset_checker(self, dat_path=None): #vers 3
         """Open Asset Checker - prompts for a game's main .dat if
         none given (Intro page tile has no file context of its own).
         Needs a whole .dat, not a single file, since Asset Checker
         cross-references all 3 of IMG/COL/IDE together (Sep 12
-        2026, per Keith)."""
+        2026, per Keith). Looks up the current project's own real
+        game_root first and offers "Continue" with that project's
+        .dat, or "Browse..." for a different one (Sep 12 2026, per
+        Keith: "Continue to load project path 'Vice-City, gta_vc.
+        dat' or browse for your own .dat file")."""
+        if not dat_path:
+            dat_path = self._find_project_dat_with_prompt()
         if not dat_path:
             from PyQt6.QtWidgets import QFileDialog
             dat_path, _ = QFileDialog.getOpenFileName(
@@ -6649,6 +6655,39 @@ class IMGFactory(QMainWindow):
                 return
         from apps.methods.asset_checker_dialog import show_asset_checker_from_dat
         show_asset_checker_from_dat(self, dat_path)
+
+    def _find_project_dat_with_prompt(self): #vers 1
+        """Return the current project's real main .dat path if the
+        user confirms it via a Continue/Browse prompt, else None
+        (falls through to a plain file browse)."""
+        pm = getattr(self, 'project_manager', None)
+        if not pm or not pm.current_project:
+            return None
+        settings = pm.get_project_settings(pm.current_project)
+        game_root = settings.get('game_root', '')
+        if not game_root or not os.path.isdir(game_root):
+            return None
+        try:
+            from apps.methods.gta_dat_parser import detect_game, find_dat_file
+            game = detect_game(game_root)
+            if not game:
+                return None
+            dat_path = find_dat_file(game_root, game)
+            if not dat_path or not os.path.isfile(dat_path):
+                return None
+        except Exception:
+            return None
+
+        from PyQt6.QtWidgets import QMessageBox
+        box = QMessageBox(self)
+        box.setWindowTitle("Asset Checker")
+        box.setText(
+            f"Continue to load project path '{pm.current_project}, "
+            f"{os.path.basename(dat_path)}' or browse for your own .dat file?")
+        continue_btn = box.addButton("Continue", QMessageBox.ButtonRole.AcceptRole)
+        box.addButton("Browse...", QMessageBox.ButtonRole.RejectRole)
+        box.exec()
+        return dat_path if box.clickedButton() == continue_btn else None
 
     def open_radar_map(self): #vers 5
         """Open Radar Workshop docked in a tab (DP5 pattern), or standalone fallback."""
