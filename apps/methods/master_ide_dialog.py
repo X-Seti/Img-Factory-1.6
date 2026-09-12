@@ -1,4 +1,4 @@
-#this belongs in apps/methods/master_ide_dialog.py - Version: 4
+#this belongs in apps/methods/master_ide_dialog.py - Version: 5
 
 ##Methods list -
 # MasterIDEDialog
@@ -75,7 +75,9 @@ class MasterIDEDialog(QDialog): #vers 4
             if item.widget():
                 item.widget().deleteLater()
         names = ", ".join(os.path.basename(p) for p in self.result.source_files)
-        self._top.addWidget(QLabel(f"Merged: {names} ({self.result.total_objects} object(s))"))
+        visible_count = sum(len(v) for section, v in self.result.objects_by_section.items()
+                             if section not in self.result.raw_section_lines)
+        self._top.addWidget(QLabel(f"Merged: {names} ({visible_count} object(s))"))
         self._top.addStretch()
 
         for lbl in getattr(self, '_extra_lbls', []):
@@ -187,6 +189,15 @@ class MasterIDEDialog(QDialog): #vers 4
 
         rows = []
         for section, objs in self.result.objects_by_section.items():
+            # 2dfx (and every section pooled as raw_section_lines
+            # instead of parsed IDEObjects) never gets its own table
+            # row - it has no real model name of its own, only an ID
+            # shared with its base object, so showing it here is
+            # noise at best and the corrupted-looking synthetic
+            # "2dfx_<id>" name at worst (Sep 12 2026, per Keith: "2dfx
+            # should not be shown in the dialogue window").
+            if section in self.result.raw_section_lines:
+                continue
             for obj in objs:
                 rows.append((section, obj.model_id, obj.model_name,
                              obj.txd_name, os.path.basename(obj.source_ide)))

@@ -1,4 +1,4 @@
-#this belongs in apps/methods/master_ide.py - Version: 4
+#this belongs in apps/methods/master_ide.py - Version: 5
 
 ##Methods list -
 # MasterIDEResult
@@ -9,8 +9,11 @@
 """master_ide.py - Master IDE feature (Sep 5 2026)"""
 
 import os
+import re
 from dataclasses import dataclass, field
 from typing import Dict, List
+
+_EDITABLE_SECTIONS = ("objs", "tobj")   # only sections this app reconstructs from parsed fields
 
 
 @dataclass
@@ -42,8 +45,9 @@ class MasterIDEOutOfRange: #vers 1
 
 
 @dataclass
-class MasterIDEResult: #vers 2
+class MasterIDEResult: #vers 3
     objects_by_section: Dict[str, list] = field(default_factory=dict)   # section -> list of IDEObject, sorted by model_id
+    raw_section_lines: Dict[str, List[str]] = field(default_factory=dict)   # section -> real raw lines, verbatim, pooled across files
     source_files: List[str] = field(default_factory=list)
     collisions: List[MasterIDECollision] = field(default_factory=list)
     name_collisions: List[MasterIDENameCollision] = field(default_factory=list)
@@ -54,6 +58,42 @@ class MasterIDEResult: #vers 2
     @property
     def total_objects(self): #vers 1
         return sum(len(v) for v in self.objects_by_section.values())
+
+
+def _section_order_and_raw(text): #vers 1
+    """Real section names in the order they appear in one real file,
+    plus each real section's own raw lines verbatim (same keyword-
+    detection rule the real parser uses) - shared by load_master_ide
+    (pooling non-editable sections across files for the combined
+    output) and master_ide_edit.py's own per-file write-back."""
+    order = []
+    raw = {}
+    current = None
+    for line in text.splitlines():
+        stripped = line.split("#")[0].strip()
+        low = stripped.lower()
+        if current is None:
+            if low and re.match(r'^[a-z0-9_]{2,8}$', low) and "," not in stripped:
+                current = low
+                order.append(current)
+                raw[current] = []
+            continue
+        if low == "end":
+            current = None
+            continue
+        raw[current].append(line.rstrip("\r"))
+    return order, raw
+
+
+def _leading_id(line: str) -> int: #vers 1
+    """The real leading numeric field of a raw section line, for
+    numeric sort - lines that don't start with one sort last rather
+    than crashing."""
+    first = line.strip().split(",", 1)[0].strip()
+    try:
+        return int(first)
+    except ValueError:
+        return 2**31 - 1
 
 
 def collect_ide_paths_from_dat(dat_path: str, game_root: str = None, game: str = None): #vers 2
@@ -136,6 +176,24 @@ def load_master_ide(ide_paths: List[str], game: str = None) -> MasterIDEResult: 
                 sig = (obj.txd_name.lower(), obj.section, tuple(sorted((obj.extra or {}).items())))
                 seen_defs.setdefault(key, []).append(
                     (obj.model_name, obj.txd_name, obj.section, obj.source_ide, sig))
+
+            # Real 2dfx (and any other non-objs/tobj) lines carry a
+            # field layout this app doesn't fully round-trip through
+            # IDEObject.extra (2dfx corona effects have quoted string
+            # fields and more trailing values than the parser keeps) -
+            # reconstructing them from parsed fields silently corrupts
+            # real data (Sep 12 2026, per Keith: real bug report,
+            # "2dfx doesn't use model names, just the ID... the data
+            # is being completely changed"). Pool the RAW original
+            # lines for every non-editable section instead, combined
+            # numerically at write time - never reconstructed.
+            with open(path, "r", encoding="ascii", errors="ignore") as f:
+                raw_text = f.read()
+            _order, raw_sections = _section_order_and_raw(raw_text)
+            for section, raw_lines in raw_sections.items():
+                if section in _EDITABLE_SECTIONS:
+                    continue
+                result.raw_section_lines.setdefault(section, []).extend(raw_lines)
         except Exception as e:
             result.errors.append(f"Error parsing {path}: {e}")
 
@@ -221,24 +279,33 @@ def _fmt_num(val) -> str: #vers 1
     return str(val)
 
 
-def write_master_ide(result: MasterIDEResult, output_path: str) -> bool: #vers 1
+def write_master_ide(result: MasterIDEResult, output_path: str) -> bool: #vers 2
     """Write the merged result back out as one real, combined .ide
-    file - grouped by section (never mixed), sorted by ID within each group."""
+    file - grouped by section (never mixed), sorted by ID within
+    each group. Only objs/tobj are reconstructed from parsed fields;
+    every other real section (2dfx, cars, peds, weap, hier, anim,
+    txdp) is written from each source file's own pooled RAW lines,
+    sorted numerically by their own leading ID field - never rebuilt
+    from IDEObject.extra, which doesn't retain every real field for
+    those section types (Sep 12 2026, per Keith's own real bug
+    report - see load_master_ide's own docstring)."""
     try:
         lines = []
-        for section, objs in result.objects_by_section.items():
+        for section in _EDITABLE_SECTIONS:
+            objs = result.objects_by_section.get(section)
+            if not objs:
+                continue
             lines.append(section)
             for obj in objs:
-                if section in ('objs', 'tobj'):
-                    lines.append(_format_objs_or_tobj_line(obj))
-                else:
-                    # Not yet verified for this section type - best
-                    # effort using whatever raw values are available.
-                    extra_vals = ", ".join(str(v) for v in (obj.extra or {}).values())
-                    line = f"{obj.model_id}, {obj.model_name}, {obj.txd_name}"
-                    if extra_vals:
-                        line += f", {extra_vals}"
-                    lines.append(line)
+                lines.append(_format_objs_or_tobj_line(obj))
+            lines.append("end")
+            lines.append("")
+
+        for section, raw_lines in result.raw_section_lines.items():
+            if not raw_lines:
+                continue
+            lines.append(section)
+            lines.extend(sorted(raw_lines, key=_leading_id))
             lines.append("end")
             lines.append("")
 

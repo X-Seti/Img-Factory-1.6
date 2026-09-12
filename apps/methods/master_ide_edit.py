@@ -1,4 +1,4 @@
-#this belongs in apps/methods/master_ide_edit.py - Version: 1
+#this belongs in apps/methods/master_ide_edit.py - Version: 2
 # X-Seti - September 12 2026 - IMG Factory 1.6 - Master IDE Single-Entry Edits
 
 """master_ide_edit.py - safe single-entry operations for Master IDE
@@ -26,6 +26,7 @@ silently overwriting a real existing file in place."""
 
 import os
 from apps.methods.file_backup import backup_file
+from apps.methods.master_ide import _section_order_and_raw
 
 _EDITABLE_SECTIONS = ("objs", "tobj")
 
@@ -111,31 +112,6 @@ def remove_entry(result, model_id, source_ide): #vers 2
             objs.remove(match)
             return None
     return f"No entry with ID {model_id} in {source_base}"
-
-
-def _section_order_and_raw(text): #vers 1
-    """Real section names in the order they appear, plus each real
-    section's own raw lines verbatim (same keyword-detection rule
-    the real parser uses) - for copying anything this app doesn't
-    edit through untouched."""
-    import re
-    order = []
-    raw = {}
-    current = None
-    for line in text.splitlines():
-        stripped = line.split("#")[0].strip()
-        low = stripped.lower()
-        if current is None:
-            if low and re.match(r'^[a-z0-9_]{2,8}$', low) and "," not in stripped:
-                current = low
-                order.append(current)
-                raw[current] = []
-            continue
-        if low == "end":
-            current = None
-            continue
-        raw[current].append(line.rstrip("\r"))
-    return order, raw
 
 
 def write_source_file(result, source_path) -> bool: #vers 2
