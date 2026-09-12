@@ -1,4 +1,4 @@
-#this belongs in apps/methods/master_ide_dialog.py - Version: 5
+#this belongs in apps/methods/master_ide_dialog.py - Version: 6
 
 ##Methods list -
 # MasterIDEDialog
@@ -20,7 +20,7 @@ from apps.methods.master_ide import (
 from apps.methods.master_ide_edit import rename_entry, add_entry, remove_entry, write_source_file
 
 
-class MasterIDEDialog(QDialog): #vers 4
+class MasterIDEDialog(QDialog): #vers 5
     def __init__(self, parent, result, source_paths, game=None): #vers 2
         super().__init__(parent)
         self.result = result
@@ -59,6 +59,9 @@ class MasterIDEDialog(QDialog): #vers 4
         add_entry_btn = QPushButton("Add Entry...")
         add_entry_btn.clicked.connect(self._on_add_entry)
         btn_row.addWidget(add_entry_btn)
+        id_shift_btn = QPushButton("Move / Reassign ID Block...")
+        id_shift_btn.clicked.connect(self._on_id_shift)
+        btn_row.addWidget(id_shift_btn)
         save_btn = QPushButton("Save as Master IDE...")
         save_btn.clicked.connect(self._on_save)
         btn_row.addWidget(save_btn)
@@ -313,6 +316,12 @@ class MasterIDEDialog(QDialog): #vers 4
                 f"Added in memory but could not write:\n{source_path}")
             return
         self._reload_after_edit()
+
+    def _on_id_shift(self): #vers 1
+        from apps.methods.id_shift_dialog import IDShiftDialog
+        dlg = IDShiftDialog(self, self.result)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._reload_after_edit()
 
     def _on_save(self): #vers 3
         total_flags = (len(self.result.collisions) + len(self.result.name_collisions) +
