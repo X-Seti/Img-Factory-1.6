@@ -111,6 +111,13 @@ class MasterIDEDialog(QDialog): #vers 4
             lambda o: f"ID {o.model_id} {o.model_name} (valid {o.min_id}-{o.max_id}, "
                       f"{os.path.basename(o.source_ide)})",
             "Out of Range")
+        self._add_warning_row(
+            self.result.file_range_violations,
+            lambda n: f"WARNING: {n} object ID(s) fall outside their own SOL "
+                      f"source file's documented ID block.",
+            lambda v: f"ID {v.model_id} {v.model_name} ({os.path.basename(v.source_ide)}, "
+                      f"expected {v.expected_min}-{v.expected_max})",
+            "SOL File Range Violations")
 
         for err in self.result.errors:
             lbl = QLabel(f"Error: {err}")
@@ -186,6 +193,7 @@ class MasterIDEDialog(QDialog): #vers 4
         flagged_ids |= {mid for nc in self.result.name_collisions for mid, _ in nc.entries}
         flagged_ids |= {r.model_id for r in self.result.redefinitions}
         flagged_ids |= {o.model_id for o in self.result.out_of_range}
+        flagged_ids |= {v.model_id for v in self.result.file_range_violations}
 
         rows = []
         for section, objs in self.result.objects_by_section.items():
@@ -306,7 +314,10 @@ class MasterIDEDialog(QDialog): #vers 4
             return
         self._reload_after_edit()
 
-    def _on_save(self): #vers 2
+    def _on_save(self): #vers 3
+        total_flags = (len(self.result.collisions) + len(self.result.name_collisions) +
+                       len(self.result.redefinitions) + len(self.result.out_of_range) +
+                       len(self.result.file_range_violations))
         if total_flags:
             parts = []
             if self.result.collisions:
@@ -317,6 +328,8 @@ class MasterIDEDialog(QDialog): #vers 4
                 parts.append(f"{len(self.result.redefinitions)} redefinition(s)")
             if self.result.out_of_range:
                 parts.append(f"{len(self.result.out_of_range)} out-of-range ID(s)")
+            if self.result.file_range_violations:
+                parts.append(f"{len(self.result.file_range_violations)} SOL file-range violation(s)")
             reply = QMessageBox.warning(
                 self, "Issues Found",
                 f"{', '.join(parts)} found across the merged files. Saving now will "

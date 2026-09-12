@@ -1,4 +1,4 @@
-#this belongs in apps/methods/master_ide.py - Version: 5
+#this belongs in apps/methods/master_ide.py - Version: 6
 
 ##Methods list -
 # MasterIDEResult
@@ -14,6 +14,39 @@ from dataclasses import dataclass, field
 from typing import Dict, List
 
 _EDITABLE_SECTIONS = ("objs", "tobj")   # only sections this app reconstructs from parsed fields
+
+# Sections whose leading number is NOT a real declared object ID -
+# excluded from every ID-based check (Sep 12 2026, per Keith's own
+# real ID Key doc + txdp bug found while extending these checks):
+# 2dfx's leading field references an EXISTING model's ID (attaching
+# effects to it, never declaring a new one - see IDEParser's own
+# "2dfx_<id>" stub docstring). txdp has NO real model ID at all -
+# IDEParser hardcodes model_id=0 for every txdp line (it's really a
+# TXD-inherits-from-TXD declaration, not an object), so every txdp
+# entry across every file was falsely colliding at id=0 before this
+# fix - a real bug caught while confirming peds/cars/weap/hier/anim
+# (all genuine ID-declaring sections) were already correctly covered.
+_ID_EXCLUDED_SECTIONS = ("2dfx", "txdp")
+
+# GTASOL's own real per-file ID range convention (Sep 12 2026, from
+# Keith's own real "ID Key (usage)" reference doc) - each of these
+# source files is meant to own a distinct, non-overlapping ID block.
+# Keyed by lowercase filename stem (no extension).
+SOL_FILE_RANGES = {
+    "special":    (300, 615),
+    "generics":   (616, 1987),
+    "game_vc":    (1987, 4766),
+    "game_lc":    (4767, 6202),
+    "game_ext":   (6203, 6479),
+    "game_sp":    (6480, 6679),
+    "game_la":    (6680, 8314),
+    "game_sf":    (8315, 9590),
+    "game_lv":    (9591, 10970),
+    "game_sa":    (10971, 12841),
+    "game_mll":   (13964, 14763),
+    "skyeffects": (27071, 30010),
+    "seabed":     (30100, 30861),
+}
 
 
 @dataclass
@@ -45,7 +78,16 @@ class MasterIDEOutOfRange: #vers 1
 
 
 @dataclass
-class MasterIDEResult: #vers 3
+class MasterIDEFileRangeViolation: #vers 1
+    model_id: int
+    model_name: str
+    source_ide: str
+    expected_min: int
+    expected_max: int
+
+
+@dataclass
+class MasterIDEResult: #vers 4
     objects_by_section: Dict[str, list] = field(default_factory=dict)   # section -> list of IDEObject, sorted by model_id
     raw_section_lines: Dict[str, List[str]] = field(default_factory=dict)   # section -> real raw lines, verbatim, pooled across files
     source_files: List[str] = field(default_factory=list)
@@ -53,6 +95,7 @@ class MasterIDEResult: #vers 3
     name_collisions: List[MasterIDENameCollision] = field(default_factory=list)
     redefinitions: List[MasterIDERedefinition] = field(default_factory=list)
     out_of_range: List[MasterIDEOutOfRange] = field(default_factory=list)
+    file_range_violations: List[MasterIDEFileRangeViolation] = field(default_factory=list)
     errors: List[str] = field(default_factory=list)
 
     @property
@@ -159,16 +202,12 @@ def load_master_ide(ide_paths: List[str], game: str = None) -> MasterIDEResult: 
             result.source_files.append(path)
             for obj in parser.objects:
                 result.objects_by_section.setdefault(obj.section, []).append(obj)
-                # 2dfx entries deliberately share their base object's
-                # real model_id (a synthetic "2dfx_<id>" stub name,
-                # see IDEParser's own docstring) - that is expected
-                # attachment, not a real duplicate ID assignment, so
-                # they're excluded from every check below (Sep 12
-                # 2026, per Keith: "we don't need to list the id's
-                # again from the 2dfx section/ifx files"). Still
-                # grouped under their own "2dfx" section above like
-                # every other entry.
-                if obj.section == "2dfx":
+                # 2dfx/txdp entries carry no real declared object ID
+                # of their own (see this module's own _ID_EXCLUDED_
+                # SECTIONS docstring above) - excluded from every
+                # check below. Still grouped under their own section
+                # above like every other entry.
+                if obj.section in _ID_EXCLUDED_SECTIONS:
                     continue
                 seen_ids.setdefault(obj.model_id, []).append((obj.model_name, obj.source_ide))
                 seen_names.setdefault(obj.model_name.lower(), []).append((obj.model_id, obj.source_ide))
@@ -242,6 +281,20 @@ def load_master_ide(ide_paths: List[str], game: str = None) -> MasterIDEResult: 
                     result.out_of_range.append(MasterIDEOutOfRange(
                         model_id=model_id, model_name=model_name, source_ide=source_ide,
                         min_id=min_id, max_id=max_id))
+
+    if game == GTAGame.SOL:
+        # Each real SOL source file is meant to own its own distinct
+        # ID block (Sep 12 2026, from Keith's own real "ID Key
+        # (usage)" doc) - flag anything that strays outside the file
+        # it actually came from's own documented range.
+        for model_id, entries in seen_ids.items():
+            for model_name, source_ide in entries:
+                stem = os.path.splitext(os.path.basename(source_ide))[0].lower()
+                expected = SOL_FILE_RANGES.get(stem)
+                if expected and not (expected[0] <= model_id <= expected[1]):
+                    result.file_range_violations.append(MasterIDEFileRangeViolation(
+                        model_id=model_id, model_name=model_name, source_ide=source_ide,
+                        expected_min=expected[0], expected_max=expected[1]))
 
     return result
 
