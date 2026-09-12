@@ -1,7 +1,8 @@
-#this belongs in apps/methods/master_ide_dialog.py - Version: 3
+#this belongs in apps/methods/master_ide_dialog.py - Version: 4
 
 ##Methods list -
 # MasterIDEDialog
+# _AddEntryDialog
 # show_master_ide
 # show_master_ide_from_dat
 
@@ -16,9 +17,10 @@ from PyQt6.QtCore import Qt
 
 from apps.methods.master_ide import (
     load_master_ide, write_master_ide, collect_ide_paths_from_dat)
+from apps.methods.master_ide_edit import rename_entry, add_entry, remove_entry, write_source_file
 
 
-class MasterIDEDialog(QDialog): #vers 3
+class MasterIDEDialog(QDialog): #vers 4
     def __init__(self, parent, result, source_paths, game=None): #vers 2
         super().__init__(parent)
         self.result = result
@@ -43,13 +45,20 @@ class MasterIDEDialog(QDialog): #vers 3
         self.table.setColumnCount(5)
         self.table.setHorizontalHeaderLabels(["Section", "ID", "Model", "TXD", "Source IDE"])
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.horizontalHeader().setStretchLastSection(True)
+        from PyQt6.QtWidgets import QMenu
+        self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.table.customContextMenuRequested.connect(self._on_table_context_menu)
         lay.addWidget(self.table, 1)
 
         btn_row = QHBoxLayout()
         load_dat_btn = QPushButton("Load from .dat...")
         load_dat_btn.clicked.connect(self._on_load_from_dat)
         btn_row.addWidget(load_dat_btn)
+        add_entry_btn = QPushButton("Add Entry...")
+        add_entry_btn.clicked.connect(self._on_add_entry)
+        btn_row.addWidget(add_entry_btn)
         save_btn = QPushButton("Save as Master IDE...")
         save_btn.clicked.connect(self._on_save)
         btn_row.addWidget(save_btn)
@@ -192,9 +201,101 @@ class MasterIDEDialog(QDialog): #vers 3
                     item.setBackground(collision_tint)
                 self.table.setItem(row, col, item)
 
+    def _resolve_source_path(self, basename_or_path): #vers 1
+        """Resolve a real full source path from result.source_files
+        matching by basename - table rows only ever display a
+        basename (obj.source_ide is basename-only, see master_ide_
+        edit.py's own docstring on this pre-existing convention)."""
+        target = os.path.basename(basename_or_path)
+        for p in self.result.source_files:
+            if os.path.basename(p) == target:
+                return p
+        return None
+
+    def _reload_after_edit(self): #vers 1
+        """Re-run load_master_ide against the same real source files
+        so the merged view/checks reflect a just-written edit."""
+        self.result = load_master_ide(self.source_paths, game=self.game)
+        self._refresh_top()
+        self._populate()
+
+    def _on_table_context_menu(self, pos): #vers 1
+        row = self.table.rowAt(pos.y())
+        if row < 0:
+            return
+        section = self.table.item(row, 0).text()
+        model_id = int(self.table.item(row, 1).text())
+        source_ide = self.table.item(row, 4).text()
+        from PyQt6.QtWidgets import QMenu
+        menu = QMenu(self)
+        rename_act = menu.addAction("Rename...")
+        remove_act = menu.addAction("Remove")
+        if section not in ("objs", "tobj"):
+            rename_act.setEnabled(False)
+            remove_act.setEnabled(False)
+        action = menu.exec(self.table.viewport().mapToGlobal(pos))
+        if action == rename_act:
+            self._on_rename_row(model_id, source_ide)
+        elif action == remove_act:
+            self._on_remove_row(model_id, source_ide)
+
+    def _on_rename_row(self, model_id, source_ide): #vers 1
+        from PyQt6.QtWidgets import QInputDialog
+        new_name, ok = QInputDialog.getText(self, "Rename Entry", "New model name:")
+        if not ok or not new_name.strip():
+            return
+        source_path = self._resolve_source_path(source_ide)
+        err = rename_entry(self.result, model_id, new_name.strip(), source_ide=source_path)
+        if err:
+            QMessageBox.warning(self, "Rename Failed", err)
+            return
+        if not write_source_file(self.result, source_path):
+            QMessageBox.warning(self, "Rename Failed",
+                f"Renamed in memory but could not write:\n{source_path}")
+            return
+        self._reload_after_edit()
+
+    def _on_remove_row(self, model_id, source_ide): #vers 1
+        source_path = self._resolve_source_path(source_ide)
+        reply = QMessageBox.question(
+            self, "Remove Entry",
+            f"Remove ID {model_id} from {os.path.basename(source_path)}? "
+            f"A backup is made before writing.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        err = remove_entry(self.result, model_id, source_path)
+        if err:
+            QMessageBox.warning(self, "Remove Failed", err)
+            return
+        if not write_source_file(self.result, source_path):
+            QMessageBox.warning(self, "Remove Failed",
+                f"Removed in memory but could not write:\n{source_path}")
+            return
+        self._reload_after_edit()
+
+    def _on_add_entry(self): #vers 1
+        dlg = _AddEntryDialog(self, self.result.source_files)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        values = dlg.values()
+        source_path = self._resolve_source_path(values['source_ide'])
+        extra = {'draw_dist': values['draw_dist'], 'flags': values['flags']}
+        if values['section'] == 'tobj':
+            extra['time_on'] = values['time_on']
+            extra['time_off'] = values['time_off']
+        err = add_entry(self.result, values['section'], values['model_id'],
+                         values['model_name'], values['txd_name'], source_path, extra=extra)
+        if err:
+            QMessageBox.warning(self, "Add Entry Failed", err)
+            return
+        if not write_source_file(self.result, source_path):
+            QMessageBox.warning(self, "Add Entry Failed",
+                f"Added in memory but could not write:\n{source_path}")
+            return
+        self._reload_after_edit()
+
     def _on_save(self): #vers 2
-        total_flags = (len(self.result.collisions) + len(self.result.name_collisions) +
-                       len(self.result.redefinitions) + len(self.result.out_of_range))
         if total_flags:
             parts = []
             if self.result.collisions:
@@ -221,6 +322,87 @@ class MasterIDEDialog(QDialog): #vers 3
             QMessageBox.information(self, "Saved", f"Master IDE saved to:\n{path}")
         else:
             QMessageBox.warning(self, "Save Failed", "Could not write the master IDE file.")
+
+
+class _AddEntryDialog(QDialog): #vers 1
+    """Small form for Add Entry - section/ID/name/txd/draw_dist/
+    flags(+time_on/time_off for tobj)/source file, only objs/tobj
+    supported (see master_ide_edit.py's own docstring)."""
+    def __init__(self, parent, source_files): #vers 1
+        super().__init__(parent)
+        self.setWindowTitle("Add Entry")
+        from PyQt6.QtWidgets import QFormLayout, QComboBox, QLineEdit, QSpinBox, QDoubleSpinBox
+        self._source_files = source_files
+        lay = QFormLayout(self)
+
+        self.section_combo = QComboBox()
+        self.section_combo.addItems(["objs", "tobj"])
+        self.section_combo.currentTextChanged.connect(self._on_section_changed)
+        lay.addRow("Section:", self.section_combo)
+
+        self.id_spin = QSpinBox()
+        self.id_spin.setRange(0, 999999)
+        lay.addRow("Model ID:", self.id_spin)
+
+        self.name_edit = QLineEdit()
+        lay.addRow("Model name:", self.name_edit)
+
+        self.txd_edit = QLineEdit()
+        lay.addRow("TXD name:", self.txd_edit)
+
+        self.dist_spin = QDoubleSpinBox()
+        self.dist_spin.setRange(0, 99999)
+        self.dist_spin.setValue(250)
+        lay.addRow("Draw distance:", self.dist_spin)
+
+        self.flags_spin = QSpinBox()
+        self.flags_spin.setRange(0, 999999)
+        lay.addRow("Flags:", self.flags_spin)
+
+        self.time_on_spin = QSpinBox()
+        self.time_on_spin.setRange(0, 23)
+        self.time_on_row_label = QLabel("Time on:")
+        lay.addRow(self.time_on_row_label, self.time_on_spin)
+
+        self.time_off_spin = QSpinBox()
+        self.time_off_spin.setRange(0, 23)
+        self.time_off_row_label = QLabel("Time off:")
+        lay.addRow(self.time_off_row_label, self.time_off_spin)
+
+        self.source_combo = QComboBox()
+        self.source_combo.addItems([os.path.basename(p) for p in source_files])
+        lay.addRow("Source file:", self.source_combo)
+
+        btn_row = QHBoxLayout()
+        ok_btn = QPushButton("Add")
+        ok_btn.clicked.connect(self.accept)
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self.reject)
+        btn_row.addWidget(ok_btn)
+        btn_row.addWidget(cancel_btn)
+        lay.addRow(btn_row)
+
+        self._on_section_changed(self.section_combo.currentText())
+
+    def _on_section_changed(self, section): #vers 1
+        show_time = (section == "tobj")
+        self.time_on_spin.setVisible(show_time)
+        self.time_on_row_label.setVisible(show_time)
+        self.time_off_spin.setVisible(show_time)
+        self.time_off_row_label.setVisible(show_time)
+
+    def values(self): #vers 1
+        return {
+            'section': self.section_combo.currentText(),
+            'model_id': self.id_spin.value(),
+            'model_name': self.name_edit.text().strip(),
+            'txd_name': self.txd_edit.text().strip(),
+            'draw_dist': self.dist_spin.value(),
+            'flags': self.flags_spin.value(),
+            'time_on': self.time_on_spin.value(),
+            'time_off': self.time_off_spin.value(),
+            'source_ide': self._source_files[self.source_combo.currentIndex()],
+        }
 
 
 def show_master_ide(main_window, ide_paths, game: str = None): #vers 2
