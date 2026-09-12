@@ -1,4 +1,14 @@
-#this belongs in root /ChangeLog.md - Version: 97
+#this belongs in root /ChangeLog.md - Version: 98
+
+## Sep 12 2026 - Master IDE: txdp false-collision fix + SOL file-range check, Build 401.90
+
+txdp entries all get model_id=0 (parser placeholder) - was falsely
+flooding ID collisions at id=0. Excluded alongside 2dfx (both carry
+no real declared ID). New SOL file_range_violations check per
+Keith's own real "ID Key (usage)" doc - each source file expected
+to own its own ID block. Also fixed a real latent crash: _on_save
+referenced total_flags without computing it. Verified: no false
+positives on real VC/SA data, SOL violation fires correctly.
 
 ## Sep 12 2026 - Master IDE: fix 2dfx data corruption in Save/merge, Build 400.90
 
