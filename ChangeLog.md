@@ -1,4 +1,13 @@
-#this belongs in root /ChangeLog.md - Version: 107
+#this belongs in root /ChangeLog.md - Version: 108
+
+## Sep 12 2026 - Asset Checker -> Asset Workshop: standalone dockable workshop, Build 411.91
+
+Converted to AssetWorkshop(QWidget) in its own apps/components/
+Asset_Workshop/ folder - same dual-mode pattern as Master IDE
+Workshop (tab-embedded or standalone, taskbar registered). Buttons
++ summary now inside a real DockableToolbar. All call sites
+updated; old asset_checker_dialog.py removed. CAVEAT: no PyQt6 in
+this sandbox - verified by review only, same as Master IDE's.
 
 ## Sep 12 2026 - Asset Checker: pick up COL entries embedded in gta3.img, Build 410.90
 
