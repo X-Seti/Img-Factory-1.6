@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in components/Dat_Browser/dat_browser.py - Version: 8
+#this belongs in components/Dat_Browser/dat_browser.py - Version: 9
 # X-Seti - March 2026 - IMG Factory 1.6 - GTA DAT/IDE/IPL Browser
 """
 DAT Browser — viewer panel for the GTA world data load chain.
@@ -697,7 +697,7 @@ class TXDDumpDialog(QDialog): #vers 1
         self.accept()
 
 
-class DATBrowserWidget(QWidget): #vers 3
+class DATBrowserWidget(QWidget): #vers 4
     """
     Full DAT/IDE/IPL browser panel.
     Drop into any QTabWidget or use standalone.
@@ -715,6 +715,8 @@ class DATBrowserWidget(QWidget): #vers 3
         self._asset_db   = None   # AssetDB for current profile
         self.game_root   = ''     # set once a load succeeds - see _on_load_done
         self._setup_ui()
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(150, self._autoload_last_profile)
 
     #    UI construction                                                     
 
@@ -4048,6 +4050,34 @@ class DATBrowserWidget(QWidget): #vers 3
                 self.main_window.log_message(f"IDE Editor error: {e}")
 
     #    Public API                                                          
+
+    def _autoload_last_profile(self): #vers 1
+        """Restore the already-known game_root when DAT Browser
+        opens, instead of starting empty every time (Sep 12 2026,
+        real bug report: "when loading dat_browser it doesn't load
+        the last used or loaded profile"). Same real resolution
+        order imgfactory.py's own directory-tree autoload already
+        uses: the shared app QSettings "game_root" first, then the
+        current project's own saved game_root - deferred slightly
+        so this never races construction, and never raises if
+        nothing is actually known yet."""
+        try:
+            game_root = ''
+            from apps.methods.img_factory_settings import get_img_factory_qsettings
+            settings = get_img_factory_qsettings()
+            game_root = settings.value("game_root", "", type=str)
+            if not game_root and self.main_window and hasattr(self.main_window, 'project_manager'):
+                pm = self.main_window.project_manager
+                if pm and getattr(pm, 'current_project', None):
+                    game_root = pm.get_project_settings(pm.current_project).get('game_root', '')
+            if not game_root and self.main_window:
+                game_root = getattr(self.main_window, 'game_root', '') or ''
+            if game_root and os.path.isdir(game_root):
+                from apps.methods.gta_dat_parser import detect_game
+                self.load_from_game_root(game_root, detect_game(game_root))
+        except Exception as e:
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"DAT Browser autoload error: {e}")
 
     def load_from_game_root(self, game_root: str,
                              game: Optional[str] = None): #vers 2
