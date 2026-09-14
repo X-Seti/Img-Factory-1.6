@@ -1,4 +1,12 @@
-#this belongs in root /ChangeLog.md - Version: 119
+#this belongs in root /ChangeLog.md - Version: 120
+
+## Sep 12 2026 - Master IDE: source-file change marker, Build 423.90
+
+New divider row inserted whenever Source IDE changes between
+consecutive ID-sorted rows within a section - shows exactly where
+one file ends and another begins, even if interleaved by ID.
+Verified against real 3-file data: markers land at each file's
+real first ID.
 
 ## Sep 12 2026 - Asset Workshop: fix ID sort bug, add text report exports, Build 422.90
 
