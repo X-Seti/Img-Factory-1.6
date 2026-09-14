@@ -1,4 +1,12 @@
-#this belongs in root /ChangeLog.md - Version: 106
+#this belongs in root /ChangeLog.md - Version: 107
+
+## Sep 12 2026 - Asset Checker: pick up COL entries embedded in gta3.img, Build 410.90
+
+check_assets now scans the IMG for real COL entries too (VC mostly,
+SA exclusively store collision data this way, not a standalone
+gta3.col). Reads raw bytes via IMGFile, parses via COLFile's own
+_parse_col_data, merges with any standalone col_path. CAVEAT: no
+real binary test fixture available - verified by code review only.
 
 ## Sep 12 2026 - Master IDE: standalone dockable workshop, Build 409.90
 
