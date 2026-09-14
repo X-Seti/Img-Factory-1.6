@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/asset_checker.py - Version: 5
+#this belongs in apps/methods/asset_checker.py - Version: 6
 
 ##Methods list -
 # find_sibling_asset_files
@@ -25,6 +25,7 @@ class AssetCheckResult: #vers 3
     img_path: str = ""
     col_path: str = ""
     ide_path: str = ""
+    col_paths: list = field(default_factory=list)   # real usable path(s), for reload/handoff
     ide_paths: list = field(default_factory=list)   # real usable path(s), for Master IDE handoff
     img_names: Set[str] = field(default_factory=set)   # lowercase, no extension - real .dff models only
     img_txd_names: Set[str] = field(default_factory=set)   # lowercase, no extension - real .txd textures
@@ -164,7 +165,7 @@ def find_sibling_asset_files(clicked_path: str): #vers 2
 
 
 def check_assets(img_path: str = None, col_path=None,
-                  ide_path=None, game: str = None) -> AssetCheckResult: #vers 7
+                  ide_path=None, game: str = None) -> AssetCheckResult: #vers 8
     """Load whichever of the 3 real files exist and cross-reference
     their real model names. Any of the 3 paths can be None/missing -
     the corresponding *_path stays empty and that source's own
@@ -231,6 +232,7 @@ def check_assets(img_path: str = None, col_path=None,
             result.col_names |= merged_names
             standalone_label = ", ".join(os.path.basename(p) for p in col_paths)
             result.col_path = (f"{result.col_path}, " if result.col_path else "") + standalone_label
+            result.col_paths = list(col_paths)
         except Exception as e:
             result.col_error = str(e)
 

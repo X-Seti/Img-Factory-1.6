@@ -1,15 +1,7 @@
-#this belongs in apps/components/Asset_Workshop/asset_workshop.py - Version: 1
+#this belongs in apps/components/Asset_Workshop/asset_workshop.py - Version: 3
 # X-Seti - September 12 2026 - IMG Factory 1.6 - Asset Workshop
 
-"""asset_workshop.py - Asset Checker as its own standalone, dockable
-workshop (Sep 12 2026, per Keith: "now its standalone, it can be
-known as Asset_Workshop... yes, same pattern and structure as the
-other workshops"). Same dual-mode pattern every workshop here uses
-(open_col_workshop's own shape, already applied to Master IDE):
-embeds as a tab if main_window has one, real standalone floating
-window otherwise, registers in the tool taskbar. View selector /
-action buttons live inside a real DockableToolbar (float/collapse/
-drag/dock, its own saved layout) instead of a plain row."""
+"""asset_workshop.py - Asset Checker."""
 
 ##Methods list -
 # AssetWorkshop
@@ -28,7 +20,7 @@ from apps.methods.asset_checker import check_assets, find_sibling_asset_files, f
 from apps.components.Asset_Workshop.dockable_toolbar import DockableToolbar
 
 
-class AssetWorkshop(QWidget): #vers 1
+class AssetWorkshop(QWidget): #vers 3
     def __init__(self, parent, main_window=None): #vers 1
         super().__init__(parent)
         self.main_window = main_window
@@ -354,7 +346,7 @@ class AssetWorkshop(QWidget): #vers 1
                 self.xref_table.setItem(row, col, item)
         self.xref_table.setSortingEnabled(True)
 
-    def _xref_context_menu(self, pos): #vers 1
+    def _xref_context_menu(self, pos): #vers 2
         item = self.xref_table.itemAt(pos)
         if item is None:
             return
@@ -372,6 +364,19 @@ class AssetWorkshop(QWidget): #vers 1
             menu.addSeparator()
             txd_act = menu.addAction("Open in TXD Workshop to add missing texture")
             txd_act.triggered.connect(lambda: self._xref_open_txd_workshop())
+
+        model_item = self.xref_table.item(row, 3)
+        errors_item = self.xref_table.item(row, 5)
+        model_name = model_item.text() if model_item else ""
+        errors_text = errors_item.text() if errors_item else ""
+        if model_name and "Missing DFF" in errors_text and self.result.img_path:
+            menu.addSeparator()
+            add_dff_act = menu.addAction("Add file externally... (DFF)")
+            add_dff_act.triggered.connect(lambda: self._xref_add_missing_dff(model_name))
+        if model_name and "Missing COL" in errors_text:
+            menu.addSeparator()
+            add_col_act = menu.addAction("Add file externally... (COL)")
+            add_col_act.triggered.connect(lambda: self._xref_add_missing_col(model_name))
 
         menu.exec(self.xref_table.viewport().mapToGlobal(pos))
 
@@ -391,6 +396,98 @@ class AssetWorkshop(QWidget): #vers 1
             open_txd_workshop(self.main_window, self.result.img_path)
         except Exception:
             pass
+
+    def _xref_add_missing_dff(self, model_name): #vers 2
+        """Browse to a real external .dff and add it to the real
+        loaded IMG under this exact model name (Sep 12 2026, per
+        Keith: "if it says missing file, have the ability to add it
+        externally"). add_entry()'s own default auto_save=True
+        already saves internally (via save_img_file, which makes
+        its own real .backup copy first) and returns that success -
+        no separate save() call needed."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, f"Select external DFF for {model_name}", "", "DFF Files (*.dff)")
+        if not path:
+            return
+        try:
+            from apps.methods.img_core_classes import IMGFile
+            with open(path, "rb") as f:
+                data = f.read()
+            img_file = IMGFile(self.result.img_path)
+            if not img_file.open():
+                QMessageBox.warning(self, "Add File Failed",
+                    f"Could not open:\n{self.result.img_path}")
+                return
+            if not img_file.add_entry(f"{model_name}.dff", data):
+                QMessageBox.warning(self, "Add File Failed",
+                    "add_entry() (including its own save) returned False.")
+                return
+        except Exception as e:
+            QMessageBox.warning(self, "Add File Failed", str(e))
+            return
+        self._reload_result()
+
+    def _xref_add_missing_col(self, model_name): #vers 1
+        """Browse to a real external .col and merge its model(s)
+        into the currently loaded STANDALONE col file. Real COL data
+        embedded inside gta3.img itself isn't supported here yet -
+        that would mean rewriting the IMG's own binary entry, a
+        bigger, riskier operation than appending to a plain
+        standalone .col file."""
+        if not self.result.col_paths:
+            QMessageBox.information(self, "Add File Failed",
+                "This game's real COL data is embedded inside gta3.img itself, "
+                "not a standalone .col file - adding to embedded IMG collision "
+                "data isn't supported yet.")
+            return
+        standalone_path = self.result.col_paths[0]
+
+        path, _ = QFileDialog.getOpenFileName(
+            self, f"Select external COL for {model_name}", "", "COL Files (*.col)")
+        if not path:
+            return
+        try:
+            from apps.methods.col_core_classes import COLFile
+            from apps.methods.file_backup import backup_file
+
+            external = COLFile()
+            if not external.load_from_file(path):
+                QMessageBox.warning(self, "Add File Failed", f"Could not parse:\n{path}")
+                return
+            if not external.models:
+                QMessageBox.warning(self, "Add File Failed", "External COL has no real models.")
+                return
+
+            target = COLFile()
+            target.load_from_file(standalone_path)   # OK if this is empty/new
+            target.models.extend(external.models)
+
+            if backup_file(standalone_path) is None:
+                QMessageBox.warning(self, "Add File Failed",
+                    f"Could not back up before writing:\n{standalone_path}")
+                return
+            if not target.save_to_file(standalone_path):
+                QMessageBox.warning(self, "Add File Failed", "COLFile.save_to_file() returned False.")
+                return
+        except Exception as e:
+            QMessageBox.warning(self, "Add File Failed", str(e))
+            return
+        self._reload_result()
+
+    def _reload_result(self): #vers 2
+        """Re-run check_assets against the same real paths and
+        repopulate every view - used after any Add File Externally
+        write. Only ide_paths/col_paths (the real usable lists,
+        never the display-string ide_path/col_path) are used - a
+        col_path display string can literally read "gta3.img
+        (embedded COL entries)", not a real file check_assets could
+        open. img_path alone is enough to re-scan any embedded COL
+        data; col_paths only ever holds real standalone files."""
+        result = check_assets(img_path=self.result.img_path or None,
+                               col_path=self.result.col_paths or None,
+                               ide_path=self.result.ide_paths or None)
+        self.load_result(result)
+
 
 
 def open_asset_workshop(main_window, clicked_path: str = None, dat_path: str = None,
