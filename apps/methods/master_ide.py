@@ -1,8 +1,9 @@
-#this belongs in apps/methods/master_ide.py - Version: 7
+#this belongs in apps/methods/master_ide.py - Version: 8
 
 ##Methods list -
 # MasterIDEResult
 # collect_ide_paths_from_dat
+# collect_ipl_paths_from_dat
 # load_master_ide
 # write_master_ide
 
@@ -191,6 +192,34 @@ def collect_ide_paths_from_dat(dat_path: str, game_root: str = None, game: str =
                 seen.add(entry.abs_path)
                 paths.append(entry.abs_path)
     return paths, game
+
+
+def collect_ipl_paths_from_dat(dat_path: str, game_root: str = None, game: str = None): #vers 1
+    """Resolve every real IPL file a game's .dat actually loads -
+    the same real 2-phase load collect_ide_paths_from_dat already
+    uses, pulling IPL paths instead (Sep 12 2026, per Keith's own
+    "any other use cases" follow-up: pre-populate the ID Shift
+    dialog's own "IPL files to cascade into" list automatically
+    instead of manual browsing for each one). Returns ipl_paths."""
+    from apps.methods.gta_dat_parser import (
+        detect_game_from_dat_filename, GTAWorldLoader, GTAGame)
+
+    if not game:
+        game = detect_game_from_dat_filename(dat_path) or GTAGame.GTA3
+    if not game_root:
+        game_root = os.path.normpath(os.path.join(os.path.dirname(dat_path), ".."))
+
+    loader = GTAWorldLoader(game)
+    loader.lazy_ipl_loading = True
+    loader.load_from_dat(dat_path, game_root)
+
+    paths, seen = [], set()
+    for dat in (loader.default_dat, loader.main_dat):
+        for entry in dat.ipl_entries():
+            if entry.exists and entry.abs_path not in seen:
+                seen.add(entry.abs_path)
+                paths.append(entry.abs_path)
+    return paths
 
 
 def load_master_ide(ide_paths: List[str], game: str = None) -> MasterIDEResult: #vers 3

@@ -1,4 +1,4 @@
-#this belongs in apps/methods/id_reassign.py - Version: 4
+#this belongs in apps/methods/id_reassign.py - Version: 5
 # X-Seti - September 12 2026 - IMG Factory 1.6 - ID Block Reassignment
 
 """id_reassign.py - Move + ID reassignment + cascading (Sep 12 2026,
@@ -33,6 +33,10 @@ anything is written - all-or-nothing, no partial shift."""
 # RenameRangePlan
 # plan_prefix_suffix_rename
 # apply_prefix_suffix_rename
+# find_free_id_gaps
+# plan_compact_all_gaps
+# plan_swap_ids
+# find_usages
 
 import os
 from dataclasses import dataclass, field
@@ -469,3 +473,91 @@ def apply_prefix_suffix_rename(result, plan: RenameRangePlan) -> List[str]: #ver
             return []
         touched.add(os.path.basename(source_ide))
     return sorted(touched)
+
+
+def find_free_id_gaps(result, min_id: int, max_id: int) -> List[tuple]: #vers 1
+    """Every real contiguous free (unassigned) ID range within
+    [min_id, max_id] - the same real scan plan_collapse_free_ids
+    already does, just reported instead of applied. Returns a list
+    of (gap_start, gap_end) tuples, inclusive, in ascending order."""
+    used_ids = {obj.model_id for section in _EDITABLE_SECTIONS
+                for obj in result.objects_by_section.get(section, [])}
+    gaps = []
+    gap_start = None
+    for i in range(min_id, max_id + 1):
+        if i in used_ids:
+            if gap_start is not None:
+                gaps.append((gap_start, i - 1))
+                gap_start = None
+        elif gap_start is None:
+            gap_start = i
+    if gap_start is not None:
+        gaps.append((gap_start, max_id))
+    return gaps
+
+
+def plan_compact_all_gaps(result, min_id: int, max_id: int) -> IDShiftPlan: #vers 1
+    """Single holistic plan closing EVERY gap within [min_id, max_id]
+    in one pass, instead of one Remove ID/plan_collapse_free_ids at
+    a time (Sep 12 2026, per Keith's own "any other use cases"
+    follow-up). Every used ID shifts down by however many free IDs
+    exist below it within the range - provably conflict-free by
+    construction (new IDs come out strictly increasing, never
+    touching anything outside the range), so plan.conflicts is
+    always empty here; still returned for IDShiftPlan.ok's own
+    uniform check."""
+    used_objs = [obj for section in _EDITABLE_SECTIONS
+                 for obj in result.objects_by_section.get(section, [])
+                 if min_id <= obj.model_id <= max_id]
+    used_objs.sort(key=lambda o: o.model_id)
+
+    plan = IDShiftPlan()
+    free_count_so_far = 0
+    prev = min_id - 1
+    for obj in used_objs:
+        free_count_so_far += (obj.model_id - prev - 1)
+        new_id = obj.model_id - free_count_so_far
+        if new_id != obj.model_id:
+            plan.moved.append((obj.model_id, new_id, obj.model_name, obj.source_ide))
+            plan.id_map[obj.model_id] = new_id
+        prev = obj.model_id
+    return plan
+
+
+def plan_swap_ids(result, id_a: int, id_b: int) -> IDShiftPlan: #vers 1
+    """Swap whatever real entries currently occupy id_a and id_b -
+    both must already be assigned (this isn't a move-into-free-space
+    operation, see plan_id_shift/plan_insert_relocation for that).
+    Returns an empty, not-ok plan if either id isn't actually
+    assigned - never guesses which one the caller meant."""
+    all_by_id = {obj.model_id: obj for section in _EDITABLE_SECTIONS
+                 for obj in result.objects_by_section.get(section, [])}
+    if id_a not in all_by_id or id_b not in all_by_id or id_a == id_b:
+        return IDShiftPlan()
+    obj_a, obj_b = all_by_id[id_a], all_by_id[id_b]
+    return IDShiftPlan(
+        moved=[(id_a, id_b, obj_a.model_name, obj_a.source_ide),
+               (id_b, id_a, obj_b.model_name, obj_b.source_ide)],
+        conflicts=[],
+        id_map={id_a: id_b, id_b: id_a})
+
+
+def find_usages(result, model_id: int = None, model_name: str = None) -> List[dict]: #vers 1
+    """Every real place a given ID or model name appears, across
+    EVERY section including 2dfx (unlike every other check in this
+    module, 2dfx is deliberately included here - the whole point is
+    showing whether a given ID has real 2dfx entries attached before
+    you Delete ID or relocate it, Sep 12 2026, per Keith's own "any
+    other use cases" follow-up). Pass model_id, model_name, or both
+    (both narrows to entries matching either)."""
+    matches = []
+    for section, objs in result.objects_by_section.items():
+        for obj in objs:
+            id_match = model_id is not None and obj.model_id == model_id
+            name_match = model_name is not None and obj.model_name.lower() == model_name.lower()
+            if id_match or name_match:
+                matches.append({
+                    'section': section, 'model_id': obj.model_id, 'model_name': obj.model_name,
+                    'txd_name': obj.txd_name, 'source_ide': os.path.basename(obj.source_ide),
+                })
+    return matches
