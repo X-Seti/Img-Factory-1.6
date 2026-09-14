@@ -1,4 +1,15 @@
-#this belongs in root /ChangeLog.md - Version: 111
+#this belongs in root /ChangeLog.md - Version: 112
+
+## Sep 12 2026 - ID engine: insert-and-relocate a foreign file with name check, Build 415.90
+
+plan_insert_relocation/apply_insert_relocation: relocate an already-
+loaded file's entries (e.g. from a different game) onto a sequential
+target range. Two independent checks: target ID not used elsewhere,
+AND incoming model name doesn't already exist anywhere else - two
+games' IDE files can reuse common names even once IDs don't clash.
+Reuses apply_id_shift for the actual cascade. Verified: name
+collision blocks correctly even with zero ID conflicts, id-range
+collision caught independently, clean case applies correctly.
 
 ## Sep 12 2026 - ID engine: Add ID, Remove free ID, Delete ID, Build 414.90
 
