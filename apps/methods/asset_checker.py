@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/asset_checker.py - Version: 6
+#this belongs in apps/methods/asset_checker.py - Version: 7
 
 ##Methods list -
 # find_sibling_asset_files
@@ -276,16 +276,24 @@ def check_assets(img_path: str = None, col_path=None,
     return result
 
 
-def find_game_asset_files(dat_path: str): #vers 1
+def find_game_asset_files(dat_path: str): #vers 2
     """Resolve a whole game's real IMG/COL/IDE files from its main
     .dat (Sep 12 2026, per Keith: "asset check needs all 3 img col
     ide, so i'd ask for the game gta_vc.dat, gta3.dat... to load
     another gta modding project"). The real main archive is always
     named gta3.img regardless of game (III/VC/SA/SOL all keep this
     historical name) - same convention DAT Browser's own "Load ALL
-    game IMGs" already relies on. Returns (img_path, col_path_or_
-    list, ide_paths_list, game)."""
-    from apps.methods.master_ide import collect_ide_paths_from_dat
+    game IMGs" already relies on. col_path now combines THREE real
+    sources (Sep 12 2026, real bug report - a whole-game check
+    showed nearly every COL "missing" because this only ever checked
+    one of them): the .dat's own real COLFILE directive (shared
+    files like generic.col, GTA3/VC's own convention), the standalone
+    sibling-file convention (gta3.col next to gta3.img, or the split
+    models/coll/ files), and gta3.img's own embedded COL entries
+    (handled separately, inside check_assets itself, once img_path
+    is known). Returns (img_path, col_path_or_list, ide_paths_list,
+    game)."""
+    from apps.methods.master_ide import collect_ide_paths_from_dat, collect_col_paths_from_dat
 
     game_root = os.path.normpath(os.path.join(os.path.dirname(dat_path), ".."))
     ide_paths, game = collect_ide_paths_from_dat(dat_path, game_root)
@@ -300,8 +308,13 @@ def find_game_asset_files(dat_path: str): #vers 1
             img_path = candidate
             break
 
-    col_path = None
+    col_paths = collect_col_paths_from_dat(dat_path, game_root, game)
     if img_path:
-        _, col_path, _ = find_sibling_asset_files(img_path)
+        _, sibling_col, _ = find_sibling_asset_files(img_path)
+        sibling_list = [sibling_col] if isinstance(sibling_col, str) else (sibling_col or [])
+        for p in sibling_list:
+            if p and p not in col_paths:
+                col_paths.append(p)
 
+    col_path = col_paths if len(col_paths) > 1 else (col_paths[0] if col_paths else None)
     return img_path, col_path, ide_paths, game

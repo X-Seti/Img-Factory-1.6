@@ -1,9 +1,10 @@
-#this belongs in apps/methods/master_ide.py - Version: 8
+#this belongs in apps/methods/master_ide.py - Version: 9
 
 ##Methods list -
 # MasterIDEResult
 # collect_ide_paths_from_dat
 # collect_ipl_paths_from_dat
+# collect_col_paths_from_dat
 # load_master_ide
 # write_master_ide
 
@@ -216,6 +217,38 @@ def collect_ipl_paths_from_dat(dat_path: str, game_root: str = None, game: str =
     paths, seen = [], set()
     for dat in (loader.default_dat, loader.main_dat):
         for entry in dat.ipl_entries():
+            if entry.exists and entry.abs_path not in seen:
+                seen.add(entry.abs_path)
+                paths.append(entry.abs_path)
+    return paths
+
+
+def collect_col_paths_from_dat(dat_path: str, game_root: str = None, game: str = None): #vers 1
+    """Resolve every real standalone COL file a game's .dat actually
+    loads via its own real COLFILE directive - the shared/common
+    collision files (e.g. generic.col) GTA3/VC declare this way,
+    never embedded in gta3.img at all (Sep 12 2026, real bug report:
+    a whole-game Asset Workshop check showed nearly every COL
+    "missing" - find_game_asset_files never checked dat.col_entries()
+    at all, only the standalone-sibling-file convention and gta3.img's
+    own embedded entries). Same real 2-phase load every other
+    collect_*_paths_from_dat function here already uses. Returns
+    col_paths."""
+    from apps.methods.gta_dat_parser import (
+        detect_game_from_dat_filename, GTAWorldLoader, GTAGame)
+
+    if not game:
+        game = detect_game_from_dat_filename(dat_path) or GTAGame.GTA3
+    if not game_root:
+        game_root = os.path.normpath(os.path.join(os.path.dirname(dat_path), ".."))
+
+    loader = GTAWorldLoader(game)
+    loader.lazy_ipl_loading = True
+    loader.load_from_dat(dat_path, game_root)
+
+    paths, seen = [], set()
+    for dat in (loader.default_dat, loader.main_dat):
+        for entry in dat.col_entries():
             if entry.exists and entry.abs_path not in seen:
                 seen.add(entry.abs_path)
                 paths.append(entry.abs_path)
