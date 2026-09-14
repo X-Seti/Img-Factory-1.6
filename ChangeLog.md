@@ -1,4 +1,12 @@
-#this belongs in root /ChangeLog.md - Version: 116
+#this belongs in root /ChangeLog.md - Version: 117
+
+## Sep 12 2026 - Asset Workshop: check the .dat's own COLFILE directive, Build 420.90
+
+find_game_asset_files never checked dat.col_entries() (COLFILE
+directive) - only standalone sibling files and embedded IMG
+entries. GTA3/VC declare shared collision (generic.col) this way.
+New collect_col_paths_from_dat mirrors the IPL/IDE versions; now
+merges all three real COL sources.
 
 ## Sep 12 2026 - DAT Browser: autoload last-used game_root/profile, Build 419.90
 
