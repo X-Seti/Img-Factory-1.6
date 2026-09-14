@@ -1,4 +1,15 @@
-#this belongs in root /ChangeLog.md - Version: 117
+#this belongs in root /ChangeLog.md - Version: 118
+
+## Sep 12 2026 - Asset Workshop: fix wrong "always gta3.img" assumption, Build 421.90
+
+Real correction from Keith's uploaded gta_sol.dat: SOL loads 14
+separately-named archives via CDIMAGE, never a single gta3.img -
+explained the near-total "Missing in COL" flood in the screenshot.
+New collect_img_paths_from_dat; find_game_asset_files/check_assets
+now handle a real list of IMG archives, not a guessed single path.
+New img_paths field. Fixed 3 call sites that assumed a single real
+path. Verified directive parsing against the real uploaded .dat -
+all 14 IMG + 12 COLFILE directives found correctly.
 
 ## Sep 12 2026 - Asset Workshop: check the .dat's own COLFILE directive, Build 420.90
 
