@@ -1,4 +1,14 @@
-#this belongs in root /ChangeLog.md - Version: 112
+#this belongs in root /ChangeLog.md - Version: 113
+
+## Sep 12 2026 - ID engine: batch prefix/suffix rename, Build 416.90
+
+plan_prefix_suffix_rename/apply_prefix_suffix_rename: prefix/suffix
+over a range or arbitrary selection. Checks external name collision
++ internal batch duplicates. Bug found+fixed: external check was
+comparing against batch members' stale pre-rename names, a false
+positive - now excludes batch members from that check. Verified:
+clean, real external collision, false-positive fixed, genuine
+internal duplicate.
 
 ## Sep 12 2026 - ID engine: insert-and-relocate a foreign file with name check, Build 415.90
 
