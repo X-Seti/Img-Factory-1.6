@@ -1,4 +1,4 @@
-#this belongs in apps/components/Asset_Workshop/asset_workshop.py - Version: 3
+#this belongs in apps/components/Asset_Workshop/asset_workshop.py - Version: 4
 # X-Seti - September 12 2026 - IMG Factory 1.6 - Asset Workshop
 
 """asset_workshop.py - Asset Checker."""
@@ -20,7 +20,7 @@ from apps.methods.asset_checker import check_assets, find_sibling_asset_files, f
 from apps.components.Asset_Workshop.dockable_toolbar import DockableToolbar
 
 
-class AssetWorkshop(QWidget): #vers 3
+class AssetWorkshop(QWidget): #vers 4
     def __init__(self, parent, main_window=None): #vers 1
         super().__init__(parent)
         self.main_window = main_window
@@ -42,11 +42,14 @@ class AssetWorkshop(QWidget): #vers 3
             from PyQt6.QtCore import QTimer
             QTimer.singleShot(200, lambda: self._show_checked_files_popup(all_checked))
 
-    def _all_checked_names(self): #vers 1
+    def _all_checked_names(self): #vers 2
         """Every real checked filename, one per file."""
         names = []
         if self.result.img_path:
-            names.append(os.path.basename(self.result.img_path))
+            if "," in self.result.img_path:
+                names.extend(n.strip() for n in self.result.img_path.split(","))
+            else:
+                names.append(os.path.basename(self.result.img_path))
         if self.result.col_path:
             if "," in self.result.col_path:
                 names.extend(n.strip() for n in self.result.col_path.split(","))
@@ -390,21 +393,49 @@ class AssetWorkshop(QWidget): #vers 3
                    for c in range(self.xref_table.columnCount())]
         QApplication.clipboard().setText("\t".join(values))
 
-    def _xref_open_txd_workshop(self): #vers 1
+    def _xref_open_txd_workshop(self): #vers 2
         try:
             from apps.components.Txd_Editor.txd_workshop import open_txd_workshop
-            open_txd_workshop(self.main_window, self.result.img_path)
+            target = self._pick_target_img()
+            if target:
+                open_txd_workshop(self.main_window, target)
         except Exception:
             pass
 
-    def _xref_add_missing_dff(self, model_name): #vers 2
+    def _pick_target_img(self): #vers 1
+        """Resolve which real loaded IMG a write should target - the
+        only one if there's just one, or ask explicitly if several
+        (Sep 12 2026, real fix: a whole-game check can have many
+        real IMG archives, e.g. SOL's own game_vc.img/game_sa.img/
+        etc - self.result.img_path is a DISPLAY string in that case,
+        never a real path to open directly)."""
+        paths = self.result.img_paths
+        if not paths:
+            return None
+        if len(paths) == 1:
+            return paths[0]
+        from PyQt6.QtWidgets import QInputDialog
+        names = [os.path.basename(p) for p in paths]
+        name, ok = QInputDialog.getItem(
+            self, "Select Target IMG", "Multiple real IMG archives are loaded - add to which one?",
+            names, 0, False)
+        if not ok or not name:
+            return None
+        return next((p for p in paths if os.path.basename(p) == name), None)
+
+    def _xref_add_missing_dff(self, model_name): #vers 3
         """Browse to a real external .dff and add it to the real
         loaded IMG under this exact model name (Sep 12 2026, per
         Keith: "if it says missing file, have the ability to add it
         externally"). add_entry()'s own default auto_save=True
         already saves internally (via save_img_file, which makes
         its own real .backup copy first) and returns that success -
-        no separate save() call needed."""
+        no separate save() call needed. Asks which real IMG to
+        target when more than one is loaded - self.result.img_path
+        is a display string, never a real path to open directly."""
+        target = self._pick_target_img()
+        if not target:
+            return
         path, _ = QFileDialog.getOpenFileName(
             self, f"Select external DFF for {model_name}", "", "DFF Files (*.dff)")
         if not path:
@@ -413,10 +444,9 @@ class AssetWorkshop(QWidget): #vers 3
             from apps.methods.img_core_classes import IMGFile
             with open(path, "rb") as f:
                 data = f.read()
-            img_file = IMGFile(self.result.img_path)
+            img_file = IMGFile(target)
             if not img_file.open():
-                QMessageBox.warning(self, "Add File Failed",
-                    f"Could not open:\n{self.result.img_path}")
+                QMessageBox.warning(self, "Add File Failed", f"Could not open:\n{target}")
                 return
             if not img_file.add_entry(f"{model_name}.dff", data):
                 QMessageBox.warning(self, "Add File Failed",
@@ -474,16 +504,15 @@ class AssetWorkshop(QWidget): #vers 3
             return
         self._reload_result()
 
-    def _reload_result(self): #vers 2
+    def _reload_result(self): #vers 3
         """Re-run check_assets against the same real paths and
         repopulate every view - used after any Add File Externally
-        write. Only ide_paths/col_paths (the real usable lists,
-        never the display-string ide_path/col_path) are used - a
-        col_path display string can literally read "gta3.img
-        (embedded COL entries)", not a real file check_assets could
-        open. img_path alone is enough to re-scan any embedded COL
-        data; col_paths only ever holds real standalone files."""
-        result = check_assets(img_path=self.result.img_path or None,
+        write. Only ide_paths/col_paths/img_paths (the real usable
+        lists, never the display-string ide_path/col_path/img_path)
+        are used - a col_path or img_path display string can
+        literally read "gta3.img (embedded COL entries)", not a
+        real file check_assets could open."""
+        result = check_assets(img_path=self.result.img_paths or None,
                                col_path=self.result.col_paths or None,
                                ide_path=self.result.ide_paths or None)
         self.load_result(result)

@@ -1,10 +1,11 @@
-#this belongs in apps/methods/master_ide.py - Version: 9
+#this belongs in apps/methods/master_ide.py - Version: 10
 
 ##Methods list -
 # MasterIDEResult
 # collect_ide_paths_from_dat
 # collect_ipl_paths_from_dat
 # collect_col_paths_from_dat
+# collect_img_paths_from_dat
 # load_master_ide
 # write_master_ide
 
@@ -217,6 +218,40 @@ def collect_ipl_paths_from_dat(dat_path: str, game_root: str = None, game: str =
     paths, seen = [], set()
     for dat in (loader.default_dat, loader.main_dat):
         for entry in dat.ipl_entries():
+            if entry.exists and entry.abs_path not in seen:
+                seen.add(entry.abs_path)
+                paths.append(entry.abs_path)
+    return paths
+
+
+def collect_img_paths_from_dat(dat_path: str, game_root: str = None, game: str = None): #vers 1
+    """Resolve every real IMG archive a game's .dat actually loads
+    (Sep 12 2026, real correction of a real wrong assumption: "the
+    main archive is always named gta3.img" - a real gta_sol.dat
+    uploaded by Keith shows SOL alone loading 14 separately-named
+    real archives (radartex.img, special.img, generics.img,
+    game_vc.img, game_lc.img, game_sa.img, seabed.img, skyeffects.
+    img, game_lod.img, game_ext.img, etc.), never a single gta3.img
+    at all - the old "always gta3.img" guess silently missed almost
+    everything for SOL specifically). CDIMAGE and IMG are the same
+    real directive (dat.img_entries() already combines both). Same
+    real 2-phase load every other collect_*_paths_from_dat function
+    here uses. Returns img_paths."""
+    from apps.methods.gta_dat_parser import (
+        detect_game_from_dat_filename, GTAWorldLoader, GTAGame)
+
+    if not game:
+        game = detect_game_from_dat_filename(dat_path) or GTAGame.GTA3
+    if not game_root:
+        game_root = os.path.normpath(os.path.join(os.path.dirname(dat_path), ".."))
+
+    loader = GTAWorldLoader(game)
+    loader.lazy_ipl_loading = True
+    loader.load_from_dat(dat_path, game_root)
+
+    paths, seen = [], set()
+    for dat in (loader.default_dat, loader.main_dat):
+        for entry in dat.img_entries():
             if entry.exists and entry.abs_path not in seen:
                 seen.add(entry.abs_path)
                 paths.append(entry.abs_path)

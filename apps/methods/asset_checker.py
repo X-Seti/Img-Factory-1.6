@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/asset_checker.py - Version: 7
+#this belongs in apps/methods/asset_checker.py - Version: 8
 
 ##Methods list -
 # find_sibling_asset_files
@@ -25,6 +25,7 @@ class AssetCheckResult: #vers 3
     img_path: str = ""
     col_path: str = ""
     ide_path: str = ""
+    img_paths: list = field(default_factory=list)   # real usable path(s) - a game can have MANY (e.g. SOL: game_vc.img, game_sa.img, etc, never just "gta3.img")
     col_paths: list = field(default_factory=list)   # real usable path(s), for reload/handoff
     ide_paths: list = field(default_factory=list)   # real usable path(s), for Master IDE handoff
     img_names: Set[str] = field(default_factory=set)   # lowercase, no extension - real .dff models only
@@ -164,44 +165,48 @@ def find_sibling_asset_files(clicked_path: str): #vers 2
     return found['.img'], found['.col'], found['.ide']
 
 
-def check_assets(img_path: str = None, col_path=None,
-                  ide_path=None, game: str = None) -> AssetCheckResult: #vers 8
+def check_assets(img_path=None, col_path=None,
+                  ide_path=None, game: str = None) -> AssetCheckResult: #vers 9
     """Load whichever of the 3 real files exist and cross-reference
     their real model names. Any of the 3 paths can be None/missing -
     the corresponding *_path stays empty and that source's own
     *_names set stays empty, so callers can tell "not checked" apart
-    from "checked, nothing found" via the path fields. ide_path can
-    be one real path or a list (Sep 12 2026, whole-game check merges
-    every real IDE the game's .dat loads)."""
+    from "checked, nothing found" via the path fields. img_path/
+    col_path/ide_path can each be one real path or a list - a whole
+    game can genuinely have many IMG archives (Sep 12 2026, real
+    correction: SOL alone loads 14 separately-named ones, never a
+    single "gta3.img" as an earlier version of this function wrongly
+    assumed)."""
     result = AssetCheckResult()
 
-    if img_path and os.path.isfile(img_path):
+    img_paths = [img_path] if isinstance(img_path, str) else (img_path or [])
+    img_paths = [p for p in img_paths if p and os.path.isfile(p)]
+    if img_paths:
         try:
             from apps.methods.img_core_classes import IMGFile
             from apps.methods.col_core_classes import COLFile
-            img_file = IMGFile(img_path)
-            if img_file.open():
-                result.img_path = img_path
+            merged_dff, merged_txd, merged_embedded_col = set(), set(), set()
+            opened = []
+            for one_path in img_paths:
+                img_file = IMGFile(one_path)
+                if not img_file.open():
+                    continue
+                opened.append(one_path)
                 # Only real model entries (.dff) count for this
                 # comparison (Sep 5 2026)
-                result.img_names = {
-                    os.path.splitext(e.name)[0].lower() for e in img_file.entries
-                    if e.extension.upper() == 'DFF'
-                }
-                result.img_txd_names = {
-                    os.path.splitext(e.name)[0].lower() for e in img_file.entries
-                    if e.extension.upper() == 'TXD'
-                }
+                merged_dff |= {os.path.splitext(e.name)[0].lower() for e in img_file.entries
+                               if e.extension.upper() == 'DFF'}
+                merged_txd |= {os.path.splitext(e.name)[0].lower() for e in img_file.entries
+                               if e.extension.upper() == 'TXD'}
                 # Real embedded COL entries (Sep 12 2026, per Keith:
                 # "loading from browsing GTA_VC.dat or GTA_SA.dat...
                 # doesn't pick up the COLs in the gta3.img") - VC
                 # mostly, SA exclusively, store their real collision
-                # data as COL entries INSIDE gta3.img itself, never
-                # a standalone gta3.col file - only GTA3's own
-                # COLFILE directive is a real standalone-file case.
-                # Scanned here regardless of whether a standalone
-                # col_path was also given below, and merged with it.
-                embedded_names = set()
+                # data as COL entries INSIDE their own IMG archives,
+                # never a standalone .col file for those specific
+                # models - only a real COLFILE directive (checked
+                # separately below) is a real standalone-file case.
+                # Scanned for EVERY given real IMG, merged together.
                 for e in img_file.entries:
                     if e.extension.upper() != 'COL':
                         continue
@@ -209,13 +214,19 @@ def check_assets(img_path: str = None, col_path=None,
                         raw = img_file.read_entry_data(e)
                         embedded = COLFile()
                         if embedded._parse_col_data(raw):
-                            embedded_names |= {m.name.lower() for m in embedded.models if m.name}
+                            merged_embedded_col |= {m.name.lower() for m in embedded.models if m.name}
                     except Exception:
                         pass
-                if embedded_names:
-                    result.col_names |= embedded_names
-                    result.col_path = (f"{result.col_path}, " if result.col_path else "") + \
-                        f"{os.path.basename(img_path)} (embedded COL entries)"
+
+            if opened:
+                result.img_path = ", ".join(os.path.basename(p) for p in opened)
+                result.img_paths = opened
+                result.img_names = merged_dff
+                result.img_txd_names = merged_txd
+            if merged_embedded_col:
+                result.col_names |= merged_embedded_col
+                embedded_label = ", ".join(f"{os.path.basename(p)} (embedded COL entries)" for p in opened)
+                result.col_path = (f"{result.col_path}, " if result.col_path else "") + embedded_label
         except Exception as e:
             result.img_error = str(e)
 
@@ -276,45 +287,33 @@ def check_assets(img_path: str = None, col_path=None,
     return result
 
 
-def find_game_asset_files(dat_path: str): #vers 2
+def find_game_asset_files(dat_path: str): #vers 3
     """Resolve a whole game's real IMG/COL/IDE files from its main
-    .dat (Sep 12 2026, per Keith: "asset check needs all 3 img col
-    ide, so i'd ask for the game gta_vc.dat, gta3.dat... to load
-    another gta modding project"). The real main archive is always
-    named gta3.img regardless of game (III/VC/SA/SOL all keep this
-    historical name) - same convention DAT Browser's own "Load ALL
-    game IMGs" already relies on. col_path now combines THREE real
-    sources (Sep 12 2026, real bug report - a whole-game check
-    showed nearly every COL "missing" because this only ever checked
-    one of them): the .dat's own real COLFILE directive (shared
-    files like generic.col, GTA3/VC's own convention), the standalone
-    sibling-file convention (gta3.col next to gta3.img, or the split
-    models/coll/ files), and gta3.img's own embedded COL entries
-    (handled separately, inside check_assets itself, once img_path
-    is known). Returns (img_path, col_path_or_list, ide_paths_list,
-    game)."""
-    from apps.methods.master_ide import collect_ide_paths_from_dat, collect_col_paths_from_dat
+    .dat. img_path is now every real IMG archive the .dat actually
+    loads (Sep 12 2026, real correction - a real gta_sol.dat showed
+    SOL alone loading 14 separately-named archives, never a single
+    "gta3.img" as this function wrongly assumed before; see
+    collect_img_paths_from_dat's own docstring). col_path combines
+    THREE real sources: the .dat's own COLFILE directive, the
+    standalone sibling-file convention for each real IMG found, and
+    (inside check_assets itself) each IMG's own embedded COL
+    entries. Returns (img_path_or_list, col_path_or_list,
+    ide_paths_list, game)."""
+    from apps.methods.master_ide import (
+        collect_ide_paths_from_dat, collect_col_paths_from_dat, collect_img_paths_from_dat)
 
     game_root = os.path.normpath(os.path.join(os.path.dirname(dat_path), ".."))
     ide_paths, game = collect_ide_paths_from_dat(dat_path, game_root)
-
-    img_path = None
-    for candidate in (
-        os.path.join(game_root, "models", "gta3.img"),
-        os.path.join(game_root, "MODELS", "GTA3.IMG"),
-        os.path.join(game_root, "models", "GTA3.IMG"),
-    ):
-        if os.path.isfile(candidate):
-            img_path = candidate
-            break
+    img_paths = collect_img_paths_from_dat(dat_path, game_root, game)
 
     col_paths = collect_col_paths_from_dat(dat_path, game_root, game)
-    if img_path:
+    for img_path in img_paths:
         _, sibling_col, _ = find_sibling_asset_files(img_path)
         sibling_list = [sibling_col] if isinstance(sibling_col, str) else (sibling_col or [])
         for p in sibling_list:
             if p and p not in col_paths:
                 col_paths.append(p)
 
+    img_path = img_paths if len(img_paths) > 1 else (img_paths[0] if img_paths else None)
     col_path = col_paths if len(col_paths) > 1 else (col_paths[0] if col_paths else None)
     return img_path, col_path, ide_paths, game
