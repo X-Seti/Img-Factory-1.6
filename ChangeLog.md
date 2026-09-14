@@ -1,4 +1,13 @@
-#this belongs in root /ChangeLog.md - Version: 120
+#this belongs in root /ChangeLog.md - Version: 121
+
+## Sep 12 2026 - ID engine: splice-move backend, Build 426.90
+
+plan_splice_move: real drag-move op - moving a block displaces
+whatever it sweeps through by its own size. Provably conflict-free
+by construction. Reuses apply_id_shift, no new apply function.
+Verified EXACT match against Keith's own real screenshot example
+(12918-12927 -> 12910) - every entry lands precisely right.
+Symmetric downward case and overlap-rejection also verified.
 
 ## Sep 12 2026 - Master IDE: source-file change marker, Build 423.90
 
