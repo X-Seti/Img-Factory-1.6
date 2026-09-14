@@ -1,4 +1,4 @@
-#this belongs in apps/methods/id_reassign.py - Version: 1
+#this belongs in apps/methods/id_reassign.py - Version: 2
 # X-Seti - September 12 2026 - IMG Factory 1.6 - ID Block Reassignment
 
 """id_reassign.py - Move + ID reassignment + cascading (Sep 12 2026,
@@ -20,6 +20,13 @@ anything is written - all-or-nothing, no partial shift."""
 # plan_id_shift
 # apply_id_shift
 # cascade_ipl_files
+# plan_add_ids
+# apply_add_ids
+# FreeIdCollapsePlan
+# plan_collapse_free_ids
+# apply_collapse_free_ids
+# plan_delete_and_collapse
+# apply_delete_and_collapse
 
 import os
 from dataclasses import dataclass, field
@@ -76,7 +83,7 @@ def plan_id_shift(result, min_id: int, max_id: int, offset: int) -> IDShiftPlan:
     return plan
 
 
-def apply_id_shift(result, plan: IDShiftPlan) -> List[str]: #vers 1
+def apply_id_shift(result, plan: IDShiftPlan) -> List[str]: #vers 2
     """Apply an already-planned, conflict-free shift in memory:
     objs/tobj entries get their real model_id updated; 2dfx entries
     sharing an old_id (same real model_id, see IDEParser's own 2dfx-
@@ -94,7 +101,8 @@ def apply_id_shift(result, plan: IDShiftPlan) -> List[str]: #vers 1
             if obj.model_id in plan.id_map:
                 obj.model_id = plan.id_map[obj.model_id]
                 touched.add(os.path.basename(obj.source_ide))
-        result.objects_by_section[section].sort(key=lambda o: o.model_id)
+        if section in result.objects_by_section:
+            result.objects_by_section[section].sort(key=lambda o: o.model_id)
 
     for obj in result.objects_by_section.get("2dfx", []):
         if obj.model_id in plan.id_map:
@@ -186,3 +194,140 @@ def cascade_ipl_files(ipl_paths: List[str], id_map: Dict[int, int]) -> Dict[str,
             results[ipl_path] = False
 
     return results
+
+
+def _max_used_id(result) -> int: #vers 1
+    """Highest real declared ID currently loaded (objs/tobj only) -
+    same convention as id_shift_dialog.py's own "To highest loaded
+    ID" button."""
+    all_ids = [obj.model_id for section in _EDITABLE_SECTIONS
+               for obj in result.objects_by_section.get(section, [])]
+    return max(all_ids) if all_ids else -1
+
+
+def plan_add_ids(result, after_id: int, count: int) -> IDShiftPlan: #vers 1
+    """Reserve count new free ID slots right after after_id, by
+    shifting everything with a real ID > after_id up by count (Sep
+    12 2026, per Keith: "Add would create xN of ID's from the
+    selected line... shift everything after by 1000+"). Pure re-use
+    of plan_id_shift - adding IDs is just a shift with nothing new
+    written. If nothing real exists above after_id, there is
+    nothing to shift and the reserved space already exists trivially
+    (plan.moved stays empty - not a conflict, not a failure)."""
+    max_id = _max_used_id(result)
+    if max_id <= after_id:
+        return IDShiftPlan()   # trivially satisfied - nothing above after_id to move
+    return plan_id_shift(result, after_id + 1, max_id, count)
+
+
+def apply_add_ids(result, plan: IDShiftPlan) -> List[str]: #vers 1
+    """Apply a plan_add_ids() plan. A plan with nothing moved (the
+    trivial "nothing above after_id" case) is a valid no-op success,
+    not a refusal - apply_id_shift itself would treat empty-moved as
+    not-ok, so that case is handled here instead."""
+    if not plan.moved:
+        return [] if not plan.conflicts else None
+    if not plan.ok:
+        return None
+    return apply_id_shift(result, plan)
+
+
+@dataclass
+class FreeIdCollapsePlan: #vers 1
+    start_id: int = 0
+    requested_count: int = 0
+    free_ids_found: list = field(default_factory=list)   # contiguous, in order
+    blocking_id: int = None
+    blocking_name: str = None
+    blocking_source: str = None
+
+    @property
+    def fully_free(self): #vers 1
+        return self.blocking_id is None and len(self.free_ids_found) == self.requested_count
+
+
+def plan_collapse_free_ids(result, start_id: int, count: int) -> FreeIdCollapsePlan: #vers 1
+    """Dry run only - scans forward from start_id counting real free
+    (unassigned) IDs until either count are found, or a real assigned
+    ID is hit first (Sep 12 2026, per Keith: "if there are 5 free
+    ID's and I delete 6 of them, it won't delete what isn't free...
+    If the 6th is assigned I get a warning"). plan.fully_free is
+    True only when every one of the count IDs scanned was genuinely
+    free - the only case apply_collapse_free_ids will act on."""
+    used = {obj.model_id: obj for section in _EDITABLE_SECTIONS
+            for obj in result.objects_by_section.get(section, [])}
+    plan = FreeIdCollapsePlan(start_id=start_id, requested_count=count)
+    cur = start_id
+    while len(plan.free_ids_found) < count:
+        if cur in used:
+            obj = used[cur]
+            plan.blocking_id = cur
+            plan.blocking_name = obj.model_name
+            plan.blocking_source = obj.source_ide
+            return plan
+        plan.free_ids_found.append(cur)
+        cur += 1
+    return plan
+
+
+def apply_collapse_free_ids(result, plan: FreeIdCollapsePlan) -> List[str]: #vers 1
+    """Apply an already-planned free-ID collapse: shift everything
+    above the scanned free range DOWN by requested_count, closing
+    the gap. Refuses (returns None) unless plan.fully_free - never
+    partially collapses, and never touches a real assigned entry
+    (that's Delete ID's job, a separate, explicit operation)."""
+    if not plan.fully_free:
+        return None
+    collapse_from = plan.free_ids_found[-1] + 1
+    max_id = _max_used_id(result)
+    if collapse_from > max_id:
+        return []   # nothing above the freed range - already a clean no-op success
+    shift_plan = plan_id_shift(result, collapse_from, max_id, -plan.requested_count)
+    if not shift_plan.ok:
+        return None
+    return apply_id_shift(result, shift_plan)
+
+
+def plan_delete_and_collapse(result, start_id: int, count: int) -> List[tuple]: #vers 1
+    """Dry run only - every real assigned entry within [start_id,
+    start_id+count-1] that would actually be deleted (Sep 12 2026,
+    per Keith: "until i want to remove lines altogether, removing
+    those models" - the explicit escalation past a free-ID collapse
+    refusal). Returns a list of (model_id, model_name, source_ide);
+    empty means every ID in range was already free (equivalent to a
+    plain collapse, no real deletions needed)."""
+    used = {obj.model_id: obj for section in _EDITABLE_SECTIONS
+            for obj in result.objects_by_section.get(section, [])}
+    to_delete = []
+    for i in range(start_id, start_id + count):
+        if i in used:
+            obj = used[i]
+            to_delete.append((i, obj.model_name, obj.source_ide))
+    return to_delete
+
+
+def apply_delete_and_collapse(result, start_id: int, count: int, to_delete: List[tuple]): #vers 1
+    """Actually remove every real to_delete entry, then collapse the
+    now-fully-free [start_id, start_id+count-1] range by shifting
+    everything above it down by count. Stops and refuses (returns
+    None) on the first real removal failure rather than partially
+    applying. Returns (removed_ide_basenames, shift_touched_
+    basenames) on success."""
+    from apps.methods.master_ide_edit import remove_entry
+
+    removed_files = set()
+    for model_id, _model_name, source_ide in to_delete:
+        err = remove_entry(result, model_id, source_ide)
+        if err:
+            return None
+        removed_files.add(os.path.basename(source_ide))
+
+    max_id = _max_used_id(result)
+    collapse_from = start_id + count
+    if collapse_from > max_id:
+        return sorted(removed_files), []
+    shift_plan = plan_id_shift(result, collapse_from, max_id, -count)
+    if not shift_plan.ok:
+        return None
+    shift_touched = apply_id_shift(result, shift_plan)
+    return sorted(removed_files), shift_touched
