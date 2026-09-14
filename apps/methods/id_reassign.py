@@ -1,4 +1,4 @@
-#this belongs in apps/methods/id_reassign.py - Version: 6
+#this belongs in apps/methods/id_reassign.py - Version: 7
 # X-Seti - September 12 2026 - IMG Factory 1.6 - ID Block Reassignment
 
 """id_reassign.py - Move + ID reassignment + cascading (Sep 12 2026,
@@ -38,6 +38,7 @@ anything is written - all-or-nothing, no partial shift."""
 # plan_swap_ids
 # find_usages
 # plan_splice_move
+# validate_contiguous_selection
 
 import os
 from dataclasses import dataclass, field
@@ -615,3 +616,28 @@ def plan_splice_move(result, move_start: int, move_end: int, target_start: int) 
         if obj:
             plan.moved.append((old_id, new_id, obj.model_name, obj.source_ide))
     return plan
+
+
+def validate_contiguous_selection(entry_rows: List[tuple], selected_indices) -> tuple: #vers 1
+    """Pure logic, no Qt - given every real 'entry' table row in
+    display order (row_index, model_id, section) and the set of
+    row_index values the user has actually selected, validates the
+    selection is a single contiguous block within one section before
+    a drag-move is allowed to proceed (Sep 12 2026, per Keith's own
+    drag-move UI request). Returns (move_start, move_end, section)
+    on success, or a real error string explaining why not - never
+    guesses a "best effort" range for a scattered or mixed-section
+    selection."""
+    selected_entries = [r for r in entry_rows if r[0] in selected_indices]
+    if not selected_entries:
+        return "No real entries selected."
+    sections = {r[2] for r in selected_entries}
+    if len(sections) > 1:
+        return "Selection spans more than one section (objs/tobj) - not supported."
+    min_row = min(r[0] for r in selected_entries)
+    max_row = max(r[0] for r in selected_entries)
+    for row_index, _model_id, _section in entry_rows:
+        if min_row <= row_index <= max_row and row_index not in selected_indices:
+            return "Selection must be one contiguous block, not scattered rows."
+    ids = sorted(r[1] for r in selected_entries)
+    return (ids[0], ids[-1], sections.pop())

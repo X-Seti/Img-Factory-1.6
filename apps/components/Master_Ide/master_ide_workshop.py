@@ -1,4 +1,4 @@
-#this belongs in apps/components/Master_Ide/master_ide_workshop.py - Version: 5
+#this belongs in apps/components/Master_Ide/master_ide_workshop.py - Version: 6
 # X-Seti - September 12 2026 - IMG Factory 1.6 - Master IDE Workshop
 
 """master_ide_workshop.py - Master IDE as its own standalone,
@@ -20,6 +20,7 @@ import os
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, QTableWidgetItem,
     QPushButton, QFileDialog, QMessageBox, QWidget, QListWidget, QCheckBox,
+    QAbstractItemView,
 )
 from PyQt6.QtCore import Qt
 
@@ -30,7 +31,37 @@ from apps.methods.file_backup import backup_file
 from apps.components.Master_Ide.dockable_toolbar import DockableToolbar
 
 
-class MasterIDEWorkshop(QWidget): #vers 5
+class _MasterIDETable(QTableWidget): #vers 1
+    """QTableWidget with drag-move reinterpreted as a real splice-
+    move (Sep 12 2026, per Keith's own drag UI request: "click and
+    drag to scroll... hold down left click to drag those entries to
+    another location within the list"). Qt's own InternalMove drag/
+    drop machinery already handles the press-hold-drag-vs-click
+    distinction and the visual drop indicator/auto-scroll; dropEvent
+    is overridden to redirect the actual DATA operation to
+    drop_callback(selected_rows, target_row, drop_position) instead
+    of letting Qt physically rearrange widget rows itself - the
+    workshop always rebuilds via its own _populate() after a real
+    splice-move is applied, never from Qt's own row shuffle."""
+    def __init__(self, *args, **kwargs): #vers 1
+        super().__init__(*args, **kwargs)
+        self.drop_callback = None
+        self.setDragEnabled(True)
+        self.setAcceptDrops(True)
+        self.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+        self.setDragDropOverwriteMode(False)
+
+    def dropEvent(self, event): #vers 1
+        target_index = self.indexAt(event.position().toPoint())
+        target_row = target_index.row() if target_index.isValid() else self.rowCount() - 1
+        drop_pos = self.dropIndicatorPosition()
+        selected_rows = sorted({idx.row() for idx in self.selectionModel().selectedRows()})
+        event.ignore()   # never let Qt physically rearrange rows itself
+        if self.drop_callback:
+            self.drop_callback(selected_rows, target_row, drop_pos)
+
+
+class MasterIDEWorkshop(QWidget): #vers 6
     def __init__(self, parent, main_window=None): #vers 1
         super().__init__(parent)
         self.main_window = main_window
@@ -72,7 +103,7 @@ class MasterIDEWorkshop(QWidget): #vers 5
         self._lay.addLayout(self._top)
         self._extra_lbls = []
 
-        self.table = QTableWidget()
+        self.table = _MasterIDETable()
         self.table.setColumnCount(4)
         self.table.setHorizontalHeaderLabels(["ID", "Model", "TXD", "Source IDE"])
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -80,6 +111,8 @@ class MasterIDEWorkshop(QWidget): #vers 5
         self.table.horizontalHeader().setStretchLastSection(True)
         self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.table.customContextMenuRequested.connect(self._on_table_context_menu)
+        self.table.drop_callback = self._on_splice_drop
+        self._entry_rows = []   # (row_index, model_id, section) for every real entry row, built by _populate
         self._lay.addWidget(self.table, 1)
 
         self.toolbar = DockableToolbar(self, self, settings_key='master_ide_toolbar_layout')
@@ -421,6 +454,7 @@ class MasterIDEWorkshop(QWidget): #vers 5
         flagged_ids |= {v.model_id for v in self.result.file_range_violations}
 
         rows = []
+        self._entry_rows = []
         for section in ("objs", "tobj"):
             objs = [o for o in (self.result.objects_by_section.get(section) or [])
                     if not self._id_ignored(o.model_id)]
@@ -442,6 +476,7 @@ class MasterIDEWorkshop(QWidget): #vers 5
                     rows.append(("source_change", source_name))
                     prev_source = source_name
                 rows.append(("entry", obj.model_id, obj.model_name, obj.txd_name, source_name))
+                self._entry_rows.append((len(rows) - 1, obj.model_id, section))
             rows.append(("end", section))
 
         self.table.setRowCount(len(rows))
@@ -606,6 +641,81 @@ class MasterIDEWorkshop(QWidget): #vers 5
         if not write_source_file(self.result, source_path):
             QMessageBox.warning(self, "Add Entry Failed",
                 f"Added in memory but could not write:\n{source_path}")
+            return
+        self._reload_after_edit()
+
+    def _resolve_drop_target(self, target_row, drop_position): #vers 1
+        """Real target ID a drop lands at - AboveItem drops before
+        that row's own ID, BelowItem/OnItem drops after it. Dropping
+        on a marker row (header/end/blank/source-change divider) or
+        past the end of the table resolves to the nearest real entry
+        row instead of failing."""
+        if target_row < 0 or target_row >= self.table.rowCount():
+            return (self._entry_rows[-1][1] + 1) if self._entry_rows else None
+        item = self.table.item(target_row, 0)
+        if item and item.data(Qt.ItemDataRole.UserRole) == "entry":
+            target_id = int(item.text())
+            if drop_position == QAbstractItemView.DropIndicatorPosition.BelowItem:
+                return target_id + 1
+            return target_id
+        for r in range(target_row, self.table.rowCount()):
+            it = self.table.item(r, 0)
+            if it and it.data(Qt.ItemDataRole.UserRole) == "entry":
+                return int(it.text())
+        for r in range(target_row, -1, -1):
+            it = self.table.item(r, 0)
+            if it and it.data(Qt.ItemDataRole.UserRole) == "entry":
+                return int(it.text()) + 1
+        return None
+
+    def _on_splice_drop(self, selected_rows, target_row, drop_position): #vers 1
+        """Real drag-move (Sep 12 2026, per Keith: "hold down left
+        click to drag those entries to another location within the
+        list"). Validates the dragged selection is one contiguous
+        real block within a single section before touching anything -
+        a scattered or mixed-section selection is refused outright,
+        never guessed into a "best effort" range."""
+        from apps.methods.id_reassign import validate_contiguous_selection, plan_splice_move, apply_id_shift
+
+        result = validate_contiguous_selection(self._entry_rows, set(selected_rows))
+        if isinstance(result, str):
+            QMessageBox.warning(self, "Move Entries", result)
+            return
+        move_start, move_end, _section = result
+
+        target_start = self._resolve_drop_target(target_row, drop_position)
+        if target_start is None:
+            return
+
+        plan = plan_splice_move(self.result, move_start, move_end, target_start)
+        if not plan.moved:
+            QMessageBox.information(self, "Move Entries",
+                "Nothing to move - the drop target falls inside the selection itself.")
+            return
+
+        moved_count = move_end - move_start + 1
+        displaced_count = len(plan.moved) - moved_count
+        reply = QMessageBox.question(
+            self, "Move Entries",
+            f"Move {moved_count} entrie(s) (ID {move_start}-{move_end}) to start at "
+            f"{target_start}? {displaced_count} other real entrie(s) will shift to make "
+            f"room. A backup is made before writing.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        touched = apply_id_shift(self.result, plan)
+        if not touched:
+            QMessageBox.warning(self, "Move Failed", "Could not apply - nothing written.")
+            return
+        failures = []
+        for basename in touched:
+            source_path = next((p for p in self.result.source_files
+                                 if os.path.basename(p) == basename), None)
+            if not source_path or not write_source_file(self.result, source_path):
+                failures.append(basename)
+        if failures:
+            QMessageBox.warning(self, "Write Failed", f"Failed to write: {', '.join(failures)}")
             return
         self._reload_after_edit()
 
