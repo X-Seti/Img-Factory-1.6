@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/asset_checker.py - Version: 4
+#this belongs in apps/methods/asset_checker.py - Version: 5
 
 ##Methods list -
 # find_sibling_asset_files
@@ -164,7 +164,7 @@ def find_sibling_asset_files(clicked_path: str): #vers 2
 
 
 def check_assets(img_path: str = None, col_path=None,
-                  ide_path=None, game: str = None) -> AssetCheckResult: #vers 6
+                  ide_path=None, game: str = None) -> AssetCheckResult: #vers 7
     """Load whichever of the 3 real files exist and cross-reference
     their real model names. Any of the 3 paths can be None/missing -
     the corresponding *_path stays empty and that source's own
@@ -177,6 +177,7 @@ def check_assets(img_path: str = None, col_path=None,
     if img_path and os.path.isfile(img_path):
         try:
             from apps.methods.img_core_classes import IMGFile
+            from apps.methods.col_core_classes import COLFile
             img_file = IMGFile(img_path)
             if img_file.open():
                 result.img_path = img_path
@@ -190,6 +191,30 @@ def check_assets(img_path: str = None, col_path=None,
                     os.path.splitext(e.name)[0].lower() for e in img_file.entries
                     if e.extension.upper() == 'TXD'
                 }
+                # Real embedded COL entries (Sep 12 2026, per Keith:
+                # "loading from browsing GTA_VC.dat or GTA_SA.dat...
+                # doesn't pick up the COLs in the gta3.img") - VC
+                # mostly, SA exclusively, store their real collision
+                # data as COL entries INSIDE gta3.img itself, never
+                # a standalone gta3.col file - only GTA3's own
+                # COLFILE directive is a real standalone-file case.
+                # Scanned here regardless of whether a standalone
+                # col_path was also given below, and merged with it.
+                embedded_names = set()
+                for e in img_file.entries:
+                    if e.extension.upper() != 'COL':
+                        continue
+                    try:
+                        raw = img_file.read_entry_data(e)
+                        embedded = COLFile()
+                        if embedded._parse_col_data(raw):
+                            embedded_names |= {m.name.lower() for m in embedded.models if m.name}
+                    except Exception:
+                        pass
+                if embedded_names:
+                    result.col_names |= embedded_names
+                    result.col_path = (f"{result.col_path}, " if result.col_path else "") + \
+                        f"{os.path.basename(img_path)} (embedded COL entries)"
         except Exception as e:
             result.img_error = str(e)
 
@@ -203,8 +228,9 @@ def check_assets(img_path: str = None, col_path=None,
                 col_file = COLFile()
                 if col_file.load_from_file(one_path):
                     merged_names |= {m.name.lower() for m in col_file.models if m.name}
-            result.col_path = ", ".join(os.path.basename(p) for p in col_paths)
-            result.col_names = merged_names
+            result.col_names |= merged_names
+            standalone_label = ", ".join(os.path.basename(p) for p in col_paths)
+            result.col_path = (f"{result.col_path}, " if result.col_path else "") + standalone_label
         except Exception as e:
             result.col_error = str(e)
 
