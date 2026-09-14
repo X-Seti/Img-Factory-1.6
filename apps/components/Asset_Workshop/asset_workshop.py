@@ -1,9 +1,10 @@
-#this belongs in apps/components/Asset_Workshop/asset_workshop.py - Version: 4
+#this belongs in apps/components/Asset_Workshop/asset_workshop.py - Version: 5
 # X-Seti - September 12 2026 - IMG Factory 1.6 - Asset Workshop
 
 """asset_workshop.py - Asset Checker."""
 
 ##Methods list -
+# _NumericSortItem
 # AssetWorkshop
 # open_asset_workshop
 
@@ -11,7 +12,7 @@ import os
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QListWidget, QTableWidget,
     QTableWidgetItem, QStackedWidget, QComboBox, QSplitter, QWidget, QMenu,
-    QMessageBox, QPushButton,
+    QMessageBox, QPushButton, QFileDialog,
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
@@ -20,7 +21,22 @@ from apps.methods.asset_checker import check_assets, find_sibling_asset_files, f
 from apps.components.Asset_Workshop.dockable_toolbar import DockableToolbar
 
 
-class AssetWorkshop(QWidget): #vers 4
+class _NumericSortItem(QTableWidgetItem): #vers 1
+    """A table item that sorts by its real numeric value, not by
+    text (Sep 12 2026, real bug fix - Qt's own default string sort
+    put "10000" before "1001"). Blank IDs (rows with no real IDE
+    declaration at all) sort to the end rather than crashing on an
+    empty string."""
+    def __lt__(self, other): #vers 1
+        def _num(item):
+            try:
+                return int(item.text())
+            except (ValueError, AttributeError):
+                return float('inf')
+        return _num(self) < _num(other)
+
+
+class AssetWorkshop(QWidget): #vers 5
     def __init__(self, parent, main_window=None): #vers 1
         super().__init__(parent)
         self.main_window = main_window
@@ -157,6 +173,12 @@ class AssetWorkshop(QWidget): #vers 4
             master_ide_btn = QPushButton("Master IDE...")
             master_ide_btn.clicked.connect(self._on_master_ide)
             self._top.addWidget(master_ide_btn)
+        export_report_btn = QPushButton("Export Full Report...")
+        export_report_btn.setToolTip(
+            "Export every real missing/extra entry across IMG, COL, and IDE - "
+            "the same real check every cross-reference row shows, in one file.")
+        export_report_btn.clicked.connect(self._on_export_full_report)
+        self._top.addWidget(export_report_btn)
 
         ide_count = len(self.result.ide_names)
         img_extra_count = len(self.result.img_extra_over_ide) if self.result.img_path and self.result.ide_path else 0
@@ -245,7 +267,7 @@ class AssetWorkshop(QWidget): #vers 4
         finally:
             self._sync_guard = False
 
-    def _show_diff_popup(self, names, title): #vers 1
+    def _show_diff_popup(self, names, title): #vers 2
         from PyQt6.QtWidgets import QApplication, QHBoxLayout as _QHBoxLayout
         dlg = QDialog(self)
         dlg.setWindowTitle(title)
@@ -263,11 +285,66 @@ class AssetWorkshop(QWidget): #vers 4
         copy_all_btn = QPushButton("Copy All")
         copy_all_btn.clicked.connect(
             lambda: QApplication.clipboard().setText("\n".join(sorted(names))))
+        export_btn = QPushButton("Export to File...")
+        export_btn.clicked.connect(lambda: self._export_text_report(title, sorted(names)))
         btn_row.addWidget(copy_one_btn)
         btn_row.addWidget(copy_all_btn)
+        btn_row.addWidget(export_btn)
         btn_row.addStretch()
         v.addLayout(btn_row)
         dlg.exec()
+
+    def _on_export_full_report(self): #vers 1
+        """Export every real mismatch across IMG/COL/IDE to one
+        plain text file (Sep 12 2026, per Keith: "On the first page,
+        it shows what is missing/extra in col, img or ide, export a
+        text report so the user can decide how to proceed") - same
+        real data cross_reference_rows() already computes, plus the
+        4-column view's own extra/missing lists, in one place."""
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Full Report", "asset_report.txt", "Text Files (*.txt)")
+        if not path:
+            return
+        r = self.result
+        lines = [f"Asset Workshop Report", f"Checked: {', '.join(self._all_checked_names())}", ""]
+
+        def _section(title, names):
+            lines.append(f"{title} ({len(names)}):")
+            lines.extend(f"  {n}" for n in sorted(names))
+            lines.append("")
+
+        if r.img_path and r.ide_path:
+            _section("IMG entries not declared in IDE", r.img_extra_over_ide)
+            _section("IDE entries missing from IMG", r.missing_from_img)
+        if r.col_path and r.ide_path:
+            _section("COL entries not declared in IDE", r.col_extra_over_ide)
+            _section("IDE entries missing from COL", r.missing_from_col)
+        if r.ide_path:
+            _section("Names not found in IDE at all", r.not_in_ide)
+
+        try:
+            with open(path, "w", encoding="utf-8", errors="ignore") as f:
+                f.write("\n".join(lines))
+            QMessageBox.information(self, "Export Full Report", f"Saved to:\n{path}")
+        except Exception as e:
+            QMessageBox.warning(self, "Export Failed", str(e))
+
+    def _export_text_report(self, title: str, lines: list): #vers 1
+        """Write a plain text report - one real line per entry, a
+        one-line header - so the user can decide how to proceed
+        outside the app (Sep 12 2026, per Keith: "export a text
+        report so the user can decide how to proceed")."""
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Report", f"{title}.txt", "Text Files (*.txt)")
+        if not path:
+            return
+        try:
+            with open(path, "w", encoding="utf-8", errors="ignore") as f:
+                f.write(f"{title}\n{len(lines)} entr{'y' if len(lines) == 1 else 'ies'}\n\n")
+                f.write("\n".join(lines))
+            QMessageBox.information(self, "Export Report", f"Saved to:\n{path}")
+        except Exception as e:
+            QMessageBox.warning(self, "Export Failed", str(e))
 
     def _on_view_changed(self, index): #vers 1
         self.stack.setCurrentIndex(index)
@@ -330,7 +407,13 @@ class AssetWorkshop(QWidget): #vers 4
                 item.setBackground(shades[source])
                 self.merged_table.setItem(row, col, item)
 
-    def _populate_cross_reference_view(self): #vers 1
+    def _populate_cross_reference_view(self): #vers 2
+        """Sep 12 2026, real bug fix: the ID column sorted as plain
+        text (Qt's own default), so "10000" sorted before "1001" -
+        string order, not numeric. Now uses a real numeric-sort item
+        for that column only; every other column stays a plain
+        string (DFF/COL/Model Name/Texture/Errors are genuinely
+        text, not numbers)."""
         base = self.palette().color(self.palette().currentColorGroup(),
                                      self.palette().ColorRole.Base)
         error_tint = QColor(
@@ -342,7 +425,7 @@ class AssetWorkshop(QWidget): #vers 4
         for row, values in enumerate(rows):
             has_error = values[5] != "OK"
             for col, val in enumerate(values):
-                item = QTableWidgetItem(val)
+                item = _NumericSortItem(val) if col == 0 else QTableWidgetItem(val)
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 if has_error:
                     item.setBackground(error_tint)
