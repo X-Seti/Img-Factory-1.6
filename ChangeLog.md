@@ -1,4 +1,13 @@
-#this belongs in root /ChangeLog.md - Version: 108
+#this belongs in root /ChangeLog.md - Version: 109
+
+## Sep 12 2026 - Asset Workshop: Add File Externally, Build 412.90
+
+Cross-reference right-click: Add File Externally for Missing DFF/
+COL rows. DFF adds via IMGFile.add_entry (own auto-save/backup).
+COL merges into a real standalone file, refuses cleanly for COL
+embedded in gta3.img. Added col_paths field (col_path is display
+text only, was a real bug this feature would have hit). Docstring
+simplified to one line.
 
 ## Sep 12 2026 - Asset Checker -> Asset Workshop: standalone dockable workshop, Build 411.91
 
