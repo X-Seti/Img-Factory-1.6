@@ -1,4 +1,11 @@
-#this belongs in root /ChangeLog.md - Version: 109
+#this belongs in root /ChangeLog.md - Version: 110
+
+## Sep 12 2026 - Master IDE: ignore an ID range, Build 413.90
+
+New toolbar control - checkbox + From/To + Apply. Hides that range
+from the table and every check, excludes it from status bar used/
+free. Display/check-time only, never touches Save output. Verified:
+ignoring 0-1932 drops 422/573 entries, boundary-inclusive.
 
 ## Sep 12 2026 - Asset Workshop: Add File Externally, Build 412.90
 
