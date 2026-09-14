@@ -1,4 +1,12 @@
-#this belongs in root /ChangeLog.md - Version: 115
+#this belongs in root /ChangeLog.md - Version: 116
+
+## Sep 12 2026 - DAT Browser: autoload last-used game_root/profile, Build 419.90
+
+Real bug: DAT Browser always opened empty despite the app already
+knowing game_root. New _autoload_last_profile mirrors imgfactory.
+py's own directory-tree autoload resolution order, calls the
+already-existing load_from_game_root(). CAVEAT: no PyQt6/real
+settings file in this sandbox - verified by code review only.
 
 ## Sep 12 2026 - New: TXD near-duplicate detection + size mismatch, Build 418.90
 
