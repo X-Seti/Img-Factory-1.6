@@ -1,4 +1,18 @@
-#this belongs in root /ChangeLog.md - Version: 110
+#this belongs in root /ChangeLog.md - Version: 111
+
+## Sep 12 2026 - ID engine: Add ID, Remove free ID, Delete ID, Build 414.90
+
+plan_add_ids/apply_add_ids: reserve N free slots after an ID by
+shifting everything above it up by N. plan_collapse_free_ids/apply_
+collapse_free_ids: scan+shift only genuinely free slots, refuses on
+first real assigned entry, caller can retry with just the free
+count found. plan_delete_and_collapse/apply_delete_and_collapse:
+explicit escalation, deletes assigned entries then collapses.
+
+Bug found+fixed: apply_id_shift crashed on any file lacking a tobj
+section - never hit before since every prior test file had both.
+Verified: real-data Add ID, synthetic-gap safe collapse, blocked-
+then-fallback, and full delete-and-collapse math.
 
 ## Sep 12 2026 - Master IDE: ignore an ID range, Build 413.90
 
