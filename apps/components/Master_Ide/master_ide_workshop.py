@@ -1,4 +1,4 @@
-#this belongs in apps/components/Master_Ide/master_ide_workshop.py - Version: 1
+#this belongs in apps/components/Master_Ide/master_ide_workshop.py - Version: 2
 # X-Seti - September 12 2026 - IMG Factory 1.6 - Master IDE Workshop
 
 """master_ide_workshop.py - Master IDE as its own standalone,
@@ -30,7 +30,7 @@ from apps.methods.file_backup import backup_file
 from apps.components.Master_Ide.dockable_toolbar import DockableToolbar
 
 
-class MasterIDEWorkshop(QWidget): #vers 1
+class MasterIDEWorkshop(QWidget): #vers 2
     def __init__(self, parent, main_window=None): #vers 1
         super().__init__(parent)
         self.main_window = main_window
@@ -39,6 +39,7 @@ class MasterIDEWorkshop(QWidget): #vers 1
         self.game = None
         self.dat_path = None   # last real .dat used, for reloading with a changed ignore-files option
         self.ignore_base_files = True
+        self.ignore_id_range = None   # (min, max) or None - display/check filter only, never touches saved data
         self._tab_container = None
         self._build_ui()
 
@@ -98,6 +99,27 @@ class MasterIDEWorkshop(QWidget): #vers 1
             "(generic) IDE file instead.")
         self.ignore_base_chk.toggled.connect(self._on_ignore_base_toggled)
         btn_row.addWidget(self.ignore_base_chk)
+
+        from PyQt6.QtWidgets import QSpinBox
+        self.ignore_range_chk = QCheckBox("Ignore ID range")
+        self.ignore_range_chk.setToolTip(
+            "Hide this range from the table and from every check - "
+            "display/check only, never touches what Save as Master "
+            "IDE actually writes (Sep 12 2026, per Keith: 'ignore "
+            "0-1932 so it checks everything after').")
+        btn_row.addWidget(self.ignore_range_chk)
+        self.ignore_range_from = QSpinBox()
+        self.ignore_range_from.setRange(0, 999999)
+        btn_row.addWidget(self.ignore_range_from)
+        btn_row.addWidget(QLabel("to"))
+        self.ignore_range_to = QSpinBox()
+        self.ignore_range_to.setRange(0, 999999)
+        self.ignore_range_to.setValue(1932)
+        btn_row.addWidget(self.ignore_range_to)
+        apply_range_btn = QPushButton("Apply")
+        apply_range_btn.clicked.connect(self._on_apply_ignore_range)
+        btn_row.addWidget(apply_range_btn)
+
         insert_file_btn = QPushButton("Insert IDE File...")
         insert_file_btn.clicked.connect(self._on_insert_ide_file)
         btn_row.addWidget(insert_file_btn)
@@ -130,16 +152,56 @@ class MasterIDEWorkshop(QWidget): #vers 1
         if self.dat_path:
             self.load_from_dat(self.dat_path)
 
-    def _refresh_top(self): #vers 1
+    def _on_apply_ignore_range(self): #vers 1
+        if self.ignore_range_chk.isChecked():
+            lo, hi = self.ignore_range_from.value(), self.ignore_range_to.value()
+            if lo > hi:
+                QMessageBox.warning(self, "Master IDE", "'From' must not be greater than 'to'.")
+                return
+            self.ignore_id_range = (lo, hi)
+        else:
+            self.ignore_id_range = None
+        if self.result:
+            self._refresh_top()
+            self._populate()
+
+    def _id_ignored(self, model_id): #vers 1
+        if not self.ignore_id_range:
+            return False
+        lo, hi = self.ignore_id_range
+        return lo <= model_id <= hi
+
+    def _filter_ignored_single(self, items): #vers 1
+        """Drop items whose own .model_id falls in the ignored
+        range - for check types with exactly one real id per item
+        (collisions/redefinitions/out_of_range/file_range_violations)."""
+        if not self.ignore_id_range:
+            return items
+        return [i for i in items if not self._id_ignored(i.model_id)]
+
+    def _filter_ignored_multi(self, items): #vers 1
+        """Drop items only when EVERY id in their .entries falls in
+        the ignored range - a collision straddling the boundary
+        still needs the non-ignored side flagged (name_collisions
+        only, since its entries are (model_id, source) pairs)."""
+        if not self.ignore_id_range:
+            return items
+        return [i for i in items if not all(self._id_ignored(mid) for mid, _ in i.entries)]
+
+    def _refresh_top(self): #vers 2
         """Rebuild the header info/warning/error labels."""
         while self._top.count():
             item = self._top.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
         names = ", ".join(os.path.basename(p) for p in self.result.source_files)
-        visible_count = sum(len(v) for section, v in self.result.objects_by_section.items()
-                             if section not in self.result.raw_section_lines)
-        self._top.addWidget(QLabel(f"Merged: {names} ({visible_count} object(s))"))
+        visible_count = sum(
+            1 for section, objs in self.result.objects_by_section.items()
+            if section not in self.result.raw_section_lines
+            for obj in objs if not self._id_ignored(obj.model_id))
+        range_note = f" - ignoring {self.ignore_id_range[0]}-{self.ignore_id_range[1]}" \
+            if self.ignore_id_range else ""
+        self._top.addWidget(QLabel(f"Merged: {names} ({visible_count} object(s){range_note})"))
         self._top.addStretch()
 
         for lbl in getattr(self, '_extra_lbls', []):
@@ -148,33 +210,33 @@ class MasterIDEWorkshop(QWidget): #vers 1
         self._extra_lbls = []
 
         self._add_warning_row(
-            self.result.collisions,
+            self._filter_ignored_single(self.result.collisions),
             lambda n: f"WARNING: {n} real ID collision(s) found - see highlighted "
                       f"rows below. Resolve these before using this as a real combined file.",
             lambda c: f"ID {c.model_id}: " + ", ".join(f"{n} ({os.path.basename(s)})" for n, s in c.entries),
             "ID Collisions")
         self._add_warning_row(
-            self.result.name_collisions,
+            self._filter_ignored_multi(self.result.name_collisions),
             lambda n: f"WARNING: {n} model name(s) declared under more than one ID - "
                       f"which ID wins depends on file load order.",
             lambda c: f"{c.model_name}: " + ", ".join(f"ID {i} ({os.path.basename(s)})" for i, s in c.entries),
             "Name Collisions")
         self._add_warning_row(
-            self.result.redefinitions,
+            self._filter_ignored_single(self.result.redefinitions),
             lambda n: f"WARNING: {n} ID+name pair(s) redefined differently across files - "
                       f"which definition wins depends on file load order.",
             lambda r: f"ID {r.model_id} {r.model_name}: " +
                       ", ".join(f"txd={t} section={s} ({os.path.basename(src)})" for t, s, src in r.entries),
             "Redefinitions")
         self._add_warning_row(
-            self.result.out_of_range,
+            self._filter_ignored_single(self.result.out_of_range),
             lambda n: f"WARNING: {n} object ID(s) fall outside the target game's "
                       f"real supported range.",
             lambda o: f"ID {o.model_id} {o.model_name} (valid {o.min_id}-{o.max_id}, "
                       f"{os.path.basename(o.source_ide)})",
             "Out of Range")
         self._add_warning_row(
-            self.result.file_range_violations,
+            self._filter_ignored_single(self.result.file_range_violations),
             lambda n: f"WARNING: {n} object ID(s) fall outside their own SOL "
                       f"source file's documented ID block.",
             lambda v: f"ID {v.model_id} {v.model_name} ({os.path.basename(v.source_ide)}, "
@@ -188,12 +250,14 @@ class MasterIDEWorkshop(QWidget): #vers 1
 
         self._refresh_status_bar()
 
-    def _refresh_status_bar(self): #vers 1
+    def _refresh_status_bar(self): #vers 2
         """IDs used / free within the engine's own ID range - "free"
         is real remaining capacity in that range, not a count of
         literal gaps between used IDs. Uses this app's own stored
         ID_RANGES as a default only - the real engine limit varies
-        and isn't asserted here."""
+        and isn't asserted here. When an ID range is being ignored,
+        both used and capacity exclude it, so free reflects only
+        the range actually being checked."""
         try:
             from apps.methods.gta_dat_parser import GTAGame
             min_id, max_id = GTAGame.ID_RANGES.get(self.game, (0, 32767))
@@ -202,12 +266,19 @@ class MasterIDEWorkshop(QWidget): #vers 1
 
         used_ids = {obj.model_id for section in ("objs", "tobj")
                     for obj in self.result.objects_by_section.get(section, [])}
-        used_in_range = sum(1 for i in used_ids if min_id <= i <= max_id)
+        used_in_range = sum(1 for i in used_ids if min_id <= i <= max_id and not self._id_ignored(i))
         capacity = max_id - min_id + 1
+        if self.ignore_id_range:
+            lo, hi = self.ignore_id_range
+            overlap_lo, overlap_hi = max(min_id, lo), min(max_id, hi)
+            if overlap_lo <= overlap_hi:
+                capacity -= (overlap_hi - overlap_lo + 1)
         free = max(0, capacity - used_in_range)
+        range_note = f", ignoring {self.ignore_id_range[0]}-{self.ignore_id_range[1]}" \
+            if self.ignore_id_range else ""
         self.status_bar.setText(
             f"IDs used: {used_in_range}  |  Free: {free}  "
-            f"(range {min_id}-{max_id}, this app's default for the detected game)")
+            f"(range {min_id}-{max_id}{range_note}, this app's default for the detected game)")
 
     def _add_warning_row(self, items, text_fn, line_fn, popup_title): #vers 1
         """One short warning line + a Details button, for any of the
@@ -322,7 +393,7 @@ class MasterIDEWorkshop(QWidget): #vers 1
             return
         self._reload_after_edit()
 
-    def _populate(self): #vers 1
+    def _populate(self): #vers 2
         base = self.palette().color(self.palette().currentColorGroup(),
                                      self.palette().ColorRole.Base)
         from PyQt6.QtGui import QColor
@@ -336,7 +407,8 @@ class MasterIDEWorkshop(QWidget): #vers 1
 
         rows = []
         for section in ("objs", "tobj"):
-            objs = self.result.objects_by_section.get(section)
+            objs = [o for o in (self.result.objects_by_section.get(section) or [])
+                    if not self._id_ignored(o.model_id)]
             if not objs:
                 continue
             if rows:
