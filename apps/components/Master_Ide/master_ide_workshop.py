@@ -1,4 +1,4 @@
-#this belongs in apps/components/Master_Ide/master_ide_workshop.py - Version: 2
+#this belongs in apps/components/Master_Ide/master_ide_workshop.py - Version: 3
 # X-Seti - September 12 2026 - IMG Factory 1.6 - Master IDE Workshop
 
 """master_ide_workshop.py - Master IDE as its own standalone,
@@ -30,7 +30,7 @@ from apps.methods.file_backup import backup_file
 from apps.components.Master_Ide.dockable_toolbar import DockableToolbar
 
 
-class MasterIDEWorkshop(QWidget): #vers 2
+class MasterIDEWorkshop(QWidget): #vers 3
     def __init__(self, parent, main_window=None): #vers 1
         super().__init__(parent)
         self.main_window = main_window
@@ -393,7 +393,7 @@ class MasterIDEWorkshop(QWidget): #vers 2
             return
         self._reload_after_edit()
 
-    def _populate(self): #vers 2
+    def _populate(self): #vers 3
         base = self.palette().color(self.palette().currentColorGroup(),
                                      self.palette().ColorRole.Base)
         from PyQt6.QtGui import QColor
@@ -414,14 +414,26 @@ class MasterIDEWorkshop(QWidget): #vers 2
             if rows:
                 rows.append(("blank", None))
             rows.append(("header", section))
+            prev_source = None
             for obj in objs:
-                rows.append(("entry", obj.model_id, obj.model_name, obj.txd_name,
-                             os.path.basename(obj.source_ide)))
+                source_name = os.path.basename(obj.source_ide)
+                if source_name != prev_source:
+                    # Real ID-sorted order interleaves different real
+                    # source files (Sep 12 2026, per Keith: "mark the
+                    # beginning on the ID file, so you know you have
+                    # scroll past airport.ide and are now looking at
+                    # airportn.ide") - a divider row whenever the
+                    # real source changes, not just at file load.
+                    rows.append(("source_change", source_name))
+                    prev_source = source_name
+                rows.append(("entry", obj.model_id, obj.model_name, obj.txd_name, source_name))
             rows.append(("end", section))
 
         self.table.setRowCount(len(rows))
         header_bg = self.palette().color(self.palette().currentColorGroup(),
                                           self.palette().ColorRole.Mid)
+        source_bg = self.palette().color(self.palette().currentColorGroup(),
+                                          self.palette().ColorRole.AlternateBase)
         for row, entry in enumerate(rows):
             kind = entry[0]
             if kind in ("header", "end"):
@@ -432,6 +444,16 @@ class MasterIDEWorkshop(QWidget): #vers 2
                 font.setBold(True)
                 item.setFont(font)
                 item.setBackground(header_bg)
+                self.table.setItem(row, 0, item)
+                self.table.setSpan(row, 0, 1, 4)
+                item.setData(Qt.ItemDataRole.UserRole, "marker")
+            elif kind == "source_change":
+                item = QTableWidgetItem(f"\u25b8 {entry[1]}")
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable & ~Qt.ItemFlag.ItemIsSelectable)
+                font = item.font()
+                font.setItalic(True)
+                item.setFont(font)
+                item.setBackground(source_bg)
                 self.table.setItem(row, 0, item)
                 self.table.setSpan(row, 0, 1, 4)
                 item.setData(Qt.ItemDataRole.UserRole, "marker")
