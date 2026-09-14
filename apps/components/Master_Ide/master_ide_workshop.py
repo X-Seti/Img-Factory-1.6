@@ -1,4 +1,4 @@
-#this belongs in apps/components/Master_Ide/master_ide_workshop.py - Version: 3
+#this belongs in apps/components/Master_Ide/master_ide_workshop.py - Version: 4
 # X-Seti - September 12 2026 - IMG Factory 1.6 - Master IDE Workshop
 
 """master_ide_workshop.py - Master IDE as its own standalone,
@@ -30,7 +30,7 @@ from apps.methods.file_backup import backup_file
 from apps.components.Master_Ide.dockable_toolbar import DockableToolbar
 
 
-class MasterIDEWorkshop(QWidget): #vers 3
+class MasterIDEWorkshop(QWidget): #vers 4
     def __init__(self, parent, main_window=None): #vers 1
         super().__init__(parent)
         self.main_window = main_window
@@ -135,6 +135,18 @@ class MasterIDEWorkshop(QWidget): #vers 3
         id_shift_btn = QPushButton("Move / Reassign ID Block...")
         id_shift_btn.clicked.connect(self._on_id_shift)
         btn_row.addWidget(id_shift_btn)
+        add_id_btn = QPushButton("Add ID...")
+        add_id_btn.clicked.connect(self._on_add_id)
+        btn_row.addWidget(add_id_btn)
+        remove_id_btn = QPushButton("Remove / Delete ID...")
+        remove_id_btn.clicked.connect(self._on_remove_delete_id)
+        btn_row.addWidget(remove_id_btn)
+        id_utils_btn = QPushButton("ID Utilities...")
+        id_utils_btn.clicked.connect(self._on_id_utilities)
+        btn_row.addWidget(id_utils_btn)
+        insert_relocate_btn = QPushButton("Insert && Relocate File...")
+        insert_relocate_btn.clicked.connect(self._on_insert_relocate)
+        btn_row.addWidget(insert_relocate_btn)
         save_btn = QPushButton("Save as Master IDE...")
         save_btn.clicked.connect(self._on_save)
         btn_row.addWidget(save_btn)
@@ -597,6 +609,30 @@ class MasterIDEWorkshop(QWidget): #vers 3
     def _on_id_shift(self): #vers 1
         from apps.methods.id_shift_dialog import IDShiftDialog
         dlg = IDShiftDialog(self, self.result, game=self.game)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._reload_after_edit()
+
+    def _on_add_id(self): #vers 1
+        from apps.components.Master_Ide.id_tools_dialogs import AddIDDialog
+        dlg = AddIDDialog(self, self.result)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._reload_after_edit()
+
+    def _on_remove_delete_id(self): #vers 1
+        from apps.components.Master_Ide.id_tools_dialogs import RemoveDeleteIDDialog
+        dlg = RemoveDeleteIDDialog(self, self.result)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._reload_after_edit()
+
+    def _on_id_utilities(self): #vers 1
+        from apps.components.Master_Ide.id_tools_dialogs import IDUtilitiesDialog
+        dlg = IDUtilitiesDialog(self, self.result)
+        dlg.exec()
+        self._reload_after_edit()
+
+    def _on_insert_relocate(self): #vers 1
+        from apps.components.Master_Ide.id_tools_dialogs import InsertRelocateDialog
+        dlg = InsertRelocateDialog(self, self.result)
         if dlg.exec() == QDialog.DialogCode.Accepted:
             self._reload_after_edit()
 
