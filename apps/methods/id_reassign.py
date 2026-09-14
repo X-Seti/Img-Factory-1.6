@@ -1,4 +1,4 @@
-#this belongs in apps/methods/id_reassign.py - Version: 5
+#this belongs in apps/methods/id_reassign.py - Version: 6
 # X-Seti - September 12 2026 - IMG Factory 1.6 - ID Block Reassignment
 
 """id_reassign.py - Move + ID reassignment + cascading (Sep 12 2026,
@@ -37,6 +37,7 @@ anything is written - all-or-nothing, no partial shift."""
 # plan_compact_all_gaps
 # plan_swap_ids
 # find_usages
+# plan_splice_move
 
 import os
 from dataclasses import dataclass, field
@@ -561,3 +562,56 @@ def find_usages(result, model_id: int = None, model_name: str = None) -> List[di
                     'txd_name': obj.txd_name, 'source_ide': os.path.basename(obj.source_ide),
                 })
     return matches
+
+
+def plan_splice_move(result, move_start: int, move_end: int, target_start: int) -> IDShiftPlan: #vers 1
+    """Real drag-move semantics, pinned down against Keith's own
+    real screenshots (moving IDs 12918-12927 to land at 12910): the
+    ID column itself never changes shape - it's the real PAYLOAD
+    (model name/txd/dist/flags) that moves between fixed slots.
+    Moving a block to target_start displaces whatever currently
+    occupies the space it sweeps through, shifting that displaced
+    range by exactly the moved block's own size (N) to close the gap
+    left behind and open the space now needed - the same "swap
+    payloads between fixed slots" behaviour confirmed against the
+    real before/after images (12910-12917's real occupants landed
+    at 12920-12927 after the 10-entry block moved to 12910).
+
+    Provably conflict-free by construction, same proof style as
+    plan_compact_all_gaps: the moved block and the displaced range
+    are adjacent and non-overlapping, and together their new
+    positions cover EXACTLY the same combined span [min(move_start,
+    target_start), max(move_end, target_start+N-1)] the two ranges
+    covered before the move - just re-partitioned, nothing outside
+    that span is ever touched. Returns an empty, not-ok plan if
+    target_start falls inside [move_start, move_end] (nothing to
+    do - the block would be "moving into itself")."""
+    if move_start > move_end or move_start <= target_start <= move_end:
+        return IDShiftPlan()
+
+    n = move_end - move_start + 1
+    id_map: Dict[int, int] = {}
+
+    if target_start < move_start:
+        # Moving to a lower ID - the real 12918-12927 -> 12910 case.
+        # Displaced range: [target_start, move_start-1], shifts up by n.
+        for old_id in range(move_start, move_end + 1):
+            id_map[old_id] = old_id + (target_start - move_start)
+        for old_id in range(target_start, move_start):
+            id_map[old_id] = old_id + n
+    else:
+        # Moving to a higher ID - symmetric case.
+        # Displaced range: [move_end+1, target_start+n-1], shifts down by n.
+        for old_id in range(move_start, move_end + 1):
+            id_map[old_id] = old_id + (target_start - move_start)
+        for old_id in range(move_end + 1, target_start + n):
+            id_map[old_id] = old_id - n
+
+    all_by_id = {obj.model_id: obj for section in _EDITABLE_SECTIONS
+                 for obj in result.objects_by_section.get(section, [])}
+    plan = IDShiftPlan(id_map=id_map)
+    for old_id, new_id in id_map.items():
+        obj = all_by_id.get(old_id)
+        if obj:
+            plan.moved.append((old_id, new_id, obj.model_name, obj.source_ide))
+    return plan
