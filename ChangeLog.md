@@ -1,4 +1,15 @@
-#this belongs in root /ChangeLog.md - Version: 114
+#this belongs in root /ChangeLog.md - Version: 115
+
+## Sep 12 2026 - New: TXD near-duplicate detection + size mismatch, Build 418.90
+
+txd_dedup.py: texture-NAME-set comparison, no pixel decoding.
+find_near_duplicate_txds flags pairs differing by <= max_diff names
+(sharing >=1). cluster_near_duplicate_txds groups via transitive
+closure. find_same_name_size_mismatches flags a name with >1 real
+size across TXDs. Never touches reference counts (gtaiii.txd x40 is
+unrelated). Verified against Keith's own real example - 3-way
+cluster forms correctly via transitivity even when the two ends
+don't directly pairwise-match.
 
 ## Sep 12 2026 - ID engine: 5 more use cases, Build 417.90
 
