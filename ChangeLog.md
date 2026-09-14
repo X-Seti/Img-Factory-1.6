@@ -1,4 +1,13 @@
-#this belongs in root /ChangeLog.md - Version: 121
+#this belongs in root /ChangeLog.md - Version: 122
+
+## Sep 12 2026 - Master IDE: real drag-move UI, Build 427.90
+
+New _MasterIDETable - Qt's own InternalMove handles press-hold-drag
+UX; dropEvent redirects to plan_splice_move instead of a physical
+row shuffle. New validate_contiguous_selection (pure logic) refuses
+scattered/mixed-section selections outright. Verified: all 5
+validator cases correct, full end-to-end drop simulation against
+real sparse data matches expected final state exactly.
 
 ## Sep 12 2026 - ID engine: splice-move backend, Build 426.90
 
