@@ -1,4 +1,12 @@
-#this belongs in root /ChangeLog.md - Version: 113
+#this belongs in root /ChangeLog.md - Version: 114
+
+## Sep 12 2026 - ID engine: 5 more use cases, Build 417.90
+
+find_free_id_gaps, plan_compact_all_gaps (single holistic pass,
+conflict-free by construction), plan_swap_ids (reuses apply_id_
+shift), find_usages (includes 2dfx deliberately), collect_ipl_
+paths_from_dat (mirrors the IDE version, auto-populates ID Shift's
+IPL list). Verified against real+synthetic gap data.
 
 ## Sep 12 2026 - ID engine: batch prefix/suffix rename, Build 416.90
 
