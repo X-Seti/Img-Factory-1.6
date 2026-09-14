@@ -1,4 +1,4 @@
-#this belongs in apps/methods/id_reassign.py - Version: 3
+#this belongs in apps/methods/id_reassign.py - Version: 4
 # X-Seti - September 12 2026 - IMG Factory 1.6 - ID Block Reassignment
 
 """id_reassign.py - Move + ID reassignment + cascading (Sep 12 2026,
@@ -30,6 +30,9 @@ anything is written - all-or-nothing, no partial shift."""
 # InsertRelocationPlan
 # plan_insert_relocation
 # apply_insert_relocation
+# RenameRangePlan
+# plan_prefix_suffix_rename
+# apply_prefix_suffix_rename
 
 import os
 from dataclasses import dataclass, field
@@ -399,3 +402,70 @@ def apply_insert_relocation(result, plan: InsertRelocationPlan) -> List[str]: #v
         return []
     shift_plan = IDShiftPlan(moved=list(plan.moved), conflicts=[], id_map=dict(plan.id_map))
     return apply_id_shift(result, shift_plan)
+
+
+@dataclass
+class RenameRangePlan: #vers 1
+    renames: list = field(default_factory=list)          # (model_id, old_name, new_name, source_ide)
+    name_conflicts: list = field(default_factory=list)    # (new_name, model_id, conflicting_id, conflicting_source)
+    internal_duplicates: list = field(default_factory=list)   # (new_name, model_id_a, model_id_b) - two renamed entries landing on the same name
+
+    @property
+    def ok(self): #vers 1
+        return bool(self.renames) and not self.name_conflicts and not self.internal_duplicates
+
+
+def plan_prefix_suffix_rename(result, model_ids, prefix: str = "", suffix: str = "") -> RenameRangePlan: #vers 2
+    """Dry run only - for every given real model_id (a contiguous
+    range or an arbitrary selected list, either works), compute the
+    new name after adding prefix/suffix and check it two ways (Sep
+    12 2026, per Keith: "option to surfix or prefix an ID modelname
+    range, selected"): against every OTHER entry's existing real
+    name (name_conflicts), and against every OTHER entry in this
+    SAME batch landing on the identical new name (internal_
+    duplicates) - two originally-different names can collapse onto
+    one after the same prefix/suffix is applied to both."""
+    id_set = set(model_ids)
+    all_by_id = {}
+    all_by_name = {}
+    for section in _EDITABLE_SECTIONS:
+        for obj in result.objects_by_section.get(section, []):
+            all_by_id[obj.model_id] = obj
+            all_by_name.setdefault(obj.model_name.lower(), []).append((obj.model_id, obj.source_ide))
+
+    plan = RenameRangePlan()
+    new_names_seen = {}   # new_name.lower() -> first model_id in this batch that produced it
+    for mid in sorted(id_set):
+        obj = all_by_id.get(mid)
+        if not obj:
+            continue   # a free/unassigned id in the range - nothing to rename
+        new_name = f"{prefix}{obj.model_name}{suffix}"
+        plan.renames.append((mid, obj.model_name, new_name, obj.source_ide))
+
+        key = new_name.lower()
+        if key in new_names_seen and new_names_seen[key] != mid:
+            plan.internal_duplicates.append((new_name, new_names_seen[key], mid))
+        else:
+            new_names_seen[key] = mid
+
+        for existing_id, existing_source in all_by_name.get(key, []):
+            if existing_id != mid and existing_id not in id_set:
+                plan.name_conflicts.append((new_name, mid, existing_id, existing_source))
+    return plan
+
+
+def apply_prefix_suffix_rename(result, plan: RenameRangePlan) -> List[str]: #vers 1
+    """Apply an already-planned, conflict-free batch rename. Stops
+    and refuses (returns []) on the first real rename_entry()
+    failure rather than partially applying - matches every other
+    operation in this module's own all-or-nothing rule."""
+    if not plan.ok:
+        return []
+    from apps.methods.master_ide_edit import rename_entry
+    touched = set()
+    for model_id, _old_name, new_name, source_ide in plan.renames:
+        err = rename_entry(result, model_id, new_name, source_ide=source_ide)
+        if err:
+            return []
+        touched.add(os.path.basename(source_ide))
+    return sorted(touched)
