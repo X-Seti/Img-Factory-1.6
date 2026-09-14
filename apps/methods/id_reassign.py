@@ -1,4 +1,4 @@
-#this belongs in apps/methods/id_reassign.py - Version: 2
+#this belongs in apps/methods/id_reassign.py - Version: 3
 # X-Seti - September 12 2026 - IMG Factory 1.6 - ID Block Reassignment
 
 """id_reassign.py - Move + ID reassignment + cascading (Sep 12 2026,
@@ -27,6 +27,9 @@ anything is written - all-or-nothing, no partial shift."""
 # apply_collapse_free_ids
 # plan_delete_and_collapse
 # apply_delete_and_collapse
+# InsertRelocationPlan
+# plan_insert_relocation
+# apply_insert_relocation
 
 import os
 from dataclasses import dataclass, field
@@ -331,3 +334,68 @@ def apply_delete_and_collapse(result, start_id: int, count: int, to_delete: List
         return None
     shift_touched = apply_id_shift(result, shift_plan)
     return sorted(removed_files), shift_touched
+
+
+@dataclass
+class InsertRelocationPlan: #vers 1
+    id_map: Dict[int, int] = field(default_factory=dict)     # incoming file's old_id -> new target id
+    moved: list = field(default_factory=list)                # (old_id, new_id, model_name, source_ide) - incoming entries only
+    id_conflicts: list = field(default_factory=list)          # (new_id, conflicting_name, conflicting_source) - target slot already used
+    name_conflicts: list = field(default_factory=list)        # (incoming_name, incoming_old_id, existing_id, existing_source)
+
+    @property
+    def ok(self): #vers 1
+        return bool(self.moved) and not self.id_conflicts and not self.name_conflicts
+
+
+def plan_insert_relocation(result, incoming_source_ide: str, target_start_id: int) -> InsertRelocationPlan: #vers 1
+    """Dry run only - relocate one already-loaded file's own real
+    entries (typically just-added via Insert IDE File, possibly from
+    an entirely different game, see this module's own docstring) onto
+    a contiguous target range starting at target_start_id, in their
+    own existing relative order. Two separate real checks, both
+    required for plan.ok: (1) the target ID isn't already used by
+    anything outside the incoming file, and (2) the incoming entry's
+    own model NAME doesn't already exist anywhere else in the merge -
+    a real risk when relocating a foreign file, since two different
+    games' own IDE files can easily reuse common names (e.g.
+    "generic1") even once their numeric IDs no longer clash (Sep 12
+    2026, per Keith: "insert ID, moves other ide files into that
+    area... would need a model name check")."""
+    incoming_base = os.path.basename(incoming_source_ide)
+    incoming = []
+    other_by_id = {}
+    other_by_name = {}
+    for section in _EDITABLE_SECTIONS:
+        for obj in result.objects_by_section.get(section, []):
+            if os.path.basename(obj.source_ide) == incoming_base:
+                incoming.append(obj)
+            else:
+                other_by_id[obj.model_id] = (obj.model_name, obj.source_ide)
+                other_by_name.setdefault(obj.model_name.lower(), []).append((obj.model_id, obj.source_ide))
+
+    incoming.sort(key=lambda o: o.model_id)
+    plan = InsertRelocationPlan()
+    for i, obj in enumerate(incoming):
+        new_id = target_start_id + i
+        plan.id_map[obj.model_id] = new_id
+        plan.moved.append((obj.model_id, new_id, obj.model_name, obj.source_ide))
+        if new_id in other_by_id:
+            conf_name, conf_source = other_by_id[new_id]
+            plan.id_conflicts.append((new_id, conf_name, conf_source))
+        for existing_id, existing_source in other_by_name.get(obj.model_name.lower(), []):
+            plan.name_conflicts.append((obj.model_name, obj.model_id, existing_id, existing_source))
+    return plan
+
+
+def apply_insert_relocation(result, plan: InsertRelocationPlan) -> List[str]: #vers 1
+    """Apply an already-planned, conflict-free relocation. Reuses
+    apply_id_shift directly (it operates purely off plan.id_map, so
+    a real IDShiftPlan built from this plan's own data cascades into
+    2dfx/write-back exactly the same way an ordinary shift does) -
+    refuses (returns []) unless plan.ok, matching every other
+    operation in this module's own all-or-nothing rule."""
+    if not plan.ok:
+        return []
+    shift_plan = IDShiftPlan(moved=list(plan.moved), conflicts=[], id_map=dict(plan.id_map))
+    return apply_id_shift(result, shift_plan)
