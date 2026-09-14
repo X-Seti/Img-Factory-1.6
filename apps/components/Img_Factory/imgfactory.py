@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in components/Img_Factory/imgfactory.py - Version: 90
+#this belongs in components/Img_Factory/imgfactory.py - Version: 91
 # X-Seti - Feb 24 2026 - IMG Factory 1.6 - Icon system, button layout
 
 """
@@ -6633,10 +6633,10 @@ class IMGFactory(QMainWindow):
         from apps.components.Hex_Editor.hex_workshop import open_hex_workshop
         return open_hex_workshop(self, file_path)
 
-    def open_asset_checker(self, dat_path=None): #vers 3
-        """Open Asset Checker - prompts for a game's main .dat if
+    def open_asset_checker(self, dat_path=None): #vers 4
+        """Open Asset Workshop - prompts for a game's main .dat if
         none given (Intro page tile has no file context of its own).
-        Needs a whole .dat, not a single file, since Asset Checker
+        Needs a whole .dat, not a single file, since Asset Workshop
         cross-references all 3 of IMG/COL/IDE together (Sep 12
         2026, per Keith). Looks up the current project's own real
         game_root first and offers "Continue" with that project's
@@ -6653,8 +6653,8 @@ class IMGFactory(QMainWindow):
                 "gtasol.dat gta_quick.dat);;All files (*.dat)")
             if not dat_path:
                 return
-        from apps.methods.asset_checker_dialog import show_asset_checker_from_dat
-        show_asset_checker_from_dat(self, dat_path)
+        from apps.components.Asset_Workshop.asset_workshop import open_asset_workshop
+        open_asset_workshop(self, dat_path=dat_path)
 
     def _find_project_dat_with_prompt(self): #vers 1
         """Return the current project's real main .dat path if the

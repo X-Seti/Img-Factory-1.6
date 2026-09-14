@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in components/Dat_Browser/dat_browser.py - Version: 7
+#this belongs in components/Dat_Browser/dat_browser.py - Version: 8
 # X-Seti - March 2026 - IMG Factory 1.6 - GTA DAT/IDE/IPL Browser
 """
 DAT Browser — viewer panel for the GTA world data load chain.
@@ -2449,12 +2449,12 @@ class DATBrowserWidget(QWidget): #vers 3
                 mw.log_message(f"File not found: {abs_path}")
             return
         try:
-            from apps.methods.asset_checker_dialog import show_asset_checker
+            from apps.components.Asset_Workshop.asset_workshop import open_asset_workshop
             game = getattr(getattr(self, 'loader', None), 'game', None)
-            show_asset_checker(mw, abs_path, game=game)
+            open_asset_workshop(mw, clicked_path=abs_path, game=game)
         except Exception as e:
             if mw and hasattr(mw, 'log_message'):
-                mw.log_message(f"Asset Checker error: {e}")
+                mw.log_message(f"Asset Workshop error: {e}")
 
     def _show_master_ide(self, ide_path: str): #vers 2
         """Merge a single real IDE file (Master IDE workshop)."""
@@ -2482,11 +2482,11 @@ class DATBrowserWidget(QWidget): #vers 3
         main .dat and cross-reference them."""
         mw = self.main_window
         try:
-            from apps.methods.asset_checker_dialog import show_asset_checker_from_dat
-            show_asset_checker_from_dat(mw, dat_path)
+            from apps.components.Asset_Workshop.asset_workshop import open_asset_workshop
+            open_asset_workshop(mw, dat_path=dat_path)
         except Exception as e:
             if mw and hasattr(mw, 'log_message'):
-                mw.log_message(f"Asset Checker error: {e}")
+                mw.log_message(f"Asset Workshop error: {e}")
 
     def _open_single_img_in_factory(self, abs_path: str): #vers 1
         """Open one specific IMG file in a new IMG Factory tab."""

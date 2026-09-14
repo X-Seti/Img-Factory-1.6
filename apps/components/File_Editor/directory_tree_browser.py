@@ -1,4 +1,4 @@
-#this belongs in apps/components/File_Editor/directory_tree_browser.py - Version: 5
+#this belongs in apps/components/File_Editor/directory_tree_browser.py - Version: 6
 # X-Seti - January10 2026 - IMG Factory 1.6 - Complete Directory Tree Browser
 """
 COMPLETE DIRECTORY TREE BROWSER
@@ -1873,11 +1873,11 @@ class DirectoryTreeBrowser(QWidget):
                 mw.log_message(f"File not found: {file_path}")
             return
         try:
-            from apps.methods.asset_checker_dialog import show_asset_checker
-            show_asset_checker(mw, file_path)
+            from apps.components.Asset_Workshop.asset_workshop import open_asset_workshop
+            open_asset_workshop(mw, clicked_path=file_path)
         except Exception as e:
             if mw and hasattr(mw, 'log_message'):
-                mw.log_message(f"Asset Checker error: {e}")
+                mw.log_message(f"Asset Workshop error: {e}")
 
     def _show_master_ide(self, file_path: str): #vers 2
         """Merge a single real IDE file (Master IDE workshop)."""
@@ -1904,11 +1904,11 @@ class DirectoryTreeBrowser(QWidget):
         main .dat and cross-reference them."""
         mw = self.main_window
         try:
-            from apps.methods.asset_checker_dialog import show_asset_checker_from_dat
-            show_asset_checker_from_dat(mw, file_path)
+            from apps.components.Asset_Workshop.asset_workshop import open_asset_workshop
+            open_asset_workshop(mw, dat_path=file_path)
         except Exception as e:
             if mw and hasattr(mw, 'log_message'):
-                mw.log_message(f"Asset Checker error: {e}")
+                mw.log_message(f"Asset Workshop error: {e}")
 
     def _open_smart_editor(self, file_path: str): #vers 1
         """Route file to specialist editor based on filename."""
