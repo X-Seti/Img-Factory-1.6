@@ -1,4 +1,15 @@
-#this belongs in root /ChangeLog.md - Version: 118
+#this belongs in root /ChangeLog.md - Version: 119
+
+## Sep 12 2026 - Asset Workshop: fix ID sort bug, add text report exports, Build 422.90
+
+Real bug: Cross-Reference ID column sorted as text (10000 before
+1001). New _NumericSortItem for that column only. New "Export to
+File..." on diff popups + "Export Full Report..." writing every
+real IMG/COL/IDE mismatch to one text file. Also fixed a real
+latent bug this surfaced: QFileDialog used in 3 places without a
+module-level import - invisible to syntax-only checks, scanned the
+whole file for the same pattern, confirmed the other 3 Q* names are
+all correctly locally imported.
 
 ## Sep 12 2026 - Asset Workshop: fix wrong "always gta3.img" assumption, Build 421.90
 
