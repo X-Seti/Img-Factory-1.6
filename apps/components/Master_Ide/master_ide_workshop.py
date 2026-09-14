@@ -1,4 +1,4 @@
-#this belongs in apps/components/Master_Ide/master_ide_workshop.py - Version: 4
+#this belongs in apps/components/Master_Ide/master_ide_workshop.py - Version: 5
 # X-Seti - September 12 2026 - IMG Factory 1.6 - Master IDE Workshop
 
 """master_ide_workshop.py - Master IDE as its own standalone,
@@ -30,7 +30,7 @@ from apps.methods.file_backup import backup_file
 from apps.components.Master_Ide.dockable_toolbar import DockableToolbar
 
 
-class MasterIDEWorkshop(QWidget): #vers 4
+class MasterIDEWorkshop(QWidget): #vers 5
     def __init__(self, parent, main_window=None): #vers 1
         super().__init__(parent)
         self.main_window = main_window
@@ -147,6 +147,9 @@ class MasterIDEWorkshop(QWidget): #vers 4
         insert_relocate_btn = QPushButton("Insert && Relocate File...")
         insert_relocate_btn.clicked.connect(self._on_insert_relocate)
         btn_row.addWidget(insert_relocate_btn)
+        txd_dedup_btn = QPushButton("TXD Duplicate Check...")
+        txd_dedup_btn.clicked.connect(self._on_txd_dedup)
+        btn_row.addWidget(txd_dedup_btn)
         save_btn = QPushButton("Save as Master IDE...")
         save_btn.clicked.connect(self._on_save)
         btn_row.addWidget(save_btn)
@@ -635,6 +638,12 @@ class MasterIDEWorkshop(QWidget): #vers 4
         dlg = InsertRelocateDialog(self, self.result)
         if dlg.exec() == QDialog.DialogCode.Accepted:
             self._reload_after_edit()
+
+    def _on_txd_dedup(self): #vers 1
+        from apps.components.Master_Ide.txd_dedup_dialog import TXDDedupDialog
+        dlg = TXDDedupDialog(self, master_ide_result=self.result)
+        dlg.exec()
+        self._reload_after_edit()
 
     def _on_save(self): #vers 1
         total_flags = (len(self.result.collisions) + len(self.result.name_collisions) +

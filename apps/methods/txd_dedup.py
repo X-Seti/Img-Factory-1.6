@@ -1,4 +1,4 @@
-#this belongs in apps/methods/txd_dedup.py - Version: 1
+#this belongs in apps/methods/txd_dedup.py - Version: 2
 # X-Seti - September 12 2026 - IMG Factory 1.6 - TXD Near-Duplicate Detection
 
 """txd_dedup.py - detect near-duplicate TXD archives and same-name
@@ -14,6 +14,7 @@ thing and never enters either comparison here."""
 ##Methods list -
 # TXDInfo
 # load_txd_info
+# load_txd_info_from_img
 # TXDNearDuplicate
 # find_near_duplicate_txds
 # cluster_near_duplicate_txds
@@ -59,6 +60,49 @@ def load_txd_info(txd_paths: List[str]) -> Dict[str, TXDInfo]: #vers 1
             txd.texture_names.add(key)
             txd.texture_sizes[key] = (t.get('width', 0), t.get('height', 0))
         info[path] = txd
+    return info
+
+
+def load_txd_info_from_img(img_path: str) -> Dict[str, TXDInfo]: #vers 1
+    """Same real per-TXD info as load_txd_info, but for TXD entries
+    embedded INSIDE a real IMG archive rather than standalone files
+    on disk (Sep 12 2026, per Keith's own "any other use cases"
+    follow-up: most real GTA installs pack TXDs into an IMG, not as
+    loose files). Reads each entry's real raw bytes and parses them
+    directly via txd_parser.parse_txd(bytes) - no temp files. Keys
+    the returned dict by a synthetic "<img_path>::<entry_name>"
+    label since there's no real standalone path for these."""
+    from apps.methods.img_core_classes import IMGFile
+    from apps.methods.txd_parser import parse_txd
+    info = {}
+    if not img_path or not os.path.isfile(img_path):
+        return info
+    try:
+        img_file = IMGFile(img_path)
+        if not img_file.open():
+            return info
+    except Exception:
+        return info
+    for e in img_file.entries:
+        if e.extension.upper() != 'TXD':
+            continue
+        try:
+            raw = img_file.read_entry_data(e)
+            textures = parse_txd(raw)
+        except Exception:
+            continue
+        if not textures:
+            continue
+        label = f"{img_path}::{e.name}"
+        txd = TXDInfo(path=label)
+        for t in textures:
+            name = t.get('name')
+            if not name:
+                continue
+            key = name.lower()
+            txd.texture_names.add(key)
+            txd.texture_sizes[key] = (t.get('width', 0), t.get('height', 0))
+        info[label] = txd
     return info
 
 

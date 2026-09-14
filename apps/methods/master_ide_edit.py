@@ -1,4 +1,4 @@
-#this belongs in apps/methods/master_ide_edit.py - Version: 2
+#this belongs in apps/methods/master_ide_edit.py - Version: 3
 # X-Seti - September 12 2026 - IMG Factory 1.6 - Master IDE Single-Entry Edits
 
 """master_ide_edit.py - safe single-entry operations for Master IDE
@@ -23,6 +23,8 @@ silently overwriting a real existing file in place."""
 # add_entry
 # remove_entry
 # write_source_file
+# find_txd_name_references
+# redirect_txd_references
 
 import os
 from apps.methods.file_backup import backup_file
@@ -173,3 +175,32 @@ def write_source_file(result, source_path) -> bool: #vers 2
         return True
     except Exception:
         return False
+
+
+def find_txd_name_references(result, old_txd_names) -> list: #vers 1
+    """Every real objs/tobj entry declaring one of the given real
+    txd_name(s) - a real safety check before redirecting them all to
+    a consolidated TXD (Sep 12 2026, per Keith's own TXD near-
+    duplicate follow-up: once buildhous/buildhoushi/buildhous112 get
+    merged, every model that declared one of the retired names needs
+    to point at the survivor instead)."""
+    old_set = {n.lower() for n in ([old_txd_names] if isinstance(old_txd_names, str) else old_txd_names)}
+    matches = []
+    for section in _EDITABLE_SECTIONS:
+        for obj in result.objects_by_section.get(section, []):
+            if obj.txd_name.lower() in old_set:
+                matches.append(obj)
+    return matches
+
+
+def redirect_txd_references(result, old_txd_names, new_txd_name) -> list: #vers 1
+    """Update every real matching entry's own txd_name field in
+    memory to point at new_txd_name instead - the batch operation
+    find_txd_name_references lets a caller preview first. Returns
+    the real basenames now needing write_source_file()."""
+    matches = find_txd_name_references(result, old_txd_names)
+    touched = set()
+    for obj in matches:
+        obj.txd_name = new_txd_name
+        touched.add(os.path.basename(obj.source_ide))
+    return sorted(touched)
