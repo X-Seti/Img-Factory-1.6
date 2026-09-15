@@ -1,4 +1,13 @@
-#this belongs in root /ChangeLog.md - Version: 123
+#this belongs in root /ChangeLog.md - Version: 124
+
+## Sep 12 2026 - IMG/COL reorder: include anim/hier/cars/peds/weap, Build 429.90
+
+build_id_by_name only scanned objs/tobj, missing sections that
+declare a real model_id+name with its own DFF (anim/hier/cars/peds/
+weap). Now scans every section except 2dfx/txdp. Confirmed DFF
+physical position has no effect on TXD assignment (name-based, via
+IDE's own txd_name - module has no txd_name path at all). Verified
+against real SFs.ide: BS_building_SFS maps to real ID 10744.
 
 ## Sep 12 2026 - IMG/COL physical reorder - final Master IDE plan step, Build 428.90
 
